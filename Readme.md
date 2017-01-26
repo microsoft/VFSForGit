@@ -1,5 +1,7 @@
 # GVFS
 
+This is a conflict for the rebase test
+
 ## What is GVFS?
 
 GVFS stands for Git Virtual File System. GVFS virtualizes the file system beneath your git repo so that git and all tools
