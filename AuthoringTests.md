@@ -1,6 +1,6 @@
 # Authoring Tests
 
-## Functional Tests
+## Functional Tests 
 
 ### 1. Running the functional tests
 
