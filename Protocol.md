@@ -8,7 +8,7 @@ The GVFS network protocol consists of four operations on three endpoints. In sum
 * `GET /gvfs/prefetch[?lastPackTimestamp={secondsSinceEpoch}]`
   * Retrieves one or more packfiles of non-blobs and optionally packfile indexes in a streaming format
 * `POST /gvfs/sizes`
-  * Retreives the uncompressed, undeltified size of one or more objects 
+  * Retreives the uncompressed, undeltified size of one or more objects
 
 # `GET /gvfs/objects/{objectId}`
 Will return a single object in compressed loose object format, which can be directly
@@ -39,17 +39,17 @@ For example,
 
 ## `Accept: application/x-git-packfile` (the default)
 
-If 
+If
 * An `Accept` header of  `application/x-git-packfile` is specified, or 
 * No `Accept` header is specified
 
-A git packfile, indexable via `index-pack`, will be returned to the client. 
+A git packfile, indexable via `index-pack`, will be returned to the client.
 
 If `objectIds` includes a `commit`, then all `tree`s recursively referenced by that commit are also returned. 
 If any other object type is requested (`tree`, `blob`, or `tag`), then only that object will be returned.
 
 `commitDepth` - if the requested object is a `commit`, all parents up to `n` levels deep will be returned, along
-with all their trees as previously described. Does not include any 'blob's.
+with all their trees as previously described. Does not include any `blob`s.
 
 ## `Accept: application/x-gvfs-loose-objects`
 
@@ -57,14 +57,14 @@ with all their trees as previously described. Does not include any 'blob's.
 
 To enable scenarios where multiple objects are required, but less overhead would be incurred by using pre-existing
 loose objects (e.g. on a caching proxy), an alternative, packfile-like response format that contains loose objects 
-is also supported. 
+is also supported.
 
 To receive objects in this format, the client **MUST** supply an `Accept` header of `application/x-gvfs-loose-objects` 
 to the `POST /gvfs/objects` endpoint. Otherwise, the response format will be `application/x-git-packfile`.
 
-This format will **NOT** perform any `commit` to `tree` expansion, and will return an error if a commit depth
+This format will **NOT** perform any `commit` to `tree` expansion, and will return an error if a `commitDepth`
 greater than `1` is supplied. Said another way, this `Accept`/return type has no concept of "implicitly-requested"
-objects. 
+objects.
 
 ### Version 1
 * Integers are signed and little-endian, unless otherwise specified
@@ -100,7 +100,7 @@ To enable the reuse of already-existing packfiles and indexes, a custom format f
 is supported. The `prefetch` endpoint will return one or more packfiles of **non-blob** objects.  
 
 If the optional `lastPackTimestamp` query parameter is supplied, only packs created by the server
-after the specific Unix epoch time (approximately, ±10 minutes or so) will be returned. Generally, these packs 
+after the specific Unix epoch time (approximately, Â±10 minutes or so) will be returned. Generally, these packs 
 will contain only objects introduced to the repository after that UTC-based timestamp, but will not contain
 **all** objects introduced after that timestamp.
 
