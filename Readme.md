@@ -4,7 +4,7 @@
 
 GVFS stands for Git Virtual File System. GVFS virtualizes the file system beneath your git repo so that git and all tools
 see a fully hydrated repo, but GVFS only downloads objects as they are needed. GVFS also manages git's sparse-checkout
-to ensure that git operations like status, checkout, etc can be as quick as possible.
+to ensure that git operations like status, checkout, etc., can be as quick as possible.
 
 GVFS is still in progress, but it is available here for anyone to try out. Feel free to send us feedback, bug reports, suggestions, and pull requests!
 
@@ -35,10 +35,10 @@ GVFS is still in progress, but it is available here for anyone to try out. Feel 
 Team Services (https://www.visualstudio.com/team-services/), and push some contents to it. There are two constraints:
   * Your repo must not enable any clean/smudge filters
   * Your repo must have a .gitattributes file in the root that includes the line "* -text"
-* gvfs clone <URL of repo you just created>
-* cd into <root>\src
+* `gvfs clone <URL of repo you just created>`
+* `cd <root>\src`
 * Run git commands as you normally would
-* gvfs unmount when done
+* `gvfs unmount` when done
 
 # Licenses
 
