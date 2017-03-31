@@ -1,0 +1,1 @@
+This file should be the last in the index in order to test a crash that was happening in the lazy init name hash of git.
