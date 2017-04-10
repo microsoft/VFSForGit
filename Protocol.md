@@ -43,7 +43,7 @@ If
 * An `Accept` header of  `application/x-git-packfile` is specified, or 
 * No `Accept` header is specified
 
-A git packfile, indexable via `index-pack`, will be returned to the client.
+then a git packfile, indexable via `index-pack`, will be returned to the client.
 
 If `objectIds` includes a `commit`, then all `tree`s recursively referenced by that commit are also returned. 
 If any other object type is requested (`tree`, `blob`, or `tag`), then only that object will be returned.
@@ -73,25 +73,25 @@ objects.
 * `num_objects` represents the variable number of objects in the file/response
 
 ```
-Count           Size (bytes)    Chunk Description
+Count            Size (bytes)    Chunk Description
 
 HEADER
-                ------------------------------------------------------------------------------
-1               |        5 | UTF-8 encoded 'GVFS '                                            |
-                |        1 | Unsigned byte version number. Currently, 1.                      |
-                ------------------------------------------------------------------------------
+                +-------------------------------------------------------------------------------+
+1               |          5 | UTF-8 encoded 'GVFS '                                            |
+                |          1 | Unsigned byte version number. Currently, 1.                      |
+                +-------------------------------------------------------------------------------+
 
 OBJECT CONTENT
-                ------------------------------------------------------------------------------
-num_objects     |       20 | SHA-1 ID of the object.                                          |
-                |        8 | Signed-long length of the object.                                |
-                | variable | Compressed, raw loose object content.                            |
-                ------------------------------------------------------------------------------
+                +-------------------------------------------------------------------------------+
+num_objects     |         20 | SHA-1 ID of the object.                                          |
+                |          8 | Signed-long length of the object.                                |
+                |   variable | Compressed, raw loose object content.                            |
+                +-------------------------------------------------------------------------------+
 
 TRAILER
-                ------------------------------------------------------------------------------
-1               |       20 | Zero bytes                                                       |
-                ------------------------------------------------------------------------------
+                +-------------------------------------------------------------------------------+
+1               |         20 | Zero bytes                                                       |
+                +-------------------------------------------------------------------------------+
 ```
 
 # `GET /gvfs/prefetch[?lastPackTimestamp={secondsSinceEpoch}]`
@@ -116,27 +116,27 @@ A media-type of `application/x-gvfs-timestamped-packfiles-indexes` will be retur
 ### Version 1
 
 ```
-Count           Size (bytes)    Chunk Description
+Count            Size (bytes)    Chunk Description
 
 HEADER
-                -------------------------------------------------------------------------------
-1               |        5 | UTF-8 encoded 'GPRE '                                            |
-                |        1 | Unsigned byte version number. Currently, 1.                      |
-                -------------------------------------------------------------------------------
+                +-------------------------------------------------------------------------------+
+1               |          5 | UTF-8 encoded 'GPRE '                                            |
+                |          1 | Unsigned byte version number. Currently, 1.                      |
+                +-------------------------------------------------------------------------------+
 
 CONTENT
 
-                -------------------------------------------------------------------------------
-1               |        2 | Unsigned short number of packs. `num_packs`.                     |
-                -------------------------------------------------------------------------------
+                +-------------------------------------------------------------------------------+
+1               |          2 | Unsigned short number of packs. `num_packs`.                     |
+                +-------------------------------------------------------------------------------+
 
-                -------------------------------------------------------------------------------
-num_packs       |        8 | Signed-long pack timestamp in seconds since UTC epoch.           |
-                |        8 | Signed-long length of the pack.                                  |
-                |        8 | Signed-long length of the pack index. -1 indicates no index.     |
-                | variable | Pack contents.                                                   |
-                | variable | Pack index contents.                                             |
-                -------------------------------------------------------------------------------
+                +-------------------------------------------------------------------------------+
+num_packs       |          8 | Signed-long pack timestamp in seconds since UTC epoch.           |
+                |          8 | Signed-long length of the pack.                                  |
+                |          8 | Signed-long length of the pack index. -1 indicates no index.     |
+                |   variable | Pack contents.                                                   |
+                |   variable | Pack index contents.                                             |
+                +-------------------------------------------------------------------------------+
 ```
 
 Packs **MUST** be sent in increasing `timestamp` order. In the case of a failed connection, this allows the 
@@ -150,7 +150,7 @@ The request consists of a JSON body with the following format:
 [ {JSON array of SHA-1 object IDs, as strings} ]
 ```
 
-For example, a request of
+For example, a request of:
 ```
 [
     "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
@@ -158,7 +158,7 @@ For example, a request of
 ]
 ```
 
-Will result in a a response like:
+will result in a a response like:
 ```
 [
     {
