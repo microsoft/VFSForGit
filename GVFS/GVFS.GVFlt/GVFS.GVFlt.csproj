@@ -75,14 +75,14 @@
     <Compile Include="..\..\..\BuildOutput\CommonAssemblyVersion.cs">
       <Link>CommonAssemblyVersion.cs</Link>
     </Compile>
-    <Compile Include="DotGit\ExcludeFile.cs" />
+    <Compile Include="DotGit\AlwaysExcludeFile.cs" />
     <Compile Include="DotGit\FileSerializer.cs" />
-    <Compile Include="DotGit\GitConfigFileUtils.cs" />
+    <Compile Include="DotGit\GitIndexProjection.cs" />
+    <Compile Include="DotGit\IProfilerOnlyIndexProjection.cs" />
     <Compile Include="DotGit\SparseCheckoutAndDoNotProject.cs" />
     <Compile Include="GVFltActiveEnumeration.cs" />
     <Compile Include="GVFltCallbacks.cs" />
     <Compile Include="GVFltFileInfo.cs" />
-    <Compile Include="GVFltFolder.cs" />
     <Compile Include="PathUtil.cs" />
     <Compile Include="PatternMatcher.cs">
       <ExcludeFromStyleCop>true</ExcludeFromStyleCop>

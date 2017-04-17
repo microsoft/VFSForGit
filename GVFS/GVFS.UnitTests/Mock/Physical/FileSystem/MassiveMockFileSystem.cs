@@ -44,11 +44,9 @@ namespace GVFS.UnitTests.Mock.Physical.FileSystem
             return output;
         }
 
-        public override IDisposable MonitorChanges(
+        public override IDisposable MonitorDeletes(
             string directory, 
             NotifyFilters notifyFilter, 
-            Action<FileSystemEventArgs> onCreate, 
-            Action<RenamedEventArgs> onRename,
             Action<FileSystemEventArgs> onDelete)
         {
             throw new NotImplementedException();
@@ -109,6 +107,11 @@ namespace GVFS.UnitTests.Mock.Physical.FileSystem
         public override FileProperties GetFileProperties(string path)
         {
             return new FileProperties(FileAttributes.Directory, DateTime.Now, DateTime.Now, DateTime.Now, 0);
+        }
+
+        public override void CopyFile(string sourcePath, string destinationPath, bool overwrite)
+        {
+            throw new NotImplementedException();
         }
 
         public override void DeleteFile(string path)

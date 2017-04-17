@@ -140,7 +140,7 @@ namespace GVFS.GVFlt
 
         private bool IsCurrentHidden()
         {
-            return !this.Current.IsProjected || !FileNameMatchesFilter(this.Current.Name, this.GetFilterString());
+            return !FileNameMatchesFilter(this.Current.Name, this.GetFilterString());
         }
 
         private void ResetEnumerator()

@@ -3,12 +3,13 @@ using GVFS.Common.Tracing;
 using Microsoft.Isam.Esent.Collections.Generic;
 using System;
 using System.IO;
+using GVFS.Common.Git;
 
 namespace GVFS.GVFlt.DotGit
 {
     public class SparseCheckoutAndDoNotProject : IDisposable
     {
-        private FileSerializer sparseCheckoutSerializer;
+        private FileSerializer sparseCheckoutSerializer;       
 
         // sparseCheckoutEntries
         // - Mirror of what’s on disk in the sparse-checkout file
@@ -20,6 +21,7 @@ namespace GVFS.GVFlt.DotGit
         //   so they are not in the sparse-checkout) 
         private PersistentDictionary<string, bool> additionalDoNotProject;
         private GVFSContext context;
+        private GitIndexProjection gitIndexProjection;
 
         public SparseCheckoutAndDoNotProject(GVFSContext context, string virtualSparseCheckoutFilePath, string databaseName)
         {
@@ -28,15 +30,17 @@ namespace GVFS.GVFlt.DotGit
 
             this.additionalDoNotProject = new PersistentDictionary<string, bool>(
                 Path.Combine(context.Enlistment.DotGVFSRoot, databaseName));
-            this.context = context;
+            this.context = context;            
         }
 
-        public void LoadOrCreate()
+        public void LoadOrCreate(GitIndexProjection gitIndexProjection)
         {
+            this.gitIndexProjection = gitIndexProjection;
+
             foreach (string line in this.sparseCheckoutSerializer.ReadAll())
             {
                 string sanitizedFileLine;
-                if (GitConfigFileUtils.TrySanitizeConfigFileLine(line, out sanitizedFileLine))
+                if (GitConfigHelper.TrySanitizeConfigFileLine(line, out sanitizedFileLine))
                 {
                     this.sparseCheckoutEntries.Add(sanitizedFileLine);
                 }
@@ -109,6 +113,12 @@ namespace GVFS.GVFlt.DotGit
             return this.AddFileEntryAndClearSkipWorktreeBit(virtualPath, createTimeUtc: DateTime.MinValue, lastWriteTimeUtc: DateTime.MinValue, fileSize: 0);
         }
 
+        public bool HasEntryInSparseCheckout(string virtualPath, bool isFolder)
+        {
+            string entry = this.NormalizeEntryString(virtualPath, isFolder);
+            return this.sparseCheckoutEntries.Contains(entry);
+        }
+
         public void Dispose()
         {
             this.Dispose(true);
@@ -117,10 +127,13 @@ namespace GVFS.GVFlt.DotGit
 
         protected void Dispose(bool disposing)
         {
-            if (this.additionalDoNotProject != null)
+            if (disposing)
             {
-                this.additionalDoNotProject.Dispose();
-                this.additionalDoNotProject = null;
+                if (this.additionalDoNotProject != null)
+                {
+                    this.additionalDoNotProject.Dispose();
+                    this.additionalDoNotProject = null;
+                }
             }
         }
 
@@ -144,7 +157,7 @@ namespace GVFS.GVFlt.DotGit
                 return result;
             }
 
-            return this.context.Repository.Index.ClearSkipWorktreeAndUpdateEntry(virtualPath, createTimeUtc, lastWriteTimeUtc, (uint)fileSize);
+            return this.gitIndexProjection.ClearSkipWorktreeAndUpdateEntry(virtualPath, createTimeUtc, lastWriteTimeUtc, (uint)fileSize);
         }
 
         private CallbackResult AddSparseCheckoutEntry(string virtualPath, bool isFolder)

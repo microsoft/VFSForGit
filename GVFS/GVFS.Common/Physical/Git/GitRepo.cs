@@ -14,32 +14,25 @@ namespace GVFS.Common.Physical.Git
 
         private PhysicalFileSystem fileSystem;
         
-        private GitIndex index;
         private ProcessPool<GitCatFileBatchProcess> catFileProcessPool;
         private ProcessPool<GitCatFileBatchCheckProcess> batchCheckProcessPool;
 
-        public GitRepo(ITracer tracer, Enlistment enlistment, PhysicalFileSystem fileSystem, GitIndex index)
+        public GitRepo(ITracer tracer, Enlistment enlistment, PhysicalFileSystem fileSystem)
         {
             this.tracer = tracer;
             this.workingDirectoryPath = enlistment.WorkingDirectoryRoot;
             this.fileSystem = fileSystem;
-            this.index = index;
 
             this.GVFSLock = new GVFSLock(tracer);
 
             this.batchCheckProcessPool = new ProcessPool<GitCatFileBatchCheckProcess>(
                 tracer,
-                () => new GitCatFileBatchCheckProcess(enlistment),
+                () => new GitCatFileBatchCheckProcess(tracer, enlistment),
                 Environment.ProcessorCount);
             this.catFileProcessPool = new ProcessPool<GitCatFileBatchProcess>(
                 tracer,
-                () => new GitCatFileBatchProcess(enlistment),
+                () => new GitCatFileBatchProcess(tracer, enlistment),
                 Environment.ProcessorCount);
-        }
-
-        public GitIndex Index
-        {
-            get { return this.index; }
         }
 
         public GVFSLock GVFSLock
@@ -48,36 +41,19 @@ namespace GVFS.Common.Physical.Git
             private set;
         }
 
-        public void Initialize()
-        {
-            this.Index.Initialize();
-        }
-
-        public virtual string GetHeadTreeSha()
+        public virtual bool TryCopyBlobContentStream_CanTimeout(string blobSha, Action<StreamReader, long> writeAction)
         {
             return this.catFileProcessPool.Invoke(
-                catFile => catFile.GetTreeSha(GVFSConstants.HeadCommitName));
+                catFile => catFile.TryCopyBlobContentStream_CanTimeout(blobSha, writeAction));
         }
 
-        public virtual string GetHeadCommitId()
-        {
-            return this.catFileProcessPool.Invoke(
-                catFile => catFile.GetCommitId(GVFSConstants.HeadCommitName));
-        }
-
-        public virtual bool TryCopyBlobContentStream(string blobSha, Action<StreamReader, long> writeAction)
-        {
-            return this.catFileProcessPool.Invoke(
-                catFile => catFile.TryCopyBlobContentStream(blobSha, writeAction));
-        }
-
-        public virtual bool TryGetBlobLength(string blobSha, out long size)
+        public virtual bool TryGetBlobLength_CanTimeout(string blobSha, out long size)
         {
             long? output = this.batchCheckProcessPool.Invoke<long?>(
                 catFileBatch =>
                 {
                     long value;
-                    if (catFileBatch.TryGetObjectSize(blobSha, out value))
+                    if (catFileBatch.TryGetObjectSize_CanTimeout(blobSha, out value))
                     {
                         return value;
                     }
@@ -95,13 +71,13 @@ namespace GVFS.Common.Physical.Git
             return false;
         }
 
-        public virtual bool TryGetFileSha(string commitId, string virtualPath, out string sha)
+        public virtual bool TryGetFileSha_CanTimeout(string commitId, string virtualPath, out string sha)
         {
             sha = this.catFileProcessPool.Invoke(
                catFile =>
                {
                    string innerSha;
-                   if (catFile.TryGetFileSha(commitId, virtualPath, out innerSha))
+                   if (catFile.TryGetFileSha_CanTimeout(commitId, virtualPath, out innerSha))
                    {
                        return innerSha;
                    }
@@ -112,14 +88,9 @@ namespace GVFS.Common.Physical.Git
             return !string.IsNullOrWhiteSpace(sha);
         }
 
-        public virtual IEnumerable<GitTreeEntry> GetTreeEntries(string commitId, string path)
+        public virtual IEnumerable<GitTreeEntry> GetTreeEntries_CanTimeout(string commitId, string path)
         {
-            return this.catFileProcessPool.Invoke(catFile => catFile.GetTreeEntries(commitId, path));
-        }
-
-        public virtual IEnumerable<GitTreeEntry> GetTreeEntries(string sha)
-        {
-            return this.catFileProcessPool.Invoke(catFile => catFile.GetTreeEntries(sha));
+            return this.catFileProcessPool.Invoke(catFile => catFile.GetTreeEntries_CanTimeout(commitId, path));
         }
 
         public void Dispose()
@@ -127,16 +98,19 @@ namespace GVFS.Common.Physical.Git
             if (this.catFileProcessPool != null)
             {
                 this.catFileProcessPool.Dispose();
+                this.catFileProcessPool = null;
             }
 
             if (this.batchCheckProcessPool != null)
             {
                 this.batchCheckProcessPool.Dispose();
+                this.batchCheckProcessPool = null;
             }
 
-            if (this.index != null)
+            if (this.GVFSLock != null)
             {
-                this.index.Dispose();
+                this.GVFSLock.Dispose();
+                this.GVFSLock = null;
             }
         }
     }

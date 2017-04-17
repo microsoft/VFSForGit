@@ -5,7 +5,7 @@ namespace GVFSGvFltWrapper
     public ref class GVFltWriteBuffer
     {
     public:
-        GVFltWriteBuffer(int bufferSize);
+        GVFltWriteBuffer(ULONG bufferSize, ULONG alignment);
         ~GVFltWriteBuffer();
 
         property long long Length

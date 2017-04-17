@@ -36,7 +36,7 @@ namespace GVFS.UnitTests.Physical.Git
                 using (StreamWriter mockStdIn = new StreamWriter(mockStdInStream))
                 {
                     GitCatFileBatchProcess dut = new GitCatFileBatchProcess(new StreamReader(testData, GitOutputEncoding), mockStdIn);
-                    GitTreeEntry[] output = dut.GetTreeEntries(TestTreeSha).ToArray();
+                    GitTreeEntry[] output = dut.GetTreeEntries_CanTimeout(TestTreeSha).ToArray();
 
                     output.Length.ShouldEqual(inputData.Length);
                     for (int i = 0; i < output.Length; ++i)

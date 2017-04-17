@@ -8,7 +8,7 @@
 
 using namespace TestHelpers;
 
-bool PlaceHolderHasVersionInfo(const char* virtualPath, int version, const WCHAR* sha, const WCHAR* commit)
+bool PlaceHolderHasVersionInfo(const char* virtualPath, int version, const WCHAR* sha)
 {
     try
     {
@@ -17,10 +17,7 @@ bool PlaceHolderHasVersionInfo(const char* virtualPath, int version, const WCHAR
 
         SHOULD_EQUAL(reparseInfo->versionInfo.EpochID[0], static_cast<UCHAR>(version));
 
-        SHOULD_EQUAL(std::wstring(sha), std::wstring(static_cast<WCHAR*>(static_cast<void*>(reparseInfo->versionInfo.ContentID))));
-
-        WCHAR* epoch = static_cast<WCHAR*>(static_cast<void*>(reparseInfo->versionInfo.EpochID + 4));
-        SHOULD_EQUAL(std::wstring(commit), std::wstring(epoch));
+        SHOULD_EQUAL(_wcsnicmp(sha, static_cast<WCHAR*>(static_cast<void*>(reparseInfo->versionInfo.ContentID)), GVFLT_PLACEHOLDER_ID_LENGTH), 0);
     }
     catch (TestException&)
     {

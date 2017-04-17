@@ -55,10 +55,17 @@ namespace GVFS.CommandLine
                 Path.Combine(this.enlistment.WorkingDirectoryRoot, GVFSConstants.DotGit.Info.SparseCheckoutPath),
                 GVFSConstants.GitPathSeparatorString + GVFSConstants.SpecialGitFiles.GitAttributes + "\n");
 
-            CloneVerb.Result hydrateResult = this.HydrateRootGitAttributes(gitObjects, branch);
-            if (!hydrateResult.Success)
+            try
             {
-                return hydrateResult;
+                CloneVerb.Result hydrateResult = this.HydrateRootGitAttributes_CanTimeout(gitObjects, branch);
+                if (!hydrateResult.Success)
+                {
+                    return hydrateResult;
+                }
+            }
+            catch (TimeoutException)
+            {
+                return new CloneVerb.Result("Failed to hydrate root .gitattributes file");
             }
 
             this.CreateGitScript();
@@ -66,20 +73,19 @@ namespace GVFS.CommandLine
             GitProcess.Result forceCheckoutResult = git.ForceCheckout(branch);
             if (forceCheckoutResult.HasErrors)
             {
-                // Ignore errors related to being unable to read objects
                 string[] errorLines = forceCheckoutResult.Errors.Split('\n');
-                StringBuilder cloneErrors = new StringBuilder();
+                StringBuilder checkoutErrors = new StringBuilder();
                 foreach (string gitError in errorLines)
                 {
                     if (IsForceCheckoutErrorCloneFailure(gitError))
                     {
-                        cloneErrors.AppendLine(gitError);
+                        checkoutErrors.AppendLine(gitError);
                     }
                 }
 
-                if (cloneErrors.Length > 0)
+                if (checkoutErrors.Length > 0)
                 {
-                    string error = "Could not complete checkout of branch: " + branch + ", " + cloneErrors.ToString();
+                    string error = "Could not complete checkout of branch: " + branch + ", " + checkoutErrors.ToString();
                     this.tracer.RelatedError(error);
                     return new CloneVerb.Result(error);
                 }
@@ -94,7 +100,7 @@ namespace GVFS.CommandLine
             }
 
             string installHooksError;
-            if (!this.InstallHooks(out installHooksError))
+            if (!HooksInstallHelper.InstallHooks(this.enlistment, out installHooksError))
             {
                 this.tracer.RelatedError(installHooksError);
                 return new CloneVerb.Result(installHooksError);
@@ -133,12 +139,12 @@ namespace GVFS.CommandLine
                 GVFSVerb.TrySetGitConfigSettings(git);
         }
 
-        private CloneVerb.Result HydrateRootGitAttributes(GitObjects gitObjects, string branch)
+        private CloneVerb.Result HydrateRootGitAttributes_CanTimeout(GitObjects gitObjects, string branch)
         {
-            using (GitCatFileBatchProcess catFile = new GitCatFileBatchProcess(this.enlistment))
+            using (GitCatFileBatchProcess catFile = new GitCatFileBatchProcess(this.tracer, this.enlistment))
             {
-                string treeSha = catFile.GetTreeSha(branch);
-                GitTreeEntry gitAttributes = catFile.GetTreeEntries(treeSha).FirstOrDefault(entry => entry.Name.Equals(GVFSConstants.SpecialGitFiles.GitAttributes));
+                string treeSha = catFile.GetTreeSha_CanTimeout(branch);
+                GitTreeEntry gitAttributes = catFile.GetTreeEntries_CanTimeout(treeSha).FirstOrDefault(entry => entry.Name.Equals(GVFSConstants.SpecialGitFiles.GitAttributes));
 
                 if (gitAttributes == null)
                 {
@@ -152,25 +158,6 @@ namespace GVFS.CommandLine
             }
 
             return new CloneVerb.Result(true);
-        }
-
-        private bool InstallHooks(out string error)
-        {
-            error = string.Empty;
-            string installedReadObjectHookPath = Path.Combine(Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location), GVFSConstants.GVFSReadObjectHookExecutableName);
-            try
-            {
-                File.Copy(
-                    installedReadObjectHookPath,
-                    Path.Combine(this.enlistment.WorkingDirectoryRoot, GVFSConstants.DotGit.Hooks.ReadObjectPath + ".exe"));
-            }
-            catch (Exception e)
-            {
-                error = "Failed to copy" + installedReadObjectHookPath + ", Exception: " + e.ToString();
-                return false;
-            }
-
-            return true;
         }
 
         private void CreateGitScript()

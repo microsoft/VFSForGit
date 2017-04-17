@@ -81,8 +81,10 @@
     </Compile>
     <Compile Include="CommandLine\CloneHelper.cs" />
     <Compile Include="CommandLine\CloneVerb.cs" />
+    <Compile Include="CommandLine\DehydrateVerb.cs" />
     <Compile Include="CommandLine\DiagnoseVerb.cs" />
     <Compile Include="CommandLine\GVFSVerb.cs" />
+    <Compile Include="CommandLine\HooksInstallHelper.cs" />
     <Compile Include="CommandLine\LogVerb.cs" />
     <Compile Include="CommandLine\MountVerb.cs" />
     <Compile Include="CommandLine\PrefetchHelper.cs" />
@@ -132,6 +134,7 @@
   </Target>
   <PropertyGroup>
     <PostBuildEvent>xcopy /Y $(SolutionDir)..\BuildOutput\GVFS.ReadObjectHook\bin\$(Platform)\$(Configuration)\GVFS.ReadObjectHook.* $(TargetDir)
+xcopy /Y $(SolutionDir)..\BuildOutput\GitHooksLoader\bin\$(Platform)\$(Configuration)\GitHooksLoader.* $(TargetDir)    
 cmd /c ""c:\Program Files (x86)\Inno Setup 5\ISCC.exe" "/DPlatformAndConfiguration=$(Platform)\$(Configuration)" $(TargetDir)Setup.iss"</PostBuildEvent>
   </PropertyGroup>
   <Import Project="..\..\..\packages\StyleCop.Error.MSBuild.1.0.0\build\StyleCop.Error.MSBuild.Targets" Condition="Exists('..\..\..\packages\StyleCop.Error.MSBuild.1.0.0\build\StyleCop.Error.MSBuild.Targets')" />

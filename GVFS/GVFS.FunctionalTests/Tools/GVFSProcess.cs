@@ -36,13 +36,13 @@ namespace GVFS.FunctionalTests.Tools
 
         public string Prefetch(string folderPath)
         {
-            string args = "prefetch --folders \"" + folderPath + "\" " + this.enlistmentRoot;
+            string args = "prefetch --verbose --folders \"" + folderPath + "\" " + this.enlistmentRoot;
             return this.CallGVFS(args);
         }
 
         public string PrefetchFolderBasedOnFile(string filterFilePath)
         {
-            string args = "prefetch --folders-list \"" + filterFilePath + "\" " + this.enlistmentRoot;
+            string args = "prefetch --verbose --folders-list \"" + filterFilePath + "\" " + this.enlistmentRoot;
             return this.CallGVFS(args);
         }
 

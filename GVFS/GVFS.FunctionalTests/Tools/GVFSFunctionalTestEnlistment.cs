@@ -1,30 +1,10 @@
-﻿using NUnit.Framework;
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Threading;
 
 namespace GVFS.FunctionalTests.Tools
 {
-    public enum LocalHistoryOptions
-    {
-        Invalid = 0,
-
-        FullLocalHistory,
-
-        // Coming soon:
-        // ShallowLocalHistory,
-        // NoLocalHistory,
-    }
-
-    public enum PhysicalCheckoutOptions
-    {
-        Invalid = 0,
-
-        FullPhysicalCheckout,
-        NoPhysicalCheckout,
-    }
-
     public class GVFSFunctionalTestEnlistment
     {
         private const string ZeroBackgroundOperations = "Background operations: 0\r\n";
@@ -81,6 +61,11 @@ namespace GVFS.FunctionalTests.Tools
             get { return Path.Combine(this.EnlistmentRoot, ".gvfs"); }
         }
 
+        public string GVFSLogsRoot
+        {
+            get { return Path.Combine(this.DotGVFSRoot, "logs"); }
+        }
+
         public string DiagnosticsRoot
         {
             get { return Path.Combine(this.DotGVFSRoot, "diagnostics"); }
@@ -104,7 +89,7 @@ namespace GVFS.FunctionalTests.Tools
         {
             GVFSFunctionalTestEnlistment enlistment = GVFSFunctionalTestEnlistment.Create(pathToGvfs);
             enlistment.UnmountAndDeleteAll();
-            enlistment.CloneAndMount(LocalHistoryOptions.FullLocalHistory, PhysicalCheckoutOptions.NoPhysicalCheckout);
+            enlistment.CloneAndMount();
 
             return enlistment;
         }
@@ -118,13 +103,16 @@ namespace GVFS.FunctionalTests.Tools
             }
         }
 
-        public void CloneAndMount(LocalHistoryOptions localHistoryOptions, PhysicalCheckoutOptions checkoutOptions)
+        public void CloneAndMount()
         {
             this.gvfsProcess.Clone(this.RepoUrl, this.Commitish);
 
             this.MountGVFS();
             GitProcess.Invoke(this.RepoRoot, "checkout " + this.Commitish);
             GitProcess.Invoke(this.RepoRoot, "branch --unset-upstream");
+            GitProcess.Invoke(this.RepoRoot, "config core.abbrev 40");
+            GitProcess.Invoke(this.RepoRoot, "config user.name \"Functional Test User\"");
+            GitProcess.Invoke(this.RepoRoot, "config user.email \"functional@test.com\"");
         }
 
         public void MountGVFS()

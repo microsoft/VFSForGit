@@ -37,6 +37,11 @@ namespace GVFS.Common.Physical.FileSystem
             return File.Exists(path);
         }
 
+        public virtual void CopyFile(string sourcePath, string destinationPath, bool overwrite)
+        {
+            File.Copy(sourcePath, destinationPath, overwrite);
+        }
+
         public virtual void DeleteFile(string path)
         {
             File.Delete(path);
@@ -126,11 +131,9 @@ namespace GVFS.Common.Physical.FileSystem
             }
         }
 
-        public virtual IDisposable MonitorChanges(
+        public virtual IDisposable MonitorDeletes(
             string directory, 
             NotifyFilters notifyFilter,
-            Action<FileSystemEventArgs> onCreate,
-            Action<RenamedEventArgs> onRename,
             Action<FileSystemEventArgs> onDelete)
         {
             FileSystemWatcher watcher = new FileSystemWatcher(directory);
@@ -138,30 +141,7 @@ namespace GVFS.Common.Physical.FileSystem
             watcher.NotifyFilter = notifyFilter;
             watcher.InternalBufferSize = WatcherBufferSize;
             watcher.EnableRaisingEvents = true;
-            if (onCreate != null)
-            {
-                watcher.Created += (sender, args) => onCreate(args);
-            }
-
-            if (onRename != null)
-            {
-                watcher.Renamed += (sender, args) =>
-                {
-                    // Skip the event if args.Name is null.
-                    // Name can be null if the FileSystemWatcher's buffer has an entry for OLD_NAME that is not followed by an
-                    // entry for NEW_NAME.  This scenario results in two rename events being fired, the first with a null Name and the
-                    // second with a null OldName.
-                    if (args.Name != null)
-                    {
-                        onRename(args);
-                    }
-                };
-            }
-
-            if (onDelete != null)
-            {
-                watcher.Deleted += (sender, args) => onDelete(args);
-            }
+            watcher.Deleted += (sender, args) => onDelete(args);
 
             return watcher;
         }

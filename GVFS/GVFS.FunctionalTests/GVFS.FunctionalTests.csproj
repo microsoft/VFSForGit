@@ -90,22 +90,34 @@
       <DesignTimeSharedInput>True</DesignTimeSharedInput>
       <DependentUpon>Settings.settings</DependentUpon>
     </Compile>
+    <Compile Include="Tests\EnlistmentPerFixture\CloneTests.cs" />
     <Compile Include="Tests\EnlistmentPerFixture\DiagnoseTests.cs" />
+    <Compile Include="Tests\GitCommands\CheckoutTests.cs" />
+    <Compile Include="Tests\GitCommands\CherryPickConflictTests.cs" />
+    <Compile Include="Tests\GitCommands\UpdateIndexTests.cs" />
+    <Compile Include="Tests\GitCommands\MergeConflictTests.cs" />
+    <Compile Include="Tests\GitCommands\RebaseConflictTests.cs" />
+    <Compile Include="Tests\GitCommands\GitRepoTests.cs" />
+    <Compile Include="Tests\GitCommands\ResetMixedTests.cs" />
+    <Compile Include="Tests\GitCommands\ResetSoftTests.cs" />
     <Compile Include="Tests\EnlistmentPerFixture\MountTests.cs" />
     <Compile Include="Tests\EnlistmentPerFixture\GitFilesTests.cs" />
-    <Compile Include="Tests\EnlistmentPerTestCase\RebaseTests.cs" />
+    <Compile Include="Tests\GitCommands\RebaseTests.cs" />
     <Compile Include="Tests\EnlistmentPerTestCase\PrefetchVerbTests.cs" />
     <Compile Include="Tests\EnlistmentPerTestCase\CaseOnlyFolderRenameTests.cs" />
     <Compile Include="Tests\EnlistmentPerFixture\MoveRenameFileTests.cs" />
     <Compile Include="Tests\EnlistmentPerFixture\MoveRenameFileTests_2.cs" />
     <Compile Include="Tests\EnlistmentPerTestCase\PersistedSparseExcludeTests.cs" />
     <Compile Include="Tests\EnlistmentPerTestCase\PersistedWorkingDirectoryTests.cs" />
+    <Compile Include="Tests\EnlistmentPerFixture\GVFSBuildTest.cs" />
     <Compile Include="Tests\EnlistmentPerFixture\MoveRenameFolderTests.cs" />
     <Compile Include="Tests\EnlistmentPerTestCase\TestsWithEnlistmentPerTestCase.cs" />
     <Compile Include="Tests\EnlistmentPerFixture\TestsWithEnlistmentPerFixture.cs" />
-    <Compile Include="Tests\EnlistmentPerFixture\GitCommandsTests.cs" />
+    <Compile Include="Tests\GitCommands\GitCommandsTests.cs" />
     <Compile Include="Tests\FastFetchTests.cs" />
-    <Compile Include="Tests\LongRunningEnlistment\GitMoveRenameTests.cs" />
+    <Compile Include="Tests\GitCommands\UpdateRefTests.cs" />
+    <Compile Include="Tests\TestResultsHelper.cs" />
+    <Compile Include="Tests\EnlistmentPerFixture\GitMoveRenameTests.cs" />
     <Compile Include="Tests\LongRunningEnlistment\MultithreadedReadWriteTests.cs" />
     <Compile Include="Tests\LongRunningEnlistment\WorkingDirectoryTests.cs" />
     <Compile Include="Tests\LongRunningEnlistment\GitReadAndGitLockTests.cs" />

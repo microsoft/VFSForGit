@@ -1,4 +1,6 @@
 ﻿using GVFS.Common.Git;
+using System;
+using System.Collections.Generic;
 using System.IO;
 
 namespace GVFS.Common
@@ -12,6 +14,8 @@ namespace GVFS.Common
         public const string PathSeparatorString = "\\";
         public const char GitPathSeparator = '/';
         public const string GitPathSeparatorString = "/";
+        public const char GitCommentSign = '#';
+        public const string GitCommentSignString = "#";
 
         public const string AppName = "GitVirtualFileSystem";
         public const string AppGuid = "9a3cf8bb-ef4b-42df-ac4b-f5f50d114909";
@@ -19,18 +23,19 @@ namespace GVFS.Common
         public const string DotGVFSPath = ".gvfs";
         public const string GVFSLogFolderName = "logs";
         public const string VolumeLabel = "Git Virtual File System";
-        
+
         public const string GVFSConfigEndpointSuffix = "/gvfs/config";
         public const string InfoRefsEndpointSuffix = "/info/refs?service=git-upload-pack";
-
-        public const string VirtualizeObjectsGitConfigName = "core.virtualizeobjects";
 
         public const string CatFileObjectTypeCommit = "commit";
 
         public const string PrefetchPackPrefix = "prefetch";
 
         public const string HeadCommitName = "HEAD";
+        /* TODO: Story 957530 Remove code using GVFS_HEAD with next breaking change. */
         public const string GVFSHeadCommitName = "GVFS_HEAD";
+        public const string MergeHeadCommitName = "MERGE_HEAD";
+        public const string RevertHeadCommitName = "REVERT_HEAD";
 
         public const string AllZeroSha = "0000000000000000000000000000000000000000";
 
@@ -41,10 +46,11 @@ namespace GVFS.Common
         public const string GVFSHooksExecutableName = "GVFS.Hooks.exe";
         public const string GVFSReadObjectHookExecutableName = "GVFS.ReadObjectHook.exe";
         public const int InvalidProcessId = -1;
-        
+
         public const string GitIsNotInstalledError = "Could not find git.exe.  Ensure that Git is installed.";
 
-        public static readonly GitVersion MinimumGitVersion = new GitVersion(2, 11, 0, "gvfs", 1, 3);
+        public static readonly HashSet<string> CommandParentExecutableNames = new HashSet<string>(new[] { "git.exe", "wish.exe" }, StringComparer.OrdinalIgnoreCase);
+        public static readonly GitVersion MinimumGitVersion = new GitVersion(2, 12, 1, "gvfs", 1, 28);
 
         public static class MediaTypes
         {
@@ -68,6 +74,14 @@ namespace GVFS.Common
             public const string GitIgnore = ".gitignore";
         }
 
+        public static class LogFileTypes
+        {
+            public const string Clone = "clone";
+            public const string Dehydrate = "dehydrate";
+            public const string Mount = "mount";
+            public const string Prefetch = "prefetch";
+        }
+
         public static class DotGit
         {
             public const string Root = ".git";
@@ -87,26 +101,36 @@ namespace GVFS.Common
                 public const string Name = "logs";
                 public static readonly string HeadName = "HEAD";
 
-                public static readonly string Root = Path.Combine(DotGit.Root, Name);                
+                public static readonly string Root = Path.Combine(DotGit.Root, Name);
                 public static readonly string Head = Path.Combine(Logs.Root, Logs.HeadName);
             }
 
             public static class Hooks
             {
+                public const string ConfigExtension = ".hooks";
+                public const string ConfigNamePrefix = "gvfs.clone.default-";
+                public const string LoaderExecutable = "GitHooksLoader.exe";
+                public const string ExecutableExtension = ".exe";
+                public const string PreCommandHookName = "pre-command";
+                public const string PostCommandHookName = "post-command";
                 public static readonly string ReadObjectName = "read-object";
-
                 public static readonly string Root = Path.Combine(DotGit.Root, "hooks");
-                public static readonly string PreCommandPath = Path.Combine(Hooks.Root, "pre-command");
+                public static readonly string PreCommandPath = Path.Combine(Hooks.Root, PreCommandHookName);
+                public static readonly string PostCommandPath = Path.Combine(Hooks.Root, PostCommandHookName);
                 public static readonly string ReadObjectPath = Path.Combine(Hooks.Root, ReadObjectName);
             }
 
             public static class Info
             {
+                public const string Name = "info";
                 public const string ExcludeName = "exclude";
+                public const string AlwaysExcludeName = "always_exclude";
+                public const string SparseCheckoutName = "sparse-checkout";
 
-                public static readonly string Root = Path.Combine(DotGit.Root, "info");
-                public static readonly string SparseCheckoutPath = Path.Combine(Info.Root, "sparse-checkout");
+                public static readonly string Root = Path.Combine(DotGit.Root, Info.Name);
+                public static readonly string SparseCheckoutPath = Path.Combine(Info.Root, Info.SparseCheckoutName);
                 public static readonly string ExcludePath = Path.Combine(Info.Root, ExcludeName);
+                public static readonly string AlwaysExcludePath = Path.Combine(Info.Root, AlwaysExcludeName);
             }
 
             public static class Refs

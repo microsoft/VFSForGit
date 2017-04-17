@@ -1,6 +1,7 @@
 ﻿using CommandLine;
 using GVFS.Common;
 using GVFS.Common.Git;
+using GVFS.Common.NamedPipes;
 using GVFS.Common.Tracing;
 using Microsoft.Diagnostics.Tracing;
 using System;
@@ -12,7 +13,7 @@ namespace GVFS.CommandLine
     [Verb(CloneVerb.CloneVerbName, HelpText = "Clone a git repo and mount it as a GVFS virtual repo")]
     public class CloneVerb : GVFSVerb
     {
-        public const string CloneVerbName = "clone";
+        private const string CloneVerbName = "clone";
         private const string MountVerb = "gvfs mount";
 
         [Value(
@@ -70,15 +71,13 @@ namespace GVFS.CommandLine
             get { return CloneVerbName; }
         }
 
-        public override void Execute(ITracer tracer = null)
+        public override void Execute()
         {
-            if (tracer != null)
-            {
-                throw new InvalidOperationException("Clone does not support being called with an existing tracer");
-            }
+            int exitCode = 0;
 
-            this.CheckElevated();            
+            this.CheckElevated();
             this.CheckGVFltRunning();
+            this.CheckNotInsideExistingRepo();
 
             string fullPath = GVFSEnlistment.ToFullPath(this.EnlistmentRootPath, this.GetDefaultEnlistmentRoot());
             if (fullPath == null)
@@ -87,79 +86,84 @@ namespace GVFS.CommandLine
             }
 
             this.EnlistmentRootPath = fullPath;
-
-            this.Output.WriteLine();
-            this.Output.WriteLine("Starting clone of {0} into {1}...", this.RepositoryURL, this.EnlistmentRootPath);
-            this.Output.WriteLine();
-
             this.CacheServerUrl = Enlistment.StripObjectsEndpointSuffix(this.CacheServerUrl);
 
             try
             {
                 GVFSEnlistment enlistment;
+                Result cloneResult = new Result(false);
 
-                Result cloneResult = this.TryCreateEnlistment(out enlistment);
-                if (cloneResult.Success)
+                using (JsonEtwTracer tracer = new JsonEtwTracer(GVFSConstants.GVFSEtwProviderName, "GVFSClone"))
                 {
-                    using (JsonEtwTracer cloneTracer = new JsonEtwTracer(GVFSConstants.GVFSEtwProviderName, "GVFSClone"))
+                    cloneResult = this.TryCreateEnlistment(out enlistment);
+                    if (cloneResult.Success)
                     {
-                        cloneTracer.AddLogFileEventListener(
-                            GVFSEnlistment.GetNewGVFSLogFileName(
-                                Path.Combine(this.EnlistmentRootPath, GVFSConstants.DotGVFSPath, GVFSConstants.GVFSLogFolderName),
-                                this.VerbName),
+                        tracer.AddLogFileEventListener(
+                            GVFSEnlistment.GetNewGVFSLogFileName(enlistment.GVFSLogsRoot, GVFSConstants.LogFileTypes.Clone),
                             EventLevel.Informational,
                             Keywords.Any);
-                        cloneTracer.AddConsoleEventListener(EventLevel.Informational, Keywords.Any);
-                        cloneTracer.WriteStartEvent(
+                        tracer.WriteStartEvent(
                             enlistment.EnlistmentRoot,
                             enlistment.RepoUrl,
                             enlistment.CacheServerUrl,
                             new EventMetadata
                             {
-                                    { "Branch", this.Branch },
-                                    { "SingleBranch", this.SingleBranch },
-                                    { "NoMount", this.NoMount },
-                                    { "NoPrefetch", this.NoPrefetch }
+                                { "Branch", this.Branch },
+                                { "SingleBranch", this.SingleBranch },
+                                { "NoMount", this.NoMount },
+                                { "NoPrefetch", this.NoPrefetch }
                             });
 
-                        cloneResult = this.TryClone(cloneTracer, enlistment);
+                        this.Output.WriteLine("Clone parameters:");
+                        this.Output.WriteLine("  Repo URL:     " + enlistment.RepoUrl);
+                        this.Output.WriteLine("  Cache Server: " + (enlistment.CacheServerUrl == enlistment.RepoUrl ? "None" : enlistment.CacheServerUrl));
+                        this.Output.WriteLine("  Destination:  " + enlistment.EnlistmentRoot);
 
-                        if (cloneResult.Success)
-                        {
-                            this.Output.WriteLine("GVFS Enlistment created @ {0}", this.EnlistmentRootPath);
-
-                            if (!this.NoPrefetch)
+                        this.ShowStatusWhileRunning(
+                            () =>
                             {
-                                PrefetchVerb prefetch = new PrefetchVerb();
-                                prefetch.EnlistmentRootPath = this.EnlistmentRootPath;
-                                prefetch.Commits = true;
-                                prefetch.Execute(cloneTracer);
-                            }
+                                cloneResult = this.TryClone(tracer, enlistment);
+                                return cloneResult.Success;
+                            },
+                            "Cloning");
+                    }
 
-                            if (this.NoMount)
-                            {
-                                this.Output.WriteLine("\r\nIn order to mount, first cd to within your enlistment, then call: ");
-                                this.Output.WriteLine(CloneVerb.MountVerb);
-                            }
-                            else
-                            {
-                                MountVerb mount = new MountVerb();
-                                mount.EnlistmentRootPath = this.EnlistmentRootPath;
-
-                                // Tracer will be disposed in mount.Execute to avoid conflicts with the background process.
-                                mount.Execute(cloneTracer);
-                            }
-                        }
+                    if (!cloneResult.Success)
+                    {
+                        tracer.RelatedError(cloneResult.ErrorMessage);
                     }
                 }
 
-                // Write to the output after the tracer is disposed so that the error is the last message
-                // displayed to the user
-                if (!cloneResult.Success)
+                if (cloneResult.Success)
+                {
+                    if (!this.NoPrefetch)
+                    {
+                        PrefetchVerb prefetch = new PrefetchVerb();
+                        prefetch.EnlistmentRootPath = this.EnlistmentRootPath;
+                        prefetch.Commits = true;
+                        prefetch.Execute();
+                    }
+
+                    if (this.NoMount)
+                    {
+                        this.Output.WriteLine("\r\nIn order to mount, first cd to within your enlistment, then call: ");
+                        this.Output.WriteLine(CloneVerb.MountVerb);
+                    }
+                    else
+                    {
+                        MountVerb mount = new MountVerb();
+                        mount.EnlistmentRootPath = this.EnlistmentRootPath;
+                        mount.SkipMountedCheck = true;
+                        mount.SkipVersionCheck = true;
+
+                        mount.Execute();
+                    }
+                }
+                else
                 {
                     this.Output.WriteLine("\r\nCannot clone @ {0}", this.EnlistmentRootPath);
                     this.Output.WriteLine("Error: {0}", cloneResult.ErrorMessage);
-                    Environment.ExitCode = (int)ReturnCode.GenericError;
+                    exitCode = (int)ReturnCode.GenericError;
                 }
             }
             catch (AggregateException e)
@@ -170,7 +174,7 @@ namespace GVFS.CommandLine
                     this.Output.WriteLine("Exception: {0}", ex.ToString());
                 }
 
-                Environment.ExitCode = (int)ReturnCode.GenericError;
+                exitCode = (int)ReturnCode.GenericError;
             }
             catch (VerbAbortedException)
             {
@@ -180,6 +184,8 @@ namespace GVFS.CommandLine
             {
                 this.ReportErrorAndExit("Cannot clone @ {0}: {1}", this.EnlistmentRootPath, e.ToString());
             }
+
+            Environment.Exit(exitCode);
         }
 
         private Result TryCreateEnlistment(out GVFSEnlistment enlistment)
@@ -205,6 +211,8 @@ namespace GVFS.CommandLine
                 this.ReportErrorAndExit("Could not find " + GVFSConstants.GVFSHooksExecutableName);
             }
 
+            this.CheckGVFSHooksVersion(enlistment, hooksPath);
+
             enlistment = new GVFSEnlistment(
                 this.EnlistmentRootPath,
                 this.RepositoryURL,
@@ -219,54 +227,92 @@ namespace GVFS.CommandLine
         {
             this.CheckGitVersion(enlistment);
 
-            HttpGitObjects httpGitObjects = new HttpGitObjects(tracer, enlistment, Environment.ProcessorCount);
-            this.ValidateGVFSVersion(enlistment, httpGitObjects, tracer);
-
-            GitRefs refs = httpGitObjects.QueryInfoRefs(this.SingleBranch ? this.Branch : null);
-
-            if (refs == null)
+            Result pipeResult;
+            using (NamedPipeServer pipeServer = this.StartNamedPipe(enlistment, out pipeResult))
             {
-                return new Result("Could not query info/refs from: " + Uri.EscapeUriString(enlistment.RepoUrl));
-            }
-
-            if (this.Branch == null)
-            {
-                this.Branch = refs.GetDefaultBranch();
-
-                EventMetadata metadata = new EventMetadata();
-                metadata.Add("Branch", this.Branch);
-                tracer.RelatedEvent(EventLevel.Informational, "CloneDefaultRemoteBranch", metadata);
-            }
-            else
-            {
-                if (!refs.HasBranch(this.Branch))
+                if (!pipeResult.Success)
                 {
+                    return pipeResult;
+                }
+
+                HttpGitObjects httpGitObjects = new HttpGitObjects(tracer, enlistment, Environment.ProcessorCount);
+                this.ValidateGVFSVersion(enlistment, httpGitObjects, tracer);
+
+                GitRefs refs = httpGitObjects.QueryInfoRefs(this.SingleBranch ? this.Branch : null);
+
+                if (refs == null)
+                {
+                    return new Result("Could not query info/refs from: " + Uri.EscapeUriString(enlistment.RepoUrl));
+                }
+
+                if (this.Branch == null)
+                {
+                    this.Branch = refs.GetDefaultBranch();
+
                     EventMetadata metadata = new EventMetadata();
                     metadata.Add("Branch", this.Branch);
-                    tracer.RelatedEvent(EventLevel.Warning, "CloneBranchDoesNotExist", metadata);
-
-                    string errorMessage = string.Format("Remote branch {0} not found in upstream origin", this.Branch);
-                    return new Result(errorMessage);
+                    tracer.RelatedEvent(EventLevel.Informational, "CloneDefaultRemoteBranch", metadata);
                 }
-            }
+                else
+                {
+                    if (!refs.HasBranch(this.Branch))
+                    {
+                        EventMetadata metadata = new EventMetadata();
+                        metadata.Add("Branch", this.Branch);
+                        tracer.RelatedEvent(EventLevel.Warning, "CloneBranchDoesNotExist", metadata);
 
-            if (!enlistment.TryCreateEnlistmentFolders())
+                        string errorMessage = string.Format("Remote branch {0} not found in upstream origin", this.Branch);
+                        return new Result(errorMessage);
+                    }
+                }
+
+                if (!enlistment.TryCreateEnlistmentFolders())
+                {
+                    string error = "Could not create enlistment directory";
+                    tracer.RelatedError(error);
+                    return new Result(error);
+                }
+
+                this.CheckAntiVirusExclusion(enlistment);
+
+                CloneHelper cloneHelper = new CloneHelper(tracer, enlistment, httpGitObjects);
+                return cloneHelper.CreateClone(refs, this.Branch);
+            }
+        }
+
+        private NamedPipeServer StartNamedPipe(GVFSEnlistment enlistment, out Result errorResult)
+        {
+            try
             {
-                string error = "Could not create enlistment directory";
-                tracer.RelatedError(error);
-                return new Result(error);
+                errorResult = new Result(true);
+                return AllowAllLocksNamedPipeServer.Create(enlistment);
             }
-
-            this.CheckAntiVirusExclusion(enlistment);
-
-            CloneHelper cloneHelper = new CloneHelper(tracer, enlistment, httpGitObjects);
-            return cloneHelper.CreateClone(refs, this.Branch);
+            catch (PipeNameLengthException)
+            {
+                errorResult = new Result("Failed to clone. Path exceeds the maximum number of allowed characters");
+                return null;
+            }
         }
 
         private string GetDefaultEnlistmentRoot()
         {
             string repoName = this.RepositoryURL.Substring(this.RepositoryURL.LastIndexOf('/') + 1);
             return Path.Combine(Directory.GetCurrentDirectory(), repoName);
+        }
+
+        private void CheckNotInsideExistingRepo()
+        {
+            string enlistmentRootPath = this.EnlistmentRootPath;
+            if (string.IsNullOrWhiteSpace(enlistmentRootPath))
+            {
+                enlistmentRootPath = Environment.CurrentDirectory;
+            }
+
+            string enlistmentRoot = EnlistmentUtils.GetEnlistmentRoot(enlistmentRootPath);
+            if (enlistmentRoot != null)
+            {
+                this.ReportErrorAndExit("Error: You can't clone inside an existing GVFS repo ({0})", enlistmentRoot);
+            }
         }
 
         public class Result

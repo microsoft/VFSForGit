@@ -23,6 +23,11 @@ namespace GVFS.UnitTests.Mock.Physical.FileSystem
             return this.RootDirectory.FindFile(path) != null;
         }
 
+        public override void CopyFile(string sourcePath, string destinationPath, bool overwrite)
+        {
+            throw new NotImplementedException();
+        }
+
         public override void DeleteFile(string path)
         {
             MockFile file = this.RootDirectory.FindFile(path);
@@ -155,11 +160,9 @@ namespace GVFS.UnitTests.Mock.Physical.FileSystem
             }
         }
 
-        public override IDisposable MonitorChanges(
+        public override IDisposable MonitorDeletes(
             string directory, 
             NotifyFilters notifyFilter, 
-            Action<FileSystemEventArgs> onCreate, 
-            Action<RenamedEventArgs> onRename,
             Action<FileSystemEventArgs> onDelete)
         {
             throw new NotImplementedException();

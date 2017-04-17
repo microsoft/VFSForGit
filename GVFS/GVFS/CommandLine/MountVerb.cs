@@ -14,11 +14,10 @@ namespace GVFS.CommandLine
     [Verb(MountVerb.MountVerbName, HelpText = "Mount a GVFS virtual repo")]
     public class MountVerb : GVFSVerb.ForExistingEnlistment
     {
-        public const string MountVerbName = "mount";
+        private const string MountVerbName = "mount";
         private const string MountExeName = "GVFS.Mount.exe";
 
         private const int BackgroundProcessConnectTimeoutMS = 15000;
-        private const int MutexMaxWaitTimeMS = 500;
 
         [Option(
             'v',
@@ -43,6 +42,9 @@ namespace GVFS.CommandLine
             Required = false,
             HelpText = "Show the debug window.  By default, all output is written to a log file and no debug window is shown.")]
         public bool ShowDebugWindow { get; set; }
+
+        public bool SkipMountedCheck { get; set; }
+        public bool SkipVersionCheck { get; set; }
         
         protected override string VerbName
         {
@@ -55,9 +57,8 @@ namespace GVFS.CommandLine
             this.KeywordsCsv = MountParameters.DefaultKeywords;
         }
 
-        protected override void PreExecute(string enlistmentRootPath, ITracer tracer = null)
+        protected override void PreExecute(string enlistmentRootPath)
         {
-            this.Output.WriteLine("Validating repo for mount");
             this.CheckElevated();
             this.CheckGVFltRunning();
 
@@ -66,18 +67,25 @@ namespace GVFS.CommandLine
                 enlistmentRootPath = Environment.CurrentDirectory;
             }
 
-            string enlistmentRoot = GVFSEnlistment.GetEnlistmentRoot(enlistmentRootPath);
+            string enlistmentRoot = null;
+            if (Directory.Exists(enlistmentRootPath))
+            {
+                enlistmentRoot = EnlistmentUtils.GetEnlistmentRoot(enlistmentRootPath);
+            }
 
             if (enlistmentRoot == null)
             {
                 this.ReportErrorAndExit("Error: '{0}' is not a valid GVFS enlistment", enlistmentRootPath);
             }
 
-            using (NamedPipeClient pipeClient = new NamedPipeClient(GVFSEnlistment.GetNamedPipeName(enlistmentRoot)))
+            if (!this.SkipMountedCheck)
             {
-                if (pipeClient.Connect(500))
+                using (NamedPipeClient pipeClient = new NamedPipeClient(EnlistmentUtils.GetNamedPipeName(enlistmentRoot)))
                 {
-                    this.ReportErrorAndExit("This repo is already mounted.  Try running 'gvfs status'.");
+                    if (pipeClient.Connect(500))
+                    {
+                        this.ReportErrorAndExit(ReturnCode.Success, "This repo is already mounted.");
+                    }
                 }
             }
 
@@ -88,23 +96,42 @@ namespace GVFS.CommandLine
             }            
         }
 
-        protected override void Execute(GVFSEnlistment enlistment, ITracer tracer = null)
+        protected override void Execute(GVFSEnlistment enlistment)
+        {
+            string errorMessage = null;
+            if (!HooksInstallHelper.InstallHooks(enlistment, out errorMessage))
+            {
+                this.ReportErrorAndExit("Error installing hooks: " + errorMessage);
+            }
+            
+            if (!this.ShowStatusWhileRunning(
+                () => { return this.RequestMount(enlistment, out errorMessage); },
+                "Mounting"))
+            {
+                this.ReportErrorAndExit(errorMessage);
+            }
+        }
+
+        private bool RequestMount(GVFSEnlistment enlistment, out string errorMessage)
         {
             this.CheckGitVersion(enlistment);
+            this.CheckGVFSHooksVersion(enlistment, null);
             this.CheckAntiVirusExclusion(enlistment);
 
             string mountExeLocation = Path.Combine(ProcessHelper.GetCurrentProcessLocation(), MountExeName);
             if (!File.Exists(mountExeLocation))
             {
-                this.ReportErrorAndExit("Could not find GVFS.Mount.exe. You may need to reinstall GVFS.");
+                errorMessage = "Could not find GVFS.Mount.exe. You may need to reinstall GVFS.";
+                return false;
             }
 
-            // This tracer is only needed for the HttpGitObjects so we can check the GVFS version.
-            // If we keep it around longer, it will collide with the background process tracer.
-            using (ITracer mountTracer = tracer ?? new JsonEtwTracer(GVFSConstants.GVFSEtwProviderName, "Mount"))
+            if (!this.SkipVersionCheck)
             {
-                HttpGitObjects gitObjects = new HttpGitObjects(mountTracer, enlistment, maxConnections: 1);
-                this.ValidateGVFSVersion(enlistment, gitObjects, mountTracer);
+                using (ITracer mountTracer = new JsonEtwTracer(GVFSConstants.GVFSEtwProviderName, "Mount"))
+                {
+                    HttpGitObjects gitObjects = new HttpGitObjects(mountTracer, enlistment, maxConnections: 1);
+                    this.ValidateGVFSVersion(enlistment, gitObjects, mountTracer);
+                }
             }
 
             // We have to parse these parameters here to make sure they are valid before 
@@ -116,7 +143,8 @@ namespace GVFS.CommandLine
             GitProcess git = new GitProcess(enlistment);
             if (!git.IsValidRepo())
             {
-                this.ReportErrorAndExit("The physical git repo is missing or invalid");
+                errorMessage = "The physical git repo is missing or invalid";
+                return false;
             }
 
             this.SetGitConfigSettings(git);
@@ -134,17 +162,20 @@ namespace GVFS.CommandLine
                     this.ShowDebugWindow ? ParamPrefix + MountParameters.DebugWindow : string.Empty),
                 createWindow: this.ShowDebugWindow);
 
-            this.Output.WriteLine("Waiting for GVFS to mount");
+            return this.WaitForMountToComplete(enlistment, out errorMessage);
+        }
 
+        private bool WaitForMountToComplete(GVFSEnlistment enlistment, out string errorMessage)
+        {
             using (NamedPipeClient pipeClient = new NamedPipeClient(enlistment.NamedPipeName))
             {
                 if (!pipeClient.Connect(BackgroundProcessConnectTimeoutMS))
                 {
-                    this.ReportErrorAndExit("Unable to mount because the background process is not responding.");
+                    errorMessage = "Unable to mount because the background process is not responding.";
+                    return false;
                 }
 
                 bool isMounted = false;
-                int tryCount = 0;
                 while (!isMounted)
                 {
                     try
@@ -155,29 +186,27 @@ namespace GVFS.CommandLine
 
                         if (getStatusResponse.MountStatus == NamedPipeMessages.GetStatus.Ready)
                         {
-                            this.Output.WriteLine("Virtual repo is ready.");
                             isMounted = true;
                         }
                         else if (getStatusResponse.MountStatus == NamedPipeMessages.GetStatus.MountFailed)
                         {
-                            this.ReportErrorAndExit("Failed to mount, run 'gvfs log' for details");
+                            errorMessage = "Failed to mount";
+                            return false;
                         }
                         else
                         {
-                            if (tryCount % 10 == 0)
-                            {
-                                this.Output.WriteLine(getStatusResponse.MountStatus + "...");
-                            }
-
-                            Thread.Sleep(500);
-                            tryCount++;
+                            Thread.Sleep(100);
                         }
                     }
                     catch (BrokenPipeException)
                     {
-                        this.ReportErrorAndExit("Failed to mount, run 'gvfs log' for details");
+                        errorMessage = "Failed to mount";
+                        return false;
                     }
                 }
+
+                errorMessage = null;
+                return isMounted;
             }
         }
 

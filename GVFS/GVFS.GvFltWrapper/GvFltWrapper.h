@@ -137,7 +137,8 @@ namespace GVFSGvFltWrapper
         {
             NotOnDisk = 0,
             Partial = 1,
-            Full = 2
+            Full = 2,
+            OnDiskCannotOpen = 3
         };
 
         // FileExists
@@ -162,10 +163,14 @@ namespace GVFSGvFltWrapper
         //     - GvFltException
         System::String^ ReadFullFileContents(System::String^ relativePath);
 
+        ULONG GetWriteBufferSize();
+        ULONG GetAlignmentRequirement();
+
         static HResult GvConvertDirectoryToVirtualizationRoot(System::Guid virtualizationInstanceGuid, System::String^ rootPathName);
 
     private:
         void ConfirmNotStarted();
+        void CalculateWriteBufferSizeAndAlignment();
 
         GvStartDirectoryEnumerationEvent^ gvStartDirectoryEnumerationEvent;
         GvEndDirectoryEnumerationEvent^ gvEndDirectoryEnumerationEvent;
@@ -181,6 +186,9 @@ namespace GVFSGvFltWrapper
         GvNotifyFileRenamedEvent^ gvNotifyFileRenamedEvent;
         GvNotifyHardlinkCreatedEvent^ gvNotifyHardlinkCreatedEvent;
         GvNotifyFileHandleClosedEvent^ gvNotifyFileHandleClosedEvent;
+
+        ULONG writeBufferSize;
+        ULONG alignmentRequirement;
 
         GV_VIRTUALIZATIONINSTANCE_HANDLE  virtualizationInstanceHandle;
         System::String^ virtualRootPath;

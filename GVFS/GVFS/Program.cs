@@ -14,6 +14,7 @@ namespace GVFS
                 typeof(CloneVerb),
 
                 // Verbs that require an existing enlistment
+                typeof(DehydrateVerb),
                 typeof(DiagnoseVerb),
                 typeof(LogVerb),
                 typeof(MountVerb),

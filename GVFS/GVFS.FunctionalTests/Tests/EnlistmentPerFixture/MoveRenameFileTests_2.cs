@@ -5,6 +5,8 @@ using System.IO;
 
 namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
 {
+    // TODO 452590 - Combine all of the MoveRenameTests into a single fixture, and have each use different
+    // well known files
     [TestFixtureSource(typeof(FileSystemRunner), FileSystemRunner.TestRunners)]
     public class MoveRenameFileTests_2 : TestsWithEnlistmentPerFixture
     {

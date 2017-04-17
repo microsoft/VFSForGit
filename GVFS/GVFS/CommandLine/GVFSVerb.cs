@@ -5,6 +5,7 @@ using GVFS.Common.Tracing;
 using Microsoft.Diagnostics.Tracing;
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.ServiceProcess;
@@ -39,39 +40,28 @@ namespace GVFS.CommandLine
                 { "core.preloadIndex", "true" },
                 { "core.safecrlf", "false" },
                 { "core.sparseCheckout", "true" },
-                { GVFSConstants.VirtualizeObjectsGitConfigName, "true" },
+                { "core.untrackedCache", "false" },
+                { GitConfigSetting.VirtualizeObjectsGitConfigName, "true" },
                 { "credential.validate", "false" },
                 { "diff.autoRefreshIndex", "false" },
                 { "gc.auto", "0" },
+                { "gui.gcwarning", "false" },
+                { "index.version", "4" },
                 { "merge.stat", "false" },
                 { "receive.autogc", "false" },
             };
 
-            GitProcess.Result getConfigResult = git.GetAllLocalConfig();
-            if (getConfigResult.HasErrors)
+            Dictionary<string, GitConfigSetting> actualConfigSettings;
+            if (!git.TryGetAllLocalConfig(out actualConfigSettings))
             {
                 return false;
             }
 
-            Dictionary<string, string> actualConfigSettings = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-            foreach (string line in getConfigResult.Output.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries))
-            {
-                string[] fields = line.Split(new[] { '=' }, StringSplitOptions.RemoveEmptyEntries);
-                if (!actualConfigSettings.ContainsKey(fields[0]) && fields.Length == 2)
-                {
-                    actualConfigSettings.Add(fields[0], fields[1]);
-                }
-                else
-                {
-                    actualConfigSettings[fields[0]] = null;
-                }
-            }
-
             foreach (string key in expectedConfigSettings.Keys)
             {
-                string actualValue;
-                if (!actualConfigSettings.TryGetValue(key, out actualValue) ||
-                    actualValue != expectedConfigSettings[key])
+                GitConfigSetting actualSetting;
+                if (!actualConfigSettings.TryGetValue(key, out actualSetting) ||
+                    !actualSetting.HasValue(expectedConfigSettings[key]))
                 {
                     GitProcess.Result setConfigResult = git.SetInLocalConfig(key, expectedConfigSettings[key]);
                     if (setConfigResult.HasErrors)
@@ -84,21 +74,59 @@ namespace GVFS.CommandLine
             return true;
         }
 
-        public abstract void Execute(ITracer tracer = null);
+        public static ReturnCode Execute<TVerb>(
+            string enlistmentRootPath,
+            Action<TVerb> configureVerb = null)
+            where TVerb : GVFSVerb, new()
+        {
+            TVerb verb = new TVerb();
+            verb.EnlistmentRootPath = enlistmentRootPath;
+            if (configureVerb != null)
+            {
+                configureVerb(verb);
+            }
+
+            try
+            {
+                verb.Execute();
+            }
+            catch (VerbAbortedException)
+            {
+            }
+
+            return verb.ReturnCode;
+        }
+
+        public abstract void Execute();
 
         public virtual void InitializeDefaultParameterValues()
         {
         }
 
-        protected void ReportErrorAndExit(string error, params object[] args)
+        protected bool ShowStatusWhileRunning(Func<bool> action, string message, bool suppressGvfsLogMessage = false)
+        {
+            return ConsoleHelper.ShowStatusWhileRunning(
+                action,
+                message,
+                this.Output,
+                showSpinner: this.Output == Console.Out && !ConsoleHelper.IsConsoleOutputRedirectedToFile(),
+                suppressGvfsLogMessage: suppressGvfsLogMessage);
+        }
+
+        protected void ReportErrorAndExit(ReturnCode exitCode, string error, params object[] args)
         {
             if (error != null)
             {
                 this.Output.WriteLine(error, args);
             }
 
-            this.ReturnCode = ReturnCode.GenericError;
+            this.ReturnCode = exitCode;
             throw new VerbAbortedException(this);
+        }
+
+        protected void ReportErrorAndExit(string error, params object[] args)
+        {
+            this.ReportErrorAndExit(ReturnCode.GenericError, error, args);
         }
 
         protected void CheckElevated()
@@ -162,6 +190,25 @@ namespace GVFS.CommandLine
             }
         }
 
+        protected void CheckGVFSHooksVersion(Enlistment enlistment, string hooksPath)
+        {
+            if (hooksPath == null)
+            {
+                hooksPath = ProcessHelper.WhereDirectory(GVFSConstants.GVFSHooksExecutableName);
+                if (hooksPath == null)
+                {
+                    this.ReportErrorAndExit("Could not find " + GVFSConstants.GVFSHooksExecutableName);
+                }
+            }
+
+            FileVersionInfo myFileVersionInfo = FileVersionInfo.GetVersionInfo(hooksPath + "\\" + GVFSConstants.GVFSHooksExecutableName);
+            string gvfsVersion = ProcessHelper.GetCurrentProcessVersion();
+            if (myFileVersionInfo.ProductVersion != gvfsVersion)
+            {
+                this.ReportErrorAndExit("GVFS.Hooks version ({0}) does not match GVFS version ({1}).", myFileVersionInfo.ProductVersion, gvfsVersion);
+            }
+        }
+
         protected void CheckAntiVirusExclusion(GVFSEnlistment enlistment)
         {
             bool isExcluded;
@@ -171,10 +218,6 @@ namespace GVFS.CommandLine
                 {
                     if (ProcessHelper.IsAdminElevated())
                     {
-                        this.Output.WriteLine();
-                        this.Output.WriteLine("Adding {0} to your antivirus exclusion list", enlistment.EnlistmentRoot);
-                        this.Output.WriteLine();
-
                         AntiVirusExclusions.AddAntiVirusExclusion(enlistment.EnlistmentRoot);
 
                         if (!AntiVirusExclusions.TryGetIsPathExcluded(enlistment.EnlistmentRoot, out isExcluded) ||
@@ -261,47 +304,6 @@ namespace GVFS.CommandLine
             this.ReportErrorAndExit("\r\nERROR: Your GVFS version is no longer supported.  Install the latest and try again.\r\n");
         }
 
-        private GVFSEnlistment CreateEnlistment(string enlistmentRootPath)
-        {
-            string gitBinPath = GitProcess.GetInstalledGitBinPath();
-            if (string.IsNullOrWhiteSpace(gitBinPath))
-            {
-                this.ReportErrorAndExit("Error: " + GVFSConstants.GitIsNotInstalledError);
-            }
-
-            if (string.IsNullOrWhiteSpace(enlistmentRootPath))
-            {
-                enlistmentRootPath = Environment.CurrentDirectory;
-            }
-
-            string hooksPath = ProcessHelper.WhereDirectory(GVFSConstants.GVFSHooksExecutableName);
-            if (hooksPath == null)
-            {
-                this.ReportErrorAndExit("Could not find " + GVFSConstants.GVFSHooksExecutableName);
-            }
-
-            GVFSEnlistment enlistment = null;
-            try
-            {
-                enlistment = GVFSEnlistment.CreateFromDirectory(enlistmentRootPath, null, gitBinPath, hooksPath);
-                if (enlistment == null)
-                {
-                    this.ReportErrorAndExit(
-                        "Error: '{0}' is not a valid GVFS enlistment",
-                        enlistmentRootPath);
-                }
-            }
-            catch (InvalidRepoException e)
-            {
-                this.ReportErrorAndExit(
-                    "Error: '{0}' is not a valid GVFS enlistment. {1}",
-                    enlistmentRootPath,
-                    e.Message);
-            }
-            
-            return enlistment;
-        }
-
         public abstract class ForExistingEnlistment : GVFSVerb
         {
             [Value(
@@ -312,18 +314,59 @@ namespace GVFS.CommandLine
                 HelpText = "Full or relative path to the GVFS enlistment root")]
             public override string EnlistmentRootPath { get; set; }
 
-            public sealed override void Execute(ITracer tracer = null)
+            public sealed override void Execute()
             {
-                this.PreExecute(this.EnlistmentRootPath, tracer);
+                this.PreExecute(this.EnlistmentRootPath);
                 GVFSEnlistment enlistment = this.CreateEnlistment(this.EnlistmentRootPath);
-                this.Execute(enlistment, tracer);
+                this.Execute(enlistment);
             }
 
-            protected virtual void PreExecute(string enlistmentRootPath, ITracer tracer = null)
+            protected virtual void PreExecute(string enlistmentRootPath)
             {
             }
 
-            protected abstract void Execute(GVFSEnlistment enlistment, ITracer tracer = null);
+            protected abstract void Execute(GVFSEnlistment enlistment);
+
+            private GVFSEnlistment CreateEnlistment(string enlistmentRootPath)
+            {
+                string gitBinPath = GitProcess.GetInstalledGitBinPath();
+                if (string.IsNullOrWhiteSpace(gitBinPath))
+                {
+                    this.ReportErrorAndExit("Error: " + GVFSConstants.GitIsNotInstalledError);
+                }
+
+                if (string.IsNullOrWhiteSpace(enlistmentRootPath))
+                {
+                    enlistmentRootPath = Environment.CurrentDirectory;
+                }
+
+                string hooksPath = ProcessHelper.WhereDirectory(GVFSConstants.GVFSHooksExecutableName);
+                if (hooksPath == null)
+                {
+                    this.ReportErrorAndExit("Could not find " + GVFSConstants.GVFSHooksExecutableName);
+                }
+
+                GVFSEnlistment enlistment = null;
+                try
+                {
+                    enlistment = GVFSEnlistment.CreateFromDirectory(enlistmentRootPath, null, gitBinPath, hooksPath);
+                    if (enlistment == null)
+                    {
+                        this.ReportErrorAndExit(
+                            "Error: '{0}' is not a valid GVFS enlistment",
+                            enlistmentRootPath);
+                    }
+                }
+                catch (InvalidRepoException e)
+                {
+                    this.ReportErrorAndExit(
+                        "Error: '{0}' is not a valid GVFS enlistment. {1}",
+                        enlistmentRootPath,
+                        e.Message);
+                }
+
+                return enlistment;
+            }
         }
 
         public class VerbAbortedException : Exception

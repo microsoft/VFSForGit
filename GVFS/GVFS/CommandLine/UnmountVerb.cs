@@ -1,29 +1,68 @@
 ﻿using CommandLine;
 using GVFS.Common;
 using GVFS.Common.NamedPipes;
-using GVFS.Common.Tracing;
+using System;
+using System.IO;
 
 namespace GVFS.CommandLine
 {
     [Verb(UnmountVerb.UnmountVerbName, HelpText = "Unmount a GVFS virtual repo")]
-    public class UnmountVerb : GVFSVerb.ForExistingEnlistment
+    public class UnmountVerb : GVFSVerb
     {
-        public const string UnmountVerbName = "unmount";
+        private const string UnmountVerbName = "unmount";
+
+        [Value(
+            0,
+            Required = false,
+            Default = "",
+            MetaName = "Enlistment Root Path",
+            HelpText = "Full or relative path to the GVFS enlistment root")]
+        public override string EnlistmentRootPath { get; set; }
 
         protected override string VerbName
         {
             get { return UnmountVerbName; }
         }
 
-        protected override void Execute(GVFSEnlistment enlistment, ITracer tracer = null)
+        public override void Execute()
+        {
+            this.EnlistmentRootPath =
+                !string.IsNullOrWhiteSpace(this.EnlistmentRootPath)
+                ? this.EnlistmentRootPath
+                : Environment.CurrentDirectory;
+            string root = null;
+            if (Directory.Exists(this.EnlistmentRootPath))
+            {
+                root = EnlistmentUtils.GetEnlistmentRoot(this.EnlistmentRootPath);
+            }
+
+            if (root == null)
+            {
+                this.ReportErrorAndExit(
+                    "Error: '{0}' is not a valid GVFS enlistment",
+                    this.EnlistmentRootPath);
+            }
+
+            string errorMessage = null;
+            if (!this.ShowStatusWhileRunning(
+                () => { return this.RequestUnmount(root, out errorMessage); },
+                "Unmounting"))
+            {
+                this.ReportErrorAndExit(errorMessage);
+            }
+        }
+
+        private bool RequestUnmount(string rootPath, out string errorMessage)
         {
             try
             {
-                using (NamedPipeClient pipeClient = new NamedPipeClient(enlistment.NamedPipeName))
+                string pipeName = EnlistmentUtils.GetNamedPipeName(rootPath);
+                using (NamedPipeClient pipeClient = new NamedPipeClient(pipeName))
                 {
                     if (!pipeClient.Connect())
                     {
-                        this.ReportErrorAndExit("Unable to connect to GVFS");
+                        errorMessage = "Unable to connect to GVFS";
+                        return false;
                     }
 
                     pipeClient.SendRequest(NamedPipeMessages.GetStatus.Request);
@@ -34,25 +73,22 @@ namespace GVFS.CommandLine
                     switch (getStatusResponse.MountStatus)
                     {
                         case NamedPipeMessages.GetStatus.Mounting:
-                            this.ReportErrorAndExit("Still mounting, please try again later");
-                            break;
+                            errorMessage = "Still mounting, please try again later";
+                            return false;
 
                         case NamedPipeMessages.GetStatus.Unmounting:
-                            this.ReportErrorAndExit("Already unmounting, please wait");
-                            break;
+                            errorMessage = "Already unmounting, please wait";
+                            return false;
 
                         case NamedPipeMessages.GetStatus.Ready:
-                            this.Output.WriteLine("Repo is mounted.  Starting to unmount...");
                             break;
 
                         case NamedPipeMessages.GetStatus.MountFailed:
-                            this.Output.WriteLine("Previous mount attempt failed, run 'gvfs log' for details.");
-                            this.Output.WriteLine("Attempting to unmount anyway...");
                             break;
 
                         default:
-                            this.ReportErrorAndExit("Unrecognized response to GetStatus: {0}", rawGetStatusResponse);
-                            break;
+                            errorMessage = "Unrecognized response to GetStatus: " + rawGetStatusResponse;
+                            return false;
                     }
 
                     pipeClient.SendRequest(NamedPipeMessages.Unmount.Request);
@@ -61,36 +97,36 @@ namespace GVFS.CommandLine
                     switch (unmountResponse)
                     {
                         case NamedPipeMessages.Unmount.Acknowledged:
-                            this.Output.WriteLine("Unmount was acknowledged.  Waiting for complete unmount...");
                             string finalResponse = pipeClient.ReadRawResponse();
                             if (finalResponse == NamedPipeMessages.Unmount.Completed)
                             {
-                                this.Output.WriteLine("Unmount completed");
+                                errorMessage = null;
+                                return true;
                             }
                             else
                             {
-                                this.ReportErrorAndExit("Unrecognized final response to unmount: " + finalResponse);
+                                errorMessage = "Unrecognized final response to unmount: " + finalResponse;
+                                return false;
                             }
 
-                            break;
-
                         case NamedPipeMessages.Unmount.NotMounted:
-                            this.ReportErrorAndExit("Unable to unmount, repo was not mounted");
-                            break;
+                            errorMessage = "Unable to unmount, repo was not mounted";
+                            return false;
 
                         case NamedPipeMessages.Unmount.MountFailed:
-                            this.ReportErrorAndExit("Unable to unmount, previous mount attempt failed");
-                            break;
+                            errorMessage = "Unable to unmount, previous mount attempt failed";
+                            return false;
 
                         default:
-                            this.ReportErrorAndExit("Unrecognized response to Unmount: " + unmountResponse);
-                            break;
+                            errorMessage = "Unrecognized response to unmount: " + unmountResponse;
+                            return false;
                     }
                 }
             }
             catch (BrokenPipeException e)
             {
-                this.ReportErrorAndExit("Unable to communicate with GVFS: " + e.ToString());
+                errorMessage = "Unable to communicate with GVFS: " + e.ToString();
+                return false;
             }
         }
     }

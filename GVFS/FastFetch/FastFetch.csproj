@@ -1,5 +1,6 @@
 ﻿<?xml version="1.0" encoding="utf-8"?>
 <Project ToolsVersion="14.0" DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <Import Project="LibGit2Sharp.NativeBinaries.props" Condition="Exists('LibGit2Sharp.NativeBinaries.props')" />
   <Import Project="$(MSBuildExtensionsPath)\$(MSBuildToolsVersion)\Microsoft.Common.props" Condition="Exists('$(MSBuildExtensionsPath)\$(MSBuildToolsVersion)\Microsoft.Common.props')" />
   <PropertyGroup>
     <Configuration Condition=" '$(Configuration)' == '' ">Debug</Configuration>
@@ -64,19 +65,22 @@
       <Link>CommonAssemblyVersion.cs</Link>
     </Compile>
     <Compile Include="FastFetchVerb.cs" />
+    <Compile Include="CheckoutFetchHelper.cs" />
     <Compile Include="FetchHelper.cs" />
     <Compile Include="GitEnlistment.cs" />
     <Compile Include="Git\DiffHelper.cs" />
     <Compile Include="Git\GitPackIndex.cs" />
+    <Compile Include="Git\LibGit2Helpers.cs" />
+    <Compile Include="Git\LibGit2Repo.cs" />
     <Compile Include="Git\RefSpecHelpers.cs" />
     <Compile Include="Jobs\BatchObjectDownloadJob.cs" />
+    <Compile Include="Jobs\CheckoutJob.cs" />
     <Compile Include="Jobs\Data\BlobDownloadRequest.cs" />
     <Compile Include="Jobs\Data\IndexPackRequest.cs" />
     <Compile Include="Jobs\Data\TreeSearchRequest.cs" />
     <Compile Include="Jobs\FindMissingBlobsJob.cs" />
     <Compile Include="Jobs\IndexPackJob.cs" />
     <Compile Include="Jobs\Job.cs" />
-    <Compile Include="Git\LsTreeHelper.cs" />
     <Compile Include="Git\UpdateRefsHelper.cs" />
     <Compile Include="Program.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
@@ -99,6 +103,7 @@
     <Error Condition="!Exists('..\..\..\packages\StyleCop.Error.MSBuild.1.0.0\build\StyleCop.Error.MSBuild.Targets')" Text="$([System.String]::Format('$(ErrorText)', '..\..\..\packages\StyleCop.Error.MSBuild.1.0.0\build\StyleCop.Error.MSBuild.Targets'))" />
     <Error Condition="!Exists('..\..\..\packages\Microsoft.Diagnostics.Tracing.EventRegister.1.1.28\build\Microsoft.Diagnostics.Tracing.EventRegister.targets')" Text="$([System.String]::Format('$(ErrorText)', '..\..\..\packages\Microsoft.Diagnostics.Tracing.EventRegister.1.1.28\build\Microsoft.Diagnostics.Tracing.EventRegister.targets'))" />
     <Error Condition="!Exists('..\..\..\packages\StyleCop.MSBuild.4.7.54.0\build\StyleCop.MSBuild.Targets')" Text="$([System.String]::Format('$(ErrorText)', '..\..\..\packages\StyleCop.MSBuild.4.7.54.0\build\StyleCop.MSBuild.Targets'))" />
+    <Error Condition="!Exists('LibGit2Sharp.NativeBinaries.props')" Text="$([System.String]::Format('$(ErrorText)', 'LibGit2Sharp.NativeBinaries.props'))" />
   </Target>
   <Import Project="..\..\..\packages\StyleCop.Error.MSBuild.1.0.0\build\StyleCop.Error.MSBuild.Targets" Condition="Exists('..\..\..\packages\StyleCop.Error.MSBuild.1.0.0\build\StyleCop.Error.MSBuild.Targets')" />
   <Import Project="..\..\..\packages\Microsoft.Diagnostics.Tracing.EventRegister.1.1.28\build\Microsoft.Diagnostics.Tracing.EventRegister.targets" Condition="Exists('..\..\..\packages\Microsoft.Diagnostics.Tracing.EventRegister.1.1.28\build\Microsoft.Diagnostics.Tracing.EventRegister.targets')" />

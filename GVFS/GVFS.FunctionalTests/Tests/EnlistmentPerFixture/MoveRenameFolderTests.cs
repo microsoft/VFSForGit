@@ -97,7 +97,7 @@ BOOL APIENTRY DllMain( HMODULE hModule,
         }
 
         [TestCase]
-        [Ignore("591744 - Cannot move folders from outside src\\.git to inside src\\.git")]
+        [Ignore("Disabled until moving partial folders is supported")]
         public void MoveUnhydratedFolderToFullFolderInDotGitFolder()
         {
             string testFileName = "MoveUnhydratedFolderToFullFolderInDotGitFolder.cpp";
@@ -115,6 +115,34 @@ BOOL APIENTRY DllMain( HMODULE hModule,
             this.Enlistment.GetVirtualPathTo(oldFolderName).ShouldNotExistOnDisk(this.fileSystem);
             this.Enlistment.GetVirtualPathTo(Path.Combine(oldFolderName, testFileName)).ShouldNotExistOnDisk(this.fileSystem);
             this.Enlistment.GetVirtualPathTo(Path.Combine(movedFolderPath, testFileName)).ShouldBeAFile(this.fileSystem).WithContents(TestFileContents);
+        }
+
+        [TestCase]
+        public void MoveFullFolderToFullFolderInDotGitFolder()
+        {
+            string fileContents = "Test contents for MoveFullFolderToFullFolderInDotGitFolder";
+            string testFileName = "MoveFullFolderToFullFolderInDotGitFolder.txt";
+            string oldFolderPath = this.Enlistment.GetVirtualPathTo("MoveFullFolderToFullFolderInDotGitFolder");
+            oldFolderPath.ShouldNotExistOnDisk(this.fileSystem);
+            this.fileSystem.CreateDirectory(oldFolderPath);
+            oldFolderPath.ShouldBeADirectory(this.fileSystem);
+
+            string oldFilePath = Path.Combine(oldFolderPath, testFileName);
+            this.fileSystem.WriteAllText(oldFilePath, fileContents);
+            oldFilePath.ShouldBeAFile(this.fileSystem).WithContents(fileContents);
+
+            string newFolderName = "NewMoveFullFolderToFullFolderInDotGitFolder";
+            string newFolderPath = this.Enlistment.GetVirtualPathTo(".git\\" + newFolderName);
+            newFolderPath.ShouldNotExistOnDisk(this.fileSystem);
+            this.fileSystem.CreateDirectory(newFolderPath);
+            newFolderPath.ShouldBeADirectory(this.fileSystem);
+
+            string movedFolderPath = Path.Combine(newFolderPath, "Should");
+            this.fileSystem.MoveDirectory(oldFolderPath, movedFolderPath);
+
+            Path.Combine(movedFolderPath).ShouldBeADirectory(this.fileSystem);
+            oldFolderPath.ShouldNotExistOnDisk(this.fileSystem);
+            Path.Combine(movedFolderPath, testFileName).ShouldBeAFile(this.fileSystem).WithContents(fileContents);
         }
 
         [TestCase]

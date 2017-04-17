@@ -3,11 +3,13 @@ using GVFS.FunctionalTests.Should;
 using GVFS.FunctionalTests.Tools;
 using GVFS.Tests.Should;
 using NUnit.Framework;
+using System;
+using System.IO;
 
-namespace GVFS.FunctionalTests.Tests.LongRunningEnlistment
+namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
 {
     [TestFixtureSource(typeof(FileSystemRunner), FileSystemRunner.TestRunners)]
-    public class GitMoveRenameTests : TestsWithLongRunningEnlistment
+    public class GitMoveRenameTests : TestsWithEnlistmentPerFixture
     {
         private string testFileContents = "0123456789";
         private FileSystemRunner fileSystem;
@@ -144,6 +146,88 @@ namespace GVFS.FunctionalTests.Tests.LongRunningEnlistment
                 "status",
                 "On branch " + Properties.Settings.Default.Commitish,
                 "nothing to commit, working tree clean");
+        }
+
+        [TestCase, Order(8)]
+        public void GitWithEnvironmentVariables()
+        {
+            string previous = Environment.GetEnvironmentVariable("GIT_TRACE_PERFORMANCE");
+            Environment.SetEnvironmentVariable("GIT_TRACE_PERFORMANCE", "1");
+
+            // The trace info is an error, so we can't use CheckGitCommand().
+            // We just want to make sure this doesn't throw an exception.
+            ProcessResult result = GitHelpers.InvokeGitAgainstGVFSRepo(this.Enlistment.RepoRoot, "branch", cleanErrors: false);
+            result.Output.ShouldContain("* FunctionalTests");
+            result.Errors.ToLower().ShouldNotContain("exception");
+            result.Errors.ShouldContain("trace.c:", "git command:");
+            Environment.SetEnvironmentVariable("GIT_TRACE_PERFORMANCE", previous);
+        }
+
+        [TestCase, Order(9)]
+        public void GitStatusAfterRenameFileIntoRepo()
+        {
+            string filename = "GitStatusAfterRenameFileIntoRepo.cs";
+
+            // Create the test file in this.Enlistment.EnlistmentRoot as it's outside of src 
+            // and is cleaned up when the functional tests run
+            string filePath = Path.Combine(this.Enlistment.EnlistmentRoot, filename);
+
+            this.fileSystem.WriteAllText(filePath, this.testFileContents);
+            filePath.ShouldBeAFile(this.fileSystem).WithContents(this.testFileContents);
+
+            string renamedFileName = "GVFlt_MoveFileTest\\GitStatusAfterRenameFileIntoRepo.cs";
+            this.fileSystem.MoveFile(filePath, this.Enlistment.GetVirtualPathTo(renamedFileName));
+            this.Enlistment.GetVirtualPathTo(filePath).ShouldNotExistOnDisk(this.fileSystem);
+
+            GitHelpers.CheckGitCommand(
+                this.Enlistment.RepoRoot,
+                "status",
+                "On branch " + Properties.Settings.Default.Commitish,
+                "Untracked files:",
+                renamedFileName.Replace('\\', '/'));
+        }
+
+        [TestCase, Order(10)]
+        public void GitStatusAfterRenameFileOutOfRepo()
+        {
+            string existingFilename = "Test_EPF_MoveRenameFileTests\\ChangeUnhydratedFileName\\Program.cs";
+
+            // Move the test file to this.Enlistment.EnlistmentRoot as it's outside of src 
+            // and is cleaned up when the functional tests run
+            this.fileSystem.MoveFile(this.Enlistment.GetVirtualPathTo(existingFilename), Path.Combine(this.Enlistment.EnlistmentRoot, "Program.cs"));
+            this.Enlistment.GetVirtualPathTo(existingFilename).ShouldNotExistOnDisk(this.fileSystem);
+
+            ProcessResult result = GitProcess.InvokeProcess(this.Enlistment.RepoRoot, "status");
+            result.Output.ShouldContain("On branch " + Properties.Settings.Default.Commitish);
+            result.Output.ShouldContain("Changes not staged for commit");
+            result.Output.ShouldContain("deleted:    Test_EPF_MoveRenameFileTests/ChangeUnhydratedFileName/Program.cs");
+        }
+
+        [TestCase, Order(11)]
+        public void GitStatusAfterRenameFolderIntoRepo()
+        {
+            string folderName = "GitStatusAfterRenameFolderIntoRepo";
+
+            // Create the test folder in this.Enlistment.EnlistmentRoot as it's outside of src 
+            // and is cleaned up when the functional tests run
+            string folderPath = Path.Combine(this.Enlistment.EnlistmentRoot, folderName);
+
+            this.fileSystem.CreateDirectory(folderPath);
+
+            string fileName = "GitStatusAfterRenameFolderIntoRepo_file.txt";
+            string filePath = Path.Combine(folderPath, fileName);
+            this.fileSystem.WriteAllText(filePath, this.testFileContents);
+            filePath.ShouldBeAFile(this.fileSystem).WithContents(this.testFileContents);
+
+            this.fileSystem.MoveDirectory(folderPath, this.Enlistment.GetVirtualPathTo(folderName));
+
+            GitHelpers.CheckGitCommand(
+                this.Enlistment.RepoRoot,
+                "status -uall",
+                "On branch " + Properties.Settings.Default.Commitish,
+                "Untracked files:",
+                folderName + "/",
+                folderName + "/" + fileName);
         }
     }
 }

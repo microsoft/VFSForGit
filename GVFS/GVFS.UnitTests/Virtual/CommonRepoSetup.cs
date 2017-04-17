@@ -37,7 +37,7 @@ namespace GVFS.UnitTests.Virtual
             enlistmentDirectory.CreateFile(Path.Combine(this.GitParentPath, ".git\\config"), ".git config Contents", createDirectories: true);
             enlistmentDirectory.CreateFile(Path.Combine(this.GitParentPath, ".git\\HEAD"), ".git HEAD Contents", createDirectories: true);
             enlistmentDirectory.CreateFile(Path.Combine(this.GitParentPath, ".git\\logs\\HEAD"), "HEAD Contents", createDirectories: true);
-            enlistmentDirectory.CreateFile(Path.Combine(this.GitParentPath, ".git\\info\\exclude"), "exclude Contents", createDirectories: true);
+            enlistmentDirectory.CreateFile(Path.Combine(this.GitParentPath, ".git\\info\\always_exclude"), "always exclude Contents", createDirectories: true);
             enlistmentDirectory.CreateDirectory(Path.Combine(this.GitParentPath, GVFSConstants.DotGit.Objects.Pack.Root));
 
             MockFileSystem fileSystem = new MockFileSystem(enlistmentDirectory);

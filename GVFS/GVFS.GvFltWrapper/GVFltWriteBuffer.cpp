@@ -5,9 +5,9 @@ using namespace System;
 using namespace System::IO;
 using namespace GVFSGvFltWrapper;
 
-GVFltWriteBuffer::GVFltWriteBuffer(int bufferSize)
+GVFltWriteBuffer::GVFltWriteBuffer(ULONG bufferSize, ULONG alignment)
 {
-    this->buffer = (unsigned char*)malloc(sizeof(unsigned char) * bufferSize);
+    this->buffer = (unsigned char*)_aligned_malloc(bufferSize, alignment);
     if (this->buffer == nullptr)
     {
         throw gcnew InvalidOperationException("Unable to allocate GVFltWriteBuffer");
@@ -24,7 +24,7 @@ GVFltWriteBuffer::~GVFltWriteBuffer()
 
 GVFltWriteBuffer::!GVFltWriteBuffer()
 {
-    free(this->buffer);
+    _aligned_free(this->buffer);
 }
 
 long long GVFltWriteBuffer::Length::get(void)

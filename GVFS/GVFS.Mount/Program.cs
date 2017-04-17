@@ -9,8 +9,8 @@ namespace GVFS.Mount
         {
             try
             {
-                Parser.Default.ParseArguments<MountVerb>(args)
-                .WithParsed(mount => mount.Execute());
+                Parser.Default.ParseArguments<InProcessMountVerb>(args)
+                    .WithParsed(mount => mount.Execute());
             }
             catch (MountAbortedException e)
             {

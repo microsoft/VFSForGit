@@ -61,6 +61,15 @@ namespace GVFS.FunctionalTests.Properties {
         
         [global::System.Configuration.ApplicationScopedSettingAttribute()]
         [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
+        [global::System.Configuration.DefaultSettingValueAttribute("C:\\Program Files (x86)\\Microsoft Visual Studio 14.0\\Common7\\Tools\\VsDevCmd.bat")]
+        public string PathToVSDevBat {
+            get {
+                return ((string)(this["PathToVSDevBat"]));
+            }
+        }
+        
+        [global::System.Configuration.ApplicationScopedSettingAttribute()]
+        [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
         [global::System.Configuration.DefaultSettingValueAttribute("")]
         public string PathToNuget {
             get {
@@ -79,7 +88,7 @@ namespace GVFS.FunctionalTests.Properties {
         
         [global::System.Configuration.ApplicationScopedSettingAttribute()]
         [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
-        [global::System.Configuration.DefaultSettingValueAttribute("FunctionalTests/20170130")]
+        [global::System.Configuration.DefaultSettingValueAttribute("FunctionalTests/20170310")]
         public string Commitish {
             get {
                 return ((string)(this["Commitish"]));

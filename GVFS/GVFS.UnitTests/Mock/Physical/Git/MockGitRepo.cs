@@ -16,7 +16,7 @@ namespace GVFS.UnitTests.Mock.Physical.Git
         private string rootSha;
         
         public MockGitRepo(ITracer tracer, Enlistment enlistment, PhysicalFileSystem fileSystem)
-            : base(tracer, enlistment, fileSystem, new MockGitIndex(tracer, enlistment, "unusedPath"))
+            : base(tracer, enlistment, fileSystem)
         {
             this.rootSha = Guid.NewGuid().ToString();
             this.AddTree(this.rootSha, ".");
@@ -73,12 +73,12 @@ namespace GVFS.UnitTests.Mock.Physical.Git
             return newSha;
         }
 
-        public override string GetHeadTreeSha()
+        public string GetHeadTreeSha()
         {
             return this.rootSha;
         }
 
-        public override bool TryCopyBlobContentStream(string blobSha, Action<StreamReader, long> writeAction)
+        public override bool TryCopyBlobContentStream_CanTimeout(string blobSha, Action<StreamReader, long> writeAction)
         {
             if (this.objects.ContainsKey(blobSha))
             {
@@ -95,7 +95,7 @@ namespace GVFS.UnitTests.Mock.Physical.Git
             return false;
         }
 
-        public override bool TryGetBlobLength(string blobSha, out long size)
+        public override bool TryGetBlobLength_CanTimeout(string blobSha, out long size)
         {
             MockGitObject obj;
             if (this.objects.TryGetValue(blobSha, out obj))
@@ -109,12 +109,7 @@ namespace GVFS.UnitTests.Mock.Physical.Git
             return false;
         }
         
-        public override IEnumerable<GitTreeEntry> GetTreeEntries(string commitId, string path)
-        {
-            throw new NotImplementedException();
-        }
-
-        public override IEnumerable<GitTreeEntry> GetTreeEntries(string sha)
+        public override IEnumerable<GitTreeEntry> GetTreeEntries_CanTimeout(string commitId, string path)
         {
             throw new NotImplementedException();
         }

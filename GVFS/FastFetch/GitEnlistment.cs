@@ -11,6 +11,11 @@ namespace FastFetch
             : base(repoRoot, repoRoot, cacheBaseUrl, gitBinPath, gvfsHooksRoot: null)
         {
         }
+
+        public string FastFetchLogRoot
+        {
+            get { return Path.Combine(this.EnlistmentRoot, GVFSConstants.DotGit.Root, ".fastfetch"); }
+        }
                        
         public static GitEnlistment CreateFromCurrentDirectory(string objectsEndpoint, string gitBinPath)
         {

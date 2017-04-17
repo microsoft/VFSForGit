@@ -47,15 +47,24 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerTestCase
         {
             // Everything under the gvfs folder. Include some duplicates for variety.
             string tempFilePath = Path.Combine(Path.GetTempPath(), "temp.file");
-            File.WriteAllLines(tempFilePath, new[] { "gvfs/", "gvfs/gvfs", "gvfs/" });
+            File.WriteAllLines(
+                tempFilePath,
+                new[]
+                {
+                    "# A comment",
+                    " ",
+                    "gvfs/",
+                    "gvfs/gvfs",
+                    "gvfs/"
+                });
 
             string output = this.Enlistment.PrefetchFolderBasedOnFile(tempFilePath);
             File.Delete(tempFilePath);
 
-            output.ShouldContain("\"TotalMissingObjects\":283");
+            output.ShouldContain("\"RequiredBlobsCount\":283");
 
             this.AllFetchedFilePathsShouldPassCheck(file => file.StartsWith("gvfs/", StringComparison.OrdinalIgnoreCase) 
-            || file.Equals(".gitattributes", StringComparison.OrdinalIgnoreCase));
+                || file.Equals(".gitattributes", StringComparison.OrdinalIgnoreCase));
         }
                 
         private void AllFetchedFilePathsShouldPassCheck(Func<string, bool> checkPath)
@@ -68,11 +77,12 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerTestCase
             {
                 string sha = this.GetShaFromLsLine(line);
                 string path = this.GetPathFromLsLine(line);
+
                 if (!allPaths.ContainsKey(sha))
                 {
                     allPaths.Add(sha, new List<string>());
                 }
-
+                
                 allPaths[sha].Add(path);
             }
 
@@ -81,7 +91,8 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerTestCase
                 allPaths.ContainsKey(sha).ShouldEqual(true, "Found a blob that wasn't in the tree: " + sha);
 
                 // A single blob should map to multiple files, so if any pass for a single sha, we have to give a pass.    
-                allPaths[sha].Any(path => checkPath(path)).ShouldEqual(true);
+                allPaths[sha].Any(path => checkPath(path))
+                    .ShouldEqual(true, "Downloaded extra paths:\r\n" + string.Join("\r\n", allPaths[sha]));
             }
         }
 

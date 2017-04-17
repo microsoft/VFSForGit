@@ -36,7 +36,9 @@ namespace GVFS.FunctionalTests.Tools
             GitProcess.Invoke(this.RootPath, "config core.autocrlf false");
             GitProcess.Invoke(this.RootPath, "config merge.stat false");
             GitProcess.Invoke(this.RootPath, "config advice.statusUoption false");
-            GitProcess.Invoke(this.RootPath, "config core.abbrev 12");
+            GitProcess.Invoke(this.RootPath, "config core.abbrev 40");
+            GitProcess.Invoke(this.RootPath, "config user.name \"Functional Test User\"");
+            GitProcess.Invoke(this.RootPath, "config user.email \"functional@test.com\"");
             GitProcess.Invoke(this.RootPath, "remote add origin " + this.RepoUrl);
             this.Fetch(this.Commitish);
             GitProcess.Invoke(this.RootPath, "branch --set-upstream " + this.Commitish + " origin/" + this.Commitish);

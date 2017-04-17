@@ -10,7 +10,7 @@ namespace GVFS.FunctionalTests.Tools
 {
     public static class GitHelpers
     {
-        public const string ExcludeFilePath = @".git\info\exclude";
+        public const string AlwaysExcludeFilePath = @".git\info\always_exclude";
         private const int MaxRetries = 10;
         private const int ThreadSleepMS = 1500;
 
@@ -38,20 +38,20 @@ namespace GVFS.FunctionalTests.Tools
             result.Errors.ShouldBeEmpty();
         }
 
-        public static ProcessResult InvokeGitAgainstGVFSRepo(string gvfsRepoRoot, string command, bool cleanOutput = true)
+        public static ProcessResult InvokeGitAgainstGVFSRepo(string gvfsRepoRoot, string command, bool cleanErrors = true)
         {
             ProcessResult result = GitProcess.InvokeProcess(gvfsRepoRoot, command);
 
-            string output = result.Output;
-            if (cleanOutput)
+            string errors = result.Errors;
+            if (cleanErrors)
             {
-                string[] lines = output.Split(new string[] { "\r\n" }, StringSplitOptions.None);
-                output = string.Join("\r\n", lines.Where(line => !line.StartsWith("Waiting for ")));
+                string[] lines = errors.Split(new string[] { "\r\n" }, StringSplitOptions.None);
+                errors = string.Join("\r\n", lines.Where(line => !line.StartsWith("Waiting for ")));
             }
 
             return new ProcessResult(
-                output,
-                result.Errors,
+                result.Output,
+                errors,
                 result.ExitCode);
         }
 
@@ -61,14 +61,16 @@ namespace GVFS.FunctionalTests.Tools
             string command,
             params object[] args)
         {
+            command = string.Format(command, args);
             string controlRepoRoot = controlGitRepo.RootPath;
             string gvfsRepoRoot = enlistment.RepoRoot;
 
-            command = string.Format(command, args);
             ProcessResult expectedResult = GitProcess.InvokeProcess(controlRepoRoot, command);
             ProcessResult actualResult = GitHelpers.InvokeGitAgainstGVFSRepo(gvfsRepoRoot, command);
-            actualResult.Output.ShouldEqual(expectedResult.Output);
-            actualResult.Errors.ShouldEqual(expectedResult.Errors);
+            actualResult.Errors.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries)
+                .ShouldMatchInOrder(expectedResult.Errors.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries), LinesAreEqual, command + " Errors Lines");
+            actualResult.Output.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries)
+                .ShouldMatchInOrder(expectedResult.Output.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries), LinesAreEqual, command + " Output Lines");
 
             if (command != "status")
             {
@@ -117,6 +119,11 @@ namespace GVFS.FunctionalTests.Tools
                 });
 
             return resetEvent;
+        }
+
+        private static bool LinesAreEqual(string actualLine, string expectedLine)
+        {
+            return actualLine.Equals(expectedLine);
         }
     }
 }

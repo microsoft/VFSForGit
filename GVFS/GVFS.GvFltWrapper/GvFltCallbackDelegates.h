@@ -40,20 +40,21 @@ namespace GVFSGvFltWrapper
 
     public delegate void GvNotifyCreateEvent(
         System::String^ relativePath,
+		bool isDirectory,
         unsigned long desiredAccess,
         unsigned long shareMode,
         unsigned long createDisposition,
         unsigned long createOptions,
-        unsigned long ioStatusBlock,
+        IoStatusBlockValue ioStatusBlock,
         unsigned long% notificationMask);
 
-    public delegate StatusCode GvNotifyPreDeleteEvent(System::String^ relativePath);
+    public delegate StatusCode GvNotifyPreDeleteEvent(System::String^ relativePath, bool isDirectory);
 
     public delegate StatusCode GvNotifyPreRenameEvent(System::String^ relativePath, System::String^ destinationPath);
     
     public delegate StatusCode GvNotifyPreSetHardlinkEvent(System::String^ relativePath, System::String^ destinationPath);
 
-    public delegate void GvNotifyFileRenamedEvent(System::String^ relativePath, System::String^ destinationPath, unsigned long% notificationMask);
+    public delegate void GvNotifyFileRenamedEvent(System::String^ relativePath, System::String^ destinationPath, bool isDirectory, unsigned long% notificationMask);
 
     public delegate void GvNotifyHardlinkCreatedEvent(System::String^ relativePath, System::String^ destinationPath);
 

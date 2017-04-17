@@ -67,7 +67,7 @@
     </Compile>
     <Compile Include="InProcessMount.cs" />
     <Compile Include="MountAbortedException.cs" />
-    <Compile Include="MountVerb.cs" />
+    <Compile Include="InProcessMountVerb.cs" />
     <Compile Include="Program.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
   </ItemGroup>

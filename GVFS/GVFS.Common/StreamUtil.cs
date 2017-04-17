@@ -1,4 +1,6 @@
-﻿using System.IO;
+﻿using System;
+using System.Collections.Generic;
+using System.IO;
 
 namespace GVFS.Common
 {
@@ -8,7 +10,7 @@ namespace GVFS.Common
         /// .NET default buffer size <see cref="Stream.CopyTo"/> uses as of 8/30/16
         /// </summary>
         public const int DefaultCopyBufferSize = 81920;
-
+                
         /// <summary>
         /// Copies all bytes from the source stream to the destination stream.  This is an exact copy
         /// of Stream.CopyTo(), but can uses the supplied buffer instead of allocating a new one. 
@@ -26,8 +28,23 @@ namespace GVFS.Common
         {
             buffer = buffer ?? new byte[DefaultCopyBufferSize];
             int read;
-            while ((read = source.Read(buffer, 0, buffer.Length)) != 0)
+            while (true)
             {
+                try
+                {
+                    read = source.Read(buffer, 0, buffer.Length);
+                }
+                catch (Exception ex)
+                {
+                    // All exceptions potentially from network should be retried
+                    throw new RetryableException("Exception while reading stream. See inner exception for details.", ex);
+                }
+
+                if (read == 0)
+                {
+                    break;
+                }
+
                 destination.Write(buffer, 0, read);
             }
         }
@@ -45,9 +62,22 @@ namespace GVFS.Common
         public static int TryReadGreedy(Stream stream, byte[] buf, int offset, int count)
         {
             int totalRead = 0;
+            int read = 0;
             while (totalRead < count)
             {
-                int read = stream.Read(buf, offset + totalRead, count - totalRead);
+                int start = offset + totalRead;
+                int length = count - totalRead;
+
+                try
+                {
+                    read = stream.Read(buf, start, length);
+                }
+                catch (Exception ex)
+                {
+                    // All exceptions potentially from network should be retried
+                    throw new RetryableException("Exception while reading stream. See inner exception for details.", ex);
+                }
+
                 if (read == 0)
                 {
                     break;

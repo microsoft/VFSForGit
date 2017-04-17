@@ -54,7 +54,7 @@ namespace GVFS.UnitTests.GVFlt
                 this.ValidateActiveEnumeratorReturnsAllEntries(activeEnumeration, entries);
             }
         }
-    
+
         [TestCase]
         public void EnumerateSingleEntryListWithEmptyFilter()
         {
@@ -72,7 +72,7 @@ namespace GVFS.UnitTests.GVFlt
 
             // Test null filter
             using (GVFltActiveEnumeration activeEnumeration = new GVFltActiveEnumeration(entries))
-            { 
+            {
                 activeEnumeration.TrySaveFilterString(null).ShouldEqual(true);
                 this.ValidateActiveEnumeratorReturnsAllEntries(activeEnumeration, entries);
             }
@@ -390,12 +390,10 @@ namespace GVFS.UnitTests.GVFlt
         }
 
         [TestCase]
-        public void RestartingScanWithFilterAdvancesEnumeratorToFirstMatchingProjectedEntry()
+        public void RestartingScanWithFilterAdvancesEnumeratorToFirstMatchingEntry()
         {
-            GVFltFileInfo c_foo_file_info = new GVFltFileInfo("c.foo", size: 0, isFolder: false);
             List<GVFltFileInfo> entries = new List<GVFltFileInfo>()
             {
-                c_foo_file_info,
                 new GVFltFileInfo("C.TXT", size: 0, isFolder:false),
                 new GVFltFileInfo("D.txt", size: 0, isFolder:false),
                 new GVFltFileInfo("E.txt", size: 0, isFolder:false),
@@ -409,8 +407,6 @@ namespace GVFS.UnitTests.GVFlt
                 activeEnumeration.TrySaveFilterString("D.txt").ShouldEqual(true);
                 activeEnumeration.IsCurrentValid.ShouldEqual(true);
                 activeEnumeration.Current.Name.ShouldEqual("D.txt");
-
-                c_foo_file_info.IsProjected = false;
 
                 activeEnumeration.RestartEnumeration("c*");
                 activeEnumeration.IsCurrentValid.ShouldEqual(true);

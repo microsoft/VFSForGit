@@ -9,6 +9,7 @@ using System.Threading;
 
 namespace GVFS.FunctionalTests.Tests.LongRunningEnlistment
 {
+    // TODO 469238: Elaborate on these tests?
     [TestFixture]
     public class MultithreadedReadWriteTests : TestsWithLongRunningEnlistment
     {

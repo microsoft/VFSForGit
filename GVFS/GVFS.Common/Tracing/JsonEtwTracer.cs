@@ -20,9 +20,14 @@ namespace GVFS.Common.Tracing
         private List<InProcEventListener> listeners;
 
         public JsonEtwTracer(string providerName, string activityName)
+            : this(providerName, Guid.Empty, activityName)
+        {
+        }
+
+        public JsonEtwTracer(string providerName, Guid providerActivityId, string activityName)
             : this(
                   new EventSource(providerName, EventSourceSettings.EtwSelfDescribingEventFormat),
-                  Guid.Empty,
+                  providerActivityId,
                   activityName,
                   EventLevel.Informational)
         {

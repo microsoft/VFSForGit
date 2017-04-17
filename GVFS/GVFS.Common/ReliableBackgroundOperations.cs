@@ -26,6 +26,7 @@ namespace GVFS.Common
 
         private GVFSContext context;
 
+        // TODO 656051: Replace these callbacks with an interface
         private Func<CallbackResult> preCallback;
         private Func<TBackgroundOperation, CallbackResult> callback;
         private Func<CallbackResult> postCallback;
@@ -50,7 +51,7 @@ namespace GVFS.Common
             this.postCallback = postCallback;
         }
 
-        private enum AcquireGitLockResult
+        private enum AcquireGVFSLockResult
         {
             LockAcquired,
             ShuttingDown
@@ -64,7 +65,7 @@ namespace GVFS.Common
         public void Start()
         {
             this.EnqueueSavedOperations();
-            this.backgroundThread = Task.Run((Action)this.ProcessBackgroundOperations);
+            this.backgroundThread = Task.Factory.StartNew((Action)this.ProcessBackgroundOperations, TaskCreationOptions.LongRunning);
             if (this.backgroundOperations.Count > 0)
             {
                 this.wakeUpThread.Set();
@@ -136,22 +137,22 @@ namespace GVFS.Common
             }
         }
 
-        private AcquireGitLockResult WaitToAcquireGitLock()
+        private AcquireGVFSLockResult WaitToAcquireGVFSLock()
         {
             while (!this.context.Repository.GVFSLock.TryAcquireLock())
             {
                 if (this.isStopping)
                 {
-                    return AcquireGitLockResult.ShuttingDown;
+                    return AcquireGVFSLockResult.ShuttingDown;
                 }
 
                 Thread.Sleep(ActionRetryDelayMS);
             }
 
-            return AcquireGitLockResult.LockAcquired;
+            return AcquireGVFSLockResult.LockAcquired;
         }
 
-        private void ReleaseGitLockIfNecessary()
+        private void ReleaseGVFSLockIfNecessary()
         {
             try
             {
@@ -163,7 +164,14 @@ namespace GVFS.Common
                     // If unable to enter writer status, wait and try again if the queue is still empty.
                     if (this.acquisitionLock.TryEnterWriteLock(millisecondsTimeout: 10))
                     {
-                        this.context.Repository.GVFSLock.ReleaseLock();
+                        // Only release the lock if the queue is still empty since the EnterWrite above
+                        // could have succeeded after someone else (ie gvflt callback) succeeded in adding something
+                        // to the queue.
+                        if (this.backgroundOperations.IsEmpty)
+                        {
+                            this.context.Repository.GVFSLock.ReleaseLock();
+                        }
+
                         break;
                     }
 
@@ -172,7 +180,7 @@ namespace GVFS.Common
             }
             catch (Exception e)
             {
-                this.LogErrorAndExit("gitLock.TryReleaseLock threw Exception, shutting down", e);
+                this.LogErrorAndExit("Exception while attempting to release GVFS lock, shutting down", e);
             }
             finally
             {
@@ -189,26 +197,47 @@ namespace GVFS.Common
 
             while (true)
             {
-                AcquireGitLockResult acquireLockResult = AcquireGitLockResult.ShuttingDown;
+                AcquireGVFSLockResult acquireLockResult = AcquireGVFSLockResult.ShuttingDown;
 
                 try
                 {
-                    this.wakeUpThread.WaitOne();
+                    this.wakeUpThread.WaitOne(500);
 
                     if (this.isStopping)
                     {
                         return;
                     }
 
-                    acquireLockResult = this.WaitToAcquireGitLock();
+                    if (this.backgroundOperations.IsEmpty)
+                    {
+                        if (this.context.Repository.GVFSLock.IsLockedByGVFS)
+                        {
+                            EventMetadata metadata = new EventMetadata();
+                            metadata.Add("Area", EtwArea);
+                            metadata.Add("Message", "Releasing lock being held unnecessarily by GVFS.");
+                            this.context.Tracer.RelatedEvent(EventLevel.Informational, "TaskProcessingStatus", metadata);
+
+                            this.ReleaseGVFSLockIfNecessary();
+                        }
+
+                        // Check for empty queue again since something might have been added
+                        // as we were attempting to release the lock. This avoids cycling back 
+                        // if there are ops in the queue and having to wait for the next timeout on wakeUpThread.
+                        if (this.backgroundOperations.IsEmpty)
+                        {
+                            continue;
+                        }
+                    }
+
+                    acquireLockResult = this.WaitToAcquireGVFSLock();
                     switch (acquireLockResult)
                     {
-                        case AcquireGitLockResult.LockAcquired:
+                        case AcquireGVFSLockResult.LockAcquired:
                             break;
-                        case AcquireGitLockResult.ShuttingDown:
+                        case AcquireGVFSLockResult.ShuttingDown:
                             return;
                         default:
-                            this.LogErrorAndExit("Invalid AcquireGitLockResult result");
+                            this.LogErrorAndExit("Invalid " + nameof(AcquireGVFSLockResult) + " result");
                             return;
                     }
 
@@ -264,7 +293,7 @@ namespace GVFS.Common
                     if (tasksProcessed >= LogUpdateTaskThreshold)
                     {
                         EventMetadata metadata = new EventMetadata();
-                        metadata.Add("BackgroundOperations", EtwArea);
+                        metadata.Add("Area", EtwArea);
                         metadata.Add("TasksProcessed", tasksProcessed);
                         metadata.Add("Message", "Processing background tasks complete");
                         this.context.Tracer.RelatedEvent(EventLevel.Informational, "TaskProcessingStatus", metadata);
@@ -281,10 +310,10 @@ namespace GVFS.Common
                 }
                 finally
                 {
-                    if (acquireLockResult == AcquireGitLockResult.LockAcquired)
+                    if (acquireLockResult == AcquireGVFSLockResult.LockAcquired)
                     {
                         this.RunCallbackUntilSuccess(this.postCallback, "PostCallback");
-                        this.ReleaseGitLockIfNecessary();
+                        this.ReleaseGVFSLockIfNecessary();
                     }
                 }
             }

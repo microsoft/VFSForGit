@@ -22,7 +22,15 @@ namespace GVFS.FunctionalTests.Tests
         public override void AfterTest(ITest test)
         {
             Console.WriteLine("Completed at {0:hh:mm:ss}", DateTime.Now);
-            Console.WriteLine();
+
+            string message = TestContext.CurrentContext.Result.Message;
+            TestStatus status = TestContext.CurrentContext.Result.Outcome.Status;
+            
+            Console.WriteLine("Status:      {0}\n", status.ToString());
+            if (status != TestStatus.Passed)
+            {
+                Console.WriteLine(message);
+            }
         }
     }
 }

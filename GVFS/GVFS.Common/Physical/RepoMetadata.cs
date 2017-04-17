@@ -1,5 +1,4 @@
-﻿using GVFS.Common.Tracing;
-using Microsoft.Isam.Esent.Collections.Generic;
+﻿using Microsoft.Isam.Esent.Collections.Generic;
 using System;
 using System.IO;
 
@@ -7,6 +6,8 @@ namespace GVFS.Common.Physical
 {
     public class RepoMetadata : IDisposable
     {
+        private const string ProjectionInvalidKey = "ProjectionInvalid";
+
         private PersistentDictionary<string, string> repoMetadata;
 
         public RepoMetadata(string dotGVFSPath)
@@ -17,7 +18,7 @@ namespace GVFS.Common.Physical
 
         public static int GetCurrentDiskLayoutVersion()
         {
-            return DiskLayoutVersion.CurrentDiskLayoutVerion;
+            return DiskLayoutVersion.CurrentDiskLayoutVersion;
         }
 
         public static bool CheckDiskLayoutVersion(string dotGVFSPath, out string error)
@@ -42,9 +43,45 @@ namespace GVFS.Common.Physical
             }
         }
 
+        public bool TryGetOnDiskLayoutVersion(out int version, out string error)
+        {
+            return DiskLayoutVersion.TryGetOnDiskLayoutVersion(this.repoMetadata, out version, out error);
+        }
+
+        /* TODO: Story 957530 Remove code using GVFS_HEAD with next breaking change. */
+        public bool OnDiskVersionSupportsIndexProjection()
+        {
+            return DiskLayoutVersion.OnDiskVersionSupportsIndexProjection(this.repoMetadata);
+        }
+
         public void SaveCurrentDiskLayoutVersion()
         {
             DiskLayoutVersion.SaveCurrentDiskLayoutVersion(this.repoMetadata);
+        }
+
+        public void SetProjectionInvalid(bool invalid)
+        {
+            if (invalid)
+            {
+                this.repoMetadata[ProjectionInvalidKey] = "true";                
+            }
+            else
+            {
+                this.repoMetadata.Remove(ProjectionInvalidKey);
+            }
+
+            this.repoMetadata.Flush();
+        }
+
+        public bool GetProjectionInvalid()
+        {
+            string value;
+            if (this.repoMetadata.TryGetValue(ProjectionInvalidKey, out value))
+            {
+                return true;
+            }
+
+            return false;
         }
 
         public void Dispose()
@@ -71,16 +108,15 @@ namespace GVFS.Common.Physical
         {
             // The current disk layout version.  This number should be bumped whenever a disk format change is made
             // that would impact and older GVFS's ability to mount the repo
-            public const int CurrentDiskLayoutVerion = 3;
+            public const int CurrentDiskLayoutVersion = 5;
 
             public const string MissingVersionError = "Enlistment disk layout version not found, check if a breaking change has been made to GVFS since cloning this enlistment.";
-
             private const string DiskLayoutVersionKey = "DiskLayoutVersion";
 
             // MaxDiskLayoutVersion ensures that olders versions of GVFS will not try to mount newer enlistments (if the 
             // disk layout of the newer GVFS is incompatible).
             // GVFS will only mount if the disk layout version of the repo is <= MaxDiskLayoutVersion
-            private const int MaxDiskLayoutVersion = CurrentDiskLayoutVerion;
+            private const int MaxDiskLayoutVersion = CurrentDiskLayoutVersion;
 
             // MinDiskLayoutVersion ensures that GVFS will not attempt to mount an older repo if there has been a breaking format
             // change since that enlistment was cloned.
@@ -88,31 +124,49 @@ namespace GVFS.Common.Physical
             //     - Bump this version number only when a breaking change is being made (i.e. upgrade is not supported)
             private const int MinDiskLayoutVersion = 3;
 
+            // The first version that supported projection files via the git index
+            private const int ProjectGitIndexVersion = 4;
+
             public static void SaveCurrentDiskLayoutVersion(PersistentDictionary<string, string> repoMetadata)
             {
-                repoMetadata[DiskLayoutVersionKey] = CurrentDiskLayoutVerion.ToString();
+                repoMetadata[DiskLayoutVersionKey] = CurrentDiskLayoutVersion.ToString();
                 repoMetadata.Flush();
+            }
+
+            public static bool TryGetOnDiskLayoutVersion(PersistentDictionary<string, string> repoMetadata, out int version, out string error)
+            {
+                version = -1;
+                error = string.Empty;
+                string value;
+                if (repoMetadata.TryGetValue(DiskLayoutVersionKey, out value))
+                {
+                    if (!int.TryParse(value, out version))
+                    {
+                        error = "Failed to parse persisted disk layout version number: " + value;
+                        return false;
+                    }                   
+                }
+                else
+                {
+                    error = MissingVersionError;
+                    return false;
+                }
+
+                return true;
             }
 
             public static bool CheckDiskLayoutVersion(PersistentDictionary<string, string> repoMetadata, out string error)
             {
                 error = string.Empty;
-                string value;
-                if (repoMetadata.TryGetValue(DiskLayoutVersionKey, out value))
+                int persistedVersionNumber;
+                if (TryGetOnDiskLayoutVersion(repoMetadata, out persistedVersionNumber, out error))
                 {
-                    int persistedVersionNumber;
-                    if (!int.TryParse(value, out persistedVersionNumber))
-                    {
-                        error = "Failed to parse persisted disk layout version number";
-                        return false;
-                    }
-
                     if (persistedVersionNumber < MinDiskLayoutVersion)
                     {
                         error = string.Format(
                             "Breaking change to GVFS disk layout has been made since cloning. \r\nEnlistment disk layout version: {0} \r\nGVFS disk layout version: {1} \r\nMinimum supported version: {2}",
                             persistedVersionNumber,
-                            CurrentDiskLayoutVerion,
+                            CurrentDiskLayoutVersion,
                             MinDiskLayoutVersion);
 
                         return false;
@@ -122,17 +176,32 @@ namespace GVFS.Common.Physical
                         error = string.Format(
                             "Changes to GVFS disk layout do not allow mounting after downgrade. Try mounting again using a more recent version of GVFS. \r\nEnlistment disk layout version: {0} \r\nGVFS disk layout version: {1}",
                             persistedVersionNumber,
-                            CurrentDiskLayoutVerion);
+                            CurrentDiskLayoutVersion);
                         return false;
                     }
-                }
-                else
-                {
-                    error = MissingVersionError;
-                    return false;
+
+                    return true;
                 }
 
-                return true;
+                return false;
+            }
+
+            /* TODO: Story 957530 Remove code using GVFS_HEAD with next breaking change. */
+            public static bool OnDiskVersionSupportsIndexProjection(PersistentDictionary<string, string> repoMetadata)
+            {
+                string error;
+                int persistedVersionNumber;
+                if (TryGetOnDiskLayoutVersion(repoMetadata, out persistedVersionNumber, out error))
+                {
+                    if (persistedVersionNumber < ProjectGitIndexVersion)
+                    {
+                        return false;
+                    }
+
+                    return true;
+                }
+
+                return false;
             }
         }
     }

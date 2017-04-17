@@ -58,6 +58,44 @@
     <Compile Include="..\..\..\BuildOutput\CommonAssemblyVersion.cs">
       <Link>CommonAssemblyVersion.cs</Link>
     </Compile>
+    <!--
+    Files from GVFS.Common included as links here to prevent adding
+    project reference. The project reference leads to performance degradation
+    due to the other dependencies that come along with GVFS.Common.
+    -->
+    <Compile Include="..\GVFS.Common\ConsoleHelper.cs">
+      <Link>Common\ConsoleHelper.cs</Link>
+    </Compile>
+    <Compile Include="..\GVFS.Common\EnlistmentUtils.cs">
+      <Link>Common\EnlistmentUtils.cs</Link>
+    </Compile>
+    <Compile Include="..\GVFS.Common\Git\GitConfigHelper.cs">
+      <Link>Common\GitConfigHelper.cs</Link>
+    </Compile>
+    <Compile Include="..\GVFS.Common\Git\GitConfigSetting.cs">
+      <Link>Common\GitConfigSetting.cs</Link>
+    </Compile>
+    <Compile Include="..\GVFS.Common\Git\GitVersion.cs">
+      <Link>Common\GitVersion.cs</Link>
+    </Compile>
+    <Compile Include="..\GVFS.Common\GVFSConstants.cs">
+      <Link>Common\GVFSConstants.cs</Link>
+    </Compile>
+    <Compile Include="..\GVFS.Common\NamedPipes\BrokenPipeException.cs">
+      <Link>Common\BrokenPipeException.cs</Link>
+    </Compile>
+    <Compile Include="..\GVFS.Common\NamedPipes\LockNamedPipeMessages.cs">
+      <Link>Common\LockNamedPipeMessages.cs</Link>
+    </Compile>
+    <Compile Include="..\GVFS.Common\NamedPipes\NamedPipeClient.cs">
+      <Link>Common\NamedPipeClient.cs</Link>
+    </Compile>
+    <Compile Include="..\GVFS.Common\ProcessHelper.cs">
+      <Link>Common\ProcessHelper.cs</Link>
+    </Compile>
+    <Compile Include="..\GVFS.Common\ProcessResult.cs">
+      <Link>Common\ProcessResult.cs</Link>
+    </Compile>
     <Compile Include="KnownGitCommands.cs" />
     <Compile Include="Program.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
@@ -65,12 +103,6 @@
   <ItemGroup>
     <None Include="App.config" />
     <None Include="packages.config" />
-  </ItemGroup>
-  <ItemGroup>
-    <ProjectReference Include="..\GVFS.Common\GVFS.Common.csproj">
-      <Project>{374bf1e5-0b2d-4d4a-bd5e-4212299def09}</Project>
-      <Name>GVFS.Common</Name>
-    </ProjectReference>
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
   <Target Name="EnsureNuGetPackageBuildImports" BeforeTargets="PrepareForBuild">

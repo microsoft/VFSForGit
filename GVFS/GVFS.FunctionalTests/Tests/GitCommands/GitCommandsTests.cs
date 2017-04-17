@@ -1,4 +1,4 @@
-﻿using GVFS.FunctionalTests.FileSystemRunners;
+﻿using GVFS.FunctionalTests.Category;
 using GVFS.FunctionalTests.Should;
 using GVFS.FunctionalTests.Tools;
 using GVFS.Tests.Should;
@@ -7,10 +7,11 @@ using System;
 using System.IO;
 using System.Runtime.CompilerServices;
 
-namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
+namespace GVFS.FunctionalTests.Tests.GitCommands
 {
     [TestFixture]
-    public class GitCommandsTests : TestsWithEnlistmentPerFixture
+    [Category(CategoryConstants.GitCommands)]
+    public class GitCommandsTests : GitRepoTests
     {
         private const string EncodingFileFolder = "FilenameEncoding";
         private const string EncodingFilename = "ريلٌأكتوبرûمارسأغسطسºٰٰۂْٗ۵ريلٌأك.txt";
@@ -19,73 +20,23 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
         private const string DeleteFilePath = @"GVFS\GVFS\Program.cs";
         private const string RenameFilePathFrom = @"GVFS\GVFS.Common\Physical\FileSystem\FileProperties.cs";
         private const string RenameFilePathTo = @"GVFS\GVFS.Common\Physical\FileSystem\FileProperties2.cs";
-        private const string RenameFolderPathFrom = @"GVFS\GVFS.Common\Physical\FileSystem";
-        private const string RenameFolderPathTo = @"GVFS\GVFS.Common\Physical\FileSyst3m";
+        private const string RenameFolderPathFrom = @"GVFS\GVFS.Common\PrefetchPacks";
+        private const string RenameFolderPathTo = @"GVFS\GVFS.Common\PrefetchPacksRenamed";
         private const string UnknownTestName = "Unknown";
-        private FileSystemRunner fileSystem;
 
-        public GitCommandsTests()
+        public GitCommandsTests() : base(enlistmentPerTest: false)
         {
-            this.fileSystem = new SystemIORunner();
-        }
-
-        public ControlGitRepo ControlGitRepo
-        {
-            get; private set;
-        }
-
-        public override void CreateEnlistment()
-        {
-            base.CreateEnlistment();
-            GitProcess.Invoke(this.Enlistment.RepoRoot, "config advice.statusUoption false");
-            GitProcess.Invoke(this.Enlistment.RepoRoot, "config core.abbrev 12");
-
-            this.ControlGitRepo = ControlGitRepo.Create();
-            this.ControlGitRepo.Initialize();
-        }
-
-        public override void DeleteEnlistment()
-        {
-            base.DeleteEnlistment();
-            this.ControlGitRepo.Delete();
-        }
-
-        [SetUp]
-        public void TestSetup()
-        {
-            this.ValidateGitCommand("checkout " + this.ControlGitRepo.Commitish);
-
-            this.CheckHeadCommitTree();
-            this.Enlistment.RepoRoot.ShouldBeADirectory(this.fileSystem)
-                .WithDeepStructure(this.ControlGitRepo.RootPath);
-            this.ValidateGitCommand("status");
-        }
-
-        [TearDown]
-        public void TestTearDown()
-        {
-            this.CheckHeadCommitTree();
-            this.Enlistment.RepoRoot.ShouldBeADirectory(this.fileSystem)
-                .WithDeepStructure(this.ControlGitRepo.RootPath);
-
-            this.RunGitCommandNoProgress("reset --hard HEAD");
-            this.ValidateGitCommand("clean -d -f -x");
-            this.ValidateGitCommand("checkout " + this.ControlGitRepo.Commitish);
-
-            this.CheckHeadCommitTree();
-            this.Enlistment.RepoRoot.ShouldBeADirectory(this.fileSystem)
-                .WithDeepStructure(this.ControlGitRepo.RootPath);
         }
 
         [TestCase]
         public void VerifyTestFilesExist()
         {
             // Sanity checks to ensure that the test files we expect to be in our test repo are present
-            Path.Combine(this.Enlistment.RepoRoot, EncodingFileFolder, EncodingFilename).ShouldBeAFile(this.fileSystem);
-            Path.Combine(this.Enlistment.RepoRoot, EditFilePath).ShouldBeAFile(this.fileSystem);
-            Path.Combine(this.Enlistment.RepoRoot, DeleteFilePath).ShouldBeAFile(this.fileSystem);
-            Path.Combine(this.Enlistment.RepoRoot, RenameFilePathFrom).ShouldBeAFile(this.fileSystem);
-            Path.Combine(this.Enlistment.RepoRoot, RenameFolderPathFrom).ShouldBeADirectory(this.fileSystem);
+            Path.Combine(this.Enlistment.RepoRoot, GitCommandsTests.EditFilePath).ShouldBeAFile(this.FileSystem);
+            Path.Combine(this.Enlistment.RepoRoot, GitCommandsTests.EditFilePath).ShouldBeAFile(this.FileSystem);
+            Path.Combine(this.Enlistment.RepoRoot, GitCommandsTests.DeleteFilePath).ShouldBeAFile(this.FileSystem);
+            Path.Combine(this.Enlistment.RepoRoot, GitCommandsTests.RenameFilePathFrom).ShouldBeAFile(this.FileSystem);
+            Path.Combine(this.Enlistment.RepoRoot, GitCommandsTests.RenameFolderPathFrom).ShouldBeADirectory(this.FileSystem);
         }
 
         [TestCase]
@@ -156,6 +107,13 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
         public void CheckoutNewBranchTest()
         {
             this.ValidateGitCommand("checkout -b tests/functional/CheckoutNewBranchTest");
+            this.ValidateGitCommand("status");
+        }
+
+        [TestCase]
+        public void CheckoutOrphanBranchTest()
+        {
+            this.ValidateGitCommand("checkout --orphan tests/functional/CheckoutOrphanBranchTest");
             this.ValidateGitCommand("status");
         }
 
@@ -286,6 +244,112 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
         }
 
         [TestCase]
+        public void MoveFileFromOutsideRepoToInsideRepoAndAdd()
+        {
+            string testFileContents = "0123456789";
+            string filename = "MoveFileFromOutsideRepoToInsideRepo.cs";
+
+            // Create the test files in this.Enlistment.EnlistmentRoot as it's outside of src and the control 
+            // repo and is cleaned up when the functional tests run
+            string oldFilePath = Path.Combine(this.Enlistment.EnlistmentRoot, filename);
+            string controlFilePath = Path.Combine(this.ControlGitRepo.RootPath, filename);
+            string gvfsFilePath = Path.Combine(this.Enlistment.RepoRoot, filename);
+
+            string newBranchName = "tests/functional/MoveFileFromOutsideRepoToInsideRepoAndAdd";
+            this.ValidateGitCommand("checkout -b " + newBranchName);
+
+            // Move file to control repo
+            this.FileSystem.WriteAllText(oldFilePath, testFileContents);
+            this.FileSystem.MoveFile(oldFilePath, controlFilePath);
+            oldFilePath.ShouldNotExistOnDisk(this.FileSystem);
+            controlFilePath.ShouldBeAFile(this.FileSystem).WithContents(testFileContents);
+
+            // Move file to GVFS repo
+            this.FileSystem.WriteAllText(oldFilePath, testFileContents);
+            this.FileSystem.MoveFile(oldFilePath, gvfsFilePath);
+            oldFilePath.ShouldNotExistOnDisk(this.FileSystem);
+            gvfsFilePath.ShouldBeAFile(this.FileSystem).WithContents(testFileContents);
+
+            this.ValidateGitCommand("status");
+            this.ValidateGitCommand("add .");
+            this.RunGitCommand("commit -m \"Change for MoveFileFromOutsideRepoToInsideRepoAndAdd\"");
+            this.ValidateGitCommand("checkout " + this.ControlGitRepo.Commitish);
+        }
+
+        [TestCase]
+        public void MoveFolderFromOutsideRepoToInsideRepoAndAdd()
+        {
+            string testFileContents = "0123456789";
+            string filename = "MoveFolderFromOutsideRepoToInsideRepoAndAdd.cs";
+            string folderName = "GitCommand_MoveFolderFromOutsideRepoToInsideRepoAndAdd";
+
+            // Create the test folders in this.Enlistment.EnlistmentRoot as it's outside of src and the control 
+            // repo and is cleaned up when the functional tests run
+            string oldFolderPath = Path.Combine(this.Enlistment.EnlistmentRoot, folderName);
+            string oldFilePath = Path.Combine(this.Enlistment.EnlistmentRoot, folderName, filename);
+            string controlFolderPath = Path.Combine(this.ControlGitRepo.RootPath, folderName);
+            string gvfsFolderPath = Path.Combine(this.Enlistment.RepoRoot, folderName);
+
+            string newBranchName = "tests/functional/MoveFolderFromOutsideRepoToInsideRepoAndAdd";
+            this.ValidateGitCommand("checkout -b " + newBranchName);
+
+            // Move folder to control repo
+            this.FileSystem.CreateDirectory(oldFolderPath);
+            this.FileSystem.WriteAllText(oldFilePath, testFileContents);
+            this.FileSystem.MoveDirectory(oldFolderPath, controlFolderPath);
+            oldFolderPath.ShouldNotExistOnDisk(this.FileSystem);
+            Path.Combine(controlFolderPath, filename).ShouldBeAFile(this.FileSystem).WithContents(testFileContents);
+
+            // Move folder to GVFS repo
+            this.FileSystem.CreateDirectory(oldFolderPath);
+            this.FileSystem.WriteAllText(oldFilePath, testFileContents);
+            this.FileSystem.MoveDirectory(oldFolderPath, gvfsFolderPath);
+            oldFolderPath.ShouldNotExistOnDisk(this.FileSystem);
+            Path.Combine(gvfsFolderPath, filename).ShouldBeAFile(this.FileSystem).WithContents(testFileContents);
+
+            this.ValidateGitCommand("status");
+            this.ValidateGitCommand("add .");
+            this.RunGitCommand("commit -m \"Change for MoveFolderFromOutsideRepoToInsideRepoAndAdd\"");
+            this.ValidateGitCommand("checkout " + this.ControlGitRepo.Commitish);
+        }
+
+        [TestCase]
+        public void MoveFileFromInsideRepoToOutsideRepoAndCommit()
+        {
+            string newBranchName = "tests/functional/MoveFileFromInsideRepoToOutsideRepoAndCommit";
+            this.ValidateGitCommand("checkout -b " + newBranchName);
+
+            string fileName = "Protocol.md";
+            string sparseFile = Path.Combine(this.Enlistment.RepoRoot, @".git\info\sparse-checkout");
+            sparseFile.ShouldBeAFile(this.FileSystem).WithContents().ShouldNotContain(fileName);
+
+            string controlTargetFolder = "MoveFileFromInsideRepoToOutsideRepoAndCommit_ControlTarget";
+            string gvfsTargetFolder = "MoveFileFromInsideRepoToOutsideRepoAndCommit_GVFSTarget";
+
+            // Create the target folders in this.Enlistment.EnlistmentRoot as it's outside of src and the control repo
+            // and is cleaned up when the functional tests run
+            string controlTargetFolderPath = Path.Combine(this.Enlistment.EnlistmentRoot, controlTargetFolder);
+            string gvfsTargetFolderPath = Path.Combine(this.Enlistment.EnlistmentRoot, gvfsTargetFolder);
+            string controlTargetFilePath = Path.Combine(controlTargetFolderPath, fileName);
+            string gvfsTargetFilePath = Path.Combine(gvfsTargetFolderPath, fileName);
+
+            // Move control repo file
+            this.FileSystem.CreateDirectory(controlTargetFolderPath);
+            this.FileSystem.MoveFile(Path.Combine(this.ControlGitRepo.RootPath, fileName), controlTargetFilePath);
+            controlTargetFilePath.ShouldBeAFile(this.FileSystem);
+
+            // Move GVFS repo file
+            this.FileSystem.CreateDirectory(gvfsTargetFolderPath);
+            this.FileSystem.MoveFile(Path.Combine(this.Enlistment.RepoRoot, fileName), gvfsTargetFilePath);
+            gvfsTargetFilePath.ShouldBeAFile(this.FileSystem);
+
+            this.ValidateGitCommand("status");
+            this.ValidateGitCommand("add .");
+            this.RunGitCommand("commit -m \"Change for MoveFileFromInsideRepoToOutsideRepoAndCommit\"");
+            this.ValidateGitCommand("checkout " + this.ControlGitRepo.Commitish);
+        }
+
+        [TestCase]
         public void DeleteFolderAndChangeBranchToFolderWithDifferentCase()
         {
             // 692765 - Recursive sparse-checkout entries for folders should be case insensitive when
@@ -294,7 +358,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
             string folderName = "GVFlt_MultiThreadTest";
 
             string sparseFile = Path.Combine(this.Enlistment.RepoRoot, @".git\info\sparse-checkout");
-            sparseFile.ShouldBeAFile(this.fileSystem).WithContents().ShouldNotContain(folderName);
+            sparseFile.ShouldBeAFile(this.FileSystem).WithContents().ShouldNotContain(folderName);
 
             this.FolderShouldHaveCaseMatchingName(folderName, "GVFlt_MultiThreadTest");
             this.DeleteFolder(folderName);
@@ -303,13 +367,6 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
             // and re-adding it as as GVFlt_MultiThreadTest
             this.ValidateGitCommand("checkout b5fd7d23706a18cff3e2b8225588d479f7e51138");
             this.FolderShouldHaveCaseMatchingName(folderName, "GVFLT_MultiThreadTest");
-
-            // TODO 696642: Because GVFS can leave around empty enumerated folders, switch back to 
-            // ControlGitRepo.Commitish so that the control repo has the same folders as GVFS when [TearDown]
-            // Validation occurs.
-            // If we do not switch back to ControlGitRepo.Commitish, the GVFS repo will have folders left from
-            // the enumeration that occurs in [Setup] (and this will not match the control repo)
-            this.ValidateGitCommand("checkout " + this.ControlGitRepo.Commitish);
         }
 
         [TestCase]
@@ -364,8 +421,8 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
             this.ValidateGitCommand("add .");
             this.RunGitCommand("commit -m \"Delete file for AddFileCommitThenDeleteAndCommit\"");
             this.ValidateGitCommand("checkout tests/functional/AddFileCommitThenDeleteAndCommit_before");
-            this.Enlistment.RepoRoot.ShouldBeADirectory(this.fileSystem)
-               .WithDeepStructure(this.ControlGitRepo.RootPath);
+            this.Enlistment.RepoRoot.ShouldBeADirectory(this.FileSystem)
+               .WithDeepStructure(this.ControlGitRepo.RootPath, skipEmptyDirectories: true);
             this.ValidateGitCommand("checkout tests/functional/AddFileCommitThenDeleteAndCommit_after");
         }
 
@@ -541,7 +598,6 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
         }
 
         [TestCase]
-        [Ignore("TODO 690810 - Invesigate why this test is failing")]
         public void ResetSoftTwice()
         {
             this.ValidateGitCommand("checkout -b tests/functional/ResetSoftTwice");
@@ -553,7 +609,6 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
         }
 
         [TestCase]
-        [Ignore("TODO 690810 - Invesigate why this test is failing")]
         public void ResetMixedTwice()
         {
             this.ValidateGitCommand("checkout -b tests/functional/ResetMixedTwice");
@@ -565,7 +620,6 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
         }
 
         [TestCase]
-        [Ignore("TODO 690810 - Invesigate why this test is failing")]
         public void ResetMixed2Twice()
         {
             this.ValidateGitCommand("checkout -b tests/functional/ResetMixed2Twice");
@@ -574,6 +628,22 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
             // the subsequent commit 60d19c87328120d11618ad563c396044a50985b2
             this.ValidateGitCommand("reset 60d19c87328120d11618ad563c396044a50985b2");
             this.ValidateGitCommand("reset 99fc72275f950b0052c8548bbcf83a851f2b4467");
+        }
+
+        [TestCase]
+        public void ResetMixedTwiceThenCheckout()
+        {
+            this.ValidateGitCommand("checkout -b tests/functional/ResetMixedTwice");
+
+            // A folder rename occured between ab438d5782f6ef9584769362a9877c23eb2d970e and 
+            // the subsequent commit 1973ec15b70273d8d46448bf842b4973b7402255
+            this.ValidateGitCommand("reset --mixed 60d19c87328120d11618ad563c396044a50985b2");
+            this.ValidateGitCommand("reset --mixed 99fc72275f950b0052c8548bbcf83a851f2b4467");
+
+            // This test will fail if the checkout get the GVFS lock before the BG thread
+            // because the always exclude will not be updated and the GVFS repo will not warn
+            // of untracked files that would be overwritten by the checkout.
+            this.ValidateGitCommand("checkout " + this.ControlGitRepo.Commitish);
         }
 
         [TestCase]
@@ -776,13 +846,13 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
             string virtualFile = Path.Combine(this.Enlistment.RepoRoot, EncodingFileFolder, EncodingFilename);
             string controlFile = Path.Combine(this.ControlGitRepo.RootPath, EncodingFileFolder, EncodingFilename);
 
-            string contents = virtualFile.ShouldBeAFile(this.fileSystem).WithContents();
-            string expectedContents = controlFile.ShouldBeAFile(this.fileSystem).WithContents();
+            string contents = virtualFile.ShouldBeAFile(this.FileSystem).WithContents();
+            string expectedContents = controlFile.ShouldBeAFile(this.FileSystem).WithContents();
             contents.ShouldEqual(expectedContents);
 
             // Check that the entry in the sparse-checkout matches
             string sparseCheckoutFile = Path.Combine(this.Enlistment.RepoRoot, TestConstants.DotGit.Info.SparseCheckout);
-            sparseCheckoutFile.ShouldBeAFile(this.fileSystem).WithContents().ShouldContain(EncodingFilename);
+            sparseCheckoutFile.ShouldBeAFile(this.FileSystem).WithContents().ShouldContain(EncodingFilename);
             this.ValidateGitCommand("status");
 
             this.AppendAllText(virtualFile, ContentWhenEditingFile);
@@ -795,6 +865,56 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
         {
             this.ValidateGitCommand("config --local alias.potato status");
             this.ValidateGitCommand("potato");
+        }
+
+        [TestCase]
+        public void RenameOnlyFileInFolder()
+        {
+            ControlGitRepo.Fetch("FunctionalTests/20170202_RenameTestMergeTarget");
+            ControlGitRepo.Fetch("FunctionalTests/20170202_RenameTestMergeSource");
+
+            this.ValidateGitCommand("checkout FunctionalTests/20170202_RenameTestMergeTarget");
+            this.FileSystem.ReadAllText(this.Enlistment.GetVirtualPathTo("Test_EPF_GitCommandsTestOnlyFileFolder\\file.txt"));
+            this.ValidateGitCommand("merge origin/FunctionalTests/20170202_RenameTestMergeSource");
+        }
+
+        [TestCase]
+        public void VerifyResetHardDeletesEmptyFolders()
+        {
+            this.SetupFolderDeleteTest();
+
+            this.RunGitCommand("reset --hard HEAD");
+            this.Enlistment.RepoRoot.ShouldBeADirectory(this.FileSystem)
+                .WithDeepStructure(this.ControlGitRepo.RootPath, skipEmptyDirectories: false);
+        }
+
+        [TestCase]
+        public void VerifyCleanDeletesEmptyFolders()
+        {
+            this.SetupFolderDeleteTest();
+
+            this.RunGitCommand("clean -fd");
+            this.Enlistment.RepoRoot.ShouldBeADirectory(this.FileSystem)
+                .WithDeepStructure(this.ControlGitRepo.RootPath, skipEmptyDirectories: false);
+        }
+
+        [TestCase]
+        public void UpdateIndexCannotModifySkipWorktreeBit()
+        {
+            ProcessResult result = GitHelpers.InvokeGitAgainstGVFSRepo(this.Enlistment.RepoRoot, "update-index --skip-worktree Readme.md");
+            result.Errors.ShouldContain("Modifying the skip worktree bit is not supported on a GVFS repo");
+
+            result = GitHelpers.InvokeGitAgainstGVFSRepo(this.Enlistment.RepoRoot, "update-index --no-skip-worktree Readme.md");
+            result.Errors.ShouldContain("Modifying the skip worktree bit is not supported on a GVFS repo");
+        }
+
+        private void SetupFolderDeleteTest()
+        {
+            ControlGitRepo.Fetch("FunctionalTests/20170202_RenameTestMergeTarget");
+            this.ValidateGitCommand("checkout FunctionalTests/20170202_RenameTestMergeTarget");
+            this.DeleteFile("Test_EPF_GitCommandsTestOnlyFileFolder\\file.txt");
+            this.ValidateGitCommand("add .");
+            this.RunGitCommand("commit -m\"Delete only file.\"");
         }
 
         private void SwitchBranch(Action fileSystemAction, [CallerMemberName]string test = GitCommandsTests.UnknownTestName)
@@ -830,73 +950,10 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
             this.ValidateGitCommand("add .");
             this.RunGitCommand("commit -m \"Change for {0}\"", branch);
             this.ValidateGitCommand("checkout " + this.ControlGitRepo.Commitish);
-            this.Enlistment.RepoRoot.ShouldBeADirectory(this.fileSystem)
-                .WithDeepStructure(this.ControlGitRepo.RootPath);
+            this.Enlistment.RepoRoot.ShouldBeADirectory(this.FileSystem)
+                .WithDeepStructure(this.ControlGitRepo.RootPath, skipEmptyDirectories: true);
 
             this.ValidateGitCommand("checkout {0}", branch);
-        }
-
-        private void CheckHeadCommitTree()
-        {
-            this.ValidateGitCommand("ls-tree HEAD");
-        }
-
-        // Some commands compute a new commit sha, which is dependent on time and therefore
-        // won't match what is in the control repo.  For those commands, we just ensure that
-        // the errors match what we expect, but we skip comparing the output
-        private void RunGitCommand(string command, params object[] args)
-        {
-            string controlRepoRoot = this.ControlGitRepo.RootPath;
-            string gvfsRepoRoot = this.Enlistment.RepoRoot;
-            command = string.Format(command, args);
-
-            ProcessResult expectedResult = GitProcess.InvokeProcess(controlRepoRoot, command);
-            ProcessResult actualResult = GitHelpers.InvokeGitAgainstGVFSRepo(gvfsRepoRoot, command);
-            actualResult.Errors.ShouldEqual(expectedResult.Errors);
-
-            if (command != "status")
-            {
-                this.ValidateGitCommand("status");
-            }
-        }
-
-        // Ensure that errors match when running git commands.  However, if the actual errors are just
-        // "Checking out files:" lines, those lines will be ignored
-        // TODO 881663: Determine why reset --hard HEAD sometimes produces "Checking out files:" output
-        private void RunGitCommandNoProgress(string command, params object[] args)
-        {
-            string controlRepoRoot = this.ControlGitRepo.RootPath;
-            string gvfsRepoRoot = this.Enlistment.RepoRoot;
-            command = string.Format(command, args);
-
-            ProcessResult expectedResult = GitProcess.InvokeProcess(controlRepoRoot, command);
-            ProcessResult actualResult = GitHelpers.InvokeGitAgainstGVFSRepo(gvfsRepoRoot, command);
-
-            if (expectedResult.Errors.Length > 0)
-            {
-                actualResult.Errors.ShouldEqual(expectedResult.Errors);
-            }
-            else if (actualResult.Errors.Length > 0)
-            {
-                foreach (string errorLine in actualResult.Errors.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries))
-                {
-                    errorLine.ShouldContain("Checking out files:");
-                }
-            }
-
-            if (command != "status")
-            {
-                this.ValidateGitCommand("status");
-            }
-        }
-
-        private void ValidateGitCommand(string command, params object[] args)
-        {
-            GitHelpers.ValidateGitCommand(
-                this.Enlistment,
-                this.ControlGitRepo,
-                command,
-                args);
         }
 
         private void CreateFile()
@@ -904,75 +961,14 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
             this.CreateFile("tempFile.txt", "Some content here");
         }
 
-        private void CreateEmptyFile()
-        {
-            string filePath = "emptyFile.txt";
-            string virtualFile = Path.Combine(this.Enlistment.RepoRoot, filePath);
-            string controlFile = Path.Combine(this.ControlGitRepo.RootPath, filePath);
-            this.fileSystem.CreateEmptyFile(virtualFile);
-            this.fileSystem.CreateEmptyFile(controlFile);
-        }
-
-        private void CreateFile(string filePath, string content)
-        {
-            string virtualFile = Path.Combine(this.Enlistment.RepoRoot, filePath);
-            string controlFile = Path.Combine(this.ControlGitRepo.RootPath, filePath);
-            this.fileSystem.WriteAllText(virtualFile, content);
-            this.fileSystem.WriteAllText(controlFile, content);
-        }
-
-        private void CreateFolder(string folderPath)
-        {
-            string virtualFolder = Path.Combine(this.Enlistment.RepoRoot, folderPath);
-            string controlFolder = Path.Combine(this.ControlGitRepo.RootPath, folderPath);
-            this.fileSystem.CreateDirectory(virtualFolder);
-            this.fileSystem.CreateDirectory(controlFolder);
-        }
-
         private void EditFile()
         {
             this.AppendAllText(GitCommandsTests.EditFilePath, ContentWhenEditingFile);
         }
 
-        private void AppendAllText(string filePath, string content)
-        {
-            string virtualFile = Path.Combine(this.Enlistment.RepoRoot, filePath);
-            string controlFile = Path.Combine(this.ControlGitRepo.RootPath, filePath);
-            this.fileSystem.AppendAllText(virtualFile, content);
-            this.fileSystem.AppendAllText(controlFile, content);
-        }
-
-        private void ReplaceText(string filePath, string newContent)
-        {
-            string virtualFile = Path.Combine(this.Enlistment.RepoRoot, filePath);
-            string controlFile = Path.Combine(this.ControlGitRepo.RootPath, filePath);
-            this.fileSystem.WriteAllText(virtualFile, newContent);
-            this.fileSystem.WriteAllText(controlFile, newContent);
-        }
-
         private void DeleteFile()
         {
             this.DeleteFile(GitCommandsTests.DeleteFilePath);
-        }
-
-        private void DeleteFile(string filePath)
-        {
-            string virtualFile = Path.Combine(this.Enlistment.RepoRoot, filePath);
-            string controlFile = Path.Combine(this.ControlGitRepo.RootPath, filePath);
-            this.fileSystem.DeleteFile(virtualFile);
-            this.fileSystem.DeleteFile(controlFile);
-            virtualFile.ShouldNotExistOnDisk(this.fileSystem);
-            controlFile.ShouldNotExistOnDisk(this.fileSystem);
-        }
-
-        private void DeleteFolder(string folderPath)
-        {
-            string virtualFolder = Path.Combine(this.Enlistment.RepoRoot, folderPath);
-            string controlFolder = Path.Combine(this.ControlGitRepo.RootPath, folderPath);
-            this.fileSystem.DeleteDirectory(virtualFolder);
-            this.fileSystem.DeleteDirectory(controlFolder);
-            virtualFolder.ShouldNotExistOnDisk(this.fileSystem);
-            controlFolder.ShouldNotExistOnDisk(this.fileSystem);
         }
 
         private void RenameFile()
@@ -981,67 +977,15 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
             string virtualFileTo = Path.Combine(this.Enlistment.RepoRoot, GitCommandsTests.RenameFilePathTo);
             string controlFileFrom = Path.Combine(this.ControlGitRepo.RootPath, GitCommandsTests.RenameFilePathFrom);
             string controlFileTo = Path.Combine(this.ControlGitRepo.RootPath, GitCommandsTests.RenameFilePathTo);
-            this.fileSystem.MoveFile(virtualFileFrom, virtualFileTo);
-            this.fileSystem.MoveFile(controlFileFrom, controlFileTo);
-            virtualFileFrom.ShouldNotExistOnDisk(this.fileSystem);
-            controlFileFrom.ShouldNotExistOnDisk(this.fileSystem);
+            this.FileSystem.MoveFile(virtualFileFrom, virtualFileTo);
+            this.FileSystem.MoveFile(controlFileFrom, controlFileTo);
+            virtualFileFrom.ShouldNotExistOnDisk(this.FileSystem);
+            controlFileFrom.ShouldNotExistOnDisk(this.FileSystem);
         }
 
         private void MoveFolder()
         {
             this.MoveFolder(GitCommandsTests.RenameFolderPathFrom, GitCommandsTests.RenameFolderPathTo);
-        }
-
-        private void MoveFolder(string pathFrom, string pathTo)
-        {
-            string virtualFileFrom = Path.Combine(this.Enlistment.RepoRoot, pathFrom);
-            string virtualFileTo = Path.Combine(this.Enlistment.RepoRoot, pathTo);
-            string controlFileFrom = Path.Combine(this.ControlGitRepo.RootPath, pathFrom);
-            string controlFileTo = Path.Combine(this.ControlGitRepo.RootPath, pathTo);
-            this.fileSystem.MoveDirectory(virtualFileFrom, virtualFileTo);
-            this.fileSystem.MoveDirectory(controlFileFrom, controlFileTo);
-            virtualFileFrom.ShouldNotExistOnDisk(this.fileSystem);
-            controlFileFrom.ShouldNotExistOnDisk(this.fileSystem);
-        }
-
-        private void FolderShouldExist(string folderPath)
-        {
-            string virtualFolder = Path.Combine(this.Enlistment.RepoRoot, folderPath);
-            string controlFolder = Path.Combine(this.ControlGitRepo.RootPath, folderPath);
-            virtualFolder.ShouldBeADirectory(this.fileSystem);
-            controlFolder.ShouldBeADirectory(this.fileSystem);
-        }
-
-        private void ShouldNotExistOnDisk(string path)
-        {
-            string virtualPath = Path.Combine(this.Enlistment.RepoRoot, path);
-            string controlPath = Path.Combine(this.ControlGitRepo.RootPath, path);
-            virtualPath.ShouldNotExistOnDisk(this.fileSystem);
-            controlPath.ShouldNotExistOnDisk(this.fileSystem);
-        }
-
-        private void FileShouldHaveContents(string filePath, string contents)
-        {
-            string virtualFilePath = Path.Combine(this.Enlistment.RepoRoot, filePath);
-            string controlFilePath = Path.Combine(this.ControlGitRepo.RootPath, filePath);
-            virtualFilePath.ShouldBeAFile(this.fileSystem).WithContents(contents);
-            controlFilePath.ShouldBeAFile(this.fileSystem).WithContents(contents);
-        }
-
-        private void FileShouldHaveCaseMatchingName(string filePath, string caseSensitiveName)
-        {
-            string virtualFilePath = Path.Combine(this.Enlistment.RepoRoot, filePath);
-            string controlFilePath = Path.Combine(this.ControlGitRepo.RootPath, filePath);            
-            virtualFilePath.ShouldBeAFile(this.fileSystem).WithCaseMatchingName(caseSensitiveName);
-            controlFilePath.ShouldBeAFile(this.fileSystem).WithCaseMatchingName(caseSensitiveName);
-        }
-
-        private void FolderShouldHaveCaseMatchingName(string folderPath, string caseSensitiveName)
-        {
-            string virtualFolderPath = Path.Combine(this.Enlistment.RepoRoot, folderPath);
-            string controlFolderPath = Path.Combine(this.ControlGitRepo.RootPath, folderPath);
-            virtualFolderPath.ShouldBeADirectory(this.fileSystem).WithCaseMatchingName(caseSensitiveName);
-            controlFolderPath.ShouldBeADirectory(this.fileSystem).WithCaseMatchingName(caseSensitiveName);
         }
     }
 }

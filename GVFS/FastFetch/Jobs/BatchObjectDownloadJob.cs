@@ -90,7 +90,7 @@ namespace FastFetch.Jobs
                         {
                             result = this.httpGitObjects.TryDownloadLooseObject(
                                 request.ObjectIds[0],
-                                onSuccess: (tryCount, response) => this.WriteObjectOrPackAsync(request, tryCount, response),
+                                onSuccess: (tryCount, response) => this.WriteObjectOrPack(request, tryCount, response),
                                 onFailure: RetryWrapper<HttpGitObjects.GitObjectTaskResult>.StandardErrorHandler(activity, DownloadAreaPath));
                         }
                         else
@@ -99,7 +99,7 @@ namespace FastFetch.Jobs
                             result = this.httpGitObjects.TryDownloadObjects(
                                 () => request.ObjectIds.Except(successfulDownloads),
                                 commitDepth: 1,
-                                onSuccess: (tryCount, response) => this.WriteObjectOrPackAsync(request, tryCount, response, successfulDownloads),
+                                onSuccess: (tryCount, response) => this.WriteObjectOrPack(request, tryCount, response, successfulDownloads),
                                 onFailure: RetryWrapper<HttpGitObjects.GitObjectTaskResult>.StandardErrorHandler(activity, DownloadAreaPath),
                                 preferBatchedLooseObjects: true);
                         }
@@ -134,12 +134,15 @@ namespace FastFetch.Jobs
             this.tracer.Stop(metadata);
         }
 
-        private RetryWrapper<HttpGitObjects.GitObjectTaskResult>.CallbackResult WriteObjectOrPackAsync(
+        private RetryWrapper<HttpGitObjects.GitObjectTaskResult>.CallbackResult WriteObjectOrPack(
             BlobDownloadRequest request,
             int tryCount,
             HttpGitObjects.GitEndPointResponseData response,
             HashSet<string> successfulDownloads = null)
         {
+            // To reduce allocations, reuse the same buffer when writing objects in this batch
+            byte[] bufToCopyWith = new byte[StreamUtil.DefaultCopyBufferSize];
+
             string fileName = null;
             switch (response.ContentType)
             {
@@ -148,7 +151,8 @@ namespace FastFetch.Jobs
                     fileName = this.gitObjects.WriteLooseObject(
                         this.enlistment.WorkingDirectoryRoot,
                         response.Stream,
-                        sha);
+                        sha,
+                        bufToCopyWith);
                     this.AvailableObjects.Add(sha);
                     break;
                 case HttpGitObjects.ContentType.PackFile:
@@ -156,9 +160,6 @@ namespace FastFetch.Jobs
                     this.AvailablePacks.Add(new IndexPackRequest(fileName, request));
                     break;
                 case HttpGitObjects.ContentType.BatchedLooseObjects:
-                    // To reduce allocations, reuse the same buffer when writing objects in this batch
-                    byte[] bufToCopyWith = new byte[StreamUtil.DefaultCopyBufferSize];
-
                     OnLooseObject onLooseObject = (objectStream, sha1) =>
                     {
                         this.gitObjects.WriteLooseObject(

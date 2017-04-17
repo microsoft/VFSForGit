@@ -30,6 +30,7 @@ EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "GVFS", "GVFS\GVFS\GVFS.csproj", "{32220664-594C-4425-B9A0-88E0BE2F3D2A}"
 	ProjectSection(ProjectDependencies) = postProject
 		{17498502-AEFF-4E70-90CC-1D0B56A8ADF5} = {17498502-AEFF-4E70-90CC-1D0B56A8ADF5}
+		{798DE293-6EDA-4DC4-9395-BE7A71C563E3} = {798DE293-6EDA-4DC4-9395-BE7A71C563E3}
 		{5A6656D5-81C7-472C-9DC8-32D071CB2258} = {5A6656D5-81C7-472C-9DC8-32D071CB2258}
 		{BDA91EE5-C684-4FC5-A90A-B7D677421917} = {BDA91EE5-C684-4FC5-A90A-B7D677421917}
 	EndProjectSection
@@ -69,6 +70,8 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Scripts", "Scripts", "{2867
 		Scripts\RunFunctionalTests.bat = Scripts\RunFunctionalTests.bat
 		Scripts\RunUnitTests.bat = Scripts\RunUnitTests.bat
 	EndProjectSection
+EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "GitHooksLoader", "GitHooksLoader\GitHooksLoader.vcxproj", "{798DE293-6EDA-4DC4-9395-BE7A71C563E3}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -124,6 +127,10 @@ Global
 		{5A6656D5-81C7-472C-9DC8-32D071CB2258}.Debug|x64.Build.0 = Debug|x64
 		{5A6656D5-81C7-472C-9DC8-32D071CB2258}.Release|x64.ActiveCfg = Release|x64
 		{5A6656D5-81C7-472C-9DC8-32D071CB2258}.Release|x64.Build.0 = Release|x64
+		{798DE293-6EDA-4DC4-9395-BE7A71C563E3}.Debug|x64.ActiveCfg = Debug|x64
+		{798DE293-6EDA-4DC4-9395-BE7A71C563E3}.Debug|x64.Build.0 = Debug|x64
+		{798DE293-6EDA-4DC4-9395-BE7A71C563E3}.Release|x64.ActiveCfg = Release|x64
+		{798DE293-6EDA-4DC4-9395-BE7A71C563E3}.Release|x64.Build.0 = Release|x64
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

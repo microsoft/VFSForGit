@@ -11,8 +11,9 @@
 #define MyAppExeName "GVFS.exe"
 #define EnvironmentKey "SYSTEM\CurrentControlSet\Control\Session Manager\Environment"
 
-#define GVFltRelative "..\..\..\..\..\packages\Microsoft.GVFS.GVFlt.0.17131.2-preview\filter"
+#define GVFltRelative "..\..\..\..\..\packages\Microsoft.GVFS.GvFlt.0.17417.1-preview\filter"
 #define HooksRelative "..\..\..\..\GVFS.Hooks\bin"
+#define HooksLoaderRelative "..\..\..\..\GitHooksLoader\bin"
 #define GVFSMountRelative "..\..\..\..\GVFS.Mount\bin"
 #define ReadObjectRelative "..\..\..\..\GVFS.ReadObjectHook\bin"
 
@@ -66,6 +67,8 @@ DestDir: "{app}\Filter"; Flags: ignoreversion; Source: "{#GVFltRelative}\gvflt.i
 DestDir: "{app}"; Flags: ignoreversion; Source:"{#HooksRelative}\{#PlatformAndConfiguration}\GVFS.Hooks.pdb"
 DestDir: "{app}"; Flags: ignoreversion; Source:"{#HooksRelative}\{#PlatformAndConfiguration}\GVFS.Hooks.exe"
 DestDir: "{app}"; Flags: ignoreversion; Source:"{#HooksRelative}\{#PlatformAndConfiguration}\GVFS.Hooks.exe.config"
+DestDir: "{app}"; Flags: ignoreversion; Source:"{#HooksLoaderRelative}\{#PlatformAndConfiguration}\GitHooksLoader.pdb"
+DestDir: "{app}"; Flags: ignoreversion; Source:"{#HooksLoaderRelative}\{#PlatformAndConfiguration}\GitHooksLoader.exe"
 
 ; GVFS.Mount Files
 DestDir: "{app}"; Flags: ignoreversion; Source:"{#GVFSMountRelative}\{#PlatformAndConfiguration}\GVFS.Mount.pdb"

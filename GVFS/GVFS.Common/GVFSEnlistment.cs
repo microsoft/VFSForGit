@@ -49,59 +49,29 @@ namespace GVFS.Common
 
         public string GVFSLogsRoot { get; private set; }
 
+        /* TODO: Story 957530 Remove code using GVFS_HEAD with next breaking change. */
         public string GVFSHeadFile { get; private set; }
-        
+
         public static GVFSEnlistment CreateFromCurrentDirectory(string cacheServerUrl, string gitBinRoot)
         {
             return CreateFromDirectory(Environment.CurrentDirectory, cacheServerUrl, gitBinRoot, null);
         }
 
-        public static string GetNamedPipeName(string enlistmentRoot)
-        {
-            return string.Format("GVFS_{0}", enlistmentRoot).ToUpper().Replace(':', '_');
-        }
-
         public static string GetMutexName(string enlistmentRoot)
         {
-            string pipeName = GetNamedPipeName(enlistmentRoot);
+            string pipeName = EnlistmentUtils.GetNamedPipeName(enlistmentRoot);
             return "Global\\" + pipeName.Replace('\\', ':');
         }
 
-        public static string GetEnlistmentRoot(string directory)
-        {
-            directory = directory.TrimEnd(GVFSConstants.PathSeparator);
-            DirectoryInfo dirInfo;
-
-            try
-            {
-                dirInfo = new DirectoryInfo(directory);
-            }
-            catch (Exception)
-            {
-                return null;
-            }
-
-            while (dirInfo != null && dirInfo.Exists)
-            {
-                DirectoryInfo[] dotGvfsDirs = dirInfo.GetDirectories(GVFSConstants.DotGVFSPath);
-
-                if (dotGvfsDirs.Count() == 1)
-                {
-                    return dirInfo.FullName;
-                }
-
-                dirInfo = dirInfo.Parent;
-            }
-
-            return null;
-        }
-        
         public static GVFSEnlistment CreateFromDirectory(string directory, string cacheServerUrl, string gitBinRoot, string gvfsHooksRoot)
         {
-            string enlistmentRoot = GetEnlistmentRoot(directory);
-            if (enlistmentRoot != null)
+            if (Directory.Exists(directory))
             {
-                return new GVFSEnlistment(enlistmentRoot, cacheServerUrl, gitBinRoot, gvfsHooksRoot);
+                string enlistmentRoot = EnlistmentUtils.GetEnlistmentRoot(directory);
+                if (enlistmentRoot != null)
+                {
+                    return new GVFSEnlistment(enlistmentRoot, cacheServerUrl, gitBinRoot, gvfsHooksRoot);
+                }
             }
 
             return null;
@@ -124,26 +94,11 @@ namespace GVFS.Common
             }
         }
 
-        public static string GetNewGVFSLogFileName(string gvfsLogsRoot, string verb = "")
+        public static string GetNewGVFSLogFileName(string gvfsLogsRoot, string logFileType)
         {
-            if (!Directory.Exists(gvfsLogsRoot))
-            {
-                Directory.CreateDirectory(gvfsLogsRoot);
-            }
-
-            string namePrefix = "gvfs_" + (string.IsNullOrEmpty(verb) ? string.Empty : (verb + "_")) + DateTime.Now.ToString("yyyyMMdd_HHmmss");
-            string fileName = Path.Combine(
-                gvfsLogsRoot,
-                namePrefix + ".log");
-
-            if (File.Exists(fileName))
-            {
-                fileName = Path.Combine(
-                    gvfsLogsRoot,
-                    namePrefix + "_" + Guid.NewGuid().ToString("N") + ".log");
-            }
-
-            return fileName;
+            return Enlistment.GetNewLogFileName(
+                gvfsLogsRoot, 
+                "gvfs_" + logFileType);
         }
 
         public bool TrySetCacheServerUrlConfig()
@@ -169,7 +124,7 @@ namespace GVFS.Common
             return true;
         }
 
-        public string GetMostRecentGVFSLogFileName()
+        public string GetMostRecentGVFSLogFileName(string logFileType)
         {
             DirectoryInfo logDirectory = new DirectoryInfo(this.GVFSLogsRoot);
             if (!logDirectory.Exists)
@@ -177,7 +132,7 @@ namespace GVFS.Common
                 return null;
             }
 
-            FileInfo[] files = logDirectory.GetFiles();
+            FileInfo[] files = logDirectory.GetFiles("gvfs_" + logFileType + "_*.log");
             if (files.Length == 0)
             {
                 return null;
@@ -190,6 +145,7 @@ namespace GVFS.Common
                 .FullName;
         }
 
+        /* TODO: Story 957530 Remove code using GVFS_HEAD with next breaking change. */
         public bool TryParseGVFSHeadFile(out bool fileExists, out string error, out string commitId)
         {
             fileExists = false;
@@ -231,9 +187,10 @@ namespace GVFS.Common
 
         private void SetComputedPaths()
         {
-            this.NamedPipeName = GetNamedPipeName(this.EnlistmentRoot);
+            this.NamedPipeName = EnlistmentUtils.GetNamedPipeName(this.EnlistmentRoot);
             this.DotGVFSRoot = Path.Combine(this.EnlistmentRoot, GVFSConstants.DotGVFSPath);
             this.GVFSLogsRoot = Path.Combine(this.DotGVFSRoot, GVFSConstants.GVFSLogFolderName);
+            /* TODO: Story 957530 Remove code using GVFS_HEAD with next breaking change. */
             this.GVFSHeadFile = Path.Combine(this.DotGVFSRoot, GVFSConstants.GVFSHeadCommitName);
         }
 

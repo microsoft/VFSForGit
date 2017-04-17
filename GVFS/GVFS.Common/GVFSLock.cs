@@ -1,23 +1,33 @@
-using System;
-using System.Diagnostics;
 using GVFS.Common.NamedPipes;
 using GVFS.Common.Tracing;
 using Microsoft.Diagnostics.Tracing;
+using System;
+using System.Diagnostics;
+using System.Threading;
 
 namespace GVFS.Common
 {
-    public class GVFSLock
+    public class GVFSLock : IDisposable
     {
         private readonly object acquisitionLock = new object();
 
         private readonly ITracer tracer;
-        private NamedPipeMessages.AcquireLock.Data lockHolder;
+        private readonly ProcessWatcher processWatcher;
+        private NamedPipeMessages.LockData lockHolder;
 
-        private bool isHeldInternally;
+        private ManualResetEvent externalLockReleased;
 
         public GVFSLock(ITracer tracer)
         {
             this.tracer = tracer;
+            this.externalLockReleased = new ManualResetEvent(initialState: true);
+            this.processWatcher = new ProcessWatcher(this.ReleaseLockForTerminatedProcess);
+        }
+
+        public bool IsLockedByGVFS
+        {
+            get;
+            private set;
         }
 
         /// <summary>
@@ -30,8 +40,8 @@ namespace GVFS.Common
         /// </param>
         /// <returns>True if the lock was acquired, false otherwise.</returns>
         public bool TryAcquireLock(
-            NamedPipeMessages.AcquireLock.Data requester,
-            out NamedPipeMessages.AcquireLock.Data holder)
+            NamedPipeMessages.LockData requester,
+            out NamedPipeMessages.LockData holder)
         {
             EventMetadata metadata = new EventMetadata();
             EventLevel eventLevel = EventLevel.Verbose;
@@ -40,7 +50,7 @@ namespace GVFS.Common
             {
                 lock (this.acquisitionLock)
                 {
-                    if (this.isHeldInternally)
+                    if (this.IsLockedByGVFS)
                     {
                         holder = null;
                         metadata.Add("CurrentLockHolder", "GVFS");
@@ -49,7 +59,7 @@ namespace GVFS.Common
                         return false;
                     }
 
-                    if (this.IsExternalProcessAlive() &&
+                    if (this.lockHolder != null &&
                         this.lockHolder.PID != requester.PID)
                     {
                         holder = this.lockHolder;
@@ -63,11 +73,14 @@ namespace GVFS.Common
                     eventLevel = EventLevel.Informational;
 
                     Process process;
-                    if (ProcessHelper.TryGetProcess(requester.PID, out process) &&
-                        string.Equals(requester.OriginalCommand, ProcessHelper.GetCommandLine(process)))
+                    if (ProcessHelper.TryGetProcess(requester.PID, out process))
                     {
+                        this.processWatcher.WatchForTermination(requester.PID, GVFSConstants.CommandParentExecutableNames);
+
+                        process.Dispose();
                         this.lockHolder = requester;
                         holder = requester;
+                        this.externalLockReleased.Reset();
 
                         return true;
                     }
@@ -76,6 +89,11 @@ namespace GVFS.Common
                         // Process is no longer running so let it 
                         // succeed since the process non-existence
                         // signals the lock release.
+                        if (process != null)
+                        {
+                            process.Dispose();
+                        }
+
                         holder = null;
                         return true;
                     }
@@ -94,29 +112,31 @@ namespace GVFS.Common
         public bool TryAcquireLock()
         {
             EventMetadata metadata = new EventMetadata();
-            EventLevel eventLevel = EventLevel.Verbose;
             try
             {
                 lock (this.acquisitionLock)
                 {
-                    if (this.IsExternalProcessAlive())
+                    if (this.IsLockedByGVFS)
+                    {
+                        return true;
+                    }
+
+                    if (this.lockHolder != null)
                     {
                         metadata.Add("CurrentLockHolder", this.lockHolder.ToString());
-                        metadata.Add("Full Command", this.lockHolder.OriginalCommand);
                         metadata.Add("Result", "Denied");
                         return false;
                     }
 
-                    this.ClearHolder();
-                    this.isHeldInternally = true;
+                    this.IsLockedByGVFS = true;
+                    this.externalLockReleased.Set();
                     metadata.Add("Result", "Accepted");
-                    eventLevel = EventLevel.Informational;
                     return true;
                 }
             }
             finally
             {
-                this.tracer.RelatedEvent(eventLevel, "TryAcquireLockInternal", metadata);
+                this.tracer.RelatedEvent(EventLevel.Verbose, "TryAcquireLockInternal", metadata);
             }
         }
 
@@ -132,8 +152,18 @@ namespace GVFS.Common
             this.tracer.RelatedEvent(EventLevel.Verbose, "ReleaseLock", new EventMetadata());
             lock (this.acquisitionLock)
             {
-                this.isHeldInternally = false;
+                this.IsLockedByGVFS = false;
             }
+        }
+
+        public bool ReleaseExternalLock(int pid)
+        {
+            return this.ReleaseExternalLock(pid, nameof(this.ReleaseExternalLock));
+        }
+
+        public bool WaitOnExternalLockRelease(int millisecondsTimeout)
+        {
+            return this.externalLockReleased.WaitOne(millisecondsTimeout);
         }
 
         /// <summary>
@@ -151,11 +181,20 @@ namespace GVFS.Common
             return false;
         }
 
+        public bool IsExternalLockHolderAlive()
+        {
+            lock (this.acquisitionLock)
+            {
+                return this.lockHolder != null;
+            }
+        }
+
         public string GetLockedGitCommand()
         {
-            if (this.IsExternalProcessAlive())
+            NamedPipeMessages.LockData currentHolder = this.lockHolder;
+            if (currentHolder != null)
             {
-                return this.lockHolder.ParsedCommand;
+                return currentHolder.ParsedCommand;
             }
 
             return null;
@@ -163,53 +202,92 @@ namespace GVFS.Common
 
         public string GetStatus()
         {
-            if (this.isHeldInternally)
+            if (this.IsLockedByGVFS)
             {
                 return "Held by GVFS.";
             }
 
-            string lockedCommand = this.GetLockedGitCommand();
-            if (!string.IsNullOrEmpty(lockedCommand))
+            lock (this.acquisitionLock)
             {
-                return string.Format("Held by {0} (PID:{1})", lockedCommand, this.lockHolder.PID);
+                string lockedCommand = this.GetLockedGitCommand();
+                if (!string.IsNullOrEmpty(lockedCommand))
+                {
+                    return string.Format("Held by {0} (PID:{1})", lockedCommand, this.lockHolder.PID);
+                }
             }
 
             return "Free";
         }
 
-        private void ClearHolder()
+        public void Dispose()
         {
-            this.lockHolder = null;
+            this.Dispose(true);
+            GC.SuppressFinalize(this);
         }
 
-        private bool IsExternalProcessAlive()
+        protected void Dispose(bool disposing)
+        {
+            if (disposing)
+            {
+                if (this.externalLockReleased != null)
+                {
+                    this.externalLockReleased.Dispose();
+                    this.externalLockReleased = null;
+                }
+            }
+        }
+
+        private bool ReleaseExternalLock(int pid, string eventName)
         {
             lock (this.acquisitionLock)
             {
-                if (this.isHeldInternally)
+                EventMetadata metadata = new EventMetadata();
+
+                try
                 {
-                    if (this.lockHolder != null)
+                    if (this.IsLockedByGVFS)
                     {
-                        throw new InvalidOperationException("Inconsistent GVFSLock state with external holder " + this.lockHolder.ToString());
+                        metadata.Add("IsLockedByGVFS", "true");
+                        return false;
                     }
 
-                    return false;
-                }
+                    if (this.lockHolder == null)
+                    {
+                        metadata.Add("Result", "Failed (no current holder)");
+                        return false;
+                    }
 
-                if (this.lockHolder == null)
-                {
-                    return false;
-                }
+                    metadata.Add("CurrentLockHolder", this.lockHolder.ToString());
 
-                Process process;
-                if (ProcessHelper.TryGetProcess(this.lockHolder.PID, out process) &&
-                    string.Equals(this.lockHolder.OriginalCommand, ProcessHelper.GetCommandLine(process)))
-                {
+                    if (this.lockHolder.PID != pid)
+                    {
+                        metadata.Add("Result", "Failed (wrong PID)");
+                        return false;
+                    }
+
+                    this.lockHolder = null;
+                    this.processWatcher.StopWatching(pid);
+                    this.externalLockReleased.Set();
+                    metadata.Add("Result", "Released");
                     return true;
                 }
+                finally
+                {
+                    this.tracer.RelatedEvent(EventLevel.Informational, eventName, metadata);
+                }
+            }
+        }
 
-                this.ClearHolder();
-                return false;
+        private void ReleaseLockForTerminatedProcess(int pid)
+        {
+            this.ReleaseExternalLock(pid, "ExternalLockHolderExited");
+        }
+
+        public class GVFSLockException : Exception
+        {
+            public GVFSLockException(string message)
+                : base(message)
+            {
             }
         }
     }

@@ -4,17 +4,20 @@ using GVFS.Common.Git;
 using GVFS.Common.Tracing;
 using Microsoft.Diagnostics.Tracing;
 using System;
-using System.Collections.Generic;
 using System.Diagnostics;
-using System.IO;
-using System.Linq;
 
 namespace FastFetch
 {
     [Verb("fastfetch", HelpText = "Fast-fetch a branch")]
     public class FastFetchVerb
     {
-        private const string DefaultBranch = "master";
+        // Testing has shown that more than 16 download threads does not improve 
+        // performance even with 56 core machines with 40G NICs. More threads does 
+        // create more load on the servers as they have to handle extra connections.
+        private const int MaxDefaultDownloadThreads = 16;
+
+        private const int ExitFailure = 1;
+        private const int ExitSuccess = 0;
 
         [Option(
             'c',
@@ -31,14 +34,6 @@ namespace FastFetch
         public string Branch { get; set; }
 
         [Option(
-            's',
-            "silent",
-            Required = false,
-            Default = false,
-            HelpText = "Disables console logging")]
-        public bool Silent { get; set; }
-
-        [Option(
             "cache-server-url",
             Required = false,
             Default = "",
@@ -53,9 +48,16 @@ namespace FastFetch
         public int ChunkSize { get; set; }
 
         [Option(
+            "checkout",
+            Required = false,
+            Default = false,
+            HelpText = "Checkout the target commit into the working directory after fetching")]
+        public bool Checkout { get; set; }
+
+        [Option(
             "search-thread-count",
             Required = false,
-            Default = 2,
+            Default = 0,
             HelpText = "Sets the number of threads to use for finding missing blobs. (0 for number of logical cores)")]
         public int SearchThreadCount { get; set; }
 
@@ -77,7 +79,7 @@ namespace FastFetch
             "checkout-thread-count",
             Required = false,
             Default = 0,
-            HelpText = "Sets the number of threads to use for indexing. (0 for number of logical cores)")]
+            HelpText = "Sets the number of threads to use for checkout. (0 for number of logical cores)")]
         public int CheckoutThreadCount { get; set; }
 
         [Option(
@@ -110,7 +112,26 @@ namespace FastFetch
             HelpText = "A file containing line-delimited list of paths to fetch")]
         public string PathWhitelistFile { get; set; }
 
+        [Option(
+            "verbose",
+            Required = false,
+            Default = false,
+            HelpText = "Show all outputs on the console in addition to writing them to a log file")]
+        public bool Verbose { get; set; }
+
+        [Option(
+            "parent-activity-id",
+            Required = false,
+            Default = "",
+            HelpText = "The GUID of the caller - used for telemetry purposes.")]
+        public string ParentActivityId { get; set; }
+
         public void Execute()
+        {
+            Environment.ExitCode = this.ExecuteWithExitCode();
+        }
+
+        private int ExecuteWithExitCode()
         {
             // CmdParser doesn't strip quotes, and Path.Combine will throw
             this.GitBinPath = this.GitBinPath.Replace("\"", string.Empty);
@@ -119,39 +140,59 @@ namespace FastFetch
                 Console.WriteLine(
                     "Could not find git.exe {0}",
                     !string.IsNullOrWhiteSpace(this.GitBinPath) ? "at " + this.GitBinPath : "on %PATH%");
-                return;
+                return ExitFailure;
             }
 
             if (this.Commit != null && this.Branch != null)
             {
-                Console.WriteLine("Cannot specify both a commit sha and a branch name to checkout.");
-                return;
+                Console.WriteLine("Cannot specify both a commit sha and a branch name.");
+                return ExitFailure;
             }
 
             this.CacheServerUrl = Enlistment.StripObjectsEndpointSuffix(this.CacheServerUrl);
 
             this.SearchThreadCount = this.SearchThreadCount > 0 ? this.SearchThreadCount : Environment.ProcessorCount;
-            this.DownloadThreadCount = this.DownloadThreadCount > 0 ? this.DownloadThreadCount : Environment.ProcessorCount;
+            this.DownloadThreadCount = this.DownloadThreadCount > 0 ? this.DownloadThreadCount : Math.Min(Environment.ProcessorCount, MaxDefaultDownloadThreads);
             this.IndexThreadCount = this.IndexThreadCount > 0 ? this.IndexThreadCount : Environment.ProcessorCount;
             this.CheckoutThreadCount = this.CheckoutThreadCount > 0 ? this.CheckoutThreadCount : Environment.ProcessorCount;
 
             this.GitBinPath = !string.IsNullOrWhiteSpace(this.GitBinPath) ? this.GitBinPath : GitProcess.GetInstalledGitBinPath();
 
-            Enlistment enlistment = (Enlistment)GVFSEnlistment.CreateFromCurrentDirectory(this.CacheServerUrl, this.GitBinPath)
-                ?? GitEnlistment.CreateFromCurrentDirectory(this.CacheServerUrl, this.GitBinPath);
-
+            GitEnlistment enlistment = GitEnlistment.CreateFromCurrentDirectory(this.CacheServerUrl, this.GitBinPath);
             if (enlistment == null)
             {
-                Console.WriteLine("Must be run within a .git repo or GVFS enlistment");
-                return;
+                Console.WriteLine("Must be run within a git repo");
+                return ExitFailure;
             }
 
-            string commitish = this.Commit ?? this.Branch ?? DefaultBranch;
-            
-            EventLevel maxVerbosity = this.Silent ? EventLevel.LogAlways : EventLevel.Informational;
-            using (JsonEtwTracer tracer = new JsonEtwTracer("Microsoft.Git.FastFetch", "FastFetch"))
+            string commitish = this.Commit ?? this.Branch;
+            if (string.IsNullOrWhiteSpace(commitish))
             {
-                tracer.AddConsoleEventListener(maxVerbosity, Keywords.Any);
+                GitProcess.Result result = new GitProcess(enlistment).GetCurrentBranchName();
+                if (result.HasErrors || string.IsNullOrWhiteSpace(result.Output))
+                {
+                    Console.WriteLine("Could not retrieve current branch name: " + result.Errors);
+                    return ExitFailure;
+                }
+
+                commitish = result.Output.Trim();
+            }
+
+            Guid parentActivityId = Guid.Empty;
+            if (!string.IsNullOrWhiteSpace(this.ParentActivityId) && !Guid.TryParse(this.ParentActivityId, out parentActivityId))
+            {
+                Console.WriteLine("The ParentActivityId provided (" + this.ParentActivityId + ") is not a valid GUID.");
+            }
+
+            using (JsonEtwTracer tracer = new JsonEtwTracer("Microsoft.Git.FastFetch", parentActivityId, "FastFetch"))
+            {
+                if (this.Verbose)
+                {
+                    tracer.AddConsoleEventListener(EventLevel.Informational, Keywords.Any);
+                }
+
+                string fastfetchLogFile = Enlistment.GetNewLogFileName(enlistment.FastFetchLogRoot, "fastfetch");
+                tracer.AddLogFileEventListener(fastfetchLogFile, EventLevel.Informational, Keywords.Any);
                 tracer.WriteStartEvent(
                     enlistment.EnlistmentRoot,
                     enlistment.RepoUrl,
@@ -159,30 +200,57 @@ namespace FastFetch
                     new EventMetadata
                     {
                         { "TargetCommitish", commitish },
+                        { "Checkout", this.Checkout },
                     });
 
                 FetchHelper fetchHelper = this.GetFetchHelper(tracer, enlistment);
-                
                 fetchHelper.MaxRetries = this.MaxRetries;
 
-                if (!FetchHelper.TryLoadPathWhitelist(this.PathWhitelist, this.PathWhitelistFile, tracer, fetchHelper.PathWhitelist))
+                if (!FetchHelper.TryLoadPathWhitelist(tracer, this.PathWhitelist, this.PathWhitelistFile, enlistment, fetchHelper.PathWhitelist))
                 {
-                    Environment.ExitCode = 1;
-                    return;
+                    return ExitFailure;
                 }
+
+                bool isSuccess;
 
                 try
                 {
-                    bool isBranch = this.Commit == null;
-                    fetchHelper.FastFetch(commitish, isBranch);
-                    if (fetchHelper.HasFailures)
+                    Func<bool> doPrefetch =
+                        () =>
+                        {
+                            try
+                            {
+                                bool isBranch = this.Commit == null;
+                                fetchHelper.FastFetch(commitish, isBranch);
+                                return !fetchHelper.HasFailures;
+                            }
+                            catch (FetchHelper.FetchException e)
+                            {
+                                tracer.RelatedError(e.Message);
+                                return false;
+                            }
+                        };
+                    if (this.Verbose)
                     {
-                        Environment.ExitCode = 1;
+                        isSuccess = doPrefetch();
                     }
+                    else
+                    {
+                        isSuccess = ConsoleHelper.ShowStatusWhileRunning(
+                            doPrefetch,
+                            "Fetching",
+                            output: Console.Out,
+                            showSpinner: !Console.IsOutputRedirected);
+
+                        Console.WriteLine();
+                        Console.WriteLine("FastFetch is complete. See the full logs at " + fastfetchLogFile);
+                    }
+
+                    isSuccess &= !fetchHelper.HasFailures;
                 }
                 catch (AggregateException e)
                 {
-                    Environment.ExitCode = 1;
+                    isSuccess = false;
                     foreach (Exception ex in e.Flatten().InnerExceptions)
                     {
                         tracer.RelatedError(ex.ToString());
@@ -190,30 +258,41 @@ namespace FastFetch
                 }
                 catch (Exception e)
                 {
-                    Environment.ExitCode = 1;
+                    isSuccess = false;
                     tracer.RelatedError(e.ToString());
                 }
 
                 EventMetadata stopMetadata = new EventMetadata();
-                stopMetadata.Add("Success", Environment.ExitCode == 0);
+                stopMetadata.Add("Success", isSuccess);
                 tracer.Stop(stopMetadata);
-            }
 
-            if (Debugger.IsAttached)
-            {
-                Console.ReadKey();
+                return isSuccess ? ExitSuccess : ExitFailure;
             }
         }
-
+        
         private FetchHelper GetFetchHelper(ITracer tracer, Enlistment enlistment)
         {
-            return new FetchHelper(
-                tracer,
-                enlistment,
-                this.ChunkSize,
-                this.SearchThreadCount,
-                this.DownloadThreadCount,
-                this.IndexThreadCount);
+            if (this.Checkout)
+            {
+                return new CheckoutFetchHelper(
+                    tracer,
+                    enlistment,
+                    this.ChunkSize,
+                    this.SearchThreadCount,
+                    this.DownloadThreadCount,
+                    this.IndexThreadCount,
+                    this.CheckoutThreadCount);
+            }
+            else
+            {
+                return new FetchHelper(
+                    tracer,
+                    enlistment,
+                    this.ChunkSize,
+                    this.SearchThreadCount,
+                    this.DownloadThreadCount,
+                    this.IndexThreadCount);
+            }
         }
     }
 }

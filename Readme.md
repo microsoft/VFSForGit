@@ -3,18 +3,24 @@
 ## What is GVFS?
 
 GVFS stands for Git Virtual File System. GVFS virtualizes the file system beneath your git repo so that git and all tools
-see a fully hydrated repo, but GVFS only downloads objects as they are needed. GVFS also manages git's sparse-checkout
-to ensure that git operations like status, checkout, etc., can be as quick as possible.
+see what appears to be a normal repo, but GVFS only downloads objects as they are needed. GVFS also manages git's sparse-checkout
+to ensure that git operations like status, checkout, etc., can be as quick as possible because they will only consider the files
+that the user has accessed, not all files in the repo.
 
 GVFS is still in progress, but it is available here for anyone to try out. Feel free to send us feedback, bug reports, suggestions, and pull requests!
 
 ## Building GVFS
 
-* Install Visual Studio 2015 Community Edition or higher, and include the C++ language (https://www.visualstudio.com/downloads/)
+* Install Visual Studio 2017 Community Edition or higher (https://www.visualstudio.com/downloads/). Include the ".Net desktop development" and 
+"Desktop development with C++" workloads, as well as the following additional components:
+  * .Net Framework 3.5 development tools
+  * C++/CLI support
+  * VC++ 2015.3 v140 toolset
+  * Windows 10 SDK (10.0.10240.0)
 * Install InnoSetup 5.5.9 or later (http://www.jrsoftware.org/isdl.php) to its default location (or you'll have to change the path in `GVFS.csproj` post-build step to match)
 * Create a folder to clone into, e.g. `C:\Repos\GVFS`
 * Clone this repo into the `src` subfolder, e.g. `C:\Repos\GVFS\src`
-* Open `src\GVFS.sln` in Visual Studio
+* Open `src\GVFS.sln` in Visual Studio. Do not upgrade any projects.
 * Build `GVFS.sln`
 
 ## Testing GVFS
@@ -27,8 +33,8 @@ GVFS is still in progress, but it is available here for anyone to try out. Feel 
     * For your OS drive, select "Suspend Protection" (This only suspends BitLocker until the next reboot. It does not disable BitLocker protection.)
   * In an elevated command prompt, type `bcdedit -set TESTSIGNING ON`
   * Reboot to apply the change, and this will also re-enable BitLocker 
-* Install GVFS-enabled Git for Windows (2.11.0.gvfs.1.3 or later) from https://github.com/Microsoft/git/releases/tag/gvfs.preview
-  * This build behaves the same as Git for Windows 2.11.0.windows except if the config value `core.gvfs` is set to `true`.
+* Install GVFS-enabled Git for Windows (2.12.2.gvfs.2 or later) from https://github.com/Microsoft/git/releases/tag/gvfs.preview
+  * This build behaves the same as Git for Windows except if the config value `core.gvfs` is set to `true`.
 * Install GVFS from your build output
   * If you built it as described above, the installer can be found at `C:\Repos\GVFS\BuildOutput\GVFS\bin\x64\[Debug|Release]\Setup\SetupGVFS.exe`
 * GVFS will work with any git service that supports the GVFS [protocol](Protocol.md). For now, that means you'll need to create a repo in 

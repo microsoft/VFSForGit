@@ -14,6 +14,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
     [TestFixture]
     public class MountTests : TestsWithEnlistmentPerFixture
     {
+        private const int ProjectGitIndexOnDiskVersion = 4;
         private const int GVFSGenericError = 3;
         private const uint GenericRead = 2147483648;
         private const uint FileFlagBackupSemantics = 3355443;
@@ -31,7 +32,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
         [TestCaseSource(typeof(MountSubfolders), MountSubfolders.MountFolders)]
         public void SecondMountAttemptFails(string mountSubfolder)
         {
-            this.MountShouldFail("already mounted", this.Enlistment.GetVirtualPathTo(mountSubfolder));
+            this.MountShouldFail(0, "already mounted", this.Enlistment.GetVirtualPathTo(mountSubfolder));
         }
 
         [TestCase]
@@ -118,6 +119,67 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
             this.Enlistment.MountGVFS();
         }
 
+        [TestCaseSource(typeof(MountSubfolders), MountSubfolders.MountFolders)]
+        public void MountFailsUpgradingFromCommitProjectionVersionWhereProjectedCommitIdDoesNotMatchHEAD(string mountSubfolder)
+        {
+            MountSubfolders.EnsureSubfoldersOnDisk(this.Enlistment, this.fileSystem);
+            string headCommitId = GitProcess.Invoke(this.Enlistment.RepoRoot, "rev-parse HEAD");
+
+            this.Enlistment.UnmountGVFS();
+
+            string currentVersion = this.GetPersistedDiskLayoutVersion().ShouldNotBeNull();
+            int currentVersionNum;
+            int.TryParse(currentVersion, out currentVersionNum).ShouldEqual(true);
+
+            this.SaveDiskLayoutVersion((ProjectGitIndexOnDiskVersion - 1).ToString());
+
+            string gvfsHeadPath = Path.Combine(this.Enlistment.DotGVFSRoot, "GVFS_HEAD");
+            gvfsHeadPath.ShouldNotExistOnDisk(this.fileSystem);
+
+            // 575d597cf09b2cd1c0ddb4db21ce96979010bbcb is an earlier commit in the FunctionalTests/20170310 branch
+            this.fileSystem.WriteAllText(gvfsHeadPath, "575d597cf09b2cd1c0ddb4db21ce96979010bbcb");
+
+            this.MountShouldFail("Failed to mount", this.Enlistment.GetVirtualPathTo(mountSubfolder));
+
+            this.fileSystem.DeleteFile(gvfsHeadPath);
+            this.fileSystem.WriteAllText(gvfsHeadPath, headCommitId);
+            this.SaveDiskLayoutVersion(currentVersionNum.ToString());
+            this.Enlistment.MountGVFS();
+            gvfsHeadPath.ShouldNotExistOnDisk(this.fileSystem);
+        }
+
+        [TestCaseSource(typeof(MountSubfolders), MountSubfolders.MountFolders)]
+        public void MountSucceedsWhenBadDataInGvfsHeadFile(string mountSubfolder)
+        {
+            MountSubfolders.EnsureSubfoldersOnDisk(this.Enlistment, this.fileSystem);
+            this.Enlistment.UnmountGVFS();
+
+            string gvfsHeadPath = Path.Combine(this.Enlistment.DotGVFSRoot, "GVFS_HEAD");
+            gvfsHeadPath.ShouldNotExistOnDisk(this.fileSystem);
+            this.fileSystem.WriteAllText(gvfsHeadPath, "This is a bad commit Id!");
+
+            this.Enlistment.MountGVFS();
+            gvfsHeadPath.ShouldNotExistOnDisk(this.fileSystem);
+        }
+
+        [TestCaseSource(typeof(MountSubfolders), MountSubfolders.MountFolders)]
+        public void MountSucceedsUpgradingFromCommitProjectionVersionWhereProjectedCommitIdMatchesHEAD(string mountSubfolder)
+        {
+            MountSubfolders.EnsureSubfoldersOnDisk(this.Enlistment, this.fileSystem);
+            this.Enlistment.UnmountGVFS();
+
+            string currentVersion = this.GetPersistedDiskLayoutVersion().ShouldNotBeNull();
+            int currentVersionNum;
+            int.TryParse(currentVersion, out currentVersionNum).ShouldEqual(true);
+            this.SaveDiskLayoutVersion((ProjectGitIndexOnDiskVersion - 1).ToString());
+
+            this.Enlistment.MountGVFS();
+            this.Enlistment.UnmountGVFS();
+
+            this.SaveDiskLayoutVersion(currentVersionNum.ToString());
+            this.Enlistment.MountGVFS();
+        }
+
         // Ported from GVFlt's BugRegressionTest
         [TestCase]
         public void GVFlt_CMDHangNoneActiveInstance()
@@ -196,7 +258,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
             }
         }
 
-        private void MountShouldFail(string expectedErrorMessage, string mountWorkingDirectory = null)
+        private void MountShouldFail(int expectedExitCode, string expectedErrorMessage, string mountWorkingDirectory = null)
         {
             string pathToGVFS = Path.Combine(TestContext.CurrentContext.TestDirectory, Properties.Settings.Default.PathToGVFS);
             string enlistmentRoot = this.Enlistment.EnlistmentRoot;
@@ -209,8 +271,13 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
             processInfo.RedirectStandardOutput = true;
 
             ProcessResult result = ProcessHelper.Run(processInfo);
-            result.ExitCode.ShouldEqual(GVFSGenericError);
+            result.ExitCode.ShouldEqual(expectedExitCode, $"mount exit code was not {expectedExitCode}");
             result.Output.ShouldContain(expectedErrorMessage);
+        }
+
+        private void MountShouldFail(string expectedErrorMessage, string mountWorkingDirectory = null)
+        {
+            this.MountShouldFail(GVFSGenericError, expectedErrorMessage, mountWorkingDirectory);
         }
 
         private class MountSubfolders

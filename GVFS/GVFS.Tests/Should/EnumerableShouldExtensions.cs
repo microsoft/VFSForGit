@@ -2,14 +2,15 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Text;
 
 namespace GVFS.Tests.Should
 {
     public static class EnumerableShouldExtensions
     {
-        public static IEnumerable<T> ShouldBeEmpty<T>(this IEnumerable<T> group)
+        public static IEnumerable<T> ShouldBeEmpty<T>(this IEnumerable<T> group, string message = null)
         {
-            CollectionAssert.IsEmpty(group);
+            CollectionAssert.IsEmpty(group, message);
             return group;
         }
 
@@ -66,16 +67,35 @@ namespace GVFS.Tests.Should
             return group;
         }
 
-        public static IEnumerable<T> ShouldMatchInOrder<T>(this IEnumerable<T> group, IEnumerable<T> expectedValues, Func<T, T, bool> equals)
+        public static IEnumerable<T> ShouldMatchInOrder<T>(this IEnumerable<T> group, IEnumerable<T> expectedValues, Func<T, T, bool> equals, string message = "")
         {
             List<T> groupList = new List<T>(group);
             List<T> expectedValuesList = new List<T>(expectedValues);
 
-            groupList.Count.ShouldEqual(expectedValuesList.Count);
+            Comparer<T> comparer = new Comparer<T>(equals);
+            List<T> groupExtraItems = groupList.Except(expectedValues, comparer).ToList();
+            List<T> groupMissingItems = expectedValues.Except(groupList, comparer).ToList();
 
-            for (int i = 0; i < groupList.Count; i++)
+            StringBuilder errorMessage = new StringBuilder();
+
+            if (groupList.Count != expectedValuesList.Count)
             {
-                Assert.IsTrue(equals(groupList[i], expectedValuesList[i]), "Items at index {0} are not the same", i);
+                errorMessage.AppendLine(string.Format("{0} counts do not match. was: {1} expected: {2}", message, groupList.Count, expectedValuesList.Count));
+            }
+
+            foreach (T groupExtraItem in groupExtraItems)
+            {
+                errorMessage.AppendLine(string.Format("Extra: {0}", groupExtraItem));
+            }
+
+            foreach (T groupMissingItem in groupMissingItems)
+            {
+                errorMessage.AppendLine(string.Format("Missing: {0}", groupMissingItem));
+            }
+
+            if (errorMessage.Length > 0)
+            {
+                Assert.Fail("{0}\r\n{1}", message, errorMessage);
             }
 
             return group;
@@ -84,6 +104,26 @@ namespace GVFS.Tests.Should
         public static IEnumerable<T> ShouldMatchInOrder<T>(this IEnumerable<T> group, IEnumerable<T> expectedValues)
         {
             return group.ShouldMatchInOrder(expectedValues, (t1, t2) => t1.Equals(t2));
+        }
+
+        private class Comparer<T> : IEqualityComparer<T>
+        {
+            private Func<T, T, bool> equals;
+
+            public Comparer(Func<T, T, bool> equals)
+            {
+                this.equals = equals;
+            }
+
+            public bool Equals(T x, T y)
+            {
+                return this.equals(x, y);
+            }
+
+            public int GetHashCode(T obj)
+            {
+                return obj.GetHashCode();
+            }
         }
     }
 }

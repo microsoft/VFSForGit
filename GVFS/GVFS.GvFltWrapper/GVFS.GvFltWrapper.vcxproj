@@ -64,11 +64,11 @@
       <PreprocessorDefinitions>_DEBUG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <PrecompiledHeader>Use</PrecompiledHeader>
       <TreatWarningAsError>true</TreatWarningAsError>
-      <AdditionalIncludeDirectories>$(SolutionDir)\..\packages\Microsoft.GVFS.GVFlt.0.17131.2-preview\header;$(SolutionDir)\..\BuildOutput</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(SolutionDir)\..\packages\Microsoft.GVFS.GvFlt.0.17417.1-preview\header;$(SolutionDir)\..\BuildOutput</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <AdditionalDependencies>gvlib.lib;fltlib.lib;Ole32.lib;Advapi32.lib</AdditionalDependencies>
-      <AdditionalLibraryDirectories>$(SolutionDir)\..\packages\Microsoft.GVFS.GVFlt.0.17131.2-preview\lib</AdditionalLibraryDirectories>
+      <AdditionalLibraryDirectories>$(SolutionDir)\..\packages\Microsoft.GVFS.GvFlt.0.17417.1-preview\lib</AdditionalLibraryDirectories>
       <IgnoreAllDefaultLibraries>
       </IgnoreAllDefaultLibraries>
     </Link>
@@ -89,11 +89,11 @@
       <PreprocessorDefinitions>NDEBUG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <PrecompiledHeader>Use</PrecompiledHeader>
       <TreatWarningAsError>true</TreatWarningAsError>
-      <AdditionalIncludeDirectories>$(SolutionDir)\..\packages\Microsoft.GVFS.GVFlt.0.17131.2-preview\header;$(SolutionDir)\..\BuildOutput</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(SolutionDir)\..\packages\Microsoft.GVFS.GvFlt.0.17417.1-preview\header;$(SolutionDir)\..\BuildOutput</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <AdditionalDependencies>gvlib.lib;fltlib.lib;Ole32.lib;Advapi32.lib</AdditionalDependencies>
-      <AdditionalLibraryDirectories>$(SolutionDir)\..\packages\Microsoft.GVFS.GVFlt.0.17131.2-preview\lib</AdditionalLibraryDirectories>
+      <AdditionalLibraryDirectories>$(SolutionDir)\..\packages\Microsoft.GVFS.GvFlt.0.17417.1-preview\lib</AdditionalLibraryDirectories>
     </Link>
     <BuildLog>
       <!-- This seems like a VS bug.  Although BuildOutput is only one folder up from $(SolutionDir), with testing I found that the first "..\" is getting swallowed by VS and not doing anything. If you copy-paste the path used above for IntDir it will not work as expected here -->
@@ -107,6 +107,7 @@
     </ResourceCompile>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <Reference Include="Microsoft.Diagnostics.Tracing.EventSource, Version=1.1.28.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a" />
     <Reference Include="System" />
     <Reference Include="System.Data" />
     <Reference Include="System.Xml" />
@@ -121,6 +122,7 @@
     <ClInclude Include="GVFltWriteBuffer.h" />
     <ClInclude Include="GvNotificationType.h" />
     <ClInclude Include="HResult.h" />
+    <ClInclude Include="IoStatusBlockValue.h" />
     <ClInclude Include="NativeEnumerationResultUtils.h" />
     <ClInclude Include="resource.h" />
     <ClInclude Include="StatusCode.h" />

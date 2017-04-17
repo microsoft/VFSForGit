@@ -1,9 +1,11 @@
 ﻿using GVFS.Common.Git;
+using Microsoft.Diagnostics.Tracing;
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.IO;
 using System.Runtime.InteropServices;
+using System.Threading;
 
 namespace GVFS.Common.Physical.Git
 {
@@ -23,30 +25,30 @@ namespace GVFS.Common.Physical.Git
             this.objectNegativeCache = new ConcurrentDictionary<string, DateTime>(StringComparer.OrdinalIgnoreCase);
         }
 
-        public virtual string HeadTreeSha
-        {
-            get { return this.Context.Repository.GetHeadTreeSha(); }
-        }
-
         protected GVFSContext Context { get; private set; }
 
-        public virtual SafeHandle OpenGitObject(string firstTwoShaDigits, string remainingShaDigits)
+        public bool TryCopyBlobContentStream_CanTimeout(string sha, Action<StreamReader, long> writeAction)
         {
-            return
-                this.OpenLooseObject(this.objectsPath, firstTwoShaDigits, remainingShaDigits)
-                ?? this.DownloadObject(firstTwoShaDigits, remainingShaDigits);
-        }
-
-        public bool TryCopyBlobContentStream(string sha, Action<StreamReader, long> writeAction)
-        {
-            if (!this.Context.Repository.TryCopyBlobContentStream(sha, writeAction))
+            if (!this.Context.Repository.TryCopyBlobContentStream_CanTimeout(sha, writeAction))
             {
                 if (!this.TryDownloadAndSaveObject(sha.Substring(0, 2), sha.Substring(2)))
                 {
                     return false;
                 }
 
-                return this.Context.Repository.TryCopyBlobContentStream(sha, writeAction);
+                if (!this.Context.Repository.TryCopyBlobContentStream_CanTimeout(sha, writeAction))
+                {
+                    this.Tracer.RelatedError("Failed to cat-file after download. Trying again: " + sha);
+
+                    // Due to a potential race, git sometimes fail to read the blob even though we just wrote it out.
+                    // Retrying the read fixes that issue.
+                    Thread.Sleep(100);
+                    if (!this.Context.Repository.TryCopyBlobContentStream_CanTimeout(sha, writeAction))
+                    {
+                        this.Tracer.RelatedError("Failed to cat-file after multiple attempts: " + sha);
+                        return false;
+                    }
+                }
             }
 
             return true;
@@ -83,35 +85,14 @@ namespace GVFS.Common.Physical.Git
             }
         }
 
-        public bool TryGetBlobSizeLocally(string sha, out long length)
+        public bool TryGetBlobSizeLocally_CanTimeout(string sha, out long length)
         {
-            return this.Context.Repository.TryGetBlobLength(sha, out length);
+            return this.Context.Repository.TryGetBlobLength_CanTimeout(sha, out length);
         }
 
         public List<HttpGitObjects.GitObjectSize> GetFileSizes(IEnumerable<string> objectIds)
         {
             return this.GitObjectRequestor.QueryForFileSizes(objectIds);
-        }
-
-        private SafeHandle OpenLooseObject(string objectsRoot, string firstTwoShaDigits, string remainingShaDigits)
-        {
-            string looseObjectPath = Path.Combine(
-                objectsRoot,
-                firstTwoShaDigits,
-                remainingShaDigits);
-
-            if (this.Context.FileSystem.FileExists(looseObjectPath))
-            {
-                return this.Context.FileSystem.OpenFile(looseObjectPath, FileMode.Open, (FileAccess)NativeMethods.FileAccess.FILE_GENERIC_READ, FileAttributes.Normal, FileShare.Read);
-            }
-
-            return null;
-        }
-
-        private SafeHandle DownloadObject(string firstTwoShaDigits, string remainingShaDigits)
-        {
-            this.TryDownloadAndSaveObject(firstTwoShaDigits, remainingShaDigits);
-            return this.OpenLooseObject(this.objectsPath, firstTwoShaDigits, remainingShaDigits);
         }
     }
 }

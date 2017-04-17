@@ -165,6 +165,41 @@ typedef struct _FILE_ID_EXTD_BOTH_DIR_INFORMATION {
     WCHAR FileName[1];
 } FILE_ID_EXTD_BOTH_DIR_INFORMATION, *PFILE_ID_EXTD_BOTH_DIR_INFORMATION;
 
+typedef struct _IO_STATUS_BLOCK {
+    union {
+        NTSTATUS Status;
+        PVOID    Pointer;
+    };
+    ULONG_PTR Information;
+} IO_STATUS_BLOCK, *PIO_STATUS_BLOCK;
+
+
+typedef enum {
+    FileFsVolumeInformation = 1,
+    FileFsLabelInformation = 2,
+    FileFsSizeInformation = 3,
+    FileFsDeviceInformation = 4,
+    FileFsAttributeInformation = 5,
+    FileFsControlInformation = 6,
+    FileFsFullSizeInformation = 7,
+    FileFsObjectIdInformation = 8,
+    FileFsDriverPathInformation = 9,
+    FileFsVolumeFlagsInformation = 10,
+    FileFsSectorSizeInformation = 11
+} FS_INFORMATION_CLASS;
+
+typedef struct _FILE_FS_SECTOR_SIZE_INFORMATION {
+    ULONG LogicalBytesPerSector;
+    ULONG PhysicalBytesPerSectorForAtomicity;
+    ULONG PhysicalBytesPerSectorForPerformance;
+    ULONG FileSystemEffectivePhysicalBytesPerSectorForAtomicity;
+    ULONG Flags;
+    ULONG ByteOffsetForSectorAlignment;
+    ULONG ByteOffsetForPartitionAlignment;
+} FILE_FS_SECTOR_SIZE_INFORMATION, *PFILE_FS_SECTOR_SIZE_INFORMATION;
+
+typedef NTSTATUS(NTAPI *PQueryVolumeInformationFile)(HANDLE, PIO_STATUS_BLOCK, PVOID, ULONG, FS_INFORMATION_CLASS);
+
 #endif
 
 #ifndef ERROR_REPARSE_POINT_ENCOUNTERED
@@ -181,6 +216,17 @@ typedef struct _FILE_ID_EXTD_BOTH_DIR_INFORMATION {
 #define UNREFERENCED_PARAMETER(P) (P)
 
 //
+// Define the I/O status information return values for NtCreateFile/NtOpenFile
+//
+
+#define FILE_SUPERSEDED                 0x00000000
+#define FILE_OPENED                     0x00000001
+#define FILE_CREATED                    0x00000002
+#define FILE_OVERWRITTEN                0x00000003
+#define FILE_EXISTS                     0x00000004
+#define FILE_DOES_NOT_EXIST             0x00000005
+
+//
 // Generic test for success on any status value (non-negative numbers
 // indicate success).
 //
@@ -189,11 +235,17 @@ typedef struct _FILE_ID_EXTD_BOTH_DIR_INFORMATION {
 #define NT_SUCCESS(Status) (((NTSTATUS)(Status)) >= 0)
 #endif
 
+//
+//  length of \\?\Volume{00000000-0000-0000-0000-000000000000}\
+//
+#define VOLUME_PATH_LENGTH 49
+
 #include <vcclr.h>
 #include <malloc.h>
 #include <memory>
 #include <string>
 #include "gvlib.h"
 #include "GvNotificationType.h"
+#include "IoStatusBlockValue.h"
 
 

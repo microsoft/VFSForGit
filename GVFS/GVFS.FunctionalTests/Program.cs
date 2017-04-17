@@ -1,3 +1,4 @@
+using GVFS.FunctionalTests.Category;
 using GVFS.Tests;
 using System;
 
@@ -13,6 +14,11 @@ namespace GVFS.FunctionalTests
             {
                 Console.WriteLine("Running the full suite of tests");
                 FileSystemRunners.FileSystemRunner.UseAllRunners = true;
+            }
+            
+            if (!runner.HasCustomArg("--run-builds"))
+            {
+                runner.ExcludeCategory(CategoryConstants.Build);
             }
 
             Environment.ExitCode = runner.RunTests(Properties.Settings.Default.TestRepeatCount);

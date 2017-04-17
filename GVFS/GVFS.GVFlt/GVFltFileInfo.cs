@@ -5,24 +5,16 @@ namespace GVFS.GVFlt
 {
     public class GVFltFileInfo
     {
-        private volatile bool isProjected;
-
         public GVFltFileInfo(string name, long size, bool isFolder)
         {
             this.Name = name;
             this.Size = size;
             this.IsFolder = isFolder;
-            this.IsProjected = true;
         }
 
         public string Name { get; }
         public long Size { get; }
         public bool IsFolder { get; }
-        public bool IsProjected
-        {
-            get { return this.isProjected; }
-            set { this.isProjected = value; }
-        }
 
         public static IComparer<GVFltFileInfo> SortAlphabeticallyIgnoreCase()
         {

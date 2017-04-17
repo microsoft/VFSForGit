@@ -46,7 +46,7 @@ namespace GVFS.UnitTests.FastFetch
         public void CanParseDiffForwards()
         {
             MockTracer tracer = new MockTracer();
-            DiffHelper diffForwards = new DiffHelper(tracer, null, null, new List<string>());
+            DiffHelper diffForwards = new DiffHelper(tracer, null, new List<string>());
             diffForwards.ParseDiffFile(this.GetDataPath("forward.txt"), "xx:\\fakeRepo");
 
             // File added, file edited, file renamed, folder => file, edit-rename file
@@ -72,7 +72,7 @@ namespace GVFS.UnitTests.FastFetch
         public void CanParseBackwardsDiff()
         {
             MockTracer tracer = new MockTracer();
-            DiffHelper diffBackwards = new DiffHelper(tracer, null, null, new List<string>());
+            DiffHelper diffBackwards = new DiffHelper(tracer, null, new List<string>());
             diffBackwards.ParseDiffFile(this.GetDataPath("backward.txt"), "xx:\\fakeRepo");
 
             // File > folder, deleted file, edited file, renamed file, rename-edit file
@@ -87,10 +87,26 @@ namespace GVFS.UnitTests.FastFetch
 
             // Folder created, folder edited, folder deleted, folder renamed (add + delete), 
             // folder => file, file => folder, recursive delete (include subfolder)
-            diffBackwards.DirectoryOperations.Count.ShouldEqual(9);
-
-            // Should match count above since there were no recursive adds to become recursive deletes
             diffBackwards.TotalDirectoryOperations.ShouldEqual(9);
+        }
+
+        // Delete a folder with two sub folders each with a single file
+        // Readd it with a different casing and same contents
+        [TestCase]
+        public void ParsesCaseChangesAsAdds()
+        {
+            MockTracer tracer = new MockTracer();
+            DiffHelper diffBackwards = new DiffHelper(tracer, null, new List<string>());
+            diffBackwards.ParseDiffFile(this.GetDataPath("caseChange.txt"), "xx:\\fakeRepo");
+            
+            diffBackwards.RequiredBlobs.Count.ShouldEqual(2);
+            diffBackwards.FileAddOperations.Sum(list => list.Value.Count).ShouldEqual(2);
+
+            diffBackwards.FileDeleteOperations.Count.ShouldEqual(0);
+            diffBackwards.TotalFileDeletes.ShouldEqual(0);
+            
+            diffBackwards.DirectoryOperations.ShouldNotContain(entry => entry.Operation == DiffTreeResult.Operations.Delete);
+            diffBackwards.TotalDirectoryOperations.ShouldEqual(3);
         }
 
         private string GetDataPath(string fileName)

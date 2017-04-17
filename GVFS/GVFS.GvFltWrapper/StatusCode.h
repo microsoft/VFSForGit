@@ -26,5 +26,6 @@ namespace GVFSGvFltWrapper
         StatusDeviceNotReady = STATUS_DEVICE_NOT_READY,
         StatusFileClosed = STATUS_FILE_CLOSED,
         StatusObjectNameInvalid = STATUS_OBJECT_NAME_INVALID,
+        StatusDirectoryNotEmpty = STATUS_DIRECTORY_NOT_EMPTY,
     };
 }

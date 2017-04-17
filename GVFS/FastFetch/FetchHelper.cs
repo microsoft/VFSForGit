@@ -63,17 +63,23 @@ namespace FastFetch
 
         public List<string> PathWhitelist { get; private set; }
 
-        public static bool TryLoadPathWhitelist(string pathWhitelistInput, string pathWhitelistFile, ITracer tracer, List<string> pathWhitelistOutput)
+        public static bool TryLoadPathWhitelist(ITracer tracer, string pathWhitelistInput, string pathWhitelistFile, Enlistment enlistment, List<string> pathWhitelistOutput)
         {
-            Func<string, string> cleanPath = path => path.Trim(' ', '\r', '\n', '"').Replace('\\', '/').TrimStart('/');
+            Func<string, string> makePathAbsolute = path => Path.Combine(enlistment.EnlistmentRoot, path.Replace('/', '\\').TrimStart('\\'));
 
-            pathWhitelistOutput.AddRange(pathWhitelistInput.Split(';').Select(cleanPath));
+            pathWhitelistOutput.AddRange(pathWhitelistInput.Split(new[] { ';' }, StringSplitOptions.RemoveEmptyEntries).Select(makePathAbsolute));
 
             if (!string.IsNullOrWhiteSpace(pathWhitelistFile))
             {
                 if (File.Exists(pathWhitelistFile))
                 {
-                    pathWhitelistOutput.AddRange(File.ReadAllLines(pathWhitelistFile).Select(cleanPath));
+                    IEnumerable<string> allLines = File.ReadAllLines(pathWhitelistFile)
+                        .Select(line => line.Trim())
+                        .Where(line => !string.IsNullOrEmpty(line))
+                        .Where(line => !line.StartsWith(GVFSConstants.GitCommentSignString))
+                        .Select(makePathAbsolute);
+
+                    pathWhitelistOutput.AddRange(allLines);
                 }
                 else
                 {
@@ -123,14 +129,32 @@ namespace FastFetch
 
             // Configure pipeline
             // LsTreeHelper output => FindMissingBlobs => BatchDownload => IndexPack
-            LsTreeHelper blobEnumerator = new LsTreeHelper(this.PathWhitelist, this.Tracer, this.Enlistment);
-            FindMissingBlobsJob blobFinder = new FindMissingBlobsJob(this.SearchThreadCount, blobEnumerator.BlobIdOutput, availableBlobs, this.Tracer, this.Enlistment);
+            string shallowFile = Path.Combine(this.Enlistment.WorkingDirectoryRoot, GVFSConstants.DotGit.Shallow);
+
+            string previousCommit = null;
+            
+            // Use the shallow file to find a recent commit to diff against to try and reduce the number of SHAs to check
+            DiffHelper blobEnumerator = new DiffHelper(this.Tracer, this.Enlistment, this.PathWhitelist);
+            if (File.Exists(shallowFile))
+            {
+                previousCommit = File.ReadAllLines(shallowFile).Where(line => !string.IsNullOrWhiteSpace(line)).LastOrDefault();
+                if (string.IsNullOrWhiteSpace(previousCommit))
+                {
+                    this.Tracer.RelatedError("Shallow file exists, but contains no valid SHAs.");
+                    this.HasFailures = true;
+                    return;
+                }
+            }
+
+            blobEnumerator.PerformDiff(previousCommit, commitToFetch);
+            this.HasFailures |= blobEnumerator.HasFailures;
+
+            FindMissingBlobsJob blobFinder = new FindMissingBlobsJob(this.SearchThreadCount, blobEnumerator.RequiredBlobs, availableBlobs, this.Tracer, this.Enlistment);
             BatchObjectDownloadJob downloader = new BatchObjectDownloadJob(this.DownloadThreadCount, this.ChunkSize, blobFinder.DownloadQueue, availableBlobs, this.Tracer, this.Enlistment, this.HttpGitObjects, this.GitObjects);
             IndexPackJob packIndexer = new IndexPackJob(this.IndexThreadCount, downloader.AvailablePacks, availableBlobs, this.Tracer, this.GitObjects);
             
             blobFinder.Start();
             downloader.Start();
-            this.HasFailures |= !blobEnumerator.EnqueueAllBlobs(commitToFetch);
             
             // If indexing happens during searching, searching progressively gets slower, so wait on searching before indexing.
             blobFinder.WaitForCompletion();
@@ -145,7 +169,7 @@ namespace FastFetch
             packIndexer.WaitForCompletion();
             this.HasFailures |= packIndexer.HasFailures;
 
-            if (!this.SkipConfigUpdate)
+            if (!this.SkipConfigUpdate && !this.HasFailures)
             {
                 this.UpdateRefs(branchOrCommit, isBranch, refs);
 
@@ -189,9 +213,9 @@ namespace FastFetch
 
             using (ITracer activity = this.Tracer.StartActivity("DownloadTrees", EventLevel.Informational, startMetadata))
             {
-                using (GitCatFileBatchCheckProcess catFileProcess = new GitCatFileBatchCheckProcess(this.Enlistment))
+                using (GitCatFileBatchCheckProcess catFileProcess = new GitCatFileBatchCheckProcess(this.Tracer, this.Enlistment))
                 {
-                    if (!catFileProcess.ObjectExists(commitSha))
+                    if (!catFileProcess.ObjectExists_CanTimeout(commitSha))
                     {
                         if (!gitObjects.TryDownloadAndSaveCommits(new[] { commitSha }, commitDepth: CommitDepth))
                         {

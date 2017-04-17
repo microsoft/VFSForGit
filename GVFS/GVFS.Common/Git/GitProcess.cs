@@ -3,6 +3,7 @@ using GVFS.Common.Tracing;
 using Microsoft.Diagnostics.Tracing;
 using Microsoft.Win32;
 using System;
+using System.Collections.Generic;
 using System.ComponentModel;
 using System.Diagnostics;
 using System.IO;
@@ -17,7 +18,9 @@ namespace GVFS.Common.Git
         private const string GitBinRelativePath = "cmd\\git.exe";
         private const string GitInstallationRegistryKey = "SOFTWARE\\GitForWindows";
         private const string GitInstallationRegistryInstallPathValue = "InstallPath";
-        
+
+        private static readonly Encoding StandardEncoding = Encoding.GetEncoding(437);
+
         private object executionLock = new object();
 
         private Enlistment enlistment;
@@ -28,7 +31,7 @@ namespace GVFS.Common.Git
             {
                 throw new ArgumentNullException(nameof(enlistment));
             }
-            
+
             if (string.IsNullOrWhiteSpace(enlistment.GitBinPath))
             {
                 throw new ArgumentException(nameof(enlistment.GitBinPath));
@@ -66,7 +69,7 @@ namespace GVFS.Common.Git
         {
             return new GitProcess(enlistment).InvokeGitOutsideEnlistment("init " + enlistment.WorkingDirectoryRoot);
         }
-        
+
         public static bool TryGetCredentials(
             ITracer tracer,
             Enlistment enlistment,
@@ -102,7 +105,7 @@ namespace GVFS.Common.Git
                 {
                     metadata.Add("Output", gitCredentialOutput.Output);
                 }
-                
+
                 activity.Stop(metadata);
                 return success;
             }
@@ -120,7 +123,7 @@ namespace GVFS.Common.Git
         {
             return new GitProcess(enlistment).InvokeGitOutsideEnlistment("--version");
         }
-        
+
         public bool IsValidRepo()
         {
             Result result = this.InvokeGitAgainstDotGitFolder("rev-parse --show-toplevel");
@@ -131,16 +134,10 @@ namespace GVFS.Common.Git
         {
             return this.InvokeGitAgainstDotGitFolder("rev-parse " + gitRef);
         }
-        
-        public string GetRepoRoot()
-        {
-            Result result = this.InvokeGitAgainstDotGitFolder("rev-parse --show-toplevel");
-            if (result.HasErrors)
-            {
-                throw new InvalidRepoException(result.Errors);
-            }
 
-            return result.Output.TrimEnd('\r', '\n').Replace("/", "\\");
+        public Result GetCurrentBranchName()
+        {
+            return this.InvokeGitAgainstDotGitFolder("name-rev --name-only HEAD");
         }
 
         public void DeleteFromLocalConfig(string settingName)
@@ -157,29 +154,75 @@ namespace GVFS.Common.Git
                  value));
         }
 
-        public Result GetAllLocalConfig()
+        public Result AddInLocalConfig(string settingName, string value)
         {
-            return this.InvokeGitAgainstDotGitFolder("config --list --local");
+            return this.InvokeGitAgainstDotGitFolder(string.Format(
+                "config --local --add {0} {1}",
+                 settingName,
+                 value));
         }
 
-        public string GetFromConfig(string settingName)
+        public bool TryGetAllLocalConfig(out Dictionary<string, GitConfigSetting> configSettings)
         {
+            Result result = this.InvokeGitAgainstDotGitFolder("config --list --local");
+            if (result.HasErrors)
+            {
+                configSettings = null;
+                return false;
+            }
+
+            configSettings = GitConfigHelper.ParseKeyValues(result.Output);
+
+            return true;
+        }
+
+        /// <summary>
+        /// Get the config value give a setting name
+        /// </summary>
+        /// <param name="settingName">The name of the config setting</param>
+        /// <param name="forceOutsideEnlistment">
+        /// If false, will run the call from inside the enlistment if the working dir found, 
+        /// otherwise it will run it from outside the enlistment.
+        /// </param>
+        /// <returns>The value found for the setting.</returns>
+        public Result GetFromConfig(string settingName, bool forceOutsideEnlistment = false)
+        {
+            string command = string.Format("config {0}", settingName);
+
             // This method is called at clone time, so the physical repo may not exist yet.
-            Result result = Directory.Exists(this.enlistment.WorkingDirectoryRoot) ?
-                    this.InvokeGitAgainstDotGitFolder("config " + settingName) :
-                    this.InvokeGitOutsideEnlistment("config " + settingName);
+            return 
+                Directory.Exists(this.enlistment.WorkingDirectoryRoot) && !forceOutsideEnlistment
+                    ? this.InvokeGitAgainstDotGitFolder(command) 
+                    : this.InvokeGitOutsideEnlistment(command);
+        }
 
-            // Git returns non-zero for non-existent settings and errors.
-            if (!result.HasErrors)
+        /// <summary>
+        /// Safely gets the config value give a setting name
+        /// </summary>
+        /// <param name="settingName">The name of the config setting</param>
+        /// <param name="forceOutsideEnlistment">
+        /// If false, will run the call from inside the enlistment if the working dir found, 
+        /// otherwise it will run it from outside the enlistment.
+        /// </param>
+        /// <param value>The value found for the config setting.</param>
+        /// <returns>True if the config call was successful, false otherwise.</returns>
+        public bool TryGetFromConfig(string settingName, bool forceOutsideEnlistment, out string value)
+        {
+            value = null;
+            try
             {
-                return result.Output.TrimEnd('\n');
+                Result result = this.GetFromConfig(settingName, forceOutsideEnlistment: forceOutsideEnlistment);
+                if (!result.HasErrors)
+                {
+                    value = result.Output;
+                    return true;
+                }
             }
-            else if (result.Errors.Any())
+            catch
             {
-                throw new InvalidRepoException("Error while reading '" + settingName + "' from config: " + result.Errors);
             }
 
-            return null;
+            return false;
         }
 
         public Result GetOriginUrl()
@@ -208,11 +251,6 @@ namespace GVFS.Common.Git
             this.InvokeGitAgainstDotGitFolder("diff-tree -r -t " + sourceTreeish + " " + targetTreeish, null, onResult);
         }
 
-        public Result DiffWithNameOnlyAndFilterForAddedAndReanamedFiles(string commitish1, string commitish2)
-        {
-            return this.InvokeGitInWorkingDirectoryRoot("diff --name-only --diff-filter=AR " + commitish1 + " " + commitish2, useReadObjectHook: true);
-        }
-
         public Result CreateBranchWithUpstream(string branchToCreate, string upstreamBranch)
         {
             return this.InvokeGitAgainstDotGitFolder("branch --set-upstream " + branchToCreate + " " + upstreamBranch);
@@ -221,6 +259,11 @@ namespace GVFS.Common.Git
         public Result ForceCheckout(string target)
         {
             return this.InvokeGitInWorkingDirectoryRoot("checkout -f " + target, useReadObjectHook: false);
+        }
+
+        public Result Status(bool allowObjectDownloads)
+        {
+            return this.InvokeGitInWorkingDirectoryRoot("status", useReadObjectHook: allowObjectDownloads);
         }
 
         public Result UpdateIndexVersion4()
@@ -268,8 +311,8 @@ namespace GVFS.Common.Git
         public Result LsTree(string treeish, Action<string> parseStdOutLine, bool recursive, bool showAllTrees = false)
         {
             return this.InvokeGitAgainstDotGitFolder(
-                "ls-tree " + (recursive ? "-r " : string.Empty) + (showAllTrees ? "-t " : string.Empty) + treeish, 
-                null, 
+                "ls-tree " + (recursive ? "-r " : string.Empty) + (showAllTrees ? "-t " : string.Empty) + treeish,
+                null,
                 parseStdOutLine);
         }
 
@@ -300,7 +343,7 @@ namespace GVFS.Common.Git
         {
             return this.InvokeGitAgainstDotGitFolder("read-tree " + treeIsh);
         }
-        
+
         public Process GetGitProcess(string command, string workingDirectory, string dotGitDirectory, bool useReadObjectHook, bool redirectStandardError)
         {
             ProcessStartInfo processInfo = new ProcessStartInfo(this.enlistment.GitBinPath);
@@ -310,6 +353,19 @@ namespace GVFS.Common.Git
             processInfo.RedirectStandardOutput = true;
             processInfo.RedirectStandardError = redirectStandardError;
             processInfo.WindowStyle = ProcessWindowStyle.Hidden;
+            processInfo.CreateNoWindow = true;
+
+            processInfo.StandardOutputEncoding = StandardEncoding;
+            processInfo.StandardErrorEncoding = StandardEncoding;
+
+            // Removing trace variables that might change git output and break parsing
+            // List of environment variables: https://git-scm.com/book/gr/v2/Git-Internals-Environment-Variables
+            foreach (string key in processInfo.EnvironmentVariables.Keys.Cast<string>()
+                .Where(x => x.StartsWith("GIT_TRACE"))
+                .ToList())
+            {
+                processInfo.EnvironmentVariables.Remove(key);
+            }
 
             processInfo.EnvironmentVariables["GIT_TERMINAL_PROMPT"] = "0";
             processInfo.EnvironmentVariables["PATH"] =
@@ -319,8 +375,8 @@ namespace GVFS.Common.Git
                     this.enlistment.GVFSHooksRoot ?? string.Empty);
 
             if (!useReadObjectHook)
-            { 
-                command = "-c " + GVFSConstants.VirtualizeObjectsGitConfigName + "=false " + command;
+            {
+                command = "-c " + GitConfigSetting.VirtualizeObjectsGitConfigName + "=false " + command;
             }
 
             if (!string.IsNullOrEmpty(dotGitDirectory))
@@ -334,10 +390,10 @@ namespace GVFS.Common.Git
             executingProcess.StartInfo = processInfo;
             return executingProcess;
         }
-        
+
         private static string ParseValue(string contents, string prefix)
         {
-            int startIndex = contents.IndexOf(prefix) + prefix.Length;            
+            int startIndex = contents.IndexOf(prefix) + prefix.Length;
             if (startIndex >= 0 && startIndex < contents.Length)
             {
                 int endIndex = contents.IndexOf('\n', startIndex);
@@ -352,7 +408,7 @@ namespace GVFS.Common.Git
 
             return null;
         }
-        
+
         /// <summary>
         /// Invokes git.exe without a working directory set.
         /// </summary>
@@ -372,12 +428,12 @@ namespace GVFS.Common.Git
             int timeout = -1)
         {
             return this.InvokeGitImpl(
-                command, 
+                command,
                 workingDirectory: Environment.SystemDirectory,
                 dotGitDirectory: null,
                 useReadObjectHook: false,
-                writeStdIn: writeStdIn, 
-                parseStdOutLine: parseStdOutLine, 
+                writeStdIn: writeStdIn,
+                parseStdOutLine: parseStdOutLine,
                 timeoutMs: timeout);
         }
 
@@ -388,11 +444,11 @@ namespace GVFS.Common.Git
         {
             return this.InvokeGitImpl(
                 command,
-                workingDirectory: this.enlistment.WorkingDirectoryRoot, 
-                dotGitDirectory: null, 
-                useReadObjectHook: useReadObjectHook, 
-                writeStdIn: null, 
-                parseStdOutLine: null, 
+                workingDirectory: this.enlistment.WorkingDirectoryRoot,
+                dotGitDirectory: null,
+                useReadObjectHook: useReadObjectHook,
+                writeStdIn: null,
+                parseStdOutLine: null,
                 timeoutMs: -1);
         }
 
@@ -419,16 +475,16 @@ namespace GVFS.Common.Git
                 dotGitDirectory: this.enlistment.DotGitRoot,
                 useReadObjectHook: false,
                 writeStdIn: writeStdIn,
-                parseStdOutLine: parseStdOutLine, 
+                parseStdOutLine: parseStdOutLine,
                 timeoutMs: -1);
         }
 
         private Result InvokeGitImpl(
-            string command, 
+            string command,
             string workingDirectory,
             string dotGitDirectory,
             bool useReadObjectHook,
-            Action<StreamWriter> writeStdIn, 
+            Action<StreamWriter> writeStdIn,
             Action<string> parseStdOutLine,
             int timeoutMs)
         {

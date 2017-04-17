@@ -43,16 +43,16 @@ namespace GVFS.Common.Git
             return this.TryDownloadAndSaveObjects(blobShas, commitDepth: 1, preferLooseObjects: true);
         }
 
-        public void DownloadPrefetchPacks(long latestTimestamp)
+        public bool TryDownloadPrefetchPacks(long latestTimestamp)
         {
             EventMetadata metadata = new EventMetadata();
             metadata.Add("latestTimestamp", latestTimestamp);
 
-            using (ITracer activity = this.Tracer.StartActivity(nameof(this.DownloadPrefetchPacks), EventLevel.Informational, metadata))
+            using (ITracer activity = this.Tracer.StartActivity(nameof(this.TryDownloadPrefetchPacks), EventLevel.Informational, metadata))
             {
                 RetryWrapper<HttpGitObjects.GitObjectTaskResult>.InvocationResult result = this.GitObjectRequestor.TrySendProtocolRequest(
                     onSuccess: (tryCount, response) => this.DeserializePrefetchPacks(response, ref latestTimestamp),
-                    onFailure: RetryWrapper<HttpGitObjects.GitObjectTaskResult>.StandardErrorHandler(activity, nameof(this.DownloadPrefetchPacks)),
+                    onFailure: RetryWrapper<HttpGitObjects.GitObjectTaskResult>.StandardErrorHandler(activity, nameof(this.TryDownloadPrefetchPacks)),
                     method: HttpMethod.Get,
                     endPointGenerator: () => new Uri(
                         string.Format(
@@ -81,23 +81,18 @@ namespace GVFS.Common.Git
                         activity.RelatedError(error);
                     }
                 }
+
+                return result.Succeeded;
             }
         }
 
-        public virtual string WriteLooseObject(string repoRoot, Stream responseStream, string sha, byte[] bufToCopyWith = null)
+        public virtual string WriteLooseObject(string repoRoot, Stream responseStream, string sha, byte[] bufToCopyWith)
         {
             LooseObjectToWrite toWrite = GetLooseObjectDestination(repoRoot, sha);
 
             using (Stream fileStream = OpenTempLooseObjectStream(toWrite.TempFile, async: false))
             {
-                if (bufToCopyWith != null)
-                {
-                    StreamUtil.CopyToWithBuffer(responseStream, fileStream, bufToCopyWith);
-                }
-                else
-                {
-                    responseStream.CopyTo(fileStream);
-                }
+                StreamUtil.CopyToWithBuffer(responseStream, fileStream, bufToCopyWith);
             }
 
             this.FinalizeTempFile(sha, toWrite);
@@ -124,7 +119,7 @@ namespace GVFS.Common.Git
             string targetFullPath,
             bool throwOnError = false)
         {
-            // It is important to write temp files then rename so that git 
+            // It is important to write temp files then rename so that git
             // does not mistake a half-written file for an invalid one.
             string tempPath = targetFullPath + "temp";
 
@@ -132,7 +127,7 @@ namespace GVFS.Common.Git
             {
                 using (Stream fileStream = File.OpenWrite(tempPath))
                 {
-                    source.CopyTo(fileStream);
+                    StreamUtil.CopyToWithBuffer(source, fileStream);
                 }
 
                 this.ValidateTempFile(tempPath, targetFullPath);
@@ -212,11 +207,14 @@ namespace GVFS.Common.Git
                 return DownloadAndSaveObjectResult.Error;
             }
 
+            // To reduce allocations, reuse the same buffer when writing objects in this batch
+            byte[] bufToCopyWith = new byte[StreamUtil.DefaultCopyBufferSize];
+
             RetryWrapper<HttpGitObjects.GitObjectTaskResult>.InvocationResult output = this.GitObjectRequestor.TryDownloadLooseObject(
                 objectSha,
                 onSuccess: (tryCount, response) =>
                 {
-                    this.WriteLooseObject(this.Enlistment.WorkingDirectoryRoot, response.Stream, objectSha);
+                    this.WriteLooseObject(this.Enlistment.WorkingDirectoryRoot, response.Stream, objectSha, bufToCopyWith);
                     return new RetryWrapper<HttpGitObjects.GitObjectTaskResult>.CallbackResult(new HttpGitObjects.GitObjectTaskResult(true));
                 },
                 onFailure: this.HandleDownloadAndSaveObjectError);
@@ -290,7 +288,7 @@ namespace GVFS.Common.Git
 
         private void HandleDownloadAndSaveObjectError(RetryWrapper<HttpGitObjects.GitObjectTaskResult>.ErrorEventArgs errorArgs)
         {
-            // Silence logging 404's for object downloads. They are far more likely to be git checking for the 
+            // Silence logging 404's for object downloads. They are far more likely to be git checking for the
             // previous existence of a new object than a truly missing object.
             HttpGitObjects.HttpGitObjectsException ex = errorArgs.Error as HttpGitObjects.HttpGitObjectsException;
             if (ex != null && ex.StatusCode == HttpStatusCode.NotFound)
@@ -343,7 +341,7 @@ namespace GVFS.Common.Git
                         // Try to build the index manually, then retry the prefetch
                         if (this.TryBuildIndex(activity, pack, packFullPath))
                         {
-                            // If we were able to recreate the failed index 
+                            // If we were able to recreate the failed index
                             // we can start the prefetch at the next timestamp
                             latestTimestamp = pack.Timestamp;
                         }
@@ -420,13 +418,21 @@ namespace GVFS.Common.Git
                 {
                     this.ValidateTempFile(toWrite.TempFile, sha);
 
-                    File.Move(toWrite.TempFile, toWrite.ActualFile);
+                    try
+                    {
+                        File.Move(toWrite.TempFile, toWrite.ActualFile);
+                    }
+                    catch (IOException ex)
+                    {
+                        // IOExceptions happen when someone else is writing to our object.
+                        // That implies they are doing what we're doing, which should be a success
+                        EventMetadata info = new EventMetadata();
+                        info.Add("ErrorMessage", "Exception moving temp file");
+                        info.Add("file", toWrite.ActualFile);
+                        info.Add("Exception", ex.ToString());
+                        this.Tracer.RelatedEvent(EventLevel.Warning, "Warning", info);
+                    }
                 }
-            }
-            catch (IOException)
-            {
-                // IOExceptions happen when someone else is writing to our object. 
-                // That implies they are doing what we're doing, which should be a success
             }
             finally
             {
@@ -446,10 +452,22 @@ namespace GVFS.Common.Git
                 using (Stream fs = info.OpenRead())
                 {
                     byte[] buffer = new byte[10];
+
+                    // This will always read at least one non-zero byte
                     int bytesRead = fs.Read(buffer, 0, buffer.Length);
-                    if (buffer.Take(bytesRead).All(b => b == 0))
+                    if (buffer.All(b => b == 0))
                     {
-                        throw new RetryableException("Temp file for '" + intendedPurpose + "' was written with " + buffer.Length + " null bytes");
+                        RetryableException ex = new RetryableException(
+                            "Temp file for '" + intendedPurpose + "' was written with " + bytesRead + " null bytes");
+
+                        EventMetadata eventInfo = new EventMetadata();
+                        eventInfo.Add("ErrorMessage", "Validation of temporary downloaded file failed");
+                        eventInfo.Add("file", filePath);
+                        eventInfo.Add("intendedPurpose", intendedPurpose);
+                        eventInfo.Add("Exception", ex.ToString());
+                        this.Tracer.RelatedEvent(EventLevel.Warning, "Warning", eventInfo);
+
+                        throw ex;
                     }
                 }
             }
@@ -465,13 +483,19 @@ namespace GVFS.Common.Git
                     return new RetryWrapper<HttpGitObjects.GitObjectTaskResult>.CallbackResult(new InvalidOperationException("Received loose object when multiple objects were requested."), shouldRetry: false);
                 }
 
-                this.WriteLooseObject(this.Enlistment.WorkingDirectoryRoot, responseData.Stream, objectShaList[0]);
+                // To reduce allocations, reuse the same buffer when writing objects in this batch
+                byte[] bufToCopyWith = new byte[StreamUtil.DefaultCopyBufferSize];
+
+                this.WriteLooseObject(this.Enlistment.WorkingDirectoryRoot, responseData.Stream, objectShaList[0], bufToCopyWith);
             }
             else if (responseData.ContentType == HttpGitObjects.ContentType.BatchedLooseObjects)
             {
+                // To reduce allocations, reuse the same buffer when writing objects in this batch
+                byte[] bufToCopyWith = new byte[StreamUtil.DefaultCopyBufferSize];
+
                 BatchedLooseObjectDeserializer deserializer = new BatchedLooseObjectDeserializer(
-                    responseData.Stream, 
-                    (stream, sha) => this.WriteLooseObject(this.Enlistment.WorkingDirectoryRoot, stream, sha));
+                    responseData.Stream,
+                    (stream, sha) => this.WriteLooseObject(this.Enlistment.WorkingDirectoryRoot, stream, sha, bufToCopyWith));
                 deserializer.ProcessObjects();
             }
             else
@@ -501,7 +525,7 @@ namespace GVFS.Common.Git
                 string packfilePath = GetRandomPackName(this.Enlistment.GitPackRoot);
                 using (FileStream fileStream = File.OpenWrite(packfilePath))
                 {
-                    contents.CopyTo(fileStream);
+                    StreamUtil.CopyToWithBuffer(contents, fileStream);
                 }
 
                 this.ValidateTempFile(packfilePath, packfilePath);

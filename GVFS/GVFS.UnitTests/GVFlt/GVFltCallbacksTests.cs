@@ -30,12 +30,14 @@ namespace GVFS.UnitTests.GVFlt.DotGit
             GVFltCallbacks.IsPathMonitoredForWrites(@".git\INDEX").ShouldEqual(true);
             GVFltCallbacks.IsPathMonitoredForWrites(@".git\index.lock").ShouldEqual(false);
             GVFltCallbacks.IsPathMonitoredForWrites(@".git\INDEX.lock").ShouldEqual(false);
-            GVFltCallbacks.IsPathMonitoredForWrites(@".git\head").ShouldEqual(true);
-            GVFltCallbacks.IsPathMonitoredForWrites(@".git\HEAD").ShouldEqual(true);
+            GVFltCallbacks.IsPathMonitoredForWrites(@".git\head").ShouldEqual(false);
+            GVFltCallbacks.IsPathMonitoredForWrites(@".git\HEAD").ShouldEqual(false);
+            GVFltCallbacks.IsPathMonitoredForWrites(@".git\logs\head").ShouldEqual(true);
+            GVFltCallbacks.IsPathMonitoredForWrites(@".git\logs\HEAD").ShouldEqual(true);
             GVFltCallbacks.IsPathMonitoredForWrites(@".git\head.lock").ShouldEqual(false);
             GVFltCallbacks.IsPathMonitoredForWrites(@".git\HEAD.lock").ShouldEqual(false);
-            GVFltCallbacks.IsPathMonitoredForWrites(@".git\refs\heads\master").ShouldEqual(true);
-            GVFltCallbacks.IsPathMonitoredForWrites(@".git\refs\heads\users\testuser\feature_branch").ShouldEqual(true);
+            GVFltCallbacks.IsPathMonitoredForWrites(@".git\refs\heads\master").ShouldEqual(false);
+            GVFltCallbacks.IsPathMonitoredForWrites(@".git\refs\heads\users\testuser\feature_branch").ShouldEqual(false);
             GVFltCallbacks.IsPathMonitoredForWrites(@".git\refs\remotes").ShouldEqual(false);
             GVFltCallbacks.IsPathMonitoredForWrites(@".git\refs\remotes\master").ShouldEqual(false);
             GVFltCallbacks.IsPathMonitoredForWrites(@".git\objects\pack").ShouldEqual(false);

@@ -3,7 +3,6 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
-using System.Management;
 using System.Reflection;
 using System.Runtime.InteropServices;
 using System.Security.Principal;
@@ -15,9 +14,9 @@ namespace GVFS.Common
         /// <summary>
         /// Get the process Id for the highest process with the given name in the current process hierarchy.
         /// </summary>
-        /// <param name="parentName">The name of the parent process to consider (e.g. git.exe)</param>
+        /// <param name="allowedParentExes">Names that are allowed for parent executables (e.g. git.exe, wish.exe)</param>
         /// <returns>The process Id or -1 if not found.</returns>
-        public static int GetParentProcessId(string parentName)
+        public static int GetParentProcessId(HashSet<string> allowedParentExes)
         {
             Dictionary<int, Process> processesSnapshot = Process.GetProcesses().ToDictionary(p => p.Id);
 
@@ -27,37 +26,46 @@ namespace GVFS.Common
             {
                 ProcessBasicInformation processBasicInfo;
                 int size;
-                int result =
-                    NtQueryInformationProcess(
-                        currentProcess.Handle,
-                        0, // Denotes ProcessBasicInformation
-                        out processBasicInfo,
-                        Marshal.SizeOf(typeof(ProcessBasicInformation)),
-                        out size);
+                int result;
+                try
+                {
+                    result =
+                      NtQueryInformationProcess(
+                          currentProcess.Handle,
+                          0, // Denotes ProcessBasicInformation
+                          out processBasicInfo,
+                          Marshal.SizeOf(typeof(ProcessBasicInformation)),
+                          out size);
+                }
+                catch (InvalidOperationException)
+                {
+                    // If process has terminated, getting the Handle will throw here.
+                    return GVFSConstants.InvalidProcessId;
+                }
 
                 int potentialParentId = processBasicInfo.InheritedFromUniqueProcessId.ToInt32();
                 if (result != 0 || potentialParentId == 0)
                 {
-                    return GetProcessIdIfHasName(highestParentId, parentName);
+                    return GetProcessIdIfHasName(highestParentId, allowedParentExes);
                 }
 
                 Process processFound;
                 if (processesSnapshot.TryGetValue(potentialParentId, out processFound))
                 {
-                    if (processFound.MainModule.ModuleName.Equals(parentName, StringComparison.OrdinalIgnoreCase))
+                    if (allowedParentExes.Contains(processFound.MainModule.ModuleName))
                     {
                         highestParentId = potentialParentId;
                     }
                     else if (highestParentId > 0)
                     {
-                        return GetProcessIdIfHasName(highestParentId, parentName);
+                        return GetProcessIdIfHasName(highestParentId, allowedParentExes);
                     }
                 }
                 else 
                 {
                     if (highestParentId > 0)
                     {
-                        return GetProcessIdIfHasName(highestParentId, parentName);
+                        return GetProcessIdIfHasName(highestParentId, allowedParentExes);
                     }
 
                     return GVFSConstants.InvalidProcessId;
@@ -209,23 +217,9 @@ namespace GVFS.Common
             }
         }
 
-        public static string GetCommandLine(Process process)
+        private static int GetProcessIdIfHasName(int processId, HashSet<string> allowedExeNames)
         {
-            using (ManagementObjectSearcher wmiSearch = 
-                new ManagementObjectSearcher("SELECT CommandLine FROM Win32_Process WHERE ProcessId = " + process.Id))
-            {
-                foreach (ManagementBaseObject commandLineObject in wmiSearch.Get())
-                {
-                    return process.StartInfo.FileName + " " + commandLineObject["CommandLine"];
-                }
-            }
-
-            return string.Empty;
-        }
-
-        private static int GetProcessIdIfHasName(int processId, string expectedName)
-        {
-            if (ProcessIdHasName(processId, expectedName))
+            if (ProcessIdHasName(processId, allowedExeNames))
             {
                 return processId;
             }
@@ -235,12 +229,14 @@ namespace GVFS.Common
             }
         }
 
-        private static bool ProcessIdHasName(int processId, string expectedName)
+        private static bool ProcessIdHasName(int processId, HashSet<string> allowedExeNames)
         {
             Process process;
             if (TryGetProcess(processId, out process))
             {
-                return process.MainModule.ModuleName.Equals(expectedName, StringComparison.OrdinalIgnoreCase);
+                bool result = allowedExeNames.Contains(process.MainModule.ModuleName);
+                process.Dispose();
+                return result;
             }
 
             return false;

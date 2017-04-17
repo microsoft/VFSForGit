@@ -13,25 +13,10 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
     [TestFixtureSource(typeof(GitFilesTestsRunners), GitFilesTestsRunners.TestRunners)]
     public class GitFilesTests : TestsWithEnlistmentPerFixture
     {
-        private const string ExcludeFileContentsBeforeChange =
-@"# git ls-files --others --exclude-from=.git/info/exclude
-# Lines that start with '#' are comments.
-# For a project mostly in C, the following would be a good set of
-# exclude patterns (uncomment them if you want to use them):
-# *.[oa]
-# *~
-*
-";
-        private const string ExcludeFileContentsAfterChange =
-@"# git ls-files --others --exclude-from=.git/info/exclude
-# Lines that start with '#' are comments.
-# For a project mostly in C, the following would be a good set of
-# exclude patterns (uncomment them if you want to use them):
-# *.[oa]
-# *~
-*
-!/*
-";
+        private const string AlwaysExcludeFileContentsBeforeChange = "*";
+        private const string AlwaysExcludeFileContentsAfterChange =
+@"*
+!/*";
 
         private FileSystemRunner fileSystem;
 
@@ -44,14 +29,14 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
         public void CreateFileTest()
         {
             string virtualFile = Path.Combine(this.Enlistment.RepoRoot, "tempFile.txt");
-            string excludeFile = Path.Combine(this.Enlistment.RepoRoot, GitHelpers.ExcludeFilePath);
-            excludeFile.ShouldBeAFile(this.fileSystem).WithContents(ExcludeFileContentsBeforeChange.Replace("\r\n", "\n"));
+            string alwaysExcludeFile = Path.Combine(this.Enlistment.RepoRoot, GitHelpers.AlwaysExcludeFilePath);
+            alwaysExcludeFile.ShouldBeAFile(this.fileSystem).WithContents().ShouldContain(AlwaysExcludeFileContentsBeforeChange.Replace("\r\n", "\n"));
             this.fileSystem.WriteAllText(virtualFile, "Some content here");
 
             this.Enlistment.WaitForBackgroundOperations().ShouldEqual(true, "Background operations failed to complete.");
 
             virtualFile.ShouldBeAFile(this.fileSystem).WithContents("Some content here");
-            excludeFile.ShouldBeAFile(this.fileSystem).WithContents(ExcludeFileContentsAfterChange.Replace("\r\n", "\n"));
+            alwaysExcludeFile.ShouldBeAFile(this.fileSystem).WithContents().ShouldContain(AlwaysExcludeFileContentsAfterChange.Replace("\r\n", "\n"));
         }
 
         [TestCase, Order(2)]

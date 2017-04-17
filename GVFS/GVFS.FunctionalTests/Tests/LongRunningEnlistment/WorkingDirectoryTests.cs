@@ -5,7 +5,6 @@ using GVFS.Tests.Should;
 using NUnit.Framework;
 using System;
 using System.Collections.Generic;
-using System.Diagnostics;
 using System.IO;
 using System.IO.MemoryMappedFiles;
 using System.Linq;
@@ -134,7 +133,7 @@ namespace GVFS.FunctionalTests.Tests.LongRunningEnlistment
 
             // DirectoryInfo caches information. We can refresh, but just to be absolutely sure...
             virtualFolder.ShouldBeADirectory(fileSystem)
-                .WithInfo(testValue, testValue, testValue, FileAttributes.Hidden | FileAttributes.Directory);
+                .WithInfo(testValue, testValue, testValue, FileAttributes.Hidden | FileAttributes.Directory, ignoreRecallAttributes: false);
 
             Directory.Delete(virtualFolder);
         }
@@ -177,7 +176,7 @@ namespace GVFS.FunctionalTests.Tests.LongRunningEnlistment
 
             // DirectoryInfo caches information. We can refresh, but just to be absolutely sure...
             virtualFolder.ShouldBeADirectory(fileSystem)
-                .WithInfo(testValue, testValue, testValue, FileAttributes.Hidden | FileAttributes.Directory);
+                .WithInfo(testValue, testValue, testValue, FileAttributes.Hidden | FileAttributes.Directory, ignoreRecallAttributes: true);
         }
 
         [TestCaseSource(typeof(FileRunnersAndFolders), FileRunnersAndFolders.TestRunners)]
@@ -1554,8 +1553,7 @@ namespace GVFS.FunctionalTests.Tests.LongRunningEnlistment
         {
             FileSystemRunner fileSystem = FileSystemRunner.DefaultRunner;
             string existingFileVirtualPath = this.Enlistment.GetVirtualPathTo("ErrorWhenPathTreatsFileAsFolderMatchesNTFS\\virtual");
-            string existingFilePhysicalPath = Path.Combine(this.Enlistment.DotGVFSRoot, "GVFS_HEAD");
-            existingFilePhysicalPath.ShouldBeAFile(fileSystem);
+            string existingFilePhysicalPath = this.CreateFileInPhysicalPath(fileSystem);
 
             foreach (CreationDisposition creationDispostion in Enum.GetValues(typeof(CreationDisposition)))
             {
@@ -1571,8 +1569,7 @@ namespace GVFS.FunctionalTests.Tests.LongRunningEnlistment
             string existingFileVirtualPath = this.Enlistment.GetVirtualPathTo("ErrorWhenPathTreatsFileAsFolderMatchesNTFS\\partial");
             existingFileVirtualPath.ShouldBeAFile(fileSystem);
             fileSystem.ReadAllText(existingFileVirtualPath);
-            string existingFilePhysicalPath = Path.Combine(this.Enlistment.DotGVFSRoot, "GVFS_HEAD");
-            existingFilePhysicalPath.ShouldBeAFile(fileSystem);
+            string existingFilePhysicalPath = this.CreateFileInPhysicalPath(fileSystem);
 
             foreach (CreationDisposition creationDispostion in Enum.GetValues(typeof(CreationDisposition)))
             {
@@ -1588,8 +1585,7 @@ namespace GVFS.FunctionalTests.Tests.LongRunningEnlistment
             string existingFileVirtualPath = this.Enlistment.GetVirtualPathTo("ErrorWhenPathTreatsFileAsFolderMatchesNTFS\\full");
             existingFileVirtualPath.ShouldBeAFile(fileSystem);
             fileSystem.AppendAllText(existingFileVirtualPath, "extra text");
-            string existingFilePhysicalPath = Path.Combine(this.Enlistment.DotGVFSRoot, "GVFS_HEAD");
-            existingFilePhysicalPath.ShouldBeAFile(fileSystem);
+            string existingFilePhysicalPath = this.CreateFileInPhysicalPath(fileSystem);
 
             foreach (CreationDisposition creationDispostion in Enum.GetValues(typeof(CreationDisposition)))
             {
@@ -2060,6 +2056,12 @@ namespace GVFS.FunctionalTests.Tests.LongRunningEnlistment
         }
 
         [TestCase]
+        public void Native_GVFlt_OpenMultipleFilesForReadsSameTime()
+        {
+            GVFlt_MultiThreadTest.GVFlt_OpenMultipleFilesForReadsSameTime(this.Enlistment.RepoRoot).ShouldEqual(true);
+        }
+
+        [TestCase]
         public void Native_GVFlt_OpenForWritesSameTime()
         {
             GVFlt_MultiThreadTest.GVFlt_OpenForWritesSameTime(this.Enlistment.RepoRoot).ShouldEqual(true);
@@ -2105,6 +2107,14 @@ namespace GVFS.FunctionalTests.Tests.LongRunningEnlistment
         public void Native_GVFlt_SetLink_ToOutside()
         {
             GVFlt_SetLinkTest.GVFlt_SetLink_ToOutside(Path.GetDirectoryName(this.Enlistment.RepoRoot), this.Enlistment.RepoRoot).ShouldEqual(true);
+        }
+
+        private string CreateFileInPhysicalPath(FileSystemRunner fileSystem)
+        {
+            string existingFilePhysicalPath = Path.Combine(this.Enlistment.DotGVFSRoot, "existingFileTest.txt");
+            fileSystem.WriteAllText(existingFilePhysicalPath, "File for testing");
+            existingFilePhysicalPath.ShouldBeAFile(fileSystem);
+            return existingFilePhysicalPath;
         }
 
         private class NativeTests
@@ -2405,6 +2415,9 @@ namespace GVFS.FunctionalTests.Tests.LongRunningEnlistment
 
             [DllImport("GVFS.NativeTests.dll")]
             public static extern bool GVFlt_OpenForWritesSameTime(string virtualRootPath);
+
+            [DllImport("GVFS.NativeTests.dll")]
+            public static extern bool GVFlt_OpenMultipleFilesForReadsSameTime(string virtualRootPath);
         }
 
         private class GVFlt_SetLinkTest

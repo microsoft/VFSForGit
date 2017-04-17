@@ -5,8 +5,11 @@ using GVFS.FunctionalTests.Should;
 using GVFS.FunctionalTests.Tools;
 using GVFS.Tests.Should;
 using NUnit.Framework;
+using System;
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
+using System.Linq;
 
 namespace GVFS.FunctionalTests.Tests
 {
@@ -65,7 +68,30 @@ namespace GVFS.FunctionalTests.Tests
             this.CurrentBranchShouldEqual(Settings.Default.Commitish);
 
             this.fastFetchRepoRoot.ShouldBeADirectory(FileSystemRunner.DefaultRunner)
-                .WithDeepStructure(this.fastFetchControlRoot);
+                .WithDeepStructure(this.fastFetchControlRoot, skipEmptyDirectories: false);
+        }
+
+        [TestCase]
+        public void CanFetchAndCheckoutASingleFolderIntoEmptyGitRepo()
+        {
+            this.RunFastFetch("--checkout --folders \"/GVFS\" -b " + Settings.Default.Commitish);
+
+            this.CurrentBranchShouldEqual(Settings.Default.Commitish);
+
+            this.fastFetchRepoRoot.ShouldBeADirectory(FileSystemRunner.DefaultRunner);
+            List<string> dirs = Directory.EnumerateFileSystemEntries(this.fastFetchRepoRoot).ToList();
+            dirs.SequenceEqual(new[] 
+            {
+                Path.Combine(this.fastFetchRepoRoot, ".git"),
+                Path.Combine(this.fastFetchRepoRoot, "GVFS"),
+                Path.Combine(this.fastFetchRepoRoot, "GVFS.sln")
+            });
+
+            Directory.EnumerateFileSystemEntries(Path.Combine(this.fastFetchRepoRoot, "GVFS"), "*", SearchOption.AllDirectories)
+                .Count()
+                .ShouldEqual(345);
+
+            this.AllFetchedFilePathsShouldPassCheck(path => path.StartsWith("GVFS", StringComparison.OrdinalIgnoreCase));
         }
 
         [TestCase]
@@ -76,7 +102,7 @@ namespace GVFS.FunctionalTests.Tests
             this.CurrentBranchShouldEqual(Settings.Default.Commitish);
 
             this.fastFetchRepoRoot.ShouldBeADirectory(FileSystemRunner.DefaultRunner)
-                .WithDeepStructure(this.fastFetchControlRoot);
+                .WithDeepStructure(this.fastFetchControlRoot, skipEmptyDirectories: false);
         }
 
         [TestCase]
@@ -94,7 +120,7 @@ namespace GVFS.FunctionalTests.Tests
             GitHelpers.CheckGitCommand(this.fastFetchRepoRoot, "log");
 
             this.fastFetchRepoRoot.ShouldBeADirectory(FileSystemRunner.DefaultRunner)
-                .WithDeepStructure(this.fastFetchControlRoot);
+                .WithDeepStructure(this.fastFetchControlRoot, skipEmptyDirectories: false);
         }
 
         [TestCase]
@@ -112,7 +138,7 @@ namespace GVFS.FunctionalTests.Tests
             this.CurrentBranchShouldEqual(Settings.Default.Commitish);
             
             this.fastFetchRepoRoot.ShouldBeADirectory(FileSystemRunner.DefaultRunner)
-                .WithDeepStructure(this.fastFetchControlRoot);
+                .WithDeepStructure(this.fastFetchControlRoot, skipEmptyDirectories: false);
         }
 
         [TestCase]
@@ -126,7 +152,56 @@ namespace GVFS.FunctionalTests.Tests
 
             this.CurrentBranchShouldEqual(Settings.Default.Commitish);
             this.fastFetchRepoRoot.ShouldBeADirectory(FileSystemRunner.DefaultRunner)
-                .WithDeepStructure(this.fastFetchControlRoot);
+                .WithDeepStructure(this.fastFetchControlRoot, skipEmptyDirectories: false);
+        }
+
+        [TestCase]
+        public void SuccessfullyChecksOutCaseChanges()
+        {
+            // The delta between these two is the same as the UnitTest "caseChange.txt" data file.
+            this.RunFastFetch("--checkout -c b5fd7d23706a18cff3e2b8225588d479f7e51138");
+            this.RunFastFetch("--checkout -c fd4ae4312eb504fd40e78d2d4cf349004967a8b4");
+            
+            GitProcess.Invoke(this.fastFetchControlRoot, "checkout fd4ae4312eb504fd40e78d2d4cf349004967a8b4");
+
+            try
+            {
+                this.fastFetchRepoRoot.ShouldBeADirectory(FileSystemRunner.DefaultRunner)
+                    .WithDeepStructure(this.fastFetchControlRoot, skipEmptyDirectories: false, ignoreCase: true);
+            }
+            finally
+            {
+                GitProcess.Invoke(this.fastFetchControlRoot, "checkout " + Settings.Default.Commitish);
+            }
+        }
+
+        private void AllFetchedFilePathsShouldPassCheck(Func<string, bool> checkPath)
+        {
+            // Form a cache map of sha => path
+            string[] allObjects = GitProcess.Invoke(this.fastFetchRepoRoot, "cat-file --batch-check --batch-all-objects").Split('\n');
+            string[] gitlsLines = GitProcess.Invoke(this.fastFetchRepoRoot, "ls-tree -r HEAD").Split(new[] { '\n' }, StringSplitOptions.RemoveEmptyEntries);
+            Dictionary<string, List<string>> allPaths = new Dictionary<string, List<string>>();
+            foreach (string line in gitlsLines)
+            {
+                string sha = this.GetShaFromLsLine(line);
+                string path = this.GetPathFromLsLine(line);
+
+                if (!allPaths.ContainsKey(sha))
+                {
+                    allPaths.Add(sha, new List<string>());
+                }
+
+                allPaths[sha].Add(path);
+            }
+
+            foreach (string sha in allObjects.Where(line => line.Contains(" blob ")).Select(line => line.Substring(0, 40)))
+            {
+                allPaths.ContainsKey(sha).ShouldEqual(true, "Found a blob that wasn't in the tree: " + sha);
+
+                // A single blob should map to multiple files, so if any pass for a single sha, we have to give a pass.
+                allPaths[sha].Any(path => checkPath(path))
+                    .ShouldEqual(true, "Downloaded extra paths:\r\n" + string.Join("\r\n", allPaths[sha]));
+            }
         }
 
         private void CurrentBranchShouldEqual(string commitish)
@@ -161,18 +236,33 @@ namespace GVFS.FunctionalTests.Tests
 
         private string RunFastFetch(string args)
         {
+            args = args + " --verbose";
+
             ProcessStartInfo processInfo = new ProcessStartInfo("fastfetch.exe");
             processInfo.Arguments = args;
             processInfo.WorkingDirectory = this.fastFetchRepoRoot;
             processInfo.UseShellExecute = false;
             processInfo.RedirectStandardOutput = true;
             processInfo.RedirectStandardError = true;
-
+            
             ProcessResult result = ProcessHelper.Run(processInfo);
-            result.Output.Contains("Error").ShouldEqual(false);
-            result.Errors.ShouldBeEmpty();
+            result.Output.Contains("Error").ShouldEqual(false, result.Output);
+            result.Errors.ShouldBeEmpty(result.Errors);
             result.ExitCode.ShouldEqual(0);
             return result.Output;
+        }
+        
+        private string GetShaFromLsLine(string line)
+        {
+            string output = line.Substring(line.LastIndexOf('\t') - 40, 40);
+            return output;
+        }
+
+        private string GetPathFromLsLine(string line)
+        {
+            int idx = line.LastIndexOf('\t') + 1;
+            string output = line.Substring(idx, line.Length - idx);
+            return output;
         }
     }
 }

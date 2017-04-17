@@ -21,6 +21,7 @@
 #include <stdexcept>
 #include <locale>
 #include <thread>
+#include <future>
 #include <codecvt>
 #include "Shlwapi.h"
 #include "Strsafe.h"

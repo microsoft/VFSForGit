@@ -47,7 +47,7 @@ namespace FastFetch.Jobs
 
             this.catFilePool = new ProcessPool<GitCatFileBatchCheckProcess>(
                 tracer,
-                () => new GitCatFileBatchCheckProcess(this.enlistment),
+                () => new GitCatFileBatchCheckProcess(this.tracer, this.enlistment),
                 maxParallel);
         }
 
@@ -61,7 +61,7 @@ namespace FastFetch.Jobs
             {
                 this.catFilePool.Invoke(catFileProcess =>
                 {
-                    if (!catFileProcess.ObjectExists(blobId))
+                    if (!catFileProcess.ObjectExists_CanTimeout(blobId))
                     {
                         Interlocked.Increment(ref this.missingBlobCount);
                         this.DownloadQueue.Add(blobId);

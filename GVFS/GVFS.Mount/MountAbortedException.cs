@@ -8,11 +8,11 @@ namespace GVFS.Mount
 {
     public class MountAbortedException : Exception
     {
-        public MountAbortedException(MountVerb verb)
+        public MountAbortedException(InProcessMountVerb verb)
         {
             this.Verb = verb;
         }
 
-        public MountVerb Verb { get; }
+        public InProcessMountVerb Verb { get; }
     }
 }

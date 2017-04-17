@@ -1,21 +1,19 @@
 ﻿using CommandLine;
 using GVFS.Common;
 using GVFS.Common.Git;
-using GVFS.Common.NamedPipes;
 using GVFS.Common.Tracing;
 using Microsoft.Diagnostics.Tracing;
 using System;
 using System.IO;
-using System.Threading;
 
 namespace GVFS.Mount
 {
-    [Verb("mount", HelpText = "Mount a GVFS virtual repo")]
-    public class MountVerb 
+    [Verb("mount", HelpText = "Starts the background mount process")]
+    public class InProcessMountVerb 
     {
         private TextWriter output;
         
-        public MountVerb()
+        public InProcessMountVerb()
         {
             this.output = Console.Out;
             this.ReturnCode = ReturnCode.Success;
@@ -79,7 +77,10 @@ namespace GVFS.Mount
         private ITracer CreateTracer(GVFSEnlistment enlistment, EventLevel verbosity, Keywords keywords)
         {
             JsonEtwTracer tracer = new JsonEtwTracer(GVFSConstants.GVFSEtwProviderName, "GVFSMount");
-            tracer.AddLogFileEventListener(GVFSEnlistment.GetNewGVFSLogFileName(enlistment.GVFSLogsRoot), verbosity, keywords);
+            tracer.AddLogFileEventListener(
+                GVFSEnlistment.GetNewGVFSLogFileName(enlistment.GVFSLogsRoot, GVFSConstants.LogFileTypes.Mount),
+                verbosity,
+                keywords);
             if (this.ShowDebugWindow)
             {
                 tracer.AddConsoleEventListener(verbosity, keywords);

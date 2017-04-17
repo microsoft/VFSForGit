@@ -1,7 +1,6 @@
 ﻿using GVFS.Common;
 using GVFS.Common.Git;
 using GVFS.Common.NamedPipes;
-using GVFS.Common.Tracing;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
@@ -13,60 +12,58 @@ namespace GVFS.Hooks
 {
     public class Program
     {
-        private const string PrecommandHook = "pre-command";
-
-        // Deprecated - keep to support old clones
-        private const string PostcommandHook = "post-command";
+        private const string PreCommandHook = "pre-command";
+        private const string PostCommandHook = "post-command";
 
         private const string GitLockWaitArgName = "--internal-gitlock-waittime-ms";
-        private static JsonEtwTracer tracer;
 
         private static Dictionary<string, string> specialArgValues = new Dictionary<string, string>();
+        private static string enlistmentRoot;
+        private static string enlistmentPipename;
+
+        private delegate void LockRequestDelegate(string fullcommand, int pid, Process parentProcess, NamedPipeClient pipeClient);
 
         public static void Main(string[] args)
         {
             args = ReadAndRemoveSpecialArgValues(args);
 
-            using (tracer = new JsonEtwTracer(GVFSConstants.GVFSEtwProviderName, "GVFS.Hooks"))
+            try
             {
-                tracer.WriteStartEvent(
-                    null,
-                    null,
-                    null,
-                    new EventMetadata
-                    {
-                        { "Args", string.Join(" ", args) },
-                    });
-
-                try
+                if (args.Length < 2)
                 {
-                    if (args.Length < 2)
-                    {
-                        ExitWithError("Usage: gvfs.hooks <hook> <git verb> [<other arguments>]");
-                    }
-
-                    switch (GetHookType(args))
-                    {
-                        case PrecommandHook:
-                            CheckForLegalCommands(args);
-                            RunPreCommands(args);
-                            AcquireGlobalLock(args);
-                            break;
-
-                        case PostcommandHook:
-                            // no-op - keep this handling to support old clones that had the
-                            // post-command hook installed.
-                            break;
-
-                        default:
-                            ExitWithError("Unrecognized hook: " + string.Join(" ", args));
-                            break;
-                    }
+                    ExitWithError("Usage: gvfs.hooks <hook> <git verb> [<other arguments>]");
                 }
-                catch (Exception ex)
+
+                enlistmentRoot = EnlistmentUtils.GetEnlistmentRoot(Environment.CurrentDirectory);
+                if (string.IsNullOrEmpty(enlistmentRoot))
                 {
-                    ExitWithError("Unexpected exception: " + ex.ToString());
+                    // Nothing to hook when being run outside of a GVFS repo.
+                    // This is also the path when run with --git-dir outside of a GVFS directory, see Story #949665
+                    Environment.Exit(0);
                 }
+
+                enlistmentPipename = EnlistmentUtils.GetNamedPipeName(enlistmentRoot);
+
+                switch (GetHookType(args))
+                {
+                    case PreCommandHook:
+                        CheckForLegalCommands(args);
+                        RunLockRequest(args, AcquireGVFSLockForProcess);
+                        RunPreCommands(args);
+                        break;
+
+                    case PostCommandHook:
+                        RunLockRequest(args, ReleaseGVFSLock);
+                        break;
+
+                    default:
+                        ExitWithError("Unrecognized hook: " + string.Join(" ", args));
+                        break;
+                }
+            }
+            catch (Exception ex)
+            {
+                ExitWithError("Unexpected exception: " + ex.ToString());
             }
         }
 
@@ -97,10 +94,9 @@ namespace GVFS.Hooks
         {
             foreach (string message in messages)
             {
-                Console.Error.WriteLine(message);
+                Console.WriteLine(message);
             }
 
-            tracer.RelatedError(string.Join("\r\n", messages));
             Environment.Exit(1);
         }
 
@@ -116,10 +112,22 @@ namespace GVFS.Hooks
                         ExitWithError("Split index is not supported on a GVFS repo");
                     }
 
+                    if (ContainsArg(args, "--index-version"))
+                    {
+                        ExitWithError("Changing the index version is not supported on a GVFS repo");
+                    }
+
+                    if (ContainsArg(args, "--skip-worktree") || 
+                        ContainsArg(args, "--no-skip-worktree"))
+                    {
+                        ExitWithError("Modifying the skip worktree bit is not supported on a GVFS repo");
+                    }
+
                     break;
 
                 case "fsck":
                 case "gc":
+                case "prune":
                 case "repack":
                     ExitWithError("'git " + command + "' is not supported on a GVFS repo");
                     break;
@@ -127,25 +135,71 @@ namespace GVFS.Hooks
                 case "submodule":
                     ExitWithError("Submodule operations are not supported on a GVFS repo");
                     break;
+
+                case "status":
+                    VerifyRenameDetectionSettings(args);
+                    break;
+
+                case "worktree":
+                    ExitWithError("Worktree operations are not supported on a GVFS repo");
+                    break;
+
+                case "gui":
+                    ExitWithError("To access the 'git gui' in a GVFS repo, please invoke 'git-gui.exe' instead.");
+                    break;
             }
         }
 
-        private static void AcquireGlobalLock(string[] args)
+        private static void VerifyRenameDetectionSettings(string[] args)
         {
+            string dotGitRoot = Path.Combine(enlistmentRoot, GVFSConstants.WorkingDirectoryRootName, GVFSConstants.DotGit.Root);
+            if (File.Exists(Path.Combine(dotGitRoot, GVFSConstants.MergeHeadCommitName)) ||
+                File.Exists(Path.Combine(dotGitRoot, GVFSConstants.RevertHeadCommitName)))
+            {
+                // If no-renames and no-breaks are specified, avoid reading config.
+                if (!args.Contains("--no-renames") || !args.Contains("--no-breaks"))
+                {
+                    Dictionary<string, GitConfigSetting> statusConfig = GitConfigHelper.GetSettings(
+                        Path.Combine(dotGitRoot, "config"),
+                        "status");
+
+                    if (!IsRunningWithParamOrSetting(args, statusConfig, "--no-renames", "renames") ||
+                        !IsRunningWithParamOrSetting(args, statusConfig, "--no-breaks", "breaks"))
+                    {
+                        ExitWithError(
+                            "git status requires rename detection to be disabled during a merge or revert conflict.",
+                            "Run 'git status --no-renames --no-breaks'");
+                    }
+                }
+            }
+        }
+
+        private static bool IsRunningWithParamOrSetting(
+            string[] args, 
+            Dictionary<string, GitConfigSetting> configSettings, 
+            string expectedArg, 
+            string expectedSetting)
+        {
+            return 
+                args.Contains(expectedArg) ||
+                configSettings.ContainsKey(expectedSetting);
+        }
+
+        private static void RunLockRequest(string[] args, LockRequestDelegate requestToRun)
+        { 
             try
             {
                 if (ShouldLock(args))
                 {
-                    GVFSEnlistment enlistment = GVFSEnlistment.CreateFromCurrentDirectory(null, GitProcess.GetInstalledGitBinPath());
-                    if (enlistment == null)
+                    using (NamedPipeClient pipeClient = new NamedPipeClient(enlistmentPipename))
                     {
-                        ExitWithError("This hook must be run from a GVFS repo");
-                    }
+                        if (!pipeClient.Connect())
+                        {
+                            ExitWithError("The repo does not appear to be mounted. Use 'gvfs status' to check.");
+                        }
 
-                    if (EnlistmentIsReady(enlistment))
-                    {
                         string fullCommand = "git " + string.Join(" ", args.Skip(1));
-                        int pid = ProcessHelper.GetParentProcessId("git.exe");
+                        int pid = ProcessHelper.GetParentProcessId(GVFSConstants.CommandParentExecutableNames);
 
                         Process parentProcess = null;
                         if (pid == GVFSConstants.InvalidProcessId ||
@@ -154,108 +208,85 @@ namespace GVFS.Hooks
                             ExitWithError("GVFS.Hooks: Unable to find parent git.exe process " + "(PID: " + pid + ").");
                         }
 
-                        using (NamedPipeClient pipeClient = new NamedPipeClient(enlistment.NamedPipeName))
-                        {
-                            if (!pipeClient.Connect())
-                            {
-                                ExitWithError("The enlistment does not appear to be mounted. Use 'gvfs status' to check.");
-                            }
-
-                            NamedPipeMessages.AcquireLock.Request request =
-                                new NamedPipeMessages.AcquireLock.Request(pid, fullCommand, ProcessHelper.GetCommandLine(parentProcess));
-
-                            NamedPipeMessages.Message requestMessage = request.CreateMessage();
-                            pipeClient.SendRequest(requestMessage);
-
-                            NamedPipeMessages.AcquireLock.Response response = new NamedPipeMessages.AcquireLock.Response(pipeClient.ReadResponse());
-
-                            if (response.Result == NamedPipeMessages.AcquireLock.AcceptResult)
-                            {
-                                return;
-                            }
-                            else if (response.Result == NamedPipeMessages.AcquireLock.MountNotReadyResult)
-                            {
-                                ExitWithError("GVFS has not finished initializing, please wait a few seconds and try again.");
-                            }
-                            else
-                            {
-                                int retries = 0;
-                                char[] waiting = { '\u2014', '\\', '|', '/' };
-                                string message = string.Empty;
-                                while (true)
-                                {
-                                    if (response.Result == NamedPipeMessages.AcquireLock.AcceptResult)
-                                    {
-                                        if (!Console.IsOutputRedirected)
-                                        {
-                                            Console.WriteLine("\r{0}...", message);
-                                        }
-
-                                        return;
-                                    }
-                                    else if (response.Result == NamedPipeMessages.AcquireLock.DenyGVFSResult)
-                                    {
-                                        message = "Waiting for GVFS to release the lock";
-                                    }
-                                    else if (response.Result == NamedPipeMessages.AcquireLock.DenyGitResult)
-                                    {
-                                        message = string.Format("Waiting for '{0}' to release the lock", response.ResponseData.ParsedCommand);
-                                    }
-                                    else
-                                    {
-                                        ExitWithError("Error when acquiring the lock. Unrecognized response: " + response.CreateMessage());
-                                        tracer.RelatedError("Unknown LockRequestResponse: " + response);
-                                    }
-
-                                    if (Console.IsOutputRedirected && retries == 0)
-                                    {
-                                        Console.WriteLine("{0}...", message);
-                                    }
-                                    else if (!Console.IsOutputRedirected)
-                                    {
-                                        Console.Write("\r{0}..{1}", message, waiting[retries % waiting.Length]);
-                                    }
-
-                                    Thread.Sleep(500);
-
-                                    pipeClient.SendRequest(requestMessage);
-                                    response = new NamedPipeMessages.AcquireLock.Response(pipeClient.ReadResponse());
-                                    retries++;
-                                }
-                            }
-                        }
+                        requestToRun(fullCommand, pid, parentProcess, pipeClient);
                     }
                 }
             }
-            catch (Exception e)
+            catch (Exception exc)
             {
-                EventMetadata metadata = new EventMetadata();
-                metadata.Add("Error", e.ToString());
-                tracer.RelatedError(metadata);
-
                 ExitWithError(
                     "Unable to initialize Git command.",
-                    "Ensure that GVFS is running.");
+                    "Ensure that GVFS is running.",
+                    exc.ToString());
             }
         }
 
-        private static bool EnlistmentIsReady(GVFSEnlistment enlistment)
+        private static void AcquireGVFSLockForProcess(string fullCommand, int pid, Process parentProcess, NamedPipeClient pipeClient)
         {
-            bool enlistmentReady = false;
-            try
-            {
-                enlistmentReady = !enlistment.EnlistmentMutex.WaitOne(1);
-                if (!enlistmentReady)
-                {
-                    enlistment.EnlistmentMutex.ReleaseMutex();
-                }
-            }
-            catch (AbandonedMutexException)
-            {
-                enlistmentReady = false;
-            }
+            NamedPipeMessages.LockRequest request =
+                new NamedPipeMessages.LockRequest(pid, fullCommand);
 
-            return enlistmentReady;
+            NamedPipeMessages.Message requestMessage = request.CreateMessage(NamedPipeMessages.AcquireLock.AcquireRequest);
+            pipeClient.SendRequest(requestMessage);
+
+            NamedPipeMessages.AcquireLock.Response response = new NamedPipeMessages.AcquireLock.Response(pipeClient.ReadResponse());
+
+            if (response.Result == NamedPipeMessages.AcquireLock.AcceptResult)
+            {
+                return;
+            }
+            else if (response.Result == NamedPipeMessages.AcquireLock.MountNotReadyResult)
+            {
+                ExitWithError("GVFS has not finished initializing, please wait a few seconds and try again.");
+            }
+            else
+            {
+                string message = string.Empty;
+                switch (response.Result)
+                {
+                    case NamedPipeMessages.AcquireLock.AcceptResult:
+                        break;
+
+                    case NamedPipeMessages.AcquireLock.DenyGVFSResult:
+                        message = "Waiting for GVFS to release the lock";
+                        break;
+
+                    case NamedPipeMessages.AcquireLock.DenyGitResult:
+                        message = string.Format("Waiting for '{0}' to release the lock", response.ResponseData.ParsedCommand);
+                        break;
+
+                    default:
+                        ExitWithError("Error when acquiring the lock. Unrecognized response: " + response.CreateMessage());
+                        break;
+                }
+
+                ConsoleHelper.ShowStatusWhileRunning(
+                    () =>
+                    {
+                        while (response.Result != NamedPipeMessages.AcquireLock.AcceptResult)
+                        {
+                            Thread.Sleep(250);
+                            pipeClient.SendRequest(requestMessage);
+                            response = new NamedPipeMessages.AcquireLock.Response(pipeClient.ReadResponse());
+                        }
+
+                        return true;
+                    },
+                    message,
+                    output: Console.Out,
+                    showSpinner: !ConsoleHelper.IsConsoleOutputRedirectedToFile());
+            }
+        }
+
+        private static void ReleaseGVFSLock(string fullCommand, int pid, Process parentProcess, NamedPipeClient pipeClient)
+        {
+            NamedPipeMessages.LockRequest request =
+                new NamedPipeMessages.LockRequest(pid, fullCommand);
+
+            NamedPipeMessages.Message requestMessage = request.CreateMessage(NamedPipeMessages.ReleaseLock.Request);
+
+            pipeClient.SendRequest(requestMessage);
+            pipeClient.ReadRawResponse(); // Response doesn't really matter
         }
 
         private static bool TryRemoveArg(ref string[] args, string argName, out string output)
@@ -287,15 +318,19 @@ namespace GVFS.Hooks
             {
                 // Keep these alphabetically sorted
                 case "cat-file":
+                case "check-attr":
                 case "config":
                 case "credential":
                 case "diff":
+                case "diff-files":
                 case "diff-tree":
+                case "difftool":
                 case "for-each-ref":
                 case "help":
                 case "index-pack":
                 case "log":
                 case "ls-tree":
+                case "merge-base":
                 case "mv":
                 case "name-rev":
                 case "push":
@@ -303,16 +338,15 @@ namespace GVFS.Hooks
                 case "rev-list":
                 case "rev-parse":
                 case "show":
+                case "symbolic-ref":
                 case "unpack-objects":
+                case "update-ref":
                 case "version":
                 case "web--browse":
                     return false;
             }
 
-            if (gitCommand == "reset" &&
-                !args.Contains("--hard") &&
-                !args.Contains("--merge") &&
-                !args.Contains("--keep"))
+            if (gitCommand == "reset" && args.Contains("--soft"))
             {
                 return false;
             }

@@ -1,30 +1,34 @@
 ﻿using CommandLine;
 using GVFS.Common;
-using GVFS.Common.Tracing;
 
 namespace GVFS.CommandLine
 {
     [Verb(LogVerb.LogVerbName, HelpText = "Show the most recent GVFS log")]
     public class LogVerb : GVFSVerb.ForExistingEnlistment
     {
-        public const string LogVerbName = "log";
+        private const string LogVerbName = "log";
 
         protected override string VerbName
         {
             get { return LogVerbName; }
         }
 
-        protected override void Execute(GVFSEnlistment enlistment, ITracer tracer = null)
+        protected override void Execute(GVFSEnlistment enlistment)
         {
-            string logFile = enlistment.GetMostRecentGVFSLogFileName();
-            if (logFile != null)
-            {
-                this.Output.WriteLine("Most recent log file: " + logFile);
-            }
-            else
-            {
-                this.Output.WriteLine("No log files found at " + enlistment.GVFSLogsRoot);
-            }
+            this.Output.WriteLine("Most recent log files:");
+            this.DisplayMostRecent(enlistment, GVFSConstants.LogFileTypes.Clone);
+            this.DisplayMostRecent(enlistment, GVFSConstants.LogFileTypes.Dehydrate);
+            this.DisplayMostRecent(enlistment, GVFSConstants.LogFileTypes.Mount);
+            this.DisplayMostRecent(enlistment, GVFSConstants.LogFileTypes.Prefetch);
+        }
+
+        private void DisplayMostRecent(GVFSEnlistment enlistment, string logFileType)
+        {
+            string logFile = enlistment.GetMostRecentGVFSLogFileName(logFileType);
+            this.Output.WriteLine(
+                "  {0}: {1}",
+                logFileType,
+                logFile == null ? "None" : logFile);
         }
     }
 }

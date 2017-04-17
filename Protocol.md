@@ -2,13 +2,15 @@
 
 The GVFS network protocol consists of four operations on three endpoints. In summary:
 * `GET /gvfs/objects/{objectId}`
-  * Gets a single object in loose-object format
+  * Provides a single object in loose-object format
 * `POST /gvfs/objects`
-  * Retrieves one or more objects in packfile or streaming loose object format
+  * Provides one or more objects in packfile or streaming loose object format
 * `GET /gvfs/prefetch[?lastPackTimestamp={secondsSinceEpoch}]`
-  * Retrieves one or more packfiles of non-blobs and optionally packfile indexes in a streaming format
+  * Provides one or more packfiles of non-blobs and optionally packfile indexes in a streaming format
 * `POST /gvfs/sizes`
-  * Retreives the uncompressed, undeltified size of one or more objects
+  * Provides the uncompressed, undeltified size of one or more objects
+* `GET /gvfs/config`
+  * Provides server-set client configuration options
 
 # `GET /gvfs/objects/{objectId}`
 Will return a single object in compressed loose object format, which can be directly
@@ -143,7 +145,7 @@ Packs **MUST** be sent in increasing `timestamp` order. In the case of a failed 
 client to keep the packs it received successfully and "resume" by sending the highest completed timestamp.
 
 # `POST /gvfs/sizes`
-Provides the uncompressed, undeltified length of the requested objects in JSON format.
+Will return the uncompressed, undeltified length of the requested objects in JSON format.
 
 The request consists of a JSON body with the following format:
 ```
@@ -170,4 +172,66 @@ will result in a a response like:
         "Size" : 456
     }
 ]
+```
+
+# `GET /gvfs/config`
+This optional endpoint will return all server-set GVFS client configuration options. Its only current
+function is to provide an set of allowed GVFS client version ranges as serialized
+[System.Version](https://msdn.microsoft.com/en-us/library/system.version\(v=vs.110\).aspx) objects,
+in order to block older clients from running in certain scenarios. For example, a data corruption bug
+may be found and encouraging clients to avoid that version is desirable.
+
+In the future, this may be expanded to support other configuration directives interesting to the client,
+such as a list of possible cache servers to use.
+
+An example response is provided below. Note that the `null` `"Max"` value is only allowed for the last
+(or greatest) range, since it logically excludes greater version numbers from having an effect.
+```
+{
+	"AllowedGvfsClientVersions": [{
+		"Max": {
+			"Major": 0,
+			"Minor": 4,
+			"Build": 0,
+			"Revision": 0,
+			"MajorRevision": 0,
+			"MinorRevision": 0
+		},
+		"Min": {
+			"Major": 0,
+			"Minor": 2,
+			"Build": 0,
+			"Revision": 0,
+			"MajorRevision": 0,
+			"MinorRevision": 0
+		}
+	}, {
+		"Max": {
+			"Major": 0,
+			"Minor": 5,
+			"Build": 0,
+			"Revision": 0,
+			"MajorRevision": 0,
+			"MinorRevision": 0
+		},
+		"Min": {
+			"Major": 0,
+			"Minor": 4,
+			"Build": 17009,
+			"Revision": 1,
+			"MajorRevision": 0,
+			"MinorRevision": 1
+		}
+	}, {
+		"Max": null,
+		"Min": {
+			"Major": 0,
+			"Minor": 5,
+			"Build": 16326,
+			"Revision": 1,
+			"MajorRevision": 0,
+			"MinorRevision": 1
+		}
+	}]
+}
 ```

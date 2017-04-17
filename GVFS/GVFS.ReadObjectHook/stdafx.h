@@ -12,3 +12,6 @@
 #include <algorithm>
 #include <locale>
 #include <codecvt>
+#include <fcntl.h>
+#include <io.h>
+#include <string.h>

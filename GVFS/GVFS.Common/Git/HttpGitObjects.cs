@@ -1,4 +1,5 @@
-﻿using GVFS.Common.Tracing;
+﻿using GVFS.Common.Physical.FileSystem;
+using GVFS.Common.Tracing;
 using Microsoft.Diagnostics.Tracing;
 using Newtonsoft.Json;
 using System;
@@ -88,8 +89,8 @@ namespace GVFS.Common.Git
             RetryWrapper<List<GitObjectSize>> retrier = new RetryWrapper<List<GitObjectSize>>(this.MaxRetries);
             retrier.OnFailure += RetryWrapper<List<GitObjectSize>>.StandardErrorHandler(this.tracer, "QueryFileSizes");
 
-            RetryWrapper<List<GitObjectSize>>.InvocationResult requestTask = retrier.InvokeAsync(
-                async tryCount =>
+            RetryWrapper<List<GitObjectSize>>.InvocationResult requestTask = retrier.Invoke(
+                tryCount =>
                 {
                     GitEndPointResponseData response = this.SendRequest(gvfsEndpoint, HttpMethod.Post, objectIdsJson);
                     if (response.HasErrors)
@@ -97,14 +98,13 @@ namespace GVFS.Common.Git
                         return new RetryWrapper<List<GitObjectSize>>.CallbackResult(response.Error, response.ShouldRetry);
                     }
 
-                    using (Stream objectSizesStream = response.Stream)
-                    using (StreamReader reader = new StreamReader(objectSizesStream))
+                    using (StreamReader reader = new StreamReader(response.Stream))
                     {
-                        string objectSizesString = await reader.ReadToEndAsync();
+                        string objectSizesString = reader.RetryableReadToEnd();
                         List<GitObjectSize> objectSizes = JsonConvert.DeserializeObject<List<GitObjectSize>>(objectSizesString);
                         return new RetryWrapper<List<GitObjectSize>>.CallbackResult(objectSizes);
                     }
-                }).Result;
+                });
 
             return requestTask.Result ?? new List<GitObjectSize>(0);
         }
@@ -139,19 +139,19 @@ namespace GVFS.Common.Git
                     {
                         return new RetryWrapper<GVFSConfigResponse>.CallbackResult(response.Error, response.ShouldRetry);
                     }
-
-                    using (Stream responseStream = response.Stream)
-                    using (StreamReader reader = new StreamReader(responseStream))
+                    
+                    try
                     {
-                        try
+                        using (StreamReader reader = new StreamReader(response.Stream))
                         {
+                            string configString = reader.RetryableReadToEnd();
                             return new RetryWrapper<GVFSConfigResponse>.CallbackResult(
-                                JsonConvert.DeserializeObject<GVFSConfigResponse>(reader.ReadToEnd()));
+                                JsonConvert.DeserializeObject<GVFSConfigResponse>(configString));
                         }
-                        catch (JsonReaderException e)
-                        {
-                            return new RetryWrapper<GVFSConfigResponse>.CallbackResult(e, false);
-                        }
+                    }
+                    catch (JsonReaderException e)
+                    {
+                        return new RetryWrapper<GVFSConfigResponse>.CallbackResult(e, false);
                     }
                 });
 
@@ -182,15 +182,9 @@ namespace GVFS.Common.Git
                         return new RetryWrapper<GitRefs>.CallbackResult(response.Error, response.ShouldRetry);
                     }
 
-                    using (Stream responseStream = response.Stream)
-                    using (StreamReader reader = new StreamReader(responseStream))
+                    using (StreamReader reader = new StreamReader(response.Stream))
                     {
-                        List<string> infoRefsResponse = new List<string>();
-                        while (!reader.EndOfStream)
-                        {
-                            infoRefsResponse.Add(reader.ReadLine());
-                        }
-
+                        List<string> infoRefsResponse = reader.RetryableReadAllLines();
                         return new RetryWrapper<GitRefs>.CallbackResult(new GitRefs(infoRefsResponse, branch));
                     }
                 });
@@ -208,12 +202,12 @@ namespace GVFS.Common.Git
             RetryWrapper<GitObjectTaskResult>.InvocationResult output = this.TrySendProtocolRequest(
                 onSuccess: (tryCount, response) =>
                 {
-                    using (StreamReader sr = new StreamReader(response.Stream))
+                    using (StreamReader reader = new StreamReader(response.Stream))
                     {
-                        packUris = JsonConvert.DeserializeObject<BootstrapResponse>(sr.ReadToEnd()).PackUris;
+                        string packUriString = reader.RetryableReadToEnd();
+                        packUris = JsonConvert.DeserializeObject<BootstrapResponse>(packUriString).PackUris;
+                        return new RetryWrapper<GitObjectTaskResult>.CallbackResult(new GitObjectTaskResult(true));
                     }
-
-                    return new RetryWrapper<GitObjectTaskResult>.CallbackResult(new GitObjectTaskResult(true));
                 },
                 onFailure: RetryWrapper<GitObjectTaskResult>.StandardErrorHandler(this.tracer, nameof(this.TryGetBootstrapPackSources)),
                 method: HttpMethod.Post,
@@ -390,18 +384,42 @@ namespace GVFS.Common.Git
                     {
                         string gitUsername;
                         string gitPassword;
-                        bool backingOff = DateTime.Now < this.authRetryBackoff;
-                        if (this.credentialHasBeenRevoked)
-                        {
-                            // Update backoff after an immediate first retry.
-                            this.authRetryBackoff = DateTime.Now.AddMinutes(AuthorizationBackoffMinutes);
-                        }
 
-                        if (backingOff ||
-                            !GitProcess.TryGetCredentials(this.tracer, this.enlistment, out gitUsername, out gitPassword))
+                        // These auth settings are necessary to support running the functional tests on build servers.
+                        // The reason it's needed is that the GVFS.Service runs as LocalSystem, and the build agent does not
+                        // so storing the agent's creds in the Windows Credential Store does not allow the service to discover it
+                        GitProcess git = new GitProcess(this.enlistment);
+                        GitProcess.Result usernameResult = git.GetFromConfig("gvfs.FunctionalTests.UserName");
+                        GitProcess.Result passwordResult = git.GetFromConfig("gvfs.FunctionalTests.Password");
+
+                        if (!usernameResult.HasErrors &&
+                            !passwordResult.HasErrors)
                         {
-                            authString = null;
-                            return false;
+                            gitUsername = usernameResult.Output.TrimEnd('\n');
+                            gitPassword = passwordResult.Output.TrimEnd('\n');
+
+                            EventMetadata metadata = new EventMetadata()
+                            {
+                                { "username", gitUsername },
+                            };
+
+                            this.tracer.RelatedEvent(EventLevel.LogAlways, "FunctionalTestCreds", metadata);
+                        }
+                        else
+                        {
+                            bool backingOff = DateTime.Now < this.authRetryBackoff;
+                            if (this.credentialHasBeenRevoked)
+                            {
+                                // Update backoff after an immediate first retry.
+                                this.authRetryBackoff = DateTime.Now.AddMinutes(AuthorizationBackoffMinutes);
+                            }
+
+                            if (backingOff ||
+                                !GitProcess.TryGetCredentials(this.tracer, this.enlistment, out gitUsername, out gitPassword))
+                            {
+                                authString = null;
+                                return false;
+                            }
                         }
 
                         this.gitAuthorization = Convert.ToBase64String(Encoding.ASCII.GetBytes(gitUsername + ":" + gitPassword));

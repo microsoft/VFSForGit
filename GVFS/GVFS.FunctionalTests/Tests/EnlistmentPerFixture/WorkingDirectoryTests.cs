@@ -1,4 +1,5 @@
-﻿using GVFS.FunctionalTests.FileSystemRunners;
+﻿using GVFS.FunctionalTests.Category;
+using GVFS.FunctionalTests.FileSystemRunners;
 using GVFS.FunctionalTests.Should;
 using GVFS.FunctionalTests.Tools;
 using GVFS.Tests.Should;
@@ -375,7 +376,7 @@ BOOL APIENTRY DllMain( HMODULE hModule,
             ProcessResult revParseHeadResult = GitProcess.InvokeProcess(this.Enlistment.RepoRoot, "rev-parse HEAD");
             string commitID = revParseHeadResult.Output.Trim();
 
-            NativeTests.PlaceHolderHasVersionInfo(virtualFilePath, CurrentPlaceholderVersion, sha, commitID).ShouldEqual(true);
+            NativeTests.PlaceHolderHasVersionInfo(virtualFilePath, CurrentPlaceholderVersion, sha).ShouldEqual(true);
         }
 
         [TestCase, Order(12), Ignore("Results in an access violation in the functional test on the build server")]
@@ -386,10 +387,11 @@ BOOL APIENTRY DllMain( HMODULE hModule,
             ProcessResult revParseHeadResult = GitProcess.InvokeProcess(this.Enlistment.RepoRoot, "rev-parse HEAD");
             string commitID = revParseHeadResult.Output.Trim();
 
-            NativeTests.PlaceHolderHasVersionInfo(virtualFilePath, CurrentPlaceholderVersion, string.Empty, commitID).ShouldEqual(true);
+            NativeTests.PlaceHolderHasVersionInfo(virtualFilePath, CurrentPlaceholderVersion, string.Empty).ShouldEqual(true);
         }
 
         [TestCase, Order(13)]
+        [Category(CategoryConstants.GitCommands)]
         public void FolderContentsProjectedAfterFolderCreateAndCheckout()
         {
             string folderName = "GVFlt_MultiThreadTest";
@@ -414,6 +416,7 @@ BOOL APIENTRY DllMain( HMODULE hModule,
         }
 
         [TestCase, Order(14)]
+        [Category(CategoryConstants.GitCommands)]
         public void FolderContentsCorrectAfterCreateNewFolderRenameAndCheckoutCommitWithSameFolder()
         {
             // f1bce402a7a980a8320f3f235cf8c8fdade4b17a is the commit prior to adding Test_EPF_MoveRenameFolderTests
@@ -456,8 +459,7 @@ BOOL APIENTRY DllMain( HMODULE hModule,
             public static extern bool PlaceHolderHasVersionInfo(
                 string virtualPath, 
                 int version,
-                [MarshalAs(UnmanagedType.LPWStr)]string sha,
-                [MarshalAs(UnmanagedType.LPWStr)]string commit);
+                [MarshalAs(UnmanagedType.LPWStr)]string sha);
         }
     }
 }

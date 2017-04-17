@@ -4,20 +4,21 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Text;
+using GVFS.Common.Git;
 
 namespace GVFS.GVFlt.DotGit
 {
-    public class ExcludeFile
+    public class AlwaysExcludeFile
     {
         private const string DefaultEntry = "*";
         private HashSet<string> entries;
         private FileSerializer fileSerializer;
         private GVFSContext context;
 
-        public ExcludeFile(GVFSContext context, string virtualExcludeFilePath)
+        public AlwaysExcludeFile(GVFSContext context, string virtualAlwaysExcludeFilePath)
         {
             this.entries = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-            this.fileSerializer = new FileSerializer(context, virtualExcludeFilePath);
+            this.fileSerializer = new FileSerializer(context, virtualAlwaysExcludeFilePath);
             this.context = context;
         }
 
@@ -26,13 +27,13 @@ namespace GVFS.GVFlt.DotGit
             foreach (string line in this.fileSerializer.ReadAll())
             {
                 string sanitizedFileLine;
-                if (GitConfigFileUtils.TrySanitizeConfigFileLine(line, out sanitizedFileLine))
+                if (GitConfigHelper.TrySanitizeConfigFileLine(line, out sanitizedFileLine))
                 {
                     this.entries.Add(sanitizedFileLine);
                 }
             }
 
-            // Ensure the default entry is always in the exclude file
+            // Ensure the default entry is always in the always exclude file
             if (this.entries.Add(DefaultEntry))
             {
                 this.fileSerializer.AppendLine(DefaultEntry);
@@ -45,14 +46,20 @@ namespace GVFS.GVFlt.DotGit
             this.fileSerializer.Close();
         }
 
-        public CallbackResult FolderChanged(string virtualPath)
+        public CallbackResult AddEntriesForFileOrFolder(string virtualPath, bool isFolder)
         {
             try
             {
                 string[] pathParts = virtualPath.Split(new char[] { GVFSConstants.PathSeparator }, StringSplitOptions.RemoveEmptyEntries);
+                int numberOfPathPartsToUse = pathParts.Length;
+                if (!isFolder)
+                {
+                    // Don't need an entry for the file since only folders are in the always exclude
+                    numberOfPathPartsToUse -= 1;
+                }
 
                 StringBuilder path = new StringBuilder("!");
-                for (int i = 0; i < pathParts.Length; i++)
+                for (int i = 0; i < numberOfPathPartsToUse; i++)
                 {
                     path.Append(GVFSConstants.GitPathSeparatorString + pathParts[i]);
                     string entry = path.ToString();
@@ -71,7 +78,7 @@ namespace GVFS.GVFlt.DotGit
             catch (IOException e)
             {
                 EventMetadata metadata = new EventMetadata();
-                metadata.Add("Area", "ExcludeFile");
+                metadata.Add("Area", "AlwaysExcludeFile");
                 metadata.Add("virtualPath", virtualPath);
                 metadata.Add("Exception", e.ToString());
                 metadata.Add("ErrorMessage", "IOException caught while processing FolderChanged");
@@ -81,7 +88,7 @@ namespace GVFS.GVFlt.DotGit
             catch (Exception e)
             {
                 EventMetadata metadata = new EventMetadata();
-                metadata.Add("Area", "ExcludeFile");
+                metadata.Add("Area", "AlwaysExcludeFile");
                 metadata.Add("virtualPath", virtualPath);
                 metadata.Add("Exception", e.ToString());
                 metadata.Add("ErrorMessage", "Exception caught while processing FolderChanged");

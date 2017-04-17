@@ -1,6 +1,7 @@
 ﻿using GVFS.Common.Git;
 using System;
 using System.IO;
+using System.Linq;
 
 namespace GVFS.Common
 {
@@ -81,12 +82,35 @@ namespace GVFS.Common
             return input;
         }
 
+        public static string GetNewLogFileName(string logsRoot, string prefix)
+        {
+            if (!Directory.Exists(logsRoot))
+            {
+                Directory.CreateDirectory(logsRoot);
+            }
+
+            string name = prefix + "_" + DateTime.Now.ToString("yyyyMMdd_HHmmss");
+            string fullPath = Path.Combine(
+                logsRoot,
+                name + ".log");
+
+            if (File.Exists(fullPath))
+            {
+                fullPath = Path.Combine(
+                    logsRoot,
+                    name + "_" + Guid.NewGuid().ToString("N") + ".log");
+            }
+
+            return fullPath;
+        }
+
         protected static string GetCacheConfigSettingName(string repoUrl)
         {
-            string sectionUrl = repoUrl.ToLowerInvariant()
-                            .Replace("https://", string.Empty)
-                            .Replace("http://", string.Empty)
-                            .Replace('/', '.');
+            string sectionUrl = 
+                repoUrl.ToLowerInvariant()
+                .Replace("https://", string.Empty)
+                .Replace("http://", string.Empty)
+                .Replace('/', '.');
 
             return GVFSGitConfigPrefix + sectionUrl + CacheEndpointGitConfigSuffix;
         }
@@ -96,11 +120,11 @@ namespace GVFS.Common
             GitProcess git = new GitProcess(this);
             string cacheConfigName = GetCacheConfigSettingName(repoUrl);
 
-            string cacheServerUrl = git.GetFromConfig(cacheConfigName);
+            string cacheServerUrl = this.GetFromConfig(git, cacheConfigName);
             if (string.IsNullOrWhiteSpace(cacheServerUrl))
             {
                 // Try getting from the deprecated setting for compatibility reasons
-                cacheServerUrl = StripObjectsEndpointSuffix(git.GetFromConfig(DeprecatedObjectsEndpointGitConfigName));
+                cacheServerUrl = StripObjectsEndpointSuffix(this.GetFromConfig(git, DeprecatedObjectsEndpointGitConfigName));
 
                 // Upgrade for future runs, but not at clone time.
                 if (!string.IsNullOrWhiteSpace(cacheServerUrl) && Directory.Exists(this.WorkingDirectoryRoot))
@@ -117,6 +141,23 @@ namespace GVFS.Common
             }
 
             return cacheServerUrl;
+        }
+
+        private string GetFromConfig(GitProcess git, string configName)
+        {
+            GitProcess.Result result = git.GetFromConfig(configName);
+
+            // Git returns non-zero for non-existent settings and errors.
+            if (!result.HasErrors)
+            {
+                return result.Output.TrimEnd('\n');
+            }
+            else if (result.Errors.Any())
+            {
+                throw new InvalidRepoException("Error while reading '" + configName + "' from config: " + result.Errors);
+            }
+
+            return null;
         }
 
         private void SetComputedPaths()

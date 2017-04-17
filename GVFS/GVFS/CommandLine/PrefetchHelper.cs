@@ -15,7 +15,7 @@ namespace GVFS.CommandLine
             this.gitObjects = new GitObjects(tracer, enlistment, http);
         }
 
-        public void PrefetchCommitsAndTrees()
+        public bool TryPrefetchCommitsAndTrees()
         {
             string[] packs = this.gitObjects.ReadPackFileNames(GVFSConstants.PrefetchPackPrefix);
             long max = -1;
@@ -28,7 +28,7 @@ namespace GVFS.CommandLine
                 }
             }
 
-            this.gitObjects.DownloadPrefetchPacks(max);
+            return this.gitObjects.TryDownloadPrefetchPacks(max);
         }
 
         private static long? GetTimestamp(string packName)

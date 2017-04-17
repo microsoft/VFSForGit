@@ -150,7 +150,10 @@ namespace GVFS.Common
 
         protected void Dispose(bool disposing)
         {
-            this.DisposeStream();
+            if (disposing)
+            {
+                this.DisposeStream();
+            }
         }
 
         private LockData GetLockDataFromDisk()

@@ -5,14 +5,17 @@
 #include "GvDirectoryEnumerationFileNamesResult.h"
 #include "Utils.h"
 
+using namespace GVFS::Common::Tracing;
 using namespace GVFSGvFltWrapper;
+using namespace Microsoft::Diagnostics::Tracing;
 using namespace System;
 using namespace System::ComponentModel;
 using namespace System::Text;
 
 namespace
 {
-    const int BLOCK_SIZE = 64 * 1024;
+    const ULONG READ_BUFFER_SIZE = 64 * 1024;
+    const ULONG IDEAL_WRITE_BUFFER_SIZE = 64 * 1024;
     const UCHAR CURRENT_PLACEHOLDER_VERSION = 1;
     const int EPOCH_RESERVED_BYTES = 4;
 
@@ -87,6 +90,7 @@ namespace
     NTSTATUS GvNotifyOperationCB(
         _In_     GV_VIRTUALIZATIONINSTANCE_HANDLE virtualizationInstanceHandle,
         _In_     LPCWSTR                          pathFileName,
+        _In_     BOOLEAN                          isDirectory,
         _In_     PGV_PLACEHOLDER_VERSION_INFO     versionInfo,
         _In_     GUID                             streamGuid,
         _In_     GUID                             handleGuid,
@@ -117,11 +121,14 @@ namespace
 
     void SetEpochId(GV_PLACEHOLDER_VERSION_INFO& versionInfo, String^ epochId);
 
+    bool IsPowerOf2(ULONG num);
 }
 
 GvFltWrapper::GvFltWrapper()
     : virtualizationInstanceHandle(nullptr)
     , virtualRootPath(nullptr)
+    , writeBufferSize(0)
+    , alignmentRequirement(0)
 {    
 }
 
@@ -132,7 +139,7 @@ GvStartDirectoryEnumerationEvent^ GvFltWrapper::OnStartDirectoryEnumeration::get
 
 void GvFltWrapper::OnStartDirectoryEnumeration::set(GvStartDirectoryEnumerationEvent^ eventCB)
 {
-    ConfirmNotStarted();
+    this->ConfirmNotStarted();
     this->gvStartDirectoryEnumerationEvent = eventCB;
 }
 
@@ -143,7 +150,7 @@ GvEndDirectoryEnumerationEvent^ GvFltWrapper::OnEndDirectoryEnumeration::get(voi
 
 void GvFltWrapper::OnEndDirectoryEnumeration::set(GvEndDirectoryEnumerationEvent^ eventCB)
 {
-    ConfirmNotStarted();
+    this->ConfirmNotStarted();
     this->gvEndDirectoryEnumerationEvent = eventCB;
 }
 
@@ -154,7 +161,7 @@ GvGetDirectoryEnumerationEvent^ GvFltWrapper::OnGetDirectoryEnumeration::get(voi
 
 void GvFltWrapper::OnGetDirectoryEnumeration::set(GvGetDirectoryEnumerationEvent^ eventCB)
 {
-    ConfirmNotStarted();
+    this->ConfirmNotStarted();
     this->gvGetDirectoryEnumerationEvent = eventCB;
 }
 
@@ -165,7 +172,7 @@ GvQueryFileNameEvent^ GvFltWrapper::OnQueryFileName::get(void)
 
 void GvFltWrapper::OnQueryFileName::set(GvQueryFileNameEvent^ eventCB)
 {
-    ConfirmNotStarted();
+    this->ConfirmNotStarted();
     this->gvQueryFileNameEvent = eventCB;
 }
 
@@ -176,7 +183,7 @@ GvGetPlaceHolderInformationEvent^ GvFltWrapper::OnGetPlaceHolderInformation::get
 
 void GvFltWrapper::OnGetPlaceHolderInformation::set(GvGetPlaceHolderInformationEvent^ eventCB)
 {
-    ConfirmNotStarted();
+    this->ConfirmNotStarted();
     this->gvGetPlaceHolderInformationEvent = eventCB;
 }
 
@@ -187,7 +194,7 @@ GvGetFileStreamEvent^ GvFltWrapper::OnGetFileStream::get(void)
 
 void GvFltWrapper::OnGetFileStream::set(GvGetFileStreamEvent^ eventCB)
 {
-    ConfirmNotStarted();
+    this->ConfirmNotStarted();
     this->gvGetFileStreamEvent = eventCB;
 }
 
@@ -198,7 +205,7 @@ GvNotifyFirstWriteEvent^ GvFltWrapper::OnNotifyFirstWrite::get(void)
 
 void GvFltWrapper::OnNotifyFirstWrite::set(GvNotifyFirstWriteEvent^ eventCB)
 {
-    ConfirmNotStarted();
+    this->ConfirmNotStarted();
     this->gvNotifyFirstWriteEvent = eventCB;
 }
 
@@ -209,7 +216,7 @@ GvNotifyCreateEvent^ GvFltWrapper::OnNotifyCreate::get(void)
 
 void GvFltWrapper::OnNotifyCreate::set(GvNotifyCreateEvent^ eventCB)
 {
-    ConfirmNotStarted();
+    this->ConfirmNotStarted();
     this->gvNotifyCreateEvent = eventCB;
 }
 
@@ -220,7 +227,7 @@ GvNotifyPreDeleteEvent^ GvFltWrapper::OnNotifyPreDelete::get(void)
 
 void GvFltWrapper::OnNotifyPreDelete::set(GvNotifyPreDeleteEvent^ eventCB)
 {
-    ConfirmNotStarted();
+    this->ConfirmNotStarted();
     this->gvNotifyPreDeleteEvent = eventCB;
 }
 
@@ -231,7 +238,7 @@ GvNotifyPreRenameEvent^ GvFltWrapper::OnNotifyPreRename::get(void)
 
 void GvFltWrapper::OnNotifyPreRename::set(GvNotifyPreRenameEvent^ eventCB)
 {
-    ConfirmNotStarted();
+    this->ConfirmNotStarted();
     this->gvNotifyPreRenameEvent = eventCB;
 }
 
@@ -242,7 +249,7 @@ GvNotifyPreSetHardlinkEvent^ GvFltWrapper::OnNotifyPreSetHardlink::get(void)
 
 void GvFltWrapper::OnNotifyPreSetHardlink::set(GvNotifyPreSetHardlinkEvent^ eventCB)
 {
-    ConfirmNotStarted();
+    this->ConfirmNotStarted();
     this->gvNotifyPreSetHardlinkEvent = eventCB;
 }
 
@@ -253,7 +260,7 @@ GvNotifyFileRenamedEvent^ GvFltWrapper::OnNotifyFileRenamed::get(void)
 
 void GvFltWrapper::OnNotifyFileRenamed::set(GvNotifyFileRenamedEvent^ eventCB)
 {
-    ConfirmNotStarted();
+    this->ConfirmNotStarted();
     this->gvNotifyFileRenamedEvent = eventCB;
 }
 
@@ -264,7 +271,7 @@ GvNotifyHardlinkCreatedEvent^ GvFltWrapper::OnNotifyHardlinkCreated::get(void)
 
 void GvFltWrapper::OnNotifyHardlinkCreated::set(GvNotifyHardlinkCreatedEvent^ eventCB)
 {
-    ConfirmNotStarted();
+    this->ConfirmNotStarted();
     this->gvNotifyHardlinkCreatedEvent = eventCB;
 }
 
@@ -275,7 +282,7 @@ GvNotifyFileHandleClosedEvent^ GvFltWrapper::OnNotifyFileHandleClosed::get(void)
 
 void GvFltWrapper::OnNotifyFileHandleClosed::set(GvNotifyFileHandleClosedEvent^ eventCB)
 {
-    ConfirmNotStarted();
+    this->ConfirmNotStarted();
     this->gvNotifyFileHandleClosedEvent = eventCB;
 }
 
@@ -290,7 +297,7 @@ HResult GvFltWrapper::GvStartVirtualizationInstance(
     unsigned long poolThreadCount,
     unsigned long concurrentThreadCount)
 {
-    ConfirmNotStarted();
+    this->ConfirmNotStarted();
 
     if (virtualizationRootPath == nullptr)
     {
@@ -301,6 +308,9 @@ HResult GvFltWrapper::GvStartVirtualizationInstance(
 
     this->tracer = tracerImpl;
     this->virtualRootPath = virtualizationRootPath;
+
+    this->CalculateWriteBufferSizeAndAlignment();
+
     pin_ptr<const WCHAR> rootPath = PtrToStringChars(this->virtualRootPath);
     GV_COMMAND_CALLBACKS callbacks;
     GvCommandCallbacksInit(&callbacks);
@@ -451,7 +461,9 @@ GvFltWrapper::OnDiskStatus GvFltWrapper::GetFileOnDiskStatus(System::String^ rel
     {
     case STATUS_IO_REPARSE_TAG_NOT_HANDLED:
         return OnDiskStatus::Partial;
-    case STATUS_OBJECT_NAME_NOT_FOUND:
+	case STATUS_SHARING_VIOLATION:
+		return OnDiskStatus::OnDiskCannotOpen;
+	case STATUS_OBJECT_NAME_NOT_FOUND:
         return OnDiskStatus::NotOnDisk;
     default:
         throw gcnew GvFltException("ReadFileContents: GvOpenFile failed", static_cast<StatusCode>(openResult));
@@ -471,7 +483,7 @@ System::String^ GvFltWrapper::ReadFullFileContents(System::String^ relativePath)
     }
 
     StringBuilder^ allLines = gcnew StringBuilder();
-    char buffer[BLOCK_SIZE];
+    char buffer[READ_BUFFER_SIZE];
     ULONG length = sizeof(buffer) - sizeof(char); // Leave room for null terminator
     ULONG bytesRead = 0;
     ULONGLONG bytesOffset = 0;
@@ -511,6 +523,16 @@ System::String^ GvFltWrapper::ReadFullFileContents(System::String^ relativePath)
     return allLines->ToString();
 }
 
+ULONG GvFltWrapper::GetWriteBufferSize()
+{
+    return this->writeBufferSize;
+}
+
+ULONG GvFltWrapper::GetAlignmentRequirement()
+{
+    return this->alignmentRequirement;
+}
+
 //static 
 HResult GvFltWrapper::GvConvertDirectoryToVirtualizationRoot(System::Guid virtualizationInstanceGuid, System::String^ rootPathName)
 {
@@ -538,6 +560,132 @@ void GvFltWrapper::ConfirmNotStarted()
     {
         throw gcnew GvFltException("Operation invalid after GvFlt is started");
     }
+}
+
+void GvFltWrapper::CalculateWriteBufferSizeAndAlignment()
+{
+    HMODULE ntdll = LoadLibrary(L"ntdll.dll");
+    if (!ntdll)
+    {
+        DWORD lastError = GetLastError();
+        throw gcnew GvFltException(String::Format("Failed to load ntdll.dll, Error: {0}", lastError));
+    }
+
+    PQueryVolumeInformationFile ntQueryVolumeInformationFile = (PQueryVolumeInformationFile)GetProcAddress(ntdll, "NtQueryVolumeInformationFile");
+    if (!ntQueryVolumeInformationFile)
+    {
+        DWORD lastError = GetLastError();
+        FreeLibrary(ntdll);
+        throw gcnew GvFltException(String::Format("Failed to get process address of NtQueryVolumeInformationFile, Error: {0}", lastError));
+    }
+
+    // TODO 640838: Support paths longer than MAX_PATH
+    WCHAR volumePath[MAX_PATH];
+    pin_ptr<const WCHAR> rootPath = PtrToStringChars(this->virtualRootPath);
+    BOOL success = GetVolumePathName(
+        rootPath,
+        volumePath,
+        ARRAYSIZE(volumePath));
+    if (!success) 
+    {
+        DWORD lastError = GetLastError();
+        FreeLibrary(ntdll);
+        throw gcnew GvFltException(String::Format("Failed to get volume path name, Error: {0}", lastError));
+    }
+
+    WCHAR volumeName[VOLUME_PATH_LENGTH + 1];
+    success = GetVolumeNameForVolumeMountPoint(volumePath, volumeName, ARRAYSIZE(volumeName));
+    if (!success) 
+    {
+        DWORD lastError = GetLastError();
+        FreeLibrary(ntdll);
+        throw gcnew GvFltException(String::Format("Failed to get volume name for volume mount point, Error: {0}", lastError));
+    }
+
+    if (wcslen(volumeName) != VOLUME_PATH_LENGTH || volumeName[VOLUME_PATH_LENGTH - 1] != L'\\')
+    {
+        FreeLibrary(ntdll);
+        throw gcnew GvFltException(String::Format("Volume name {0} is not in expected format", gcnew String(volumeName)));
+    }
+
+    HANDLE rootHandle = CreateFile(
+        volumeName,
+        0,                          // dwDesiredAccess - If this parameter is zero, the application can query certain metadata such as file, directory, 
+                                    // or device attributes without accessing that file or device, even if GENERIC_READ access would have been denied
+        0,                          // dwShareMode - Access requests to attributes or extended attributes are not affected by this flag.
+        NULL,                       // lpSecurityAttributes
+        OPEN_EXISTING,              // dwCreationDisposition
+        FILE_FLAG_BACKUP_SEMANTICS, // dwFlagsAndAttributes
+        NULL);                      // hTemplateFile
+    if (rootHandle == INVALID_HANDLE_VALUE)
+    {
+        DWORD lastError = GetLastError();
+        FreeLibrary(ntdll);
+        throw gcnew GvFltException(String::Format("Failed to get handle to {0}, Error: {1}", this->virtualRootPath, lastError));
+    }
+
+    FILE_FS_SECTOR_SIZE_INFORMATION sectorInfo;
+    memset(&sectorInfo, 0, sizeof(FILE_FS_SECTOR_SIZE_INFORMATION));
+
+    IO_STATUS_BLOCK ioStatus;
+    memset(&ioStatus, 0, sizeof(IO_STATUS_BLOCK));
+
+    NTSTATUS status = ntQueryVolumeInformationFile(
+        rootHandle,
+        &ioStatus,
+        &sectorInfo,
+        sizeof(FILE_FS_SECTOR_SIZE_INFORMATION),
+        FileFsSectorSizeInformation);
+    if (!NT_SUCCESS(status))
+    {
+        CloseHandle(rootHandle);
+        FreeLibrary(ntdll);
+        throw gcnew GvFltException(String::Format("Failed to query sector size of volume, Status: {0}", status));
+    }
+
+    FILE_ALIGNMENT_INFO alignmentInfo;
+    memset(&alignmentInfo, 0, sizeof(FILE_ALIGNMENT_INFO));
+
+    success = GetFileInformationByHandleEx(rootHandle, FileAlignmentInfo, &alignmentInfo, sizeof(FILE_ALIGNMENT_INFO));
+    if (!success)
+    {
+        DWORD lastError = GetLastError();
+        CloseHandle(rootHandle);
+        FreeLibrary(ntdll);
+        throw gcnew GvFltException(String::Format("Failed to query device alignment, Error: {0}", lastError));
+    }
+
+    this->writeBufferSize = (IDEAL_WRITE_BUFFER_SIZE / sectorInfo.LogicalBytesPerSector) * sectorInfo.LogicalBytesPerSector;
+    this->writeBufferSize = max(sectorInfo.LogicalBytesPerSector, this->writeBufferSize);
+
+    // AlignmentRequirement returns the required alignment minus 1 
+    // https://msdn.microsoft.com/en-us/library/cc232065.aspx
+    // https://technet.microsoft.com/en-us/windowsserver/ff547807(v=vs.85)
+    this->alignmentRequirement = alignmentInfo.AlignmentRequirement + 1;
+    
+    if (!IsPowerOf2(this->alignmentRequirement))
+    {
+        EventMetadata^ metadata = gcnew EventMetadata();
+        metadata->Add("ErrorMessage", "Failed to determine alignment");
+        metadata->Add("LogicalBytesPerSector", sectorInfo.LogicalBytesPerSector);
+        metadata->Add("writeBufferSize", this->writeBufferSize);
+        metadata->Add("alignmentRequirement", this->alignmentRequirement);
+        this->tracer->RelatedError(metadata);
+
+        CloseHandle(rootHandle);
+        FreeLibrary(ntdll);
+        throw gcnew GvFltException(String::Format("Failed to determine volume alignment requirement"));
+    }
+
+    EventMetadata^ metadata = gcnew EventMetadata();
+    metadata->Add("LogicalBytesPerSector", sectorInfo.LogicalBytesPerSector);
+    metadata->Add("writeBufferSize", this -> writeBufferSize);
+    metadata->Add("alignmentRequirement", this->alignmentRequirement);
+
+    this->tracer->RelatedEvent(EventLevel::Informational, "CalculateWriteBufferSizeAndAlignment", metadata);
+
+    CloseHandle(rootHandle);
+    FreeLibrary(ntdll);
 }
 
 namespace
@@ -871,7 +1019,10 @@ namespace
                 NTSTATUS result = STATUS_SUCCESS;
                 try
                 {
-                    GVFltWriteBuffer targetBuffer(BLOCK_SIZE);
+                    GVFltWriteBuffer targetBuffer(
+                        ActiveGvFltManager::activeGvFltWrapper->GetWriteBufferSize(), 
+                        ActiveGvFltManager::activeGvFltWrapper->GetAlignmentRequirement());
+
                     result = static_cast<NTSTATUS>(ActiveGvFltManager::activeGvFltWrapper->OnGetFileStream(
                         gcnew String(pathFileName),
                         byteOffset.QuadPart,
@@ -968,6 +1119,7 @@ namespace
     NTSTATUS GvNotifyOperationCB(
         _In_     GV_VIRTUALIZATIONINSTANCE_HANDLE virtualizationInstanceHandle,
         _In_     LPCWSTR                          pathFileName,
+        _In_     BOOLEAN                          isDirectory,
         _In_     PGV_PLACEHOLDER_VERSION_INFO     versionInfo,
         _In_     GUID                             streamGuid,
         _In_     GUID                             handleGuid,
@@ -997,11 +1149,12 @@ namespace
                     {
                         ActiveGvFltManager::activeGvFltWrapper->OnNotifyCreate(
                             gcnew String(pathFileName),
+							isDirectory != FALSE,
                             operationParameters->PostCreate.DesiredAccess,
                             operationParameters->PostCreate.ShareMode,
                             operationParameters->PostCreate.CreateDisposition,
                             operationParameters->PostCreate.CreateOptions,
-                            operationParameters->PostCreate.IoStatusBlock,
+                            static_cast<IoStatusBlockValue>(operationParameters->PostCreate.IoStatusBlock),
                             operationParameters->PostCreate.NotificationMask);
                     }
                     break;
@@ -1009,7 +1162,7 @@ namespace
                 case GV_NOTIFICATION_PRE_DELETE:
                     if (ActiveGvFltManager::activeGvFltWrapper->OnNotifyPreDelete != nullptr)
                     {
-                        result = static_cast<NTSTATUS>(ActiveGvFltManager::activeGvFltWrapper->OnNotifyPreDelete(gcnew String(pathFileName)));
+                        result = static_cast<NTSTATUS>(ActiveGvFltManager::activeGvFltWrapper->OnNotifyPreDelete(gcnew String(pathFileName), isDirectory != FALSE));
                     }
                     break;
 
@@ -1037,6 +1190,7 @@ namespace
                         ActiveGvFltManager::activeGvFltWrapper->OnNotifyFileRenamed(
                             gcnew String(pathFileName),
                             gcnew String(destinationFileName),
+                            isDirectory != FALSE,
                             operationParameters->FileRenamed.NotificationMask);
                     }
                     break;
@@ -1176,7 +1330,7 @@ namespace
 
     inline void SetEpochId(GV_PLACEHOLDER_VERSION_INFO& versionInfo, String^ epochId)
     {
-        if (epochId->Length > 0)
+        if (!String::IsNullOrEmpty(epochId))
         {
             pin_ptr<const WCHAR> unmangedEpochId = PtrToStringChars(epochId);
             memcpy(
@@ -1184,5 +1338,10 @@ namespace
                 unmangedEpochId,
                 min(epochId->Length * sizeof(WCHAR), (GV_PLACEHOLDER_ID_LENGTH - sizeof(WCHAR)) - sizeof(UCHAR)));
         }
+    }
+
+    inline bool IsPowerOf2(ULONG num)
+    {
+        return (num & (num - 1)) == 0;
     }
 }

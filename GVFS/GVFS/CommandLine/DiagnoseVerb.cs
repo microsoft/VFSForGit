@@ -2,7 +2,6 @@
 using GVFS.Common;
 using GVFS.Common.Git;
 using GVFS.Common.Physical.FileSystem;
-using GVFS.Common.Tracing;
 using GVFS.GVFlt;
 using Microsoft.Isam.Esent.Collections.Generic;
 using System;
@@ -14,7 +13,7 @@ namespace GVFS.CommandLine
     [Verb(DiagnoseVerb.DiagnoseVerbName, HelpText = "Diagnose issues with a GVFS repo")]
     public class DiagnoseVerb : GVFSVerb.ForExistingEnlistment
     {
-        public const string DiagnoseVerbName = "diagnose";
+        private const string DiagnoseVerbName = "diagnose";
 
         private const string System32LogFilesRoot = @"%SystemRoot%\System32\LogFiles";
         private const string GVFltLogFolderName = "GvFlt";
@@ -26,7 +25,7 @@ namespace GVFS.CommandLine
             get { return DiagnoseVerbName; }
         }
 
-        protected override void Execute(GVFSEnlistment enlistment, ITracer tracer = null)
+        protected override void Execute(GVFSEnlistment enlistment)
         {
             string diagnosticsRoot = Path.Combine(enlistment.DotGVFSRoot, "diagnostics");
 
@@ -119,6 +118,8 @@ namespace GVFS.CommandLine
             this.Output.WriteLine();
             this.Output.WriteLine("Diagnostics complete. All of the gathered info, as well as all of the output above, is captured in");
             this.Output.WriteLine(zipFilePath);
+            this.Output.WriteLine();
+            this.Output.WriteLine("If you are experiencing an issue, please email the GVFS team with your repro steps and include this zip file.");
         }
 
         private void WriteMessage(string message)
@@ -215,19 +216,7 @@ namespace GVFS.CommandLine
                 using (FileStream file = new FileStream(Path.Combine(archiveFolderPath, outputFileName), FileMode.CreateNew))
                 using (StreamWriter writer = new StreamWriter(file))
                 {
-                    TVerb verb = new TVerb();
-                    verb.EnlistmentRootPath = this.EnlistmentRootPath;
-                    verb.Output = writer;
-
-                    try
-                    {
-                        verb.Execute();
-                    }
-                    catch (VerbAbortedException)
-                    {
-                    }
-
-                    return verb.ReturnCode;
+                    return GVFSVerb.Execute<TVerb>(this.EnlistmentRootPath, verb => verb.Output = writer);
                 }
             }
             catch (Exception e)
