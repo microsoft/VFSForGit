@@ -212,38 +212,42 @@ namespace GVFS.CommandLine
         protected void CheckAntiVirusExclusion(GVFSEnlistment enlistment)
         {
             bool isExcluded;
-            if (AntiVirusExclusions.TryGetIsPathExcluded(enlistment.EnlistmentRoot, out isExcluded))
+            string getError;
+            if (AntiVirusExclusions.TryGetIsPathExcluded(enlistment.EnlistmentRoot, out isExcluded, out getError))
             {
                 if (!isExcluded)
                 {
-                    if (ProcessHelper.IsAdminElevated())
+                    string addError;
+                    if (!ProcessHelper.IsAdminElevated())
                     {
-                        AntiVirusExclusions.AddAntiVirusExclusion(enlistment.EnlistmentRoot);
-
-                        if (!AntiVirusExclusions.TryGetIsPathExcluded(enlistment.EnlistmentRoot, out isExcluded) ||
-                            !isExcluded)
-                        {
-                            this.ReportErrorAndExit(
-                                "This repo is not excluded from antivirus and we were unable to add it.  Add '{0}' to your exclusion list and then run {1} again.",
-                                enlistment.EnlistmentRoot,
-                                this.VerbName);
-                        }
+                        addError = "Need elevated privileges to add exclusion.";
                     }
-                    else
+                    else if (AntiVirusExclusions.AddAntiVirusExclusion(enlistment.EnlistmentRoot, out addError))
                     {
-                        this.ReportErrorAndExit(
-                            "This repo is not excluded from antivirus.  Either re-run {1} with elevated privileges, or add '{0}' to your exclusion list and then run {1} again.",
-                            enlistment.EnlistmentRoot,
-                            this.VerbName);
+                        addError = string.Empty;
+                        AntiVirusExclusions.TryGetIsPathExcluded(enlistment.EnlistmentRoot, out isExcluded, out getError);
+                    }
+
+                    if (!isExcluded)
+                    {
+                        this.Output.WriteLine();
+                        this.Output.WriteLine("WARNING: This repo is not excluded from antivirus and we were unable to add an exclusion for it.");
+
+                        if (!string.IsNullOrEmpty(addError))
+                        {
+                            this.Output.WriteLine("Unable to add exclusion: " + addError);
+                        }
+
+                        this.Output.WriteLine("Please check to make sure that '{0}' is excluded.", enlistment.EnlistmentRoot);
+                        this.Output.WriteLine();
                     }
                 }
             }
             else
             {
                 this.Output.WriteLine();
-                this.Output.WriteLine(
-                    "WARNING: Unable to determine if this repo is excluded from antivirus.  Please check to ensure that '{0}' is excluded.",
-                    enlistment.EnlistmentRoot);
+                this.Output.WriteLine("WARNING: Unable to ensure that this repo is excluded from antivirus.");
+                this.Output.WriteLine("Please check to make sure that '{0}' is excluded.", enlistment.EnlistmentRoot);
                 this.Output.WriteLine();
             }
         }

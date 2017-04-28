@@ -72,7 +72,6 @@ namespace GVFS.Mount
 
                 this.ValidateMountPoints();
                 this.UpdateHooks();
-                this.UpdateToAlwaysExcludeFile();
 
                 this.gvfsLock = context.Repository.GVFSLock;
                 this.MountAndStartWorkingDirectoryCallbacks(context);
@@ -160,7 +159,7 @@ namespace GVFS.Mount
                     metadata.Add("Exception", e.ToString());
                     metadata.Add("ErrorMessage", "Failed to compare " + GVFSConstants.DotGit.Hooks.ReadObjectName + " version");
                     this.tracer.RelatedError(metadata);
-                    this.FailMountAndExit("Error comparing " + GVFSConstants.DotGit.Hooks.ReadObjectName + " versions, see log file for details");
+                    this.FailMountAndExit("Error comparing " + GVFSConstants.DotGit.Hooks.ReadObjectName + " versions,  run 'gvfs log' for details");
                 }
             }
 
@@ -179,27 +178,38 @@ namespace GVFS.Mount
                     metadata.Add("Exception", e.ToString());
                     metadata.Add("ErrorMessage", "Failed to copy " + GVFSConstants.DotGit.Hooks.ReadObjectName + " to enlistment");
                     this.tracer.RelatedError(metadata);
-                    this.FailMountAndExit("Error copying " + GVFSConstants.DotGit.Hooks.ReadObjectName + " to enlistment, see log file for details");
+                    this.FailMountAndExit("Error copying " + GVFSConstants.DotGit.Hooks.ReadObjectName + " to enlistment,  run 'gvfs log' for details");
                 }
             }
         }
 
-        private void UpdateToAlwaysExcludeFile()
+        private void UpdateToAlwaysExcludeFile(RepoMetadata repoMetadata)
         {
-            string alwaysExcludePath = Path.Combine(this.enlistment.WorkingDirectoryRoot, GVFSConstants.DotGit.Info.AlwaysExcludePath);
-            string excludePath = Path.Combine(this.enlistment.WorkingDirectoryRoot, GVFSConstants.DotGit.Info.ExcludePath);
-            if (!File.Exists(alwaysExcludePath))
+            if (repoMetadata.GetAlwaysExcludeInvalid())
             {
-                if (!File.Exists(excludePath))
-                {
-                    this.FailMountAndExit("Could not find existing exclude file");
-                }
+                this.FailMountAndExit("always_exclude left in a corrupt state after failed mount.");
+            }
 
+            string alwaysExcludePath = Path.Combine(this.enlistment.WorkingDirectoryRoot, GVFSConstants.DotGit.Info.AlwaysExcludePath);
+            if (File.Exists(alwaysExcludePath))
+            {
+                this.FailMountAndExit("Error migrating to " + alwaysExcludePath + ", file already exists.");
+            }
+
+            string excludePath = Path.Combine(this.enlistment.WorkingDirectoryRoot, GVFSConstants.DotGit.Info.ExcludePath);
+            if (File.Exists(excludePath))
+            {
                 try
                 {
                     string[] lines = File.ReadAllLines(excludePath);
-                    File.WriteAllLines(alwaysExcludePath, lines.Where(x => !x.StartsWith(GVFSConstants.GitCommentSignString)));
-                    File.WriteAllLines(excludePath, lines.Where(x => x.StartsWith(GVFSConstants.GitCommentSignString)));
+
+                    // To be valid, both exclude and always_exclude must be correctly written to,
+                    // and the disk layout version stored on disk must be updated.
+                    repoMetadata.SetAlwaysExcludeInvalid(true);
+                    string newAlwaysExcludeContents = string.Join("\n", lines.Where(x => !x.StartsWith(GVFSConstants.GitCommentSignString))) + "\n";
+                    string newExcludeContents = string.Join("\n", lines.Where(x => x.StartsWith(GVFSConstants.GitCommentSignString))) + "\n";
+                    File.WriteAllText(alwaysExcludePath, newAlwaysExcludeContents);
+                    File.WriteAllText(excludePath, newExcludeContents);
                 }
                 catch (Exception e)
                 {
@@ -210,7 +220,7 @@ namespace GVFS.Mount
                     metadata.Add("Exception", e.ToString());
                     metadata.Add("ErrorMessage", "Failed to migrate " + excludePath + " to " + alwaysExcludePath);
                     this.tracer.RelatedError(metadata);
-                    this.FailMountAndExit("Error migrating " + excludePath + " to " + alwaysExcludePath + ", see log file for details");
+                    this.FailMountAndExit("Error migrating " + excludePath + " to " + alwaysExcludePath + ",  run 'gvfs log' for details");
                 }
             }
         }
@@ -518,8 +528,14 @@ namespace GVFS.Mount
             int persistedVersion;
             string error;
             if (!repoMetadata.TryGetOnDiskLayoutVersion(out persistedVersion, out error))
-            {                
+            {
                 this.FailMountAndExit("Error: {0}", error);
+            }
+
+            if (!repoMetadata.OnDiskVersionUsesAlwaysExclude())
+            {
+                // Want this as close to repoMetadata.SaveCurrentDiskLayoutVersion() as possible to avoid possible corrupt states.
+                this.UpdateToAlwaysExcludeFile(repoMetadata);
             }
 
             try
@@ -535,6 +551,7 @@ namespace GVFS.Mount
             }
 
             repoMetadata.SaveCurrentDiskLayoutVersion();
+            repoMetadata.SetAlwaysExcludeInvalid(false);
 
             this.AcquireFolderLocks(context);
 

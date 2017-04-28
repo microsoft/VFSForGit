@@ -7,6 +7,7 @@ namespace GVFS.Common.Physical
     public class RepoMetadata : IDisposable
     {
         private const string ProjectionInvalidKey = "ProjectionInvalid";
+        private const string AlwaysExcludeInvalidKey = "AlwaysExcludeInvalid";
 
         private PersistentDictionary<string, string> repoMetadata;
 
@@ -21,7 +22,7 @@ namespace GVFS.Common.Physical
             return DiskLayoutVersion.CurrentDiskLayoutVersion;
         }
 
-        public static bool CheckDiskLayoutVersion(string dotGVFSPath, out string error)
+        public static bool CheckDiskLayoutVersion(string dotGVFSPath, bool allowUpgrade, out string error)
         {
             if (!Directory.Exists(Path.Combine(dotGVFSPath, GVFSConstants.DatabaseNames.RepoMetadata)))
             {
@@ -33,7 +34,7 @@ namespace GVFS.Common.Physical
             {
                 using (RepoMetadata repoMetadata = new RepoMetadata(dotGVFSPath))
                 {
-                    return repoMetadata.CheckDiskLayoutVersion(out error);
+                    return repoMetadata.CheckDiskLayoutVersion(allowUpgrade, out error);
                 }
             }
             catch (Exception e)
@@ -54,6 +55,11 @@ namespace GVFS.Common.Physical
             return DiskLayoutVersion.OnDiskVersionSupportsIndexProjection(this.repoMetadata);
         }
 
+        public bool OnDiskVersionUsesAlwaysExclude()
+        {
+            return DiskLayoutVersion.OnDiskVersionUsesAlwaysExclude(this.repoMetadata);
+        }
+
         public void SaveCurrentDiskLayoutVersion()
         {
             DiskLayoutVersion.SaveCurrentDiskLayoutVersion(this.repoMetadata);
@@ -63,7 +69,7 @@ namespace GVFS.Common.Physical
         {
             if (invalid)
             {
-                this.repoMetadata[ProjectionInvalidKey] = "true";                
+                this.repoMetadata[ProjectionInvalidKey] = "true";
             }
             else
             {
@@ -77,6 +83,31 @@ namespace GVFS.Common.Physical
         {
             string value;
             if (this.repoMetadata.TryGetValue(ProjectionInvalidKey, out value))
+            {
+                return true;
+            }
+
+            return false;
+        }
+
+        public void SetAlwaysExcludeInvalid(bool invalid)
+        {
+            if (invalid)
+            {
+                this.repoMetadata[AlwaysExcludeInvalidKey] = "true";
+            }
+            else
+            {
+                this.repoMetadata.Remove(AlwaysExcludeInvalidKey);
+            }
+
+            this.repoMetadata.Flush();
+        }
+
+        public bool GetAlwaysExcludeInvalid()
+        {
+            string value;
+            if (this.repoMetadata.TryGetValue(AlwaysExcludeInvalidKey, out value))
             {
                 return true;
             }
@@ -99,9 +130,9 @@ namespace GVFS.Common.Physical
             }
         }
 
-        private bool CheckDiskLayoutVersion(out string error)
+        private bool CheckDiskLayoutVersion(bool allowUpgrade, out string error)
         {
-            return DiskLayoutVersion.CheckDiskLayoutVersion(this.repoMetadata, out error);
+            return DiskLayoutVersion.CheckDiskLayoutVersion(this.repoMetadata, allowUpgrade, out error);
         }
 
         private static class DiskLayoutVersion
@@ -126,6 +157,9 @@ namespace GVFS.Common.Physical
 
             // The first version that supported projection files via the git index
             private const int ProjectGitIndexVersion = 4;
+
+            // The first version that used always_exclude instead of exclude
+            private const int AlwaysExcludeVersion = 5;
 
             public static void SaveCurrentDiskLayoutVersion(PersistentDictionary<string, string> repoMetadata)
             {
@@ -155,7 +189,7 @@ namespace GVFS.Common.Physical
                 return true;
             }
 
-            public static bool CheckDiskLayoutVersion(PersistentDictionary<string, string> repoMetadata, out string error)
+            public static bool CheckDiskLayoutVersion(PersistentDictionary<string, string> repoMetadata, bool allowUpgrade, out string error)
             {
                 error = string.Empty;
                 int persistedVersionNumber;
@@ -177,6 +211,16 @@ namespace GVFS.Common.Physical
                             "Changes to GVFS disk layout do not allow mounting after downgrade. Try mounting again using a more recent version of GVFS. \r\nEnlistment disk layout version: {0} \r\nGVFS disk layout version: {1}",
                             persistedVersionNumber,
                             CurrentDiskLayoutVersion);
+
+                        return false;
+                    }
+                    else if (!allowUpgrade && persistedVersionNumber < CurrentDiskLayoutVersion)
+                    {
+                        error = string.Format(
+                            "GVFS disk layout is behind current version. \r\nEnlistment disk layout version: {0} \r\nGVFS disk layout version: {1}",
+                            persistedVersionNumber,
+                            CurrentDiskLayoutVersion);
+
                         return false;
                     }
 
@@ -199,6 +243,18 @@ namespace GVFS.Common.Physical
                     }
 
                     return true;
+                }
+
+                return false;
+            }
+
+            public static bool OnDiskVersionUsesAlwaysExclude(PersistentDictionary<string, string> repoMetadata)
+            {
+                string error;
+                int persistedVersionNumber;
+                if (TryGetOnDiskLayoutVersion(repoMetadata, out persistedVersionNumber, out error))
+                {
+                    return persistedVersionNumber >= AlwaysExcludeVersion;
                 }
 
                 return false;

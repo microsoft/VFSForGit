@@ -91,6 +91,7 @@
       <DependentUpon>Settings.settings</DependentUpon>
     </Compile>
     <Compile Include="Tests\EnlistmentPerFixture\CloneTests.cs" />
+    <Compile Include="Tests\EnlistmentPerFixture\DehydrateTests.cs" />
     <Compile Include="Tests\EnlistmentPerFixture\DiagnoseTests.cs" />
     <Compile Include="Tests\GitCommands\CheckoutTests.cs" />
     <Compile Include="Tests\GitCommands\CherryPickConflictTests.cs" />
@@ -132,6 +133,7 @@
     <Compile Include="Tools\GitHelpers.cs" />
     <Compile Include="Tools\GitProcess.cs" />
     <Compile Include="Tools\GVFSFunctionalTestEnlistment.cs" />
+    <Compile Include="Tools\GVFSHelpers.cs" />
     <Compile Include="Tools\NativeMethods.cs" />
     <Compile Include="Tools\ProcessHelper.cs" />
     <Compile Include="Tools\ProcessResult.cs" />

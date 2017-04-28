@@ -15,7 +15,7 @@ namespace GVFS.Hooks
         private const string PreCommandHook = "pre-command";
         private const string PostCommandHook = "post-command";
 
-        private const string GitLockWaitArgName = "--internal-gitlock-waittime-ms";
+        private const string GitPidArg = "--git-pid=";
 
         private static Dictionary<string, string> specialArgValues = new Dictionary<string, string>();
         private static string enlistmentRoot;
@@ -25,8 +25,6 @@ namespace GVFS.Hooks
 
         public static void Main(string[] args)
         {
-            args = ReadAndRemoveSpecialArgValues(args);
-
             try
             {
                 if (args.Length < 2)
@@ -77,17 +75,6 @@ namespace GVFS.Hooks
                     ProcessHelper.Run("gvfs", "prefetch --commits", redirectOutput: false);
                     break;
             }
-        }
-
-        private static string[] ReadAndRemoveSpecialArgValues(string[] args)
-        {
-            string waitArgValue;
-            if (TryRemoveArg(ref args, GitLockWaitArgName, out waitArgValue))
-            {
-                specialArgValues.Add(GitLockWaitArgName, waitArgValue);
-            }
-
-            return args;
         }
 
         private static void ExitWithError(params string[] messages)
@@ -198,8 +185,8 @@ namespace GVFS.Hooks
                             ExitWithError("The repo does not appear to be mounted. Use 'gvfs status' to check.");
                         }
 
-                        string fullCommand = "git " + string.Join(" ", args.Skip(1));
-                        int pid = ProcessHelper.GetParentProcessId(GVFSConstants.CommandParentExecutableNames);
+                        string fullCommand = "git " + string.Join(" ", args.Skip(1).Where(arg => !arg.StartsWith(GitPidArg)));
+                        int pid = GetParentPid(args);
 
                         Process parentProcess = null;
                         if (pid == GVFSConstants.InvalidProcessId ||
@@ -219,6 +206,26 @@ namespace GVFS.Hooks
                     "Ensure that GVFS is running.",
                     exc.ToString());
             }
+        }
+
+        private static int GetParentPid(string[] args)
+        {
+            string pidArg = args.SingleOrDefault(x => x.StartsWith(GitPidArg));
+            if (!string.IsNullOrEmpty(pidArg))
+            {
+                pidArg = pidArg.Remove(0, GitPidArg.Length);
+                int pid;
+                if (int.TryParse(pidArg, out pid))
+                {
+                    return pid;
+                }
+            }
+
+            ExitWithError(
+                "Git did not supply the process Id.",
+                "Ensure you are using the correct version of the git client.");
+
+            return GVFSConstants.InvalidProcessId;
         }
 
         private static void AcquireGVFSLockForProcess(string fullCommand, int pid, Process parentProcess, NamedPipeClient pipeClient)

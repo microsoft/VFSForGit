@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Management;
+using System.Threading;
 using System.Threading.Tasks;
 
 namespace GVFS.Common
@@ -27,7 +28,7 @@ namespace GVFS.Common
             this.watcher.EventArrived += this.EventArrived;
         }
 
-        public void WatchForTermination(int pid, HashSet<string> expectedModuleNames)
+        public void WatchForTermination(int pid, string expectedExeNamePrefix)
         {
             lock (this.terminationLock)
             {
@@ -45,7 +46,8 @@ namespace GVFS.Common
                     {
                         Process process;
                         if (ProcessHelper.TryGetProcess(this.pendingPid.Value, out process) &&
-                            expectedModuleNames.Contains(process.MainModule.ModuleName))
+                            process.MainModule.ModuleName.StartsWith(expectedExeNamePrefix, StringComparison.OrdinalIgnoreCase) &&
+                            process.MainModule.ModuleName.EndsWith(GVFSConstants.ExecutableExtension, StringComparison.OrdinalIgnoreCase))
                         {
                             this.watcher.Start();
                             this.currentPid = this.pendingPid;

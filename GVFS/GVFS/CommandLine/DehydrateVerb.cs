@@ -2,6 +2,7 @@
 using GVFS.Common;
 using GVFS.Common.Git;
 using GVFS.Common.NamedPipes;
+using GVFS.Common.Physical;
 using GVFS.Common.Tracing;
 using GVFS.GVFlt;
 using Microsoft.Diagnostics.Tracing;
@@ -73,6 +74,13 @@ To actually execute the dehydrate, run 'gvfs dehydrate --confirm'
 ");
 
                     return;
+                }
+
+                bool allowUpgrade = false;
+                string error;
+                if (!RepoMetadata.CheckDiskLayoutVersion(enlistment.DotGVFSRoot, allowUpgrade, out error))
+                {
+                    this.WriteErrorAndExit(tracer, "GVFS disk layout version doesn't match current version.  Try mounting first.");
                 }
 
                 this.CheckGitStatus(tracer, enlistment);
@@ -258,14 +266,8 @@ To actually execute the dehydrate, run 'gvfs dehydrate --confirm'
                                         Path.Combine(enlistment.WorkingDirectoryRoot, GVFSConstants.DotGit.Info.AlwaysExcludePath),
                                         Path.Combine(backupInfo, GVFSConstants.DotGit.Info.AlwaysExcludeName));
                                 }
-                                else
-                                {
-                                    File.Move(
-                                        Path.Combine(enlistment.WorkingDirectoryRoot, GVFSConstants.DotGit.Info.ExcludePath),
-                                        Path.Combine(backupInfo, GVFSConstants.DotGit.Info.ExcludeName));
-                                }
                             },
-                            "Backup the always exclude file",
+                            "Backup the always_exclude file",
                             out errorMessage))
                     {
                         return false;

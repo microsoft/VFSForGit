@@ -2,7 +2,6 @@
 using GVFS.FunctionalTests.Should;
 using GVFS.FunctionalTests.Tools;
 using GVFS.Tests.Should;
-using Microsoft.Isam.Esent.Collections.Generic;
 using NUnit.Framework;
 using System;
 using System.Diagnostics;
@@ -15,12 +14,13 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
     public class MountTests : TestsWithEnlistmentPerFixture
     {
         private const int ProjectGitIndexOnDiskVersion = 4;
+        private const int AlwaysExcludeOnDiskVersion = 5;
         private const int GVFSGenericError = 3;
         private const uint GenericRead = 2147483648;
         private const uint FileFlagBackupSemantics = 3355443;
         private const string IndexLockPath = ".git\\index.lock";
-        private const string RepoMetadataDatabaseName = "RepoMetadata";
-        private const string DiskLayoutVersionKey = "DiskLayoutVersion";
+        private const string ExcludePath = ".git\\info\\exclude";
+        private const string AlwaysExcludePath = ".git\\info\\always_exclude";
 
         private FileSystemRunner fileSystem;
 
@@ -78,12 +78,12 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
             this.Enlistment.UnmountGVFS();
 
             // Get the current disk layout version
-            string currentVersion = this.GetPersistedDiskLayoutVersion().ShouldNotBeNull();
+            string currentVersion = GVFSHelpers.GetPersistedDiskLayoutVersion(this.Enlistment.DotGVFSRoot).ShouldNotBeNull();
             int currentVersionNum;
             int.TryParse(currentVersion, out currentVersionNum).ShouldEqual(true);
 
             // Move the RepoMetadata database to a temp folder
-            string versionDatabasePath = Path.Combine(this.Enlistment.DotGVFSRoot, RepoMetadataDatabaseName);
+            string versionDatabasePath = Path.Combine(this.Enlistment.DotGVFSRoot, GVFSHelpers.RepoMetadataDatabaseName);
             versionDatabasePath.ShouldBeADirectory(this.fileSystem);
 
             string tempDatabasePath = versionDatabasePath + "_MountFailsWhenNoOnDiskVersion";
@@ -108,14 +108,14 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
             MountSubfolders.EnsureSubfoldersOnDisk(this.Enlistment, this.fileSystem);
             this.Enlistment.UnmountGVFS();
 
-            string currentVersion = this.GetPersistedDiskLayoutVersion().ShouldNotBeNull();
+            string currentVersion = GVFSHelpers.GetPersistedDiskLayoutVersion(this.Enlistment.DotGVFSRoot).ShouldNotBeNull();
             int currentVersionNum;
             int.TryParse(currentVersion, out currentVersionNum).ShouldEqual(true);
-            this.SaveDiskLayoutVersion((currentVersionNum + 1).ToString());
+            GVFSHelpers.SaveDiskLayoutVersion(this.Enlistment.DotGVFSRoot, (currentVersionNum + 1).ToString());
 
             this.MountShouldFail("do not allow mounting after downgrade", this.Enlistment.GetVirtualPathTo(mountSubfolder));
 
-            this.SaveDiskLayoutVersion(currentVersionNum.ToString());
+            GVFSHelpers.SaveDiskLayoutVersion(this.Enlistment.DotGVFSRoot, currentVersionNum.ToString());
             this.Enlistment.MountGVFS();
         }
 
@@ -127,11 +127,11 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
 
             this.Enlistment.UnmountGVFS();
 
-            string currentVersion = this.GetPersistedDiskLayoutVersion().ShouldNotBeNull();
+            string currentVersion = GVFSHelpers.GetPersistedDiskLayoutVersion(this.Enlistment.DotGVFSRoot).ShouldNotBeNull();
             int currentVersionNum;
             int.TryParse(currentVersion, out currentVersionNum).ShouldEqual(true);
 
-            this.SaveDiskLayoutVersion((ProjectGitIndexOnDiskVersion - 1).ToString());
+            GVFSHelpers.SaveDiskLayoutVersion(this.Enlistment.DotGVFSRoot, (ProjectGitIndexOnDiskVersion - 1).ToString());
 
             string gvfsHeadPath = Path.Combine(this.Enlistment.DotGVFSRoot, "GVFS_HEAD");
             gvfsHeadPath.ShouldNotExistOnDisk(this.fileSystem);
@@ -143,7 +143,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
 
             this.fileSystem.DeleteFile(gvfsHeadPath);
             this.fileSystem.WriteAllText(gvfsHeadPath, headCommitId);
-            this.SaveDiskLayoutVersion(currentVersionNum.ToString());
+            GVFSHelpers.SaveDiskLayoutVersion(this.Enlistment.DotGVFSRoot, currentVersionNum.ToString());
             this.Enlistment.MountGVFS();
             gvfsHeadPath.ShouldNotExistOnDisk(this.fileSystem);
         }
@@ -168,15 +168,18 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
             MountSubfolders.EnsureSubfoldersOnDisk(this.Enlistment, this.fileSystem);
             this.Enlistment.UnmountGVFS();
 
-            string currentVersion = this.GetPersistedDiskLayoutVersion().ShouldNotBeNull();
+            string currentVersion = GVFSHelpers.GetPersistedDiskLayoutVersion(this.Enlistment.DotGVFSRoot).ShouldNotBeNull();
             int currentVersionNum;
             int.TryParse(currentVersion, out currentVersionNum).ShouldEqual(true);
-            this.SaveDiskLayoutVersion((ProjectGitIndexOnDiskVersion - 1).ToString());
+            GVFSHelpers.SaveDiskLayoutVersion(this.Enlistment.DotGVFSRoot, (ProjectGitIndexOnDiskVersion - 1).ToString());
+
+            string alwaysExcludeVirtualPath = this.Enlistment.GetVirtualPathTo(AlwaysExcludePath);
+            this.fileSystem.DeleteFile(alwaysExcludeVirtualPath);
 
             this.Enlistment.MountGVFS();
             this.Enlistment.UnmountGVFS();
 
-            this.SaveDiskLayoutVersion(currentVersionNum.ToString());
+            GVFSHelpers.SaveDiskLayoutVersion(this.Enlistment.DotGVFSRoot, currentVersionNum.ToString());
             this.Enlistment.MountGVFS();
         }
 
@@ -200,6 +203,82 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
             IntPtr invalid_handle = new IntPtr(-1);
             handle.ShouldEqual(invalid_handle);
             lastError.ShouldNotEqual(0); // 0 == ERROR_SUCCESS
+        }
+
+        [TestCase]
+        public void MountSucceedsUpgradeToAlwaysExclude()
+        {
+            this.Enlistment.UnmountGVFS();
+
+            string originalVersion = GVFSHelpers.GetPersistedDiskLayoutVersion(this.Enlistment.DotGVFSRoot).ShouldNotBeNull();
+            int originalVersionNum;
+            int.TryParse(originalVersion, out originalVersionNum).ShouldEqual(true);
+            GVFSHelpers.SaveDiskLayoutVersion(this.Enlistment.DotGVFSRoot, (AlwaysExcludeOnDiskVersion - 1).ToString());
+            string excludeVirtualPath = this.Enlistment.GetVirtualPathTo(ExcludePath);
+            string alwaysExcludeVirtualPath = this.Enlistment.GetVirtualPathTo(AlwaysExcludePath);
+
+            excludeVirtualPath.ShouldBeAFile(this.fileSystem);
+            alwaysExcludeVirtualPath.ShouldBeAFile(this.fileSystem);
+            string originalAlwaysExcludeContents = this.fileSystem.ReadAllText(alwaysExcludeVirtualPath);
+
+            this.fileSystem.DeleteFile(excludeVirtualPath);
+            this.fileSystem.MoveFile(alwaysExcludeVirtualPath, excludeVirtualPath);
+
+            this.Enlistment.MountGVFS();
+            this.Enlistment.UnmountGVFS();
+
+            excludeVirtualPath.ShouldBeAFile(this.fileSystem);
+            alwaysExcludeVirtualPath.ShouldBeAFile(this.fileSystem);
+            originalAlwaysExcludeContents.ShouldEqual(this.fileSystem.ReadAllText(alwaysExcludeVirtualPath));
+
+            string finalVersion = GVFSHelpers.GetPersistedDiskLayoutVersion(this.Enlistment.DotGVFSRoot).ShouldNotBeNull();
+            int finalVersionNum;
+            int.TryParse(finalVersion, out finalVersionNum).ShouldEqual(true);
+
+            finalVersion.ShouldEqual(originalVersion);
+
+            this.Enlistment.MountGVFS();
+        }
+
+        [TestCase]
+        public void MountSucceedsUpgradeToAlwaysExcludeWithMissingExclude()
+        {
+            this.Enlistment.UnmountGVFS();
+
+            GVFSHelpers.SaveDiskLayoutVersion(this.Enlistment.DotGVFSRoot, (AlwaysExcludeOnDiskVersion - 1).ToString());
+            string excludeVirtualPath = this.Enlistment.GetVirtualPathTo(ExcludePath);
+            string alwaysExcludeVirtualPath = this.Enlistment.GetVirtualPathTo(AlwaysExcludePath);
+
+            excludeVirtualPath.ShouldBeAFile(this.fileSystem);
+            alwaysExcludeVirtualPath.ShouldBeAFile(this.fileSystem);
+
+            this.fileSystem.DeleteFile(excludeVirtualPath);
+            this.fileSystem.DeleteFile(alwaysExcludeVirtualPath);
+
+            this.Enlistment.MountGVFS();
+            this.Enlistment.UnmountGVFS();
+
+            excludeVirtualPath.ShouldNotExistOnDisk(this.fileSystem);
+            alwaysExcludeVirtualPath.ShouldBeAFile(this.fileSystem);
+            this.fileSystem.ReadAllText(alwaysExcludeVirtualPath).ShouldEqual("*\n");
+
+            this.Enlistment.MountGVFS();
+        }
+
+        [TestCase]
+        public void MountFailsUpgradeToAlwaysExcludeWithPreviousAlwaysExclude()
+        {
+            this.Enlistment.UnmountGVFS();
+
+            GVFSHelpers.SaveDiskLayoutVersion(this.Enlistment.DotGVFSRoot, (AlwaysExcludeOnDiskVersion - 1).ToString());
+            string alwaysExcludeVirtualPath = this.Enlistment.GetVirtualPathTo(AlwaysExcludePath);
+
+            alwaysExcludeVirtualPath.ShouldBeAFile(this.fileSystem);
+
+            this.MountShouldFail("Failed to mount");
+
+            this.fileSystem.DeleteFile(alwaysExcludeVirtualPath);
+            this.Enlistment.MountGVFS();
         }
 
         [DllImport("kernel32.dll", SetLastError = true, CharSet = CharSet.Unicode)]
@@ -231,31 +310,6 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
             this.Enlistment.MountGVFS();
             this.Enlistment.WaitForBackgroundOperations().ShouldEqual(true, "Background operations failed to complete.");
             indexLockVirtualPath.ShouldNotExistOnDisk(this.fileSystem);
-        }
-
-        private void SaveDiskLayoutVersion(string value)
-        {
-            using (PersistentDictionary<string, string> dictionary = new PersistentDictionary<string, string>(
-                        Path.Combine(this.Enlistment.DotGVFSRoot, RepoMetadataDatabaseName)))
-            {
-                dictionary[DiskLayoutVersionKey] = value;
-                dictionary.Flush();
-            }
-        }
-
-        private string GetPersistedDiskLayoutVersion()
-        {
-            using (PersistentDictionary<string, string> dictionary = new PersistentDictionary<string, string>(
-            Path.Combine(this.Enlistment.DotGVFSRoot, RepoMetadataDatabaseName)))
-            {
-                string value;
-                if (dictionary.TryGetValue(DiskLayoutVersionKey, out value))
-                {
-                    return value;
-                }
-
-                return null;
-            }
         }
 
         private void MountShouldFail(int expectedExitCode, string expectedErrorMessage, string mountWorkingDirectory = null)

@@ -30,6 +30,12 @@ namespace GVFS.FunctionalTests.Tests
         [SetUp]
         public void InitRepo()
         {
+            // Just in case Teardown did not run.  Say when debugging...
+            if (Directory.Exists(this.fastFetchRepoRoot))
+            {
+                this.TearDownTests();
+            }
+
             Directory.CreateDirectory(this.fastFetchRepoRoot);
             GitProcess.Invoke(this.fastFetchRepoRoot, "init");
             GitProcess.Invoke(this.fastFetchRepoRoot, "remote add origin " + Settings.Default.RepoToClone);
@@ -106,21 +112,64 @@ namespace GVFS.FunctionalTests.Tests
         }
 
         [TestCase]
-        public void CanFetchAndCheckoutCommitIntoEmptyGitRepo()
+        public void CanUpdateIndex()
         {
-            // Get the commit sha for the branch the control repo is on
-            string commitSha = GitProcess.Invoke(this.fastFetchControlRoot, "log -1 --format=%H").Trim();
+            // Testing index versions 2, 3 and 4.  Not bothering to test version 1; it's not in use anymore.
+            this.CanUpdateIndex(2);
+            this.CanUpdateIndex(3);
+            this.CanUpdateIndex(4);
+        }
 
-            this.RunFastFetch("--checkout -c " + commitSha);
+        public void CanUpdateIndex(int indexVersion)
+        { 
+            // Initialize the repo
+            GitProcess.Invoke(this.fastFetchRepoRoot, "config --local --add core.gvfs 1");
+            this.CanFetchAndCheckoutBranchIntoEmptyGitRepo();
+            string lsfilesAfterFirstFetch = GitProcess.Invoke(this.fastFetchRepoRoot, "ls-files --debug");
+            lsfilesAfterFirstFetch.ShouldBeNonEmpty();
 
-            string headFilePath = Path.Combine(this.fastFetchRepoRoot, TestConstants.DotGit.Head);
-            File.ReadAllText(headFilePath).Trim().ShouldEqual(commitSha);
+            // Reset the index and use 'git status' to get baseline.
+            GitProcess.Invoke(this.fastFetchRepoRoot, $"-c index.version={indexVersion} read-tree HEAD");
+            string lsfilesBeforeStatus = GitProcess.Invoke(this.fastFetchRepoRoot, "ls-files --debug");
+            lsfilesBeforeStatus.ShouldBeNonEmpty();
 
-            // Ensure no errors are thrown with git log
-            GitHelpers.CheckGitCommand(this.fastFetchRepoRoot, "log");
+            GitProcess.Invoke(this.fastFetchRepoRoot, "status");
+            string lsfilesAfterStatus = GitProcess.Invoke(this.fastFetchRepoRoot, "ls-files --debug");
+            lsfilesAfterStatus.ShouldBeNonEmpty();
+            lsfilesAfterStatus.ShouldNotBeSameAs(lsfilesBeforeStatus, "Ensure 'git status' updates index");
 
-            this.fastFetchRepoRoot.ShouldBeADirectory(FileSystemRunner.DefaultRunner)
-                .WithDeepStructure(this.fastFetchControlRoot, skipEmptyDirectories: false);
+            // Reset the index and use fastfetch to update the index. Compare against 'git status' baseline.
+            GitProcess.Invoke(this.fastFetchRepoRoot, $"-c index.version= {indexVersion} read-tree HEAD");
+            string fastfetchoutput = this.RunFastFetch("--checkout --Allow-index-metadata-update-from-working-tree");
+            Trace.WriteLine(fastfetchoutput); // Written to log file for manual investigation
+            string lsfilesAfterUpdate = GitProcess.Invoke(this.fastFetchRepoRoot, "ls-files --debug");
+            lsfilesAfterUpdate.ShouldEqual(lsfilesAfterStatus, "git status and fastfetch didn't result in the same index");
+
+            // Don't reset the index and use 'git status' to update again.  Should be same results.
+            this.RunFastFetch("--checkout --Allow-index-metadata-update-from-working-tree");
+            string lsfilesAfterUpdate2 = GitProcess.Invoke(this.fastFetchRepoRoot, "ls-files --debug");
+            lsfilesAfterUpdate2.ShouldEqual(lsfilesAfterUpdate, "Incremental update should not change index");
+
+            // Verify that the final results are the same as the intial fetch results
+            lsfilesAfterUpdate2.ShouldEqual(lsfilesAfterFirstFetch, "Incremental update should not change index");
+        }
+
+        [TestCase]
+        public void ShouldNotUpdateIndex()
+        {
+            // Initialize the repo
+            GitProcess.Invoke(this.fastFetchRepoRoot, "config --local --add core.gvfs 0");
+            this.CanFetchAndCheckoutBranchIntoEmptyGitRepo();
+
+            // Reset the index and get baseline.
+            GitProcess.Invoke(this.fastFetchRepoRoot, "read-tree HEAD");
+            string lsfilesNeedUpdated = GitProcess.Invoke(this.fastFetchRepoRoot, "ls-files --debug");
+
+            // Fastfetch.  Shouldn't update index without core.gvfs disabling signing.
+            string fastfetchoutput = this.RunFastFetch("--checkout --Allow-index-metadata-update-from-working-tree");
+            Trace.WriteLine(fastfetchoutput); // Written to log file for manual investigation
+            string lsfilesAfterUpdate = GitProcess.Invoke(this.fastFetchRepoRoot, "ls-files --debug");
+            lsfilesAfterUpdate.ShouldEqual(lsfilesNeedUpdated, "Update should be skipped without core.gvfs");
         }
 
         [TestCase]

@@ -49,8 +49,9 @@ namespace GVFS.Common
 
         public const string GitIsNotInstalledError = "Could not find git.exe.  Ensure that Git is installed.";
 
-        public static readonly HashSet<string> CommandParentExecutableNames = new HashSet<string>(new[] { "git.exe", "wish.exe" }, StringComparer.OrdinalIgnoreCase);
-        public static readonly GitVersion MinimumGitVersion = new GitVersion(2, 12, 1, "gvfs", 1, 28);
+        public const string CommandParentExePrefix = "git";
+        public const string ExecutableExtension = ".exe";
+        public static readonly GitVersion MinimumGitVersion = new GitVersion(2, 12, 2, "gvfs", 2, 14);
 
         public static class MediaTypes
         {
@@ -110,7 +111,6 @@ namespace GVFS.Common
                 public const string ConfigExtension = ".hooks";
                 public const string ConfigNamePrefix = "gvfs.clone.default-";
                 public const string LoaderExecutable = "GitHooksLoader.exe";
-                public const string ExecutableExtension = ".exe";
                 public const string PreCommandHookName = "pre-command";
                 public const string PostCommandHookName = "post-command";
                 public static readonly string ReadObjectName = "read-object";

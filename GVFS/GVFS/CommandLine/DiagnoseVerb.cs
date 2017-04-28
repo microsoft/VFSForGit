@@ -18,6 +18,10 @@ namespace GVFS.CommandLine
         private const string System32LogFilesRoot = @"%SystemRoot%\System32\LogFiles";
         private const string GVFltLogFolderName = "GvFlt";
 
+        // From "Autologger" section of gvflt.inf
+        private const string GvFltLoggerGuid = "5f6d2558-5c94-48f9-add0-65bc678aa091";
+        private const string GvFltLoggerSessionName = "Microsoft-Windows-Git-Filter-Log";
+
         private TextWriter diagnosticLogFileWriter;
 
         protected override string VerbName
@@ -56,6 +60,7 @@ namespace GVFS.CommandLine
                 this.CopyAllFiles(enlistment.EnlistmentRoot, archiveFolderPath, GVFSConstants.DotGVFSPath, copySubFolders: false);
 
                 this.WriteMessage("Copying GVFlt logs...");
+                this.FlushGvFltLogBuffers();
                 string system32LogFilesPath = Environment.ExpandEnvironmentVariables(System32LogFilesRoot);
                 this.CopyAllFiles(system32LogFilesPath, archiveFolderPath, GVFltLogFolderName, copySubFolders: false);
 
@@ -72,6 +77,9 @@ namespace GVFS.CommandLine
                 {
                     this.WriteMessage("GVFS was not mounted.");
                 }
+
+                this.WriteMessage("Checking Defender exclusion...");
+                this.WriteAntivirusExclusions(enlistment.EnlistmentRoot, archiveFolderPath, "DefenderExclusionInfo.txt");
 
                 this.WriteMessage("Copying .git folder...");
                 this.CopyAllFiles(enlistment.WorkingDirectoryRoot, archiveFolderPath, GVFSConstants.DotGit.Root, copySubFolders: false);
@@ -184,7 +192,7 @@ namespace GVFS.CommandLine
                         sourcePath,
                         e));
                 }
-            }           
+            }
 
             if (copySubFolders)
             {
@@ -230,6 +238,41 @@ namespace GVFS.CommandLine
             }
         }
 
+        private void WriteAntivirusExclusions(string enlistmentRoot, string archiveFolderPath, string outputFileName)
+        {
+            string filepath = Path.Combine(archiveFolderPath, outputFileName);
+            try
+            {
+                bool isExcluded;
+                string error;
+                string message = string.Empty;
+                if (AntiVirusExclusions.TryGetIsPathExcluded(enlistmentRoot, out isExcluded, out error))
+                {
+                    message = "Successfully read Defender exclusions. \n ";
+                    if (isExcluded)
+                    {
+                        message += enlistmentRoot + " is excluded.";
+                    }
+                    else
+                    {
+                        message += enlistmentRoot + " is not excluded.";
+                    }
+                }
+                else
+                {
+                    message = "Unable to read Defender exclusions. \n " + error;
+                }
+
+                File.WriteAllText(filepath, message);
+            }
+            catch (Exception exc)
+            {
+                this.WriteMessage(
+                    "Error while gathering Defender exclusion info. \n" +
+                    exc.ToString());
+            }
+        }
+
         private void CopyEsentDatabase<TKey, TValue>(string sourceFolder, string targetFolder, string databaseName)
             where TKey : IComparable<TKey>
         {
@@ -270,6 +313,31 @@ namespace GVFS.CommandLine
 
             // Also copy the database files themselves, in case we failed to read the entries above
             this.CopyAllFiles(sourceFolder, targetFolder, databaseName, copySubFolders: false);
+        }
+
+        private void FlushGvFltLogBuffers()
+        {
+            try
+            {
+                string logfileName;
+                uint result = NativeMethods.FlushTraceLogger(GvFltLoggerSessionName, GvFltLoggerGuid, out logfileName);
+                if (result != 0)
+                {
+                    this.WriteMessage(string.Format(
+                        "Failed to flush GvFlt log buffers {0}",
+                        result));
+                }
+                else
+                {
+                    this.WriteMessage(string.Format(
+                        "Flushed GvFlt log buffer ({0})",
+                        logfileName));
+                }
+            }
+            catch (Exception e)
+            {
+                this.WriteMessage(string.Format("Failed to flush GvFlt log buffers, exception: {0}", e));
+            }
         }
     }
 }

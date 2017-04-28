@@ -1196,7 +1196,7 @@ namespace GVFS.GVFlt
                         relativeFolderPaths.Enqueue(gitUpdate.VirtualPath);
                         result = CallbackResult.Success;
 
-                        // Add the renamed folder and all of its subfolders to the always exclude file
+                        // Add the renamed folder and all of its subfolders to the always_exclude file
                         while (relativeFolderPaths.Count > 0)
                         {
                             string folderPath = relativeFolderPaths.Dequeue();

@@ -75,7 +75,7 @@ namespace GVFS.Common
                     Process process;
                     if (ProcessHelper.TryGetProcess(requester.PID, out process))
                     {
-                        this.processWatcher.WatchForTermination(requester.PID, GVFSConstants.CommandParentExecutableNames);
+                        this.processWatcher.WatchForTermination(requester.PID, GVFSConstants.CommandParentExePrefix);
 
                         process.Dispose();
                         this.lockHolder = requester;
@@ -253,7 +253,7 @@ namespace GVFS.Common
 
                     if (this.lockHolder == null)
                     {
-                        metadata.Add("Result", "Failed (no current holder)");
+                        metadata.Add("Result", "Failed (no current holder, requested PID=" + pid + ")");
                         return false;
                     }
 

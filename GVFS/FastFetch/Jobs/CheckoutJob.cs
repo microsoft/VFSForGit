@@ -46,6 +46,11 @@ namespace FastFetch.Jobs
         
         public BlockingCollection<string> AvailableBlobShas { get; }
 
+        public bool UpdatedWholeTree
+        {
+            get { return this.diff.UpdatedWholeTree; }
+        }
+
         protected override void DoBeforeWork()
         {
             this.diff.PerformDiff(this.targetCommitSha);

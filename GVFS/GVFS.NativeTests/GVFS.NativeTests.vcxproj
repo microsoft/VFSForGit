@@ -14,7 +14,7 @@
     <ProjectGuid>{3771C555-B5C1-45E2-B8B7-2CEF1619CDC5}</ProjectGuid>
     <Keyword>Win32Proj</Keyword>
     <RootNamespace>GVFSNativeTests</RootNamespace>
-    <WindowsTargetPlatformVersion>8.1</WindowsTargetPlatformVersion>
+    <WindowsTargetPlatformVersion>10.0.10240.0</WindowsTargetPlatformVersion>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'" Label="Configuration">
@@ -60,13 +60,13 @@
       <PreprocessorDefinitions>_DEBUG;_WINDOWS;_USRDLL;GVFSNATIVETESTS_EXPORTS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <SDLCheck>true</SDLCheck>
       <TreatWarningAsError>true</TreatWarningAsError>
-      <AdditionalIncludeDirectories>$(SolutionDir)\GVFS\$(Projectname)\include;$(SolutionDir)\GVFS\$(Projectname)\interface;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>C:\Program Files (x86)\Windows Kits\10\Include\10.0.10240.0\ucrt;$(SolutionDir)\GVFS\$(Projectname)\include;$(SolutionDir)\GVFS\$(Projectname)\interface;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <SubSystem>Windows</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <AdditionalDependencies>gvlib.lib;fltlib.lib;Shlwapi.lib;%(AdditionalDependencies)</AdditionalDependencies>
-      <AdditionalLibraryDirectories>$(SolutionDir)\..\packages\Microsoft.GVFS.GvFlt.0.17417.1-preview\lib</AdditionalLibraryDirectories>
+      <AdditionalLibraryDirectories>C:\Program Files (x86)\Windows Kits\10\Lib\10.0.10240.0\ucrt\x64;$(SolutionDir)\..\packages\Microsoft.GVFS.GvFlt.0.17417.1-preview\lib</AdditionalLibraryDirectories>
     </Link>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
@@ -79,7 +79,7 @@
       <PreprocessorDefinitions>NDEBUG;_WINDOWS;_USRDLL;GVFSNATIVETESTS_EXPORTS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <SDLCheck>true</SDLCheck>
       <TreatWarningAsError>true</TreatWarningAsError>
-      <AdditionalIncludeDirectories>$(SolutionDir)\GVFS\$(Projectname)\include;$(SolutionDir)\GVFS\$(Projectname)\interface;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>C:\Program Files (x86)\Windows Kits\10\Include\10.0.10240.0\ucrt;$(SolutionDir)\GVFS\$(Projectname)\include;$(SolutionDir)\GVFS\$(Projectname)\interface;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <SubSystem>Windows</SubSystem>
@@ -87,7 +87,7 @@
       <OptimizeReferences>true</OptimizeReferences>
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <AdditionalDependencies>gvlib.lib;fltlib.lib;Shlwapi.lib;%(AdditionalDependencies)</AdditionalDependencies>
-      <AdditionalLibraryDirectories>$(SolutionDir)\..\packages\Microsoft.GVFS.GvFlt.0.17417.1-preview\lib</AdditionalLibraryDirectories>
+      <AdditionalLibraryDirectories>C:\Program Files (x86)\Windows Kits\10\Lib\10.0.10240.0\ucrt\x64;$(SolutionDir)\..\packages\Microsoft.GVFS.GvFlt.0.17417.1-preview\lib</AdditionalLibraryDirectories>
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>

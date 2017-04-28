@@ -641,7 +641,7 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
             this.ValidateGitCommand("reset --mixed 99fc72275f950b0052c8548bbcf83a851f2b4467");
 
             // This test will fail if the checkout get the GVFS lock before the BG thread
-            // because the always exclude will not be updated and the GVFS repo will not warn
+            // because the always_exclude will not be updated and the GVFS repo will not warn
             // of untracked files that would be overwritten by the checkout.
             this.ValidateGitCommand("checkout " + this.ControlGitRepo.Commitish);
         }

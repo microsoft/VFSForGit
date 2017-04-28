@@ -89,8 +89,9 @@ namespace GVFS.CommandLine
                 }
             }
 
+            bool allowUpgrade = true;
             string error;
-            if (!RepoMetadata.CheckDiskLayoutVersion(Path.Combine(enlistmentRoot, GVFSConstants.DotGVFSPath), out error))
+            if (!RepoMetadata.CheckDiskLayoutVersion(Path.Combine(enlistmentRoot, GVFSConstants.DotGVFSPath), allowUpgrade, out error))
             {
                 this.ReportErrorAndExit("Error: " + error);
             }            

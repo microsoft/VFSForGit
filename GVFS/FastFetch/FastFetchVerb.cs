@@ -113,6 +113,15 @@ namespace FastFetch
         public string PathWhitelistFile { get; set; }
 
         [Option(
+            "Allow-index-metadata-update-from-working-tree",
+            Required = false,
+            Default = false,
+            HelpText = "When specified, index metadata (file times and sizes) is updated from disk if not already in the index.  " +
+                       "This flag should only be used when the working tree is known to be in a good state.  " +
+                       "Do not use this flag if the working tree is not 100% known to be good as it would cause 'git status' to misreport.")]
+        public bool AllowIndexMetadataUpdateFromWorkingTree { get; set; }
+
+        [Option(
             "verbose",
             Required = false,
             Default = false,
@@ -281,7 +290,8 @@ namespace FastFetch
                     this.SearchThreadCount,
                     this.DownloadThreadCount,
                     this.IndexThreadCount,
-                    this.CheckoutThreadCount);
+                    this.CheckoutThreadCount,
+                    this.AllowIndexMetadataUpdateFromWorkingTree);
             }
             else
             {

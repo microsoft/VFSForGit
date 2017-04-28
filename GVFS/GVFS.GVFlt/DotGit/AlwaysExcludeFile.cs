@@ -33,7 +33,7 @@ namespace GVFS.GVFlt.DotGit
                 }
             }
 
-            // Ensure the default entry is always in the always exclude file
+            // Ensure the default entry is always in the always_exclude file
             if (this.entries.Add(DefaultEntry))
             {
                 this.fileSerializer.AppendLine(DefaultEntry);
@@ -54,7 +54,7 @@ namespace GVFS.GVFlt.DotGit
                 int numberOfPathPartsToUse = pathParts.Length;
                 if (!isFolder)
                 {
-                    // Don't need an entry for the file since only folders are in the always exclude
+                    // Don't need an entry for the file since only folders are in the always_exclude
                     numberOfPathPartsToUse -= 1;
                 }
 

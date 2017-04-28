@@ -11,70 +11,6 @@ namespace GVFS.Common
 {
     public static class ProcessHelper
     {
-        /// <summary>
-        /// Get the process Id for the highest process with the given name in the current process hierarchy.
-        /// </summary>
-        /// <param name="allowedParentExes">Names that are allowed for parent executables (e.g. git.exe, wish.exe)</param>
-        /// <returns>The process Id or -1 if not found.</returns>
-        public static int GetParentProcessId(HashSet<string> allowedParentExes)
-        {
-            Dictionary<int, Process> processesSnapshot = Process.GetProcesses().ToDictionary(p => p.Id);
-
-            int highestParentId = GVFSConstants.InvalidProcessId;
-            Process currentProcess = Process.GetCurrentProcess();
-            while (true)
-            {
-                ProcessBasicInformation processBasicInfo;
-                int size;
-                int result;
-                try
-                {
-                    result =
-                      NtQueryInformationProcess(
-                          currentProcess.Handle,
-                          0, // Denotes ProcessBasicInformation
-                          out processBasicInfo,
-                          Marshal.SizeOf(typeof(ProcessBasicInformation)),
-                          out size);
-                }
-                catch (InvalidOperationException)
-                {
-                    // If process has terminated, getting the Handle will throw here.
-                    return GVFSConstants.InvalidProcessId;
-                }
-
-                int potentialParentId = processBasicInfo.InheritedFromUniqueProcessId.ToInt32();
-                if (result != 0 || potentialParentId == 0)
-                {
-                    return GetProcessIdIfHasName(highestParentId, allowedParentExes);
-                }
-
-                Process processFound;
-                if (processesSnapshot.TryGetValue(potentialParentId, out processFound))
-                {
-                    if (allowedParentExes.Contains(processFound.MainModule.ModuleName))
-                    {
-                        highestParentId = potentialParentId;
-                    }
-                    else if (highestParentId > 0)
-                    {
-                        return GetProcessIdIfHasName(highestParentId, allowedParentExes);
-                    }
-                }
-                else 
-                {
-                    if (highestParentId > 0)
-                    {
-                        return GetProcessIdIfHasName(highestParentId, allowedParentExes);
-                    }
-
-                    return GVFSConstants.InvalidProcessId;
-                }
-
-                currentProcess = Process.GetProcessById(potentialParentId);
-            }
-        }
-
         public static bool TryGetProcess(int processId, out Process process)
         {
             try
@@ -217,31 +153,6 @@ namespace GVFS.Common
             }
         }
 
-        private static int GetProcessIdIfHasName(int processId, HashSet<string> allowedExeNames)
-        {
-            if (ProcessIdHasName(processId, allowedExeNames))
-            {
-                return processId;
-            }
-            else
-            {
-                return GVFSConstants.InvalidProcessId;
-            }
-        }
-
-        private static bool ProcessIdHasName(int processId, HashSet<string> allowedExeNames)
-        {
-            Process process;
-            if (TryGetProcess(processId, out process))
-            {
-                bool result = allowedExeNames.Contains(process.MainModule.ModuleName);
-                process.Dispose();
-                return result;
-            }
-
-            return false;
-        }
-
         private static string StartProcess(Process executingProcess)
         {
             executingProcess.Start();
@@ -260,28 +171,6 @@ namespace GVFS.Common
             executingProcess.WaitForExit();
 
             return output;
-        }
-
-        [DllImport("ntdll.dll")]
-        private static extern int NtQueryInformationProcess(
-            IntPtr processHandle,
-            int processInformationClass,
-            out ProcessBasicInformation processInformation,
-            int processInformationLength,
-            out int returnLength);
-
-        [DllImport("kernel32.dll")]
-        private static extern IntPtr GetConsoleWindow();
-
-        [StructLayout(LayoutKind.Sequential)]
-        private struct ProcessBasicInformation
-        {
-            public IntPtr ExitStatus;
-            public IntPtr PebBaseAddress;
-            public IntPtr AffinityMask;
-            public IntPtr BasePriority;
-            public UIntPtr UniqueProcessId;
-            public IntPtr InheritedFromUniqueProcessId;
         }
     }
 }

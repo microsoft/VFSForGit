@@ -12,6 +12,8 @@ namespace GVFS.Common
         public const int ERROR_FILE_NOT_FOUND = 2;
         public const int ERROR_FILE_EXISTS = 80;
 
+        private const uint EVENT_TRACE_CONTROL_FLUSH = 3;
+
         public enum FileAttributes : uint
         {
             FILE_ATTRIBUTE_READONLY            = 1,
@@ -122,6 +124,18 @@ namespace GVFS.Common
             return result;
         }
 
+        public static uint FlushTraceLogger(string sessionName, string sessionGuid, out string logfileName)
+        {
+            EventTraceProperties properties = new EventTraceProperties();
+            properties.Wnode.BufferSize = (uint)Marshal.SizeOf(properties);
+            properties.Wnode.Guid = new Guid(sessionGuid);
+            properties.LoggerNameOffset = (uint)Marshal.OffsetOf(typeof(EventTraceProperties), "LoggerName");
+            properties.LogFileNameOffset = (uint)Marshal.OffsetOf(typeof(EventTraceProperties), "LogFileName");
+            uint result = ControlTrace(0, sessionName, ref properties, EVENT_TRACE_CONTROL_FLUSH);
+            logfileName = properties.LogFileName;
+            return result;
+        }
+
         public static void ThrowWin32Exception(int error, params int[] ignoreErrors)
         {
             if (ignoreErrors.Any(ignored => ignored == error))
@@ -146,6 +160,56 @@ namespace GVFS.Common
             [MarshalAs(UnmanagedType.U4)]FileMode dwCreationDisposition,
             [MarshalAs(UnmanagedType.U4)]FileAttributes dwFlagsAndAttributes,
             [In] IntPtr hTemplateFile);
+
+        [DllImport("advapi32.dll", EntryPoint = "ControlTraceW", CharSet = CharSet.Unicode)]
+        private static extern uint ControlTrace(
+            [In] ulong sessionHandle,
+            [In] string sessionName,
+            [In, Out] ref EventTraceProperties properties,
+            [In] uint controlCode);
+
+        [StructLayout(LayoutKind.Sequential)]
+        private struct WNodeHeader
+        {
+            public uint BufferSize;
+            public uint ProviderId;
+            public ulong HistoricalContext;
+            public ulong TimeStamp;
+            public Guid Guid;
+            public uint ClientContext;
+            public uint Flags;
+        }
+
+        [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
+        private struct EventTraceProperties
+        {
+            public WNodeHeader Wnode;
+            public uint BufferSize;
+            public uint MinimumBuffers;
+            public uint MaximumBuffers;
+            public uint MaximumFileSize;
+            public uint LogFileMode;
+            public uint FlushTimer;
+            public uint EnableFlags;
+            public int AgeLimit;
+            public uint NumberOfBuffers;
+            public uint FreeBuffers;
+            public uint EventsLost;
+            public uint BuffersWritten;
+            public uint LogBuffersLost;
+            public uint RealTimeBuffersLost;
+            public IntPtr LoggerThreadId;
+            public uint LogFileNameOffset;
+            public uint LoggerNameOffset;
+
+            // "You can use the maximum session name (1024 characters) and maximum log file name (1024 characters) lengths to calculate the buffer size and offsets if not known"
+            // https://msdn.microsoft.com/en-us/library/windows/desktop/aa363696(v=vs.85).aspx
+            [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 1024)]
+            public string LoggerName;
+
+            [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 1024)]
+            public string LogFileName;
+        }
 
         public class Win32FileExistsException : Win32Exception
         {

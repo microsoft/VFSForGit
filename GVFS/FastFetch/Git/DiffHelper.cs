@@ -59,6 +59,11 @@ namespace GVFS.Common.Git
             get { return this.stagedFileDeletes.Count; }
         }
 
+        /// <summary>
+        /// Returns true if the whole tree was updated
+        /// </summary>
+        public bool UpdatedWholeTree { get; internal set; } = false;
+
         public void PerformDiff(string targetCommitSha)
         {
             string targetTreeSha;
@@ -84,6 +89,8 @@ namespace GVFS.Common.Git
                 metadata = new EventMetadata();
                 if (sourceTreeSha == null)
                 {
+                    this.UpdatedWholeTree = true;
+
                     // Nothing is checked out (fresh git init), so we must search the entire tree.
                     git.LsTree(
                         targetTreeSha,

@@ -47,7 +47,7 @@ namespace GVFS.FunctionalTests.Tests.LongRunningEnlistment
             GitHelpers.AcquireGVFSLock(this.Enlistment, resetTimeout: 3000);
 
             ProcessResult statusWait = GitHelpers.InvokeGitAgainstGVFSRepo(this.Enlistment.RepoRoot, "status", cleanErrors: false);
-            statusWait.Errors.ShouldContain("Waiting for 'git hash-object --stdin' to release the lock.");
+            statusWait.Errors.ShouldContain("Waiting for 'git hash-object --stdin");
         }
 
         [TestCase, Order(5)]
@@ -58,7 +58,7 @@ namespace GVFS.FunctionalTests.Tests.LongRunningEnlistment
             GitHelpers.AcquireGVFSLock(this.Enlistment, resetTimeout: 3000);
             GitHelpers.CheckGitCommand(this.Enlistment.RepoRoot, "config --local alias." + alias + " status");
             ProcessResult statusWait = GitHelpers.InvokeGitAgainstGVFSRepo(this.Enlistment.RepoRoot, alias, cleanErrors: false);
-            statusWait.Errors.ShouldContain("Waiting for 'git hash-object --stdin' to release the lock.");
+            statusWait.Errors.ShouldContain("Waiting for 'git hash-object --stdin");
         }
     }
 }

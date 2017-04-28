@@ -81,7 +81,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerTestCase
             string folderToRenameTarget = this.Enlistment.GetVirtualPathTo(RenameFolderTarget);
             fileSystem.MoveDirectory(folderToRename, folderToRenameTarget);
 
-            // Moving the new folder out of the repo should not change the always exclude file
+            // Moving the new folder out of the repo should not change the always_exclude file
             string folderTargetOutsideSrc = Path.Combine(this.Enlistment.EnlistmentRoot, RenameFolderTarget);
             folderTargetOutsideSrc.ShouldNotExistOnDisk(fileSystem);
             fileSystem.MoveDirectory(folderToRenameTarget, folderTargetOutsideSrc);

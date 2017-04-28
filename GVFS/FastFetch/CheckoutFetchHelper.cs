@@ -17,7 +17,9 @@ namespace FastFetch
     {
         private const string AreaPath = nameof(CheckoutFetchHelper);
 
-        private int checkoutThreadCount;
+        private readonly bool allowIndexMetadataUpdateFromWorkingTree;
+
+        private readonly int checkoutThreadCount;
 
         public CheckoutFetchHelper(
             ITracer tracer,
@@ -26,9 +28,11 @@ namespace FastFetch
             int searchThreadCount,
             int downloadThreadCount,
             int indexThreadCount,
-            int checkoutThreadCount) : base(tracer, enlistment, chunkSize, searchThreadCount, downloadThreadCount, indexThreadCount)
+            int checkoutThreadCount,
+            bool allowIndexMetadataUpdateFromWorkingTree) : base(tracer, enlistment, chunkSize, searchThreadCount, downloadThreadCount, indexThreadCount)
         {
             this.checkoutThreadCount = checkoutThreadCount;
+            this.allowIndexMetadataUpdateFromWorkingTree = allowIndexMetadataUpdateFromWorkingTree;
         }
 
         /// <param name="branchOrCommit">A specific branch to filter for, or null for all branches returned from info/refs</param>
@@ -118,12 +122,54 @@ namespace FastFetch
                 // Update the index
                 using (ITracer activity = this.Tracer.StartActivity("UpdateIndex", EventLevel.Informational))
                 {
+                    // The first bit of core.gvfs is set if index signing is turned off.
+                    const uint CoreGvfsUnsignedIndexFlag = 1;
+
                     GitProcess git = new GitProcess(this.Enlistment);
-                    GitProcess.Result result = git.ReadTree("HEAD");
+
+                    // Only update the index if index signing is turned off.
+
+                    // The first bit of core.gvfs is set if signing is turned off.
+                    GitProcess.Result configCoreGvfs = git.GetFromConfig("core.gvfs");
+                    uint valueCoreGvfs;
+
+                    // No errors getting the configuration *and it is either "true" or numeric with the right bit set.
+                    bool indexSigningIsTurnedOff =
+                        !configCoreGvfs.HasErrors &&
+                        !string.IsNullOrEmpty(configCoreGvfs.Output) &&
+                        (configCoreGvfs.Output.Equals("true", StringComparison.OrdinalIgnoreCase) ||
+                         (uint.TryParse(configCoreGvfs.Output, out valueCoreGvfs) &&
+                          ((valueCoreGvfs & CoreGvfsUnsignedIndexFlag) == CoreGvfsUnsignedIndexFlag)));
+
+                    // Create the index object now so it can track the current index
+                    Index index = indexSigningIsTurnedOff ? new Index(this.Enlistment.EnlistmentRoot, activity) : null;
+
+                    GitProcess.Result result;
+                    using (ITracer updateIndexActivity = this.Tracer.StartActivity("ReadTree", EventLevel.Informational))
+                    {
+                        result = git.ReadTree("HEAD");
+                    }
+
                     if (result.HasErrors)
                     {
                         activity.RelatedError("Could not read HEAD tree to update index: " + result.Errors);
                         this.HasFailures = true;
+                    }
+                    else
+                    {
+                        if (index != null) 
+                        {
+                            // Update from disk only if the caller says it is ok via command line
+                            // or if we updated the whole tree and know that all files are up to date
+                            bool allowIndexMetadataUpdateFromWorkingTree = this.allowIndexMetadataUpdateFromWorkingTree || checkout.UpdatedWholeTree;
+
+                            // Update
+                            index.UpdateFileSizesAndTimes(allowIndexMetadataUpdateFromWorkingTree);
+                        }
+                        else
+                        {
+                            activity.RelatedEvent(EventLevel.Informational, "Core.gvfs is not set, so not updating index entries with file times and sizes.", null);
+                        }
                     }
                 }
             }

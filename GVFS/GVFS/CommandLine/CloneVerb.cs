@@ -273,7 +273,11 @@ namespace GVFS.CommandLine
                     return new Result(error);
                 }
 
-                this.CheckAntiVirusExclusion(enlistment);
+                // Only check Defender exclusions if not mounting, otherwise let mount take care of it.
+                if (this.NoMount)
+                {
+                    this.CheckAntiVirusExclusion(enlistment);
+                }
 
                 CloneHelper cloneHelper = new CloneHelper(tracer, enlistment, httpGitObjects);
                 return cloneHelper.CreateClone(refs, this.Branch);

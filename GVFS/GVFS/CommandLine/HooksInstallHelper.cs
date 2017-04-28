@@ -39,7 +39,7 @@ namespace GVFS.CommandLine
 
         private static void CopyReadObjectHook(GVFSEnlistment enlistment, string installedReadObjectHookPath)
         {
-            string targetPath = Path.Combine(enlistment.WorkingDirectoryRoot, GVFSConstants.DotGit.Hooks.ReadObjectPath + GVFSConstants.DotGit.Hooks.ExecutableExtension);
+            string targetPath = Path.Combine(enlistment.WorkingDirectoryRoot, GVFSConstants.DotGit.Hooks.ReadObjectPath + GVFSConstants.ExecutableExtension);
             if (File.Exists(targetPath))
             {
                 File.Delete(targetPath);
@@ -57,14 +57,18 @@ namespace GVFS.CommandLine
             //      Create a text file named hook-name.hooks that lists the applications to execute for the hook, one application per line
 
             string gitHooksloaderPath = Path.Combine(Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location), GVFSConstants.DotGit.Hooks.LoaderExecutable);
-            TryActionAndThrow(() => CopyGitHooksLoader(gitHooksloaderPath, commandHookPath), "Failed to copy " + GVFSConstants.DotGit.Hooks.LoaderExecutable + " to " + commandHookPath + GVFSConstants.DotGit.Hooks.ExecutableExtension);
+            TryActionAndThrow(
+                () => CopyGitHooksLoader(gitHooksloaderPath, commandHookPath), 
+                "Failed to copy " + GVFSConstants.DotGit.Hooks.LoaderExecutable + " to " + commandHookPath + GVFSConstants.ExecutableExtension);
 
-            TryActionAndThrow(() => CreateHookCommandConfig(enlistment, hookName, commandHookPath), "Failed to create " + commandHookPath + GVFSConstants.DotGit.Hooks.ConfigExtension);
+            TryActionAndThrow(
+                () => CreateHookCommandConfig(enlistment, hookName, commandHookPath), 
+                "Failed to create " + commandHookPath + GVFSConstants.DotGit.Hooks.ConfigExtension);
         }
 
         private static void CopyGitHooksLoader(string gitHooksLoaderPath, string commandHookPath)
         {
-            string targetPath = commandHookPath + GVFSConstants.DotGit.Hooks.ExecutableExtension;
+            string targetPath = commandHookPath + GVFSConstants.ExecutableExtension;
             if (File.Exists(targetPath))
             {
                 File.Delete(targetPath);
@@ -101,9 +105,9 @@ namespace GVFS.CommandLine
             string filename;
             string defaultHooks = string.Empty;
 
-            if (configProcess.TryGetFromConfig(configSettingName, forceOutsideEnlistment: true, value: out filename) &&
-                File.Exists(filename))
+            if (configProcess.TryGetFromConfig(configSettingName, forceOutsideEnlistment: true, value: out filename))
             {
+                filename = filename.Trim(' ', '\n');
                 defaultHooks = Environment.NewLine + File.ReadAllText(filename);
             }
 
