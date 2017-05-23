@@ -1,4 +1,5 @@
 ﻿using GVFS.Common.Git;
+using GVFS.Common.Http;
 using System;
 using System.IO;
 using System.Linq;
@@ -14,7 +15,7 @@ namespace GVFS.Common
 
         private const string GVFSGitConfigPrefix = "gvfs.";
         private const string CacheEndpointGitConfigSuffix = ".cache-server-url";
-
+                    
         // New enlistment
         protected Enlistment(string enlistmentRoot, string workingDirectoryRoot, string repoUrl, string cacheServerUrl, string gitBinPath, string gvfsHooksRoot)
         {
@@ -22,7 +23,7 @@ namespace GVFS.Common
             {
                 throw new ArgumentException("Path to git.exe must be set");
             }
-
+            
             this.EnlistmentRoot = enlistmentRoot;
             this.WorkingDirectoryRoot = workingDirectoryRoot;
             this.GitBinPath = gitBinPath;
@@ -30,7 +31,8 @@ namespace GVFS.Common
             this.RepoUrl = repoUrl;
 
             this.SetComputedPaths();
-            this.SetComputedURLs(cacheServerUrl);            
+            this.SetComputedURLs(cacheServerUrl);
+            this.Authentication = new GitAuthentication(this);
         }
 
         // Existing, configured enlistment
@@ -40,7 +42,7 @@ namespace GVFS.Common
             {
                 throw new ArgumentException("Path to git.exe must be set");
             }
-
+            
             this.EnlistmentRoot = enlistmentRoot;
             this.WorkingDirectoryRoot = workingDirectoryRoot;
             this.GitBinPath = gitBinPath;
@@ -56,6 +58,8 @@ namespace GVFS.Common
 
             this.RepoUrl = originResult.Output;
             this.SetComputedURLs(cacheServerUrl);
+
+            this.Authentication = new GitAuthentication(this);
         }
 
         public string EnlistmentRoot { get; }
@@ -72,6 +76,8 @@ namespace GVFS.Common
         public string GitBinPath { get; }
         public string GVFSHooksRoot { get; }
 
+        public GitAuthentication Authentication { get; }
+        
         public static string StripObjectsEndpointSuffix(string input)
         {
             if (!string.IsNullOrWhiteSpace(input) && input.EndsWith(ObjectsEndpointSuffix))

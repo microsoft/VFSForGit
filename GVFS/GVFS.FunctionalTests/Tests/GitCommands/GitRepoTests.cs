@@ -1,7 +1,6 @@
 ﻿using GVFS.FunctionalTests.FileSystemRunners;
 using GVFS.FunctionalTests.Should;
 using GVFS.FunctionalTests.Tools;
-using GVFS.Tests.Should;
 using NUnit.Framework;
 using NUnit.Framework.Interfaces;
 using System.IO;
@@ -74,7 +73,7 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
 
             this.CheckHeadCommitTree();
             this.Enlistment.RepoRoot.ShouldBeADirectory(this.FileSystem)
-                .WithDeepStructure(this.ControlGitRepo.RootPath, skipEmptyDirectories: true);
+                .WithDeepStructure(this.FileSystem, this.ControlGitRepo.RootPath, skipEmptyDirectories: true);
             this.ValidateGitCommand("status");
         }
 
@@ -99,7 +98,7 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
 
                 this.CheckHeadCommitTree();
                 this.Enlistment.RepoRoot.ShouldBeADirectory(this.FileSystem)
-                    .WithDeepStructure(this.ControlGitRepo.RootPath, skipEmptyDirectories: true, ignoreCase: ignoreCase);
+                    .WithDeepStructure(this.FileSystem, this.ControlGitRepo.RootPath, skipEmptyDirectories: true, ignoreCase: ignoreCase);
 
                 this.RunGitCommand("reset --hard -q HEAD");
                 this.RunGitCommand("clean -d -f -x");
@@ -107,7 +106,7 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
 
                 this.CheckHeadCommitTree();
                 this.Enlistment.RepoRoot.ShouldBeADirectory(this.FileSystem)
-                    .WithDeepStructure(this.ControlGitRepo.RootPath, skipEmptyDirectories: true, ignoreCase: ignoreCase);
+                    .WithDeepStructure(this.FileSystem, this.ControlGitRepo.RootPath, skipEmptyDirectories: true, ignoreCase: ignoreCase);
             }
             finally
             {
@@ -170,7 +169,7 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
             ProcessResult actualResult = GitHelpers.InvokeGitAgainstGVFSRepo(gvfsRepoRoot, command);
             if (!ignoreErrors)
             {
-                actualResult.Errors.ShouldEqual(expectedResult.Errors);
+                GitHelpers.ErrorsShouldMatch(command, expectedResult, actualResult);
             }
 
             if (command != "status" && checkStatus)

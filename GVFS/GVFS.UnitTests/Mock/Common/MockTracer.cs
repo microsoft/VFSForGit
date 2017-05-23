@@ -1,6 +1,5 @@
 ﻿using GVFS.Common.Tracing;
 using Microsoft.Diagnostics.Tracing;
-using System;
 
 namespace GVFS.UnitTests.Mock.Common
 {
@@ -39,23 +38,14 @@ namespace GVFS.UnitTests.Mock.Common
             return new MockTracer();
         }
 
-        public ITracer StartActivity(string activityName, EventLevel level, Keywords keyword)
-        {
-            return new MockTracer();
-        }
-
         public ITracer StartActivity(string activityName, EventLevel level, EventMetadata metadata)
         {
             return new MockTracer();
         }
 
-        public ITracer StartActivity(string activityName, EventLevel level, EventMetadata metadata, Keywords keyword)
+        public ITracer StartActivity(string activityName, EventLevel level, Keywords startStopKeywords, EventMetadata metadata)
         {
             return new MockTracer();
-        }
-
-        public void Stop()
-        {
         }
 
         public void Stop(EventMetadata metadata)

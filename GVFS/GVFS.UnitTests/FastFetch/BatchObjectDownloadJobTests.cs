@@ -1,5 +1,6 @@
 ﻿using FastFetch.Jobs;
 using GVFS.Tests.Should;
+using GVFS.UnitTests.Category;
 using GVFS.UnitTests.Mock.Common;
 using GVFS.UnitTests.Mock.Physical.Git;
 using NUnit.Framework;
@@ -16,7 +17,10 @@ namespace GVFS.UnitTests.FastFetch
         private const int MaxParallel = 1;
         private const int ChunkSize = 2;
 
+        // This test confirms that if two objects are downloaded at the same time and the second
+        // object's download fails, the first object should not be downloaded again
         [TestCase]
+        [Category(CategoryConstants.ExceptionExpected)]
         public void OnlyRequestsObjectsNotDownloaded()
         {
             string obj1Sha = new string('1', 40);

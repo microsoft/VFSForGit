@@ -1,6 +1,7 @@
 ﻿using CommandLine;
 using GVFS.Common;
 using GVFS.Common.Git;
+using GVFS.Common.Http;
 using GVFS.Common.NamedPipes;
 using GVFS.Common.Physical;
 using GVFS.Common.Tracing;
@@ -45,7 +46,7 @@ namespace GVFS.CommandLine
 
         public bool SkipMountedCheck { get; set; }
         public bool SkipVersionCheck { get; set; }
-        
+
         protected override string VerbName
         {
             get { return MountVerbName; }
@@ -94,7 +95,7 @@ namespace GVFS.CommandLine
             if (!RepoMetadata.CheckDiskLayoutVersion(Path.Combine(enlistmentRoot, GVFSConstants.DotGVFSPath), allowUpgrade, out error))
             {
                 this.ReportErrorAndExit("Error: " + error);
-            }            
+            }
         }
 
         protected override void Execute(GVFSEnlistment enlistment)
@@ -104,7 +105,7 @@ namespace GVFS.CommandLine
             {
                 this.ReportErrorAndExit("Error installing hooks: " + errorMessage);
             }
-            
+
             if (!this.ShowStatusWhileRunning(
                 () => { return this.RequestMount(enlistment, out errorMessage); },
                 "Mounting"))
@@ -130,8 +131,13 @@ namespace GVFS.CommandLine
             {
                 using (ITracer mountTracer = new JsonEtwTracer(GVFSConstants.GVFSEtwProviderName, "Mount"))
                 {
-                    HttpGitObjects gitObjects = new HttpGitObjects(mountTracer, enlistment, maxConnections: 1);
-                    this.ValidateGVFSVersion(enlistment, gitObjects, mountTracer);
+                    this.CheckVolumeSupportsDeleteNotifications(mountTracer, enlistment);
+
+                    using (ConfigHttpRequestor configRequestor = new ConfigHttpRequestor(mountTracer, enlistment))
+                    {
+                        GVFSConfig config = configRequestor.QueryGVFSConfig();
+                        this.ValidateGVFSVersion(enlistment, config, mountTracer);
+                    }
                 }
             }
 

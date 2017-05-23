@@ -1,5 +1,9 @@
 ﻿using GVFS.FunctionalTests.Category;
+using GVFS.FunctionalTests.Should;
+using GVFS.FunctionalTests.Tools;
+using GVFS.Tests.Should;
 using NUnit.Framework;
+using System.IO;
 
 namespace GVFS.FunctionalTests.Tests.GitCommands
 {
@@ -81,6 +85,173 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
             this.ControlGitRepo.Fetch("FunctionalTests/20170331_git_crash");
             this.ValidateGitCommand("checkout FunctionalTests/20170331_git_crash");
             this.ValidateGitCommand("status");
+        }
+
+        [TestCase]
+        public void CheckoutCommitWhereFileContentsChangeAfterRead()
+        {
+            this.ControlGitRepo.Fetch(GitRepoTests.ConflictSourceBranch);
+
+            string fileName = "SameChange.txt";
+
+            // In commit 170b13ce1990c53944403a70e93c257061598ae0 the initial files for the FunctionalTests/20170206_Conflict_Source branch were created
+            this.ValidateGitCommand("checkout 170b13ce1990c53944403a70e93c257061598ae0");
+            this.FileContentsShouldMatch(@"Test_ConflictTests\ModifiedFiles\" + fileName);
+
+            // A read should not add the file to the sparse-checkout
+            string sparseFile = Path.Combine(this.Enlistment.RepoRoot, TestConstants.DotGit.Info.SparseCheckout);
+            sparseFile.ShouldBeAFile(this.FileSystem).WithContents().ShouldNotContain(ignoreCase: true, unexpectedSubstrings: fileName);
+
+            this.ValidateGitCommand("checkout FunctionalTests/20170206_Conflict_Source");
+            this.FileContentsShouldMatch(@"Test_ConflictTests\ModifiedFiles\" + fileName);
+            sparseFile.ShouldBeAFile(this.FileSystem).WithContents().ShouldNotContain(ignoreCase: true, unexpectedSubstrings: fileName);
+        }
+
+        [TestCase]
+        public void CheckoutCommitWhereFileDeletedAfterRead()
+        {
+            this.ControlGitRepo.Fetch(GitRepoTests.ConflictSourceBranch);
+
+            string fileName = "DeleteInSource.txt";
+            string filePath = @"Test_ConflictTests\DeletedFiles\" + fileName;
+
+            // In commit 170b13ce1990c53944403a70e93c257061598ae0 the initial files for the FunctionalTests/20170206_Conflict_Source branch were created
+            this.ValidateGitCommand("checkout 170b13ce1990c53944403a70e93c257061598ae0");
+            this.FileContentsShouldMatch(filePath);
+
+            // A read should not add the file to the sparse-checkout
+            string sparseFile = Path.Combine(this.Enlistment.RepoRoot, TestConstants.DotGit.Info.SparseCheckout);
+            sparseFile.ShouldBeAFile(this.FileSystem).WithContents().ShouldNotContain(ignoreCase: true, unexpectedSubstrings: fileName);
+
+            this.ValidateGitCommand("checkout FunctionalTests/20170206_Conflict_Source");
+            this.ShouldNotExistOnDisk(filePath);
+            sparseFile.ShouldBeAFile(this.FileSystem).WithContents().ShouldNotContain(ignoreCase: true, unexpectedSubstrings: fileName);
+        }
+
+        [TestCase]
+        public void CheckoutBranchAfterReadingFileAndVerifyContentsCorrect()
+        {
+            this.ControlGitRepo.Fetch(GitRepoTests.ConflictSourceBranch);
+            this.ControlGitRepo.Fetch(GitRepoTests.ConflictTargetBranch);
+
+            this.ValidateGitCommand("checkout " + GitRepoTests.ConflictTargetBranch);
+            this.FilesShouldMatchCheckoutOfTargetBranch();
+
+            this.ValidateGitCommand("checkout " + GitRepoTests.ConflictSourceBranch);
+            this.FilesShouldMatchCheckoutOfSourceBranch();
+
+            // Verify sparse-checkout contents
+            string sparseCheckoutFile = Path.Combine(this.Enlistment.RepoRoot, TestConstants.DotGit.Info.SparseCheckout);
+            sparseCheckoutFile.ShouldBeAFile(this.FileSystem).WithContents().ShouldEqual("/.gitattributes\n");
+        }
+
+        [TestCase]
+        public void CheckoutBranchAfterReadingAllFilesAndVerifyContentsCorrect()
+        {
+            this.ControlGitRepo.Fetch(GitRepoTests.ConflictSourceBranch);
+            this.ControlGitRepo.Fetch(GitRepoTests.ConflictTargetBranch);
+
+            this.ValidateGitCommand("checkout " + GitRepoTests.ConflictTargetBranch);
+            this.Enlistment.RepoRoot.ShouldBeADirectory(this.FileSystem)
+                .WithDeepStructure(this.FileSystem, this.ControlGitRepo.RootPath, skipEmptyDirectories: true, compareContent: true);
+
+            this.ValidateGitCommand("checkout " + GitRepoTests.ConflictSourceBranch);
+            this.Enlistment.RepoRoot.ShouldBeADirectory(this.FileSystem)
+                .WithDeepStructure(this.FileSystem, this.ControlGitRepo.RootPath, skipEmptyDirectories: true, compareContent: true);
+
+            // Verify sparse-checkout contents
+            string sparseCheckoutFile = Path.Combine(this.Enlistment.RepoRoot, TestConstants.DotGit.Info.SparseCheckout);
+            sparseCheckoutFile.ShouldBeAFile(this.FileSystem).WithContents().ShouldEqual("/.gitattributes\n");
+        }
+
+        [TestCase]
+        public void DeleteEmptyFolderPlaceholderAndCheckoutBranchThatHasFolder()
+        {
+            // this.ControlGitRepo.Commitish should not have the folder Test_ConflictTests\AddedFiles
+            string testFolder = @"Test_ConflictTests\AddedFiles";
+            this.ShouldNotExistOnDisk(testFolder);
+
+            this.ControlGitRepo.Fetch(GitRepoTests.ConflictSourceBranch);
+            this.ValidateGitCommand("checkout " + GitRepoTests.ConflictSourceBranch);
+            string testFile = testFolder + @"\AddedByBothDifferentContent.txt";
+            this.FileContentsShouldMatch(testFile);
+
+            // Move back to this.ControlGitRepo.Commitish where testFolder and testFile are not in the repo
+            this.ValidateGitCommand("checkout " + this.ControlGitRepo.Commitish);
+            this.ShouldNotExistOnDisk(testFile);
+
+            // Test_ConflictTests\AddedFiles will only be on disk in the GVFS enlistment, delete it there
+            string virtualFolder = Path.Combine(this.Enlistment.RepoRoot, testFolder);
+            string controlFolder = Path.Combine(this.ControlGitRepo.RootPath, testFolder);
+            controlFolder.ShouldNotExistOnDisk(this.FileSystem);
+            this.FileSystem.DeleteDirectory(virtualFolder);
+            virtualFolder.ShouldNotExistOnDisk(this.FileSystem);
+
+            // Move back to GitRepoTests.ConflictSourceBranch where testFolder and testFile are present
+            this.ValidateGitCommand("checkout " + GitRepoTests.ConflictSourceBranch);
+            this.FileContentsShouldMatch(testFile);
+        }
+
+        [TestCase]
+        public void DeleteEmptyFolderPlaceholderAndCheckoutBranchThatDoesNotHaveFolder()
+        {
+            // this.ControlGitRepo.Commitish should not have the folder Test_ConflictTests\AddedFiles
+            string testFolder = @"Test_ConflictTests\AddedFiles";
+            this.ShouldNotExistOnDisk(testFolder);
+
+            this.ControlGitRepo.Fetch(GitRepoTests.ConflictSourceBranch);
+            this.ValidateGitCommand("checkout " + GitRepoTests.ConflictSourceBranch);
+
+            string testFile = testFolder + @"\AddedByBothDifferentContent.txt";
+            this.FileContentsShouldMatch(testFile);
+            this.ValidateGitCommand("checkout " + this.ControlGitRepo.Commitish);
+            this.ShouldNotExistOnDisk(testFile);
+
+            this.ValidateGitCommand("checkout -b tests/functional/DeleteEmptyFolderPlaceholderAndCheckoutBranchThatHasFolder" + this.ControlGitRepo.Commitish);
+
+            // Test_ConflictTests\AddedFiles will only be on disk in the GVFS enlistment, delete it there
+            string virtualFolder = Path.Combine(this.Enlistment.RepoRoot, testFolder);
+            string controlFolder = Path.Combine(this.ControlGitRepo.RootPath, testFolder);
+            controlFolder.ShouldNotExistOnDisk(this.FileSystem);
+            this.FileSystem.DeleteDirectory(virtualFolder);
+            virtualFolder.ShouldNotExistOnDisk(this.FileSystem);
+
+            this.ValidateGitCommand("checkout " + this.ControlGitRepo.Commitish);
+        }
+
+        [TestCase]
+        public void EditFileReadFileAndCheckoutConflict()
+        {
+            // editFilePath was changed on ConflictTargetBranch
+            string editFilePath = @"Test_ConflictTests\ModifiedFiles\ChangeInTarget.txt";
+
+            // readFilePath has different contents on ConflictSourceBranch and ConflictTargetBranch
+            string readFilePath = @"Test_ConflictTests\ModifiedFiles\ChangeInSource.txt";
+
+            this.ControlGitRepo.Fetch(GitRepoTests.ConflictSourceBranch);
+            this.ControlGitRepo.Fetch(GitRepoTests.ConflictTargetBranch);
+            this.ValidateGitCommand("checkout " + GitRepoTests.ConflictSourceBranch);
+
+            this.EditFile(editFilePath, "New content");
+            this.FileContentsShouldMatch(readFilePath);
+            string originalReadFileContents = this.Enlistment.GetVirtualPathTo(readFilePath).ShouldBeAFile(this.FileSystem).WithContents();
+
+            // This checkout will hit a conflict due to the changes in editFilePath
+            this.ValidateGitCommand("checkout " + GitRepoTests.ConflictTargetBranch);
+            this.FileContentsShouldMatch(readFilePath);
+            this.FileContentsShouldMatch(editFilePath);
+
+            // The contents of originalReadFileContents should not have changed
+            this.Enlistment.GetVirtualPathTo(readFilePath).ShouldBeAFile(this.FileSystem).WithContents(originalReadFileContents);
+
+            this.ValidateGitCommand("checkout -- " + editFilePath.Replace('\\', '/'));
+            this.ValidateGitCommand("checkout " + GitRepoTests.ConflictTargetBranch);
+            this.FileContentsShouldMatch(readFilePath);
+            this.FileContentsShouldMatch(editFilePath);
+            this.Enlistment.GetVirtualPathTo(readFilePath).ShouldBeAFile(this.FileSystem).WithContents().ShouldNotEqual(originalReadFileContents);
+
+            string sparseCheckoutFile = Path.Combine(this.Enlistment.RepoRoot, TestConstants.DotGit.Info.SparseCheckout);
+            sparseCheckoutFile.ShouldBeAFile(this.FileSystem).WithContents().ShouldNotContain(ignoreCase: true, unexpectedSubstrings: Path.GetFileName(readFilePath));
         }
     }
 }

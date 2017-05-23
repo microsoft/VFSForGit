@@ -2,6 +2,7 @@
 using GVFS.FunctionalTests.Tools;
 using GVFS.Tests.Should;
 using NUnit.Framework;
+using System.IO;
 
 namespace GVFS.FunctionalTests.Tests.LongRunningEnlistment
 {
@@ -18,7 +19,7 @@ namespace GVFS.FunctionalTests.Tests.LongRunningEnlistment
         [TestCase, Order(1)]
         public void GitStatus()
         {
-            GitHelpers.CheckGitCommand(
+            GitHelpers.CheckGitCommandAgainstGVFSRepo(
                 this.Enlistment.RepoRoot,
                 "status",
                 "On branch " + Properties.Settings.Default.Commitish,
@@ -28,13 +29,13 @@ namespace GVFS.FunctionalTests.Tests.LongRunningEnlistment
         [TestCase, Order(2)]
         public void GitLog()
         {
-            GitHelpers.CheckGitCommand(this.Enlistment.RepoRoot, "log -n1", "commit", "Author:", "Date:");
+            GitHelpers.CheckGitCommandAgainstGVFSRepo(this.Enlistment.RepoRoot, "log -n1", "commit", "Author:", "Date:");
         }
 
         [TestCase, Order(3)]
         public void GitBranch()
         {
-            GitHelpers.CheckGitCommand(
+            GitHelpers.CheckGitCommandAgainstGVFSRepo(
                 this.Enlistment.RepoRoot,
                 "branch -a",
                 "* " + Properties.Settings.Default.Commitish,
@@ -56,9 +57,24 @@ namespace GVFS.FunctionalTests.Tests.LongRunningEnlistment
             string alias = nameof(this.GitAliasNamedAfterKnownCommandAcquiresLock);
 
             GitHelpers.AcquireGVFSLock(this.Enlistment, resetTimeout: 3000);
-            GitHelpers.CheckGitCommand(this.Enlistment.RepoRoot, "config --local alias." + alias + " status");
+            GitHelpers.CheckGitCommandAgainstGVFSRepo(this.Enlistment.RepoRoot, "config --local alias." + alias + " status");
             ProcessResult statusWait = GitHelpers.InvokeGitAgainstGVFSRepo(this.Enlistment.RepoRoot, alias, cleanErrors: false);
             statusWait.Errors.ShouldContain("Waiting for 'git hash-object --stdin");
+        }
+
+        [TestCase, Order(6)]
+        public void GitAliasInSubfolderNamedAfterKnownCommandAcquiresLock()
+        {
+            string alias = nameof(this.GitAliasInSubfolderNamedAfterKnownCommandAcquiresLock);
+
+            GitHelpers.AcquireGVFSLock(this.Enlistment, resetTimeout: 3000);
+            GitHelpers.CheckGitCommandAgainstGVFSRepo(this.Enlistment.RepoRoot, "config --local alias." + alias + " rebase");
+            ProcessResult statusWait = GitHelpers.InvokeGitAgainstGVFSRepo(
+                Path.Combine(this.Enlistment.RepoRoot, "GVFS"),
+                alias + " origin/FunctionalTests/RebaseTestsSource_20170208",
+                cleanErrors: false);
+            statusWait.Errors.ShouldContain("Waiting for 'git hash-object --stdin");
+            GitHelpers.CheckGitCommandAgainstGVFSRepo(this.Enlistment.RepoRoot, "rebase --abort");
         }
     }
 }

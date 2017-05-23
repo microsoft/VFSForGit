@@ -1,4 +1,5 @@
 ﻿using GVFS.Common.Git;
+using GVFS.Common.Http;
 using Microsoft.Diagnostics.Tracing;
 using System;
 using System.Collections.Concurrent;
@@ -16,8 +17,8 @@ namespace GVFS.Common.Physical.Git
         private string objectsPath;
         private ConcurrentDictionary<string, DateTime> objectNegativeCache;
 
-        public GVFSGitObjects(GVFSContext context, HttpGitObjects httpGitObjects)
-            : base(context.Tracer, context.Enlistment, httpGitObjects)
+        public GVFSGitObjects(GVFSContext context, GitObjectsHttpRequestor objectRequestor)
+            : base(context.Tracer, context.Enlistment, objectRequestor)
         {
             this.Context = context;
             this.objectsPath = Path.Combine(context.Enlistment.WorkingDirectoryRoot, GVFSConstants.DotGit.Objects.Root);
@@ -90,7 +91,7 @@ namespace GVFS.Common.Physical.Git
             return this.Context.Repository.TryGetBlobLength_CanTimeout(sha, out length);
         }
 
-        public List<HttpGitObjects.GitObjectSize> GetFileSizes(IEnumerable<string> objectIds)
+        public List<GitObjectsHttpRequestor.GitObjectSize> GetFileSizes(IEnumerable<string> objectIds)
         {
             return this.GitObjectRequestor.QueryForFileSizes(objectIds);
         }

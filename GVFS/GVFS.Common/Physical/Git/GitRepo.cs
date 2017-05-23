@@ -2,7 +2,6 @@
 using GVFS.Common.Physical.FileSystem;
 using GVFS.Common.Tracing;
 using System;
-using System.Collections.Generic;
 using System.IO;
 
 namespace GVFS.Common.Physical.Git
@@ -69,28 +68,6 @@ namespace GVFS.Common.Physical.Git
 
             size = 0;
             return false;
-        }
-
-        public virtual bool TryGetFileSha_CanTimeout(string commitId, string virtualPath, out string sha)
-        {
-            sha = this.catFileProcessPool.Invoke(
-               catFile =>
-               {
-                   string innerSha;
-                   if (catFile.TryGetFileSha_CanTimeout(commitId, virtualPath, out innerSha))
-                   {
-                       return innerSha;
-                   }
-
-                   return null;
-               });
-
-            return !string.IsNullOrWhiteSpace(sha);
-        }
-
-        public virtual IEnumerable<GitTreeEntry> GetTreeEntries_CanTimeout(string commitId, string path)
-        {
-            return this.catFileProcessPool.Invoke(catFile => catFile.GetTreeEntries_CanTimeout(commitId, path));
         }
 
         public void Dispose()

@@ -17,7 +17,6 @@ namespace GVFS.FunctionalTests.Tools
         public static void CheckGitCommand(string virtualRepoRoot, string command, params string[] expectedLinesInResult)
         {
             ProcessResult result = GitProcess.InvokeProcess(virtualRepoRoot, command);
-
             foreach (string line in expectedLinesInResult)
             {
                 result.Output.ShouldContain(line);
@@ -26,13 +25,12 @@ namespace GVFS.FunctionalTests.Tools
             result.Errors.ShouldBeEmpty();
         }
 
-        public static void CheckNotInGitCommand(string virtualRepoRoot, string command, params string[] unexpectedLinesInResult)
+        public static void CheckGitCommandAgainstGVFSRepo(string virtualRepoRoot, string command, params string[] expectedLinesInResult)
         {
-            ProcessResult result = GitProcess.InvokeProcess(virtualRepoRoot, command);
-
-            foreach (string line in unexpectedLinesInResult)
+            ProcessResult result = InvokeGitAgainstGVFSRepo(virtualRepoRoot, command);
+            foreach (string line in expectedLinesInResult)
             {
-                result.Output.ShouldNotContain(line);
+                result.Output.ShouldContain(line);
             }
 
             result.Errors.ShouldBeEmpty();
@@ -47,6 +45,11 @@ namespace GVFS.FunctionalTests.Tools
             {
                 string[] lines = errors.Split(new string[] { "\r\n" }, StringSplitOptions.None);
                 errors = string.Join("\r\n", lines.Where(line => !line.StartsWith("Waiting for ")));
+
+                if (errors.Length > 0 && string.IsNullOrWhiteSpace(errors))
+                {
+                    errors = string.Empty;
+                }
             }
 
             return new ProcessResult(
@@ -67,8 +70,8 @@ namespace GVFS.FunctionalTests.Tools
 
             ProcessResult expectedResult = GitProcess.InvokeProcess(controlRepoRoot, command);
             ProcessResult actualResult = GitHelpers.InvokeGitAgainstGVFSRepo(gvfsRepoRoot, command);
-            actualResult.Errors.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries)
-                .ShouldMatchInOrder(expectedResult.Errors.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries), LinesAreEqual, command + " Errors Lines");
+
+            ErrorsShouldMatch(command, expectedResult, actualResult);
             actualResult.Output.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries)
                 .ShouldMatchInOrder(expectedResult.Output.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries), LinesAreEqual, command + " Output Lines");
 
@@ -119,6 +122,12 @@ namespace GVFS.FunctionalTests.Tools
                 });
 
             return resetEvent;
+        }
+
+        public static void ErrorsShouldMatch(string command, ProcessResult expectedResult, ProcessResult actualResult)
+        {
+            actualResult.Errors.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries)
+                .ShouldMatchInOrder(expectedResult.Errors.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries), LinesAreEqual, command + " Errors Lines");
         }
 
         private static bool LinesAreEqual(string actualLine, string expectedLine)

@@ -1,5 +1,6 @@
 ﻿using GVFS.Common;
 using GVFS.Common.Git;
+using GVFS.Common.Http;
 using GVFS.Common.Physical.Git;
 using System.Collections.Generic;
 using System.IO;
@@ -10,7 +11,7 @@ namespace GVFS.UnitTests.Mock.Physical.Git
     {
         private GVFSContext context;
 
-        public MockGVFSGitObjects(GVFSContext context, HttpGitObjects httpGitObjects)
+        public MockGVFSGitObjects(GVFSContext context, GitObjectsHttpRequestor httpGitObjects)
             : base(context, httpGitObjects)
         {
             this.context = context;
@@ -21,7 +22,7 @@ namespace GVFS.UnitTests.Mock.Physical.Git
             bool output = true;
             foreach (string sha in objectShas)
             {
-                RetryWrapper<HttpGitObjects.GitObjectTaskResult>.InvocationResult result = this.GitObjectRequestor.TryDownloadObjects(
+                RetryWrapper<GitObjectsHttpRequestor.GitObjectTaskResult>.InvocationResult result = this.GitObjectRequestor.TryDownloadObjects(
                     new[] { sha },
                     commitDepth,
                     onSuccess: (tryCount, response) =>
@@ -32,7 +33,7 @@ namespace GVFS.UnitTests.Mock.Physical.Git
                             ((MockGitRepo)this.Context.Repository).AddBlob(sha, "DownloadedFile", reader.ReadToEnd());
                         }
 
-                        return new RetryWrapper<HttpGitObjects.GitObjectTaskResult>.CallbackResult(new HttpGitObjects.GitObjectTaskResult(true));
+                        return new RetryWrapper<GitObjectsHttpRequestor.GitObjectTaskResult>.CallbackResult(new GitObjectsHttpRequestor.GitObjectTaskResult(true));
                     },
                     onFailure: null,
                     preferBatchedLooseObjects: false);

@@ -47,6 +47,15 @@ typedef LONG NTSTATUS;
 
 #define NT_SUCCESS(Status)  (((NTSTATUS)(Status)) >= 0)
 
+#define FILE_SUPERSEDE                  0x00000000
+#define FILE_OPEN                       0x00000001
+#define FILE_CREATE                     0x00000002
+#define FILE_OPEN_IF                    0x00000003
+#define FILE_OVERWRITE                  0x00000004
+#define FILE_OVERWRITE_IF               0x00000005
+
+#define FILE_SYNCHRONOUS_IO_NONALERT    0x00000020
+
 typedef struct _IO_STATUS_BLOCK {
     union {
         NTSTATUS Status;
@@ -172,14 +181,67 @@ typedef struct _FILE_EA_INFORMATION {
 	ULONG EaSize;
 } FILE_EA_INFORMATION, *PFILE_EA_INFORMATION;
 
+typedef enum {
+    FileFsVolumeInformation = 1,
+    FileFsLabelInformation = 2,
+    FileFsSizeInformation = 3,
+    FileFsDeviceInformation = 4,
+    FileFsAttributeInformation = 5,
+    FileFsControlInformation = 6,
+    FileFsFullSizeInformation = 7,
+    FileFsObjectIdInformation = 8,
+    FileFsDriverPathInformation = 9,
+    FileFsVolumeFlagsInformation = 10,
+    FileFsSectorSizeInformation = 11
+} FS_INFORMATION_CLASS;
+
+typedef struct _OBJECT_ATTRIBUTES {
+    ULONG Length;
+    HANDLE RootDirectory;
+    PUNICODE_STRING ObjectName;
+    ULONG Attributes;
+    PVOID SecurityDescriptor;
+    PVOID SecurityQualityOfService;
+}  OBJECT_ATTRIBUTES, *POBJECT_ATTRIBUTES;
+
 typedef VOID(NTAPI *PIO_APC_ROUTINE) (_In_ PVOID ApcContext, _In_ PIO_STATUS_BLOCK IoStatusBlock, _In_ ULONG Reserved);
 
 typedef NTSTATUS(NTAPI *PQueryDirectoryFile)(HANDLE, HANDLE, PIO_APC_ROUTINE, PVOID, PIO_STATUS_BLOCK, PVOID, ULONG, FILE_INFORMATION_CLASS, BOOLEAN, PUNICODE_STRING, BOOLEAN);
+
+typedef NTSTATUS(NTAPI *PQueryVolumeInformationFile)(HANDLE, PIO_STATUS_BLOCK, PVOID, ULONG, FS_INFORMATION_CLASS);
 
 typedef NTSTATUS(NTAPI *PSetEaFile)(HANDLE, PIO_STATUS_BLOCK, PVOID, ULONG);
 
 typedef NTSTATUS(NTAPI* PQueryInformationFile)(HANDLE, PIO_STATUS_BLOCK, PVOID,	ULONG,	FILE_INFORMATION_CLASS);
 
 typedef NTSTATUS(NTAPI* PQueryEaFile)(HANDLE, PIO_STATUS_BLOCK, PVOID, ULONG, BOOLEAN, PVOID, ULONG, PULONG, BOOLEAN);
+
+typedef NTSTATUS (NTAPI *PNtClose)(HANDLE);
+
+typedef NTSTATUS(NTAPI *PNtCreateFile)(
+    PHANDLE,
+    ACCESS_MASK,
+    POBJECT_ATTRIBUTES,
+    PIO_STATUS_BLOCK,
+    PLARGE_INTEGER,
+    ULONG,
+    ULONG,
+    ULONG,
+    ULONG,
+    PVOID,
+    ULONG);
+
+typedef NTSTATUS(NTAPI *PNtWriteFile)(
+    HANDLE,
+    HANDLE,
+    PVOID,
+    PVOID,
+    PIO_STATUS_BLOCK,
+    PVOID,
+    ULONG,
+    PLARGE_INTEGER,
+    PULONG);
+
+typedef VOID(WINAPI* PRtlInitUnicodeString)(PUNICODE_STRING, PCWSTR);
 
 #include "NtFunctions.h"

@@ -82,7 +82,7 @@ namespace GVFS.Common.Git
             EventMetadata metadata = new EventMetadata();
             metadata.Add("TargetTreeSha", targetTreeSha);
             metadata.Add("HeadTreeSha", sourceTreeSha);
-            using (ITracer activity = this.tracer.StartActivity("PerformDiff", EventLevel.Informational, metadata))
+            using (ITracer activity = this.tracer.StartActivity("PerformDiff", EventLevel.Informational, Keywords.Telemetry, metadata))
             {
                 GitProcess git = new GitProcess(this.enlistment);
 

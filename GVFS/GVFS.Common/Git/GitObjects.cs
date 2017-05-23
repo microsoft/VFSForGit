@@ -1,4 +1,5 @@
-﻿using GVFS.Common.Tracing;
+﻿using GVFS.Common.Http;
+using GVFS.Common.Tracing;
 using Microsoft.Diagnostics.Tracing;
 using System;
 using System.Collections.Generic;
@@ -15,15 +16,15 @@ namespace GVFS.Common.Git
     {
         protected readonly ITracer Tracer;
         protected readonly Enlistment Enlistment;
-        protected readonly HttpGitObjects GitObjectRequestor;
+        protected readonly GitObjectsHttpRequestor GitObjectRequestor;
 
         private const string AreaPath = "GitObjects";
 
-        public GitObjects(ITracer tracer, Enlistment enlistment, HttpGitObjects httpGitObjects)
+        public GitObjects(ITracer tracer, Enlistment enlistment, GitObjectsHttpRequestor objectRequestor)
         {
             this.Tracer = tracer;
             this.Enlistment = enlistment;
-            this.GitObjectRequestor = httpGitObjects;
+            this.GitObjectRequestor = objectRequestor;
         }
 
         public enum DownloadAndSaveObjectResult
@@ -50,9 +51,9 @@ namespace GVFS.Common.Git
 
             using (ITracer activity = this.Tracer.StartActivity(nameof(this.TryDownloadPrefetchPacks), EventLevel.Informational, metadata))
             {
-                RetryWrapper<HttpGitObjects.GitObjectTaskResult>.InvocationResult result = this.GitObjectRequestor.TrySendProtocolRequest(
+                RetryWrapper<GitObjectsHttpRequestor.GitObjectTaskResult>.InvocationResult result = this.GitObjectRequestor.TrySendProtocolRequest(
                     onSuccess: (tryCount, response) => this.DeserializePrefetchPacks(response, ref latestTimestamp),
-                    onFailure: RetryWrapper<HttpGitObjects.GitObjectTaskResult>.StandardErrorHandler(activity, nameof(this.TryDownloadPrefetchPacks)),
+                    onFailure: RetryWrapper<GitObjectsHttpRequestor.GitObjectTaskResult>.StandardErrorHandler(activity, nameof(this.TryDownloadPrefetchPacks)),
                     method: HttpMethod.Get,
                     endPointGenerator: () => new Uri(
                         string.Format(
@@ -100,7 +101,7 @@ namespace GVFS.Common.Git
             return toWrite.ActualFile;
         }
 
-        public virtual string WriteTempPackFile(HttpGitObjects.GitEndPointResponseData response)
+        public virtual string WriteTempPackFile(GitEndPointResponseData response)
         {
             string fileName = Path.GetRandomFileName();
             string fullPath = Path.Combine(this.Enlistment.GitPackRoot, fileName);
@@ -210,12 +211,12 @@ namespace GVFS.Common.Git
             // To reduce allocations, reuse the same buffer when writing objects in this batch
             byte[] bufToCopyWith = new byte[StreamUtil.DefaultCopyBufferSize];
 
-            RetryWrapper<HttpGitObjects.GitObjectTaskResult>.InvocationResult output = this.GitObjectRequestor.TryDownloadLooseObject(
+            RetryWrapper<GitObjectsHttpRequestor.GitObjectTaskResult>.InvocationResult output = this.GitObjectRequestor.TryDownloadLooseObject(
                 objectSha,
                 onSuccess: (tryCount, response) =>
                 {
                     this.WriteLooseObject(this.Enlistment.WorkingDirectoryRoot, response.Stream, objectSha, bufToCopyWith);
-                    return new RetryWrapper<HttpGitObjects.GitObjectTaskResult>.CallbackResult(new HttpGitObjects.GitObjectTaskResult(true));
+                    return new RetryWrapper<GitObjectsHttpRequestor.GitObjectTaskResult>.CallbackResult(new GitObjectsHttpRequestor.GitObjectTaskResult(true));
                 },
                 onFailure: this.HandleDownloadAndSaveObjectError);
 
@@ -269,7 +270,7 @@ namespace GVFS.Common.Git
 
         private bool TryDownloadAndSaveObjects(IEnumerable<string> objectIds, int commitDepth, bool preferLooseObjects)
         {
-            RetryWrapper<HttpGitObjects.GitObjectTaskResult>.InvocationResult output = this.GitObjectRequestor.TryDownloadObjects(
+            RetryWrapper<GitObjectsHttpRequestor.GitObjectTaskResult>.InvocationResult output = this.GitObjectRequestor.TryDownloadObjects(
                 objectIds,
                 commitDepth,
                 onSuccess: (tryCount, response) => this.TrySavePackOrLooseObject(objectIds, preferLooseObjects, response),
@@ -286,24 +287,24 @@ namespace GVFS.Common.Git
             return output.Succeeded && output.Result.Success;
         }
 
-        private void HandleDownloadAndSaveObjectError(RetryWrapper<HttpGitObjects.GitObjectTaskResult>.ErrorEventArgs errorArgs)
+        private void HandleDownloadAndSaveObjectError(RetryWrapper<GitObjectsHttpRequestor.GitObjectTaskResult>.ErrorEventArgs errorArgs)
         {
             // Silence logging 404's for object downloads. They are far more likely to be git checking for the
             // previous existence of a new object than a truly missing object.
-            HttpGitObjects.HttpGitObjectsException ex = errorArgs.Error as HttpGitObjects.HttpGitObjectsException;
+            GitObjectsHttpException ex = errorArgs.Error as GitObjectsHttpException;
             if (ex != null && ex.StatusCode == HttpStatusCode.NotFound)
             {
                 return;
             }
 
-            RetryWrapper<HttpGitObjects.GitObjectTaskResult>.StandardErrorHandler(this.Tracer, nameof(this.TryDownloadAndSaveObject))(errorArgs);
+            RetryWrapper<GitObjectsHttpRequestor.GitObjectTaskResult>.StandardErrorHandler(this.Tracer, nameof(this.TryDownloadAndSaveObject))(errorArgs);
         }
 
         /// <summary>
         /// Uses a <see cref="PrefetchPacksDeserializer"/> to read the packs from the stream.
         /// </summary>
-        private RetryWrapper<HttpGitObjects.GitObjectTaskResult>.CallbackResult DeserializePrefetchPacks(
-           HttpGitObjects.GitEndPointResponseData response, ref long latestTimestamp)
+        private RetryWrapper<GitObjectsHttpRequestor.GitObjectTaskResult>.CallbackResult DeserializePrefetchPacks(
+           GitEndPointResponseData response, ref long latestTimestamp)
         {
             using (ITracer activity = this.Tracer.StartActivity(nameof(this.DeserializePrefetchPacks), EventLevel.Informational))
             {
@@ -325,7 +326,7 @@ namespace GVFS.Common.Git
                     // If it fails, TryWriteNamedPackOrIdx cleans up the packfile and we retry the prefetch
                     if (!this.TryWriteNamedPackOrIdx(activity, pack.PackStream, packFullPath))
                     {
-                        return new RetryWrapper<HttpGitObjects.GitObjectTaskResult>.CallbackResult(null, true);
+                        return new RetryWrapper<GitObjectsHttpRequestor.GitObjectTaskResult>.CallbackResult(null, true);
                     }
 
                     // We will try to build an index if the server does not send one
@@ -333,7 +334,7 @@ namespace GVFS.Common.Git
                     {
                         if (!this.TryBuildIndex(activity, pack, packFullPath))
                         {
-                            return new RetryWrapper<HttpGitObjects.GitObjectTaskResult>.CallbackResult(null, true);
+                            return new RetryWrapper<GitObjectsHttpRequestor.GitObjectTaskResult>.CallbackResult(null, true);
                         }
                     }
                     else if (!this.TryWriteNamedPackOrIdx(activity, pack.IndexStream, idxFullPath))
@@ -348,14 +349,14 @@ namespace GVFS.Common.Git
 
                         // The download stream will not be in a good state if the index download fails.
                         // So we have to restart the prefetch
-                        return new RetryWrapper<HttpGitObjects.GitObjectTaskResult>.CallbackResult(null, true);
+                        return new RetryWrapper<GitObjectsHttpRequestor.GitObjectTaskResult>.CallbackResult(null, true);
                     }
 
                     latestTimestamp = pack.Timestamp;
                 }
 
-                return new RetryWrapper<HttpGitObjects.GitObjectTaskResult>.CallbackResult(
-                    new HttpGitObjects.GitObjectTaskResult(true));
+                return new RetryWrapper<GitObjectsHttpRequestor.GitObjectTaskResult>.CallbackResult(
+                    new GitObjectsHttpRequestor.GitObjectTaskResult(true));
             }
         }
 
@@ -427,9 +428,9 @@ namespace GVFS.Common.Git
                         // IOExceptions happen when someone else is writing to our object.
                         // That implies they are doing what we're doing, which should be a success
                         EventMetadata info = new EventMetadata();
-                        info.Add("ErrorMessage", "Exception moving temp file");
+                        info.Add("Message", "Exception moving temp file");
                         info.Add("file", toWrite.ActualFile);
-                        info.Add("Exception", ex.ToString());
+                        info.Add("Exception", ex.Message);
                         this.Tracer.RelatedEvent(EventLevel.Warning, "Warning", info);
                     }
                 }
@@ -473,14 +474,14 @@ namespace GVFS.Common.Git
             }
         }
 
-        private RetryWrapper<HttpGitObjects.GitObjectTaskResult>.CallbackResult TrySavePackOrLooseObject(IEnumerable<string> objectShas, bool unpackObjects, HttpGitObjects.GitEndPointResponseData responseData)
+        private RetryWrapper<GitObjectsHttpRequestor.GitObjectTaskResult>.CallbackResult TrySavePackOrLooseObject(IEnumerable<string> objectShas, bool unpackObjects, GitEndPointResponseData responseData)
         {
-            if (responseData.ContentType == HttpGitObjects.ContentType.LooseObject)
+            if (responseData.ContentType == GitObjectContentType.LooseObject)
             {
                 List<string> objectShaList = objectShas.Distinct().ToList();
                 if (objectShaList.Count != 1)
                 {
-                    return new RetryWrapper<HttpGitObjects.GitObjectTaskResult>.CallbackResult(new InvalidOperationException("Received loose object when multiple objects were requested."), shouldRetry: false);
+                    return new RetryWrapper<GitObjectsHttpRequestor.GitObjectTaskResult>.CallbackResult(new InvalidOperationException("Received loose object when multiple objects were requested."), shouldRetry: false);
                 }
 
                 // To reduce allocations, reuse the same buffer when writing objects in this batch
@@ -488,7 +489,7 @@ namespace GVFS.Common.Git
 
                 this.WriteLooseObject(this.Enlistment.WorkingDirectoryRoot, responseData.Stream, objectShaList[0], bufToCopyWith);
             }
-            else if (responseData.ContentType == HttpGitObjects.ContentType.BatchedLooseObjects)
+            else if (responseData.ContentType == GitObjectContentType.BatchedLooseObjects)
             {
                 // To reduce allocations, reuse the same buffer when writing objects in this batch
                 byte[] bufToCopyWith = new byte[StreamUtil.DefaultCopyBufferSize];
@@ -503,11 +504,11 @@ namespace GVFS.Common.Git
                 GitProcess.Result result = this.TryAddPackFile(responseData.Stream, unpackObjects);
                 if (result.HasErrors)
                 {
-                    return new RetryWrapper<HttpGitObjects.GitObjectTaskResult>.CallbackResult(new InvalidOperationException("Could not add pack file: " + result.Errors), shouldRetry: false);
+                    return new RetryWrapper<GitObjectsHttpRequestor.GitObjectTaskResult>.CallbackResult(new InvalidOperationException("Could not add pack file: " + result.Errors), shouldRetry: false);
                 }
             }
 
-            return new RetryWrapper<HttpGitObjects.GitObjectTaskResult>.CallbackResult(new HttpGitObjects.GitObjectTaskResult(true));
+            return new RetryWrapper<GitObjectsHttpRequestor.GitObjectTaskResult>.CallbackResult(new GitObjectsHttpRequestor.GitObjectTaskResult(true));
         }
 
         private GitProcess.Result TryAddPackFile(Stream contents, bool unpackObjects)

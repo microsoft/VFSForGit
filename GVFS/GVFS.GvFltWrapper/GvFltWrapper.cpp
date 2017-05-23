@@ -122,6 +122,17 @@ namespace
     void SetEpochId(GV_PLACEHOLDER_VERSION_INFO& versionInfo, String^ epochId);
 
     bool IsPowerOf2(ULONG num);
+
+    std::shared_ptr<GV_PLACEHOLDER_INFORMATION> CreatePlaceholderInformation(
+        System::DateTime creationTime,
+        System::DateTime lastAccessTime,
+        System::DateTime lastWriteTime,
+        System::DateTime changeTime,
+        unsigned long fileAttributes,
+        long long endOfFile,
+        bool directory,
+        System::String^ contentId,
+        System::String^ epochId);
 }
 
 GvFltWrapper::GvFltWrapper()
@@ -374,6 +385,16 @@ StatusCode GvFltWrapper::GvWriteFile(
         ));
 }
 
+StatusCode GvFltWrapper::GvDeleteFile(System::String^ relativePath, GvUpdateType updateFlags, GvUpdateFailureCause% failureReason)
+{
+    pin_ptr<GV_VIRTUALIZATIONINSTANCE_HANDLE> instanceHandle = &(this->virtualizationInstanceHandle);
+    pin_ptr<const WCHAR> path = PtrToStringChars(relativePath);
+    ULONG deleteFailureReason = 0;
+    StatusCode result = static_cast<StatusCode>(::GvDeleteFile(*instanceHandle, path, static_cast<ULONG>(updateFlags), &deleteFailureReason));
+    failureReason = static_cast<GvUpdateFailureCause>(deleteFailureReason);
+    return result;
+}
+
 StatusCode GvFltWrapper::GvWritePlaceholderInformation(
     String^ targetRelPathName,
     DateTime creationTime,
@@ -381,7 +402,6 @@ StatusCode GvFltWrapper::GvWritePlaceholderInformation(
     DateTime lastWriteTime,
     DateTime changeTime,
     unsigned long fileAttributes,
-    long long allocationSize,
     long long endOfFile,
     bool directory,
     String^ contentId,
@@ -389,35 +409,16 @@ StatusCode GvFltWrapper::GvWritePlaceholderInformation(
 {
     pin_ptr<GV_VIRTUALIZATIONINSTANCE_HANDLE> instanceHandle = &(this->virtualizationInstanceHandle);
     pin_ptr<const WCHAR> path = PtrToStringChars(targetRelPathName);	
-    std::shared_ptr<GV_PLACEHOLDER_INFORMATION> fileInformation(static_cast<GV_PLACEHOLDER_INFORMATION*>(malloc(sizeof(GV_PLACEHOLDER_INFORMATION))), free);
-
-    memset(&fileInformation->FileBasicInformation, 0, sizeof(FILE_BASIC_INFORMATION));
-    memset(&fileInformation->FileStandardInformation, 0, sizeof(FILE_STANDARD_INFORMATION));
-
-    fileInformation->FileBasicInformation.CreationTime.QuadPart = creationTime.ToFileTime();
-    fileInformation->FileBasicInformation.LastAccessTime.QuadPart = lastAccessTime.ToFileTime();
-    fileInformation->FileBasicInformation.LastWriteTime.QuadPart = lastWriteTime.ToFileTime();
-    fileInformation->FileBasicInformation.ChangeTime.QuadPart = changeTime.ToFileTime();    
-    fileInformation->FileBasicInformation.FileAttributes = fileAttributes;
-
-    fileInformation->FileStandardInformation.AllocationSize.QuadPart = allocationSize;
-    fileInformation->FileStandardInformation.EndOfFile.QuadPart = endOfFile;
-    fileInformation->FileStandardInformation.Directory = directory;
-
-    fileInformation->EaInformation.EaBufferSize = 0;
-    fileInformation->EaInformation.OffsetToFirstEa = static_cast<ULONG>(-1);
-    fileInformation->SecurityInformation.SecurityBufferSize = 0;
-    fileInformation->SecurityInformation.OffsetToSecurityDescriptor = static_cast<ULONG>(-1);
-    fileInformation->StreamsInformation.StreamsInfoBufferSize = 0;
-    fileInformation->StreamsInformation.OffsetToFirstStreamInfo = static_cast<ULONG>(-1);
-
-    // In GVFS, placeholders are always authoritative
-    fileInformation->Flags = GV_PLACEHOLDER_INFORMATION_AUTHORITATIVE;
-
-    memset(&fileInformation->VersionInfo, 0, sizeof(GV_PLACEHOLDER_VERSION_INFO));
-    SetPlaceHolderVersion(fileInformation->VersionInfo, CURRENT_PLACEHOLDER_VERSION);
-    SetEpochId(fileInformation->VersionInfo, epochId);
-    SetContentId(fileInformation->VersionInfo, contentId);
+    std::shared_ptr<GV_PLACEHOLDER_INFORMATION> fileInformation = CreatePlaceholderInformation(
+        creationTime,
+        lastAccessTime,
+        lastWriteTime,
+        changeTime,
+        fileAttributes,
+        endOfFile,
+        directory,
+        contentId,
+        epochId);
 
     return static_cast<StatusCode>(::GvWritePlaceholderInformation(
         *instanceHandle, 
@@ -438,6 +439,44 @@ StatusCode GvFltWrapper::GvCreatePlaceholderAsHardlink(
         *instanceHandle,
         targetPath,
         hardLinkPath));
+}
+
+StatusCode GvFltWrapper::GvUpdatePlaceholderIfNeeded(
+    System::String^ relativePath,
+    System::DateTime creationTime,
+    System::DateTime lastAccessTime,
+    System::DateTime lastWriteTime,
+    System::DateTime changeTime,
+    unsigned long fileAttributes,
+    long long endOfFile,
+    System::String^ contentId,
+    System::String^ epochId,
+    GvUpdateType updateFlags, 
+    GvUpdateFailureCause% failureReason)
+{
+    pin_ptr<GV_VIRTUALIZATIONINSTANCE_HANDLE> instanceHandle = &(this->virtualizationInstanceHandle);
+    pin_ptr<const WCHAR> path = PtrToStringChars(relativePath);
+    std::shared_ptr<GV_PLACEHOLDER_INFORMATION> fileInformation = CreatePlaceholderInformation(
+        creationTime,
+        lastAccessTime,
+        lastWriteTime,
+        changeTime,
+        fileAttributes,
+        endOfFile,
+        false, // directory
+        contentId,
+        epochId);
+
+    ULONG updateFailureReason = 0;
+    StatusCode result = static_cast<StatusCode>(::GvUpdatePlaceholderIfNeeded(
+        *instanceHandle,
+        path,
+        fileInformation.get(),
+        FIELD_OFFSET(GV_PLACEHOLDER_INFORMATION, VariableData), // We have written no variable data
+        static_cast<ULONG>(updateFlags),
+        &updateFailureReason));
+    failureReason = static_cast<GvUpdateFailureCause>(updateFailureReason);
+    return result;
 }
 
 GvFltWrapper::OnDiskStatus GvFltWrapper::GetFileOnDiskStatus(System::String^ relativePath)
@@ -1209,6 +1248,7 @@ namespace
                     {
                         ActiveGvFltManager::activeGvFltWrapper->OnNotifyFileHandleClosed(
                             gcnew String(pathFileName),
+                            isDirectory != FALSE,
                             (operationParameters->HandleClosed.FileModified != FALSE),
                             (operationParameters->HandleClosed.FileDeleted != FALSE));
                     }
@@ -1343,5 +1383,49 @@ namespace
     inline bool IsPowerOf2(ULONG num)
     {
         return (num & (num - 1)) == 0;
+    }
+
+    inline std::shared_ptr<GV_PLACEHOLDER_INFORMATION> CreatePlaceholderInformation(
+        System::DateTime creationTime,
+        System::DateTime lastAccessTime,
+        System::DateTime lastWriteTime,
+        System::DateTime changeTime,
+        unsigned long fileAttributes,
+        long long endOfFile,
+        bool directory,
+        System::String^ contentId,
+        System::String^ epochId)
+    {
+        std::shared_ptr<GV_PLACEHOLDER_INFORMATION> fileInformation(static_cast<GV_PLACEHOLDER_INFORMATION*>(malloc(sizeof(GV_PLACEHOLDER_INFORMATION))), free);
+
+        memset(&fileInformation->FileBasicInformation, 0, sizeof(FILE_BASIC_INFORMATION));
+        memset(&fileInformation->FileStandardInformation, 0, sizeof(FILE_STANDARD_INFORMATION));
+
+        fileInformation->FileBasicInformation.CreationTime.QuadPart = creationTime.ToFileTime();
+        fileInformation->FileBasicInformation.LastAccessTime.QuadPart = lastAccessTime.ToFileTime();
+        fileInformation->FileBasicInformation.LastWriteTime.QuadPart = lastWriteTime.ToFileTime();
+        fileInformation->FileBasicInformation.ChangeTime.QuadPart = changeTime.ToFileTime();
+        fileInformation->FileBasicInformation.FileAttributes = fileAttributes;
+
+        // A placeholder is a sparse file and so the file system doesn’t provide it any allocation when it's created on disk
+        fileInformation->FileStandardInformation.AllocationSize.QuadPart = 0;
+        fileInformation->FileStandardInformation.EndOfFile.QuadPart = endOfFile;
+        fileInformation->FileStandardInformation.Directory = directory;
+
+        fileInformation->EaInformation.EaBufferSize = 0;
+        fileInformation->EaInformation.OffsetToFirstEa = static_cast<ULONG>(-1);
+        fileInformation->SecurityInformation.SecurityBufferSize = 0;
+        fileInformation->SecurityInformation.OffsetToSecurityDescriptor = static_cast<ULONG>(-1);
+        fileInformation->StreamsInformation.StreamsInfoBufferSize = 0;
+        fileInformation->StreamsInformation.OffsetToFirstStreamInfo = static_cast<ULONG>(-1);
+
+        fileInformation->Flags = 0;
+
+        memset(&fileInformation->VersionInfo, 0, sizeof(GV_PLACEHOLDER_VERSION_INFO));
+        SetPlaceHolderVersion(fileInformation->VersionInfo, CURRENT_PLACEHOLDER_VERSION);
+        SetEpochId(fileInformation->VersionInfo, epochId);
+        SetContentId(fileInformation->VersionInfo, contentId);
+
+        return fileInformation;
     }
 }

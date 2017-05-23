@@ -1,4 +1,5 @@
-﻿using System;
+﻿using GVFS.FunctionalTests.FileSystemRunners;
+using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Threading;
@@ -21,24 +22,6 @@ namespace GVFS.FunctionalTests.Tools
             this.Commitish = commitish;
 
             this.gvfsProcess = new GVFSProcess(pathToGVFS, this.EnlistmentRoot);
-        }
-
-        private enum BreadcrumbType
-        {
-            Invalid = 0,
-
-            Restart,
-
-            BeginRecurseIntoDirectory,
-            EndRecurseIntoDirectory,
-
-            TryDeleteFile,
-            TryDeleteEmptyDirectory,
-
-            DeleteSucceeded,
-            DeleteFailed,
-
-            SilentFailure,
         }
 
         public string EnlistmentRoot
@@ -96,10 +79,33 @@ namespace GVFS.FunctionalTests.Tools
 
         public void DeleteEnlistment()
         {
-            if (Directory.Exists(this.EnlistmentRoot))
+            // Use cmd.exe to delete the enlistment as it properly handles tombstones
+            // and reparse points
+            CmdRunner cmdRunner = new CmdRunner();
+            bool enlistmentExists = Directory.Exists(this.EnlistmentRoot);
+            int retryCount = 0;
+            while (enlistmentExists)
             {
-                List<Breadcrumb> breadcrumbs = new List<Breadcrumb>();
-                RecursiveFolderDeleteRetryForever(breadcrumbs, this.EnlistmentRoot);
+                string output = cmdRunner.DeleteDirectory(this.EnlistmentRoot);
+                enlistmentExists = Directory.Exists(this.EnlistmentRoot);
+                if (enlistmentExists)
+                {
+                    ++retryCount;
+                    Thread.Sleep(500);
+                    try
+                    {                        
+                        if (retryCount > 10)
+                        {
+                            retryCount = 0;
+                            throw new DeleteFolderFailedException(output);
+                        }
+                    }
+                    catch (DeleteFolderFailedException)
+                    {
+                        // Throw\catch a DeleteFolderFailedException here so that developers who are running the tests
+                        // and have a debugger attached can be alerted that something is wrong 
+                    }
+                }
             }
         }
 
@@ -180,117 +186,7 @@ namespace GVFS.FunctionalTests.Tools
                 objectHash.Substring(0, 2),
                 objectHash.Substring(2));
         }
-
-        private static void RecursiveFolderDeleteRetryForever(List<Breadcrumb> breadcrumbs, string path)
-        {
-            while (true)
-            {
-                if (TryRecursiveFolderDelete(breadcrumbs, path))
-                {
-                    return;
-                }
-
-                breadcrumbs.Add(new Breadcrumb(BreadcrumbType.Restart, null));
-                Thread.Sleep(500);
-            }
-        }
-
-        private static bool TryRecursiveFolderDelete(List<Breadcrumb> breadcrumbs, string path)
-        {
-            DirectoryInfo directory = new DirectoryInfo(path);
-            breadcrumbs.Add(new Breadcrumb(BreadcrumbType.BeginRecurseIntoDirectory, path));
-
-            try
-            {
-                try
-                {
-                    foreach (FileInfo file in directory.GetFiles())
-                    {
-                        try
-                        {
-                            file.Attributes = FileAttributes.Normal;
-                        }
-                        catch (ArgumentException)
-                        {
-                            // Setting the attributes will throw an ArgumentException in situations where
-                            // it really ought to throw IOExceptions, e.g. because the file is currently locked
-                            return false;
-                        }
-
-                        if (!TryDelete(breadcrumbs, file))
-                        {
-                            return false;
-                        }
-                    }
-
-                    foreach (DirectoryInfo subDirectory in directory.GetDirectories())
-                    {
-                        if (!TryRecursiveFolderDelete(breadcrumbs, subDirectory.FullName))
-                        {
-                            return false;
-                        }
-                    }
-                }
-                catch (DirectoryNotFoundException e)
-                {
-                    // For junctions directory.GetFiles() or .GetDirectories() can throw DirectoryNotFoundException
-                    breadcrumbs.Add(new Breadcrumb(BreadcrumbType.DeleteFailed, path, e));
-                }
-                catch (IOException e)
-                {
-                    // There is a race when enumerating while a virtualization instance is being shut down
-                    // If GVFlt receives the enumeration request before it knows that GVFS has been shut down
-                    // (and then GVFS does not handle the request because it is shut down) we can get an IOException
-                    breadcrumbs.Add(new Breadcrumb(BreadcrumbType.DeleteFailed, path, e));
-                    return false;
-                }
-
-                if (!TryDelete(breadcrumbs, directory))
-                {
-                    return false;
-                }
-
-                return true;
-            }
-            finally
-            {
-                breadcrumbs.Add(new Breadcrumb(BreadcrumbType.EndRecurseIntoDirectory, path));
-            }
-        }
-
-        private static bool TryDelete(List<Breadcrumb> breadcrumbs, FileSystemInfo fileOrFolder)
-        {
-            bool isFile = fileOrFolder is FileInfo;
-
-            breadcrumbs.Add(new Breadcrumb(
-                isFile ? BreadcrumbType.TryDeleteFile : BreadcrumbType.TryDeleteEmptyDirectory,
-                fileOrFolder.FullName));
-
-            try
-            {
-                fileOrFolder.Delete();
-                if ((isFile && File.Exists(fileOrFolder.FullName)) ||
-                    (!isFile && Directory.Exists(fileOrFolder.FullName)))
-                {
-                    breadcrumbs.Add(new Breadcrumb(BreadcrumbType.SilentFailure, fileOrFolder.FullName));
-                    return false;
-                }
-                else
-                {
-                    breadcrumbs.Add(new Breadcrumb(BreadcrumbType.DeleteSucceeded, fileOrFolder.FullName));
-                    return true;
-                }
-            }
-            catch (IOException)
-            {
-                return false;
-            }
-            catch (UnauthorizedAccessException)
-            {
-                return false;
-            }
-        }
-
+ 
         private bool WaitForStatus(int maxWaitMilliseconds, string statusShouldContain)
         {
             string status = null;
@@ -305,22 +201,11 @@ namespace GVFS.FunctionalTests.Tools
             return totalWaitMilliseconds <= maxWaitMilliseconds;
         }
 
-        private class Breadcrumb
+        private class DeleteFolderFailedException : Exception
         {
-            public Breadcrumb(BreadcrumbType type, string path, Exception exception = null)
+            public DeleteFolderFailedException(string message)
+                : base(message)
             {
-                this.BreadcrumbType = type;
-                this.Path = path;
-                this.Exception = exception;
-            }
-
-            public BreadcrumbType BreadcrumbType { get; private set; }
-            public string Path { get; private set; }
-            public Exception Exception { get; private set; }
-
-            public override string ToString()
-            {
-                return this.BreadcrumbType + ":" + this.Path;
             }
         }
     }

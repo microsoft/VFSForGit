@@ -1,4 +1,5 @@
 ﻿using Microsoft.Diagnostics.Tracing;
+using System;
 using System.IO;
 
 namespace GVFS.Common.Tracing
@@ -14,13 +15,7 @@ namespace GVFS.Common.Tracing
             this.logFile = File.Open(logFilePath, FileMode.CreateNew, FileAccess.ReadWrite, FileShare.Read);
             this.writer = StreamWriter.Synchronized(new StreamWriter(this.logFile));
         }
-
-        public override void RecordMessage(string message)
-        {
-            this.writer.WriteLine(message);
-            this.writer.Flush();
-        }
-
+        
         public override void Dispose()
         {
             if (this.writer != null)
@@ -34,8 +29,19 @@ namespace GVFS.Common.Tracing
                 this.logFile.Dispose();
                 this.logFile = null;
             }
+        }
 
-            base.Dispose();
+        protected override void RecordMessageInternal(
+            string eventName,
+            Guid activityId,
+            Guid parentActivityId,
+            EventLevel level,
+            Keywords keywords,
+            EventOpcode opcode,
+            string jsonPayload)
+        {
+            this.writer.WriteLine(this.GetLogString(eventName, opcode, jsonPayload));
+            this.writer.Flush();
         }
     }
 }

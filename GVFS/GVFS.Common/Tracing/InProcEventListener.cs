@@ -1,55 +1,69 @@
 ﻿using Microsoft.Diagnostics.Tracing;
 using System;
+using System.Collections.Generic;
+using System.Linq;
 using System.Text;
 
 namespace GVFS.Common.Tracing
 {
-    public abstract class InProcEventListener : EventListener
+    public abstract class InProcEventListener : IDisposable
     {
         private EventLevel maxVerbosity;
-        private EventKeywords keywordFilter;
+        private Keywords keywordFilter;
 
         public InProcEventListener(EventLevel maxVerbosity, Keywords keywordFilter)
         {
             this.maxVerbosity = maxVerbosity;
-            this.keywordFilter = (EventKeywords)keywordFilter;
+            this.keywordFilter = keywordFilter;
         }
 
-        public abstract void RecordMessage(string message);
-
-        protected override void OnEventWritten(EventWrittenEventArgs eventData)
+        public virtual void Dispose()
         {
-            if (!this.IsEnabled(eventData.Level, eventData.Keywords))
+        }
+        
+        public void RecordMessage(string eventName, Guid activityId, Guid parentActivityId, EventLevel level, Keywords keywords, EventOpcode opcode, string jsonPayload)
+        {
+            if (!this.IsEnabled(level, keywords))
             {
                 return;
             }
-
-            StringBuilder eventLine = new StringBuilder();
-            eventLine.AppendFormat("[{0}] {1}", DateTime.Now, eventData.EventName);
-            if (eventData.Opcode != 0)
-            {
-                eventLine.AppendFormat(" ({0})", eventData.Opcode);
-            }
-
-            if (eventData.Payload != null)
-            {
-                eventLine.Append(":");
-
-                for (int i = 0; i < eventData.PayloadNames.Count; i++)
-                {
-                    // Space prefix avoids a string.Join.
-                    eventLine.AppendFormat(" {0}: {1}", eventData.PayloadNames[i], eventData.Payload[i]);
-                }
-            }
-
-            this.RecordMessage(eventLine.ToString());
+            
+            this.RecordMessageInternal(eventName, activityId, parentActivityId, level, keywords, opcode, jsonPayload);
         }
 
-        protected bool IsEnabled(EventLevel level, EventKeywords keyword)
+        protected abstract void RecordMessageInternal(
+            string eventName,
+            Guid activityId,
+            Guid parentActivityId,
+            EventLevel level,
+            Keywords keywords,
+            EventOpcode opcode,
+            string payload);
+
+        protected string GetLogString(string eventName, EventOpcode opcode, string jsonPayload)
         {
-            return this.keywordFilter != (EventKeywords)Keywords.None &&
+            // Make a smarter guess (than 16 characters) about initial size to reduce allocations
+            StringBuilder message = new StringBuilder(1024);
+            message.AppendFormat("[{0}] {1}", DateTime.Now, eventName);
+
+            if (opcode != 0)
+            {
+                message.Append(" (" + opcode + ")");
+            }
+
+            if (!string.IsNullOrEmpty(jsonPayload))
+            {
+                message.Append(" " + jsonPayload);
+            }
+            
+            return message.ToString();
+        }
+
+        protected bool IsEnabled(EventLevel level, Keywords keyword)
+        {
+            return this.keywordFilter != Keywords.None &&
                 this.maxVerbosity >= level &&
-                this.keywordFilter.HasFlag(keyword);
+                (this.keywordFilter & keyword) != 0;
         }
     }
 }

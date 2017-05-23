@@ -150,6 +150,11 @@ namespace GVFS.FunctionalTests.Should
                 Directory.EnumerateFileSystemEntries(this.Path).ShouldBeEmpty();
             }
 
+            public void WithNoItems(string searchPattern)
+            {
+                Directory.EnumerateFileSystemEntries(this.Path, searchPattern).ShouldBeEmpty();
+            }
+
             public FileSystemInfo WithOneItem()
             {
                 return this.WithItems(1).Single();
@@ -164,16 +169,26 @@ namespace GVFS.FunctionalTests.Should
 
             public IEnumerable<FileSystemInfo> WithItems()
             {
+                return this.WithItems("*");
+            }
+
+            public IEnumerable<FileSystemInfo> WithItems(string searchPattern)
+            {
                 DirectoryInfo directory = new DirectoryInfo(this.Path);
-                IEnumerable<FileSystemInfo> items = directory.GetFileSystemInfos();
+                IEnumerable<FileSystemInfo> items = directory.GetFileSystemInfos(searchPattern);
                 items.Any().ShouldEqual(true);
                 return items;
             }
 
-            public DirectoryAdapter WithDeepStructure(string otherPath, bool skipEmptyDirectories, bool ignoreCase = false)
+            public DirectoryAdapter WithDeepStructure(
+                FileSystemRunner fileSystem, 
+                string otherPath, 
+                bool skipEmptyDirectories, 
+                bool ignoreCase = false, 
+                bool compareContent = false)
             {
                 otherPath.ShouldBeADirectory(this.runner);
-                CompareDirectories(otherPath, this.Path, skipEmptyDirectories, ignoreCase);
+                CompareDirectories(fileSystem, otherPath, this.Path, skipEmptyDirectories, ignoreCase, compareContent);
                 return this;
             }
 
@@ -219,21 +234,25 @@ namespace GVFS.FunctionalTests.Should
                 return info;
             }
 
-            private static void CompareDirectories(string expectedPath, string actualPath, bool skipEmptyDirectories, bool ignoreCase)
+            private static void CompareDirectories(
+                FileSystemRunner fileSystem, 
+                string expectedPath, 
+                string actualPath, 
+                bool skipEmptyDirectories, 
+                bool ignoreCase, 
+                bool compareContent)
             {
-                IEnumerable<string> expectedEntries = DepthFirstEnumeration(expectedPath, skipEmptyDirectories);
-                IEnumerable<string> actualEntries = DepthFirstEnumeration(actualPath, skipEmptyDirectories);
+                IEnumerable<FileSystemInfo> expectedEntries = DepthFirstEnumeration(expectedPath, skipEmptyDirectories);
+                IEnumerable<FileSystemInfo> actualEntries = DepthFirstEnumeration(actualPath, skipEmptyDirectories);
 
                 string dotGitFolder = System.IO.Path.DirectorySeparatorChar + TestConstants.DotGit.Root + System.IO.Path.DirectorySeparatorChar;
-                IEnumerator<string> expectedEnumerator = expectedEntries
-                    .Where(x => !x.Contains(dotGitFolder))
-                    .Select(x => x.Replace(expectedPath, string.Empty))
-                    .OrderBy(x => x)
+                IEnumerator<FileSystemInfo> expectedEnumerator = expectedEntries
+                    .Where(x => !x.FullName.Contains(dotGitFolder))
+                    .OrderBy(x => x.Name)
                     .GetEnumerator();
-                IEnumerator<string> actualEnumerator = actualEntries
-                    .Where(x => !x.Contains(dotGitFolder))
-                    .Select(x => x.Replace(actualPath, string.Empty))
-                    .OrderBy(x => x)
+                IEnumerator<FileSystemInfo> actualEnumerator = actualEntries
+                    .Where(x => !x.FullName.Contains(dotGitFolder))
+                    .OrderBy(x => x.Name)
                     .GetEnumerator();
                 
                 bool expectedMoved = expectedEnumerator.MoveNext();
@@ -243,11 +262,29 @@ namespace GVFS.FunctionalTests.Should
                 {
                     if (ignoreCase)
                     {
-                        actualEnumerator.Current.ToLowerInvariant().ShouldEqual(expectedEnumerator.Current.ToLowerInvariant());
+                        actualEnumerator.Current.Name.ToLowerInvariant().ShouldEqual(expectedEnumerator.Current.Name.ToLowerInvariant());
                     }
                     else
                     {
-                        actualEnumerator.Current.ShouldEqual(expectedEnumerator.Current);
+                        actualEnumerator.Current.Name.ShouldEqual(expectedEnumerator.Current.Name);
+                    }
+
+                    if ((expectedEnumerator.Current.Attributes & FileAttributes.Directory) == FileAttributes.Directory)
+                    {
+                        (actualEnumerator.Current.Attributes & FileAttributes.Directory).ShouldEqual(FileAttributes.Directory);
+                    }
+                    else
+                    {
+                        (actualEnumerator.Current.Attributes & FileAttributes.Directory).ShouldNotEqual(FileAttributes.Directory);
+
+                        FileInfo expectedFileInfo = (expectedEnumerator.Current as FileInfo).ShouldNotBeNull();
+                        FileInfo actualFileInfo = (actualEnumerator.Current as FileInfo).ShouldNotBeNull();
+                        actualFileInfo.Length.ShouldEqual(expectedFileInfo.Length);
+
+                        if (compareContent)
+                        {
+                            actualFileInfo.FullName.ShouldBeAFile(fileSystem).WithContents(expectedFileInfo.FullName.ShouldBeAFile(fileSystem).WithContents());
+                        }
                     }
 
                     expectedMoved = expectedEnumerator.MoveNext();
@@ -275,12 +312,13 @@ namespace GVFS.FunctionalTests.Should
                 }
             }
 
-            private static IEnumerable<string> DepthFirstEnumeration(string path, bool skipEmptyDirectories)
+            private static IEnumerable<FileSystemInfo> DepthFirstEnumeration(string path, bool skipEmptyDirectories)
             {
-                foreach (string directoryPath in Directory.EnumerateDirectories(path))
+                DirectoryInfo directoryInfo = new DirectoryInfo(path);
+                foreach (DirectoryInfo subDirectory in directoryInfo.GetDirectories())
                 {
                     bool foundItem = false;
-                    foreach (string subDirectoryItem in DepthFirstEnumeration(directoryPath, skipEmptyDirectories))
+                    foreach (FileSystemInfo subDirectoryItem in DepthFirstEnumeration(subDirectory.FullName, skipEmptyDirectories))
                     {
                         foundItem = true;
                         yield return subDirectoryItem;
@@ -288,13 +326,13 @@ namespace GVFS.FunctionalTests.Should
 
                     if (!skipEmptyDirectories || foundItem)
                     {
-                        yield return directoryPath;
+                        yield return subDirectory;
                     }
                 }
                 
-                foreach (string filePath in Directory.EnumerateFiles(path))
+                foreach (FileInfo fileInfo in directoryInfo.GetFiles())
                 {
-                    yield return filePath;
+                    yield return fileInfo;
                 }
             }
         }

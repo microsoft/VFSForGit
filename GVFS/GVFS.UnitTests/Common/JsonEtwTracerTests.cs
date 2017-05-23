@@ -2,7 +2,10 @@
 using GVFS.Tests.Should;
 using Microsoft.Diagnostics.Tracing;
 using NUnit.Framework;
+using System;
 using System.Collections.Generic;
+using System.Diagnostics;
+using System.IO;
 
 namespace GVFS.UnitTests.Common
 {
@@ -12,10 +15,10 @@ namespace GVFS.UnitTests.Common
         [TestCase]
         public void EventsAreFilteredByVerbosity()
         {
-            using (JsonEtwTracer tracer = new JsonEtwTracer("Microsoft-GVFS-Test", "EventsAreFilteredByVerbosity"))
+            using (JsonEtwTracer tracer = new JsonEtwTracer("Microsoft-GVFS-Test", "EventsAreFilteredByVerbosity1"))
             using (MockListener listener = new MockListener(EventLevel.Informational, Keywords.Any))
             {
-                listener.EnableEvents(tracer.EvtSource, EventLevel.Verbose);
+                tracer.AddInProcEventListener(listener);
 
                 tracer.RelatedEvent(EventLevel.Informational, "ShouldReceive", metadata: null);
                 listener.EventNamesRead.ShouldContain(name => name.Equals("ShouldReceive"));
@@ -24,10 +27,10 @@ namespace GVFS.UnitTests.Common
                 listener.EventNamesRead.ShouldNotContain(name => name.Equals("ShouldNotReceive"));
             }
 
-            using (JsonEtwTracer tracer = new JsonEtwTracer("Microsoft-GVFS-Test", "EventsAreFilteredByVerbosity"))
+            using (JsonEtwTracer tracer = new JsonEtwTracer("Microsoft-GVFS-Test", "EventsAreFilteredByVerbosity2"))
             using (MockListener listener = new MockListener(EventLevel.Verbose, Keywords.Any))
             {
-                listener.EnableEvents(tracer.EvtSource, EventLevel.Verbose);
+                tracer.AddInProcEventListener(listener);
 
                 tracer.RelatedEvent(EventLevel.Informational, "ShouldReceive", metadata: null);
                 listener.EventNamesRead.ShouldContain(name => name.Equals("ShouldReceive"));
@@ -41,10 +44,10 @@ namespace GVFS.UnitTests.Common
         public void EventsAreFilteredByKeyword()
         {
             // Network filters all but network out
-            using (JsonEtwTracer tracer = new JsonEtwTracer("Microsoft-GVFS-Test", "EventsAreFilteredByVerbosity"))
+            using (JsonEtwTracer tracer = new JsonEtwTracer("Microsoft-GVFS-Test", "EventsAreFilteredByKeyword1"))
             using (MockListener listener = new MockListener(EventLevel.Verbose, Keywords.Network))
             {
-                listener.EnableEvents(tracer.EvtSource, EventLevel.Verbose);
+                tracer.AddInProcEventListener(listener);
 
                 tracer.RelatedEvent(EventLevel.Informational, "ShouldReceive", metadata: null, keyword: Keywords.Network);
                 listener.EventNamesRead.ShouldContain(name => name.Equals("ShouldReceive"));
@@ -54,10 +57,10 @@ namespace GVFS.UnitTests.Common
             }
 
             // Any filters nothing out
-            using (JsonEtwTracer tracer = new JsonEtwTracer("Microsoft-GVFS-Test", "EventsAreFilteredByVerbosity"))
+            using (JsonEtwTracer tracer = new JsonEtwTracer("Microsoft-GVFS-Test", "EventsAreFilteredByKeyword2"))
             using (MockListener listener = new MockListener(EventLevel.Verbose, Keywords.Any))
             {
-                listener.EnableEvents(tracer.EvtSource, EventLevel.Verbose);
+                tracer.AddInProcEventListener(listener);
 
                 tracer.RelatedEvent(EventLevel.Informational, "ShouldReceive", metadata: null, keyword: Keywords.Network);
                 listener.EventNamesRead.ShouldContain(name => name.Equals("ShouldReceive"));
@@ -67,10 +70,10 @@ namespace GVFS.UnitTests.Common
             }
              
             // None filters everything out (including events marked as none)
-            using (JsonEtwTracer tracer = new JsonEtwTracer("Microsoft-GVFS-Test", "EventsAreFilteredByVerbosity"))
+            using (JsonEtwTracer tracer = new JsonEtwTracer("Microsoft-GVFS-Test", "EventsAreFilteredByKeyword3"))
             using (MockListener listener = new MockListener(EventLevel.Verbose, Keywords.None))
             {
-                listener.EnableEvents(tracer.EvtSource, EventLevel.Verbose);
+                tracer.AddInProcEventListener(listener);
 
                 tracer.RelatedEvent(EventLevel.Informational, "ShouldNotReceive", metadata: null, keyword: Keywords.Network);
                 listener.EventNamesRead.ShouldBeEmpty();
@@ -80,22 +83,18 @@ namespace GVFS.UnitTests.Common
             }
         }
 
-        public class MockListener : ConsoleEventListener
+        public class MockListener : InProcEventListener
         {
             public readonly List<string> EventNamesRead = new List<string>();
 
-            public MockListener(EventLevel maxVerbosity, Keywords keywordFilter) : base(maxVerbosity, keywordFilter)
+            public MockListener(EventLevel maxVerbosity, Keywords keywordFilter)
+                : base(maxVerbosity, keywordFilter)
             {
             }
 
-            protected override void OnEventWritten(EventWrittenEventArgs eventData)
+            protected override void RecordMessageInternal(string eventName, Guid activityId, Guid parentActivityId, EventLevel level, Keywords keywords, EventOpcode opcode, string jsonPayload)
             {
-                if (!this.IsEnabled(eventData.Level, eventData.Keywords))
-                {
-                    return;
-                }
-
-                this.EventNamesRead.Add(eventData.EventName);
+                this.EventNamesRead.Add(eventName);
             }
         }
     }

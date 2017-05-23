@@ -87,14 +87,14 @@ namespace GVFS.CommandLine
                 this.CopyAllFiles(enlistment.WorkingDirectoryRoot, archiveFolderPath, GVFSConstants.DotGit.Info.Root, copySubFolders: false);
                 this.CopyAllFiles(enlistment.WorkingDirectoryRoot, archiveFolderPath, GVFSConstants.DotGit.Logs.Root, copySubFolders: true);
 
-                this.CopyEsentDatabase<Guid, GVFltCallbacks.BackgroundGitUpdate>(
+                this.CopyEsentDatabase<long, GVFltCallbacks.BackgroundGitUpdate>(
                     enlistment.DotGVFSRoot,
                     Path.Combine(archiveFolderPath, GVFSConstants.DotGVFSPath),
                     GVFSConstants.DatabaseNames.BackgroundGitUpdates);
-                this.CopyEsentDatabase<string, bool>(
+                this.CopyEsentDatabase<string, string>(
                     enlistment.DotGVFSRoot,
                     Path.Combine(archiveFolderPath, GVFSConstants.DotGVFSPath),
-                    GVFSConstants.DatabaseNames.DoNotProject);
+                    GVFSConstants.DatabaseNames.PlaceholderList);
                 this.CopyEsentDatabase<string, long>(
                     enlistment.DotGVFSRoot,
                     Path.Combine(archiveFolderPath, GVFSConstants.DotGVFSPath),
@@ -268,7 +268,7 @@ namespace GVFS.CommandLine
             catch (Exception exc)
             {
                 this.WriteMessage(
-                    "Error while gathering Defender exclusion info. \n" +
+                    "Failed to gather Defender exclusion info. \n" +
                     exc.ToString());
             }
         }

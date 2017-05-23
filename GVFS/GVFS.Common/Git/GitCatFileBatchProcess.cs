@@ -22,30 +22,6 @@ namespace GVFS.Common.Git
         {
         }
 
-        public IEnumerable<GitTreeEntry> GetTreeEntries_CanTimeout(string commitId, string path)
-        {
-            IEnumerable<string> foundShas;
-            if (this.TryGetShasForPath_CanTimeout(commitId, path, isFolder: true, shas: out foundShas))
-            {
-                HashSet<string> alreadyAdded = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-                List<GitTreeEntry> results = new List<GitTreeEntry>();
-                foreach (string sha in foundShas)
-                {
-                    foreach (GitTreeEntry entry in this.GetTreeEntries_CanTimeout(sha))
-                    {
-                        if (alreadyAdded.Add(entry.Name))
-                        {
-                            results.Add(entry);
-                        }
-                    }
-                }
-
-                return results;
-            }
-
-            return new GitTreeEntry[0];
-        }
-
         public IEnumerable<GitTreeEntry> GetTreeEntries_CanTimeout(string sha)
         {
             string header;
@@ -80,25 +56,6 @@ namespace GVFS.Common.Git
             }
 
             return detailLines[0].Substring(TreeLinePrefix.Length);
-        }
-
-        public bool TryGetFileSha_CanTimeout(string commitId, string virtualPath, out string sha)
-        {
-            sha = null;
-
-            IEnumerable<string> foundShas;
-            if (this.TryGetShasForPath_CanTimeout(commitId, virtualPath, isFolder: false, shas: out foundShas))
-            {
-                if (foundShas.Count() > 1)
-                {
-                    return false;
-                }
-
-                sha = foundShas.Single();
-                return true;
-            }
-
-            return false;
         }
 
         public bool TryCopyBlobContentStream_CanTimeout(string blobSha, Action<StreamReader, long> writeAction)
@@ -201,65 +158,6 @@ namespace GVFS.Common.Git
 
                 yield return new GitTreeEntry(fileName, sha, !isBlob, isBlob);
             }
-        }
-
-        /// <summary>
-        /// We are trying to get the sha of a single path.  However, if that is the path of a folder, it can
-        /// potentially correspond to multiple git trees, and therefore we have to return multiple shas.
-        /// 
-        /// This is due to the fact that git and Windows disagree on case sensitivity.  If you add the folders
-        /// foo and Foo, git will store those as two different trees, but Windows will only ever create a single
-        /// folder that contains the union of the files inside both trees.  In order to enumerate Foo correctly,
-        /// we have to treat both trees as if they are the same.
-        /// 
-        /// This has one major problem, but Git for Windows has the same issue even with no GVFS in the picture.
-        /// If you have the files foo\A.txt and Foo\A.txt, after you checkout, git writes both of those files, 
-        /// but whichever one gets written second overwrites the one that was written first, and git status
-        /// will always report one of them as deleted.  In GVFS, we do a case-insensitive union of foo and Foo,
-        /// so we will end up with the same end result.
-        /// </summary>
-        private bool TryGetShasForPath_CanTimeout(string commitId, string virtualPath, bool isFolder, out IEnumerable<string> shas)
-        {
-            shas = Enumerable.Empty<string>();
-
-            string rootTreeSha = this.GetTreeSha_CanTimeout(commitId);
-            if (rootTreeSha == null)
-            {
-                return false;
-            }
-
-            List<string> currentLevelShas = new List<string>();
-            currentLevelShas.Add(rootTreeSha);
-
-            string[] pathParts = virtualPath.Split(new char[] { GVFSConstants.PathSeparator }, StringSplitOptions.RemoveEmptyEntries);
-            for (int i = 0; i < pathParts.Length; ++i)
-            {
-                List<string> nextLevelShas = new List<string>();
-                bool isTree = isFolder || i < pathParts.Length - 1;
-
-                foreach (string treeSha in currentLevelShas)
-                {
-                    IEnumerable<GitTreeEntry> childrenMatchingName =
-                        this.GetTreeEntries_CanTimeout(treeSha)
-                        .Where(entry =>
-                            entry.IsTree == isTree &&
-                            string.Equals(pathParts[i], entry.Name, StringComparison.OrdinalIgnoreCase));
-                    foreach (GitTreeEntry childEntry in childrenMatchingName)
-                    {
-                        nextLevelShas.Add(childEntry.Sha);
-                    }
-                }
-
-                if (nextLevelShas.Count == 0)
-                {
-                    return false;
-                }
-
-                currentLevelShas = nextLevelShas;
-            }
-
-            shas = currentLevelShas;
-            return true;
         }
     }
 }

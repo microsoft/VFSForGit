@@ -1,5 +1,6 @@
 ﻿using GVFS.Common;
 using GVFS.Common.Git;
+using GVFS.Common.Http;
 using GVFS.Common.Tracing;
 using System.Diagnostics;
 using System.IO;
@@ -9,8 +10,8 @@ namespace GVFS.UnitTests.Mock.Common
 {
     public class MockPhysicalGitObjects : GitObjects
     {
-        public MockPhysicalGitObjects(ITracer tracer, Enlistment enlistment, HttpGitObjects httpGitObjects)
-            : base(tracer, enlistment, httpGitObjects)
+        public MockPhysicalGitObjects(ITracer tracer, Enlistment enlistment, GitObjectsHttpRequestor objectRequestor)
+            : base(tracer, enlistment, objectRequestor)
         {
         }
         
@@ -23,7 +24,7 @@ namespace GVFS.UnitTests.Mock.Common
             }
         }
 
-        public override string WriteTempPackFile(HttpGitObjects.GitEndPointResponseData response)
+        public override string WriteTempPackFile(GitEndPointResponseData response)
         {
             Debug.Assert(response.Stream != null, "WriteTempPackFile should not receive a null stream");
 

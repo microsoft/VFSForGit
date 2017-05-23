@@ -89,7 +89,7 @@ namespace GVFS.UnitTests.FastFetch
 
         private static JsonEtwTracer CreateTracer()
         {
-            return new JsonEtwTracer("Microsoft-FastFetch-Test", "FastFetchTest");
+            return new JsonEtwTracer("Microsoft-GVFS-Test", "FastFetchTest");
         }
     }
 }

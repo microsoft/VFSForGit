@@ -1,10 +1,12 @@
 ﻿using CommandLine;
 using GVFS.Common;
 using GVFS.Common.Git;
+using GVFS.Common.Http;
 using GVFS.Common.Tracing;
 using Microsoft.Diagnostics.Tracing;
 using System;
 using System.Collections.Generic;
+using System.ComponentModel;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
@@ -156,6 +158,29 @@ namespace GVFS.CommandLine
             }
         }
 
+        protected void CheckVolumeSupportsDeleteNotifications(ITracer tracer, Enlistment enlistment)
+        {
+            try
+            {
+                if (!NativeMethods.IsFeatureSupportedByVolume(Directory.GetDirectoryRoot(enlistment.EnlistmentRoot), NativeMethods.FileSystemFlags.FILE_RETURNS_CLEANUP_RESULT_INFO))
+                {
+                    this.ReportErrorAndExit("Error: File system does not support features required by GVFS. Confirm that Windows version is at or beyond that required by GVFS");
+                }
+            }
+            catch (Exception e)
+            {
+                if (tracer != null)
+                {
+                    EventMetadata metadata = new EventMetadata();
+                    metadata.Add("ErrorMessage", "Failed to determine if file system supports features required by GVFS");
+                    metadata.Add("Exception", e.ToString());
+                    tracer.RelatedError(metadata);
+                }
+
+                this.ReportErrorAndExit("Error: Failed to determine if file system supports features required by GVFS.");
+            }
+        }
+
         protected void CheckGitVersion(Enlistment enlistment)
         {
             GitProcess.Result versionResult = GitProcess.Version(enlistment);
@@ -252,16 +277,15 @@ namespace GVFS.CommandLine
             }
         }
 
-        protected void ValidateGVFSVersion(GVFSEnlistment enlistment, HttpGitObjects httpGitObjects, ITracer tracer)
+        protected void ValidateGVFSVersion(GVFSEnlistment enlistment, GVFSConfig config, ITracer tracer)
         {
             using (ITracer activity = tracer.StartActivity("ValidateGVFSVersion", EventLevel.Informational))
             {
                 Version currentVersion = new Version(ProcessHelper.GetCurrentProcessVersion());
 
-                GVFSConfigResponse config = httpGitObjects.QueryGVFSConfig();
-                IEnumerable<GVFSConfigResponse.VersionRange> allowedGvfsClientVersions =
+                IEnumerable<GVFSConfig.VersionRange> allowedGvfsClientVersions =
                     config != null
-                    ? config.AllowedGvfsClientVersions
+                    ? config.AllowedGVFSClientVersions
                     : null;
 
                 if (allowedGvfsClientVersions == null || !allowedGvfsClientVersions.Any())
@@ -286,7 +310,7 @@ namespace GVFS.CommandLine
                     return;
                 }
 
-                foreach (GVFSConfigResponse.VersionRange versionRange in config.AllowedGvfsClientVersions)
+                foreach (GVFSConfig.VersionRange versionRange in config.AllowedGVFSClientVersions)
                 {
                     if (currentVersion >= versionRange.Min &&
                         (versionRange.Max == null || currentVersion <= versionRange.Max))

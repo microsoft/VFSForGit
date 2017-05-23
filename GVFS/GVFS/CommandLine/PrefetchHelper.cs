@@ -1,5 +1,6 @@
 ﻿using GVFS.Common;
 using GVFS.Common.Git;
+using GVFS.Common.Http;
 using GVFS.Common.Tracing;
 using System.IO;
 
@@ -11,8 +12,8 @@ namespace GVFS.CommandLine
 
         public PrefetchHelper(ITracer tracer, GVFSEnlistment enlistment, int downloadThreadCount)
         {
-            HttpGitObjects http = new HttpGitObjects(tracer, enlistment, downloadThreadCount);
-            this.gitObjects = new GitObjects(tracer, enlistment, http);
+            GitObjectsHttpRequestor objectRequestor = new GitObjectsHttpRequestor(tracer, enlistment, downloadThreadCount);
+            this.gitObjects = new GitObjects(tracer, enlistment, objectRequestor);
         }
 
         public bool TryPrefetchCommitsAndTrees()

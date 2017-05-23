@@ -22,6 +22,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
         {
             Directory.Exists(this.Enlistment.DiagnosticsRoot).ShouldEqual(false);
             string output = this.Enlistment.Diagnose();
+            output.ShouldNotContain(ignoreCase: true, unexpectedSubstrings: "Failed");
 
             IEnumerable<string> files = Directory.EnumerateFiles(this.Enlistment.DiagnosticsRoot);
             files.ShouldBeNonEmpty();

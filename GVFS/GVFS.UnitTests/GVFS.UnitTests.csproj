@@ -65,7 +65,8 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
-    <Compile Include="Category\CategoryContants.cs" />
+    <Compile Include="Category\CategoryConstants.cs" />
+    <Compile Include="CommandLine\HooksInstallHelperTests.cs" />
     <Compile Include="Common\GitConfigHelperTests.cs" />
     <Compile Include="Common\GitHelperTests.cs" />
     <Compile Include="Common\GitPathConverterTests.cs" />
@@ -79,6 +80,7 @@
     <Compile Include="GVFlt\DotGit\AlwaysExcludeFileTests.cs" />
     <Compile Include="GVFlt\GVFltActiveEnumerationTests.cs" />
     <Compile Include="GVFlt\PathUtilTests.cs" />
+    <Compile Include="GVFlt\PatternMatcherTests.cs" />
     <Compile Include="GVFlt\Physical\FileSerializerTests.cs" />
     <Compile Include="GVFlt\GVFltCallbacksTests.cs" />
     <Compile Include="Mock\Common\MockEnlistment.cs" />

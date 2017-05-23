@@ -59,7 +59,7 @@ namespace GVFS.FunctionalTests.FileSystemRunners
 
         public override string MoveFile(string sourcePath, string targetPath)
         {
-            return this.RunProcess(string.Format("-Command \"& {{ Move-Item {0} {1} }}\"", sourcePath, targetPath));
+            return this.RunProcess(string.Format("-Command \"& {{ Move-Item {0} {1} -force}}\"", sourcePath, targetPath));
         }
 
         public override void MoveFileShouldFail(string sourcePath, string targetPath)

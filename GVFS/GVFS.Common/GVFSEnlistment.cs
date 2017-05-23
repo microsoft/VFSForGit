@@ -49,9 +49,6 @@ namespace GVFS.Common
 
         public string GVFSLogsRoot { get; private set; }
 
-        /* TODO: Story 957530 Remove code using GVFS_HEAD with next breaking change. */
-        public string GVFSHeadFile { get; private set; }
-
         public static GVFSEnlistment CreateFromCurrentDirectory(string cacheServerUrl, string gitBinRoot)
         {
             return CreateFromDirectory(Environment.CurrentDirectory, cacheServerUrl, gitBinRoot, null);
@@ -145,53 +142,11 @@ namespace GVFS.Common
                 .FullName;
         }
 
-        /* TODO: Story 957530 Remove code using GVFS_HEAD with next breaking change. */
-        public bool TryParseGVFSHeadFile(out bool fileExists, out string error, out string commitId)
-        {
-            fileExists = false;
-            error = string.Empty;
-            commitId = string.Empty;
-
-            string gvfsHeadFile = this.GVFSHeadFile;
-            if (File.Exists(gvfsHeadFile))
-            {
-                fileExists = true;
-                try
-                {
-                    string gvfsHeadContents = File.ReadAllText(gvfsHeadFile);
-                    GitProcess.Result objectTypeResult = new GitProcess(this).CatFileGetType(gvfsHeadContents);
-                    if (objectTypeResult.HasErrors)
-                    {
-                        error = string.Format("Error while determining the type of the commit stored in {0}: {1}", GVFSConstants.GVFSHeadCommitName, objectTypeResult.Errors);
-                        return false;
-                    }
-                    else if (objectTypeResult.Output.StartsWith(GVFSConstants.CatFileObjectTypeCommit))
-                    {
-                        commitId = gvfsHeadContents;
-                        return true;
-                    }
-
-                    error = string.Format("Contents of {0}: \"{1}\" is not a commit SHA", GVFSConstants.GVFSHeadCommitName, gvfsHeadContents);
-                    return false;
-                }
-                catch (Exception e)
-                {
-                    error = string.Format("Exception while parsing {0}: {1}", gvfsHeadFile, e.ToString());
-                    return false;
-                }
-            }
-
-            error = string.Format("File \"{0}\" not found", gvfsHeadFile);
-            return false;
-        }
-
         private void SetComputedPaths()
         {
             this.NamedPipeName = EnlistmentUtils.GetNamedPipeName(this.EnlistmentRoot);
             this.DotGVFSRoot = Path.Combine(this.EnlistmentRoot, GVFSConstants.DotGVFSPath);
             this.GVFSLogsRoot = Path.Combine(this.DotGVFSRoot, GVFSConstants.GVFSLogFolderName);
-            /* TODO: Story 957530 Remove code using GVFS_HEAD with next breaking change. */
-            this.GVFSHeadFile = Path.Combine(this.DotGVFSRoot, GVFSConstants.GVFSHeadCommitName);
         }
 
         /// <summary>

@@ -13,7 +13,7 @@ namespace FastFetch.Git
 
         public static bool UpdateRefSpec(ITracer tracer, Enlistment enlistment, string branchOrCommit, GitRefs refs)
         {
-            using (ITracer activity = tracer.StartActivity("UpdateRefSpec", EventLevel.Informational))
+            using (ITracer activity = tracer.StartActivity("UpdateRefSpec", EventLevel.Informational, Keywords.Telemetry, metadata: null))
             {
                 const string OriginRefMapSettingName = "remote.origin.fetch";
 

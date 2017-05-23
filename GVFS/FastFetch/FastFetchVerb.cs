@@ -197,7 +197,11 @@ namespace FastFetch
             {
                 if (this.Verbose)
                 {
-                    tracer.AddConsoleEventListener(EventLevel.Informational, Keywords.Any);
+                    tracer.AddDiagnosticConsoleEventListener(EventLevel.Informational, Keywords.Any);
+                }
+                else
+                {
+                    tracer.AddPrettyConsoleEventListener(EventLevel.Error, Keywords.Any);
                 }
 
                 string fastfetchLogFile = Enlistment.GetNewLogFileName(enlistment.FastFetchLogRoot, "fastfetch");
@@ -249,10 +253,11 @@ namespace FastFetch
                             doPrefetch,
                             "Fetching",
                             output: Console.Out,
-                            showSpinner: !Console.IsOutputRedirected);
+                            showSpinner: !Console.IsOutputRedirected,
+                            suppressGvfsLogMessage: true);
 
                         Console.WriteLine();
-                        Console.WriteLine("FastFetch is complete. See the full logs at " + fastfetchLogFile);
+                        Console.WriteLine("See the full log at " + fastfetchLogFile);
                     }
 
                     isSuccess &= !fetchHelper.HasFailures;

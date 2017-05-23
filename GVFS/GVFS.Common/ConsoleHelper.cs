@@ -7,6 +7,13 @@ namespace GVFS.Common
 {
     public static class ConsoleHelper
     {
+        public enum ActionResult
+        {
+            Success,
+            CompletedWithErrors,
+            Failure,
+        }
+
         private enum StdHandle
         {
             Stdin = -10,
@@ -23,57 +30,127 @@ namespace GVFS.Common
             Remote = 0x8000,
         }
 
-        public static bool ShowStatusWhileRunning(Func<bool> action, string message, TextWriter output, bool showSpinner, bool suppressGvfsLogMessage = false)
+        public static bool ShowStatusWhileRunning(
+            Func<bool> action,
+            string message,
+            TextWriter output,
+            bool showSpinner,
+            bool suppressGvfsLogMessage = false,
+            int initialDelayMs = 0)
         {
-            bool result;
-
-            if (!showSpinner)
-            {
-                output.Write(message + "...");
-                result = action();
-            }
-            else
-            {
-                ManualResetEvent actionIsDone = new ManualResetEvent(false);
-                bool isComplete = false;
-                Thread spinnerThread = new Thread(
-                    () =>
-                    {
-                        int retries = 0;
-                        char[] waiting = { '\u2014', '\\', '|', '/' };
-
-                        while (!isComplete)
-                        {
-                            output.Write("\r{0}...{1}", message, waiting[(retries / 2) % waiting.Length]);
-
-                            actionIsDone.WaitOne(100);
-                            retries++;
-                        }
-                    });
-                spinnerThread.Start();
-
-                try
+            Func<ActionResult> actionResultAction =
+                () =>
                 {
+                    return action() ? ActionResult.Success : ActionResult.Failure;
+                };
+
+            ActionResult result = ShowStatusWhileRunning(
+                actionResultAction, 
+                message, 
+                output, 
+                showSpinner, 
+                suppressGvfsLogMessage, 
+                initialDelayMs);
+
+            return result == ActionResult.Success;
+        }
+
+        public static ActionResult ShowStatusWhileRunning(
+            Func<ActionResult> action, 
+            string message, 
+            TextWriter output, 
+            bool showSpinner, 
+            bool suppressGvfsLogMessage = false, 
+            int initialDelayMs = 0)
+        {
+            ActionResult result = ActionResult.Failure;
+            bool initialMessageWritten = false;
+
+            try
+            {
+                if (!showSpinner)
+                {
+                    output.Write(message + "...");
+                    initialMessageWritten = true;
                     result = action();
                 }
-                finally
+                else
                 {
-                    isComplete = true;
+                    ManualResetEvent actionIsDone = new ManualResetEvent(false);
+                    bool isComplete = false;
+                    Thread spinnerThread = new Thread(
+                        () =>
+                        {
+                            int retries = 0;
+                            char[] waiting = { '\u2014', '\\', '|', '/' };
 
-                    actionIsDone.Set();
-                    spinnerThread.Join();
+                            while (!isComplete)
+                            {
+                                if (retries == 0)
+                                {
+                                    actionIsDone.WaitOne(initialDelayMs);
+                                }
+                                else
+                                {
+                                    output.Write("\r{0}...{1}", message, waiting[(retries / 2) % waiting.Length]);
+                                    initialMessageWritten = true;
+                                    actionIsDone.WaitOne(100);
+                                }
+
+                                retries++;
+                            }
+
+                            if (initialMessageWritten)
+                            {
+                                // Clear out any trailing waiting character
+                                output.Write("\r{0}...", message);
+                            }
+                        });
+                    spinnerThread.Start();
+
+                    try
+                    {
+                        result = action();
+                    }
+                    finally
+                    {
+                        isComplete = true;
+
+                        actionIsDone.Set();
+                        spinnerThread.Join();
+                    }
                 }
-
-                output.Write("\r{0}...", message);
             }
+            finally
+            {
+                switch (result)
+                {
+                    case ActionResult.Success:
+                        if (initialMessageWritten)
+                        {
+                            output.WriteLine("Succeeded");
+                        }
 
-            if (result)
-            {
-                output.WriteLine("Succeeded");
-            }
-            else
-            {
-                output.WriteLine("Failed" + (suppressGvfsLogMessage ? string.Empty : " . Run 'gvfs log' for more info."));
+                        break;
+
+                    case ActionResult.CompletedWithErrors:
+                        if (!initialMessageWritten)
+                        {
+                            output.Write("\r{0}...", message);
+                        }
+
+                        output.WriteLine("Completed with errors.");
+                        break;
+
+                    case ActionResult.Failure:
+                        if (!initialMessageWritten)
+                        {
+                            output.Write("\r{0}...", message);
+                        }
+
+                        output.WriteLine("Failed" + (suppressGvfsLogMessage ? string.Empty : ". Run 'gvfs log' for more info."));
+                        break;
+                }
             }
 
             return result;

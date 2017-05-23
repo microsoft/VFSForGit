@@ -108,11 +108,6 @@ namespace GVFS.UnitTests.Mock.Physical.Git
             size = 0;
             return false;
         }
-        
-        public override IEnumerable<GitTreeEntry> GetTreeEntries_CanTimeout(string commitId, string path)
-        {
-            throw new NotImplementedException();
-        }
 
         private MockGitObject GetTree(string treeSha)
         {

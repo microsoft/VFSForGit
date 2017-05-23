@@ -17,6 +17,8 @@ namespace GVFS.Hooks
 
         private const string GitPidArg = "--git-pid=";
 
+        private const int PostCommandSpinnerDelayMs = 500;
+
         private static Dictionary<string, string> specialArgValues = new Dictionary<string, string>();
         private static string enlistmentRoot;
         private static string enlistmentPipename;
@@ -293,7 +295,66 @@ namespace GVFS.Hooks
             NamedPipeMessages.Message requestMessage = request.CreateMessage(NamedPipeMessages.ReleaseLock.Request);
 
             pipeClient.SendRequest(requestMessage);
-            pipeClient.ReadRawResponse(); // Response doesn't really matter
+
+            NamedPipeMessages.ReleaseLock.Response response = null;
+            ConsoleHelper.ShowStatusWhileRunning(
+                () =>
+                {
+                    response = new NamedPipeMessages.ReleaseLock.Response(pipeClient.ReadResponse());
+
+                    if (response.ResponseData == null)
+                    {
+                        return ConsoleHelper.ActionResult.Failure;
+                    }
+
+                    return response.ResponseData.HasFailures ? ConsoleHelper.ActionResult.CompletedWithErrors : ConsoleHelper.ActionResult.Success;
+                },
+                "Waiting for GVFS to parse index and update placeholder files",
+                output: Console.Out,
+                showSpinner: !ConsoleHelper.IsConsoleOutputRedirectedToFile(),
+                suppressGvfsLogMessage: false,
+                initialDelayMs: PostCommandSpinnerDelayMs);
+
+            if (response == null || response.ResponseData == null)
+            {
+                Console.WriteLine("\nError communicating with GVFS: Run 'git status' to check the status of your repo");
+            }
+            else if (response.ResponseData.HasFailures)
+            {
+                if (response.ResponseData.FailureCountExceedsMaxFileNames)
+                {
+                    Console.WriteLine(
+                        "\nGVFS failed to update {0} files, run 'git status' to check the status of files in the repo",
+                        response.ResponseData.FailedToDeleteCount + response.ResponseData.FailedToUpdateCount);
+                }
+                else
+                {
+                    string deleteFailuresMessage = BuildUpdatePlaceholderFailureMessage(response.ResponseData.FailedToDeleteFileList, "delete", "git clean -f ");
+                    if (deleteFailuresMessage.Length > 0)
+                    {
+                        Console.WriteLine(deleteFailuresMessage);
+                    }
+
+                    string updateFailuresMessage = BuildUpdatePlaceholderFailureMessage(response.ResponseData.FailedToUpdateFileList, "update", "git checkout -- ");
+                    if (updateFailuresMessage.Length > 0)
+                    {
+                        Console.WriteLine(updateFailuresMessage);
+                    }
+                }
+            }
+        }
+
+        private static string BuildUpdatePlaceholderFailureMessage(List<string> fileList, string failedOperation, string recoveryCommand)
+        {
+            if (fileList == null || fileList.Count == 0)
+            {
+                return string.Empty;
+            }
+
+            fileList.Sort(StringComparer.OrdinalIgnoreCase);
+            string message = "\nGVFS was unable to " + failedOperation + " the following files. To recover, close all handles to the files and run these commands:";
+            message += string.Concat(fileList.Select(x => "\n    " + recoveryCommand + x));
+            return message;
         }
 
         private static bool TryRemoveArg(ref string[] args, string argName, out string output)
@@ -324,6 +385,7 @@ namespace GVFS.Hooks
             switch (gitCommand)
             {
                 // Keep these alphabetically sorted
+                case "blame":
                 case "cat-file":
                 case "check-attr":
                 case "config":
@@ -338,7 +400,6 @@ namespace GVFS.Hooks
                 case "log":
                 case "ls-tree":
                 case "merge-base":
-                case "mv":
                 case "name-rev":
                 case "push":
                 case "remote":

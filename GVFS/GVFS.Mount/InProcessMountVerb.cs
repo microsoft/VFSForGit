@@ -83,7 +83,7 @@ namespace GVFS.Mount
                 keywords);
             if (this.ShowDebugWindow)
             {
-                tracer.AddConsoleEventListener(verbosity, keywords);
+                tracer.AddDiagnosticConsoleEventListener(verbosity, keywords);
             }
 
             tracer.WriteStartEvent(

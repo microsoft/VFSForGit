@@ -32,7 +32,7 @@ namespace FastFetch.Jobs
         public CheckoutJob(int maxParallel, IEnumerable<string> pathWhitelist, string targetCommitSha, ITracer tracer, Enlistment enlistment)
             : base(maxParallel)
         {
-            this.tracer = tracer.StartActivity(AreaPath, EventLevel.Informational);
+            this.tracer = tracer.StartActivity(AreaPath, EventLevel.Informational, Keywords.Telemetry, metadata: null);
             this.enlistment = enlistment;
             this.diff = new DiffHelper(tracer, enlistment, pathWhitelist);
             this.targetCommitSha = targetCommitSha;
@@ -51,6 +51,8 @@ namespace FastFetch.Jobs
             get { return this.diff.UpdatedWholeTree; }
         }
 
+        public BlockingCollection<string> AddedOrEditedLocalFiles { get; } = new BlockingCollection<string>();
+
         protected override void DoBeforeWork()
         {
             this.diff.PerformDiff(this.targetCommitSha);
@@ -59,11 +61,44 @@ namespace FastFetch.Jobs
 
         protected override void DoWork()
         {
-            this.HandleAllDirectoryOperations();
+            using (ITracer activity = this.tracer.StartActivity(
+                nameof(this.HandleAllDirectoryOperations),
+                EventLevel.Informational,
+                Keywords.Telemetry,
+                metadata: null))
+            {
+                this.HandleAllDirectoryOperations();
 
-            this.HandleAllFileDeleteOperations();
+                EventMetadata metadata = new EventMetadata();
+                metadata.Add("DirectoryOperationsCompleted", this.directoryOpCount);
+                activity.Stop(metadata);
+            }
 
-            this.HandleAllFileAddOperations();
+            using (ITracer activity = this.tracer.StartActivity(
+                nameof(this.HandleAllFileDeleteOperations),
+                EventLevel.Informational,
+                Keywords.Telemetry,
+                metadata: null))
+            {
+                this.HandleAllFileDeleteOperations();
+
+                EventMetadata metadata = new EventMetadata();
+                metadata.Add("FilesDeleted", this.fileDeleteCount);
+                activity.Stop(metadata);
+            }
+
+            using (ITracer activity = this.tracer.StartActivity(
+                nameof(this.HandleAllFileAddOperations),
+                EventLevel.Informational,
+                Keywords.Telemetry,
+                metadata: null))
+            {
+                this.HandleAllFileAddOperations();
+                
+                EventMetadata metadata = new EventMetadata();
+                metadata.Add("FilesWritten", this.fileWriteCount);
+                activity.Stop(metadata);
+            }
         }
 
         protected override void DoAfterWork()
@@ -86,6 +121,8 @@ namespace FastFetch.Jobs
 
                 this.tracer.RelatedError(errorMetadata);
             }
+
+            this.AddedOrEditedLocalFiles.CompleteAdding();
 
             EventMetadata metadata = new EventMetadata();
             metadata.Add("DirectoryOperations", this.directoryOpCount);
@@ -263,8 +300,10 @@ namespace FastFetch.Jobs
 
                             Interlocked.Add(ref this.bytesWritten, written);
 
-                            for (int i = 0; i < paths.Count; ++i)
+                            foreach (string path in paths)
                             {
+                                this.AddedOrEditedLocalFiles.Add(path);
+
                                 if (Interlocked.Increment(ref this.fileWriteCount) % NumOperationsPerStatus == 0)
                                 {
                                     EventMetadata metadata = new EventMetadata();

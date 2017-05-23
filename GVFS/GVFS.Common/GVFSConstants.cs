@@ -32,8 +32,6 @@ namespace GVFS.Common
         public const string PrefetchPackPrefix = "prefetch";
 
         public const string HeadCommitName = "HEAD";
-        /* TODO: Story 957530 Remove code using GVFS_HEAD with next breaking change. */
-        public const string GVFSHeadCommitName = "GVFS_HEAD";
         public const string MergeHeadCommitName = "MERGE_HEAD";
         public const string RevertHeadCommitName = "REVERT_HEAD";
 
@@ -51,7 +49,7 @@ namespace GVFS.Common
 
         public const string CommandParentExePrefix = "git";
         public const string ExecutableExtension = ".exe";
-        public static readonly GitVersion MinimumGitVersion = new GitVersion(2, 12, 2, "gvfs", 2, 14);
+        public static readonly GitVersion MinimumGitVersion = new GitVersion(2, 12, 2, "gvfs", 2, 0);
 
         public static class MediaTypes
         {
@@ -65,8 +63,8 @@ namespace GVFS.Common
         {
             public const string BackgroundGitUpdates = "BackgroundGitUpdates";
             public const string BlobSizes = "BlobSizes";
-            public const string DoNotProject = "DoNotProject";
             public const string RepoMetadata = "RepoMetadata";
+            public const string PlaceholderList = "PlaceholderList";
         }
 
         public static class SpecialGitFiles
@@ -94,6 +92,7 @@ namespace GVFS.Common
             public static readonly string Config = Path.Combine(DotGit.Root, "config");
             public static readonly string Head = Path.Combine(DotGit.Root, HeadName);
             public static readonly string Index = Path.Combine(DotGit.Root, IndexName);
+            public static readonly string IndexLock = Path.Combine(DotGit.Root, IndexName + LockExtension);
             public static readonly string PackedRefs = Path.Combine(DotGit.Root, PackedRefsName);
             public static readonly string Shallow = Path.Combine(DotGit.Root, "shallow");
 

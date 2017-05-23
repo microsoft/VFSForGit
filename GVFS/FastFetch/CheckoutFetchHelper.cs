@@ -1,24 +1,18 @@
 ﻿using FastFetch.Git;
 using FastFetch.Jobs;
-using FastFetch.Jobs.Data;
 using GVFS.Common;
 using GVFS.Common.Git;
 using GVFS.Common.Tracing;
 using Microsoft.Diagnostics.Tracing;
 using System;
-using System.Collections.Concurrent;
 using System.Collections.Generic;
-using System.IO;
 using System.Linq;
 
 namespace FastFetch
 {
     public class CheckoutFetchHelper : FetchHelper
     {
-        private const string AreaPath = nameof(CheckoutFetchHelper);
-
         private readonly bool allowIndexMetadataUpdateFromWorkingTree;
-
         private readonly int checkoutThreadCount;
 
         public CheckoutFetchHelper(
@@ -47,7 +41,7 @@ namespace FastFetch
             string commitToFetch;
             if (isBranch)
             {
-                refs = this.HttpGitObjects.QueryInfoRefs(branchOrCommit);
+                refs = this.ObjectRequestor.QueryInfoRefs(branchOrCommit);
                 if (refs == null)
                 {
                     throw new FetchException("Could not query info/refs from: {0}", this.Enlistment.RepoUrl);
@@ -65,20 +59,20 @@ namespace FastFetch
             }
 
             this.DownloadMissingCommit(commitToFetch, this.GitObjects);
-            
+
             // Configure pipeline
             // Checkout uses DiffHelper when running checkout.Start(), which we use instead of LsTreeHelper like in FetchHelper.cs
             // Checkout diff output => FindMissingBlobs => BatchDownload => IndexPack => Checkout available blobs
             CheckoutJob checkout = new CheckoutJob(this.checkoutThreadCount, this.PathWhitelist, commitToFetch, this.Tracer, this.Enlistment);
-            FindMissingBlobsJob blobFinder = new FindMissingBlobsJob(this.SearchThreadCount, checkout.RequiredBlobs, checkout.AvailableBlobShas, this.Tracer, this.Enlistment);            
-            BatchObjectDownloadJob downloader = new BatchObjectDownloadJob(this.DownloadThreadCount, this.ChunkSize, blobFinder.DownloadQueue, checkout.AvailableBlobShas, this.Tracer, this.Enlistment, this.HttpGitObjects, this.GitObjects);
+            FindMissingBlobsJob blobFinder = new FindMissingBlobsJob(this.SearchThreadCount, checkout.RequiredBlobs, checkout.AvailableBlobShas, this.Tracer, this.Enlistment);
+            BatchObjectDownloadJob downloader = new BatchObjectDownloadJob(this.DownloadThreadCount, this.ChunkSize, blobFinder.DownloadQueue, checkout.AvailableBlobShas, this.Tracer, this.Enlistment, this.ObjectRequestor, this.GitObjects);
             IndexPackJob packIndexer = new IndexPackJob(this.IndexThreadCount, downloader.AvailablePacks, checkout.AvailableBlobShas, this.Tracer, this.GitObjects);
 
             // Start pipeline
             downloader.Start();
             blobFinder.Start();
             checkout.Start();
-            
+
             blobFinder.WaitForCompletion();
             this.HasFailures |= blobFinder.HasFailures;
 
@@ -119,57 +113,27 @@ namespace FastFetch
                     }
                 }
 
+                bool indexSigningIsOff = this.GetIsIndexSigningOff();
+
                 // Update the index
-                using (ITracer activity = this.Tracer.StartActivity("UpdateIndex", EventLevel.Informational))
+                EventMetadata updateIndexMetadata = new EventMetadata();
+                updateIndexMetadata.Add("IndexSigningIsOff", indexSigningIsOff);
+                using (ITracer activity = this.Tracer.StartActivity("UpdateIndex", EventLevel.Informational, Keywords.Telemetry, updateIndexMetadata))
                 {
-                    // The first bit of core.gvfs is set if index signing is turned off.
-                    const uint CoreGvfsUnsignedIndexFlag = 1;
-
-                    GitProcess git = new GitProcess(this.Enlistment);
-
-                    // Only update the index if index signing is turned off.
-
-                    // The first bit of core.gvfs is set if signing is turned off.
-                    GitProcess.Result configCoreGvfs = git.GetFromConfig("core.gvfs");
-                    uint valueCoreGvfs;
-
-                    // No errors getting the configuration *and it is either "true" or numeric with the right bit set.
-                    bool indexSigningIsTurnedOff =
-                        !configCoreGvfs.HasErrors &&
-                        !string.IsNullOrEmpty(configCoreGvfs.Output) &&
-                        (configCoreGvfs.Output.Equals("true", StringComparison.OrdinalIgnoreCase) ||
-                         (uint.TryParse(configCoreGvfs.Output, out valueCoreGvfs) &&
-                          ((valueCoreGvfs & CoreGvfsUnsignedIndexFlag) == CoreGvfsUnsignedIndexFlag)));
-
                     // Create the index object now so it can track the current index
-                    Index index = indexSigningIsTurnedOff ? new Index(this.Enlistment.EnlistmentRoot, activity) : null;
+                    Index index = indexSigningIsOff ? new Index(this.Enlistment.EnlistmentRoot, activity) : null;
+                    
+                    GitIndexGenerator indexGen = new GitIndexGenerator(this.Tracer, this.Enlistment, !indexSigningIsOff);
+                    indexGen.CreateFromHeadTree();
+                    this.HasFailures = indexGen.HasFailures;
 
-                    GitProcess.Result result;
-                    using (ITracer updateIndexActivity = this.Tracer.StartActivity("ReadTree", EventLevel.Informational))
+                    if (!indexGen.HasFailures && index != null)
                     {
-                        result = git.ReadTree("HEAD");
-                    }
+                        // Update from disk only if the caller says it is ok via command line
+                        // or if we updated the whole tree and know that all files are up to date
+                        bool allowIndexMetadataUpdateFromWorkingTree = this.allowIndexMetadataUpdateFromWorkingTree || checkout.UpdatedWholeTree;
 
-                    if (result.HasErrors)
-                    {
-                        activity.RelatedError("Could not read HEAD tree to update index: " + result.Errors);
-                        this.HasFailures = true;
-                    }
-                    else
-                    {
-                        if (index != null) 
-                        {
-                            // Update from disk only if the caller says it is ok via command line
-                            // or if we updated the whole tree and know that all files are up to date
-                            bool allowIndexMetadataUpdateFromWorkingTree = this.allowIndexMetadataUpdateFromWorkingTree || checkout.UpdatedWholeTree;
-
-                            // Update
-                            index.UpdateFileSizesAndTimes(allowIndexMetadataUpdateFromWorkingTree);
-                        }
-                        else
-                        {
-                            activity.RelatedEvent(EventLevel.Informational, "Core.gvfs is not set, so not updating index entries with file times and sizes.", null);
-                        }
+                        index.UpdateFileSizesAndTimes(checkout.AddedOrEditedLocalFiles, allowIndexMetadataUpdateFromWorkingTree);
                     }
                 }
             }
@@ -199,6 +163,23 @@ namespace FastFetch
             }
 
             base.UpdateRefs(branchOrCommit, isBranch, refs);
+        }
+
+        private bool GetIsIndexSigningOff()
+        {
+            // The first bit of core.gvfs is set if index signing is turned off.
+            const uint CoreGvfsUnsignedIndexFlag = 1;
+
+            GitProcess git = new GitProcess(this.Enlistment);
+            GitProcess.Result configCoreGvfs = git.GetFromConfig("core.gvfs");
+            uint valueCoreGvfs;
+
+            // No errors getting the configuration and it is either "true" or numeric with the right bit set.
+            return !configCoreGvfs.HasErrors &&
+                !string.IsNullOrEmpty(configCoreGvfs.Output) &&
+                (configCoreGvfs.Output.Equals("true", StringComparison.OrdinalIgnoreCase) ||
+                (uint.TryParse(configCoreGvfs.Output, out valueCoreGvfs) &&
+                ((valueCoreGvfs & CoreGvfsUnsignedIndexFlag) == CoreGvfsUnsignedIndexFlag)));
         }
     }
 }

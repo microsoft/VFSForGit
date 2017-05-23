@@ -25,15 +25,8 @@ GVFS is still in progress, but it is available here for anyone to try out. Feel 
 
 ## Testing GVFS
 
-* GVFS requires Windows 10 Anniversary Update or later
-* Enable test signed drivers
-  * IMPORTANT: do not do this on a production machine. This is for evaluation only.
-  * First, suspend BitLocker, if it is currently enabled
-    * Go to Control Panel > System and Security > BitLocker Drive Encryption
-    * For your OS drive, select "Suspend Protection" (This only suspends BitLocker until the next reboot. It does not disable BitLocker protection.)
-  * In an elevated command prompt, type `bcdedit -set TESTSIGNING ON`
-  * Reboot to apply the change, and this will also re-enable BitLocker 
-* Install GVFS-enabled Git for Windows (2.12.2.gvfs.2 or later) from https://github.com/Microsoft/git/releases/tag/gvfs.preview
+* GVFS requires Windows 10 Creators Update or later
+* Install GVFS-enabled Git for Windows (2.12.2.gvfs.2 or later) from https://github.com/Microsoft/git/releases
   * This build behaves the same as Git for Windows except if the config value `core.gvfs` is set to `true`.
 * Install GVFS from your build output
   * If you built it as described above, the installer can be found at `C:\Repos\GVFS\BuildOutput\GVFS\bin\x64\[Debug|Release]\Setup\SetupGVFS.exe`

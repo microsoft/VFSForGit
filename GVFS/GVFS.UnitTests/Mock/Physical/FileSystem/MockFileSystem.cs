@@ -160,14 +160,6 @@ namespace GVFS.UnitTests.Mock.Physical.FileSystem
             }
         }
 
-        public override IDisposable MonitorDeletes(
-            string directory, 
-            NotifyFilters notifyFilter, 
-            Action<FileSystemEventArgs> onDelete)
-        {
-            throw new NotImplementedException();
-        }
-
         private Stream CreateAndOpenFileStream(string path)
         {
             MockFile file = this.RootDirectory.CreateFile(path);

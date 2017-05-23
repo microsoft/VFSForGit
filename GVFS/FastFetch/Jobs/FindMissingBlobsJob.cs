@@ -37,7 +37,7 @@ namespace FastFetch.Jobs
             Enlistment enlistment)
             : base(maxParallel)
         {
-            this.tracer = tracer.StartActivity(AreaPath, EventLevel.Informational);
+            this.tracer = tracer.StartActivity(AreaPath, EventLevel.Informational, Keywords.Telemetry, metadata: null);
             this.inputQueue = inputQueue;
             this.enlistment = enlistment;
             this.alreadyFoundBlobIds = new ConcurrentHashSet<string>();

@@ -51,5 +51,23 @@ namespace GVFS.Common
                 }
             }
         }
+        
+        public static byte[] BytesFromHexString(string sha)
+        {
+            byte[] arr = new byte[sha.Length / 2];
+
+            for (int i = 0; i < arr.Length; ++i)
+            {
+                arr[i] = (byte)((GetHexVal(sha[i << 1]) << 4) + GetHexVal(sha[(i << 1) + 1]));
+            }
+
+            return arr;
+        }
+
+        private static int GetHexVal(char hex)
+        {
+            int val = (int)hex;
+            return val - (val < 58 ? 48 : (val < 97 ? 55 : 87));
+        }
     }
 }

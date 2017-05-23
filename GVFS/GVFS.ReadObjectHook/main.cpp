@@ -114,12 +114,12 @@ inline HANDLE CreatePipeToGVFS(const std::wstring& pipeName)
 
 		if (GetLastError() != ERROR_PIPE_BUSY)
 		{
-			die(ReturnCode::PipeConnectError, "Could not open pipe. (%d)\n", GetLastError());
+			die(ReturnCode::PipeConnectError, "Could not open pipe: %ls, Error: %d\n", pipeName.c_str(), GetLastError());
 		}
 
 		if (!WaitNamedPipeW(pipeName.c_str(), 3000))
 		{
-			die(ReturnCode::PipeConnectTimeout, "Could not open pipe: Timed out.");
+			die(ReturnCode::PipeConnectTimeout, "Could not open pipe: %ls, Timed out.", pipeName.c_str());
 		}
 	}
 

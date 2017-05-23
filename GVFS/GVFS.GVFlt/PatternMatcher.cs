@@ -7,8 +7,8 @@ namespace GVFS.GVFlt
     // Changes made after copying from above URL:
     //
     // - Changed ANSI_DOS_STAR to '<' and ANSI_DOS_QM to '>' (these are the correct values, see ntifs.h)
-    //
-    internal static class PatternMatcher
+    // - Added code so that method is consistently case insensitive
+    public static class PatternMatcher
     {
         /// <devdoc>
         ///     Private constants (directly from C header files)
@@ -439,7 +439,7 @@ namespace GVFS.GVFlt
                         //
                         //  Finally, check if the expression char matches the name char
                         //
-                        if (exprChar == nameChar)
+                        if (char.ToUpperInvariant(exprChar) == char.ToUpperInvariant(nameChar))
                         {
                             currentMatches[destCount++] = currentState;
                             break;

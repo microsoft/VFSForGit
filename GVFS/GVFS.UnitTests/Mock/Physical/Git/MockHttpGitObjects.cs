@@ -1,5 +1,6 @@
 ﻿using GVFS.Common;
 using GVFS.Common.Git;
+using GVFS.Common.Http;
 using GVFS.Common.Tracing;
 using GVFS.Tests.Should;
 using System;
@@ -9,7 +10,7 @@ using System.Net;
 
 namespace GVFS.UnitTests.Mock.Physical.Git
 {
-    public class MockHttpGitObjects : HttpGitObjects
+    public class MockHttpGitObjects : GitObjectsHttpRequestor
     {
         private Dictionary<string, long> shaLengths = new Dictionary<string, long>(StringComparer.OrdinalIgnoreCase);
         private Dictionary<string, string> shaContents = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);

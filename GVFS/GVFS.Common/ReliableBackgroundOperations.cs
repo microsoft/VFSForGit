@@ -11,13 +11,17 @@ namespace GVFS.Common
 {
     public class ReliableBackgroundOperations<TBackgroundOperation> : IDisposable where TBackgroundOperation : IBackgroundOperation
     {
+        public const long UnassignedOperationId = 0;
+
         private const int ActionRetryDelayMS = 50;
         private const int MaxCallbackAttemptsOnShutdown = 5;
         private const int LogUpdateTaskThreshold = 25000;
         private static readonly string EtwArea = "ProcessBackgroundOperations";
 
         private readonly ReaderWriterLockSlim acquisitionLock;
-        private PersistentDictionary<Guid, TBackgroundOperation> persistence;
+
+        private long lastOperationId;
+        private PersistentDictionary<long, TBackgroundOperation> persistence;
 
         private ConcurrentQueue<TBackgroundOperation> backgroundOperations;
         private AutoResetEvent wakeUpThread;
@@ -39,7 +43,7 @@ namespace GVFS.Common
             string databaseName)
         {
             this.acquisitionLock = new ReaderWriterLockSlim();
-            this.persistence = new PersistentDictionary<Guid, TBackgroundOperation>(
+            this.persistence = new PersistentDictionary<long, TBackgroundOperation>(
                 Path.Combine(context.Enlistment.DotGVFSRoot, databaseName));
 
             this.backgroundOperations = new ConcurrentQueue<TBackgroundOperation>();
@@ -49,6 +53,11 @@ namespace GVFS.Common
             this.preCallback = preCallback;
             this.callback = callback;
             this.postCallback = postCallback;
+            this.lastOperationId = UnassignedOperationId;
+
+            // Enqueue saved oeprations here in the constructor to ensure that this.lastOperationId is
+            // set properly before any new operations are queued
+            this.EnqueueSavedOperations();
         }
 
         private enum AcquireGVFSLockResult
@@ -63,8 +72,7 @@ namespace GVFS.Common
         }
 
         public void Start()
-        {
-            this.EnqueueSavedOperations();
+        {            
             this.backgroundThread = Task.Factory.StartNew((Action)this.ProcessBackgroundOperations, TaskCreationOptions.LongRunning);
             if (this.backgroundOperations.Count > 0)
             {
@@ -74,6 +82,7 @@ namespace GVFS.Common
 
         public void Enqueue(TBackgroundOperation backgroundOperation)
         {
+            backgroundOperation.Id = this.GetNextOperationId();
             this.persistence[backgroundOperation.Id] = backgroundOperation;
             this.persistence.Flush();
 
@@ -125,15 +134,22 @@ namespace GVFS.Common
             }
         }
 
+        private long GetNextOperationId()
+        {
+            return Interlocked.Increment(ref this.lastOperationId);
+        }
+
         private void EnqueueSavedOperations()
         {
-            foreach (Guid operationId in this.persistence.Keys)
+            foreach (long operationId in this.persistence.Keys)
             {
-                // We are setting the Id here because there may be old operations that
-                // were persisted without the Id begin set in the background operation object
                 TBackgroundOperation backgroundOperation = this.persistence[operationId];
-                backgroundOperation.Id = operationId;
-                this.backgroundOperations.Enqueue(backgroundOperation);
+                if (backgroundOperation.Id > this.lastOperationId)
+                {
+                    this.lastOperationId = backgroundOperation.Id;
+                }
+
+                this.backgroundOperations.Enqueue(backgroundOperation);                
             }
         }
 

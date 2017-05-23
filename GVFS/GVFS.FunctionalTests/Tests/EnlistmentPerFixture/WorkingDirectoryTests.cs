@@ -5,8 +5,10 @@ using GVFS.FunctionalTests.Tools;
 using GVFS.Tests.Should;
 using NUnit.Framework;
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.IO.MemoryMappedFiles;
+using System.Linq;
 using System.Runtime.InteropServices;
 using System.Text;
 
@@ -399,8 +401,9 @@ BOOL APIENTRY DllMain( HMODULE hModule,
             // 575d597cf09b2cd1c0ddb4db21ce96979010bbcb did not have the folder GVFlt_MultiThreadTest
             GitProcess.InvokeProcess(this.Enlistment.RepoRoot, "checkout 575d597cf09b2cd1c0ddb4db21ce96979010bbcb");
 
-            string sparseFile = this.Enlistment.GetVirtualPathTo(@".git\info\sparse-checkout");
-            sparseFile.ShouldBeAFile(this.fileSystem).WithContents().ShouldNotContain(folderName);
+            // Confirm that no other test has created GVFlt_MultiThreadTest or put it in the sparse-checkout
+            string sparseFile = this.Enlistment.GetVirtualPathTo(TestConstants.DotGit.Info.SparseCheckout);
+            sparseFile.ShouldBeAFile(this.fileSystem).WithContents().ShouldNotContain(ignoreCase: true, unexpectedSubstrings: folderName);
 
             string virtualFolderPath = this.Enlistment.GetVirtualPathTo(folderName);
             virtualFolderPath.ShouldNotExistOnDisk(this.fileSystem);
@@ -419,16 +422,15 @@ BOOL APIENTRY DllMain( HMODULE hModule,
         [Category(CategoryConstants.GitCommands)]
         public void FolderContentsCorrectAfterCreateNewFolderRenameAndCheckoutCommitWithSameFolder()
         {
-            // f1bce402a7a980a8320f3f235cf8c8fdade4b17a is the commit prior to adding Test_EPF_MoveRenameFolderTests
-            GitProcess.InvokeProcess(this.Enlistment.RepoRoot, "checkout f1bce402a7a980a8320f3f235cf8c8fdade4b17a");
+            // 1ca414ced40f64bf94fc6c7f885974708bc600be is the commit prior to adding Test_EPF_MoveRenameFileTests
+            GitProcess.InvokeProcess(this.Enlistment.RepoRoot, "checkout 1ca414ced40f64bf94fc6c7f885974708bc600be");
 
             // Confirm that no other test has created this folder or put it in the sparse-checkout
-            string folderName = "Test_EPF_MoveRenameFolderTests";
+            string folderName = "Test_EPF_MoveRenameFileTests";
             string folder = this.Enlistment.GetVirtualPathTo(folderName);
             folder.ShouldNotExistOnDisk(this.fileSystem);
-
-            string sparseFile = this.Enlistment.GetVirtualPathTo(@".git\info\sparse-checkout");
-            sparseFile.ShouldBeAFile(this.fileSystem).WithContents().ShouldNotContain(folderName);
+            string sparseFile = this.Enlistment.GetVirtualPathTo(TestConstants.DotGit.Info.SparseCheckout);
+            sparseFile.ShouldBeAFile(this.fileSystem).WithContents().ShouldNotContain(ignoreCase: true, unexpectedSubstrings: folderName);
 
             // Confirm sparse-checkout picks up renamed folder
             string newFolder = this.Enlistment.GetVirtualPathTo("newFolder");
@@ -438,16 +440,44 @@ BOOL APIENTRY DllMain( HMODULE hModule,
             this.Enlistment.WaitForBackgroundOperations().ShouldEqual(true, "Background operations failed to complete.");
             sparseFile.ShouldBeAFile(this.fileSystem).WithContents().ShouldContain(folderName);
 
-            // Confirm that subfolders of Test_EPF_MoveRenameFolderTests are projected after switching back to this.ControlGitRepo.Commitish
+            // Switch back to this.ControlGitRepo.Commitish and confirm that folder contents are correct
             GitProcess.InvokeProcess(this.Enlistment.RepoRoot, "checkout " + Properties.Settings.Default.Commitish);
 
             folder.ShouldBeADirectory(this.fileSystem);
-            (folder + @"\ChangeUnhydratedFolderName\source\ChangeUnhydratedFolderName.cpp").ShouldBeAFile(this.fileSystem).WithContents(MoveRenameFolderTests.TestFileContents);
-            (folder + @"\MoveAndRenameUnhydratedFolderToNewFolder\MoveAndRenameUnhydratedFolderToNewFolder.cpp").ShouldBeAFile(this.fileSystem).WithContents(TestFileContents).WithContents(MoveRenameFolderTests.TestFileContents);
-            (folder + @"\MoveFolderWithUnhydratedAndFullContents\MoveFolderWithUnhydratedAndFullContents.cpp").ShouldBeAFile(this.fileSystem).WithContents(MoveRenameFolderTests.TestFileContents);
-            (folder + @"\MoveUnhydratedFolderToFullFolderInDotGitFolder\MoveUnhydratedFolderToFullFolderInDotGitFolder.cpp").ShouldBeAFile(this.fileSystem).WithContents(MoveRenameFolderTests.TestFileContents);
-            (folder + @"\MoveUnhydratedFolderToVirtualNTFSFolder\MoveUnhydratedFolderToVirtualNTFSFolder.cpp").ShouldBeAFile(this.fileSystem).WithContents(MoveRenameFolderTests.TestFileContents);
-            (folder + @"\RenameFolderShouldFail\source\RenameFolderShouldFail.cpp").ShouldBeAFile(this.fileSystem).WithContents(MoveRenameFolderTests.TestFileContents);
+            (folder + @"\ChangeNestedUnhydratedFileNameCase\Program.cs").ShouldBeAFile(this.fileSystem).WithContents(MoveRenameFileTests.TestFileContents);
+            (folder + @"\ChangeUnhydratedFileName\Program.cs").ShouldBeAFile(this.fileSystem).WithContents(MoveRenameFileTests.TestFileContents);
+            (folder + @"\MoveUnhydratedFileToDotGitFolder\Program.cs").ShouldBeAFile(this.fileSystem).WithContents(MoveRenameFileTests.TestFileContents);
+        }
+
+        [TestCase, Order(15)]
+        public void FilterNonUTF8FileName()
+        {
+            string encodingFilename = "ريلٌأكتوبرûمارسأغسطسºٰٰۂْٗ۵ريلٌأك.txt";
+            string folderVirtualPath = this.Enlistment.GetVirtualPathTo("FilenameEncoding");
+
+            this.FolderEnumerationShouldHaveSingleEntry(folderVirtualPath, encodingFilename, null);
+            this.FolderEnumerationShouldHaveSingleEntry(folderVirtualPath, encodingFilename, "ريلٌأكتوبرûمارسأغسطسºٰٰۂْٗ۵ريلٌأك.txt");
+            this.FolderEnumerationShouldHaveSingleEntry(folderVirtualPath, encodingFilename, "ريلٌأكتوبرûمارسأغسطسºٰٰۂْٗ۵ريلٌأك*");
+            this.FolderEnumerationShouldHaveSingleEntry(folderVirtualPath, encodingFilename, "ريلٌأكتوبر*.TXT");
+
+            folderVirtualPath.ShouldBeADirectory(this.fileSystem).WithNoItems("test*");
+            folderVirtualPath.ShouldBeADirectory(this.fileSystem).WithNoItems("ريلٌأكتوب.TXT");
+        }
+
+        private void FolderEnumerationShouldHaveSingleEntry(string folderVirtualPath, string expectedEntryName, string searchPatten)
+        {
+            IEnumerable<FileSystemInfo> folderEntries;
+            if (string.IsNullOrEmpty(searchPatten))
+            {
+                folderEntries = folderVirtualPath.ShouldBeADirectory(this.fileSystem).WithItems();
+            }
+            else
+            {
+                folderEntries = folderVirtualPath.ShouldBeADirectory(this.fileSystem).WithItems(searchPatten);
+            }
+
+            folderEntries.Count().ShouldEqual(1);
+            folderEntries.ShouldContain(file => file.Name.Equals(expectedEntryName));
         }
 
         private class NativeTests

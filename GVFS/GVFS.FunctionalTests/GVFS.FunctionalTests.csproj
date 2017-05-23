@@ -93,6 +93,8 @@
     <Compile Include="Tests\EnlistmentPerFixture\CloneTests.cs" />
     <Compile Include="Tests\EnlistmentPerFixture\DehydrateTests.cs" />
     <Compile Include="Tests\EnlistmentPerFixture\DiagnoseTests.cs" />
+    <Compile Include="Tests\EnlistmentPerFixture\UpdatePlaceholderTests.cs" />
+    <Compile Include="Tests\EnlistmentPerTestCase\GVFSLockTests.cs" />
     <Compile Include="Tests\GitCommands\CheckoutTests.cs" />
     <Compile Include="Tests\GitCommands\CherryPickConflictTests.cs" />
     <Compile Include="Tests\GitCommands\UpdateIndexTests.cs" />

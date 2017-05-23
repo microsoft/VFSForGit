@@ -1,5 +1,6 @@
 ﻿using GVFS.Common;
 using GVFS.Common.Git;
+using GVFS.Common.Http;
 using GVFS.Common.Physical;
 using GVFS.Common.Tracing;
 using GVFS.GVFlt;
@@ -14,19 +15,19 @@ namespace GVFS.CommandLine
     public class CloneHelper
     {
         private GVFSEnlistment enlistment;
-        private HttpGitObjects httpGitObjects;
+        private GitObjectsHttpRequestor objectRequestor;
         private ITracer tracer;
 
-        public CloneHelper(ITracer tracer, GVFSEnlistment enlistment, HttpGitObjects httpGitObjects)
+        public CloneHelper(ITracer tracer, GVFSEnlistment enlistment, GitObjectsHttpRequestor objectRequestor)
         {
             this.tracer = tracer;
             this.enlistment = enlistment;
-            this.httpGitObjects = httpGitObjects;
+            this.objectRequestor = objectRequestor;
         }
 
         public CloneVerb.Result CreateClone(GitRefs refs, string branch)
         {
-            GitObjects gitObjects = new GitObjects(this.tracer, this.enlistment, this.httpGitObjects);
+            GitObjects gitObjects = new GitObjects(this.tracer, this.enlistment, this.objectRequestor);
 
             CloneVerb.Result initRepoResult = this.TryInitRepo(refs, this.enlistment);
             if (!initRepoResult.Success)

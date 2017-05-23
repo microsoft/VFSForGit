@@ -1,5 +1,5 @@
 ﻿using GVFS.Common;
-using GVFS.Common.Git;
+using GVFS.Common.Http;
 using GVFS.Common.Physical.Git;
 using GVFS.Tests.Should;
 using GVFS.UnitTests.Category;
@@ -51,7 +51,7 @@ namespace GVFS.UnitTests.Physical.Git
         }
 
         [TestCase]
-        [Category(CategoryContants.ExceptionExpected)]
+        [Category(CategoryConstants.ExceptionExpected)]
         public void FailsZeroByteLooseObjectsDownloads()
         {
             MockHttpGitObjects httpObjects = new MockHttpGitObjects();
@@ -65,7 +65,7 @@ namespace GVFS.UnitTests.Physical.Git
         }
 
         [TestCase]
-        [Category(CategoryContants.ExceptionExpected)]
+        [Category(CategoryConstants.ExceptionExpected)]
         public void FailsNullByteLooseObjectsDownloads()
         {
             MockHttpGitObjects httpObjects = new MockHttpGitObjects();
@@ -79,7 +79,7 @@ namespace GVFS.UnitTests.Physical.Git
         }
 
         [TestCase]
-        [Category(CategoryContants.ExceptionExpected)]
+        [Category(CategoryConstants.ExceptionExpected)]
         public void FailsZeroBytePackDownloads()
         {
             MockHttpGitObjects httpObjects = new MockHttpGitObjects();
@@ -93,7 +93,7 @@ namespace GVFS.UnitTests.Physical.Git
         }
 
         [TestCase]
-        [Category(CategoryContants.ExceptionExpected)]
+        [Category(CategoryConstants.ExceptionExpected)]
         public void FailsNullBytePackDownloads()
         {
             MockHttpGitObjects httpObjects = new MockHttpGitObjects();
@@ -122,9 +122,9 @@ namespace GVFS.UnitTests.Physical.Git
             return Path.Combine(workingDirectory, "Data", fileName);
         }
 
-        private class MockHttpGitObjects : HttpGitObjects
+        private class MockHttpGitObjects : GitObjectsHttpRequestor
         {
-            public MockHttpGitObjects() : base(null, null, 1)
+            public MockHttpGitObjects() : base(null, new MockEnlistment(), 1)
             {
             }
 

@@ -60,6 +60,7 @@ namespace GVFSGvFltWrapper
 
     public delegate void GvNotifyFileHandleClosedEvent(
         System::String^ relativePath,
+        bool isDirectory,
         bool fileModified, 
         bool fileDeleted);
 }

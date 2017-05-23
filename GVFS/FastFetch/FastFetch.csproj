@@ -67,6 +67,8 @@
     <Compile Include="FastFetchVerb.cs" />
     <Compile Include="CheckoutFetchHelper.cs" />
     <Compile Include="FetchHelper.cs" />
+    <Compile Include="Git\GitIndexGenerator.cs" />
+    <Compile Include="HashingStream.cs" />
     <Compile Include="WorkingTree.cs" />
     <Compile Include="GitEnlistment.cs" />
     <Compile Include="Git\DiffHelper.cs" />

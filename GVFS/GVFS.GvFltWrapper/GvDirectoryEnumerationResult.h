@@ -32,11 +32,6 @@ namespace GVFSGvFltWrapper
             virtual void set(long long value) abstract;
         };
 
-        property long long AllocationSize
-        {
-            virtual void set(long long value) abstract;
-        };
-
         property unsigned int FileAttributes
         {
             virtual void set(unsigned int value) abstract;

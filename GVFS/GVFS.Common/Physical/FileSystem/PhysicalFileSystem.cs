@@ -130,20 +130,5 @@ namespace GVFS.Common.Physical.FileSystem
                 return FileProperties.DefaultFile;
             }
         }
-
-        public virtual IDisposable MonitorDeletes(
-            string directory, 
-            NotifyFilters notifyFilter,
-            Action<FileSystemEventArgs> onDelete)
-        {
-            FileSystemWatcher watcher = new FileSystemWatcher(directory);
-            watcher.IncludeSubdirectories = true;
-            watcher.NotifyFilter = notifyFilter;
-            watcher.InternalBufferSize = WatcherBufferSize;
-            watcher.EnableRaisingEvents = true;
-            watcher.Deleted += (sender, args) => onDelete(args);
-
-            return watcher;
-        }
     }
 }

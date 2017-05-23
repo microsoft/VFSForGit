@@ -97,6 +97,9 @@
     <ClInclude Include="include\NtFunctions.h">
       <Filter>include</Filter>
     </ClInclude>
+    <ClInclude Include="FileUtils.h">
+      <Filter>interface</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="source\dllmain.cpp">
@@ -151,6 +154,9 @@
       <Filter>source</Filter>
     </ClCompile>
     <ClCompile Include="source\NtFunctions.cpp">
+      <Filter>source</Filter>
+    </ClCompile>
+    <ClCompile Include="FileUtils.cpp">
       <Filter>source</Filter>
     </ClCompile>
   </ItemGroup>

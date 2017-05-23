@@ -3,12 +3,15 @@ using Newtonsoft.Json;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.Linq;
 
 namespace GVFS.Common.Tracing
 {
     public class JsonEtwTracer : ITracer
     {
         public const string NetworkErrorEventName = "NetworkError";
+
+        private List<InProcEventListener> listeners = new List<InProcEventListener>();
 
         private string activityName;
         private Guid parentActivityId;
@@ -17,7 +20,7 @@ namespace GVFS.Common.Tracing
         private Stopwatch duration = Stopwatch.StartNew();
 
         private EventLevel startStopLevel;
-        private List<InProcEventListener> listeners;
+        private Keywords startStopKeywords;
 
         public JsonEtwTracer(string providerName, string activityName)
             : this(providerName, Guid.Empty, activityName)
@@ -26,47 +29,43 @@ namespace GVFS.Common.Tracing
 
         public JsonEtwTracer(string providerName, Guid providerActivityId, string activityName)
             : this(
-                  new EventSource(providerName, EventSourceSettings.EtwSelfDescribingEventFormat),
+                  new List<InProcEventListener>(),
                   providerActivityId,
                   activityName,
-                  EventLevel.Informational)
+                  EventLevel.Informational,
+                  Keywords.Telemetry)
         {
-            this.listeners = new List<InProcEventListener>();
         }
 
-        private JsonEtwTracer(
-            EventSource eventSource,
-            Guid parentActivityId,
-            string activityName,
-            EventLevel startStopLevel)
+        private JsonEtwTracer(List<InProcEventListener> listeners, Guid parentActivityId, string activityName, EventLevel startStopLevel, Keywords startStopKeywords)
         {
-            this.EvtSource = eventSource;
+            this.listeners = listeners;
             this.parentActivityId = parentActivityId;
             this.activityName = activityName;
             this.startStopLevel = startStopLevel;
+            this.startStopKeywords = startStopKeywords;
 
             this.activityId = Guid.NewGuid();
         }
 
-        public EventSource EvtSource { get; }
-
-        public static string GetNameFromEnlistmentPath(string enlistmentRootPath)
+        public void AddInProcEventListener(InProcEventListener listener)
         {
-            return "Microsoft-GVFS_" + enlistmentRootPath.ToUpper().Replace(':', '_');
+            this.listeners.Add(listener);
         }
 
-        public void AddConsoleEventListener(EventLevel maxVerbosity, Keywords keywordFilter)
+        public void AddDiagnosticConsoleEventListener(EventLevel maxVerbosity, Keywords keywordFilter)
         {
-            this.AddEventListener(
-                new ConsoleEventListener(maxVerbosity, keywordFilter),
-                maxVerbosity);
+            this.listeners.Add(new DiagnosticConsoleEventListener(maxVerbosity, keywordFilter));
+        }
+
+        public void AddPrettyConsoleEventListener(EventLevel maxVerbosity, Keywords keywordFilter)
+        {
+            this.listeners.Add(new PrettyConsoleEventListener(maxVerbosity, keywordFilter));
         }
 
         public void AddLogFileEventListener(string logFilePath, EventLevel maxVerbosity, Keywords keywordFilter)
         {
-            this.AddEventListener(
-                new LogFileEventListener(logFilePath, maxVerbosity, keywordFilter),
-                maxVerbosity);
+            this.listeners.Add(new LogFileEventListener(logFilePath, maxVerbosity, keywordFilter));
         }
 
         public void Dispose()
@@ -76,17 +75,12 @@ namespace GVFS.Common.Tracing
             // If we have no parent, then we are the root tracer and should dispose our eventsource.
             if (this.parentActivityId == Guid.Empty)
             {
-                if (this.listeners != null)
+                foreach (InProcEventListener listener in this.listeners)
                 {
-                    foreach (InProcEventListener listener in this.listeners)
-                    {
-                        listener.Dispose();
-                    }
-
-                    this.listeners = null;
+                    listener.Dispose();
                 }
 
-                this.EvtSource.Dispose();
+                this.listeners.Clear();
             }
         }
 
@@ -97,18 +91,17 @@ namespace GVFS.Common.Tracing
 
         public virtual void RelatedEvent(EventLevel level, string eventName, EventMetadata metadata, Keywords keyword)
         {
-            EventSourceOptions options = this.CreateDefaultOptions(level, keyword);
-            this.WriteEvent(eventName, metadata, ref options);
+            this.WriteEvent(eventName, level, keyword, metadata, opcode: 0);
         }
 
         public virtual void RelatedError(EventMetadata metadata)
         {
-            this.RelatedError(metadata, Keywords.None);
+            this.RelatedError(metadata, Keywords.Telemetry);
         }
 
         public virtual void RelatedError(EventMetadata metadata, Keywords keywords)
         {
-            this.RelatedEvent(EventLevel.Error, GetCategorizedErrorEventName(keywords), metadata, keywords);
+            this.RelatedEvent(EventLevel.Error, GetCategorizedErrorEventName(keywords), metadata, keywords | Keywords.Telemetry);
         }
 
         public virtual void RelatedError(string message)
@@ -133,15 +126,12 @@ namespace GVFS.Common.Tracing
             this.duration.Stop();
             this.stopped = true;
 
-            EventSourceOptions options = this.CreateDefaultOptions(this.startStopLevel, Keywords.None);
-            options.Opcode = EventOpcode.Stop;
-
             metadata = metadata ?? new EventMetadata();
             metadata.Add("DurationMs", this.duration.ElapsedMilliseconds);
 
-            this.WriteEvent(this.activityName, metadata, ref options);
+            this.WriteEvent(this.activityName, this.startStopLevel, this.startStopKeywords, metadata, EventOpcode.Stop);
         }
-        
+
         public ITracer StartActivity(string childActivityName, EventLevel startStopLevel)
         {
             return this.StartActivity(childActivityName, startStopLevel, null);
@@ -149,12 +139,17 @@ namespace GVFS.Common.Tracing
 
         public ITracer StartActivity(string childActivityName, EventLevel startStopLevel, EventMetadata startMetadata)
         {
-            JsonEtwTracer subTracer = new JsonEtwTracer(this.EvtSource, this.activityId, childActivityName, startStopLevel);
-            subTracer.WriteStartEvent(startMetadata);
+            return this.StartActivity(childActivityName, startStopLevel, Keywords.None, startMetadata);
+        }
+
+        public ITracer StartActivity(string childActivityName, EventLevel startStopLevel, Keywords startStopKeywords, EventMetadata startMetadata)
+        {
+            JsonEtwTracer subTracer = new JsonEtwTracer(this.listeners, this.activityId, childActivityName, startStopLevel, startStopKeywords);
+            subTracer.WriteStartEvent(startMetadata, startStopKeywords);
 
             return subTracer;
         }
-        
+
         public void WriteStartEvent(
             string enlistmentRoot,
             string repoUrl,
@@ -189,15 +184,12 @@ namespace GVFS.Common.Tracing
                 }
             }
 
-            this.WriteStartEvent(metadata);
+            this.WriteStartEvent(metadata, Keywords.Telemetry);
         }
-        
-        public void WriteStartEvent(EventMetadata metadata)
-        {
-            EventSourceOptions options = this.CreateDefaultOptions(this.startStopLevel, Keywords.None);
-            options.Opcode = EventOpcode.Start;
 
-            this.WriteEvent(this.activityName, metadata, ref options);
+        public void WriteStartEvent(EventMetadata metadata, Keywords keywords)
+        {
+            this.WriteEvent(this.activityName, this.startStopLevel, keywords, metadata, EventOpcode.Start);
         }
 
         private static string GetCategorizedErrorEventName(Keywords keywords)
@@ -208,64 +200,15 @@ namespace GVFS.Common.Tracing
                 default: return "Error";
             }
         }
-        
-        private void WriteEvent(string eventName, EventMetadata metadata, ref EventSourceOptions options)
+
+        private void WriteEvent(string eventName, EventLevel level, Keywords keywords, EventMetadata metadata, EventOpcode opcode)
         {
-            if (metadata != null)
+            string jsonPayload = metadata != null ? JsonConvert.SerializeObject(metadata) : null;
+
+            foreach (InProcEventListener listener in this.listeners)
             {
-                JsonPayload payload = new JsonPayload(metadata);
-                EventSource.SetCurrentThreadActivityId(this.activityId);
-                this.EvtSource.Write(eventName, ref options, ref this.activityId, ref this.parentActivityId, ref payload);
+                listener.RecordMessage(eventName, this.activityId, this.parentActivityId, level, keywords, opcode, jsonPayload);
             }
-            else
-            {
-                EmptyStruct payload = new EmptyStruct();
-                EventSource.SetCurrentThreadActivityId(this.activityId);
-                this.EvtSource.Write(eventName, ref options, ref this.activityId, ref this.parentActivityId, ref payload);
-            }
-        }
-
-        private EventSourceOptions CreateDefaultOptions(EventLevel level, Keywords keywords)
-        {
-            EventSourceOptions options = new EventSourceOptions();
-            options.Keywords = (EventKeywords)keywords;
-            options.Level = level;
-            return options;
-        }
-
-        private void AddEventListener(InProcEventListener listener, EventLevel maxVerbosity)
-        {
-            if (this.listeners == null)
-            {
-                throw new InvalidOperationException("You can only register a listener on the root tracer object");
-            }
-
-            if (maxVerbosity >= EventLevel.Verbose)
-            {
-                listener.RecordMessage(string.Format("ETW Provider name: {0} ({1})", this.EvtSource.Name, this.EvtSource.Guid));
-                listener.RecordMessage("Activity Id: " + this.activityId);
-            }
-
-            listener.EnableEvents(this.EvtSource, maxVerbosity);
-            this.listeners.Add(listener);
-        }
-
-        // Needed to pass relatedId without metadata
-        [EventData]
-        private struct EmptyStruct
-        {
-        }
-        
-        [EventData]
-        private struct JsonPayload
-        {
-            public JsonPayload(object serializableObject)
-            {
-                this.Json = JsonConvert.SerializeObject(serializableObject);
-            }
-
-            [EventField]
-            public string Json { get; }
         }
     }
 }

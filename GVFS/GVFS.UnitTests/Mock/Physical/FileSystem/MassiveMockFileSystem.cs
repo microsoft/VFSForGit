@@ -44,14 +44,6 @@ namespace GVFS.UnitTests.Mock.Physical.FileSystem
             return output;
         }
 
-        public override IDisposable MonitorDeletes(
-            string directory, 
-            NotifyFilters notifyFilter, 
-            Action<FileSystemEventArgs> onDelete)
-        {
-            throw new NotImplementedException();
-        }
-
         public override void WriteAllText(string path, string contents)
         {
         }

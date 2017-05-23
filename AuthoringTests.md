@@ -7,7 +7,6 @@
 Our functional tests are in the GVFS.FunctionalTests project.  They are built on NUnit 3, which is available as a set of NuGet packages.
 
 To run the functional tests:
-
 1. Open GVFS.sln in Visual Studio
 2. Build all, which will download the NUnit framework and runner
 3. You have three options for how to run the tests, all of which are equivalent.

@@ -8,7 +8,8 @@ namespace GVFS.Common.Tracing
         ITracer StartActivity(string activityName, EventLevel level);
 
         ITracer StartActivity(string activityName, EventLevel level, EventMetadata metadata);
-        
+        ITracer StartActivity(string activityName, EventLevel level, Keywords startStopKeywords, EventMetadata metadata);
+
         void RelatedEvent(EventLevel level, string eventName, EventMetadata metadata);
 
         void RelatedEvent(EventLevel level, string eventName, EventMetadata metadata, Keywords keywords);

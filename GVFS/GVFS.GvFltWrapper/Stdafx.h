@@ -212,6 +212,9 @@ typedef NTSTATUS(NTAPI *PQueryVolumeInformationFile)(HANDLE, PIO_STATUS_BLOCK, P
 #define ERROR_REPARSE_POINT_ENCOUNTERED  4395L
 #endif
 
+// The virtualization operation is not allowed on the file in its current state
+#define STATUS_FILE_SYSTEM_VIRTUALIZATION_INVALID_OPERATION ((NTSTATUS)0xC000CE05)
+
 #define __HRESULT_FROM_WIN32(x) ((HRESULT)(x) <= 0 ? ((HRESULT)(x)) : ((HRESULT) (((x) & 0x0000FFFF) | (FACILITY_WIN32 << 16) | 0x80000000)))
 #define UNREFERENCED_PARAMETER(P) (P)
 
@@ -246,6 +249,7 @@ typedef NTSTATUS(NTAPI *PQueryVolumeInformationFile)(HANDLE, PIO_STATUS_BLOCK, P
 #include <string>
 #include "gvlib.h"
 #include "GvNotificationType.h"
+#include "GvUpdateType.h"
 #include "IoStatusBlockValue.h"
 
 

@@ -1,12 +1,14 @@
 ﻿using GVFS.Common;
 using GVFS.Common.Git;
 using System;
+using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Reflection;
 
 namespace GVFS.CommandLine
 {
-    internal static class HooksInstallHelper
+    public static class HooksInstallHelper
     {
         private const string HooksConfigContentTemplate =
 @"########################################################################
@@ -28,6 +30,11 @@ namespace GVFS.CommandLine
                 string postcommandHookPath = Path.Combine(enlistment.WorkingDirectoryRoot, GVFSConstants.DotGit.Hooks.PostCommandPath);
                 InstallGitCommandHooks(enlistment, GVFSConstants.DotGit.Hooks.PostCommandHookName, postcommandHookPath);
             }
+            catch (HooksConfigurationException he)
+            {
+                error = he.Message;
+                return false;
+            }
             catch (Exception e)
             {
                 error = e.ToString();
@@ -35,6 +42,33 @@ namespace GVFS.CommandLine
             }
 
             return true;
+        }
+
+        /// <summary>
+        /// Public accessibility to simplify testing.
+        /// </summary>
+        public static string MergeHooksData(string[] defaultHooksLines, string filename, string hookName)
+        {
+            IEnumerable<string> valuableHooksLines = defaultHooksLines.Where(line => !string.IsNullOrEmpty(line.Trim()));
+
+            if (valuableHooksLines.Contains(GVFSConstants.GVFSHooksExecutableName, StringComparer.OrdinalIgnoreCase))
+            {
+                throw new HooksConfigurationException(
+                    "GVFS.Hooks.exe should not be specified in the configuration for "
+                    + GVFSConstants.DotGit.Hooks.PostCommandHookName + " hooks (" + filename + ").");
+            }
+            else if (!valuableHooksLines.Any())
+            {
+                return GVFSConstants.GVFSHooksExecutableName;
+            }
+            else if (hookName.Equals(GVFSConstants.DotGit.Hooks.PostCommandHookName))
+            {
+                return string.Join("\n", new string[] { GVFSConstants.GVFSHooksExecutableName }.Concat(valuableHooksLines));
+            }
+            else
+            {
+                return string.Join("\n", valuableHooksLines.Concat(new string[] { GVFSConstants.GVFSHooksExecutableName }));
+            }
         }
 
         private static void CopyReadObjectHook(GVFSEnlistment enlistment, string installedReadObjectHookPath)
@@ -58,11 +92,11 @@ namespace GVFS.CommandLine
 
             string gitHooksloaderPath = Path.Combine(Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location), GVFSConstants.DotGit.Hooks.LoaderExecutable);
             TryActionAndThrow(
-                () => CopyGitHooksLoader(gitHooksloaderPath, commandHookPath), 
+                () => CopyGitHooksLoader(gitHooksloaderPath, commandHookPath),
                 "Failed to copy " + GVFSConstants.DotGit.Hooks.LoaderExecutable + " to " + commandHookPath + GVFSConstants.ExecutableExtension);
 
             TryActionAndThrow(
-                () => CreateHookCommandConfig(enlistment, hookName, commandHookPath), 
+                () => CreateHookCommandConfig(enlistment, hookName, commandHookPath),
                 "Failed to create " + commandHookPath + GVFSConstants.DotGit.Hooks.ConfigExtension);
         }
 
@@ -103,15 +137,15 @@ namespace GVFS.CommandLine
         {
             GitProcess configProcess = new GitProcess(enlistment);
             string filename;
-            string defaultHooks = string.Empty;
+            string[] defaultHooksLines = { };
 
             if (configProcess.TryGetFromConfig(configSettingName, forceOutsideEnlistment: true, value: out filename))
             {
                 filename = filename.Trim(' ', '\n');
-                defaultHooks = Environment.NewLine + File.ReadAllText(filename);
+                defaultHooksLines = File.ReadAllLines(filename);
             }
 
-            return GVFSConstants.GVFSHooksExecutableName + defaultHooks;
+            return MergeHooksData(defaultHooksLines, filename, hookName);
         }
 
         private static void TryActionAndThrow(Action action, string errorMessage)
@@ -120,9 +154,21 @@ namespace GVFS.CommandLine
             {
                 action();
             }
+            catch (HooksConfigurationException)
+            {
+                throw;
+            }
             catch (Exception e)
             {
                 throw new Exception(errorMessage + ", Exception: " + e.ToString(), e);
+            }
+        }
+
+        public class HooksConfigurationException : Exception
+        {
+            public HooksConfigurationException(string message)
+                : base(message)
+            {
             }
         }
     }

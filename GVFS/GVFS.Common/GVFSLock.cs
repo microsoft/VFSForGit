@@ -261,6 +261,7 @@ namespace GVFS.Common
 
                     if (this.lockHolder.PID != pid)
                     {
+                        metadata.Add("pid", pid);
                         metadata.Add("Result", "Failed (wrong PID)");
                         return false;
                     }

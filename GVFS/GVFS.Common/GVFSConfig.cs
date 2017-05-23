@@ -1,11 +1,11 @@
 ﻿using System;
 using System.Collections.Generic;
 
-namespace GVFS.Common.Git
+namespace GVFS.Common
 {
-    public class GVFSConfigResponse
+    public class GVFSConfig
     {
-        public IEnumerable<VersionRange> AllowedGvfsClientVersions { get; set; }
+        public IEnumerable<VersionRange> AllowedGVFSClientVersions { get; set; }
 
         public class VersionRange
         {

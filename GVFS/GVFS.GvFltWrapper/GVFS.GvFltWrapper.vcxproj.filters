@@ -59,6 +59,12 @@
     <ClInclude Include="IoStatusBlockValue.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="GvUpdateType.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="GvUpdateFailureCause.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="AssemblyInfo.cpp">

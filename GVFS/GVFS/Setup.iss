@@ -11,7 +11,7 @@
 #define MyAppExeName "GVFS.exe"
 #define EnvironmentKey "SYSTEM\CurrentControlSet\Control\Session Manager\Environment"
 
-#define GVFltRelative "..\..\..\..\..\packages\Microsoft.GVFS.GvFlt.0.17417.1-preview\filter"
+#define GVFltRelative "..\..\..\..\..\packages\Microsoft.GVFS.GvFlt.0.17523.1-preview\filter"
 #define HooksRelative "..\..\..\..\GVFS.Hooks\bin"
 #define HooksLoaderRelative "..\..\..\..\GitHooksLoader\bin"
 #define GVFSMountRelative "..\..\..\..\GVFS.Mount\bin"
@@ -35,7 +35,7 @@ OutputDir=Setup
 Compression=lzma2
 InternalCompressLevel=ultra64
 SolidCompression=yes
-MinVersion=10.0.14374
+MinVersion=10.0.15063
 DisableDirPage=yes
 DisableReadyPage=yes
 SetupIconFile=GitVirtualFileSystem.ico

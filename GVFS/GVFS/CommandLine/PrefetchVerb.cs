@@ -65,7 +65,11 @@ namespace GVFS.CommandLine
             {
                 if (this.Verbose)
                 {
-                    tracer.AddConsoleEventListener(EventLevel.Informational, Keywords.Any);
+                    tracer.AddDiagnosticConsoleEventListener(EventLevel.Informational, Keywords.Any);
+                }
+                else
+                {
+                    tracer.AddPrettyConsoleEventListener(EventLevel.Error, Keywords.Any);
                 }
 
                 tracer.AddLogFileEventListener(
@@ -166,12 +170,18 @@ namespace GVFS.CommandLine
                         Environment.ExitCode = 1;
                     }
                 }
-                catch (AggregateException e)
+                catch (AggregateException aggregateException)
                 {
                     this.Output.WriteLine("Cannot prefetch @ {0}:", enlistment.EnlistmentRoot);
-                    foreach (Exception ex in e.Flatten().InnerExceptions)
+                    foreach (Exception innerException in aggregateException.Flatten().InnerExceptions)
                     {
-                        this.Output.WriteLine("Exception: {0}", ex.ToString());
+                        tracer.RelatedError(
+                            new EventMetadata
+                            {
+                                { "Verb", typeof(PrefetchVerb).Name },
+                                { "ErrorMessage", $"Unhandled {innerException.GetType().Name}: {innerException.Message}" },
+                                { "Exception", innerException.ToString() }
+                            });
                     }
 
                     Environment.ExitCode = (int)ReturnCode.GenericError;
@@ -182,7 +192,14 @@ namespace GVFS.CommandLine
                 }
                 catch (Exception e)
                 {
-                    this.ReportErrorAndExit("Cannot prefetch @ {0}: {1}", enlistment.EnlistmentRoot, e.ToString());
+                    this.Output.WriteLine("Cannot prefetch @ {0}:", enlistment.EnlistmentRoot);
+                    tracer.RelatedError(
+                        new EventMetadata
+                        {
+                            { "Verb", typeof(PrefetchVerb).Name },
+                            { "ErrorMessage", $"Unhandled {e.GetType().Name}: {e.Message}" },
+                            { "Exception", e.ToString() }
+                        });
                 }
             }
         }

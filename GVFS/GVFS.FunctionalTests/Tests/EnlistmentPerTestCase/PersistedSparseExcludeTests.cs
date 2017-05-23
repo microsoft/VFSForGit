@@ -23,6 +23,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerTestCase
         private const string RenameNewDotGitFileTarget = "TestFileFromDotGit.txt";
         private const string FileToCreateOutsideRepo = "PersistedSparseExcludeTests_outsideRepo.txt";
         private const string FolderToCreateOutsideRepo = "PersistedSparseExcludeTests_outsideFolder";
+        private const string FolderToDelete = "Scripts";
         private const string AlwaysExcludeFilePath = @".git\info\always_exclude";
         private const string SparseCheckoutFilePath = @".git\info\sparse-checkout";
         private static string[] expectedAlwaysExcludeFileContents = new string[] 
@@ -40,7 +41,9 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerTestCase
             "!/PersistedSparseExcludeTests_NewFolderForRename2",
             "!/PersistedSparseExcludeTests_NewFolderForRename2/*",
             "!/PersistedSparseExcludeTests_outsideFolder",
-            "!/PersistedSparseExcludeTests_outsideFolder/*"
+            "!/PersistedSparseExcludeTests_outsideFolder/*",
+            "!/Scripts",
+            "!/Scripts/*"
         };
         private static string[] expectedSparseFileContents = new string[] 
         {
@@ -55,7 +58,13 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerTestCase
             "/PersistedSparseExcludeTests_NewFolderForRename2/",
             "/TestFileFromDotGit.txt",
             "/PersistedSparseExcludeTests_outsideRepo.txt",
-            "/PersistedSparseExcludeTests_outsideFolder/"
+            "/PersistedSparseExcludeTests_outsideFolder/",
+            "/Scripts/CreateCommonAssemblyVersion.bat",
+            "/Scripts/CreateCommonCliAssemblyVersion.bat",
+            "/Scripts/CreateCommonVersionHeader.bat",
+            "/Scripts/RunFunctionalTests.bat",
+            "/Scripts/RunUnitTests.bat",
+            "/Scripts/"
         };
 
         [TestCaseSource(typeof(FileSystemRunner), FileSystemRunner.TestRunners)]
@@ -69,6 +78,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerTestCase
 
             string fileToDelete = this.Enlistment.GetVirtualPathTo(FileToDelete);
             fileSystem.DeleteFile(fileToDelete);
+            fileToDelete.ShouldNotExistOnDisk(fileSystem);
 
             string fileToRename = this.Enlistment.GetVirtualPathTo(FileToRename);
             fileSystem.MoveFile(fileToRename, this.Enlistment.GetVirtualPathTo(RenameFileTarget));
@@ -86,6 +96,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerTestCase
             folderTargetOutsideSrc.ShouldNotExistOnDisk(fileSystem);
             fileSystem.MoveDirectory(folderToRenameTarget, folderTargetOutsideSrc);
             folderTargetOutsideSrc.ShouldBeADirectory(fileSystem);
+            folderToRenameTarget.ShouldNotExistOnDisk(fileSystem);
 
             // Moving a file from the .git folder to the working directory should add the file to the sparse-checkout
             string dotGitfileToAdd = this.Enlistment.GetVirtualPathTo(DotGitFileToCreate);
@@ -99,6 +110,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerTestCase
             fileToCreateOutsideRepoTargetPath.ShouldNotExistOnDisk(fileSystem);
             fileSystem.MoveFile(fileToCreateOutsideRepoPath, fileToCreateOutsideRepoTargetPath);
             fileToCreateOutsideRepoTargetPath.ShouldBeAFile(fileSystem);
+            fileToCreateOutsideRepoPath.ShouldNotExistOnDisk(fileSystem);
 
             // Move a folder from outside of src into src
             string folderToCreateOutsideRepoPath = Path.Combine(this.Enlistment.EnlistmentRoot, FolderToCreateOutsideRepo);
@@ -108,6 +120,11 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerTestCase
             folderToCreateOutsideRepoTargetPath.ShouldNotExistOnDisk(fileSystem);
             fileSystem.MoveDirectory(folderToCreateOutsideRepoPath, folderToCreateOutsideRepoTargetPath);
             folderToCreateOutsideRepoTargetPath.ShouldBeADirectory(fileSystem);
+            folderToCreateOutsideRepoPath.ShouldNotExistOnDisk(fileSystem);
+
+            string folderToDelete = this.Enlistment.GetVirtualPathTo(FolderToDelete);
+            fileSystem.DeleteDirectory(folderToDelete);
+            folderToDelete.ShouldNotExistOnDisk(fileSystem);
 
             // Remount
             this.Enlistment.UnmountGVFS();
@@ -126,7 +143,6 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerTestCase
             string sparseFile = this.Enlistment.GetVirtualPathTo(SparseCheckoutFilePath);
             string sparseFileContents = sparseFile.ShouldBeAFile(fileSystem).WithContents();
             sparseFileContents.Split(new char[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries)
-                .Where(x => expectedSparseFileContents.Contains(x)) // Exclude extra entries for files hydrated during test
                 .OrderBy(x => x)
                 .ShouldMatchInOrder(expectedSparseFileContents.OrderBy(x => x));
         }      

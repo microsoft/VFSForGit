@@ -10,6 +10,7 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
+using System.Text.RegularExpressions;
 
 namespace GVFS.FunctionalTests.Tests
 {
@@ -74,7 +75,7 @@ namespace GVFS.FunctionalTests.Tests
             this.CurrentBranchShouldEqual(Settings.Default.Commitish);
 
             this.fastFetchRepoRoot.ShouldBeADirectory(FileSystemRunner.DefaultRunner)
-                .WithDeepStructure(this.fastFetchControlRoot, skipEmptyDirectories: false);
+                .WithDeepStructure(FileSystemRunner.DefaultRunner, this.fastFetchControlRoot, skipEmptyDirectories: false);
         }
 
         [TestCase]
@@ -108,7 +109,7 @@ namespace GVFS.FunctionalTests.Tests
             this.CurrentBranchShouldEqual(Settings.Default.Commitish);
 
             this.fastFetchRepoRoot.ShouldBeADirectory(FileSystemRunner.DefaultRunner)
-                .WithDeepStructure(this.fastFetchControlRoot, skipEmptyDirectories: false);
+                .WithDeepStructure(FileSystemRunner.DefaultRunner, this.fastFetchControlRoot, skipEmptyDirectories: false);
         }
 
         [TestCase]
@@ -173,6 +174,33 @@ namespace GVFS.FunctionalTests.Tests
         }
 
         [TestCase]
+        public void IncrementalChangesLeaveGoodStatus()
+        {
+            // Specific commits taken from branch  FunctionalTests/20170206_Conflict_Source
+            // These commits have adds, edits and removals
+            const string BaseCommit = "170b13ce1990c53944403a70e93c257061598ae0";
+            const string UpdateCommit = "f2546f8e9ce7d7b1e3a0835932f0d6a6145665b1";
+
+            GitProcess.Invoke(this.fastFetchRepoRoot, "config --local --add core.gvfs 1");
+
+            this.RunFastFetch($"--checkout -c {BaseCommit}");
+            string status = GitProcess.Invoke(this.fastFetchRepoRoot, "status --porcelain");
+            status.ShouldBeEmpty("Status shows unexpected files changed");
+
+            string output = this.RunFastFetch($"--checkout -c {UpdateCommit}");
+            status = GitProcess.Invoke(this.fastFetchRepoRoot, "status --porcelain");
+            status.ShouldBeEmpty("Status shows unexpected files changed");
+
+            // Now that we have the content, verify that these commits meet our needs...
+            string changes = GitProcess.Invoke(this.fastFetchRepoRoot, $"diff-tree -r --name-status {BaseCommit}..{UpdateCommit}");
+
+            // There must be modified files in these commits.  Modified files must
+            // be updated with valid metadata (times, sizes) or 'git status' will
+            // show them as modified when they were not actually modified. 
+            Regex.IsMatch(changes, @"^M\s", RegexOptions.Multiline).ShouldEqual(true, "Data does not meet requirements");
+        }
+
+        [TestCase]
         public void CanFetchAndCheckoutBetweenTwoBranchesIntoEmptyGitRepo()
         {
             this.RunFastFetch("--checkout -b " + Settings.Default.Commitish);
@@ -187,7 +215,7 @@ namespace GVFS.FunctionalTests.Tests
             this.CurrentBranchShouldEqual(Settings.Default.Commitish);
             
             this.fastFetchRepoRoot.ShouldBeADirectory(FileSystemRunner.DefaultRunner)
-                .WithDeepStructure(this.fastFetchControlRoot, skipEmptyDirectories: false);
+                .WithDeepStructure(FileSystemRunner.DefaultRunner, this.fastFetchControlRoot, skipEmptyDirectories: false);
         }
 
         [TestCase]
@@ -201,7 +229,7 @@ namespace GVFS.FunctionalTests.Tests
 
             this.CurrentBranchShouldEqual(Settings.Default.Commitish);
             this.fastFetchRepoRoot.ShouldBeADirectory(FileSystemRunner.DefaultRunner)
-                .WithDeepStructure(this.fastFetchControlRoot, skipEmptyDirectories: false);
+                .WithDeepStructure(FileSystemRunner.DefaultRunner, this.fastFetchControlRoot, skipEmptyDirectories: false);
         }
 
         [TestCase]
@@ -216,7 +244,7 @@ namespace GVFS.FunctionalTests.Tests
             try
             {
                 this.fastFetchRepoRoot.ShouldBeADirectory(FileSystemRunner.DefaultRunner)
-                    .WithDeepStructure(this.fastFetchControlRoot, skipEmptyDirectories: false, ignoreCase: true);
+                    .WithDeepStructure(FileSystemRunner.DefaultRunner, this.fastFetchControlRoot, skipEmptyDirectories: false, ignoreCase: true);
             }
             finally
             {

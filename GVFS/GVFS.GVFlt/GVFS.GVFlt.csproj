@@ -79,7 +79,7 @@
     <Compile Include="DotGit\FileSerializer.cs" />
     <Compile Include="DotGit\GitIndexProjection.cs" />
     <Compile Include="DotGit\IProfilerOnlyIndexProjection.cs" />
-    <Compile Include="DotGit\SparseCheckoutAndDoNotProject.cs" />
+    <Compile Include="DotGit\SparseCheckout.cs" />
     <Compile Include="GVFltActiveEnumeration.cs" />
     <Compile Include="GVFltCallbacks.cs" />
     <Compile Include="GVFltFileInfo.cs" />

@@ -1,5 +1,6 @@
 ﻿using GVFS.Common;
 using GVFS.Common.Git;
+using GVFS.Common.Http;
 using GVFS.Common.NamedPipes;
 using GVFS.Common.Physical;
 using GVFS.Common.Physical.FileSystem;
@@ -183,48 +184,6 @@ namespace GVFS.Mount
             }
         }
 
-        private void UpdateToAlwaysExcludeFile(RepoMetadata repoMetadata)
-        {
-            if (repoMetadata.GetAlwaysExcludeInvalid())
-            {
-                this.FailMountAndExit("always_exclude left in a corrupt state after failed mount.");
-            }
-
-            string alwaysExcludePath = Path.Combine(this.enlistment.WorkingDirectoryRoot, GVFSConstants.DotGit.Info.AlwaysExcludePath);
-            if (File.Exists(alwaysExcludePath))
-            {
-                this.FailMountAndExit("Error migrating to " + alwaysExcludePath + ", file already exists.");
-            }
-
-            string excludePath = Path.Combine(this.enlistment.WorkingDirectoryRoot, GVFSConstants.DotGit.Info.ExcludePath);
-            if (File.Exists(excludePath))
-            {
-                try
-                {
-                    string[] lines = File.ReadAllLines(excludePath);
-
-                    // To be valid, both exclude and always_exclude must be correctly written to,
-                    // and the disk layout version stored on disk must be updated.
-                    repoMetadata.SetAlwaysExcludeInvalid(true);
-                    string newAlwaysExcludeContents = string.Join("\n", lines.Where(x => !x.StartsWith(GVFSConstants.GitCommentSignString))) + "\n";
-                    string newExcludeContents = string.Join("\n", lines.Where(x => x.StartsWith(GVFSConstants.GitCommentSignString))) + "\n";
-                    File.WriteAllText(alwaysExcludePath, newAlwaysExcludeContents);
-                    File.WriteAllText(excludePath, newExcludeContents);
-                }
-                catch (Exception e)
-                {
-                    EventMetadata metadata = new EventMetadata();
-                    metadata.Add("Area", "Mount");
-                    metadata.Add("alwaysExcludePath", alwaysExcludePath);
-                    metadata.Add("excludePath", excludePath);
-                    metadata.Add("Exception", e.ToString());
-                    metadata.Add("ErrorMessage", "Failed to migrate " + excludePath + " to " + alwaysExcludePath);
-                    this.tracer.RelatedError(metadata);
-                    this.FailMountAndExit("Error migrating " + excludePath + " to " + alwaysExcludePath + ",  run 'gvfs log' for details");
-                }
-            }
-        }
-
         private NamedPipeServer StartNamedPipe()
         {
             try
@@ -381,15 +340,8 @@ namespace GVFS.Mount
         private void HandleReleaseLockRequest(string messageBody, NamedPipeServer.Connection connection)
         {
             NamedPipeMessages.LockRequest request = new NamedPipeMessages.LockRequest(messageBody);
-
-            if (this.gvfltCallbacks.TryReleaseExternalLock(request.RequestData.PID))
-            {
-                connection.TrySendResponse(NamedPipeMessages.ReleaseLock.SuccessResult);
-            }
-            else
-            {
-                connection.TrySendResponse(NamedPipeMessages.ReleaseLock.FailureResult);
-            }
+            NamedPipeMessages.ReleaseLock.Response response = this.gvfltCallbacks.TryReleaseExternalLock(request.RequestData.PID);
+            connection.TrySendResponse(response.CreateMessage());
         }
 
         private void HandleDownloadObjectRequest(NamedPipeMessages.Message message, NamedPipeServer.Connection connection)
@@ -514,28 +466,22 @@ namespace GVFS.Mount
 
         private void MountAndStartWorkingDirectoryCallbacks(GVFSContext context)
         {
-            HttpGitObjects httpGitObjects = new HttpGitObjects(context.Tracer, context.Enlistment, Environment.ProcessorCount);
-            if (!httpGitObjects.TryRefreshCredentials())
+            string error;
+            if (!context.Enlistment.Authentication.TryRefreshCredentials(context.Tracer, out error))
             {
-                this.FailMountAndExit("Failed to obtain git credentials");
+                this.FailMountAndExit("Failed to obtain git credentials: " + error);
             }
 
             // Checking the disk layout version is done before this point in GVFS.CommandLine.MountVerb.PreExecute
             RepoMetadata repoMetadata = new RepoMetadata(this.enlistment.DotGVFSRoot);
-            this.gitObjects = new GVFSGitObjects(context, httpGitObjects);
+            GitObjectsHttpRequestor objectRequestor = new GitObjectsHttpRequestor(context.Tracer, context.Enlistment, Environment.ProcessorCount);
+            this.gitObjects = new GVFSGitObjects(context, objectRequestor);
             this.gvfltCallbacks = this.CreateOrReportAndExit(() => new GVFltCallbacks(context, this.gitObjects, repoMetadata), "Failed to create src folder callbacks");
 
             int persistedVersion;
-            string error;
             if (!repoMetadata.TryGetOnDiskLayoutVersion(out persistedVersion, out error))
             {
                 this.FailMountAndExit("Error: {0}", error);
-            }
-
-            if (!repoMetadata.OnDiskVersionUsesAlwaysExclude())
-            {
-                // Want this as close to repoMetadata.SaveCurrentDiskLayoutVersion() as possible to avoid possible corrupt states.
-                this.UpdateToAlwaysExcludeFile(repoMetadata);
             }
 
             try
@@ -551,7 +497,6 @@ namespace GVFS.Mount
             }
 
             repoMetadata.SaveCurrentDiskLayoutVersion();
-            repoMetadata.SetAlwaysExcludeInvalid(false);
 
             this.AcquireFolderLocks(context);
 

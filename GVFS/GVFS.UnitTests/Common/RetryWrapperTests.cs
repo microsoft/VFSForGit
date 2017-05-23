@@ -12,7 +12,7 @@ namespace GVFS.UnitTests.Common
     public class RetryWrapperTests
     {
         [TestCase]
-        [Category(CategoryContants.ExceptionExpected)]
+        [Category(CategoryConstants.ExceptionExpected)]
         public void WillRetryOnIOException()
         {
             const int ExpectedTries = 5;
@@ -32,7 +32,7 @@ namespace GVFS.UnitTests.Common
         }
 
         [TestCase]
-        [Category(CategoryContants.ExceptionExpected)]
+        [Category(CategoryConstants.ExceptionExpected)]
         public void WillNotRetryForGenericExceptions()
         {
             const int MaxTries = 5;
@@ -47,7 +47,7 @@ namespace GVFS.UnitTests.Common
         }
 
         [TestCase]
-        [Category(CategoryContants.ExceptionExpected)]
+        [Category(CategoryConstants.ExceptionExpected)]
         public void OnFailureIsCalledWhenEventHandlerAttached()
         {
             const int MaxTries = 5;

@@ -1,6 +1,7 @@
 #pragma once
 
 #include "GvFltCallbackDelegates.h"
+#include "GvUpdateFailureCause.h"
 #include "HResult.h"
 
 namespace GVFSGvFltWrapper 
@@ -113,8 +114,9 @@ namespace GVFSGvFltWrapper
             System::Guid streamGuid,
             GVFltWriteBuffer^ targetBuffer,
             unsigned long long byteOffset,
-            unsigned long length
-            );
+            unsigned long length);
+
+        StatusCode GvDeleteFile(System::String^ relativePath, GvUpdateType updateFlags, GvUpdateFailureCause% failureReason);
 
         StatusCode GvWritePlaceholderInformation(
             System::String^ targetRelPathName,
@@ -123,7 +125,6 @@ namespace GVFSGvFltWrapper
             System::DateTime lastWriteTime,
             System::DateTime changeTime,
             unsigned long fileAttributes,
-            long long allocationSize,
             long long endOfFile,
             bool directory,
             System::String^ contentId,
@@ -132,6 +133,19 @@ namespace GVFSGvFltWrapper
         StatusCode GvCreatePlaceholderAsHardlink(
             System::String^ destinationFileName,
             System::String^ hardLinkTarget);
+
+        StatusCode GvUpdatePlaceholderIfNeeded(
+            System::String^ relativePath,
+            System::DateTime creationTime,
+            System::DateTime lastAccessTime,
+            System::DateTime lastWriteTime,
+            System::DateTime changeTime,
+            unsigned long fileAttributes,
+            long long endOfFile,
+            System::String^ contentId,
+            System::String^ epochId,
+            GvUpdateType updateFlags,
+            GvUpdateFailureCause% failureReason);
 
         enum class OnDiskStatus : long
         {

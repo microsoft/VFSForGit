@@ -64,11 +64,11 @@
       <PreprocessorDefinitions>_DEBUG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <PrecompiledHeader>Use</PrecompiledHeader>
       <TreatWarningAsError>true</TreatWarningAsError>
-      <AdditionalIncludeDirectories>$(SolutionDir)\..\packages\Microsoft.GVFS.GvFlt.0.17417.1-preview\header;$(SolutionDir)\..\BuildOutput</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>C:\Program Files (x86)\Windows Kits\10\Include\10.0.10240.0\ucrt;$(SolutionDir)\..\packages\Microsoft.GVFS.GvFlt.0.17523.1-preview\header;$(SolutionDir)\..\BuildOutput</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <AdditionalDependencies>gvlib.lib;fltlib.lib;Ole32.lib;Advapi32.lib</AdditionalDependencies>
-      <AdditionalLibraryDirectories>$(SolutionDir)\..\packages\Microsoft.GVFS.GvFlt.0.17417.1-preview\lib</AdditionalLibraryDirectories>
+      <AdditionalLibraryDirectories>C:\Program Files (x86)\Windows Kits\10\Lib\10.0.10240.0\ucrt\x64;$(SolutionDir)\..\packages\Microsoft.GVFS.GvFlt.0.17523.1-preview\lib</AdditionalLibraryDirectories>
       <IgnoreAllDefaultLibraries>
       </IgnoreAllDefaultLibraries>
     </Link>
@@ -89,11 +89,11 @@
       <PreprocessorDefinitions>NDEBUG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <PrecompiledHeader>Use</PrecompiledHeader>
       <TreatWarningAsError>true</TreatWarningAsError>
-      <AdditionalIncludeDirectories>$(SolutionDir)\..\packages\Microsoft.GVFS.GvFlt.0.17417.1-preview\header;$(SolutionDir)\..\BuildOutput</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>C:\Program Files (x86)\Windows Kits\10\Include\10.0.10240.0\ucrt;$(SolutionDir)\..\packages\Microsoft.GVFS.GvFlt.0.17523.1-preview\header;$(SolutionDir)\..\BuildOutput</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <AdditionalDependencies>gvlib.lib;fltlib.lib;Ole32.lib;Advapi32.lib</AdditionalDependencies>
-      <AdditionalLibraryDirectories>$(SolutionDir)\..\packages\Microsoft.GVFS.GvFlt.0.17417.1-preview\lib</AdditionalLibraryDirectories>
+      <AdditionalLibraryDirectories>C:\Program Files (x86)\Windows Kits\10\Lib\10.0.10240.0\ucrt\x64;$(SolutionDir)\..\packages\Microsoft.GVFS.GvFlt.0.17523.1-preview\lib</AdditionalLibraryDirectories>
     </Link>
     <BuildLog>
       <!-- This seems like a VS bug.  Although BuildOutput is only one folder up from $(SolutionDir), with testing I found that the first "..\" is getting swallowed by VS and not doing anything. If you copy-paste the path used above for IntDir it will not work as expected here -->
@@ -121,6 +121,8 @@
     <ClInclude Include="GvFltWrapper.h" />
     <ClInclude Include="GVFltWriteBuffer.h" />
     <ClInclude Include="GvNotificationType.h" />
+    <ClInclude Include="GvUpdateFailureCause.h" />
+    <ClInclude Include="GvUpdateType.h" />
     <ClInclude Include="HResult.h" />
     <ClInclude Include="IoStatusBlockValue.h" />
     <ClInclude Include="NativeEnumerationResultUtils.h" />

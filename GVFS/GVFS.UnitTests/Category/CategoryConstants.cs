@@ -1,6 +1,6 @@
 ﻿namespace GVFS.UnitTests.Category
 {
-    public static class CategoryContants
+    public static class CategoryConstants
     {
         public const string ExceptionExpected = "ExceptionExpected";
     }

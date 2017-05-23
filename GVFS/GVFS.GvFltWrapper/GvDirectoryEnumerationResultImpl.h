@@ -35,11 +35,6 @@ namespace GVFSGvFltWrapper
             virtual void set(long long value) override;
         };
 
-        property long long AllocationSize
-        {
-            virtual void set(long long value) override;
-        };
-
         property unsigned int FileAttributes
         {
             virtual void set(unsigned int value) override;
@@ -59,6 +54,9 @@ namespace GVFSGvFltWrapper
         , maxEnumerationDataLength(maxEnumerationDataLength)
     {
         this->bytesWritten = FIELD_OFFSET(NativeEnumerationDataStruct, FileName);
+
+        // Projected files always have an allocation size of 0
+        this->enumerationData->AllocationSize.QuadPart = 0;
     }
 
     template<class NativeEnumerationDataStruct>
@@ -89,12 +87,6 @@ namespace GVFSGvFltWrapper
     inline void GvDirectoryEnumerationResultImpl<NativeEnumerationDataStruct>::EndOfFile::set(long long value)
     {
         this->enumerationData->EndOfFile.QuadPart = value;
-    }
-
-    template<class NativeEnumerationDataStruct>
-    inline void GvDirectoryEnumerationResultImpl<NativeEnumerationDataStruct>::AllocationSize::set(long long value)
-    {
-        this->enumerationData->AllocationSize.QuadPart = value;
     }
 
     template<class NativeEnumerationDataStruct>

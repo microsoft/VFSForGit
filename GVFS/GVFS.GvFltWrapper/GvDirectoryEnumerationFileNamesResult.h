@@ -35,11 +35,6 @@ namespace GVFSGvFltWrapper
             virtual void set(long long value) override { UNREFERENCED_PARAMETER(value); }
         };
 
-        property long long AllocationSize
-        {
-            virtual void set(long long value) override { UNREFERENCED_PARAMETER(value); }
-        };
-
         property unsigned int FileAttributes
         {
             virtual void set(unsigned int value) override { UNREFERENCED_PARAMETER(value); }

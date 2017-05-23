@@ -50,18 +50,12 @@ namespace GVFS.Common
         private void EmitHeartbeat(object unusedState)
         {
             EventLevel eventLevel = EventLevel.Verbose;
-
-            EventMetadata metadata = this.dataProvider.GetMetadataForHeartBeat() ?? new EventMetadata();
-            if (metadata.Count > 0)
-            {
-                eventLevel = EventLevel.Informational;
-            }
-
+            EventMetadata metadata = this.dataProvider.GetMetadataForHeartBeat(ref eventLevel) ?? new EventMetadata();
             DateTime now = DateTime.Now;
             metadata.Add("MinutesUptime", (long)(now - this.startTime).TotalMinutes);
             metadata.Add("MinutesSinceLast", (int)(now - this.lastHeartBeatTime).TotalMinutes);
             this.lastHeartBeatTime = now;
-            this.tracer.RelatedEvent(eventLevel, "Heartbeat", metadata);
+            this.tracer.RelatedEvent(eventLevel, "Heartbeat", metadata, Keywords.Telemetry);
         }
     }
 }

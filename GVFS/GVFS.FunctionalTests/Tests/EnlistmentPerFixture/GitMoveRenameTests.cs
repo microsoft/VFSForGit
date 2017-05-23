@@ -1,4 +1,5 @@
-﻿using GVFS.FunctionalTests.FileSystemRunners;
+﻿using GVFS.FunctionalTests.Category;
+using GVFS.FunctionalTests.FileSystemRunners;
 using GVFS.FunctionalTests.Should;
 using GVFS.FunctionalTests.Tools;
 using GVFS.Tests.Should;
@@ -9,6 +10,7 @@ using System.IO;
 namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
 {
     [TestFixtureSource(typeof(FileSystemRunner), FileSystemRunner.TestRunners)]
+    [Category(CategoryConstants.GitCommands)]
     public class GitMoveRenameTests : TestsWithEnlistmentPerFixture
     {
         private string testFileContents = "0123456789";
@@ -21,7 +23,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
         [TestCase, Order(1)]
         public void GitStatus()
         {
-            GitHelpers.CheckGitCommand(
+            GitHelpers.CheckGitCommandAgainstGVFSRepo(
                 this.Enlistment.RepoRoot,
                 "status",
                 "On branch " + Properties.Settings.Default.Commitish,
@@ -37,7 +39,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
 
             this.Enlistment.GetVirtualPathTo(filename).ShouldBeAFile(this.fileSystem).WithContents(this.testFileContents);
 
-            GitHelpers.CheckGitCommand(
+            GitHelpers.CheckGitCommandAgainstGVFSRepo(
                 this.Enlistment.RepoRoot,
                 "status",
                 "On branch " + Properties.Settings.Default.Commitish,
@@ -54,7 +56,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
             string newFilename = "New.cs";
             this.fileSystem.MoveFile(this.Enlistment.GetVirtualPathTo(oldFilename), this.Enlistment.GetVirtualPathTo(newFilename));
 
-            GitHelpers.CheckGitCommand(
+            GitHelpers.CheckGitCommandAgainstGVFSRepo(
                 this.Enlistment.RepoRoot,
                 "status",
                 "On branch " + Properties.Settings.Default.Commitish,
@@ -71,7 +73,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
             string newFilename = "test.cs";
             this.fileSystem.MoveFile(this.Enlistment.GetVirtualPathTo(oldFilename), this.Enlistment.GetVirtualPathTo(newFilename));
 
-            GitHelpers.CheckGitCommand(
+            GitHelpers.CheckGitCommandAgainstGVFSRepo(
                 this.Enlistment.RepoRoot,
                 "status",
                 "On branch " + Properties.Settings.Default.Commitish,
@@ -85,13 +87,13 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
             string existingFilename = "test.cs";
             this.Enlistment.GetVirtualPathTo(existingFilename).ShouldBeAFile(this.fileSystem);
 
-            GitHelpers.CheckGitCommand(
+            GitHelpers.CheckGitCommandAgainstGVFSRepo(
                 this.Enlistment.RepoRoot, 
                 "add " + existingFilename, 
                 new string[] { });
 
             // Status should be correct
-            GitHelpers.CheckGitCommand(
+            GitHelpers.CheckGitCommandAgainstGVFSRepo(
                 this.Enlistment.RepoRoot,
                 "status",
                 "On branch " + Properties.Settings.Default.Commitish,
@@ -99,7 +101,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
                 existingFilename);
 
             // Object file for the test file should have the correct contents
-            ProcessResult result = GitProcess.InvokeProcess(
+            ProcessResult result = GitHelpers.InvokeGitAgainstGVFSRepo(
                 this.Enlistment.RepoRoot,
                 "hash-object " + existingFilename);
 
@@ -108,7 +110,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
 
             this.Enlistment.GetObjectPathTo(objectHash).ShouldBeAFile(this.fileSystem);
 
-            GitHelpers.CheckGitCommand(
+            GitHelpers.CheckGitCommandAgainstGVFSRepo(
                 this.Enlistment.RepoRoot,
                 "cat-file -p " + objectHash,
                 this.testFileContents);
@@ -120,12 +122,12 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
             string existingFilename = "test.cs";
             this.Enlistment.GetVirtualPathTo(existingFilename).ShouldBeAFile(this.fileSystem);
 
-            GitHelpers.CheckGitCommand(
+            GitHelpers.CheckGitCommandAgainstGVFSRepo(
                 this.Enlistment.RepoRoot, 
                 "reset HEAD " + existingFilename, 
                 new string[] { });
 
-            GitHelpers.CheckGitCommand(
+            GitHelpers.CheckGitCommandAgainstGVFSRepo(
                 this.Enlistment.RepoRoot,
                 "status",
                 "On branch " + Properties.Settings.Default.Commitish,
@@ -141,7 +143,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
             this.fileSystem.DeleteFile(this.Enlistment.GetVirtualPathTo(existingFilename));
             this.Enlistment.GetVirtualPathTo(existingFilename).ShouldNotExistOnDisk(this.fileSystem);
 
-            GitHelpers.CheckGitCommand(
+            GitHelpers.CheckGitCommandAgainstGVFSRepo(
                 this.Enlistment.RepoRoot,
                 "status",
                 "On branch " + Properties.Settings.Default.Commitish,
@@ -158,7 +160,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
             // We just want to make sure this doesn't throw an exception.
             ProcessResult result = GitHelpers.InvokeGitAgainstGVFSRepo(this.Enlistment.RepoRoot, "branch", cleanErrors: false);
             result.Output.ShouldContain("* FunctionalTests");
-            result.Errors.ToLower().ShouldNotContain("exception");
+            result.Errors.ShouldNotContain(ignoreCase: true, unexpectedSubstrings: "exception");
             result.Errors.ShouldContain("trace.c:", "git command:");
             Environment.SetEnvironmentVariable("GIT_TRACE_PERFORMANCE", previous);
         }
@@ -179,7 +181,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
             this.fileSystem.MoveFile(filePath, this.Enlistment.GetVirtualPathTo(renamedFileName));
             this.Enlistment.GetVirtualPathTo(filePath).ShouldNotExistOnDisk(this.fileSystem);
 
-            GitHelpers.CheckGitCommand(
+            GitHelpers.CheckGitCommandAgainstGVFSRepo(
                 this.Enlistment.RepoRoot,
                 "status",
                 "On branch " + Properties.Settings.Default.Commitish,
@@ -221,7 +223,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
 
             this.fileSystem.MoveDirectory(folderPath, this.Enlistment.GetVirtualPathTo(folderName));
 
-            GitHelpers.CheckGitCommand(
+            GitHelpers.CheckGitCommandAgainstGVFSRepo(
                 this.Enlistment.RepoRoot,
                 "status -uall",
                 "On branch " + Properties.Settings.Default.Commitish,

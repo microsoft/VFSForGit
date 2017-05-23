@@ -4,6 +4,6 @@ namespace GVFS.Common
 {
     public interface IBackgroundOperation
     {
-        Guid Id { get; set; }
+        long Id { get; set; }
     }
 }

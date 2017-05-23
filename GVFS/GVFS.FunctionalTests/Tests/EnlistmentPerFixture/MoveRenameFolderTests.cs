@@ -8,7 +8,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
     [TestFixtureSource(typeof(FileSystemRunner), FileSystemRunner.TestRunners)]
     public class MoveRenameFolderTests : TestsWithEnlistmentPerFixture
     {       
-        public const string TestFileContents =
+        private const string TestFileContents =
 @"// dllmain.cpp : Defines the entry point for the DLL application.
 #include ""stdafx.h""
 

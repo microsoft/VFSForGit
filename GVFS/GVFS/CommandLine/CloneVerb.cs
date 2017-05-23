@@ -1,6 +1,7 @@
 ﻿using CommandLine;
 using GVFS.Common;
 using GVFS.Common.Git;
+using GVFS.Common.Http;
 using GVFS.Common.NamedPipes;
 using GVFS.Common.Tracing;
 using Microsoft.Diagnostics.Tracing;
@@ -102,6 +103,7 @@ namespace GVFS.CommandLine
                             GVFSEnlistment.GetNewGVFSLogFileName(enlistment.GVFSLogsRoot, GVFSConstants.LogFileTypes.Clone),
                             EventLevel.Informational,
                             Keywords.Any);
+
                         tracer.WriteStartEvent(
                             enlistment.EnlistmentRoot,
                             enlistment.RepoUrl,
@@ -225,6 +227,7 @@ namespace GVFS.CommandLine
 
         private Result TryClone(JsonEtwTracer tracer, GVFSEnlistment enlistment)
         {
+            this.CheckVolumeSupportsDeleteNotifications(tracer, enlistment);
             this.CheckGitVersion(enlistment);
 
             Result pipeResult;
@@ -235,52 +238,58 @@ namespace GVFS.CommandLine
                     return pipeResult;
                 }
 
-                HttpGitObjects httpGitObjects = new HttpGitObjects(tracer, enlistment, Environment.ProcessorCount);
-                this.ValidateGVFSVersion(enlistment, httpGitObjects, tracer);
-
-                GitRefs refs = httpGitObjects.QueryInfoRefs(this.SingleBranch ? this.Branch : null);
-
-                if (refs == null)
+                using (ConfigHttpRequestor configRequestor = new ConfigHttpRequestor(tracer, enlistment))
                 {
-                    return new Result("Could not query info/refs from: " + Uri.EscapeUriString(enlistment.RepoUrl));
+                    GVFSConfig config = configRequestor.QueryGVFSConfig();
+                    this.ValidateGVFSVersion(enlistment, config, tracer);
                 }
 
-                if (this.Branch == null)
+                using (GitObjectsHttpRequestor objectRequestor = new GitObjectsHttpRequestor(tracer, enlistment, Environment.ProcessorCount))
                 {
-                    this.Branch = refs.GetDefaultBranch();
+                    GitRefs refs = objectRequestor.QueryInfoRefs(this.SingleBranch ? this.Branch : null);
 
-                    EventMetadata metadata = new EventMetadata();
-                    metadata.Add("Branch", this.Branch);
-                    tracer.RelatedEvent(EventLevel.Informational, "CloneDefaultRemoteBranch", metadata);
-                }
-                else
-                {
-                    if (!refs.HasBranch(this.Branch))
+                    if (refs == null)
                     {
+                        return new Result("Could not query info/refs from: " + Uri.EscapeUriString(enlistment.RepoUrl));
+                    }
+
+                    if (this.Branch == null)
+                    {
+                        this.Branch = refs.GetDefaultBranch();
+
                         EventMetadata metadata = new EventMetadata();
                         metadata.Add("Branch", this.Branch);
-                        tracer.RelatedEvent(EventLevel.Warning, "CloneBranchDoesNotExist", metadata);
-
-                        string errorMessage = string.Format("Remote branch {0} not found in upstream origin", this.Branch);
-                        return new Result(errorMessage);
+                        tracer.RelatedEvent(EventLevel.Informational, "CloneDefaultRemoteBranch", metadata);
                     }
-                }
+                    else
+                    {
+                        if (!refs.HasBranch(this.Branch))
+                        {
+                            EventMetadata metadata = new EventMetadata();
+                            metadata.Add("Branch", this.Branch);
+                            tracer.RelatedEvent(EventLevel.Warning, "CloneBranchDoesNotExist", metadata);
 
-                if (!enlistment.TryCreateEnlistmentFolders())
-                {
-                    string error = "Could not create enlistment directory";
-                    tracer.RelatedError(error);
-                    return new Result(error);
-                }
+                            string errorMessage = string.Format("Remote branch {0} not found in upstream origin", this.Branch);
+                            return new Result(errorMessage);
+                        }
+                    }
 
-                // Only check Defender exclusions if not mounting, otherwise let mount take care of it.
-                if (this.NoMount)
-                {
-                    this.CheckAntiVirusExclusion(enlistment);
-                }
+                    if (!enlistment.TryCreateEnlistmentFolders())
+                    {
+                        string error = "Could not create enlistment directory";
+                        tracer.RelatedError(error);
+                        return new Result(error);
+                    }
 
-                CloneHelper cloneHelper = new CloneHelper(tracer, enlistment, httpGitObjects);
-                return cloneHelper.CreateClone(refs, this.Branch);
+                    // Only check Defender exclusions if not mounting, otherwise let mount take care of it.
+                    if (this.NoMount)
+                    {
+                        this.CheckAntiVirusExclusion(enlistment);
+                    }
+
+                    CloneHelper cloneHelper = new CloneHelper(tracer, enlistment, objectRequestor);
+                    return cloneHelper.CreateClone(refs, this.Branch);
+                }
             }
         }
 

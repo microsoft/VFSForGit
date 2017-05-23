@@ -13,6 +13,7 @@ namespace GVFSGvFltWrapper
         StatusInvalidHandle = STATUS_INVALID_HANDLE,
         StatusInvalidParameter = STATUS_INVALID_PARAMETER,
         StatusObjectNameNotFound = STATUS_OBJECT_NAME_NOT_FOUND,
+        StatusObjectPathNotFound = STATUS_OBJECT_PATH_NOT_FOUND,
         StatusInvalidDeviceRequest = STATUS_INVALID_DEVICE_REQUEST,
         StatusEndOfFile = STATUS_END_OF_FILE,
         StatusBufferOverflow = STATUS_BUFFER_OVERFLOW,
@@ -27,5 +28,11 @@ namespace GVFSGvFltWrapper
         StatusFileClosed = STATUS_FILE_CLOSED,
         StatusObjectNameInvalid = STATUS_OBJECT_NAME_INVALID,
         StatusDirectoryNotEmpty = STATUS_DIRECTORY_NOT_EMPTY,
+        StatusCannotDelete = STATUS_CANNOT_DELETE,
+        StatusIoReparseTagNotHandled = STATUS_IO_REPARSE_TAG_NOT_HANDLED,
+        StatusDirectoryIsAReparsePoint = STATUS_DIRECTORY_IS_A_REPARSE_POINT,
+        StatusSharingViolation = STATUS_SHARING_VIOLATION,
+        StatusDeletePending = STATUS_DELETE_PENDING,
+        StatusFileSystemVirtualizationInvalidOperation = STATUS_FILE_SYSTEM_VIRTUALIZATION_INVALID_OPERATION 
     };
 }

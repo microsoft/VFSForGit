@@ -1,5 +1,6 @@
 ﻿using GVFS.Common;
 using GVFS.Common.Git;
+using GVFS.Common.Http;
 using GVFS.Common.Tracing;
 using GVFS.Tests.Should;
 using System;
@@ -11,7 +12,7 @@ using System.Text;
 
 namespace GVFS.UnitTests.Mock.Physical.Git
 {
-    public class MockBatchHttpGitObjects : HttpGitObjects
+    public class MockBatchHttpGitObjects : GitObjectsHttpRequestor
     {
         private Func<string, string> objectResolver;
 

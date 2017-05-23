@@ -12,7 +12,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
     [TestFixtureSource(typeof(FileSystemRunner), FileSystemRunner.TestRunners)]
     public class MoveRenameFileTests : TestsWithEnlistmentPerFixture
     {
-        private const string TestFileContents =
+        public const string TestFileContents =
 @"using NUnitLite;
 using System;
 using System.Threading;

@@ -1,6 +1,7 @@
 ﻿using FastFetch.Jobs.Data;
 using GVFS.Common;
 using GVFS.Common.Git;
+using GVFS.Common.Http;
 using GVFS.Common.Tracing;
 using Microsoft.Diagnostics.Tracing;
 using System;
@@ -28,7 +29,7 @@ namespace FastFetch.Jobs
 
         private ITracer tracer;
         private Enlistment enlistment;
-        private HttpGitObjects httpGitObjects;
+        private GitObjectsHttpRequestor objectRequestor;
         private GitObjects gitObjects;
         private Timer heartbeat;
 
@@ -41,16 +42,16 @@ namespace FastFetch.Jobs
             BlockingCollection<string> availableBlobs,
             ITracer tracer,
             Enlistment enlistment,
-            HttpGitObjects httpGitObjects,
+            GitObjectsHttpRequestor objectRequestor,
             GitObjects gitObjects)
             : base(maxParallel)
         {
-            this.tracer = tracer.StartActivity(AreaPath, EventLevel.Informational);
+            this.tracer = tracer.StartActivity(AreaPath, EventLevel.Informational, Keywords.Telemetry, metadata: null);
             
             this.inputQueue = new BlockingAggregator<string, BlobDownloadRequest>(inputQueue, chunkSize, objectIds => new BlobDownloadRequest(objectIds));
 
             this.enlistment = enlistment;
-            this.httpGitObjects = httpGitObjects;
+            this.objectRequestor = objectRequestor;
 
             this.gitObjects = gitObjects;
 
@@ -61,7 +62,7 @@ namespace FastFetch.Jobs
         public BlockingCollection<IndexPackRequest> AvailablePacks { get; }
 
         public BlockingCollection<string> AvailableObjects { get; }
-
+        
         protected override void DoBeforeWork()
         {
             this.heartbeat = new Timer(this.EmitHeartbeat, null, TimeSpan.Zero, HeartBeatPeriod);
@@ -79,28 +80,28 @@ namespace FastFetch.Jobs
                 metadata.Add("PackId", request.PackId);
                 metadata.Add("ActiveDownloads", this.activeDownloadCount);
                 metadata.Add("NumberOfObjects", request.ObjectIds.Count);
-
-                using (ITracer activity = this.tracer.StartActivity(DownloadAreaPath, EventLevel.Informational, metadata))
+                
+                using (ITracer activity = this.tracer.StartActivity(DownloadAreaPath, EventLevel.Informational, Keywords.Telemetry, metadata))
                 {
                     try
                     {
-                        RetryWrapper<HttpGitObjects.GitObjectTaskResult>.InvocationResult result;
+                        RetryWrapper<GitObjectsHttpRequestor.GitObjectTaskResult>.InvocationResult result;
 
                         if (request.ObjectIds.Count == 1)
                         {
-                            result = this.httpGitObjects.TryDownloadLooseObject(
+                            result = this.objectRequestor.TryDownloadLooseObject(
                                 request.ObjectIds[0],
                                 onSuccess: (tryCount, response) => this.WriteObjectOrPack(request, tryCount, response),
-                                onFailure: RetryWrapper<HttpGitObjects.GitObjectTaskResult>.StandardErrorHandler(activity, DownloadAreaPath));
+                                onFailure: RetryWrapper<GitObjectsHttpRequestor.GitObjectTaskResult>.StandardErrorHandler(activity, DownloadAreaPath));
                         }
                         else
                         {
                             HashSet<string> successfulDownloads = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-                            result = this.httpGitObjects.TryDownloadObjects(
+                            result = this.objectRequestor.TryDownloadObjects(
                                 () => request.ObjectIds.Except(successfulDownloads),
                                 commitDepth: 1,
                                 onSuccess: (tryCount, response) => this.WriteObjectOrPack(request, tryCount, response, successfulDownloads),
-                                onFailure: RetryWrapper<HttpGitObjects.GitObjectTaskResult>.StandardErrorHandler(activity, DownloadAreaPath),
+                                onFailure: RetryWrapper<GitObjectsHttpRequestor.GitObjectTaskResult>.StandardErrorHandler(activity, DownloadAreaPath),
                                 preferBatchedLooseObjects: true);
                         }
 
@@ -134,10 +135,10 @@ namespace FastFetch.Jobs
             this.tracer.Stop(metadata);
         }
 
-        private RetryWrapper<HttpGitObjects.GitObjectTaskResult>.CallbackResult WriteObjectOrPack(
+        private RetryWrapper<GitObjectsHttpRequestor.GitObjectTaskResult>.CallbackResult WriteObjectOrPack(
             BlobDownloadRequest request,
             int tryCount,
-            HttpGitObjects.GitEndPointResponseData response,
+            GitEndPointResponseData response,
             HashSet<string> successfulDownloads = null)
         {
             // To reduce allocations, reuse the same buffer when writing objects in this batch
@@ -146,7 +147,7 @@ namespace FastFetch.Jobs
             string fileName = null;
             switch (response.ContentType)
             {
-                case HttpGitObjects.ContentType.LooseObject:
+                case GitObjectContentType.LooseObject:
                     string sha = request.ObjectIds.First();
                     fileName = this.gitObjects.WriteLooseObject(
                         this.enlistment.WorkingDirectoryRoot,
@@ -155,11 +156,11 @@ namespace FastFetch.Jobs
                         bufToCopyWith);
                     this.AvailableObjects.Add(sha);
                     break;
-                case HttpGitObjects.ContentType.PackFile:
+                case GitObjectContentType.PackFile:
                     fileName = this.gitObjects.WriteTempPackFile(response);
                     this.AvailablePacks.Add(new IndexPackRequest(fileName, request));
                     break;
-                case HttpGitObjects.ContentType.BatchedLooseObjects:
+                case GitObjectContentType.BatchedLooseObjects:
                     OnLooseObject onLooseObject = (objectStream, sha1) =>
                     {
                         this.gitObjects.WriteLooseObject(
@@ -195,13 +196,13 @@ namespace FastFetch.Jobs
                 }
                 else
                 {
-                    return new RetryWrapper<HttpGitObjects.GitObjectTaskResult>.CallbackResult(
-                        new HttpGitObjects.GitObjectTaskResult(false));
+                    return new RetryWrapper<GitObjectsHttpRequestor.GitObjectTaskResult>.CallbackResult(
+                        new GitObjectsHttpRequestor.GitObjectTaskResult(false));
                 }
             }
 
-            return new RetryWrapper<HttpGitObjects.GitObjectTaskResult>.CallbackResult(
-                new HttpGitObjects.GitObjectTaskResult(true));
+            return new RetryWrapper<GitObjectsHttpRequestor.GitObjectTaskResult>.CallbackResult(
+                new GitObjectsHttpRequestor.GitObjectTaskResult(true));
         }
 
         private void EmitHeartbeat(object state)

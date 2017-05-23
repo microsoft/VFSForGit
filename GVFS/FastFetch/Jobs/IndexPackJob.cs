@@ -27,7 +27,7 @@ namespace FastFetch.Jobs
             GitObjects gitObjects)
             : base(maxParallel)
         {
-            this.tracer = tracer.StartActivity(AreaPath, EventLevel.Informational);
+            this.tracer = tracer.StartActivity(AreaPath, EventLevel.Informational, Keywords.Telemetry, metadata: null);
             this.inputQueue = inputQueue;
             this.gitObjects = gitObjects;
             this.AvailableBlobs = availableBlobs;
@@ -42,7 +42,7 @@ namespace FastFetch.Jobs
             {
                 EventMetadata metadata = new EventMetadata();
                 metadata.Add("PackId", request.DownloadRequest.PackId);
-                using (ITracer activity = this.tracer.StartActivity(IndexPackAreaPath, EventLevel.Informational, metadata))
+                using (ITracer activity = this.tracer.StartActivity(IndexPackAreaPath, EventLevel.Informational, Keywords.Telemetry, metadata))
                 {
                     GitProcess.Result result = this.gitObjects.IndexTempPackFile(request.TempPackFile);
                     if (result.HasErrors)

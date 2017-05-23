@@ -119,7 +119,7 @@ namespace GVFS.GVFlt
                 return true;
             }
 
-            return PatternMatcher.StrictMatchPattern(filter.ToUpperInvariant(), name.ToUpperInvariant());
+            return PatternMatcher.StrictMatchPattern(filter, name);
         }
 
         private void SaveFilter(string filter)

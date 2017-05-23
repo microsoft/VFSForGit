@@ -76,13 +76,6 @@ To actually execute the dehydrate, run 'gvfs dehydrate --confirm'
                     return;
                 }
 
-                bool allowUpgrade = false;
-                string error;
-                if (!RepoMetadata.CheckDiskLayoutVersion(enlistment.DotGVFSRoot, allowUpgrade, out error))
-                {
-                    this.WriteErrorAndExit(tracer, "GVFS disk layout version doesn't match current version.  Try mounting first.");
-                }
-
                 this.CheckGitStatus(tracer, enlistment);
 
                 string backupRoot = Path.GetFullPath(Path.Combine(enlistment.EnlistmentRoot, "dehydrate_backup", DateTime.Now.ToString("yyyyMMdd_HHmmss")));
@@ -92,6 +85,13 @@ To actually execute the dehydrate, run 'gvfs dehydrate --confirm'
                 this.Output.WriteLine();
 
                 this.Unmount(tracer);
+
+                bool allowUpgrade = false;
+                string error;
+                if (!RepoMetadata.CheckDiskLayoutVersion(enlistment.DotGVFSRoot, allowUpgrade, out error))
+                {
+                    this.WriteErrorAndExit(tracer, "GVFS disk layout version doesn't match current version.  Run 'gvfs mount' first, then try dehydrate again.");
+                }
 
                 if (this.TryBackupFiles(tracer, enlistment, backupRoot) &&
                     this.TryRecreateIndex(tracer, enlistment))
@@ -288,13 +288,13 @@ To actually execute the dehydrate, run 'gvfs dehydrate --confirm'
                     // ... backup the .gvfs hydration-related data structures...
                     if (!this.TryIO(
                             tracer,
-                            () => Directory.Move(Path.Combine(enlistment.DotGVFSRoot, "BackgroundGitUpdates"), Path.Combine(backupGvfs, "BackgroundGitUpdates")),
+                            () => Directory.Move(Path.Combine(enlistment.DotGVFSRoot, GVFSConstants.DatabaseNames.BackgroundGitUpdates), Path.Combine(backupGvfs, GVFSConstants.DatabaseNames.BackgroundGitUpdates)),
                             "Backup the BackgroundGitUpdates database",
                             out errorMessage) ||
                         !this.TryIO(
                             tracer,
-                            () => Directory.Move(Path.Combine(enlistment.DotGVFSRoot, "DoNotProject"), Path.Combine(backupGvfs, "DoNotProject")),
-                            "Backup the DoNotProject database",
+                            () => Directory.Move(Path.Combine(enlistment.DotGVFSRoot, GVFSConstants.DatabaseNames.PlaceholderList), Path.Combine(backupGvfs, GVFSConstants.DatabaseNames.PlaceholderList)),
+                            "Backup the PlaceholderList database",
                             out errorMessage))
                     {
                         return false;
@@ -412,7 +412,7 @@ To actually execute the dehydrate, run 'gvfs dehydrate --confirm'
                     new EventMetadata
                     {
                         { "Verb", typeof(TVerb).Name },
-                        { "Exception", e.Message }
+                        { "Exception", e.ToString() }
                     });
 
                 return ReturnCode.GenericError;

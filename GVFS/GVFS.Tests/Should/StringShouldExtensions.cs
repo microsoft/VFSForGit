@@ -1,4 +1,5 @@
 ﻿using NUnit.Framework;
+using System;
 
 namespace GVFS.Tests.Should
 {
@@ -18,15 +19,26 @@ namespace GVFS.Tests.Should
             return actualValue;
         }
 
-        public static string ShouldNotContain(this string actualValue, params string[] unexpectedSubstrings)
+        public static string ShouldNotContain(this string actualValue, bool ignoreCase, params string[] unexpectedSubstrings)
         {
-            foreach (string expectedSubstring in unexpectedSubstrings)
+            foreach (string unexpectedSubstring in unexpectedSubstrings)
             {
-                Assert.IsFalse(
-                     actualValue.Contains(expectedSubstring),
-                     "Unexpected substring '{0}' found in '{1}'",
-                     expectedSubstring,
-                     actualValue);
+                if (ignoreCase)
+                {
+                    Assert.IsFalse(
+                         actualValue.IndexOf(unexpectedSubstring, 0, StringComparison.OrdinalIgnoreCase) >= 0,
+                         "Unexpected substring '{0}' found in '{1}'",
+                         unexpectedSubstring,
+                         actualValue);
+                }
+                else
+                {
+                    Assert.IsFalse(
+                         actualValue.Contains(unexpectedSubstring),
+                         "Unexpected substring '{0}' found in '{1}'",
+                         unexpectedSubstring,
+                         actualValue);
+                }
             }
 
             return actualValue;

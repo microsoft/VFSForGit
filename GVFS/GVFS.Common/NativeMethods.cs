@@ -4,6 +4,7 @@ using System.ComponentModel;
 using System.IO;
 using System.Linq;
 using System.Runtime.InteropServices;
+using System.Text;
 
 namespace GVFS.Common
 {
@@ -82,6 +83,12 @@ namespace GVFS.Common
             GENERIC_READ              = 2147483648
         }
 
+        [Flags]
+        public enum FileSystemFlags : uint
+        {
+            FILE_RETURNS_CLEANUP_RESULT_INFO = 0x00000200
+        }
+
         public static SafeFileHandle OpenFile(
             string filePath,
             FileMode fileMode,
@@ -124,6 +131,28 @@ namespace GVFS.Common
             return result;
         }
 
+        public static bool IsFeatureSupportedByVolume(string volumeRoot, FileSystemFlags flags)
+        {
+            uint volumeSerialNumber;
+            uint maximumComponentLength;
+            uint fileSystemFlags;
+
+            if (!GetVolumeInformation(
+                volumeRoot,
+                null,
+                0,
+                out volumeSerialNumber,
+                out maximumComponentLength,
+                out fileSystemFlags,
+                null,
+                0))
+            {
+                ThrowWin32Exception(Marshal.GetLastWin32Error());
+            }
+
+            return (fileSystemFlags & (uint)flags) == (uint)flags;
+        }
+
         public static uint FlushTraceLogger(string sessionName, string sessionGuid, out string logfileName)
         {
             EventTraceProperties properties = new EventTraceProperties();
@@ -160,6 +189,17 @@ namespace GVFS.Common
             [MarshalAs(UnmanagedType.U4)]FileMode dwCreationDisposition,
             [MarshalAs(UnmanagedType.U4)]FileAttributes dwFlagsAndAttributes,
             [In] IntPtr hTemplateFile);
+
+        [DllImport("kernel32.dll", SetLastError = true, CharSet = CharSet.Unicode)]
+        private static extern bool GetVolumeInformation(
+            string rootPathName,
+            StringBuilder volumeNameBuffer,
+            int volumeNameSize,
+            out uint volumeSerialNumber,
+            out uint maximumComponentLength,
+            out uint fileSystemFlags,
+            StringBuilder fileSystemNameBuffer,
+            int nFileSystemNameSize);
 
         [DllImport("advapi32.dll", EntryPoint = "ControlTraceW", CharSet = CharSet.Unicode)]
         private static extern uint ControlTrace(

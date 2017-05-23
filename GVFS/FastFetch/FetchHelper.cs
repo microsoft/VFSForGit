@@ -2,6 +2,7 @@
 using FastFetch.Jobs;
 using GVFS.Common;
 using GVFS.Common.Git;
+using GVFS.Common.Http;
 using GVFS.Common.Tracing;
 using Microsoft.Diagnostics.Tracing;
 using System;
@@ -15,7 +16,7 @@ namespace FastFetch
     public class FetchHelper
     {
         protected readonly Enlistment Enlistment;
-        protected readonly HttpGitObjects HttpGitObjects;
+        protected readonly GitObjectsHttpRequestor ObjectRequestor;
         protected readonly GitObjects GitObjects;
         protected readonly ITracer Tracer;
 
@@ -45,8 +46,8 @@ namespace FastFetch
             this.ChunkSize = chunkSize;
             this.Tracer = tracer;
             this.Enlistment = enlistment;
-            this.HttpGitObjects = new HttpGitObjects(tracer, enlistment, downloadThreadCount);
-            this.GitObjects = new GitObjects(tracer, enlistment, this.HttpGitObjects);
+            this.ObjectRequestor = new GitObjectsHttpRequestor(tracer, enlistment, downloadThreadCount);
+            this.GitObjects = new GitObjects(tracer, enlistment, this.ObjectRequestor);
             this.PathWhitelist = new List<string>();
 
             // We never want to update config settings for a GVFSEnlistment
@@ -55,8 +56,8 @@ namespace FastFetch
 
         public int MaxRetries
         {
-            get { return this.HttpGitObjects.MaxRetries; }
-            set { this.HttpGitObjects.MaxRetries = value; }
+            get { return this.ObjectRequestor.MaxRetries; }
+            set { this.ObjectRequestor.MaxRetries = value; }
         }
 
         public bool HasFailures { get; protected set; }
@@ -105,7 +106,7 @@ namespace FastFetch
             string commitToFetch;
             if (isBranch)
             {
-                refs = this.HttpGitObjects.QueryInfoRefs(branchOrCommit);
+                refs = this.ObjectRequestor.QueryInfoRefs(branchOrCommit);
                 if (refs == null)
                 {
                     throw new FetchException("Could not query info/refs from: {0}", this.Enlistment.RepoUrl);
@@ -150,7 +151,7 @@ namespace FastFetch
             this.HasFailures |= blobEnumerator.HasFailures;
 
             FindMissingBlobsJob blobFinder = new FindMissingBlobsJob(this.SearchThreadCount, blobEnumerator.RequiredBlobs, availableBlobs, this.Tracer, this.Enlistment);
-            BatchObjectDownloadJob downloader = new BatchObjectDownloadJob(this.DownloadThreadCount, this.ChunkSize, blobFinder.DownloadQueue, availableBlobs, this.Tracer, this.Enlistment, this.HttpGitObjects, this.GitObjects);
+            BatchObjectDownloadJob downloader = new BatchObjectDownloadJob(this.DownloadThreadCount, this.ChunkSize, blobFinder.DownloadQueue, availableBlobs, this.Tracer, this.Enlistment, this.ObjectRequestor, this.GitObjects);
             IndexPackJob packIndexer = new IndexPackJob(this.IndexThreadCount, downloader.AvailablePacks, availableBlobs, this.Tracer, this.GitObjects);
             
             blobFinder.Start();
@@ -211,7 +212,7 @@ namespace FastFetch
             startMetadata.Add("CommitSha", commitSha);
             startMetadata.Add("CommitDepth", CommitDepth);
 
-            using (ITracer activity = this.Tracer.StartActivity("DownloadTrees", EventLevel.Informational, startMetadata))
+            using (ITracer activity = this.Tracer.StartActivity("DownloadTrees", EventLevel.Informational, Keywords.Telemetry, startMetadata))
             {
                 using (GitCatFileBatchCheckProcess catFileProcess = new GitCatFileBatchCheckProcess(this.Tracer, this.Enlistment))
                 {

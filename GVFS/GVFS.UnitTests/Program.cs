@@ -13,7 +13,7 @@ namespace GVFS.UnitTests
 
             if (Debugger.IsAttached)
             {
-                runner.ExcludeCategory(CategoryContants.ExceptionExpected);
+                runner.ExcludeCategory(CategoryConstants.ExceptionExpected);
             }
 
             Environment.ExitCode = runner.RunTests(1);

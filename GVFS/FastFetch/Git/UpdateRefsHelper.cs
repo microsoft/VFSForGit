@@ -23,7 +23,7 @@ namespace FastFetch.Jobs
             EventMetadata metadata = new EventMetadata();
             metadata.Add("RefName", refName);
             metadata.Add("TargetCommitish", targetCommitish);
-            using (ITracer activity = tracer.StartActivity(AreaPath, EventLevel.Informational, metadata))
+            using (ITracer activity = tracer.StartActivity(AreaPath, EventLevel.Informational, Keywords.Telemetry, metadata))
             {
                 GitProcess gitProcess = new GitProcess(this.enlistment);
                 GitProcess.Result result = null;

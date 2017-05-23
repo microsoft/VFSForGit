@@ -86,10 +86,16 @@
     <Compile Include="ConsoleHelper.cs" />
     <Compile Include="EnlistmentUtils.cs" />
     <Compile Include="GitHelper.cs" />
+    <Compile Include="Git\GitAuthentication.cs" />
     <Compile Include="Git\GitConfigHelper.cs" />
     <Compile Include="Git\GitConfigSetting.cs" />
     <Compile Include="Git\GitPathConverter.cs" />
-    <Compile Include="Git\GVFSConfigResponse.cs" />
+    <Compile Include="GVFSConfig.cs" />
+    <Compile Include="Git\GitObjectContentType.cs" />
+    <Compile Include="Http\GitEndPointResponseData.cs" />
+    <Compile Include="Http\ConfigHttpRequestor.cs" />
+    <Compile Include="Http\GitObjectsHttpException.cs" />
+    <Compile Include="Http\HttpRequestor.cs" />
     <Compile Include="GVFSLock.cs" />
     <Compile Include="HeartbeatThread.cs" />
     <Compile Include="IBackgroundOperation.cs" />
@@ -128,7 +134,7 @@
     <Compile Include="GVFSConstants.cs" />
     <Compile Include="GVFSContext.cs" />
     <Compile Include="GVFSEnlistment.cs" />
-    <Compile Include="Git\HttpGitObjects.cs" />
+    <Compile Include="Http\GitObjectsHttpRequestor.cs" />
     <Compile Include="Enlistment.cs" />
     <Compile Include="Git\GitObjects.cs" />
     <Compile Include="NativeMethods.cs" />
@@ -145,8 +151,9 @@
     <Compile Include="RetryWrapper.cs" />
     <Compile Include="SHA1Util.cs" />
     <Compile Include="TaskExtensions.cs" />
+    <Compile Include="Tracing\DiagnosticConsoleEventListener.cs" />
+    <Compile Include="Tracing\PrettyConsoleEventListener.cs" />
     <Compile Include="Git\CatFileTimeoutException.cs" />
-    <Compile Include="Tracing\ConsoleEventListener.cs" />
     <Compile Include="Tracing\EventMetadata.cs" />
     <Compile Include="Tracing\InProcEventListener.cs" />
     <Compile Include="Tracing\ITracer.cs" />

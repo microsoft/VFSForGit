@@ -170,11 +170,35 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
         {
             // 663045 - Confirm that folder can be deleted after deleting file then changing
             // branches
-            string deleteFolderPath = @"GVFS\GVFS\CommandLine";
-            string deleteFilePath = deleteFolderPath + @"\CloneHelper.cs";
+            string deleteFolderPath = @"GVFlt_DeleteFolderTest\GVFlt_DeletePlaceholderNonEmptyFolder_DeleteOnClose\NonEmptyFolder";
+            string deleteFilePath = deleteFolderPath + @"\bar.txt";
 
             this.CommitChangesSwitchBranchSwitchBack(fileSystemAction: () => this.DeleteFile(deleteFilePath));
             this.DeleteFolder(deleteFolderPath);
+        }
+
+        [TestCase]
+        public void DeleteFolderSwitchBranchTest()
+        {
+            this.SwitchBranch(fileSystemAction: () => this.DeleteFolder(@"GVFlt_DeleteFolderTest\GVFlt_DeleteLocalEmptyFolder_DeleteOnClose"));
+        }
+
+        [TestCase]
+        public void DeleteFolderStageChangesSwitchBranchTest()
+        {
+            this.StageChangesSwitchBranch(fileSystemAction: () => this.DeleteFolder(@"GVFlt_DeleteFolderTest\GVFlt_DeleteLocalEmptyFolder_SetDisposition"));
+        }
+
+        [TestCase]
+        public void DeleteFolderCommitChangesSwitchBranchTest()
+        {
+            this.CommitChangesSwitchBranch(fileSystemAction: () => this.DeleteFolder(@"GVFlt_DeleteFolderTest\GVFlt_DeleteNonRootVirtualFolder_DeleteOnClose"));
+        }
+
+        [TestCase]
+        public void DeleteFolderCommitChangesSwitchBranchSwitchBackTest()
+        {
+            this.CommitChangesSwitchBranchSwitchBack(fileSystemAction: () => this.DeleteFolder(@"GVFlt_DeleteFolderTest\GVFlt_DeleteNonRootVirtualFolder_SetDisposition"));
         }
 
         [TestCase]
@@ -201,12 +225,38 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
         }
 
         [TestCase]
+        public void OverwriteFileInSubfolderAndCommitOnNewBranchSwitchDeleteFolderAndSwitchBack()
+        {
+            string overwrittenFileParentFolderPath = @"GVFlt_DeleteFolderTest\GVFlt_DeletePlaceholderNonEmptyFolder_SetDisposition";
+
+            // GVFlt_DeleteFolderTest\GVFlt_DeletePlaceholderNonEmptyFolder_SetDispositiontestfile.txt already exists in the repo as TestFile.txt
+            string fileToOverwritePath = overwrittenFileParentFolderPath + @"\testfile.txt";
+            string newFileContents = "test contents";
+
+            this.CommitChangesSwitchBranch(
+                fileSystemAction: () => this.CreateFile(fileToOverwritePath, newFileContents),
+                test: "OverwriteFileInSubfolderAndCommitOnNewBranchSwitchDeleteFolderAndSwitchBack");
+
+            this.ValidateGitCommand("checkout " + this.ControlGitRepo.Commitish);
+            this.DeleteFolder(overwrittenFileParentFolderPath);
+
+            this.ValidateGitCommand("checkout " + this.ControlGitRepo.Commitish);
+            this.ValidateGitCommand("checkout tests/functional/OverwriteFileInSubfolderAndCommitOnNewBranchSwitchDeleteFolderAndSwitchBack");
+
+            string subFolderPath = @"GVFlt_DeleteFolderTest\GVFlt_DeletePlaceholderNonEmptyFolder_SetDisposition\NonEmptyFolder";
+            this.ShouldNotExistOnDisk(subFolderPath);
+            this.FolderShouldExist(overwrittenFileParentFolderPath);
+            this.FileShouldHaveContents(fileToOverwritePath, newFileContents);
+        }
+
+        [TestCase]
         public void AddFileInSubfolderAndCommitOnNewBranchSwitchDeleteFolderAndSwitchBack()
         {
             // 663045 - Confirm that grandparent folder can be deleted after adding a (granchild) file
             // then changing branches
-            string newFileGrandParentFolderPath = @"GVFS\GVFS\CommandLine";
-            string newFilePath = newFileGrandParentFolderPath + @"\testfile.txt";
+            string newFileParentFolderPath = @"GVFlt_DeleteFolderTest\GVFlt_DeleteVirtualNonEmptyFolder_DeleteOnClose\NonEmptyFolder";
+            string newFileGrandParentFolderPath = @"GVFlt_DeleteFolderTest\GVFlt_DeleteVirtualNonEmptyFolder_DeleteOnClose";
+            string newFilePath = newFileParentFolderPath + @"\testfile.txt";
             string newFileContents = "test contents";
 
             this.CommitChangesSwitchBranch(
@@ -219,6 +269,7 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
             this.ValidateGitCommand("checkout " + this.ControlGitRepo.Commitish);
             this.ValidateGitCommand("checkout tests/functional/AddFileInSubfolderAndCommitOnNewBranchSwitchDeleteFolderAndSwitchBack");
 
+            this.FolderShouldExist(newFileParentFolderPath);
             this.FolderShouldExist(newFileGrandParentFolderPath);
             this.FileShouldHaveContents(newFilePath, newFileContents);
         }
@@ -319,9 +370,10 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
             string newBranchName = "tests/functional/MoveFileFromInsideRepoToOutsideRepoAndCommit";
             this.ValidateGitCommand("checkout -b " + newBranchName);
 
+            // Confirm that no other test has caused "Protocol.md" to be added to the sparse-checkout
             string fileName = "Protocol.md";
-            string sparseFile = Path.Combine(this.Enlistment.RepoRoot, @".git\info\sparse-checkout");
-            sparseFile.ShouldBeAFile(this.FileSystem).WithContents().ShouldNotContain(fileName);
+            string sparseFile = Path.Combine(this.Enlistment.RepoRoot, TestConstants.DotGit.Info.SparseCheckout);
+            sparseFile.ShouldBeAFile(this.FileSystem).WithContents().ShouldNotContain(ignoreCase: true, unexpectedSubstrings: fileName);
 
             string controlTargetFolder = "MoveFileFromInsideRepoToOutsideRepoAndCommit_ControlTarget";
             string gvfsTargetFolder = "MoveFileFromInsideRepoToOutsideRepoAndCommit_GVFSTarget";
@@ -357,8 +409,9 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
 
             string folderName = "GVFlt_MultiThreadTest";
 
-            string sparseFile = Path.Combine(this.Enlistment.RepoRoot, @".git\info\sparse-checkout");
-            sparseFile.ShouldBeAFile(this.FileSystem).WithContents().ShouldNotContain(folderName);
+            // Confirm that no other test has caused "GVFlt_MultiThreadTest" to be added to the sparse-checkout
+            string sparseFile = Path.Combine(this.Enlistment.RepoRoot, TestConstants.DotGit.Info.SparseCheckout);
+            sparseFile.ShouldBeAFile(this.FileSystem).WithContents().ShouldNotContain(ignoreCase: true, unexpectedSubstrings: folderName);
 
             this.FolderShouldHaveCaseMatchingName(folderName, "GVFlt_MultiThreadTest");
             this.DeleteFolder(folderName);
@@ -422,7 +475,7 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
             this.RunGitCommand("commit -m \"Delete file for AddFileCommitThenDeleteAndCommit\"");
             this.ValidateGitCommand("checkout tests/functional/AddFileCommitThenDeleteAndCommit_before");
             this.Enlistment.RepoRoot.ShouldBeADirectory(this.FileSystem)
-               .WithDeepStructure(this.ControlGitRepo.RootPath, skipEmptyDirectories: true);
+               .WithDeepStructure(this.FileSystem, this.ControlGitRepo.RootPath, skipEmptyDirectories: true);
             this.ValidateGitCommand("checkout tests/functional/AddFileCommitThenDeleteAndCommit_after");
         }
 
@@ -831,8 +884,8 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
             string gvfsRepoRoot = this.Enlistment.RepoRoot;
             string command = "checkout -b tests/functional/OpenFileThenCheckout_2";
             ProcessResult expectedResult = GitProcess.InvokeProcess(controlRepoRoot, command);
-            ProcessResult actualResult = GitProcess.InvokeProcess(gvfsRepoRoot, command);
-            actualResult.Errors.ShouldEqual(expectedResult.Errors);
+            ProcessResult actualResult = GitHelpers.InvokeGitAgainstGVFSRepo(gvfsRepoRoot, command);
+            GitHelpers.ErrorsShouldMatch(command, expectedResult, actualResult);
             actualResult.Errors.ShouldContain("Switched to a new branch");
 
             this.ValidateGitCommand("status");
@@ -850,14 +903,18 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
             string expectedContents = controlFile.ShouldBeAFile(this.FileSystem).WithContents();
             contents.ShouldEqual(expectedContents);
 
-            // Check that the entry in the sparse-checkout matches
+            // Confirm that the entry is not in the the sparse-checkout
             string sparseCheckoutFile = Path.Combine(this.Enlistment.RepoRoot, TestConstants.DotGit.Info.SparseCheckout);
-            sparseCheckoutFile.ShouldBeAFile(this.FileSystem).WithContents().ShouldContain(EncodingFilename);
+            sparseCheckoutFile.ShouldBeAFile(this.FileSystem).WithContents().ShouldNotContain(ignoreCase: true, unexpectedSubstrings: EncodingFilename);
             this.ValidateGitCommand("status");
 
             this.AppendAllText(virtualFile, ContentWhenEditingFile);
             this.AppendAllText(controlFile, ContentWhenEditingFile);
+
             this.ValidateGitCommand("status");
+
+            // Confirm that the entry was added to the sparse-checkout
+            sparseCheckoutFile.ShouldBeAFile(this.FileSystem).WithContents().ShouldContain(EncodingFilename);
         }
 
         [TestCase]
@@ -885,7 +942,7 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
 
             this.RunGitCommand("reset --hard HEAD");
             this.Enlistment.RepoRoot.ShouldBeADirectory(this.FileSystem)
-                .WithDeepStructure(this.ControlGitRepo.RootPath, skipEmptyDirectories: false);
+                .WithDeepStructure(this.FileSystem, this.ControlGitRepo.RootPath, skipEmptyDirectories: false);
         }
 
         [TestCase]
@@ -895,7 +952,7 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
 
             this.RunGitCommand("clean -fd");
             this.Enlistment.RepoRoot.ShouldBeADirectory(this.FileSystem)
-                .WithDeepStructure(this.ControlGitRepo.RootPath, skipEmptyDirectories: false);
+                .WithDeepStructure(this.FileSystem, this.ControlGitRepo.RootPath, skipEmptyDirectories: false);
         }
 
         [TestCase]
@@ -906,6 +963,12 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
 
             result = GitHelpers.InvokeGitAgainstGVFSRepo(this.Enlistment.RepoRoot, "update-index --no-skip-worktree Readme.md");
             result.Errors.ShouldContain("Modifying the skip worktree bit is not supported on a GVFS repo");
+        }
+
+        [TestCase]
+        public void BlameTest()
+        {
+            this.ValidateGitCommand("blame Readme.md");
         }
 
         private void SetupFolderDeleteTest()
@@ -951,7 +1014,7 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
             this.RunGitCommand("commit -m \"Change for {0}\"", branch);
             this.ValidateGitCommand("checkout " + this.ControlGitRepo.Commitish);
             this.Enlistment.RepoRoot.ShouldBeADirectory(this.FileSystem)
-                .WithDeepStructure(this.ControlGitRepo.RootPath, skipEmptyDirectories: true);
+                .WithDeepStructure(this.FileSystem, this.ControlGitRepo.RootPath, skipEmptyDirectories: true);
 
             this.ValidateGitCommand("checkout {0}", branch);
         }
