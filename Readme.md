@@ -43,4 +43,4 @@ Team Services (https://www.visualstudio.com/team-services/), and push some conte
 
 The GVFS source code in this repo is available under the MIT license. See [License.md](License.md).
 
-GVFS relies on the GvFlt filter driver, available as a prerelease NuGet package with its own [license](GvFlt_EULA.docx).
+GVFS relies on the GvFlt filter driver, available as a prerelease NuGet package with its own [license](GvFlt_EULA.md).
