@@ -99,8 +99,7 @@ namespace GVFS.CommandLine
 
                         PrefetchHelper prefetchHelper = new PrefetchHelper(
                             tracer,
-                            enlistment,
-                            DownloadThreadCount);
+                            enlistment);
 
                         if (this.Verbose)
                         {
@@ -131,7 +130,7 @@ namespace GVFS.CommandLine
                     }
 
                     GitProcess gitProcess = new GitProcess(enlistment);
-                    GitProcess.Result result = gitProcess.RevParse(GVFSConstants.HeadCommitName);
+                    GitProcess.Result result = gitProcess.RevParse(GVFSConstants.DotGit.HeadName);
                     if (result.HasErrors)
                     {
                         tracer.RelatedError(result.Errors);

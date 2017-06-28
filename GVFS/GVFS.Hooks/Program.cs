@@ -16,6 +16,7 @@ namespace GVFS.Hooks
         private const string PostCommandHook = "post-command";
 
         private const string GitPidArg = "--git-pid=";
+        private const int InvalidProcessId = -1;
 
         private const int PostCommandSpinnerDelayMs = 500;
 
@@ -42,7 +43,7 @@ namespace GVFS.Hooks
                     Environment.Exit(0);
                 }
 
-                enlistmentPipename = EnlistmentUtils.GetNamedPipeName(enlistmentRoot);
+                enlistmentPipename = NamedPipeClient.GetPipeNameFromPath(enlistmentRoot);
 
                 switch (GetHookType(args))
                 {
@@ -141,15 +142,15 @@ namespace GVFS.Hooks
 
         private static void VerifyRenameDetectionSettings(string[] args)
         {
-            string dotGitRoot = Path.Combine(enlistmentRoot, GVFSConstants.WorkingDirectoryRootName, GVFSConstants.DotGit.Root);
-            if (File.Exists(Path.Combine(dotGitRoot, GVFSConstants.MergeHeadCommitName)) ||
-                File.Exists(Path.Combine(dotGitRoot, GVFSConstants.RevertHeadCommitName)))
+            string srcRoot = Path.Combine(enlistmentRoot, GVFSConstants.WorkingDirectoryRootName);
+            if (File.Exists(Path.Combine(srcRoot, GVFSConstants.DotGit.MergeHead)) ||
+                File.Exists(Path.Combine(srcRoot, GVFSConstants.DotGit.RevertHead)))
             {
                 // If no-renames and no-breaks are specified, avoid reading config.
                 if (!args.Contains("--no-renames") || !args.Contains("--no-breaks"))
                 {
                     Dictionary<string, GitConfigSetting> statusConfig = GitConfigHelper.GetSettings(
-                        Path.Combine(dotGitRoot, "config"),
+                        Path.Combine(srcRoot, GVFSConstants.DotGit.Config),
                         "status");
 
                     if (!IsRunningWithParamOrSetting(args, statusConfig, "--no-renames", "renames") ||
@@ -191,7 +192,7 @@ namespace GVFS.Hooks
                         int pid = GetParentPid(args);
 
                         Process parentProcess = null;
-                        if (pid == GVFSConstants.InvalidProcessId ||
+                        if (pid == Program.InvalidProcessId ||
                             !ProcessHelper.TryGetProcess(pid, out parentProcess))
                         {
                             ExitWithError("GVFS.Hooks: Unable to find parent git.exe process " + "(PID: " + pid + ").");
@@ -227,7 +228,7 @@ namespace GVFS.Hooks
                 "Git did not supply the process Id.",
                 "Ensure you are using the correct version of the git client.");
 
-            return GVFSConstants.InvalidProcessId;
+            return Program.InvalidProcessId;
         }
 
         private static void AcquireGVFSLockForProcess(string fullCommand, int pid, Process parentProcess, NamedPipeClient pipeClient)
@@ -295,25 +296,33 @@ namespace GVFS.Hooks
             NamedPipeMessages.Message requestMessage = request.CreateMessage(NamedPipeMessages.ReleaseLock.Request);
 
             pipeClient.SendRequest(requestMessage);
-
             NamedPipeMessages.ReleaseLock.Response response = null;
-            ConsoleHelper.ShowStatusWhileRunning(
-                () =>
-                {
-                    response = new NamedPipeMessages.ReleaseLock.Response(pipeClient.ReadResponse());
 
-                    if (response.ResponseData == null)
+            if (!ConsoleHelper.IsConsoleOutputRedirectedToFile())
+            {
+                // If output is redirected then don't show waiting message or it might be interpreted as error
+                response = new NamedPipeMessages.ReleaseLock.Response(pipeClient.ReadResponse());
+            }
+            else
+            {
+                ConsoleHelper.ShowStatusWhileRunning(
+                    () =>
                     {
-                        return ConsoleHelper.ActionResult.Failure;
-                    }
+                        response = new NamedPipeMessages.ReleaseLock.Response(pipeClient.ReadResponse());
 
-                    return response.ResponseData.HasFailures ? ConsoleHelper.ActionResult.CompletedWithErrors : ConsoleHelper.ActionResult.Success;
-                },
-                "Waiting for GVFS to parse index and update placeholder files",
-                output: Console.Out,
-                showSpinner: !ConsoleHelper.IsConsoleOutputRedirectedToFile(),
-                suppressGvfsLogMessage: false,
-                initialDelayMs: PostCommandSpinnerDelayMs);
+                        if (response.ResponseData == null)
+                        {
+                            return ConsoleHelper.ActionResult.Failure;
+                        }
+
+                        return response.ResponseData.HasFailures ? ConsoleHelper.ActionResult.CompletedWithErrors : ConsoleHelper.ActionResult.Success;
+                    },
+                    "Waiting for GVFS to parse index and update placeholder files",
+                    output: Console.Out,
+                    showSpinner: true,
+                    suppressGvfsLogMessage: false,
+                    initialDelayMs: PostCommandSpinnerDelayMs);
+            }
 
             if (response == null || response.ResponseData == null)
             {
@@ -386,18 +395,22 @@ namespace GVFS.Hooks
             {
                 // Keep these alphabetically sorted
                 case "blame":
+                case "branch":
                 case "cat-file":
                 case "check-attr":
                 case "config":
                 case "credential":
                 case "diff":
                 case "diff-files":
+                case "diff-index":
                 case "diff-tree":
                 case "difftool":
+                case "fetch":
                 case "for-each-ref":
                 case "help":
                 case "index-pack":
                 case "log":
+                case "ls-files":
                 case "ls-tree":
                 case "merge-base":
                 case "name-rev":
@@ -406,7 +419,9 @@ namespace GVFS.Hooks
                 case "rev-list":
                 case "rev-parse":
                 case "show":
+                case "show-ref":
                 case "symbolic-ref":
+                case "tag":
                 case "unpack-objects":
                 case "update-ref":
                 case "version":

@@ -1,5 +1,6 @@
 ﻿using GVFS.Common.Git;
 using GVFS.Common.Tracing;
+using Microsoft.Diagnostics.Tracing;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -8,6 +9,7 @@ using System.Net;
 using System.Net.Http;
 using System.Net.Http.Headers;
 using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
 
 namespace GVFS.Common.Http
@@ -17,25 +19,35 @@ namespace GVFS.Common.Http
         public const int DefaultMaxRetries = 5;
         private const int HttpTimeoutMinutes = 10;
 
-        private readonly ProductInfoHeaderValue userAgentHeader;
+        private static long requestCount = 0;
 
+        private readonly ProductInfoHeaderValue userAgentHeader;
+        
         private HttpClient client;
         private GitAuthentication authentication;
-        
-        public HttpRequestor(ITracer tracer, GitAuthentication authentication, int maxConnections)
+
+        static HttpRequestor()
+        {
+            ServicePointManager.DefaultConnectionLimit = Environment.ProcessorCount;
+        }
+
+        public HttpRequestor(ITracer tracer, GitAuthentication authentication)
         {
             this.client = new HttpClient();
             this.client.Timeout = TimeSpan.FromMinutes(HttpTimeoutMinutes);
             this.authentication = authentication;
 
             this.Tracer = tracer;
-
-            ServicePointManager.DefaultConnectionLimit = maxConnections;
-
+            
             this.userAgentHeader = new ProductInfoHeaderValue(ProcessHelper.GetEntryClassName(), ProcessHelper.GetCurrentProcessVersion());
         }
 
         protected ITracer Tracer { get; }
+        
+        public static long GetNewRequestId()
+        {
+            return Interlocked.Increment(ref requestCount);
+        }
 
         public void Dispose()
         {
@@ -47,6 +59,7 @@ namespace GVFS.Common.Http
         }
 
         protected GitEndPointResponseData SendRequest(
+            long requestId,
             Uri requestUri,
             HttpMethod httpMethod,
             string requestContent,
@@ -76,19 +89,22 @@ namespace GVFS.Common.Http
                 request.Content = new StringContent(requestContent, Encoding.UTF8, "application/json");
             }
 
+            EventMetadata responseMetadata = new EventMetadata();
+            responseMetadata.Add("RequestId", requestId);
+
             try
             {
                 HttpResponseMessage response = this.client.SendAsync(request, HttpCompletionOption.ResponseHeadersRead).GetAwaiter().GetResult();
+                
+                responseMetadata.Add("CacheName", GetSingleHeaderOrEmpty(response.Headers, "X-Cache-Name"));
+                responseMetadata.Add("StatusCode", response.StatusCode);
+
                 if (response.StatusCode == HttpStatusCode.OK)
                 {
-                    string contentType = string.Empty;
-                    IEnumerable<string> values;
-                    if (response.Content.Headers.TryGetValues("Content-Type", out values))
-                    {
-                        contentType = values.First();
-                    }
+                    string contentType = GetSingleHeaderOrEmpty(response.Content.Headers, "Content-Type");
+                    responseMetadata.Add("ContentType", contentType);
 
-                    this.authentication.ConfirmCredentialsWorked();
+                    this.authentication.ConfirmCredentialsWorked(authString);
                     Stream responseStream = response.Content.ReadAsStreamAsync().GetAwaiter().GetResult();
                     return new GitEndPointResponseData(response.StatusCode, contentType, responseStream);
                 }
@@ -101,7 +117,7 @@ namespace GVFS.Common.Http
                     {
                         if (response.StatusCode == HttpStatusCode.Unauthorized)
                         {
-                            if (this.authentication.RevokeAndCheckCanRetry())
+                            if (this.authentication.RevokeAndCheckCanRetry(authString))
                             {
                                 return new GitEndPointResponseData(
                                     response.StatusCode,
@@ -134,6 +150,10 @@ namespace GVFS.Common.Http
             {
                 return new GitEndPointResponseData(HttpStatusCode.InternalServerError, ex, shouldRetry: true);
             }
+            finally
+            {
+                this.Tracer.RelatedEvent(EventLevel.Informational, "NetworkResponse", responseMetadata);
+            }
         }
         
         private static bool ShouldRetry(HttpStatusCode statusCode)
@@ -147,6 +167,17 @@ namespace GVFS.Common.Http
             }
 
             return false;
+        }
+
+        private static string GetSingleHeaderOrEmpty(HttpHeaders headers, string headerName)
+        {
+            IEnumerable<string> values;
+            if (headers.TryGetValues(headerName, out values))
+            {
+                return values.First();                
+            }
+
+            return string.Empty;
         }
     }
 }

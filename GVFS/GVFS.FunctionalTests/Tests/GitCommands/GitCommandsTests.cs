@@ -202,6 +202,72 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
         }
 
         [TestCase]
+        public void DeleteFilesWithNameAheadOfDot()
+        {
+            this.FolderShouldExistAndHaveFile("GitCommandsTests\\DeleteFileTests\\1", "#test");
+            this.DeleteFile("GitCommandsTests\\DeleteFileTests\\1\\#test");
+            this.FolderShouldExistAndBeEmpty("GitCommandsTests\\DeleteFileTests\\1");
+
+            this.FolderShouldExistAndHaveFile("GitCommandsTests\\DeleteFileTests\\2", "$test");
+            this.DeleteFile("GitCommandsTests\\DeleteFileTests\\2\\$test");
+            this.FolderShouldExistAndBeEmpty("GitCommandsTests\\DeleteFileTests\\2");
+
+            this.FolderShouldExistAndHaveFile("GitCommandsTests\\DeleteFileTests\\3", ")");
+            this.DeleteFile("GitCommandsTests\\DeleteFileTests\\3\\)");
+            this.FolderShouldExistAndBeEmpty("GitCommandsTests\\DeleteFileTests\\3");
+
+            this.FolderShouldExistAndHaveFile("GitCommandsTests\\DeleteFileTests\\4", "+.test");
+            this.DeleteFile("GitCommandsTests\\DeleteFileTests\\4\\+.test");
+            this.FolderShouldExistAndBeEmpty("GitCommandsTests\\DeleteFileTests\\4");
+
+            this.FolderShouldExistAndHaveFile("GitCommandsTests\\DeleteFileTests\\5", "-.test");
+            this.DeleteFile("GitCommandsTests\\DeleteFileTests\\5\\-.test");
+            this.FolderShouldExistAndBeEmpty("GitCommandsTests\\DeleteFileTests\\5");
+
+            this.ValidateGitCommand("status");
+        }
+
+        [TestCase]
+        public void RenameFilesWithNameAheadOfDot()
+        {
+            this.FolderShouldExistAndHaveFile("GitCommandsTests\\RenameFileTests\\1", "#test");
+            this.MoveFile("GitCommandsTests\\RenameFileTests\\1\\#test", "GitCommandsTests\\RenameFileTests\\1\\#testRenamed");
+
+            this.FolderShouldExistAndHaveFile("GitCommandsTests\\RenameFileTests\\2", "$test");
+            this.MoveFile("GitCommandsTests\\RenameFileTests\\2\\$test", "GitCommandsTests\\RenameFileTests\\2\\$testRenamed");
+
+            this.FolderShouldExistAndHaveFile("GitCommandsTests\\RenameFileTests\\3", ")");
+            this.MoveFile("GitCommandsTests\\RenameFileTests\\3\\)", "GitCommandsTests\\RenameFileTests\\3\\)Renamed");
+
+            this.FolderShouldExistAndHaveFile("GitCommandsTests\\RenameFileTests\\4", "+.test");
+            this.MoveFile("GitCommandsTests\\RenameFileTests\\4\\+.test", "GitCommandsTests\\RenameFileTests\\4\\+.testRenamed");
+
+            this.FolderShouldExistAndHaveFile("GitCommandsTests\\RenameFileTests\\5", "-.test");
+            this.MoveFile("GitCommandsTests\\RenameFileTests\\5\\-.test", "GitCommandsTests\\RenameFileTests\\5\\-.testRenamed");
+
+            this.ValidateGitCommand("status");
+        }
+
+        [TestCase]
+        public void DeleteFileWithNameAheadOfDotAndSwitchCommits()
+        {
+            this.DeleteFile("DeleteFileWithNameAheadOfDotAndSwitchCommits\\(1).txt");
+            this.ValidateGitCommand("status");
+            this.ValidateGitCommand("checkout -- DeleteFileWithNameAheadOfDotAndSwitchCommits/(1).txt");
+            this.DeleteFile("DeleteFileWithNameAheadOfDotAndSwitchCommits\\(1).txt");
+            this.ValidateGitCommand("status");
+
+            // 14cf226119766146b1fa5c5aa4cd0896d05f6b63 is the commit prior to creating (1).txt, it has two different files with
+            // names that start with '(': 
+            // (a).txt 
+            // (z).txt 
+            this.ValidateGitCommand("checkout 14cf226119766146b1fa5c5aa4cd0896d05f6b63");
+            this.DeleteFile("DeleteFileWithNameAheadOfDotAndSwitchCommits\\(a).txt");
+            this.ValidateGitCommand("checkout -- DeleteFileWithNameAheadOfDotAndSwitchCommits/(a).txt");
+            this.ValidateGitCommand("status");
+        }
+
+        [TestCase]
         public void AddFileAndCommitOnNewBranchSwitchDeleteFolderAndSwitchBack()
         {
             // 663045 - Confirm that folder can be deleted after adding a file then changing

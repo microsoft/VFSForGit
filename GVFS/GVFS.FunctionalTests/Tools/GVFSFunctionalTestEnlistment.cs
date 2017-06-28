@@ -1,6 +1,6 @@
 ﻿using GVFS.FunctionalTests.FileSystemRunners;
+using GVFS.FunctionalTests.Tests;
 using System;
-using System.Collections.Generic;
 using System.IO;
 using System.Threading;
 
@@ -15,9 +15,9 @@ namespace GVFS.FunctionalTests.Tools
 
         private GVFSProcess gvfsProcess;
 
-        public GVFSFunctionalTestEnlistment(string pathToGVFS, string enlistmentRoot, string repoUrl, string commitish)
+        private GVFSFunctionalTestEnlistment(string pathToGVFS, string enlistmentRoot, string repoUrl, string commitish)
         {
-            this.EnlistmentRoot = enlistmentRoot;
+            this.EnlistmentRoot = Path.Combine(enlistmentRoot, Guid.NewGuid().ToString("N"));
             this.RepoUrl = repoUrl;
             this.Commitish = commitish;
 
@@ -59,26 +59,33 @@ namespace GVFS.FunctionalTests.Tools
             get; private set;
         }
 
-        public static GVFSFunctionalTestEnlistment Create(string pathToGvfs)
+        public static GVFSFunctionalTestEnlistment CloneAndMount(string pathToGvfs, string commitish = null)
         {
-            return new GVFSFunctionalTestEnlistment(
+            GVFSFunctionalTestEnlistment enlistment = new GVFSFunctionalTestEnlistment(
                 pathToGvfs,
                 Properties.Settings.Default.EnlistmentRoot,
                 Properties.Settings.Default.RepoToClone,
-                Properties.Settings.Default.Commitish);
-        }
+                commitish == null ? Properties.Settings.Default.Commitish : commitish);
 
-        public static GVFSFunctionalTestEnlistment CloneAndMount(string pathToGvfs)
-        {
-            GVFSFunctionalTestEnlistment enlistment = GVFSFunctionalTestEnlistment.Create(pathToGvfs);
-            enlistment.UnmountAndDeleteAll();
-            enlistment.CloneAndMount();
+            try
+            {
+                enlistment.UnmountAndDeleteAll();
+                enlistment.CloneAndMount();
+            }
+            catch (Exception e)
+            {
+                Console.WriteLine("Unhandled exception in CloneAndMount: " + e.ToString());
+                TestResultsHelper.OutputGVFSLogs(enlistment);
+                throw;
+            }
 
             return enlistment;
         }
 
         public void DeleteEnlistment()
         {
+            TestResultsHelper.OutputGVFSLogs(this);
+
             // Use cmd.exe to delete the enlistment as it properly handles tombstones
             // and reparse points
             CmdRunner cmdRunner = new CmdRunner();
@@ -111,6 +118,7 @@ namespace GVFS.FunctionalTests.Tools
 
         public void CloneAndMount()
         {
+            GVFSServiceProcess.StartService();
             this.gvfsProcess.Clone(this.RepoUrl, this.Commitish);
 
             this.MountGVFS();
@@ -126,6 +134,12 @@ namespace GVFS.FunctionalTests.Tools
             this.gvfsProcess.Mount();
         }
 
+        public bool TryMountGVFS()
+        {
+            string output;
+            return this.gvfsProcess.TryMount(out output);
+        }
+
         public string PrefetchFolder(string folderPath)
         {
             return this.gvfsProcess.Prefetch(folderPath);
@@ -134,6 +148,11 @@ namespace GVFS.FunctionalTests.Tools
         public string PrefetchFolderBasedOnFile(string filterFilePath)
         {
             return this.gvfsProcess.PrefetchFolderBasedOnFile(filterFilePath);
+        }
+
+        public void Repair()
+        {
+            this.gvfsProcess.Repair();
         }
 
         public string Diagnose()
@@ -163,14 +182,9 @@ namespace GVFS.FunctionalTests.Tools
 
         public void UnmountAndDeleteAll()
         {
-            try
-            {
-                this.UnmountGVFS();
-            }
-            finally
-            {
-                this.DeleteEnlistment();
-            }
+            this.UnmountGVFS();
+            this.DeleteEnlistment();
+            GVFSServiceProcess.StopService();
         }
 
         public string GetVirtualPathTo(string pathInRepo)

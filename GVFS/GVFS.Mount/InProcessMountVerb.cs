@@ -11,6 +11,8 @@ namespace GVFS.Mount
     [Verb("mount", HelpText = "Starts the background mount process")]
     public class InProcessMountVerb 
     {
+        public const string MountExeName = "GVFS.Mount.exe";
+
         private TextWriter output;
         
         public InProcessMountVerb()
@@ -71,7 +73,16 @@ namespace GVFS.Mount
 
             ITracer tracer = this.CreateTracer(enlistment, verbosity, keywords);
             InProcessMount mountHelper = new InProcessMount(tracer, enlistment, this.ShowDebugWindow);
-            mountHelper.Mount(verbosity, keywords);
+
+            try
+            {
+                mountHelper.Mount(verbosity, keywords);
+            }
+            catch (Exception ex)
+            {
+                tracer.RelatedError("Failed to mount: {0}", ex.ToString());
+                this.ReportErrorAndExit("Failed to mount: {0}", ex.Message);
+            }
         }
 
         private ITracer CreateTracer(GVFSEnlistment enlistment, EventLevel verbosity, Keywords keywords)
@@ -119,16 +130,10 @@ namespace GVFS.Mount
                 enlistmentRootPath = Environment.CurrentDirectory;
             }
 
-            string hooksPath = ProcessHelper.WhereDirectory(GVFSConstants.GVFSHooksExecutableName);
-            if (hooksPath == null)
-            {
-                this.ReportErrorAndExit("Could not find " + GVFSConstants.GVFSHooksExecutableName);
-            }
-
             GVFSEnlistment enlistment = null;
             try
             {
-                enlistment = GVFSEnlistment.CreateFromDirectory(enlistmentRootPath, null, gitBinPath, hooksPath);
+                enlistment = GVFSEnlistment.CreateFromDirectory(enlistmentRootPath, null, gitBinPath, ProcessHelper.GetCurrentProcessLocation());
                 if (enlistment == null)
                 {
                     this.ReportErrorAndExit(

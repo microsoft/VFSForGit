@@ -5,9 +5,9 @@ using GVFS.Common.Physical;
 using GVFS.Common.Tracing;
 using GVFS.GVFlt;
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Linq;
-using System.Reflection;
 using System.Text;
 
 namespace GVFS.CommandLine
@@ -35,6 +35,12 @@ namespace GVFS.CommandLine
                 return initRepoResult;
             }
 
+            string errorMessage;
+            if (!this.enlistment.TryConfigureAlternate(out errorMessage))
+            {
+                return new CloneVerb.Result("Error configuring alternate: " + errorMessage);
+            }
+
             if (!gitObjects.TryDownloadAndSaveCommits(refs.GetTipCommitIds(), commitDepth: 2))
             {
                 return new CloneVerb.Result("Could not download tip commits from: " + Uri.EscapeUriString(this.enlistment.ObjectsEndpointUrl));
@@ -46,7 +52,12 @@ namespace GVFS.CommandLine
                 return new CloneVerb.Result("Unable to configure git repo");
             }
 
-            git.CreateBranchWithUpstream(branch, "origin/" + branch);
+            string originBranchName = "origin/" + branch;
+            GitProcess.Result createBranchResult = git.CreateBranchWithUpstream(branch, originBranchName);
+            if (createBranchResult.HasErrors)
+            {
+                return new CloneVerb.Result("Unable to create branch '" + originBranchName + "': " + createBranchResult.Errors + "\r\n" + createBranchResult.Output);
+            }
 
             File.WriteAllText(
                 Path.Combine(this.enlistment.WorkingDirectoryRoot, GVFSConstants.DotGit.Head),
@@ -56,17 +67,10 @@ namespace GVFS.CommandLine
                 Path.Combine(this.enlistment.WorkingDirectoryRoot, GVFSConstants.DotGit.Info.SparseCheckoutPath),
                 GVFSConstants.GitPathSeparatorString + GVFSConstants.SpecialGitFiles.GitAttributes + "\n");
 
-            try
+            CloneVerb.Result hydrateResult = this.HydrateRootGitAttributes(gitObjects, branch);
+            if (!hydrateResult.Success)
             {
-                CloneVerb.Result hydrateResult = this.HydrateRootGitAttributes_CanTimeout(gitObjects, branch);
-                if (!hydrateResult.Success)
-                {
-                    return hydrateResult;
-                }
-            }
-            catch (TimeoutException)
-            {
-                return new CloneVerb.Result("Failed to hydrate root .gitattributes file");
+                return hydrateResult;
             }
 
             this.CreateGitScript();
@@ -106,7 +110,7 @@ namespace GVFS.CommandLine
                 this.tracer.RelatedError(installHooksError);
                 return new CloneVerb.Result(installHooksError);
             }
-
+            
             using (RepoMetadata repoMetadata = new RepoMetadata(this.enlistment.DotGVFSRoot))
             {
                 repoMetadata.SaveCurrentDiskLayoutVersion();
@@ -140,22 +144,29 @@ namespace GVFS.CommandLine
                 GVFSVerb.TrySetGitConfigSettings(git);
         }
 
-        private CloneVerb.Result HydrateRootGitAttributes_CanTimeout(GitObjects gitObjects, string branch)
+        private CloneVerb.Result HydrateRootGitAttributes(GitObjects gitObjects, string branch)
         {
-            using (GitCatFileBatchProcess catFile = new GitCatFileBatchProcess(this.tracer, this.enlistment))
+            List<DiffTreeResult> rootEntries = new List<DiffTreeResult>();
+            GitProcess git = new GitProcess(this.enlistment);
+            GitProcess.Result result = git.LsTree(
+                GVFSConstants.DotGit.HeadName,
+                line => rootEntries.Add(DiffTreeResult.ParseFromLsTreeLine(line, repoRoot: string.Empty)),
+                recursive: false);
+
+            if (result.HasErrors)
             {
-                string treeSha = catFile.GetTreeSha_CanTimeout(branch);
-                GitTreeEntry gitAttributes = catFile.GetTreeEntries_CanTimeout(treeSha).FirstOrDefault(entry => entry.Name.Equals(GVFSConstants.SpecialGitFiles.GitAttributes));
+                return new CloneVerb.Result("Error returned from ls-tree to find " + GVFSConstants.SpecialGitFiles.GitAttributes + " file: " + result.Errors);
+            }
 
-                if (gitAttributes == null)
-                {
-                    return new CloneVerb.Result("This branch does not contain a " + GVFSConstants.SpecialGitFiles.GitAttributes + " file in the root folder.  This file is required by GVFS clone");
-                }
+            DiffTreeResult gitAttributes = rootEntries.FirstOrDefault(entry => entry.TargetFilename.Equals(GVFSConstants.SpecialGitFiles.GitAttributes));
+            if (gitAttributes == null)
+            {
+                return new CloneVerb.Result("This branch does not contain a " + GVFSConstants.SpecialGitFiles.GitAttributes + " file in the root folder.  This file is required by GVFS clone");
+            }
 
-                if (!gitObjects.TryDownloadAndSaveBlobs(new[] { gitAttributes.Sha }))
-                {
-                    return new CloneVerb.Result("Could not download " + GVFSConstants.SpecialGitFiles.GitAttributes + " file");
-                }
+            if (!gitObjects.TryDownloadAndSaveBlobs(new[] { gitAttributes.TargetSha }))
+            {
+                return new CloneVerb.Result("Could not download " + GVFSConstants.SpecialGitFiles.GitAttributes + " file");
             }
 
             return new CloneVerb.Result(true);

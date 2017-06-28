@@ -1,4 +1,7 @@
-﻿using Microsoft.Isam.Esent.Collections.Generic;
+﻿using GVFS.Common.Tracing;
+using Microsoft.Isam.Esent;
+using Microsoft.Isam.Esent.Collections.Generic;
+using Microsoft.Isam.Esent.Interop;
 using System;
 using System.IO;
 
@@ -56,12 +59,12 @@ namespace GVFS.Common.Physical
 
         public void SetProjectionInvalid(bool invalid)
         {
-            this.SetInvalid(ProjectionInvalidKey, invalid);
+            this.SetInvalid(Columns.ProjectionInvalidKey, invalid);
         }
 
         public bool GetProjectionInvalid()
         {
-            return this.HasEntry(ProjectionInvalidKey);
+            return this.HasEntry(Columns.ProjectionInvalidKey);
         }
 
         public void SetPlaceholdersNeedUpdate(bool needUpdate)
@@ -129,6 +132,13 @@ namespace GVFS.Common.Physical
             return DiskLayoutVersion.CheckDiskLayoutVersion(this.repoMetadata, allowUpgrade, out error);
         }
 
+        private static class Columns
+        {
+            public const string ProjectionInvalidKey = "ProjectionInvalid";
+            public const string PlaceholdersInvalidKey = "PlaceholdersInvalid";
+            public const string DiskLayoutVersionKey = "DiskLayoutVersion";
+        }
+
         private static class DiskLayoutVersion
         {
             // The current disk layout version.  This number should be bumped whenever a disk format change is made
@@ -136,7 +146,6 @@ namespace GVFS.Common.Physical
             public const int CurrentDiskLayoutVersion = 7;
 
             public const string MissingVersionError = "Enlistment disk layout version not found, check if a breaking change has been made to GVFS since cloning this enlistment.";
-            private const string DiskLayoutVersionKey = "DiskLayoutVersion";
 
             // MaxDiskLayoutVersion ensures that olders versions of GVFS will not try to mount newer enlistments (if the 
             // disk layout of the newer GVFS is incompatible).
@@ -151,7 +160,7 @@ namespace GVFS.Common.Physical
 
             public static void SaveCurrentDiskLayoutVersion(PersistentDictionary<string, string> repoMetadata)
             {
-                repoMetadata[DiskLayoutVersionKey] = CurrentDiskLayoutVersion.ToString();
+                repoMetadata[Columns.DiskLayoutVersionKey] = CurrentDiskLayoutVersion.ToString();
                 repoMetadata.Flush();
             }
 
@@ -160,17 +169,24 @@ namespace GVFS.Common.Physical
                 version = -1;
                 error = string.Empty;
                 string value;
-                if (repoMetadata.TryGetValue(DiskLayoutVersionKey, out value))
+
+                try
                 {
+                    if (!repoMetadata.TryGetValue(Columns.DiskLayoutVersionKey, out value))
+                    {
+                        error = MissingVersionError;
+                        return false;
+                    }
+
                     if (!int.TryParse(value, out version))
                     {
                         error = "Failed to parse persisted disk layout version number: " + value;
                         return false;
-                    }                   
+                    }
                 }
-                else
+                catch (EsentException ex)
                 {
-                    error = MissingVersionError;
+                    error = ex.Message;
                     return false;
                 }
 

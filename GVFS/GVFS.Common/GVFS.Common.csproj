@@ -1,5 +1,6 @@
 ﻿<?xml version="1.0" encoding="utf-8"?>
 <Project ToolsVersion="14.0" DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <Import Project="..\LibGit2Sharp.NativeBinaries.props" Condition="Exists('..\LibGit2Sharp.NativeBinaries.props')" />
   <Import Project="$(MSBuildExtensionsPath)\$(MSBuildToolsVersion)\Microsoft.Common.props" Condition="Exists('$(MSBuildExtensionsPath)\$(MSBuildToolsVersion)\Microsoft.Common.props')" />
   <PropertyGroup>
     <Configuration Condition=" '$(Configuration)' == '' ">Debug</Configuration>
@@ -89,7 +90,11 @@
     <Compile Include="Git\GitAuthentication.cs" />
     <Compile Include="Git\GitConfigHelper.cs" />
     <Compile Include="Git\GitConfigSetting.cs" />
+    <Compile Include="Git\GitOid.cs" />
     <Compile Include="Git\GitPathConverter.cs" />
+    <Compile Include="Git\LibGit2Helpers.cs" />
+    <Compile Include="Git\LibGit2Repo.cs" />
+    <Compile Include="Git\RefLogEntry.cs" />
     <Compile Include="GVFSConfig.cs" />
     <Compile Include="Git\GitObjectContentType.cs" />
     <Compile Include="Http\GitEndPointResponseData.cs" />
@@ -101,26 +106,22 @@
     <Compile Include="IBackgroundOperation.cs" />
     <Compile Include="IHeartBeatMetadataProvider.cs" />
     <Compile Include="InvalidRepoException.cs" />
-    <Compile Include="MountParameters.cs" />
     <Compile Include="NamedPipes\AllowAllLocksNamedPipeServer.cs" />
     <Compile Include="NamedPipes\LockNamedPipeMessages.cs" />
-    <Compile Include="NamedPipes\PipeNameLengthException .cs" />
-    <Compile Include="Physical\Git\CopyBlobContentTimeoutException.cs" />
+    <Compile Include="NamedPipes\PipeNameLengthException.cs" />
     <Compile Include="Physical\Git\EndianHelper.cs" />
     <Compile Include="Physical\RepoMetadata.cs" />
     <Compile Include="PrefetchPacks\PrefetchPacksDeserializer.cs" />
     <Compile Include="ProcessWatcher.cs" />
+    <Compile Include="RepoRegistration.cs" />
     <Compile Include="RetryableException.cs" />
     <Compile Include="ReturnCode.cs" />
     <Compile Include="StreamUtil.cs" />
     <Compile Include="CallbackResult.cs" />
     <Compile Include="ConcurrentHashSet.cs" />
     <Compile Include="FileBasedLock.cs" />
-    <Compile Include="ProcessPool.cs" />
+    <Compile Include="LibGit2RepoPool.cs" />
     <Compile Include="Git\DiffTreeResult.cs" />
-    <Compile Include="Git\GitCatFileBatchCheckProcess.cs" />
-    <Compile Include="Git\GitCatFileBatchProcess.cs" />
-    <Compile Include="Git\GitCatFileProcess.cs" />
     <Compile Include="Git\GitProcess.cs" />
     <Compile Include="Git\GitRefs.cs" />
     <Compile Include="Git\GitTreeEntry.cs" />
@@ -150,10 +151,8 @@
     <Compile Include="ReliableBackgroundOperations.cs" />
     <Compile Include="RetryWrapper.cs" />
     <Compile Include="SHA1Util.cs" />
-    <Compile Include="TaskExtensions.cs" />
     <Compile Include="Tracing\DiagnosticConsoleEventListener.cs" />
     <Compile Include="Tracing\PrettyConsoleEventListener.cs" />
-    <Compile Include="Git\CatFileTimeoutException.cs" />
     <Compile Include="Tracing\EventMetadata.cs" />
     <Compile Include="Tracing\InProcEventListener.cs" />
     <Compile Include="Tracing\ITracer.cs" />
@@ -173,6 +172,7 @@
     <Error Condition="!Exists('..\..\..\packages\StyleCop.Error.MSBuild.1.0.0\build\StyleCop.Error.MSBuild.Targets')" Text="$([System.String]::Format('$(ErrorText)', '..\..\..\packages\StyleCop.Error.MSBuild.1.0.0\build\StyleCop.Error.MSBuild.Targets'))" />
     <Error Condition="!Exists('..\..\..\packages\Microsoft.Diagnostics.Tracing.EventRegister.1.1.28\build\Microsoft.Diagnostics.Tracing.EventRegister.targets')" Text="$([System.String]::Format('$(ErrorText)', '..\..\..\packages\Microsoft.Diagnostics.Tracing.EventRegister.1.1.28\build\Microsoft.Diagnostics.Tracing.EventRegister.targets'))" />
     <Error Condition="!Exists('..\..\..\packages\StyleCop.MSBuild.4.7.54.0\build\StyleCop.MSBuild.Targets')" Text="$([System.String]::Format('$(ErrorText)', '..\..\..\packages\StyleCop.MSBuild.4.7.54.0\build\StyleCop.MSBuild.Targets'))" />
+    <Error Condition="!Exists('..\LibGit2Sharp.NativeBinaries.props')" Text="$([System.String]::Format('$(ErrorText)', '..\LibGit2Sharp.NativeBinaries.props'))" />
   </Target>
   <Import Project="..\..\..\packages\StyleCop.Error.MSBuild.1.0.0\build\StyleCop.Error.MSBuild.Targets" Condition="Exists('..\..\..\packages\StyleCop.Error.MSBuild.1.0.0\build\StyleCop.Error.MSBuild.Targets')" />
   <Import Project="..\..\..\packages\Microsoft.Diagnostics.Tracing.EventRegister.1.1.28\build\Microsoft.Diagnostics.Tracing.EventRegister.targets" Condition="Exists('..\..\..\packages\Microsoft.Diagnostics.Tracing.EventRegister.1.1.28\build\Microsoft.Diagnostics.Tracing.EventRegister.targets')" />

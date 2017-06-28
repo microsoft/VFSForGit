@@ -8,7 +8,6 @@ using GVFS.Common.Tracing;
 using Microsoft.Diagnostics.Tracing;
 using System;
 using System.IO;
-using System.Threading;
 
 namespace GVFS.CommandLine
 {
@@ -16,9 +15,6 @@ namespace GVFS.CommandLine
     public class MountVerb : GVFSVerb.ForExistingEnlistment
     {
         private const string MountVerbName = "mount";
-        private const string MountExeName = "GVFS.Mount.exe";
-
-        private const int BackgroundProcessConnectTimeoutMS = 15000;
 
         [Option(
             'v',
@@ -60,7 +56,6 @@ namespace GVFS.CommandLine
 
         protected override void PreExecute(string enlistmentRootPath)
         {
-            this.CheckElevated();
             this.CheckGVFltRunning();
 
             if (string.IsNullOrWhiteSpace(enlistmentRootPath))
@@ -81,7 +76,7 @@ namespace GVFS.CommandLine
 
             if (!this.SkipMountedCheck)
             {
-                using (NamedPipeClient pipeClient = new NamedPipeClient(EnlistmentUtils.GetNamedPipeName(enlistmentRoot)))
+                using (NamedPipeClient pipeClient = new NamedPipeClient(NamedPipeClient.GetPipeNameFromPath(enlistmentRoot)))
                 {
                     if (pipeClient.Connect(500))
                     {
@@ -92,7 +87,7 @@ namespace GVFS.CommandLine
 
             bool allowUpgrade = true;
             string error;
-            if (!RepoMetadata.CheckDiskLayoutVersion(Path.Combine(enlistmentRoot, GVFSConstants.DotGVFSPath), allowUpgrade, out error))
+            if (!RepoMetadata.CheckDiskLayoutVersion(Path.Combine(enlistmentRoot, GVFSConstants.DotGVFS.Root), allowUpgrade, out error))
             {
                 this.ReportErrorAndExit("Error: " + error);
             }
@@ -104,6 +99,11 @@ namespace GVFS.CommandLine
             if (!HooksInstallHelper.InstallHooks(enlistment, out errorMessage))
             {
                 this.ReportErrorAndExit("Error installing hooks: " + errorMessage);
+            }
+
+            if (!enlistment.TryConfigureAlternate(out errorMessage))
+            {
+                this.ReportErrorAndExit("Error configuring alternate: " + errorMessage);
             }
 
             if (!this.ShowStatusWhileRunning(
@@ -118,14 +118,6 @@ namespace GVFS.CommandLine
         {
             this.CheckGitVersion(enlistment);
             this.CheckGVFSHooksVersion(enlistment, null);
-            this.CheckAntiVirusExclusion(enlistment);
-
-            string mountExeLocation = Path.Combine(ProcessHelper.GetCurrentProcessLocation(), MountExeName);
-            if (!File.Exists(mountExeLocation))
-            {
-                errorMessage = "Could not find GVFS.Mount.exe. You may need to reinstall GVFS.";
-                return false;
-            }
 
             if (!this.SkipVersionCheck)
             {
@@ -155,65 +147,70 @@ namespace GVFS.CommandLine
             }
 
             this.SetGitConfigSettings(git);
-
-            const string ParamPrefix = "--";
-            ProcessHelper.StartBackgroundProcess(
-                mountExeLocation,
-                string.Join(
-                    " ",
-                    enlistment.EnlistmentRoot,
-                    ParamPrefix + MountParameters.Verbosity,
-                    this.Verbosity,
-                    ParamPrefix + MountParameters.Keywords,
-                    this.KeywordsCsv,
-                    this.ShowDebugWindow ? ParamPrefix + MountParameters.DebugWindow : string.Empty),
-                createWindow: this.ShowDebugWindow);
-
-            return this.WaitForMountToComplete(enlistment, out errorMessage);
+            return this.SendMountRequest(enlistment, verbosity, keywords, out errorMessage);
         }
 
-        private bool WaitForMountToComplete(GVFSEnlistment enlistment, out string errorMessage)
+        private bool SendMountRequest(GVFSEnlistment enlistment, EventLevel verbosity, Keywords keywords, out string errorMessage)
         {
-            using (NamedPipeClient pipeClient = new NamedPipeClient(enlistment.NamedPipeName))
+            errorMessage = string.Empty;
+
+            NamedPipeMessages.MountRepoRequest request = new NamedPipeMessages.MountRepoRequest();
+            request.EnlistmentRoot = enlistment.EnlistmentRoot;
+            request.Verbosity = verbosity;
+            request.Keywords = keywords;
+            request.ShowDebugWindow = this.ShowDebugWindow;
+
+            using (NamedPipeClient client = new NamedPipeClient(this.ServicePipeName))
             {
-                if (!pipeClient.Connect(BackgroundProcessConnectTimeoutMS))
+                if (!client.Connect())
                 {
-                    errorMessage = "Unable to mount because the background process is not responding.";
+                    errorMessage = "Unable to mount because GVFS.Service is not responding. Run 'sc start GVFS.Service' from an elevated command prompt to ensure it is running.";
                     return false;
                 }
 
-                bool isMounted = false;
-                while (!isMounted)
+                try
                 {
-                    try
+                    client.SendRequest(request.ToMessage());
+                    NamedPipeMessages.Message response = client.ReadResponse();
+                    if (response.Header == NamedPipeMessages.MountRepoRequest.Response.Header)
                     {
-                        pipeClient.SendRequest(NamedPipeMessages.GetStatus.Request);
-                        NamedPipeMessages.GetStatus.Response getStatusResponse =
-                            NamedPipeMessages.GetStatus.Response.FromJson(pipeClient.ReadRawResponse());
+                        NamedPipeMessages.MountRepoRequest.Response message = NamedPipeMessages.MountRepoRequest.Response.FromMessage(response);
 
-                        if (getStatusResponse.MountStatus == NamedPipeMessages.GetStatus.Ready)
+                        if (!string.IsNullOrEmpty(message.ErrorMessage))
                         {
-                            isMounted = true;
+                            errorMessage = message.ErrorMessage;
+                            return false;
                         }
-                        else if (getStatusResponse.MountStatus == NamedPipeMessages.GetStatus.MountFailed)
+
+                        if (message.State != NamedPipeMessages.CompletionState.Success)
                         {
-                            errorMessage = "Failed to mount";
+                            errorMessage = "Failed to mount GVFS repo.";
                             return false;
                         }
                         else
                         {
-                            Thread.Sleep(100);
+                            return true;
                         }
                     }
-                    catch (BrokenPipeException)
+                    else
                     {
-                        errorMessage = "Failed to mount";
+                        errorMessage = string.Format("GVFS.Service responded with unexpected message: {0}", response);
                         return false;
                     }
                 }
+                catch (BrokenPipeException e)
+                {
+                    errorMessage = "Unable to communicate with GVFS.Service: " + e.ToString();
+                    return false;
+                }
+            }
+        }
 
-                errorMessage = null;
-                return isMounted;
+        private void SetGitConfigSettings(GitProcess git)
+        {
+            if (!GVFSVerb.TrySetGitConfigSettings(git))
+            {
+                this.ReportErrorAndExit("Unable to configure git repo");
             }
         }
 
@@ -227,14 +224,6 @@ namespace GVFS.CommandLine
             if (!Enum.TryParse(this.Verbosity, out verbosity))
             {
                 this.ReportErrorAndExit("Error: Invalid logging verbosity: " + this.Verbosity);
-            }
-        }
-
-        private void SetGitConfigSettings(GitProcess git)
-        {
-            if (!GVFSVerb.TrySetGitConfigSettings(git))
-            {
-                this.ReportErrorAndExit("Unable to configure git repo");
             }
         }
     }

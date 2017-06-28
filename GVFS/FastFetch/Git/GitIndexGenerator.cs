@@ -69,7 +69,7 @@ namespace FastFetch.Git
 
                 GitProcess git = new GitProcess(this.enlistment);
                 GitProcess.Result result = git.LsTree(
-                    GVFSConstants.HeadCommitName,
+                    GVFSConstants.DotGit.HeadName,
                     this.EnqueueEntriesFromLsTree,
                     recursive: true,
                     showAllTrees: false);
@@ -191,11 +191,11 @@ namespace FastFetch.Git
 
             public static LsTreeEntry ParseFromLsTreeLine(string line)
             {
-                int blobIndex = line.IndexOf(GitCatFileProcess.BlobMarker);
+                int blobIndex = line.IndexOf(DiffTreeResult.BlobMarker);
                 if (blobIndex >= 0)
                 {
                     LsTreeEntry blobEntry = new LsTreeEntry();
-                    blobEntry.Sha = line.Substring(blobIndex + GitCatFileProcess.BlobMarker.Length, GVFSConstants.ShaStringLength);
+                    blobEntry.Sha = line.Substring(blobIndex + DiffTreeResult.BlobMarker.Length, GVFSConstants.ShaStringLength);
                     blobEntry.Filename = GitPathConverter.ConvertPathOctetsToUtf8(line.Substring(line.LastIndexOf("\t") + 1).Trim('"'));
 
                     return blobEntry;

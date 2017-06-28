@@ -53,12 +53,6 @@ namespace GVFS.Tests
                 }
             }
 
-            if (Debugger.IsAttached)
-            {
-                Console.WriteLine("Tests completed.  Please Enter to exit");
-                Console.ReadLine();
-            }
-
             return finalResult;
         }
     }

@@ -8,12 +8,12 @@ using GVFS.Common.Physical.Git;
 using GVFS.Common.Tracing;
 using GVFS.GVFlt;
 using Microsoft.Diagnostics.Tracing;
+using Microsoft.Win32;
 using Microsoft.Win32.SafeHandles;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
-using System.Linq;
 using System.Reflection;
 using System.Threading;
 
@@ -73,6 +73,7 @@ namespace GVFS.Mount
 
                 this.ValidateMountPoints();
                 this.UpdateHooks();
+                this.SetVisualStudioRegistryKey();
 
                 this.gvfsLock = context.Repository.GVFSLock;
                 this.MountAndStartWorkingDirectoryCallbacks(context);
@@ -84,7 +85,7 @@ namespace GVFS.Mount
                     "Mount",
                     new EventMetadata
                     {
-                    { "Message", "Virtual repo is ready" },
+                        { "Message", "Virtual repo is ready" },
                     });
 
                 this.currentState = MountState.Ready;
@@ -184,11 +185,27 @@ namespace GVFS.Mount
             }
         }
 
+        private void SetVisualStudioRegistryKey()
+        {
+            const string GitBinPathEnd = "\\cmd\\git.exe";
+            const string GitVSRegistryKeyName = "HKEY_CURRENT_USER\\Software\\Microsoft\\VSCommon\\15.0\\TeamFoundation\\GitSourceControl";
+            const string GitVSRegistryValueName = "GitPath";
+
+            if (!this.enlistment.GitBinPath.EndsWith(GitBinPathEnd))
+            {
+                this.tracer.RelatedError("Unable to configure Visual Studio’s GitSourceControl regkey because invalid git.exe path found: {0}", this.enlistment.GitBinPath);
+                return;
+            }
+
+            string regKeyValue = this.enlistment.GitBinPath.Substring(0, this.enlistment.GitBinPath.Length - GitBinPathEnd.Length);
+            Registry.SetValue(GitVSRegistryKeyName, GitVSRegistryValueName, regKeyValue);
+        }
+
         private NamedPipeServer StartNamedPipe()
         {
             try
             {
-                return NamedPipeServer.StartNewServer(this.enlistment.NamedPipeName, this.HandleRequest);
+                return NamedPipeServer.StartNewServer(this.enlistment.NamedPipeName, this.tracer, this.HandleRequest);
             }
             catch (PipeNameLengthException)
             {
@@ -219,13 +236,11 @@ namespace GVFS.Mount
 
         private void AcquireRepoMutex()
         {
-            bool mutexAcquired = false;
-
             try
             {
-                if (this.enlistment.EnlistmentMutex.WaitOne(MutexMaxWaitTimeMS))
+                if (!this.enlistment.EnlistmentMutex.WaitOne(MutexMaxWaitTimeMS))
                 {
-                    mutexAcquired = true;
+                    this.FailMountAndExit("Error: GVFS is already mounted for this repo");
                 }
             }
             catch (AbandonedMutexException)
@@ -236,16 +251,10 @@ namespace GVFS.Mount
                 //
                 // If we catch AbandonedMutexException here it means that a previous instance of GVFS for this repo was not shut down gracefully.
                 // Return true as catching this exception means that we have now acquired the mutex.
-                mutexAcquired = true;
             }
             catch (Exception)
             {
                 this.FailMountAndExit("Error: Failed to determine if repo is already mounted.");
-            }
-
-            if (!mutexAcquired)
-            {
-                this.FailMountAndExit("Error: GVFS is already mounted for this repo");
             }
         }
 
@@ -262,7 +271,7 @@ namespace GVFS.Mount
             }
         }
 
-        private void HandleRequest(string request, NamedPipeServer.Connection connection)
+        private void HandleRequest(ITracer tracer, string request, NamedPipeServer.Connection connection)
         {
             NamedPipeMessages.Message message = NamedPipeMessages.Message.FromString(request);
 
@@ -289,6 +298,12 @@ namespace GVFS.Mount
                     break;
 
                 default:
+                    EventMetadata metadata = new EventMetadata();
+                    metadata.Add("Area", "Mount");
+                    metadata.Add("Header", message.Header);
+                    metadata.Add("ErrorMessage", "HandleRequest: Unknown request");
+                    this.tracer.RelatedError(metadata);
+
                     connection.TrySendResponse(NamedPipeMessages.UnknownRequest);
                     break;
             }
@@ -474,7 +489,7 @@ namespace GVFS.Mount
 
             // Checking the disk layout version is done before this point in GVFS.CommandLine.MountVerb.PreExecute
             RepoMetadata repoMetadata = new RepoMetadata(this.enlistment.DotGVFSRoot);
-            GitObjectsHttpRequestor objectRequestor = new GitObjectsHttpRequestor(context.Tracer, context.Enlistment, Environment.ProcessorCount);
+            GitObjectsHttpRequestor objectRequestor = new GitObjectsHttpRequestor(context.Tracer, context.Enlistment);
             this.gitObjects = new GVFSGitObjects(context, objectRequestor);
             this.gvfltCallbacks = this.CreateOrReportAndExit(() => new GVFltCallbacks(context, this.gitObjects, repoMetadata), "Failed to create src folder callbacks");
 
@@ -496,7 +511,14 @@ namespace GVFS.Mount
                 this.FailMountAndExit("Failed to initialize src folder callbacks. {0}", e.ToString());
             }
 
-            repoMetadata.SaveCurrentDiskLayoutVersion();
+            try
+            {
+                repoMetadata.SaveCurrentDiskLayoutVersion();
+            }
+            catch (Exception ex)
+            {
+                this.FailMountAndExit("Failed to update repo disk layout version: {0}", ex.ToString());
+            }
 
             this.AcquireFolderLocks(context);
 

@@ -6,9 +6,6 @@ namespace GVFS.Common.Physical.FileSystem
 {
     public static class StreamReaderExtensions
     {
-        private const int ReadWriteTimeoutMs = 10000;
-        private const int BufferSize = 64 * 1024;
-
         /// <summary>
         /// Reads the underlying stream until it ends returning all content as a string.
         /// </summary>
@@ -55,22 +52,20 @@ namespace GVFS.Common.Physical.FileSystem
 
             return output;
         }
-
-        public static void CopyBlockTo<TTimeoutException>(this StreamReader input, StreamWriter writer, long numBytes)
-            where TTimeoutException : TimeoutException, new()
+        
+        public static void CopyBlockTo(this Stream input, Stream destination, long numBytes, byte[] buffer)
         {
-            char[] buffer = new char[BufferSize];
             int read;
             while (numBytes > 0)
             {
                 int bytesToRead = Math.Min(buffer.Length, (int)numBytes);
-                read = input.ReadBlockAsync(buffer, 0, bytesToRead).Timeout<int, TTimeoutException>(ReadWriteTimeoutMs);
+                read = input.Read(buffer, 0, bytesToRead);
                 if (read <= 0)
                 {
                     break;
                 }
 
-                writer.WriteAsync(buffer, 0, read).Timeout<TTimeoutException>(ReadWriteTimeoutMs);
+                destination.Write(buffer, 0, read);
                 numBytes -= read;
             }
         }

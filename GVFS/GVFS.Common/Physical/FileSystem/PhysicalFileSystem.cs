@@ -16,6 +16,11 @@ namespace GVFS.Common.Physical.FileSystem
 
         public static void RecursiveDelete(string path)
         {
+            if (!Directory.Exists(path))
+            {
+                return;
+            }
+
             DirectoryInfo directory = new DirectoryInfo(path);
 
             foreach (FileInfo file in directory.GetFiles())

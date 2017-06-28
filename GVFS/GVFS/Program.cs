@@ -19,6 +19,7 @@ namespace GVFS
                 typeof(LogVerb),
                 typeof(MountVerb),
                 typeof(PrefetchVerb),
+                typeof(RepairVerb),
                 typeof(StatusVerb),
                 typeof(UnmountVerb),
             };

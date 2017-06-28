@@ -10,7 +10,12 @@ namespace GVFS.FunctionalTests.Tests
     {
         public static void OutputGVFSLogs(GVFSFunctionalTestEnlistment enlistment)
         {
-            Console.WriteLine("Test failures detected -- GVFS logs output attached below.\n\n");
+            if (enlistment == null)
+            {
+                return;
+            }
+
+            Console.WriteLine("GVFS logs output attached below.\n\n");
             
             foreach (string filename in GetAllFilesInDirectory(enlistment.GVFSLogsRoot))
             {
@@ -20,14 +25,21 @@ namespace GVFS.FunctionalTests.Tests
 
         public static void OutputFileContents(string filename)
         {
-            using (StreamReader reader = new StreamReader(new FileStream(filename, FileMode.Open, FileAccess.Read, FileShare.ReadWrite)))
+            try
             {
-                Console.WriteLine("----- {0} -----", filename);
-                Console.WriteLine(reader.ReadToEnd() + "\n\n");
+                using (StreamReader reader = new StreamReader(new FileStream(filename, FileMode.Open, FileAccess.Read, FileShare.ReadWrite)))
+                {
+                    Console.WriteLine("----- {0} -----", filename);
+                    Console.WriteLine(reader.ReadToEnd() + "\n\n");
+                }
+            }
+            catch (IOException ex)
+            {
+                Console.WriteLine("Unable to read logfile at {0}: {1}", filename, ex.ToString());
             }
         }
         
-        private static IEnumerable<string> GetAllFilesInDirectory(string folderName)
+        public static IEnumerable<string> GetAllFilesInDirectory(string folderName)
         {
             DirectoryInfo directory = new DirectoryInfo(folderName);
             if (!directory.Exists)

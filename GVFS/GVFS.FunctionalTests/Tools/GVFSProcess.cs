@@ -1,5 +1,4 @@
 ﻿using GVFS.Tests.Should;
-using System;
 using System.Diagnostics;
 
 namespace GVFS.FunctionalTests.Tools
@@ -27,11 +26,17 @@ namespace GVFS.FunctionalTests.Tools
 
         public void Mount()
         {
-            string mountCommand = "mount " + this.enlistmentRoot;
+            string output;
+            this.TryMount(out output).ShouldEqual(true, "GVFS did not mount: " + output);
+        }
+
+        public bool TryMount(out string output)
+        {
+            string mountCommand = "mount " + this.enlistmentRoot + " --internal_use_only_service_name " + GVFSServiceProcess.TestServiceName;
 
             this.IsGVFSMounted().ShouldEqual(false, "GVFS is already mounted");
-            this.CallGVFS(mountCommand);
-            this.IsGVFSMounted().ShouldEqual(true, "GVFS did not mount");
+            output = this.CallGVFS(mountCommand);
+            return this.IsGVFSMounted();
         }
 
         public string Prefetch(string folderPath)
@@ -46,9 +51,20 @@ namespace GVFS.FunctionalTests.Tools
             return this.CallGVFS(args);
         }
 
+        public void Repair()
+        {
+            this.CallGVFS(
+                "repair --confirm " + this.enlistmentRoot, 
+                failOnError: true);
+        }
+
         public string Diagnose()
         {
-            return this.CallGVFS("diagnose " + this.enlistmentRoot);
+            string diagnoseArgs = string.Join(
+                " ",
+                "diagnose " + this.enlistmentRoot,
+                "--internal_use_only_service_name " + GVFSServiceProcess.TestServiceName);
+            return this.CallGVFS(diagnoseArgs);
         }
 
         public string Status()
@@ -58,7 +74,12 @@ namespace GVFS.FunctionalTests.Tools
 
         public void Unmount()
         {
-            this.CallGVFS("unmount " + this.enlistmentRoot);
+            string unmountArgs = string.Join(
+                " ",
+                "unmount " + this.enlistmentRoot,
+                "--internal_use_only_service_name " + GVFSServiceProcess.TestServiceName);
+            string result = this.CallGVFS(unmountArgs);
+            this.IsGVFSMounted().ShouldEqual(false, "GVFS did not unmount: " + result);
         }
 
         private bool IsGVFSMounted()

@@ -78,7 +78,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
             string enlistmentRoot = this.Enlistment.EnlistmentRoot;
 
             ProcessStartInfo processInfo = new ProcessStartInfo(pathToGVFS);
-            processInfo.Arguments = "dehydrate " + string.Join(" ", arguments);
+            processInfo.Arguments = "dehydrate " + string.Join(" ", arguments) + " --internal_use_only_service_name " + GVFSServiceProcess.TestServiceName;
             processInfo.WindowStyle = ProcessWindowStyle.Hidden;
             processInfo.WorkingDirectory = enlistmentRoot;
             processInfo.UseShellExecute = false;

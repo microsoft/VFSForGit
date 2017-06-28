@@ -253,5 +253,52 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
             string sparseCheckoutFile = Path.Combine(this.Enlistment.RepoRoot, TestConstants.DotGit.Info.SparseCheckout);
             sparseCheckoutFile.ShouldBeAFile(this.FileSystem).WithContents().ShouldNotContain(ignoreCase: true, unexpectedSubstrings: Path.GetFileName(readFilePath));
         }
+
+        [TestCase]
+        public void MarkFileAsReadOnlyAndCheckoutCommitWhereFileIsDifferent()
+        {
+            string filePath = @"Test_ConflictTests\ModifiedFiles\ConflictingChange.txt";
+
+            this.ControlGitRepo.Fetch(GitRepoTests.ConflictSourceBranch);
+            this.ControlGitRepo.Fetch(GitRepoTests.ConflictTargetBranch);
+            this.ValidateGitCommand("checkout " + GitRepoTests.ConflictSourceBranch);
+
+            this.SetFileAsReadOnly(filePath);
+
+            this.ValidateGitCommand("checkout " + GitRepoTests.ConflictTargetBranch);
+            this.FileContentsShouldMatch(filePath);
+        }
+
+        [TestCase]
+        public void MarkFileAsReadOnlyAndCheckoutCommitWhereFileIsDeleted()
+        {
+            string filePath = @"Test_ConflictTests\AddedFiles\AddedBySource.txt";
+
+            this.ControlGitRepo.Fetch(GitRepoTests.ConflictSourceBranch);
+            this.ControlGitRepo.Fetch(GitRepoTests.ConflictTargetBranch);
+            this.ValidateGitCommand("checkout " + GitRepoTests.ConflictSourceBranch);
+
+            this.SetFileAsReadOnly(filePath);
+
+            this.ValidateGitCommand("checkout " + GitRepoTests.ConflictTargetBranch);
+            this.ShouldNotExistOnDisk(filePath);
+        }
+
+        [TestCase]
+        public void ModifyAndCheckoutFirstOfSeveralFilesWhoseNamesAppearBeforeDot()
+        {
+            // Commit 14cf226119766146b1fa5c5aa4cd0896d05f6b63 has the files (a).txt and (z).txt 
+            // in the DeleteFileWithNameAheadOfDotAndSwitchCommits folder
+            string originalContent = "Test contents for (a).txt";
+            string newContent = "content to append";
+
+            this.ValidateGitCommand("checkout 14cf226119766146b1fa5c5aa4cd0896d05f6b63");
+            this.EditFile("DeleteFileWithNameAheadOfDotAndSwitchCommits\\(a).txt", newContent);
+            this.FileShouldHaveContents("DeleteFileWithNameAheadOfDotAndSwitchCommits\\(a).txt", originalContent + newContent);
+            this.ValidateGitCommand("status");
+            this.ValidateGitCommand("checkout -- DeleteFileWithNameAheadOfDotAndSwitchCommits/(a).txt");
+            this.ValidateGitCommand("status");
+            this.FileShouldHaveContents("DeleteFileWithNameAheadOfDotAndSwitchCommits\\(a).txt", originalContent);
+        }
     }
 }

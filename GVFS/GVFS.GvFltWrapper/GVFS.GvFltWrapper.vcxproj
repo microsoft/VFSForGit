@@ -40,6 +40,9 @@
   </ImportGroup>
   <ImportGroup Label="Shared">
   </ImportGroup>
+  <ImportGroup Label="PropertySheets">
+    <Import Project="GvFlt.props" />
+  </ImportGroup>
   <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
     <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
   </ImportGroup>
@@ -64,11 +67,11 @@
       <PreprocessorDefinitions>_DEBUG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <PrecompiledHeader>Use</PrecompiledHeader>
       <TreatWarningAsError>true</TreatWarningAsError>
-      <AdditionalIncludeDirectories>C:\Program Files (x86)\Windows Kits\10\Include\10.0.10240.0\ucrt;$(SolutionDir)\..\packages\Microsoft.GVFS.GvFlt.0.17523.1-preview\header;$(SolutionDir)\..\BuildOutput</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>C:\Program Files (x86)\Windows Kits\10\Include\10.0.10240.0\ucrt;$(SolutionDir)\..\packages\$(GvFltPackage)\header;$(SolutionDir)\..\BuildOutput</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <AdditionalDependencies>gvlib.lib;fltlib.lib;Ole32.lib;Advapi32.lib</AdditionalDependencies>
-      <AdditionalLibraryDirectories>C:\Program Files (x86)\Windows Kits\10\Lib\10.0.10240.0\ucrt\x64;$(SolutionDir)\..\packages\Microsoft.GVFS.GvFlt.0.17523.1-preview\lib</AdditionalLibraryDirectories>
+      <AdditionalLibraryDirectories>C:\Program Files (x86)\Windows Kits\10\Lib\10.0.10240.0\ucrt\x64;$(SolutionDir)\..\packages\$(GvFltPackage)\lib</AdditionalLibraryDirectories>
       <IgnoreAllDefaultLibraries>
       </IgnoreAllDefaultLibraries>
     </Link>
@@ -89,11 +92,11 @@
       <PreprocessorDefinitions>NDEBUG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <PrecompiledHeader>Use</PrecompiledHeader>
       <TreatWarningAsError>true</TreatWarningAsError>
-      <AdditionalIncludeDirectories>C:\Program Files (x86)\Windows Kits\10\Include\10.0.10240.0\ucrt;$(SolutionDir)\..\packages\Microsoft.GVFS.GvFlt.0.17523.1-preview\header;$(SolutionDir)\..\BuildOutput</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>C:\Program Files (x86)\Windows Kits\10\Include\10.0.10240.0\ucrt;$(SolutionDir)\..\packages\$(GvFltPackage)\header;$(SolutionDir)\..\BuildOutput</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <AdditionalDependencies>gvlib.lib;fltlib.lib;Ole32.lib;Advapi32.lib</AdditionalDependencies>
-      <AdditionalLibraryDirectories>C:\Program Files (x86)\Windows Kits\10\Lib\10.0.10240.0\ucrt\x64;$(SolutionDir)\..\packages\Microsoft.GVFS.GvFlt.0.17523.1-preview\lib</AdditionalLibraryDirectories>
+      <AdditionalLibraryDirectories>C:\Program Files (x86)\Windows Kits\10\Lib\10.0.10240.0\ucrt\x64;$(SolutionDir)\..\packages\$(GvFltPackage)\lib</AdditionalLibraryDirectories>
     </Link>
     <BuildLog>
       <!-- This seems like a VS bug.  Although BuildOutput is only one folder up from $(SolutionDir), with testing I found that the first "..\" is getting swallowed by VS and not doing anything. If you copy-paste the path used above for IntDir it will not work as expected here -->
@@ -142,6 +145,7 @@
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
+    <None Include="GvFlt.props" />
     <None Include="packages.config">
       <SubType>Designer</SubType>
     </None>

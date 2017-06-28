@@ -186,8 +186,9 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
             string pathToGVFS = Path.Combine(TestContext.CurrentContext.TestDirectory, Properties.Settings.Default.PathToGVFS);
             string enlistmentRoot = this.Enlistment.EnlistmentRoot;
 
+            // TODO: 865304 Use app.config instead of --internal* arguments
             ProcessStartInfo processInfo = new ProcessStartInfo(pathToGVFS);
-            processInfo.Arguments = "mount";
+            processInfo.Arguments = "mount --internal_use_only_service_name " + GVFSServiceProcess.TestServiceName;
             processInfo.WindowStyle = ProcessWindowStyle.Hidden;
             processInfo.WorkingDirectory = string.IsNullOrEmpty(mountWorkingDirectory) ? enlistmentRoot : mountWorkingDirectory;
             processInfo.UseShellExecute = false;

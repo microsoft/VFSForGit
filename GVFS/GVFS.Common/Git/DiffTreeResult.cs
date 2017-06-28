@@ -1,14 +1,15 @@
-﻿using System;
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using System.IO;
 using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 
 namespace GVFS.Common.Git
 {
     public class DiffTreeResult
     {
+        public const string TreeMarker = " tree ";
+        public const string BlobMarker = " blob ";
+        public const string CommitMarker = " commit ";
+
         private static readonly HashSet<string> ValidTreeModes = new HashSet<string>() { "040000" };
 
         public enum Operations
@@ -52,7 +53,7 @@ namespace GVFS.Common.Git
         public static DiffTreeResult ParseFromLsTreeLine(string line, string repoRoot)
         {
             // Everything from ls-tree is an add.
-            int treeIndex = line.IndexOf(GitCatFileProcess.TreeMarker);
+            int treeIndex = line.IndexOf(TreeMarker);
             if (treeIndex >= 0)
             {
                 DiffTreeResult treeAdd = new DiffTreeResult();
@@ -64,11 +65,11 @@ namespace GVFS.Common.Git
             }
             else
             {
-                int blobIndex = line.IndexOf(GitCatFileProcess.BlobMarker);
+                int blobIndex = line.IndexOf(BlobMarker);
                 if (blobIndex >= 0)
                 {
                     DiffTreeResult blobAdd = new DiffTreeResult();
-                    blobAdd.TargetSha = line.Substring(blobIndex + GitCatFileProcess.BlobMarker.Length, GVFSConstants.ShaStringLength);
+                    blobAdd.TargetSha = line.Substring(blobIndex + BlobMarker.Length, GVFSConstants.ShaStringLength);
                     blobAdd.TargetFilename = ConvertPathToAbsoluteUtf8Path(repoRoot, line.Substring(line.LastIndexOf("\t") + 1));
                     blobAdd.Operation = DiffTreeResult.Operations.Add;
 

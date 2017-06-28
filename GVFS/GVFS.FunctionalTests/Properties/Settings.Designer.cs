@@ -88,7 +88,7 @@ namespace GVFS.FunctionalTests.Properties {
         
         [global::System.Configuration.ApplicationScopedSettingAttribute()]
         [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
-        [global::System.Configuration.DefaultSettingValueAttribute("FunctionalTests/20170420")]
+        [global::System.Configuration.DefaultSettingValueAttribute("FunctionalTests/20170602")]
         public string Commitish {
             get {
                 return ((string)(this["Commitish"]));
@@ -128,6 +128,18 @@ namespace GVFS.FunctionalTests.Properties {
         public string PathToGit {
             get {
                 return ((string)(this["PathToGit"]));
+            }
+        }
+        
+        [global::System.Configuration.UserScopedSettingAttribute()]
+        [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
+        [global::System.Configuration.DefaultSettingValueAttribute("GVFS.Service.exe")]
+        public string PathToGVFSService {
+            get {
+                return ((string)(this["PathToGVFSService"]));
+            }
+            set {
+                this["PathToGVFSService"] = value;
             }
         }
     }

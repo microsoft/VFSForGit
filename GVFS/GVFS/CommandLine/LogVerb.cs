@@ -1,5 +1,8 @@
 ﻿using CommandLine;
 using GVFS.Common;
+using GVFS.Service;
+using System.IO;
+using System.Linq;
 
 namespace GVFS.CommandLine
 {
@@ -16,18 +19,50 @@ namespace GVFS.CommandLine
         protected override void Execute(GVFSEnlistment enlistment)
         {
             this.Output.WriteLine("Most recent log files:");
-            this.DisplayMostRecent(enlistment, GVFSConstants.LogFileTypes.Clone);
-            this.DisplayMostRecent(enlistment, GVFSConstants.LogFileTypes.Dehydrate);
-            this.DisplayMostRecent(enlistment, GVFSConstants.LogFileTypes.Mount);
-            this.DisplayMostRecent(enlistment, GVFSConstants.LogFileTypes.Prefetch);
+
+            string gvfsLogsRoot = enlistment.GVFSLogsRoot;
+            this.DisplayMostRecent(gvfsLogsRoot, GetLogFilePatternForType(GVFSConstants.LogFileTypes.Clone), GVFSConstants.LogFileTypes.Clone);
+            this.DisplayMostRecent(gvfsLogsRoot, GetLogFilePatternForType(GVFSConstants.LogFileTypes.Dehydrate), GVFSConstants.LogFileTypes.Dehydrate);
+            this.DisplayMostRecent(gvfsLogsRoot, GetLogFilePatternForType(GVFSConstants.LogFileTypes.Mount), GVFSConstants.LogFileTypes.Mount);
+            this.DisplayMostRecent(gvfsLogsRoot, GetLogFilePatternForType(GVFSConstants.LogFileTypes.Prefetch), GVFSConstants.LogFileTypes.Prefetch);
+            this.DisplayMostRecent(gvfsLogsRoot, GetLogFilePatternForType(GVFSConstants.LogFileTypes.Repair), GVFSConstants.LogFileTypes.Repair);
+
+            string serviceLogsRoot = GVFSService.GetServiceLogsRoot(this.ServiceName);
+            this.DisplayMostRecent(serviceLogsRoot, GetLogFilePatternForType(GVFSConstants.LogFileTypes.Service), GVFSConstants.LogFileTypes.Service);
         }
 
-        private void DisplayMostRecent(GVFSEnlistment enlistment, string logFileType)
+        private static string FindNewestFileInFolder(string folderName, string logFilePattern)
         {
-            string logFile = enlistment.GetMostRecentGVFSLogFileName(logFileType);
+            DirectoryInfo logDirectory = new DirectoryInfo(folderName);
+            if (!logDirectory.Exists)
+            {
+                return null;
+            }
+
+            FileInfo[] files = logDirectory.GetFiles(logFilePattern ?? "*");
+            if (files.Length == 0)
+            {
+                return null;
+            }
+
+            return
+                files
+                .OrderByDescending(fileInfo => fileInfo.CreationTime)
+                .First()
+                .FullName;
+        }
+        
+        private static string GetLogFilePatternForType(string logFileType)
+        {
+            return "gvfs_" + logFileType + "_*.log";
+        }
+
+        private void DisplayMostRecent(string logFolder, string logFilePattern, string logDisplayName)
+        {
+            string logFile = FindNewestFileInFolder(logFolder, logFilePattern);
             this.Output.WriteLine(
                 "  {0}: {1}",
-                logFileType,
+                logDisplayName,
                 logFile == null ? "None" : logFile);
         }
     }

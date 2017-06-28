@@ -10,9 +10,9 @@ namespace GVFS.CommandLine
     {
         private readonly GitObjects gitObjects;
 
-        public PrefetchHelper(ITracer tracer, GVFSEnlistment enlistment, int downloadThreadCount)
+        public PrefetchHelper(ITracer tracer, GVFSEnlistment enlistment)
         {
-            GitObjectsHttpRequestor objectRequestor = new GitObjectsHttpRequestor(tracer, enlistment, downloadThreadCount);
+            GitObjectsHttpRequestor objectRequestor = new GitObjectsHttpRequestor(tracer, enlistment);
             this.gitObjects = new GitObjects(tracer, enlistment, objectRequestor);
         }
 

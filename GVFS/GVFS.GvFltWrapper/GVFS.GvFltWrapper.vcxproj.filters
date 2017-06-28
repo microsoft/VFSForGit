@@ -85,6 +85,7 @@
   </ItemGroup>
   <ItemGroup>
     <None Include="packages.config" />
+    <None Include="GvFlt.props" />
   </ItemGroup>
   <ItemGroup>
     <ResourceCompile Include="Version.rc">

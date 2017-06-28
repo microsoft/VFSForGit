@@ -46,7 +46,7 @@ namespace FastFetch
             this.ChunkSize = chunkSize;
             this.Tracer = tracer;
             this.Enlistment = enlistment;
-            this.ObjectRequestor = new GitObjectsHttpRequestor(tracer, enlistment, downloadThreadCount);
+            this.ObjectRequestor = new GitObjectsHttpRequestor(tracer, enlistment);
             this.GitObjects = new GitObjects(tracer, enlistment, this.ObjectRequestor);
             this.PathWhitelist = new List<string>();
 
@@ -77,7 +77,7 @@ namespace FastFetch
                     IEnumerable<string> allLines = File.ReadAllLines(pathWhitelistFile)
                         .Select(line => line.Trim())
                         .Where(line => !string.IsNullOrEmpty(line))
-                        .Where(line => !line.StartsWith(GVFSConstants.GitCommentSignString))
+                        .Where(line => !line.StartsWith(GVFSConstants.GitCommentSign.ToString()))
                         .Select(makePathAbsolute);
 
                     pathWhitelistOutput.AddRange(allLines);
@@ -214,9 +214,9 @@ namespace FastFetch
 
             using (ITracer activity = this.Tracer.StartActivity("DownloadTrees", EventLevel.Informational, Keywords.Telemetry, startMetadata))
             {
-                using (GitCatFileBatchCheckProcess catFileProcess = new GitCatFileBatchCheckProcess(this.Tracer, this.Enlistment))
+                using (LibGit2Repo repo = new LibGit2Repo(this.Tracer, this.Enlistment.WorkingDirectoryRoot))
                 {
-                    if (!catFileProcess.ObjectExists_CanTimeout(commitSha))
+                    if (!repo.ObjectExists(commitSha))
                     {
                         if (!gitObjects.TryDownloadAndSaveCommits(new[] { commitSha }, commitDepth: CommitDepth))
                         {

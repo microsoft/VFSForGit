@@ -7,6 +7,7 @@ namespace GVFSGvFltWrapper
     {
         UpdateAllowDirtyMetadata = GV_UPDATE_ALLOW_DIRTY_METADATA,
         UpdateAllowDirtyData = GV_UPDATE_ALLOW_DIRTY_DATA,
-        UpdateAllowTombstone = GV_UPDATE_ALLOW_TOMBSTONE
+        UpdateAllowTombstone = GV_UPDATE_ALLOW_TOMBSTONE,
+        UpdateAllowReadOnly = GV_UPDATE_ALLOW_READ_ONLY
     };
 }

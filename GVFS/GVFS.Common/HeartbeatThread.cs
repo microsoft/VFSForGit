@@ -49,13 +49,24 @@ namespace GVFS.Common
 
         private void EmitHeartbeat(object unusedState)
         {
-            EventLevel eventLevel = EventLevel.Verbose;
-            EventMetadata metadata = this.dataProvider.GetMetadataForHeartBeat(ref eventLevel) ?? new EventMetadata();
-            DateTime now = DateTime.Now;
-            metadata.Add("MinutesUptime", (long)(now - this.startTime).TotalMinutes);
-            metadata.Add("MinutesSinceLast", (int)(now - this.lastHeartBeatTime).TotalMinutes);
-            this.lastHeartBeatTime = now;
-            this.tracer.RelatedEvent(eventLevel, "Heartbeat", metadata, Keywords.Telemetry);
+            try
+            {
+                EventLevel eventLevel = EventLevel.Verbose;
+                EventMetadata metadata = this.dataProvider.GetMetadataForHeartBeat(ref eventLevel) ?? new EventMetadata();
+                DateTime now = DateTime.Now;
+                metadata.Add("MinutesUptime", (long)(now - this.startTime).TotalMinutes);
+                metadata.Add("MinutesSinceLast", (int)(now - this.lastHeartBeatTime).TotalMinutes);
+                this.lastHeartBeatTime = now;
+                this.tracer.RelatedEvent(eventLevel, "Heartbeat", metadata, Keywords.Telemetry);
+            }
+            catch (Exception e)
+            {
+                EventMetadata metadata = new EventMetadata();
+                metadata.Add("Area", "HeartbeatThread");
+                metadata.Add("Exception", e.ToString());
+                metadata.Add("ErrorMessage", "Swallowing unhandled exception in EmitHeartbeat");
+                this.tracer.RelatedError(metadata);
+            }
         }
     }
 }

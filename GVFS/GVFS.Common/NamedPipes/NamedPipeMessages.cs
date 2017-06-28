@@ -1,4 +1,8 @@
-﻿using Newtonsoft.Json;
+﻿using GVFS.Common.Tracing;
+using Microsoft.Diagnostics.Tracing;
+using Newtonsoft.Json;
+using System;
+using System.Runtime.Serialization;
 
 namespace GVFS.Common.NamedPipes
 {
@@ -12,6 +16,15 @@ namespace GVFS.Common.NamedPipes
     public static partial class NamedPipeMessages
     {
         public const string UnknownGVFSState = "UnknownGVFSState";
+
+        private const string ResponseSuffix = "Response";
+
+        public enum CompletionState
+        {
+            NotCompleted,
+            Success,
+            Failure
+        }
 
         public static class GetStatus
         {
@@ -62,7 +75,7 @@ namespace GVFS.Common.NamedPipes
             public const string MountNotReadyResult = "MountNotReady";
 
             public class Request
-            {                
+            {
                 public Request(Message message)
                 {
                     this.RequestSha = message.Body;
@@ -73,7 +86,7 @@ namespace GVFS.Common.NamedPipes
                 public Message CreateMessage()
                 {
                     return new Message(DownloadRequest, this.RequestSha);
-                }                
+                }
             }
 
             public class Response
@@ -88,6 +101,102 @@ namespace GVFS.Common.NamedPipes
                 public Message CreateMessage()
                 {
                     return new Message(this.Result, null);
+                }
+            }
+        }
+
+        public static class Notification
+        {
+            public class Request
+            {
+                public const string Header = nameof(Notification);
+
+                public string Title { get; set; }
+
+                public string Message { get; set; }
+
+                public static Request FromMessage(Message message)
+                {
+                    return JsonConvert.DeserializeObject<Request>(message.Body);
+                }
+
+                public Message ToMessage()
+                {
+                    return new Message(Header, JsonConvert.SerializeObject(this));
+                }
+            }
+        }
+
+        public class UnmountRepoRequest
+        {
+            public const string Header = nameof(UnmountRepoRequest);
+
+            public string EnlistmentRoot { get; set; }
+
+            public static UnmountRepoRequest FromMessage(Message message)
+            {
+                return JsonConvert.DeserializeObject<UnmountRepoRequest>(message.Body);
+            }
+
+            public Message ToMessage()
+            {
+                return new Message(Header, JsonConvert.SerializeObject(this));
+            }
+
+            public class Response
+            {
+                public const string Header = nameof(UnmountRepoRequest) + ResponseSuffix;
+
+                public CompletionState State { get; set; }
+
+                public string UserText { get; set; }
+
+                public static Response FromMessage(Message message)
+                {
+                    return JsonConvert.DeserializeObject<Response>(message.Body);
+                }
+
+                public Message ToMessage()
+                {
+                    return new Message(Header, JsonConvert.SerializeObject(this));
+                }
+            }
+        }
+
+        public class MountRepoRequest
+        {
+            public const string Header = nameof(MountRepoRequest);
+
+            public string EnlistmentRoot { get; set; }
+            public Keywords Keywords { get; set; }
+            public bool ShowDebugWindow { get; set; }
+            public EventLevel Verbosity { get; set; }
+
+            public static MountRepoRequest FromMessage(Message message)
+            {
+                return JsonConvert.DeserializeObject<MountRepoRequest>(message.Body);
+            }
+
+            public Message ToMessage()
+            {
+                return new Message(Header, JsonConvert.SerializeObject(this));
+            }
+
+            public class Response
+            {
+                public const string Header = nameof(MountRepoRequest) + ResponseSuffix;
+
+                public CompletionState State { get; set; }
+                public string ErrorMessage { get; set; }
+
+                public static Response FromMessage(Message message)
+                {
+                    return JsonConvert.DeserializeObject<Response>(message.Body);
+                }
+
+                public Message ToMessage()
+                {
+                    return new Message(Header, JsonConvert.SerializeObject(this));
                 }
             }
         }

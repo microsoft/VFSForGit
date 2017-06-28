@@ -23,11 +23,8 @@ namespace GVFS.UnitTests.Physical.Git
         public void Setup()
         {
             this.tempFolder = Path.Combine(Environment.CurrentDirectory, Path.GetRandomFileName());
-            string objectsFolder = Path.Combine(
-                this.tempFolder,
-                GVFSConstants.WorkingDirectoryRootName,
-                GVFSConstants.DotGit.Objects.Pack.Root);
-            Directory.CreateDirectory(objectsFolder);
+            string packFolder = Path.Combine(this.tempFolder, ".gvfs\\gitObjectCache\\pack");
+            Directory.CreateDirectory(packFolder);
         }
 
         [OneTimeTearDown]
@@ -124,7 +121,7 @@ namespace GVFS.UnitTests.Physical.Git
 
         private class MockHttpGitObjects : GitObjectsHttpRequestor
         {
-            public MockHttpGitObjects() : base(null, new MockEnlistment(), 1)
+            public MockHttpGitObjects() : base(null, new MockEnlistment())
             {
             }
 
@@ -146,10 +143,9 @@ namespace GVFS.UnitTests.Physical.Git
 
             public override RetryWrapper<GitObjectTaskResult>.InvocationResult TryDownloadLooseObject(
                 string objectId,
-                Func<int, GitEndPointResponseData, RetryWrapper<GitObjectTaskResult>.CallbackResult> onSuccess,
-                Action<RetryWrapper<GitObjectTaskResult>.ErrorEventArgs> onFailure)
+                Func<int, GitEndPointResponseData, RetryWrapper<GitObjectTaskResult>.CallbackResult> onSuccess)
             {
-                return this.TryDownloadObjects(new[] { objectId }, 0, onSuccess, onFailure, false);
+                return this.TryDownloadObjects(new[] { objectId }, 0, onSuccess, null, false);
             }
 
             public override RetryWrapper<GitObjectTaskResult>.InvocationResult TryDownloadObjects(

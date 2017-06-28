@@ -70,9 +70,21 @@ namespace GVFS.Common.Git
             return new GitProcess(enlistment).InvokeGitOutsideEnlistment("init " + enlistment.WorkingDirectoryRoot);
         }
 
-        public static bool TryGetCredentials(
+        public static Result Version(Enlistment enlistment)
+        {
+            return new GitProcess(enlistment).InvokeGitOutsideEnlistment("--version");
+        }
+        
+        public virtual void RevokeCredential()
+        {
+            this.InvokeGitOutsideEnlistment(
+                "credential reject",
+                stdin => stdin.Write("url=" + this.enlistment.RepoUrl + "\n\n"),
+                null);
+        }
+
+        public virtual bool TryGetCredentials(
             ITracer tracer,
-            Enlistment enlistment,
             out string username,
             out string password)
         {
@@ -81,9 +93,9 @@ namespace GVFS.Common.Git
 
             using (ITracer activity = tracer.StartActivity("TryGetCredentials", EventLevel.Informational))
             {
-                Result gitCredentialOutput = new GitProcess(enlistment).InvokeGitOutsideEnlistment(
+                Result gitCredentialOutput = this.InvokeGitOutsideEnlistment(
                     "credential fill",
-                    stdin => stdin.Write("url=" + enlistment.RepoUrl + "\n\n"),
+                    stdin => stdin.Write("url=" + this.enlistment.RepoUrl + "\n\n"),
                     parseStdOutLine: null);
 
                 if (gitCredentialOutput.HasErrors)
@@ -111,25 +123,12 @@ namespace GVFS.Common.Git
             }
         }
 
-        public static void RevokeCredential(Enlistment enlistment)
-        {
-            new GitProcess(enlistment).InvokeGitOutsideEnlistment(
-                "credential reject",
-                stdin => stdin.Write("url=" + enlistment.RepoUrl + "\n\n"),
-                null);
-        }
-
-        public static Result Version(Enlistment enlistment)
-        {
-            return new GitProcess(enlistment).InvokeGitOutsideEnlistment("--version");
-        }
-
         public bool IsValidRepo()
         {
             Result result = this.InvokeGitAgainstDotGitFolder("rev-parse --show-toplevel");
             return !result.HasErrors;
         }
-
+                
         public Result RevParse(string gitRef)
         {
             return this.InvokeGitAgainstDotGitFolder("rev-parse " + gitRef);
@@ -292,22 +291,12 @@ namespace GVFS.Common.Git
         {
             return this.InvokeGitAgainstDotGitFolder("remote add " + remoteName + " " + url);
         }
-
-        public Result CatFilePretty(string objectId)
-        {
-            return this.InvokeGitAgainstDotGitFolder("cat-file -p " + objectId);
-        }
-
+        
         public Result CatFileGetType(string objectId)
         {
             return this.InvokeGitAgainstDotGitFolder("cat-file -t " + objectId);
         }
-
-        public Result CatFileBatchCheckAll(Action<string> parseStdOutLine)
-        {
-            return this.InvokeGitAgainstDotGitFolder("cat-file --batch-check --batch-all-objects", null, parseStdOutLine);
-        }
-
+        
         public Result LsTree(string treeish, Action<string> parseStdOutLine, bool recursive, bool showAllTrees = false)
         {
             return this.InvokeGitAgainstDotGitFolder(

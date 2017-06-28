@@ -80,30 +80,18 @@ namespace FastFetch.Jobs
                 metadata.Add("PackId", request.PackId);
                 metadata.Add("ActiveDownloads", this.activeDownloadCount);
                 metadata.Add("NumberOfObjects", request.ObjectIds.Count);
-                
+
                 using (ITracer activity = this.tracer.StartActivity(DownloadAreaPath, EventLevel.Informational, Keywords.Telemetry, metadata))
                 {
                     try
                     {
-                        RetryWrapper<GitObjectsHttpRequestor.GitObjectTaskResult>.InvocationResult result;
-
-                        if (request.ObjectIds.Count == 1)
-                        {
-                            result = this.objectRequestor.TryDownloadLooseObject(
-                                request.ObjectIds[0],
-                                onSuccess: (tryCount, response) => this.WriteObjectOrPack(request, tryCount, response),
-                                onFailure: RetryWrapper<GitObjectsHttpRequestor.GitObjectTaskResult>.StandardErrorHandler(activity, DownloadAreaPath));
-                        }
-                        else
-                        {
-                            HashSet<string> successfulDownloads = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-                            result = this.objectRequestor.TryDownloadObjects(
+                        HashSet<string> successfulDownloads = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                        RetryWrapper<GitObjectsHttpRequestor.GitObjectTaskResult>.InvocationResult result = this.objectRequestor.TryDownloadObjects(
                                 () => request.ObjectIds.Except(successfulDownloads),
                                 commitDepth: 1,
                                 onSuccess: (tryCount, response) => this.WriteObjectOrPack(request, tryCount, response, successfulDownloads),
-                                onFailure: RetryWrapper<GitObjectsHttpRequestor.GitObjectTaskResult>.StandardErrorHandler(activity, DownloadAreaPath),
+                                onFailure: RetryWrapper<GitObjectsHttpRequestor.GitObjectTaskResult>.StandardErrorHandler(activity, request.PackId, DownloadAreaPath),
                                 preferBatchedLooseObjects: true);
-                        }
 
                         if (!result.Succeeded)
                         {
@@ -150,7 +138,6 @@ namespace FastFetch.Jobs
                 case GitObjectContentType.LooseObject:
                     string sha = request.ObjectIds.First();
                     fileName = this.gitObjects.WriteLooseObject(
-                        this.enlistment.WorkingDirectoryRoot,
                         response.Stream,
                         sha,
                         bufToCopyWith);
@@ -164,7 +151,6 @@ namespace FastFetch.Jobs
                     OnLooseObject onLooseObject = (objectStream, sha1) =>
                     {
                         this.gitObjects.WriteLooseObject(
-                            this.enlistment.WorkingDirectoryRoot,
                             objectStream,
                             sha1,
                             bufToCopyWith);

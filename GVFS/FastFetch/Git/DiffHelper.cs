@@ -68,10 +68,10 @@ namespace GVFS.Common.Git
         {
             string targetTreeSha;
             string headTreeSha;
-            using (GitCatFileBatchProcess catFile = new GitCatFileBatchProcess(this.tracer, this.enlistment))
+            using (LibGit2Repo repo = new LibGit2Repo(this.tracer, this.enlistment.WorkingDirectoryRoot))
             {
-                targetTreeSha = catFile.GetTreeSha_CanTimeout(targetCommitSha);
-                headTreeSha = catFile.GetTreeSha_CanTimeout("HEAD");
+                targetTreeSha = repo.GetTreeSha(targetCommitSha);
+                headTreeSha = repo.GetTreeSha("HEAD");
             }
 
             this.PerformDiff(headTreeSha, targetTreeSha);

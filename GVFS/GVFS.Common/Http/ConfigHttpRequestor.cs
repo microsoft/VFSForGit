@@ -4,15 +4,16 @@ using Newtonsoft.Json;
 using System;
 using System.IO;
 using System.Net.Http;
+using System.Threading;
 
 namespace GVFS.Common.Http
 {
     public class ConfigHttpRequestor : HttpRequestor
     {
         private readonly string repoUrl;
-
+        
         public ConfigHttpRequestor(ITracer tracer, Enlistment enlistment) 
-            : base(tracer, enlistment.Authentication, maxConnections: 1)
+            : base(tracer, enlistment.Authentication)
         {
             this.repoUrl = enlistment.RepoUrl;
             this.MaxRetries = HttpRequestor.DefaultMaxRetries;
@@ -23,7 +24,7 @@ namespace GVFS.Common.Http
         public GVFSConfig QueryGVFSConfig()
         {
             Uri gvfsConfigEndpoint;
-            string gvfsConfigEndpointString = this.repoUrl + GVFSConstants.GVFSConfigEndpointSuffix;
+            string gvfsConfigEndpointString = this.repoUrl + GVFSConstants.Endpoints.GVFSConfig;
             try
             {
                 gvfsConfigEndpoint = new Uri(gvfsConfigEndpointString);
@@ -39,13 +40,14 @@ namespace GVFS.Common.Http
                 return null;
             }
 
+            long requestId = HttpRequestor.GetNewRequestId();
             RetryWrapper<GVFSConfig> retrier = new RetryWrapper<GVFSConfig>(this.MaxRetries);
-            retrier.OnFailure += RetryWrapper<GVFSConfig>.StandardErrorHandler(this.Tracer, "QueryGvfsConfig");
+            retrier.OnFailure += RetryWrapper<GVFSConfig>.StandardErrorHandler(this.Tracer, requestId, "QueryGvfsConfig");
 
             RetryWrapper<GVFSConfig>.InvocationResult output = retrier.Invoke(
                 tryCount =>
                 {
-                    GitEndPointResponseData response = this.SendRequest(gvfsConfigEndpoint, HttpMethod.Get, null);
+                    GitEndPointResponseData response = this.SendRequest(requestId, gvfsConfigEndpoint, HttpMethod.Get, null);
                     if (response.HasErrors)
                     {
                         return new RetryWrapper<GVFSConfig>.CallbackResult(response.Error, response.ShouldRetry);

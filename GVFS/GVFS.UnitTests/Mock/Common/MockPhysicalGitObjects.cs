@@ -4,7 +4,6 @@ using GVFS.Common.Http;
 using GVFS.Common.Tracing;
 using System.Diagnostics;
 using System.IO;
-using System.Threading.Tasks;
 
 namespace GVFS.UnitTests.Mock.Common
 {
@@ -15,7 +14,7 @@ namespace GVFS.UnitTests.Mock.Common
         {
         }
         
-        public override string WriteLooseObject(string repoRoot, Stream responseStream, string sha, byte[] sharedBuf = null)
+        public override string WriteLooseObject(Stream responseStream, string sha, byte[] sharedBuf = null)
         {
             using (StreamReader reader = new StreamReader(responseStream))
             {

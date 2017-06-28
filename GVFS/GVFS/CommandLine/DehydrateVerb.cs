@@ -5,6 +5,7 @@ using GVFS.Common.NamedPipes;
 using GVFS.Common.Physical;
 using GVFS.Common.Tracing;
 using GVFS.GVFlt;
+using GVFS.GVFlt.DotGit;
 using Microsoft.Diagnostics.Tracing;
 using System;
 using System.IO;
@@ -311,8 +312,8 @@ To actually execute the dehydrate, run 'gvfs dehydrate --confirm'
                         !this.TryIO(
                             tracer,
                             () => File.Move(
-                                Path.Combine(enlistment.DotGVFSRoot, "GVFS_projection"),
-                                Path.Combine(backupGvfs, "GVFS_projection")),
+                                Path.Combine(enlistment.DotGVFSRoot, GitIndexProjection.ProjectionIndexBackupName),
+                                Path.Combine(backupGvfs, GitIndexProjection.ProjectionIndexBackupName)),
                             "Backup GVFS_projection",
                             out errorMessage))
                     {
@@ -353,7 +354,7 @@ To actually execute the dehydrate, run 'gvfs dehydrate --confirm'
                 () =>
                 {
                     // Create a new index based on the new minimal sparse-checkout
-                    using (NamedPipeServer pipeServer = AllowAllLocksNamedPipeServer.Create(enlistment))
+                    using (NamedPipeServer pipeServer = AllowAllLocksNamedPipeServer.Create(tracer, enlistment))
                     {
                         GitProcess git = new GitProcess(enlistment);
                         GitProcess.Result checkoutResult = git.ForceCheckout("HEAD");
@@ -392,7 +393,13 @@ To actually execute the dehydrate, run 'gvfs dehydrate --confirm'
                 StringBuilder commandOutput = new StringBuilder();
                 using (StringWriter writer = new StringWriter(commandOutput))
                 {
-                    returnCode = GVFSVerb.Execute<TVerb>(this.EnlistmentRootPath, verb => verb.Output = writer);
+                    returnCode = GVFSVerb.Execute<TVerb>(
+                        this.EnlistmentRootPath, 
+                        verb =>
+                        {
+                            verb.Output = writer;
+                            verb.ServiceName = this.ServiceName;
+                        });
                 }
 
                 tracer.RelatedEvent(

@@ -27,11 +27,12 @@ namespace GVFS.Common
 
         public event Action<ErrorEventArgs> OnFailure = delegate { };
 
-        public static Action<ErrorEventArgs> StandardErrorHandler(ITracer tracer, string actionName)
+        public static Action<ErrorEventArgs> StandardErrorHandler(ITracer tracer, long requestId, string actionName)
         {
             return eArgs =>
             {
                 EventMetadata metadata = new EventMetadata();
+                metadata.Add("RequestId", requestId);
                 metadata.Add("AttemptNumber", eArgs.TryCount);
                 metadata.Add("Operation", actionName);
                 metadata.Add("WillRetry", eArgs.WillRetry);

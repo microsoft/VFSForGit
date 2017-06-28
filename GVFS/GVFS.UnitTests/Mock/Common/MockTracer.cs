@@ -17,6 +17,10 @@ namespace GVFS.UnitTests.Mock.Common
         {
         }
 
+        public void RelatedInfo(string format, params object[] args)
+        {
+        }
+
         public void RelatedError(EventMetadata metadata)
         {
         }

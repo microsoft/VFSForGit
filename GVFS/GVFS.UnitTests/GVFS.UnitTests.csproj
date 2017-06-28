@@ -72,6 +72,7 @@
     <Compile Include="Common\GitPathConverterTests.cs" />
     <Compile Include="Common\GitVersionTests.cs" />
     <Compile Include="Common\JsonEtwTracerTests.cs" />
+    <Compile Include="Common\RefLogEntryTests.cs" />
     <Compile Include="Common\RetryWrapperTests.cs" />
     <Compile Include="Common\SHA1UtilTests.cs" />
     <Compile Include="FastFetch\BatchObjectDownloadJobTests.cs" />
@@ -96,7 +97,7 @@
     <Compile Include="Mock\Physical\Git\MockGVFSGitObjects.cs" />
     <Compile Include="Mock\Common\MockPhysicalGitObjects.cs" />
     <Compile Include="Mock\Physical\ReusableMemoryStream.cs" />
-    <Compile Include="Physical\Git\GitCatFileBatchProcessTests.cs" />
+    <Compile Include="Physical\Git\GitAuthenticationTests.cs" />
     <Compile Include="Physical\Git\PhysicalGitObjectsTests.cs" />
     <Compile Include="Prefetch\PrefetchPacksDeserializerTests.cs" />
     <Compile Include="Program.cs" />

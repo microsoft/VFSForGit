@@ -1,13 +1,15 @@
-﻿namespace GVFS.Common.NamedPipes
+﻿using GVFS.Common.Tracing;
+
+namespace GVFS.Common.NamedPipes
 {
     public class AllowAllLocksNamedPipeServer
     {
-        public static NamedPipeServer Create(GVFSEnlistment enlistment)
+        public static NamedPipeServer Create(ITracer tracer, GVFSEnlistment enlistment)
         {
-            return NamedPipeServer.StartNewServer(enlistment.NamedPipeName, AllowAllLocksNamedPipeServer.HandleRequest);
+            return NamedPipeServer.StartNewServer(enlistment.NamedPipeName, tracer, AllowAllLocksNamedPipeServer.HandleRequest);
         }
 
-        private static void HandleRequest(string request, NamedPipeServer.Connection connection)
+        private static void HandleRequest(ITracer tracer, string request, NamedPipeServer.Connection connection)
         {
             NamedPipeMessages.Message message = NamedPipeMessages.Message.FromString(request);
 
@@ -24,6 +26,16 @@
 
                 default:
                     connection.TrySendResponse(NamedPipeMessages.UnknownRequest);
+
+                    if (tracer != null)
+                    {
+                        EventMetadata metadata = new EventMetadata();
+                        metadata.Add("Area", "AllowAllLocksNamedPipeServer");
+                        metadata.Add("Header", message.Header);
+                        metadata.Add("ErrorMessage", "HandleRequest: Unknown request");
+                        tracer.RelatedError(metadata);
+                    }
+
                     break;
             }
         }

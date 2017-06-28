@@ -11,11 +11,17 @@
 #define MyAppExeName "GVFS.exe"
 #define EnvironmentKey "SYSTEM\CurrentControlSet\Control\Session Manager\Environment"
 
-#define GVFltRelative "..\..\..\..\..\packages\Microsoft.GVFS.GvFlt.0.17523.1-preview\filter"
+#define GVFltRelative "..\..\..\..\..\packages\" + GvFltPackage + "\filter" 
+#define GVFSCommonRelative "..\..\..\..\GVFS.Common\bin"
 #define HooksRelative "..\..\..\..\GVFS.Hooks\bin"
 #define HooksLoaderRelative "..\..\..\..\GitHooksLoader\bin"
+#define ServiceRelative "..\..\..\..\GVFS.Service\bin"
+#define ServiceUIRelative "..\..\..\..\GVFS.Service.UI\bin"
 #define GVFSMountRelative "..\..\..\..\GVFS.Mount\bin"
 #define ReadObjectRelative "..\..\..\..\GVFS.ReadObjectHook\bin"
+
+; Do not use built in InnoSetup constants for .Net location. They do not point to the 64-bit framework
+#define InstallUtil "{win}\Microsoft.NET\Framework64\v4.0.30319\installutil.exe"
 
 [Setup]
 AppId={{489CA581-F131-4C28-BE04-4FB178933E6D}
@@ -26,7 +32,7 @@ AppPublisher={#MyAppPublisher}
 AppPublisherURL={#MyAppPublisherURL}
 AppSupportURL={#MyAppURL}
 AppUpdatesURL={#MyAppURL}
-AppCopyright=Copyright © Microsoft 2016
+AppCopyright=Copyright © Microsoft 2017
 BackColor=clWhite
 BackSolid=yes
 DefaultDirName={pf}\{#MyAppName}
@@ -59,7 +65,7 @@ Name: "full"; Description: "Full installation"; Flags: iscustom;
 
 [Files]
 ; GVFlt Files
-DestDir: "{app}\Filter"; Flags: ignoreversion; Source:"{#GVFltRelative}\gvflt.sys"
+DestDir: "{app}\Filter"; Flags: ignoreversion; Source:"{#GVFltRelative}\GvFlt.sys"
 ; gvflt.inf is declared explicitly last within the filter files, so we run the GVFlt install only once after required filter files are present
 DestDir: "{app}\Filter"; Flags: ignoreversion; Source: "{#GVFltRelative}\gvflt.inf"; AfterInstall: InstallGVFlt
 
@@ -69,6 +75,9 @@ DestDir: "{app}"; Flags: ignoreversion; Source:"{#HooksRelative}\{#PlatformAndCo
 DestDir: "{app}"; Flags: ignoreversion; Source:"{#HooksRelative}\{#PlatformAndConfiguration}\GVFS.Hooks.exe.config"
 DestDir: "{app}"; Flags: ignoreversion; Source:"{#HooksLoaderRelative}\{#PlatformAndConfiguration}\GitHooksLoader.pdb"
 DestDir: "{app}"; Flags: ignoreversion; Source:"{#HooksLoaderRelative}\{#PlatformAndConfiguration}\GitHooksLoader.exe"
+
+; GVFS.Common Files
+DestDir: "{app}"; Flags: ignoreversion; Source:"{#GVFSCommonRelative}\{#PlatformAndConfiguration}\git2.dll"
 
 ; GVFS.Mount Files
 DestDir: "{app}"; Flags: ignoreversion; Source:"{#GVFSMountRelative}\{#PlatformAndConfiguration}\GVFS.Mount.pdb"
@@ -88,6 +97,11 @@ DestDir: "{app}"; Flags: ignoreversion; Source:"GVFS.GVFlt.pdb"
 DestDir: "{app}"; Flags: ignoreversion; Source:"GVFS.GvFltWrapper.pdb"
 DestDir: "{app}"; Flags: ignoreversion; Source:"GVFS.pdb"
 
+; GVFS.Service.UI Files
+DestDir: "{app}"; Flags: ignoreversion; Source:"{#ServiceUIRelative}\{#PlatformAndConfiguration}\GVFS.Service.UI.exe" 
+DestDir: "{app}"; Flags: ignoreversion; Source:"{#ServiceUIRelative}\{#PlatformAndConfiguration}\GVFS.Service.UI.pdb"
+DestDir: "{app}"; Flags: ignoreversion; Source:"{#ServiceUIRelative}\{#PlatformAndConfiguration}\GitVirtualFileSystem.ico"
+
 ; FastFetch Files
 DestDir: "{app}"; Flags: ignoreversion; Source:"FastFetch.exe"
 
@@ -99,11 +113,16 @@ DestDir: "{app}"; Flags: ignoreversion; Source:"Esent.Isam.dll"
 DestDir: "{app}"; Flags: ignoreversion; Source:"GVFS.Common.dll"
 DestDir: "{app}"; Flags: ignoreversion; Source:"GVFS.GVFlt.dll"
 DestDir: "{app}"; Flags: ignoreversion; Source:"GVFS.GvFltWrapper.dll"
+DestDir: "{app}"; Flags: ignoreversion; Source:"GvLib.dll"
 DestDir: "{app}"; Flags: ignoreversion; Source:"Microsoft.Diagnostics.Tracing.EventSource.dll"
 DestDir: "{app}"; Flags: ignoreversion; Source:"Newtonsoft.Json.dll"
 DestDir: "{app}"; Flags: ignoreversion; Source:"GVFS.exe.config"
 DestDir: "{app}"; Flags: ignoreversion; Source:"GitVirtualFileSystem.ico"  
 DestDir: "{app}"; Flags: ignoreversion; Source:"GVFS.exe" 
+
+; GVFS.Service Files and PDB's
+DestDir: "{app}"; Flags: ignoreversion; Source:"{#ServiceRelative}\{#PlatformAndConfiguration}\GVFS.Service.pdb"
+DestDir: "{app}"; Flags: ignoreversion; Source:"{#ServiceRelative}\{#PlatformAndConfiguration}\GVFS.Service.exe"; AfterInstall: InstallGVFSService
 
 [UninstallDelete]
 ; Deletes the entire installation directory, including files and subdirectories
@@ -163,6 +182,88 @@ begin
               Log('Error writing PATH');
             end;
         end;
+    end;
+end;
+
+procedure StopGVFSService();
+var
+  ResultCode: integer;
+begin
+  // ErrorCode 1060 means service not installed, 1062 means service not started
+  if not Exec(ExpandConstant('SC.EXE'), 'stop GVFS.Service', '', SW_HIDE, ewWaitUntilTerminated, ResultCode) and (ResultCode <> 1060) and (ResultCode <> 1062) then
+    begin
+      RaiseException('Fatal: Could not stop existing GVFS.Service.');
+    end;
+end;
+
+procedure UninstallGVFSService(ShowProgress: boolean);
+var
+  ResultCode: integer;
+begin
+  if Exec(ExpandConstant('SC.EXE'), 'query GVFS.Service', '', SW_HIDE, ewWaitUntilTerminated, ResultCode) and (ResultCode <> 1060) then
+    begin
+
+      if (ShowProgress) then
+        begin
+          WizardForm.StatusLabel.Caption := 'Uninstalling existing GVFS.Service.';
+          WizardForm.ProgressGauge.Style := npbstMarquee;
+        end;
+
+      try
+        StopGVFSService();
+
+        if not Exec(ExpandConstant('{#InstallUtil}'), '/u ' + ExpandConstant('"{app}\GVFS.Service.exe"'), '', SW_HIDE, ewWaitUntilTerminated, ResultCode) or (ResultCode <> 0) then
+          begin
+            RaiseException('Fatal: Could not uninstall existing GVFS.Service.');
+          end;
+
+          if (ShowProgress) then
+            begin
+              WizardForm.StatusLabel.Caption := 'Waiting for pending GVFS.Service deletion to complete. This may take a while.';
+            end;
+
+      finally
+        if (ShowProgress) then
+          begin
+            WizardForm.ProgressGauge.Style := npbstNormal;
+          end;
+      end;
+
+    end;
+end;
+
+procedure InstallGVFSService();
+var
+  ResultCode: integer;
+  StatusText: string;
+  InstallSuccessful: Boolean;
+begin
+  InstallSuccessful := False;
+  
+  StatusText := WizardForm.StatusLabel.Caption;
+  WizardForm.StatusLabel.Caption := 'Installing GVFS.Service.';
+  WizardForm.ProgressGauge.Style := npbstMarquee;
+  
+  try
+    if Exec(ExpandConstant('{#InstallUtil}'), ExpandConstant('"{app}\GVFS.Service.exe"'), '', SW_HIDE, ewWaitUntilTerminated, ResultCode) and (ResultCode = 0) then
+      begin
+        if Exec(ExpandConstant('SC.EXE'), 'failure GVFS.Service reset= 30 actions= restart/10/restart/5000//1', '', SW_HIDE, ewWaitUntilTerminated, ResultCode) then
+          begin
+            if Exec(ExpandConstant('SC.EXE'), 'start GVFS.Service', '', SW_HIDE, ewWaitUntilTerminated, ResultCode) then
+              begin
+                InstallSuccessful := True;
+              end;
+          end;
+      end;
+
+  finally
+    WizardForm.StatusLabel.Caption := StatusText;
+    WizardForm.ProgressGauge.Style := npbstNormal;
+  end;
+
+  if InstallSuccessful = False then
+    begin
+      RaiseException('Fatal: An error occured while installing GVFS.Service.');
     end;
 end;
 
@@ -254,11 +355,23 @@ begin
   Result := False;
 end;
 
+procedure CurStepChanged(CurStep: TSetupStep);
+begin
+  case CurStep of
+    ssInstall:
+      begin
+        UninstallGVFSService(True);
+      end;
+    end;
+end;
+
 procedure CurUninstallStepChanged(CurStep: TUninstallStep);
 begin
   case CurStep of
     usUninstall:
       begin
+	    UninstallGVFSService(False);
+
         RemovePath(ExpandConstant('{app}'));
       end;
     end;

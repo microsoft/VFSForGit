@@ -1,5 +1,4 @@
 ﻿using GVFS.Common.Git;
-using GVFS.Common.Http;
 using System;
 using System.IO;
 using System.Linq;
@@ -8,63 +7,56 @@ namespace GVFS.Common
 {
     public abstract class Enlistment
     {
-        private const string ObjectsEndpointSuffix = "/gvfs/objects";
-        private const string PrefetchEndpointSuffix = "/gvfs/prefetch";
-
         private const string DeprecatedObjectsEndpointGitConfigName = "gvfs.objects-endpoint";
 
         private const string GVFSGitConfigPrefix = "gvfs.";
         private const string CacheEndpointGitConfigSuffix = ".cache-server-url";
                     
-        // New enlistment
-        protected Enlistment(string enlistmentRoot, string workingDirectoryRoot, string repoUrl, string cacheServerUrl, string gitBinPath, string gvfsHooksRoot)
+        protected Enlistment(
+            string enlistmentRoot,
+            string workingDirectoryRoot,
+            string gitObjectsRoot,
+            string repoUrl,
+            string cacheServerUrl,
+            string gitBinPath,
+            string gvfsHooksRoot)
         {
             if (string.IsNullOrWhiteSpace(gitBinPath))
             {
                 throw new ArgumentException("Path to git.exe must be set");
             }
-            
+
             this.EnlistmentRoot = enlistmentRoot;
             this.WorkingDirectoryRoot = workingDirectoryRoot;
-            this.GitBinPath = gitBinPath;
-            this.GVFSHooksRoot = gvfsHooksRoot;
-            this.RepoUrl = repoUrl;
-
-            this.SetComputedPaths();
-            this.SetComputedURLs(cacheServerUrl);
-            this.Authentication = new GitAuthentication(this);
-        }
-
-        // Existing, configured enlistment
-        protected Enlistment(string enlistmentRoot, string workingDirectoryRoot, string cacheServerUrl, string gitBinPath, string gvfsHooksRoot)
-        {
-            if (string.IsNullOrWhiteSpace(gitBinPath))
-            {
-                throw new ArgumentException("Path to git.exe must be set");
-            }
-            
-            this.EnlistmentRoot = enlistmentRoot;
-            this.WorkingDirectoryRoot = workingDirectoryRoot;
+            this.GitObjectsRoot = gitObjectsRoot;
             this.GitBinPath = gitBinPath;
             this.GVFSHooksRoot = gvfsHooksRoot;
 
             this.SetComputedPaths();
 
-            GitProcess.Result originResult = new GitProcess(this).GetOriginUrl();
-            if (originResult.HasErrors)
+            if (repoUrl != null)
             {
-                throw new InvalidRepoException("Could not get origin url. git error: " + originResult.Errors);
+                this.RepoUrl = repoUrl;
+            }
+            else
+            {
+                GitProcess.Result originResult = new GitProcess(this).GetOriginUrl();
+                if (originResult.HasErrors)
+                {
+                    throw new InvalidRepoException("Could not get origin url. git error: " + originResult.Errors);
+                }
+
+                this.RepoUrl = originResult.Output;
             }
 
-            this.RepoUrl = originResult.Output;
             this.SetComputedURLs(cacheServerUrl);
-
             this.Authentication = new GitAuthentication(this);
         }
 
         public string EnlistmentRoot { get; }
         public string WorkingDirectoryRoot { get; }
         public string DotGitRoot { get; private set; }
+        public string GitObjectsRoot { get; private set; }
         public string GitPackRoot { get; private set; }
         public string RepoUrl { get; }
         public string CacheServerUrl { get; private set; }
@@ -80,9 +72,9 @@ namespace GVFS.Common
         
         public static string StripObjectsEndpointSuffix(string input)
         {
-            if (!string.IsNullOrWhiteSpace(input) && input.EndsWith(ObjectsEndpointSuffix))
+            if (!string.IsNullOrWhiteSpace(input) && input.EndsWith(GVFSConstants.Endpoints.GVFSObjects))
             {
-                input = input.Substring(0, input.Length - ObjectsEndpointSuffix.Length);
+                input = input.Substring(0, input.Length - GVFSConstants.Endpoints.GVFSObjects.Length);
             }
 
             return input;
@@ -169,14 +161,14 @@ namespace GVFS.Common
         private void SetComputedPaths()
         {
             this.DotGitRoot = Path.Combine(this.WorkingDirectoryRoot, GVFSConstants.DotGit.Root);
-            this.GitPackRoot = Path.Combine(this.WorkingDirectoryRoot, GVFSConstants.DotGit.Objects.Pack.Root);
+            this.GitPackRoot = Path.Combine(this.GitObjectsRoot, GVFSConstants.DotGit.Objects.Pack.Name);
         }
 
         private void SetComputedURLs(string cacheServerUrl)
         {
             this.CacheServerUrl = !string.IsNullOrWhiteSpace(cacheServerUrl) ? cacheServerUrl : this.GetCacheServerUrlFromConfig(this.RepoUrl);
-            this.ObjectsEndpointUrl = this.CacheServerUrl + ObjectsEndpointSuffix;
-            this.PrefetchEndpointUrl = this.CacheServerUrl + PrefetchEndpointSuffix;
+            this.ObjectsEndpointUrl = this.CacheServerUrl + GVFSConstants.Endpoints.GVFSObjects;
+            this.PrefetchEndpointUrl = this.CacheServerUrl + GVFSConstants.Endpoints.GVFSPrefetch;
         }
     }
 }

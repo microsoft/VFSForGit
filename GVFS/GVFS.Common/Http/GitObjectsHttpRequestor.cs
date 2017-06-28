@@ -10,6 +10,7 @@ using System.Linq;
 using System.Net;
 using System.Net.Http;
 using System.Net.Http.Headers;
+using System.Threading;
 
 namespace GVFS.Common.Http
 {
@@ -20,8 +21,8 @@ namespace GVFS.Common.Http
                 
         private Enlistment enlistment;
 
-        public GitObjectsHttpRequestor(ITracer tracer, Enlistment enlistment, int maxConnections)
-            : base(tracer, enlistment.Authentication, maxConnections)
+        public GitObjectsHttpRequestor(ITracer tracer, Enlistment enlistment)
+            : base(tracer, enlistment.Authentication)
         {
             this.enlistment = enlistment;
             this.MaxRetries = HttpRequestor.DefaultMaxRetries;
@@ -31,10 +32,13 @@ namespace GVFS.Common.Http
         
         public virtual List<GitObjectSize> QueryForFileSizes(IEnumerable<string> objectIds)
         {
+            long requestId = HttpRequestor.GetNewRequestId();
+
             string objectIdsJson = ToJsonList(objectIds);
-            Uri gvfsEndpoint = new Uri(this.enlistment.RepoUrl + "/gvfs/sizes");
+            Uri gvfsEndpoint = new Uri(this.enlistment.RepoUrl + GVFSConstants.Endpoints.GVFSSizes);
 
             EventMetadata metadata = new EventMetadata();
+            metadata.Add("RequestId", requestId);
             int objectIdCount = objectIds.Count();
             if (objectIdCount > 10)
             {
@@ -48,12 +52,12 @@ namespace GVFS.Common.Http
             this.Tracer.RelatedEvent(EventLevel.Informational, "QueryFileSizes", metadata, Keywords.Network);
 
             RetryWrapper<List<GitObjectSize>> retrier = new RetryWrapper<List<GitObjectSize>>(this.MaxRetries);
-            retrier.OnFailure += RetryWrapper<List<GitObjectSize>>.StandardErrorHandler(this.Tracer, "QueryFileSizes");
+            retrier.OnFailure += RetryWrapper<List<GitObjectSize>>.StandardErrorHandler(this.Tracer, requestId, "QueryFileSizes");
 
             RetryWrapper<List<GitObjectSize>>.InvocationResult requestTask = retrier.Invoke(
                 tryCount =>
                 {
-                    GitEndPointResponseData response = this.SendRequest(gvfsEndpoint, HttpMethod.Post, objectIdsJson);
+                    GitEndPointResponseData response = this.SendRequest(requestId, gvfsEndpoint, HttpMethod.Post, objectIdsJson);
                     if (response.HasErrors)
                     {
                         return new RetryWrapper<List<GitObjectSize>>.CallbackResult(response.Error, response.ShouldRetry);
@@ -72,10 +76,12 @@ namespace GVFS.Common.Http
         
         public virtual GitRefs QueryInfoRefs(string branch)
         {
+            long requestId = HttpRequestor.GetNewRequestId();
+
             Uri infoRefsEndpoint;
             try
             {
-                infoRefsEndpoint = new Uri(this.enlistment.RepoUrl + GVFSConstants.InfoRefsEndpointSuffix);
+                infoRefsEndpoint = new Uri(this.enlistment.RepoUrl + GVFSConstants.Endpoints.InfoRefs);
             }
             catch (UriFormatException)
             {
@@ -83,12 +89,12 @@ namespace GVFS.Common.Http
             }
 
             RetryWrapper<GitRefs> retrier = new RetryWrapper<GitRefs>(this.MaxRetries);
-            retrier.OnFailure += RetryWrapper<GitRefs>.StandardErrorHandler(this.Tracer, "QueryInfoRefs");
+            retrier.OnFailure += RetryWrapper<GitRefs>.StandardErrorHandler(this.Tracer, requestId, "QueryInfoRefs");
 
             RetryWrapper<GitRefs>.InvocationResult output = retrier.Invoke(
                 tryCount =>
                 {
-                    GitEndPointResponseData response = this.SendRequest(infoRefsEndpoint, HttpMethod.Get, null);
+                    GitEndPointResponseData response = this.SendRequest(requestId, infoRefsEndpoint, HttpMethod.Get, null);
                     if (response.HasErrors)
                     {
                         return new RetryWrapper<GitRefs>.CallbackResult(response.Error, response.ShouldRetry);
@@ -103,20 +109,21 @@ namespace GVFS.Common.Http
 
             return output.Result;
         }
-
+        
         public virtual RetryWrapper<GitObjectTaskResult>.InvocationResult TryDownloadLooseObject(
             string objectId,
-            Func<int, GitEndPointResponseData, RetryWrapper<GitObjectTaskResult>.CallbackResult> onSuccess,
-            Action<RetryWrapper<GitObjectTaskResult>.ErrorEventArgs> onFailure)
+            Func<int, GitEndPointResponseData, RetryWrapper<GitObjectTaskResult>.CallbackResult> onSuccess)
         {
+            long requestId = HttpRequestor.GetNewRequestId();
             EventMetadata metadata = new EventMetadata();
             metadata.Add("ObjectId", objectId);
-
+            metadata.Add("RequestId", requestId);
             this.Tracer.RelatedEvent(EventLevel.Informational, "DownloadLooseObject", metadata, Keywords.Network);
 
             return this.TrySendProtocolRequest(
+                requestId,
                 onSuccess,
-                onFailure,
+                eArgs => this.HandleDownloadAndSaveObjectError(requestId, eArgs),
                 HttpMethod.Get,
                 new Uri(this.enlistment.ObjectsEndpointUrl + "/" + objectId));
         }
@@ -130,12 +137,14 @@ namespace GVFS.Common.Http
         {
             // We pass the query generator in as a function because we don't want the consumer to know about JSON or network retry logic,
             // but we still want the consumer to be able to change the query on each retry if we fail during their onSuccess handler.
+            long requestId = HttpRequestor.GetNewRequestId();
             return this.TrySendProtocolRequest(
+                requestId,
                 onSuccess,
                 onFailure,
                 HttpMethod.Post,
                 new Uri(this.enlistment.ObjectsEndpointUrl),
-                () => this.ObjectIdsJsonGenerator(objectIdGenerator, commitDepth),
+                () => this.ObjectIdsJsonGenerator(requestId, objectIdGenerator, commitDepth),
                 preferBatchedLooseObjects ? CustomLooseObjectsHeader : null);
         }
 
@@ -146,9 +155,12 @@ namespace GVFS.Common.Http
             Action<RetryWrapper<GitObjectTaskResult>.ErrorEventArgs> onFailure,
             bool preferBatchedLooseObjects)
         {
+            long requestId = HttpRequestor.GetNewRequestId();
+
             string objectIdsJson = CreateObjectIdJson(objectIds, commitDepth);
             int objectCount = objectIds.Count();
             EventMetadata metadata = new EventMetadata();
+            metadata.Add("RequestId", requestId);
             if (objectCount < 10)
             {
                 metadata.Add("ObjectIds", string.Join(", ", objectIds));
@@ -161,6 +173,7 @@ namespace GVFS.Common.Http
             this.Tracer.RelatedEvent(EventLevel.Informational, "DownloadObjects", metadata, Keywords.Network);
 
             return this.TrySendProtocolRequest(
+                requestId,
                 onSuccess,
                 onFailure,
                 HttpMethod.Post,
@@ -170,6 +183,7 @@ namespace GVFS.Common.Http
         }
 
         public virtual RetryWrapper<GitObjectTaskResult>.InvocationResult TrySendProtocolRequest(
+            long requestId,
             Func<int, GitEndPointResponseData, RetryWrapper<GitObjectTaskResult>.CallbackResult> onSuccess,
             Action<RetryWrapper<GitObjectTaskResult>.ErrorEventArgs> onFailure,
             HttpMethod method,
@@ -178,6 +192,7 @@ namespace GVFS.Common.Http
             MediaTypeWithQualityHeaderValue acceptType = null)
         {
             return this.TrySendProtocolRequest(
+                requestId,
                 onSuccess,
                 onFailure,
                 method,
@@ -187,6 +202,7 @@ namespace GVFS.Common.Http
         }
 
         public virtual RetryWrapper<GitObjectTaskResult>.InvocationResult TrySendProtocolRequest(
+            long requestId,
             Func<int, GitEndPointResponseData, RetryWrapper<GitObjectTaskResult>.CallbackResult> onSuccess,
             Action<RetryWrapper<GitObjectTaskResult>.ErrorEventArgs> onFailure,
             HttpMethod method,
@@ -195,6 +211,7 @@ namespace GVFS.Common.Http
             MediaTypeWithQualityHeaderValue acceptType = null)
         {
             return this.TrySendProtocolRequest(
+                requestId,
                 onSuccess,
                 onFailure,
                 method,
@@ -204,12 +221,13 @@ namespace GVFS.Common.Http
         }
 
         public virtual RetryWrapper<GitObjectTaskResult>.InvocationResult TrySendProtocolRequest(
-           Func<int, GitEndPointResponseData, RetryWrapper<GitObjectTaskResult>.CallbackResult> onSuccess,
-           Action<RetryWrapper<GitObjectTaskResult>.ErrorEventArgs> onFailure,
-           HttpMethod method,
-           Func<Uri> endPointGenerator,
-           Func<string> requestBodyGenerator,
-           MediaTypeWithQualityHeaderValue acceptType = null)
+            long requestId,
+            Func<int, GitEndPointResponseData, RetryWrapper<GitObjectTaskResult>.CallbackResult> onSuccess,
+            Action<RetryWrapper<GitObjectTaskResult>.ErrorEventArgs> onFailure,
+            HttpMethod method,
+            Func<Uri> endPointGenerator,
+            Func<string> requestBodyGenerator,
+            MediaTypeWithQualityHeaderValue acceptType = null)
         {
             RetryWrapper<GitObjectTaskResult> retrier = new RetryWrapper<GitObjectTaskResult>(this.MaxRetries);
             if (onFailure != null)
@@ -221,6 +239,7 @@ namespace GVFS.Common.Http
                 tryCount =>
                 {
                     GitEndPointResponseData response = this.SendRequest(
+                        requestId,
                         endPointGenerator(),
                         method,
                         requestBodyGenerator(),
@@ -246,13 +265,27 @@ namespace GVFS.Common.Http
         {
             return "{\"commitDepth\": " + commitDepth + ", \"objectIds\":" + ToJsonList(strings) + "}";
         }
-        
-        private string ObjectIdsJsonGenerator(Func<IEnumerable<string>> objectIdGenerator, int commitDepth)
+
+        private void HandleDownloadAndSaveObjectError(long requestId, RetryWrapper<GitObjectsHttpRequestor.GitObjectTaskResult>.ErrorEventArgs errorArgs)
+        {
+            // Silence logging 404's for object downloads. They are far more likely to be git checking for the
+            // previous existence of a new object than a truly missing object.
+            GitObjectsHttpException ex = errorArgs.Error as GitObjectsHttpException;
+            if (ex != null && ex.StatusCode == HttpStatusCode.NotFound)
+            {
+                return;
+            }
+
+            RetryWrapper<GitObjectsHttpRequestor.GitObjectTaskResult>.StandardErrorHandler(this.Tracer, requestId, nameof(this.TryDownloadLooseObject))(errorArgs);
+        }
+
+        private string ObjectIdsJsonGenerator(long requestId, Func<IEnumerable<string>> objectIdGenerator, int commitDepth)
         {
             IEnumerable<string> objectIds = objectIdGenerator();
             string objectIdsJson = CreateObjectIdJson(objectIds, commitDepth);
             int objectCount = objectIds.Count();
             EventMetadata metadata = new EventMetadata();
+            metadata.Add("RequestId", requestId);
             if (objectCount < 10)
             {
                 metadata.Add("ObjectIds", string.Join(", ", objectIds));

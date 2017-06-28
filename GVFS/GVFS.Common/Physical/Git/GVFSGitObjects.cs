@@ -1,11 +1,9 @@
 ﻿using GVFS.Common.Git;
 using GVFS.Common.Http;
-using Microsoft.Diagnostics.Tracing;
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.IO;
-using System.Runtime.InteropServices;
 using System.Threading;
 
 namespace GVFS.Common.Physical.Git
@@ -14,37 +12,34 @@ namespace GVFS.Common.Physical.Git
     {
         private static readonly TimeSpan NegativeCacheTTL = TimeSpan.FromSeconds(30);
 
-        private string objectsPath;
         private ConcurrentDictionary<string, DateTime> objectNegativeCache;
 
         public GVFSGitObjects(GVFSContext context, GitObjectsHttpRequestor objectRequestor)
             : base(context.Tracer, context.Enlistment, objectRequestor)
         {
             this.Context = context;
-            this.objectsPath = Path.Combine(context.Enlistment.WorkingDirectoryRoot, GVFSConstants.DotGit.Objects.Root);
-
             this.objectNegativeCache = new ConcurrentDictionary<string, DateTime>(StringComparer.OrdinalIgnoreCase);
         }
 
         protected GVFSContext Context { get; private set; }
 
-        public bool TryCopyBlobContentStream_CanTimeout(string sha, Action<StreamReader, long> writeAction)
+        public bool TryCopyBlobContentStream(string sha, Action<Stream, long> writeAction)
         {
-            if (!this.Context.Repository.TryCopyBlobContentStream_CanTimeout(sha, writeAction))
+            if (!this.Context.Repository.TryCopyBlobContentStream(sha, writeAction))
             {
                 if (!this.TryDownloadAndSaveObject(sha.Substring(0, 2), sha.Substring(2)))
                 {
                     return false;
                 }
 
-                if (!this.Context.Repository.TryCopyBlobContentStream_CanTimeout(sha, writeAction))
+                if (!this.Context.Repository.TryCopyBlobContentStream(sha, writeAction))
                 {
                     this.Tracer.RelatedError("Failed to cat-file after download. Trying again: " + sha);
 
                     // Due to a potential race, git sometimes fail to read the blob even though we just wrote it out.
                     // Retrying the read fixes that issue.
                     Thread.Sleep(100);
-                    if (!this.Context.Repository.TryCopyBlobContentStream_CanTimeout(sha, writeAction))
+                    if (!this.Context.Repository.TryCopyBlobContentStream(sha, writeAction))
                     {
                         this.Tracer.RelatedError("Failed to cat-file after multiple attempts: " + sha);
                         return false;
@@ -86,9 +81,9 @@ namespace GVFS.Common.Physical.Git
             }
         }
 
-        public bool TryGetBlobSizeLocally_CanTimeout(string sha, out long length)
+        public bool TryGetBlobSizeLocally(string sha, out long length)
         {
-            return this.Context.Repository.TryGetBlobLength_CanTimeout(sha, out length);
+            return this.Context.Repository.TryGetBlobLength(sha, out length);
         }
 
         public List<GitObjectsHttpRequestor.GitObjectSize> GetFileSizes(IEnumerable<string> objectIds)

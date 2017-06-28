@@ -12,8 +12,7 @@ namespace GVFS.Common.Tracing
         public LogFileEventListener(string logFilePath, EventLevel maxVerbosity, Keywords keywordFilter)
             : base(maxVerbosity, keywordFilter)
         {
-            this.logFile = File.Open(logFilePath, FileMode.CreateNew, FileAccess.ReadWrite, FileShare.Read);
-            this.writer = StreamWriter.Synchronized(new StreamWriter(this.logFile));
+            this.SetLogFilePath(logFilePath);
         }
         
         public override void Dispose()
@@ -42,6 +41,14 @@ namespace GVFS.Common.Tracing
         {
             this.writer.WriteLine(this.GetLogString(eventName, opcode, jsonPayload));
             this.writer.Flush();
+        }
+
+        protected void SetLogFilePath(string newfilePath)
+        {
+            Directory.CreateDirectory(Path.GetDirectoryName(newfilePath));
+            this.logFile = File.Open(newfilePath, FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.Read);
+            this.logFile.Seek(0, SeekOrigin.End);
+            this.writer = StreamWriter.Synchronized(new StreamWriter(this.logFile));
         }
     }
 }

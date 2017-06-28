@@ -16,7 +16,7 @@ namespace GVFS.UnitTests.Mock.Physical.Git
         private string rootSha;
         
         public MockGitRepo(ITracer tracer, Enlistment enlistment, PhysicalFileSystem fileSystem)
-            : base(tracer, enlistment, fileSystem)
+            : base()
         {
             this.rootSha = Guid.NewGuid().ToString();
             this.AddTree(this.rootSha, ".");
@@ -77,25 +77,8 @@ namespace GVFS.UnitTests.Mock.Physical.Git
         {
             return this.rootSha;
         }
-
-        public override bool TryCopyBlobContentStream_CanTimeout(string blobSha, Action<StreamReader, long> writeAction)
-        {
-            if (this.objects.ContainsKey(blobSha))
-            {
-                MockGitObject obj = this.objects[blobSha];
-                obj.IsBlob.ShouldEqual(true);
-                using (Stream contentStream = new ReusableMemoryStream(obj.Content))
-                using (StreamReader reader = new StreamReader(contentStream))
-                {
-                    writeAction(reader, contentStream.Length);
-                    return true;
-                }
-            }
-
-            return false;
-        }
-
-        public override bool TryGetBlobLength_CanTimeout(string blobSha, out long size)
+        
+        public override bool TryGetBlobLength(string blobSha, out long size)
         {
             MockGitObject obj;
             if (this.objects.TryGetValue(blobSha, out obj))

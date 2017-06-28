@@ -1,12 +1,10 @@
 ﻿using CommandLine;
 using GVFS.Common;
 using GVFS.Common.Git;
-using GVFS.Common.Http;
 using GVFS.Common.Tracing;
 using Microsoft.Diagnostics.Tracing;
 using System;
 using System.Collections.Generic;
-using System.ComponentModel;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
@@ -20,11 +18,27 @@ namespace GVFS.CommandLine
         {
             this.Output = Console.Out;
             this.ReturnCode = ReturnCode.Success;
-
+            this.ServiceName = GVFSConstants.Service.ServiceName;
+            
             this.InitializeDefaultParameterValues();
         }
 
         public abstract string EnlistmentRootPath { get; set; }
+        
+        [Option(
+            MountParameters.ServiceName,
+            Default = GVFSConstants.Service.ServiceName,
+            Required = false,
+            HelpText = "This parameter is reserved for internal use.")]
+        public string ServiceName { get; set; }
+
+        public string ServicePipeName
+        {
+            get
+            {
+                return this.ServiceName + ".Pipe";
+            }
+        }
 
         public TextWriter Output { get; set; }
 
@@ -119,7 +133,14 @@ namespace GVFS.CommandLine
         {
             if (error != null)
             {
-                this.Output.WriteLine(error, args);
+                if (args == null || args.Length == 0)
+                {
+                    this.Output.WriteLine(error);
+                }
+                else
+                {
+                    this.Output.WriteLine(error, args);
+                }
             }
 
             this.ReturnCode = exitCode;
@@ -129,14 +150,6 @@ namespace GVFS.CommandLine
         protected void ReportErrorAndExit(string error, params object[] args)
         {
             this.ReportErrorAndExit(ReturnCode.GenericError, error, args);
-        }
-
-        protected void CheckElevated()
-        {
-            if (!ProcessHelper.IsAdminElevated())
-            {
-                this.ReportErrorAndExit("{0} must be run with elevated privileges", this.VerbName);
-            }
         }
 
         protected void CheckGVFltRunning()
@@ -154,7 +167,7 @@ namespace GVFS.CommandLine
 
             if (!gvfltServiceRunning)
             {
-                this.ReportErrorAndExit("Error: GVFlt Service is not running. To resolve, run \"sc start gvflt\" from an admin command prompt");
+                this.ReportErrorAndExit("Error: GVFlt Service is not running. To resolve, run \"sc start gvflt\" from an elevated command prompt");
             }
         }
 
@@ -166,6 +179,12 @@ namespace GVFS.CommandLine
                 {
                     this.ReportErrorAndExit("Error: File system does not support features required by GVFS. Confirm that Windows version is at or beyond that required by GVFS");
                 }
+            }
+            catch (VerbAbortedException)
+            {
+                // ReportErrorAndExit throws VerbAbortedException.  Catch and re-throw here so that GVFS does not report that
+                // it failed to determine if file system supports required features
+                throw;
             }
             catch (Exception e)
             {
@@ -231,49 +250,6 @@ namespace GVFS.CommandLine
             if (myFileVersionInfo.ProductVersion != gvfsVersion)
             {
                 this.ReportErrorAndExit("GVFS.Hooks version ({0}) does not match GVFS version ({1}).", myFileVersionInfo.ProductVersion, gvfsVersion);
-            }
-        }
-
-        protected void CheckAntiVirusExclusion(GVFSEnlistment enlistment)
-        {
-            bool isExcluded;
-            string getError;
-            if (AntiVirusExclusions.TryGetIsPathExcluded(enlistment.EnlistmentRoot, out isExcluded, out getError))
-            {
-                if (!isExcluded)
-                {
-                    string addError;
-                    if (!ProcessHelper.IsAdminElevated())
-                    {
-                        addError = "Need elevated privileges to add exclusion.";
-                    }
-                    else if (AntiVirusExclusions.AddAntiVirusExclusion(enlistment.EnlistmentRoot, out addError))
-                    {
-                        addError = string.Empty;
-                        AntiVirusExclusions.TryGetIsPathExcluded(enlistment.EnlistmentRoot, out isExcluded, out getError);
-                    }
-
-                    if (!isExcluded)
-                    {
-                        this.Output.WriteLine();
-                        this.Output.WriteLine("WARNING: This repo is not excluded from antivirus and we were unable to add an exclusion for it.");
-
-                        if (!string.IsNullOrEmpty(addError))
-                        {
-                            this.Output.WriteLine("Unable to add exclusion: " + addError);
-                        }
-
-                        this.Output.WriteLine("Please check to make sure that '{0}' is excluded.", enlistment.EnlistmentRoot);
-                        this.Output.WriteLine();
-                    }
-                }
-            }
-            else
-            {
-                this.Output.WriteLine();
-                this.Output.WriteLine("WARNING: Unable to ensure that this repo is excluded from antivirus.");
-                this.Output.WriteLine("Please check to make sure that '{0}' is excluded.", enlistment.EnlistmentRoot);
-                this.Output.WriteLine();
             }
         }
 

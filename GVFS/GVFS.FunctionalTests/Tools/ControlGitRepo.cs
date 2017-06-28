@@ -16,12 +16,12 @@ namespace GVFS.FunctionalTests.Tools
         public string RepoUrl { get; private set; }
         public string Commitish { get; private set; }
 
-        public static ControlGitRepo Create()
+        public static ControlGitRepo Create(string commitish = null)
         {
             return new ControlGitRepo(
                 Properties.Settings.Default.RepoToClone, 
                 Properties.Settings.Default.ControlGitRepoRoot,
-                Properties.Settings.Default.Commitish);
+                commitish == null ? Properties.Settings.Default.Commitish : commitish);
         }
 
         public void Initialize()

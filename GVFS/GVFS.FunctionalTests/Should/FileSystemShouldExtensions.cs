@@ -248,11 +248,11 @@ namespace GVFS.FunctionalTests.Should
                 string dotGitFolder = System.IO.Path.DirectorySeparatorChar + TestConstants.DotGit.Root + System.IO.Path.DirectorySeparatorChar;
                 IEnumerator<FileSystemInfo> expectedEnumerator = expectedEntries
                     .Where(x => !x.FullName.Contains(dotGitFolder))
-                    .OrderBy(x => x.Name)
+                    .OrderBy(x => x.FullName)
                     .GetEnumerator();
                 IEnumerator<FileSystemInfo> actualEnumerator = actualEntries
                     .Where(x => !x.FullName.Contains(dotGitFolder))
-                    .OrderBy(x => x.Name)
+                    .OrderBy(x => x.FullName)
                     .GetEnumerator();
                 
                 bool expectedMoved = expectedEnumerator.MoveNext();
@@ -296,14 +296,14 @@ namespace GVFS.FunctionalTests.Should
                 {
                     do
                     {
-                        errorEntries.AppendLine(string.Format("Missing entry {0}", expectedEnumerator.Current));
+                        errorEntries.AppendLine(string.Format("Missing entry {0}", expectedEnumerator.Current.FullName));
                     }
                     while (expectedEnumerator.MoveNext());
                 }
 
                 while (actualEnumerator.MoveNext())
                 {
-                    errorEntries.AppendLine(string.Format("Extra entry {0}", actualEnumerator.Current));
+                    errorEntries.AppendLine(string.Format("Extra entry {0}", actualEnumerator.Current.FullName));
                 }
 
                 if (errorEntries.Length > 0)

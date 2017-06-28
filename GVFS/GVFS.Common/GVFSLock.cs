@@ -9,6 +9,8 @@ namespace GVFS.Common
 {
     public class GVFSLock : IDisposable
     {
+        private const string CommandParentExePrefix = "git";
+
         private readonly object acquisitionLock = new object();
 
         private readonly ITracer tracer;
@@ -75,7 +77,7 @@ namespace GVFS.Common
                     Process process;
                     if (ProcessHelper.TryGetProcess(requester.PID, out process))
                     {
-                        this.processWatcher.WatchForTermination(requester.PID, GVFSConstants.CommandParentExePrefix);
+                        this.processWatcher.WatchForTermination(requester.PID, GVFSLock.CommandParentExePrefix);
 
                         process.Dispose();
                         this.lockHolder = requester;

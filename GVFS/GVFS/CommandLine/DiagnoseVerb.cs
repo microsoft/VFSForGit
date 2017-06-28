@@ -3,6 +3,7 @@ using GVFS.Common;
 using GVFS.Common.Git;
 using GVFS.Common.Physical.FileSystem;
 using GVFS.GVFlt;
+using GVFS.Service;
 using Microsoft.Isam.Esent.Collections.Generic;
 using System;
 using System.IO;
@@ -57,7 +58,7 @@ namespace GVFS.CommandLine
                 this.WriteMessage(string.Empty);
 
                 this.WriteMessage("Copying .gvfs folder...");
-                this.CopyAllFiles(enlistment.EnlistmentRoot, archiveFolderPath, GVFSConstants.DotGVFSPath, copySubFolders: false);
+                this.CopyAllFiles(enlistment.EnlistmentRoot, archiveFolderPath, GVFSConstants.DotGVFS.Root, copySubFolders: false);
 
                 this.WriteMessage("Copying GVFlt logs...");
                 this.FlushGvFltLogBuffers();
@@ -79,30 +80,39 @@ namespace GVFS.CommandLine
                 }
 
                 this.WriteMessage("Checking Defender exclusion...");
-                this.WriteAntivirusExclusions(enlistment.EnlistmentRoot, archiveFolderPath, "DefenderExclusionInfo.txt");
+                this.WriteAntiVirusExclusions(enlistment.EnlistmentRoot, archiveFolderPath, "DefenderExclusionInfo.txt");
 
                 this.WriteMessage("Copying .git folder...");
                 this.CopyAllFiles(enlistment.WorkingDirectoryRoot, archiveFolderPath, GVFSConstants.DotGit.Root, copySubFolders: false);
                 this.CopyAllFiles(enlistment.WorkingDirectoryRoot, archiveFolderPath, GVFSConstants.DotGit.Hooks.Root, copySubFolders: false);
                 this.CopyAllFiles(enlistment.WorkingDirectoryRoot, archiveFolderPath, GVFSConstants.DotGit.Info.Root, copySubFolders: false);
                 this.CopyAllFiles(enlistment.WorkingDirectoryRoot, archiveFolderPath, GVFSConstants.DotGit.Logs.Root, copySubFolders: true);
+                this.CopyAllFiles(enlistment.WorkingDirectoryRoot, archiveFolderPath, GVFSConstants.DotGit.Refs.Root, copySubFolders: true);
+                this.CopyAllFiles(enlistment.WorkingDirectoryRoot, archiveFolderPath, GVFSConstants.DotGit.Objects.Info.Root, copySubFolders: false);
 
                 this.CopyEsentDatabase<long, GVFltCallbacks.BackgroundGitUpdate>(
                     enlistment.DotGVFSRoot,
-                    Path.Combine(archiveFolderPath, GVFSConstants.DotGVFSPath),
+                    Path.Combine(archiveFolderPath, GVFSConstants.DotGVFS.Root),
                     GVFSConstants.DatabaseNames.BackgroundGitUpdates);
                 this.CopyEsentDatabase<string, string>(
                     enlistment.DotGVFSRoot,
-                    Path.Combine(archiveFolderPath, GVFSConstants.DotGVFSPath),
+                    Path.Combine(archiveFolderPath, GVFSConstants.DotGVFS.Root),
                     GVFSConstants.DatabaseNames.PlaceholderList);
                 this.CopyEsentDatabase<string, long>(
                     enlistment.DotGVFSRoot,
-                    Path.Combine(archiveFolderPath, GVFSConstants.DotGVFSPath),
+                    Path.Combine(archiveFolderPath, GVFSConstants.DotGVFS.Root),
                     GVFSConstants.DatabaseNames.BlobSizes);
                 this.CopyEsentDatabase<string, string>(
                     enlistment.DotGVFSRoot,
-                    Path.Combine(archiveFolderPath, GVFSConstants.DotGVFSPath),
+                    Path.Combine(archiveFolderPath, GVFSConstants.DotGVFS.Root),
                     GVFSConstants.DatabaseNames.RepoMetadata);
+
+                this.WriteMessage("Copying GVFS.Service logs and data...");
+                this.CopyAllFiles(
+                    GVFSService.GetServiceDataRoot(string.Empty),
+                    archiveFolderPath,
+                    this.ServiceName,
+                    copySubFolders: true);
 
                 this.WriteMessage(string.Empty);
                 this.WriteMessage("Remounting GVFS...");
@@ -116,7 +126,7 @@ namespace GVFS.CommandLine
                     this.WriteMessage("Failed to remount. The reason for failure was captured.");
                 }
 
-                this.CopyAllFiles(enlistment.DotGVFSRoot, Path.Combine(archiveFolderPath, GVFSConstants.DotGVFSPath), "logs", copySubFolders: false);
+                this.CopyAllFiles(enlistment.DotGVFSRoot, Path.Combine(archiveFolderPath, GVFSConstants.DotGVFS.Root), "logs", copySubFolders: false);
             }
 
             string zipFilePath = archiveFolderPath + ".zip";
@@ -224,7 +234,13 @@ namespace GVFS.CommandLine
                 using (FileStream file = new FileStream(Path.Combine(archiveFolderPath, outputFileName), FileMode.CreateNew))
                 using (StreamWriter writer = new StreamWriter(file))
                 {
-                    return GVFSVerb.Execute<TVerb>(this.EnlistmentRootPath, verb => verb.Output = writer);
+                    return GVFSVerb.Execute<TVerb>(
+                        this.EnlistmentRootPath,
+                        verb =>
+                        {
+                            verb.Output = writer;
+                            verb.ServiceName = this.ServiceName;
+                        });
                 }
             }
             catch (Exception e)
@@ -238,7 +254,7 @@ namespace GVFS.CommandLine
             }
         }
 
-        private void WriteAntivirusExclusions(string enlistmentRoot, string archiveFolderPath, string outputFileName)
+        private void WriteAntiVirusExclusions(string enlistmentRoot, string archiveFolderPath, string outputFileName)
         {
             string filepath = Path.Combine(archiveFolderPath, outputFileName);
             try

@@ -17,7 +17,7 @@ namespace GVFS.UnitTests.Mock.Physical.Git
         private Func<string, string> objectResolver;
 
         public MockBatchHttpGitObjects(ITracer tracer, Enlistment enlistment, Func<string, string> objectResolver)
-            : base(tracer, enlistment, 1)
+            : base(tracer, enlistment)
         {
             this.objectResolver = objectResolver;
         }
@@ -54,8 +54,7 @@ namespace GVFS.UnitTests.Mock.Physical.Git
 
         public override RetryWrapper<GitObjectTaskResult>.InvocationResult TryDownloadLooseObject(
             string objectId,
-            Func<int, GitEndPointResponseData, RetryWrapper<GitObjectTaskResult>.CallbackResult> onSuccess,
-            Action<RetryWrapper<GitObjectTaskResult>.ErrorEventArgs> onFailure)
+            Func<int, GitEndPointResponseData, RetryWrapper<GitObjectTaskResult>.CallbackResult> onSuccess)
         {
             throw new NotImplementedException();
         }

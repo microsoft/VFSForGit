@@ -54,79 +54,48 @@ namespace GVFS.CommandLine
 
         private bool RequestUnmount(string rootPath, out string errorMessage)
         {
-            try
+            errorMessage = string.Empty;
+            NamedPipeMessages.UnmountRepoRequest request = new NamedPipeMessages.UnmountRepoRequest();
+            request.EnlistmentRoot = rootPath;
+
+            using (NamedPipeClient client = new NamedPipeClient(this.ServicePipeName))
             {
-                string pipeName = EnlistmentUtils.GetNamedPipeName(rootPath);
-                using (NamedPipeClient pipeClient = new NamedPipeClient(pipeName))
+                if (!client.Connect())
                 {
-                    if (!pipeClient.Connect())
+                    errorMessage = "Unable to unmount because GVFS.Service is not responding. Run 'sc start GVFS.Service' from an elevated command prompt to ensure it is running.";
+                    return false;
+                }
+
+                try
+                {
+                    client.SendRequest(request.ToMessage());
+                    NamedPipeMessages.Message response = client.ReadResponse();
+                    if (response.Header == NamedPipeMessages.UnmountRepoRequest.Response.Header)
                     {
-                        errorMessage = "Unable to connect to GVFS";
+                        NamedPipeMessages.UnmountRepoRequest.Response message = NamedPipeMessages.UnmountRepoRequest.Response.FromMessage(response);
+
+                        if (message.State != NamedPipeMessages.CompletionState.Success)
+                        {
+                            errorMessage = message.UserText;
+                            return false;
+                        }
+                        else
+                        {
+                            errorMessage = string.Empty;
+                            return true;
+                        }
+                    }
+                    else
+                    {
+                        errorMessage = string.Format("GVFS.Service responded with unexpected message: {0}", response);
                         return false;
                     }
-
-                    pipeClient.SendRequest(NamedPipeMessages.GetStatus.Request);
-                    string rawGetStatusResponse = pipeClient.ReadRawResponse();
-                    NamedPipeMessages.GetStatus.Response getStatusResponse =
-                        NamedPipeMessages.GetStatus.Response.FromJson(rawGetStatusResponse);
-
-                    switch (getStatusResponse.MountStatus)
-                    {
-                        case NamedPipeMessages.GetStatus.Mounting:
-                            errorMessage = "Still mounting, please try again later";
-                            return false;
-
-                        case NamedPipeMessages.GetStatus.Unmounting:
-                            errorMessage = "Already unmounting, please wait";
-                            return false;
-
-                        case NamedPipeMessages.GetStatus.Ready:
-                            break;
-
-                        case NamedPipeMessages.GetStatus.MountFailed:
-                            break;
-
-                        default:
-                            errorMessage = "Unrecognized response to GetStatus: " + rawGetStatusResponse;
-                            return false;
-                    }
-
-                    pipeClient.SendRequest(NamedPipeMessages.Unmount.Request);
-                    string unmountResponse = pipeClient.ReadRawResponse();
-
-                    switch (unmountResponse)
-                    {
-                        case NamedPipeMessages.Unmount.Acknowledged:
-                            string finalResponse = pipeClient.ReadRawResponse();
-                            if (finalResponse == NamedPipeMessages.Unmount.Completed)
-                            {
-                                errorMessage = null;
-                                return true;
-                            }
-                            else
-                            {
-                                errorMessage = "Unrecognized final response to unmount: " + finalResponse;
-                                return false;
-                            }
-
-                        case NamedPipeMessages.Unmount.NotMounted:
-                            errorMessage = "Unable to unmount, repo was not mounted";
-                            return false;
-
-                        case NamedPipeMessages.Unmount.MountFailed:
-                            errorMessage = "Unable to unmount, previous mount attempt failed";
-                            return false;
-
-                        default:
-                            errorMessage = "Unrecognized response to unmount: " + unmountResponse;
-                            return false;
-                    }
                 }
-            }
-            catch (BrokenPipeException e)
-            {
-                errorMessage = "Unable to communicate with GVFS: " + e.ToString();
-                return false;
+                catch (BrokenPipeException e)
+                {
+                    errorMessage = "Unable to communicate with GVFS.Service: " + e.ToString();
+                    return false;
+                }
             }
         }
     }

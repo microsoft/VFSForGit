@@ -26,7 +26,10 @@ namespace GVFS.GVFlt.DotGit
         public const int MaxPathBufferSize = 4096;
         public const int IndexFileStreamBufferSize = 4096 * 10;
 
-        private const string ProjectionIndexBackupName = "GVFS_projection";
+        public const string ProjectionIndexBackupName = "GVFS_projection";
+        
+        private const GvUpdateType PlaceholderUpdateFlags = GvUpdateType.UpdateAllowDirtyMetadata | GvUpdateType.UpdateAllowReadOnly;
+
         private const string EtwArea = "GitIndexProjection";
 
         private const int ExternalLockReleaseTimeoutMs = 50;
@@ -246,14 +249,14 @@ namespace GVFS.GVFlt.DotGit
                 this.offsetsInvalid = true;
             }
         }
-
+        
         public void OnPlaceholderFileCreated(string virtualPath, string sha)
         {
             this.placeholderList[virtualPath] = sha;
             this.placeholderList.Flush();
         }
 
-        public IEnumerable<GVFltFileInfo> GetProjectedItems_CanTimeout(string folderPath)
+        public IEnumerable<GVFltFileInfo> GetProjectedItems(string folderPath)
         {
             this.projectionReadWriteLock.EnterReadLock();
 
@@ -262,7 +265,7 @@ namespace GVFS.GVFlt.DotGit
                 FileOrFolderData folderData;
                 if (this.TryGetOrAddFolderDataFromCache(folderPath, out folderData))
                 {
-                    folderData.PopulateSizes_CanTimeout(this.context.Tracer, this.gitObjects, this.blobSizes);
+                    folderData.PopulateSizes(this.context.Tracer, this.gitObjects, this.blobSizes);
                     List<GVFltFileInfo> childItems = new List<GVFltFileInfo>(folderData.ChildEntries.Count);
                     foreach (KeyValuePair<string, FileOrFolderData> childEntry in folderData.ChildEntries)
                     {
@@ -289,7 +292,7 @@ namespace GVFS.GVFlt.DotGit
             string childName;
             string parentKey;
             this.GetChildNameAndParentKey(virtualPath, out childName, out parentKey);
-            FileOrFolderData data = this.GetProjectedFileOrFolderData_PopulateSizeCanTimeout(childName, parentKey, populateSize: false);
+            FileOrFolderData data = this.GetProjectedFileOrFolderData(childName, parentKey, populateSize: false);
             if (data != null)
             {
                 isFolder = data.IsFolder;
@@ -299,14 +302,14 @@ namespace GVFS.GVFlt.DotGit
             return false;
         }
 
-        public GVFltFileInfo GetProjectedGVFltFileInfoAndSha_CanTimeout(string virtualPath, out string sha)
+        public GVFltFileInfo GetProjectedGVFltFileInfoAndSha(string virtualPath, out string sha)
         {
             sha = string.Empty;
             string childName;
             string parentKey;
             this.GetChildNameAndParentKey(virtualPath, out childName, out parentKey);
             string gitCasedChildName;
-            FileOrFolderData data = this.GetProjectedFileOrFolderData_PopulateSizeCanTimeout(childName, parentKey, populateSize: true, gitCasedChildName: out gitCasedChildName);
+            FileOrFolderData data = this.GetProjectedFileOrFolderData(childName, parentKey, populateSize: true, gitCasedChildName: out gitCasedChildName);
             if (data != null)
             {
                 if (data.IsFolder)
@@ -606,7 +609,7 @@ namespace GVFS.GVFlt.DotGit
         private bool TryGetSha(string childName, string parentKey, out string sha)
         {
             sha = string.Empty;
-            FileOrFolderData data = this.GetProjectedFileOrFolderData_PopulateSizeCanTimeout(childName, parentKey, populateSize: false);
+            FileOrFolderData data = this.GetProjectedFileOrFolderData(childName, parentKey, populateSize: false);
             if (data != null && !data.IsFolder)
             {
                 sha = data.ConvertShaToString();
@@ -790,8 +793,8 @@ namespace GVFS.GVFlt.DotGit
 
             return parentFolder;
         }
-
-        private FileOrFolderData GetProjectedFileOrFolderData_PopulateSizeCanTimeout(string childName, string parentKey, bool populateSize, out string gitCasedChildName)
+        
+        private FileOrFolderData GetProjectedFileOrFolderData(string childName, string parentKey, bool populateSize, out string gitCasedChildName)
         {
             this.projectionReadWriteLock.EnterReadLock();
             try
@@ -807,7 +810,7 @@ namespace GVFS.GVFlt.DotGit
                         if (populateSize && !childData.IsFolder && !childData.IsSizeSet())
                         {
                             // If we need the size for a single file, batch the request and get sizes for all files in the folder
-                            parentFolderData.PopulateSizes_CanTimeout(this.context.Tracer, this.gitObjects, this.blobSizes);
+                            parentFolderData.PopulateSizes(this.context.Tracer, this.gitObjects, this.blobSizes);
                         }
 
                         return childData;
@@ -822,11 +825,11 @@ namespace GVFS.GVFlt.DotGit
                 this.projectionReadWriteLock.ExitReadLock();
             }
         }
-
-        private FileOrFolderData GetProjectedFileOrFolderData_PopulateSizeCanTimeout(string childName, string parentKey, bool populateSize)
+        
+        private FileOrFolderData GetProjectedFileOrFolderData(string childName, string parentKey, bool populateSize)
         {
             string gitCasedChildName;
-            return this.GetProjectedFileOrFolderData_PopulateSizeCanTimeout(childName, parentKey, populateSize, out gitCasedChildName);
+            return this.GetProjectedFileOrFolderData(childName, parentKey, populateSize, out gitCasedChildName);
         }
 
         /// <summary>
@@ -1074,9 +1077,16 @@ namespace GVFS.GVFlt.DotGit
                         placeholderUpdateThreads[i] = new Thread(
                             () =>
                             {
-                                for (int j = start; j < end; ++j)
+                                try
                                 {
-                                    this.UpdateOrDeletePlaceholder(placeholderListCopy[j]);
+                                    for (int j = start; j < end; ++j)
+                                    {
+                                        this.UpdateOrDeletePlaceholder(placeholderListCopy[j]);
+                                    }
+                                }
+                                catch (Exception e)
+                                {
+                                    this.LogErrorAndExit("UpdateOrDeletePlaceholder background thread caught unhandled exception, exiting process", e);
                                 }
                             });
 
@@ -1109,49 +1119,48 @@ namespace GVFS.GVFlt.DotGit
             string parentKey;
             this.GetChildNameAndParentKey(virtualPath, out childName, out parentKey);
 
-            bool placeholderUpdated = false;
-            while (!placeholderUpdated)
+            string projectedSha;
+            if (!this.TryGetSha(childName, parentKey, out projectedSha))
             {
-                try
+                GvUpdateFailureCause failureReason = GvUpdateFailureCause.NoFailure;
+                StatusCode status = this.gvflt.GvDeleteFile(virtualPath, PlaceholderUpdateFlags, ref failureReason);
+                this.ProcessGvUpdateDeletePlaceholderResult(virtualPath, string.Empty, status, failureReason, deleteOperation: true);
+            }
+            else
+            {
+                string onDiskSha = pathAndSha.Value;
+                if (!onDiskSha.Equals(projectedSha))
                 {
-                    string projectedSha;
-                    if (!this.TryGetSha(childName, parentKey, out projectedSha))
+                    DateTime now = DateTime.UtcNow;
+                    GvUpdateFailureCause failureReason = GvUpdateFailureCause.NoFailure;
+                    StatusCode status;
+
+                    try
                     {
-                        GvUpdateFailureCause failureReason = GvUpdateFailureCause.NoFailure;
-                        StatusCode status = this.gvflt.GvDeleteFile(virtualPath, GvUpdateType.UpdateAllowDirtyMetadata, ref failureReason);
-                        this.ProcessGvUpdateDeletePlaceholderResult(virtualPath, string.Empty, status, failureReason, deleteOperation: true);
+                        FileOrFolderData data = this.GetProjectedFileOrFolderData(childName, parentKey, populateSize: true);
+                        status = this.gvflt.GvUpdatePlaceholderIfNeeded(
+                            virtualPath,
+                            creationTime: now,
+                            lastAccessTime: now,
+                            lastWriteTime: now,
+                            changeTime: now,
+                            fileAttributes: (uint)NativeMethods.FileAttributes.FILE_ATTRIBUTE_ARCHIVE,
+                            endOfFile: data.Size,
+                            contentId: projectedSha,
+                            epochId: null,
+                            updateFlags: PlaceholderUpdateFlags,
+                            failureReason: ref failureReason);
                     }
-                    else
+                    catch (Exception e)
                     {
-                        string onDiskSha = pathAndSha.Value;
-                        if (!onDiskSha.Equals(projectedSha))
-                        {
-                            FileOrFolderData data = this.GetProjectedFileOrFolderData_PopulateSizeCanTimeout(childName, parentKey, populateSize: true);
-                            DateTime now = DateTime.UtcNow;
-                            GvUpdateFailureCause failureReason = GvUpdateFailureCause.NoFailure;
-                            StatusCode status = this.gvflt.GvUpdatePlaceholderIfNeeded(
-                                virtualPath,
-                                creationTime: now,
-                                lastAccessTime: now,
-                                lastWriteTime: now,
-                                changeTime: now,
-                                fileAttributes: (uint)NativeMethods.FileAttributes.FILE_ATTRIBUTE_ARCHIVE,
-                                endOfFile: data.Size,
-                                contentId: projectedSha,
-                                epochId: null,
-                                updateFlags: GvUpdateType.UpdateAllowDirtyMetadata,
-                                failureReason: ref failureReason);
-                            this.ProcessGvUpdateDeletePlaceholderResult(virtualPath, projectedSha, status, failureReason, deleteOperation: false);
-                        }
+                        status = StatusCode.StatusUnsuccessful;
+
+                        EventMetadata metadata = CreateEventMetadata("UpdateOrDeletePlaceholder: Exception while trying to update placeholder", e);
+                        metadata.Add("virtualPath", virtualPath);
+                        this.context.Tracer.RelatedEvent(EventLevel.Warning, "UpdatePlaceholder_Exception", metadata);
                     }
 
-                    placeholderUpdated = true;
-                }
-                catch (TimeoutException e)
-                {
-                    EventMetadata metadata = CreateEventMetadata("UpdatePlaceholders: TimeoutException", e);
-                    metadata.Add("virtualPath", virtualPath);
-                    this.context.Tracer.RelatedEvent(EventLevel.Warning, "UpdatePlaceholders_TimeoutException", metadata);
+                    this.ProcessGvUpdateDeletePlaceholderResult(virtualPath, projectedSha, status, failureReason, deleteOperation: false);
                 }
             }
         }
@@ -1474,7 +1483,7 @@ namespace GVFS.GVFlt.DotGit
                 }
             }
 
-            public void PopulateSizes_CanTimeout(
+            public void PopulateSizes(
                 ITracer tracer,
                 GVFSGitObjects gitObjects,
                 PersistentDictionary<string, long> blobSizes)
@@ -1486,7 +1495,7 @@ namespace GVFS.GVFlt.DotGit
 
                 HashSet<string> missingShas;
                 List<FileMissingSize> childrenMissingSizes;
-                this.PopulateSizesLocally_CanTimeout(gitObjects, blobSizes, out missingShas, out childrenMissingSizes);
+                this.PopulateSizesLocally(gitObjects, blobSizes, out missingShas, out childrenMissingSizes);
 
                 lock (this)
                 {
@@ -1532,7 +1541,7 @@ namespace GVFS.GVFlt.DotGit
             /// <summary>
             /// Populates the sizes of child entries in the folder using locally available data
             /// </summary>
-            private void PopulateSizesLocally_CanTimeout(
+            private void PopulateSizesLocally(
                 GVFSGitObjects gitObjects,
                 PersistentDictionary<string, long> blobSizes,
                 out HashSet<string> missingShas,
@@ -1558,7 +1567,7 @@ namespace GVFS.GVFlt.DotGit
                         {
                             childEntry.Value.Size = blobLength;
                         }
-                        else if (gitObjects.TryGetBlobSizeLocally_CanTimeout(sha, out blobLength))
+                        else if (gitObjects.TryGetBlobSizeLocally(sha, out blobLength))
                         {
                             childEntry.Value.Size = blobLength;
                             blobSizes[sha] = blobLength;

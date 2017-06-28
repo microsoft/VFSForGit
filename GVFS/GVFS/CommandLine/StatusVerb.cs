@@ -16,7 +16,24 @@ namespace GVFS.CommandLine
 
         protected override void Execute(GVFSEnlistment enlistment)
         {
-            this.CheckAntiVirusExclusion(enlistment);
+            bool isExcluded;
+            string errorMessage;
+            if (AntiVirusExclusions.TryGetIsPathExcluded(enlistment.EnlistmentRoot, out isExcluded, out errorMessage))
+            {
+                if (!isExcluded)
+                {
+                    this.Output.WriteLine(
+                        "This repo is not excluded from antivirus.",
+                        enlistment.EnlistmentRoot);
+                }
+            }
+            else
+            {
+                this.Output.WriteLine(
+                    "Could not check if '{0}' is excluded from anti-virus. Please check to ensure that '{0}' is excluded. Error: {1}",
+                    enlistment.EnlistmentRoot, 
+                    errorMessage);
+            }
 
             using (NamedPipeClient pipeClient = new NamedPipeClient(enlistment.NamedPipeName))
             {

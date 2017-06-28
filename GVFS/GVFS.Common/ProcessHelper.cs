@@ -1,10 +1,8 @@
 ﻿using System;
-using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Reflection;
-using System.Runtime.InteropServices;
 using System.Security.Principal;
 
 namespace GVFS.Common
@@ -33,6 +31,7 @@ namespace GVFS.Common
             processInfo.RedirectStandardOutput = redirectOutput;
             processInfo.RedirectStandardError = redirectOutput;
             processInfo.WindowStyle = ProcessWindowStyle.Hidden;
+            processInfo.CreateNoWindow = redirectOutput;
             processInfo.Arguments = args;
 
             return Run(processInfo);
@@ -82,7 +81,7 @@ namespace GVFS.Common
             FileVersionInfo fileVersionInfo = FileVersionInfo.GetVersionInfo(assembly.Location);
             return fileVersionInfo.ProductVersion;
         }
-
+        
         public static bool IsAdminElevated()
         {
             using (WindowsIdentity id = WindowsIdentity.GetCurrent())

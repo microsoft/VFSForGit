@@ -398,24 +398,7 @@ namespace GVFS.GVFlt
                 return StatusCode.StatusDeviceNotReady;
             }
 
-            GVFltActiveEnumeration activeEnumeration;
-            try
-            {
-                activeEnumeration = new GVFltActiveEnumeration(this.gitIndexProjection.GetProjectedItems_CanTimeout(virtualPath));
-            }
-            catch (TimeoutException e)
-            {
-                EventMetadata metadata = this.CreateEventMetadata(
-                    "GVFltStartDirectoryEnumerationHandler: Timeout while creating GVFltFolder",
-                    virtualPath,
-                    e,
-                    errorMessage: true);
-                metadata.Add("enumerationId", enumerationId);
-                this.context.Tracer.RelatedError(metadata);
-
-                return StatusCode.StatusTimeout;
-            }
-
+            GVFltActiveEnumeration activeEnumeration = new GVFltActiveEnumeration(this.gitIndexProjection.GetProjectedItems(virtualPath));            
             if (!this.activeEnumerations.TryAdd(enumerationId, activeEnumeration))
             {
                 EventMetadata metadata = this.CreateEventMetadata(
@@ -582,118 +565,92 @@ namespace GVFS.GVFlt
 
                 return StatusCode.StatusDeviceNotReady;
             }
-
-            GVFltFileInfo fileInfo;
+            
             string sha;
-            try
+            GVFltFileInfo fileInfo = this.gitIndexProjection.GetProjectedGVFltFileInfoAndSha(virtualPath, out sha);
+            if (fileInfo == null)
             {
-                fileInfo = this.gitIndexProjection.GetProjectedGVFltFileInfoAndSha_CanTimeout(virtualPath, out sha);
+                return StatusCode.StatusObjectNameNotFound;
             }
-            catch (TimeoutException e)
+
+            if (!fileInfo.IsFolder &&
+                !this.IsSpecialGitFile(fileInfo) &&
+                !this.CanCreatePlaceholder())
             {
-                EventMetadata metadata = this.CreateEventMetadata("GVFltGetPlaceHolderInformationHandler: Timeout while getting GVFltFileInfo", virtualPath, e, errorMessage: true);
+                EventMetadata metadata = this.CreateEventMetadata("GVFltGetPlaceHolderInformationHandler: Not allowed to create placeholder", virtualPath);
                 metadata.Add("desiredAccess", desiredAccess);
                 metadata.Add("shareMode", shareMode);
                 metadata.Add("createDisposition", createDisposition);
                 metadata.Add("createOptions", createOptions);
                 metadata.Add("triggeringProcessId", triggeringProcessId);
                 metadata.Add("triggeringProcessImageFileName", triggeringProcessImageFileName);
-                this.context.Tracer.RelatedError(metadata);
+                this.context.Tracer.RelatedEvent(EventLevel.Verbose, nameof(this.GVFltGetPlaceHolderInformationHandler), metadata);
 
-                return StatusCode.StatusTimeout;
-            }
-
-            if (fileInfo == null)
-            {
+                // Another process is modifying the working directory so we cannot modify it
+                // until they are done.
                 return StatusCode.StatusObjectNameNotFound;
             }
 
-            try
+            // The file name case in the virtualPath parameter might be different than the file name case in the repo.
+            // Build a new virtualPath that preserves the case in the repo so that the placeholder file is created
+            // with proper case.
+            string gitCaseVirtualPath = Path.Combine(Path.GetDirectoryName(virtualPath), fileInfo.Name);
+
+            uint fileAttributes;
+            if (fileInfo.IsFolder)
             {
-                if (!fileInfo.IsFolder &&
-                    !this.IsSpecialGitFile(fileInfo) &&
-                    !this.CanDeferGitLockAcquisition() &&
-                    !this.TryAcquireGVFSLock())
-                {
-                    EventMetadata metadata = this.CreateEventMetadata("GVFltGetPlaceHolderInformationHandler: Failed to acquire lock for placeholder creation", virtualPath);
-                    metadata.Add("desiredAccess", desiredAccess);
-                    metadata.Add("shareMode", shareMode);
-                    metadata.Add("createDisposition", createDisposition);
-                    metadata.Add("createOptions", createOptions);
-                    metadata.Add("triggeringProcessId", triggeringProcessId);
-                    metadata.Add("triggeringProcessImageFileName", triggeringProcessImageFileName);
-                    this.context.Tracer.RelatedEvent(EventLevel.Verbose, nameof(this.GVFltGetPlaceHolderInformationHandler), metadata);
-
-                    // Another process is modifying the working directory so we cannot modify it
-                    // until they are done.
-                    return StatusCode.StatusObjectNameNotFound;
-                }
-
-                // The file name case in the virtualPath parameter might be different than the file name case in the repo.
-                // Build a new virtualPath that preserves the case in the repo so that the placeholder file is created
-                // with proper case.
-                string gitCaseVirtualPath = Path.Combine(Path.GetDirectoryName(virtualPath), fileInfo.Name);
-                
-                uint fileAttributes;
-                if (fileInfo.IsFolder)
-                {
-                    fileAttributes = (uint)NativeMethods.FileAttributes.FILE_ATTRIBUTE_DIRECTORY;
-                }
-                else
-                {
-                    fileAttributes = (uint)NativeMethods.FileAttributes.FILE_ATTRIBUTE_ARCHIVE;
-                }
-
-                FileProperties properties = this.GetLogsHeadFileProperties();
-                StatusCode result = this.gvflt.GvWritePlaceholderInformation(
-                    gitCaseVirtualPath,
-                    properties.CreationTimeUTC,
-                    properties.LastAccessTimeUTC,
-                    properties.LastWriteTimeUTC,
-                    changeTime: properties.LastWriteTimeUTC,
-                    fileAttributes: fileAttributes,
-                    endOfFile: fileInfo.Size,
-                    directory: fileInfo.IsFolder,
-                    contentId: sha,
-                    epochId: null);
-
-                if (result != StatusCode.StatusSucccess)
-                {
-                    EventMetadata metadata = this.CreateEventMetadata("GVFltGetPlaceHolderInformationHandler: GvWritePlaceholderInformation failed", virtualPath, exception: null, errorMessage: true);
-                    metadata.Add("gitCaseVirtualPath", gitCaseVirtualPath);
-                    metadata.Add("desiredAccess", desiredAccess);
-                    metadata.Add("shareMode", shareMode);
-                    metadata.Add("createDisposition", createDisposition);
-                    metadata.Add("createOptions", createOptions);
-                    metadata.Add("triggeringProcessId", triggeringProcessId);
-                    metadata.Add("triggeringProcessImageFileName", triggeringProcessImageFileName);
-                    metadata.Add("FileName", fileInfo.Name);
-                    metadata.Add("IsFolder", fileInfo.IsFolder);
-                    metadata.Add("StatusCode", result.ToString("X") + "(" + result.ToString("G") + ")");
-                    this.context.Tracer.RelatedError(metadata);
-                }
-                else
-                {
-                    if (!fileInfo.IsFolder)
-                    {
-                        this.gitIndexProjection.OnPlaceholderFileCreated(gitCaseVirtualPath, sha);
-
-                        // Note: Because GetPlaceHolderInformationHandler is not synchronized it is possible that GVFS will double count
-                        // the creation of file placeholders if multiple requests for the same file are received at the same time on different
-                        // threads.                         
-                        this.placeHolderCreationCount.AddOrUpdate(
-                            triggeringProcessImageFileName, 
-                            new PlaceHolderCreateCounter(), 
-                            (key, oldCount) => { oldCount.Increment(); return oldCount; });                             
-                    }
-                }
-
-                return result;
+                fileAttributes = (uint)NativeMethods.FileAttributes.FILE_ATTRIBUTE_DIRECTORY;
             }
-            finally
+            else
             {
-                this.background.ReleaseAcquisitionLock();
+                fileAttributes = (uint)NativeMethods.FileAttributes.FILE_ATTRIBUTE_ARCHIVE;
             }
+
+            FileProperties properties = this.GetLogsHeadFileProperties();
+            StatusCode result = this.gvflt.GvWritePlaceholderInformation(
+                gitCaseVirtualPath,
+                properties.CreationTimeUTC,
+                properties.LastAccessTimeUTC,
+                properties.LastWriteTimeUTC,
+                changeTime: properties.LastWriteTimeUTC,
+                fileAttributes: fileAttributes,
+                endOfFile: fileInfo.Size,
+                directory: fileInfo.IsFolder,
+                contentId: sha,
+                epochId: null);
+
+            if (result != StatusCode.StatusSucccess)
+            {
+                EventMetadata metadata = this.CreateEventMetadata("GVFltGetPlaceHolderInformationHandler: GvWritePlaceholderInformation failed", virtualPath, exception: null, errorMessage: true);
+                metadata.Add("gitCaseVirtualPath", gitCaseVirtualPath);
+                metadata.Add("desiredAccess", desiredAccess);
+                metadata.Add("shareMode", shareMode);
+                metadata.Add("createDisposition", createDisposition);
+                metadata.Add("createOptions", createOptions);
+                metadata.Add("triggeringProcessId", triggeringProcessId);
+                metadata.Add("triggeringProcessImageFileName", triggeringProcessImageFileName);
+                metadata.Add("FileName", fileInfo.Name);
+                metadata.Add("IsFolder", fileInfo.IsFolder);
+                metadata.Add("StatusCode", result.ToString("X") + "(" + result.ToString("G") + ")");
+                this.context.Tracer.RelatedError(metadata);
+            }
+            else
+            {
+                if (!fileInfo.IsFolder)
+                {
+                    this.gitIndexProjection.OnPlaceholderFileCreated(gitCaseVirtualPath, sha);
+
+                    // Note: Because GetPlaceHolderInformationHandler is not synchronized it is possible that GVFS will double count
+                    // the creation of file placeholders if multiple requests for the same file are received at the same time on different
+                    // threads.                         
+                    this.placeHolderCreationCount.AddOrUpdate(
+                        triggeringProcessImageFileName,
+                        new PlaceHolderCreateCounter(),
+                        (key, oldCount) => { oldCount.Increment(); return oldCount; });
+                }
+            }
+
+            return result;
         }
 
         private StatusCode GVFltGetFileStreamHandler(
@@ -732,90 +689,79 @@ namespace GVFS.GVFlt
                     return StatusCode.StatusInvalidParameter;
                 }
 
-                try
+                if (!this.gvfsGitObjects.TryCopyBlobContentStream(
+                    sha,
+                    (stream, blobLength) =>
                 {
-                    if (!this.gvfsGitObjects.TryCopyBlobContentStream_CanTimeout(
-                        sha,
-                        (reader, blobLength) =>
+                    if (blobLength != length)
                     {
-                        if (blobLength != length)
-                        {
-                            metadata.Add("blobLength", blobLength);
-                            metadata.Add("ErrorMessage", "Actual file length (blobLength) does not match requested length");
-                            activity.RelatedError(metadata);
-
-                            // Clear out the stream to leave it in a good state.
-                            reader.CopyBlockTo<CopyBlobContentTimeoutException>(StreamWriter.Null, blobLength);
-
-                            throw new GvFltException(StatusCode.StatusInvalidParameter);
-                        }
-
-                        using (StreamWriter writer = new StreamWriter(targetBuffer.Stream, reader.CurrentEncoding, (int)targetBuffer.Length, leaveOpen: true))
-                        {
-                            writer.AutoFlush = true;
-
-                            long remainingData = blobLength;
-                            while (remainingData > 0)
-                            {
-                                uint bytesToCopy = (uint)Math.Min(remainingData, targetBuffer.Length);
-                                writer.BaseStream.Seek(0, SeekOrigin.Begin);
-                                reader.CopyBlockTo<CopyBlobContentTimeoutException>(writer, bytesToCopy);
-                                long writeOffset = length - remainingData;
-
-                                StatusCode writeResult = this.gvflt.GvWriteFile(streamGuid, targetBuffer, (ulong)writeOffset, bytesToCopy);
-                                remainingData -= bytesToCopy;
-
-                                if (writeResult != StatusCode.StatusSucccess)
-                                {
-                                    switch (writeResult)
-                                    {
-                                        case StatusCode.StatusFileClosed:
-                                            // StatusFileClosed is expected, and occurs when an application closes a file handle before OnGetFileStream
-                                            // is complete
-                                            break;
-
-                                        case StatusCode.StatusObjectNameNotFound:
-                                            // GvWriteFile may return STATUS_OBJECT_NAME_NOT_FOUND if the stream guid provided is not valid (doesn’t exist in the stream table).
-                                            // For each file expansion, GVFlt creates a new get stream session with a new stream guid, the session starts at the beginning of the 
-                                            // file expansion, and ends after the GetFileStream command returns or times out.
-                                            //
-                                            // If we hit this in GVFS, the most common explanation is that we're calling GvWriteFile after the GVFlt thread waiting on the respose
-                                            // from GetFileStream has already timed out
-                                            metadata.Add("Message", "GvWriteFile returned StatusObjectNameNotFound");
-                                            activity.RelatedEvent(EventLevel.Informational, "GetFileStream_ObjectNameNotFound", metadata);
-                                            break;
-
-                                        default:
-                                            metadata.Add("ErrorMessage", "GvWriteFile failed, error: " + writeResult.ToString("X") + "(" + writeResult.ToString("G") + ")");
-                                            activity.RelatedError(metadata);
-                                            break;
-                                    }
-
-                                    // Clear out the stream to leave it in a good state.
-                                    if (remainingData > 0)
-                                    {
-                                        reader.CopyBlockTo<CopyBlobContentTimeoutException>(StreamWriter.Null, remainingData);
-                                    }
-
-                                    throw new GvFltException(writeResult);
-                                }
-                            }
-                        }
-                    }))
-                    {
-                        metadata.Add("ErrorMessage", "TryCopyBlobContentStream failed");
+                        metadata.Add("blobLength", blobLength);
+                        metadata.Add("ErrorMessage", "Actual file length (blobLength) does not match requested length");
                         activity.RelatedError(metadata);
-                        return StatusCode.StatusFileNotAvailable;
-                    }
-                }
-                catch (TimeoutException e)
-                {
-                    metadata.Add("Message", "GVFltGetFileStreamHandler: Timeout while getting file stream");
-                    metadata.Add("Exception", e.ToString());
-                    activity.RelatedEvent(EventLevel.Warning, "Warning", metadata);
-                    return StatusCode.StatusTimeout;
-                }
 
+                        throw new GvFltException(StatusCode.StatusInvalidParameter);
+                    }
+
+                    byte[] buffer = new byte[Math.Min(MaxBlobStreamBufferSize, blobLength)];
+                    long remainingData = blobLength;
+                    while (remainingData > 0)
+                    {
+                        uint bytesToCopy = (uint)Math.Min(remainingData, targetBuffer.Length);
+
+                        try
+                        {
+                            targetBuffer.Stream.Seek(0, SeekOrigin.Begin);
+                            stream.CopyBlockTo(targetBuffer.Stream, bytesToCopy, buffer);
+                        }
+                        catch (IOException e)
+                        {
+                            metadata.Add("Exception", e.ToString());
+                            metadata.Add("ErrorMessage", "IOException while copying to unmanaged buffer.");
+                            activity.RelatedError(metadata);
+                            throw new GvFltException("IOException while copying to unmanaged buffer: " + e.Message, StatusCode.StatusFileNotAvailable);
+                        }
+
+                        long writeOffset = length - remainingData;
+
+                        StatusCode writeResult = this.gvflt.GvWriteFile(streamGuid, targetBuffer, (ulong)writeOffset, bytesToCopy);
+                        remainingData -= bytesToCopy;
+
+                        if (writeResult != StatusCode.StatusSucccess)
+                        {
+                            switch (writeResult)
+                            {
+                                case StatusCode.StatusFileClosed:
+                                    // StatusFileClosed is expected, and occurs when an application closes a file handle before OnGetFileStream
+                                    // is complete
+                                    break;
+
+                                case StatusCode.StatusObjectNameNotFound:
+                                    // GvWriteFile may return STATUS_OBJECT_NAME_NOT_FOUND if the stream guid provided is not valid (doesn’t exist in the stream table).
+                                    // For each file expansion, GVFlt creates a new get stream session with a new stream guid, the session starts at the beginning of the 
+                                    // file expansion, and ends after the GetFileStream command returns or times out.
+                                    //
+                                    // If we hit this in GVFS, the most common explanation is that we're calling GvWriteFile after the GVFlt thread waiting on the respose
+                                    // from GetFileStream has already timed out
+                                    metadata.Add("Message", "GvWriteFile returned StatusObjectNameNotFound");
+                                    activity.RelatedEvent(EventLevel.Informational, "GetFileStream_ObjectNameNotFound", metadata);
+                                    break;
+
+                                default:
+                                    metadata.Add("ErrorMessage", "GvWriteFile failed, error: " + writeResult.ToString("X") + "(" + writeResult.ToString("G") + ")");
+                                    activity.RelatedError(metadata);
+                                    break;
+                            }
+
+                            throw new GvFltException(writeResult);
+                        }
+                    }
+                }))
+                {
+                    metadata.Add("ErrorMessage", "TryCopyBlobContentStream failed");
+                    activity.RelatedError(metadata);
+                    return StatusCode.StatusFileNotAvailable;
+                }
+                
                 return StatusCode.StatusSucccess;
             }
         }
@@ -941,22 +887,15 @@ namespace GVFS.GVFlt
             }
             else if (isDirectory)
             {
-                try
+                // Block directory deletes during git commands for directories not in the sparse-checkout 
+                // git-clean and git-reset --hard are excluded from this restriction.
+                if (!this.sparseCheckout.HasEntry(virtualPath, isFolder: true) &&
+                    !this.CanDeleteDirectory())
                 {
-                    // Block directory deletes during git commands for directories not in the sparse-checkout 
-                    // git-clean and git-reset --hard are excluded from this restriction.
-                    if (!this.sparseCheckout.HasEntry(virtualPath, isFolder: true) &&
-                        !this.CanDeleteDirectory())
-                    {
-                        // Respond with something that Git expects, StatusAccessDenied will lock up Git. 
-                        // The directory is not exactly not-empty but it’s potentially not-empty 
-                        // within the timeline of the current git command which is the reason for us blocking the delete.
-                        return StatusCode.StatusDirectoryNotEmpty;
-                    }
-                }
-                finally
-                {
-                    this.background.ReleaseAcquisitionLock();
+                    // Respond with something that Git expects, StatusAccessDenied will lock up Git. 
+                    // The directory is not exactly not-empty but it’s potentially not-empty 
+                    // within the timeline of the current git command which is the reason for us blocking the delete.
+                    return StatusCode.StatusDirectoryNotEmpty;
                 }
             }
 
@@ -1280,36 +1219,6 @@ namespace GVFS.GVFlt
                 fileInfo.Name.Equals(GVFSConstants.SpecialGitFiles.GitIgnore, StringComparison.OrdinalIgnoreCase);
         }
 
-        /// <summary>
-        /// Try to acquire the global lock. Retry but ensure that we don't reach the GVFlt callback timeout./>
-        /// </summary>
-        /// <returns>True if the lock was acquired, false otherwise.</returns>
-        private bool TryAcquireGVFSLock()
-        {
-            this.background.ObtainAcquisitionLock();
-            int numAttempts = 0;
-
-            int maxGVFSLockAttempts = this.GetMaxGVFSLockAttempts();
-
-            while (numAttempts < maxGVFSLockAttempts)
-            {
-                if (this.context.Repository.GVFSLock.TryAcquireLock())
-                {
-                    return true;
-                }
-
-                numAttempts++;
-
-                // If we are about to attempt again, wait.
-                if (numAttempts < maxGVFSLockAttempts)
-                {
-                    Thread.Sleep(AcquireGVFSLockWaitPerTryMillis);
-                }
-            }
-
-            return false;
-        }
-
         private EventMetadata CreateEventMetadata(
             string message = null,
             string virtualPath = null,
@@ -1386,9 +1295,10 @@ namespace GVFS.GVFlt
         /// 
         /// git-mv is also allowed to defer since it needs to create the files it moves.
         /// </remarks>
-        private bool CanDeferGitLockAcquisition()
+        private bool CanCreatePlaceholder()
         {
-            return this.context.Repository.GVFSLock.IsLockedByGitVerb("status", "add", "mv");
+            string lockedCommand = this.context.Repository.GVFSLock.GetLockedGitCommand();
+            return string.IsNullOrEmpty(lockedCommand) || GitHelper.IsVerb(lockedCommand, "status", "add", "mv");
         }
 
         [Serializable]

@@ -94,6 +94,13 @@ namespace GVFS.Common.Tracing
             this.WriteEvent(eventName, level, keyword, metadata, opcode: 0);
         }
 
+        public virtual void RelatedInfo(string format, params object[] args)
+        {
+            EventMetadata metadata = new EventMetadata();
+            metadata.Add("Message", string.Format(format, args));
+            this.RelatedEvent(EventLevel.Informational, "Information", metadata);
+        }
+
         public virtual void RelatedError(EventMetadata metadata)
         {
             this.RelatedError(metadata, Keywords.Telemetry);

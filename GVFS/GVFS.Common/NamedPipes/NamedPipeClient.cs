@@ -16,6 +16,11 @@ namespace GVFS.Common.NamedPipes
             this.pipeName = pipeName;
         }
 
+        public static string GetPipeNameFromPath(string path)
+        {
+            return "GVFS_" + path.ToUpper().Replace(':', '_');
+        }
+
         public bool Connect(int timeoutMilliseconds = 3000)
         {
             if (this.clientStream != null)
@@ -41,6 +46,20 @@ namespace GVFS.Common.NamedPipes
             this.writer = new StreamWriter(this.clientStream);
 
             return true;
+        }
+
+        public bool TrySendRequest(NamedPipeMessages.Message message)
+        {
+            try
+            {
+                this.SendRequest(message);
+                return true;
+            }
+            catch (BrokenPipeException)
+            {
+            }
+
+            return false;
         }
 
         public void SendRequest(NamedPipeMessages.Message message)
@@ -90,8 +109,12 @@ namespace GVFS.Common.NamedPipes
         {
             this.ValidateConnection();
 
-            this.clientStream.Dispose();
-            this.clientStream = null;
+            if (this.clientStream != null)
+            {
+                this.clientStream.Dispose();
+                this.clientStream = null;
+            }
+
             this.reader = null;
             this.writer = null;
         }

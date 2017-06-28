@@ -18,8 +18,6 @@ namespace GVFS.Common
         private const int LogUpdateTaskThreshold = 25000;
         private static readonly string EtwArea = "ProcessBackgroundOperations";
 
-        private readonly ReaderWriterLockSlim acquisitionLock;
-
         private long lastOperationId;
         private PersistentDictionary<long, TBackgroundOperation> persistence;
 
@@ -42,7 +40,6 @@ namespace GVFS.Common
             Func<CallbackResult> postCallback,
             string databaseName)
         {
-            this.acquisitionLock = new ReaderWriterLockSlim();
             this.persistence = new PersistentDictionary<long, TBackgroundOperation>(
                 Path.Combine(context.Enlistment.DotGVFSRoot, databaseName));
 
@@ -100,19 +97,6 @@ namespace GVFS.Common
             this.backgroundThread.Wait();
         }
 
-        public void ObtainAcquisitionLock()
-        {
-            this.acquisitionLock.EnterReadLock();
-        }
-
-        public void ReleaseAcquisitionLock()
-        {
-            if (this.acquisitionLock.IsReadLockHeld)
-            {
-                this.acquisitionLock.ExitReadLock();
-            }
-        }
-
         public void Dispose()
         {
             this.Dispose(true);
@@ -167,45 +151,6 @@ namespace GVFS.Common
 
             return AcquireGVFSLockResult.LockAcquired;
         }
-
-        private void ReleaseGVFSLockIfNecessary()
-        {
-            try
-            {
-                // Only release GVFS lock if the queue is empty. If it's not empty then another thread
-                // added something to the queue, allow it to continue processing.
-                while (this.backgroundOperations.IsEmpty)
-                {
-                    // An external caller (eg. GVFLT callback) will hold reader status while adding something to the queue.
-                    // If unable to enter writer status, wait and try again if the queue is still empty.
-                    if (this.acquisitionLock.TryEnterWriteLock(millisecondsTimeout: 10))
-                    {
-                        // Only release the lock if the queue is still empty since the EnterWrite above
-                        // could have succeeded after someone else (ie gvflt callback) succeeded in adding something
-                        // to the queue.
-                        if (this.backgroundOperations.IsEmpty)
-                        {
-                            this.context.Repository.GVFSLock.ReleaseLock();
-                        }
-
-                        break;
-                    }
-
-                    Thread.Sleep(millisecondsTimeout: 10);
-                }
-            }
-            catch (Exception e)
-            {
-                this.LogErrorAndExit("Exception while attempting to release GVFS lock, shutting down", e);
-            }
-            finally
-            {
-                if (this.acquisitionLock.IsWriteLockHeld)
-                {
-                    this.acquisitionLock.ExitWriteLock();
-                }
-            }
-        }
      
         private void ProcessBackgroundOperations()
         {
@@ -217,32 +162,11 @@ namespace GVFS.Common
 
                 try
                 {
-                    this.wakeUpThread.WaitOne(500);
+                    this.wakeUpThread.WaitOne();
 
                     if (this.isStopping)
                     {
                         return;
-                    }
-
-                    if (this.backgroundOperations.IsEmpty)
-                    {
-                        if (this.context.Repository.GVFSLock.IsLockedByGVFS)
-                        {
-                            EventMetadata metadata = new EventMetadata();
-                            metadata.Add("Area", EtwArea);
-                            metadata.Add("Message", "Releasing lock being held unnecessarily by GVFS.");
-                            this.context.Tracer.RelatedEvent(EventLevel.Informational, "TaskProcessingStatus", metadata);
-
-                            this.ReleaseGVFSLockIfNecessary();
-                        }
-
-                        // Check for empty queue again since something might have been added
-                        // as we were attempting to release the lock. This avoids cycling back 
-                        // if there are ops in the queue and having to wait for the next timeout on wakeUpThread.
-                        if (this.backgroundOperations.IsEmpty)
-                        {
-                            continue;
-                        }
                     }
 
                     acquireLockResult = this.WaitToAcquireGVFSLock();
@@ -329,7 +253,10 @@ namespace GVFS.Common
                     if (acquireLockResult == AcquireGVFSLockResult.LockAcquired)
                     {
                         this.RunCallbackUntilSuccess(this.postCallback, "PostCallback");
-                        this.ReleaseGVFSLockIfNecessary();
+                        if (this.backgroundOperations.IsEmpty)
+                        {
+                            this.context.Repository.GVFSLock.ReleaseLock();
+                        }
                     }
                 }
             }

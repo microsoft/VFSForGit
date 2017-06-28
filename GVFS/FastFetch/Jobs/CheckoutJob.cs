@@ -274,7 +274,7 @@ namespace FastFetch.Jobs
 
         private void HandleAllFileAddOperations()
         {
-            using (LibGit2Repo repo = new LibGit2Repo(this.tracer, this.enlistment.EnlistmentRoot))
+            using (LibGit2Repo repo = new LibGit2Repo(this.tracer, this.enlistment.WorkingDirectoryRoot))
             {
                 string availableBlob;
                 while (this.AvailableBlobShas.TryTake(out availableBlob, millisecondsTimeout: -1))

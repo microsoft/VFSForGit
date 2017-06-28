@@ -1,6 +1,4 @@
 ﻿using GVFS.Common.Git;
-using System;
-using System.Collections.Generic;
 using System.IO;
 
 namespace GVFS.Common
@@ -8,48 +6,34 @@ namespace GVFS.Common
     public static class GVFSConstants
     {
         public const int ShaStringLength = 40;
+        public const int MaxPath = 260;
 
-        public const string RootFolderPath = "\\";
         public const char PathSeparator = '\\';
-        public const string PathSeparatorString = "\\";
         public const char GitPathSeparator = '/';
         public const string GitPathSeparatorString = "/";
         public const char GitCommentSign = '#';
-        public const string GitCommentSignString = "#";
-
-        public const string AppName = "GitVirtualFileSystem";
-        public const string AppGuid = "9a3cf8bb-ef4b-42df-ac4b-f5f50d114909";
-
-        public const string DotGVFSPath = ".gvfs";
-        public const string GVFSLogFolderName = "logs";
-        public const string VolumeLabel = "Git Virtual File System";
-
-        public const string GVFSConfigEndpointSuffix = "/gvfs/config";
-        public const string InfoRefsEndpointSuffix = "/info/refs?service=git-upload-pack";
-
-        public const string CatFileObjectTypeCommit = "commit";
 
         public const string PrefetchPackPrefix = "prefetch";
-
-        public const string HeadCommitName = "HEAD";
-        public const string MergeHeadCommitName = "MERGE_HEAD";
-        public const string RevertHeadCommitName = "REVERT_HEAD";
 
         public const string AllZeroSha = "0000000000000000000000000000000000000000";
 
         public const string GVFSEtwProviderName = "Microsoft.Git.GVFS";
 
         public const string WorkingDirectoryRootName = "src";
-
+        
         public const string GVFSHooksExecutableName = "GVFS.Hooks.exe";
         public const string GVFSReadObjectHookExecutableName = "GVFS.ReadObjectHook.exe";
-        public const int InvalidProcessId = -1;
 
         public const string GitIsNotInstalledError = "Could not find git.exe.  Ensure that Git is installed.";
 
-        public const string CommandParentExePrefix = "git";
         public const string ExecutableExtension = ".exe";
-        public static readonly GitVersion MinimumGitVersion = new GitVersion(2, 12, 2, "gvfs", 2, 0);
+        public static readonly GitVersion MinimumGitVersion = new GitVersion(2, 13, 0, "gvfs", 1, 0);
+
+        public static class Service
+        {
+            public const string ServiceName = "GVFS.Service";
+            public const string UIName = "GVFS.Service.UI";
+        }
 
         public static class MediaTypes
         {
@@ -63,8 +47,17 @@ namespace GVFS.Common
         {
             public const string BackgroundGitUpdates = "BackgroundGitUpdates";
             public const string BlobSizes = "BlobSizes";
-            public const string RepoMetadata = "RepoMetadata";
             public const string PlaceholderList = "PlaceholderList";
+            public const string RepoMetadata = "RepoMetadata";
+        }
+
+        public static class Endpoints
+        {
+            public const string GVFSConfig = "/gvfs/config";
+            public const string GVFSObjects = "/gvfs/objects";
+            public const string GVFSPrefetch = "/gvfs/prefetch";
+            public const string GVFSSizes = "/gvfs/sizes";
+            public const string InfoRefs = "/info/refs?service=git-upload-pack";
         }
 
         public static class SpecialGitFiles
@@ -79,6 +72,15 @@ namespace GVFS.Common
             public const string Dehydrate = "dehydrate";
             public const string Mount = "mount";
             public const string Prefetch = "prefetch";
+            public const string Repair = "repair";
+            public const string Service = "service";
+        }
+
+        public static class DotGVFS
+        {
+            public const string Root = ".gvfs";
+            public static readonly string LogPath = Path.Combine(DotGVFS.Root, "logs");
+            public static readonly string GitObjectCachePath = Path.Combine(DotGVFS.Root, "gitObjectCache");
         }
 
         public static class DotGit
@@ -91,6 +93,11 @@ namespace GVFS.Common
 
             public static readonly string Config = Path.Combine(DotGit.Root, "config");
             public static readonly string Head = Path.Combine(DotGit.Root, HeadName);
+            public static readonly string BisectStart = Path.Combine(DotGit.Root, "BISECT_START");
+            public static readonly string CherryPickHead = Path.Combine(DotGit.Root, "CHERRY_PICK_HEAD");
+            public static readonly string MergeHead = Path.Combine(DotGit.Root, "MERGE_HEAD");
+            public static readonly string RevertHead = Path.Combine(DotGit.Root, "REVERT_HEAD");
+            public static readonly string RebaseApply = Path.Combine(DotGit.Root, "rebase_apply");
             public static readonly string Index = Path.Combine(DotGit.Root, IndexName);
             public static readonly string IndexLock = Path.Combine(DotGit.Root, IndexName + LockExtension);
             public static readonly string PackedRefs = Path.Combine(DotGit.Root, PackedRefsName);
@@ -98,10 +105,9 @@ namespace GVFS.Common
 
             public static class Logs
             {
-                public const string Name = "logs";
                 public static readonly string HeadName = "HEAD";
 
-                public static readonly string Root = Path.Combine(DotGit.Root, Name);
+                public static readonly string Root = Path.Combine(DotGit.Root, "logs");
                 public static readonly string Head = Path.Combine(Logs.Root, Logs.HeadName);
             }
 
@@ -132,33 +138,29 @@ namespace GVFS.Common
                 public static readonly string AlwaysExcludePath = Path.Combine(Info.Root, AlwaysExcludeName);
             }
 
-            public static class Refs
-            {
-                public const string Name = "refs";
-
-                public static readonly string Root = Path.Combine(DotGit.Root, Refs.Name);
-
-                public static class Heads
-                {
-                    public const string Name = "heads";
-                    public static readonly string Root = Path.Combine(DotGit.Refs.Root, Heads.Name);
-                }
-            }
-
             public static class Objects
             {
-                public const string Name = "objects";
-                public static readonly string Root = Path.Combine(DotGit.Root, Objects.Name);
-
-                public static class Pack
-                {
-                    public const string Name = "pack";
-                    public static readonly string Root = Path.Combine(Objects.Root, Pack.Name);
-                }
-
+                public static readonly string Root = Path.Combine(DotGit.Root, "objects");
+                
                 public static class Info
                 {
                     public static readonly string Root = Path.Combine(Objects.Root, "info");
+                    public static readonly string Alternates = Path.Combine(Info.Root, "alternates");
+                }
+
+                public static class Pack
+                {
+                    public static readonly string Name = "pack";
+                }
+            }
+
+            public static class Refs
+            {
+                public static readonly string Root = Path.Combine(DotGit.Root, "refs");
+
+                public static class Heads
+                {
+                    public static readonly string Root = Path.Combine(DotGit.Refs.Root, "heads");
                 }
             }
         }

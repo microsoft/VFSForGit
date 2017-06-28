@@ -15,7 +15,6 @@ namespace GVFS.CommandLine
     public class CloneVerb : GVFSVerb
     {
         private const string CloneVerbName = "clone";
-        private const string MountVerb = "gvfs mount";
 
         [Value(
             0,
@@ -75,8 +74,7 @@ namespace GVFS.CommandLine
         public override void Execute()
         {
             int exitCode = 0;
-
-            this.CheckElevated();
+            
             this.CheckGVFltRunning();
             this.CheckNotInsideExistingRepo();
 
@@ -149,7 +147,7 @@ namespace GVFS.CommandLine
                     if (this.NoMount)
                     {
                         this.Output.WriteLine("\r\nIn order to mount, first cd to within your enlistment, then call: ");
-                        this.Output.WriteLine(CloneVerb.MountVerb);
+                        this.Output.WriteLine("gvfs mount");
                     }
                     else
                     {
@@ -157,6 +155,7 @@ namespace GVFS.CommandLine
                         mount.EnlistmentRootPath = this.EnlistmentRootPath;
                         mount.SkipMountedCheck = true;
                         mount.SkipVersionCheck = true;
+                        mount.ServiceName = this.ServiceName;
 
                         mount.Execute();
                     }
@@ -231,7 +230,7 @@ namespace GVFS.CommandLine
             this.CheckGitVersion(enlistment);
 
             Result pipeResult;
-            using (NamedPipeServer pipeServer = this.StartNamedPipe(enlistment, out pipeResult))
+            using (NamedPipeServer pipeServer = this.StartNamedPipe(tracer, enlistment, out pipeResult))
             {
                 if (!pipeResult.Success)
                 {
@@ -244,7 +243,7 @@ namespace GVFS.CommandLine
                     this.ValidateGVFSVersion(enlistment, config, tracer);
                 }
 
-                using (GitObjectsHttpRequestor objectRequestor = new GitObjectsHttpRequestor(tracer, enlistment, Environment.ProcessorCount))
+                using (GitObjectsHttpRequestor objectRequestor = new GitObjectsHttpRequestor(tracer, enlistment))
                 {
                     GitRefs refs = objectRequestor.QueryInfoRefs(this.SingleBranch ? this.Branch : null);
 
@@ -280,25 +279,19 @@ namespace GVFS.CommandLine
                         tracer.RelatedError(error);
                         return new Result(error);
                     }
-
-                    // Only check Defender exclusions if not mounting, otherwise let mount take care of it.
-                    if (this.NoMount)
-                    {
-                        this.CheckAntiVirusExclusion(enlistment);
-                    }
-
+                    
                     CloneHelper cloneHelper = new CloneHelper(tracer, enlistment, objectRequestor);
                     return cloneHelper.CreateClone(refs, this.Branch);
                 }
             }
         }
 
-        private NamedPipeServer StartNamedPipe(GVFSEnlistment enlistment, out Result errorResult)
+        private NamedPipeServer StartNamedPipe(ITracer tracer, GVFSEnlistment enlistment, out Result errorResult)
         {
             try
             {
                 errorResult = new Result(true);
-                return AllowAllLocksNamedPipeServer.Create(enlistment);
+                return AllowAllLocksNamedPipeServer.Create(tracer, enlistment);
             }
             catch (PipeNameLengthException)
             {

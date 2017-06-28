@@ -7,7 +7,7 @@ using System.IO;
 using System.Linq;
 using System.Runtime.InteropServices;
 
-namespace FastFetch.Git
+namespace GVFS.Common.Git
 {
     public class LibGit2Repo : IDisposable
     {
@@ -20,9 +20,14 @@ namespace FastFetch.Git
             this.tracer = tracer;
             LibGit2Helpers.Init();
 
-            if (LibGit2Helpers.Repo.Open(out this.repoHandle, repoPath))
+            if (LibGit2Helpers.Repo.Open(out this.repoHandle, repoPath) != LibGit2Helpers.SuccessCode)
             {
-                throw new InvalidDataException("Couldn't open repo at: " + repoPath);
+                string reason = LibGit2Helpers.GetLastError();
+                string message = "Couldn't open repo at " + repoPath + ": " + reason;
+                tracer.RelatedError(message);
+
+                LibGit2Helpers.Shutdown();
+                throw new InvalidDataException(message);
             }
         }
 
@@ -31,10 +36,114 @@ namespace FastFetch.Git
             this.Dispose(false);
         }
 
+        public virtual bool ObjectExists(string sha)
+        {
+            IntPtr objHandle;
+            if (LibGit2Helpers.RevParseSingle(out objHandle, this.repoHandle, sha) != LibGit2Helpers.SuccessCode)
+            {
+                return false;
+            }
+
+            LibGit2Helpers.Object.Free(objHandle);
+            return true;
+        }
+
+        public virtual bool TryGetObjectSize(string sha, out long size)
+        {
+            size = -1;
+
+            IntPtr objHandle;
+            if (LibGit2Helpers.RevParseSingle(out objHandle, this.repoHandle, sha) != LibGit2Helpers.SuccessCode)
+            {
+                return false;
+            }
+
+            try
+            {
+                switch (LibGit2Helpers.Object.GetType(objHandle))
+                {
+                    case LibGit2Helpers.ObjectTypes.Blob:
+                        size = LibGit2Helpers.Blob.GetRawSize(objHandle);
+                        return true;
+                }
+            }
+            finally
+            {
+                LibGit2Helpers.Object.Free(objHandle);
+            }
+
+            return false;
+        }
+
+        public virtual string GetTreeSha(string commitish)
+        {
+            IntPtr objHandle;
+            if (LibGit2Helpers.RevParseSingle(out objHandle, this.repoHandle, commitish) != LibGit2Helpers.SuccessCode)
+            {
+                return null;
+            }
+
+            try
+            {
+                switch (LibGit2Helpers.Object.GetType(objHandle))
+                {
+                    case LibGit2Helpers.ObjectTypes.Commit:
+                        GitOid output = LibGit2Helpers.IntPtrToGitOid(LibGit2Helpers.Commit.GetTreeId(objHandle));
+                        return output.ToString();
+                }
+            }
+            finally
+            {
+                LibGit2Helpers.Object.Free(objHandle);
+            }
+
+            return null;
+        }
+        
+        public virtual bool TryCopyBlob(string sha, Action<Stream, long> writeAction)
+        {
+            IntPtr objHandle;
+            if (LibGit2Helpers.RevParseSingle(out objHandle, this.repoHandle, sha) != LibGit2Helpers.SuccessCode)
+            {
+                return false;
+            }
+
+            try
+            {
+                unsafe
+                {
+                    switch (LibGit2Helpers.Object.GetType(objHandle))
+                    {
+                        case LibGit2Helpers.ObjectTypes.Blob:
+                            byte* originalData = LibGit2Helpers.Blob.GetRawContent(objHandle);
+                            long originalSize = LibGit2Helpers.Blob.GetRawSize(objHandle);
+                            
+                            // TODO 938696: UnmanagedMemoryStream marshals content even for CopyTo
+                            // If GetRawContent changed to return IntPtr and GvfltWrapper changed GVFltWriteBuffer to expose an IntPtr,
+                            // We could probably pinvoke memcpy and avoid marshalling.
+                            using (Stream mem = new UnmanagedMemoryStream(originalData, originalSize))
+                            { 
+                                writeAction(mem, originalSize);
+                            }
+
+                            break;
+                        default:
+                            throw new NotSupportedException("Copying object types other than blobs is not supported.");
+                    }
+                }
+            }
+            finally
+            {
+                LibGit2Helpers.Object.Free(objHandle);
+            }
+
+            return true;
+        }
+
         public virtual bool TryCopyBlobToFile(string sha, IEnumerable<string> destinations, out long bytesWritten)
         {
             IntPtr objHandle;
-            if (LibGit2Helpers.RevParseSingle(out objHandle, this.repoHandle, sha))
+            if (LibGit2Helpers.RevParseSingle(out objHandle, this.repoHandle, sha) != LibGit2Helpers.SuccessCode)
             {
                 bytesWritten = 0;
                 EventMetadata metadata = new EventMetadata();
@@ -46,7 +155,7 @@ namespace FastFetch.Git
 
             try
             {
-                // Avoid marshalling raw content
+                // Avoid marshalling raw content by using byte* and native writes
                 unsafe
                 {
                     switch (LibGit2Helpers.Object.GetType(objHandle))
@@ -92,7 +201,7 @@ namespace FastFetch.Git
                             bytesWritten = originalSize * destinations.Count();
                             break;
                         default:
-                            throw new NotImplementedException("FastFetch should not need to support copying any object types except blobs.");
+                            throw new NotSupportedException("Copying object types other than blobs is not supported.");
                     }
                 }
             }
@@ -138,12 +247,5 @@ namespace FastFetch.Git
         [DllImport("kernel32.dll")]
         [return: MarshalAs(UnmanagedType.Bool)]
         private static unsafe extern bool WriteFile(SafeFileHandle file, byte* buffer, uint numberOfBytesToWrite, out uint numberOfBytesWritten, IntPtr overlapped);
-
-        private unsafe class FileWrapper
-        {
-            public FileWrapper(SafeFileHandle handle, byte* data, long dataLength)
-            {
-            }
-        }
     }
 }

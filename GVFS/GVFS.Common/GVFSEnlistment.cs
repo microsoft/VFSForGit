@@ -1,7 +1,6 @@
 using GVFS.Common.Git;
 using System;
 using System.IO;
-using System.Linq;
 using System.Threading;
 
 namespace GVFS.Common
@@ -12,33 +11,42 @@ namespace GVFS.Common
         public GVFSEnlistment(string enlistmentRoot, string repoUrl, string cacheServerUrl, string gitBinPath, string gvfsHooksRoot)
             : base(
                   enlistmentRoot, 
-                  Path.Combine(enlistmentRoot, GVFSConstants.WorkingDirectoryRootName), 
+                  Path.Combine(enlistmentRoot, GVFSConstants.WorkingDirectoryRootName),
+                  Path.Combine(enlistmentRoot, GVFSConstants.DotGVFS.GitObjectCachePath),
                   repoUrl, 
                   cacheServerUrl, 
                   gitBinPath, 
                   gvfsHooksRoot)
         {
-            this.SetComputedPaths();
+            this.NamedPipeName = NamedPipes.NamedPipeClient.GetPipeNameFromPath(this.EnlistmentRoot);
+            this.DotGVFSRoot = Path.Combine(this.EnlistmentRoot, GVFSConstants.DotGVFS.Root);
+            this.GVFSLogsRoot = Path.Combine(this.EnlistmentRoot, GVFSConstants.DotGVFS.LogPath);
 
             // Mutex name cannot include '\' (other than the '\' after Global)
             // https://msdn.microsoft.com/en-us/library/windows/desktop/ms682411(v=vs.85).aspx 
             this.EnlistmentMutex = new Mutex(false, "Global\\" + this.NamedPipeName.Replace('\\', ':'));
         }
 
+        // Enlistment without repo url. This skips git commands that may fail in a corrupt repo.
+        public GVFSEnlistment(string enlistmentRoot, string gitBinPath)
+            : this(
+                  enlistmentRoot,
+                  repoUrl: "invalid://repoUrl",
+                  cacheServerUrl: "invalid://cacheServerUrl",
+                  gitBinPath: gitBinPath,
+                  gvfsHooksRoot: null)
+        {
+        }
+
         // Existing, configured enlistment
         public GVFSEnlistment(string enlistmentRoot, string cacheServerUrl, string gitBinPath, string gvfsHooksRoot)
-            : base(
+            : this(
                   enlistmentRoot, 
-                  Path.Combine(enlistmentRoot, GVFSConstants.WorkingDirectoryRootName), 
+                  null,
                   cacheServerUrl, 
                   gitBinPath, 
                   gvfsHooksRoot)
         {
-            this.SetComputedPaths();
-
-            // Mutex name cannot include '\' (other than the '\' after Global)
-            // https://msdn.microsoft.com/en-us/library/windows/desktop/ms682411(v=vs.85).aspx 
-            this.EnlistmentMutex = new Mutex(false, GetMutexName(enlistmentRoot));
         }
 
         public Mutex EnlistmentMutex { get; }
@@ -54,10 +62,18 @@ namespace GVFS.Common
             return CreateFromDirectory(Environment.CurrentDirectory, cacheServerUrl, gitBinRoot, null);
         }
 
-        public static string GetMutexName(string enlistmentRoot)
+        public static GVFSEnlistment CreateWithoutRepoUrlFromDirectory(string directory, string gitBinRoot)
         {
-            string pipeName = EnlistmentUtils.GetNamedPipeName(enlistmentRoot);
-            return "Global\\" + pipeName.Replace('\\', ':');
+            if (Directory.Exists(directory))
+            {
+                string enlistmentRoot = EnlistmentUtils.GetEnlistmentRoot(directory);
+                if (enlistmentRoot != null)
+                {
+                    return new GVFSEnlistment(enlistmentRoot, gitBinRoot);
+                }
+            }
+
+            return null;
         }
 
         public static GVFSEnlistment CreateFromDirectory(string directory, string cacheServerUrl, string gitBinRoot, string gvfsHooksRoot)
@@ -91,10 +107,10 @@ namespace GVFS.Common
             }
         }
 
-        public static string GetNewGVFSLogFileName(string gvfsLogsRoot, string logFileType)
+        public static string GetNewGVFSLogFileName(string logsRoot, string logFileType)
         {
             return Enlistment.GetNewLogFileName(
-                gvfsLogsRoot, 
+                logsRoot, 
                 "gvfs_" + logFileType);
         }
 
@@ -121,34 +137,30 @@ namespace GVFS.Common
             return true;
         }
 
-        public string GetMostRecentGVFSLogFileName(string logFileType)
+        public bool TryConfigureAlternate(out string errorMessage)
         {
-            DirectoryInfo logDirectory = new DirectoryInfo(this.GVFSLogsRoot);
-            if (!logDirectory.Exists)
+            try
             {
-                return null;
+                if (!Directory.Exists(this.GitObjectsRoot))
+                {
+                    Directory.CreateDirectory(this.GitObjectsRoot);
+                    Directory.CreateDirectory(this.GitPackRoot);
+                }
+
+                File.WriteAllText(
+                    Path.Combine(this.WorkingDirectoryRoot, GVFSConstants.DotGit.Objects.Info.Alternates),
+                    @"..\..\..\" + GVFSConstants.DotGVFS.GitObjectCachePath);
+            }
+            catch (IOException e)
+            {
+                errorMessage = e.Message;
+                return false;
             }
 
-            FileInfo[] files = logDirectory.GetFiles("gvfs_" + logFileType + "_*.log");
-            if (files.Length == 0)
-            {
-                return null;
-            }
-
-            return
-                files
-                .OrderByDescending(fileInfo => fileInfo.CreationTime)
-                .First()
-                .FullName;
+            errorMessage = null;
+            return true;
         }
-
-        private void SetComputedPaths()
-        {
-            this.NamedPipeName = EnlistmentUtils.GetNamedPipeName(this.EnlistmentRoot);
-            this.DotGVFSRoot = Path.Combine(this.EnlistmentRoot, GVFSConstants.DotGVFSPath);
-            this.GVFSLogsRoot = Path.Combine(this.DotGVFSRoot, GVFSConstants.GVFSLogFolderName);
-        }
-
+        
         /// <summary>
         /// Creates a hidden directory @ the given path.
         /// If directory already exists, hides it.

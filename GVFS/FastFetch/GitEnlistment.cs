@@ -8,7 +8,14 @@ namespace FastFetch
     public class GitEnlistment : Enlistment
     {
         private GitEnlistment(string repoRoot, string cacheBaseUrl, string gitBinPath)
-            : base(repoRoot, repoRoot, cacheBaseUrl, gitBinPath, gvfsHooksRoot: null)
+            : base(
+                  repoRoot, 
+                  repoRoot,
+                  Path.Combine(repoRoot, GVFSConstants.DotGit.Objects.Root),
+                  null,
+                  cacheBaseUrl, 
+                  gitBinPath, 
+                  gvfsHooksRoot: null)
         {
         }
 

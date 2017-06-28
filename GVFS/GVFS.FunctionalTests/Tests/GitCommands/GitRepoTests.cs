@@ -1,9 +1,11 @@
 ﻿using GVFS.FunctionalTests.FileSystemRunners;
 using GVFS.FunctionalTests.Should;
 using GVFS.FunctionalTests.Tools;
+using GVFS.Tests.Should;
 using NUnit.Framework;
 using NUnit.Framework.Interfaces;
 using System.IO;
+using System.Linq;
 
 namespace GVFS.FunctionalTests.Tests.GitCommands
 {
@@ -14,7 +16,6 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
         protected const string ConflictTargetBranch = "FunctionalTests/20170206_Conflict_Target";
         protected const string NoConflictSourceBranch = "FunctionalTests/20170209_NoConflict_Source";
 
-        private bool anyTestsFailed = false;
         private bool enlistmentPerTest;
 
         public GitRepoTests(bool enlistmentPerTest)
@@ -52,11 +53,6 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
         {
             if (!this.enlistmentPerTest)
             {
-                if (this.anyTestsFailed)
-                {
-                    TestResultsHelper.OutputGVFSLogs(this.Enlistment);
-                }
-
                 this.DeleteEnlistment();
             }
         }
@@ -87,15 +83,6 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
         {
             try
             {
-                if (TestContext.CurrentContext.Result.Outcome.Status == TestStatus.Failed)
-                {
-                    this.anyTestsFailed = true;
-                    if (this.enlistmentPerTest)
-                    {
-                        TestResultsHelper.OutputGVFSLogs(this.Enlistment);
-                    }
-                }
-
                 this.CheckHeadCommitTree();
                 this.Enlistment.RepoRoot.ShouldBeADirectory(this.FileSystem)
                     .WithDeepStructure(this.FileSystem, this.ControlGitRepo.RootPath, skipEmptyDirectories: true, ignoreCase: ignoreCase);
@@ -119,10 +106,15 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
 
         protected virtual void CreateEnlistment()
         {
+            this.CreateEnlistment(null);
+        }
+
+        protected void CreateEnlistment(string commitish = null)
+        {
             string pathToGvfs = Path.Combine(TestContext.CurrentContext.TestDirectory, Properties.Settings.Default.PathToGVFS);
-            this.Enlistment = GVFSFunctionalTestEnlistment.CloneAndMount(pathToGvfs);
+            this.Enlistment = GVFSFunctionalTestEnlistment.CloneAndMount(pathToGvfs, commitish);
             GitProcess.Invoke(this.Enlistment.RepoRoot, "config advice.statusUoption false");
-            this.ControlGitRepo = ControlGitRepo.Create();
+            this.ControlGitRepo = ControlGitRepo.Create(commitish);
             this.ControlGitRepo.Initialize();
         }
 
@@ -220,6 +212,15 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
             this.FileSystem.AppendAllText(controlFile, content);
         }
 
+        protected void SetFileAsReadOnly(string filePath)
+        {
+            string virtualFile = Path.Combine(this.Enlistment.RepoRoot, filePath);
+            string controlFile = Path.Combine(this.ControlGitRepo.RootPath, filePath);
+
+            File.SetAttributes(virtualFile, File.GetAttributes(virtualFile) | FileAttributes.ReadOnly);
+            File.SetAttributes(virtualFile, File.GetAttributes(controlFile) | FileAttributes.ReadOnly);
+        }
+
         protected void MoveFile(string pathFrom, string pathTo)
         {
             string virtualFileFrom = Path.Combine(this.Enlistment.RepoRoot, pathFrom);
@@ -272,6 +273,22 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
             string controlFolder = Path.Combine(this.ControlGitRepo.RootPath, folderPath);
             virtualFolder.ShouldBeADirectory(this.FileSystem);
             controlFolder.ShouldBeADirectory(this.FileSystem);
+        }
+
+        protected void FolderShouldExistAndHaveFile(string folderPath, string fileName)
+        {
+            string virtualFolder = Path.Combine(this.Enlistment.RepoRoot, folderPath);
+            string controlFolder = Path.Combine(this.ControlGitRepo.RootPath, folderPath);
+            virtualFolder.ShouldBeADirectory(this.FileSystem).WithItems(fileName).Count().ShouldEqual(1);
+            controlFolder.ShouldBeADirectory(this.FileSystem).WithItems(fileName).Count().ShouldEqual(1);
+        }
+
+        protected void FolderShouldExistAndBeEmpty(string folderPath)
+        {
+            string virtualFolder = Path.Combine(this.Enlistment.RepoRoot, folderPath);
+            string controlFolder = Path.Combine(this.ControlGitRepo.RootPath, folderPath);
+            virtualFolder.ShouldBeADirectory(this.FileSystem).WithNoItems();
+            controlFolder.ShouldBeADirectory(this.FileSystem).WithNoItems();
         }
 
         protected void ShouldNotExistOnDisk(string path)

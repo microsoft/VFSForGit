@@ -73,6 +73,7 @@
       <Private>True</Private>
     </Reference>
     <Reference Include="System" />
+    <Reference Include="System.ServiceProcess" />
   </ItemGroup>
   <Choose>
     <When Condition="('$(VisualStudioVersion)' == '10.0' or '$(VisualStudioVersion)' == '') and '$(TargetFrameworkVersion)' == 'v3.5'">
@@ -83,7 +84,7 @@
     <Otherwise />
   </Choose>
   <ItemGroup>
-    <Compile Include="Category\CategoryConstants.cs" />
+    <Compile Include="FileSystemRunners\Category\CategoryConstants.cs" />
     <Compile Include="Program.cs" />
     <Compile Include="Properties\Settings.Designer.cs">
       <AutoGen>True</AutoGen>
@@ -93,10 +94,12 @@
     <Compile Include="Tests\EnlistmentPerFixture\CloneTests.cs" />
     <Compile Include="Tests\EnlistmentPerFixture\DehydrateTests.cs" />
     <Compile Include="Tests\EnlistmentPerFixture\DiagnoseTests.cs" />
+    <Compile Include="Tests\EnlistmentPerTestCase\RepairTests.cs" />
     <Compile Include="Tests\EnlistmentPerFixture\UpdatePlaceholderTests.cs" />
     <Compile Include="Tests\EnlistmentPerTestCase\GVFSLockTests.cs" />
     <Compile Include="Tests\GitCommands\CheckoutTests.cs" />
     <Compile Include="Tests\GitCommands\CherryPickConflictTests.cs" />
+    <Compile Include="Tests\GitCommands\EnumerationMergeTest.cs" />
     <Compile Include="Tests\GitCommands\UpdateIndexTests.cs" />
     <Compile Include="Tests\GitCommands\MergeConflictTests.cs" />
     <Compile Include="Tests\GitCommands\RebaseConflictTests.cs" />
@@ -106,7 +109,7 @@
     <Compile Include="Tests\EnlistmentPerFixture\MountTests.cs" />
     <Compile Include="Tests\EnlistmentPerFixture\GitFilesTests.cs" />
     <Compile Include="Tests\GitCommands\RebaseTests.cs" />
-    <Compile Include="Tests\EnlistmentPerTestCase\PrefetchVerbTests.cs" />
+    <Compile Include="Tests\EnlistmentPerFixture\PrefetchVerbTests.cs" />
     <Compile Include="Tests\EnlistmentPerTestCase\CaseOnlyFolderRenameTests.cs" />
     <Compile Include="Tests\EnlistmentPerFixture\MoveRenameFileTests.cs" />
     <Compile Include="Tests\EnlistmentPerFixture\MoveRenameFileTests_2.cs" />
@@ -136,6 +139,7 @@
     <Compile Include="Tools\GitProcess.cs" />
     <Compile Include="Tools\GVFSFunctionalTestEnlistment.cs" />
     <Compile Include="Tools\GVFSHelpers.cs" />
+    <Compile Include="Tools\GVFSServiceProcess.cs" />
     <Compile Include="Tools\NativeMethods.cs" />
     <Compile Include="Tools\ProcessHelper.cs" />
     <Compile Include="Tools\ProcessResult.cs" />
@@ -199,8 +203,10 @@
   <Import Project="..\..\..\packages\StyleCop.Error.MSBuild.1.0.0\build\StyleCop.Error.MSBuild.Targets" Condition="Exists('..\..\..\packages\StyleCop.Error.MSBuild.1.0.0\build\StyleCop.Error.MSBuild.Targets')" />
   <PropertyGroup>
     <PostBuildEvent>xcopy /Y $(SolutionDir)..\BuildOutput\GVFS\bin\$(Platform)\$(Configuration)\* $(TargetDir)
+xcopy /Y $(SolutionDir)..\BuildOutput\GVFS.Service\bin\$(Platform)\$(Configuration)\* $(TargetDir)
 xcopy /Y $(SolutionDir)..\BuildOutput\GVFS.Mount\bin\$(Platform)\$(Configuration)\* $(TargetDir)
 xcopy /Y $(SolutionDir)..\BuildOutput\FastFetch\bin\$(Platform)\$(Configuration)\* $(TargetDir)
+xcopy /Y $(SolutionDir)..\BuildOutput\GVFS.NativeTests\bin\$(Platform)\$(Configuration)\* $(TargetDir)
 xcopy /Y $(SolutionDir)..\BuildOutput\GVFS.Hooks\bin\$(Platform)\$(Configuration)\* $(TargetDir)</PostBuildEvent>
   </PropertyGroup>
   <PropertyGroup>

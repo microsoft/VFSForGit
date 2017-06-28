@@ -293,8 +293,6 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
                 checkoutResult.Errors.ShouldContain(
 @"HEAD is now at " + OldCommitId + @"... Add test files for update UpdatePlaceholder tests
 
-Waiting for GVFS to parse index and update placeholder files...Completed with errors.
-
 GVFS was unable to delete the following files. To recover, close all handles to the files and run these commands:
     git clean -f Test_EPF_UpdatePlaceholderTests/LockToPreventUpdateAndDelete/test_delete.txt
     git clean -f Test_EPF_UpdatePlaceholderTests/LockToPreventUpdateAndDelete/test_delete2.txt
@@ -375,8 +373,6 @@ GVFS was unable to update the following files. To recover, close all handles to 
                 ProcessResult checkoutResult = GitProcess.InvokeProcess(this.Enlistment.RepoRoot, "checkout " + OldCommitId);
                 checkoutResult.Errors.ShouldContain(
 @"HEAD is now at " + OldCommitId + @"... Add test files for update UpdatePlaceholder tests
-
-Waiting for GVFS to parse index and update placeholder files...Completed with errors.
 
 GVFS was unable to update the following files. To recover, close all handles to the files and run these commands:
     git checkout -- Test_EPF_UpdatePlaceholderTests/LockToPreventUpdateAndDelete/test4.txt");

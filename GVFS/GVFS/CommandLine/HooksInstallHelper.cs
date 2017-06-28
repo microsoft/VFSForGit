@@ -5,6 +5,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Reflection;
+using System.Threading;
 
 namespace GVFS.CommandLine
 {
@@ -22,18 +23,23 @@ namespace GVFS.CommandLine
             try
             {
                 string installedReadObjectHookPath = Path.Combine(Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location), GVFSConstants.GVFSReadObjectHookExecutableName);
-                TryActionAndThrow(() => CopyReadObjectHook(enlistment, installedReadObjectHookPath), "Failed to copy" + installedReadObjectHookPath);
+                if (!TryAction(() => CopyReadObjectHook(enlistment, installedReadObjectHookPath), out error))
+                {
+                    error = "Failed to copy " + installedReadObjectHookPath + "\n" + error;
+                    return false;
+                }
 
                 string precommandHookPath = Path.Combine(enlistment.WorkingDirectoryRoot, GVFSConstants.DotGit.Hooks.PreCommandPath);
-                InstallGitCommandHooks(enlistment, GVFSConstants.DotGit.Hooks.PreCommandHookName, precommandHookPath);
+                if (!TryInstallGitCommandHooks(enlistment, GVFSConstants.DotGit.Hooks.PreCommandHookName, precommandHookPath, out error))
+                {
+                    return false;
+                }
 
                 string postcommandHookPath = Path.Combine(enlistment.WorkingDirectoryRoot, GVFSConstants.DotGit.Hooks.PostCommandPath);
-                InstallGitCommandHooks(enlistment, GVFSConstants.DotGit.Hooks.PostCommandHookName, postcommandHookPath);
-            }
-            catch (HooksConfigurationException he)
-            {
-                error = he.Message;
-                return false;
+                if (!TryInstallGitCommandHooks(enlistment, GVFSConstants.DotGit.Hooks.PostCommandHookName, postcommandHookPath, out error))
+                {
+                    return false;
+                }
             }
             catch (Exception e)
             {
@@ -74,63 +80,92 @@ namespace GVFS.CommandLine
         private static void CopyReadObjectHook(GVFSEnlistment enlistment, string installedReadObjectHookPath)
         {
             string targetPath = Path.Combine(enlistment.WorkingDirectoryRoot, GVFSConstants.DotGit.Hooks.ReadObjectPath + GVFSConstants.ExecutableExtension);
-            if (File.Exists(targetPath))
-            {
-                File.Delete(targetPath);
-            }
 
-            File.Copy(
-                installedReadObjectHookPath,
-                targetPath);
+            try
+            {
+                if (File.Exists(targetPath))
+                {
+                    File.Delete(targetPath);
+                }
+
+                File.Copy(
+                    installedReadObjectHookPath,
+                    targetPath);
+            }
+            catch (IOException io)
+            {
+                throw new RetryableException("Error installing ReadObject hook to " + targetPath, io);
+            }
         }
 
-        private static void InstallGitCommandHooks(GVFSEnlistment enlistment, string hookName, string commandHookPath)
+        private static bool TryInstallGitCommandHooks(GVFSEnlistment enlistment, string hookName, string commandHookPath, out string errorMessage)
         {
             // The GitHooksLoader requires the following setup to invoke a hook:
             //      Copy GithooksLoader.exe to hook-name.exe
             //      Create a text file named hook-name.hooks that lists the applications to execute for the hook, one application per line
 
             string gitHooksloaderPath = Path.Combine(Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location), GVFSConstants.DotGit.Hooks.LoaderExecutable);
-            TryActionAndThrow(
-                () => CopyGitHooksLoader(gitHooksloaderPath, commandHookPath),
-                "Failed to copy " + GVFSConstants.DotGit.Hooks.LoaderExecutable + " to " + commandHookPath + GVFSConstants.ExecutableExtension);
+            if (!TryAction(() => CopyGitHooksLoader(gitHooksloaderPath, commandHookPath), out errorMessage))
+            {
+                errorMessage = "Failed to copy " + GVFSConstants.DotGit.Hooks.LoaderExecutable + " to " + commandHookPath + GVFSConstants.ExecutableExtension + "\n" + errorMessage;
+                return false;
+            }
 
-            TryActionAndThrow(
-                () => CreateHookCommandConfig(enlistment, hookName, commandHookPath),
-                "Failed to create " + commandHookPath + GVFSConstants.DotGit.Hooks.ConfigExtension);
+            if (!TryAction(() => CreateHookCommandConfig(enlistment, hookName, commandHookPath), out errorMessage))
+            {
+                errorMessage = "Failed to create " + commandHookPath + GVFSConstants.DotGit.Hooks.ConfigExtension + "\n" + errorMessage;
+                return false;
+            }
+
+            return true;
         }
 
         private static void CopyGitHooksLoader(string gitHooksLoaderPath, string commandHookPath)
         {
             string targetPath = commandHookPath + GVFSConstants.ExecutableExtension;
-            if (File.Exists(targetPath))
-            {
-                File.Delete(targetPath);
-            }
 
-            File.Copy(
-                    gitHooksLoaderPath,
-                    targetPath);
+            try
+            {
+                if (File.Exists(targetPath))
+                {
+                    File.Delete(targetPath);
+                }
+
+                File.Copy(
+                        gitHooksLoaderPath,
+                        targetPath);
+            }
+            catch (IOException io)
+            {
+                throw new RetryableException("Error installing GitHooksLoader to " + targetPath, io);
+            }
         }
 
         private static void CreateHookCommandConfig(GVFSEnlistment enlistment, string hookName, string commandHookPath)
         {
             string targetPath = commandHookPath + GVFSConstants.DotGit.Hooks.ConfigExtension;
 
-            string configSetting = GVFSConstants.DotGit.Hooks.ConfigNamePrefix + hookName;
-            string mergedHooks = MergeHooks(enlistment, configSetting, hookName);
-
-            if (File.Exists(targetPath))
+            try
             {
-                File.Delete(targetPath);
-            }
+                string configSetting = GVFSConstants.DotGit.Hooks.ConfigNamePrefix + hookName;
+                string mergedHooks = MergeHooks(enlistment, configSetting, hookName);
 
-            File.WriteAllText(
-                targetPath,
-                string.Format(
-                    HooksConfigContentTemplate,
-                    configSetting,
-                    mergedHooks));
+                if (File.Exists(targetPath))
+                {
+                    File.Delete(targetPath);
+                }
+
+                File.WriteAllText(
+                    targetPath,
+                    string.Format(
+                        HooksConfigContentTemplate,
+                        configSetting,
+                        mergedHooks));
+            }
+            catch (IOException io)
+            {
+                throw new RetryableException("Error installing " + targetPath, io);
+            }
         }
 
         private static string MergeHooks(GVFSEnlistment enlistment, string configSettingName, string hookName)
@@ -148,19 +183,36 @@ namespace GVFS.CommandLine
             return MergeHooksData(defaultHooksLines, filename, hookName);
         }
 
-        private static void TryActionAndThrow(Action action, string errorMessage)
+        private static bool TryAction(Action action, out string errorMessage)
         {
-            try
+            int retriesLeft = 3;
+            int retryWaitMillis = 500; // Will grow exponentially on each retry attempt
+            errorMessage = null;
+
+            while (true)
             {
-                action();
-            }
-            catch (HooksConfigurationException)
-            {
-                throw;
-            }
-            catch (Exception e)
-            {
-                throw new Exception(errorMessage + ", Exception: " + e.ToString(), e);
+                try
+                {
+                    action();
+                    return true;
+                }
+                catch (RetryableException re)
+                {
+                    if (retriesLeft == 0)
+                    {
+                        errorMessage = re.InnerException.ToString();
+                        return false;
+                    }
+
+                    Thread.Sleep(retryWaitMillis);
+                    retriesLeft -= 1;
+                    retryWaitMillis *= 2;
+                }
+                catch (Exception e)
+                {
+                    errorMessage = e.ToString();
+                    return false;
+                }
             }
         }
 

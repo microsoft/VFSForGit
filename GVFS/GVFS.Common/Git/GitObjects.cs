@@ -51,9 +51,11 @@ namespace GVFS.Common.Git
 
             using (ITracer activity = this.Tracer.StartActivity(nameof(this.TryDownloadPrefetchPacks), EventLevel.Informational, metadata))
             {
+                long requestId = HttpRequestor.GetNewRequestId();
                 RetryWrapper<GitObjectsHttpRequestor.GitObjectTaskResult>.InvocationResult result = this.GitObjectRequestor.TrySendProtocolRequest(
+                    requestId: requestId,
                     onSuccess: (tryCount, response) => this.DeserializePrefetchPacks(response, ref latestTimestamp),
-                    onFailure: RetryWrapper<GitObjectsHttpRequestor.GitObjectTaskResult>.StandardErrorHandler(activity, nameof(this.TryDownloadPrefetchPacks)),
+                    onFailure: RetryWrapper<GitObjectsHttpRequestor.GitObjectTaskResult>.StandardErrorHandler(activity, requestId, nameof(this.TryDownloadPrefetchPacks)),
                     method: HttpMethod.Get,
                     endPointGenerator: () => new Uri(
                         string.Format(
@@ -68,7 +70,7 @@ namespace GVFS.Common.Git
                     if (result.Result != null && result.Result.HttpStatusCodeResult == HttpStatusCode.NotFound)
                     {
                         EventMetadata warning = new EventMetadata();
-                        warning.Add("ErrorMessage", "The server does not support /gvfs/prefetch.");
+                        warning.Add("ErrorMessage", "The server does not support " + GVFSConstants.Endpoints.GVFSPrefetch);
                         warning.Add(nameof(this.Enlistment.PrefetchEndpointUrl), this.Enlistment.PrefetchEndpointUrl);
                         activity.RelatedEvent(EventLevel.Warning, "CommandNotSupported", warning);
                     }
@@ -87,9 +89,9 @@ namespace GVFS.Common.Git
             }
         }
 
-        public virtual string WriteLooseObject(string repoRoot, Stream responseStream, string sha, byte[] bufToCopyWith)
+        public virtual string WriteLooseObject(Stream responseStream, string sha, byte[] bufToCopyWith)
         {
-            LooseObjectToWrite toWrite = GetLooseObjectDestination(repoRoot, sha);
+            LooseObjectToWrite toWrite = this.GetLooseObjectDestination(sha);
 
             using (Stream fileStream = OpenTempLooseObjectStream(toWrite.TempFile, async: false))
             {
@@ -215,10 +217,9 @@ namespace GVFS.Common.Git
                 objectSha,
                 onSuccess: (tryCount, response) =>
                 {
-                    this.WriteLooseObject(this.Enlistment.WorkingDirectoryRoot, response.Stream, objectSha, bufToCopyWith);
+                    this.WriteLooseObject(response.Stream, objectSha, bufToCopyWith);
                     return new RetryWrapper<GitObjectsHttpRequestor.GitObjectTaskResult>.CallbackResult(new GitObjectsHttpRequestor.GitObjectTaskResult(true));
-                },
-                onFailure: this.HandleDownloadAndSaveObjectError);
+                });
 
             if (output.Succeeded && output.Result.Success)
             {
@@ -239,18 +240,6 @@ namespace GVFS.Common.Git
             return Path.Combine(packRoot, packName);
         }
 
-        private static LooseObjectToWrite GetLooseObjectDestination(string repoRoot, string sha)
-        {
-            string firstTwoDigits = sha.Substring(0, 2);
-            string remainingDigits = sha.Substring(2);
-            string twoLetterFolderName = Path.Combine(repoRoot, GVFSConstants.DotGit.Objects.Root, firstTwoDigits);
-            Directory.CreateDirectory(twoLetterFolderName);
-
-            return new LooseObjectToWrite(
-                tempFile: Path.Combine(twoLetterFolderName, Path.GetRandomFileName()),
-                actualFile: Path.Combine(twoLetterFolderName, remainingDigits));
-        }
-
         private static FileStream OpenTempLooseObjectStream(string path, bool async)
         {
             FileOptions options = FileOptions.SequentialScan;
@@ -266,6 +255,18 @@ namespace GVFS.Common.Git
                 FileShare.None,
                 bufferSize: 4096, // .NET Default
                 options: options);
+        }
+
+        private LooseObjectToWrite GetLooseObjectDestination(string sha)
+        {
+            string firstTwoDigits = sha.Substring(0, 2);
+            string remainingDigits = sha.Substring(2);
+            string twoLetterFolderName = Path.Combine(this.Enlistment.GitObjectsRoot, firstTwoDigits);
+            Directory.CreateDirectory(twoLetterFolderName);
+
+            return new LooseObjectToWrite(
+                tempFile: Path.Combine(twoLetterFolderName, Path.GetRandomFileName()),
+                actualFile: Path.Combine(twoLetterFolderName, remainingDigits));
         }
 
         private bool TryDownloadAndSaveObjects(IEnumerable<string> objectIds, int commitDepth, bool preferLooseObjects)
@@ -285,19 +286,6 @@ namespace GVFS.Common.Git
                 preferBatchedLooseObjects: preferLooseObjects);
 
             return output.Succeeded && output.Result.Success;
-        }
-
-        private void HandleDownloadAndSaveObjectError(RetryWrapper<GitObjectsHttpRequestor.GitObjectTaskResult>.ErrorEventArgs errorArgs)
-        {
-            // Silence logging 404's for object downloads. They are far more likely to be git checking for the
-            // previous existence of a new object than a truly missing object.
-            GitObjectsHttpException ex = errorArgs.Error as GitObjectsHttpException;
-            if (ex != null && ex.StatusCode == HttpStatusCode.NotFound)
-            {
-                return;
-            }
-
-            RetryWrapper<GitObjectsHttpRequestor.GitObjectTaskResult>.StandardErrorHandler(this.Tracer, nameof(this.TryDownloadAndSaveObject))(errorArgs);
         }
 
         /// <summary>
@@ -487,7 +475,7 @@ namespace GVFS.Common.Git
                 // To reduce allocations, reuse the same buffer when writing objects in this batch
                 byte[] bufToCopyWith = new byte[StreamUtil.DefaultCopyBufferSize];
 
-                this.WriteLooseObject(this.Enlistment.WorkingDirectoryRoot, responseData.Stream, objectShaList[0], bufToCopyWith);
+                this.WriteLooseObject(responseData.Stream, objectShaList[0], bufToCopyWith);
             }
             else if (responseData.ContentType == GitObjectContentType.BatchedLooseObjects)
             {
@@ -496,7 +484,7 @@ namespace GVFS.Common.Git
 
                 BatchedLooseObjectDeserializer deserializer = new BatchedLooseObjectDeserializer(
                     responseData.Stream,
-                    (stream, sha) => this.WriteLooseObject(this.Enlistment.WorkingDirectoryRoot, stream, sha, bufToCopyWith));
+                    (stream, sha) => this.WriteLooseObject(stream, sha, bufToCopyWith));
                 deserializer.ProcessObjects();
             }
             else

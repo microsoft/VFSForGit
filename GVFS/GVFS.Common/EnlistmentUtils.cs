@@ -24,7 +24,7 @@ namespace GVFS.Common
             {
                 if (dirInfo.Exists)
                 {
-                    DirectoryInfo[] dotGvfsDirs = dirInfo.GetDirectories(GVFSConstants.DotGVFSPath);
+                    DirectoryInfo[] dotGvfsDirs = dirInfo.GetDirectories(GVFSConstants.DotGVFS.Root);
 
                     if (dotGvfsDirs.Count() == 1)
                     {
@@ -36,11 +36,6 @@ namespace GVFS.Common
             }
 
             return null;
-        }
-
-        public static string GetNamedPipeName(string enlistmentRoot)
-        {
-            return string.Format("GVFS_{0}", enlistmentRoot).ToUpper().Replace(':', '_');
         }
     }
 }

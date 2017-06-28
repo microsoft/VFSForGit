@@ -16,7 +16,7 @@ namespace GVFS.UnitTests.Mock.Physical.Git
         private Dictionary<string, string> shaContents = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
 
         public MockHttpGitObjects(ITracer tracer, Enlistment enlistment)
-            : base(tracer, enlistment, 1)
+            : base(tracer, enlistment)
         {
         }
 
@@ -74,10 +74,9 @@ namespace GVFS.UnitTests.Mock.Physical.Git
 
         public override RetryWrapper<GitObjectTaskResult>.InvocationResult TryDownloadLooseObject(
             string objectId,
-            Func<int, GitEndPointResponseData, RetryWrapper<GitObjectTaskResult>.CallbackResult> onSuccess,
-            Action<RetryWrapper<GitObjectTaskResult>.ErrorEventArgs> onFailure)
+            Func<int, GitEndPointResponseData, RetryWrapper<GitObjectTaskResult>.CallbackResult> onSuccess)
         {
-            return this.GetSingleObject(objectId, onSuccess, onFailure);
+            return this.GetSingleObject(objectId, onSuccess, null);
         }
 
         private RetryWrapper<GitObjectTaskResult>.InvocationResult GetSingleObject(

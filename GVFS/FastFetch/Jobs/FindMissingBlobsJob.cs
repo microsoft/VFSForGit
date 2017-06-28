@@ -27,7 +27,6 @@ namespace FastFetch.Jobs
         private BlockingCollection<string> inputQueue;
 
         private ConcurrentHashSet<string> alreadyFoundBlobIds;
-        private ProcessPool<GitCatFileBatchCheckProcess> catFilePool;
 
         public FindMissingBlobsJob(
             int maxParallel,
@@ -44,11 +43,6 @@ namespace FastFetch.Jobs
             
             this.DownloadQueue = new BlockingCollection<string>();
             this.AvailableBlobs = availableBlobs;
-
-            this.catFilePool = new ProcessPool<GitCatFileBatchCheckProcess>(
-                tracer,
-                () => new GitCatFileBatchCheckProcess(this.tracer, this.enlistment),
-                maxParallel);
         }
 
         public BlockingCollection<string> DownloadQueue { get; }
@@ -57,11 +51,11 @@ namespace FastFetch.Jobs
         protected override void DoWork()
         {
             string blobId;
-            while (this.inputQueue.TryTake(out blobId, Timeout.Infinite))
+            using (LibGit2Repo repo = new LibGit2Repo(this.tracer, this.enlistment.WorkingDirectoryRoot))
             {
-                this.catFilePool.Invoke(catFileProcess =>
+                while (this.inputQueue.TryTake(out blobId, Timeout.Infinite))
                 {
-                    if (!catFileProcess.ObjectExists_CanTimeout(blobId))
+                    if (!repo.ObjectExists(blobId))
                     {
                         Interlocked.Increment(ref this.missingBlobCount);
                         this.DownloadQueue.Add(blobId);
@@ -71,14 +65,13 @@ namespace FastFetch.Jobs
                         Interlocked.Increment(ref this.availableBlobCount);
                         this.AvailableBlobs.Add(blobId);
                     }
-                });
+                }
             }
         }
 
         protected override void DoAfterWork()
         {
             this.DownloadQueue.CompleteAdding();
-            this.catFilePool.Dispose();
 
             EventMetadata metadata = new EventMetadata();
             metadata.Add("TotalMissingObjects", this.missingBlobCount);
