@@ -1,5 +1,5 @@
-﻿using GVFS.Common.Physical.FileSystem;
-using GVFS.Common.Physical.Git;
+﻿using GVFS.Common.FileSystem;
+using GVFS.Common.Git;
 using GVFS.Common.Tracing;
 using System;
 

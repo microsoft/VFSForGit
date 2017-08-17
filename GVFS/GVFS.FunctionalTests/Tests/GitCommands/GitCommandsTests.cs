@@ -270,8 +270,7 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
         [TestCase]
         public void AddFileAndCommitOnNewBranchSwitchDeleteFolderAndSwitchBack()
         {
-            // 663045 - Confirm that folder can be deleted after adding a file then changing
-            // branches
+            // 663045 - Confirm that folder can be deleted after adding a file then changing branches
             string newFileParentFolderPath = @"GVFS\GVFS\CommandLine";
             string newFilePath = newFileParentFolderPath + @"\testfile.txt";
             string newFileContents = "test contents";

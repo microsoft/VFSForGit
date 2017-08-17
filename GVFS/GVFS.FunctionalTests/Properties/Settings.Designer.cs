@@ -88,7 +88,7 @@ namespace GVFS.FunctionalTests.Properties {
         
         [global::System.Configuration.ApplicationScopedSettingAttribute()]
         [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
-        [global::System.Configuration.DefaultSettingValueAttribute("FunctionalTests/20170602")]
+        [global::System.Configuration.DefaultSettingValueAttribute("FunctionalTests/20170707")]
         public string Commitish {
             get {
                 return ((string)(this["Commitish"]));

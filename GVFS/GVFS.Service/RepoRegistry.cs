@@ -12,10 +12,10 @@ namespace GVFS.Service
 {
     public class RepoRegistry
     {
+        public const string RegistryName = "repo-registry";
         private const string EtwArea = nameof(RepoRegistry);
-        private const string RegistryName = "repo-registry";
         private const string RegistryTempName = "repo-registry.lock";
-        private const string RegistryVersionString = "1";
+        private const int RegistryVersion = 2;
 
         private string registryParentFolderPath;
         private ITracer tracer;
@@ -32,9 +32,21 @@ namespace GVFS.Service
             metadata.Add("Message", "RepoRegistry created");
             this.tracer.RelatedEvent(EventLevel.Informational, "RepoRegistry_Created", metadata);
         }
-        
-        public bool TryRegisterRepo(string repoRoot)
+
+        public void Upgrade()
         {
+            // Version 1 to Version 2, added OwnerSID
+            Dictionary<string, RepoRegistration> allRepos = this.ReadRegistry();
+            if (allRepos.Any())
+            {
+                this.WriteRegistry(allRepos);
+            }
+        }
+
+        public bool TryRegisterRepo(string repoRoot, string ownerSID, out string errorMessage)
+        {
+            errorMessage = null;
+
             try
             {
                 lock (this.repoLock)
@@ -46,12 +58,13 @@ namespace GVFS.Service
                         if (!repo.IsActive)
                         {
                             repo.IsActive = true;
-                            this.WriteRegistry(allRepos);                            
+                            repo.OwnerSID = ownerSID;
+                            this.WriteRegistry(allRepos);
                         }
                     }
                     else
                     {
-                        allRepos[repoRoot] = new RepoRegistration(repoRoot);
+                        allRepos[repoRoot] = new RepoRegistration(repoRoot, ownerSID);
                         this.WriteRegistry(allRepos);
                     }
                 }
@@ -61,7 +74,8 @@ namespace GVFS.Service
             }
             catch (Exception e)
             {
-                this.tracer.RelatedError("Error while registering repo {0}: {1}", repoRoot, e.ToString());
+                errorMessage = string.Format("Error while registering repo {0}: {1}", repoRoot, e.ToString());
+                this.tracer.RelatedError(errorMessage);
             }
 
             return false;
@@ -86,8 +100,10 @@ namespace GVFS.Service
             }
         }
 
-        public bool TryDeactivateRepo(string repoRoot)
+        public bool TryDeactivateRepo(string repoRoot, out string errorMessage)
         {
+            errorMessage = null;
+
             try
             {
                 lock (this.repoLock)
@@ -107,82 +123,51 @@ namespace GVFS.Service
                     }
                     else
                     {
-                        this.tracer.RelatedError("Attempted to deactivate non-existent repo at '{0}'", repoRoot);
+                        errorMessage = string.Format("Attempted to deactivate non-existent repo at '{0}'", repoRoot);
+                        this.tracer.RelatedError(errorMessage);
                     }
-                }                
+                }
             }
             catch (Exception e)
             {
-                this.tracer.RelatedError("Error while deactivating repo {0}: {1}", repoRoot, e.ToString());
+                errorMessage = string.Format("Error while deactivating repo {0}: {1}", repoRoot, e.ToString());
+                this.tracer.RelatedError(errorMessage);
             }
 
             return false;
         }
 
-        public void AutoMountRepos()
+        public void AutoMountRepos(int sessionId)
         {
-            List<string> activeRepos = this.GetAllActiveRepos();
-            if (activeRepos.Count == 0)
-            {
-                return;
-            }
-
             using (ITracer activity = this.tracer.StartActivity("AutoMount", EventLevel.Informational))
             {
-                this.SendNotification("GVFS AutoMount", "Attempting to mount {0} GVFS repo(s)", activeRepos.Count);
-
-                EventLevel verbosity = EventLevel.Informational;
-                if (!Enum.TryParse(MountParameters.DefaultVerbosity, out verbosity))
+                using (GVFSMountProcess process = new GVFSMountProcess(activity, sessionId))
                 {
-                    this.tracer.RelatedError("Unable to parse DefaultVerbosity'{0}'", MountParameters.DefaultVerbosity);
-                }
-
-                foreach (string repoRoot in activeRepos)
-                {
-                    GVFSMountProcess process = new GVFSMountProcess(activity, repoRoot);
-                    if (process.Mount(verbosity, Keywords.Any, false))
+                    List<RepoRegistration> activeRepos = this.GetActiveReposForUser(process.CurrentUser.Identity.User.Value);
+                    if (activeRepos.Count == 0)
                     {
-                        this.SendNotification("GVFS AutoMount", "The following GVFS repo is now mounted: \n{0}", repoRoot);
+                        return;
                     }
-                    else
+
+                    this.SendNotification(sessionId, "GVFS AutoMount", "Attempting to mount {0} GVFS repo(s)", activeRepos.Count);
+
+                    foreach (RepoRegistration repo in activeRepos)
                     {
-                        this.SendNotification("GVFS AutoMount", "The following GVFS repo failed to mount: \n{0}", repoRoot);
+                        // TODO #1043088: We need to respect the elevation level of the original mount
+                        if (process.Mount(repo.EnlistmentRoot))
+                        {
+                            this.SendNotification(sessionId, "GVFS AutoMount", "The following GVFS repo is now mounted: \n{0}", repo.EnlistmentRoot);
+                        }
+                        else
+                        {
+                            this.SendNotification(sessionId, "GVFS AutoMount", "The following GVFS repo failed to mount: \n{0}", repo.EnlistmentRoot);
+                        }
                     }
                 }
             }
         }
-        
-        private List<string> GetAllActiveRepos()
-        {
-            lock (this.repoLock)
-            {
-                try
-                {
-                    Dictionary<string, RepoRegistration> repos = this.ReadRegistry();
-                    return repos
-                        .Values
-                        .Where(repo => repo.IsActive)
-                        .Select(repo => repo.EnlistmentRoot)
-                        .ToList();
-                }
-                catch (Exception e)
-                {
-                    this.tracer.RelatedError("Unable to get list of active repos: {0}", e.ToString());
-                    return new List<string>();
-                }
-            }
-        }
 
-        private void SendNotification(string title, string format, params object[] args)
-        {
-            NamedPipeMessages.Notification.Request request = new NamedPipeMessages.Notification.Request();
-            request.Title = title;
-            request.Message = string.Format(format, args);
-
-            NotificationHandler.Instance.SendNotification(this.tracer, request);
-        }
-
-        private Dictionary<string, RepoRegistration> ReadRegistry()
+        public Dictionary<string, RepoRegistration> ReadRegistry()
         {
             Dictionary<string, RepoRegistration> allRepos = new Dictionary<string, RepoRegistration>(StringComparer.OrdinalIgnoreCase);
 
@@ -195,14 +180,16 @@ namespace GVFS.Service
                 using (StreamReader reader = new StreamReader(stream))
                 {
                     string versionString = reader.ReadLine();
-                    if (versionString != RegistryVersionString)
+                    int version;
+                    if (!int.TryParse(versionString, out version) ||
+                        version > RegistryVersion)
                     {
                         if (versionString != null)
                         {
                             EventMetadata metadata = new EventMetadata();
                             metadata.Add("Area", EtwArea);
                             metadata.Add("OnDiskVersion", versionString);
-                            metadata.Add("ExpectedVersion", RegistryVersionString);
+                            metadata.Add("ExpectedVersion", versionString);
                             metadata.Add("ErrorMessage", "ReadRegistry: Unsupported version");
                             this.tracer.RelatedError(metadata);
                         }
@@ -237,6 +224,36 @@ namespace GVFS.Service
             return allRepos;
         }
 
+        private List<RepoRegistration> GetActiveReposForUser(string ownerSID)
+        {
+            lock (this.repoLock)
+            {
+                try
+                {
+                    Dictionary<string, RepoRegistration> repos = this.ReadRegistry();
+                    return repos
+                        .Values
+                        .Where(repo => repo.IsActive)
+                        .Where(repo => string.Equals(repo.OwnerSID, ownerSID, StringComparison.InvariantCultureIgnoreCase))
+                        .ToList();
+                }
+                catch (Exception e)
+                {
+                    this.tracer.RelatedError("Unable to get list of active repos for user {0}: {1}", ownerSID, e.ToString());
+                    return new List<RepoRegistration>();
+                }
+            }
+        }
+
+        private void SendNotification(int sessionId, string title, string format, params object[] args)
+        {
+            NamedPipeMessages.Notification.Request request = new NamedPipeMessages.Notification.Request();
+            request.Title = title;
+            request.Message = string.Format(format, args);
+
+            NotificationHandler.Instance.SendNotification(this.tracer, sessionId, request);
+        }
+
         private void WriteRegistry(Dictionary<string, RepoRegistration> registry)
         {
             string tempFilePath = Path.Combine(this.registryParentFolderPath, RegistryTempName);
@@ -248,7 +265,7 @@ namespace GVFS.Service
             {
                 using (StreamWriter writer = new StreamWriter(stream))
                 {
-                    writer.WriteLine(RegistryVersionString);
+                    writer.WriteLine(RegistryVersion);
 
                     foreach (RepoRegistration repo in registry.Values)
                     {

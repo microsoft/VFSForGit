@@ -55,15 +55,18 @@ namespace FastFetch.Jobs
             {
                 while (this.inputQueue.TryTake(out blobId, Timeout.Infinite))
                 {
-                    if (!repo.ObjectExists(blobId))
+                    if (this.alreadyFoundBlobIds.Add(blobId))
                     {
-                        Interlocked.Increment(ref this.missingBlobCount);
-                        this.DownloadQueue.Add(blobId);
-                    }
-                    else
-                    {
-                        Interlocked.Increment(ref this.availableBlobCount);
-                        this.AvailableBlobs.Add(blobId);
+                        if (!repo.ObjectExists(blobId))
+                        {
+                            Interlocked.Increment(ref this.missingBlobCount);
+                            this.DownloadQueue.Add(blobId);
+                        }
+                        else
+                        {
+                            Interlocked.Increment(ref this.availableBlobCount);
+                            this.AvailableBlobs.Add(blobId);
+                        }
                     }
                 }
             }

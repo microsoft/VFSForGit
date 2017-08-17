@@ -1,4 +1,5 @@
 ﻿using GVFS.Common.Http;
+using GVFS.Common.NetworkStreams;
 using GVFS.Common.Tracing;
 using Microsoft.Diagnostics.Tracing;
 using System;
@@ -34,9 +35,9 @@ namespace GVFS.Common.Git
             Error
         }
 
-        public virtual bool TryDownloadAndSaveCommits(IEnumerable<string> commitShas, int commitDepth)
+        public virtual bool TryDownloadAndSaveCommit(string commitSha, int commitDepth)
         {
-            return this.TryDownloadAndSaveObjects(commitShas, commitDepth, preferLooseObjects: false);
+            return this.TryDownloadAndSaveObjects(new string[] { commitSha }, commitDepth, preferLooseObjects: false);
         }
 
         public bool TryDownloadAndSaveBlobs(IEnumerable<string> blobShas)
@@ -60,7 +61,7 @@ namespace GVFS.Common.Git
                     endPointGenerator: () => new Uri(
                         string.Format(
                             "{0}?lastPackTimestamp={1}",
-                            this.Enlistment.PrefetchEndpointUrl,
+                            this.GitObjectRequestor.CacheServer.PrefetchEndpointUrl,
                             latestTimestamp)),
                     requestBodyGenerator: () => null,
                     acceptType: new MediaTypeWithQualityHeaderValue(GVFSConstants.MediaTypes.PrefetchPackFilesAndIndexesMediaType));
@@ -71,7 +72,7 @@ namespace GVFS.Common.Git
                     {
                         EventMetadata warning = new EventMetadata();
                         warning.Add("ErrorMessage", "The server does not support " + GVFSConstants.Endpoints.GVFSPrefetch);
-                        warning.Add(nameof(this.Enlistment.PrefetchEndpointUrl), this.Enlistment.PrefetchEndpointUrl);
+                        warning.Add(nameof(this.GitObjectRequestor.CacheServer.PrefetchEndpointUrl), this.GitObjectRequestor.CacheServer.PrefetchEndpointUrl);
                         activity.RelatedEvent(EventLevel.Warning, "CommandNotSupported", warning);
                     }
                     else
@@ -80,7 +81,7 @@ namespace GVFS.Common.Git
                         error.Add("latestTimestamp", latestTimestamp);
                         error.Add("Exception", result.Error);
                         error.Add("ErrorMessage", "DownloadPrefetchPacks failed.");
-                        error.Add(nameof(this.Enlistment.PrefetchEndpointUrl), this.Enlistment.PrefetchEndpointUrl);
+                        error.Add(nameof(this.GitObjectRequestor.CacheServer.PrefetchEndpointUrl), this.GitObjectRequestor.CacheServer.PrefetchEndpointUrl);
                         activity.RelatedError(error);
                     }
                 }
@@ -203,7 +204,7 @@ namespace GVFS.Common.Git
             return Directory.GetFiles(this.Enlistment.GitPackRoot, prefixFilter + "*.pack");
         }
 
-        protected virtual DownloadAndSaveObjectResult TryDownloadAndSaveObject(string objectSha)
+        protected virtual DownloadAndSaveObjectResult TryDownloadAndSaveObject(string objectSha, int maxAttempts)
         {
             if (objectSha == GVFSConstants.AllZeroSha)
             {
@@ -215,6 +216,7 @@ namespace GVFS.Common.Git
 
             RetryWrapper<GitObjectsHttpRequestor.GitObjectTaskResult>.InvocationResult output = this.GitObjectRequestor.TryDownloadLooseObject(
                 objectSha,
+                maxAttempts,
                 onSuccess: (tryCount, response) =>
                 {
                     this.WriteLooseObject(response.Stream, objectSha, bufToCopyWith);

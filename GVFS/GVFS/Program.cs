@@ -2,6 +2,10 @@
 using GVFS.CommandLine;
 using System;
 
+// This is to keep the reference to GVFS.Mount
+// so that the exe will end up in the output directory of GVFS
+using GVFS.Mount;
+
 namespace GVFS
 {
     public class Program
@@ -14,6 +18,7 @@ namespace GVFS
                 typeof(CloneVerb),
 
                 // Verbs that require an existing enlistment
+                typeof(CacheServerVerb),
                 typeof(DehydrateVerb),
                 typeof(DiagnoseVerb),
                 typeof(LogVerb),
@@ -35,7 +40,25 @@ namespace GVFS
                         settings.HelpWriter = Console.Error;
                     })
                     .ParseArguments(args, verbTypes)
-                    .WithParsed<GVFSVerb>(verb => verb.Execute());
+                    .WithParsed<CloneVerb>(
+                        clone =>
+                        {
+                            // We handle the clone verb differently, because clone cares if the enlistment path
+                            // was not specified vs if it was specified to be the current directory
+                            clone.Execute();
+                        })
+                    .WithParsed<GVFSVerb>(
+                        verb =>
+                        {
+                            // For all other verbs, they don't care if the enlistment root is explicitly
+                            // specified or implied to be the current directory
+                            if (string.IsNullOrEmpty(verb.EnlistmentRootPath))
+                            {
+                                verb.EnlistmentRootPath = Environment.CurrentDirectory;
+                            }
+
+                            verb.Execute();
+                        });
             }
             catch (GVFSVerb.VerbAbortedException e)
             {

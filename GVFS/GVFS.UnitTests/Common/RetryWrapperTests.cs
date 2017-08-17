@@ -20,12 +20,12 @@ namespace GVFS.UnitTests.Common
             RetryWrapper<bool> dut = new RetryWrapper<bool>(ExpectedTries, exponentialBackoffBase: 0);
 
             int actualTries = 0;
-            RetryWrapper<bool>.InvocationResult output = dut.InvokeAsync(
+            RetryWrapper<bool>.InvocationResult output = dut.Invoke(
                 tryCount =>
                 {
                     actualTries++;
                     throw new IOException();
-                }).Result;
+                });
 
             output.Succeeded.ShouldEqual(false);
             actualTries.ShouldEqual(ExpectedTries);
@@ -39,10 +39,10 @@ namespace GVFS.UnitTests.Common
 
             RetryWrapper<bool> dut = new RetryWrapper<bool>(MaxTries, exponentialBackoffBase: 0);
 
-            Assert.Throws<AggregateException>(
+            Assert.Throws<Exception>(
                 () =>
                 {
-                    RetryWrapper<bool>.InvocationResult output = dut.InvokeAsync(tryCount => { throw new Exception(); }).Result;
+                    RetryWrapper<bool>.InvocationResult output = dut.Invoke(tryCount => { throw new Exception(); });
                 });
         }
 
@@ -58,11 +58,11 @@ namespace GVFS.UnitTests.Common
             int actualFailures = 0;
             dut.OnFailure += errorArgs => actualFailures++;
 
-            RetryWrapper<bool>.InvocationResult output = dut.InvokeAsync(
+            RetryWrapper<bool>.InvocationResult output = dut.Invoke(
                 tryCount =>
                 {
                     throw new IOException();
-                }).Result;
+                });
 
             output.Succeeded.ShouldEqual(false);
             actualFailures.ShouldEqual(ExpectedFailures);
@@ -81,12 +81,12 @@ namespace GVFS.UnitTests.Common
             dut.OnFailure += errorArgs => actualFailures++;
 
             int actualTries = 0;
-            RetryWrapper<bool>.InvocationResult output = dut.InvokeAsync(
+            RetryWrapper<bool>.InvocationResult output = dut.Invoke(
                 tryCount =>
                 {
                     actualTries++;
-                    return Task.Run(() => new RetryWrapper<bool>.CallbackResult(true));
-                }).Result;
+                    return new RetryWrapper<bool>.CallbackResult(true);
+                });
 
             output.Succeeded.ShouldEqual(true);
             output.Result.ShouldEqual(true);
@@ -107,12 +107,12 @@ namespace GVFS.UnitTests.Common
             dut.OnFailure += errorArgs => actualFailures++;
 
             int actualTries = 0;
-            RetryWrapper<bool>.InvocationResult output = dut.InvokeAsync(
+            RetryWrapper<bool>.InvocationResult output = dut.Invoke(
                 tryCount =>
                 {
                     actualTries++;
-                    return Task.Run(() => new RetryWrapper<bool>.CallbackResult(new Exception("Test"), false));
-                }).Result;
+                    return new RetryWrapper<bool>.CallbackResult(new Exception("Test"), false);
+                });
 
             output.Succeeded.ShouldEqual(false);
             output.Result.ShouldEqual(false);
@@ -133,12 +133,12 @@ namespace GVFS.UnitTests.Common
             dut.OnFailure += errorArgs => actualFailures++;
 
             int actualTries = 0;
-            RetryWrapper<bool>.InvocationResult output = dut.InvokeAsync(
+            RetryWrapper<bool>.InvocationResult output = dut.Invoke(
                 tryCount =>
                 {
                     actualTries++;
-                    return Task.Run(() => new RetryWrapper<bool>.CallbackResult(new Exception("Test"), true));
-                }).Result;
+                    return new RetryWrapper<bool>.CallbackResult(new Exception("Test"), true);
+                });
 
             output.Succeeded.ShouldEqual(false);
             output.Result.ShouldEqual(false);

@@ -16,13 +16,10 @@ namespace GVFS.Common.Http
 {
     public abstract class HttpRequestor : IDisposable
     {
-        public const int DefaultMaxRetries = 5;
-        private const int HttpTimeoutMinutes = 10;
-
         private static long requestCount = 0;
 
         private readonly ProductInfoHeaderValue userAgentHeader;
-        
+
         private HttpClient client;
         private GitAuthentication authentication;
 
@@ -31,16 +28,19 @@ namespace GVFS.Common.Http
             ServicePointManager.DefaultConnectionLimit = Environment.ProcessorCount;
         }
 
-        public HttpRequestor(ITracer tracer, GitAuthentication authentication)
+        public HttpRequestor(ITracer tracer, RetryConfig retryConfig, GitAuthentication authentication)
         {
-            this.client = new HttpClient();
-            this.client.Timeout = TimeSpan.FromMinutes(HttpTimeoutMinutes);
+            this.client = new HttpClient(new HttpClientHandler() { UseDefaultCredentials = true });
+            this.client.Timeout = retryConfig.Timeout;
+            this.RetryConfig = retryConfig;
             this.authentication = authentication;
 
             this.Tracer = tracer;
-            
+
             this.userAgentHeader = new ProductInfoHeaderValue(ProcessHelper.GetEntryClassName(), ProcessHelper.GetCurrentProcessVersion());
         }
+
+        public RetryConfig RetryConfig { get; }
 
         protected ITracer Tracer { get; }
         
@@ -72,12 +72,16 @@ namespace GVFS.Common.Http
                 return new GitEndPointResponseData(
                     HttpStatusCode.Unauthorized,
                     new GitObjectsHttpException(HttpStatusCode.Unauthorized, errorMessage),
-                    shouldRetry: false);
+                    shouldRetry: true);
             }
 
             HttpRequestMessage request = new HttpRequestMessage(httpMethod, requestUri);
             request.Headers.UserAgent.Add(this.userAgentHeader);
-            request.Headers.Authorization = new AuthenticationHeaderValue("Basic", authString);
+
+            if (!string.IsNullOrEmpty(authString))
+            {
+                request.Headers.Authorization = new AuthenticationHeaderValue("Basic", authString);
+            }
 
             if (acceptType != null)
             {
@@ -117,19 +121,14 @@ namespace GVFS.Common.Http
                     {
                         if (response.StatusCode == HttpStatusCode.Unauthorized)
                         {
-                            if (this.authentication.RevokeAndCheckCanRetry(authString))
+                            this.authentication.Revoke(authString);
+                            if (!this.authentication.IsBackingOff)
                             {
-                                return new GitEndPointResponseData(
-                                    response.StatusCode,
-                                    new GitObjectsHttpException(response.StatusCode, "Server returned error code 401 (Unauthorized). Your PAT may be expired."),
-                                    shouldRetry: true);
+                                errorMessage = "Server returned error code 401 (Unauthorized). Your PAT may be expired and we are asking for a new one.";
                             }
                             else
                             {
-                                return new GitEndPointResponseData(
-                                    response.StatusCode,
-                                    new GitObjectsHttpException(response.StatusCode, "Server returned error code 401 (Unauthorized) after successfully renewing your PAT. You may not have access to this repo"),
-                                    shouldRetry: false);
+                                errorMessage = "Server returned error code 401 (Unauthorized) after successfully renewing your PAT. You may not have access to this repo";
                             }
                         }
                         else
@@ -158,9 +157,10 @@ namespace GVFS.Common.Http
         
         private static bool ShouldRetry(HttpStatusCode statusCode)
         {
-            // Retry timeouts and 5xx errors
+            // Retry timeout, Unauthorized, and 5xx errors
             int statusInt = (int)statusCode;
             if (statusCode == HttpStatusCode.RequestTimeout ||
+                statusCode == HttpStatusCode.Unauthorized ||
                 (statusInt >= 500 && statusInt < 600))
             {
                 return true;

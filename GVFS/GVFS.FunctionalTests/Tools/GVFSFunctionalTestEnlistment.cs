@@ -180,6 +180,11 @@ namespace GVFS.FunctionalTests.Tools
             this.gvfsProcess.Unmount();
         }
 
+        public string CacheServer(string args)
+        {
+            return this.gvfsProcess.CacheServer(args);
+        }
+
         public void UnmountAndDeleteAll()
         {
             this.UnmountGVFS();

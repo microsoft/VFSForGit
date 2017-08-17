@@ -20,7 +20,7 @@ namespace GVFS.CommandLine.RepairJobs
         {
             get { return @".git\HEAD"; }
         }
-
+        
         public override IssueType HasIssue(List<string> messages)
         {
             if (TryParseHead(this.Enlistment, messages))
@@ -37,14 +37,10 @@ namespace GVFS.CommandLine.RepairJobs
         }
 
         /// <summary>
-        /// Fixes the deepest ref it can starting from HEAD using the reflog to find the last SHA.
-        /// 
-        /// eg. If HEAD points to master, but master is missing, it creates the master ref using the last reflog entry for master. 
-        /// eg. If HEAD is missing, it would creates HEAD using the last SHA in the HEAD reflog.
-        /// 
-        /// For a corrupted branch ref, this works to great effect. For a corrupted HEAD file, we detach HEAD as a side-effect.
+        /// Fixes the HEAD using the reflog to find the last SHA.
+        /// We detach HEAD as a side-effect of repair.
         /// </summary>
-        public override bool TryFixIssues(List<string> messages)
+        public override FixResult TryFixIssues(List<string> messages)
         {
             string error;
             RefLogEntry refLog;
@@ -52,7 +48,7 @@ namespace GVFS.CommandLine.RepairJobs
             {
                 this.Tracer.RelatedError(error);
                 messages.Add(error);
-                return false;
+                return FixResult.Failure;
             }
 
             try
@@ -65,7 +61,7 @@ namespace GVFS.CommandLine.RepairJobs
                 EventMetadata metadata = new EventMetadata();
                 metadata.Add("ErrorMessage", "Failed to write HEAD: " + ex.ToString());
                 this.Tracer.RelatedError(metadata);
-                return false;
+                return FixResult.Failure;
             }
 
             this.Tracer.RelatedEvent(
@@ -79,7 +75,7 @@ namespace GVFS.CommandLine.RepairJobs
             messages.Add("As a result of the repair, 'git status' will now complain that HEAD is detached");
             messages.Add("You can fix this by creating a branch using 'git checkout -b <branchName>'");
 
-            return true;
+            return FixResult.Success;
         }
 
         /// <summary>
@@ -138,7 +134,7 @@ namespace GVFS.CommandLine.RepairJobs
 
             const string MinimallyValidRef = "ref: refs/";
             if (refContents.StartsWith(MinimallyValidRef, StringComparison.OrdinalIgnoreCase) ||
-                GitHelper.IsValidFullSHA(refContents))
+                SHA1Util.IsValidShaFormat(refContents))
             {
                 return true;
             }

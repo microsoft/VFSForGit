@@ -63,7 +63,6 @@
     <Compile Include="Data\VisualData.cs" />
     <Compile Include="Program.cs" />
     <Compile Include="Data\ToastData.cs" />
-    <Compile Include="ToastHelper.cs" />
     <Compile Include="..\..\..\BuildOutput\CommonAssemblyVersion.cs">
       <Link>CommonAssemblyVersion.cs</Link>
     </Compile>

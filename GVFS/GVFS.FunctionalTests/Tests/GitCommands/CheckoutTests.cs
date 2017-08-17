@@ -207,7 +207,7 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
             this.ValidateGitCommand("checkout " + this.ControlGitRepo.Commitish);
             this.ShouldNotExistOnDisk(testFile);
 
-            this.ValidateGitCommand("checkout -b tests/functional/DeleteEmptyFolderPlaceholderAndCheckoutBranchThatHasFolder" + this.ControlGitRepo.Commitish);
+            this.ValidateGitCommand("checkout -b tests/functional/DeleteEmptyFolderPlaceholderAndCheckoutBranchThatDoesNotHaveFolder" + this.ControlGitRepo.Commitish);
 
             // Test_ConflictTests\AddedFiles will only be on disk in the GVFS enlistment, delete it there
             string virtualFolder = Path.Combine(this.Enlistment.RepoRoot, testFolder);
@@ -299,6 +299,25 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
             this.ValidateGitCommand("checkout -- DeleteFileWithNameAheadOfDotAndSwitchCommits/(a).txt");
             this.ValidateGitCommand("status");
             this.FileShouldHaveContents("DeleteFileWithNameAheadOfDotAndSwitchCommits\\(a).txt", originalContent);
+        }
+
+        [TestCase]
+        public void ResetMixedToCommitWithNewFileThenCheckoutNewBranchAndCheckoutCommitWithNewFile()
+        {
+            this.ControlGitRepo.Fetch(GitRepoTests.ConflictSourceBranch);
+
+            // Commit 170b13ce1990c53944403a70e93c257061598ae0 was prior to the additional of these 
+            // three files in commit f2546f8e9ce7d7b1e3a0835932f0d6a6145665b1:
+            //    Test_ConflictTests/AddedFiles/AddedByBothDifferentContent.txt
+            //    Test_ConflictTests/AddedFiles/AddedByBothSameContent.txt
+            //    Test_ConflictTests/AddedFiles/AddedBySource.txt            
+            this.ValidateGitCommand("checkout 170b13ce1990c53944403a70e93c257061598ae0");
+            this.ValidateGitCommand("reset --mixed f2546f8e9ce7d7b1e3a0835932f0d6a6145665b1");
+
+            // Use RunGitCommand rather than ValidateGitCommand as G4W optimizations for "checkout -b" mean that the
+            // command will not report modified and deleted files
+            this.RunGitCommand("checkout -b tests/functional/ResetMixedToCommitWithNewFileThenCheckoutNewBranchAndCheckoutCommitWithNewFile");
+            this.ValidateGitCommand("checkout f2546f8e9ce7d7b1e3a0835932f0d6a6145665b1");
         }
     }
 }

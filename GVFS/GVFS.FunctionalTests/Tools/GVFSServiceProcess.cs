@@ -1,7 +1,9 @@
 ﻿using GVFS.Tests.Should;
 using System;
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
+using System.Linq;
 using System.ServiceProcess;
 using System.Threading;
 
@@ -46,14 +48,15 @@ namespace GVFS.FunctionalTests.Tools
         {
             try
             {
-                using (ServiceController controller = new ServiceController(TestServiceName))
+                ServiceController testService = ServiceController.GetServices().SingleOrDefault(service => service.ServiceName == TestServiceName);
+                if (testService != null)
                 {
-                    if (controller.Status == ServiceControllerStatus.Running)
+                    if (testService.Status == ServiceControllerStatus.Running)
                     {
-                        controller.Stop();
+                        testService.Stop();
                     }
 
-                    controller.WaitForStatus(ServiceControllerStatus.Stopped);
+                    testService.WaitForStatus(ServiceControllerStatus.Stopped);
                 }
             }
             catch (InvalidOperationException)

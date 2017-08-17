@@ -1,6 +1,7 @@
 ﻿using CommandLine;
 using GVFS.Common;
 using GVFS.Common.Git;
+using GVFS.Common.Http;
 using GVFS.Common.Tracing;
 using Microsoft.Diagnostics.Tracing;
 using System;
@@ -11,8 +12,6 @@ namespace GVFS.Mount
     [Verb("mount", HelpText = "Starts the background mount process")]
     public class InProcessMountVerb 
     {
-        public const string MountExeName = "GVFS.Mount.exe";
-
         private TextWriter output;
         
         public InProcessMountVerb()
@@ -27,23 +26,23 @@ namespace GVFS.Mount
 
         [Option(
             'v',
-            MountParameters.Verbosity,
-            Default = MountParameters.DefaultVerbosity,
+            GVFSConstants.VerbParameters.Mount.Verbosity,
+            Default = GVFSConstants.VerbParameters.Mount.DefaultVerbosity,
             Required = false,
             HelpText = "Sets the verbosity of console logging. Accepts: Verbose, Informational, Warning, Error")]
         public string Verbosity { get; set; }
 
         [Option(
             'k',
-            MountParameters.Keywords,
-            Default = MountParameters.DefaultKeywords,
+            GVFSConstants.VerbParameters.Mount.Keywords,
+            Default = GVFSConstants.VerbParameters.Mount.DefaultKeywords,
             Required = false,
             HelpText = "A CSV list of logging filter keywords. Accepts: Any, Network")]
         public string KeywordsCsv { get; set; }
 
         [Option(
             'd',
-            MountParameters.DebugWindow,
+            GVFSConstants.VerbParameters.Mount.DebugWindow,
             Default = false,
             Required = false,
             HelpText = "Show the debug window.  By default, all output is written to a log file and no debug window is shown.")]
@@ -51,16 +50,15 @@ namespace GVFS.Mount
 
         [Value(
                 0,
-                Required = false,
-                Default = "",
+                Required = true,
                 MetaName = "Enlistment Root Path",
                 HelpText = "Full or relative path to the GVFS enlistment root")]
         public string EnlistmentRootPath { get; set; }
         
         public void InitializeDefaultParameterValues()
         {
-            this.Verbosity = MountParameters.DefaultVerbosity;
-            this.KeywordsCsv = MountParameters.DefaultKeywords;
+            this.Verbosity = GVFSConstants.VerbParameters.Mount.DefaultVerbosity;
+            this.KeywordsCsv = GVFSConstants.VerbParameters.Mount.DefaultKeywords;
         }
 
         public void Execute()
@@ -70,9 +68,28 @@ namespace GVFS.Mount
             EventLevel verbosity;
             Keywords keywords;
             this.ParseEnumArgs(out verbosity, out keywords);
+            
+            JsonEtwTracer tracer = this.CreateTracer(enlistment, verbosity, keywords);
 
-            ITracer tracer = this.CreateTracer(enlistment, verbosity, keywords);
-            InProcessMount mountHelper = new InProcessMount(tracer, enlistment, this.ShowDebugWindow);
+            RetryConfig retryConfig;
+            string error;
+            if (!RetryConfig.TryLoadFromGitConfig(tracer, enlistment, out retryConfig, out error))
+            {
+                this.ReportErrorAndExit("Failed to determine GVFS timeout and max retries: " + error);
+            }
+
+            CacheServerInfo cacheServer;
+            if (!CacheServerInfo.TryDetermineCacheServer(null, tracer, enlistment, retryConfig, out cacheServer, out error))
+            {
+                this.ReportErrorAndExit(error);
+            }
+
+            tracer.WriteStartEvent(
+                enlistment.EnlistmentRoot,
+                enlistment.RepoUrl,
+                cacheServer.Url);
+            
+            InProcessMount mountHelper = new InProcessMount(tracer, enlistment, cacheServer, retryConfig, this.ShowDebugWindow);
 
             try
             {
@@ -85,7 +102,7 @@ namespace GVFS.Mount
             }
         }
 
-        private ITracer CreateTracer(GVFSEnlistment enlistment, EventLevel verbosity, Keywords keywords)
+        private JsonEtwTracer CreateTracer(GVFSEnlistment enlistment, EventLevel verbosity, Keywords keywords)
         {
             JsonEtwTracer tracer = new JsonEtwTracer(GVFSConstants.GVFSEtwProviderName, "GVFSMount");
             tracer.AddLogFileEventListener(
@@ -97,10 +114,6 @@ namespace GVFS.Mount
                 tracer.AddDiagnosticConsoleEventListener(verbosity, keywords);
             }
 
-            tracer.WriteStartEvent(
-                enlistment.EnlistmentRoot,
-                enlistment.RepoUrl,
-                enlistment.CacheServerUrl);
             return tracer;
         }
 
@@ -125,15 +138,10 @@ namespace GVFS.Mount
                 this.ReportErrorAndExit("Error: " + GVFSConstants.GitIsNotInstalledError);
             }
 
-            if (string.IsNullOrWhiteSpace(enlistmentRootPath))
-            {
-                enlistmentRootPath = Environment.CurrentDirectory;
-            }
-
             GVFSEnlistment enlistment = null;
             try
             {
-                enlistment = GVFSEnlistment.CreateFromDirectory(enlistmentRootPath, null, gitBinPath, ProcessHelper.GetCurrentProcessLocation());
+                enlistment = GVFSEnlistment.CreateFromDirectory(enlistmentRootPath, gitBinPath, ProcessHelper.GetCurrentProcessLocation());
                 if (enlistment == null)
                 {
                     this.ReportErrorAndExit(

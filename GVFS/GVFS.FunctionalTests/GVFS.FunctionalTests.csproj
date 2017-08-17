@@ -91,9 +91,11 @@
       <DesignTimeSharedInput>True</DesignTimeSharedInput>
       <DependentUpon>Settings.settings</DependentUpon>
     </Compile>
+    <Compile Include="Tests\EnlistmentPerFixture\CacheServerTests.cs" />
     <Compile Include="Tests\EnlistmentPerFixture\CloneTests.cs" />
     <Compile Include="Tests\EnlistmentPerFixture\DehydrateTests.cs" />
     <Compile Include="Tests\EnlistmentPerFixture\DiagnoseTests.cs" />
+    <Compile Include="Tests\EnlistmentPerFixture\UnmountTests.cs" />
     <Compile Include="Tests\EnlistmentPerTestCase\RepairTests.cs" />
     <Compile Include="Tests\EnlistmentPerFixture\UpdatePlaceholderTests.cs" />
     <Compile Include="Tests\EnlistmentPerTestCase\GVFSLockTests.cs" />

@@ -3,7 +3,7 @@ using FastFetch.Jobs.Data;
 using GVFS.Common.Tracing;
 using GVFS.Tests.Should;
 using GVFS.UnitTests.Mock.Common;
-using GVFS.UnitTests.Mock.Physical.Git;
+using GVFS.UnitTests.Mock.Git;
 using NUnit.Framework;
 using System.Collections.Concurrent;
 

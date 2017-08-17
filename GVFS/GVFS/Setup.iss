@@ -10,6 +10,7 @@
 #define MyAppURL "https://github.com/Microsoft/gvfs"
 #define MyAppExeName "GVFS.exe"
 #define EnvironmentKey "SYSTEM\CurrentControlSet\Control\Session Manager\Environment"
+#define GvFltParametersKey "SYSTEM\CurrentControlSet\Services\Gvflt\Parameters"
 
 #define GVFltRelative "..\..\..\..\..\packages\" + GvFltPackage + "\filter" 
 #define GVFSCommonRelative "..\..\..\..\GVFS.Common\bin"
@@ -19,9 +20,6 @@
 #define ServiceUIRelative "..\..\..\..\GVFS.Service.UI\bin"
 #define GVFSMountRelative "..\..\..\..\GVFS.Mount\bin"
 #define ReadObjectRelative "..\..\..\..\GVFS.ReadObjectHook\bin"
-
-; Do not use built in InnoSetup constants for .Net location. They do not point to the 64-bit framework
-#define InstallUtil "{win}\Microsoft.NET\Framework64\v4.0.30319\installutil.exe"
 
 [Setup]
 AppId={{489CA581-F131-4C28-BE04-4FB178933E6D}
@@ -94,7 +92,6 @@ DestDir: "{app}"; Flags: ignoreversion; Source:"Esent.Isam.pdb"
 DestDir: "{app}"; Flags: ignoreversion; Source:"FastFetch.pdb"
 DestDir: "{app}"; Flags: ignoreversion; Source:"GVFS.Common.pdb"
 DestDir: "{app}"; Flags: ignoreversion; Source:"GVFS.GVFlt.pdb"
-DestDir: "{app}"; Flags: ignoreversion; Source:"GVFS.GvFltWrapper.pdb"
 DestDir: "{app}"; Flags: ignoreversion; Source:"GVFS.pdb"
 
 ; GVFS.Service.UI Files
@@ -112,7 +109,7 @@ DestDir: "{app}"; Flags: ignoreversion; Source:"Esent.Interop.dll"
 DestDir: "{app}"; Flags: ignoreversion; Source:"Esent.Isam.dll"
 DestDir: "{app}"; Flags: ignoreversion; Source:"GVFS.Common.dll"
 DestDir: "{app}"; Flags: ignoreversion; Source:"GVFS.GVFlt.dll"
-DestDir: "{app}"; Flags: ignoreversion; Source:"GVFS.GvFltWrapper.dll"
+DestDir: "{app}"; Flags: ignoreversion; Source:"GvFlt.dll"
 DestDir: "{app}"; Flags: ignoreversion; Source:"GvLib.dll"
 DestDir: "{app}"; Flags: ignoreversion; Source:"Microsoft.Diagnostics.Tracing.EventSource.dll"
 DestDir: "{app}"; Flags: ignoreversion; Source:"Newtonsoft.Json.dll"
@@ -212,7 +209,7 @@ begin
       try
         StopGVFSService();
 
-        if not Exec(ExpandConstant('{#InstallUtil}'), '/u ' + ExpandConstant('"{app}\GVFS.Service.exe"'), '', SW_HIDE, ewWaitUntilTerminated, ResultCode) or (ResultCode <> 0) then
+        if not Exec(ExpandConstant('SC.EXE'), 'delete GVFS.Service', '', SW_HIDE, ewWaitUntilTerminated, ResultCode) or (ResultCode <> 0) then
           begin
             RaiseException('Fatal: Could not uninstall existing GVFS.Service.');
           end;
@@ -245,7 +242,7 @@ begin
   WizardForm.ProgressGauge.Style := npbstMarquee;
   
   try
-    if Exec(ExpandConstant('{#InstallUtil}'), ExpandConstant('"{app}\GVFS.Service.exe"'), '', SW_HIDE, ewWaitUntilTerminated, ResultCode) and (ResultCode = 0) then
+    if Exec(ExpandConstant('SC.EXE'), ExpandConstant('create GVFS.Service binPath="{app}\GVFS.Service.exe" start=auto'), '', SW_HIDE, ewWaitUntilTerminated, ResultCode) and (ResultCode = 0) then
       begin
         if Exec(ExpandConstant('SC.EXE'), 'failure GVFS.Service reset= 30 actions= restart/10/restart/5000//1', '', SW_HIDE, ewWaitUntilTerminated, ResultCode) then
           begin
@@ -283,9 +280,12 @@ begin
     Exec(ExpandConstant('SC.EXE'), 'stop gvflt', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
 
     // Note: Programatic install of INF notifies user if the driver being upgraded to is older than the existing, otherwise it works silently... doesn't seem like there is a way to block
-    if Exec(ExpandConstant('RUNDLL32.EXE'), ExpandConstant('SETUPAPI.DLL,InstallHinfSection DefaultInstall 132 {app}\Filter\gvflt.inf'), '', SW_HIDE, ewWaitUntilTerminated, ResultCode) then
+    if Exec(ExpandConstant('RUNDLL32.EXE'), ExpandConstant('SETUPAPI.DLL,InstallHinfSection DefaultInstall 128 {app}\Filter\gvflt.inf'), '', SW_HIDE, ewWaitUntilTerminated, ResultCode) then
       begin
-        InstallSuccessful := True;
+        if RegWriteDWordValue(HKEY_LOCAL_MACHINE, '{#GvFltParametersKey}', 'CommandTimeoutInMs', 86400000) then
+          begin
+            InstallSuccessful := True;
+          end;
       end;
   finally
     WizardForm.StatusLabel.Caption := StatusText;
@@ -383,4 +383,6 @@ begin
     begin
       Abort();
     end;
+
+  StopGVFSService();
 end;

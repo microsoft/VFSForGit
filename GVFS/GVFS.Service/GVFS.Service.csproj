@@ -87,13 +87,11 @@
     <Compile Include="GVFSService.cs">
       <SubType>Component</SubType>
     </Compile>
-    <Compile Include="GVFSServiceInstaller.cs">
-      <SubType>Component</SubType>
-    </Compile>
+    <Compile Include="Handlers\AttachGvFltHandler.cs" />
     <Compile Include="Handlers\NotificationHandler.cs" />
-    <Compile Include="Handlers\UnmountHandler.cs" />
-    <Compile Include="Handlers\MountHandler.cs" />
-    <Compile Include="ProcessAsCurrentUser.cs" />
+    <Compile Include="Handlers\UnregisterRepoHandler.cs" />
+    <Compile Include="Handlers\RegisterRepoHandler.cs" />
+    <Compile Include="CurrentUser.cs" />
     <Compile Include="Program.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="RepoRegistry.cs" />
@@ -128,4 +126,8 @@
   </Target>
   <Import Project="..\..\..\packages\StyleCop.Error.MSBuild.1.0.0\build\StyleCop.Error.MSBuild.Targets" Condition="Exists('..\..\..\packages\StyleCop.Error.MSBuild.1.0.0\build\StyleCop.Error.MSBuild.Targets')" />
   <Import Project="..\..\..\packages\StyleCop.MSBuild.4.7.54.0\build\StyleCop.MSBuild.Targets" Condition="Exists('..\..\..\packages\StyleCop.MSBuild.4.7.54.0\build\StyleCop.MSBuild.Targets')" />
+  <PropertyGroup>
+    <PostBuildEvent>xcopy /Y $(SolutionDir)..\BuildOutput\GVFS.ReadObjectHook\bin\$(Platform)\$(Configuration)\GVFS.ReadObjectHook.* $(TargetDir)
+xcopy /Y $(SolutionDir)..\BuildOutput\GVFS.Hooks\bin\$(Platform)\$(Configuration)\GVFS.Hooks.* $(TargetDir)</PostBuildEvent>
+  </PropertyGroup>
 </Project>

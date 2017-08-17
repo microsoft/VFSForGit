@@ -1,24 +1,25 @@
 #pragma once
-#include "StatusCode.h"
 
-namespace GVFSGvFltWrapper
+#include "NtStatus.h"
+
+namespace GvFlt
 {
     [System::Serializable()]
     public ref class GvFltException : System::Exception
     {
     public:
         GvFltException(System::String^ errorMessage);
-        GvFltException(StatusCode errorCode);
-        GvFltException(System::String^ errorMessage, StatusCode errorCode);
+        GvFltException(NtStatus errorCode);
+        GvFltException(System::String^ errorMessage, NtStatus errorCode);
 
         virtual System::String^ ToString() override;
 
-        virtual property StatusCode ErrorCode
+        virtual property NtStatus ErrorCode
         {
-            StatusCode get(void);
+            NtStatus get(void);
         };
 
     private:
-        StatusCode errorCode;
+        NtStatus errorCode;
     };
 }

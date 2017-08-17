@@ -21,18 +21,17 @@ namespace GVFS.Service.Handlers
             get { return instance; }
         }
 
-        public void SendNotification(ITracer tracer, NamedPipeMessages.Notification.Request request)
+        public void SendNotification(ITracer tracer, int sessionId, NamedPipeMessages.Notification.Request request)
         {
             NamedPipeClient client;
             if (!this.TryOpenConnectionToUIProcess(tracer, out client))
             {
                 this.TerminateExistingProcess(tracer, GVFSConstants.Service.UIName);
 
-                if (!ProcessAsCurrentUser.Run(
-                    tracer,
+                CurrentUser currentUser = new CurrentUser(tracer, sessionId);
+                if (!currentUser.RunAs(
                     Configuration.Instance.GVFSServiceUILocation,
-                    string.Empty,
-                    showWindow: false))
+                    string.Empty))
                 {
                     tracer.RelatedError("Could not start " + GVFSConstants.Service.UIName);
                     return;

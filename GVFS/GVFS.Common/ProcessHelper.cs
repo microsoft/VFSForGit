@@ -1,4 +1,5 @@
-﻿using System;
+﻿using Microsoft.Win32;
+using System;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
@@ -150,6 +151,32 @@ namespace GVFS.Common
 
                 return new ProcessResult(output.ToString(), errors.ToString(), executingProcess.ExitCode);
             }
+        }
+
+        public static object GetValueFromRegistry(RegistryHive registryHive, string key, string valueName)
+        {
+            object value = GetValueFromRegistry(registryHive, key, valueName, RegistryView.Registry64);
+            if (value == null)
+            {
+                value = GetValueFromRegistry(registryHive, key, valueName, RegistryView.Registry32);
+            }
+
+            return value;
+        }
+
+        public static string GetStringFromRegistry(RegistryHive registryHive, string key, string valueName)
+        {
+            object value = GetValueFromRegistry(registryHive, key, valueName);
+            return value as string;
+        }
+
+        private static object GetValueFromRegistry(RegistryHive registryHive, string key, string valueName, RegistryView view)
+        {
+            RegistryKey localKey = RegistryKey.OpenBaseKey(registryHive, view);
+            var localKeySub = localKey.OpenSubKey(key);
+
+            object value = localKeySub == null ? null : localKeySub.GetValue(valueName);
+            return value;
         }
 
         private static string StartProcess(Process executingProcess)

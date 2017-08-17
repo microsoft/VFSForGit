@@ -66,13 +66,16 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="Category\CategoryConstants.cs" />
-    <Compile Include="CommandLine\HooksInstallHelperTests.cs" />
+    <Compile Include="Common\CacheServerInfoTests.cs" />
+    <Compile Include="CommandLine\HooksInstallerTests.cs" />
     <Compile Include="Common\GitConfigHelperTests.cs" />
-    <Compile Include="Common\GitHelperTests.cs" />
+    <Compile Include="Common\GitCommandLineParserTests.cs" />
     <Compile Include="Common\GitPathConverterTests.cs" />
     <Compile Include="Common\GitVersionTests.cs" />
     <Compile Include="Common\JsonEtwTracerTests.cs" />
     <Compile Include="Common\RefLogEntryTests.cs" />
+    <Compile Include="Common\RetryBackoffTests.cs" />
+    <Compile Include="Common\RetryConfigTests.cs" />
     <Compile Include="Common\RetryWrapperTests.cs" />
     <Compile Include="Common\SHA1UtilTests.cs" />
     <Compile Include="FastFetch\BatchObjectDownloadJobTests.cs" />
@@ -82,26 +85,29 @@
     <Compile Include="GVFlt\GVFltActiveEnumerationTests.cs" />
     <Compile Include="GVFlt\PathUtilTests.cs" />
     <Compile Include="GVFlt\PatternMatcherTests.cs" />
-    <Compile Include="GVFlt\Physical\FileSerializerTests.cs" />
+    <Compile Include="GVFlt\DotGit\FileSerializerTests.cs" />
     <Compile Include="GVFlt\GVFltCallbacksTests.cs" />
     <Compile Include="Mock\Common\MockEnlistment.cs" />
     <Compile Include="Mock\Common\MockTracer.cs" />
-    <Compile Include="Mock\Physical\FileSystem\MassiveMockFileSystem.cs" />
-    <Compile Include="Mock\Physical\FileSystem\MockFile.cs" />
-    <Compile Include="Mock\Physical\FileSystem\MockFileSystem.cs" />
-    <Compile Include="Mock\Physical\FileSystem\MockDirectory.cs" />
-    <Compile Include="Mock\Physical\FileSystem\MockSafeHandle.cs" />
-    <Compile Include="Mock\Physical\Git\MockBatchHttpGitObjects.cs" />
-    <Compile Include="Mock\Physical\Git\MockHttpGitObjects.cs" />
-    <Compile Include="Mock\Physical\Git\MockGitRepo.cs" />
-    <Compile Include="Mock\Physical\Git\MockGVFSGitObjects.cs" />
+    <Compile Include="Mock\FileSystem\MassiveMockFileSystem.cs" />
+    <Compile Include="Mock\FileSystem\MockFile.cs" />
+    <Compile Include="Mock\FileSystem\MockFileSystem.cs" />
+    <Compile Include="Mock\FileSystem\MockDirectory.cs" />
+    <Compile Include="Mock\FileSystem\MockSafeHandle.cs" />
+    <Compile Include="Mock\Git\MockBatchHttpGitObjects.cs" />
+    <Compile Include="Mock\Git\MockHttpGitObjects.cs" />
+    <Compile Include="Mock\Git\MockGitRepo.cs" />
+    <Compile Include="Mock\Git\MockGVFSGitObjects.cs" />
     <Compile Include="Mock\Common\MockPhysicalGitObjects.cs" />
-    <Compile Include="Mock\Physical\ReusableMemoryStream.cs" />
-    <Compile Include="Physical\Git\GitAuthenticationTests.cs" />
-    <Compile Include="Physical\Git\PhysicalGitObjectsTests.cs" />
+    <Compile Include="Mock\MockCacheServerInfo.cs" />
+    <Compile Include="Mock\Git\MockGitProcess.cs" />
+    <Compile Include="Mock\ReusableMemoryStream.cs" />
+    <Compile Include="Git\GitAuthenticationTests.cs" />
+    <Compile Include="Git\GVFSGitObjectsTests.cs" />
     <Compile Include="Prefetch\PrefetchPacksDeserializerTests.cs" />
     <Compile Include="Program.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
+    <Compile Include="Service\RepoRegistryTests.cs" />
     <Compile Include="Should\StringShouldExtensions.cs" />
     <Compile Include="Virtual\CommonRepoSetup.cs" />
     <Compile Include="Virtual\TestsWithCommonRepo.cs" />
@@ -128,6 +134,10 @@
       <Project>{1118b427-7063-422f-83b9-5023c8ec5a7a}</Project>
       <Name>GVFS.GVFlt</Name>
     </ProjectReference>
+    <ProjectReference Include="..\GVFS.Service\GVFS.Service.csproj">
+      <Project>{b8c1dfba-cafd-4f7e-a1a3-e11907b5467b}</Project>
+      <Name>GVFS.Service</Name>
+    </ProjectReference>
     <ProjectReference Include="..\GVFS.Tests\GVFS.Tests.csproj">
       <Project>{72701bc3-5da9-4c7a-bf10-9e98c9fc8eac}</Project>
       <Name>GVFS.Tests</Name>
@@ -147,6 +157,9 @@
     <Content Include="Data\forward.txt">
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
     </Content>
+    <None Include="Data\Version1Registry">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </None>
   </ItemGroup>
   <ItemGroup>
     <Service Include="{82A7F48D-3B50-4B1E-B82E-3ADA8210C358}" />

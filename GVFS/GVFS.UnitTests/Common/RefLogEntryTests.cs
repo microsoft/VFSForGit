@@ -48,5 +48,16 @@ namespace GVFS.UnitTests.Common
 
             output.ShouldBeNull();
         }
+        
+        [TestCase]
+        public void FailsForNull()
+        {
+            string testLine = null;
+
+            RefLogEntry output;
+            RefLogEntry.TryParse(testLine, out output).ShouldEqual(false);
+
+            output.ShouldBeNull();
+        }
     }
 }

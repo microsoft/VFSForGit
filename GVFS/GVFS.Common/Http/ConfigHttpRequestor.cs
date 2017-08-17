@@ -1,10 +1,9 @@
-﻿using GVFS.Common.Physical.FileSystem;
+﻿using GVFS.Common.NetworkStreams;
 using GVFS.Common.Tracing;
 using Newtonsoft.Json;
 using System;
 using System.IO;
 using System.Net.Http;
-using System.Threading;
 
 namespace GVFS.Common.Http
 {
@@ -12,14 +11,11 @@ namespace GVFS.Common.Http
     {
         private readonly string repoUrl;
         
-        public ConfigHttpRequestor(ITracer tracer, Enlistment enlistment) 
-            : base(tracer, enlistment.Authentication)
+        public ConfigHttpRequestor(ITracer tracer, Enlistment enlistment, RetryConfig retryConfig) 
+            : base(tracer, retryConfig, enlistment.Authentication)
         {
             this.repoUrl = enlistment.RepoUrl;
-            this.MaxRetries = HttpRequestor.DefaultMaxRetries;
         }
-
-        public int MaxRetries { get; set; }
 
         public GVFSConfig QueryGVFSConfig()
         {
@@ -41,7 +37,7 @@ namespace GVFS.Common.Http
             }
 
             long requestId = HttpRequestor.GetNewRequestId();
-            RetryWrapper<GVFSConfig> retrier = new RetryWrapper<GVFSConfig>(this.MaxRetries);
+            RetryWrapper<GVFSConfig> retrier = new RetryWrapper<GVFSConfig>(this.RetryConfig.MaxAttempts);
             retrier.OnFailure += RetryWrapper<GVFSConfig>.StandardErrorHandler(this.Tracer, requestId, "QueryGvfsConfig");
 
             RetryWrapper<GVFSConfig>.InvocationResult output = retrier.Invoke(
@@ -58,8 +54,8 @@ namespace GVFS.Common.Http
                         using (StreamReader reader = new StreamReader(response.Stream))
                         {
                             string configString = reader.RetryableReadToEnd();
-                            return new RetryWrapper<GVFSConfig>.CallbackResult(
-                                JsonConvert.DeserializeObject<GVFSConfig>(configString));
+                            GVFSConfig config = JsonConvert.DeserializeObject<GVFSConfig>(configString);
+                            return new RetryWrapper<GVFSConfig>.CallbackResult(config);
                         }
                     }
                     catch (JsonReaderException e)

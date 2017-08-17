@@ -74,19 +74,12 @@ namespace GVFS.CommandLine
         public override void Execute()
         {
             int exitCode = 0;
-            
-            this.CheckGVFltRunning();
+
+            this.EnlistmentRootPath = this.GetCloneRoot();
+
+            this.CheckGVFltHealthy();
             this.CheckNotInsideExistingRepo();
-
-            string fullPath = GVFSEnlistment.ToFullPath(this.EnlistmentRootPath, this.GetDefaultEnlistmentRoot());
-            if (fullPath == null)
-            {
-                this.ReportErrorAndExit("Unable to write to directory " + this.EnlistmentRootPath);
-            }
-
-            this.EnlistmentRootPath = fullPath;
-            this.CacheServerUrl = Enlistment.StripObjectsEndpointSuffix(this.CacheServerUrl);
-
+            
             try
             {
                 GVFSEnlistment enlistment;
@@ -101,11 +94,40 @@ namespace GVFS.CommandLine
                             GVFSEnlistment.GetNewGVFSLogFileName(enlistment.GVFSLogsRoot, GVFSConstants.LogFileTypes.Clone),
                             EventLevel.Informational,
                             Keywords.Any);
+                        
+                        string authErrorMessage = null;
+                        if (!this.ShowStatusWhileRunning(
+                            () => enlistment.Authentication.TryRefreshCredentials(tracer, out authErrorMessage),
+                            "Authenticating"))
+                        {
+                            this.ReportErrorAndExit("Unable to clone because authentication failed");
+                        }
 
+                        RetryConfig retryConfig;
+                        string error;
+                        if (!RetryConfig.TryLoadFromGitConfig(tracer, enlistment, out retryConfig, out error))
+                        {
+                            this.ReportErrorAndExit("Failed to determine GVFS timeout and max retries: " + error);
+                        }
+
+                        retryConfig.Timeout = TimeSpan.FromMinutes(RetryConfig.FetchAndCloneTimeoutMinutes);
+
+                        GVFSConfig gvfsConfig;
+                        CacheServerInfo cacheServer;
+                        using (ConfigHttpRequestor configRequestor = new ConfigHttpRequestor(tracer, enlistment, retryConfig))
+                        {
+                            gvfsConfig = configRequestor.QueryGVFSConfig();
+                        }
+
+                        if (!CacheServerInfo.TryDetermineCacheServer(this.CacheServerUrl, enlistment, gvfsConfig.CacheServers, out cacheServer, out error))
+                        {
+                            this.ReportErrorAndExit(error);
+                        }
+                        
                         tracer.WriteStartEvent(
                             enlistment.EnlistmentRoot,
                             enlistment.RepoUrl,
-                            enlistment.CacheServerUrl,
+                            cacheServer.Url,
                             new EventMetadata
                             {
                                 { "Branch", this.Branch },
@@ -116,13 +138,15 @@ namespace GVFS.CommandLine
 
                         this.Output.WriteLine("Clone parameters:");
                         this.Output.WriteLine("  Repo URL:     " + enlistment.RepoUrl);
-                        this.Output.WriteLine("  Cache Server: " + (enlistment.CacheServerUrl == enlistment.RepoUrl ? "None" : enlistment.CacheServerUrl));
+                        this.Output.WriteLine("  Cache Server: " + cacheServer);
                         this.Output.WriteLine("  Destination:  " + enlistment.EnlistmentRoot);
+                        
+                        this.ValidateClientVersions(tracer, enlistment, gvfsConfig);
 
                         this.ShowStatusWhileRunning(
                             () =>
                             {
-                                cloneResult = this.TryClone(tracer, enlistment);
+                                cloneResult = this.TryClone(tracer, enlistment, cacheServer, retryConfig);
                                 return cloneResult.Success;
                             },
                             "Cloning");
@@ -205,30 +229,20 @@ namespace GVFS.CommandLine
             {
                 return new Result(GVFSConstants.GitIsNotInstalledError);
             }
-
-            string hooksPath = ProcessHelper.WhereDirectory(GVFSConstants.GVFSHooksExecutableName);
-            if (hooksPath == null)
-            {
-                this.ReportErrorAndExit("Could not find " + GVFSConstants.GVFSHooksExecutableName);
-            }
-
-            this.CheckGVFSHooksVersion(enlistment, hooksPath);
+            
+            string hooksPath = this.GetGVFSHooksPathAndCheckVersion();
 
             enlistment = new GVFSEnlistment(
                 this.EnlistmentRootPath,
                 this.RepositoryURL,
-                this.CacheServerUrl,
                 gitBinPath,
                 hooksPath);
 
             return new Result(true);
         }
-
-        private Result TryClone(JsonEtwTracer tracer, GVFSEnlistment enlistment)
+        
+        private Result TryClone(JsonEtwTracer tracer, GVFSEnlistment enlistment, CacheServerInfo cacheServer, RetryConfig retryConfig)
         {
-            this.CheckVolumeSupportsDeleteNotifications(tracer, enlistment);
-            this.CheckGitVersion(enlistment);
-
             Result pipeResult;
             using (NamedPipeServer pipeServer = this.StartNamedPipe(tracer, enlistment, out pipeResult))
             {
@@ -236,14 +250,8 @@ namespace GVFS.CommandLine
                 {
                     return pipeResult;
                 }
-
-                using (ConfigHttpRequestor configRequestor = new ConfigHttpRequestor(tracer, enlistment))
-                {
-                    GVFSConfig config = configRequestor.QueryGVFSConfig();
-                    this.ValidateGVFSVersion(enlistment, config, tracer);
-                }
-
-                using (GitObjectsHttpRequestor objectRequestor = new GitObjectsHttpRequestor(tracer, enlistment))
+                                
+                using (GitObjectsHttpRequestor objectRequestor = new GitObjectsHttpRequestor(tracer, enlistment, cacheServer, retryConfig))
                 {
                     GitRefs refs = objectRequestor.QueryInfoRefs(this.SingleBranch ? this.Branch : null);
 
@@ -300,21 +308,28 @@ namespace GVFS.CommandLine
             }
         }
 
-        private string GetDefaultEnlistmentRoot()
+        private string GetCloneRoot()
         {
-            string repoName = this.RepositoryURL.Substring(this.RepositoryURL.LastIndexOf('/') + 1);
-            return Path.Combine(Directory.GetCurrentDirectory(), repoName);
+            try
+            {
+                string repoName = this.RepositoryURL.Substring(this.RepositoryURL.LastIndexOf('/') + 1);
+                string cloneRoot =
+                    string.IsNullOrWhiteSpace(this.EnlistmentRootPath)
+                    ? Path.Combine(Environment.CurrentDirectory, repoName)
+                    : this.EnlistmentRootPath;
+
+                return Path.GetFullPath(cloneRoot);
+            }
+            catch (IOException e)
+            {
+                this.ReportErrorAndExit("Unable to determine clone root: " + e.ToString());
+                return null;
+            }
         }
 
         private void CheckNotInsideExistingRepo()
         {
-            string enlistmentRootPath = this.EnlistmentRootPath;
-            if (string.IsNullOrWhiteSpace(enlistmentRootPath))
-            {
-                enlistmentRootPath = Environment.CurrentDirectory;
-            }
-
-            string enlistmentRoot = EnlistmentUtils.GetEnlistmentRoot(enlistmentRootPath);
+            string enlistmentRoot = Paths.GetGVFSEnlistmentRoot(this.EnlistmentRootPath);
             if (enlistmentRoot != null)
             {
                 this.ReportErrorAndExit("Error: You can't clone inside an existing GVFS repo ({0})", enlistmentRoot);

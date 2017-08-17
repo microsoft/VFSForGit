@@ -15,8 +15,14 @@ namespace GVFS.UnitTests
             {
                 runner.ExcludeCategory(CategoryConstants.ExceptionExpected);
             }
-
+            
             Environment.ExitCode = runner.RunTests(1);
+
+            if (Debugger.IsAttached)
+            {
+                Console.WriteLine("Tests completed. Press Enter to exit.");
+                Console.ReadLine();
+            }
         }
     }
 }

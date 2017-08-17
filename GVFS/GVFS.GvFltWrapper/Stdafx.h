@@ -248,8 +248,8 @@ typedef NTSTATUS(NTAPI *PQueryVolumeInformationFile)(HANDLE, PIO_STATUS_BLOCK, P
 #include <memory>
 #include <string>
 #include "gvlib.h"
-#include "GvNotificationType.h"
-#include "GvUpdateType.h"
+#include "NotificationType.h"
+#include "UpdateType.h"
 #include "IoStatusBlockValue.h"
 
 

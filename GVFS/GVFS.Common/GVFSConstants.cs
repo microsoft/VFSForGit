@@ -23,11 +23,22 @@ namespace GVFS.Common
         
         public const string GVFSHooksExecutableName = "GVFS.Hooks.exe";
         public const string GVFSReadObjectHookExecutableName = "GVFS.ReadObjectHook.exe";
+        public const string MountExecutableName = "GVFS.Mount.exe";
 
         public const string GitIsNotInstalledError = "Could not find git.exe.  Ensure that Git is installed.";
 
         public const string ExecutableExtension = ".exe";
-        public static readonly GitVersion MinimumGitVersion = new GitVersion(2, 13, 0, "gvfs", 1, 0);
+        public static readonly GitVersion MinimumGitVersion = new GitVersion(2, 14, 1, "gvfs", 1, 0);
+
+        public static class GitConfig
+        {
+            public const string GVFSPrefix = "gvfs.";
+        }
+
+        public static class NamedPipes
+        {
+            public const int ConnectTimeoutMS = 10000;
+        }
 
         public static class Service
         {
@@ -79,8 +90,11 @@ namespace GVFS.Common
         public static class DotGVFS
         {
             public const string Root = ".gvfs";
+            public const string CorruptObjectsName = "CorruptObjects";
+
             public static readonly string LogPath = Path.Combine(DotGVFS.Root, "logs");
             public static readonly string GitObjectCachePath = Path.Combine(DotGVFS.Root, "gitObjectCache");
+            public static readonly string CorruptObjectsPath = Path.Combine(DotGVFS.Root, CorruptObjectsName);
         }
 
         public static class DotGit
@@ -162,6 +176,25 @@ namespace GVFS.Common
                 {
                     public static readonly string Root = Path.Combine(DotGit.Refs.Root, "heads");
                 }
+            }
+        }
+
+        public static class VerbParameters
+        {
+            public static class Mount
+            {
+                public const string ServiceName = "internal_use_only_service_name";
+                public const string Verbosity = "verbosity";
+                public const string Keywords = "keywords";
+                public const string DebugWindow = "debug-window";
+
+                public const string DefaultVerbosity = "Informational";
+                public const string DefaultKeywords = "Any";
+            }
+
+            public static class Unmount
+            {
+                public const string SkipLock = "skip-wait-for-lock";
             }
         }
     }

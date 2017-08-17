@@ -7,8 +7,10 @@
     /// </summary>
     public interface IProfilerOnlyIndexProjection
     {
-        void ForceParseIndexFileForNewProjection();
+        void ForceRebuildProjection();
 
-        void ForceParseIndexToUpdateOffsets();
+        void ForceUpdateOffsetsAndValidateSparseCheckout();
+
+        void ForceValidateSparseCheckout();
     }
 }

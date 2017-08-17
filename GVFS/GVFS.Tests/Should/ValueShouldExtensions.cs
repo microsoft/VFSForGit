@@ -5,6 +5,18 @@ namespace GVFS.Tests.Should
 {
     public static class ValueShouldExtensions
     {
+        public static bool ShouldBeTrue(this bool actualValue, string message = "")
+        {
+            actualValue.ShouldEqual(true, message);
+            return actualValue;
+        }
+
+        public static bool ShouldBeFalse(this bool actualValue, string message = "")
+        {
+            actualValue.ShouldEqual(false, message);
+            return actualValue;
+        }
+
         public static T ShouldBeAtLeast<T>(this T actualValue, T expectedValue, string message = "") where T : IComparable
         {
             Assert.GreaterOrEqual(actualValue, expectedValue, message);

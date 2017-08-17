@@ -1,10 +1,10 @@
 ﻿using GVFS.Common;
 using GVFS.Common.Git;
-using GVFS.Common.Physical.Git;
 using GVFS.Common.Tracing;
 using Microsoft.Diagnostics.Tracing;
 using System;
 using System.Collections.Concurrent;
+using System.Collections.Generic;
 using System.IO;
 using System.Text;
 using System.Threading;
@@ -14,14 +14,15 @@ namespace FastFetch.Git
     public class GitIndexGenerator
     {
         private const long EntryCountOffset = 8;
-        
+
+        private const ushort ExtendedBit = 0x4000;
+        private const ushort SkipWorktreeBit = 0x4000;
+
         private static readonly byte[] PaddingBytes = new byte[8];
 
         private static readonly byte[] IndexHeader = new byte[]
         {
             (byte)'D', (byte)'I', (byte)'R', (byte)'C', // Magic Signature
-            0, 0, 0, 2, // Version
-            0, 0, 0, 0  // Number of Entries
         };
 
         // We can't accurated fill times and length in realtime, so we block write the zeroes and probably save time.
@@ -60,11 +61,11 @@ namespace FastFetch.Git
 
         public bool HasFailures { get; private set; }
 
-        public void CreateFromHeadTree()
+        public void CreateFromHeadTree(uint indexVersion, HashSet<string> sparseCheckoutEntries = null)
         {
             using (ITracer updateIndexActivity = this.tracer.StartActivity("CreateFromHeadTree", EventLevel.Informational))
             {
-                Thread entryWritingThread = new Thread(this.WriteAllEntries);
+                Thread entryWritingThread = new Thread(() => this.WriteAllEntries(indexVersion, sparseCheckoutEntries));
                 entryWritingThread.Start();
 
                 GitProcess git = new GitProcess(this.enlistment);
@@ -94,7 +95,7 @@ namespace FastFetch.Git
             }
         }
 
-        private void WriteAllEntries()
+        private void WriteAllEntries(uint version, HashSet<string> sparseCheckoutEntries)
         {
             try
             {
@@ -102,11 +103,18 @@ namespace FastFetch.Git
                 using (BinaryWriter writer = new BinaryWriter(indexStream))
                 {
                     writer.Write(IndexHeader);
+                    writer.Write(EndianHelper.Swap(version));
+                    writer.Write((uint)0); // Number of entries placeholder
 
+                    uint lastStringLength = 0;
                     LsTreeEntry entry;
                     while (this.entryQueue.TryTake(out entry, millisecondsTimeout: -1))
                     {
-                        this.WriteEntry(writer, entry.Sha, entry.Filename);
+                        bool skipWorkTree = 
+                            sparseCheckoutEntries != null && 
+                            !sparseCheckoutEntries.Contains(entry.Filename) && 
+                            !sparseCheckoutEntries.Contains(this.GetDirectoryNameForGitPath(entry.Filename));
+                        this.WriteEntry(writer, version, entry.Sha, entry.Filename, skipWorkTree, ref lastStringLength);
                     }
 
                     // Update entry count
@@ -125,30 +133,89 @@ namespace FastFetch.Git
             }
         }
 
-        private void WriteEntry(BinaryWriter writer, string sha, string filename)
+        private string GetDirectoryNameForGitPath(string filename)
         {
+            int idx = filename.LastIndexOf('/');
+            if (idx < 0)
+            {
+                return "/";
+            }
+
+            return filename.Substring(0, idx + 1);
+        }
+
+        private void WriteEntry(BinaryWriter writer, uint version, string sha, string filename, bool skipWorktree, ref uint lastStringLength)
+        {
+            long startPosition = writer.BaseStream.Position;
+
             this.entryCount++;
             
             writer.Write(EntryHeader, 0, EntryHeader.Length);
-
+            
             writer.Write(SHA1Util.BytesFromHexString(sha));
 
             byte[] filenameBytes = Encoding.UTF8.GetBytes(filename);
-            writer.Write(EndianHelper.Swap((ushort)(filenameBytes.Length & 0xFFF)));
+
+            ushort flags = (ushort)(filenameBytes.Length & 0xFFF);
+            flags |= version >= 3 && skipWorktree ? ExtendedBit : (ushort)0;
+            writer.Write(EndianHelper.Swap(flags));
+
+            if (version >= 3 && skipWorktree)
+            {
+                writer.Write(EndianHelper.Swap(SkipWorktreeBit));
+            }
+
+            if (version >= 4)
+            {
+                this.WriteReplaceLength(writer, lastStringLength);
+                lastStringLength = (uint)filenameBytes.Length;
+            }
 
             writer.Write(filenameBytes);
-            
-            const long EntryLengthWithoutFilename = 62;
 
-            // Between 1 and 8 padding bytes.
-            int numPaddingBytes = 8 - ((int)(EntryLengthWithoutFilename + filenameBytes.Length) % 8);
-            if (numPaddingBytes == 0)
+            writer.Flush();
+            long endPosition = writer.BaseStream.Position;
+            
+            // Version 4 requires a nul-terminated string.
+            int numPaddingBytes = 1;
+            if (version < 4)
             {
-                numPaddingBytes = 8;
+                // Version 2-3 has between 1 and 8 padding bytes including nul-terminator.
+                numPaddingBytes = 8 - ((int)(endPosition - startPosition) % 8);
+                if (numPaddingBytes == 0)
+                {
+                    numPaddingBytes = 8;
+                }
             }
 
             writer.Write(PaddingBytes, 0, numPaddingBytes);
+
             writer.Flush();
+        }
+
+        private void WriteReplaceLength(BinaryWriter writer, uint value)
+        {
+            List<byte> bytes = new List<byte>();
+            do
+            {
+                byte nextByte = (byte)(value & 0x7F);
+                value = value >> 7;
+                bytes.Add(nextByte);
+            }
+            while (value != 0);
+
+            bytes.Reverse();
+            for (int i = 0; i < bytes.Count; ++i)
+            {
+                byte toWrite = bytes[i];
+                if (i < bytes.Count - 1)
+                {
+                    toWrite -= 1;
+                    toWrite |= 0x80;
+                }
+
+                writer.Write(toWrite);
+            }
         }
 
         private void AppendIndexSha()
@@ -186,6 +253,11 @@ namespace FastFetch.Git
 
         private class LsTreeEntry
         {
+            public LsTreeEntry()
+            {
+                this.Filename = string.Empty;
+            }
+
             public string Filename { get; private set; }
             public string Sha { get; private set; }
 

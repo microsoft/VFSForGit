@@ -4,24 +4,19 @@ using System;
 using System.IO;
 using System.Net.Http;
 using System.Threading;
-using System.Threading.Tasks;
 using System.Web;
 
 namespace GVFS.Common
 {
     public class RetryWrapper<T>
-    {
+    {        
         private const float MaxBackoffInSeconds = 300; // 5 minutes
-        private const float DefaultExponentialBackoffBase = 2;
+        private readonly int maxAttempts;        
+        private readonly double exponentialBackoffBase;
 
-        private readonly int maxRetries;
-        private readonly float exponentialBackoffBase;
-
-        private Random rng = new Random();
-
-        public RetryWrapper(int maxRetries, float exponentialBackoffBase = DefaultExponentialBackoffBase)
+        public RetryWrapper(int maxAttempts, double exponentialBackoffBase = RetryBackoff.DefaultExponentialBackoffBase)
         {
-            this.maxRetries = maxRetries;
+            this.maxAttempts = maxAttempts;
             this.exponentialBackoffBase = exponentialBackoffBase;
         }
 
@@ -43,69 +38,12 @@ namespace GVFS.Common
                 metadata["ErrorMessage"] = eArgs.Error != null ? eArgs.Error.ToString() : null;
                 tracer.RelatedEvent(EventLevel.Verbose, JsonEtwTracer.NetworkErrorEventName, metadata, Keywords.Network);
             };
-        }
-
-        public async Task<InvocationResult> InvokeAsync(Func<int, Task<CallbackResult>> toInvoke)
-        {
-            // Use 1-based counting. This makes reporting look a lot nicer and saves a lot of +1s
-            for (int tryCount = 1; tryCount <= this.maxRetries; ++tryCount)
-            {
-                try
-                {
-                    CallbackResult result = await toInvoke(tryCount);
-                    if (result.HasErrors)
-                    {
-                        if (!this.ShouldRetry(tryCount, null, result))
-                        {
-                            return new InvocationResult(tryCount, result.Error, result.Result);
-                        }
-                    }
-                    else
-                    {
-                        return new InvocationResult(tryCount, true, result.Result);
-                    }
-                }
-                catch (Exception e)
-                {
-                    Exception exceptionToReport =
-                        e is AggregateException
-                        ? ((AggregateException)e).Flatten().InnerException
-                        : e;
-
-                    if (!this.IsHandlableException(exceptionToReport))
-                    {
-                        throw;
-                    }
-
-                    if (!this.ShouldRetry(tryCount, exceptionToReport, null))
-                    {
-                        return new InvocationResult(tryCount, exceptionToReport);
-                    }
-                }
-
-                // Don't wait for the first retry, since it might just be transient.
-                // Don't wait after the last try. tryCount is 1-based, so last attempt is tryCount == maxRetries
-                if (tryCount > 1 && tryCount < this.maxRetries)
-                {
-                    // Exponential backoff
-                    double backOffSeconds = Math.Min(Math.Pow(this.exponentialBackoffBase, tryCount), MaxBackoffInSeconds);
-
-                    // Timeout usually happens when the server is overloaded. If we give all machines the same timeout they will all make
-                    // another request at approximately the same time causing the problem to happen again and again. To avoid that we
-                    // introduce a random timeout. To avoid scaling it too high or too low, it is +- 10% of the average backoff
-                    backOffSeconds *= .9 + (this.rng.NextDouble() * .2);
-                    await Task.Delay(TimeSpan.FromSeconds(backOffSeconds));
-                }
-            }
-
-            // This shouldn't be hit because ShouldRetry will cause a more useful message first.
-            return new InvocationResult(this.maxRetries, new Exception("Unexpected failure after retrying"));
-        }
+        }        
 
         public InvocationResult Invoke(Func<int, CallbackResult> toInvoke)
         {
             // Use 1-based counting. This makes reporting look a lot nicer and saves a lot of +1s
-            for (int tryCount = 1; tryCount <= this.maxRetries; ++tryCount)
+            for (int tryCount = 1; tryCount <= this.maxAttempts; ++tryCount)
             {
                 try
                 {
@@ -141,22 +79,16 @@ namespace GVFS.Common
                 }
 
                 // Don't wait for the first retry, since it might just be transient.
-                // Don't wait after the last try. tryCount is 1-based, so last attempt is tryCount == maxRetries
-                if (tryCount > 1 && tryCount < this.maxRetries)
+                // Don't wait after the last try. tryCount is 1-based, so last attempt is tryCount == maxAttempts
+                if (tryCount > 1 && tryCount < this.maxAttempts)
                 {
-                    // Exponential backoff
-                    double backOffSeconds = Math.Min(Math.Pow(this.exponentialBackoffBase, tryCount), MaxBackoffInSeconds);
-
-                    // Timeout usually happens when the server is overloaded. If we give all machines the same timeout they will all make
-                    // another request at approximately the same time causing the problem to happen again and again. To avoid that we
-                    // introduce a random timeout. To avoid scaling it too high or too low, it is +- 10% of the average backoff
-                    backOffSeconds *= .9 + (this.rng.NextDouble() * .2);
+                    double backOffSeconds = RetryBackoff.CalculateBackoffSeconds(tryCount, MaxBackoffInSeconds, this.exponentialBackoffBase);
                     Thread.Sleep(TimeSpan.FromSeconds(backOffSeconds));
                 }
             }
 
             // This shouldn't be hit because ShouldRetry will cause a more useful message first.
-            return new InvocationResult(this.maxRetries, new Exception("Unexpected failure after retrying"));
+            return new InvocationResult(this.maxAttempts, new Exception("Unexpected failure after retrying"));
         }
 
         private bool IsHandlableException(Exception e)
@@ -170,7 +102,7 @@ namespace GVFS.Common
 
         private bool ShouldRetry(int tryCount, Exception e, CallbackResult result)
         {
-            bool willRetry = tryCount < this.maxRetries &&
+            bool willRetry = tryCount < this.maxAttempts &&
                 (result == null || result.ShouldRetry);
 
             if (e != null)

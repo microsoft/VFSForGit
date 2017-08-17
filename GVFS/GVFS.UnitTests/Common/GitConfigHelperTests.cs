@@ -1,9 +1,7 @@
 ﻿using GVFS.Common.Git;
 using GVFS.Tests.Should;
 using NUnit.Framework;
-using System;
 using System.Collections.Generic;
-using System.IO;
 using System.Linq;
 
 namespace GVFS.UnitTests.Common
@@ -129,10 +127,8 @@ section.empty=
     key6 = 6
     key7 =
          = emptyKey";
-            string filename = Guid.NewGuid().ToString();
-            File.WriteAllText(filename, fileContents);
 
-            Dictionary<string, GitConfigSetting> result = GitConfigHelper.GetSettings(filename, "Section");
+            Dictionary<string, GitConfigSetting> result = GitConfigHelper.GetSettings(fileContents.Split('\r', '\n'), "Section");
 
             int expectedCount = 7; // empty keys will not be included.
             result.Count.ShouldEqual(expectedCount);

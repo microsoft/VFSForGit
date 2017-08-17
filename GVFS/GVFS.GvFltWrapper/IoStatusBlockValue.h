@@ -1,6 +1,6 @@
 #pragma once
 
-namespace GVFSGvFltWrapper
+namespace GvFlt
 {
     public enum class IoStatusBlockValue : unsigned int
     {

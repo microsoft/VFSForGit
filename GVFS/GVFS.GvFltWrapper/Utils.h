@@ -1,6 +1,6 @@
 #pragma once
 
-namespace GVFSGvFltWrapper
+namespace GvFlt
 {
     inline System::Guid GUIDtoGuid(const GUID& guid)
     {

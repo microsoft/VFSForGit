@@ -1,4 +1,5 @@
 ﻿using GVFS.FunctionalTests.Category;
+using GVFS.FunctionalTests.Should;
 using NUnit.Framework;
 
 namespace GVFS.FunctionalTests.Tests.GitCommands
@@ -79,6 +80,30 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
             this.ValidateGitCommand("checkout -f");
             this.ValidateGitCommand("checkout " + GitRepoTests.ConflictSourceBranch);
             this.FilesShouldMatchCheckoutOfTargetBranch();
+        }
+
+        [TestCase]
+        public void ResetMixedAndCheckoutFile()
+        {
+            this.ControlGitRepo.Fetch("FunctionalTests/20170602");
+
+            // We start with a branch that deleted two files that were present in its parent commit
+            this.ValidateGitCommand("checkout FunctionalTests/20170602");
+
+            // Then reset --mixed to the parent commit, and validate that the deleted files did not come back into the projection
+            this.ValidateGitCommand("reset --mixed HEAD~1");
+            this.Enlistment.RepoRoot.ShouldBeADirectory(this.FileSystem)
+                .WithDeepStructure(this.FileSystem, this.ControlGitRepo.RootPath, skipEmptyDirectories: false);
+
+            // And checkout a file (without changing branches) and ensure that that doesn't update the projection either
+            this.ValidateGitCommand("checkout HEAD~2 .gitattributes");
+            this.Enlistment.RepoRoot.ShouldBeADirectory(this.FileSystem)
+                .WithDeepStructure(this.FileSystem, this.ControlGitRepo.RootPath, skipEmptyDirectories: false);
+
+            // And now if we checkout the original commit, the deleted files should stay deleted
+            this.ValidateGitCommand("checkout FunctionalTests/20170602");
+            this.Enlistment.RepoRoot.ShouldBeADirectory(this.FileSystem)
+                .WithDeepStructure(this.FileSystem, this.ControlGitRepo.RootPath, skipEmptyDirectories: false);
         }
 
         protected override void CreateEnlistment()

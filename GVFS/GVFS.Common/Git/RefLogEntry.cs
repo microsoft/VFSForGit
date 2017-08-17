@@ -1,6 +1,4 @@
-﻿using System;
-
-namespace GVFS.Common.Git
+﻿namespace GVFS.Common.Git
 {
     public class RefLogEntry
     {
@@ -18,6 +16,11 @@ namespace GVFS.Common.Git
         public static bool TryParse(string line, out RefLogEntry entry)
         {
             entry = null;
+            if (string.IsNullOrEmpty(line))
+            {
+                return false;
+            }
+
             if (line.Length < GVFSConstants.ShaStringLength + 1 + GVFSConstants.ShaStringLength)
             {
                 return false;

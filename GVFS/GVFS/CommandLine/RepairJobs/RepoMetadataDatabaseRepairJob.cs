@@ -1,7 +1,5 @@
 ﻿using GVFS.Common;
-using GVFS.Common.Physical;
 using GVFS.Common.Tracing;
-using Microsoft.Isam.Esent;
 using System.Collections.Generic;
 using System.IO;
 
@@ -21,27 +19,20 @@ namespace GVFS.CommandLine.RepairJobs
         {
             get { return "Repo Metadata Database"; }
         }
-
+        
         public override IssueType HasIssue(List<string> messages)
         {
-            try
+            if (!this.TryCreatePersistentDictionary<string, string>(this.databasePath, messages))
             {
-                using (new RepoMetadata(this.Enlistment.DotGVFSRoot))
-                {
-                }
-
-                return IssueType.None;
-            }
-            catch (EsentException corruptionEx)
-            {
-                messages.Add(corruptionEx.Message);
                 return IssueType.CantFix;
             }
+
+            return IssueType.None;
         }
         
-        public override bool TryFixIssues(List<string> messages)
+        public override FixResult TryFixIssues(List<string> messages)
         {
-            return false;
+            return FixResult.Failure;
         }
     }
 }

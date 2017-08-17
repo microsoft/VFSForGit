@@ -18,7 +18,7 @@ namespace GVFS.Common.NamedPipes
 
         public static string GetPipeNameFromPath(string path)
         {
-            return "GVFS_" + path.ToUpper().Replace(':', '_');
+            return Paths.GetNamedPipeName(path);
         }
 
         public bool Connect(int timeoutMilliseconds = 3000)

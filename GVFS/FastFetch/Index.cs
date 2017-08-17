@@ -7,8 +7,8 @@ using System.Linq;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
+using FastFetch.Git;
 using GVFS.Common;
-using GVFS.Common.Physical.Git;
 using GVFS.Common.Tracing;
 using Microsoft.Diagnostics.Tracing;
 
@@ -31,62 +31,51 @@ namespace FastFetch
 
         // Index default names
         private const string UpdatedIndexName = "index.updated";
-        private const string BackupIndexName = "index.backup";
+
+        private static readonly byte[] MagicSignature = new byte[] { (byte)'D', (byte)'I', (byte)'R', (byte)'C' };
 
         // Location of the version marker file
         private readonly string versionMarkerFile;
+        
+        private readonly bool readOnly;
 
         // Index paths
-        private string indexPath;
-        private string updatedIndexPath;
-        private string backupIndexPath;
+        private readonly string indexPath;
+        private readonly string updatedIndexPath;
+        
+        private readonly ITracer tracer;
+        private readonly string repoRoot;
 
-        private bool indexReadOnly;
-        private ITracer tracer;
         private Dictionary<string, long> indexEntryOffsets;
-        private string repoRoot;
-        private MemoryMappedFile indexMapping;
-        private MemoryMappedViewAccessor indexView;
-        private uint indexVersion;
         private uint entryCount;
 
         /// <summary>
-        /// Creates a new Index object to parse the current index
-        /// Note that this constructor has a pretty specific use case.  When this constructor is used,
-        /// the current index is about to be replaced (by the caller) with a new index.  So the current
-        /// .git\index will be moved (by this constructor) to a backup location so it can be used to 
-        /// populate the new index.
+        /// Creates a new Index object to parse the specified index file
         /// </summary>
-        /// <param name="repoRoot"></param>
-        /// <param name="tracer"></param>
         public Index(
             string repoRoot,
-            ITracer tracer)
-            : this(repoRoot, tracer, indexReadOnly: false, indexFullPath: null, backupIndexFullPath: null, backupIndex: true)
-        {
-            this.MoveIndexToBackup();
-        }
-
-        private Index(
-            string repoRoot,
             ITracer tracer,
-            bool indexReadOnly,
             string indexFullPath,
-            string backupIndexFullPath,
-            bool backupIndex)
+            bool readOnly)
         {
             this.tracer = tracer;
             this.repoRoot = repoRoot;
-            this.indexReadOnly = indexReadOnly;
-            this.indexPath = indexFullPath ?? Path.Combine(repoRoot, GVFSConstants.DotGit.Index);
-            this.updatedIndexPath = indexReadOnly ? this.indexPath : Path.Combine(repoRoot, GVFSConstants.DotGit.Root, UpdatedIndexName);
-            if (backupIndex && !indexReadOnly)
+            this.indexPath = indexFullPath;
+            this.readOnly = readOnly;
+
+            if (this.readOnly)
             {
-                this.backupIndexPath = backupIndexFullPath ?? Path.Combine(repoRoot, GVFSConstants.DotGit.Root, BackupIndexName);
+                this.updatedIndexPath = this.indexPath;
+            }
+            else
+            {
+                this.updatedIndexPath = Path.Combine(repoRoot, GVFSConstants.DotGit.Root, UpdatedIndexName);
             }
 
             this.versionMarkerFile = Path.Combine(this.repoRoot, GVFSConstants.DotGit.Root, ".fastfetch", "VersionMarker");
         }
+
+        public uint IndexVersion { get; private set; }
 
         /// <summary>
         /// Updates entries in the current index with file sizes and times
@@ -103,73 +92,81 @@ namespace FastFetch
         /// </summary>
         /// <param name="addedOrEditedLocalFiles">A collection of added or edited files</param>
         /// <param name="allowUpdateFromWorkingTree">Set to true if the working tree is known good and can be used during the update.</param>
-        public void UpdateFileSizesAndTimes(BlockingCollection<string> addedOrEditedLocalFiles, bool allowUpdateFromWorkingTree)
+        /// <param name="backupIndex">An optional index to source entry values from</param>
+        public void UpdateFileSizesAndTimes(BlockingCollection<string> addedOrEditedLocalFiles, bool allowUpdateFromWorkingTree, bool shouldSignIndex, Index backupIndex = null)
         {
+            if (this.readOnly)
+            {
+                throw new InvalidOperationException("Cannot update a readonly index.");
+            }
+
             using (ITracer activity = this.tracer.StartActivity("UpdateFileSizesAndTimes", EventLevel.Informational, Keywords.Telemetry, null))
             {
-                this.CreateWorkingFiles();
+                File.Copy(this.indexPath, this.updatedIndexPath, overwrite: true);
 
                 this.Parse();
 
-                bool previousIndexFound = false;
                 bool anyEntriesUpdated = false;
-
-                if (this.IsFastFetchVersionMarkerCurrent())
+                
+                using (MemoryMappedFile mmf = this.GetMemoryMappedFile())
+                using (MemoryMappedViewAccessor indexView = mmf.CreateViewAccessor())
                 {
                     // Only populate from the previous index if we believe it's good to populate from
                     // For now, a current FastFetch version marker is the only criteria
-                    anyEntriesUpdated |= this.UpdateFileInformationFromBackup(allowUpdateFromWorkingTree, out previousIndexFound);
-                    if (previousIndexFound && (addedOrEditedLocalFiles != null))
+                    if (backupIndex != null)
                     {
-                        // always update these files from disk or the index won't have good information
-                        // for them and they'll show as modified even those not actually modified.
-                        anyEntriesUpdated |= this.UpdateFileInformationFromDiskForFiles(addedOrEditedLocalFiles);
-                    }
-                }
+                        if (this.IsFastFetchVersionMarkerCurrent())
+                        {
+                            using (this.tracer.StartActivity("UpdateFileInformationFromPreviousIndex", EventLevel.Informational, Keywords.Telemetry, null))
+                            {
+                                anyEntriesUpdated |= this.UpdateFileInformationForAllEntries(indexView, backupIndex, allowUpdateFromWorkingTree);
+                            }
 
-                // If we didn't update from a previous index, update from the working tree if allowed.
-                if (!previousIndexFound && allowUpdateFromWorkingTree)
-                {
-                    anyEntriesUpdated |= this.UpdateFileInformationFromWorkingTree();
+                            if (addedOrEditedLocalFiles != null)
+                            {
+                                // always update these files from disk or the index won't have good information
+                                // for them and they'll show as modified even those not actually modified.
+                                anyEntriesUpdated |= this.UpdateFileInformationFromDiskForFiles(indexView, addedOrEditedLocalFiles);
+                            }
+                        }
+                    }
+                    else if (allowUpdateFromWorkingTree)
+                    {
+                        // If we didn't update from a previous index, update from the working tree if allowed.
+                        anyEntriesUpdated |= this.UpdateFileInformationFromWorkingTree(indexView);
+                    }
+
+                    indexView.Flush();
                 }
 
                 if (anyEntriesUpdated)
                 {
-                    this.MoveUpdatedIndexToFinalLocation();
-                }
-            }
-        }
-
-        private void MoveIndexToBackup()
-        {
-            if (this.backupIndexPath != null)
-            {
-                if (File.Exists(this.indexPath))
-                {
-                    // Note that this moves the current index, leaving nothing behind
-                    // This is intentional as we only need it for the purpose of updating the
-                    // new index and leaving it behind can make updating slower.
-                    this.tracer.RelatedEvent(EventLevel.Informational, "CreateBackup", new EventMetadata() { { "BackupIndexName", this.backupIndexPath } });
-                    File.Delete(this.backupIndexPath);
-                    File.Move(this.indexPath, this.backupIndexPath);
+                    this.MoveUpdatedIndexToFinalLocation(shouldSignIndex);
                 }
                 else
                 {
-                    this.tracer.RelatedEvent(EventLevel.Informational, "CreateBackup", new EventMetadata() { { "BackupIndexName", "none" } });
-                    this.backupIndexPath = null;
+                    File.Delete(this.updatedIndexPath);
+                }
+            }
+        }
+        
+        public void Parse()
+        {
+            using (ITracer activity = this.tracer.StartActivity("ParseIndex", EventLevel.Informational, Keywords.Telemetry, new EventMetadata() { { "Index", this.updatedIndexPath } }))
+            {
+                using (Stream indexStream = new FileStream(this.updatedIndexPath, FileMode.Open, FileAccess.Read, FileShare.Read))
+                {
+                    this.ParseIndex(indexStream);
                 }
             }
         }
 
-        private void CreateWorkingFiles()
+        private MemoryMappedFile GetMemoryMappedFile()
         {
-            if (!this.indexReadOnly)
-            {
-                File.Copy(this.indexPath, this.updatedIndexPath, overwrite: true);
-            }
+            return MemoryMappedFile.CreateFromFile(this.updatedIndexPath, FileMode.Open);
         }
 
-        private bool UpdateFileInformationFromWorkingTree()
+        private bool UpdateFileInformationFromWorkingTree(MemoryMappedViewAccessor indexView)
         {
             long updatedEntries = 0;
 
@@ -185,7 +182,7 @@ namespace FastFetch
                             long offset;
                             if (this.indexEntryOffsets.TryGetValue(gitPath, out offset))
                             {
-                                IndexEntry indexEntry = new IndexEntry(this, offset);
+                                IndexEntry indexEntry = new IndexEntry(indexView, offset);
                                 indexEntry.Mtime = file.LastWriteTimeUtc;
                                 indexEntry.Ctime = file.CreationTimeUtc;
                                 indexEntry.Size = (uint)file.Length;
@@ -193,109 +190,106 @@ namespace FastFetch
                             }
                         }
                     });
-
-                this.indexView.Flush();
             }
 
             return updatedEntries > 0;
         }
 
-        private bool UpdateFileInformationFromDiskForFiles(BlockingCollection<string> addedOrEditedLocalFiles)
+        private bool UpdateFileInformationFromDiskForFiles(MemoryMappedViewAccessor indexView, BlockingCollection<string> addedOrEditedLocalFiles)
         {
             long updatedEntriesFromDisk = 0;
             using (ITracer activity = this.tracer.StartActivity("UpdateDownloadedFiles", EventLevel.Informational, Keywords.Telemetry, null))
             {
                 Parallel.ForEach(
-                addedOrEditedLocalFiles,
-                (localPath) =>
-                {
-                    string gitPath = localPath.FromWindowsFullPathToGitRelativePath(this.repoRoot);
-                    long offset;
-                    if (this.indexEntryOffsets.TryGetValue(gitPath, out offset))
+                    addedOrEditedLocalFiles,
+                    (localPath) =>
                     {
-                        UpdateEntryFromDisk(this, localPath, offset, ref updatedEntriesFromDisk);
-                    }
-                });
+                        string gitPath = localPath.FromWindowsFullPathToGitRelativePath(this.repoRoot);
+                        long offset;
+                        if (this.indexEntryOffsets.TryGetValue(gitPath, out offset))
+                        {
+                            if (TryUpdateEntryFromDisk(indexView, localPath, offset))
+                            {
+                                Interlocked.Increment(ref updatedEntriesFromDisk);
+                            }
+                        }
+                    });
             }
 
-            this.tracer.RelatedEvent(EventLevel.Informational, "UpdateFileInformationFromDiskForFiles", new EventMetadata() { { "UpdatedFromDisk", updatedEntriesFromDisk } }, Keywords.Telemetry);
+            this.tracer.RelatedEvent(EventLevel.Informational, "UpdateIndexFileInformation", new EventMetadata() { { "UpdatedFromDisk", updatedEntriesFromDisk } }, Keywords.Telemetry);
             return updatedEntriesFromDisk > 0;
         }
-
-        private bool UpdateFileInformationFromBackup(bool shouldAlsoTryPopulateFromDisk, out bool indexFound)
-        {
-            indexFound = (this.backupIndexPath != null) && File.Exists(this.backupIndexPath);
-            if (!indexFound)
-            {
-                return false;
-            }
-
-            using (ITracer activity = this.tracer.StartActivity("UpdateFileInformationFromPreviousIndex", EventLevel.Informational, Keywords.Telemetry, null))
-            {
-                Index backupIndex = new Index(this.repoRoot, this.tracer, indexReadOnly: true, indexFullPath: this.backupIndexPath, backupIndexFullPath: null, backupIndex: false);
-                backupIndex.Parse();
-                return this.UpdateFileInformationFromAnotherIndex(backupIndex, shouldAlsoTryPopulateFromDisk);
-            }
-        }
-
-        private bool UpdateFileInformationFromAnotherIndex(Index otherIndex, bool shouldAlsoTryPopulateFromDisk)
+        
+        private bool UpdateFileInformationForAllEntries(MemoryMappedViewAccessor indexView, Index otherIndex, bool shouldAlsoTryPopulateFromDisk)
         {
             long updatedEntriesFromOtherIndex = 0;
-            foreach (KeyValuePair<string, long> i in this.indexEntryOffsets)
-            {
-                string currentIndexFilename = i.Key;
-                long currentIndexOffset = i.Value;
-                if (IndexEntry.HasUninitializedCTimeEntry(this, currentIndexOffset))
-                {
-                    long otherIndexOffset;
-                    if (otherIndex.indexEntryOffsets.TryGetValue(currentIndexFilename, out otherIndexOffset))
-                    {
-                        if (!IndexEntry.HasUninitializedCTimeEntry(otherIndex, otherIndexOffset))
-                        {
-                            IndexEntry currentIndexEntry = new IndexEntry(this, currentIndexOffset);
-                            IndexEntry otherIndexEntry = new IndexEntry(otherIndex, otherIndexOffset);
-                            currentIndexEntry.CtimeSeconds = otherIndexEntry.CtimeSeconds;
-                            currentIndexEntry.CtimeNanosecondFraction = otherIndexEntry.CtimeNanosecondFraction;
-                            currentIndexEntry.MtimeSeconds = otherIndexEntry.MtimeSeconds;
-                            currentIndexEntry.MtimeNanosecondFraction = otherIndexEntry.MtimeNanosecondFraction;
-                            currentIndexEntry.Size = otherIndexEntry.Size;
-                            ++updatedEntriesFromOtherIndex;
-                        }
-                    }
-                }
-            }
-
             long updatedEntriesFromDisk = 0;
-            if (shouldAlsoTryPopulateFromDisk)
+
+            using (MemoryMappedFile mmf = otherIndex.GetMemoryMappedFile())
+            using (MemoryMappedViewAccessor otherIndexView = mmf.CreateViewAccessor())
             {
                 Parallel.ForEach(
-                this.indexEntryOffsets.Where(entry => IndexEntry.HasUninitializedCTimeEntry(this, entry.Value)),
-                (entry) =>
-                {
-                    string localPath = entry.Key.FromGitRelativePathToWindowsFullPath(this.repoRoot);
-                    UpdateEntryFromDisk(this, localPath, entry.Value, ref updatedEntriesFromDisk);
-                });
+                    this.indexEntryOffsets,
+                    entry =>
+                    {
+                        string currentIndexFilename = entry.Key;
+                        long currentIndexOffset = entry.Value;
+                        if (!IndexEntry.HasInitializedCTimeEntry(indexView, currentIndexOffset))
+                        {
+                            long otherIndexOffset;
+                            if (otherIndex.indexEntryOffsets.TryGetValue(currentIndexFilename, out otherIndexOffset))
+                            {
+                                if (IndexEntry.HasInitializedCTimeEntry(otherIndexView, otherIndexOffset))
+                                {
+                                    IndexEntry currentIndexEntry = new IndexEntry(indexView, currentIndexOffset);
+                                    IndexEntry otherIndexEntry = new IndexEntry(otherIndexView, otherIndexOffset);
 
-                this.tracer.RelatedEvent(EventLevel.Informational, "UpdateFileInformationFromAnotherIndex", new EventMetadata() { { "UpdatedFromOtherIndex", updatedEntriesFromOtherIndex }, { "UpdatedFromDisk", updatedEntriesFromDisk } }, Keywords.Telemetry);
+                                    currentIndexEntry.CtimeSeconds = otherIndexEntry.CtimeSeconds;
+                                    currentIndexEntry.CtimeNanosecondFraction = otherIndexEntry.CtimeNanosecondFraction;
+                                    currentIndexEntry.MtimeSeconds = otherIndexEntry.MtimeSeconds;
+                                    currentIndexEntry.MtimeNanosecondFraction = otherIndexEntry.MtimeNanosecondFraction;
+                                    currentIndexEntry.Size = otherIndexEntry.Size;
+
+                                    Interlocked.Increment(ref updatedEntriesFromOtherIndex);
+                                }
+                            }
+                            else if (shouldAlsoTryPopulateFromDisk)
+                            {
+                                string localPath = currentIndexFilename.FromGitRelativePathToWindowsFullPath(this.repoRoot);
+                                if (TryUpdateEntryFromDisk(indexView, localPath, entry.Value))
+                                {
+                                    Interlocked.Increment(ref updatedEntriesFromDisk);
+                                }
+                            }
+                        }
+                    });
             }
 
-            this.indexView.Flush();
+            this.tracer.RelatedEvent(
+                EventLevel.Informational,
+                "UpdateIndexFileInformation",
+                new EventMetadata()
+                {
+                    { "UpdatedFromOtherIndex", updatedEntriesFromOtherIndex },
+                    { "UpdatedFromDisk", updatedEntriesFromDisk }
+                },
+                Keywords.Telemetry);
 
             return (updatedEntriesFromOtherIndex > 0) || (updatedEntriesFromDisk > 0);
         }
 
-        private void UpdateEntryFromDisk(Index index, string localPath, long offset, ref long counter)
+        private bool TryUpdateEntryFromDisk(MemoryMappedViewAccessor indexView, string localPath, long offset)
         {
             try
             {
                 FileInfo file = new FileInfo(localPath);
                 if (file.Exists)
                 {
-                    IndexEntry indexEntry = new IndexEntry(index, offset);
+                    IndexEntry indexEntry = new IndexEntry(indexView, offset);
                     indexEntry.Mtime = file.LastWriteTimeUtc;
                     indexEntry.Ctime = file.CreationTimeUtc;
                     indexEntry.Size = (uint)file.Length;
-                    Interlocked.Increment(ref counter);
+                    return true;
                 }
             }
             catch (System.Security.SecurityException)
@@ -306,21 +300,31 @@ namespace FastFetch
             {
                 // Skip these.
             }
+
+            return false;
         }
 
-        private void MoveUpdatedIndexToFinalLocation()
+        private void MoveUpdatedIndexToFinalLocation(bool shouldSignIndex)
         {
-            if (this.indexView != null)
+            if (shouldSignIndex)
             {
-                this.indexView.Flush();
-                this.indexView.Dispose();
-                this.indexView = null;
-            }
+                using (ITracer activity = this.tracer.StartActivity("SignIndex", EventLevel.Informational, Keywords.Telemetry, metadata: null))
+                {
+                    using (FileStream fs = File.Open(this.updatedIndexPath, FileMode.Open, FileAccess.ReadWrite))
+                    {
+                        // Truncate the old hash off. The Index class is expected to preserve any existing hash.
+                        fs.SetLength(fs.Length - 20);
+                        using (HashingStream hashStream = new HashingStream(fs))
+                        {
+                            fs.Position = 0;
+                            hashStream.CopyTo(Stream.Null);
+                            byte[] hash = hashStream.Hash;
 
-            if (this.indexMapping != null)
-            {
-                this.indexMapping.Dispose();
-                this.indexView = null;
+                            // The fs pointer is now where the old hash used to be. Perfect. :)
+                            fs.Write(hash, 0, hash.Length);
+                        }
+                    }
+                }
             }
 
             this.tracer.RelatedEvent(EventLevel.Informational, "MoveUpdatedIndexToFinalLocation", new EventMetadata() { { "UpdatedIndex", this.updatedIndexPath }, { "Index", this.indexPath } });
@@ -337,12 +341,13 @@ namespace FastFetch
                 File.SetAttributes(this.versionMarkerFile, FileAttributes.Normal);
             }
 
+            Directory.CreateDirectory(Path.GetDirectoryName(this.versionMarkerFile));
             File.WriteAllText(this.versionMarkerFile, CurrentFastFetchIndexVersion.ToString(), Encoding.ASCII);
             File.SetAttributes(this.versionMarkerFile, FileAttributes.ReadOnly);
             this.tracer.RelatedEvent(EventLevel.Informational, "MarkerWritten", new EventMetadata() { { "Version", CurrentFastFetchIndexVersion } });
         }
 
-        private bool IsFastFetchVersionMarkerCurrent() 
+        private bool IsFastFetchVersionMarkerCurrent()
         {
             if (File.Exists(this.versionMarkerFile))
             {
@@ -357,30 +362,28 @@ namespace FastFetch
             return false;
         }
 
-        private void Parse()
-        {
-            using (ITracer activity = this.tracer.StartActivity("ParseIndex", EventLevel.Informational, Keywords.Telemetry, new EventMetadata() { { "Index", this.updatedIndexPath } }))
-            {
-                this.indexMapping = MemoryMappedFile.CreateFromFile(this.updatedIndexPath, FileMode.Open);
-                this.indexView = this.indexMapping.CreateViewAccessor();
-                using (MemoryMappedViewStream indexStream = this.indexMapping.CreateViewStream())
-                {
-                    this.ParseIndex(indexStream, updateOffsetsOnly: false);
-                }
-            }
-        }
-
-        private void ParseIndex(MemoryMappedViewStream indexStream, bool updateOffsetsOnly = false)
+        private void ParseIndex(Stream indexStream)
         {
             byte[] buffer = new byte[40];
             indexStream.Position = 0;
 
             byte[] signature = new byte[4];
             indexStream.Read(signature, 0, 4);
-            this.indexVersion = this.ReadUInt32(buffer, indexStream);
+            if (!Enumerable.SequenceEqual(MagicSignature, signature))
+            {
+                throw new InvalidDataException("Incorrect magic signature for index: " + string.Join(string.Empty, signature.Select(c => (char)c)));
+            }
+
+            this.IndexVersion = this.ReadUInt32(buffer, indexStream);
+
+            if (this.IndexVersion < 2 || this.IndexVersion > 4)
+            {
+                throw new InvalidDataException("Unsupported index version: " + this.IndexVersion);
+            }
+
             this.entryCount = this.ReadUInt32(buffer, indexStream);
 
-            this.tracer.RelatedEvent(EventLevel.Informational, "IndexData", new EventMetadata() { { "Index", this.updatedIndexPath }, { "Version", this.indexVersion }, { "entryCount", this.entryCount } }, Keywords.Telemetry);
+            this.tracer.RelatedEvent(EventLevel.Informational, "IndexData", new EventMetadata() { { "Index", this.updatedIndexPath }, { "Version", this.IndexVersion }, { "entryCount", this.entryCount } }, Keywords.Telemetry);
 
             this.indexEntryOffsets = new Dictionary<string, long>((int)this.entryCount, StringComparer.OrdinalIgnoreCase);
 
@@ -400,18 +403,18 @@ namespace FastFetch
 
                 ushort flags = this.ReadUInt16(buffer, indexStream);
                 bool isExtended = (flags & ExtendedBit) == ExtendedBit;
-                int pathLength = (ushort)(((flags << 20) >> 20) & 4095);
+                ushort pathLength = (ushort)(flags & 0xFFF);
                 entryLength += pathLength;
 
                 bool skipWorktree = false;
-                if (isExtended && (this.indexVersion > 2))
+                if (isExtended && (this.IndexVersion > 2))
                 {
                     ushort extendedFlags = this.ReadUInt16(buffer, indexStream);
                     skipWorktree = (extendedFlags & SkipWorktreeBit) == SkipWorktreeBit;
                     entryLength += 2;
                 }
 
-                if (this.indexVersion == 4)
+                if (this.IndexVersion == 4)
                 {
                     int replaceLength = this.ReadReplaceLength(indexStream);
                     int replaceIndex = previousPathLength - replaceLength;
@@ -425,7 +428,7 @@ namespace FastFetch
                     indexStream.Read(pathBuffer, 0, pathLength + numNulBytes);
                 }
 
-                if (!skipWorktree)  
+                if (!skipWorktree)
                 {
                     // Examine only the things we're not skipping...
                     // Potential Future Perf Optimization: Perform this work on multiple threads.  If we take the first byte and % by number of threads,
@@ -451,6 +454,10 @@ namespace FastFetch
             for (int i = 0; (headerByte & 0x80) != 0; i++)
             {
                 headerByte = stream.ReadByte();
+                if (headerByte < 0)
+                {
+                    throw new EndOfStreamException("Index file has been truncated.");
+                }
 
                 offset += 1;
                 offset = (offset << 7) + (headerByte & 0x7f);
@@ -486,11 +493,11 @@ namespace FastFetch
             private const long UnixEpochMilliseconds = 116444736000000000;
             private static readonly DateTime UnixEpoch = new DateTime(1970, 1, 1, 0, 0, 0, DateTimeKind.Utc);
 
-            private Index index;
+            private MemoryMappedViewAccessor indexView;
 
-            public IndexEntry(Index index, long offset)
+            public IndexEntry(MemoryMappedViewAccessor indexView, long offset)
             {
-                this.index = index;
+                this.indexView = indexView;
                 this.Offset = offset;
             }
 
@@ -625,46 +632,30 @@ namespace FastFetch
                     return (this.Flags & Index.ExtendedBit) == Index.ExtendedBit;
                 }
             }
-
-            public ushort ExtendedFlags
+            
+            public static bool HasInitializedCTimeEntry(MemoryMappedViewAccessor indexView, long offset)
             {
-                get
-                {
-                    return (this.IsExtended && (this.index.indexVersion > 2)) ? this.ReadUInt16(EntryOffsets.extendedFlags) : (ushort)0;
-                }
-
-                set
-                {
-                    if (this.IsExtended)
-                    {
-                        this.WriteUInt32(EntryOffsets.extendedFlags, value);
-                    }
-                }
-            }
-
-            public static bool HasUninitializedCTimeEntry(Index index, long offset)
-            {
-                return EndianHelper.Swap(index.indexView.ReadUInt32(offset + (long)EntryOffsets.ctimeSeconds)) == 0;
+                return EndianHelper.Swap(indexView.ReadUInt32(offset + (long)EntryOffsets.ctimeSeconds)) != 0;
             }
 
             private uint ReadUInt32(EntryOffsets fromOffset)
             {
-                return EndianHelper.Swap(this.index.indexView.ReadUInt32(this.Offset + (long)fromOffset));
+                return EndianHelper.Swap(this.indexView.ReadUInt32(this.Offset + (long)fromOffset));
             }
 
             private void WriteUInt32(EntryOffsets fromOffset, uint data)
             {
-                this.index.indexView.Write(this.Offset + (long)fromOffset, EndianHelper.Swap(data));
+                this.indexView.Write(this.Offset + (long)fromOffset, EndianHelper.Swap(data));
             }
 
             private ushort ReadUInt16(EntryOffsets fromOffset)
             {
-                return EndianHelper.Swap(this.index.indexView.ReadUInt16(this.Offset + (long)fromOffset));
+                return EndianHelper.Swap(this.indexView.ReadUInt16(this.Offset + (long)fromOffset));
             }
 
             private void WriteUInt16(EntryOffsets fromOffset, ushort data)
             {
-                this.index.indexView.Write(this.Offset + (long)fromOffset, EndianHelper.Swap(data));
+                this.indexView.Write(this.Offset + (long)fromOffset, EndianHelper.Swap(data));
             }
 
             private IndexEntryTime ToUnixTime(DateTime datetime)
@@ -686,7 +677,7 @@ namespace FastFetch
 
             private DateTime ToWindowsTime(uint seconds, uint nanosecondFraction)
             {
-                DateTime time = UnixEpoch.AddSeconds(seconds).AddMilliseconds(nanosecondFraction * 1000000);
+                DateTime time = UnixEpoch.AddSeconds(seconds).AddMilliseconds(nanosecondFraction / 1000000);
                 return time;
             }
 

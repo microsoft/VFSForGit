@@ -1,7 +1,7 @@
 ﻿using FastFetch.Git;
 using GVFS.Common;
+using GVFS.Common.FileSystem;
 using GVFS.Common.Git;
-using GVFS.Common.Physical.FileSystem;
 using GVFS.Common.Tracing;
 using Microsoft.Diagnostics.Tracing;
 using System;

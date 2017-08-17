@@ -39,7 +39,7 @@ namespace GVFS.Common.NamedPipes
                 public string MountStatus { get; set; }
                 public string EnlistmentRoot { get; set; }
                 public string RepoUrl { get; set; }
-                public string ObjectsUrl { get; set; }
+                public string CacheServer { get; set; }
                 public int BackgroundOperationCount { get; set; }
                 public string LockStatus { get; set; }
                 public int DiskLayoutVersion { get; set; }
@@ -127,15 +127,15 @@ namespace GVFS.Common.NamedPipes
             }
         }
 
-        public class UnmountRepoRequest
+        public class UnregisterRepoRequest
         {
-            public const string Header = nameof(UnmountRepoRequest);
+            public const string Header = nameof(UnregisterRepoRequest);
 
             public string EnlistmentRoot { get; set; }
 
-            public static UnmountRepoRequest FromMessage(Message message)
+            public static UnregisterRepoRequest FromMessage(Message message)
             {
-                return JsonConvert.DeserializeObject<UnmountRepoRequest>(message.Body);
+                return JsonConvert.DeserializeObject<UnregisterRepoRequest>(message.Body);
             }
 
             public Message ToMessage()
@@ -143,38 +143,25 @@ namespace GVFS.Common.NamedPipes
                 return new Message(Header, JsonConvert.SerializeObject(this));
             }
 
-            public class Response
+            public class Response : BaseResponse<UnregisterRepoRequest>
             {
-                public const string Header = nameof(UnmountRepoRequest) + ResponseSuffix;
-
-                public CompletionState State { get; set; }
-
-                public string UserText { get; set; }
-
                 public static Response FromMessage(Message message)
                 {
                     return JsonConvert.DeserializeObject<Response>(message.Body);
-                }
-
-                public Message ToMessage()
-                {
-                    return new Message(Header, JsonConvert.SerializeObject(this));
                 }
             }
         }
 
-        public class MountRepoRequest
+        public class RegisterRepoRequest
         {
-            public const string Header = nameof(MountRepoRequest);
+            public const string Header = nameof(RegisterRepoRequest);
 
             public string EnlistmentRoot { get; set; }
-            public Keywords Keywords { get; set; }
-            public bool ShowDebugWindow { get; set; }
-            public EventLevel Verbosity { get; set; }
+            public string OwnerSID { get; set; }
 
-            public static MountRepoRequest FromMessage(Message message)
+            public static RegisterRepoRequest FromMessage(Message message)
             {
-                return JsonConvert.DeserializeObject<MountRepoRequest>(message.Body);
+                return JsonConvert.DeserializeObject<RegisterRepoRequest>(message.Body);
             }
 
             public Message ToMessage()
@@ -182,22 +169,50 @@ namespace GVFS.Common.NamedPipes
                 return new Message(Header, JsonConvert.SerializeObject(this));
             }
 
-            public class Response
+            public class Response : BaseResponse<RegisterRepoRequest>
             {
-                public const string Header = nameof(MountRepoRequest) + ResponseSuffix;
-
-                public CompletionState State { get; set; }
-                public string ErrorMessage { get; set; }
-
                 public static Response FromMessage(Message message)
                 {
                     return JsonConvert.DeserializeObject<Response>(message.Body);
                 }
+            }
+        }
 
-                public Message ToMessage()
+        public class AttachGvFltRequest
+        {
+            public const string Header = nameof(AttachGvFltRequest);
+
+            public string EnlistmentRoot { get; set; }
+
+            public static AttachGvFltRequest FromMessage(Message message)
+            {
+                return JsonConvert.DeserializeObject<AttachGvFltRequest>(message.Body);
+            }
+
+            public Message ToMessage()
+            {
+                return new Message(Header, JsonConvert.SerializeObject(this));
+            }
+
+            public class Response : BaseResponse<AttachGvFltRequest>
+            {
+                public static Response FromMessage(Message message)
                 {
-                    return new Message(Header, JsonConvert.SerializeObject(this));
+                    return JsonConvert.DeserializeObject<Response>(message.Body);
                 }
+            }
+        }
+
+        public class BaseResponse<TRequest>
+        {
+            public const string Header = nameof(TRequest) + ResponseSuffix;
+
+            public CompletionState State { get; set; }
+            public string ErrorMessage { get; set; }
+
+            public Message ToMessage()
+            {
+                return new Message(Header, JsonConvert.SerializeObject(this));
             }
         }
     }

@@ -11,8 +11,6 @@ namespace GVFS.FunctionalTests.Tools
     public static class GitHelpers
     {
         public const string AlwaysExcludeFilePath = @".git\info\always_exclude";
-        private const int MaxRetries = 10;
-        private const int ThreadSleepMS = 1500;
 
         public static void CheckGitCommand(string virtualRepoRoot, string command, params string[] expectedLinesInResult)
         {

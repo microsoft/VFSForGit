@@ -1,6 +1,5 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.IO;
 
 namespace GVFS.Common.Git
 {
@@ -34,12 +33,11 @@ namespace GVFS.Common.Git
         /// <summary>
         /// Get the settings for a section in a given config file.
         /// </summary>
-        /// <param name="configFilename">The path to the config file.</param>
+        /// <param name="configLines">The contents of a config file, one line per entry.</param>
         /// <param name="sectionName">The name of the section to grab the settings from.</param>
         /// <returns>A dictionary of settings, keyed off the setting name.</returns>
-        public static Dictionary<string, GitConfigSetting> GetSettings(string configFilename, string sectionName)
+        public static Dictionary<string, GitConfigSetting> GetSettings(string[] configLines, string sectionName)
         {
-            string[] configLines = File.ReadAllLines(configFilename);
             List<string> linesToParse = new List<string>();
 
             int currentLineIndex = 0;

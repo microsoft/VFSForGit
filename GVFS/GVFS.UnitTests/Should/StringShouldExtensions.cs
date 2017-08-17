@@ -1,4 +1,4 @@
-﻿using GVFS.Common.Physical.FileSystem;
+﻿using GVFS.Common.FileSystem;
 
 namespace GVFS.Tests.Should
 {

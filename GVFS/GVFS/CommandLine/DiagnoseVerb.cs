@@ -1,9 +1,9 @@
 ﻿using CommandLine;
 using GVFS.Common;
+using GVFS.Common.FileSystem;
 using GVFS.Common.Git;
-using GVFS.Common.Physical.FileSystem;
+using GVFS.Common.Http;
 using GVFS.GVFlt;
-using GVFS.Service;
 using Microsoft.Isam.Esent.Collections.Generic;
 using System;
 using System.IO;
@@ -25,6 +25,13 @@ namespace GVFS.CommandLine
 
         private TextWriter diagnosticLogFileWriter;
 
+        [Option(
+            GVFSConstants.VerbParameters.Unmount.SkipLock,
+            Default = false,
+            Required = false,
+            HelpText = "Force unmount even if the lock is not available.")]
+        public bool SkipLock { get; set; }
+
         protected override string VerbName
         {
             get { return DiagnoseVerbName; }
@@ -41,7 +48,7 @@ namespace GVFS.CommandLine
 
             string archiveFolderPath = Path.Combine(diagnosticsRoot, "gvfs_" + DateTime.Now.ToString("yyyyMMdd_HHmmss"));
             Directory.CreateDirectory(archiveFolderPath);
-
+            
             using (FileStream diagnosticLogFile = new FileStream(Path.Combine(archiveFolderPath, "diagnostics.log"), FileMode.CreateNew))
             using (this.diagnosticLogFileWriter = new StreamWriter(diagnosticLogFile))
             {
@@ -54,7 +61,18 @@ namespace GVFS.CommandLine
                 this.WriteMessage(string.Empty);
                 this.WriteMessage("Enlistment root: " + enlistment.EnlistmentRoot);
                 this.WriteMessage("Repo URL: " + enlistment.RepoUrl);
-                this.WriteMessage("Objects URL: " + enlistment.ObjectsEndpointUrl);
+
+                string error;
+                CacheServerInfo cacheServer;
+                if (CacheServerInfo.TryDetermineCacheServer(null, enlistment, null, out cacheServer, out error))
+                {
+                    this.WriteMessage("Cache Server: " + cacheServer);
+                }
+                else
+                {
+                    this.WriteMessage(error);
+                }
+
                 this.WriteMessage(string.Empty);
 
                 this.WriteMessage("Copying .gvfs folder...");
@@ -64,6 +82,7 @@ namespace GVFS.CommandLine
                 this.FlushGvFltLogBuffers();
                 string system32LogFilesPath = Environment.ExpandEnvironmentVariables(System32LogFilesRoot);
                 this.CopyAllFiles(system32LogFilesPath, archiveFolderPath, GVFltLogFolderName, copySubFolders: false);
+                this.LogGvFltTimeout();
 
                 this.WriteMessage("Checking on GVFS...");
                 this.RunAndRecordGVFSVerb<LogVerb>(archiveFolderPath, "gvfs_log.txt");
@@ -72,7 +91,7 @@ namespace GVFS.CommandLine
                 if (statusResult == ReturnCode.Success)
                 {
                     this.WriteMessage("GVFS is mounted. Unmounting so we can read files that GVFS has locked...");
-                    this.RunAndRecordGVFSVerb<UnmountVerb>(archiveFolderPath, "gvfs_unmount.txt");
+                    this.RunAndRecordGVFSVerb<UnmountVerb>(archiveFolderPath, "gvfs_unmount.txt", verb => verb.SkipLock = this.SkipLock);
                 }
                 else
                 {
@@ -107,9 +126,11 @@ namespace GVFS.CommandLine
                     Path.Combine(archiveFolderPath, GVFSConstants.DotGVFS.Root),
                     GVFSConstants.DatabaseNames.RepoMetadata);
 
+                this.CopyAllFiles(enlistment.DotGVFSRoot, Path.Combine(archiveFolderPath, GVFSConstants.DotGVFS.Root), GVFSConstants.DotGVFS.CorruptObjectsName, copySubFolders: false);
+
                 this.WriteMessage("Copying GVFS.Service logs and data...");
                 this.CopyAllFiles(
-                    GVFSService.GetServiceDataRoot(string.Empty),
+                    Paths.GetServiceDataRoot(string.Empty),
                     archiveFolderPath,
                     this.ServiceName,
                     copySubFolders: true);
@@ -226,7 +247,7 @@ namespace GVFS.CommandLine
             }
         }
 
-        private ReturnCode RunAndRecordGVFSVerb<TVerb>(string archiveFolderPath, string outputFileName)
+        private ReturnCode RunAndRecordGVFSVerb<TVerb>(string archiveFolderPath, string outputFileName, Action<TVerb> customConfigureVerb = null)
             where TVerb : GVFSVerb, new()
         {
             try
@@ -234,13 +255,16 @@ namespace GVFS.CommandLine
                 using (FileStream file = new FileStream(Path.Combine(archiveFolderPath, outputFileName), FileMode.CreateNew))
                 using (StreamWriter writer = new StreamWriter(file))
                 {
-                    return GVFSVerb.Execute<TVerb>(
-                        this.EnlistmentRootPath,
-                        verb =>
-                        {
-                            verb.Output = writer;
-                            verb.ServiceName = this.ServiceName;
-                        });
+                    customConfigureVerb = customConfigureVerb ?? new Action<TVerb>(verb => { });
+                    Action<TVerb> composedVerbConfiguration;
+                    composedVerbConfiguration = verb =>
+                    {
+                        customConfigureVerb(verb);
+                        verb.Output = writer;
+                        verb.ServiceName = this.ServiceName;
+                    };
+
+                    return GVFSVerb.Execute<TVerb>(this.EnlistmentRootPath, composedVerbConfiguration);
                 }
             }
             catch (Exception e)
@@ -329,6 +353,20 @@ namespace GVFS.CommandLine
 
             // Also copy the database files themselves, in case we failed to read the entries above
             this.CopyAllFiles(sourceFolder, targetFolder, databaseName, copySubFolders: false);
+        }
+
+        private void LogGvFltTimeout()
+        {
+            int gvfltTimeoutMs;
+            string error;
+            if (GvFltFilter.TryGetTimeout(out gvfltTimeoutMs, out error))
+            {
+                this.WriteMessage(string.Format("GvFlt timeout (ms) = {0}", gvfltTimeoutMs));
+            }
+            else
+            {
+                this.WriteMessage(string.Format("Failed to GvFlt timeout, error: {0}", error));
+            }
         }
 
         private void FlushGvFltLogBuffers()

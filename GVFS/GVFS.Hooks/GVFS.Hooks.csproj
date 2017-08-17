@@ -66,9 +66,6 @@
     <Compile Include="..\GVFS.Common\ConsoleHelper.cs">
       <Link>Common\ConsoleHelper.cs</Link>
     </Compile>
-    <Compile Include="..\GVFS.Common\EnlistmentUtils.cs">
-      <Link>Common\EnlistmentUtils.cs</Link>
-    </Compile>
     <Compile Include="..\GVFS.Common\Git\GitConfigHelper.cs">
       <Link>Common\GitConfigHelper.cs</Link>
     </Compile>
@@ -81,6 +78,9 @@
     <Compile Include="..\GVFS.Common\GVFSConstants.cs">
       <Link>Common\GVFSConstants.cs</Link>
     </Compile>
+    <Compile Include="..\GVFS.Common\GVFSLock.Shared.cs">
+      <Link>Common\GVFSLock.Shared.cs</Link>
+    </Compile>
     <Compile Include="..\GVFS.Common\NamedPipes\BrokenPipeException.cs">
       <Link>Common\BrokenPipeException.cs</Link>
     </Compile>
@@ -89,6 +89,9 @@
     </Compile>
     <Compile Include="..\GVFS.Common\NamedPipes\NamedPipeClient.cs">
       <Link>Common\NamedPipeClient.cs</Link>
+    </Compile>
+    <Compile Include="..\GVFS.Common\Paths.cs">
+      <Link>Common\Paths.cs</Link>
     </Compile>
     <Compile Include="..\GVFS.Common\ProcessHelper.cs">
       <Link>Common\ProcessHelper.cs</Link>

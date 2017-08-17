@@ -80,19 +80,21 @@
     <Compile Include="..\..\..\BuildOutput\CommonAssemblyVersion.cs">
       <Link>CommonAssemblyVersion.cs</Link>
     </Compile>
+    <Compile Include="CommandLine\CacheServerVerb.cs" />
     <Compile Include="CommandLine\CloneHelper.cs" />
     <Compile Include="CommandLine\CloneVerb.cs" />
     <Compile Include="CommandLine\DehydrateVerb.cs" />
     <Compile Include="CommandLine\DiagnoseVerb.cs" />
     <Compile Include="CommandLine\GVFSVerb.cs" />
-    <Compile Include="CommandLine\HooksInstallHelper.cs" />
+    <Compile Include="CommandLine\HooksInstaller.cs" />
     <Compile Include="CommandLine\LogVerb.cs" />
     <Compile Include="CommandLine\MountVerb.cs" />
-    <Compile Include="CommandLine\PrefetchHelper.cs" />
     <Compile Include="CommandLine\PrefetchVerb.cs" />
     <Compile Include="CommandLine\RepairJobs\BackgroundOperationDatabaseRepairJob.cs" />
     <Compile Include="CommandLine\RepairJobs\BlobSizeDatabaseRepairJob.cs" />
     <Compile Include="CommandLine\RepairJobs\GitHeadRepairJob.cs" />
+    <Compile Include="CommandLine\RepairJobs\GitIndexRepairJob.cs" />
+    <Compile Include="CommandLine\RepairJobs\GitConfigRepairJob.cs" />
     <Compile Include="CommandLine\RepairJobs\PlaceholderDatabaseRepairJob.cs" />
     <Compile Include="CommandLine\RepairJobs\RepairJob.cs" />
     <Compile Include="CommandLine\RepairJobs\RepoMetadataDatabaseRepairJob.cs" />
@@ -121,17 +123,18 @@
       <Project>{374bf1e5-0b2d-4d4a-bd5e-4212299def09}</Project>
       <Name>GVFS.Common</Name>
     </ProjectReference>
+    <ProjectReference Include="..\GVFS.GvFltWrapper\GvFlt.vcxproj">
+      <Project>{fb0831ae-9997-401b-b31f-3a065fdbeb20}</Project>
+      <Name>GvFlt</Name>
+    </ProjectReference>
     <ProjectReference Include="..\GVFS.GVFlt\GVFS.GVFlt.csproj">
       <Project>{1118b427-7063-422f-83b9-5023c8ec5a7a}</Project>
       <Name>GVFS.GVFlt</Name>
     </ProjectReference>
+    <!-- This reference is to get the GVFS.Mount.exe to the output directory of GVFS -->
     <ProjectReference Include="..\GVFS.Mount\GVFS.Mount.csproj">
       <Project>{17498502-aeff-4e70-90cc-1d0b56a8adf5}</Project>
       <Name>GVFS.Mount</Name>
-    </ProjectReference>
-    <ProjectReference Include="..\GVFS.Service\GVFS.Service.csproj">
-      <Project>{B8C1DFBA-CAFD-4F7E-A1A3-E11907B5467B}</Project>
-      <Name>GVFS.Service</Name>
     </ProjectReference>
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
@@ -146,6 +149,7 @@
   </Target>
   <PropertyGroup>
     <PostBuildEvent>xcopy /Y $(SolutionDir)..\BuildOutput\GVFS.ReadObjectHook\bin\$(Platform)\$(Configuration)\GVFS.ReadObjectHook.* $(TargetDir)
+xcopy /Y $(SolutionDir)..\BuildOutput\GVFS.Hooks\bin\$(Platform)\$(Configuration)\GVFS.Hooks.* $(TargetDir)
 xcopy /Y $(SolutionDir)..\BuildOutput\GitHooksLoader\bin\$(Platform)\$(Configuration)\GitHooksLoader.* $(TargetDir)    
 cmd /c ""c:\Program Files (x86)\Inno Setup 5\ISCC.exe" "/DPlatformAndConfiguration=$(Platform)\$(Configuration)" /DGvFltPackage="$(GvFltPackage)" $(TargetDir)Setup.iss"</PostBuildEvent>
   </PropertyGroup>

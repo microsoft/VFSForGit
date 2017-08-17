@@ -35,7 +35,7 @@ namespace GVFS.Hooks
                     ExitWithError("Usage: gvfs.hooks <hook> <git verb> [<other arguments>]");
                 }
 
-                enlistmentRoot = EnlistmentUtils.GetEnlistmentRoot(Environment.CurrentDirectory);
+                enlistmentRoot = Paths.GetGVFSEnlistmentRoot(Environment.CurrentDirectory);
                 if (string.IsNullOrEmpty(enlistmentRoot))
                 {
                     // Nothing to hook when being run outside of a GVFS repo.
@@ -43,7 +43,7 @@ namespace GVFS.Hooks
                     Environment.Exit(0);
                 }
 
-                enlistmentPipename = NamedPipeClient.GetPipeNameFromPath(enlistmentRoot);
+                enlistmentPipename = Paths.GetNamedPipeName(enlistmentRoot);
 
                 switch (GetHookType(args))
                 {
@@ -150,7 +150,7 @@ namespace GVFS.Hooks
                 if (!args.Contains("--no-renames") || !args.Contains("--no-breaks"))
                 {
                     Dictionary<string, GitConfigSetting> statusConfig = GitConfigHelper.GetSettings(
-                        Path.Combine(srcRoot, GVFSConstants.DotGit.Config),
+                        File.ReadAllLines(Path.Combine(srcRoot, GVFSConstants.DotGit.Config)),
                         "status");
 
                     if (!IsRunningWithParamOrSetting(args, statusConfig, "--no-renames", "renames") ||
@@ -233,124 +233,59 @@ namespace GVFS.Hooks
 
         private static void AcquireGVFSLockForProcess(string fullCommand, int pid, Process parentProcess, NamedPipeClient pipeClient)
         {
-            NamedPipeMessages.LockRequest request =
-                new NamedPipeMessages.LockRequest(pid, fullCommand);
-
-            NamedPipeMessages.Message requestMessage = request.CreateMessage(NamedPipeMessages.AcquireLock.AcquireRequest);
-            pipeClient.SendRequest(requestMessage);
-
-            NamedPipeMessages.AcquireLock.Response response = new NamedPipeMessages.AcquireLock.Response(pipeClient.ReadResponse());
-
-            if (response.Result == NamedPipeMessages.AcquireLock.AcceptResult)
+            string result;
+            if (!GVFSLock.TryAcquireGVFSLockForProcess(
+                 pipeClient, 
+                 fullCommand, 
+                 pid, 
+                 parentProcess, 
+                 null, // gvfsEnlistmentRoot
+                 out result))
             {
-                return;
-            }
-            else if (response.Result == NamedPipeMessages.AcquireLock.MountNotReadyResult)
-            {
-                ExitWithError("GVFS has not finished initializing, please wait a few seconds and try again.");
-            }
-            else
-            {
-                string message = string.Empty;
-                switch (response.Result)
-                {
-                    case NamedPipeMessages.AcquireLock.AcceptResult:
-                        break;
-
-                    case NamedPipeMessages.AcquireLock.DenyGVFSResult:
-                        message = "Waiting for GVFS to release the lock";
-                        break;
-
-                    case NamedPipeMessages.AcquireLock.DenyGitResult:
-                        message = string.Format("Waiting for '{0}' to release the lock", response.ResponseData.ParsedCommand);
-                        break;
-
-                    default:
-                        ExitWithError("Error when acquiring the lock. Unrecognized response: " + response.CreateMessage());
-                        break;
-                }
-
-                ConsoleHelper.ShowStatusWhileRunning(
-                    () =>
-                    {
-                        while (response.Result != NamedPipeMessages.AcquireLock.AcceptResult)
-                        {
-                            Thread.Sleep(250);
-                            pipeClient.SendRequest(requestMessage);
-                            response = new NamedPipeMessages.AcquireLock.Response(pipeClient.ReadResponse());
-                        }
-
-                        return true;
-                    },
-                    message,
-                    output: Console.Out,
-                    showSpinner: !ConsoleHelper.IsConsoleOutputRedirectedToFile());
+                ExitWithError(result);
             }
         }
 
         private static void ReleaseGVFSLock(string fullCommand, int pid, Process parentProcess, NamedPipeClient pipeClient)
         {
-            NamedPipeMessages.LockRequest request =
-                new NamedPipeMessages.LockRequest(pid, fullCommand);
-
-            NamedPipeMessages.Message requestMessage = request.CreateMessage(NamedPipeMessages.ReleaseLock.Request);
-
-            pipeClient.SendRequest(requestMessage);
-            NamedPipeMessages.ReleaseLock.Response response = null;
-
-            if (!ConsoleHelper.IsConsoleOutputRedirectedToFile())
-            {
-                // If output is redirected then don't show waiting message or it might be interpreted as error
-                response = new NamedPipeMessages.ReleaseLock.Response(pipeClient.ReadResponse());
-            }
-            else
-            {
-                ConsoleHelper.ShowStatusWhileRunning(
-                    () =>
+            GVFSLock.ReleaseGVFSLock(
+                pipeClient,
+                fullCommand,
+                pid,
+                parentProcess,
+                response =>
+                {
+                    if (response == null || response.ResponseData == null)
                     {
-                        response = new NamedPipeMessages.ReleaseLock.Response(pipeClient.ReadResponse());
-
-                        if (response.ResponseData == null)
+                        Console.WriteLine("\nError communicating with GVFS: Run 'git status' to check the status of your repo");
+                    }
+                    else if (response.ResponseData.HasFailures)
+                    {
+                        if (response.ResponseData.FailureCountExceedsMaxFileNames)
                         {
-                            return ConsoleHelper.ActionResult.Failure;
+                            Console.WriteLine(
+                                "\nGVFS failed to update {0} files, run 'git status' to check the status of files in the repo",
+                                response.ResponseData.FailedToDeleteCount + response.ResponseData.FailedToUpdateCount);
                         }
+                        else
+                        {
+                            string deleteFailuresMessage = BuildUpdatePlaceholderFailureMessage(response.ResponseData.FailedToDeleteFileList, "delete", "git clean -f ");
+                            if (deleteFailuresMessage.Length > 0)
+                            {
+                                Console.WriteLine(deleteFailuresMessage);
+                            }
 
-                        return response.ResponseData.HasFailures ? ConsoleHelper.ActionResult.CompletedWithErrors : ConsoleHelper.ActionResult.Success;
-                    },
-                    "Waiting for GVFS to parse index and update placeholder files",
-                    output: Console.Out,
-                    showSpinner: true,
-                    suppressGvfsLogMessage: false,
-                    initialDelayMs: PostCommandSpinnerDelayMs);
-            }
-
-            if (response == null || response.ResponseData == null)
-            {
-                Console.WriteLine("\nError communicating with GVFS: Run 'git status' to check the status of your repo");
-            }
-            else if (response.ResponseData.HasFailures)
-            {
-                if (response.ResponseData.FailureCountExceedsMaxFileNames)
-                {
-                    Console.WriteLine(
-                        "\nGVFS failed to update {0} files, run 'git status' to check the status of files in the repo",
-                        response.ResponseData.FailedToDeleteCount + response.ResponseData.FailedToUpdateCount);
-                }
-                else
-                {
-                    string deleteFailuresMessage = BuildUpdatePlaceholderFailureMessage(response.ResponseData.FailedToDeleteFileList, "delete", "git clean -f ");
-                    if (deleteFailuresMessage.Length > 0)
-                    {
-                        Console.WriteLine(deleteFailuresMessage);
+                            string updateFailuresMessage = BuildUpdatePlaceholderFailureMessage(response.ResponseData.FailedToUpdateFileList, "update", "git checkout -- ");
+                            if (updateFailuresMessage.Length > 0)
+                            {
+                                Console.WriteLine(updateFailuresMessage);
+                            }
+                        }
                     }
-
-                    string updateFailuresMessage = BuildUpdatePlaceholderFailureMessage(response.ResponseData.FailedToUpdateFileList, "update", "git checkout -- ");
-                    if (updateFailuresMessage.Length > 0)
-                    {
-                        Console.WriteLine(updateFailuresMessage);
-                    }
-                }
-            }
+                },
+                gvfsEnlistmentRoot: null,
+                waitingMessage: "Waiting for GVFS to parse index and update placeholder files", 
+                spinnerDelay: PostCommandSpinnerDelayMs);
         }
 
         private static string BuildUpdatePlaceholderFailureMessage(List<string> fileList, string failedOperation, string recoveryCommand)
@@ -437,8 +372,7 @@ namespace GVFS.Hooks
             // Don't acquire the lock if we've been explicitly asked not to. This enables tools, such as the VS Git
             // integration, to provide a "best effort" status without writing to the index. We assume that any such
             // tools will be constantly polling in the background, so missing a file once isn't a problem.
-            if (gitCommand == "status" &&
-                args.Contains("--no-lock-index"))
+            if (gitCommand == "status" && args.Contains("--no-lock-index"))
             {
                 return false;
             }

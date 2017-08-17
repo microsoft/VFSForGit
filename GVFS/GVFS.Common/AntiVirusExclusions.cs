@@ -72,7 +72,7 @@ namespace GVFS.Common
 
         private static ProcessResult CallPowershellCommand(string command)
         {
-            return ProcessHelper.Run("powershell", "-NoProfile -Command \"& { " + command + " }\"");
+            return ProcessHelper.Run("powershell.exe", "-NonInteractive -NoProfile -Command \"& { " + command + " }\"");
         }
 
         private static string CleanPath(string path)

@@ -35,7 +35,7 @@ namespace GVFS.Common
             string message,
             TextWriter output,
             bool showSpinner,
-            bool suppressGvfsLogMessage = false,
+            string gvfsLogEnlistmentRoot,
             int initialDelayMs = 0)
         {
             Func<ActionResult> actionResultAction =
@@ -49,8 +49,8 @@ namespace GVFS.Common
                 message, 
                 output, 
                 showSpinner, 
-                suppressGvfsLogMessage, 
-                initialDelayMs);
+                gvfsLogEnlistmentRoot, 
+                initialDelayMs: initialDelayMs);
 
             return result == ActionResult.Success;
         }
@@ -60,8 +60,8 @@ namespace GVFS.Common
             string message, 
             TextWriter output, 
             bool showSpinner, 
-            bool suppressGvfsLogMessage = false, 
-            int initialDelayMs = 0)
+            string gvfsLogEnlistmentRoot, 
+            int initialDelayMs)
         {
             ActionResult result = ActionResult.Failure;
             bool initialMessageWritten = false;
@@ -148,7 +148,7 @@ namespace GVFS.Common
                             output.Write("\r{0}...", message);
                         }
 
-                        output.WriteLine("Failed" + (suppressGvfsLogMessage ? string.Empty : ". Run 'gvfs log' for more info."));
+                        output.WriteLine("Failed" + (gvfsLogEnlistmentRoot == null ? string.Empty : ". " + GetGVFSLogMessage(gvfsLogEnlistmentRoot)));
                         break;
                 }
             }
@@ -159,6 +159,11 @@ namespace GVFS.Common
         public static bool IsConsoleOutputRedirectedToFile()
         {
             return FileType.Disk == GetFileType(GetStdHandle(StdHandle.Stdout));
+        }
+
+        public static string GetGVFSLogMessage(string enlistmentRoot)
+        {
+            return "Run 'gvfs log " + enlistmentRoot + "' for more info.";
         }
 
         [DllImport("kernel32.dll")]

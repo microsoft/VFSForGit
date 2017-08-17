@@ -1,7 +1,6 @@
 ﻿using GVFS.Common;
 using GVFS.Common.Git;
 using GVFS.Common.Http;
-using GVFS.Common.Physical;
 using GVFS.Common.Tracing;
 using GVFS.GVFlt;
 using System;
@@ -41,13 +40,13 @@ namespace GVFS.CommandLine
                 return new CloneVerb.Result("Error configuring alternate: " + errorMessage);
             }
 
-            if (!gitObjects.TryDownloadAndSaveCommits(refs.GetTipCommitIds(), commitDepth: 2))
+            if (!gitObjects.TryDownloadAndSaveCommit(refs.GetTipCommitId(branch), commitDepth: 2))
             {
-                return new CloneVerb.Result("Could not download tip commits from: " + Uri.EscapeUriString(this.enlistment.ObjectsEndpointUrl));
+                return new CloneVerb.Result("Could not download tip commits from: " + Uri.EscapeUriString(this.objectRequestor.CacheServer.ObjectsEndpointUrl));
             }
 
             GitProcess git = new GitProcess(this.enlistment);
-            if (!this.SetConfigSettings(git))
+            if (!this.SetConfigSettings(git, this.objectRequestor.CacheServer))
             {
                 return new CloneVerb.Result("Unable to configure git repo");
             }
@@ -105,7 +104,7 @@ namespace GVFS.CommandLine
             }
 
             string installHooksError;
-            if (!HooksInstallHelper.InstallHooks(this.enlistment, out installHooksError))
+            if (!HooksInstaller.InstallHooks(this.enlistment, out installHooksError))
             {
                 this.tracer.RelatedError(installHooksError);
                 return new CloneVerb.Result(installHooksError);
@@ -138,9 +137,10 @@ namespace GVFS.CommandLine
             return true;
         }
 
-        private bool SetConfigSettings(GitProcess git)
+        private bool SetConfigSettings(GitProcess git, CacheServerInfo cacheServer)
         {
-            return this.enlistment.TrySetCacheServerUrlConfig() &&
+            string error;
+            return CacheServerInfo.TrySaveToConfig(git, cacheServer, out error) &&
                 GVFSVerb.TrySetGitConfigSettings(git);
         }
 

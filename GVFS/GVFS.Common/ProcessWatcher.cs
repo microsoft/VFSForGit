@@ -1,8 +1,6 @@
 ﻿using System;
-using System.Collections.Generic;
 using System.Diagnostics;
 using System.Management;
-using System.Threading;
 using System.Threading.Tasks;
 
 namespace GVFS.Common
@@ -12,6 +10,9 @@ namespace GVFS.Common
     /// </summary>
     internal class ProcessWatcher : IDisposable
     {
+        private const string CommandParentExePrefix = "git";
+        private const string GVFSExe = "gvfs.exe";
+
         private const string QueryTemplate = @"SELECT * FROM __InstanceDeletionEvent  WITHIN 1 WHERE TargetInstance ISA 'Win32_Process' and TargetInstance.ProcessId = '{0}'";
 
         private readonly object terminationLock = new object();
@@ -28,7 +29,7 @@ namespace GVFS.Common
             this.watcher.EventArrived += this.EventArrived;
         }
 
-        public void WatchForTermination(int pid, string expectedExeNamePrefix)
+        public void WatchForTermination(int pid)
         {
             lock (this.terminationLock)
             {
@@ -45,9 +46,7 @@ namespace GVFS.Common
                     if (this.pendingPid != null)
                     {
                         Process process;
-                        if (ProcessHelper.TryGetProcess(this.pendingPid.Value, out process) &&
-                            process.MainModule.ModuleName.StartsWith(expectedExeNamePrefix, StringComparison.OrdinalIgnoreCase) &&
-                            process.MainModule.ModuleName.EndsWith(GVFSConstants.ExecutableExtension, StringComparison.OrdinalIgnoreCase))
+                        if (ProcessHelper.TryGetProcess(this.pendingPid.Value, out process) && this.ShouldWatchProcess(process))
                         {
                             this.watcher.Start();
                             this.currentPid = this.pendingPid;
@@ -91,6 +90,12 @@ namespace GVFS.Common
         {
             if (this.watcher != null)
             {
+                if (this.currentPid != null)
+                {
+                    this.watcher.Stop();
+                    this.currentPid = null;
+                }
+
                 this.watcher.Dispose();
                 this.watcher = null;
             }
@@ -116,6 +121,14 @@ namespace GVFS.Common
                     this.currentPid = null;
                 }
             }
+        }
+
+        private bool ShouldWatchProcess(Process process)
+        {
+            return
+                (process.MainModule.ModuleName.StartsWith(CommandParentExePrefix, StringComparison.OrdinalIgnoreCase) &&
+                 process.MainModule.ModuleName.EndsWith(GVFSConstants.ExecutableExtension, StringComparison.OrdinalIgnoreCase)) ||
+                 process.MainModule.ModuleName.Equals(GVFSExe, StringComparison.OrdinalIgnoreCase);
         }
     }
 }

@@ -1,4 +1,3 @@
-using GVFS.Common.Physical;
 using GVFS.Common.Tracing;
 using Microsoft.Diagnostics.Tracing;
 using Microsoft.Win32;
@@ -19,11 +18,21 @@ namespace GVFS.Common.Git
         private const string GitInstallationRegistryKey = "SOFTWARE\\GitForWindows";
         private const string GitInstallationRegistryInstallPathValue = "InstallPath";
 
-        private static readonly Encoding StandardEncoding = Encoding.GetEncoding(437);
+        private static readonly Encoding UTF8NoBOM = new UTF8Encoding(false);
 
         private object executionLock = new object();
 
         private Enlistment enlistment;
+
+        static GitProcess()
+        {
+            // If the encoding is UTF8, .Net's default behavior will include a BOM
+            // We need to use the BOM-less encoding because Git doesn't understand it
+            if (Console.InputEncoding.CodePage == UTF8NoBOM.CodePage)
+            {
+                Console.InputEncoding = UTF8NoBOM;
+            }
+        }
 
         public GitProcess(Enlistment enlistment)
         {
@@ -52,7 +61,7 @@ namespace GVFS.Common.Git
 
         public static string GetInstalledGitBinPath()
         {
-            string gitBinPath = RegistryUtils.GetStringFromRegistry(RegistryHive.LocalMachine, GitInstallationRegistryKey, GitInstallationRegistryInstallPathValue);
+            string gitBinPath = ProcessHelper.GetStringFromRegistry(RegistryHive.LocalMachine, GitInstallationRegistryKey, GitInstallationRegistryInstallPathValue);
             if (!string.IsNullOrWhiteSpace(gitBinPath))
             {
                 gitBinPath = Path.Combine(gitBinPath, GitBinRelativePath);
@@ -93,7 +102,7 @@ namespace GVFS.Common.Git
 
             using (ITracer activity = tracer.StartActivity("TryGetCredentials", EventLevel.Informational))
             {
-                Result gitCredentialOutput = this.InvokeGitOutsideEnlistment(
+                Result gitCredentialOutput = this.InvokeGitAgainstDotGitFolder(
                     "credential fill",
                     stdin => stdin.Write("url=" + this.enlistment.RepoUrl + "\n\n"),
                     parseStdOutLine: null);
@@ -184,7 +193,7 @@ namespace GVFS.Common.Git
         /// otherwise it will run it from outside the enlistment.
         /// </param>
         /// <returns>The value found for the setting.</returns>
-        public Result GetFromConfig(string settingName, bool forceOutsideEnlistment = false)
+        public virtual Result GetFromConfig(string settingName, bool forceOutsideEnlistment = false)
         {
             string command = string.Format("config {0}", settingName);
 
@@ -226,28 +235,12 @@ namespace GVFS.Common.Git
 
         public Result GetOriginUrl()
         {
-            Result result = this.InvokeGitAgainstDotGitFolder("remote -v");
-            if (result.HasErrors)
-            {
-                return result;
-            }
-
-            string[] lines = result.Output.Split('\r', '\n');
-            string originFetchLine = lines.Where(
-                l => l.StartsWith("origin", StringComparison.OrdinalIgnoreCase)
-                    && l.EndsWith("(fetch)")).FirstOrDefault();
-            if (originFetchLine == null)
-            {
-                throw new InvalidRepoException("remote 'origin' is not configured for this repo");
-            }
-
-            string[] parts = originFetchLine.Split('\t', ' ');
-            return new Result(parts[1], string.Empty, 0);
+            return this.InvokeGitAgainstDotGitFolder("config --local remote.origin.url");
         }
 
-        public void DiffTree(string sourceTreeish, string targetTreeish, Action<string> onResult)
+        public Result DiffTree(string sourceTreeish, string targetTreeish, Action<string> onResult)
         {
-            this.InvokeGitAgainstDotGitFolder("diff-tree -r -t " + sourceTreeish + " " + targetTreeish, null, onResult);
+            return this.InvokeGitAgainstDotGitFolder("diff-tree -r -t " + sourceTreeish + " " + targetTreeish, null, onResult);
         }
 
         public Result CreateBranchWithUpstream(string branchToCreate, string upstreamBranch)
@@ -344,13 +337,13 @@ namespace GVFS.Common.Git
             processInfo.WindowStyle = ProcessWindowStyle.Hidden;
             processInfo.CreateNoWindow = true;
 
-            processInfo.StandardOutputEncoding = StandardEncoding;
-            processInfo.StandardErrorEncoding = StandardEncoding;
+            processInfo.StandardOutputEncoding = UTF8NoBOM;
+            processInfo.StandardErrorEncoding = UTF8NoBOM;
 
             // Removing trace variables that might change git output and break parsing
             // List of environment variables: https://git-scm.com/book/gr/v2/Git-Internals-Environment-Variables
             foreach (string key in processInfo.EnvironmentVariables.Keys.Cast<string>()
-                .Where(x => x.StartsWith("GIT_TRACE"))
+                .Where(x => x.StartsWith("GIT_TRACE", StringComparison.OrdinalIgnoreCase))
                 .ToList())
             {
                 processInfo.EnvironmentVariables.Remove(key);
@@ -380,95 +373,7 @@ namespace GVFS.Common.Git
             return executingProcess;
         }
 
-        private static string ParseValue(string contents, string prefix)
-        {
-            int startIndex = contents.IndexOf(prefix) + prefix.Length;
-            if (startIndex >= 0 && startIndex < contents.Length)
-            {
-                int endIndex = contents.IndexOf('\n', startIndex);
-                if (endIndex >= 0 && endIndex < contents.Length)
-                {
-                    return
-                        contents
-                        .Substring(startIndex, endIndex - startIndex)
-                        .Trim('\r');
-                }
-            }
-
-            return null;
-        }
-
-        /// <summary>
-        /// Invokes git.exe without a working directory set.
-        /// </summary>
-        /// <remarks>
-        /// For commands where git doesn't need to be (or can't be) run from inside an enlistment.
-        /// eg. 'git init' or 'git credential'
-        /// </remarks>
-        private Result InvokeGitOutsideEnlistment(string command)
-        {
-            return this.InvokeGitOutsideEnlistment(command, null, null);
-        }
-
-        private Result InvokeGitOutsideEnlistment(
-            string command,
-            Action<StreamWriter> writeStdIn,
-            Action<string> parseStdOutLine,
-            int timeout = -1)
-        {
-            return this.InvokeGitImpl(
-                command,
-                workingDirectory: Environment.SystemDirectory,
-                dotGitDirectory: null,
-                useReadObjectHook: false,
-                writeStdIn: writeStdIn,
-                parseStdOutLine: parseStdOutLine,
-                timeoutMs: timeout);
-        }
-
-        /// <summary>
-        /// Invokes git.exe from an enlistment's repository root
-        /// </summary>
-        private Result InvokeGitInWorkingDirectoryRoot(string command, bool useReadObjectHook)
-        {
-            return this.InvokeGitImpl(
-                command,
-                workingDirectory: this.enlistment.WorkingDirectoryRoot,
-                dotGitDirectory: null,
-                useReadObjectHook: useReadObjectHook,
-                writeStdIn: null,
-                parseStdOutLine: null,
-                timeoutMs: -1);
-        }
-
-        /// <summary>
-        /// Invokes git.exe against an enlistment's .git folder.
-        /// This method should be used only with git-commands that ignore the working directory
-        /// </summary>
-        private Result InvokeGitAgainstDotGitFolder(string command)
-        {
-            return this.InvokeGitAgainstDotGitFolder(command, null, null);
-        }
-
-        private Result InvokeGitAgainstDotGitFolder(
-            string command,
-            Action<StreamWriter> writeStdIn,
-            Action<string> parseStdOutLine)
-        {
-            // This git command should not need/use the working directory of the repo.
-            // Run git.exe in Environment.SystemDirectory to ensure the git.exe process
-            // does not touch the working directory
-            return this.InvokeGitImpl(
-                command,
-                workingDirectory: Environment.SystemDirectory,
-                dotGitDirectory: this.enlistment.DotGitRoot,
-                useReadObjectHook: false,
-                writeStdIn: writeStdIn,
-                parseStdOutLine: parseStdOutLine,
-                timeoutMs: -1);
-        }
-
-        private Result InvokeGitImpl(
+        protected virtual Result InvokeGitImpl(
             string command,
             string workingDirectory,
             string dotGitDirectory,
@@ -537,6 +442,94 @@ namespace GVFS.Common.Git
             }
         }
 
+        private static string ParseValue(string contents, string prefix)
+        {
+            int startIndex = contents.IndexOf(prefix) + prefix.Length;
+            if (startIndex >= 0 && startIndex < contents.Length)
+            {
+                int endIndex = contents.IndexOf('\n', startIndex);
+                if (endIndex >= 0 && endIndex < contents.Length)
+                {
+                    return
+                        contents
+                        .Substring(startIndex, endIndex - startIndex)
+                        .Trim('\r');
+                }
+            }
+
+            return null;
+        }
+
+        /// <summary>
+        /// Invokes git.exe without a working directory set.
+        /// </summary>
+        /// <remarks>
+        /// For commands where git doesn't need to be (or can't be) run from inside an enlistment.
+        /// eg. 'git init' or 'git version'
+        /// </remarks>
+        private Result InvokeGitOutsideEnlistment(string command)
+        {
+            return this.InvokeGitOutsideEnlistment(command, null, null);
+        }
+
+        private Result InvokeGitOutsideEnlistment(
+            string command,
+            Action<StreamWriter> writeStdIn,
+            Action<string> parseStdOutLine,
+            int timeout = -1)
+        {
+            return this.InvokeGitImpl(
+                command,
+                workingDirectory: Environment.SystemDirectory,
+                dotGitDirectory: null,
+                useReadObjectHook: false,
+                writeStdIn: writeStdIn,
+                parseStdOutLine: parseStdOutLine,
+                timeoutMs: timeout);
+        }
+
+        /// <summary>
+        /// Invokes git.exe from an enlistment's repository root
+        /// </summary>
+        private Result InvokeGitInWorkingDirectoryRoot(string command, bool useReadObjectHook)
+        {
+            return this.InvokeGitImpl(
+                command,
+                workingDirectory: this.enlistment.WorkingDirectoryRoot,
+                dotGitDirectory: null,
+                useReadObjectHook: useReadObjectHook,
+                writeStdIn: null,
+                parseStdOutLine: null,
+                timeoutMs: -1);
+        }
+
+        /// <summary>
+        /// Invokes git.exe against an enlistment's .git folder.
+        /// This method should be used only with git-commands that ignore the working directory
+        /// </summary>
+        private Result InvokeGitAgainstDotGitFolder(string command)
+        {
+            return this.InvokeGitAgainstDotGitFolder(command, null, null);
+        }
+
+        private Result InvokeGitAgainstDotGitFolder(
+            string command,
+            Action<StreamWriter> writeStdIn,
+            Action<string> parseStdOutLine)
+        {
+            // This git command should not need/use the working directory of the repo.
+            // Run git.exe in Environment.SystemDirectory to ensure the git.exe process
+            // does not touch the working directory
+            return this.InvokeGitImpl(
+                command,
+                workingDirectory: Environment.SystemDirectory,
+                dotGitDirectory: this.enlistment.DotGitRoot,
+                useReadObjectHook: false,
+                writeStdIn: writeStdIn,
+                parseStdOutLine: parseStdOutLine,
+                timeoutMs: -1);
+        }
+        
         public class Result
         {
             public const int SuccessCode = 0;

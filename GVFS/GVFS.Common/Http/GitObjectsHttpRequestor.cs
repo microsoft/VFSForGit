@@ -1,5 +1,5 @@
 ﻿using GVFS.Common.Git;
-using GVFS.Common.Physical.FileSystem;
+using GVFS.Common.NetworkStreams;
 using GVFS.Common.Tracing;
 using Microsoft.Diagnostics.Tracing;
 using Newtonsoft.Json;
@@ -10,25 +10,26 @@ using System.Linq;
 using System.Net;
 using System.Net.Http;
 using System.Net.Http.Headers;
-using System.Threading;
 
 namespace GVFS.Common.Http
 {
     public class GitObjectsHttpRequestor : HttpRequestor
     {
+        public const int UseConfiguredMaxAttempts = -1;
+
         private static readonly MediaTypeWithQualityHeaderValue CustomLooseObjectsHeader
             = new MediaTypeWithQualityHeaderValue(GVFSConstants.MediaTypes.CustomLooseObjectsMediaType);
-                
+        
         private Enlistment enlistment;
-
-        public GitObjectsHttpRequestor(ITracer tracer, Enlistment enlistment)
-            : base(tracer, enlistment.Authentication)
+        
+        public GitObjectsHttpRequestor(ITracer tracer, Enlistment enlistment, CacheServerInfo cacheServer, RetryConfig retryConfig)
+            : base(tracer, retryConfig, enlistment.Authentication)
         {
             this.enlistment = enlistment;
-            this.MaxRetries = HttpRequestor.DefaultMaxRetries;
+            this.CacheServer = cacheServer;
         }
-
-        public int MaxRetries { get; set; }
+        
+        public CacheServerInfo CacheServer { get; private set; }
         
         public virtual List<GitObjectSize> QueryForFileSizes(IEnumerable<string> objectIds)
         {
@@ -51,7 +52,7 @@ namespace GVFS.Common.Http
 
             this.Tracer.RelatedEvent(EventLevel.Informational, "QueryFileSizes", metadata, Keywords.Network);
 
-            RetryWrapper<List<GitObjectSize>> retrier = new RetryWrapper<List<GitObjectSize>>(this.MaxRetries);
+            RetryWrapper<List<GitObjectSize>> retrier = new RetryWrapper<List<GitObjectSize>>(this.RetryConfig.MaxAttempts);
             retrier.OnFailure += RetryWrapper<List<GitObjectSize>>.StandardErrorHandler(this.Tracer, requestId, "QueryFileSizes");
 
             RetryWrapper<List<GitObjectSize>>.InvocationResult requestTask = retrier.Invoke(
@@ -88,7 +89,7 @@ namespace GVFS.Common.Http
                 return null;
             }
 
-            RetryWrapper<GitRefs> retrier = new RetryWrapper<GitRefs>(this.MaxRetries);
+            RetryWrapper<GitRefs> retrier = new RetryWrapper<GitRefs>(this.RetryConfig.MaxAttempts);
             retrier.OnFailure += RetryWrapper<GitRefs>.StandardErrorHandler(this.Tracer, requestId, "QueryInfoRefs");
 
             RetryWrapper<GitRefs>.InvocationResult output = retrier.Invoke(
@@ -114,9 +115,18 @@ namespace GVFS.Common.Http
             string objectId,
             Func<int, GitEndPointResponseData, RetryWrapper<GitObjectTaskResult>.CallbackResult> onSuccess)
         {
+            return this.TryDownloadLooseObject(objectId, UseConfiguredMaxAttempts, onSuccess: onSuccess);
+        }
+
+        public virtual RetryWrapper<GitObjectTaskResult>.InvocationResult TryDownloadLooseObject(
+            string objectId,
+            int maxAttempts,
+            Func<int, GitEndPointResponseData, RetryWrapper<GitObjectTaskResult>.CallbackResult> onSuccess)
+        {
             long requestId = HttpRequestor.GetNewRequestId();
             EventMetadata metadata = new EventMetadata();
             metadata.Add("ObjectId", objectId);
+            metadata.Add("maxAttempts", maxAttempts == UseConfiguredMaxAttempts ? "UseConfiguredMaxAttempts" : maxAttempts.ToString());
             metadata.Add("RequestId", requestId);
             this.Tracer.RelatedEvent(EventLevel.Informational, "DownloadLooseObject", metadata, Keywords.Network);
 
@@ -125,7 +135,10 @@ namespace GVFS.Common.Http
                 onSuccess,
                 eArgs => this.HandleDownloadAndSaveObjectError(requestId, eArgs),
                 HttpMethod.Get,
-                new Uri(this.enlistment.ObjectsEndpointUrl + "/" + objectId));
+                new Uri(this.CacheServer.ObjectsEndpointUrl + "/" + objectId),
+                requestBody: null,
+                acceptType: null,
+                maxAttempts: maxAttempts);
         }
 
         public virtual RetryWrapper<GitObjectTaskResult>.InvocationResult TryDownloadObjects(
@@ -143,7 +156,7 @@ namespace GVFS.Common.Http
                 onSuccess,
                 onFailure,
                 HttpMethod.Post,
-                new Uri(this.enlistment.ObjectsEndpointUrl),
+                new Uri(this.CacheServer.ObjectsEndpointUrl),
                 () => this.ObjectIdsJsonGenerator(requestId, objectIdGenerator, commitDepth),
                 preferBatchedLooseObjects ? CustomLooseObjectsHeader : null);
         }
@@ -177,7 +190,7 @@ namespace GVFS.Common.Http
                 onSuccess,
                 onFailure,
                 HttpMethod.Post,
-                new Uri(this.enlistment.ObjectsEndpointUrl),
+                new Uri(this.CacheServer.ObjectsEndpointUrl),
                 objectIdsJson,
                 preferBatchedLooseObjects ? CustomLooseObjectsHeader : null);
         }
@@ -189,7 +202,8 @@ namespace GVFS.Common.Http
             HttpMethod method,
             Uri endPoint,
             string requestBody = null,
-            MediaTypeWithQualityHeaderValue acceptType = null)
+            MediaTypeWithQualityHeaderValue acceptType = null,
+            int maxAttempts = UseConfiguredMaxAttempts)
         {
             return this.TrySendProtocolRequest(
                 requestId,
@@ -198,7 +212,8 @@ namespace GVFS.Common.Http
                 method,
                 endPoint,
                 () => requestBody,
-                acceptType);
+                acceptType,
+                maxAttempts);
         }
 
         public virtual RetryWrapper<GitObjectTaskResult>.InvocationResult TrySendProtocolRequest(
@@ -208,7 +223,8 @@ namespace GVFS.Common.Http
             HttpMethod method,
             Uri endPoint,
             Func<string> requestBodyGenerator,
-            MediaTypeWithQualityHeaderValue acceptType = null)
+            MediaTypeWithQualityHeaderValue acceptType = null,
+            int maxAttempts = UseConfiguredMaxAttempts)
         {
             return this.TrySendProtocolRequest(
                 requestId,
@@ -217,7 +233,8 @@ namespace GVFS.Common.Http
                 method,
                 () => endPoint,
                 requestBodyGenerator,
-                acceptType);
+                acceptType,
+                maxAttempts);
         }
 
         public virtual RetryWrapper<GitObjectTaskResult>.InvocationResult TrySendProtocolRequest(
@@ -227,9 +244,10 @@ namespace GVFS.Common.Http
             HttpMethod method,
             Func<Uri> endPointGenerator,
             Func<string> requestBodyGenerator,
-            MediaTypeWithQualityHeaderValue acceptType = null)
+            MediaTypeWithQualityHeaderValue acceptType = null,
+            int maxAttempts = UseConfiguredMaxAttempts)
         {
-            RetryWrapper<GitObjectTaskResult> retrier = new RetryWrapper<GitObjectTaskResult>(this.MaxRetries);
+            RetryWrapper<GitObjectTaskResult> retrier = new RetryWrapper<GitObjectTaskResult>(maxAttempts == UseConfiguredMaxAttempts ? this.RetryConfig.MaxAttempts : maxAttempts);
             if (onFailure != null)
             {
                 retrier.OnFailure += onFailure;

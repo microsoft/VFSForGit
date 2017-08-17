@@ -1,19 +1,17 @@
 ﻿using GVFS.Common;
 using System;
 using System.IO;
-using System.Linq;
 
 namespace FastFetch
 {
     public class GitEnlistment : Enlistment
     {
-        private GitEnlistment(string repoRoot, string cacheBaseUrl, string gitBinPath)
+        private GitEnlistment(string repoRoot, string gitBinPath)
             : base(
                   repoRoot, 
                   repoRoot,
                   Path.Combine(repoRoot, GVFSConstants.DotGit.Objects.Root),
                   null,
-                  cacheBaseUrl, 
                   gitBinPath, 
                   gvfsHooksRoot: null)
         {
@@ -24,19 +22,12 @@ namespace FastFetch
             get { return Path.Combine(this.EnlistmentRoot, GVFSConstants.DotGit.Root, ".fastfetch"); }
         }
                        
-        public static GitEnlistment CreateFromCurrentDirectory(string objectsEndpoint, string gitBinPath)
+        public static GitEnlistment CreateFromCurrentDirectory(string gitBinPath)
         {
-            DirectoryInfo dirInfo = new DirectoryInfo(Environment.CurrentDirectory);
-            while (dirInfo != null && dirInfo.Exists)
+            string root = Paths.GetGitEnlistmentRoot(Environment.CurrentDirectory);
+            if (root != null)
             {
-                DirectoryInfo[] dotGitDirs = dirInfo.GetDirectories(GVFSConstants.DotGit.Root);
-
-                if (dotGitDirs.Count() == 1)
-                {
-                    return new GitEnlistment(dirInfo.FullName, objectsEndpoint, gitBinPath);
-                }
-
-                dirInfo = dirInfo.Parent;
+                return new GitEnlistment(root, gitBinPath);
             }
 
             return null;

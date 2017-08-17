@@ -1,5 +1,4 @@
 ﻿using GVFS.Common;
-using GVFS.Mount;
 using System.IO;
 
 namespace GVFS.Service
@@ -11,7 +10,7 @@ namespace GVFS.Service
         
         private Configuration()
         {
-            this.GVFSMountLocation = Path.Combine(AssemblyPath, InProcessMountVerb.MountExeName);
+            this.GVFSMountLocation = Path.Combine(AssemblyPath, GVFSConstants.MountExecutableName);
             this.GVFSServiceUILocation = Path.Combine(AssemblyPath, GVFSConstants.Service.UIName + GVFSConstants.ExecutableExtension);
         }
 

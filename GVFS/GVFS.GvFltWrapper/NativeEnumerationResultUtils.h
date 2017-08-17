@@ -1,6 +1,6 @@
 #pragma once
 
-namespace GVFSGvFltWrapper
+namespace GvFlt
 {
     // PopulateNameInEnumerationData
     //

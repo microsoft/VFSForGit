@@ -20,12 +20,19 @@ namespace GVFS.Common.Git
         private HashSet<string> stagedFileDeletes = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
         private Enlistment enlistment;
+        private GitProcess git;
 
         public DiffHelper(ITracer tracer, Enlistment enlistment, IEnumerable<string> pathWhitelist)
+            : this(tracer, enlistment, new GitProcess(enlistment), pathWhitelist)
+        {
+        }
+
+        public DiffHelper(ITracer tracer, Enlistment enlistment, GitProcess git, IEnumerable<string> pathWhitelist)
         {
             this.tracer = tracer;
             this.pathWhitelist = new List<string>(pathWhitelist);
             this.enlistment = enlistment;
+            this.git = git;
 
             this.DirectoryOperations = new ConcurrentQueue<DiffTreeResult>();
             this.FileDeleteOperations = new ConcurrentQueue<string>();
@@ -84,28 +91,42 @@ namespace GVFS.Common.Git
             metadata.Add("HeadTreeSha", sourceTreeSha);
             using (ITracer activity = this.tracer.StartActivity("PerformDiff", EventLevel.Informational, Keywords.Telemetry, metadata))
             {
-                GitProcess git = new GitProcess(this.enlistment);
-
                 metadata = new EventMetadata();
                 if (sourceTreeSha == null)
                 {
                     this.UpdatedWholeTree = true;
 
                     // Nothing is checked out (fresh git init), so we must search the entire tree.
-                    git.LsTree(
+                    GitProcess.Result result = this.git.LsTree(
                         targetTreeSha,
                         line => this.EnqueueOperationsFromLsTreeLine(activity, line),
                         recursive: true,
                         showAllTrees: true);
+
+                    if (result.HasErrors)
+                    {
+                        this.HasFailures = true;
+                        metadata.Add("Errors", result.Errors);
+                        metadata.Add("Output", result.Output.Length > 1024 ? result.Output.Substring(1024) : result.Output);
+                    }
+
                     metadata.Add("Operation", "LsTree");
                 }
                 else
                 {
                     // Diff head and target, determine what needs to be done.
-                    git.DiffTree(
+                    GitProcess.Result result = this.git.DiffTree(
                         sourceTreeSha,
                         targetTreeSha,
                         line => this.EnqueueOperationsFromDiffTreeLine(this.tracer, this.enlistment.EnlistmentRoot, line));
+                    
+                    if (result.HasErrors)
+                    {
+                        this.HasFailures = true;
+                        metadata.Add("Errors", result.Errors);
+                        metadata.Add("Output", result.Output.Length > 1024 ? result.Output.Substring(1024) : result.Output);
+                    }
+
                     metadata.Add("Operation", "DiffTree");
                 }
 

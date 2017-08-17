@@ -1,8 +1,10 @@
 ﻿using GVFS.Common;
+using GVFS.Common.Git;
 using GVFS.Common.Tracing;
 using System;
+using System.Collections;
+using System.Collections.Generic;
 using System.IO;
-using GVFS.Common.Git;
 
 namespace GVFS.GVFlt.DotGit
 {
@@ -22,13 +24,15 @@ namespace GVFS.GVFlt.DotGit
             this.sparseCheckoutSerializer = new FileSerializer(context, virtualSparseCheckoutFilePath);
             this.context = context;            
         }
+        
+        public IEnumerable<string> Entries
+        {
+            get { return this.sparseCheckoutEntries; }
+        }
 
         public int EntryCount
         {
-            get
-            {
-                return this.sparseCheckoutEntries.Count;
-            }
+            get { return this.sparseCheckoutEntries.Count; }
         }
 
         public void LoadOrCreate()
@@ -58,14 +62,30 @@ namespace GVFS.GVFlt.DotGit
 
         public CallbackResult AddFileEntry(string virtualPath)
         {
-            return this.AddEntry(virtualPath, isFolder: false);
+            string entry = this.NormalizeEntryString(virtualPath, isFolder: false);
+            return this.AddEntry(entry, isFolder: false);
         }
 
         public CallbackResult AddFolderEntry(string virtualPath)
         {
-            return this.AddEntry(virtualPath, isFolder: true);
+            string entry = this.NormalizeEntryString(virtualPath, isFolder: true);
+            return this.AddEntry(entry, isFolder: true);
         }
 
+        public CallbackResult AddFileEntryFromIndex(string gitPath)
+        {
+            string entry = this.NormalizeEntryString(gitPath, isFolder: false);
+
+            // Check Contains before calling AddEntry as Contains is lower weight than Add, and the vast 
+            // majority of the time entries being added from the index will already be in the sparse-checkout file
+            if (!this.sparseCheckoutEntries.Contains(entry))
+            {
+                return this.AddEntry(entry, isFolder: false);
+            }
+
+            return CallbackResult.Success;
+        }
+        
         private string NormalizeEntryString(string virtualPath, bool isFolder)
         {
             return GVFSConstants.GitPathSeparatorString +
@@ -73,28 +93,27 @@ namespace GVFS.GVFlt.DotGit
                 (isFolder ? GVFSConstants.GitPathSeparatorString : string.Empty);
         }
 
-        private CallbackResult AddEntry(string virtualPath, bool isFolder)
-        {
-            string entry = this.NormalizeEntryString(virtualPath, isFolder);
-            if (this.sparseCheckoutEntries.Add(entry))
+        private CallbackResult AddEntry(string normalizedEntry, bool isFolder)
+        {            
+            if (this.sparseCheckoutEntries.Add(normalizedEntry))
             {
                 try
                 {
-                    this.sparseCheckoutSerializer.AppendLine(entry);
+                    this.sparseCheckoutSerializer.AppendLine(normalizedEntry);
                 }
                 catch (IOException e)
                 {
                     CallbackResult result = CallbackResult.RetryableError;
                     EventMetadata metadata = new EventMetadata();
                     metadata.Add("Area", "SparseCheckout");
-                    metadata.Add("virtualFolderPath", virtualPath);
+                    metadata.Add("normalizedEntry", normalizedEntry);
                     metadata.Add("isFolder", isFolder);
                     metadata.Add("Exception", e.ToString());
                     metadata.Add("ErrorMessage", "IOException caught while processing AddEntry");
                     
                     // Remove the entry so that if AddRecursiveSparseCheckoutEntry is called again
                     // we'll try to append to the file again
-                    if (!this.sparseCheckoutEntries.TryRemove(entry))
+                    if (!this.sparseCheckoutEntries.TryRemove(normalizedEntry))
                     {
                         metadata["ErrorMessage"] += ", failed to undo addition to sparseCheckoutEntries";
                         result = CallbackResult.FatalError;
@@ -107,7 +126,7 @@ namespace GVFS.GVFlt.DotGit
                 {
                     EventMetadata metadata = new EventMetadata();
                     metadata.Add("Area", "SparseCheckout");
-                    metadata.Add("virtualFolderPath", virtualPath);
+                    metadata.Add("normalizedEntry", normalizedEntry);
                     metadata.Add("isFolder", isFolder);
                     metadata.Add("Exception", e.ToString());
                     metadata.Add("ErrorMessage", "Exception caught while processing AddEntry");                    

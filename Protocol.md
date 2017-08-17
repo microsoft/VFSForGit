@@ -175,14 +175,15 @@ will result in a a response like:
 ```
 
 # `GET /gvfs/config`
-This optional endpoint will return all server-set GVFS client configuration options. Its only current
-function is to provide an set of allowed GVFS client version ranges as serialized
-[System.Version](https://msdn.microsoft.com/en-us/library/system.version\(v=vs.110\).aspx) objects,
-in order to block older clients from running in certain scenarios. For example, a data corruption bug
-may be found and encouraging clients to avoid that version is desirable.
+This optional endpoint will return all server-set GVFS client configuration options. It currently
+provides:
 
-In the future, this may be expanded to support other configuration directives interesting to the client,
-such as a list of possible cache servers to use.
+* A set of allowed GVFS client version ranges, in order to block older clients from running in 
+certain scenarios. For example, a data corruption bug may be found and encouraging clients to 
+avoid that version is desirable.
+* A list of available cache servers, each describing their url and default-ness with a friendly name
+that users can use to inform which cache server to use. Note that the names "None" and "User Defined" 
+are reserved by GVFS. Any caches with these names may cause undefined behavior in the GVFS client.
 
 An example response is provided below. Note that the `null` `"Max"` value is only allowed for the last
 (or greatest) range, since it logically excludes greater version numbers from having an effect.
@@ -232,6 +233,15 @@ An example response is provided below. Note that the `null` `"Max"` value is onl
 			"MajorRevision": 0,
 			"MinorRevision": 1
 		}
+	}],
+	"CacheServers": [{
+		"Url": "https://redmond-cache-machine/repo-id",
+		"Name": "Redmond",
+		"GlobalDefault": true
+	}, {
+		"Url": "https://dublin-cache-machine/repo-id",
+		"Name": "Dublin",
+		"GlobalDefault": false
 	}]
 }
 ```

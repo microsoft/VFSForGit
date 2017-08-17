@@ -1,6 +1,7 @@
 ﻿using CommandLine;
 using GVFS.Common;
 using GVFS.Common.Git;
+using GVFS.Common.Http;
 using GVFS.Common.Tracing;
 using Microsoft.Diagnostics.Tracing;
 using System;
@@ -87,9 +88,9 @@ namespace FastFetch
             "max-retries",
             Required = false,
             Default = 10,
-            HelpText = "Sets the maximum number of retries for downloading a pack")]
+            HelpText = "Sets the maximum number of attempts for downloading a pack")]
 
-        public int MaxRetries { get; set; }
+        public int MaxAttempts { get; set; }
 
         [Option(
             "git-path",
@@ -157,9 +158,7 @@ namespace FastFetch
                 Console.WriteLine("Cannot specify both a commit sha and a branch name.");
                 return ExitFailure;
             }
-
-            this.CacheServerUrl = Enlistment.StripObjectsEndpointSuffix(this.CacheServerUrl);
-
+            
             this.SearchThreadCount = this.SearchThreadCount > 0 ? this.SearchThreadCount : Environment.ProcessorCount;
             this.DownloadThreadCount = this.DownloadThreadCount > 0 ? this.DownloadThreadCount : Math.Min(Environment.ProcessorCount, MaxDefaultDownloadThreads);
             this.IndexThreadCount = this.IndexThreadCount > 0 ? this.IndexThreadCount : Environment.ProcessorCount;
@@ -167,7 +166,7 @@ namespace FastFetch
 
             this.GitBinPath = !string.IsNullOrWhiteSpace(this.GitBinPath) ? this.GitBinPath : GitProcess.GetInstalledGitBinPath();
 
-            GitEnlistment enlistment = GitEnlistment.CreateFromCurrentDirectory(this.CacheServerUrl, this.GitBinPath);
+            GitEnlistment enlistment = GitEnlistment.CreateFromCurrentDirectory(this.GitBinPath);
             if (enlistment == null)
             {
                 Console.WriteLine("Must be run within a git repo");
@@ -206,19 +205,28 @@ namespace FastFetch
 
                 string fastfetchLogFile = Enlistment.GetNewLogFileName(enlistment.FastFetchLogRoot, "fastfetch");
                 tracer.AddLogFileEventListener(fastfetchLogFile, EventLevel.Informational, Keywords.Any);
+
+                RetryConfig retryConfig = new RetryConfig(this.MaxAttempts, TimeSpan.FromMinutes(RetryConfig.FetchAndCloneTimeoutMinutes));
+
+                string error;
+                CacheServerInfo cacheServer;
+                if (!CacheServerInfo.TryDetermineCacheServer(this.CacheServerUrl, tracer, enlistment, retryConfig, out cacheServer, out error))
+                {
+                    tracer.RelatedError(error);
+                    return ExitFailure;
+                }
+
                 tracer.WriteStartEvent(
                     enlistment.EnlistmentRoot,
                     enlistment.RepoUrl,
-                    enlistment.CacheServerUrl,
+                    cacheServer.Url,
                     new EventMetadata
                     {
                         { "TargetCommitish", commitish },
                         { "Checkout", this.Checkout },
                     });
-
-                FetchHelper fetchHelper = this.GetFetchHelper(tracer, enlistment);
-                fetchHelper.MaxRetries = this.MaxRetries;
-
+                
+                FetchHelper fetchHelper = this.GetFetchHelper(tracer, enlistment, cacheServer, retryConfig);
                 if (!FetchHelper.TryLoadPathWhitelist(tracer, this.PathWhitelist, this.PathWhitelistFile, enlistment, fetchHelper.PathWhitelist))
                 {
                     return ExitFailure;
@@ -254,7 +262,7 @@ namespace FastFetch
                             "Fetching",
                             output: Console.Out,
                             showSpinner: !Console.IsOutputRedirected,
-                            suppressGvfsLogMessage: true);
+                            gvfsLogEnlistmentRoot: null);
 
                         Console.WriteLine();
                         Console.WriteLine("See the full log at " + fastfetchLogFile);
@@ -284,13 +292,16 @@ namespace FastFetch
             }
         }
         
-        private FetchHelper GetFetchHelper(ITracer tracer, Enlistment enlistment)
+        private FetchHelper GetFetchHelper(ITracer tracer, Enlistment enlistment, CacheServerInfo cacheServer, RetryConfig retryConfig)
         {
+            GitObjectsHttpRequestor objectRequestor = new GitObjectsHttpRequestor(tracer, enlistment, cacheServer, retryConfig);
+
             if (this.Checkout)
             {
                 return new CheckoutFetchHelper(
                     tracer,
                     enlistment,
+                    objectRequestor,
                     this.ChunkSize,
                     this.SearchThreadCount,
                     this.DownloadThreadCount,
@@ -303,6 +314,7 @@ namespace FastFetch
                 return new FetchHelper(
                     tracer,
                     enlistment,
+                    objectRequestor,
                     this.ChunkSize,
                     this.SearchThreadCount,
                     this.DownloadThreadCount,

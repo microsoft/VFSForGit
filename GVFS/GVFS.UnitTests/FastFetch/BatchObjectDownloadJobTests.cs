@@ -2,12 +2,10 @@
 using GVFS.Tests.Should;
 using GVFS.UnitTests.Category;
 using GVFS.UnitTests.Mock.Common;
-using GVFS.UnitTests.Mock.Physical.Git;
+using GVFS.UnitTests.Mock.Git;
 using NUnit.Framework;
 using System;
 using System.Collections.Concurrent;
-using System.IO;
-using System.Reflection;
 
 namespace GVFS.UnitTests.FastFetch
 {
@@ -74,12 +72,6 @@ namespace GVFS.UnitTests.FastFetch
             output.Take().ShouldEqual(obj2Sha);
             obj1Count.ShouldEqual(1);
             obj2Count.ShouldEqual(2);
-        }
-        
-        private string GetDataPath(string fileName)
-        {
-            string workingDirectory = Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location);
-            return Path.Combine(workingDirectory, "Data", fileName);
         }
     }
 }

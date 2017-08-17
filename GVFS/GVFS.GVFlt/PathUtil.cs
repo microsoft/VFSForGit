@@ -1,6 +1,5 @@
 ﻿using GVFS.Common;
 using System;
-using System.Linq;
 
 namespace GVFS.GVFlt
 {

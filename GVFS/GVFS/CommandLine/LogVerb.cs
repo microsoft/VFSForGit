@@ -1,33 +1,50 @@
 ﻿using CommandLine;
 using GVFS.Common;
-using GVFS.Service;
 using System.IO;
 using System.Linq;
 
 namespace GVFS.CommandLine
 {
-    [Verb(LogVerb.LogVerbName, HelpText = "Show the most recent GVFS log")]
-    public class LogVerb : GVFSVerb.ForExistingEnlistment
+    [Verb(LogVerb.LogVerbName, HelpText = "Show the most recent GVFS log files")]
+    public class LogVerb : GVFSVerb
     {
         private const string LogVerbName = "log";
+
+        [Value(
+            0,
+            Required = false,
+            Default = "",
+            MetaName = "Enlistment Root Path",
+            HelpText = "Full or relative path to the GVFS enlistment root")]
+        public override string EnlistmentRootPath { get; set; }
 
         protected override string VerbName
         {
             get { return LogVerbName; }
         }
 
-        protected override void Execute(GVFSEnlistment enlistment)
+        public override void Execute()
         {
             this.Output.WriteLine("Most recent log files:");
 
-            string gvfsLogsRoot = enlistment.GVFSLogsRoot;
+            string enlistmentRoot = Paths.GetGVFSEnlistmentRoot(this.EnlistmentRootPath);
+            if (enlistmentRoot == null)
+            {
+                this.ReportErrorAndExit(
+                    "Error: '{0}' is not a valid GVFS enlistment",
+                    this.EnlistmentRootPath);
+            }
+
+            string gvfsLogsRoot = Path.Combine(
+                enlistmentRoot,
+                GVFSConstants.DotGVFS.LogPath);
             this.DisplayMostRecent(gvfsLogsRoot, GetLogFilePatternForType(GVFSConstants.LogFileTypes.Clone), GVFSConstants.LogFileTypes.Clone);
             this.DisplayMostRecent(gvfsLogsRoot, GetLogFilePatternForType(GVFSConstants.LogFileTypes.Dehydrate), GVFSConstants.LogFileTypes.Dehydrate);
             this.DisplayMostRecent(gvfsLogsRoot, GetLogFilePatternForType(GVFSConstants.LogFileTypes.Mount), GVFSConstants.LogFileTypes.Mount);
             this.DisplayMostRecent(gvfsLogsRoot, GetLogFilePatternForType(GVFSConstants.LogFileTypes.Prefetch), GVFSConstants.LogFileTypes.Prefetch);
             this.DisplayMostRecent(gvfsLogsRoot, GetLogFilePatternForType(GVFSConstants.LogFileTypes.Repair), GVFSConstants.LogFileTypes.Repair);
 
-            string serviceLogsRoot = GVFSService.GetServiceLogsRoot(this.ServiceName);
+            string serviceLogsRoot = Paths.GetServiceLogsPath(this.ServiceName);
             this.DisplayMostRecent(serviceLogsRoot, GetLogFilePatternForType(GVFSConstants.LogFileTypes.Service), GVFSConstants.LogFileTypes.Service);
         }
 
@@ -61,7 +78,7 @@ namespace GVFS.CommandLine
         {
             string logFile = FindNewestFileInFolder(logFolder, logFilePattern);
             this.Output.WriteLine(
-                "  {0}: {1}",
+                "  {0, -10}: {1}",
                 logDisplayName,
                 logFile == null ? "None" : logFile);
         }

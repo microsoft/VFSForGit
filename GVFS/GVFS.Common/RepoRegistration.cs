@@ -1,5 +1,4 @@
 ﻿using Newtonsoft.Json;
-using System;
 
 namespace GVFS.Common
 {
@@ -9,13 +8,15 @@ namespace GVFS.Common
         {
         }
 
-        public RepoRegistration(string enlistmentRoot)
+        public RepoRegistration(string enlistmentRoot, string ownerSID)
         {
             this.EnlistmentRoot = enlistmentRoot;
+            this.OwnerSID = ownerSID;
             this.IsActive = true;
         }
 
         public string EnlistmentRoot { get; set; }
+        public string OwnerSID { get; set; }
         public bool IsActive { get; set; }
 
         public static RepoRegistration FromJson(string json)
@@ -30,7 +31,12 @@ namespace GVFS.Common
 
         public override string ToString()
         {
-            return string.Format("({0}) {1}", this.IsActive ? "Active" : "Inactive", this.EnlistmentRoot);
+            return 
+                string.Format(
+                    "({0} - {1},{2}) {3}", 
+                    this.IsActive ? "Active" : "Inactive", 
+                    this.OwnerSID,
+                    this.EnlistmentRoot);
         }
 
         public string ToJson()

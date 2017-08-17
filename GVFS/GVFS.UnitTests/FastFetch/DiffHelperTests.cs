@@ -1,15 +1,12 @@
 ﻿using GVFS.Common.Git;
 using GVFS.Tests.Should;
-using GVFS.UnitTests.Category;
 using GVFS.UnitTests.Mock.Common;
+using GVFS.UnitTests.Mock.Git;
 using NUnit.Framework;
-using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Reflection;
-using System.Text;
-using System.Threading.Tasks;
 
 namespace GVFS.UnitTests.FastFetch
 {
@@ -46,8 +43,8 @@ namespace GVFS.UnitTests.FastFetch
         public void CanParseDiffForwards()
         {
             MockTracer tracer = new MockTracer();
-            DiffHelper diffForwards = new DiffHelper(tracer, null, new List<string>());
-            diffForwards.ParseDiffFile(this.GetDataPath("forward.txt"), "xx:\\fakeRepo");
+            DiffHelper diffForwards = new DiffHelper(tracer, new MockEnlistment(), new List<string>());
+            diffForwards.ParseDiffFile(GetDataPath("forward.txt"), "xx:\\fakeRepo");
 
             // File added, file edited, file renamed, folder => file, edit-rename file
             // Children of: Add folder, Renamed folder, edited folder, file => folder
@@ -72,8 +69,8 @@ namespace GVFS.UnitTests.FastFetch
         public void CanParseBackwardsDiff()
         {
             MockTracer tracer = new MockTracer();
-            DiffHelper diffBackwards = new DiffHelper(tracer, null, new List<string>());
-            diffBackwards.ParseDiffFile(this.GetDataPath("backward.txt"), "xx:\\fakeRepo");
+            DiffHelper diffBackwards = new DiffHelper(tracer, new MockEnlistment(), new List<string>());
+            diffBackwards.ParseDiffFile(GetDataPath("backward.txt"), "xx:\\fakeRepo");
 
             // File > folder, deleted file, edited file, renamed file, rename-edit file
             // Children of file > folder, renamed folder, deleted folder, recursive delete file, edited folder
@@ -96,8 +93,8 @@ namespace GVFS.UnitTests.FastFetch
         public void ParsesCaseChangesAsAdds()
         {
             MockTracer tracer = new MockTracer();
-            DiffHelper diffBackwards = new DiffHelper(tracer, null, new List<string>());
-            diffBackwards.ParseDiffFile(this.GetDataPath("caseChange.txt"), "xx:\\fakeRepo");
+            DiffHelper diffBackwards = new DiffHelper(tracer, new MockEnlistment(), new List<string>());
+            diffBackwards.ParseDiffFile(GetDataPath("caseChange.txt"), "xx:\\fakeRepo");
             
             diffBackwards.RequiredBlobs.Count.ShouldEqual(2);
             diffBackwards.FileAddOperations.Sum(list => list.Value.Count).ShouldEqual(2);
@@ -109,7 +106,31 @@ namespace GVFS.UnitTests.FastFetch
             diffBackwards.TotalDirectoryOperations.ShouldEqual(3);
         }
 
-        private string GetDataPath(string fileName)
+        [TestCase]
+        public void DetectsFailuresInDiffTree()
+        {
+            MockTracer tracer = new MockTracer();
+            MockGitProcess gitProcess = new MockGitProcess();
+            gitProcess.SetExpectedCommandResult("diff-tree -r -t sha1 sha2", () => new GitProcess.Result(string.Empty, string.Empty, 1));
+
+            DiffHelper diffBackwards = new DiffHelper(tracer, new MockEnlistment(), gitProcess, new List<string>());
+            diffBackwards.PerformDiff("sha1", "sha2");
+            diffBackwards.HasFailures.ShouldEqual(true);
+        }
+
+        [TestCase]
+        public void DetectsFailuresInLsTree()
+        {
+            MockTracer tracer = new MockTracer();
+            MockGitProcess gitProcess = new MockGitProcess();
+            gitProcess.SetExpectedCommandResult("ls-tree -r -t sha1", () => new GitProcess.Result(string.Empty, string.Empty, 1));
+
+            DiffHelper diffBackwards = new DiffHelper(tracer, new MockEnlistment(), gitProcess, new List<string>());
+            diffBackwards.PerformDiff(null, "sha1");
+            diffBackwards.HasFailures.ShouldEqual(true);
+        }
+
+        private static string GetDataPath(string fileName)
         {
             string workingDirectory = Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location);
             return Path.Combine(workingDirectory, "Data", fileName);

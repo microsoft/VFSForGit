@@ -50,7 +50,7 @@ namespace GVFS.CommandLine
 
                     this.Output.WriteLine("Enlistment root: " + getStatusResponse.EnlistmentRoot);
                     this.Output.WriteLine("Repo URL: " + getStatusResponse.RepoUrl);
-                    this.Output.WriteLine("Objects URL: " + getStatusResponse.ObjectsUrl);
+                    this.Output.WriteLine("Cache Server: " + getStatusResponse.CacheServer);
                     this.Output.WriteLine("Mount status: " + getStatusResponse.MountStatus);
                     this.Output.WriteLine("GVFS Lock: " + getStatusResponse.LockStatus);
                     this.Output.WriteLine("Background operations: " + getStatusResponse.BackgroundOperationCount);

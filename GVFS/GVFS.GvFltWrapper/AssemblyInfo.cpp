@@ -1,5 +1,5 @@
 #include "stdafx.h"
-#include "CommonAssemblyVersion.h"
+#include "AssemblyVersion.h"
 
 using namespace System;
 using namespace System::Reflection;
@@ -12,11 +12,11 @@ using namespace System::Security::Permissions;
 // set of attributes. Change these attribute values to modify the information
 // associated with an assembly.
 //
-[assembly:AssemblyTitleAttribute(L"GVFSGvFltWrapper")];
+[assembly:AssemblyTitleAttribute(L"GvFlt")];
 [assembly:AssemblyDescriptionAttribute(L"")];
 [assembly:AssemblyConfigurationAttribute(L"")];
 [assembly:AssemblyCompanyAttribute(L"")];
-[assembly:AssemblyProductAttribute(L"GVFSGvFltWrapper")];
+[assembly:AssemblyProductAttribute(L"GvFlt")];
 [assembly:AssemblyCopyrightAttribute(L"Copyright (c) Microsoft 2017")];
 [assembly:AssemblyTrademarkAttribute(L"")];
 [assembly:AssemblyCultureAttribute(L"")];

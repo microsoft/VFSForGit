@@ -2,10 +2,12 @@
 using FastFetch.Jobs;
 using GVFS.Common;
 using GVFS.Common.Git;
+using GVFS.Common.Http;
 using GVFS.Common.Tracing;
 using Microsoft.Diagnostics.Tracing;
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 
 namespace FastFetch
@@ -18,12 +20,13 @@ namespace FastFetch
         public CheckoutFetchHelper(
             ITracer tracer,
             Enlistment enlistment,
+            GitObjectsHttpRequestor objectRequestor,
             int chunkSize,
             int searchThreadCount,
             int downloadThreadCount,
             int indexThreadCount,
             int checkoutThreadCount,
-            bool allowIndexMetadataUpdateFromWorkingTree) : base(tracer, enlistment, chunkSize, searchThreadCount, downloadThreadCount, indexThreadCount)
+            bool allowIndexMetadataUpdateFromWorkingTree) : base(tracer, enlistment, objectRequestor, chunkSize, searchThreadCount, downloadThreadCount, indexThreadCount)
         {
             this.checkoutThreadCount = checkoutThreadCount;
             this.allowIndexMetadataUpdateFromWorkingTree = allowIndexMetadataUpdateFromWorkingTree;
@@ -51,7 +54,7 @@ namespace FastFetch
                     throw new FetchException("Could not find branch {0} in info/refs from: {1}", branchOrCommit, this.Enlistment.RepoUrl);
                 }
 
-                commitToFetch = refs.GetTipCommitIds().Single();
+                commitToFetch = refs.GetTipCommitId(branchOrCommit);
             }
             else
             {
@@ -98,7 +101,7 @@ namespace FastFetch
                 if (isBranch)
                 {
                     // Update the refspec before setting the upstream or git will complain the remote branch doesn't exist
-                    this.HasFailures |= !RefSpecHelpers.UpdateRefSpec(this.Tracer, this.Enlistment, branchOrCommit, refs);
+                    this.HasFailures |= !this.UpdateRefSpec(this.Tracer, this.Enlistment, branchOrCommit, refs);
 
                     using (ITracer activity = this.Tracer.StartActivity("SetUpstream", EventLevel.Informational))
                     {
@@ -113,27 +116,30 @@ namespace FastFetch
                     }
                 }
 
-                bool indexSigningIsOff = this.GetIsIndexSigningOff();
+                bool shouldSignIndex = !this.GetIsIndexSigningOff();
 
                 // Update the index
                 EventMetadata updateIndexMetadata = new EventMetadata();
-                updateIndexMetadata.Add("IndexSigningIsOff", indexSigningIsOff);
+                updateIndexMetadata.Add("IndexSigningIsOff", shouldSignIndex);
                 using (ITracer activity = this.Tracer.StartActivity("UpdateIndex", EventLevel.Informational, Keywords.Telemetry, updateIndexMetadata))
                 {
-                    // Create the index object now so it can track the current index
-                    Index index = indexSigningIsOff ? new Index(this.Enlistment.EnlistmentRoot, activity) : null;
-                    
-                    GitIndexGenerator indexGen = new GitIndexGenerator(this.Tracer, this.Enlistment, !indexSigningIsOff);
-                    indexGen.CreateFromHeadTree();
-                    this.HasFailures = indexGen.HasFailures;
+                    Index sourceIndex = this.GetSourceIndex();
+                    GitIndexGenerator indexGen = new GitIndexGenerator(this.Tracer, this.Enlistment, shouldSignIndex);
+                    indexGen.CreateFromHeadTree(indexVersion: 2);
+                    this.HasFailures |= indexGen.HasFailures;
 
-                    if (!indexGen.HasFailures && index != null)
+                    if (!indexGen.HasFailures)
                     {
+                        Index newIndex = new Index(
+                            this.Enlistment.EnlistmentRoot, 
+                            this.Tracer,
+                            Path.Combine(this.Enlistment.DotGitRoot, GVFSConstants.DotGit.IndexName), 
+                            readOnly: false);
+
                         // Update from disk only if the caller says it is ok via command line
                         // or if we updated the whole tree and know that all files are up to date
                         bool allowIndexMetadataUpdateFromWorkingTree = this.allowIndexMetadataUpdateFromWorkingTree || checkout.UpdatedWholeTree;
-
-                        index.UpdateFileSizesAndTimes(checkout.AddedOrEditedLocalFiles, allowIndexMetadataUpdateFromWorkingTree);
+                        newIndex.UpdateFileSizesAndTimes(checkout.AddedOrEditedLocalFiles, allowIndexMetadataUpdateFromWorkingTree, shouldSignIndex, sourceIndex);
                     }
                 }
             }
@@ -146,23 +152,43 @@ namespace FastFetch
         /// </summary>
         protected override void UpdateRefs(string branchOrCommit, bool isBranch, GitRefs refs)
         {
-            UpdateRefsHelper refHelper = new UpdateRefsHelper(this.Enlistment);
-
             if (isBranch)
             {
                 KeyValuePair<string, string> remoteRef = refs.GetBranchRefPairs().Single();
                 string remoteBranch = remoteRef.Key;
 
-                string fullLocalBranchName = branchOrCommit.StartsWith("refs/heads/") ? branchOrCommit : ("refs/heads/" + branchOrCommit);
-                this.HasFailures |= !refHelper.UpdateRef(this.Tracer, fullLocalBranchName, remoteRef.Value);
-                this.HasFailures |= !refHelper.UpdateRef(this.Tracer, "HEAD", fullLocalBranchName);
+                string fullLocalBranchName = branchOrCommit.StartsWith(RefsHeadsGitPath) ? branchOrCommit : (RefsHeadsGitPath + branchOrCommit);
+                this.HasFailures |= !this.UpdateRef(this.Tracer, fullLocalBranchName, remoteRef.Value);
+                this.HasFailures |= !this.UpdateRef(this.Tracer, "HEAD", fullLocalBranchName);
             }
             else
             {
-                this.HasFailures |= !refHelper.UpdateRef(this.Tracer, "HEAD", branchOrCommit);
+                this.HasFailures |= !this.UpdateRef(this.Tracer, "HEAD", branchOrCommit);
             }
 
             base.UpdateRefs(branchOrCommit, isBranch, refs);
+        }
+        
+        private Index GetSourceIndex()
+        {
+            string indexPath = Path.Combine(this.Enlistment.DotGitRoot, GVFSConstants.DotGit.IndexName);
+            string backupIndexPath = Path.Combine(this.Enlistment.DotGitRoot, GVFSConstants.DotGit.IndexName + ".backup");
+
+            if (File.Exists(indexPath))
+            {
+                // Note that this moves the current index, leaving nothing behind
+                // This is intentional as we only need it for the purpose of updating the
+                // new index and leaving it behind can make updating slower.
+                this.Tracer.RelatedEvent(EventLevel.Informational, "CreateBackup", new EventMetadata() { { "BackupIndexName", backupIndexPath } });
+                File.Delete(backupIndexPath);
+                File.Move(indexPath, backupIndexPath);
+                
+                Index output = new Index(this.Enlistment.EnlistmentRoot, this.Tracer, backupIndexPath, readOnly: true);
+                output.Parse();
+                return output;
+            }
+
+            return null;
         }
 
         private bool GetIsIndexSigningOff()

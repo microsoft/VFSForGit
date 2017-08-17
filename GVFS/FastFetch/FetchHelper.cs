@@ -1,5 +1,4 @@
-﻿using FastFetch.Git;
-using FastFetch.Jobs;
+﻿using FastFetch.Jobs;
 using GVFS.Common;
 using GVFS.Common.Git;
 using GVFS.Common.Http;
@@ -15,6 +14,8 @@ namespace FastFetch
 {
     public class FetchHelper
     {
+        protected const string RefsHeadsGitPath = "refs/heads/";
+
         protected readonly Enlistment Enlistment;
         protected readonly GitObjectsHttpRequestor ObjectRequestor;
         protected readonly GitObjects GitObjects;
@@ -28,13 +29,12 @@ namespace FastFetch
         protected readonly bool SkipConfigUpdate;
 
         private const string AreaPath = nameof(FetchHelper);
-
-        // Shallow clones don't require their parent commits
         private const int CommitDepth = 1;
 
         public FetchHelper(
             ITracer tracer,
             Enlistment enlistment,
+            GitObjectsHttpRequestor objectRequestor,
             int chunkSize,
             int searchThreadCount,
             int downloadThreadCount,
@@ -46,18 +46,12 @@ namespace FastFetch
             this.ChunkSize = chunkSize;
             this.Tracer = tracer;
             this.Enlistment = enlistment;
-            this.ObjectRequestor = new GitObjectsHttpRequestor(tracer, enlistment);
+            this.ObjectRequestor = objectRequestor;
             this.GitObjects = new GitObjects(tracer, enlistment, this.ObjectRequestor);
             this.PathWhitelist = new List<string>();
 
             // We never want to update config settings for a GVFSEnlistment
             this.SkipConfigUpdate = enlistment is GVFSEnlistment;
-        }
-
-        public int MaxRetries
-        {
-            get { return this.ObjectRequestor.MaxRetries; }
-            set { this.ObjectRequestor.MaxRetries = value; }
         }
 
         public bool HasFailures { get; protected set; }
@@ -116,7 +110,7 @@ namespace FastFetch
                     throw new FetchException("Could not find branch {0} in info/refs from: {1}", branchOrCommit, this.Enlistment.RepoUrl);
                 }
 
-                commitToFetch = refs.GetTipCommitIds().Single();
+                commitToFetch = refs.GetTipCommitId(branchOrCommit);
             }
             else
             {
@@ -176,9 +170,36 @@ namespace FastFetch
 
                 if (isBranch)
                 {
-                    this.HasFailures |= !RefSpecHelpers.UpdateRefSpec(this.Tracer, this.Enlistment, branchOrCommit, refs);
+                    this.HasFailures |= !this.UpdateRefSpec(this.Tracer, this.Enlistment, branchOrCommit, refs);
                 }
             }
+        }
+
+        protected bool UpdateRefSpec(ITracer tracer, Enlistment enlistment, string branchOrCommit, GitRefs refs)
+        {
+            using (ITracer activity = tracer.StartActivity("UpdateRefSpec", EventLevel.Informational, Keywords.Telemetry, metadata: null))
+            {
+                const string OriginRefMapSettingName = "remote.origin.fetch";
+
+                // We must update the refspec to get proper "git pull" functionality.
+                string localBranch = branchOrCommit.StartsWith(RefsHeadsGitPath) ? branchOrCommit : (RefsHeadsGitPath + branchOrCommit);
+                string remoteBranch = refs.GetBranchRefPairs().Single().Key;
+                string refSpec = "+" + localBranch + ":" + remoteBranch;
+
+                GitProcess git = new GitProcess(enlistment);
+
+                // Replace all ref-specs this
+                // * ensures the default refspec (remote.origin.fetch=+refs/heads/*:refs/remotes/origin/*) is removed which avoids some "git fetch/pull" failures
+                // * gives added "git fetch" performance since git will only fetch the branch provided in the refspec.
+                GitProcess.Result setResult = git.SetInLocalConfig(OriginRefMapSettingName, refSpec, replaceAll: true);
+                if (setResult.HasErrors)
+                {
+                    activity.RelatedError("Could not update ref spec to {0}: {1}", refSpec, setResult.Errors);
+                    return false;
+                }
+            }
+
+            return true;
         }
 
         /// <summary>
@@ -187,7 +208,6 @@ namespace FastFetch
         /// </summary>
         protected virtual void UpdateRefs(string branchOrCommit, bool isBranch, GitRefs refs)
         {
-            UpdateRefsHelper refHelper = new UpdateRefsHelper(this.Enlistment);
             string commitSha = null;
             if (isBranch)
             {
@@ -195,7 +215,7 @@ namespace FastFetch
                 string remoteBranch = remoteRef.Key;
                 commitSha = remoteRef.Value;
 
-                this.HasFailures |= !refHelper.UpdateRef(this.Tracer, remoteBranch, commitSha);
+                this.HasFailures |= !this.UpdateRef(this.Tracer, remoteBranch, commitSha);
             }
             else
             {
@@ -204,6 +224,35 @@ namespace FastFetch
 
             // Update shallow file to ensure this is a valid shallow repo
             File.AppendAllText(Path.Combine(this.Enlistment.WorkingDirectoryRoot, GVFSConstants.DotGit.Shallow), commitSha + "\n");
+        }
+
+        protected bool UpdateRef(ITracer tracer, string refName, string targetCommitish)
+        {
+            EventMetadata metadata = new EventMetadata();
+            metadata.Add("RefName", refName);
+            metadata.Add("TargetCommitish", targetCommitish);
+            using (ITracer activity = tracer.StartActivity(AreaPath, EventLevel.Informational, Keywords.Telemetry, metadata))
+            {
+                GitProcess gitProcess = new GitProcess(this.Enlistment);
+                GitProcess.Result result = null;
+                if (this.IsSymbolicRef(targetCommitish))
+                {
+                    // Using update-ref with a branch name will leave a SHA in the ref file which detaches HEAD, so use symbolic-ref instead.
+                    result = gitProcess.UpdateBranchSymbolicRef(refName, targetCommitish);
+                }
+                else
+                {
+                    result = gitProcess.UpdateBranchSha(refName, targetCommitish);
+                }
+
+                if (result.HasErrors)
+                {
+                    activity.RelatedError(result.Errors);
+                    return false;
+                }
+
+                return true;
+            }
         }
 
         protected void DownloadMissingCommit(string commitSha, GitObjects gitObjects)
@@ -218,16 +267,21 @@ namespace FastFetch
                 {
                     if (!repo.ObjectExists(commitSha))
                     {
-                        if (!gitObjects.TryDownloadAndSaveCommits(new[] { commitSha }, commitDepth: CommitDepth))
+                        if (!gitObjects.TryDownloadAndSaveCommit(commitSha, commitDepth: CommitDepth))
                         {
                             EventMetadata metadata = new EventMetadata();
-                            metadata.Add("ObjectsEndpointUrl", this.Enlistment.ObjectsEndpointUrl);
+                            metadata.Add("ObjectsEndpointUrl", this.ObjectRequestor.CacheServer.ObjectsEndpointUrl);
                             activity.RelatedError(metadata);
-                            throw new FetchException("Could not download commits from {0}", this.Enlistment.ObjectsEndpointUrl);
+                            throw new FetchException("Could not download commits from {0}", this.ObjectRequestor.CacheServer.ObjectsEndpointUrl);
                         }
                     }
                 }
             }
+        }
+
+        private bool IsSymbolicRef(string targetCommitish)
+        {
+            return targetCommitish.StartsWith("refs/", StringComparison.OrdinalIgnoreCase);
         }
 
         public class FetchException : Exception

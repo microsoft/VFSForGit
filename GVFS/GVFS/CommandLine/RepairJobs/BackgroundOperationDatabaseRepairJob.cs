@@ -1,7 +1,5 @@
 ﻿using GVFS.Common;
 using GVFS.Common.Tracing;
-using Microsoft.Isam.Esent;
-using Microsoft.Isam.Esent.Collections.Generic;
 using System.Collections.Generic;
 using System.IO;
 
@@ -21,27 +19,20 @@ namespace GVFS.CommandLine.RepairJobs
         {
             get { return "Background Operation Database"; }
         }
-
+        
         public override IssueType HasIssue(List<string> messages)
         {
-            try
-            {                
-                using (new PersistentDictionary<long, GVFlt.GVFltCallbacks.BackgroundGitUpdate>(this.databasePath))
-                {
-                }
-
-                return IssueType.None;
-            }
-            catch (EsentException corruptionEx)
+            if (!this.TryCreatePersistentDictionary<long, GVFlt.GVFltCallbacks.BackgroundGitUpdate>(this.databasePath, messages))
             {
-                messages.Add(corruptionEx.Message);
                 return IssueType.CantFix;
             }
+
+            return IssueType.None;
         }
         
-        public override bool TryFixIssues(List<string> messages)
+        public override FixResult TryFixIssues(List<string> messages)
         {
-            return false;
+            return FixResult.Failure;
         }
     }
 }

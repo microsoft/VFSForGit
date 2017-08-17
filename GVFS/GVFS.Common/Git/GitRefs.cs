@@ -52,9 +52,9 @@ namespace GVFS.Common.Git
             get { return this.commitsPerRef.Count; }
         }
 
-        public IEnumerable<string> GetTipCommitIds()
+        public string GetTipCommitId(string branch)
         {
-            return this.commitsPerRef.Values;
+            return this.commitsPerRef[OriginRemoteRefPrefix + branch];
         }
 
         public string GetDefaultBranch()

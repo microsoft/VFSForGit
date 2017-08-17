@@ -7,14 +7,12 @@ using System.Threading;
 
 namespace GVFS.Common
 {
-    public class GVFSLock : IDisposable
+    public partial class GVFSLock : IDisposable
     {
-        private const string CommandParentExePrefix = "git";
-
         private readonly object acquisitionLock = new object();
 
         private readonly ITracer tracer;
-        private readonly ProcessWatcher processWatcher;
+        private ProcessWatcher processWatcher;
         private NamedPipeMessages.LockData lockHolder;
 
         private ManualResetEvent externalLockReleased;
@@ -77,7 +75,7 @@ namespace GVFS.Common
                     Process process;
                     if (ProcessHelper.TryGetProcess(requester.PID, out process))
                     {
-                        this.processWatcher.WatchForTermination(requester.PID, GVFSLock.CommandParentExePrefix);
+                        this.processWatcher.WatchForTermination(requester.PID);
 
                         process.Dispose();
                         this.lockHolder = requester;
@@ -152,10 +150,7 @@ namespace GVFS.Common
         public void ReleaseLock()
         {
             this.tracer.RelatedEvent(EventLevel.Verbose, "ReleaseLock", new EventMetadata());
-            lock (this.acquisitionLock)
-            {
-                this.IsLockedByGVFS = false;
-            }
+            this.IsLockedByGVFS = false;
         }
 
         public bool ReleaseExternalLock(int pid)
@@ -168,27 +163,9 @@ namespace GVFS.Common
             return this.externalLockReleased.WaitOne(millisecondsTimeout);
         }
 
-        /// <summary>
-        /// Returns true if the lock is currently held by an external
-        /// caller that represents a git call using one of the specified git verbs.
-        /// </summary>
-        public bool IsLockedByGitVerb(params string[] verbs)
-        {
-            string command = this.GetLockedGitCommand();
-            if (!string.IsNullOrEmpty(command))
-            {
-                return GitHelper.IsVerb(command, verbs);
-            }
-
-            return false;
-        }
-
         public bool IsExternalLockHolderAlive()
         {
-            lock (this.acquisitionLock)
-            {
-                return this.lockHolder != null;
-            }
+            return this.lockHolder != null;
         }
 
         public string GetLockedGitCommand()
@@ -231,6 +208,12 @@ namespace GVFS.Common
         {
             if (disposing)
             {
+                if (this.processWatcher != null)
+                {
+                    this.processWatcher.Dispose();
+                    this.processWatcher = null;
+                }
+
                 if (this.externalLockReleased != null)
                 {
                     this.externalLockReleased.Dispose();

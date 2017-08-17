@@ -6,9 +6,9 @@ namespace GVFS.Common.Git
 {
     public class GitAuthentication
     {
+        private const double MaxBackoffSeconds = 30;
         private readonly object gitAuthLock = new object();
-
-        private int numberOfRetries = -1;
+        private int numberOfAttempts = 0;
         private DateTime lastAuthAttempt = DateTime.MinValue;
 
         private string cachedAuthString;
@@ -25,26 +25,34 @@ namespace GVFS.Common.Git
             this.git = git;
         }
 
+        public bool IsBackingOff
+        {
+            get
+            {
+                return this.GetNextAuthAttemptTime() > DateTime.Now;
+            }
+        }
+
         public void ConfirmCredentialsWorked(string usedCredential)
         {
             lock (this.gitAuthLock)
             {
                 if (usedCredential == this.cachedAuthString)
                 {
-                    this.numberOfRetries = -1;
+                    this.numberOfAttempts = 0;
                     this.lastAuthAttempt = DateTime.MinValue;
                 }
             }
         }
 
-        public bool RevokeAndCheckCanRetry(string usedCredential)
+        public void Revoke(string usedCredential)
         {
             lock (this.gitAuthLock)
             {
                 if (usedCredential != this.cachedAuthString)
                 {
                     // Don't stomp a different credential
-                    return true;
+                    return;
                 }
 
                 if (this.cachedAuthString != null)
@@ -55,8 +63,6 @@ namespace GVFS.Common.Git
                     this.git.RevokeCredential();
                     this.UpdateBackoff();
                 }
-
-                return !this.IsBackingOff();
             }
         }
 
@@ -78,37 +84,31 @@ namespace GVFS.Common.Git
                         string gitUsername;
                         string gitPassword;
 
-                        // These auth settings are necessary to support running the functional tests on build servers.
-                        // The reason it's needed is that the GVFS.Service runs as LocalSystem, and the build agent does not
-                        // so storing the agent's creds in the Windows Credential Store does not allow the service to discover it
-                        GitProcess.Result usernameResult = this.git.GetFromConfig("gvfs.FunctionalTests.UserName");
-                        GitProcess.Result passwordResult = this.git.GetFromConfig("gvfs.FunctionalTests.Password");
-
-                        if (!usernameResult.HasErrors &&
-                            !passwordResult.HasErrors)
+                        if (this.IsBackingOff)
                         {
-                            gitUsername = usernameResult.Output.TrimEnd('\n');
-                            gitPassword = passwordResult.Output.TrimEnd('\n');
+                            gitAuthString = null;
+                            errorMessage = "Auth failed. No retries will be made until: " + this.GetNextAuthAttemptTime();
+
+                            // TODO 1026787: Log to event log if numberOfRetries >=3
+                            return false;
+                        }
+
+                        if (!this.git.TryGetCredentials(tracer, out gitUsername, out gitPassword))
+                        {
+                            gitAuthString = null;
+                            errorMessage = "Authentication failed.";
+                            this.UpdateBackoff();
+                            return false;
+                        }
+
+                        if (!string.IsNullOrEmpty(gitUsername) && !string.IsNullOrEmpty(gitPassword))
+                        {
+                            this.cachedAuthString = Convert.ToBase64String(Encoding.ASCII.GetBytes(gitUsername + ":" + gitPassword));
                         }
                         else
                         {
-                            if (this.IsBackingOff())
-                            {
-                                gitAuthString = null;
-                                errorMessage = "Auth failed. No retries will be made until: " + this.GetNextAuthAttemptTime();
-                                return false;
-                            }
-                            
-                            if (!this.git.TryGetCredentials(tracer, out gitUsername, out gitPassword))
-                            {
-                                gitAuthString = null;
-                                errorMessage = "Authentication failed.";
-                                this.UpdateBackoff();
-                                return false;
-                            }
+                            this.cachedAuthString = string.Empty;
                         }
-
-                        this.cachedAuthString = Convert.ToBase64String(Encoding.ASCII.GetBytes(gitUsername + ":" + gitPassword));
                     }
 
                     gitAuthString = this.cachedAuthString;
@@ -119,29 +119,21 @@ namespace GVFS.Common.Git
             return true;
         }
 
-        private bool IsBackingOff()
-        {
-            return this.GetNextAuthAttemptTime() > DateTime.Now;
-        }
-
         private DateTime GetNextAuthAttemptTime()
         {
-            switch (this.numberOfRetries)
+            if (this.numberOfAttempts <= 1)
             {
-                case -1:
-                case 0:
-                    return DateTime.MinValue;
-                case 1:
-                    return this.lastAuthAttempt + TimeSpan.FromSeconds(30);
-                default:
-                    return DateTime.MaxValue;
+                return DateTime.MinValue;
             }
+
+            double backoffSeconds = RetryBackoff.CalculateBackoffSeconds(this.numberOfAttempts, MaxBackoffSeconds);
+            return this.lastAuthAttempt + TimeSpan.FromSeconds(backoffSeconds);
         }
 
         private void UpdateBackoff()
         {
             this.lastAuthAttempt = DateTime.Now;
-            this.numberOfRetries++;
+            this.numberOfAttempts++;
         }
     }
 }

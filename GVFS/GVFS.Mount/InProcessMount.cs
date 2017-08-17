@@ -1,10 +1,8 @@
 ﻿using GVFS.Common;
+using GVFS.Common.FileSystem;
 using GVFS.Common.Git;
 using GVFS.Common.Http;
 using GVFS.Common.NamedPipes;
-using GVFS.Common.Physical;
-using GVFS.Common.Physical.FileSystem;
-using GVFS.Common.Physical.Git;
 using GVFS.Common.Tracing;
 using GVFS.GVFlt;
 using Microsoft.Diagnostics.Tracing;
@@ -30,6 +28,10 @@ namespace GVFS.Mount
         private GVFltCallbacks gvfltCallbacks;
         private GVFSEnlistment enlistment;
         private ITracer tracer;
+
+        private CacheServerInfo cacheServer;
+        private RetryConfig retryConfig;
+
         private GVFSGitObjects gitObjects;
         private GVFSLock gvfsLock;
 
@@ -38,10 +40,12 @@ namespace GVFS.Mount
         private ManualResetEvent unmountEvent;
 
         private List<SafeFileHandle> folderLockHandles;
-
-        public InProcessMount(ITracer tracer, GVFSEnlistment enlistment, bool showDebugWindow)
+        
+        public InProcessMount(ITracer tracer, GVFSEnlistment enlistment, CacheServerInfo cacheServer, RetryConfig retryConfig, bool showDebugWindow)
         {
             this.tracer = tracer;
+            this.retryConfig = retryConfig;
+            this.cacheServer = cacheServer;
             this.enlistment = enlistment;
             this.showDebugWindow = showDebugWindow;
             this.unmountEvent = new ManualResetEvent(false);
@@ -60,15 +64,9 @@ namespace GVFS.Mount
         public void Mount(EventLevel verbosity, Keywords keywords)
         {
             this.currentState = MountState.Mounting;
-            if (Environment.CurrentDirectory != this.enlistment.EnlistmentRoot)
-            {
-                Environment.CurrentDirectory = this.enlistment.EnlistmentRoot;
-            }
 
             using (NamedPipeServer pipeServer = this.StartNamedPipe())
             {
-                this.AcquireRepoMutex();
-
                 GVFSContext context = this.CreateContext();
 
                 this.ValidateMountPoints();
@@ -76,7 +74,7 @@ namespace GVFS.Mount
                 this.SetVisualStudioRegistryKey();
 
                 this.gvfsLock = context.Repository.GVFSLock;
-                this.MountAndStartWorkingDirectoryCallbacks(context);
+                this.MountAndStartWorkingDirectoryCallbacks(context, this.cacheServer);
 
                 Console.Title = "GVFS " + ProcessHelper.GetCurrentProcessVersion() + " - " + this.enlistment.EnlistmentRoot;
 
@@ -161,7 +159,7 @@ namespace GVFS.Mount
                     metadata.Add("Exception", e.ToString());
                     metadata.Add("ErrorMessage", "Failed to compare " + GVFSConstants.DotGit.Hooks.ReadObjectName + " version");
                     this.tracer.RelatedError(metadata);
-                    this.FailMountAndExit("Error comparing " + GVFSConstants.DotGit.Hooks.ReadObjectName + " versions,  run 'gvfs log' for details");
+                    this.FailMountAndExit("Error comparing " + GVFSConstants.DotGit.Hooks.ReadObjectName + " versions. " + ConsoleHelper.GetGVFSLogMessage(this.enlistment.EnlistmentRoot));
                 }
             }
 
@@ -180,7 +178,7 @@ namespace GVFS.Mount
                     metadata.Add("Exception", e.ToString());
                     metadata.Add("ErrorMessage", "Failed to copy " + GVFSConstants.DotGit.Hooks.ReadObjectName + " to enlistment");
                     this.tracer.RelatedError(metadata);
-                    this.FailMountAndExit("Error copying " + GVFSConstants.DotGit.Hooks.ReadObjectName + " to enlistment,  run 'gvfs log' for details");
+                    this.FailMountAndExit("Error copying " + GVFSConstants.DotGit.Hooks.ReadObjectName + " to enlistment. " + ConsoleHelper.GetGVFSLogMessage(this.enlistment.EnlistmentRoot));
                 }
             }
         }
@@ -232,30 +230,6 @@ namespace GVFS.Mount
             }
 
             Environment.Exit((int)ReturnCode.GenericError);
-        }
-
-        private void AcquireRepoMutex()
-        {
-            try
-            {
-                if (!this.enlistment.EnlistmentMutex.WaitOne(MutexMaxWaitTimeMS))
-                {
-                    this.FailMountAndExit("Error: GVFS is already mounted for this repo");
-                }
-            }
-            catch (AbandonedMutexException)
-            {
-                // "The exception that is thrown when one thread acquires a Mutex object that another thread has abandoned by exiting without releasing it"
-                // "The next thread to request ownership of the mutex can handle this exception and proceed"
-                // https://msdn.microsoft.com/en-us/library/system.threading.abandonedmutexexception(v=vs.110).aspx
-                //
-                // If we catch AbandonedMutexException here it means that a previous instance of GVFS for this repo was not shut down gracefully.
-                // Return true as catching this exception means that we have now acquired the mutex.
-            }
-            catch (Exception)
-            {
-                this.FailMountAndExit("Error: Failed to determine if repo is already mounted.");
-            }
         }
 
         private T CreateOrReportAndExit<T>(Func<T> factory, string reportMessage)
@@ -375,7 +349,7 @@ namespace GVFS.Mount
             }
             else
             {
-                if (!GitHelper.IsValidFullSHA(objectSha))
+                if (!SHA1Util.IsValidShaFormat(objectSha))
                 {
                     response = new NamedPipeMessages.DownloadObject.Response(NamedPipeMessages.DownloadObject.InvalidSHAResult);
                 }
@@ -400,7 +374,7 @@ namespace GVFS.Mount
             NamedPipeMessages.GetStatus.Response response = new NamedPipeMessages.GetStatus.Response();
             response.EnlistmentRoot = this.enlistment.EnlistmentRoot;
             response.RepoUrl = this.enlistment.RepoUrl;
-            response.ObjectsUrl = this.enlistment.ObjectsEndpointUrl;
+            response.CacheServer = this.cacheServer.ToString();
             response.LockStatus = this.gvfsLock != null ? this.gvfsLock.GetStatus() : "Unavailable";
             response.DiskLayoutVersion = RepoMetadata.GetCurrentDiskLayoutVersion();
 
@@ -479,7 +453,7 @@ namespace GVFS.Mount
             }
         }
 
-        private void MountAndStartWorkingDirectoryCallbacks(GVFSContext context)
+        private void MountAndStartWorkingDirectoryCallbacks(GVFSContext context, CacheServerInfo cache)
         {
             string error;
             if (!context.Enlistment.Authentication.TryRefreshCredentials(context.Tracer, out error))
@@ -487,9 +461,9 @@ namespace GVFS.Mount
                 this.FailMountAndExit("Failed to obtain git credentials: " + error);
             }
 
-            // Checking the disk layout version is done before this point in GVFS.CommandLine.MountVerb.PreExecute
+            // Checking the disk layout version is done before this point in GVFS.CommandLine.MountVerb
             RepoMetadata repoMetadata = new RepoMetadata(this.enlistment.DotGVFSRoot);
-            GitObjectsHttpRequestor objectRequestor = new GitObjectsHttpRequestor(context.Tracer, context.Enlistment);
+            GitObjectsHttpRequestor objectRequestor = new GitObjectsHttpRequestor(context.Tracer, context.Enlistment, cache, this.retryConfig);
             this.gitObjects = new GVFSGitObjects(context, objectRequestor);
             this.gvfltCallbacks = this.CreateOrReportAndExit(() => new GVFltCallbacks(context, this.gitObjects, repoMetadata), "Failed to create src folder callbacks");
 

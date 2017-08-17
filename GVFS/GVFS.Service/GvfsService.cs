@@ -14,7 +14,7 @@ namespace GVFS.Service
 {
     public class GVFSService : ServiceBase
     {
-        public const string ServiceNameArgPrefix = "--servicename=";
+        private const string ServiceNameArgPrefix = "--servicename=";
         private const string EtwArea = nameof(GVFSService);
 
         private JsonEtwTracer tracer;
@@ -23,7 +23,7 @@ namespace GVFS.Service
         private string serviceName;
         private string serviceDataLocation;
         private RepoRegistry repoRegistry;
-        
+
         public GVFSService(JsonEtwTracer tracer)
         {
             this.tracer = tracer;
@@ -31,30 +31,12 @@ namespace GVFS.Service
             this.CanHandleSessionChangeEvent = true;
         }
 
-        public static string GetServiceDataRoot(string serviceName)
-        {
-            return Path.Combine(
-                Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData, Environment.SpecialFolderOption.Create),
-                "GVFS",
-                serviceName);
-        }
-
-        public static string GetServiceLogsRoot(string serviceName)
-        {
-            return Path.Combine(GetServiceDataRoot(serviceName), "Logs");
-        }
-
         public void Run()
         {
             try
             {
                 this.repoRegistry = new RepoRegistry(this.tracer, this.serviceDataLocation);
-                using (ITracer activity = this.tracer.StartActivity("StartUp", EventLevel.Informational))
-                {
-                    this.repoRegistry.AutoMountRepos();
-                    this.repoRegistry.TraceStatus();
-                }
-
+                this.repoRegistry.Upgrade();
                 string pipeName = this.serviceName + ".Pipe";
                 this.tracer.RelatedInfo("Starting pipe server with name: " + pipeName);
                 using (NamedPipeServer pipeServer = NamedPipeServer.StartNewServer(pipeName, this.tracer, this.HandleRequest))
@@ -113,14 +95,16 @@ namespace GVFS.Service
 
                 if (changeDescription.Reason == SessionChangeReason.SessionLogon)
                 {
-                    this.tracer.RelatedInfo("Logon detected, starting service.");
-                    this.StopRunning();
-                    this.Start();
+                    this.tracer.RelatedInfo("SessionLogon detected, sessionId: {0}", changeDescription.SessionId);
+                    using (ITracer activity = this.tracer.StartActivity("LogonAutomount", EventLevel.Informational))
+                    {
+                        this.repoRegistry.AutoMountRepos(changeDescription.SessionId);
+                        this.repoRegistry.TraceStatus();
+                    }
                 }
                 else if (changeDescription.Reason == SessionChangeReason.SessionLogoff)
                 {
-                    this.tracer.RelatedInfo("Logoff detected, stopping service.");
-                    this.StopRunning();
+                    this.tracer.RelatedInfo("SessionLogoff detected");
                 }
             }
             catch (Exception e)
@@ -136,18 +120,18 @@ namespace GVFS.Service
                 throw new InvalidOperationException("Cannot start service twice in a row.");
             }
 
-            // TODO: 865304 Used for functional tests only. Replace with a smarter appConfig-based solution
+            // TODO: 865304 Used for functional tests and development only. Replace with a smarter appConfig-based solution
             string serviceName = args.FirstOrDefault(arg => arg.StartsWith(ServiceNameArgPrefix));
             if (serviceName != null)
             {
                 this.serviceName = serviceName.Substring(ServiceNameArgPrefix.Length);
             }
 
-            this.serviceDataLocation = GVFSService.GetServiceDataRoot(this.serviceName);
+            this.serviceDataLocation = Paths.GetServiceDataRoot(this.serviceName);
             Directory.CreateDirectory(this.serviceDataLocation);
 
             this.tracer.AddLogFileEventListener(
-                GVFSEnlistment.GetNewGVFSLogFileName(GVFSService.GetServiceLogsRoot(this.serviceName), GVFSConstants.LogFileTypes.Service),
+                GVFSEnlistment.GetNewGVFSLogFileName(Paths.GetServiceLogsPath(this.serviceName), GVFSConstants.LogFileTypes.Service),
                 EventLevel.Verbose,
                 Keywords.Any);
 
@@ -211,11 +195,11 @@ namespace GVFS.Service
             {
                 switch (message.Header)
                 {
-                    case NamedPipeMessages.MountRepoRequest.Header:
+                    case NamedPipeMessages.RegisterRepoRequest.Header:
                         try
                         {
-                            NamedPipeMessages.MountRepoRequest mountRequest = NamedPipeMessages.MountRepoRequest.FromMessage(message);
-                            MountHandler mountHandler = new MountHandler(activity, this.repoRegistry, connection, mountRequest);
+                            NamedPipeMessages.RegisterRepoRequest mountRequest = NamedPipeMessages.RegisterRepoRequest.FromMessage(message);
+                            RegisterRepoHandler mountHandler = new RegisterRepoHandler(activity, this.repoRegistry, connection, mountRequest);
                             mountHandler.Run();
                         }
                         catch (SerializationException ex)
@@ -225,11 +209,11 @@ namespace GVFS.Service
 
                         break;
 
-                    case NamedPipeMessages.UnmountRepoRequest.Header:
+                    case NamedPipeMessages.UnregisterRepoRequest.Header:
                         try
                         {
-                            NamedPipeMessages.UnmountRepoRequest unmountRequest = NamedPipeMessages.UnmountRepoRequest.FromMessage(message);
-                            UnmountHandler unmountHandler = new UnmountHandler(activity, this.repoRegistry, connection, unmountRequest);
+                            NamedPipeMessages.UnregisterRepoRequest unmountRequest = NamedPipeMessages.UnregisterRepoRequest.FromMessage(message);
+                            UnregisterRepoHandler unmountHandler = new UnregisterRepoHandler(activity, this.repoRegistry, connection, unmountRequest);
                             unmountHandler.Run();
                         }
                         catch (SerializationException ex)
@@ -239,15 +223,16 @@ namespace GVFS.Service
 
                         break;
 
-                    case NamedPipeMessages.Notification.Request.Header:
+                    case NamedPipeMessages.AttachGvFltRequest.Header:
                         try
                         {
-                            NamedPipeMessages.Notification.Request notificationRequest = NamedPipeMessages.Notification.Request.FromMessage(message);
-                            NotificationHandler.Instance.SendNotification(activity, notificationRequest);
+                            NamedPipeMessages.AttachGvFltRequest attachRequest = NamedPipeMessages.AttachGvFltRequest.FromMessage(message);
+                            AttachGvFltHandler attachHandler = new AttachGvFltHandler(activity, connection, attachRequest);
+                            attachHandler.Run();
                         }
                         catch (SerializationException ex)
                         {
-                            activity.RelatedError("Could not deserialize notification request: {0}", ex.Message);
+                            activity.RelatedError("Could not deserialize attach volume request: {0}", ex.Message);
                         }
 
                         break;

@@ -1,6 +1,8 @@
 ﻿using CommandLine;
 using GVFS.Common;
+using GVFS.Common.FileSystem;
 using GVFS.Common.Git;
+using GVFS.Common.Http;
 using GVFS.Common.Tracing;
 using Microsoft.Diagnostics.Tracing;
 using System;
@@ -8,7 +10,6 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
-using System.ServiceProcess;
 
 namespace GVFS.CommandLine
 {
@@ -19,14 +20,14 @@ namespace GVFS.CommandLine
             this.Output = Console.Out;
             this.ReturnCode = ReturnCode.Success;
             this.ServiceName = GVFSConstants.Service.ServiceName;
-            
+
             this.InitializeDefaultParameterValues();
         }
 
         public abstract string EnlistmentRootPath { get; set; }
-        
+
         [Option(
-            MountParameters.ServiceName,
+            GVFSConstants.VerbParameters.Mount.ServiceName,
             Default = GVFSConstants.Service.ServiceName,
             Required = false,
             HelpText = "This parameter is reserved for internal use.")]
@@ -57,6 +58,10 @@ namespace GVFS.CommandLine
                 { "core.safecrlf", "false" },
                 { "core.sparseCheckout", "true" },
                 { "core.untrackedCache", "false" },
+                { "core.repositoryformatversion", "0" },
+                { "core.filemode", "false" },
+                { "core.bare", "false" },
+                { "core.logallrefupdates", "true" },
                 { GitConfigSetting.VirtualizeObjectsGitConfigName, "true" },
                 { "credential.validate", "false" },
                 { "diff.autoRefreshIndex", "false" },
@@ -65,6 +70,7 @@ namespace GVFS.CommandLine
                 { "index.version", "4" },
                 { "merge.stat", "false" },
                 { "receive.autogc", "false" },
+                { "am.keepcr", "true" },
             };
 
             Dictionary<string, GitConfigSetting> actualConfigSettings;
@@ -119,14 +125,18 @@ namespace GVFS.CommandLine
         {
         }
 
-        protected bool ShowStatusWhileRunning(Func<bool> action, string message, bool suppressGvfsLogMessage = false)
+        protected bool ShowStatusWhileRunning(
+            Func<bool> action, 
+            string message, 
+            bool suppressGvfsLogMessage = false)
         {
             return ConsoleHelper.ShowStatusWhileRunning(
                 action,
                 message,
                 this.Output,
                 showSpinner: this.Output == Console.Out && !ConsoleHelper.IsConsoleOutputRedirectedToFile(),
-                suppressGvfsLogMessage: suppressGvfsLogMessage);
+                gvfsLogEnlistmentRoot: suppressGvfsLogMessage ? null : Paths.GetGVFSEnlistmentRoot(this.EnlistmentRootPath),
+                initialDelayMs: 0);
         }
 
         protected void ReportErrorAndExit(ReturnCode exitCode, string error, params object[] args)
@@ -149,29 +159,71 @@ namespace GVFS.CommandLine
 
         protected void ReportErrorAndExit(string error, params object[] args)
         {
+            // TODO 1026787: Record these errors in the event log
             this.ReportErrorAndExit(ReturnCode.GenericError, error, args);
         }
 
-        protected void CheckGVFltRunning()
+        protected void CheckGVFltHealthy()
         {
-            bool gvfltServiceRunning = false;
-            try
+            string error;
+            string warning;
+            if (!GvFltFilter.IsHealthy(out error, out warning, tracer: null))
             {
-                ServiceController controller = new ServiceController("gvflt");
-                gvfltServiceRunning = controller.Status.Equals(ServiceControllerStatus.Running);
-            }
-            catch (InvalidOperationException)
-            {
-                this.ReportErrorAndExit("Error: GVFlt Service was not found. To resolve, re-install GVFS");
+                this.ReportErrorAndExit(error);
             }
 
-            if (!gvfltServiceRunning)
+            if (!string.IsNullOrEmpty(warning))
             {
-                this.ReportErrorAndExit("Error: GVFlt Service is not running. To resolve, run \"sc start gvflt\" from an elevated command prompt");
+                this.Output.WriteLine(warning);
             }
         }
 
-        protected void CheckVolumeSupportsDeleteNotifications(ITracer tracer, Enlistment enlistment)
+        protected void ValidateClientVersions(ITracer tracer, GVFSEnlistment enlistment, GVFSConfig gvfsConfig)
+        {
+            this.CheckGitVersion(enlistment);
+            this.GetGVFSHooksPathAndCheckVersion();
+            this.CheckVolumeSupportsDeleteNotifications(tracer, enlistment);
+
+            string errorMessage = null;
+            bool errorIsFatal = false;
+
+            if (!this.ShowStatusWhileRunning(
+                () => this.TryValidateGVFSVersion(enlistment, tracer, gvfsConfig, out errorMessage, out errorIsFatal),
+                "Validating client version",
+                suppressGvfsLogMessage: true))
+            {
+                if (errorIsFatal)
+                {
+                    this.ReportErrorAndExit(errorMessage);
+                }
+                else
+                {
+                    this.Output.WriteLine();
+                    this.Output.WriteLine(errorMessage);
+                    this.Output.WriteLine();
+                }
+            }
+        }
+
+        protected string GetGVFSHooksPathAndCheckVersion()
+        {
+            string hooksPath = ProcessHelper.WhereDirectory(GVFSConstants.GVFSHooksExecutableName);
+            if (hooksPath == null)
+            {
+                this.ReportErrorAndExit("Could not find " + GVFSConstants.GVFSHooksExecutableName);
+            }
+
+            FileVersionInfo hooksFileVersionInfo = FileVersionInfo.GetVersionInfo(hooksPath + "\\" + GVFSConstants.GVFSHooksExecutableName);
+            string gvfsVersion = ProcessHelper.GetCurrentProcessVersion();
+            if (hooksFileVersionInfo.ProductVersion != gvfsVersion)
+            {
+                this.ReportErrorAndExit("GVFS.Hooks version ({0}) does not match GVFS version ({1}).", hooksFileVersionInfo.ProductVersion, gvfsVersion);
+            }
+
+            return hooksPath;
+        }
+
+        private void CheckVolumeSupportsDeleteNotifications(ITracer tracer, Enlistment enlistment)
         {
             try
             {
@@ -200,7 +252,7 @@ namespace GVFS.CommandLine
             }
         }
 
-        protected void CheckGitVersion(Enlistment enlistment)
+        private void CheckGitVersion(Enlistment enlistment)
         {
             GitProcess.Result versionResult = GitProcess.Version(enlistment);
             if (versionResult.HasErrors)
@@ -234,27 +286,11 @@ namespace GVFS.CommandLine
             }
         }
 
-        protected void CheckGVFSHooksVersion(Enlistment enlistment, string hooksPath)
+        private bool TryValidateGVFSVersion(GVFSEnlistment enlistment, ITracer tracer, GVFSConfig config, out string errorMessage, out bool errorIsFatal)
         {
-            if (hooksPath == null)
-            {
-                hooksPath = ProcessHelper.WhereDirectory(GVFSConstants.GVFSHooksExecutableName);
-                if (hooksPath == null)
-                {
-                    this.ReportErrorAndExit("Could not find " + GVFSConstants.GVFSHooksExecutableName);
-                }
-            }
+            errorMessage = null;
+            errorIsFatal = false;
 
-            FileVersionInfo myFileVersionInfo = FileVersionInfo.GetVersionInfo(hooksPath + "\\" + GVFSConstants.GVFSHooksExecutableName);
-            string gvfsVersion = ProcessHelper.GetCurrentProcessVersion();
-            if (myFileVersionInfo.ProductVersion != gvfsVersion)
-            {
-                this.ReportErrorAndExit("GVFS.Hooks version ({0}) does not match GVFS version ({1}).", myFileVersionInfo.ProductVersion, gvfsVersion);
-            }
-        }
-
-        protected void ValidateGVFSVersion(GVFSEnlistment enlistment, GVFSConfig config, ITracer tracer)
-        {
             using (ITracer activity = tracer.StartActivity("ValidateGVFSVersion", EventLevel.Informational))
             {
                 Version currentVersion = new Version(ProcessHelper.GetCurrentProcessVersion());
@@ -266,24 +302,21 @@ namespace GVFS.CommandLine
 
                 if (allowedGvfsClientVersions == null || !allowedGvfsClientVersions.Any())
                 {
-                    string errorMessage = string.Empty;
+                    errorMessage = "WARNING: Unable to validate your GVFS version" + Environment.NewLine;
                     if (config == null)
                     {
-                        errorMessage = "Could not query valid GVFS versions from: " + Uri.EscapeUriString(enlistment.RepoUrl);
+                        errorMessage += "Could not query valid GVFS versions from: " + Uri.EscapeUriString(enlistment.RepoUrl);
                     }
                     else
                     {
-                        errorMessage = "Server not configured to provide supported GVFS versions";
+                        errorMessage += "Server not configured to provide supported GVFS versions";
                     }
 
                     EventMetadata metadata = new EventMetadata();
                     metadata.Add("ErrorMessage", errorMessage);
                     tracer.RelatedError(metadata, Keywords.Network);
 
-                    this.Output.WriteLine();
-                    this.Output.WriteLine("WARNING: Unable to validate your GVFS version");
-                    this.Output.WriteLine();
-                    return;
+                    return false;
                 }
 
                 foreach (GVFSConfig.VersionRange versionRange in config.AllowedGVFSClientVersions)
@@ -298,14 +331,17 @@ namespace GVFS.CommandLine
                             {
                                 { "SupportedVersionRange", versionRange },
                             });
-                        return;
+
+                        return true;
                     }
                 }
 
                 activity.RelatedError("GVFS version {0} is not supported", currentVersion);
             }
 
-            this.ReportErrorAndExit("\r\nERROR: Your GVFS version is no longer supported.  Install the latest and try again.\r\n");
+            errorMessage = "ERROR: Your GVFS version is no longer supported.  Install the latest and try again.";
+            errorIsFatal = true;
+            return false;
         }
 
         public abstract class ForExistingEnlistment : GVFSVerb
@@ -320,12 +356,12 @@ namespace GVFS.CommandLine
 
             public sealed override void Execute()
             {
-                this.PreExecute(this.EnlistmentRootPath);
+                this.PreCreateEnlistment();
                 GVFSEnlistment enlistment = this.CreateEnlistment(this.EnlistmentRootPath);
                 this.Execute(enlistment);
             }
 
-            protected virtual void PreExecute(string enlistmentRootPath)
+            protected virtual void PreCreateEnlistment()
             {
             }
 
@@ -339,11 +375,6 @@ namespace GVFS.CommandLine
                     this.ReportErrorAndExit("Error: " + GVFSConstants.GitIsNotInstalledError);
                 }
 
-                if (string.IsNullOrWhiteSpace(enlistmentRootPath))
-                {
-                    enlistmentRootPath = Environment.CurrentDirectory;
-                }
-
                 string hooksPath = ProcessHelper.WhereDirectory(GVFSConstants.GVFSHooksExecutableName);
                 if (hooksPath == null)
                 {
@@ -353,7 +384,7 @@ namespace GVFS.CommandLine
                 GVFSEnlistment enlistment = null;
                 try
                 {
-                    enlistment = GVFSEnlistment.CreateFromDirectory(enlistmentRootPath, null, gitBinPath, hooksPath);
+                    enlistment = GVFSEnlistment.CreateFromDirectory(enlistmentRootPath, gitBinPath, hooksPath);
                     if (enlistment == null)
                     {
                         this.ReportErrorAndExit(

@@ -1,4 +1,4 @@
-﻿using GVFS.Common.Physical.FileSystem;
+﻿using GVFS.Common.FileSystem;
 using GVFS.Common.Tracing;
 using Microsoft.Diagnostics.Tracing;
 using System;

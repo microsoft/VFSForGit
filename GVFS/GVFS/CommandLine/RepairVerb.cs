@@ -2,11 +2,10 @@
 using GVFS.CommandLine.RepairJobs;
 using GVFS.Common;
 using GVFS.Common.Git;
+using GVFS.Common.NamedPipes;
 using GVFS.Common.Tracing;
 using Microsoft.Diagnostics.Tracing;
-using System;
 using System.Collections.Generic;
-using System.IO;
 
 namespace GVFS.CommandLine
 {
@@ -37,14 +36,12 @@ namespace GVFS.CommandLine
 
         public override void Execute()
         {
-            if (string.IsNullOrWhiteSpace(this.EnlistmentRootPath))
-            {
-                this.EnlistmentRootPath = Environment.CurrentDirectory;
-            }
+            string hooksPath = this.GetGVFSHooksPathAndCheckVersion();
 
             GVFSEnlistment enlistment = GVFSEnlistment.CreateWithoutRepoUrlFromDirectory(
                 this.EnlistmentRootPath,
-                GitProcess.GetInstalledGitBinPath());
+                GitProcess.GetInstalledGitBinPath(),
+                hooksPath);
 
             if (enlistment == null)
             {
@@ -68,12 +65,22 @@ To actually execute any necessary repair(s), run 'gvfs repair --confirm'
             if (!ConsoleHelper.ShowStatusWhileRunning(
                 () =>
                 {
-                    return GVFSVerb.Execute<StatusVerb>(enlistment.EnlistmentRoot, verb => verb.Output = new StringWriter()) != ReturnCode.Success;
+                    // Don't use 'gvfs status' here. The repo may be corrupt such that 'gvfs status' cannot run normally, 
+                    // causing repair to continue when it shouldn't.
+                    using (NamedPipeClient pipeClient = new NamedPipeClient(enlistment.NamedPipeName))
+                    {
+                        if (!pipeClient.Connect())
+                        {
+                            return true;
+                        }
+                    }
+
+                    return false;
                 },
-                "Checking 'gvfs status'",
+                "Checking if GVFS is mounted",
                 this.Output,
                 showSpinner: true,
-                suppressGvfsLogMessage: true))
+                gvfsLogEnlistmentRoot: enlistment.EnlistmentRoot))
             {
                 this.ReportErrorAndExit("You can only run 'gvfs repair' if GVFS is not mounted. Run 'gvfs unmount' and try again.");
             }
@@ -89,7 +96,7 @@ To actually execute any necessary repair(s), run 'gvfs repair --confirm'
                 tracer.WriteStartEvent(
                     enlistment.EnlistmentRoot,
                     enlistment.RepoUrl,
-                    enlistment.CacheServerUrl,
+                    "N/A",
                     new EventMetadata
                     {
                         { "Confirmed", this.Confirmed }
@@ -104,6 +111,8 @@ To actually execute any necessary repair(s), run 'gvfs repair --confirm'
                 jobs.Add(new RepoMetadataDatabaseRepairJob(tracer, this.Output, enlistment));
 
                 jobs.Add(new GitHeadRepairJob(tracer, this.Output, enlistment));
+                jobs.Add(new GitIndexRepairJob(tracer, this.Output, enlistment));
+                jobs.Add(new GitConfigRepairJob(tracer, this.Output, enlistment));
 
                 Dictionary<RepairJob, List<string>> healthy = new Dictionary<RepairJob, List<string>>();
                 Dictionary<RepairJob, List<string>> cantFix = new Dictionary<RepairJob, List<string>>();
@@ -157,13 +166,17 @@ To actually execute any necessary repair(s), run 'gvfs repair --confirm'
                     if (this.Confirmed)
                     {
                         List<string> repairMessages = new List<string>();
-                        if (job.TryFixIssues(repairMessages))
+                        switch (job.TryFixIssues(repairMessages))
                         {
-                            this.WriteMessage(tracer, "Repair succeeded");
-                        }
-                        else
-                        {
-                            this.WriteMessage(tracer, "Repair failed. Run 'gvfs log' for more info.");
+                            case RepairJob.FixResult.Success:
+                                this.WriteMessage(tracer, "Repair succeeded");
+                                break;
+                            case RepairJob.FixResult.ManualStepsRequired:
+                                this.WriteMessage(tracer, "Repair succeeded, but requires some manual steps before remounting.");
+                                break;
+                            case RepairJob.FixResult.Failure:
+                                this.WriteMessage(tracer, "Repair failed. " + ConsoleHelper.GetGVFSLogMessage(enlistment.EnlistmentRoot));
+                                break;
                         }
 
                         this.WriteMessages(tracer, repairMessages);
@@ -177,7 +190,7 @@ To actually execute any necessary repair(s), run 'gvfs repair --confirm'
                 }
             }
         }
-
+        
         private void WriteMessage(ITracer tracer, string message)
         {
             tracer.RelatedEvent(EventLevel.Informational, "RepairInfo", new EventMetadata { { "Message", message } });

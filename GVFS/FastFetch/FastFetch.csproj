@@ -67,13 +67,14 @@
     <Compile Include="FastFetchVerb.cs" />
     <Compile Include="CheckoutFetchHelper.cs" />
     <Compile Include="FetchHelper.cs" />
+    <Compile Include="Git\BigEndianReader.cs" />
+    <Compile Include="Git\EndianHelper.cs" />
     <Compile Include="Git\GitIndexGenerator.cs" />
     <Compile Include="HashingStream.cs" />
     <Compile Include="WorkingTree.cs" />
     <Compile Include="GitEnlistment.cs" />
     <Compile Include="Git\DiffHelper.cs" />
     <Compile Include="Git\GitPackIndex.cs" />
-    <Compile Include="Git\RefSpecHelpers.cs" />
     <Compile Include="Index.cs" />
     <Compile Include="Jobs\BatchObjectDownloadJob.cs" />
     <Compile Include="Jobs\CheckoutJob.cs" />
@@ -83,7 +84,6 @@
     <Compile Include="Jobs\FindMissingBlobsJob.cs" />
     <Compile Include="Jobs\IndexPackJob.cs" />
     <Compile Include="Jobs\Job.cs" />
-    <Compile Include="Git\UpdateRefsHelper.cs" />
     <Compile Include="PathConverter.cs" />
     <Compile Include="Program.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />

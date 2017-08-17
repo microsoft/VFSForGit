@@ -2,6 +2,7 @@
 using GVFS.Common;
 using GVFS.Common.Git;
 using GVFS.Common.Http;
+using GVFS.Common.NetworkStreams;
 using GVFS.Common.Tracing;
 using Microsoft.Diagnostics.Tracing;
 using System;
@@ -148,7 +149,7 @@ namespace FastFetch.Jobs
                     this.AvailablePacks.Add(new IndexPackRequest(fileName, request));
                     break;
                 case GitObjectContentType.BatchedLooseObjects:
-                    OnLooseObject onLooseObject = (objectStream, sha1) =>
+                    BatchedLooseObjectDeserializer.OnLooseObject onLooseObject = (objectStream, sha1) =>
                     {
                         this.gitObjects.WriteLooseObject(
                             objectStream,

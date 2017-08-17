@@ -2,9 +2,11 @@
 using FastFetch;
 using GVFS.Common;
 using GVFS.Common.Git;
+using GVFS.Common.Http;
 using GVFS.Common.Tracing;
 using Microsoft.Diagnostics.Tracing;
 using System;
+using System.IO;
 
 namespace GVFS.CommandLine
 {
@@ -76,10 +78,29 @@ namespace GVFS.CommandLine
                     GVFSEnlistment.GetNewGVFSLogFileName(enlistment.GVFSLogsRoot, GVFSConstants.LogFileTypes.Prefetch),
                     EventLevel.Informational,
                     Keywords.Any);
+
+                RetryConfig retryConfig;
+                string error;
+                if (!RetryConfig.TryLoadFromGitConfig(tracer, enlistment, out retryConfig, out error))
+                {
+                    tracer.RelatedError("Failed to determine GVFS timeout and max retries: " + error);
+                    Environment.Exit((int)ReturnCode.GenericError);
+                }
+
+                retryConfig.Timeout = TimeSpan.FromMinutes(RetryConfig.FetchAndCloneTimeoutMinutes);
+                
+                CacheServerInfo cache;
+                if (!CacheServerInfo.TryDetermineCacheServer(null, tracer, enlistment, retryConfig, out cache, out error))
+                {
+                    tracer.RelatedError(error);
+                    Environment.ExitCode = (int)ReturnCode.GenericError;
+                    return;
+                }
+
                 tracer.WriteStartEvent(
                     enlistment.EnlistmentRoot,
                     enlistment.RepoUrl,
-                    enlistment.CacheServerUrl);
+                    cache.Url);
 
                 try
                 {
@@ -89,89 +110,25 @@ namespace GVFS.CommandLine
                     metadata.Add("PathWhitelistFile", this.PathWhitelistFile);
                     tracer.RelatedEvent(EventLevel.Informational, "PerformPrefetch", metadata);
 
+                    GitObjectsHttpRequestor objectRequestor = new GitObjectsHttpRequestor(tracer, enlistment, cache, retryConfig);
                     if (this.Commits)
                     {
-                        if (!string.IsNullOrEmpty(this.PathWhitelistFile) ||
-                            !string.IsNullOrWhiteSpace(this.PathWhitelist))
-                        {
-                            this.ReportErrorAndExit("Cannot supply both --commits (-c) and --folders (-f)");
-                        }
-
-                        PrefetchHelper prefetchHelper = new PrefetchHelper(
-                            tracer,
-                            enlistment);
-
-                        if (this.Verbose)
-                        {
-                            prefetchHelper.TryPrefetchCommitsAndTrees();
-                        }
-                        else
-                        {
-                            this.ShowStatusWhileRunning(
-                                () => { return prefetchHelper.TryPrefetchCommitsAndTrees(); },
-                                "Fetching commits and trees");
-                        }
-
-                        return;
-                    }
-
-                    FetchHelper fetchHelper = new FetchHelper(
-                        tracer,
-                        enlistment,
-                        ChunkSize,
-                        SearchThreadCount,
-                        DownloadThreadCount,
-                        IndexThreadCount);
-
-                    if (!FetchHelper.TryLoadPathWhitelist(tracer, this.PathWhitelist, this.PathWhitelistFile, enlistment, fetchHelper.PathWhitelist))
-                    {
-                        Environment.ExitCode = (int)ReturnCode.GenericError;
-                        return;
-                    }
-
-                    GitProcess gitProcess = new GitProcess(enlistment);
-                    GitProcess.Result result = gitProcess.RevParse(GVFSConstants.DotGit.HeadName);
-                    if (result.HasErrors)
-                    {
-                        tracer.RelatedError(result.Errors);
-                        this.Output.WriteLine(result.Errors);
-                        Environment.ExitCode = (int)ReturnCode.GenericError;
-                        return;
-                    }
-
-                    string headCommitId = result.Output;
-                    Func<bool> doPrefetch =
-                        () =>
-                        {
-                            try
-                            {
-                                fetchHelper.FastFetch(headCommitId.Trim(), isBranch: false);
-                                return !fetchHelper.HasFailures;
-                            }
-                            catch (FetchHelper.FetchException e)
-                            {
-                                tracer.RelatedError(e.Message);
-                                return false;
-                            }
-                        };
-
-                    if (this.Verbose)
-                    {
-                        doPrefetch();
+                        this.PrefetchCommits(tracer, enlistment, objectRequestor);
                     }
                     else
                     {
-                        this.ShowStatusWhileRunning(doPrefetch, "Fetching blobs");
+                        this.PrefetchBlobs(tracer, enlistment, objectRequestor);
                     }
-
-                    if (fetchHelper.HasFailures)
-                    {
-                        Environment.ExitCode = 1;
-                    }
+                }
+                catch (VerbAbortedException)
+                {
+                    throw;
                 }
                 catch (AggregateException aggregateException)
                 {
-                    this.Output.WriteLine("Cannot prefetch @ {0}:", enlistment.EnlistmentRoot);
+                    this.Output.WriteLine(
+                        "Cannot prefetch {0}. " + ConsoleHelper.GetGVFSLogMessage(enlistment.EnlistmentRoot),
+                        enlistment.EnlistmentRoot);
                     foreach (Exception innerException in aggregateException.Flatten().InnerExceptions)
                     {
                         tracer.RelatedError(
@@ -185,13 +142,11 @@ namespace GVFS.CommandLine
 
                     Environment.ExitCode = (int)ReturnCode.GenericError;
                 }
-                catch (VerbAbortedException)
-                {
-                    throw;
-                }
                 catch (Exception e)
                 {
-                    this.Output.WriteLine("Cannot prefetch @ {0}:", enlistment.EnlistmentRoot);
+                    this.Output.WriteLine(
+                        "Cannot prefetch {0}. " + ConsoleHelper.GetGVFSLogMessage(enlistment.EnlistmentRoot),
+                        enlistment.EnlistmentRoot);
                     tracer.RelatedError(
                         new EventMetadata
                         {
@@ -201,6 +156,120 @@ namespace GVFS.CommandLine
                         });
                 }
             }
+        }
+
+        private void PrefetchCommits(ITracer tracer, GVFSEnlistment enlistment, GitObjectsHttpRequestor objectRequestor)
+        {
+            if (!string.IsNullOrEmpty(this.PathWhitelistFile) ||
+                            !string.IsNullOrWhiteSpace(this.PathWhitelist))
+            {
+                this.ReportErrorAndExit("Cannot supply both --commits (-c) and --folders (-f)");
+            }
+
+            if (this.Verbose)
+            {
+                this.TryPrefetchCommitsAndTrees(tracer, enlistment, objectRequestor);
+            }
+            else
+            {
+                this.ShowStatusWhileRunning(
+                    () => { return this.TryPrefetchCommitsAndTrees(tracer, enlistment, objectRequestor); },
+                    "Fetching commits and trees");
+            }
+        }
+
+        private void PrefetchBlobs(ITracer tracer, GVFSEnlistment enlistment, GitObjectsHttpRequestor blobRequestor)
+        {
+            FetchHelper fetchHelper = new FetchHelper(
+                tracer,
+                enlistment,
+                blobRequestor,
+                ChunkSize,
+                SearchThreadCount,
+                DownloadThreadCount,
+                IndexThreadCount);
+
+            if (!FetchHelper.TryLoadPathWhitelist(tracer, this.PathWhitelist, this.PathWhitelistFile, enlistment, fetchHelper.PathWhitelist))
+            {
+                Environment.ExitCode = (int)ReturnCode.GenericError;
+                return;
+            }
+
+            GitProcess gitProcess = new GitProcess(enlistment);
+            GitProcess.Result result = gitProcess.RevParse(GVFSConstants.DotGit.HeadName);
+            if (result.HasErrors)
+            {
+                tracer.RelatedError(result.Errors);
+                this.Output.WriteLine(result.Errors);
+                Environment.ExitCode = (int)ReturnCode.GenericError;
+                return;
+            }
+
+            string headCommitId = result.Output;
+            Func<bool> doPrefetch =
+                () =>
+                {
+                    try
+                    {
+                        fetchHelper.FastFetch(headCommitId.Trim(), isBranch: false);
+                        return !fetchHelper.HasFailures;
+                    }
+                    catch (FetchHelper.FetchException e)
+                    {
+                        tracer.RelatedError(e.Message);
+                        return false;
+                    }
+                };
+
+            if (this.Verbose)
+            {
+                doPrefetch();
+            }
+            else
+            {
+                this.ShowStatusWhileRunning(doPrefetch, "Fetching blobs");
+            }
+
+            if (fetchHelper.HasFailures)
+            {
+                Environment.ExitCode = 1;
+            }
+        }
+
+        private bool TryPrefetchCommitsAndTrees(ITracer tracer, GVFSEnlistment enlistment, GitObjectsHttpRequestor objectRequestor)
+        {
+            GitObjects gitObjects = new GitObjects(tracer, enlistment, objectRequestor);
+
+            string[] packs = gitObjects.ReadPackFileNames(GVFSConstants.PrefetchPackPrefix);
+            long max = -1;
+            foreach (string pack in packs)
+            {
+                long? timestamp = this.GetTimestamp(pack);
+                if (timestamp.HasValue && timestamp > max)
+                {
+                    max = timestamp.Value;
+                }
+            }
+
+            return gitObjects.TryDownloadPrefetchPacks(max);
+        }
+
+        private long? GetTimestamp(string packName)
+        {
+            string filename = Path.GetFileName(packName);
+            if (!filename.StartsWith(GVFSConstants.PrefetchPackPrefix))
+            {
+                return null;
+            }
+
+            string[] parts = filename.Split('-');
+            long parsed;
+            if (parts.Length > 1 && long.TryParse(parts[1], out parsed))
+            {
+                return parsed;
+            }
+
+            return null;
         }
 
         private static class Parameters

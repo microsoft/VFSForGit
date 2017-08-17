@@ -34,9 +34,9 @@ namespace GVFS.FunctionalTests.Tools
         {
             string mountCommand = "mount " + this.enlistmentRoot + " --internal_use_only_service_name " + GVFSServiceProcess.TestServiceName;
 
-            this.IsGVFSMounted().ShouldEqual(false, "GVFS is already mounted");
+            this.IsEnlistmentMounted().ShouldEqual(false, "GVFS is already mounted");
             output = this.CallGVFS(mountCommand);
-            return this.IsGVFSMounted();
+            return this.IsEnlistmentMounted();
         }
 
         public string Prefetch(string folderPath)
@@ -72,6 +72,11 @@ namespace GVFS.FunctionalTests.Tools
             return this.CallGVFS("status " + this.enlistmentRoot);
         }
 
+        public string CacheServer(string args)
+        {
+            return this.CallGVFS("cache-server " + args + " " + this.enlistmentRoot);
+        }
+
         public void Unmount()
         {
             string unmountArgs = string.Join(
@@ -79,10 +84,10 @@ namespace GVFS.FunctionalTests.Tools
                 "unmount " + this.enlistmentRoot,
                 "--internal_use_only_service_name " + GVFSServiceProcess.TestServiceName);
             string result = this.CallGVFS(unmountArgs);
-            this.IsGVFSMounted().ShouldEqual(false, "GVFS did not unmount: " + result);
+            this.IsEnlistmentMounted().ShouldEqual(false, "GVFS did not unmount: " + result);
         }
 
-        private bool IsGVFSMounted()
+        public bool IsEnlistmentMounted()
         {
             string statusResult = this.CallGVFS("status " + this.enlistmentRoot);
             return statusResult.Contains("Mount status: Ready");

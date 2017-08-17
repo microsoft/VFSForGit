@@ -53,8 +53,8 @@ namespace GVFS.FunctionalTests.Should
 
         public static string ShouldNotExistOnDisk(this string path, FileSystemRunner runner)
         {
-            runner.FileExists(path).ShouldEqual(false);
-            runner.DirectoryExists(path).ShouldEqual(false);
+            runner.FileExists(path).ShouldEqual(false, "File " + path + " exists when it should not");
+            runner.DirectoryExists(path).ShouldEqual(false, "Directory " + path + " exists when it should not");
             return path;
         }
 
@@ -68,7 +68,7 @@ namespace GVFS.FunctionalTests.Should
             public FileAdapter(string path, FileSystemRunner runner)
             {
                 this.runner = runner;
-                this.runner.FileExists(path).ShouldEqual(true, string.Format("Path does NOT exist: {0}", path));
+                this.runner.FileExists(path).ShouldEqual(true, "Path does NOT exist: " + path);
                 this.Path = path;
             }
 
@@ -84,7 +84,7 @@ namespace GVFS.FunctionalTests.Should
 
             public FileAdapter WithContents(string expectedContents)
             {
-                this.runner.ReadAllText(this.Path).ShouldEqual(expectedContents);
+                this.runner.ReadAllText(this.Path).ShouldEqual(expectedContents, "The contents of " + this.Path + " do not match what was expected");
                 return this;
             }
 
@@ -93,16 +93,17 @@ namespace GVFS.FunctionalTests.Should
                 FileInfo fileInfo = new FileInfo(this.Path);
                 string parentPath = System.IO.Path.GetDirectoryName(this.Path);
                 DirectoryInfo parentInfo = new DirectoryInfo(parentPath);
-                Assert.AreEqual(expectedName.Equals(parentInfo.GetFileSystemInfos(fileInfo.Name)[0].Name, StringComparison.Ordinal), true);
+                expectedName.Equals(parentInfo.GetFileSystemInfos(fileInfo.Name)[0].Name, StringComparison.Ordinal)
+                    .ShouldEqual(true, this.Path + " does not have the correct case");
                 return this;
             }
 
             public FileInfo WithInfo(DateTime creation, DateTime lastWrite, DateTime lastAccess)
             {
                 FileInfo info = new FileInfo(this.Path);
-                info.CreationTime.ShouldEqual(creation);
-                info.LastAccessTime.ShouldEqual(lastAccess);
-                info.LastWriteTime.ShouldEqual(lastWrite);
+                info.CreationTime.ShouldEqual(creation, "Creation time does not match");
+                info.LastAccessTime.ShouldEqual(lastAccess, "Last access time does not match");
+                info.LastWriteTime.ShouldEqual(lastWrite, "Last write time does not match");
 
                 return info;
             }
@@ -110,21 +111,21 @@ namespace GVFS.FunctionalTests.Should
             public FileInfo WithInfo(DateTime creation, DateTime lastWrite, DateTime lastAccess, FileAttributes attributes)
             {
                 FileInfo info = this.WithInfo(creation, lastWrite, lastAccess);
-                info.Attributes.ShouldEqual(attributes);
+                info.Attributes.ShouldEqual(attributes, "Attributes do not match");
                 return info;
             }
 
             public FileInfo WithAttribute(FileAttributes attribute)
             {
                 FileInfo info = new FileInfo(this.Path);
-                info.Attributes.HasFlag(attribute).ShouldEqual(true);
+                info.Attributes.HasFlag(attribute).ShouldEqual(true, "Attributes do not have correct flag: " + attribute);
                 return info;
             }
 
             public FileInfo WithoutAttribute(FileAttributes attribute)
             {
                 FileInfo info = new FileInfo(this.Path);
-                info.Attributes.HasFlag(attribute).ShouldEqual(false);
+                info.Attributes.HasFlag(attribute).ShouldEqual(false, "Attributes have incorrect flag: " + attribute);
                 return info;
             }
         }
@@ -136,7 +137,7 @@ namespace GVFS.FunctionalTests.Should
             public DirectoryAdapter(string path, FileSystemRunner runner)
             {
                 this.runner = runner;
-                this.runner.DirectoryExists(path).ShouldEqual(true);
+                this.runner.DirectoryExists(path).ShouldEqual(true, "Directory " + path + " does not exist");
                 this.Path = path;
             }
 
@@ -147,12 +148,12 @@ namespace GVFS.FunctionalTests.Should
 
             public void WithNoItems()
             {
-                Directory.EnumerateFileSystemEntries(this.Path).ShouldBeEmpty();
+                Directory.EnumerateFileSystemEntries(this.Path).ShouldBeEmpty(this.Path + " is not empty");
             }
 
             public void WithNoItems(string searchPattern)
             {
-                Directory.EnumerateFileSystemEntries(this.Path, searchPattern).ShouldBeEmpty();
+                Directory.EnumerateFileSystemEntries(this.Path, searchPattern).ShouldBeEmpty(this.Path + " is not empty");
             }
 
             public FileSystemInfo WithOneItem()
@@ -163,7 +164,7 @@ namespace GVFS.FunctionalTests.Should
             public IEnumerable<FileSystemInfo> WithItems(int expectedCount)
             {
                 IEnumerable<FileSystemInfo> items = this.WithItems();
-                items.Count().ShouldEqual(expectedCount);
+                items.Count().ShouldEqual(expectedCount, this.Path + " has an invalid number of items");
                 return items;
             }
 
@@ -176,7 +177,7 @@ namespace GVFS.FunctionalTests.Should
             {
                 DirectoryInfo directory = new DirectoryInfo(this.Path);
                 IEnumerable<FileSystemInfo> items = directory.GetFileSystemInfos(searchPattern);
-                items.Any().ShouldEqual(true);
+                items.Any().ShouldEqual(true, this.Path + " does not have any items");
                 return items;
             }
 
@@ -197,16 +198,17 @@ namespace GVFS.FunctionalTests.Should
                 DirectoryInfo info = new DirectoryInfo(this.Path);
                 string parentPath = System.IO.Path.GetDirectoryName(this.Path);
                 DirectoryInfo parentInfo = new DirectoryInfo(parentPath);
-                Assert.AreEqual(expectedName.Equals(parentInfo.GetDirectories(info.Name)[0].Name, StringComparison.Ordinal), true);
+                expectedName.Equals(parentInfo.GetDirectories(info.Name)[0].Name, StringComparison.Ordinal)
+                    .ShouldEqual(true, this.Path + " does not have the correct case");
                 return this;
             }
 
             public DirectoryInfo WithInfo(DateTime creation, DateTime lastWrite, DateTime lastAccess)
             {
                 DirectoryInfo info = new DirectoryInfo(this.Path);
-                info.CreationTime.ShouldEqual(creation);
-                info.LastAccessTime.ShouldEqual(lastAccess);
-                info.LastWriteTime.ShouldEqual(lastWrite);
+                info.CreationTime.ShouldEqual(creation, "Creation time does not match");
+                info.LastAccessTime.ShouldEqual(lastAccess, "Last access time does not match");
+                info.LastWriteTime.ShouldEqual(lastWrite, "Last write time does not match");
 
                 return info;
             }
@@ -217,11 +219,11 @@ namespace GVFS.FunctionalTests.Should
                 if (ignoreRecallAttributes)
                 {
                     FileAttributes attributesWithoutRecall = info.Attributes & (FileAttributes)~(FileAttributeRecallOnOpen | FileAttributeRecallOnDataAccess);
-                    attributesWithoutRecall.ShouldEqual(attributes);
+                    attributesWithoutRecall.ShouldEqual(attributes, "Attributes do not match");
                 }
                 else
                 {
-                    info.Attributes.ShouldEqual(attributes);
+                    info.Attributes.ShouldEqual(attributes, "Attributes do not match");
                 }
 
                 return info;
@@ -230,7 +232,7 @@ namespace GVFS.FunctionalTests.Should
             public DirectoryInfo WithAttribute(FileAttributes attribute)
             {
                 DirectoryInfo info = new DirectoryInfo(this.Path);
-                info.Attributes.HasFlag(attribute).ShouldEqual(true);
+                info.Attributes.HasFlag(attribute).ShouldEqual(true, "Attributes do not have correct flag: " + attribute);
                 return info;
             }
 

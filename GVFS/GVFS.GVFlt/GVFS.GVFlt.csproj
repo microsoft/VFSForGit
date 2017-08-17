@@ -98,9 +98,9 @@
       <Project>{374bf1e5-0b2d-4d4a-bd5e-4212299def09}</Project>
       <Name>GVFS.Common</Name>
     </ProjectReference>
-    <ProjectReference Include="..\GVFS.GvFltWrapper\GVFS.GvFltWrapper.vcxproj">
+    <ProjectReference Include="..\GVFS.GvFltWrapper\GvFlt.vcxproj">
       <Project>{fb0831ae-9997-401b-b31f-3a065fdbeb20}</Project>
-      <Name>GVFS.GvFltWrapper</Name>
+      <Name>GvFlt</Name>
     </ProjectReference>
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />

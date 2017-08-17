@@ -68,7 +68,6 @@
     <Compile Include="InProcessMount.cs" />
     <Compile Include="MountAbortedException.cs" />
     <Compile Include="InProcessMountVerb.cs" />
-    <Compile Include="MountParameters.cs" />
     <Compile Include="Program.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
   </ItemGroup>
@@ -99,7 +98,8 @@
   <Import Project="..\..\..\packages\StyleCop.MSBuild.4.7.54.0\build\StyleCop.MSBuild.targets" Condition="Exists('..\..\..\packages\StyleCop.MSBuild.4.7.54.0\build\StyleCop.MSBuild.targets')" />
   <Import Project="..\..\..\packages\StyleCop.Error.MSBuild.1.0.0\build\StyleCop.Error.MSBuild.Targets" Condition="Exists('..\..\..\packages\StyleCop.Error.MSBuild.1.0.0\build\StyleCop.Error.MSBuild.Targets')" />
   <PropertyGroup>
-    <PostBuildEvent>xcopy /Y $(SolutionDir)..\BuildOutput\GVFS.ReadObjectHook\bin\$(Platform)\$(Configuration)\GVFS.ReadObjectHook.* $(TargetDir)</PostBuildEvent>
+    <PostBuildEvent>xcopy /Y $(SolutionDir)..\BuildOutput\GVFS.ReadObjectHook\bin\$(Platform)\$(Configuration)\GVFS.ReadObjectHook.* $(TargetDir)
+xcopy /Y $(SolutionDir)..\BuildOutput\GVFS.Hooks\bin\$(Platform)\$(Configuration)\GVFS.Hooks.* $(TargetDir)</PostBuildEvent>
   </PropertyGroup>
   <!-- To modify your build process, add your task inside one of the targets below and uncomment it. 
        Other similar extension points exist, see Microsoft.Common.targets.

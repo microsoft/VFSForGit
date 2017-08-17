@@ -464,6 +464,74 @@ BOOL APIENTRY DllMain( HMODULE hModule,
             folderVirtualPath.ShouldBeADirectory(this.fileSystem).WithNoItems("ريلٌأكتوب.TXT");
         }
 
+        [TestCase, Order(16)]
+        public void AllNullObjectRedownloaded()
+        {
+            GitProcess.InvokeProcess(this.Enlistment.RepoRoot, "checkout " + this.Enlistment.Commitish);
+            ProcessResult revParseResult = GitProcess.InvokeProcess(this.Enlistment.RepoRoot, "rev-parse :Test_EPF_WorkingDirectoryTests/AllNullObjectRedownloaded.txt");
+            string sha = revParseResult.Output.Trim();
+            sha.Length.ShouldEqual(40);
+            string objectPath = Path.Combine(this.Enlistment.DotGVFSRoot, "gitObjectCache", sha.Substring(0, 2), sha.Substring(2, 38));
+            objectPath.ShouldNotExistOnDisk(this.fileSystem);
+
+            // At this point there should be no corrupt objects
+            string corruptObjectFolderPath = Path.Combine(this.Enlistment.DotGVFSRoot, "CorruptObjects");
+            corruptObjectFolderPath.ShouldNotExistOnDisk(this.fileSystem);
+
+            // Read a copy of AllNullObjectRedownloaded.txt to force the object to be downloaded
+            GitProcess.InvokeProcess(this.Enlistment.RepoRoot, "rev-parse :Test_EPF_WorkingDirectoryTests/AllNullObjectRedownloaded_copy.txt").Output.Trim().ShouldEqual(sha);
+            string testFileContents = this.Enlistment.GetVirtualPathTo("Test_EPF_WorkingDirectoryTests\\AllNullObjectRedownloaded_copy.txt").ShouldBeAFile(this.fileSystem).WithContents();
+            objectPath.ShouldBeAFile(this.fileSystem);
+
+            // Set the contents of objectPath to all NULL
+            FileInfo objectFileInfo = new FileInfo(objectPath);
+            File.WriteAllBytes(objectPath, Enumerable.Repeat<byte>(0, (int)objectFileInfo.Length).ToArray());            
+
+            // Read the original path and verify its contents are correct
+            this.Enlistment.GetVirtualPathTo("Test_EPF_WorkingDirectoryTests\\AllNullObjectRedownloaded.txt").ShouldBeAFile(this.fileSystem).WithContents(testFileContents);
+
+            // Confirm there's a new item in the corrupt objects folder
+            corruptObjectFolderPath.ShouldBeADirectory(this.fileSystem);
+            FileSystemInfo badObject = corruptObjectFolderPath.ShouldBeADirectory(this.fileSystem).WithOneItem();
+            (badObject as FileInfo).ShouldNotBeNull().Length.ShouldEqual(objectFileInfo.Length);
+        }
+
+        [TestCase, Order(17)]
+        public void TruncatedObjectRedownloaded()
+        {
+            GitProcess.InvokeProcess(this.Enlistment.RepoRoot, "checkout " + this.Enlistment.Commitish);
+            ProcessResult revParseResult = GitProcess.InvokeProcess(this.Enlistment.RepoRoot, "rev-parse :Test_EPF_WorkingDirectoryTests/TruncatedObjectRedownloaded.txt");
+            string sha = revParseResult.Output.Trim();
+            sha.Length.ShouldEqual(40);
+            string objectPath = Path.Combine(this.Enlistment.DotGVFSRoot, "gitObjectCache", sha.Substring(0, 2), sha.Substring(2, 38));
+            objectPath.ShouldNotExistOnDisk(this.fileSystem);
+
+            string corruptObjectFolderPath = Path.Combine(this.Enlistment.DotGVFSRoot, "CorruptObjects");
+            int initialCorruptObjectCount = 0;
+            if (this.fileSystem.DirectoryExists(corruptObjectFolderPath))
+            {
+                initialCorruptObjectCount = new DirectoryInfo(corruptObjectFolderPath).EnumerateFileSystemInfos().Count();
+            }
+
+            // Read a copy of TruncatedObjectRedownloaded.txt to force the object to be downloaded
+            GitProcess.InvokeProcess(this.Enlistment.RepoRoot, "rev-parse :Test_EPF_WorkingDirectoryTests/TruncatedObjectRedownloaded_copy.txt").Output.Trim().ShouldEqual(sha);
+            string testFileContents = this.Enlistment.GetVirtualPathTo("Test_EPF_WorkingDirectoryTests\\TruncatedObjectRedownloaded_copy.txt").ShouldBeAFile(this.fileSystem).WithContents();
+            objectPath.ShouldBeAFile(this.fileSystem);
+
+            // Truncate the contents of objectPath
+            FileInfo objectFileInfo = new FileInfo(objectPath);
+            using (FileStream objectStream = new FileStream(objectPath, FileMode.Open))
+            {
+                objectStream.SetLength(objectFileInfo.Length - 8);
+            }
+
+            // Read the original path and verify its contents are correct
+            this.Enlistment.GetVirtualPathTo("Test_EPF_WorkingDirectoryTests\\TruncatedObjectRedownloaded.txt").ShouldBeAFile(this.fileSystem).WithContents(testFileContents);
+
+            // Confirm there's a new item in the corrupt objects folder
+            corruptObjectFolderPath.ShouldBeADirectory(this.fileSystem).WithItems().Count().ShouldEqual(initialCorruptObjectCount + 1);
+        }
+
         private void FolderEnumerationShouldHaveSingleEntry(string folderVirtualPath, string expectedEntryName, string searchPatten)
         {
             IEnumerable<FileSystemInfo> folderEntries;

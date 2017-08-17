@@ -1,8 +1,8 @@
 ﻿using CommandLine;
 using GVFS.Common;
 using GVFS.Common.Git;
+using GVFS.Common.Http;
 using GVFS.Common.NamedPipes;
-using GVFS.Common.Physical;
 using GVFS.Common.Tracing;
 using GVFS.GVFlt;
 using GVFS.GVFlt.DotGit;
@@ -48,7 +48,7 @@ namespace GVFS.CommandLine
                 tracer.WriteStartEvent(
                     enlistment.EnlistmentRoot,
                     enlistment.RepoUrl,
-                    enlistment.CacheServerUrl,
+                    CacheServerInfo.GetCacheServerValueFromConfig(enlistment),
                     new EventMetadata
                     {
                         { "Confirmed", this.Confirmed },

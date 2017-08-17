@@ -1,9 +1,8 @@
 ﻿using GVFS.Common;
 using GVFS.Common.Git;
-using GVFS.Common.Physical.Git;
 using GVFS.UnitTests.Mock.Common;
-using GVFS.UnitTests.Mock.Physical.FileSystem;
-using GVFS.UnitTests.Mock.Physical.Git;
+using GVFS.UnitTests.Mock.FileSystem;
+using GVFS.UnitTests.Mock.Git;
 using NUnit.Framework;
 using System.IO;
 
@@ -22,7 +21,7 @@ namespace GVFS.UnitTests.Virtual
             }
 
             string enlistmentRoot = @"mock:\GVFS\UnitTests\Repo";
-            GVFSEnlistment enlistment = new GVFSEnlistment(enlistmentRoot, "fake://repoUrl", "fake://cacheUrl", gitBinPath, null);
+            GVFSEnlistment enlistment = new GVFSEnlistment(enlistmentRoot, "fake://repoUrl", gitBinPath, null);
 
             this.GitParentPath = enlistment.WorkingDirectoryRoot;
             this.GVFSMetadataPath = enlistment.DotGVFSRoot;
