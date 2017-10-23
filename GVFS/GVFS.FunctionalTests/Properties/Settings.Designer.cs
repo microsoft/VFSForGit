@@ -43,37 +43,10 @@ namespace GVFS.FunctionalTests.Properties {
         
         [global::System.Configuration.ApplicationScopedSettingAttribute()]
         [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
-        [global::System.Configuration.DefaultSettingValueAttribute("TODO")]
-        public string RepoToClone {
-            get {
-                return ((string)(this["RepoToClone"]));
-            }
-        }
-        
-        [global::System.Configuration.ApplicationScopedSettingAttribute()]
-        [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
         [global::System.Configuration.DefaultSettingValueAttribute("1")]
         public int TestRepeatCount {
             get {
                 return ((int)(this["TestRepeatCount"]));
-            }
-        }
-        
-        [global::System.Configuration.ApplicationScopedSettingAttribute()]
-        [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
-        [global::System.Configuration.DefaultSettingValueAttribute("C:\\Program Files (x86)\\Microsoft Visual Studio 14.0\\Common7\\Tools\\VsDevCmd.bat")]
-        public string PathToVSDevBat {
-            get {
-                return ((string)(this["PathToVSDevBat"]));
-            }
-        }
-        
-        [global::System.Configuration.ApplicationScopedSettingAttribute()]
-        [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
-        [global::System.Configuration.DefaultSettingValueAttribute("")]
-        public string PathToNuget {
-            get {
-                return ((string)(this["PathToNuget"]));
             }
         }
         
@@ -88,7 +61,7 @@ namespace GVFS.FunctionalTests.Properties {
         
         [global::System.Configuration.ApplicationScopedSettingAttribute()]
         [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
-        [global::System.Configuration.DefaultSettingValueAttribute("FunctionalTests/20170707")]
+        [global::System.Configuration.DefaultSettingValueAttribute("FunctionalTests/20170905")]
         public string Commitish {
             get {
                 return ((string)(this["Commitish"]));
@@ -131,15 +104,21 @@ namespace GVFS.FunctionalTests.Properties {
             }
         }
         
-        [global::System.Configuration.UserScopedSettingAttribute()]
+        [global::System.Configuration.ApplicationScopedSettingAttribute()]
         [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
         [global::System.Configuration.DefaultSettingValueAttribute("GVFS.Service.exe")]
         public string PathToGVFSService {
             get {
                 return ((string)(this["PathToGVFSService"]));
             }
-            set {
-                this["PathToGVFSService"] = value;
+        }
+        
+        [global::System.Configuration.ApplicationScopedSettingAttribute()]
+        [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
+        [global::System.Configuration.DefaultSettingValueAttribute("TODO")]
+        public string RepoToClone {
+            get {
+                return ((string)(this["RepoToClone"]));
             }
         }
     }

@@ -5,6 +5,13 @@ namespace GVFS.Tests.Should
 {
     public static class StringShouldExtensions
     {
+        public static int ShouldBeAnInt(this string value, string message)
+        {
+            int output;
+            Assert.IsTrue(int.TryParse(value, out output), message);
+            return output;
+        }
+
         public static string ShouldContain(this string actualValue, params string[] expectedSubstrings)
         {
             foreach (string expectedSubstring in expectedSubstrings)

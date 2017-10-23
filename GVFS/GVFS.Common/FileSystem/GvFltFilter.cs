@@ -15,8 +15,6 @@ namespace GVFS.Common.FileSystem
         public const string GvFltTimeoutValue = "CommandTimeoutInMs";
         private const string EtwArea = nameof(GvFltFilter);
 
-        private const int MinGvFltTimeoutMs = 86400000;
-
         private const string GvFltName = "gvflt";
 
         private const uint OkResult = 0;
@@ -53,95 +51,11 @@ namespace GVFS.Common.FileSystem
             return true;
         }
 
-        public static bool IsHealthy(out string error, out string warning, ITracer tracer)
+        public static bool IsHealthy(out string error, ITracer tracer)
         {
-            // TODO 1026787: Record errors\warnings in the event log
-
-            warning = string.Empty;
-
-            if (!IsServiceRunning(out error, tracer))
-            {
-                return false;
-            }
-
-            CheckTimeoutConfiguration(out warning, tracer);
-            return true;
+            return IsServiceRunning(out error, tracer);
         }
-
-        public static bool TryGetTimeout(out int timeoutMs, out string error, ITracer tracer = null)
-        {
-            timeoutMs = 0;
-            error = string.Empty;
-            object value;
-            try
-            {
-                value = ProcessHelper.GetValueFromRegistry(GvFltParametersHive, GvFltParametersKey, GvFltTimeoutValue);
-            }
-            catch (UnauthorizedAccessException e)
-            {
-                if (tracer != null)
-                {
-                    EventMetadata metadata = new EventMetadata();
-                    metadata.Add("Area", EtwArea);
-                    metadata.Add("Exception", e.ToString());
-                    metadata.Add("ErrorMessage", "UnauthorizedAccessException while trying to read GvFlt timeout");
-                    tracer.RelatedError(metadata);
-                }
-
-                error = "Failed to read GvFlt timeout from registry. " + e.Message;
-                return false;
-            }
-            catch (SecurityException e)
-            {
-                if (tracer != null)
-                {
-                    EventMetadata metadata = new EventMetadata();
-                    metadata.Add("Area", EtwArea);
-                    metadata.Add("Exception", e.ToString());
-                    metadata.Add("ErrorMessage", "SecurityException while trying to read GvFlt timeout");
-                    tracer.RelatedError(metadata);
-                }
-
-                error = "Failed to read GvFlt timeout from registry. " + e.Message;
-                return false;
-            }
-            catch (Exception e)
-            {
-                if (tracer != null)
-                {
-                    EventMetadata metadata = new EventMetadata();
-                    metadata.Add("Area", EtwArea);
-                    metadata.Add("Exception", e.ToString());
-                    metadata.Add("ErrorMessage", "Exception while trying to read GvFlt timeout");
-                    tracer.RelatedError(metadata);
-                }
-
-                error = "Failed to read GvFlt timeout from registry. " + e.Message;
-                return false;
-            }
-
-            try
-            {
-                timeoutMs = Convert.ToInt32(value);
-            }
-            catch (Exception e)
-            {
-                if (tracer != null)
-                {
-                    EventMetadata metadata = new EventMetadata();
-                    metadata.Add("Area", EtwArea);
-                    metadata.Add("Exception", e.ToString());
-                    metadata.Add("ErrorMessage", "Exception while trying to convert GvFlt timeout to int");
-                    tracer.RelatedError(metadata);
-                }
-
-                error = "GvFlt timeout not properly configured, failed to convert value to int: " + e.Message;
-                return false;
-            }
-
-            return true;
-        }
-
+        
         private static bool IsServiceRunning(out string error, ITracer tracer)
         {
             error = string.Empty;
@@ -159,8 +73,7 @@ namespace GVFS.Common.FileSystem
                     EventMetadata metadata = new EventMetadata();
                     metadata.Add("Area", EtwArea);
                     metadata.Add("Exception", e.ToString());
-                    metadata.Add("ErrorMessage", "InvalidOperationException: GvFlt Service was not found");
-                    tracer.RelatedError(metadata);
+                    tracer.RelatedError(metadata, "InvalidOperationException: GvFlt Service was not found");
                 }
 
                 error = "Error: GvFlt Service was not found. To resolve, re-install GVFS";
@@ -173,8 +86,7 @@ namespace GVFS.Common.FileSystem
                 {
                     EventMetadata metadata = new EventMetadata();
                     metadata.Add("Area", EtwArea);
-                    metadata.Add("ErrorMessage", "GvFlt Service is not running");
-                    tracer.RelatedError(metadata);
+                    tracer.RelatedError(metadata, "GvFlt Service is not running");
                 }
 
                 error = "Error: GvFlt Service is not running. To resolve, run \"sc start gvflt\" from an elevated command prompt";
@@ -182,22 +94,7 @@ namespace GVFS.Common.FileSystem
             }
 
             return true;
-        }
-
-        private static void CheckTimeoutConfiguration(out string warning, ITracer tracer)
-        {
-            warning = string.Empty;
-            string error;
-            int timemoutMs;
-            if (!TryGetTimeout(out timemoutMs, out error, tracer))
-            {
-                warning = "Warning: Failed to validate GvFlt timeout configuration: " + error;
-            }
-            else if (timemoutMs < MinGvFltTimeoutMs)
-            {
-                warning = string.Format("Warning: GvFlt timeout not properly configured, timeout {0} less than recommended value {1}", timemoutMs, MinGvFltTimeoutMs);
-            }
-        }
+        }        
 
         private static class NativeMethods
         {

@@ -34,8 +34,8 @@ namespace GVFS.CommandLine
         [Option(
             "cache-server-url",
             Required = false,
-            Default = "",
-            HelpText = "Defines the url of the cache server")]
+            Default = null,
+            HelpText = "The url or friendly name of the cache server")]
         public string CacheServerUrl { get; set; }
 
         [Option(
@@ -79,11 +79,14 @@ namespace GVFS.CommandLine
 
             this.CheckGVFltHealthy();
             this.CheckNotInsideExistingRepo();
-            
+            this.BlockEmptyCacheServerUrl(this.CacheServerUrl);
+           
             try
             {
                 GVFSEnlistment enlistment;
                 Result cloneResult = new Result(false);
+
+                CacheServerInfo cacheServer = null;
 
                 using (JsonEtwTracer tracer = new JsonEtwTracer(GVFSConstants.GVFSEtwProviderName, "GVFSClone"))
                 {
@@ -94,54 +97,42 @@ namespace GVFS.CommandLine
                             GVFSEnlistment.GetNewGVFSLogFileName(enlistment.GVFSLogsRoot, GVFSConstants.LogFileTypes.Clone),
                             EventLevel.Informational,
                             Keywords.Any);
-                        
-                        string authErrorMessage = null;
-                        if (!this.ShowStatusWhileRunning(
-                            () => enlistment.Authentication.TryRefreshCredentials(tracer, out authErrorMessage),
-                            "Authenticating"))
-                        {
-                            this.ReportErrorAndExit("Unable to clone because authentication failed");
-                        }
-
-                        RetryConfig retryConfig;
-                        string error;
-                        if (!RetryConfig.TryLoadFromGitConfig(tracer, enlistment, out retryConfig, out error))
-                        {
-                            this.ReportErrorAndExit("Failed to determine GVFS timeout and max retries: " + error);
-                        }
-
-                        retryConfig.Timeout = TimeSpan.FromMinutes(RetryConfig.FetchAndCloneTimeoutMinutes);
-
-                        GVFSConfig gvfsConfig;
-                        CacheServerInfo cacheServer;
-                        using (ConfigHttpRequestor configRequestor = new ConfigHttpRequestor(tracer, enlistment, retryConfig))
-                        {
-                            gvfsConfig = configRequestor.QueryGVFSConfig();
-                        }
-
-                        if (!CacheServerInfo.TryDetermineCacheServer(this.CacheServerUrl, enlistment, gvfsConfig.CacheServers, out cacheServer, out error))
-                        {
-                            this.ReportErrorAndExit(error);
-                        }
-                        
                         tracer.WriteStartEvent(
                             enlistment.EnlistmentRoot,
                             enlistment.RepoUrl,
-                            cacheServer.Url,
+                            this.CacheServerUrl,
+                            enlistment.GitObjectsRoot,
                             new EventMetadata
                             {
                                 { "Branch", this.Branch },
                                 { "SingleBranch", this.SingleBranch },
                                 { "NoMount", this.NoMount },
-                                { "NoPrefetch", this.NoPrefetch }
+                                { "NoPrefetch", this.NoPrefetch },
+                                { "Unattended", this.Unattended },
+                                { "IsElevated", ProcessHelper.IsAdminElevated() },
                             });
+
+                        CacheServerResolver cacheServerResolver = new CacheServerResolver(tracer, enlistment);
+                        cacheServer = cacheServerResolver.ParseUrlOrFriendlyName(this.CacheServerUrl);
 
                         this.Output.WriteLine("Clone parameters:");
                         this.Output.WriteLine("  Repo URL:     " + enlistment.RepoUrl);
                         this.Output.WriteLine("  Cache Server: " + cacheServer);
                         this.Output.WriteLine("  Destination:  " + enlistment.EnlistmentRoot);
-                        
-                        this.ValidateClientVersions(tracer, enlistment, gvfsConfig);
+
+                        string authErrorMessage = null;
+                        if (!this.ShowStatusWhileRunning(
+                            () => enlistment.Authentication.TryRefreshCredentials(tracer, out authErrorMessage),
+                            "Authenticating"))
+                        {
+                            this.ReportErrorAndExit(tracer, "Unable to clone because authentication failed");
+                        }
+
+                        RetryConfig retryConfig = this.GetRetryConfig(tracer, enlistment, TimeSpan.FromMinutes(RetryConfig.FetchAndCloneTimeoutMinutes));
+                        GVFSConfig gvfsConfig = this.QueryGVFSConfig(tracer, enlistment, retryConfig);
+
+                        cacheServer = this.ResolveCacheServerUrlIfNeeded(tracer, cacheServer, cacheServerResolver, gvfsConfig);
+                        this.ValidateClientVersions(tracer, enlistment, gvfsConfig, showWarnings: true);
 
                         this.ShowStatusWhileRunning(
                             () =>
@@ -162,10 +153,13 @@ namespace GVFS.CommandLine
                 {
                     if (!this.NoPrefetch)
                     {
-                        PrefetchVerb prefetch = new PrefetchVerb();
-                        prefetch.EnlistmentRootPath = this.EnlistmentRootPath;
-                        prefetch.Commits = true;
-                        prefetch.Execute();
+                        this.Execute<PrefetchVerb>(
+                            verb =>
+                            {
+                                verb.Commits = true;
+                                verb.SkipVersionCheck = true;
+                                verb.ResolvedCacheServer = cacheServer;
+                            });
                     }
 
                     if (this.NoMount)
@@ -175,13 +169,12 @@ namespace GVFS.CommandLine
                     }
                     else
                     {
-                        MountVerb mount = new MountVerb();
-                        mount.EnlistmentRootPath = this.EnlistmentRootPath;
-                        mount.SkipMountedCheck = true;
-                        mount.SkipVersionCheck = true;
-                        mount.ServiceName = this.ServiceName;
-
-                        mount.Execute();
+                        this.Execute<MountVerb>(
+                            verb =>
+                            {
+                                verb.SkipMountedCheck = true;
+                                verb.SkipVersionCheck = true;
+                            });
                     }
                 }
                 else
@@ -230,7 +223,7 @@ namespace GVFS.CommandLine
                 return new Result(GVFSConstants.GitIsNotInstalledError);
             }
             
-            string hooksPath = this.GetGVFSHooksPathAndCheckVersion();
+            string hooksPath = this.GetGVFSHooksPathAndCheckVersion(tracer: null);
 
             enlistment = new GVFSEnlistment(
                 this.EnlistmentRootPath,

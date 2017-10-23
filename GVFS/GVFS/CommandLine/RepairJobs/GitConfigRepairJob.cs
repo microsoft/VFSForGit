@@ -1,7 +1,6 @@
 ﻿using GVFS.Common;
 using GVFS.Common.Git;
 using GVFS.Common.Tracing;
-using System;
 using System.Collections.Generic;
 using System.IO;
 
@@ -45,11 +44,19 @@ namespace GVFS.CommandLine.RepairJobs
 
             // At this point, we've confirmed that the repo url can be gotten, so we have to 
             // reinitialize the GitProcess with a valid repo url for 'git credential fill'
-            GVFSEnlistment enlistment = GVFSEnlistment.CreateFromDirectory(
-                this.Enlistment.EnlistmentRoot,
-                this.Enlistment.GitBinPath, 
-                this.Enlistment.GVFSHooksRoot);
-            git = new GitProcess(enlistment);
+            try
+            {
+                GVFSEnlistment enlistment = GVFSEnlistment.CreateFromDirectory(
+                    this.Enlistment.EnlistmentRoot,
+                    this.Enlistment.GitBinPath,
+                    this.Enlistment.GVFSHooksRoot);
+                git = new GitProcess(enlistment);
+            }
+            catch (InvalidRepoException)
+            {
+                messages.Add("An issue was found that may be a side-effect of other issues. Fix them with 'gvfs repair --confirm' then 'gvfs repair' again.");
+                return IssueType.CantFix;
+            }
 
             string username;
             string password;
@@ -76,8 +83,7 @@ namespace GVFS.CommandLine.RepairJobs
             File.WriteAllText(configPath, string.Empty);
             this.Tracer.RelatedInfo("Created empty file: " + configPath);
 
-            GitProcess git = new GitProcess(this.Enlistment);
-            if (!GVFSVerb.TrySetGitConfigSettings(git))
+            if (!GVFSVerb.TrySetGitConfigSettings(this.Enlistment))
             {
                 messages.Add("Unable to create default .git\\config.");
 

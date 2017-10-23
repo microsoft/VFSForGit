@@ -29,7 +29,7 @@ namespace GVFS.Service
             EventMetadata metadata = new EventMetadata();
             metadata.Add("Area", EtwArea);
             metadata.Add("registryParentFolderPath", this.registryParentFolderPath);
-            metadata.Add("Message", "RepoRegistry created");
+            metadata.Add(TracingConstants.MessageKey.InfoMessage, "RepoRegistry created");
             this.tracer.RelatedEvent(EventLevel.Informational, "RepoRegistry_Created", metadata);
         }
 
@@ -96,7 +96,7 @@ namespace GVFS.Service
             }
             catch (Exception e)
             {
-                this.tracer.RelatedError("Error while tracing repos", e.ToString());
+                this.tracer.RelatedError("Error while tracing repos: {0}", e.ToString());
             }
         }
 
@@ -124,7 +124,7 @@ namespace GVFS.Service
                     else
                     {
                         errorMessage = string.Format("Attempted to deactivate non-existent repo at '{0}'", repoRoot);
-                        this.tracer.RelatedError(errorMessage);
+                        this.tracer.RelatedWarning(errorMessage, Keywords.Telemetry);
                     }
                 }
             }
@@ -190,8 +190,7 @@ namespace GVFS.Service
                             metadata.Add("Area", EtwArea);
                             metadata.Add("OnDiskVersion", versionString);
                             metadata.Add("ExpectedVersion", versionString);
-                            metadata.Add("ErrorMessage", "ReadRegistry: Unsupported version");
-                            this.tracer.RelatedError(metadata);
+                            this.tracer.RelatedError(metadata, "ReadRegistry: Unsupported version");
                         }
 
                         return allRepos;
@@ -213,8 +212,7 @@ namespace GVFS.Service
                                 metadata.Add("Area", EtwArea);
                                 metadata.Add("entry", entry);
                                 metadata.Add("Exception", e.ToString());
-                                metadata.Add("ErrorMessage", "ReadRegistry: Failed to read entry");
-                                this.tracer.RelatedError(metadata);
+                                this.tracer.RelatedError(metadata, "ReadRegistry: Failed to read entry");
                             }
                         }
                     }

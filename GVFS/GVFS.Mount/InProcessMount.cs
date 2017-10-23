@@ -65,9 +65,22 @@ namespace GVFS.Mount
         {
             this.currentState = MountState.Mounting;
 
+            // We must initialize repo metadata before starting the pipe server so it 
+            // can immediately handle status requests
+            string error;
+            if (!RepoMetadata.TryInitialize(this.tracer, this.enlistment.DotGVFSRoot, out error))
+            {
+                this.FailMountAndExit("Failed to load repo metadata: {0}", error);
+            }
+
             using (NamedPipeServer pipeServer = this.StartNamedPipe())
             {
                 GVFSContext context = this.CreateContext();
+
+                if (context.Unattended)
+                {
+                    this.tracer.RelatedEvent(EventLevel.Critical, GVFSConstants.UnattendedEnvironmentVariable, null);
+                }
 
                 this.ValidateMountPoints();
                 this.UpdateHooks();
@@ -83,7 +96,9 @@ namespace GVFS.Mount
                     "Mount",
                     new EventMetadata
                     {
-                        { "Message", "Virtual repo is ready" },
+                        // Use TracingConstants.MessageKey.InfoMessage rather than TracingConstants.MessageKey.CriticalMessage
+                        // as this message should not appear as an error
+                        { TracingConstants.MessageKey.InfoMessage, "Virtual repo is ready" },
                     });
 
                 this.currentState = MountState.Ready;
@@ -139,7 +154,7 @@ namespace GVFS.Mount
                 metadata.Add("Area", "Mount");
                 metadata.Add("enlistmentReadObjectHookPath", enlistmentReadObjectHookPath);
                 metadata.Add("installedReadObjectHookPath", installedReadObjectHookPath);
-                metadata.Add("Message", GVFSConstants.DotGit.Hooks.ReadObjectName + " not found in enlistment, copying from installation folder");
+                metadata.Add(TracingConstants.MessageKey.WarningMessage, GVFSConstants.DotGit.Hooks.ReadObjectName + " not found in enlistment, copying from installation folder");
                 this.tracer.RelatedEvent(EventLevel.Warning, "ReadObjectMissingFromEnlistment", metadata);
             }
             else
@@ -157,8 +172,7 @@ namespace GVFS.Mount
                     metadata.Add("enlistmentReadObjectHookPath", enlistmentReadObjectHookPath);
                     metadata.Add("installedReadObjectHookPath", installedReadObjectHookPath);
                     metadata.Add("Exception", e.ToString());
-                    metadata.Add("ErrorMessage", "Failed to compare " + GVFSConstants.DotGit.Hooks.ReadObjectName + " version");
-                    this.tracer.RelatedError(metadata);
+                    this.tracer.RelatedError(metadata, "Failed to compare " + GVFSConstants.DotGit.Hooks.ReadObjectName + " version");
                     this.FailMountAndExit("Error comparing " + GVFSConstants.DotGit.Hooks.ReadObjectName + " versions. " + ConsoleHelper.GetGVFSLogMessage(this.enlistment.EnlistmentRoot));
                 }
             }
@@ -176,8 +190,7 @@ namespace GVFS.Mount
                     metadata.Add("enlistmentReadObjectHookPath", enlistmentReadObjectHookPath);
                     metadata.Add("installedReadObjectHookPath", installedReadObjectHookPath);
                     metadata.Add("Exception", e.ToString());
-                    metadata.Add("ErrorMessage", "Failed to copy " + GVFSConstants.DotGit.Hooks.ReadObjectName + " to enlistment");
-                    this.tracer.RelatedError(metadata);
+                    this.tracer.RelatedError(metadata, "Failed to copy " + GVFSConstants.DotGit.Hooks.ReadObjectName + " to enlistment");
                     this.FailMountAndExit("Error copying " + GVFSConstants.DotGit.Hooks.ReadObjectName + " to enlistment. " + ConsoleHelper.GetGVFSLogMessage(this.enlistment.EnlistmentRoot));
                 }
             }
@@ -191,7 +204,10 @@ namespace GVFS.Mount
 
             if (!this.enlistment.GitBinPath.EndsWith(GitBinPathEnd))
             {
-                this.tracer.RelatedError("Unable to configure Visual Studio’s GitSourceControl regkey because invalid git.exe path found: {0}", this.enlistment.GitBinPath);
+                this.tracer.RelatedWarning(
+                    "Unable to configure Visual Studio’s GitSourceControl regkey because invalid git.exe path found: " + this.enlistment.GitBinPath, 
+                    Keywords.Telemetry);
+
                 return;
             }
 
@@ -228,7 +244,7 @@ namespace GVFS.Mount
                 this.gvfltCallbacks.Dispose();
                 this.gvfltCallbacks = null;
             }
-
+            
             Environment.Exit((int)ReturnCode.GenericError);
         }
 
@@ -275,8 +291,7 @@ namespace GVFS.Mount
                     EventMetadata metadata = new EventMetadata();
                     metadata.Add("Area", "Mount");
                     metadata.Add("Header", message.Header);
-                    metadata.Add("ErrorMessage", "HandleRequest: Unknown request");
-                    this.tracer.RelatedError(metadata);
+                    this.tracer.RelatedError(metadata, "HandleRequest: Unknown request");
 
                     connection.TrySendResponse(NamedPipeMessages.UnknownRequest);
                     break;
@@ -300,26 +315,28 @@ namespace GVFS.Mount
             }
             else
             {
+                bool lockAcquired = false;
                 if (this.gvfltCallbacks.IsReadyForExternalAcquireLockRequests())
                 {
-                    bool lockAcquired = this.gvfsLock.TryAcquireLock(requester, out externalHolder);
-
-                    if (lockAcquired)
-                    {
-                        response = new NamedPipeMessages.AcquireLock.Response(NamedPipeMessages.AcquireLock.AcceptResult);
-                    }
-                    else if (externalHolder == null)
-                    {
-                        response = new NamedPipeMessages.AcquireLock.Response(NamedPipeMessages.AcquireLock.DenyGVFSResult);
-                    }
-                    else
-                    {
-                        response = new NamedPipeMessages.AcquireLock.Response(NamedPipeMessages.AcquireLock.DenyGitResult, externalHolder);
-                    }
+                    lockAcquired = this.gvfsLock.TryAcquireLock(requester, out externalHolder);                   
                 }
                 else
                 {
+                    // There might be an external lock holder, and it should be reported to the user
+                    externalHolder = this.gvfsLock.GetExternalLockHolder();
+                }
+
+                if (lockAcquired)
+                {
+                    response = new NamedPipeMessages.AcquireLock.Response(NamedPipeMessages.AcquireLock.AcceptResult);
+                }
+                else if (externalHolder == null)
+                {
                     response = new NamedPipeMessages.AcquireLock.Response(NamedPipeMessages.AcquireLock.DenyGVFSResult);
+                }
+                else
+                {
+                    response = new NamedPipeMessages.AcquireLock.Response(NamedPipeMessages.AcquireLock.DenyGitResult, externalHolder);
                 }
             }
 
@@ -355,7 +372,7 @@ namespace GVFS.Mount
                 }
                 else
                 {
-                    if (this.gitObjects.TryDownloadAndSaveObject(objectSha.Substring(0, 2), objectSha.Substring(2)))
+                    if (this.gitObjects.TryDownloadAndSaveObject(objectSha) == GitObjects.DownloadAndSaveObjectResult.Success)
                     {
                         response = new NamedPipeMessages.DownloadObject.Response(NamedPipeMessages.DownloadObject.SuccessResult);
                     }
@@ -376,7 +393,7 @@ namespace GVFS.Mount
             response.RepoUrl = this.enlistment.RepoUrl;
             response.CacheServer = this.cacheServer.ToString();
             response.LockStatus = this.gvfsLock != null ? this.gvfsLock.GetStatus() : "Unavailable";
-            response.DiskLayoutVersion = RepoMetadata.GetCurrentDiskLayoutVersion();
+            response.DiskLayoutVersion = RepoMetadata.Instance.GetCurrentDiskLayoutVersion();
 
             switch (this.currentState)
             {
@@ -460,15 +477,13 @@ namespace GVFS.Mount
             {
                 this.FailMountAndExit("Failed to obtain git credentials: " + error);
             }
-
-            // Checking the disk layout version is done before this point in GVFS.CommandLine.MountVerb
-            RepoMetadata repoMetadata = new RepoMetadata(this.enlistment.DotGVFSRoot);
+            
             GitObjectsHttpRequestor objectRequestor = new GitObjectsHttpRequestor(context.Tracer, context.Enlistment, cache, this.retryConfig);
             this.gitObjects = new GVFSGitObjects(context, objectRequestor);
-            this.gvfltCallbacks = this.CreateOrReportAndExit(() => new GVFltCallbacks(context, this.gitObjects, repoMetadata), "Failed to create src folder callbacks");
+            this.gvfltCallbacks = this.CreateOrReportAndExit(() => new GVFltCallbacks(context, this.gitObjects, RepoMetadata.Instance), "Failed to create src folder callbacks");
 
             int persistedVersion;
-            if (!repoMetadata.TryGetOnDiskLayoutVersion(out persistedVersion, out error))
+            if (!RepoMetadata.Instance.TryGetOnDiskLayoutVersion(out persistedVersion, out error))
             {
                 this.FailMountAndExit("Error: {0}", error);
             }
@@ -487,11 +502,11 @@ namespace GVFS.Mount
 
             try
             {
-                repoMetadata.SaveCurrentDiskLayoutVersion();
+                RepoMetadata.Instance.SaveCurrentDiskLayoutVersion();
             }
-            catch (Exception ex)
+            catch (Exception e)
             {
-                this.FailMountAndExit("Failed to update repo disk layout version: {0}", ex.ToString());
+                this.FailMountAndExit("Failed to update repo disk layout version: {0}", e.ToString());
             }
 
             this.AcquireFolderLocks(context);

@@ -121,7 +121,7 @@ namespace GVFS.Common.NamedPipes
                     EventMetadata metadata = new EventMetadata();
                     metadata.Add("Area", "NamedPipeServer");
                     metadata.Add("Exception", e.ToString());
-                    metadata.Add("ErrorMessage", "OnNewConnection: Connection broken");
+                    metadata.Add(TracingConstants.MessageKey.WarningMessage, "OnNewConnection: Connection broken");
                     this.tracer.RelatedEvent(Microsoft.Diagnostics.Tracing.EventLevel.Warning, "OnNewConnectionn_EndWaitForConnection_IOException", metadata);
                 }
                 catch (ObjectDisposedException)
@@ -170,8 +170,7 @@ namespace GVFS.Common.NamedPipes
                     metadata.Add("Exception", e.ToString());
                 }
 
-                metadata.Add("ErrorMessage", message);
-                this.tracer.RelatedError(metadata);
+                this.tracer.RelatedError(metadata, message);
             }
 
             Environment.Exit((int)ReturnCode.GenericError);

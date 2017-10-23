@@ -12,5 +12,14 @@ namespace GVFS.UnitTests.Virtual
         {
             this.Repo = new CommonRepoSetup();
         }
+
+        [TearDown]
+        public virtual void TestTearDown()
+        {
+            if (this.Repo != null)
+            {
+                this.Repo.Dispose();
+            }
+        }
     }
 }

@@ -15,12 +15,15 @@ namespace GVFS.Common
             this.FileSystem = fileSystem;
             this.Enlistment = enlistment;
             this.Repository = repository;
+
+            this.Unattended = GVFSEnlistment.IsUnattended(this.Tracer);
         }
 
         public ITracer Tracer { get; private set; }
         public PhysicalFileSystem FileSystem { get; private set; }
         public GitRepo Repository { get; private set; }
         public GVFSEnlistment Enlistment { get; private set; }
+        public bool Unattended { get; private set; }
 
         public void Dispose()
         {

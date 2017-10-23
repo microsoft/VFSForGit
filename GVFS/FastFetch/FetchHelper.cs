@@ -1,4 +1,5 @@
-﻿using FastFetch.Jobs;
+﻿using FastFetch.Git;
+using FastFetch.Jobs;
 using GVFS.Common;
 using GVFS.Common.Git;
 using GVFS.Common.Http;
@@ -47,8 +48,10 @@ namespace FastFetch
             this.Tracer = tracer;
             this.Enlistment = enlistment;
             this.ObjectRequestor = objectRequestor;
-            this.GitObjects = new GitObjects(tracer, enlistment, this.ObjectRequestor);
-            this.PathWhitelist = new List<string>();
+
+            this.GitObjects = new FastFetchGitObjects(tracer, enlistment, this.ObjectRequestor);
+            this.FileList = new List<string>();
+            this.FolderList = new List<string>();
 
             // We never want to update config settings for a GVFSEnlistment
             this.SkipConfigUpdate = enlistment is GVFSEnlistment;
@@ -56,41 +59,89 @@ namespace FastFetch
 
         public bool HasFailures { get; protected set; }
 
-        public List<string> PathWhitelist { get; private set; }
+        public List<string> FileList { get; }
 
-        public static bool TryLoadPathWhitelist(ITracer tracer, string pathWhitelistInput, string pathWhitelistFile, Enlistment enlistment, List<string> pathWhitelistOutput)
+        public List<string> FolderList { get; }
+
+        public static bool TryLoadFolderList(Enlistment enlistment, string foldersInput, string folderListFile, List<string> folderListOutput, out string error)
         {
-            Func<string, string> makePathAbsolute = path => Path.Combine(enlistment.EnlistmentRoot, path.Replace('/', '\\').TrimStart('\\'));
+            folderListOutput.AddRange(
+                foldersInput.Split(new[] { ';' }, StringSplitOptions.RemoveEmptyEntries)
+                .Select(path => FetchHelper.ToAbsolutePath(enlistment, path, isFolder: true)));
 
-            pathWhitelistOutput.AddRange(pathWhitelistInput.Split(new[] { ';' }, StringSplitOptions.RemoveEmptyEntries).Select(makePathAbsolute));
-
-            if (!string.IsNullOrWhiteSpace(pathWhitelistFile))
+            if (!string.IsNullOrWhiteSpace(folderListFile))
             {
-                if (File.Exists(pathWhitelistFile))
+                if (File.Exists(folderListFile))
                 {
-                    IEnumerable<string> allLines = File.ReadAllLines(pathWhitelistFile)
+                    IEnumerable<string> allLines = File.ReadAllLines(folderListFile)
                         .Select(line => line.Trim())
                         .Where(line => !string.IsNullOrEmpty(line))
                         .Where(line => !line.StartsWith(GVFSConstants.GitCommentSign.ToString()))
-                        .Select(makePathAbsolute);
+                        .Select(path => FetchHelper.ToAbsolutePath(enlistment, path, isFolder: true));
 
-                    pathWhitelistOutput.AddRange(allLines);
+                    folderListOutput.AddRange(allLines);
                 }
                 else
                 {
-                    tracer.RelatedError("Could not find '{0}' for folder filtering.", pathWhitelistFile);
-                    Console.WriteLine("Could not find '{0}' for folder filtering.", pathWhitelistFile);
+                    error = string.Format("Could not find '{0}' for folder list.", folderListFile);
                     return false;
                 }
             }
 
-            pathWhitelistOutput.RemoveAll(string.IsNullOrWhiteSpace);
+            folderListOutput.RemoveAll(string.IsNullOrWhiteSpace);
+
+            foreach (string folder in folderListOutput)
+            {
+                if (folder.Contains("*"))
+                {
+                    error = "Wildcards are not supported for folders. Invalid entry: " + folder;
+                    return false;
+                }
+            }
+
+            error = null;
+            return true;
+        }
+
+        public static bool TryLoadFileList(Enlistment enlistment, string filesInput, List<string> fileListOutput, out string error)
+        {
+            fileListOutput.AddRange(
+                filesInput.Split(new[] { ';' }, StringSplitOptions.RemoveEmptyEntries)
+                .Select(path => FetchHelper.ToAbsolutePath(enlistment, path, isFolder: false)));
+
+            foreach (string file in fileListOutput)
+            {
+                if (file.IndexOf('*', 1) != -1)
+                {
+                    error = "Only prefix wildcards are supported. Invalid entry: " + file;
+                    return false;
+                }
+
+                if (file.EndsWith(GVFSConstants.GitPathSeparatorString) ||
+                    file.EndsWith(GVFSConstants.PathSeparatorString))
+                {
+                    error = "Folders are not allowed in the file list. Invalid entry: " + file;
+                    return false;
+                }
+            }
+
+            error = null;
             return true;
         }
 
         /// <param name="branchOrCommit">A specific branch to filter for, or null for all branches returned from info/refs</param>
         public virtual void FastFetch(string branchOrCommit, bool isBranch)
         {
+            int matchedBlobs;
+            int downloadedBlobs;
+            this.FastFetchWithStats(branchOrCommit, isBranch, out matchedBlobs, out downloadedBlobs);
+        }
+
+        public void FastFetchWithStats(string branchOrCommit, bool isBranch, out int matchedBlobs, out int downloadedBlobs)
+        {
+            matchedBlobs = 0;
+            downloadedBlobs = 0;
+
             if (string.IsNullOrWhiteSpace(branchOrCommit))
             {
                 throw new FetchException("Must specify branch or commit to fetch");
@@ -129,7 +180,7 @@ namespace FastFetch
             string previousCommit = null;
             
             // Use the shallow file to find a recent commit to diff against to try and reduce the number of SHAs to check
-            DiffHelper blobEnumerator = new DiffHelper(this.Tracer, this.Enlistment, this.PathWhitelist);
+            DiffHelper blobEnumerator = new DiffHelper(this.Tracer, this.Enlistment, this.FileList, this.FolderList);
             if (File.Exists(shallowFile))
             {
                 previousCommit = File.ReadAllLines(shallowFile).Where(line => !string.IsNullOrWhiteSpace(line)).LastOrDefault();
@@ -163,6 +214,9 @@ namespace FastFetch
 
             packIndexer.WaitForCompletion();
             this.HasFailures |= packIndexer.HasFailures;
+
+            matchedBlobs = blobFinder.AvailableBlobCount + blobFinder.MissingBlobCount;
+            downloadedBlobs = blobFinder.MissingBlobCount;
 
             if (!this.SkipConfigUpdate && !this.HasFailures)
             {
@@ -263,20 +317,36 @@ namespace FastFetch
 
             using (ITracer activity = this.Tracer.StartActivity("DownloadTrees", EventLevel.Informational, Keywords.Telemetry, startMetadata))
             {
-                using (LibGit2Repo repo = new LibGit2Repo(this.Tracer, this.Enlistment.WorkingDirectoryRoot))
+                using (FastFetchLibGit2Repo repo = new FastFetchLibGit2Repo(this.Tracer, this.Enlistment.WorkingDirectoryRoot))
                 {
                     if (!repo.ObjectExists(commitSha))
                     {
-                        if (!gitObjects.TryDownloadAndSaveCommit(commitSha, commitDepth: CommitDepth))
+                        if (!gitObjects.TryEnsureCommitIsLocal(commitSha, commitDepth: CommitDepth))
                         {
                             EventMetadata metadata = new EventMetadata();
                             metadata.Add("ObjectsEndpointUrl", this.ObjectRequestor.CacheServer.ObjectsEndpointUrl);
-                            activity.RelatedError(metadata);
+                            activity.RelatedError(metadata, "Could not download commits");
                             throw new FetchException("Could not download commits from {0}", this.ObjectRequestor.CacheServer.ObjectsEndpointUrl);
                         }
                     }
                 }
             }
+        }
+
+        private static string ToAbsolutePath(Enlistment enlistment, string path, bool isFolder)
+        {
+            string absolute = 
+                path.StartsWith("*")
+                ? path
+                : Path.Combine(enlistment.WorkingDirectoryRoot, path.Replace(GVFSConstants.GitPathSeparator, GVFSConstants.PathSeparator).TrimStart(GVFSConstants.PathSeparator));
+
+            if (isFolder &&
+                !absolute.EndsWith(GVFSConstants.PathSeparatorString))
+            {
+                absolute += GVFSConstants.PathSeparatorString;
+            }
+
+            return absolute;
         }
 
         private bool IsSymbolicRef(string targetCommitish)

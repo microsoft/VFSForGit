@@ -10,9 +10,6 @@ namespace GVFS.Common
 {
     public static class NativeMethods
     {
-        public const int ERROR_FILE_NOT_FOUND = 2;
-        public const int ERROR_FILE_EXISTS = 80;
-
         private const uint EVENT_TRACE_CONTROL_FLUSH = 3;
 
         public enum FileAttributes : uint
@@ -84,25 +81,20 @@ namespace GVFS.Common
         }
 
         [Flags]
+        public enum MoveFileFlags : uint
+        {
+            MoveFileReplaceExisting = 0x00000001,    // MOVEFILE_REPLACE_EXISTING
+            MoveFileCopyAllowed = 0x00000002,        // MOVEFILE_COPY_ALLOWED           
+            MoveFileDelayUntilReboot = 0x00000004,   // MOVEFILE_DELAY_UNTIL_REBOOT     
+            MoveFileWriteThrough = 0x00000008,       // MOVEFILE_WRITE_THROUGH          
+            MoveFileCreateHardlink = 0x00000010,     // MOVEFILE_CREATE_HARDLINK        
+            MoveFileFailIfNotTrackable = 0x00000020, // MOVEFILE_FAIL_IF_NOT_TRACKABLE  
+        }
+
+        [Flags]
         public enum FileSystemFlags : uint
         {
             FILE_RETURNS_CLEANUP_RESULT_INFO = 0x00000200
-        }
-
-        public static SafeFileHandle OpenFile(
-            string filePath,
-            FileMode fileMode,
-            FileAccess fileAccess,
-            FileShare fileShare,
-            FileAttributes fileAttributes)
-        {
-            SafeFileHandle output = CreateFile(filePath, fileAccess, fileShare, IntPtr.Zero, fileMode, fileAttributes | FileAttributes.FILE_FLAG_OVERLAPPED, IntPtr.Zero);
-            if (output.IsInvalid)
-            {
-                ThrowWin32Exception(Marshal.GetLastWin32Error());
-            }
-
-            return output;
         }
 
         /// <summary>
@@ -165,16 +157,19 @@ namespace GVFS.Common
             return result;
         }
 
+        public static void MoveFile(string existingFileName, string newFileName, MoveFileFlags flags)
+        {
+            if (!MoveFileEx(existingFileName, newFileName, (uint)flags))
+            {
+                ThrowWin32Exception(Marshal.GetLastWin32Error());
+            }
+        }
+
         public static void ThrowWin32Exception(int error, params int[] ignoreErrors)
         {
             if (ignoreErrors.Any(ignored => ignored == error))
             {
                 return;
-            }
-
-            if (error == ERROR_FILE_EXISTS)
-            {
-                throw new Win32FileExistsException();
             }
 
             throw new Win32Exception(error);
@@ -189,6 +184,12 @@ namespace GVFS.Common
             [MarshalAs(UnmanagedType.U4)]FileMode dwCreationDisposition,
             [MarshalAs(UnmanagedType.U4)]FileAttributes dwFlagsAndAttributes,
             [In] IntPtr hTemplateFile);
+
+        [DllImport("kernel32.dll", SetLastError = true, CharSet = CharSet.Unicode)]
+        private static extern bool MoveFileEx(
+            string existingFileName,
+            string newFileName,
+            uint flags);
 
         [DllImport("kernel32.dll", SetLastError = true, CharSet = CharSet.Unicode)]
         private static extern bool GetVolumeInformation(
@@ -249,14 +250,6 @@ namespace GVFS.Common
 
             [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 1024)]
             public string LogFileName;
-        }
-
-        public class Win32FileExistsException : Win32Exception
-        {
-            public Win32FileExistsException()
-                : base(NativeMethods.ERROR_FILE_EXISTS)
-            {
-            }
         }
     }
 }

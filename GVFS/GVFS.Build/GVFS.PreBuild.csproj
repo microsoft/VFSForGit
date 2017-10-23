@@ -1,0 +1,72 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="14.0" DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <Import Project="$(MSBuildExtensionsPath)\$(MSBuildToolsVersion)\Microsoft.Common.props" Condition="Exists('$(MSBuildExtensionsPath)\$(MSBuildToolsVersion)\Microsoft.Common.props')" />
+  <PropertyGroup>
+    <Configuration Condition=" '$(Configuration)' == '' ">Debug</Configuration>
+    <Platform Condition=" '$(Platform)' == '' ">AnyCPU</Platform>
+    <ProjectGuid>{A4984251-840E-4622-AD0C-66DFCE2B2574}</ProjectGuid>
+    <OutputType>Library</OutputType>
+    <AppDesignerFolder>Properties</AppDesignerFolder>
+    <RootNamespace>GVFS.PreBuild</RootNamespace>
+    <AssemblyName>GVFS.PreBuild</AssemblyName>
+    <TargetFrameworkVersion>v4.5.2</TargetFrameworkVersion>
+    <FileAlignment>512</FileAlignment>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)' == 'Debug|x64'">
+    <DebugSymbols>true</DebugSymbols>
+    <OutputPath>..\..\..\BuildOutput\GVFS.Build\bin\x64\Debug\</OutputPath>
+    <IntermediateOutputPath>..\..\..\BuildOutput\GVFS.Build\obj\x64\Debug\</IntermediateOutputPath>
+    <DefineConstants>DEBUG;TRACE</DefineConstants>
+    <DebugType>full</DebugType>
+    <PlatformTarget>x64</PlatformTarget>
+    <ErrorReport>prompt</ErrorReport>
+    <CodeAnalysisRuleSet>MinimumRecommendedRules.ruleset</CodeAnalysisRuleSet>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <RegisterForComInterop>true</RegisterForComInterop>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)' == 'Release|x64'">
+    <OutputPath>..\..\..\BuildOutput\GVFS.Build\bin\x64\Release\</OutputPath>
+    <IntermediateOutputPath>..\..\..\BuildOutput\GVFS.Build\obj\x64\Release\</IntermediateOutputPath>
+    <DefineConstants>TRACE</DefineConstants>
+    <Optimize>true</Optimize>
+    <DebugType>pdbonly</DebugType>
+    <PlatformTarget>x64</PlatformTarget>
+    <ErrorReport>prompt</ErrorReport>
+    <CodeAnalysisRuleSet>MinimumRecommendedRules.ruleset</CodeAnalysisRuleSet>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="GenerateVersionInfo.cs" />
+  </ItemGroup>
+  <Target Name="GetTargetFrameworkProperties" />
+  <Target Name="GetNativeManifest" />
+  <Target Name="GetCopyToOutputDirectoryItems" />
+  <UsingTask TaskName="GenerateVersionInfo" TaskFactory="CodeTaskFactory" AssemblyFile="$(MSBuildToolsPath)\Microsoft.Build.Tasks.v12.0.dll">
+    <ParameterGroup>
+      <Version ParameterType="System.String" Required="true" />
+      <BuildOutputPath ParameterType="System.String" Required="true" />
+    </ParameterGroup>
+    <Task>
+      <Code Type="Class" Source="GenerateVersionInfo.cs" />
+    </Task>
+  </UsingTask>
+  <PropertyGroup>
+    <GVFSVersion>0.2.173.2</GVFSVersion>
+    <PackagesPath>$(ProjectDir)..\..\..\packages</PackagesPath>
+    <BuildOutputPath>$(ProjectDir)..\..\..\BuildOutput</BuildOutputPath>
+  </PropertyGroup>
+  <Target Name="Build">
+    <CallTarget Targets="GenerateAll" />
+  </Target>
+  <Target Name="Rebuild">
+    <CallTarget Targets="GenerateAll" />
+  </Target>
+  <Target Name="Clean">
+    <RemoveDir Directories="$(BuildOutputPath)\GVFS.Build" />
+    <Delete Files="$(BuildOutputPath)\CommonAssemblyVersion.cs;$(BuildOutputPath)\CommonVersionHeader.h" />
+  </Target>
+  <Target Name="GenerateAll">
+    <GenerateVersionInfo Version="$(GVFSVersion)" BuildOutputPath="$(BuildOutputPath)" />
+  </Target>
+</Project>

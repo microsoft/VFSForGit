@@ -1,7 +1,8 @@
 ﻿using GVFS.Common;
 using GVFS.Common.FileSystem;
+using GVFS.Common.Git;
 using GVFS.Common.Tracing;
-using Microsoft.Diagnostics.Tracing;
+using GVFS.Service.Handlers;
 using System;
 
 namespace GVFS.Service
@@ -23,13 +24,16 @@ namespace GVFS.Service
         public bool Mount(string repoRoot)
         {            
             string error;
-            string warning;
-            if (!GvFltFilter.IsHealthy(out error, out warning, this.tracer))
+            if (!GvFltFilter.IsHealthy(out error, this.tracer))
             {
                 return false;
             }
 
-            this.CheckAntiVirusExclusion(this.tracer, repoRoot);
+            // Ensure the repo is excluded from antivirus before calling 'gvfs mount' 
+            // to reduce chatter between GVFS.exe and GVFS.Service.exe
+            string errorMessage;
+            bool isExcluded;
+            ExcludeFromAntiVirusHandler.CheckAntiVirusExclusion(this.tracer, repoRoot, out isExcluded, out errorMessage);
 
             string unusedMessage;
             if (!GvFltFilter.TryAttach(this.tracer, repoRoot, out unusedMessage))
@@ -39,12 +43,11 @@ namespace GVFS.Service
 
             if (!this.CallGVFSMount(repoRoot))
             {
-                this.tracer.RelatedError("Unable to start the GVFS.Mount process.");
+                this.tracer.RelatedError("Unable to start the GVFS.exe process.");
                 return false;
             }
 
-            string errorMessage;
-            if (!GVFSEnlistment.WaitUntilMounted(repoRoot, out errorMessage))
+            if (!GVFSEnlistment.WaitUntilMounted(repoRoot, false, out errorMessage))
             {
                 this.tracer.RelatedError(errorMessage);
                 return false;
@@ -64,27 +67,7 @@ namespace GVFS.Service
 
         private bool CallGVFSMount(string repoRoot)
         {
-            return this.CurrentUser.RunAs(Configuration.Instance.GVFSMountLocation, repoRoot);
-        }
-
-        private void CheckAntiVirusExclusion(ITracer tracer, string path)
-        {
-            string errorMessage;
-            bool isExcluded;
-            if (AntiVirusExclusions.TryGetIsPathExcluded(path, out isExcluded, out errorMessage))
-            {
-                if (!isExcluded)
-                {
-                    if (!AntiVirusExclusions.AddAntiVirusExclusion(path, out errorMessage))
-                    {
-                        tracer.RelatedError("Could not add this repo to the antivirus exclusion list. Error: {0}", errorMessage);
-                    }
-                }
-            }
-            else
-            {
-                tracer.RelatedError("Unable to determine if this repo is excluded from antivirus. Error: {0}", errorMessage);
-            }
+            return this.CurrentUser.RunAs(Configuration.Instance.GVFSLocation, "mount " + repoRoot);
         }
     }
 }

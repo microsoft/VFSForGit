@@ -7,29 +7,32 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
     [TestFixture]
     public class CacheServerTests : TestsWithEnlistmentPerFixture
     {
+        private const string CustomUrl = "https://myCache";
+
         [TestCase]
         public void SettingGitConfigChangesCacheServer()
         {
-            const string ExpectedUrl = "https://myCache";
-
-            ProcessResult result = GitProcess.InvokeProcess(this.Enlistment.RepoRoot, "config gvfs.cache-server " + ExpectedUrl);
+            ProcessResult result = GitProcess.InvokeProcess(this.Enlistment.RepoRoot, "config gvfs.cache-server " + CustomUrl);
             result.ExitCode.ShouldEqual(0, result.Errors);
 
-            string getoutput = this.Enlistment.CacheServer("--get");
-            getoutput.ShouldNotBeNull();
-            string currentCache = getoutput.Trim().Substring(getoutput.LastIndexOf('\t') + 1);
-            currentCache.ShouldContain(ExpectedUrl);
+            this.Enlistment.GetCacheServer().ShouldContain("Using cache server: User Defined (" + CustomUrl + ")");
         }
 
         [TestCase]
-        public void SettingACacheReflectsChangesInCacheServerGet()
+        public void SetAndGetTests()
         {
-            string getOutput = this.Enlistment.CacheServer("--get");
-            getOutput.ShouldNotBeNull();
+            this.Enlistment.SetCacheServer("\"\"").ShouldContain("You must specify a value for the cache server");
 
-            this.Enlistment.CacheServer("--set https://fake");
+            string noneMessage = "Using cache server: None (" + this.Enlistment.RepoUrl + ")";
 
-            this.Enlistment.CacheServer("--get").ShouldNotEqual(getOutput);
+            this.Enlistment.SetCacheServer("None").ShouldContain(noneMessage);
+            this.Enlistment.GetCacheServer().ShouldContain(noneMessage);
+
+            this.Enlistment.SetCacheServer(this.Enlistment.RepoUrl).ShouldContain(noneMessage);
+            this.Enlistment.GetCacheServer().ShouldContain(noneMessage);
+
+            this.Enlistment.SetCacheServer(CustomUrl).ShouldContain("Using cache server: " + CustomUrl);
+            this.Enlistment.GetCacheServer().ShouldContain("Using cache server: User Defined (" + CustomUrl + ")");
         }
     }
 }

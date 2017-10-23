@@ -3,9 +3,9 @@
 #include "DirectoryEnumerationResult.h"
 #include "NativeEnumerationResultUtils.h"
 
-namespace GvFlt
+namespace GvLib
 {
-    public ref class DirectoryEnumerationFileNamesResult : public DirectoryEnumerationResult
+    private ref class DirectoryEnumerationFileNamesResult : public DirectoryEnumerationResult
     {
     public:
         DirectoryEnumerationFileNamesResult(PFILE_NAMES_INFORMATION enumerationData, unsigned long maxEnumerationDataLength);

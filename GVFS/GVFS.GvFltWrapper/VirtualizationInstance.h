@@ -1,13 +1,10 @@
 #pragma once
 
-#include "CallbackDelegates.h"
-#include "UpdateFailureCause.h"
-#include "HResult.h"
-#include "ITracer.h"
+#include "IVirtualizationInstance.h"
 
-namespace GvFlt 
+namespace GvLib 
 {
-    public ref class VirtualizationInstance
+    public ref class VirtualizationInstance : public IVirtualizationInstance
     {
     public:
         /// <summary>Length of ContentID and EpochID in bytes</summary>
@@ -18,139 +15,199 @@ namespace GvFlt
         /// <summary>Start directory enumeration callback</summary>
         /// <seealso cref="StartDirectoryEnumerationEvent"/>
         /// <remarks>This callback is required</remarks>
-        property StartDirectoryEnumerationEvent^ OnStartDirectoryEnumeration
+        virtual property StartDirectoryEnumerationEvent^ OnStartDirectoryEnumeration
         {
-            StartDirectoryEnumerationEvent^ get(void);
-            void set(StartDirectoryEnumerationEvent^ eventCB);
+            StartDirectoryEnumerationEvent^ get(void) sealed;
+
+            /// <exception cref="System::InvalidOperationException">
+            /// Thrown if the VirtualizationInstance has already been started
+            /// </exception>
+            void set(StartDirectoryEnumerationEvent^ eventCB) sealed;
         };
 
         /// <summary>End directory enumeration callback</summary>
         /// <seealso cref="EndDirectoryEnumerationEvent"/>
         /// <remarks>This callback is required</remarks>
-        property EndDirectoryEnumerationEvent^ OnEndDirectoryEnumeration
+        virtual property EndDirectoryEnumerationEvent^ OnEndDirectoryEnumeration
         {
-            EndDirectoryEnumerationEvent^ get(void);
-            void set(EndDirectoryEnumerationEvent^ eventCB);
+            EndDirectoryEnumerationEvent^ get(void) sealed;
+
+            /// <exception cref="System::InvalidOperationException">
+            /// Thrown if the VirtualizationInstance has already been started
+            /// </exception>
+            void set(EndDirectoryEnumerationEvent^ eventCB) sealed;
         };
 
         /// <summary>Get next enumeration result callback</summary>
         /// <seealso cref="GetDirectoryEnumerationEvent"/>
         /// <remarks>This callback is required</remarks>
-        property GetDirectoryEnumerationEvent^ OnGetDirectoryEnumeration
+        virtual property GetDirectoryEnumerationEvent^ OnGetDirectoryEnumeration
         {
-            GetDirectoryEnumerationEvent^ get(void);
-            void set(GetDirectoryEnumerationEvent^ eventCB);
+            GetDirectoryEnumerationEvent^ get(void) sealed;
+
+            /// <exception cref="System::InvalidOperationException">
+            /// Thrown if the VirtualizationInstance has already been started
+            /// </exception>
+            void set(GetDirectoryEnumerationEvent^ eventCB) sealed;
         };
 
         /// <summary>Query file name callback</summary>
         /// <seealso cref="QueryFileNameEvent"/>
         /// <remarks>This callback is required</remarks>
-        property QueryFileNameEvent^ OnQueryFileName
+        virtual property QueryFileNameEvent^ OnQueryFileName
         {
-            QueryFileNameEvent^ get(void);
-            void set(QueryFileNameEvent^ eventCB);
+            QueryFileNameEvent^ get(void) sealed;
+
+            /// <exception cref="System::InvalidOperationException">
+            /// Thrown if the VirtualizationInstance has already been started
+            /// </exception>
+            void set(QueryFileNameEvent^ eventCB) sealed;
         }
 
         /// <summary>Get placeholder callback</summary>
         /// <seealso cref="GetPlaceholderInformationEvent"/>
         /// <remarks>This callback is required</remarks>
-        property GetPlaceholderInformationEvent^ OnGetPlaceholderInformation
+        virtual property GetPlaceholderInformationEvent^ OnGetPlaceholderInformation
         {
-            GetPlaceholderInformationEvent^ get(void);
-            void set(GetPlaceholderInformationEvent^ eventCB);
+            GetPlaceholderInformationEvent^ get(void) sealed;
+
+            /// <exception cref="System::InvalidOperationException">
+            /// Thrown if the VirtualizationInstance has already been started
+            /// </exception>
+            void set(GetPlaceholderInformationEvent^ eventCB) sealed;
         };
 
         /// <summary>Get file stream callback</summary>
         /// <seealso cref="GetPlaceholderInformationEvent"/>
         /// <remarks>This callback is required</remarks>
-        property GetFileStreamEvent^ OnGetFileStream
+        virtual property GetFileStreamEvent^ OnGetFileStream
         {
-            GetFileStreamEvent^ get(void);
-            void set(GetFileStreamEvent^ eventCB);
+            GetFileStreamEvent^ get(void) sealed;
+
+            /// <exception cref="System::InvalidOperationException">
+            /// Thrown if the VirtualizationInstance has already been started
+            /// </exception>
+            void set(GetFileStreamEvent^ eventCB) sealed;
         };
 
         /// <summary>First write notification callback</summary>
         /// <seealso cref="NotifyFirstWriteEvent"/>
         /// <remarks>This callback is optional</remarks>
-        property NotifyFirstWriteEvent^ OnNotifyFirstWrite
+        virtual property NotifyFirstWriteEvent^ OnNotifyFirstWrite
         {
-            NotifyFirstWriteEvent^ get(void);
-            void set(NotifyFirstWriteEvent^ eventCB);
+            NotifyFirstWriteEvent^ get(void) sealed;
+
+            /// <exception cref="System::InvalidOperationException">
+            /// Thrown if the VirtualizationInstance has already been started
+            /// </exception>
+            void set(NotifyFirstWriteEvent^ eventCB) sealed;
         };
 
         /// <summary>File handle created notification callback</summary>
         /// <seealso cref="NotifyFileHandleCreatedEvent"/>
         /// <remarks>This callback is optional</remarks>
-        property NotifyFileHandleCreatedEvent^ OnNotifyFileHandleCreated
+        virtual property NotifyFileHandleCreatedEvent^ OnNotifyFileHandleCreated
         {
-            NotifyFileHandleCreatedEvent^ get(void);
-            void set(NotifyFileHandleCreatedEvent^ eventCB);
+            NotifyFileHandleCreatedEvent^ get(void) sealed;
+
+            /// <exception cref="System::InvalidOperationException">
+            /// Thrown if the VirtualizationInstance has already been started
+            /// </exception>
+            void set(NotifyFileHandleCreatedEvent^ eventCB) sealed;
         };
 
         /// <summary>Pre-delete notification callback</summary>
         /// <seealso cref="NotifyPreDeleteEvent"/>
         /// <remarks>This callback is optional</remarks>
-        property NotifyPreDeleteEvent^ OnNotifyPreDelete
+        virtual property NotifyPreDeleteEvent^ OnNotifyPreDelete
         {
-            NotifyPreDeleteEvent^ get(void);
-            void set(NotifyPreDeleteEvent^ eventCB);
+            NotifyPreDeleteEvent^ get(void) sealed;
+
+            /// <exception cref="System::InvalidOperationException">
+            /// Thrown if the VirtualizationInstance has already been started
+            /// </exception>
+            void set(NotifyPreDeleteEvent^ eventCB) sealed;
         }
 
         /// <summary>Pre-rename notification callback</summary>
         /// <seealso cref="NotifyPreRenameEvent"/>
         /// <remarks>This callback is optional</remarks>
-        property NotifyPreRenameEvent^ OnNotifyPreRename
+        virtual property NotifyPreRenameEvent^ OnNotifyPreRename
         {
-            NotifyPreRenameEvent^ get(void);
-            void set(NotifyPreRenameEvent^ eventCB);
+            NotifyPreRenameEvent^ get(void) sealed;
+
+            /// <exception cref="System::InvalidOperationException">
+            /// Thrown if the VirtualizationInstance has already been started
+            /// </exception>
+            void set(NotifyPreRenameEvent^ eventCB) sealed;
         }
 
         /// <summary>Pre-set-hardlink notification callback</summary>
         /// <seealso cref="NotifyPreSetHardlinkEvent"/>
         /// <remarks>This callback is optional</remarks>
-        property NotifyPreSetHardlinkEvent^ OnNotifyPreSetHardlink
+        virtual property NotifyPreSetHardlinkEvent^ OnNotifyPreSetHardlink
         {
-            NotifyPreSetHardlinkEvent^ get(void);
-            void set(NotifyPreSetHardlinkEvent^ eventCB);
+            NotifyPreSetHardlinkEvent^ get(void) sealed;
+
+            /// <exception cref="System::InvalidOperationException">
+            /// Thrown if the VirtualizationInstance has already been started
+            /// </exception>
+            void set(NotifyPreSetHardlinkEvent^ eventCB) sealed;
         }
 
         /// <summary>File renamed notification callback</summary>
         /// <seealso cref="NotifyFileRenamedEvent"/>
         /// <remarks>This callback is optional</remarks>
-        property NotifyFileRenamedEvent^ OnNotifyFileRenamed
+        virtual property NotifyFileRenamedEvent^ OnNotifyFileRenamed
         {
-            NotifyFileRenamedEvent^ get(void);
-            void set(NotifyFileRenamedEvent^ eventCB);
+            NotifyFileRenamedEvent^ get(void) sealed;
+
+            /// <exception cref="System::InvalidOperationException">
+            /// Thrown if the VirtualizationInstance has already been started
+            /// </exception>
+            void set(NotifyFileRenamedEvent^ eventCB) sealed;
         }
 
         /// <summary>Hardlink created notification callback</summary>
         /// <seealso cref="NotifyHardlinkCreatedEvent"/>
         /// <remarks>This callback is optional</remarks>
-        property NotifyHardlinkCreatedEvent^ OnNotifyHardlinkCreated
+        virtual property NotifyHardlinkCreatedEvent^ OnNotifyHardlinkCreated
         {
-            NotifyHardlinkCreatedEvent^ get(void);
-            void set(NotifyHardlinkCreatedEvent^ eventCB);
+            NotifyHardlinkCreatedEvent^ get(void) sealed;
+
+            /// <exception cref="System::InvalidOperationException">
+            /// Thrown if the VirtualizationInstance has already been started
+            /// </exception>
+            void set(NotifyHardlinkCreatedEvent^ eventCB) sealed;
         }
 
         /// <summary>File handle closed notification callback</summary>
         /// <seealso cref="NotifyFileHandleClosedEvent"/>
         /// <remarks>This callback is optional</remarks>
-        property NotifyFileHandleClosedEvent^ OnNotifyFileHandleClosed
+        virtual property NotifyFileHandleClosedEvent^ OnNotifyFileHandleClosed
         {
-            NotifyFileHandleClosedEvent^ get(void);
-            void set(NotifyFileHandleClosedEvent^ eventCB);
+            NotifyFileHandleClosedEvent^ get(void) sealed;
+
+            /// <exception cref="System::InvalidOperationException">
+            /// Thrown if the VirtualizationInstance has already been started
+            /// </exception>
+            void set(NotifyFileHandleClosedEvent^ eventCB) sealed;
         }
 
-        /// <summary>Tracer to be used by VirtualizationInstance</summary>
-        /// <seealso cref="ITracer"/>
-        /// <remarks>Cannot be null, an ITracer must be set.</remarks>
-        property ITracer^ Tracer
+        /// <summary>Command cancelled callback</summary>
+        /// <seealso cref="CancelCommandEvent"/>
+        /// <remarks>This callback is optional</remarks>
+        virtual property CancelCommandEvent^ OnCancelCommand
         {
-            ITracer^ get(void);
-        };
+            CancelCommandEvent^ get(void) sealed;
+
+            /// <exception cref="System::InvalidOperationException">
+            /// Thrown if the VirtualizationInstance has already been started
+            /// </exception>
+            void set(CancelCommandEvent^ eventCB) sealed;
+        }
         
         /// <summary>Starts a GvFlt virtualization instance</summary>
-        /// <param name="tracerImpl">ITracer implementation used to trace messages from the VirtualizationInstance.  Cannot be nullptr.</param>
         /// <param name="virtualizationRootPath">
         /// The path to the virtualization root directory.  This directory must have already been
         /// converted to a virtualization root using ConvertDirectoryToVirtualizationRoot.
@@ -164,6 +221,20 @@ namespace GvFlt
         /// The actual number of threads can be less than this (if no commands are waiting for threads)
         /// or more than this (if one or more threads become computable after waits complete).
         /// See also - https://msdn.microsoft.com/en-us/library/windows/desktop/aa363862(v=vs.85).aspx
+        /// </param>
+        /// <param name="enableNegativePathCache">
+        /// If true, when the provider returns ObjectNameNotFound
+        /// for a path from OnGetPlaceholderInformation callback, GvFlt will remember 
+        /// that this path doesn't exist in the provider's namespace, and fail 
+        /// the subsequent file opens for the same path without consulting the provider.
+        /// The provider can call ClearNegativePathCache to clear this cache.
+        /// </param>
+        /// <param name ="logicalBytesPerSector">
+        /// [Out] Logical bytes per sector reported by physical storage.  Used by CreateWriteBuffer to determine size
+        /// of write buffer.
+        /// </param>
+        /// <param name ="writeBufferAlignment">
+        /// [Out] Memory alignment that will be used when CreateWriteBuffer creates write buffers.
         /// </param>
         /// <returns>
         /// If StartVirtualizationInstance succeeds, Success is returned.
@@ -186,16 +257,23 @@ namespace GvFlt
         /// access denied error will be returned if called from a non-elevated process.
         /// </remarks>
         /// <exception cref="System::ArgumentNullException"/>
-        /// <exception cref="GvFltException">Thrown if provider already has a running virtualization instance</exception> 
-        HResult StartVirtualizationInstance(
-            ITracer^ tracerImpl,
+        /// <exception cref="System::InvalidOperationException">
+        /// Thrown if there is already another running VirtualizationInstance
+        /// </exception>
+        /// <exception cref="GvLibException">
+        /// Thrown if there is a failure determining logicalBytesPerSector or writeBufferAlignment
+        /// </exception> 
+        virtual HResult StartVirtualizationInstance(
             System::String^ virtualizationRootPath,
             unsigned long poolThreadCount,
-            unsigned long concurrentThreadCount);
+            unsigned long concurrentThreadCount,
+            bool enableNegativePathCache,
+            unsigned long% logicalBytesPerSector,
+            unsigned long% writeBufferAlignment) sealed;
 
         /// <summary>Stops the virtualization instance</summary>
         /// <returns>If StopVirtualizationInstance succeeds, Success is returned.  If StartVirtualizationInstance fails, the appropriate error is returned.</returns>
-        HResult StopVirtualizationInstance();
+        virtual HResult StopVirtualizationInstance() sealed;
 
         /// <summary>Detaches GvFlt driver from the volume</summary>
         /// <returns>If DetachDriver succeeds, Success is returned, otherwise the appropriate error is returned.</returns>
@@ -203,7 +281,18 @@ namespace GvFlt
         /// For this call to succeed, there must not be any active virtualization instance on the volume.
         /// All provider processes need to call StopVirtualizationInstance for their active instances first.
         /// </remarks>
-        HResult DetachDriver();
+        virtual HResult DetachDriver() sealed;
+
+        /// <summary>Clears the negative path cache for this VirtualizationInstance</summary>
+        /// <param name="totalEntryNumber">
+        /// Output parameter that stores the total number of entries that were in the negative path cache when it was cleared.
+        /// </param>
+        /// <returns>If ClearNegativePathCache succeeds, Success is returned, otherwise the appropriate error is returned.</returns>
+        /// <remarks>
+        /// For this call to succeed, there must not be any active virtualization instance on the volume.
+        /// All provider processes need to call StopVirtualizationInstance for their active instances first.
+        /// </remarks>
+        virtual NtStatus ClearNegativePathCache(unsigned long% totalEntryNumber) sealed;
 
         /// <summary>Send file stream data to the GvFlt driver in a OnGetFileStream callback</summary>
         /// <param name="streamGuid">
@@ -235,11 +324,11 @@ namespace GvFlt
         ///    see also - https://msdn.microsoft.com/en-us/library/windows/hardware/ff544610(v=vs.85).aspx
         /// </returns>
         /// <remarks>OnGetFileStream callback must not return until it completes sending back data with WriteFile</remarks>
-        NtStatus WriteFile(
+        virtual NtStatus WriteFile(
             System::Guid streamGuid,
             WriteBuffer^ buffer,
             unsigned long long byteOffset,
-            unsigned long length);
+            unsigned long length) sealed;
 
         /// <summary>Deletes an on-disk file without raising notification callbacks</summary>
         /// <param name="relativePath">The path (relative to the virtualization root) of the file to delete</param>
@@ -303,10 +392,10 @@ namespace GvFlt
         /// Note: For a directory, the only valid states are Virtual, Placeholder / Partial with
         ///       clean and dirty metadata.  Hence the flag AllowDirtyMetadata would suffice for a directory.
         /// </remarks>
-        NtStatus DeleteFile(
+        virtual NtStatus DeleteFile(
              System::String^ relativePath, 
              UpdateType updateFlags, 
-             UpdateFailureCause% failureReason);
+             UpdateFailureCause% failureReason) sealed;
          
         /// <summary>Sends file or directory metadata to the GvFlt driver in a GetPlaceholderInformation callback</summary>
         /// <param name="relativePath">The path (relative to the virtualization root) of the file or folder</param>
@@ -338,7 +427,7 @@ namespace GvFlt
         /// contentId and epochId have a maximum length of PlaceholderIdLength.  Any data beyond 
         /// PlaceholderIdLength will be ignored.
         /// </remarks>
-        NtStatus WritePlaceholderInformation(
+        virtual NtStatus WritePlaceholderInformation(
             System::String^ relativePath,
             System::DateTime creationTime,
             System::DateTime lastAccessTime,
@@ -348,7 +437,7 @@ namespace GvFlt
             long long endOfFile,
             bool directory,
             array<System::Byte>^ contentId,
-            array<System::Byte>^ epochId);
+            array<System::Byte>^ epochId) sealed;
 
         /// <summary>Create a hardlink in lieu of creating a placeholder</summary>
         /// <param name="destinationFileName">The path (relative to the virtualization root) of the file</param>
@@ -375,9 +464,9 @@ namespace GvFlt
         /// The caller uses CreatePlaceholderAsHardlink to indicate that the placeholder
         /// should be a hard link to an already - existing file, instead of a proper placeholder.
         /// </remarks>
-        NtStatus CreatePlaceholderAsHardlink(
+        virtual NtStatus CreatePlaceholderAsHardlink(
             System::String^ destinationFileName,
-            System::String^ hardLinkTarget);
+            System::String^ hardLinkTarget) sealed;
 
         /// <summary>Update placeholder information for a file</summary>
         /// <param name="relativePath">The path (relative to the virtualization root) of the file</param>
@@ -467,7 +556,7 @@ namespace GvFlt
         /// or a “Partial” file which is in a clean state – i.e. even its metadata is not dirty, with the
         /// placeholder information supplied by the provider
         /// </remarks>
-        NtStatus UpdatePlaceholderIfNeeded(
+        virtual NtStatus UpdatePlaceholderIfNeeded(
             System::String^ relativePath,
             System::DateTime creationTime,
             System::DateTime lastAccessTime,
@@ -478,35 +567,32 @@ namespace GvFlt
             array<System::Byte>^ contentId,
             array<System::Byte>^ epochId,
             UpdateType updateFlags,
-            UpdateFailureCause% failureReason);
+            UpdateFailureCause% failureReason) sealed;
 
-        enum class OnDiskStatus : long
-        {
-            NotOnDisk = 0,
-            Partial = 1,
-            Full = 2,
-            OnDiskCannotOpen = 3
-        };
-
-        /// <summary>Checks if file is on disk, and whether it's partial or full</summary>
-        /// <param name="relativePath">The path (relative to the virtualization root) of the file</param>
-        /// <returns>OnDiskStatus indicating if the file is not on disk, a partial file, or a full file</returns>
+        /// <summary>Completes a command\request that previously returned NtStatus::Pending</summary>
+        /// <param name="commandId">The ID of the command to complete</param>
+        /// <param name="completionStatus">Result of processing the command</param>
         /// <remarks>
-        /// This function cannot be used to determine if a folder is partial or full, and cannot be
-        /// used to determine if a path is a file or a folder.
+        /// CompleteCommand is used to notify GvFlt that an asynchronous operation has completed.  When a
+        /// callback returns NtStatus::Pending, GvFlt will hold the request that triggered the callback
+        /// until CompleteCommand is called with the same commandId that was provided in the callback.
+        /// Note that if a command has been canceled (i.e. the CancelCommandEvent callback has been
+        /// delivered to the provider), it is not required for the provider to call CompleteCommand.
         /// </remarks>
-        /// <exception cref="GvFltException">Thrown when an error is encountered while trying to open the file</exception> 
-        OnDiskStatus GetFileOnDiskStatus(System::String^ relativePath);
-
-        /// <summary>Returns the full contents of a file</summary>
-        /// <param name="relativePath">The path (relative to the virtualization root) of the file</param>
-        /// <returns>Contents of the specified full file.  BOM, if present, is not removed.</returns>
-        /// <exception cref="GvFltException">Thrown when unable to open the file</exception> 
-        System::String^ ReadFullFileContents(System::String^ relativePath);
+        virtual void CompleteCommand(
+            long commandId,
+            NtStatus completionStatus) sealed;
 
         /// <summary>Create a WriteBuffer (to be used with WriteFile)</summary>
+        /// <param name="desiredBufferSize">Desired size, in bytes, of the write buffer</param>
         /// <returns>A newly created WriteBuffer</returns>
-        WriteBuffer^ CreateWriteBuffer();
+        /// <remarks>
+        /// Actual buffer size depends on the number of logical bytes per sector reported by physical storage:
+        /// If desiredBufferSize is less than the logical bytes per sector the actual buffer size will be logical bytes per sector
+        /// If desiredBufferSize is greater than logical bytes per sector the actual buffer size will be desiredBufferSize
+        /// rounded up to the nearest multiple of logical bytes per sector
+        /// </remarks>
+        virtual WriteBuffer^ CreateWriteBuffer(unsigned long desiredBufferSize) sealed;
 
         /// <summary>Converts an existing folder to a GvFlt virtualization root</summary>
         /// <param name="virtualizationInstanceGuid">The Guid that uniquely identifies one virtualization instance</param>
@@ -525,11 +611,8 @@ namespace GvFlt
             System::String^ rootPath);        
 
     private:
-        ULONG GetWriteBufferSize();
-        ULONG GetAlignmentRequirement();
-
         void ConfirmNotStarted();
-        void CalculateWriteBufferSizeAndAlignment();
+        void FindBytesPerSectorAndAlignment();
 
         StartDirectoryEnumerationEvent^ startDirectoryEnumerationEvent;
         EndDirectoryEnumerationEvent^ endDirectoryEnumerationEvent;
@@ -545,12 +628,12 @@ namespace GvFlt
         NotifyFileRenamedEvent^ notifyFileRenamedEvent;
         NotifyHardlinkCreatedEvent^ notifyHardlinkCreatedEvent;
         NotifyFileHandleClosedEvent^ notifyFileHandleClosedEvent;
+        CancelCommandEvent^ cancelCommandEvent;
 
-        ULONG writeBufferSize;
-        ULONG alignmentRequirement;
+        ULONG bytesPerSector;
+        ULONG writeBufferAlignmentRequirement;
 
         GV_VIRTUALIZATIONINSTANCE_HANDLE  virtualizationInstanceHandle;
         System::String^ virtualRootPath;
-        ITracer^ tracer;
     };
 }

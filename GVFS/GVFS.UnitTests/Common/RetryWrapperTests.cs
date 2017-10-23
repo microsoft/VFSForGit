@@ -4,6 +4,7 @@ using GVFS.UnitTests.Category;
 using NUnit.Framework;
 using System;
 using System.IO;
+using System.Threading;
 using System.Threading.Tasks;
 
 namespace GVFS.UnitTests.Common
@@ -17,7 +18,7 @@ namespace GVFS.UnitTests.Common
         {
             const int ExpectedTries = 5;
 
-            RetryWrapper<bool> dut = new RetryWrapper<bool>(ExpectedTries, exponentialBackoffBase: 0);
+            RetryWrapper<bool> dut = new RetryWrapper<bool>(ExpectedTries, new CancellationToken(canceled: false), exponentialBackoffBase: 0);
 
             int actualTries = 0;
             RetryWrapper<bool>.InvocationResult output = dut.Invoke(
@@ -37,7 +38,7 @@ namespace GVFS.UnitTests.Common
         {
             const int MaxTries = 5;
 
-            RetryWrapper<bool> dut = new RetryWrapper<bool>(MaxTries, exponentialBackoffBase: 0);
+            RetryWrapper<bool> dut = new RetryWrapper<bool>(MaxTries, new CancellationToken(canceled: false), exponentialBackoffBase: 0);
 
             Assert.Throws<Exception>(
                 () =>
@@ -48,12 +49,99 @@ namespace GVFS.UnitTests.Common
 
         [TestCase]
         [Category(CategoryConstants.ExceptionExpected)]
+        public void WillNotMakeAnyAttemptWhenInitiallyCanceled()
+        {
+            const int MaxTries = 5;
+            int actualTries = 0;
+
+            RetryWrapper<bool> dut = new RetryWrapper<bool>(MaxTries, new CancellationToken(canceled: true), exponentialBackoffBase: 0);
+
+            Assert.Throws<OperationCanceledException>(
+                () =>
+                {
+                    RetryWrapper<bool>.InvocationResult output = dut.Invoke(tryCount => 
+                    {
+                        ++actualTries;
+                        return new RetryWrapper<bool>.CallbackResult(true);
+                    });
+                });
+
+            actualTries.ShouldEqual(0);
+        }
+
+        [TestCase]
+        [Category(CategoryConstants.ExceptionExpected)]
+        public void WillNotRetryForWhenCanceledDuringAttempts()
+        {
+            const int MaxTries = 5;
+            int actualTries = 0;
+            int expectedTries = 3;
+
+            using (CancellationTokenSource tokenSource = new CancellationTokenSource())
+            {
+                RetryWrapper<bool> dut = new RetryWrapper<bool>(MaxTries, tokenSource.Token, exponentialBackoffBase: 0);
+
+                Assert.Throws<OperationCanceledException>(
+                    () =>
+                    {
+                        RetryWrapper<bool>.InvocationResult output = dut.Invoke(tryCount =>
+                        {
+                            ++actualTries;
+
+                            if (actualTries == expectedTries)
+                            {
+                                tokenSource.Cancel();
+                            }
+
+                            return new RetryWrapper<bool>.CallbackResult(new Exception("Test"), shouldRetry: true);
+                        });
+                    });
+
+                actualTries.ShouldEqual(expectedTries);
+            }
+        }
+
+        [TestCase]
+        [Category(CategoryConstants.ExceptionExpected)]
+        public void WillNotRetryWhenCancelledDuringBackoff()
+        {
+            const int MaxTries = 5;
+            int actualTries = 0;
+            int expectedTries = 2; // 2 because RetryWrapper does not wait after the first failure
+
+            using (CancellationTokenSource tokenSource = new CancellationTokenSource())
+            {
+                RetryWrapper<bool> dut = new RetryWrapper<bool>(MaxTries, tokenSource.Token, exponentialBackoffBase: 300);
+
+                Task.Run(() =>
+                {
+                    // Wait 3 seconds and cancel
+                    Thread.Sleep(1000 * 3);
+                    tokenSource.Cancel();
+                });
+
+                Assert.Throws<OperationCanceledException>(
+                    () =>
+                    {
+                        RetryWrapper<bool>.InvocationResult output = dut.Invoke(tryCount =>
+                        {
+                            ++actualTries;
+                            return new RetryWrapper<bool>.CallbackResult(new Exception("Test"), shouldRetry: true);
+                        });
+                    });
+
+                actualTries.ShouldEqual(expectedTries);
+            }
+        }
+
+        [TestCase]
+        [Category(CategoryConstants.ExceptionExpected)]
         public void OnFailureIsCalledWhenEventHandlerAttached()
         {
             const int MaxTries = 5;
             const int ExpectedFailures = 5;
 
-            RetryWrapper<bool> dut = new RetryWrapper<bool>(MaxTries, exponentialBackoffBase: 0);
+            RetryWrapper<bool> dut = new RetryWrapper<bool>(MaxTries, new CancellationToken(canceled: false), exponentialBackoffBase: 0);
 
             int actualFailures = 0;
             dut.OnFailure += errorArgs => actualFailures++;
@@ -75,7 +163,7 @@ namespace GVFS.UnitTests.Common
             const int ExpectedFailures = 0;
             const int ExpectedTries = 1;
 
-            RetryWrapper<bool> dut = new RetryWrapper<bool>(MaxTries, exponentialBackoffBase: 0);
+            RetryWrapper<bool> dut = new RetryWrapper<bool>(MaxTries, new CancellationToken(canceled: false), exponentialBackoffBase: 0);
 
             int actualFailures = 0;
             dut.OnFailure += errorArgs => actualFailures++;
@@ -101,7 +189,7 @@ namespace GVFS.UnitTests.Common
             const int ExpectedFailures = 1;
             const int ExpectedTries = 1;
 
-            RetryWrapper<bool> dut = new RetryWrapper<bool>(MaxTries, exponentialBackoffBase: 0);
+            RetryWrapper<bool> dut = new RetryWrapper<bool>(MaxTries, new CancellationToken(canceled: false), exponentialBackoffBase: 0);
 
             int actualFailures = 0;
             dut.OnFailure += errorArgs => actualFailures++;
@@ -111,7 +199,7 @@ namespace GVFS.UnitTests.Common
                 tryCount =>
                 {
                     actualTries++;
-                    return new RetryWrapper<bool>.CallbackResult(new Exception("Test"), false);
+                    return new RetryWrapper<bool>.CallbackResult(new Exception("Test"), shouldRetry: false);
                 });
 
             output.Succeeded.ShouldEqual(false);
@@ -127,7 +215,7 @@ namespace GVFS.UnitTests.Common
             const int ExpectedFailures = 5;
             const int ExpectedTries = 5;
 
-            RetryWrapper<bool> dut = new RetryWrapper<bool>(MaxTries, exponentialBackoffBase: 0);
+            RetryWrapper<bool> dut = new RetryWrapper<bool>(MaxTries, new CancellationToken(canceled: false), exponentialBackoffBase: 0);
 
             int actualFailures = 0;
             dut.OnFailure += errorArgs => actualFailures++;
@@ -137,7 +225,7 @@ namespace GVFS.UnitTests.Common
                 tryCount =>
                 {
                     actualTries++;
-                    return new RetryWrapper<bool>.CallbackResult(new Exception("Test"), true);
+                    return new RetryWrapper<bool>.CallbackResult(new Exception("Test"), shouldRetry: true);
                 });
 
             output.Succeeded.ShouldEqual(false);

@@ -1,6 +1,5 @@
 ﻿using GVFS.Tests.Should;
 using System;
-using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
@@ -32,9 +31,26 @@ namespace GVFS.FunctionalTests.Tools
 
             ProcessResult result = RunScCommand("create", createServiceArguments);
             result.ExitCode.ShouldEqual(0, "Failure while running sc create " + createServiceArguments + "\r\n" + result.Output);
+
+            StartService();
         }
 
-        public static void StartService()
+        public static void UninstallService()
+        {
+            StopService();
+
+            RunScCommand("delete", TestServiceName);
+
+            // Make sure to delete any test service data state
+            string serviceData = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData), "GVFS", TestServiceName);
+            DirectoryInfo serviceDataDir = new DirectoryInfo(serviceData);
+            if (serviceDataDir.Exists)
+            {
+                serviceDataDir.Delete(true);
+            }
+        }
+
+        private static void StartService()
         {
             using (ServiceController controller = new ServiceController(TestServiceName))
             {
@@ -44,7 +60,7 @@ namespace GVFS.FunctionalTests.Tools
             }
         }
 
-        public static void StopService()
+        private static void StopService()
         {
             try
             {
@@ -62,21 +78,6 @@ namespace GVFS.FunctionalTests.Tools
             catch (InvalidOperationException)
             {
                 return;
-            }
-        }
-
-        public static void UninstallService()
-        {
-            StopService();
-            
-            RunScCommand("delete", TestServiceName);
-
-            // Make sure to delete any test service data state
-            string serviceData = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData), "GVFS", TestServiceName);
-            DirectoryInfo serviceDataDir = new DirectoryInfo(serviceData);
-            if (serviceDataDir.Exists)
-            {
-                serviceDataDir.Delete(true);
             }
         }
 

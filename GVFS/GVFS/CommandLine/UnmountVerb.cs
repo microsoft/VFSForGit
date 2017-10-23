@@ -53,11 +53,14 @@ namespace GVFS.CommandLine
                 this.ReportErrorAndExit(errorMessage);
             }
 
-            if (!this.ShowStatusWhileRunning(
-                () => { return this.UnregisterRepo(root, out errorMessage); }, 
-                "Unregistering automount"))
+            if (!this.Unattended)
             {
-                this.Output.WriteLine("    WARNING: " + errorMessage);
+                if (!this.ShowStatusWhileRunning(
+                    () => { return this.UnregisterRepo(root, out errorMessage); },
+                    "Unregistering automount"))
+                {
+                    this.Output.WriteLine("    WARNING: " + errorMessage);
+                }
             }
         }
 
@@ -153,7 +156,7 @@ namespace GVFS.CommandLine
             {
                 if (!client.Connect())
                 {
-                    errorMessage = "Unable to unregister repo because GVFS.Service is not responding. Run 'sc start GVFS.Service' from an elevated command prompt to ensure it is running.";
+                    errorMessage = "Unable to unregister repo because GVFS.Service is not responding. " + GVFSVerb.StartServiceInstructions;
                     return false;
                 }
 
@@ -206,9 +209,11 @@ namespace GVFS.CommandLine
                     Process currentProcess = Process.GetCurrentProcess();
                     string result = null;
                     if (!GVFSLock.TryAcquireGVFSLockForProcess(
+                            this.Unattended,
                             pipeClient, 
                             "gvfs unmount", 
                             currentProcess.Id, 
+                            ProcessHelper.IsAdminElevated(),
                             currentProcess,
                             enlistmentRoot,
                             out result))

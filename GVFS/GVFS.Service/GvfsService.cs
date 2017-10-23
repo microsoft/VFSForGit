@@ -93,18 +93,21 @@ namespace GVFS.Service
             {
                 base.OnSessionChange(changeDescription);
 
-                if (changeDescription.Reason == SessionChangeReason.SessionLogon)
+                if (!GVFSEnlistment.IsUnattended(tracer: null))
                 {
-                    this.tracer.RelatedInfo("SessionLogon detected, sessionId: {0}", changeDescription.SessionId);
-                    using (ITracer activity = this.tracer.StartActivity("LogonAutomount", EventLevel.Informational))
+                    if (changeDescription.Reason == SessionChangeReason.SessionLogon)
                     {
-                        this.repoRegistry.AutoMountRepos(changeDescription.SessionId);
-                        this.repoRegistry.TraceStatus();
+                        this.tracer.RelatedInfo("SessionLogon detected, sessionId: {0}", changeDescription.SessionId);
+                        using (ITracer activity = this.tracer.StartActivity("LogonAutomount", EventLevel.Informational))
+                        {
+                            this.repoRegistry.AutoMountRepos(changeDescription.SessionId);
+                            this.repoRegistry.TraceStatus();
+                        }
                     }
-                }
-                else if (changeDescription.Reason == SessionChangeReason.SessionLogoff)
-                {
-                    this.tracer.RelatedInfo("SessionLogoff detected");
+                    else if (changeDescription.Reason == SessionChangeReason.SessionLogoff)
+                    {
+                        this.tracer.RelatedInfo("SessionLogoff detected");
+                    }
                 }
             }
             catch (Exception e)
@@ -237,12 +240,25 @@ namespace GVFS.Service
 
                         break;
 
+                    case NamedPipeMessages.ExcludeFromAntiVirusRequest.Header:
+                        try
+                        {
+                            NamedPipeMessages.ExcludeFromAntiVirusRequest excludeFromAntiVirusRequest = NamedPipeMessages.ExcludeFromAntiVirusRequest.FromMessage(message);
+                            ExcludeFromAntiVirusHandler excludeHandler = new ExcludeFromAntiVirusHandler(activity, connection, excludeFromAntiVirusRequest);
+                            excludeHandler.Run();
+                        }
+                        catch (SerializationException ex)
+                        {
+                            activity.RelatedError("Could not deserialize exclude from antivirus request: {0}", ex.Message);
+                        }
+
+                        break;
+
                     default:
                         EventMetadata metadata = new EventMetadata();
                         metadata.Add("Area", EtwArea);
                         metadata.Add("Header", message.Header);
-                        metadata.Add("ErrorMessage", "HandleNewConnection: Unknown request");
-                        this.tracer.RelatedError(metadata);
+                        this.tracer.RelatedWarning(metadata, "HandleNewConnection: Unknown request", Keywords.Telemetry);
 
                         connection.TrySendResponse(NamedPipeMessages.UnknownRequest);
                         break;
@@ -255,8 +271,7 @@ namespace GVFS.Service
             EventMetadata metadata = new EventMetadata();
             metadata.Add("Area", EtwArea);
             metadata.Add("Exception", e.ToString());
-            metadata.Add("ErrorMessage", "Unhandled exception in " + method);
-            this.tracer.RelatedError(metadata);
+            this.tracer.RelatedError(metadata, "Unhandled exception in " + method);
             Environment.Exit((int)ReturnCode.GenericError);
         }
     }

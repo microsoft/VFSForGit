@@ -16,7 +16,7 @@ namespace GVFS.FunctionalTests.Tests
             }
 
             Console.WriteLine("GVFS logs output attached below.\n\n");
-            
+
             foreach (string filename in GetAllFilesInDirectory(enlistment.GVFSLogsRoot))
             {
                 OutputFileContents(filename);

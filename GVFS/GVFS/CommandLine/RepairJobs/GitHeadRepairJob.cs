@@ -59,8 +59,7 @@ namespace GVFS.CommandLine.RepairJobs
             catch (IOException ex)
             {
                 EventMetadata metadata = new EventMetadata();
-                metadata.Add("ErrorMessage", "Failed to write HEAD: " + ex.ToString());
-                this.Tracer.RelatedError(metadata);
+                this.Tracer.RelatedError(metadata, "Failed to write HEAD: " + ex.ToString());
                 return FixResult.Failure;
             }
 

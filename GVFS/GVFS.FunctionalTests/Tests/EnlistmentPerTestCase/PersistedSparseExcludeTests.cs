@@ -28,22 +28,13 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerTestCase
         private const string SparseCheckoutFilePath = @".git\info\sparse-checkout";
         private static string[] expectedAlwaysExcludeFileContents = new string[] 
         {
-            "!/*",
-            "!/GVFS",
-            "!/GVFS/*",
             "*",
-            "!/GVFS/GVFS.Mount",
-            "!/GVFS/GVFS.Mount/*",
-            "!/PersistedSparseExcludeTests_NewFolder",
-            "!/PersistedSparseExcludeTests_NewFolder/*",
-            "!/PersistedSparseExcludeTests_NewFolderForRename",
-            "!/PersistedSparseExcludeTests_NewFolderForRename/*",
-            "!/PersistedSparseExcludeTests_NewFolderForRename2",
-            "!/PersistedSparseExcludeTests_NewFolderForRename2/*",
-            "!/PersistedSparseExcludeTests_outsideFolder",
-            "!/PersistedSparseExcludeTests_outsideFolder/*",
-            "!/Scripts",
-            "!/Scripts/*"
+            "!/GVFS/",
+            "!/GVFS/TestAddFile.txt",
+            "!/GVFS/GVFS.Mount/",
+            "!/GVFS/GVFS.Mount/MountVerb2.cs",
+            "!/TestFileFromDotGit.txt",
+            "!/PersistedSparseExcludeTests_outsideRepo.txt"
         };
         private static string[] expectedSparseFileContents = new string[] 
         {

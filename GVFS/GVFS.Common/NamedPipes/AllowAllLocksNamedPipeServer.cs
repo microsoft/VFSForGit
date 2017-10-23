@@ -32,8 +32,7 @@ namespace GVFS.Common.NamedPipes
                         EventMetadata metadata = new EventMetadata();
                         metadata.Add("Area", "AllowAllLocksNamedPipeServer");
                         metadata.Add("Header", message.Header);
-                        metadata.Add("ErrorMessage", "HandleRequest: Unknown request");
-                        tracer.RelatedError(metadata);
+                        tracer.RelatedWarning(metadata, "HandleRequest: Unknown request", Keywords.Telemetry);
                     }
 
                     break;

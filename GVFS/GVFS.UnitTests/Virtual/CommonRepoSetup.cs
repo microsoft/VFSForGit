@@ -4,11 +4,12 @@ using GVFS.UnitTests.Mock.Common;
 using GVFS.UnitTests.Mock.FileSystem;
 using GVFS.UnitTests.Mock.Git;
 using NUnit.Framework;
+using System;
 using System.IO;
 
 namespace GVFS.UnitTests.Virtual
 {
-    public class CommonRepoSetup
+    public class CommonRepoSetup : IDisposable
     {
         public CommonRepoSetup()
         {
@@ -62,6 +63,30 @@ namespace GVFS.UnitTests.Virtual
         public MockGitRepo Repository { get; private set; }
         public MockHttpGitObjects HttpObjects { get; private set; }
         
+        public void Dispose()
+        {
+            this.Dispose(true);
+            GC.SuppressFinalize(this);
+        }
+
+        protected void Dispose(bool disposing)
+        {
+            if (disposing)
+            {
+                if (this.Context != null)
+                {
+                    this.Context.Dispose();
+                    this.Context = null;
+                }
+
+                if (this.HttpObjects != null)
+                {
+                    this.HttpObjects.Dispose();
+                    this.HttpObjects = null;
+                }
+            }
+        }
+
         private static void CreateStandardGitTree(MockGitRepo repository)
         {
             string rootSha = repository.GetHeadTreeSha();
@@ -79,7 +104,7 @@ namespace GVFS.UnitTests.Virtual
 
             string dupTreeSha = repository.AddChildTree(rootSha, "DupTree");
             repository.AddChildBlob(dupTreeSha, "B.1.txt", "B.1 in GitTree");
-            
+
             repository.AddChildBlob(rootSha, "C.txt", "C in GitTree");
         }
     }

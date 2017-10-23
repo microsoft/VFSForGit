@@ -11,14 +11,6 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
     [TestFixture]
     public class UnmountTests : TestsWithEnlistmentPerFixture
     {
-        private const int AlwaysExcludeOnDiskVersion = 5;
-        private const int GVFSGenericError = 3;
-        private const uint GenericRead = 2147483648;
-        private const uint FileFlagBackupSemantics = 3355443;
-        private const string IndexLockPath = ".git\\index.lock";
-        private const string ExcludePath = ".git\\info\\exclude";
-        private const string AlwaysExcludePath = ".git\\info\\always_exclude";
-
         private FileSystemRunner fileSystem;
 
         public UnmountTests()

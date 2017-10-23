@@ -1,8 +1,9 @@
 ﻿using CommandLine;
 using GVFS.Common;
-using GVFS.Common.Git;
 using GVFS.Common.Http;
 using GVFS.Common.Tracing;
+using System;
+using System.Collections.Generic;
 using System.Linq;
 
 namespace GVFS.CommandLine
@@ -14,8 +15,9 @@ namespace GVFS.CommandLine
         
         [Option(
             "set",
+            Default = null,
             Required = false,
-            HelpText = "Sets the current cache server to the supplied name or url")]
+            HelpText = "Sets the cache server to the supplied name or url")]
         public string CacheToSet { get; set; }
 
         [Option("get", Required = false, HelpText = "Outputs the current cache server information. This is the default.")]
@@ -24,7 +26,7 @@ namespace GVFS.CommandLine
         [Option(
             "list",
             Required = false,
-            HelpText = "List available cache servers for the current GVFS enlistment")]
+            HelpText = "List available cache servers for the remote repo")]
         public bool ListCacheServers { get; set; }
 
         protected override string VerbName
@@ -34,51 +36,40 @@ namespace GVFS.CommandLine
         
         protected override void Execute(GVFSEnlistment enlistment)
         {
+            this.BlockEmptyCacheServerUrl(this.CacheToSet);
+
+            RetryConfig retryConfig = new RetryConfig(RetryConfig.DefaultMaxRetries, TimeSpan.FromMinutes(RetryConfig.FetchAndCloneTimeoutMinutes));
+
             using (ITracer tracer = new JsonEtwTracer(GVFSConstants.GVFSEtwProviderName, "CacheVerb"))
             {
-                RetryConfig retryConfig;
-                string error;
-                if (!RetryConfig.TryLoadFromGitConfig(tracer, enlistment, out retryConfig, out error))
-                {
-                    this.ReportErrorAndExit("Failed to determine GVFS timeout and max retries: " + error);
-                }
+                GVFSConfig gvfsConfig = this.QueryGVFSConfig(tracer, enlistment, retryConfig);
 
-                GVFSConfig config;
-                using (ConfigHttpRequestor configRequestor = new ConfigHttpRequestor(tracer, enlistment, retryConfig))
-                {
-                    config = configRequestor.QueryGVFSConfig();
-                    if (config == null)
-                    {
-                        this.ReportErrorAndExit("Could not query for available cache servers.");
-                    }
-                }
+                CacheServerResolver cacheServerResolver = new CacheServerResolver(tracer, enlistment);
+                string error = null;
 
-                CacheServerInfo cache;
-                if (!string.IsNullOrWhiteSpace(this.CacheToSet))
+                if (this.CacheToSet != null)
                 {
-                    if (CacheServerInfo.TryParse(this.CacheToSet, enlistment, config.CacheServers, out cache))
+                    CacheServerInfo cacheServer = cacheServerResolver.ParseUrlOrFriendlyName(this.CacheToSet);
+                    cacheServer = this.ResolveCacheServerUrlIfNeeded(tracer, cacheServer, cacheServerResolver, gvfsConfig);
+
+                    if (!cacheServerResolver.TrySaveUrlToLocalConfig(cacheServer, out error))
                     {
-                        if (!CacheServerInfo.TrySaveToConfig(new GitProcess(enlistment), cache, out error))
-                        {
-                            this.ReportErrorAndExit("Failed to save cache to config: " + error);
-                        }
-                    }
-                    else
-                    {
-                        this.ReportErrorAndExit("Unrecognized or invalid cache name or url: " + this.CacheToSet);
+                        this.ReportErrorAndExit("Failed to save cache to config: " + error);
                     }
 
-                    this.OutputCacheInfo(cache);
                     this.Output.WriteLine("You must remount GVFS for this to take effect.");
                 }
                 else if (this.ListCacheServers)
                 {
-                    if (config.CacheServers.Any())
+                    List<CacheServerInfo> cacheServers = gvfsConfig.CacheServers.ToList();
+
+                    if (cacheServers != null && cacheServers.Any())
                     {
+                        this.Output.WriteLine();
                         this.Output.WriteLine("Available cache servers for: " + enlistment.RepoUrl);
-                        foreach (CacheServerInfo cacheServer in config.CacheServers)
+                        foreach (CacheServerInfo cacheServer in cacheServers)
                         {
-                            this.Output.WriteLine("{0, -25} ({1})", cacheServer.Name, cacheServer.Url);
+                            this.Output.WriteLine(cacheServer);
                         }
                     }
                     else
@@ -88,19 +79,12 @@ namespace GVFS.CommandLine
                 }
                 else
                 {
-                    if (!CacheServerInfo.TryDetermineCacheServer(null, enlistment, config.CacheServers, out cache, out error))
-                    {
-                        this.ReportErrorAndExit(error);
-                    }
+                    string cacheServerUrl = CacheServerResolver.GetUrlFromConfig(enlistment);
+                    CacheServerInfo cacheServer = cacheServerResolver.ResolveNameFromRemote(cacheServerUrl, gvfsConfig);
 
-                    this.OutputCacheInfo(cache);
+                    this.Output.WriteLine("Using cache server: " + cacheServer);
                 }
             }
-        }
-
-        private void OutputCacheInfo(CacheServerInfo cache)
-        {
-            this.Output.WriteLine("Current Cache Server:\t" + cache);
         }
     }
 }

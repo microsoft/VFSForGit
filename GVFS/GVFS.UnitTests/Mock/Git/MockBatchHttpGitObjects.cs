@@ -8,6 +8,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Net;
 using System.Text;
+using System.Threading;
 
 namespace GVFS.UnitTests.Mock.Git
 {
@@ -21,7 +22,7 @@ namespace GVFS.UnitTests.Mock.Git
             this.objectResolver = objectResolver;
         }
 
-        public override List<GitObjectSize> QueryForFileSizes(IEnumerable<string> objectIds)
+        public override List<GitObjectSize> QueryForFileSizes(IEnumerable<string> objectIds, CancellationToken cancellationToken)
         {
             throw new NotImplementedException();
         }
@@ -49,13 +50,6 @@ namespace GVFS.UnitTests.Mock.Git
             bool preferBatchedLooseObjects)
         {
             return this.StreamObjects(objectIds, onSuccess, onFailure);
-        }
-
-        public override RetryWrapper<GitObjectTaskResult>.InvocationResult TryDownloadLooseObject(
-            string objectId,
-            Func<int, GitEndPointResponseData, RetryWrapper<GitObjectTaskResult>.CallbackResult> onSuccess)
-        {
-            throw new NotImplementedException();
         }
 
         private RetryWrapper<GitObjectTaskResult>.InvocationResult StreamObjects(

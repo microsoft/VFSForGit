@@ -1,6 +1,8 @@
-﻿using GVFS.Common.Git;
+﻿using FastFetch.Git;
+using GVFS.Common.Git;
 using GVFS.Tests.Should;
 using GVFS.UnitTests.Mock.Common;
+using GVFS.UnitTests.Mock.FileSystem;
 using GVFS.UnitTests.Mock.Git;
 using NUnit.Framework;
 using System.Collections.Generic;
@@ -43,7 +45,7 @@ namespace GVFS.UnitTests.FastFetch
         public void CanParseDiffForwards()
         {
             MockTracer tracer = new MockTracer();
-            DiffHelper diffForwards = new DiffHelper(tracer, new MockEnlistment(), new List<string>());
+            DiffHelper diffForwards = new DiffHelper(tracer, new MockEnlistment(), new List<string>(), new List<string>());
             diffForwards.ParseDiffFile(GetDataPath("forward.txt"), "xx:\\fakeRepo");
 
             // File added, file edited, file renamed, folder => file, edit-rename file
@@ -69,7 +71,7 @@ namespace GVFS.UnitTests.FastFetch
         public void CanParseBackwardsDiff()
         {
             MockTracer tracer = new MockTracer();
-            DiffHelper diffBackwards = new DiffHelper(tracer, new MockEnlistment(), new List<string>());
+            DiffHelper diffBackwards = new DiffHelper(tracer, new MockEnlistment(), new List<string>(), new List<string>());
             diffBackwards.ParseDiffFile(GetDataPath("backward.txt"), "xx:\\fakeRepo");
 
             // File > folder, deleted file, edited file, renamed file, rename-edit file
@@ -93,7 +95,7 @@ namespace GVFS.UnitTests.FastFetch
         public void ParsesCaseChangesAsAdds()
         {
             MockTracer tracer = new MockTracer();
-            DiffHelper diffBackwards = new DiffHelper(tracer, new MockEnlistment(), new List<string>());
+            DiffHelper diffBackwards = new DiffHelper(tracer, new MockEnlistment(), new List<string>(), new List<string>());
             diffBackwards.ParseDiffFile(GetDataPath("caseChange.txt"), "xx:\\fakeRepo");
             
             diffBackwards.RequiredBlobs.Count.ShouldEqual(2);
@@ -110,10 +112,10 @@ namespace GVFS.UnitTests.FastFetch
         public void DetectsFailuresInDiffTree()
         {
             MockTracer tracer = new MockTracer();
-            MockGitProcess gitProcess = new MockGitProcess();
+            MockGitProcess gitProcess = new MockGitProcess(new ConfigurableFileSystem());
             gitProcess.SetExpectedCommandResult("diff-tree -r -t sha1 sha2", () => new GitProcess.Result(string.Empty, string.Empty, 1));
 
-            DiffHelper diffBackwards = new DiffHelper(tracer, new MockEnlistment(), gitProcess, new List<string>());
+            DiffHelper diffBackwards = new DiffHelper(tracer, new MockEnlistment(), gitProcess, new List<string>(), new List<string>());
             diffBackwards.PerformDiff("sha1", "sha2");
             diffBackwards.HasFailures.ShouldEqual(true);
         }
@@ -122,10 +124,10 @@ namespace GVFS.UnitTests.FastFetch
         public void DetectsFailuresInLsTree()
         {
             MockTracer tracer = new MockTracer();
-            MockGitProcess gitProcess = new MockGitProcess();
+            MockGitProcess gitProcess = new MockGitProcess(new ConfigurableFileSystem());
             gitProcess.SetExpectedCommandResult("ls-tree -r -t sha1", () => new GitProcess.Result(string.Empty, string.Empty, 1));
 
-            DiffHelper diffBackwards = new DiffHelper(tracer, new MockEnlistment(), gitProcess, new List<string>());
+            DiffHelper diffBackwards = new DiffHelper(tracer, new MockEnlistment(), gitProcess, new List<string>(), new List<string>());
             diffBackwards.PerformDiff(null, "sha1");
             diffBackwards.HasFailures.ShouldEqual(true);
         }

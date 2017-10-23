@@ -14,13 +14,10 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
     [TestFixture]
     public class MountTests : TestsWithEnlistmentPerFixture
     {
-        private const int AlwaysExcludeOnDiskVersion = 5;
         private const int GVFSGenericError = 3;
         private const uint GenericRead = 2147483648;
         private const uint FileFlagBackupSemantics = 3355443;
         private const string IndexLockPath = ".git\\index.lock";
-        private const string ExcludePath = ".git\\info\\exclude";
-        private const string AlwaysExcludePath = ".git\\info\\always_exclude";
 
         private FileSystemRunner fileSystem;
 
@@ -55,6 +52,26 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
         }
 
         [TestCase]
+        public void MountSetsCoreHooksPath()
+        {
+            this.Enlistment.UnmountGVFS();
+
+            GitProcess.Invoke(this.Enlistment.RepoRoot, "config --unset core.hookspath");
+            string.IsNullOrWhiteSpace(
+                GitProcess.Invoke(this.Enlistment.RepoRoot, "config core.hookspath"))
+                .ShouldBeTrue();
+
+            this.Enlistment.MountGVFS();
+            string expectedHooksPath = Path.Combine(this.Enlistment.RepoRoot, ".git\\hooks");
+            expectedHooksPath = expectedHooksPath.Replace("\\", "/");
+
+            GitProcess.Invoke(
+                this.Enlistment.RepoRoot, "config core.hookspath")
+                .Trim('\n')
+                .ShouldEqual(expectedHooksPath);
+        }
+
+        [TestCase]
         public void MountCleansStaleIndexLock()
         {
             this.MountCleansIndexLock(lockFileContents: "GVFS");
@@ -82,22 +99,23 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
             int currentVersionNum;
             int.TryParse(currentVersion, out currentVersionNum).ShouldEqual(true);
 
-            // Move the RepoMetadata database to a temp folder
-            string versionDatabasePath = Path.Combine(this.Enlistment.DotGVFSRoot, GVFSHelpers.RepoMetadataDatabaseName);
-            versionDatabasePath.ShouldBeADirectory(this.fileSystem);
+            // Move the RepoMetadata database to a temp file
+            string versionDatabasePath = Path.Combine(this.Enlistment.DotGVFSRoot, GVFSHelpers.RepoMetadataName);
+            versionDatabasePath.ShouldBeAFile(this.fileSystem);
 
             string tempDatabasePath = versionDatabasePath + "_MountFailsWhenNoOnDiskVersion";
             tempDatabasePath.ShouldNotExistOnDisk(this.fileSystem);
 
-            this.fileSystem.MoveDirectory(versionDatabasePath, tempDatabasePath);
+            this.fileSystem.MoveFile(versionDatabasePath, tempDatabasePath);
             versionDatabasePath.ShouldNotExistOnDisk(this.fileSystem);
 
-            this.MountShouldFail("Enlistment disk layout version not found");
+            this.MountShouldFail("Failed to upgrade repo disk layout");
 
             // Move the RepoMetadata database back
-            this.fileSystem.MoveDirectory(tempDatabasePath, versionDatabasePath);
+            this.fileSystem.DeleteFile(versionDatabasePath);
+            this.fileSystem.MoveFile(tempDatabasePath, versionDatabasePath);
             tempDatabasePath.ShouldNotExistOnDisk(this.fileSystem);
-            versionDatabasePath.ShouldBeADirectory(this.fileSystem);
+            versionDatabasePath.ShouldBeAFile(this.fileSystem);
 
             this.Enlistment.MountGVFS();
         }
@@ -160,6 +178,71 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
             }
         }
 
+        [TestCase]
+        public void RepoIsExcludedFromAntiVirus()
+        {
+            bool isExcluded;
+            string error; 
+            this.TryGetIsPathExcluded(this.Enlistment.EnlistmentRoot, out isExcluded, out error).ShouldBeTrue("TryGetIsPathExcluded failed");
+            isExcluded.ShouldBeTrue("Repo should be excluded from antivirus");
+        }
+
+        public bool TryGetIsPathExcluded(string path, out bool isExcluded, out string error)
+        {
+            isExcluded = false;
+            try
+            {
+                string[] exclusions;
+                if (this.TryGetKnownAntiVirusExclusions(out exclusions, out error))
+                {
+                    foreach (string excludedPath in exclusions)
+                    {
+                        if (excludedPath.Trim().Equals(path, StringComparison.OrdinalIgnoreCase))
+                        {
+                            isExcluded = true;
+                            break;
+                        }
+                    }
+
+                    return true;
+                }
+
+                return false;
+            }
+            catch (Exception e)
+            {
+                error = "Unable to get exclusions:" + e.ToString();
+                return false;
+            }
+        }
+
+        private bool TryGetKnownAntiVirusExclusions(out string[] exclusions, out string error)
+        {
+            ProcessStartInfo processInfo = new ProcessStartInfo();
+            processInfo.FileName = "powershell.exe";
+            processInfo.Arguments = "-NonInteractive -NoProfile -Command \"& { Get-MpPreference | Select -ExpandProperty ExclusionPath }\"";
+            processInfo.WindowStyle = ProcessWindowStyle.Hidden;
+            processInfo.CreateNoWindow = true;
+            processInfo.WorkingDirectory = this.Enlistment.EnlistmentRoot;
+            processInfo.UseShellExecute = false;
+            processInfo.RedirectStandardOutput = true;
+
+            ProcessResult getMpPrefrencesResult = ProcessHelper.Run(processInfo);
+
+            // In some cases (like cmdlet not found), the exitCode == 0 but there will be errors and the output will be empty, handle this situation.
+            if (getMpPrefrencesResult.ExitCode != 0 ||
+                (string.IsNullOrEmpty(getMpPrefrencesResult.Output) && !string.IsNullOrEmpty(getMpPrefrencesResult.Errors)))
+            {
+                error = "Error while running PowerShell command to discover Defender exclusions. \n" + getMpPrefrencesResult.Errors;
+                exclusions = null;
+                return false;
+            }
+
+            exclusions = getMpPrefrencesResult.Output.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries);
+            error = null;
+            return true;
+        }
+
         private void MountCleansIndexLock(string lockFileContents)
         {
             this.Enlistment.UnmountGVFS();
@@ -195,7 +278,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
             processInfo.RedirectStandardOutput = true;
 
             ProcessResult result = ProcessHelper.Run(processInfo);
-            result.ExitCode.ShouldEqual(expectedExitCode, $"mount exit code was not {expectedExitCode}");
+            result.ExitCode.ShouldEqual(expectedExitCode, $"mount exit code was not {expectedExitCode}. Output: {result.Output}");
             result.Output.ShouldContain(expectedErrorMessage);
         }
 

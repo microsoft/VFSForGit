@@ -10,7 +10,7 @@ namespace GVFS.Service
         
         private Configuration()
         {
-            this.GVFSMountLocation = Path.Combine(AssemblyPath, GVFSConstants.MountExecutableName);
+            this.GVFSLocation = Path.Combine(AssemblyPath, GVFSConstants.GVFSExecutableName);
             this.GVFSServiceUILocation = Path.Combine(AssemblyPath, GVFSConstants.Service.UIName + GVFSConstants.ExecutableExtension);
         }
 
@@ -34,8 +34,8 @@ namespace GVFS.Service
                 return assemblyPath;
             }
         }
-        
-        public string GVFSMountLocation { get; private set; }
+
+        public string GVFSLocation { get; private set; }
         public string GVFSServiceUILocation { get; private set; }
     }
 }

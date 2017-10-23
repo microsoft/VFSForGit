@@ -16,6 +16,8 @@ namespace GVFS.UnitTests.Mock
             this.length = this.contents.Length;
         }
 
+        public bool TruncateWrites { get; set; }
+
         public override bool CanRead
         {
             get { return true; }
@@ -45,6 +47,25 @@ namespace GVFS.UnitTests.Mock
         public override void Flush()
         {
             // noop
+        }
+        
+        public string ReadAsString()
+        {
+            return Encoding.UTF8.GetString(this.contents, 0, (int)this.length);
+        }
+
+        public string ReadAt(long position, long length)
+        {
+            long lastPosition = this.Position;
+
+            this.Position = position;
+
+            byte[] bytes = new byte[length];
+            this.Read(bytes, 0, (int)length);
+
+            this.Position = lastPosition;
+
+            return Encoding.UTF8.GetString(bytes);
         }
 
         public override int Read(byte[] buffer, int offset, int count)
@@ -103,11 +124,21 @@ namespace GVFS.UnitTests.Mock
                 this.SetLength(this.position + count);
             }
 
+            if (this.TruncateWrites)
+            {
+                count /= 2;
+            }
+
             Array.Copy(buffer, offset, this.contents, this.position, count);
             this.position += count;
             if (this.position > this.length)
             {
                 this.length = this.position;
+            }
+
+            if (this.TruncateWrites)
+            {
+                throw new IOException("Could not complete write");
             }
         }
 

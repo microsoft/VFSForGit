@@ -61,7 +61,7 @@ namespace GVFS.UnitTests.FastFetch
                 tracer,
                 enlistment,
                 httpObjects,
-                new MockPhysicalGitObjects(tracer, enlistment, httpObjects));
+                new MockPhysicalGitObjects(tracer, null, enlistment, httpObjects));
 
             dut.Start();
             dut.WaitForCompletion();

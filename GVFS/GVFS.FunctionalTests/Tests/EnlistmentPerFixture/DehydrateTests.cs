@@ -45,7 +45,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
             this.DehydrateShouldFail("disk layout version doesn't match current version", noStatus: true);
 
             GVFSHelpers.SaveDiskLayoutVersion(this.Enlistment.DotGVFSRoot, (currentVersionNum + 1).ToString());
-            this.DehydrateShouldFail("disk layout version doesn't match current version", noStatus: true);
+            this.DehydrateShouldFail("Changes to GVFS disk layout do not allow mounting after downgrade.", noStatus: true);
 
             GVFSHelpers.SaveDiskLayoutVersion(this.Enlistment.DotGVFSRoot, currentVersionNum.ToString());
 
@@ -55,7 +55,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
         private void DehydrateShouldSucceed(string expectedOutput, bool confirm)
         {
             ProcessResult result = this.RunDehydrateProcess(confirm ? new List<string> { "--confirm" } : new List<string> { });
-            result.ExitCode.ShouldEqual(0, "mount exit code was " + result.ExitCode);
+            result.ExitCode.ShouldEqual(0, $"mount exit code was {result.ExitCode}. Output: {result.Output}");
             result.Output.ShouldContain(expectedOutput);
         }
 

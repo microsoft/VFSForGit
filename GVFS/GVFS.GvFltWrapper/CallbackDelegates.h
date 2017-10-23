@@ -4,13 +4,15 @@
 #include "NtStatus.h"
 #include "WriteBuffer.h"
 
-namespace GvFlt
+namespace GvLib
 {
     /// <summary>Directory is about to be enumerated</summary>
+    /// <param name="commandId">ID that uniquely identifies this command\request</param>
     /// <param name="enumerationId">The Guid value associated with this directory path for a set of enumeration commands</param>
     /// <param name="relativePath">The path (relative to the virtualization root) to be enumerated</param>
     /// <returns>Success if callback succeeded, appropriate error otherwise</returns>
     public delegate NtStatus StartDirectoryEnumerationEvent(
+        long commandId,
         System::Guid enumerationId, 
         System::String^ relativePath);
 
@@ -34,7 +36,7 @@ namespace GvFlt
     ///
     ///     Success        - result set successfully
     ///     NoSuchFile     - No file matches the specified filter.  (Note: NoSuchFile should only be returned when filterFileName is set 
-    ///                      (i.e.non - empty and not '*') and only for the first request for the specified filterFileName)
+    ///                      (i.e. non-empty and not '*') and only for the first request for the specified filterFileName)
     ///     NoMoreFiles    - No more files match the specified filter (or if no filter is set, there are no files)
     ///     BufferOverflow - File name of the next result does not fit in result (i.e. DirectoryEnumerationResult.TrySetFileName failed).
     ///     (Or appropriate error in case of failure)
@@ -59,6 +61,7 @@ namespace GvFlt
     public delegate NtStatus QueryFileNameEvent(System::String^ relativePath);
 
     /// <summary>Request for placeholder information</summary>
+    /// <param name="commandId">ID that uniquely identifies this command\request</param>
     /// <param name="relativePath">The path (relative to the virtualization root) of the file to return information for</param>
     /// <param name="desiredAccess">The requested access to the file or folder.  See CreateFile API on MSDN for the possible values</param>
     /// <param name="shareMode">The requested sharing mode of the file or folder</param>
@@ -71,13 +74,21 @@ namespace GvFlt
     /// </param>
     /// <param name="triggeringProcessId">The PID for the process that triggered this callback</param>
     /// <param name="triggeringProcessImageFileName">The image file name for triggeringProcessId</param>
-    /// <returns>Success if callback succeeded, appropriate error otherwise</returns>
+    /// <returns>
+    ///     - Success if callback succeeded 
+    ///     - Pending if the command will be completed at a later time
+    ///     - Appropriate error otherwise
+    /// </returns>
     /// <remarks>
     /// In this callback, a single call to WritePlaceholderInformation should be made to send all the information 
     /// for creating the placeholder for the filename requested.  Returning from callback signals the GvFlt driver that all 
     /// information needed to create a placeholder was provided to GvFlt by a successful call to WritePlaceholderInformation.
+    ///
+    /// If this callback is being handled asynchrnously, CompleteCommand should be called (passing in commandId) 
+    /// after calling WritePlaceholderInformation to notify GvFlt that processing of this command is complete.
     /// </remarks>
     public delegate NtStatus GetPlaceholderInformationEvent(
+        long commandId,
         System::String^ relativePath,
         unsigned long desiredAccess,
         unsigned long shareMode,
@@ -87,6 +98,7 @@ namespace GvFlt
         System::String^ triggeringProcessImageFileName);
     
     /// <summary>Request for the file stream contents for creating the file stream on disk</summary>
+    /// <param name="commandId">ID that uniquely identifies this command\request</param>
     /// <param name="relativePath">
     /// The path (relative to the virtualization root) of the file to return file contents for.  If a file
     /// has been renamed or moved, relativePath will be its original path (prior to move\rename).
@@ -107,6 +119,7 @@ namespace GvFlt
     /// Returning from the callback signals the GvFlt driver that all file stream content has been provided to GvFlt by a successful call to WriteFile.
     /// </remarks>
     public delegate NtStatus GetFileStreamEvent(
+        long commandId,
         System::String^ relativePath,
         long long byteOffset,
         unsigned long length,
@@ -284,4 +297,9 @@ namespace GvFlt
         bool isDirectory,
         bool fileModified, 
         bool fileDeleted);
+
+
+    /// <summary>Notification that the provider should complete the specified command as cancelled</summary>
+    /// <param name="commandId">ID that uniquely identifies this command\request</param>
+    public delegate void CancelCommandEvent(long commandId);
 }

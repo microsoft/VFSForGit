@@ -15,7 +15,7 @@ namespace GVFS.UnitTests.Common
         [TestCase]
         public void EventsAreFilteredByVerbosity()
         {
-            using (JsonEtwTracer tracer = new JsonEtwTracer("Microsoft-GVFS-Test", "EventsAreFilteredByVerbosity1"))
+            using (JsonEtwTracer tracer = new JsonEtwTracer("Microsoft-GVFS-Test", "EventsAreFilteredByVerbosity1", useCriticalTelemetryFlag: false))
             using (MockListener listener = new MockListener(EventLevel.Informational, Keywords.Any))
             {
                 tracer.AddInProcEventListener(listener);
@@ -27,7 +27,7 @@ namespace GVFS.UnitTests.Common
                 listener.EventNamesRead.ShouldNotContain(name => name.Equals("ShouldNotReceive"));
             }
 
-            using (JsonEtwTracer tracer = new JsonEtwTracer("Microsoft-GVFS-Test", "EventsAreFilteredByVerbosity2"))
+            using (JsonEtwTracer tracer = new JsonEtwTracer("Microsoft-GVFS-Test", "EventsAreFilteredByVerbosity2", useCriticalTelemetryFlag: false))
             using (MockListener listener = new MockListener(EventLevel.Verbose, Keywords.Any))
             {
                 tracer.AddInProcEventListener(listener);
@@ -44,7 +44,7 @@ namespace GVFS.UnitTests.Common
         public void EventsAreFilteredByKeyword()
         {
             // Network filters all but network out
-            using (JsonEtwTracer tracer = new JsonEtwTracer("Microsoft-GVFS-Test", "EventsAreFilteredByKeyword1"))
+            using (JsonEtwTracer tracer = new JsonEtwTracer("Microsoft-GVFS-Test", "EventsAreFilteredByKeyword1", useCriticalTelemetryFlag: false))
             using (MockListener listener = new MockListener(EventLevel.Verbose, Keywords.Network))
             {
                 tracer.AddInProcEventListener(listener);
@@ -57,7 +57,7 @@ namespace GVFS.UnitTests.Common
             }
 
             // Any filters nothing out
-            using (JsonEtwTracer tracer = new JsonEtwTracer("Microsoft-GVFS-Test", "EventsAreFilteredByKeyword2"))
+            using (JsonEtwTracer tracer = new JsonEtwTracer("Microsoft-GVFS-Test", "EventsAreFilteredByKeyword2", useCriticalTelemetryFlag: false))
             using (MockListener listener = new MockListener(EventLevel.Verbose, Keywords.Any))
             {
                 tracer.AddInProcEventListener(listener);
@@ -70,7 +70,7 @@ namespace GVFS.UnitTests.Common
             }
              
             // None filters everything out (including events marked as none)
-            using (JsonEtwTracer tracer = new JsonEtwTracer("Microsoft-GVFS-Test", "EventsAreFilteredByKeyword3"))
+            using (JsonEtwTracer tracer = new JsonEtwTracer("Microsoft-GVFS-Test", "EventsAreFilteredByKeyword3", useCriticalTelemetryFlag: false))
             using (MockListener listener = new MockListener(EventLevel.Verbose, Keywords.None))
             {
                 tracer.AddInProcEventListener(listener);

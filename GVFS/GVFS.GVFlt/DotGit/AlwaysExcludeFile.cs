@@ -1,10 +1,11 @@
 ﻿using GVFS.Common;
+using GVFS.Common.Git;
 using GVFS.Common.Tracing;
 using System;
 using System.Collections.Generic;
+using System.ComponentModel;
 using System.IO;
 using System.Text;
-using GVFS.Common.Git;
 
 namespace GVFS.GVFlt.DotGit
 {
@@ -12,12 +13,15 @@ namespace GVFS.GVFlt.DotGit
     {
         private const string DefaultEntry = "*";
         private HashSet<string> entries;
+        private HashSet<string> entriesToRemove;
         private FileSerializer fileSerializer;
         private GVFSContext context;
 
         public AlwaysExcludeFile(GVFSContext context, string virtualAlwaysExcludeFilePath)
         {
             this.entries = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            this.entriesToRemove = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
             this.fileSerializer = new FileSerializer(context, virtualAlwaysExcludeFilePath);
             this.context = context;
         }
@@ -41,62 +45,110 @@ namespace GVFS.GVFlt.DotGit
             }
         }
 
-        public void Close()
+        public CallbackResult FlushAndClose()
         {
+            if (this.entriesToRemove.Count > 0)
+            {
+                foreach (string entry in this.entriesToRemove)
+                {
+                    this.entries.Remove(entry);
+                }
+
+                try
+                {
+                    this.fileSerializer.ReplaceFile(this.entries);
+                }
+                catch (IOException e)
+                {
+                    return this.ReportException(e, null, isRetryable: true);
+                }
+                catch (Win32Exception e)
+                {
+                    return this.ReportException(e, null, isRetryable: true);
+                }
+                catch (Exception e)
+                {
+                    return this.ReportException(e, null, isRetryable: false);
+                }
+
+                this.entriesToRemove.Clear();
+            }
+
             this.fileSerializer.Close();
+            return CallbackResult.Success;
         }
 
-        public CallbackResult AddEntriesForFileOrFolder(string virtualPath, bool isFolder)
+        public CallbackResult AddEntriesForFile(string virtualPath)
         {
             try
             {
                 string[] pathParts = virtualPath.Split(new char[] { GVFSConstants.PathSeparator }, StringSplitOptions.RemoveEmptyEntries);
-                int numberOfPathPartsToUse = pathParts.Length;
-                if (!isFolder)
+                StringBuilder path = new StringBuilder("!" + GVFSConstants.GitPathSeparatorString, virtualPath.Length + 2);
+                for (int i = 0; i < pathParts.Length; i++)
                 {
-                    // Don't need an entry for the file since only folders are in the always_exclude
-                    numberOfPathPartsToUse -= 1;
-                }
+                    path.Append(pathParts[i]);
+                    if (i < pathParts.Length - 1)
+                    {
+                        path.Append(GVFSConstants.GitPathSeparator);
+                    }
 
-                StringBuilder path = new StringBuilder("!");
-                for (int i = 0; i < numberOfPathPartsToUse; i++)
-                {
-                    path.Append(GVFSConstants.GitPathSeparatorString + pathParts[i]);
                     string entry = path.ToString();
                     if (this.entries.Add(entry))
                     {
                         this.fileSerializer.AppendLine(entry);
                     }
-                }
 
-                string finalEntry = path.ToString() + GVFSConstants.GitPathSeparatorString + "*";
-                if (this.entries.Add(finalEntry))
-                {
-                    this.fileSerializer.AppendLine(finalEntry);
+                    this.entriesToRemove.Remove(entry);
                 }
             }
             catch (IOException e)
             {
-                EventMetadata metadata = new EventMetadata();
-                metadata.Add("Area", "AlwaysExcludeFile");
-                metadata.Add("virtualPath", virtualPath);
-                metadata.Add("Exception", e.ToString());
-                metadata.Add("ErrorMessage", "IOException caught while processing FolderChanged");
-                this.context.Tracer.RelatedError(metadata);
-                return CallbackResult.RetryableError;
+                return this.ReportException(e, virtualPath, isRetryable: true);
             }
             catch (Exception e)
             {
-                EventMetadata metadata = new EventMetadata();
-                metadata.Add("Area", "AlwaysExcludeFile");
-                metadata.Add("virtualPath", virtualPath);
-                metadata.Add("Exception", e.ToString());
-                metadata.Add("ErrorMessage", "Exception caught while processing FolderChanged");
-                this.context.Tracer.RelatedError(metadata);
-                return CallbackResult.FatalError;
+                return this.ReportException(e, virtualPath, isRetryable: false);
             }
 
             return CallbackResult.Success;
+        }
+
+        public CallbackResult RemoveEntriesForFiles(List<string> virtualPaths)
+        {
+            foreach (string virtualPath in virtualPaths)
+            {
+                string entry = virtualPath.Replace(GVFSConstants.PathSeparator, GVFSConstants.GitPathSeparator);
+                entry = "!" + GVFSConstants.GitPathSeparatorString + entry;
+                this.entriesToRemove.Add(entry);
+            }
+
+            return CallbackResult.Success;
+        }
+
+        private CallbackResult ReportException(
+            Exception e,
+            string virtualPath,
+            bool isRetryable,
+            [System.Runtime.CompilerServices.CallerMemberName] string functionName = "")
+        {
+            EventMetadata metadata = new EventMetadata();
+            metadata.Add("Area", "AlwaysExcludeFile");
+            if (virtualPath != null)
+            {
+                metadata.Add("virtualPath", virtualPath);
+            }
+
+            metadata.Add("Exception", e.ToString());
+            if (isRetryable)
+            {
+                this.context.Tracer.RelatedWarning(metadata, e.GetType().ToString() + " caught while processing " + functionName);
+                return CallbackResult.RetryableError;
+            }
+            else
+            {
+                this.context.Tracer.RelatedError(metadata, e.GetType().ToString() + " caught while processing " + functionName);
+                return CallbackResult.FatalError;
+            }
         }
     }
 }

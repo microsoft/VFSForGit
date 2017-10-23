@@ -8,25 +8,6 @@ namespace GVFS.FunctionalTests.FileSystemRunners
 {
     public class SystemIORunner : FileSystemRunner
     {
-        public static void RecursiveDelete(string path)
-        {
-            DirectoryInfo directory = new DirectoryInfo(path);
-
-            foreach (FileInfo file in directory.GetFiles())
-            {
-                file.Attributes = FileAttributes.Normal;
-
-                RetryOnException(() => file.Delete());
-            }
-
-            foreach (DirectoryInfo subDirectory in directory.GetDirectories())
-            {
-                SystemIORunner.RecursiveDelete(subDirectory.FullName);
-            }
-
-            RetryOnException(() => directory.Delete());
-        }
-
         public override bool FileExists(string path)
         {
             return File.Exists(path);
@@ -150,7 +131,21 @@ namespace GVFS.FunctionalTests.FileSystemRunners
 
         public override string DeleteDirectory(string path)
         {
-            SystemIORunner.RecursiveDelete(path);
+            DirectoryInfo directory = new DirectoryInfo(path);
+
+            foreach (FileInfo file in directory.GetFiles())
+            {
+                file.Attributes = FileAttributes.Normal;
+
+                RetryOnException(() => file.Delete());
+            }
+
+            foreach (DirectoryInfo subDirectory in directory.GetDirectories())
+            {
+                this.DeleteDirectory(subDirectory.FullName);
+            }
+
+            RetryOnException(() => directory.Delete());
             return string.Empty;
         }
 

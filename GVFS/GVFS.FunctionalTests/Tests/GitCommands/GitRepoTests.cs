@@ -112,7 +112,7 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
         protected void CreateEnlistment(string commitish = null)
         {
             string pathToGvfs = Path.Combine(TestContext.CurrentContext.TestDirectory, Properties.Settings.Default.PathToGVFS);
-            this.Enlistment = GVFSFunctionalTestEnlistment.CloneAndMount(pathToGvfs, commitish);
+            this.Enlistment = GVFSFunctionalTestEnlistment.CloneAndMount(pathToGvfs, commitish: commitish);
             GitProcess.Invoke(this.Enlistment.RepoRoot, "config advice.statusUoption false");
             this.ControlGitRepo = ControlGitRepo.Create(commitish);
             this.ControlGitRepo.Initialize();

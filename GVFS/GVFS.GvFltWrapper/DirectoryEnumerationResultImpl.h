@@ -2,10 +2,10 @@
 
 #include "DirectoryEnumerationResult.h"
 
-namespace GvFlt
+namespace GvLib
 {
     template<class NativeEnumerationDataStruct>
-    public ref class DirectoryEnumerationResultImpl : public DirectoryEnumerationResult
+    private ref class DirectoryEnumerationResultImpl : public DirectoryEnumerationResult
     {
     public:
         DirectoryEnumerationResultImpl(NativeEnumerationDataStruct* enumerationData, unsigned long maxEnumerationDataLength);

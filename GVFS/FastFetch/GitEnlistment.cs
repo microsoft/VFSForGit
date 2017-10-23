@@ -8,14 +8,19 @@ namespace FastFetch
     {
         private GitEnlistment(string repoRoot, string gitBinPath)
             : base(
-                  repoRoot, 
                   repoRoot,
-                  Path.Combine(repoRoot, GVFSConstants.DotGit.Objects.Root),
+                  repoRoot,
                   null,
-                  gitBinPath, 
+                  gitBinPath,
                   gvfsHooksRoot: null)
         {
+            this.GitObjectsRoot = Path.Combine(repoRoot, GVFSConstants.DotGit.Objects.Root);
+            this.GitPackRoot = Path.Combine(this.GitObjectsRoot, GVFSConstants.DotGit.Objects.Pack.Name);
         }
+
+        public override string GitObjectsRoot { get; }
+
+        public override string GitPackRoot { get; }
 
         public string FastFetchLogRoot
         {

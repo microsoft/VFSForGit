@@ -2,6 +2,7 @@
 using GVFS.Tests.Should;
 using NUnit.Framework;
 using System.IO;
+using System.Linq;
 
 namespace GVFS.FunctionalTests.Tests.EnlistmentPerTestCase
 {
@@ -63,6 +64,67 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerTestCase
             File.Delete(gitIndexPath);
 
             this.Enlistment.TryMountGVFS().ShouldEqual(false, "GVFS shouldn't mount when git index is missing");
+
+            this.Enlistment.Repair();
+
+            this.Enlistment.MountGVFS();
+        }
+
+        [TestCase]
+        public void FixesGitIndexCorruptedWithBadData()
+        {
+            this.Enlistment.UnmountGVFS();
+
+            string gitIndexPath = Path.Combine(this.Enlistment.RepoRoot, ".git", "index");
+            File.WriteAllText(gitIndexPath, "BAD_INDEX");
+
+            string output;
+            this.Enlistment.TryMountGVFS(out output).ShouldEqual(false, "GVFS shouldn't mount when index is corrupt");
+            output.ShouldContain("Index validation failed");
+
+            this.Enlistment.Repair();
+
+            this.Enlistment.MountGVFS();
+        }
+
+        [TestCase]
+        public void FixesGitIndexContainingAllNulls()
+        {
+            this.Enlistment.UnmountGVFS();
+
+            string gitIndexPath = Path.Combine(this.Enlistment.RepoRoot, ".git", "index");
+
+            // Set the contents of the index file to gitIndexPath NULL
+            FileInfo indexFileInfo = new FileInfo(gitIndexPath);
+            File.WriteAllBytes(gitIndexPath, Enumerable.Repeat<byte>(0, (int)indexFileInfo.Length).ToArray());
+
+            string output;
+            this.Enlistment.TryMountGVFS(out output).ShouldEqual(false, "GVFS shouldn't mount when index is corrupt");
+            output.ShouldContain("Index validation failed");
+
+            this.Enlistment.Repair();
+
+            this.Enlistment.MountGVFS();
+        }
+
+        [TestCase]
+        public void FixesGitIndexCorruptedByTruncation()
+        {
+            this.Enlistment.UnmountGVFS();
+
+            string gitIndexPath = Path.Combine(this.Enlistment.RepoRoot, ".git", "index");
+
+            // Truncate the contents of the index
+            FileInfo indexFileInfo = new FileInfo(gitIndexPath);
+            using (FileStream indexStream = new FileStream(gitIndexPath, FileMode.Open))
+            {
+                // 20 will truncate the file in the middle of the first entry in the index
+                indexStream.SetLength(20);
+            }
+
+            string output;
+            this.Enlistment.TryMountGVFS(out output).ShouldEqual(false, "GVFS shouldn't mount when index is corrupt");
+            output.ShouldContain("Index validation failed");
 
             this.Enlistment.Repair();
 

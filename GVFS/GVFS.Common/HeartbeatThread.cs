@@ -64,8 +64,7 @@ namespace GVFS.Common
                 EventMetadata metadata = new EventMetadata();
                 metadata.Add("Area", "HeartbeatThread");
                 metadata.Add("Exception", e.ToString());
-                metadata.Add("ErrorMessage", "Swallowing unhandled exception in EmitHeartbeat");
-                this.tracer.RelatedError(metadata);
+                this.tracer.RelatedWarning(metadata, "Swallowing unhandled exception in EmitHeartbeat", Keywords.Telemetry);
             }
         }
     }

@@ -6,7 +6,6 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
-using System.Threading;
 
 namespace GVFS.Hooks
 {
@@ -24,7 +23,7 @@ namespace GVFS.Hooks
         private static string enlistmentRoot;
         private static string enlistmentPipename;
 
-        private delegate void LockRequestDelegate(string fullcommand, int pid, Process parentProcess, NamedPipeClient pipeClient);
+        private delegate void LockRequestDelegate(bool unattended, string fullcommand, int pid, Process parentProcess, NamedPipeClient pipeClient);
 
         public static void Main(string[] args)
         {
@@ -32,8 +31,10 @@ namespace GVFS.Hooks
             {
                 if (args.Length < 2)
                 {
-                    ExitWithError("Usage: gvfs.hooks <hook> <git verb> [<other arguments>]");
+                    ExitWithError("Usage: gvfs.hooks.exe --git-pid=<pid> <hook> <git verb> [<other arguments>]");
                 }
+
+                bool unattended = GVFSEnlistment.IsUnattended(tracer: null);
 
                 enlistmentRoot = Paths.GetGVFSEnlistmentRoot(Environment.CurrentDirectory);
                 if (string.IsNullOrEmpty(enlistmentRoot))
@@ -49,12 +50,12 @@ namespace GVFS.Hooks
                 {
                     case PreCommandHook:
                         CheckForLegalCommands(args);
-                        RunLockRequest(args, AcquireGVFSLockForProcess);
+                        RunLockRequest(args, unattended, AcquireGVFSLockForProcess);
                         RunPreCommands(args);
                         break;
 
                     case PostCommandHook:
-                        RunLockRequest(args, ReleaseGVFSLock);
+                        RunLockRequest(args, unattended, ReleaseGVFSLock);
                         break;
 
                     default:
@@ -175,7 +176,7 @@ namespace GVFS.Hooks
                 configSettings.ContainsKey(expectedSetting);
         }
 
-        private static void RunLockRequest(string[] args, LockRequestDelegate requestToRun)
+        private static void RunLockRequest(string[] args, bool unattended, LockRequestDelegate requestToRun)
         { 
             try
             {
@@ -198,7 +199,7 @@ namespace GVFS.Hooks
                             ExitWithError("GVFS.Hooks: Unable to find parent git.exe process " + "(PID: " + pid + ").");
                         }
 
-                        requestToRun(fullCommand, pid, parentProcess, pipeClient);
+                        requestToRun(unattended, fullCommand, pid, parentProcess, pipeClient);
                     }
                 }
             }
@@ -231,27 +232,31 @@ namespace GVFS.Hooks
             return Program.InvalidProcessId;
         }
 
-        private static void AcquireGVFSLockForProcess(string fullCommand, int pid, Process parentProcess, NamedPipeClient pipeClient)
+        private static void AcquireGVFSLockForProcess(bool unattended, string fullCommand, int pid, Process parentProcess, NamedPipeClient pipeClient)
         {
             string result;
             if (!GVFSLock.TryAcquireGVFSLockForProcess(
-                 pipeClient, 
-                 fullCommand, 
-                 pid, 
-                 parentProcess, 
-                 null, // gvfsEnlistmentRoot
-                 out result))
+                    unattended,
+                    pipeClient, 
+                    fullCommand, 
+                    pid, 
+                    ProcessHelper.IsAdminElevated(),
+                    parentProcess, 
+                    null, // gvfsEnlistmentRoot
+                    out result))
             {
                 ExitWithError(result);
             }
         }
 
-        private static void ReleaseGVFSLock(string fullCommand, int pid, Process parentProcess, NamedPipeClient pipeClient)
+        private static void ReleaseGVFSLock(bool unattended, string fullCommand, int pid, Process parentProcess, NamedPipeClient pipeClient)
         {
             GVFSLock.ReleaseGVFSLock(
+                unattended,
                 pipeClient,
                 fullCommand,
                 pid,
+                ProcessHelper.IsAdminElevated(),
                 parentProcess,
                 response =>
                 {

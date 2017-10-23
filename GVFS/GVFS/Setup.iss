@@ -10,7 +10,6 @@
 #define MyAppURL "https://github.com/Microsoft/gvfs"
 #define MyAppExeName "GVFS.exe"
 #define EnvironmentKey "SYSTEM\CurrentControlSet\Control\Session Manager\Environment"
-#define GvFltParametersKey "SYSTEM\CurrentControlSet\Services\Gvflt\Parameters"
 
 #define GVFltRelative "..\..\..\..\..\packages\" + GvFltPackage + "\filter" 
 #define GVFSCommonRelative "..\..\..\..\GVFS.Common\bin"
@@ -109,7 +108,7 @@ DestDir: "{app}"; Flags: ignoreversion; Source:"Esent.Interop.dll"
 DestDir: "{app}"; Flags: ignoreversion; Source:"Esent.Isam.dll"
 DestDir: "{app}"; Flags: ignoreversion; Source:"GVFS.Common.dll"
 DestDir: "{app}"; Flags: ignoreversion; Source:"GVFS.GVFlt.dll"
-DestDir: "{app}"; Flags: ignoreversion; Source:"GvFlt.dll"
+DestDir: "{app}"; Flags: ignoreversion; Source:"GvLib.Managed.dll"
 DestDir: "{app}"; Flags: ignoreversion; Source:"GvLib.dll"
 DestDir: "{app}"; Flags: ignoreversion; Source:"Microsoft.Diagnostics.Tracing.EventSource.dll"
 DestDir: "{app}"; Flags: ignoreversion; Source:"Newtonsoft.Json.dll"
@@ -282,10 +281,7 @@ begin
     // Note: Programatic install of INF notifies user if the driver being upgraded to is older than the existing, otherwise it works silently... doesn't seem like there is a way to block
     if Exec(ExpandConstant('RUNDLL32.EXE'), ExpandConstant('SETUPAPI.DLL,InstallHinfSection DefaultInstall 128 {app}\Filter\gvflt.inf'), '', SW_HIDE, ewWaitUntilTerminated, ResultCode) then
       begin
-        if RegWriteDWordValue(HKEY_LOCAL_MACHINE, '{#GvFltParametersKey}', 'CommandTimeoutInMs', 86400000) then
-          begin
-            InstallSuccessful := True;
-          end;
+        InstallSuccessful := True;
       end;
   finally
     WizardForm.StatusLabel.Caption := StatusText;

@@ -7,13 +7,13 @@ namespace GVFS.FunctionalTests.Tools
     {
         private readonly string pathToGVFS;
         private readonly string enlistmentRoot;
-
+        
         public GVFSProcess(string pathToGVFS, string enlistmentRoot)
         {
             this.pathToGVFS = pathToGVFS;
             this.enlistmentRoot = enlistmentRoot;
         }
-
+        
         public void Clone(string repositorySource, string branchToCheckout)
         {
             string args = string.Format(
@@ -39,16 +39,9 @@ namespace GVFS.FunctionalTests.Tools
             return this.IsEnlistmentMounted();
         }
 
-        public string Prefetch(string folderPath)
+        public string Prefetch(string args)
         {
-            string args = "prefetch --verbose --folders \"" + folderPath + "\" " + this.enlistmentRoot;
-            return this.CallGVFS(args);
-        }
-
-        public string PrefetchFolderBasedOnFile(string filterFilePath)
-        {
-            string args = "prefetch --verbose --folders-list \"" + filterFilePath + "\" " + this.enlistmentRoot;
-            return this.CallGVFS(args);
+            return this.CallGVFS("prefetch " + this.enlistmentRoot + " " + args);
         }
 
         public void Repair()

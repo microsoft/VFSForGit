@@ -41,8 +41,9 @@
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
   </PropertyGroup>
   <ItemGroup>
-    <Reference Include="CommandLine">
-      <HintPath>..\..\..\packages\CommandLineParser.2.0.275-beta\lib\net45\CommandLine.dll</HintPath>
+    <Reference Include="CommandLine, Version=2.0.275.0, Culture=neutral, PublicKeyToken=de6f01bd326f8c32, processorArchitecture=MSIL">
+      <SpecificVersion>False</SpecificVersion>
+      <HintPath>..\..\..\packages\CommandLineParser.2.1.1-beta\lib\net45\CommandLine.dll</HintPath>
       <Private>True</Private>
     </Reference>
     <Reference Include="Esent.Collections, Version=1.9.4.0, Culture=neutral, PublicKeyToken=31bf3856ad364e35, processorArchitecture=MSIL">
@@ -85,6 +86,9 @@
     <Compile Include="CommandLine\CloneVerb.cs" />
     <Compile Include="CommandLine\DehydrateVerb.cs" />
     <Compile Include="CommandLine\DiagnoseVerb.cs" />
+    <Compile Include="CommandLine\DiskLayoutUpgrades\DiskLayout10to11Upgrade.cs" />
+    <Compile Include="CommandLine\DiskLayoutUpgrades\DiskLayout7to8Upgrade.cs" />
+    <Compile Include="CommandLine\DiskLayoutUpgrades\DiskLayout9to10Upgrade.cs" />
     <Compile Include="CommandLine\GVFSVerb.cs" />
     <Compile Include="CommandLine\HooksInstaller.cs" />
     <Compile Include="CommandLine\LogVerb.cs" />
@@ -101,6 +105,8 @@
     <Compile Include="CommandLine\RepairVerb.cs" />
     <Compile Include="CommandLine\StatusVerb.cs" />
     <Compile Include="CommandLine\UnmountVerb.cs" />
+    <Compile Include="CommandLine\DiskLayoutUpgrades\DiskLayout8to9Upgrade.cs" />
+    <Compile Include="CommandLine\DiskLayoutUpgrades\DiskLayoutUpgrade.cs" />
     <Compile Include="Program.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
   </ItemGroup>
@@ -123,9 +129,9 @@
       <Project>{374bf1e5-0b2d-4d4a-bd5e-4212299def09}</Project>
       <Name>GVFS.Common</Name>
     </ProjectReference>
-    <ProjectReference Include="..\GVFS.GvFltWrapper\GvFlt.vcxproj">
+    <ProjectReference Include="..\GVFS.GvFltWrapper\GvLib.vcxproj">
       <Project>{fb0831ae-9997-401b-b31f-3a065fdbeb20}</Project>
-      <Name>GvFlt</Name>
+      <Name>GvLib.Managed</Name>
     </ProjectReference>
     <ProjectReference Include="..\GVFS.GVFlt\GVFS.GVFlt.csproj">
       <Project>{1118b427-7063-422f-83b9-5023c8ec5a7a}</Project>
@@ -150,8 +156,8 @@
   <PropertyGroup>
     <PostBuildEvent>xcopy /Y $(SolutionDir)..\BuildOutput\GVFS.ReadObjectHook\bin\$(Platform)\$(Configuration)\GVFS.ReadObjectHook.* $(TargetDir)
 xcopy /Y $(SolutionDir)..\BuildOutput\GVFS.Hooks\bin\$(Platform)\$(Configuration)\GVFS.Hooks.* $(TargetDir)
-xcopy /Y $(SolutionDir)..\BuildOutput\GitHooksLoader\bin\$(Platform)\$(Configuration)\GitHooksLoader.* $(TargetDir)    
-cmd /c ""c:\Program Files (x86)\Inno Setup 5\ISCC.exe" "/DPlatformAndConfiguration=$(Platform)\$(Configuration)" /DGvFltPackage="$(GvFltPackage)" $(TargetDir)Setup.iss"</PostBuildEvent>
+xcopy /Y $(SolutionDir)..\BuildOutput\GitHooksLoader\bin\$(Platform)\$(Configuration)\GitHooksLoader.* $(TargetDir)
+cmd /c ""c:\Program Files (x86)\Inno Setup 5\ISCC.exe" /DPlatformAndConfiguration="$(Platform)\$(Configuration)" /DGvFltPackage="$(GvFltPackage)" $(TargetDir)Setup.iss"</PostBuildEvent>
   </PropertyGroup>
   <Import Project="..\..\..\packages\StyleCop.Error.MSBuild.1.0.0\build\StyleCop.Error.MSBuild.Targets" Condition="Exists('..\..\..\packages\StyleCop.Error.MSBuild.1.0.0\build\StyleCop.Error.MSBuild.Targets')" />
   <Import Project="..\..\..\packages\StyleCop.MSBuild.4.7.54.0\build\StyleCop.MSBuild.Targets" Condition="Exists('..\..\..\packages\StyleCop.MSBuild.4.7.54.0\build\StyleCop.MSBuild.Targets')" />

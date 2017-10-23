@@ -22,12 +22,12 @@ namespace GVFS.Common.Tracing
         private EventLevel startStopLevel;
         private Keywords startStopKeywords;
 
-        public JsonEtwTracer(string providerName, string activityName)
-            : this(providerName, Guid.Empty, activityName)
+        public JsonEtwTracer(string providerName, string activityName, bool useCriticalTelemetryFlag = true)
+            : this(providerName, Guid.Empty, activityName, useCriticalTelemetryFlag)
         {
         }
 
-        public JsonEtwTracer(string providerName, Guid providerActivityId, string activityName)
+        public JsonEtwTracer(string providerName, Guid providerActivityId, string activityName, bool useCriticalTelemetryFlag = true)
             : this(
                   new List<InProcEventListener>(),
                   providerActivityId,
@@ -46,6 +46,14 @@ namespace GVFS.Common.Tracing
             this.startStopKeywords = startStopKeywords;
 
             this.activityId = Guid.NewGuid();
+        }
+
+        public bool HasLogFileEventListener
+        {
+            get
+            {
+                return this.listeners.Any(listener => listener is LogFileEventListener);
+            }
         }
 
         public void AddInProcEventListener(InProcEventListener listener)
@@ -97,25 +105,47 @@ namespace GVFS.Common.Tracing
         public virtual void RelatedInfo(string format, params object[] args)
         {
             EventMetadata metadata = new EventMetadata();
-            metadata.Add("Message", string.Format(format, args));
+            metadata.Add(TracingConstants.MessageKey.InfoMessage, string.Format(format, args));
             this.RelatedEvent(EventLevel.Informational, "Information", metadata);
         }
-
-        public virtual void RelatedError(EventMetadata metadata)
+        
+        public virtual void RelatedWarning(EventMetadata metadata, string message)
         {
-            this.RelatedError(metadata, Keywords.Telemetry);
+            this.RelatedWarning(metadata, message, Keywords.None);
         }
 
-        public virtual void RelatedError(EventMetadata metadata, Keywords keywords)
+        public virtual void RelatedWarning(EventMetadata metadata, string message, Keywords keywords)
         {
+            metadata[TracingConstants.MessageKey.WarningMessage] = message;
+            this.RelatedEvent(EventLevel.Warning, "Warning", metadata, keywords);
+        }
+
+        public virtual void RelatedWarning(string message)
+        {
+            EventMetadata metadata = new EventMetadata();            
+            this.RelatedWarning(metadata, message);
+        }
+
+        public virtual void RelatedWarning(string format, params object[] args)
+        {
+            this.RelatedWarning(string.Format(format, args));
+        }
+
+        public virtual void RelatedError(EventMetadata metadata, string message)
+        {
+            this.RelatedError(metadata, message, Keywords.Telemetry);
+        }
+
+        public virtual void RelatedError(EventMetadata metadata, string message, Keywords keywords)
+        {
+            metadata[TracingConstants.MessageKey.ErrorMessage] = message;
             this.RelatedEvent(EventLevel.Error, GetCategorizedErrorEventName(keywords), metadata, keywords | Keywords.Telemetry);
         }
 
         public virtual void RelatedError(string message)
         {
             EventMetadata metadata = new EventMetadata();
-            metadata.Add("ErrorMessage", message);
-            this.RelatedError(metadata);
+            this.RelatedError(metadata, message);
         }
 
         public virtual void RelatedError(string format, params object[] args)
@@ -161,6 +191,7 @@ namespace GVFS.Common.Tracing
             string enlistmentRoot,
             string repoUrl,
             string cacheServerUrl,
+            string gitObjectsRoot,
             EventMetadata additionalMetadata = null)
         {
             EventMetadata metadata = new EventMetadata();
@@ -181,6 +212,11 @@ namespace GVFS.Common.Tracing
             {
                 // Changing this key to CacheServerUrl will mess with our telemetry, so it stays for historical reasons
                 metadata.Add("ObjectsEndpoint", Uri.EscapeUriString(cacheServerUrl));
+            }
+
+            if (gitObjectsRoot != null)
+            {
+                metadata.Add("GitObjectsRoot", gitObjectsRoot);
             }
 
             if (additionalMetadata != null)

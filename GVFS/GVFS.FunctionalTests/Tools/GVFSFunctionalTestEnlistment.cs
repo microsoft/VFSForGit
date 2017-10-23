@@ -14,22 +14,27 @@ namespace GVFS.FunctionalTests.Tools
         private const int DefaultMaxWaitMSForStatusCheck = 5000;
 
         private GVFSProcess gvfsProcess;
-
+        
         private GVFSFunctionalTestEnlistment(string pathToGVFS, string enlistmentRoot, string repoUrl, string commitish)
         {
-            this.EnlistmentRoot = Path.Combine(enlistmentRoot, Guid.NewGuid().ToString("N"));
+            this.EnlistmentRoot = enlistmentRoot;
             this.RepoUrl = repoUrl;
-            this.Commitish = commitish;
-
+            this.Commitish = commitish;           
             this.gvfsProcess = new GVFSProcess(pathToGVFS, this.EnlistmentRoot);
+            this.ObjectRoot = Path.Combine(this.DotGVFSRoot, "gitObjectCache");
         }
-
+        
         public string EnlistmentRoot
         {
             get; private set;
         }
 
         public string RepoUrl
+        {
+            get; private set;
+        }
+        
+        public string ObjectRoot
         {
             get; private set;
         }
@@ -59,66 +64,27 @@ namespace GVFS.FunctionalTests.Tools
             get; private set;
         }
 
+        public static string GetUniqueEnlistmentRoot()
+        {
+            return Path.Combine(Properties.Settings.Default.EnlistmentRoot, Guid.NewGuid().ToString("N"));
+        }
+
         public static GVFSFunctionalTestEnlistment CloneAndMount(string pathToGvfs, string commitish = null)
         {
-            GVFSFunctionalTestEnlistment enlistment = new GVFSFunctionalTestEnlistment(
-                pathToGvfs,
-                Properties.Settings.Default.EnlistmentRoot,
-                Properties.Settings.Default.RepoToClone,
-                commitish == null ? Properties.Settings.Default.Commitish : commitish);
-
-            try
-            {
-                enlistment.UnmountAndDeleteAll();
-                enlistment.CloneAndMount();
-            }
-            catch (Exception e)
-            {
-                Console.WriteLine("Unhandled exception in CloneAndMount: " + e.ToString());
-                TestResultsHelper.OutputGVFSLogs(enlistment);
-                throw;
-            }
-
-            return enlistment;
+            string enlistmentRoot = GVFSFunctionalTestEnlistment.GetUniqueEnlistmentRoot();
+            return CloneAndMount(pathToGvfs, enlistmentRoot, commitish);
         }
 
         public void DeleteEnlistment()
         {
             TestResultsHelper.OutputGVFSLogs(this);
 
-            // Use cmd.exe to delete the enlistment as it properly handles tombstones
-            // and reparse points
-            CmdRunner cmdRunner = new CmdRunner();
-            bool enlistmentExists = Directory.Exists(this.EnlistmentRoot);
-            int retryCount = 0;
-            while (enlistmentExists)
-            {
-                string output = cmdRunner.DeleteDirectory(this.EnlistmentRoot);
-                enlistmentExists = Directory.Exists(this.EnlistmentRoot);
-                if (enlistmentExists)
-                {
-                    ++retryCount;
-                    Thread.Sleep(500);
-                    try
-                    {                        
-                        if (retryCount > 10)
-                        {
-                            retryCount = 0;
-                            throw new DeleteFolderFailedException(output);
-                        }
-                    }
-                    catch (DeleteFolderFailedException)
-                    {
-                        // Throw\catch a DeleteFolderFailedException here so that developers who are running the tests
-                        // and have a debugger attached can be alerted that something is wrong 
-                    }
-                }
-            }
+            // Use cmd.exe to delete the enlistment as it properly handles tombstones and reparse points
+            CmdRunner.DeleteDirectoryWithRetry(this.EnlistmentRoot);
         }
 
         public void CloneAndMount()
         {
-            GVFSServiceProcess.StartService();
             this.gvfsProcess.Clone(this.RepoUrl, this.Commitish);
 
             this.MountGVFS();
@@ -137,17 +103,17 @@ namespace GVFS.FunctionalTests.Tools
         public bool TryMountGVFS()
         {
             string output;
+            return this.TryMountGVFS(out output);
+        }
+
+        public bool TryMountGVFS(out string output)
+        {
             return this.gvfsProcess.TryMount(out output);
         }
 
-        public string PrefetchFolder(string folderPath)
+        public string Prefetch(string args)
         {
-            return this.gvfsProcess.Prefetch(folderPath);
-        }
-
-        public string PrefetchFolderBasedOnFile(string filterFilePath)
-        {
-            return this.gvfsProcess.PrefetchFolderBasedOnFile(filterFilePath);
+            return this.gvfsProcess.Prefetch(args);
         }
 
         public void Repair()
@@ -180,16 +146,20 @@ namespace GVFS.FunctionalTests.Tools
             this.gvfsProcess.Unmount();
         }
 
-        public string CacheServer(string args)
+        public string GetCacheServer()
         {
-            return this.gvfsProcess.CacheServer(args);
+            return this.gvfsProcess.CacheServer("--get");
+        }
+
+        public string SetCacheServer(string arg)
+        {
+            return this.gvfsProcess.CacheServer("--set " + arg);
         }
 
         public void UnmountAndDeleteAll()
         {
             this.UnmountGVFS();
             this.DeleteEnlistment();
-            GVFSServiceProcess.StopService();
         }
 
         public string GetVirtualPathTo(string pathInRepo)
@@ -205,7 +175,29 @@ namespace GVFS.FunctionalTests.Tools
                 objectHash.Substring(0, 2),
                 objectHash.Substring(2));
         }
- 
+        
+        private static GVFSFunctionalTestEnlistment CloneAndMount(string pathToGvfs, string enlistmentRoot, string commitish)
+        {
+            GVFSFunctionalTestEnlistment enlistment = new GVFSFunctionalTestEnlistment(
+                pathToGvfs,
+                enlistmentRoot ?? GetUniqueEnlistmentRoot(),
+                Properties.Settings.Default.RepoToClone,
+                commitish ?? Properties.Settings.Default.Commitish);
+
+            try
+            {
+                enlistment.CloneAndMount();
+            }
+            catch (Exception e)
+            {
+                Console.WriteLine("Unhandled exception in CloneAndMount: " + e.ToString());
+                TestResultsHelper.OutputGVFSLogs(enlistment);
+                throw;
+            }
+
+            return enlistment;
+        }
+
         private bool WaitForStatus(int maxWaitMilliseconds, string statusShouldContain)
         {
             string status = null;
@@ -218,14 +210,6 @@ namespace GVFS.FunctionalTests.Tools
             }
 
             return totalWaitMilliseconds <= maxWaitMilliseconds;
-        }
-
-        private class DeleteFolderFailedException : Exception
-        {
-            public DeleteFolderFailedException(string message)
-                : base(message)
-            {
-            }
         }
     }
 }

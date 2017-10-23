@@ -1,7 +1,6 @@
 ﻿using GVFS.Common.Git;
 using System;
 using System.IO;
-using System.Linq;
 
 namespace GVFS.Common
 {
@@ -9,11 +8,10 @@ namespace GVFS.Common
     {
         private const string DeprecatedObjectsEndpointGitConfigName = "gvfs.objects-endpoint";
         private const string CacheEndpointGitConfigSuffix = ".cache-server-url";
-                    
+        
         protected Enlistment(
             string enlistmentRoot,
             string workingDirectoryRoot,
-            string gitObjectsRoot,
             string repoUrl,
             string gitBinPath,
             string gvfsHooksRoot)
@@ -25,11 +23,9 @@ namespace GVFS.Common
 
             this.EnlistmentRoot = enlistmentRoot;
             this.WorkingDirectoryRoot = workingDirectoryRoot;
-            this.GitObjectsRoot = gitObjectsRoot;
+            this.DotGitRoot = Path.Combine(this.WorkingDirectoryRoot, GVFSConstants.DotGit.Root);
             this.GitBinPath = gitBinPath;
             this.GVFSHooksRoot = gvfsHooksRoot;
-
-            this.SetComputedPaths();
 
             if (repoUrl != null)
             {
@@ -57,8 +53,8 @@ namespace GVFS.Common
         public string EnlistmentRoot { get; }
         public string WorkingDirectoryRoot { get; }
         public string DotGitRoot { get; private set; }
-        public string GitObjectsRoot { get; private set; }
-        public string GitPackRoot { get; private set; }
+        public abstract string GitObjectsRoot { get; }
+        public abstract string GitPackRoot { get; }
         public string RepoUrl { get; }
 
         public string GitBinPath { get; }
@@ -87,11 +83,10 @@ namespace GVFS.Common
 
             return fullPath;
         }
-        
-        private void SetComputedPaths()
+
+        public virtual GitProcess CreateGitProcess()
         {
-            this.DotGitRoot = Path.Combine(this.WorkingDirectoryRoot, GVFSConstants.DotGit.Root);
-            this.GitPackRoot = Path.Combine(this.GitObjectsRoot, GVFSConstants.DotGit.Objects.Pack.Name);
+            return new GitProcess(this);
         }
     }
 }

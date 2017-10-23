@@ -17,6 +17,7 @@ namespace GVFS.Common.Http
     public abstract class HttpRequestor : IDisposable
     {
         private static long requestCount = 0;
+        private static SemaphoreSlim availableConnections;
 
         private readonly ProductInfoHeaderValue userAgentHeader;
 
@@ -26,6 +27,7 @@ namespace GVFS.Common.Http
         static HttpRequestor()
         {
             ServicePointManager.DefaultConnectionLimit = Environment.ProcessorCount;
+            availableConnections = new SemaphoreSlim(ServicePointManager.DefaultConnectionLimit);
         }
 
         public HttpRequestor(ITracer tracer, RetryConfig retryConfig, GitAuthentication authentication)
@@ -58,11 +60,12 @@ namespace GVFS.Common.Http
             }
         }
 
-        protected GitEndPointResponseData SendRequest(
+        protected GitEndPointResponseData SendRequest(            
             long requestId,
             Uri requestUri,
             HttpMethod httpMethod,
             string requestContent,
+            CancellationToken cancellationToken,
             MediaTypeWithQualityHeaderValue acceptType = null)
         {
             string authString;
@@ -96,10 +99,12 @@ namespace GVFS.Common.Http
             EventMetadata responseMetadata = new EventMetadata();
             responseMetadata.Add("RequestId", requestId);
 
+            availableConnections.Wait(cancellationToken);
+
             try
             {
-                HttpResponseMessage response = this.client.SendAsync(request, HttpCompletionOption.ResponseHeadersRead).GetAwaiter().GetResult();
-                
+                HttpResponseMessage response = this.client.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cancellationToken).GetAwaiter().GetResult();
+
                 responseMetadata.Add("CacheName", GetSingleHeaderOrEmpty(response.Headers, "X-Cache-Name"));
                 responseMetadata.Add("StatusCode", response.StatusCode);
 
@@ -142,6 +147,8 @@ namespace GVFS.Common.Http
             }
             catch (TaskCanceledException)
             {
+                cancellationToken.ThrowIfCancellationRequested();
+
                 errorMessage = string.Format("Request to {0} timed out", requestUri);
                 return new GitEndPointResponseData(HttpStatusCode.RequestTimeout, new GitObjectsHttpException(HttpStatusCode.RequestTimeout, errorMessage), shouldRetry: true);
             }
@@ -152,6 +159,7 @@ namespace GVFS.Common.Http
             finally
             {
                 this.Tracer.RelatedEvent(EventLevel.Informational, "NetworkResponse", responseMetadata);
+                availableConnections.Release();
             }
         }
         

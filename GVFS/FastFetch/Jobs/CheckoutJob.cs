@@ -9,6 +9,7 @@ using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.IO;
 using System.Threading;
+using System.Threading.Tasks;
 
 namespace FastFetch.Jobs
 {
@@ -29,14 +30,22 @@ namespace FastFetch.Jobs
         private long bytesWritten = 0;
         private long shasReceived = 0;
 
-        public CheckoutJob(int maxParallel, IEnumerable<string> pathWhitelist, string targetCommitSha, ITracer tracer, Enlistment enlistment)
-            : base(maxParallel)
+        // Checkout requires synchronization between the delete/directory/add stages, so control the parallelization
+        private int maxParallel;
+
+        public CheckoutJob(int maxParallel, IEnumerable<string> folderList, string targetCommitSha, ITracer tracer, Enlistment enlistment)
+            : base(1)
         {
             this.tracer = tracer.StartActivity(AreaPath, EventLevel.Informational, Keywords.Telemetry, metadata: null);
             this.enlistment = enlistment;
-            this.diff = new DiffHelper(tracer, enlistment, pathWhitelist);
+            this.diff = new DiffHelper(tracer, enlistment, new string[0], folderList);
             this.targetCommitSha = targetCommitSha;
             this.AvailableBlobShas = new BlockingCollection<string>();
+
+            // Keep track of how parallel we're expected to be later during DoWork
+            // Note that '1' is passed to the Job base object, forcing DoWork to be single threaded
+            // This allows us to control the synchronization between stages by doing the parallization ourselves
+            this.maxParallel = maxParallel;
         }
 
         public BlockingCollection<string> RequiredBlobs
@@ -61,40 +70,40 @@ namespace FastFetch.Jobs
 
         protected override void DoWork()
         {
-            using (ITracer activity = this.tracer.StartActivity(
-                nameof(this.HandleAllDirectoryOperations),
-                EventLevel.Informational,
-                Keywords.Telemetry,
-                metadata: null))
-            {
-                this.HandleAllDirectoryOperations();
-
-                EventMetadata metadata = new EventMetadata();
-                metadata.Add("DirectoryOperationsCompleted", this.directoryOpCount);
-                activity.Stop(metadata);
-            }
-
+            // Do the delete operations first as they can't have dependencies on other work
             using (ITracer activity = this.tracer.StartActivity(
                 nameof(this.HandleAllFileDeleteOperations),
                 EventLevel.Informational,
                 Keywords.Telemetry,
                 metadata: null))
             {
-                this.HandleAllFileDeleteOperations();
-
+                Parallel.For(1, this.maxParallel, (i) => { this.HandleAllFileDeleteOperations(); });
                 EventMetadata metadata = new EventMetadata();
                 metadata.Add("FilesDeleted", this.fileDeleteCount);
                 activity.Stop(metadata);
             }
 
+            // Do directory operations after deletes in case a file delete must be done first
+            using (ITracer activity = this.tracer.StartActivity(
+                nameof(this.HandleAllDirectoryOperations),
+                EventLevel.Informational,
+                Keywords.Telemetry,
+                metadata: null))
+            {
+                Parallel.For(1, this.maxParallel, (i) => { this.HandleAllDirectoryOperations(); });
+                EventMetadata metadata = new EventMetadata();
+                metadata.Add("DirectoryOperationsCompleted", this.directoryOpCount);
+                activity.Stop(metadata);
+            }
+
+            // Do add operations last, after all deletes and directories have been created
             using (ITracer activity = this.tracer.StartActivity(
                 nameof(this.HandleAllFileAddOperations),
                 EventLevel.Informational,
                 Keywords.Telemetry,
                 metadata: null))
             {
-                this.HandleAllFileAddOperations();
-                
+                Parallel.For(1, this.maxParallel, (i) => { this.HandleAllFileAddOperations(); });
                 EventMetadata metadata = new EventMetadata();
                 metadata.Add("FilesWritten", this.fileWriteCount);
                 activity.Stop(metadata);
@@ -109,7 +118,6 @@ namespace FastFetch.Jobs
             {
                 this.HasFailures = true;
                 EventMetadata errorMetadata = new EventMetadata();
-                errorMetadata.Add("ErrorMessage", "Not all file writes were completed");
                 if (this.diff.FileAddOperations.Count < 10)
                 {
                     errorMetadata.Add("RemainingShas", string.Join(",", this.diff.FileAddOperations.Keys));
@@ -119,7 +127,7 @@ namespace FastFetch.Jobs
                     errorMetadata.Add("RemainingShaCount", this.diff.FileAddOperations.Count);
                 }
 
-                this.tracer.RelatedError(errorMetadata);
+                this.tracer.RelatedError(errorMetadata, "Not all file writes were completed");
             }
 
             this.AddedOrEditedLocalFiles.CompleteAdding();
@@ -156,8 +164,7 @@ namespace FastFetch.Jobs
                             EventMetadata metadata = new EventMetadata();
                             metadata.Add("Operation", "CreateDirectory");
                             metadata.Add("Path", treeOp.TargetFilename);
-                            metadata.Add("ErrorMessage", ex.Message);
-                            this.tracer.RelatedError(metadata);
+                            this.tracer.RelatedError(metadata, ex.Message);
                             this.HasFailures = true;
                         }
 
@@ -178,8 +185,7 @@ namespace FastFetch.Jobs
                                 EventMetadata metadata = new EventMetadata();
                                 metadata.Add("Operation", "DeleteDirectory");
                                 metadata.Add("Path", treeOp.TargetFilename);
-                                metadata.Add("ErrorMessage", ex.Message);
-                                this.tracer.RelatedError(metadata);
+                                this.tracer.RelatedError(metadata, ex.Message);
                                 this.HasFailures = true;
                             }
                         }
@@ -203,6 +209,7 @@ namespace FastFetch.Jobs
                                 {
                                     if (File.Exists(treeOp.SourceFilename))
                                     {
+                                        File.SetAttributes(treeOp.SourceFilename, FileAttributes.Normal);
                                         File.Delete(treeOp.SourceFilename);
                                     }
 
@@ -220,8 +227,7 @@ namespace FastFetch.Jobs
                             EventMetadata metadata = new EventMetadata();
                             metadata.Add("Operation", "RenameDirectory");
                             metadata.Add("Path", treeOp.TargetFilename);
-                            metadata.Add("ErrorMessage", ex.Message);
-                            this.tracer.RelatedError(metadata);
+                            this.tracer.RelatedError(metadata, ex.Message);
                             this.HasFailures = true;
                         }
 
@@ -265,8 +271,7 @@ namespace FastFetch.Jobs
                     EventMetadata metadata = new EventMetadata();
                     metadata.Add("Operation", "DeleteFile");
                     metadata.Add("Path", path);
-                    metadata.Add("ErrorMessage", ex.Message);
-                    this.tracer.RelatedError(metadata);
+                    this.tracer.RelatedError(metadata, ex.Message);
                     this.HasFailures = true;
                 }
             }
@@ -274,7 +279,7 @@ namespace FastFetch.Jobs
 
         private void HandleAllFileAddOperations()
         {
-            using (LibGit2Repo repo = new LibGit2Repo(this.tracer, this.enlistment.WorkingDirectoryRoot))
+            using (FastFetchLibGit2Repo repo = new FastFetchLibGit2Repo(this.tracer, this.enlistment.WorkingDirectoryRoot))
             {
                 string availableBlob;
                 while (this.AvailableBlobShas.TryTake(out availableBlob, millisecondsTimeout: -1))
@@ -317,8 +322,7 @@ namespace FastFetch.Jobs
                         {
                             EventMetadata errorData = new EventMetadata();
                             errorData.Add("Operation", "WriteFile");
-                            errorData.Add("ErrorMessage", ex.ToString());
-                            this.tracer.RelatedError(errorData);
+                            this.tracer.RelatedError(errorData, ex.ToString());
                             this.HasFailures = true;
                         }
                     }

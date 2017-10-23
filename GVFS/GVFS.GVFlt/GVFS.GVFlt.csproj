@@ -76,11 +76,13 @@
     <Compile Include="..\..\..\BuildOutput\CommonAssemblyVersion.cs">
       <Link>CommonAssemblyVersion.cs</Link>
     </Compile>
+    <Compile Include="CallbackResult.cs" />
     <Compile Include="DotGit\AlwaysExcludeFile.cs" />
     <Compile Include="DotGit\FileSerializer.cs" />
     <Compile Include="DotGit\GitIndexProjection.cs" />
     <Compile Include="DotGit\IProfilerOnlyIndexProjection.cs" />
     <Compile Include="DotGit\SparseCheckout.cs" />
+    <Compile Include="BackgroundGitUpdateQueue.cs" />
     <Compile Include="GVFltActiveEnumeration.cs" />
     <Compile Include="GVFltCallbacks.cs" />
     <Compile Include="GVFltFileInfo.cs" />
@@ -89,6 +91,7 @@
       <ExcludeFromStyleCop>true</ExcludeFromStyleCop>
     </Compile>
     <Compile Include="Properties\AssemblyInfo.cs" />
+    <Compile Include="ReliableBackgroundOperations.cs" />
   </ItemGroup>
   <ItemGroup>
     <None Include="packages.config" />
@@ -98,9 +101,9 @@
       <Project>{374bf1e5-0b2d-4d4a-bd5e-4212299def09}</Project>
       <Name>GVFS.Common</Name>
     </ProjectReference>
-    <ProjectReference Include="..\GVFS.GvFltWrapper\GvFlt.vcxproj">
+    <ProjectReference Include="..\GVFS.GvFltWrapper\GvLib.vcxproj">
       <Project>{fb0831ae-9997-401b-b31f-3a065fdbeb20}</Project>
-      <Name>GvFlt</Name>
+      <Name>GvLib.Managed</Name>
     </ProjectReference>
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />

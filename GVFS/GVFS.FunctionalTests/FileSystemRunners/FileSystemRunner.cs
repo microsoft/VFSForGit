@@ -29,12 +29,10 @@ namespace GVFS.FunctionalTests.FileSystemRunners
         {
             new object[] { defaultRunner }
         };
-
-        public static bool UseAllRunners { get; set; }
-
+        
         public static object[] Runners
         {
-            get { return UseAllRunners ? allRunners : debugRunners; }
+            get { return GVFSTestConfig.UseAllRunners ? allRunners : debugRunners; }
         }
 
         /// <summary>

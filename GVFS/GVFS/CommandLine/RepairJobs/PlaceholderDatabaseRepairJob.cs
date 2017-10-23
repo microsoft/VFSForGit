@@ -1,4 +1,5 @@
 ﻿using GVFS.Common;
+using GVFS.Common.FileSystem;
 using GVFS.Common.Tracing;
 using System.Collections.Generic;
 using System.IO;
@@ -12,7 +13,7 @@ namespace GVFS.CommandLine.RepairJobs
         public PlaceholderDatabaseRepairJob(ITracer tracer, TextWriter output, GVFSEnlistment enlistment)
             : base(tracer, output, enlistment)
         {
-            this.databasePath = Path.Combine(this.Enlistment.DotGVFSRoot, GVFSConstants.DatabaseNames.PlaceholderList);
+            this.databasePath = Path.Combine(this.Enlistment.DotGVFSRoot, GVFSConstants.DotGVFS.Databases.PlaceholderList);
         }
 
         public override string Name
@@ -22,8 +23,16 @@ namespace GVFS.CommandLine.RepairJobs
 
         public override IssueType HasIssue(List<string> messages)
         {
-            if (!this.TryCreatePersistentDictionary<string, string>(this.databasePath, messages))
+            string error;
+            PlaceholderListDatabase placeholders;
+            if (!PlaceholderListDatabase.TryCreate(
+                this.Tracer,
+                this.databasePath,
+                new PhysicalFileSystem(),
+                out placeholders,
+                out error))
             {
+                messages.Add(error);
                 return IssueType.CantFix;
             }
 

@@ -108,18 +108,20 @@ namespace GVFS.GVFlt.DotGit
                     metadata.Add("Area", "SparseCheckout");
                     metadata.Add("normalizedEntry", normalizedEntry);
                     metadata.Add("isFolder", isFolder);
-                    metadata.Add("Exception", e.ToString());
-                    metadata.Add("ErrorMessage", "IOException caught while processing AddEntry");
+                    metadata.Add("Exception", e.ToString());                    
                     
                     // Remove the entry so that if AddRecursiveSparseCheckoutEntry is called again
                     // we'll try to append to the file again
                     if (!this.sparseCheckoutEntries.TryRemove(normalizedEntry))
                     {
-                        metadata["ErrorMessage"] += ", failed to undo addition to sparseCheckoutEntries";
                         result = CallbackResult.FatalError;
+                        this.context.Tracer.RelatedError(metadata, "IOException caught while processing AddEntry, failed to undo addition to sparseCheckoutEntries");
                     }
-                                      
-                    this.context.Tracer.RelatedError(metadata);
+                    else
+                    {
+                        this.context.Tracer.RelatedWarning(metadata, "IOException caught while processing AddEntry");
+                    }                                      
+                    
                     return result;
                 }
                 catch (Exception e)
@@ -129,9 +131,8 @@ namespace GVFS.GVFlt.DotGit
                     metadata.Add("normalizedEntry", normalizedEntry);
                     metadata.Add("isFolder", isFolder);
                     metadata.Add("Exception", e.ToString());
-                    metadata.Add("ErrorMessage", "Exception caught while processing AddEntry");                    
 
-                    this.context.Tracer.RelatedError(metadata);
+                    this.context.Tracer.RelatedError(metadata, "Exception caught while processing AddEntry");
                     return CallbackResult.FatalError;
                 }
             }

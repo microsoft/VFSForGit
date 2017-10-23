@@ -41,7 +41,7 @@ namespace GVFS.Common
         public static void StartBackgroundProcess(string programName, string args, bool createWindow)
         {
             ProcessStartInfo processInfo = new ProcessStartInfo(programName, args);
-
+            
             if (createWindow)
             {
                 processInfo.WindowStyle = ProcessWindowStyle.Minimized;

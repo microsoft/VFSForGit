@@ -1,102 +1,75 @@
 #include "stdafx.h"
-#include "GvFltException.h"
+#include "GvLibException.h"
 #include "VirtualizationInstance.h"
 #include "DirectoryEnumerationResultImpl.h"
 #include "DirectoryEnumerationFileNamesResult.h"
 #include "Utils.h"
 
-using namespace GvFlt;
-using namespace Microsoft::Diagnostics::Tracing;
+using namespace GvLib;
 using namespace System;
-using namespace System::Collections::Generic;
-using namespace System::ComponentModel;
-using namespace System::Text;
+using namespace System::Globalization;
 
 namespace
 {
-    const ULONG READ_BUFFER_SIZE = 64 * 1024;
-    const ULONG IDEAL_WRITE_BUFFER_SIZE = 64 * 1024;
-    const int EPOCH_RESERVED_BYTES = 4;
-
     ref class VirtualizationManager
     {
-    public:
+    public:        
+        // TODO 1064209: 
+        //     - Support multiple VirtualizationInstances per provider instance
+        //     - Make accessing  any static data in VirtualizationManager thread safe
+
         // Handle to the active VirtualizationInstance.
-        // In the future if we support multiple VirtualizationInstances per provider instance, this can be a map
-        // of GV_VIRTUALIZATIONINSTANCE_HANDLE to VirtualizationInstance.  Then in each callback the
-        // appropriate VirtualizationInstance instance can be found (and the callback is delivered).
         static VirtualizationInstance^ activeInstance = nullptr;
     };    
     
-    // GvFlt callback functions that forward the request from GvFlt to the active
+    // GvLib callback functions that forward the request from GvLib to the active
     // VirtualizationInstance (VirtualizationManager::activeInstance)
     NTSTATUS GvStartDirectoryEnumerationCB(
-        _In_ GV_VIRTUALIZATIONINSTANCE_HANDLE   virtualizationInstanceHandle,
-        _In_ GUID                               enumerationId,
-        _In_ LPCWSTR                            pathName,
-        _In_ PGV_PLACEHOLDER_VERSION_INFO       versionInfo);
+        _In_ PGV_CALLBACK_DATA                callbackData,
+        _In_ GUID                             enumerationId);
     
     NTSTATUS GvEndDirectoryEnumerationCB(
-        _In_ GV_VIRTUALIZATIONINSTANCE_HANDLE  virtualizationInstanceHandle,
-        _In_ GUID                              enumerationId);
+        _In_ PGV_CALLBACK_DATA                callbackData,
+        _In_ GUID                             enumerationId);
     
     NTSTATUS GvGetDirectoryEnumerationCB(
-        _In_     GV_VIRTUALIZATIONINSTANCE_HANDLE  virtualizationInstanceHandle,
-        _In_     GUID                              enumerationId,
-        _In_     FILE_INFORMATION_CLASS            fileInformationClass,
-        _Inout_  PULONG                            length,
-        _In_     LPCWSTR                           filterFileName,
-        _In_     BOOLEAN                           returnSingleEntry,
-        _In_     BOOLEAN                           restartScan,
-        _Out_    PVOID                             fileInformation);
+        _In_     PGV_CALLBACK_DATA            callbackData,
+        _In_     GUID                         enumerationId,
+        _In_     FILE_INFORMATION_CLASS       fileInformationClass,
+        _Inout_  PULONG                       length,
+        _In_     LPCWSTR                      filterFileName,
+        _In_     BOOLEAN                      returnSingleEntry,
+        _In_     BOOLEAN                      restartScan,
+        _Out_    PVOID                        fileInformation);
 
     NTSTATUS GvQueryFileNameCB(
-        _In_      GV_VIRTUALIZATIONINSTANCE_HANDLE   virtualizationInstanceHandle,
-        _In_      LPCWSTR                            pathFileName
-    );
+        _In_     PGV_CALLBACK_DATA            callbackData);
 
     NTSTATUS GvGetPlaceholderInformationCB(
-        _In_ GV_VIRTUALIZATIONINSTANCE_HANDLE   virtualizationInstanceHandle,
-        _In_ LPCWSTR                            pathFileName,
-        _In_ PGV_PLACEHOLDER_VERSION_INFO       parentDirectoryVersionInfo,
-        _In_ DWORD                              desiredAccess,
-        _In_ DWORD                              shareMode,
-        _In_ DWORD                              createDisposition,
-        _In_ DWORD                              createOptions,
-        _In_ LPCWSTR                            destinationFileName,
-        _In_ DWORD                              triggeringProcessId,
-        _In_ LPCWSTR                            triggeringProcessImageFileName
-    );
+        _In_ PGV_CALLBACK_DATA                callbackData,
+        _In_ DWORD                            desiredAccess,
+        _In_ DWORD                            shareMode,
+        _In_ DWORD                            createDisposition,
+        _In_ DWORD                            createOptions,
+        _In_ LPCWSTR                          destinationFileName);
 
     NTSTATUS GvGetFileStreamCB(
-        _In_ GV_VIRTUALIZATIONINSTANCE_HANDLE  virtualizationInstanceHandle,
-        _In_ LPCWSTR                           pathFileName,
-        _In_ PGV_PLACEHOLDER_VERSION_INFO      versionInfo,
-        _In_ LARGE_INTEGER                     byteOffset,
-        _In_ DWORD                             length,
-        _In_ ULONG                             flags,
-        _In_ GUID                              streamGuid,
-        _In_ DWORD                             triggeringProcessId,
-        _In_ LPCWSTR                           triggeringProcessImageFileName
-    );
+        _In_ PGV_CALLBACK_DATA                callbackData,
+        _In_ LARGE_INTEGER                    byteOffset,
+        _In_ DWORD                            length);
 
     NTSTATUS GvNotifyFirstWriteCB(
-        _In_ GV_VIRTUALIZATIONINSTANCE_HANDLE   virtualizationInstanceHandle,
-        _In_ LPCWSTR                            pathFileName,
-        _In_ PGV_PLACEHOLDER_VERSION_INFO       versionInfo
-    );
+        _In_      PGV_CALLBACK_DATA           callbackData);
 
     NTSTATUS GvNotifyOperationCB(
-        _In_     GV_VIRTUALIZATIONINSTANCE_HANDLE virtualizationInstanceHandle,
-        _In_     LPCWSTR                          pathFileName,
-        _In_     BOOLEAN                          isDirectory,
-        _In_     PGV_PLACEHOLDER_VERSION_INFO     versionInfo,
-        _In_     GUID                             streamGuid,
-        _In_     GUID                             handleGuid,
-        _In_     GV_NOTIFICATION_TYPE             notificationType,
-        _In_opt_ LPCWSTR                          destinationFileName,
-        _Inout_  PGV_OPERATION_PARAMETERS         operationParameters
-    );
+        _In_     PGV_CALLBACK_DATA            callbackData,
+        _In_     BOOLEAN                      isDirectory,
+        _In_     GV_NOTIFICATION_TYPE         notificationType,
+        _In_opt_ LPCWSTR                      destinationFileName,
+        _Inout_  PGV_OPERATION_PARAMETERS     operationParameters);
+
+    void GvCancelCommandCB(
+        _In_     PGV_CALLBACK_DATA              callbackData);
 
     // Internal helper functions used by the above callbacks
     DirectoryEnumerationResult^ CreateEnumerationResult(
@@ -118,6 +91,8 @@ namespace
 
     bool IsPowerOf2(ULONG num);
 
+    System::Guid GUIDtoGuid(const GUID& guid);
+
     std::shared_ptr<GV_PLACEHOLDER_INFORMATION> CreatePlaceholderInformation(
         System::DateTime creationTime,
         System::DateTime lastAccessTime,
@@ -133,8 +108,8 @@ namespace
 VirtualizationInstance::VirtualizationInstance()
     : virtualizationInstanceHandle(nullptr)
     , virtualRootPath(nullptr)
-    , writeBufferSize(0)
-    , alignmentRequirement(0)
+    , bytesPerSector(0)
+    , writeBufferAlignmentRequirement(0)
 {    
 }
 
@@ -292,30 +267,42 @@ void VirtualizationInstance::OnNotifyFileHandleClosed::set(NotifyFileHandleClose
     this->notifyFileHandleClosedEvent = eventCB;
 }
 
-ITracer^ VirtualizationInstance::Tracer::get(void)
+CancelCommandEvent^ VirtualizationInstance::OnCancelCommand::get(void)
 {
-    return this->tracer;
+    return this->cancelCommandEvent;
+}
+
+void VirtualizationInstance::OnCancelCommand::set(CancelCommandEvent^ eventCB)
+{
+    this->ConfirmNotStarted();
+    this->cancelCommandEvent = eventCB;
 }
 
 HResult VirtualizationInstance::StartVirtualizationInstance(
-    ITracer^ tracerImpl,
     System::String^ virtualizationRootPath,
     unsigned long poolThreadCount,
-    unsigned long concurrentThreadCount)
+    unsigned long concurrentThreadCount,
+    bool enableNegativePathCache,
+    unsigned long% logicalBytesPerSector,
+    unsigned long% writeBufferAlignment)
 {
-    this->ConfirmNotStarted();
-
     if (virtualizationRootPath == nullptr)
     {
         throw gcnew ArgumentNullException(gcnew String("virtualizationRootPath"));
     }
 
+    if (VirtualizationManager::activeInstance != nullptr && VirtualizationManager::activeInstance != this)
+    {
+        throw gcnew InvalidOperationException(gcnew String("Only one VirtualizationInstance can be running at a time"));
+    }
+
     VirtualizationManager::activeInstance = this;
 
-    this->tracer = tracerImpl;
     this->virtualRootPath = virtualizationRootPath;
 
-    this->CalculateWriteBufferSizeAndAlignment();
+    this->FindBytesPerSectorAndAlignment();
+    logicalBytesPerSector = this->bytesPerSector;
+    writeBufferAlignment = this->writeBufferAlignmentRequirement;
 
     pin_ptr<const WCHAR> rootPath = PtrToStringChars(this->virtualRootPath);
     GV_COMMAND_CALLBACKS callbacks;
@@ -328,14 +315,16 @@ HResult VirtualizationInstance::StartVirtualizationInstance(
     callbacks.GvGetFileStream = GvGetFileStreamCB;
     callbacks.GvNotifyFirstWrite = GvNotifyFirstWriteCB;
     callbacks.GvNotifyOperation = GvNotifyOperationCB;
+    callbacks.GvCancelCommand = GvCancelCommandCB;
 
     pin_ptr<GV_VIRTUALIZATIONINSTANCE_HANDLE> instanceHandle = &(this->virtualizationInstanceHandle);
     return static_cast<HResult>(::GvStartVirtualizationInstance(
         rootPath,
         &callbacks,
-        0, // flags
+        enableNegativePathCache ? GV_FLAG_INSTANCE_NEGATIVE_PATH_CACHE : 0,
         poolThreadCount,
         concurrentThreadCount,
+        NULL, // InstanceContext, pointer to context information defined by the provider for each instance
         instanceHandle
         ));
 }
@@ -345,7 +334,6 @@ HResult VirtualizationInstance::StopVirtualizationInstance()
     long result = ::GvStopVirtualizationInstance(this->virtualizationInstanceHandle);
     if (result == STATUS_SUCCESS)
     {
-        this->tracer = nullptr;
         this->virtualizationInstanceHandle = nullptr;
         VirtualizationManager::activeInstance = nullptr;
     }
@@ -359,6 +347,14 @@ HResult VirtualizationInstance::DetachDriver()
     return static_cast<HResult>(::GvDetachDriver(rootPath));
 }
 
+NtStatus VirtualizationInstance::ClearNegativePathCache(unsigned long% totalEntryNumber)
+{
+    ULONG entryCount = 0;
+    NtStatus result = static_cast<NtStatus>(::GvClearNegativePathCache(this->virtualizationInstanceHandle, &entryCount));
+    totalEntryNumber = entryCount;
+
+    return result;
+}
 
 NtStatus VirtualizationInstance::WriteFile(
     Guid streamGuid,
@@ -374,10 +370,8 @@ NtStatus VirtualizationInstance::WriteFile(
 
     array<Byte>^ guidData = streamGuid.ToByteArray();
     pin_ptr<Byte> data = &(guidData[0]);
-    pin_ptr<GV_VIRTUALIZATIONINSTANCE_HANDLE> instanceHandle = &(this->virtualizationInstanceHandle);
-
     return static_cast<NtStatus>(::GvWriteFile(
-        *instanceHandle,
+        this->virtualizationInstanceHandle,
         *(GUID*)data,
         buffer->Pointer.ToPointer(),
         byteOffset,
@@ -387,10 +381,9 @@ NtStatus VirtualizationInstance::WriteFile(
 
 NtStatus VirtualizationInstance::DeleteFile(System::String^ relativePath, UpdateType updateFlags, UpdateFailureCause% failureReason)
 {
-    pin_ptr<GV_VIRTUALIZATIONINSTANCE_HANDLE> instanceHandle = &(this->virtualizationInstanceHandle);
     pin_ptr<const WCHAR> path = PtrToStringChars(relativePath);
     ULONG deleteFailureReason = 0;
-    NtStatus result = static_cast<NtStatus>(::GvDeleteFile(*instanceHandle, path, static_cast<ULONG>(updateFlags), &deleteFailureReason));
+    NtStatus result = static_cast<NtStatus>(::GvDeleteFile(this->virtualizationInstanceHandle, path, static_cast<ULONG>(updateFlags), &deleteFailureReason));
     failureReason = static_cast<UpdateFailureCause>(deleteFailureReason);
     return result;
 }
@@ -412,8 +405,6 @@ NtStatus VirtualizationInstance::WritePlaceholderInformation(
         return NtStatus::InvalidParameter;
     }
 
-    pin_ptr<GV_VIRTUALIZATIONINSTANCE_HANDLE> instanceHandle = &(this->virtualizationInstanceHandle);
-    pin_ptr<const WCHAR> path = PtrToStringChars(relativePath);
     std::shared_ptr<GV_PLACEHOLDER_INFORMATION> fileInformation = CreatePlaceholderInformation(
         creationTime,
         lastAccessTime,
@@ -425,8 +416,9 @@ NtStatus VirtualizationInstance::WritePlaceholderInformation(
         contentId,
         epochId);
 
+    pin_ptr<const WCHAR> path = PtrToStringChars(relativePath);
     return static_cast<NtStatus>(::GvWritePlaceholderInformation(
-        *instanceHandle, 
+        this->virtualizationInstanceHandle,
         path, 
         fileInformation.get(), 
         FIELD_OFFSET(GV_PLACEHOLDER_INFORMATION, VariableData))); // We have written no variable data
@@ -441,12 +433,10 @@ NtStatus VirtualizationInstance::CreatePlaceholderAsHardlink(
         return NtStatus::InvalidParameter;
     }
 
-    pin_ptr<GV_VIRTUALIZATIONINSTANCE_HANDLE> instanceHandle = &(this->virtualizationInstanceHandle);
     pin_ptr<const WCHAR> targetPath = PtrToStringChars(destinationFileName);
     pin_ptr<const WCHAR> hardLinkPath = PtrToStringChars(hardLinkTarget);
-
     return static_cast<NtStatus>(::GvCreatePlaceholderAsHardlink(
-        *instanceHandle,
+        this->virtualizationInstanceHandle,
         targetPath,
         hardLinkPath));
 }
@@ -464,8 +454,6 @@ NtStatus VirtualizationInstance::UpdatePlaceholderIfNeeded(
     UpdateType updateFlags, 
     UpdateFailureCause% failureReason)
 {
-    pin_ptr<GV_VIRTUALIZATIONINSTANCE_HANDLE> instanceHandle = &(this->virtualizationInstanceHandle);
-    pin_ptr<const WCHAR> path = PtrToStringChars(relativePath);
     std::shared_ptr<GV_PLACEHOLDER_INFORMATION> fileInformation = CreatePlaceholderInformation(
         creationTime,
         lastAccessTime,
@@ -478,128 +466,60 @@ NtStatus VirtualizationInstance::UpdatePlaceholderIfNeeded(
         epochId);
 
     ULONG updateFailureReason = 0;
+    pin_ptr<const WCHAR> path = PtrToStringChars(relativePath);
     NtStatus result = static_cast<NtStatus>(::GvUpdatePlaceholderIfNeeded(
-        *instanceHandle,
+        this->virtualizationInstanceHandle,
         path,
         fileInformation.get(),
         FIELD_OFFSET(GV_PLACEHOLDER_INFORMATION, VariableData), // We have written no variable data
         static_cast<ULONG>(updateFlags),
         &updateFailureReason));
+
     failureReason = static_cast<UpdateFailureCause>(updateFailureReason);
     return result;
 }
 
-VirtualizationInstance::OnDiskStatus VirtualizationInstance::GetFileOnDiskStatus(System::String^ relativePath)
+void VirtualizationInstance::CompleteCommand(
+    long commandId,
+    NtStatus completionStatus)
 {
-    GUID handleGUID;
-    pin_ptr<const WCHAR> filePath = PtrToStringChars(relativePath);
-    NTSTATUS openResult = ::GvOpenFile(this->virtualizationInstanceHandle, filePath, GENERIC_READ, &handleGUID);
-    if (NT_SUCCESS(openResult))
+    ::GvCompleteCommand(
+        this->virtualizationInstanceHandle,
+        commandId,
+        static_cast<NTSTATUS>(completionStatus),
+        NULL, // ReplyBuffer
+        0);   // ReplyBufferSize
+}
+
+WriteBuffer^ VirtualizationInstance::CreateWriteBuffer(unsigned long desiredBufferSize)
+{
+    ULONG writeBufferSize = desiredBufferSize;
+    if (writeBufferSize < this->bytesPerSector)
     {
-        NTSTATUS closeResult = ::GvCloseFile(this->virtualizationInstanceHandle, handleGUID);
-
-        if (!NT_SUCCESS(closeResult))
+        writeBufferSize = this->bytesPerSector;
+    }
+    else
+    {
+        ULONG bufferRemainder = desiredBufferSize % this->bytesPerSector;
+        if (bufferRemainder != 0)
         {
-            this->Tracer->TraceError(String::Format("FileExists: GvCloseFile failed for {0}: {1}", relativePath, static_cast<NtStatus>(closeResult)));
+            // Round up to nearest multiple of this->bytesPerSector
+            writeBufferSize += (this->bytesPerSector - bufferRemainder);
         }
-
-        return OnDiskStatus::Full;
     }
 
-    switch (openResult)
-    {
-    case STATUS_IO_REPARSE_TAG_NOT_HANDLED:
-        return OnDiskStatus::Partial;
-	case STATUS_SHARING_VIOLATION:
-		return OnDiskStatus::OnDiskCannotOpen;
-	case STATUS_OBJECT_NAME_NOT_FOUND:
-        return OnDiskStatus::NotOnDisk;
-    default:
-        throw gcnew GvFltException("ReadFileContents: GvOpenFile failed", static_cast<NtStatus>(openResult));
-        break;
-    }    
-}
-
-System::String^ VirtualizationInstance::ReadFullFileContents(System::String^ relativePath)
-{
-    GUID handleGUID;
-    pin_ptr<const WCHAR> filePath = PtrToStringChars(relativePath);
-    NTSTATUS openResult = ::GvOpenFile(this->virtualizationInstanceHandle, filePath, GENERIC_READ, &handleGUID);
-
-    if (!NT_SUCCESS(openResult))
-    {
-        throw gcnew GvFltException("ReadFileContents: GvOpenFile failed", static_cast<NtStatus>(openResult));
-    }
-
-    StringBuilder^ allLines = gcnew StringBuilder();
-    char buffer[READ_BUFFER_SIZE];
-    ULONG length = sizeof(buffer) - sizeof(char); // Leave room for null terminator
-    ULONG bytesRead = 0;
-    ULONGLONG bytesOffset = 0;
-
-    do
-    {
-        NTSTATUS readResult = ::GvReadFile(this->virtualizationInstanceHandle, handleGUID, buffer, bytesOffset, length, &bytesRead);
-
-        if (!NT_SUCCESS(readResult))
-        {
-            NTSTATUS closeResult = ::GvCloseFile(this->virtualizationInstanceHandle, handleGUID);
-
-            if (!NT_SUCCESS(closeResult))
-            {
-                this->Tracer->TraceError(String::Format("ReadFileContents: GvCloseFile failed while closing file after failed read of {0}: {1}", relativePath, static_cast<NtStatus>(closeResult)));
-            }
-
-            throw gcnew GvFltException("ReadFileContents: GvReadFile failed", static_cast<NtStatus>(readResult));
-        }
-
-        if (bytesRead > 0)
-        {
-            // Add null terminator
-            *static_cast<char*>(static_cast<void*>(buffer + bytesRead)) = 0;
-            allLines->Append(gcnew String(static_cast<char*>(static_cast<void*>(buffer))));
-            bytesOffset += bytesRead;
-        }
-    } while (bytesRead > 0);
-    
-    NTSTATUS closeResult = ::GvCloseFile(this->virtualizationInstanceHandle, handleGUID);
-
-    if (!NT_SUCCESS(closeResult))
-    {
-        this->Tracer->TraceError(String::Format("ReadFileContents: GvCloseFile failed for {0}: {1}", relativePath, static_cast<NtStatus>(closeResult)));
-    }
-
-    return allLines->ToString();
-}
-
-ULONG VirtualizationInstance::GetWriteBufferSize()
-{
-    return this->writeBufferSize;
-}
-
-ULONG VirtualizationInstance::GetAlignmentRequirement()
-{
-    return this->alignmentRequirement;
-}
-
-WriteBuffer^ VirtualizationInstance::CreateWriteBuffer()
-{
-    return gcnew WriteBuffer(
-        VirtualizationManager::activeInstance->GetWriteBufferSize(),
-        VirtualizationManager::activeInstance->GetAlignmentRequirement());
+    return gcnew WriteBuffer(writeBufferSize, this->writeBufferAlignmentRequirement);
 }
 
 //static 
 HResult VirtualizationInstance::ConvertDirectoryToVirtualizationRoot(System::Guid virtualizationInstanceGuid, System::String^ rootPath)
 {
-    array<Byte>^ guidArray = virtualizationInstanceGuid.ToByteArray();
-    pin_ptr<Byte> guidData = &(guidArray[0]);
-
-    pin_ptr<const WCHAR> root = PtrToStringChars(rootPath);
-
     GV_PLACEHOLDER_VERSION_INFO versionInfo;
     memset(&versionInfo, 0, sizeof(GV_PLACEHOLDER_VERSION_INFO));
 
+    array<Byte>^ guidArray = virtualizationInstanceGuid.ToByteArray();
+    pin_ptr<Byte> guidData = &(guidArray[0]);
+    pin_ptr<const WCHAR> root = PtrToStringChars(rootPath);
     return static_cast<HResult>(::GvConvertDirectoryToPlaceholder(
         root,                        // RootPathName
         L"",                         // TargetPathName
@@ -613,17 +533,17 @@ void VirtualizationInstance::ConfirmNotStarted()
 {
     if (this->virtualizationInstanceHandle)
     {
-        throw gcnew GvFltException("Operation invalid after virtualization instance is started");
+        throw gcnew InvalidOperationException("Operation invalid after virtualization instance is started");
     }
 }
 
-void VirtualizationInstance::CalculateWriteBufferSizeAndAlignment()
+void VirtualizationInstance::FindBytesPerSectorAndAlignment()
 {
     HMODULE ntdll = LoadLibrary(L"ntdll.dll");
     if (!ntdll)
     {
         DWORD lastError = GetLastError();
-        throw gcnew GvFltException(String::Format("Failed to load ntdll.dll, Error: {0}", lastError));
+        throw gcnew GvLibException(String::Format(CultureInfo::InvariantCulture, "Failed to load ntdll.dll, Error: {0}", lastError));
     }
 
     PQueryVolumeInformationFile ntQueryVolumeInformationFile = (PQueryVolumeInformationFile)GetProcAddress(ntdll, "NtQueryVolumeInformationFile");
@@ -631,7 +551,7 @@ void VirtualizationInstance::CalculateWriteBufferSizeAndAlignment()
     {
         DWORD lastError = GetLastError();
         FreeLibrary(ntdll);
-        throw gcnew GvFltException(String::Format("Failed to get process address of NtQueryVolumeInformationFile, Error: {0}", lastError));
+        throw gcnew GvLibException(String::Format(CultureInfo::InvariantCulture, "Failed to get process address of NtQueryVolumeInformationFile, Error: {0}", lastError));
     }
 
     // TODO 640838: Support paths longer than MAX_PATH
@@ -645,7 +565,7 @@ void VirtualizationInstance::CalculateWriteBufferSizeAndAlignment()
     {
         DWORD lastError = GetLastError();
         FreeLibrary(ntdll);
-        throw gcnew GvFltException(String::Format("Failed to get volume path name, Error: {0}", lastError));
+        throw gcnew GvLibException(String::Format(CultureInfo::InvariantCulture, "Failed to get volume path name, Error: {0}", lastError));
     }
 
     WCHAR volumeName[VOLUME_PATH_LENGTH + 1];
@@ -654,13 +574,13 @@ void VirtualizationInstance::CalculateWriteBufferSizeAndAlignment()
     {
         DWORD lastError = GetLastError();
         FreeLibrary(ntdll);
-        throw gcnew GvFltException(String::Format("Failed to get volume name for volume mount point, Error: {0}", lastError));
+        throw gcnew GvLibException(String::Format(CultureInfo::InvariantCulture, "Failed to get volume name for volume mount point, Error: {0}", lastError));
     }
 
     if (wcslen(volumeName) != VOLUME_PATH_LENGTH || volumeName[VOLUME_PATH_LENGTH - 1] != L'\\')
     {
         FreeLibrary(ntdll);
-        throw gcnew GvFltException(String::Format("Volume name {0} is not in expected format", gcnew String(volumeName)));
+        throw gcnew GvLibException(String::Format(CultureInfo::InvariantCulture, "Volume name {0} is not in expected format", gcnew String(volumeName)));
     }
 
     HANDLE rootHandle = CreateFile(
@@ -676,7 +596,7 @@ void VirtualizationInstance::CalculateWriteBufferSizeAndAlignment()
     {
         DWORD lastError = GetLastError();
         FreeLibrary(ntdll);
-        throw gcnew GvFltException(String::Format("Failed to get handle to {0}, Error: {1}", this->virtualRootPath, lastError));
+        throw gcnew GvLibException(String::Format(CultureInfo::InvariantCulture, "Failed to get handle to {0}, Error: {1}", this->virtualRootPath, lastError));
     }
 
     FILE_FS_SECTOR_SIZE_INFORMATION sectorInfo;
@@ -695,7 +615,7 @@ void VirtualizationInstance::CalculateWriteBufferSizeAndAlignment()
     {
         CloseHandle(rootHandle);
         FreeLibrary(ntdll);
-        throw gcnew GvFltException(String::Format("Failed to query sector size of volume, Status: {0}", status));
+        throw gcnew GvLibException(String::Format(CultureInfo::InvariantCulture, "Failed to query sector size of volume, Status: {0}", status));
     }
 
     FILE_ALIGNMENT_INFO alignmentInfo;
@@ -707,136 +627,69 @@ void VirtualizationInstance::CalculateWriteBufferSizeAndAlignment()
         DWORD lastError = GetLastError();
         CloseHandle(rootHandle);
         FreeLibrary(ntdll);
-        throw gcnew GvFltException(String::Format("Failed to query device alignment, Error: {0}", lastError));
+        throw gcnew GvLibException(String::Format(CultureInfo::InvariantCulture, "Failed to query device alignment, Error: {0}", lastError));
     }
 
-    this->writeBufferSize = (IDEAL_WRITE_BUFFER_SIZE / sectorInfo.LogicalBytesPerSector) * sectorInfo.LogicalBytesPerSector;
-    this->writeBufferSize = max(sectorInfo.LogicalBytesPerSector, this->writeBufferSize);
+    this->bytesPerSector = sectorInfo.LogicalBytesPerSector;
 
     // AlignmentRequirement returns the required alignment minus 1 
     // https://msdn.microsoft.com/en-us/library/cc232065.aspx
-    // https://technet.microsoft.com/en-us/windowsserver/ff547807(v=vs.85)
-    this->alignmentRequirement = alignmentInfo.AlignmentRequirement + 1;
+    // https://docs.microsoft.com/en-us/windows-hardware/drivers/kernel/initializing-a-device-object
+    this->writeBufferAlignmentRequirement = alignmentInfo.AlignmentRequirement + 1;
     
-    if (!IsPowerOf2(this->alignmentRequirement))
-    {
-        Dictionary<System::String^, System::Object^>^ metadata = gcnew Dictionary<System::String^, System::Object^>();
-        metadata->Add("ErrorMessage", "Failed to determine alignment");
-        metadata->Add("LogicalBytesPerSector", sectorInfo.LogicalBytesPerSector);
-        metadata->Add("writeBufferSize", this->writeBufferSize);
-        metadata->Add("alignmentRequirement", this->alignmentRequirement);
-        this->tracer->TraceError(metadata);
-
-        CloseHandle(rootHandle);
-        FreeLibrary(ntdll);
-        throw gcnew GvFltException(String::Format("Failed to determine volume alignment requirement"));
-    }
-
-    Dictionary<System::String^, System::Object^>^ metadata = gcnew Dictionary<System::String^, System::Object^>();
-    metadata->Add("LogicalBytesPerSector", sectorInfo.LogicalBytesPerSector);
-    metadata->Add("writeBufferSize", this -> writeBufferSize);
-    metadata->Add("alignmentRequirement", this->alignmentRequirement);
-    this->tracer->TraceEvent(EventLevel::Informational, "CalculateWriteBufferSizeAndAlignment", metadata);
-
     CloseHandle(rootHandle);
     FreeLibrary(ntdll);
+
+    if (!IsPowerOf2(this->writeBufferAlignmentRequirement))
+    {
+        throw gcnew GvLibException(String::Format(CultureInfo::InvariantCulture, "Failed to determine write buffer alignment requirement: {0} is not a power of 2", this->writeBufferAlignmentRequirement));
+    }
 }
 
 namespace
 {
     NTSTATUS GvStartDirectoryEnumerationCB(
-        _In_ GV_VIRTUALIZATIONINSTANCE_HANDLE   virtualizationInstanceHandle,
-        _In_ GUID                               enumerationId,
-        _In_ LPCWSTR                            pathName,
-        _In_ PGV_PLACEHOLDER_VERSION_INFO       versionInfo
-        )
+        _In_ PGV_CALLBACK_DATA                callbackData,
+        _In_ GUID                             enumerationId)
     {
-        UNREFERENCED_PARAMETER(virtualizationInstanceHandle);
-        UNREFERENCED_PARAMETER(versionInfo);
-
         if (VirtualizationManager::activeInstance != nullptr &&
             VirtualizationManager::activeInstance->OnStartDirectoryEnumeration != nullptr)
         {
-            NTSTATUS result = STATUS_SUCCESS;
-
-            try
-            {
-                result = static_cast<NTSTATUS>(VirtualizationManager::activeInstance->OnStartDirectoryEnumeration(
+            return static_cast<NTSTATUS>(VirtualizationManager::activeInstance->OnStartDirectoryEnumeration(
+                    callbackData->CommandId,
                     GUIDtoGuid(enumerationId),
-                    gcnew String(pathName)));
-            }
-            catch (GvFltException^ error)
-            {
-                VirtualizationManager::activeInstance->Tracer->TraceError("GvStartDirectoryEnumerationCB caught GvFltException: " + error->ToString());
-                result = static_cast<long>(error->ErrorCode);
-            }
-            catch (Win32Exception^ error)
-            {
-                VirtualizationManager::activeInstance->Tracer->TraceError("GvStartDirectoryEnumerationCB caught Win32Exception: " + error->ToString());
-                result = Win32ErrorToNtStatus(error->NativeErrorCode);
-            }
-            catch (Exception^ error)
-            {
-                VirtualizationManager::activeInstance->Tracer->TraceError("GvStartDirectoryEnumerationCB fatal exception: " + error->ToString());
-                throw;
-            }
-
-            return result;
+                    gcnew String(callbackData->FilePathName)));
         }
 
         return STATUS_INVALID_DEVICE_STATE;
     }
 
     NTSTATUS GvEndDirectoryEnumerationCB(
-        _In_ GV_VIRTUALIZATIONINSTANCE_HANDLE  virtualizationInstanceHandle,
-        _In_ GUID                              enumerationId
-        )
+        _In_ PGV_CALLBACK_DATA                 callbackData,
+        _In_ GUID                              enumerationId)
     {
-        UNREFERENCED_PARAMETER(virtualizationInstanceHandle);
+        UNREFERENCED_PARAMETER(callbackData);
 
         if (VirtualizationManager::activeInstance != nullptr &&
             VirtualizationManager::activeInstance->OnEndDirectoryEnumeration != nullptr)
         {
-            NTSTATUS result = STATUS_SUCCESS;
-
-            try
-            {
-                result = static_cast<NTSTATUS>(VirtualizationManager::activeInstance->OnEndDirectoryEnumeration(GUIDtoGuid(enumerationId)));
-            }
-            catch (GvFltException^ error)
-            {
-                VirtualizationManager::activeInstance->Tracer->TraceError("GvEndDirectoryEnumerationCB caught GvFltException: " + error->ToString());
-                result = static_cast<long>(error->ErrorCode);
-            }
-            catch (Win32Exception^ error)
-            {
-                VirtualizationManager::activeInstance->Tracer->TraceError("GvEndDirectoryEnumerationCB caught Win32Exception: " + error->ToString());
-                result = Win32ErrorToNtStatus(error->NativeErrorCode);
-            }
-            catch (Exception^ error)
-            {
-                VirtualizationManager::activeInstance->Tracer->TraceError("GvEndDirectoryEnumerationCB fatal exception: " + error->ToString());
-                throw;
-            }
-
-            return result;
+            return static_cast<NTSTATUS>(VirtualizationManager::activeInstance->OnEndDirectoryEnumeration(GUIDtoGuid(enumerationId)));
         }
 
         return STATUS_INVALID_DEVICE_STATE;
     }
 
     NTSTATUS GvGetDirectoryEnumerationCB(
-        _In_     GV_VIRTUALIZATIONINSTANCE_HANDLE  virtualizationInstanceHandle,
+        _In_     PGV_CALLBACK_DATA                 callbackData,
         _In_     GUID                              enumerationId,
         _In_     FILE_INFORMATION_CLASS            fileInformationClass,
         _Inout_  PULONG                            length,
         _In_     LPCWSTR                           filterFileName,
         _In_     BOOLEAN                           returnSingleEntry,
         _In_     BOOLEAN                           restartScan,
-        _Out_    PVOID                             fileInformation
-        )
+        _Out_    PVOID                             fileInformation)
     {
-        UNREFERENCED_PARAMETER(virtualizationInstanceHandle);
+        UNREFERENCED_PARAMETER(callbackData);
 
         size_t fileInfoSize = 0;
 
@@ -844,316 +697,159 @@ namespace
             VirtualizationManager::activeInstance->OnGetDirectoryEnumeration != nullptr)
         {            
             memset(fileInformation, 0, *length);
-            NTSTATUS resultStatus = STATUS_SUCCESS;
             ULONG totalBytesWritten = 0;
 
-            try
+            PVOID outputBuffer = fileInformation;
+            DirectoryEnumerationResult^ enumerationData = CreateEnumerationResult(fileInformationClass, outputBuffer, *length, fileInfoSize);
+            NtStatus callbackResult = VirtualizationManager::activeInstance->OnGetDirectoryEnumeration(
+                GUIDtoGuid(enumerationId),
+                filterFileName != NULL ? gcnew String(filterFileName) : nullptr,
+                (restartScan != FALSE),
+                enumerationData);
+
+            totalBytesWritten = enumerationData->BytesWritten;
+
+            if (!returnSingleEntry)
             {
-                PVOID outputBuffer = fileInformation;
-                DirectoryEnumerationResult^ enumerationData = CreateEnumerationResult(fileInformationClass, outputBuffer, *length, fileInfoSize);
-                NtStatus callbackResult = VirtualizationManager::activeInstance->OnGetDirectoryEnumeration(
-                    GUIDtoGuid(enumerationId),
-                    filterFileName != NULL ? gcnew String(filterFileName) : nullptr,
-                    (restartScan != FALSE),
-                    enumerationData);
-
-                totalBytesWritten = enumerationData->BytesWritten;
-
-                if (!returnSingleEntry)
-                {
-                    bool requestedMultipleEntries = false;
+                bool bufferContainsAtLeastOneEntry = false;
                     
-                    // Entries must be aligned on the proper boundary (either 8-byte or 4-byte depending on the type)
-                    size_t alignment = GetRequiredAlignment(fileInformationClass);
-                    size_t remainingSpace = static_cast<size_t>(*length - totalBytesWritten);
-                    PVOID previousEntry = outputBuffer;
-                    PVOID nextEntry = (PUCHAR)outputBuffer + totalBytesWritten;
-                    if (!std::align(alignment, fileInfoSize, nextEntry, remainingSpace))
+                // Entries must be aligned on the proper boundary (either 8-byte or 4-byte depending on the type)
+                size_t alignment = GetRequiredAlignment(fileInformationClass);
+                size_t remainingSpace = static_cast<size_t>(*length - totalBytesWritten);
+                PVOID previousEntry = outputBuffer;
+                PVOID nextEntry = (PUCHAR)outputBuffer + totalBytesWritten;
+                if (!std::align(alignment, fileInfoSize, nextEntry, remainingSpace))
+                {
+                    nextEntry = nullptr;
+                }
+
+                while (callbackResult == NtStatus::Success && nextEntry != nullptr)
+                {
+                    bufferContainsAtLeastOneEntry = true;
+
+                    enumerationData = CreateEnumerationResult(fileInformationClass, nextEntry, static_cast<ULONG>(remainingSpace), fileInfoSize);
+
+                    callbackResult = VirtualizationManager::activeInstance->OnGetDirectoryEnumeration(
+                        GUIDtoGuid(enumerationId),
+                        filterFileName != NULL ? gcnew String(filterFileName) : nullptr,
+                        false, // restartScan
+                        enumerationData);
+
+                    if (callbackResult == NtStatus::Success)
                     {
-                        nextEntry = nullptr;
-                    }
+                        SetNextEntryOffset(fileInformationClass, previousEntry, static_cast<ULONG>((PUCHAR)nextEntry - (PUCHAR)previousEntry));
 
-                    while (callbackResult == NtStatus::Succcess && nextEntry != nullptr)
-                    {
-                        requestedMultipleEntries = true;
+                        totalBytesWritten = static_cast<ULONG>((PUCHAR)nextEntry - (PUCHAR)outputBuffer) + enumerationData->BytesWritten;
 
-                        enumerationData = CreateEnumerationResult(fileInformationClass, nextEntry, static_cast<ULONG>(remainingSpace), fileInfoSize);
-
-                        callbackResult = VirtualizationManager::activeInstance->OnGetDirectoryEnumeration(
-                            GUIDtoGuid(enumerationId),
-                            filterFileName != NULL ? gcnew String(filterFileName) : nullptr,
-                            false, // restartScan
-                            enumerationData);
-
-                        if (callbackResult == NtStatus::Succcess)
+                        // Advance nextEntry to the next boundary aligned spot in the buffer
+                        remainingSpace = static_cast<size_t>(*length - totalBytesWritten);
+                        previousEntry = nextEntry;
+                        nextEntry = (PUCHAR)outputBuffer + totalBytesWritten;
+                        if (!std::align(alignment, fileInfoSize, nextEntry, remainingSpace))
                         {
-                            SetNextEntryOffset(fileInformationClass, previousEntry, static_cast<ULONG>((PUCHAR)nextEntry - (PUCHAR)previousEntry));
-
-                            totalBytesWritten = static_cast<ULONG>((PUCHAR)nextEntry - (PUCHAR)outputBuffer) + enumerationData->BytesWritten;
-
-                            // Advance nextEntry to the next boundary aligned spot in the buffer
-                            remainingSpace = static_cast<size_t>(*length - totalBytesWritten);
-                            previousEntry = nextEntry;
-                            nextEntry = (PUCHAR)outputBuffer + totalBytesWritten;
-                            if (!std::align(alignment, fileInfoSize, nextEntry, remainingSpace))
-                            {
-                                nextEntry = nullptr;
-                            }
-                        }
-                    }
-
-                    if (requestedMultipleEntries) 
-                    {
-                        if (callbackResult == NtStatus::BufferOverflow)
-                        {
-                            // We attempted to place multiple entries in the buffer, but not all of them fit, return StatusSucccess
-                            // On the next call to GvGetDirectoryEnumerationCB we'll start with the entry that was too
-                            // big to fit
-                            callbackResult = NtStatus::Succcess;
-                        }
-                        else if (callbackResult == NtStatus::NoMoreFiles)
-                        {
-                            // We succeeded in placing all remaining entries in the buffer.  Return StatusSucccess to indicate
-                            // that there are entries in the buffer.  On the next call to GvGetDirectoryEnumerationCB StatusNoMoreFiles
-                            // will be returned
-                            callbackResult = NtStatus::Succcess;
+                            nextEntry = nullptr;
                         }
                     }
                 }
 
-                resultStatus = static_cast<NTSTATUS>(callbackResult);
-            }
-            catch (GvFltException^ error)
-            {
-                VirtualizationManager::activeInstance->Tracer->TraceError("GvGetDirectoryEnumerationCB caught GvFltException: " + error->ToString());
-                resultStatus = static_cast<long>(error->ErrorCode);
-            }
-            catch (Win32Exception^ error)
-            {
-                VirtualizationManager::activeInstance->Tracer->TraceError("GvGetDirectoryEnumerationCB caught Win32Exception: " + error->ToString());
-                resultStatus = Win32ErrorToNtStatus(error->NativeErrorCode);
-            }
-            catch (Exception^ error)
-            {
-                VirtualizationManager::activeInstance->Tracer->TraceError("GvGetDirectoryEnumerationCB fatal exception: " + error->ToString());
-                throw;
+                if (bufferContainsAtLeastOneEntry)
+                {
+                    if (callbackResult == NtStatus::BufferOverflow)
+                    {
+                        // We attempted to place multiple entries in the buffer, but not all of them fit, return StatusSucccess
+                        // On the next call to GvGetDirectoryEnumerationCB we'll start with the entry that was too
+                        // big to fit
+                        callbackResult = NtStatus::Success;
+                    }
+                    else if (callbackResult == NtStatus::NoMoreFiles)
+                    {
+                        // We succeeded in placing all remaining entries in the buffer.  Return StatusSucccess to indicate
+                        // that there are entries in the buffer.  On the next call to GvGetDirectoryEnumerationCB StatusNoMoreFiles
+                        // will be returned
+                        callbackResult = NtStatus::Success;
+                    }
+                }
             }
 
             *length = totalBytesWritten;
 
-            return resultStatus;
+            return static_cast<NTSTATUS>(callbackResult);
         }
 
         return STATUS_INVALID_DEVICE_STATE;
     }
 
     NTSTATUS GvQueryFileNameCB(
-        _In_      GV_VIRTUALIZATIONINSTANCE_HANDLE   virtualizationInstanceHandle,
-        _In_      LPCWSTR                            pathFileName
-        )
+        _In_     PGV_CALLBACK_DATA                 callbackData)
     {
-        UNREFERENCED_PARAMETER(virtualizationInstanceHandle);
         if (VirtualizationManager::activeInstance != nullptr &&
             VirtualizationManager::activeInstance->OnQueryFileName != nullptr)
         {
-            NTSTATUS result = STATUS_SUCCESS;
-
-            try
-            {
-                result = static_cast<NTSTATUS>(VirtualizationManager::activeInstance->OnQueryFileName(gcnew String(pathFileName)));
-            }
-            catch (GvFltException^ error)
-            {
-                VirtualizationManager::activeInstance->Tracer->TraceError("GvQueryFileNameCB caught GvFltException: " + error->ToString());
-                result = static_cast<long>(error->ErrorCode);
-            }
-            catch (Win32Exception^ error)
-            {
-                VirtualizationManager::activeInstance->Tracer->TraceError("GvQueryFileNameCB caught Win32Exception: " + error->ToString());
-                result = Win32ErrorToNtStatus(error->NativeErrorCode);
-            }
-            catch (Exception^ error)
-            {
-                VirtualizationManager::activeInstance->Tracer->TraceError("GvQueryFileNameCB fatal exception: " + error->ToString());
-                throw;
-            }
-
-            return result;
+            return static_cast<NTSTATUS>(VirtualizationManager::activeInstance->OnQueryFileName(gcnew String(callbackData->FilePathName)));
         }
 
         return STATUS_INVALID_DEVICE_STATE;
     }
 
     NTSTATUS GvGetPlaceholderInformationCB(
-        _In_ GV_VIRTUALIZATIONINSTANCE_HANDLE   virtualizationInstanceHandle,
-        _In_ LPCWSTR                            pathFileName,
-        _In_ PGV_PLACEHOLDER_VERSION_INFO       parentDirectoryVersionInfo,
+        _In_ PGV_CALLBACK_DATA                  callbackData,
         _In_ DWORD                              desiredAccess,
         _In_ DWORD                              shareMode,
         _In_ DWORD                              createDisposition,
         _In_ DWORD                              createOptions,
-        _In_ LPCWSTR                            destinationFileName,
-        _In_ DWORD                              triggeringProcessId,
-        _In_ LPCWSTR                            triggeringProcessImageFileName
-        )
+        _In_ LPCWSTR                            destinationFileName)
     {
-        UNREFERENCED_PARAMETER(virtualizationInstanceHandle);
-        UNREFERENCED_PARAMETER(parentDirectoryVersionInfo);
         UNREFERENCED_PARAMETER(destinationFileName);
 
         if (VirtualizationManager::activeInstance != nullptr &&
             VirtualizationManager::activeInstance->OnGetPlaceholderInformation != nullptr)
         {
-            NTSTATUS result = STATUS_SUCCESS;
-
-            try
-            {
-                result = static_cast<NTSTATUS>(VirtualizationManager::activeInstance->OnGetPlaceholderInformation(
-                    gcnew String(pathFileName),
-                    desiredAccess,
-                    shareMode,
-                    createDisposition,
-                    createOptions,
-                    triggeringProcessId,
-                    triggeringProcessImageFileName != nullptr ? gcnew String(triggeringProcessImageFileName) : System::String::Empty));
-            }
-            catch (GvFltException^ error)
-            {
-                VirtualizationManager::activeInstance->Tracer->TraceError("GvGetPlaceholderInformationCB caught GvFltException: " + error->ToString());
-                result = static_cast<long>(error->ErrorCode);
-            }
-            catch (Win32Exception^ error)
-            {
-                VirtualizationManager::activeInstance->Tracer->TraceError("GvGetPlaceholderInformationCB caught Win32Exception: " + error->ToString());
-                result = Win32ErrorToNtStatus(error->NativeErrorCode);
-            }
-            catch (Exception^ error)
-            {
-                VirtualizationManager::activeInstance->Tracer->TraceError("GvGetPlaceholderInformationCB fatal exception: " + error->ToString());
-                throw;
-            }
-
-            return result;
+            return static_cast<NTSTATUS>(VirtualizationManager::activeInstance->OnGetPlaceholderInformation(
+                callbackData->CommandId,
+                gcnew String(callbackData->FilePathName),
+                desiredAccess,
+                shareMode,
+                createDisposition,
+                createOptions,
+                callbackData->TriggeringProcessId,
+                callbackData->TriggeringProcessImageFileName != NULL ? gcnew String(callbackData->TriggeringProcessImageFileName) : System::String::Empty));
         }
 
         return STATUS_INVALID_DEVICE_STATE;
     }
 
     NTSTATUS GvGetFileStreamCB(
-        _In_ GV_VIRTUALIZATIONINSTANCE_HANDLE  virtualizationInstanceHandle,
-        _In_ LPCWSTR                           pathFileName,
-        _In_ PGV_PLACEHOLDER_VERSION_INFO      versionInfo,
+        _In_ PGV_CALLBACK_DATA                 callbackData,
         _In_ LARGE_INTEGER                     byteOffset,
-        _In_ DWORD                             length,
-        _In_ ULONG                             flags,
-        _In_ GUID                              streamGuid,
-        _In_ DWORD                             triggeringProcessId,
-        _In_ LPCWSTR                           triggeringProcessImageFileName
-    )
+        _In_ DWORD                             length)
     {
-        UNREFERENCED_PARAMETER(virtualizationInstanceHandle);
-        UNREFERENCED_PARAMETER(flags);
-
-        if (VirtualizationManager::activeInstance != nullptr)
+        if (VirtualizationManager::activeInstance != nullptr && VirtualizationManager::activeInstance->OnGetFileStream != nullptr)
         {
-            if (versionInfo == NULL)
-            {
-                VirtualizationManager::activeInstance->Tracer->TraceError("GvGetFileStreamCB called with null versionInfo, path: " + gcnew String(pathFileName));
-                return static_cast<long>(NtStatus::InternalError);
-            }
-
-            if (VirtualizationManager::activeInstance->OnGetFileStream != nullptr)
-            {
-                NTSTATUS result = STATUS_SUCCESS;
-                try
-                {
-                    result = static_cast<NTSTATUS>(VirtualizationManager::activeInstance->OnGetFileStream(
-                        gcnew String(pathFileName),
-                        byteOffset.QuadPart,
-                        length,
-                        GUIDtoGuid(streamGuid),
-                        MarshalPlaceholderId(versionInfo->ContentID),
-                        MarshalPlaceholderId(versionInfo->EpochID),
-                        triggeringProcessId,
-                        triggeringProcessImageFileName != nullptr ? gcnew String(triggeringProcessImageFileName) : System::String::Empty));
-                }
-                catch (GvFltException^ error)
-                {
-                    switch (error->ErrorCode)
-                    {
-                    case NtStatus::FileClosed:
-                        // StatusFileClosed is expected, and occurs when an application closes a file handle before OnGetFileStream
-                        // is complete
-                        break;
-
-                    case NtStatus::ObjectNameNotFound:
-                        // GvWriteFile may return STATUS_OBJECT_NAME_NOT_FOUND if the stream guid provided is not valid (doesn’t exist in the stream table).
-                        // For each file expansion, GVFlt creates a new get stream session with a new stream guid, the session starts at the beginning of the 
-                        // file expansion, and ends after the GetFileStream command returns or times out.
-                        //
-                        // If we hit this in the provider, the most common explanation is that the provider is calling GvWriteFile after the GVFlt thread 
-                        // waiting on the respose from GetFileStream has already timed out
-                        break;
-
-                    default:
-                        VirtualizationManager::activeInstance->Tracer->TraceError("GvGetFileStreamCB caught GvFltException: " + error->ToString());
-                        break;
-                    }
-
-                    result = static_cast<long>(error->ErrorCode);
-                }
-                catch (Win32Exception^ error)
-                {
-                    VirtualizationManager::activeInstance->Tracer->TraceError("GvGetFileStreamCB caught Win32Exception: " + error->ToString());
-                    result = Win32ErrorToNtStatus(error->NativeErrorCode);
-                }
-                catch (Exception^ error)
-                {
-                    VirtualizationManager::activeInstance->Tracer->TraceError("GvGetFileStreamCB fatal exception: " + error->ToString());
-                    throw;
-                }
-
-                return result;
-            }
+            return static_cast<NTSTATUS>(VirtualizationManager::activeInstance->OnGetFileStream(
+                callbackData->CommandId,
+                gcnew String(callbackData->FilePathName),
+                byteOffset.QuadPart,
+                length,
+                GUIDtoGuid(callbackData->StreamGuid),
+                callbackData->VersionInfo != NULL ? MarshalPlaceholderId(callbackData->VersionInfo->ContentID) : nullptr,
+                callbackData->VersionInfo != NULL ? MarshalPlaceholderId(callbackData->VersionInfo->EpochID) : nullptr,
+                callbackData->TriggeringProcessId,
+                callbackData->TriggeringProcessImageFileName != NULL ? gcnew String(callbackData->TriggeringProcessImageFileName) : System::String::Empty));
         }
 
         return STATUS_INVALID_DEVICE_STATE;
     }
 
     NTSTATUS GvNotifyFirstWriteCB(
-        _In_ GV_VIRTUALIZATIONINSTANCE_HANDLE   virtualizationInstanceHandle,
-        _In_ LPCWSTR                            pathFileName,
-        _In_ PGV_PLACEHOLDER_VERSION_INFO       versionInfo
-    )
+        _In_      PGV_CALLBACK_DATA                  callbackData)
     {
-        UNREFERENCED_PARAMETER(virtualizationInstanceHandle);
-        UNREFERENCED_PARAMETER(versionInfo);
-
         if (VirtualizationManager::activeInstance != nullptr)
         {
             NTSTATUS result = STATUS_SUCCESS;
 
             if (VirtualizationManager::activeInstance->OnNotifyFirstWrite != nullptr)
             {
-                try
-                {
-                    result = static_cast<NTSTATUS>(VirtualizationManager::activeInstance->OnNotifyFirstWrite(gcnew String(pathFileName)));
-                }
-                catch (GvFltException^ error)
-                {
-                    VirtualizationManager::activeInstance->Tracer->TraceError("GvNotifyFirstWriteCB caught GvFltException: " + error->ToString());
-                    result = static_cast<long>(error->ErrorCode);
-                }
-                catch (Win32Exception^ error)
-                {
-                    VirtualizationManager::activeInstance->Tracer->TraceError("GvNotifyFirstWriteCB caught Win32Exception: " + error->ToString());
-                    result = Win32ErrorToNtStatus(error->NativeErrorCode);
-                }
-                catch (Exception^ error)
-                {
-                    VirtualizationManager::activeInstance->Tracer->TraceError("GvNotifyFirstWriteCB fatal exception: " + error->ToString());
-                    throw;
-                }
+                result = static_cast<NTSTATUS>(VirtualizationManager::activeInstance->OnNotifyFirstWrite(gcnew String(callbackData->FilePathName)));
             }
 
             return result;
@@ -1163,129 +859,111 @@ namespace
     }
 
     NTSTATUS GvNotifyOperationCB(
-        _In_     GV_VIRTUALIZATIONINSTANCE_HANDLE virtualizationInstanceHandle,
-        _In_     LPCWSTR                          pathFileName,
-        _In_     BOOLEAN                          isDirectory,
-        _In_     PGV_PLACEHOLDER_VERSION_INFO     versionInfo,
-        _In_     GUID                             streamGuid,
-        _In_     GUID                             handleGuid,
-        _In_     GV_NOTIFICATION_TYPE             notificationType,
-        _In_opt_ LPCWSTR                          destinationFileName,
-        _Inout_  PGV_OPERATION_PARAMETERS         operationParameters
-    )
+        _In_     PGV_CALLBACK_DATA              callbackData,
+        _In_     BOOLEAN                        isDirectory,
+        _In_     GV_NOTIFICATION_TYPE           notificationType,
+        _In_opt_ LPCWSTR                        destinationFileName,
+        _Inout_  PGV_OPERATION_PARAMETERS       operationParameters)
     {
-        UNREFERENCED_PARAMETER(virtualizationInstanceHandle);
-        UNREFERENCED_PARAMETER(versionInfo);
-        UNREFERENCED_PARAMETER(streamGuid);
-        UNREFERENCED_PARAMETER(handleGuid);
-
         if (VirtualizationManager::activeInstance != nullptr)
         {
             NTSTATUS result = STATUS_SUCCESS;
-            try
+
+            // NOTE: Post callbacks have void return type.  The return type is void because
+            // they are not allowed to fail as the operation has already taken place.  If, in the
+            // future, we were to allow post callbacks to fail the application would need to take
+            // all necessary actions to undo the operation that has succeeded.
+            switch (notificationType)
             {
-                // NOTE: Post callbacks have void return type.  The return type is void because
-                // they are not allowed to fail as the operation has already taken place.  If, in the
-                // future, we were to allow post callbacks to fail the application would need to take
-                // all necessary actions to undo the operation that has succeeded.
-                switch (notificationType)
+            case GV_NOTIFICATION_POST_CREATE:
+                if (VirtualizationManager::activeInstance->OnNotifyFileHandleCreated != nullptr)
                 {
-                case GV_NOTIFICATION_POST_CREATE:
-                    if (VirtualizationManager::activeInstance->OnNotifyFileHandleCreated != nullptr)
-                    {
-                        VirtualizationManager::activeInstance->OnNotifyFileHandleCreated(
-                            gcnew String(pathFileName),
-							isDirectory != FALSE,
-                            operationParameters->PostCreate.DesiredAccess,
-                            operationParameters->PostCreate.ShareMode,
-                            operationParameters->PostCreate.CreateDisposition,
-                            operationParameters->PostCreate.CreateOptions,
-                            static_cast<IoStatusBlockValue>(operationParameters->PostCreate.IoStatusBlock),
-                            operationParameters->PostCreate.NotificationMask);
-                    }
-                    break;
-
-                case GV_NOTIFICATION_PRE_DELETE:
-                    if (VirtualizationManager::activeInstance->OnNotifyPreDelete != nullptr)
-                    {
-                        result = static_cast<NTSTATUS>(VirtualizationManager::activeInstance->OnNotifyPreDelete(gcnew String(pathFileName), isDirectory != FALSE));
-                    }
-                    break;
-
-                case GV_NOTIFICATION_PRE_RENAME:
-                    if (VirtualizationManager::activeInstance->OnNotifyPreRename != nullptr)
-                    {
-                        result = static_cast<NTSTATUS>(VirtualizationManager::activeInstance->OnNotifyPreRename(
-                            gcnew String(pathFileName),
-                            gcnew String(destinationFileName)));
-                    }
-                    break;
-
-                case GV_NOTIFICATION_PRE_SET_HARDLINK:
-                    if (VirtualizationManager::activeInstance->OnNotifyPreSetHardlink != nullptr)
-                    {
-                        result = static_cast<NTSTATUS>(VirtualizationManager::activeInstance->OnNotifyPreSetHardlink(
-                            gcnew String(pathFileName),
-                            gcnew String(destinationFileName)));
-                    }
-                    break;
-
-                case GV_NOTIFICATION_FILE_RENAMED:
-                    if (VirtualizationManager::activeInstance->OnNotifyFileRenamed != nullptr)
-                    {
-                        VirtualizationManager::activeInstance->OnNotifyFileRenamed(
-                            gcnew String(pathFileName),
-                            gcnew String(destinationFileName),
-                            isDirectory != FALSE,
-                            operationParameters->FileRenamed.NotificationMask);
-                    }
-                    break;
-
-                case GV_NOTIFICATION_HARDLINK_CREATED:
-                    if (VirtualizationManager::activeInstance->OnNotifyHardlinkCreated != nullptr)
-                    {
-                        VirtualizationManager::activeInstance->OnNotifyHardlinkCreated(
-                            gcnew String(pathFileName),
-                            gcnew String(destinationFileName));
-                    }
-                    break;
-                    
-                case GV_NOTIFICATION_FILE_HANDLE_CLOSED:
-                    if (VirtualizationManager::activeInstance->OnNotifyFileHandleClosed != nullptr)
-                    {
-                        VirtualizationManager::activeInstance->OnNotifyFileHandleClosed(
-                            gcnew String(pathFileName),
-                            isDirectory != FALSE,
-                            (operationParameters->HandleClosed.FileModified != FALSE),
-                            (operationParameters->HandleClosed.FileDeleted != FALSE));
-                    }
-                    break;
-
-                default:
-                    VirtualizationManager::activeInstance->Tracer->TraceError("GvNotifyOperationCB unexpected notification type: " + gcnew String(std::to_string(notificationType).c_str()));
-                    break;
+                    VirtualizationManager::activeInstance->OnNotifyFileHandleCreated(
+                        gcnew String(callbackData->FilePathName),
+                        isDirectory != FALSE,
+                        operationParameters->PostCreate.DesiredAccess,
+                        operationParameters->PostCreate.ShareMode,
+                        operationParameters->PostCreate.CreateDisposition,
+                        operationParameters->PostCreate.CreateOptions,
+                        static_cast<IoStatusBlockValue>(operationParameters->PostCreate.IoStatusBlock),
+                        operationParameters->PostCreate.NotificationMask);
                 }
-            }
-            catch (GvFltException^ error)
-            {
-                VirtualizationManager::activeInstance->Tracer->TraceError("GvNotifyOperationCB caught GvFltException: " + error->ToString());
-                result = static_cast<long>(error->ErrorCode);
-            }
-            catch (Win32Exception^ error)
-            {
-                VirtualizationManager::activeInstance->Tracer->TraceError("GvNotifyOperationCB caught Win32Exception: " + error->ToString());
-                result = Win32ErrorToNtStatus(error->NativeErrorCode);
-            }
-            catch (Exception^ error)
-            {
-                VirtualizationManager::activeInstance->Tracer->TraceError("GvNotifyOperationCB fatal exception: " + error->ToString());
-                throw;
-            }
+                break;
 
+            case GV_NOTIFICATION_PRE_DELETE:
+                if (VirtualizationManager::activeInstance->OnNotifyPreDelete != nullptr)
+                {
+                    result = static_cast<NTSTATUS>(VirtualizationManager::activeInstance->OnNotifyPreDelete(gcnew String(callbackData->FilePathName), isDirectory != FALSE));
+                }
+                break;
+
+            case GV_NOTIFICATION_PRE_RENAME:
+                if (VirtualizationManager::activeInstance->OnNotifyPreRename != nullptr)
+                {
+                    result = static_cast<NTSTATUS>(VirtualizationManager::activeInstance->OnNotifyPreRename(
+                        gcnew String(callbackData->FilePathName),
+                        gcnew String(destinationFileName)));
+                }
+                break;
+
+            case GV_NOTIFICATION_PRE_SET_HARDLINK:
+                if (VirtualizationManager::activeInstance->OnNotifyPreSetHardlink != nullptr)
+                {
+                    result = static_cast<NTSTATUS>(VirtualizationManager::activeInstance->OnNotifyPreSetHardlink(
+                        gcnew String(callbackData->FilePathName),
+                        gcnew String(destinationFileName)));
+                }
+                break;
+
+            case GV_NOTIFICATION_FILE_RENAMED:
+                if (VirtualizationManager::activeInstance->OnNotifyFileRenamed != nullptr)
+                {
+                    VirtualizationManager::activeInstance->OnNotifyFileRenamed(
+                        gcnew String(callbackData->FilePathName),
+                        gcnew String(destinationFileName),
+                        isDirectory != FALSE,
+                        operationParameters->FileRenamed.NotificationMask);
+                }
+                break;
+
+            case GV_NOTIFICATION_HARDLINK_CREATED:
+                if (VirtualizationManager::activeInstance->OnNotifyHardlinkCreated != nullptr)
+                {
+                    VirtualizationManager::activeInstance->OnNotifyHardlinkCreated(
+                        gcnew String(callbackData->FilePathName),
+                        gcnew String(destinationFileName));
+                }
+                break;
+
+            case GV_NOTIFICATION_FILE_HANDLE_CLOSED:
+                if (VirtualizationManager::activeInstance->OnNotifyFileHandleClosed != nullptr)
+                {
+                    VirtualizationManager::activeInstance->OnNotifyFileHandleClosed(
+                        gcnew String(callbackData->FilePathName),
+                        isDirectory != FALSE,
+                        (operationParameters->HandleClosed.FileModified != FALSE),
+                        (operationParameters->HandleClosed.FileDeleted != FALSE));
+                }
+                break;
+
+            default:
+                // Unexpected notification type
+                break;
+            }
+            
             return result;
         }
 
         return STATUS_INVALID_DEVICE_STATE;
+    }
+
+    void GvCancelCommandCB(
+        _In_     PGV_CALLBACK_DATA              callbackData)
+    {
+        if (VirtualizationManager::activeInstance != nullptr && VirtualizationManager::activeInstance->OnCancelCommand != nullptr)
+        {
+            VirtualizationManager::activeInstance->OnCancelCommand(callbackData->CommandId);
+        }
     }
 
     inline DirectoryEnumerationResult^ CreateEnumerationResult(
@@ -1306,7 +984,9 @@ namespace
             fileInfoSize = FIELD_OFFSET(FILE_ID_EXTD_BOTH_DIR_INFORMATION, FileName);
             return gcnew DirectoryEnumerationResultImpl<FILE_ID_EXTD_BOTH_DIR_INFORMATION >(static_cast<FILE_ID_EXTD_BOTH_DIR_INFORMATION *>(buffer), bufferLength);
         default:
-            throw gcnew GvFltException(NtStatus::InvalidDeviceRequest);
+            throw gcnew GvLibException(
+                String::Format("CreateEnumerationResult: Invalid fileInformationClass: {0}", static_cast<int>(fileInformationClass)), 
+                NtStatus::InvalidDeviceRequest);
         }
     }
 
@@ -1327,7 +1007,9 @@ namespace
             static_cast<FILE_ID_EXTD_BOTH_DIR_INFORMATION*>(buffer)->NextEntryOffset = offset;
             break;
         default:
-            throw gcnew GvFltException(NtStatus::InvalidDeviceRequest);;
+            throw gcnew GvLibException(
+                String::Format("SetNextEntryOffset: Invalid fileInformationClass: {0}", static_cast<int>(fileInformationClass)),
+                NtStatus::InvalidDeviceRequest);
         }
     }
 
@@ -1342,7 +1024,9 @@ namespace
             return 4;
             break;
         default:
-            throw gcnew GvFltException(NtStatus::InvalidDeviceRequest);;
+            throw gcnew GvLibException(
+                String::Format("GetRequiredAlignment: Invalid fileInformationClass: {0}", static_cast<int>(fileInformationClass)),
+                NtStatus::InvalidDeviceRequest);
         }
     }
 
@@ -1369,6 +1053,22 @@ namespace
     inline bool IsPowerOf2(ULONG num)
     {
         return (num & (num - 1)) == 0;
+    }
+
+    inline System::Guid GUIDtoGuid(const GUID& guid)
+    {
+        return System::Guid(
+            guid.Data1,
+            guid.Data2,
+            guid.Data3,
+            guid.Data4[0],
+            guid.Data4[1],
+            guid.Data4[2],
+            guid.Data4[3],
+            guid.Data4[4],
+            guid.Data4[5],
+            guid.Data4[6],
+            guid.Data4[7]);
     }
 
     inline std::shared_ptr<GV_PLACEHOLDER_INFORMATION> CreatePlaceholderInformation(

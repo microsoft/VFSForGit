@@ -7,6 +7,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Net;
+using System.Threading;
 
 namespace GVFS.UnitTests.Mock.Git
 {
@@ -38,7 +39,7 @@ namespace GVFS.UnitTests.Mock.Git
             }
         }
 
-        public override List<GitObjectSize> QueryForFileSizes(IEnumerable<string> objectIds)
+        public override List<GitObjectSize> QueryForFileSizes(IEnumerable<string> objectIds, CancellationToken cancellationToken)
         {
             return objectIds.Select(oid => new GitObjectSize(oid, this.QueryForFileSize(oid))).ToList();
         }
@@ -70,13 +71,6 @@ namespace GVFS.UnitTests.Mock.Git
             objectIds.Count().ShouldEqual(1);
             string objectId = objectIds.First();
             return this.GetSingleObject(objectId, onSuccess, onFailure);
-        }
-
-        public override RetryWrapper<GitObjectTaskResult>.InvocationResult TryDownloadLooseObject(
-            string objectId,
-            Func<int, GitEndPointResponseData, RetryWrapper<GitObjectTaskResult>.CallbackResult> onSuccess)
-        {
-            return this.GetSingleObject(objectId, onSuccess, null);
         }
 
         private RetryWrapper<GitObjectTaskResult>.InvocationResult GetSingleObject(

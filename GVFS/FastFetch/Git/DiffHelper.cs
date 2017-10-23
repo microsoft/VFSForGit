@@ -1,4 +1,6 @@
-﻿using GVFS.Common.Tracing;
+﻿using GVFS.Common;
+using GVFS.Common.Git;
+using GVFS.Common.Tracing;
 using Microsoft.Diagnostics.Tracing;
 using System;
 using System.Collections.Concurrent;
@@ -6,14 +8,15 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 
-namespace GVFS.Common.Git
+namespace FastFetch.Git
 {
     public class DiffHelper
     {
         private const string AreaPath = nameof(DiffHelper);
 
         private ITracer tracer;
-        private List<string> pathWhitelist;
+        private List<string> fileList;
+        private List<string> folderList;
         private HashSet<string> filesAdded = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
         private HashSet<DiffTreeResult> stagedDirectoryOperations = new HashSet<DiffTreeResult>(new DiffTreeByNameComparer());
@@ -22,15 +25,16 @@ namespace GVFS.Common.Git
         private Enlistment enlistment;
         private GitProcess git;
 
-        public DiffHelper(ITracer tracer, Enlistment enlistment, IEnumerable<string> pathWhitelist)
-            : this(tracer, enlistment, new GitProcess(enlistment), pathWhitelist)
+        public DiffHelper(ITracer tracer, Enlistment enlistment, IEnumerable<string> fileList, IEnumerable<string> folderList)
+            : this(tracer, enlistment, new GitProcess(enlistment), fileList, folderList)
         {
         }
 
-        public DiffHelper(ITracer tracer, Enlistment enlistment, GitProcess git, IEnumerable<string> pathWhitelist)
+        public DiffHelper(ITracer tracer, Enlistment enlistment, GitProcess git, IEnumerable<string> fileList, IEnumerable<string> folderList)
         {
             this.tracer = tracer;
-            this.pathWhitelist = new List<string>(pathWhitelist);
+            this.fileList = new List<string>(fileList);
+            this.folderList = new List<string>(folderList);
             this.enlistment = enlistment;
             this.git = git;
 
@@ -75,7 +79,7 @@ namespace GVFS.Common.Git
         {
             string targetTreeSha;
             string headTreeSha;
-            using (LibGit2Repo repo = new LibGit2Repo(this.tracer, this.enlistment.WorkingDirectoryRoot))
+            using (FastFetchLibGit2Repo repo = new FastFetchLibGit2Repo(this.tracer, this.enlistment.WorkingDirectoryRoot))
             {
                 targetTreeSha = repo.GetTreeSha(targetCommitSha);
                 headTreeSha = repo.GetTreeSha("HEAD");
@@ -118,7 +122,7 @@ namespace GVFS.Common.Git
                     GitProcess.Result result = this.git.DiffTree(
                         sourceTreeSha,
                         targetTreeSha,
-                        line => this.EnqueueOperationsFromDiffTreeLine(this.tracer, this.enlistment.EnlistmentRoot, line));
+                        line => this.EnqueueOperationsFromDiffTreeLine(this.tracer, this.enlistment.WorkingDirectoryRoot, line));
                     
                     if (result.HasErrors)
                     {
@@ -196,13 +200,13 @@ namespace GVFS.Common.Git
 
         private void EnqueueOperationsFromLsTreeLine(ITracer activity, string line)
         {
-            DiffTreeResult result = DiffTreeResult.ParseFromLsTreeLine(line, this.enlistment.EnlistmentRoot);
+            DiffTreeResult result = DiffTreeResult.ParseFromLsTreeLine(line, this.enlistment.WorkingDirectoryRoot);
             if (result == null)
             {
                 this.tracer.RelatedError("Unrecognized ls-tree line: {0}", line);
             }
 
-            if (!this.ResultIsInWhitelist(result))
+            if (!this.ShouldIncludeResult(result))
             {
                 return;
             }
@@ -213,10 +217,10 @@ namespace GVFS.Common.Git
                 {
                     EventMetadata metadata = new EventMetadata();
                     metadata.Add("Filename", result.TargetFilename);
-                    metadata.Add("Message", "File exists in tree with two different cases. Taking the last one.");
+                    metadata.Add(TracingConstants.MessageKey.WarningMessage, "File exists in tree with two different cases. Taking the last one.");
                     this.tracer.RelatedEvent(EventLevel.Warning, "CaseConflict", metadata);
 
-                    // Since we match only on filename, readding is the easiest way to update the set.
+                    // Since we match only on filename, re-adding is the easiest way to update the set.
                     this.stagedDirectoryOperations.Remove(result);
                     this.stagedDirectoryOperations.Add(result);
                 }
@@ -237,7 +241,7 @@ namespace GVFS.Common.Git
             }
 
             DiffTreeResult result = DiffTreeResult.ParseFromDiffTreeLine(line, repoRoot);
-            if (!this.ResultIsInWhitelist(result))
+            if (!this.ShouldIncludeResult(result))
             {
                 return;
             }
@@ -247,8 +251,7 @@ namespace GVFS.Common.Git
             {
                 EventMetadata metadata = new EventMetadata();
                 metadata.Add("Path", result.TargetFilename);
-                metadata.Add("ErrorMessage", "Unexpected diff operation: " + result.Operation);
-                activity.RelatedError(metadata);
+                activity.RelatedError(metadata, "Unexpected diff operation: " + result.Operation);
                 this.HasFailures = true;
                 return;
             }
@@ -263,7 +266,7 @@ namespace GVFS.Common.Git
                         {
                             EventMetadata metadata = new EventMetadata();
                             metadata.Add("Filename", result.TargetFilename);
-                            metadata.Add("Message", "A case change was attempted. It will not be reflected in the working directory.");
+                            metadata.Add(TracingConstants.MessageKey.WarningMessage, "A case change was attempted. It will not be reflected in the working directory.");
                             activity.RelatedEvent(EventLevel.Warning, "CaseConflict", metadata);
                         }
 
@@ -274,7 +277,7 @@ namespace GVFS.Common.Git
                             // This could happen if a directory was deleted and an existing directory was renamed to replace it, but with a different case.
                             EventMetadata metadata = new EventMetadata();
                             metadata.Add("Filename", result.TargetFilename);
-                            metadata.Add("Message", "A case change was attempted. It will not be reflected in the working directory.");
+                            metadata.Add(TracingConstants.MessageKey.WarningMessage, "A case change was attempted. It will not be reflected in the working directory.");
                             activity.RelatedEvent(EventLevel.Warning, "CaseConflict", metadata);
 
                             // The target of RenameEdit is always akin to an Add, so replacing the delete is the safer thing to do.
@@ -289,6 +292,12 @@ namespace GVFS.Common.Git
                             this.EnqueueFileAddOperation(activity, result);
                         }
 
+                        if (!result.SourceIsDirectory)
+                        {
+                            // Handle when a file becomes a directory by deleting the file.
+                            this.EnqueueFileDeleteOperation(activity, result.SourceFilename);
+                        }
+
                         break;
                     case DiffTreeResult.Operations.Add:
                     case DiffTreeResult.Operations.Modify:
@@ -297,7 +306,7 @@ namespace GVFS.Common.Git
                         {
                             EventMetadata metadata = new EventMetadata();
                             metadata.Add("Filename", result.TargetFilename);
-                            metadata.Add("Message", "A case change was attempted. It will not be reflected in the working directory.");
+                            metadata.Add(TracingConstants.MessageKey.WarningMessage, "A case change was attempted. It will not be reflected in the working directory.");
                             activity.RelatedEvent(EventLevel.Warning, "CaseConflict", metadata);
 
                             // Replace the delete with the add to make sure we don't delete a folder from under ourselves
@@ -337,11 +346,32 @@ namespace GVFS.Common.Git
             }
         }
 
-        private bool ResultIsInWhitelist(DiffTreeResult blobAdd)
+        private bool ShouldIncludeResult(DiffTreeResult blobAdd)
         {
-            return blobAdd.TargetFilename == null ||
-                this.pathWhitelist.Count == 0 ||
-                this.pathWhitelist.Any(path => blobAdd.TargetFilename.StartsWith(path, StringComparison.OrdinalIgnoreCase));
+            if (blobAdd.TargetFilename == null)
+            {
+                return true;
+            }
+
+            if (this.fileList.Count == 0 && this.folderList.Count == 0)
+            {
+                return true;
+            }
+
+            if (this.fileList.Any(path =>
+                    path.StartsWith("*")
+                    ? blobAdd.TargetFilename.EndsWith(path.Substring(1), StringComparison.OrdinalIgnoreCase)
+                    : blobAdd.TargetFilename.Equals(path, StringComparison.OrdinalIgnoreCase)))
+            {
+                return true;
+            }
+
+            if (this.folderList.Any(path => blobAdd.TargetFilename.StartsWith(path, StringComparison.OrdinalIgnoreCase)))
+            {
+                return true;
+            }
+
+            return false;
         }
 
         private void EnqueueFileDeleteOperation(ITracer activity, string targetPath)
@@ -350,7 +380,7 @@ namespace GVFS.Common.Git
             {
                 EventMetadata metadata = new EventMetadata();
                 metadata.Add("Filename", targetPath);
-                metadata.Add("Message", "A case change was attempted. It will not be reflected in the working directory.");
+                metadata.Add(TracingConstants.MessageKey.WarningMessage, "A case change was attempted. It will not be reflected in the working directory.");
                 activity.RelatedEvent(EventLevel.Warning, "CaseConflict", metadata);
 
                 return;
@@ -380,7 +410,7 @@ namespace GVFS.Common.Git
             {
                 EventMetadata metadata = new EventMetadata();
                 metadata.Add("Filename", operation.TargetFilename);
-                metadata.Add("Message", "A case change was attempted. It will not be reflected in the working directory.");
+                metadata.Add(TracingConstants.MessageKey.WarningMessage, "A case change was attempted. It will not be reflected in the working directory.");
                 activity.RelatedEvent(EventLevel.Warning, "CaseConflict", metadata);
             }
 

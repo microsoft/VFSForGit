@@ -1,9 +1,10 @@
 #include "stdafx.h"
 #include "WriteBuffer.h"
 
+using namespace GvLib;
 using namespace System;
 using namespace System::IO;
-using namespace GvFlt;
+
 
 WriteBuffer::WriteBuffer(ULONG bufferSize, ULONG alignment)
 {

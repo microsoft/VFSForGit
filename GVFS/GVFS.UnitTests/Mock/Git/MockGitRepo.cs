@@ -14,7 +14,7 @@ namespace GVFS.UnitTests.Mock.Git
         private string rootSha;
         
         public MockGitRepo(ITracer tracer, Enlistment enlistment, PhysicalFileSystem fileSystem)
-            : base()
+            : base(tracer)
         {
             this.rootSha = Guid.NewGuid().ToString();
             this.AddTree(this.rootSha, ".");

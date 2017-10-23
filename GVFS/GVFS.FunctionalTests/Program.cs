@@ -13,17 +13,12 @@ namespace GVFS.FunctionalTests
     {
         public static void Main(string[] args)
         {
-            NUnitRunner runner = new NUnitRunner(args);
+            NUnitRunner runner = new NUnitRunner(args);            
 
             if (runner.HasCustomArg("--full-suite"))
             {
                 Console.WriteLine("Running the full suite of tests");
-                FileSystemRunners.FileSystemRunner.UseAllRunners = true;
-            }
-            
-            if (!runner.HasCustomArg("--run-builds"))
-            {
-                runner.ExcludeCategory(CategoryConstants.Build);
+                GVFSTestConfig.UseAllRunners = true;
             }
             
             string servicePath = Path.Combine(TestContext.CurrentContext.TestDirectory, Properties.Settings.Default.PathToGVFSService);

@@ -1,4 +1,3 @@
-using GVFS.Common.Git;
 using GVFS.Common.NamedPipes;
 using Newtonsoft.Json;
 using System.IO;
@@ -8,23 +7,25 @@ using System.Threading;
 
 namespace GVFS.Common
 {
-    public class GVFSEnlistment : Enlistment
+    public partial class GVFSEnlistment : Enlistment
     {
         public const string InvalidRepoUrl = "invalid://repoUrl";
 
         // New enlistment
         public GVFSEnlistment(string enlistmentRoot, string repoUrl, string gitBinPath, string gvfsHooksRoot)
             : base(
-                  enlistmentRoot, 
+                  enlistmentRoot,
                   Path.Combine(enlistmentRoot, GVFSConstants.WorkingDirectoryRootName),
-                  Path.Combine(enlistmentRoot, GVFSConstants.DotGVFS.GitObjectCachePath),
                   repoUrl,
-                  gitBinPath, 
+                  gitBinPath,
                   gvfsHooksRoot)
         {
             this.NamedPipeName = Paths.GetNamedPipeName(this.EnlistmentRoot);
             this.DotGVFSRoot = Path.Combine(this.EnlistmentRoot, GVFSConstants.DotGVFS.Root);
             this.GVFSLogsRoot = Path.Combine(this.EnlistmentRoot, GVFSConstants.DotGVFS.LogPath);
+
+            this.GitObjectsRoot = Path.Combine(enlistmentRoot, GVFSConstants.DotGVFS.GitObjectCachePath);
+            this.GitPackRoot = Path.Combine(this.GitObjectsRoot, GVFSConstants.DotGit.Objects.Pack.Name);
         }
         
         // Existing, configured enlistment
@@ -36,12 +37,15 @@ namespace GVFS.Common
                   gvfsHooksRoot)
         {
         }
+        
+        public string NamedPipeName { get; }
 
-        public string NamedPipeName { get; private set; }
+        public string DotGVFSRoot { get; }
 
-        public string DotGVFSRoot { get; private set; }
+        public string GVFSLogsRoot { get; }
 
-        public string GVFSLogsRoot { get; private set; }
+        public override string GitObjectsRoot { get; }
+        public override string GitPackRoot { get; }
 
         public static GVFSEnlistment CreateWithoutRepoUrlFromDirectory(string directory, string gitBinRoot, string gvfsHooksRoot)
         {
@@ -77,13 +81,14 @@ namespace GVFS.Common
                 logsRoot, 
                 "gvfs_" + logFileType);
         }
-        
-        public static bool WaitUntilMounted(string enlistmentRoot, out string errorMessage)
+
+        public static bool WaitUntilMounted(string enlistmentRoot, bool unattended, out string errorMessage)
         {
             errorMessage = null;
             using (NamedPipeClient pipeClient = new NamedPipeClient(NamedPipeClient.GetPipeNameFromPath(enlistmentRoot)))
             {
-                if (!pipeClient.Connect(GVFSConstants.NamedPipes.ConnectTimeoutMS))
+                int timeout = unattended ? 300000 : 10000;
+                if (!pipeClient.Connect(timeout))
                 {
                     errorMessage = "Unable to mount because the GVFS.Mount process is not responding.";
                     return false;

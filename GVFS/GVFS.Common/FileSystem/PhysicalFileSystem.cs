@@ -1,7 +1,6 @@
 ﻿using Microsoft.Win32.SafeHandles;
 using System.Collections.Generic;
 using System.IO;
-using System.Runtime.InteropServices;
 
 namespace GVFS.Common.FileSystem
 {
@@ -41,6 +40,11 @@ namespace GVFS.Common.FileSystem
             return File.Exists(path);
         }
 
+        public virtual bool DirectoryExists(string path)
+        {
+            return Directory.Exists(path);
+        }
+
         public virtual void CopyFile(string sourcePath, string destinationPath, bool overwrite)
         {
             File.Copy(sourcePath, destinationPath, overwrite);
@@ -50,7 +54,7 @@ namespace GVFS.Common.FileSystem
         {
             File.Delete(path);
         }
-
+        
         public virtual string ReadAllText(string path)
         {
             return File.ReadAllText(path);
@@ -66,20 +70,22 @@ namespace GVFS.Common.FileSystem
             File.WriteAllText(path, contents);
         }
 
-        public virtual Stream OpenFileStream(string path, FileMode fileMode, FileAccess fileAccess, FileShare shareMode)
+        public Stream OpenFileStream(string path, FileMode fileMode, FileAccess fileAccess, FileShare shareMode)
         {
-            return this.OpenFileStream(path, fileMode, fileAccess, NativeMethods.FileAttributes.FILE_ATTRIBUTE_NORMAL, shareMode);
+            return this.OpenFileStream(path, fileMode, fileAccess, shareMode, FileOptions.None);
         }
 
-        public virtual Stream OpenFileStream(string path, FileMode fileMode, FileAccess fileAccess, NativeMethods.FileAttributes attributes, FileShare shareMode)
+        public virtual void MoveAndOverwriteFile(string sourceFileName, string destinationFilename)
         {
-            FileAccess access = fileAccess & FileAccess.ReadWrite;
-            return new FileStream((SafeFileHandle)this.OpenFile(path, fileMode, fileAccess, (FileAttributes)attributes, shareMode), access, DefaultStreamBufferSize, true);
+            NativeMethods.MoveFile(
+                sourceFileName, 
+                destinationFilename, 
+                NativeMethods.MoveFileFlags.MoveFileReplaceExisting | NativeMethods.MoveFileFlags.MoveFileCopyAllowed);
         }
 
-        public virtual SafeHandle OpenFile(string path, FileMode fileMode, FileAccess fileAccess, FileAttributes attributes, FileShare shareMode)
+        public virtual Stream OpenFileStream(string path, FileMode fileMode, FileAccess fileAccess, FileShare shareMode, FileOptions options)
         {
-            return NativeMethods.OpenFile(path, fileMode, (NativeMethods.FileAccess)fileAccess, shareMode, (NativeMethods.FileAttributes)attributes);
+            return new FileStream(path, fileMode, fileAccess, shareMode, DefaultStreamBufferSize, options);
         }
 
         public virtual void CreateDirectory(string path)
@@ -138,6 +144,16 @@ namespace GVFS.Common.FileSystem
             {
                 return FileProperties.DefaultFile;
             }
+        }
+
+        public virtual void MoveFile(string sourcePath, string targetPath)
+        {
+            File.Move(sourcePath, targetPath);
+        }
+
+        public virtual string[] GetFiles(string directoryPath, string mask)
+        {
+            return Directory.GetFiles(directoryPath, mask);
         }
     }
 }

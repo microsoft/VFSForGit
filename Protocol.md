@@ -194,34 +194,26 @@ An example response is provided below. Note that the `null` `"Max"` value is onl
 			"Major": 0,
 			"Minor": 4,
 			"Build": 0,
-			"Revision": 0,
-			"MajorRevision": 0,
-			"MinorRevision": 0
+			"Revision": 0
 		},
 		"Min": {
 			"Major": 0,
 			"Minor": 2,
 			"Build": 0,
-			"Revision": 0,
-			"MajorRevision": 0,
-			"MinorRevision": 0
+			"Revision": 0
 		}
 	}, {
 		"Max": {
 			"Major": 0,
 			"Minor": 5,
 			"Build": 0,
-			"Revision": 0,
-			"MajorRevision": 0,
-			"MinorRevision": 0
+			"Revision": 0
 		},
 		"Min": {
 			"Major": 0,
 			"Minor": 4,
 			"Build": 17009,
-			"Revision": 1,
-			"MajorRevision": 0,
-			"MinorRevision": 1
+			"Revision": 1
 		}
 	}, {
 		"Max": null,
@@ -229,9 +221,7 @@ An example response is provided below. Note that the `null` `"Max"` value is onl
 			"Major": 0,
 			"Minor": 5,
 			"Build": 16326,
-			"Revision": 1,
-			"MajorRevision": 0,
-			"MinorRevision": 1
+			"Revision": 1
 		}
 	}],
 	"CacheServers": [{

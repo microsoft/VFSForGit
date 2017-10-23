@@ -1,6 +1,6 @@
 #pragma once
 
-namespace GvFlt
+namespace GvLib
 {
     [System::FlagsAttribute]
     public enum class UpdateType : unsigned long

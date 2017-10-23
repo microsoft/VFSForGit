@@ -45,13 +45,13 @@ namespace GVFS.FunctionalTests.Tests
         [TearDown]
         public void TearDownTests()
         {
-            SystemIORunner.RecursiveDelete(this.fastFetchRepoRoot);
+            CmdRunner.DeleteDirectoryWithRetry(this.fastFetchRepoRoot);
         }
 
         [OneTimeTearDown]
         public void DeleteControlRepo()
         {
-            SystemIORunner.RecursiveDelete(this.fastFetchControlRoot);
+            CmdRunner.DeleteDirectoryWithRetry(this.fastFetchControlRoot);
         }
         
         [TestCase]
@@ -59,7 +59,6 @@ namespace GVFS.FunctionalTests.Tests
         {
             this.RunFastFetch("-b " + Settings.Default.Commitish);
 
-            // Ensure origin/master has been created
             this.GetRefTreeSha("remotes/origin/" + Settings.Default.Commitish).ShouldNotBeNull();
 
             ProcessResult checkoutResult = GitProcess.InvokeProcess(this.fastFetchRepoRoot, "checkout " + Settings.Default.Commitish);
@@ -128,7 +127,7 @@ namespace GVFS.FunctionalTests.Tests
         [TestCase]
         public void CanFetchAndCheckoutAfterDeletingIndex()
         {
-            this.RunFastFetch("--checkout -b master");
+            this.RunFastFetch("--checkout -b " + Settings.Default.Commitish);
 
             File.Delete(Path.Combine(this.fastFetchRepoRoot, ".git", "index"));
             this.RunFastFetch("--checkout -b " + Settings.Default.Commitish);
@@ -206,9 +205,9 @@ namespace GVFS.FunctionalTests.Tests
             this.RunFastFetch("--checkout -b " + Settings.Default.Commitish);
             this.CurrentBranchShouldEqual(Settings.Default.Commitish);
             
-            // Switch to master
-            this.RunFastFetch("--checkout -b master");
-            this.CurrentBranchShouldEqual("master");
+            // Switch to another branch
+            this.RunFastFetch("--checkout -b FunctionalTests/20170602");
+            this.CurrentBranchShouldEqual("FunctionalTests/20170602");
 
             // And back
             this.RunFastFetch("--checkout -b " + Settings.Default.Commitish);
@@ -250,6 +249,27 @@ namespace GVFS.FunctionalTests.Tests
             {
                 GitProcess.Invoke(this.fastFetchControlRoot, "checkout " + Settings.Default.Commitish);
             }
+        }
+
+        [TestCase]
+        public void SuccessfullyChecksOutDirectoryToFileToDirectory()
+        {
+            // The delta between these two is:
+            // renamed:    GVFlt_MoveFileTest/NoneToNone/from/subFolder/from.txt -> GVFlt_MoveFileTest/NoneToNone/from/subFolder
+            //   where "subFolder" is a folder first, then becomes a file called "subFolder"
+            this.RunFastFetch("--checkout -c b5fd7d23706a18cff3e2b8225588d479f7e51138");
+            Path.Combine(this.fastFetchRepoRoot, "GVFlt_MoveFileTest\\NoneToNone\\from\\subFolder\\from.txt")
+                .ShouldBeAFile(FileSystemRunner.DefaultRunner);
+
+            // This commit is tracked by the "FunctionalTests/20171017_RenameDirectoryToFile" test branch 
+            this.RunFastFetch("--checkout -c e6c02e421504313797b34eba50f8141472fb64ef");
+            Path.Combine(this.fastFetchRepoRoot, "GVFlt_MoveFileTest\\NoneToNone\\from\\subFolder")
+                .ShouldBeAFile(FileSystemRunner.DefaultRunner);
+
+            // And back again
+            this.RunFastFetch("--checkout -c b5fd7d23706a18cff3e2b8225588d479f7e51138");
+            Path.Combine(this.fastFetchRepoRoot, "GVFlt_MoveFileTest\\NoneToNone\\from\\subFolder\\from.txt")
+                .ShouldBeAFile(FileSystemRunner.DefaultRunner);
         }
 
         private void AllFetchedFilePathsShouldPassCheck(Func<string, bool> checkPath)
@@ -315,7 +335,15 @@ namespace GVFS.FunctionalTests.Tests
         {
             args = args + " --verbose";
 
-            ProcessStartInfo processInfo = new ProcessStartInfo("fastfetch.exe");
+            string fastfetch = Path.Combine(TestContext.CurrentContext.TestDirectory, "fastfetch.exe");
+            if (!File.Exists(fastfetch))
+            {
+                fastfetch = "fastfetch.exe";
+            }
+
+            Console.WriteLine($"Using {fastfetch}");
+
+            ProcessStartInfo processInfo = new ProcessStartInfo(fastfetch);
             processInfo.Arguments = args;
             processInfo.WorkingDirectory = this.fastFetchRepoRoot;
             processInfo.UseShellExecute = false;

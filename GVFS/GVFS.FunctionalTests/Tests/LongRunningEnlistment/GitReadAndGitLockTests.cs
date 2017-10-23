@@ -1,4 +1,5 @@
 ﻿using GVFS.FunctionalTests.FileSystemRunners;
+using GVFS.FunctionalTests.Should;
 using GVFS.FunctionalTests.Tools;
 using GVFS.Tests.Should;
 using NUnit.Framework;
@@ -75,6 +76,22 @@ namespace GVFS.FunctionalTests.Tests.LongRunningEnlistment
                 cleanErrors: false);
             statusWait.Errors.ShouldContain("Waiting for 'git hash-object --stdin");
             GitHelpers.CheckGitCommandAgainstGVFSRepo(this.Enlistment.RepoRoot, "rebase --abort");
+        }
+
+        [TestCase, Order(7)]
+        public void ExternalLockHolderReportedWhenBackgroundTasksArePending()
+        {
+            GitHelpers.AcquireGVFSLock(this.Enlistment, resetTimeout: 3000);
+
+            // Creating a new file will queue a background task
+            string newFilePath = this.Enlistment.GetVirtualPathTo("ExternalLockHolderReportedWhenBackgroundTasksArePending.txt");
+            newFilePath.ShouldNotExistOnDisk(this.fileSystem);
+            this.fileSystem.WriteAllText(newFilePath, "New file contents");
+
+            ProcessResult statusWait = GitHelpers.InvokeGitAgainstGVFSRepo(this.Enlistment.RepoRoot, "status", cleanErrors: false);
+
+            // Validate that GVFS still reports that the git command is holding the lock
+            statusWait.Errors.ShouldContain("Waiting for 'git hash-object --stdin");
         }
     }
 }

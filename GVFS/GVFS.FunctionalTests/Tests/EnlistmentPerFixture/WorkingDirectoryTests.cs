@@ -46,6 +46,7 @@ BOOL APIENTRY DllMain( HMODULE hModule,
         private FileSystemRunner fileSystem;
 
         public WorkingDirectoryTests(FileSystemRunner fileSystem)
+            : base()
         {
             this.fileSystem = fileSystem;
         }
@@ -471,7 +472,7 @@ BOOL APIENTRY DllMain( HMODULE hModule,
             ProcessResult revParseResult = GitProcess.InvokeProcess(this.Enlistment.RepoRoot, "rev-parse :Test_EPF_WorkingDirectoryTests/AllNullObjectRedownloaded.txt");
             string sha = revParseResult.Output.Trim();
             sha.Length.ShouldEqual(40);
-            string objectPath = Path.Combine(this.Enlistment.DotGVFSRoot, "gitObjectCache", sha.Substring(0, 2), sha.Substring(2, 38));
+            string objectPath = Path.Combine(this.Enlistment.ObjectRoot, sha.Substring(0, 2), sha.Substring(2, 38));
             objectPath.ShouldNotExistOnDisk(this.fileSystem);
 
             // At this point there should be no corrupt objects
@@ -503,7 +504,7 @@ BOOL APIENTRY DllMain( HMODULE hModule,
             ProcessResult revParseResult = GitProcess.InvokeProcess(this.Enlistment.RepoRoot, "rev-parse :Test_EPF_WorkingDirectoryTests/TruncatedObjectRedownloaded.txt");
             string sha = revParseResult.Output.Trim();
             sha.Length.ShouldEqual(40);
-            string objectPath = Path.Combine(this.Enlistment.DotGVFSRoot, "gitObjectCache", sha.Substring(0, 2), sha.Substring(2, 38));
+            string objectPath = Path.Combine(this.Enlistment.ObjectRoot, sha.Substring(0, 2), sha.Substring(2, 38));
             objectPath.ShouldNotExistOnDisk(this.fileSystem);
 
             string corruptObjectFolderPath = Path.Combine(this.Enlistment.DotGVFSRoot, "CorruptObjects");
@@ -531,6 +532,31 @@ BOOL APIENTRY DllMain( HMODULE hModule,
             // Confirm there's a new item in the corrupt objects folder
             corruptObjectFolderPath.ShouldBeADirectory(this.fileSystem).WithItems().Count().ShouldEqual(initialCorruptObjectCount + 1);
         }
+
+        [TestCase, Order(18)]
+        public void CreateFileAfterTryOpenNonExistentFile()
+        {
+            string filePath = this.Enlistment.GetVirtualPathTo("Test_EPF_WorkingDirectoryTests\\CreateFileAfterTryOpenNonExistentFile_NotProjected.txt");
+            string fileContents = "CreateFileAfterTryOpenNonExistentFile file contents";
+            filePath.ShouldNotExistOnDisk(this.fileSystem);
+            this.fileSystem.WriteAllText(filePath, fileContents);
+            filePath.ShouldBeAFile(this.fileSystem).WithContents(fileContents);
+        }
+
+        [TestCase, Order(19)]
+        public void RenameFileAfterTryOpenNonExistentFile()
+        {
+            string filePath = this.Enlistment.GetVirtualPathTo("Test_EPF_WorkingDirectoryTests\\RenameFileAfterTryOpenNonExistentFile_NotProjected.txt");
+            string fileContents = "CreateFileAfterTryOpenNonExistentFile file contents";
+            filePath.ShouldNotExistOnDisk(this.fileSystem);
+
+            string newFilePath = this.Enlistment.GetVirtualPathTo("Test_EPF_WorkingDirectoryTests\\RenameFileAfterTryOpenNonExistentFile_NewFile.txt");
+            this.fileSystem.WriteAllText(newFilePath, fileContents);
+            newFilePath.ShouldBeAFile(this.fileSystem).WithContents(fileContents);
+
+            this.fileSystem.MoveFile(newFilePath, filePath);
+            filePath.ShouldBeAFile(this.fileSystem).WithContents(fileContents);
+        }        
 
         private void FolderEnumerationShouldHaveSingleEntry(string folderVirtualPath, string expectedEntryName, string searchPatten)
         {

@@ -71,6 +71,23 @@ namespace GVFS.Mount
             
             JsonEtwTracer tracer = this.CreateTracer(enlistment, verbosity, keywords);
 
+            CacheServerInfo cacheServer = CacheServerResolver.GetCacheServerFromConfig(enlistment);
+
+            tracer.WriteStartEvent(
+                enlistment.EnlistmentRoot,
+                enlistment.RepoUrl,
+                cacheServer.Url,
+                enlistment.GitObjectsRoot,
+                new EventMetadata
+                {
+                    { "IsElevated", ProcessHelper.IsAdminElevated() },
+                });
+
+            AppDomain.CurrentDomain.UnhandledException += (object sender, UnhandledExceptionEventArgs e) =>
+            {
+                this.UnhandledGVFSExceptionHandler(tracer, sender, e);
+            };
+
             RetryConfig retryConfig;
             string error;
             if (!RetryConfig.TryLoadFromGitConfig(tracer, enlistment, out retryConfig, out error))
@@ -78,17 +95,6 @@ namespace GVFS.Mount
                 this.ReportErrorAndExit("Failed to determine GVFS timeout and max retries: " + error);
             }
 
-            CacheServerInfo cacheServer;
-            if (!CacheServerInfo.TryDetermineCacheServer(null, tracer, enlistment, retryConfig, out cacheServer, out error))
-            {
-                this.ReportErrorAndExit(error);
-            }
-
-            tracer.WriteStartEvent(
-                enlistment.EnlistmentRoot,
-                enlistment.RepoUrl,
-                cacheServer.Url);
-            
             InProcessMount mountHelper = new InProcessMount(tracer, enlistment, cacheServer, retryConfig, this.ShowDebugWindow);
 
             try
@@ -102,11 +108,21 @@ namespace GVFS.Mount
             }
         }
 
+        private void UnhandledGVFSExceptionHandler(ITracer tracer, object sender, UnhandledExceptionEventArgs e)
+        {
+            Exception exception = e.ExceptionObject as Exception;
+
+            EventMetadata metadata = new EventMetadata();
+            metadata.Add("Exception", exception.ToString());
+            metadata.Add("IsTerminating", e.IsTerminating);
+            tracer.RelatedError(metadata, "UnhandledGVFSExceptionHandler caught unhandled exception");
+        }
+
         private JsonEtwTracer CreateTracer(GVFSEnlistment enlistment, EventLevel verbosity, Keywords keywords)
         {
             JsonEtwTracer tracer = new JsonEtwTracer(GVFSConstants.GVFSEtwProviderName, "GVFSMount");
             tracer.AddLogFileEventListener(
-                GVFSEnlistment.GetNewGVFSLogFileName(enlistment.GVFSLogsRoot, GVFSConstants.LogFileTypes.Mount),
+                GVFSEnlistment.GetNewGVFSLogFileName(enlistment.GVFSLogsRoot, GVFSConstants.LogFileTypes.MountProcess),
                 verbosity,
                 keywords);
             if (this.ShowDebugWindow)
@@ -165,6 +181,12 @@ namespace GVFS.Mount
             if (error != null)
             {
                 this.output.WriteLine(error, args);
+            }
+
+            if (this.ShowDebugWindow)
+            {
+                Console.WriteLine("\nPress Enter to Exit");
+                Console.ReadLine();
             }
 
             this.ReturnCode = ReturnCode.GenericError;

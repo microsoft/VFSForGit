@@ -3,8 +3,6 @@ using GVFS.Common.FileSystem;
 using GVFS.Common.Tracing;
 using GVFS.GVFlt.DotGit;
 using Microsoft.Diagnostics.Tracing;
-using Microsoft.Isam.Esent;
-using Microsoft.Isam.Esent.Collections.Generic;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -108,24 +106,6 @@ namespace GVFS.CommandLine.RepairJobs
             }
 
             return true;
-        }
-
-        protected bool TryCreatePersistentDictionary<KeyType, ValueType>(string databasePath, List<string> messages)
-            where KeyType : IComparable<KeyType>
-        {
-            try
-            {
-                using (new PersistentDictionary<KeyType, ValueType>(databasePath))
-                {
-                }
-                
-                return true;
-            }
-            catch (EsentException corruptionEx)
-            {
-                messages.Add(corruptionEx.Message);
-                return false;
-            }
         }
 
         protected IssueType TryParseIndex(string path, List<string> messages)

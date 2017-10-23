@@ -1,11 +1,24 @@
 ﻿using GVFS.FunctionalTests.FileSystemRunners;
+using System;
 using System.IO;
 
 namespace GVFS.FunctionalTests.Tools
 {
     public class ControlGitRepo
     {
-        public ControlGitRepo(string repoUrl, string rootPath, string commitish)
+        static ControlGitRepo()
+        {
+            if (!Directory.Exists(CachePath))
+            {
+                GitProcess.Invoke(Environment.SystemDirectory, "clone " + Properties.Settings.Default.RepoToClone + " " + CachePath + " --bare");
+            }
+            else
+            {
+                GitProcess.Invoke(CachePath, "fetch origin");
+            }
+        }
+
+        private ControlGitRepo(string repoUrl, string rootPath, string commitish)
         {
             this.RootPath = rootPath;
             this.RepoUrl = repoUrl;
@@ -16,21 +29,22 @@ namespace GVFS.FunctionalTests.Tools
         public string RepoUrl { get; private set; }
         public string Commitish { get; private set; }
 
+        private static string CachePath
+        {
+            get { return Path.Combine(Properties.Settings.Default.ControlGitRepoRoot, "cache"); }
+        }
+
         public static ControlGitRepo Create(string commitish = null)
         {
+            string clonePath = Path.Combine(Properties.Settings.Default.ControlGitRepoRoot, Guid.NewGuid().ToString("N"));
             return new ControlGitRepo(
-                Properties.Settings.Default.RepoToClone, 
-                Properties.Settings.Default.ControlGitRepoRoot,
+                Properties.Settings.Default.RepoToClone,
+                clonePath,
                 commitish == null ? Properties.Settings.Default.Commitish : commitish);
         }
 
         public void Initialize()
         {
-            if (Directory.Exists(this.RootPath))
-            {
-                this.Delete();
-            }
-            
             Directory.CreateDirectory(this.RootPath);
             GitProcess.Invoke(this.RootPath, "init");
             GitProcess.Invoke(this.RootPath, "config core.autocrlf false");
@@ -39,7 +53,7 @@ namespace GVFS.FunctionalTests.Tools
             GitProcess.Invoke(this.RootPath, "config core.abbrev 40");
             GitProcess.Invoke(this.RootPath, "config user.name \"Functional Test User\"");
             GitProcess.Invoke(this.RootPath, "config user.email \"functional@test.com\"");
-            GitProcess.Invoke(this.RootPath, "remote add origin " + this.RepoUrl);
+            GitProcess.Invoke(this.RootPath, "remote add origin " + CachePath);
             this.Fetch(this.Commitish);
             GitProcess.Invoke(this.RootPath, "branch --set-upstream " + this.Commitish + " origin/" + this.Commitish);
             GitProcess.Invoke(this.RootPath, "checkout " + this.Commitish);
@@ -53,10 +67,7 @@ namespace GVFS.FunctionalTests.Tools
 
         public void Delete()
         {
-            if (Directory.Exists(this.RootPath))
-            {
-                SystemIORunner.RecursiveDelete(this.RootPath);
-            }
+            CmdRunner.DeleteDirectoryWithRetry(this.RootPath);
         }
     }
 }

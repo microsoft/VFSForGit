@@ -3,41 +3,36 @@ using System.IO;
 
 namespace GVFS.Common
 {
-    public static class GVFSConstants
+    public static partial class GVFSConstants
     {
         public const int ShaStringLength = 40;
         public const int MaxPath = 260;
+        public const string AllZeroSha = "0000000000000000000000000000000000000000";
 
         public const char PathSeparator = '\\';
+        public const string PathSeparatorString = "\\";
         public const char GitPathSeparator = '/';
         public const string GitPathSeparatorString = "/";
         public const char GitCommentSign = '#';
 
         public const string PrefetchPackPrefix = "prefetch";
 
-        public const string AllZeroSha = "0000000000000000000000000000000000000000";
-
         public const string GVFSEtwProviderName = "Microsoft.Git.GVFS";
-
         public const string WorkingDirectoryRootName = "src";
-        
+        public const string UnattendedEnvironmentVariable = "GVFS_UNATTENDED";
+
+        public const string GVFSExecutableName = "GVFS.exe";
         public const string GVFSHooksExecutableName = "GVFS.Hooks.exe";
         public const string GVFSReadObjectHookExecutableName = "GVFS.ReadObjectHook.exe";
         public const string MountExecutableName = "GVFS.Mount.exe";
-
+        public const string ExecutableExtension = ".exe";
         public const string GitIsNotInstalledError = "Could not find git.exe.  Ensure that Git is installed.";
 
-        public const string ExecutableExtension = ".exe";
         public static readonly GitVersion MinimumGitVersion = new GitVersion(2, 14, 1, "gvfs", 1, 0);
 
         public static class GitConfig
         {
             public const string GVFSPrefix = "gvfs.";
-        }
-
-        public static class NamedPipes
-        {
-            public const int ConnectTimeoutMS = 10000;
         }
 
         public static class Service
@@ -52,14 +47,6 @@ namespace GVFS.Common
             public const string LooseObjectMediaType = "application/x-git-loose-object";
             public const string CustomLooseObjectsMediaType = "application/x-gvfs-loose-objects";
             public const string PackFileMediaType = "application/x-git-packfile";
-        }
-
-        public static class DatabaseNames
-        {
-            public const string BackgroundGitUpdates = "BackgroundGitUpdates";
-            public const string BlobSizes = "BlobSizes";
-            public const string PlaceholderList = "PlaceholderList";
-            public const string RepoMetadata = "RepoMetadata";
         }
 
         public static class Endpoints
@@ -78,13 +65,17 @@ namespace GVFS.Common
         }
 
         public static class LogFileTypes
-        {
+        {            
+            public const string MountPrefix = "mount";
+
             public const string Clone = "clone";
             public const string Dehydrate = "dehydrate";
-            public const string Mount = "mount";
+            public const string MountVerb = MountPrefix + "_verb";
+            public const string MountProcess = MountPrefix + "_process";
             public const string Prefetch = "prefetch";
             public const string Repair = "repair";
             public const string Service = "service";
+            public const string Upgrade = MountPrefix + "_upgrade";
         }
 
         public static class DotGVFS
@@ -95,6 +86,17 @@ namespace GVFS.Common
             public static readonly string LogPath = Path.Combine(DotGVFS.Root, "logs");
             public static readonly string GitObjectCachePath = Path.Combine(DotGVFS.Root, "gitObjectCache");
             public static readonly string CorruptObjectsPath = Path.Combine(DotGVFS.Root, CorruptObjectsName);
+
+            public static readonly string BlobSizesName = "BlobSizes";
+
+            public static class Databases
+            {
+                public const string Name = "databases";
+
+                public static readonly string BackgroundGitOperations = Path.Combine(Name, "BackgroundGitOperations.dat");
+                public static readonly string PlaceholderList = Path.Combine(Name, "PlaceholderList.dat");
+                public static readonly string RepoMetadata = Path.Combine(Name, "RepoMetadata.dat");
+            }
         }
 
         public static class DotGit

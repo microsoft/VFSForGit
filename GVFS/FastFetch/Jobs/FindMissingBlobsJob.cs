@@ -1,12 +1,8 @@
-﻿using FastFetch.Jobs.Data;
+﻿using FastFetch.Git;
 using GVFS.Common;
-using GVFS.Common.Git;
 using GVFS.Common.Tracing;
 using Microsoft.Diagnostics.Tracing;
-using System;
 using System.Collections.Concurrent;
-using System.Collections.Generic;
-using System.Linq;
 using System.Threading;
 
 namespace FastFetch.Jobs
@@ -18,12 +14,12 @@ namespace FastFetch.Jobs
     {
         private const string AreaPath = nameof(FindMissingBlobsJob);
         private const string TreeSearchAreaPath = "TreeSearch";
-        
+
         private ITracer tracer;
         private Enlistment enlistment;
         private int missingBlobCount;
         private int availableBlobCount;
-        
+
         private BlockingCollection<string> inputQueue;
 
         private ConcurrentHashSet<string> alreadyFoundBlobIds;
@@ -40,7 +36,7 @@ namespace FastFetch.Jobs
             this.inputQueue = inputQueue;
             this.enlistment = enlistment;
             this.alreadyFoundBlobIds = new ConcurrentHashSet<string>();
-            
+
             this.DownloadQueue = new BlockingCollection<string>();
             this.AvailableBlobs = availableBlobs;
         }
@@ -48,10 +44,20 @@ namespace FastFetch.Jobs
         public BlockingCollection<string> DownloadQueue { get; }
         public BlockingCollection<string> AvailableBlobs { get; }
 
+        public int MissingBlobCount
+        {
+            get { return this.missingBlobCount; }
+        }
+
+        public int AvailableBlobCount
+        {
+            get { return this.availableBlobCount; }
+        }
+
         protected override void DoWork()
         {
             string blobId;
-            using (LibGit2Repo repo = new LibGit2Repo(this.tracer, this.enlistment.WorkingDirectoryRoot))
+            using (FastFetchLibGit2Repo repo = new FastFetchLibGit2Repo(this.tracer, this.enlistment.WorkingDirectoryRoot))
             {
                 while (this.inputQueue.TryTake(out blobId, Timeout.Infinite))
                 {

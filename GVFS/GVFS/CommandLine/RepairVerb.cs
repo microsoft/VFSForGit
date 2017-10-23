@@ -1,4 +1,5 @@
 ﻿using CommandLine;
+using GVFS.CommandLine.DiskLayoutUpgrades;
 using GVFS.CommandLine.RepairJobs;
 using GVFS.Common;
 using GVFS.Common.Git;
@@ -36,7 +37,7 @@ namespace GVFS.CommandLine
 
         public override void Execute()
         {
-            string hooksPath = this.GetGVFSHooksPathAndCheckVersion();
+            string hooksPath = this.GetGVFSHooksPathAndCheckVersion(tracer: null);
 
             GVFSEnlistment enlistment = GVFSEnlistment.CreateWithoutRepoUrlFromDirectory(
                 this.EnlistmentRootPath,
@@ -62,6 +63,12 @@ To actually execute any necessary repair(s), run 'gvfs repair --confirm'
 ");
             }
 
+            string error;
+            if (!DiskLayoutUpgrade.TryCheckDiskLayoutVersion(tracer: null, enlistmentRoot: enlistment.EnlistmentRoot, error: out error))
+            {
+                this.ReportErrorAndExit(error);
+            }
+
             if (!ConsoleHelper.ShowStatusWhileRunning(
                 () =>
                 {
@@ -80,7 +87,7 @@ To actually execute any necessary repair(s), run 'gvfs repair --confirm'
                 "Checking if GVFS is mounted",
                 this.Output,
                 showSpinner: true,
-                gvfsLogEnlistmentRoot: enlistment.EnlistmentRoot))
+                gvfsLogEnlistmentRoot: null))
             {
                 this.ReportErrorAndExit("You can only run 'gvfs repair' if GVFS is not mounted. Run 'gvfs unmount' and try again.");
             }
@@ -97,19 +104,22 @@ To actually execute any necessary repair(s), run 'gvfs repair --confirm'
                     enlistment.EnlistmentRoot,
                     enlistment.RepoUrl,
                     "N/A",
+                    enlistment.GitObjectsRoot,
                     new EventMetadata
                     {
-                        { "Confirmed", this.Confirmed }
+                        { "Confirmed", this.Confirmed },
+                        { "IsElevated", ProcessHelper.IsAdminElevated() },
                     });
 
                 List<RepairJob> jobs = new List<RepairJob>();
-
-                // Repair ESENT Databases
+                
+                // Repair databases
                 jobs.Add(new BackgroundOperationDatabaseRepairJob(tracer, this.Output, enlistment));
-                jobs.Add(new BlobSizeDatabaseRepairJob(tracer, this.Output, enlistment));
-                jobs.Add(new PlaceholderDatabaseRepairJob(tracer, this.Output, enlistment));
                 jobs.Add(new RepoMetadataDatabaseRepairJob(tracer, this.Output, enlistment));
+                jobs.Add(new PlaceholderDatabaseRepairJob(tracer, this.Output, enlistment));
+                jobs.Add(new BlobSizeDatabaseRepairJob(tracer, this.Output, enlistment));
 
+                // Repair .git folder files
                 jobs.Add(new GitHeadRepairJob(tracer, this.Output, enlistment));
                 jobs.Add(new GitIndexRepairJob(tracer, this.Output, enlistment));
                 jobs.Add(new GitConfigRepairJob(tracer, this.Output, enlistment));
@@ -193,7 +203,7 @@ To actually execute any necessary repair(s), run 'gvfs repair --confirm'
         
         private void WriteMessage(ITracer tracer, string message)
         {
-            tracer.RelatedEvent(EventLevel.Informational, "RepairInfo", new EventMetadata { { "Message", message } });
+            tracer.RelatedEvent(EventLevel.Informational, "RepairInfo", new EventMetadata { { TracingConstants.MessageKey.InfoMessage, message } });
             this.Output.WriteLine(message);
         }
 

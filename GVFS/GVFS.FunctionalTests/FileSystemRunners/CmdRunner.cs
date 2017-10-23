@@ -1,6 +1,8 @@
 using GVFS.Tests.Should;
 using System;
+using System.Diagnostics;
 using System.IO;
+using System.Threading;
 
 namespace GVFS.FunctionalTests.FileSystemRunners
 {
@@ -30,6 +32,31 @@ namespace GVFS.FunctionalTests.FileSystemRunners
             get
             {
                 return ProcessName;
+            }
+        }
+
+        public static void DeleteDirectoryWithRetry(string path)
+        {
+            CmdRunner runner = new CmdRunner();
+            bool pathExists = Directory.Exists(path);
+            int retryCount = 0;
+            while (pathExists)
+            {
+                string output = runner.DeleteDirectory(path);
+                pathExists = Directory.Exists(path);
+                if (pathExists)
+                {
+                    ++retryCount;
+                    Thread.Sleep(500);
+                    if (retryCount > 10)
+                    {
+                        retryCount = 0;
+                        if (Debugger.IsAttached)
+                        {
+                            Debugger.Break();
+                        }
+                    }
+                }
             }
         }
 
@@ -94,7 +121,7 @@ namespace GVFS.FunctionalTests.FileSystemRunners
             // to the contents
             this.RunProcess(string.Format("/C echo|set /p =\"{0}\" > {1}", contents, path));
         }
-
+        
         public override void WriteAllTextShouldFail<ExceptionType>(string path, string contents)
         {
             // CmdRunner does nothing special when a failure is expected

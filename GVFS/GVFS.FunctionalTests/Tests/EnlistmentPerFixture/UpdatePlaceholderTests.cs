@@ -7,6 +7,7 @@ using Microsoft.Win32.SafeHandles;
 using NUnit.Framework;
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.IO;
 
 namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
@@ -291,17 +292,15 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
 
                 ProcessResult checkoutResult = GitProcess.InvokeProcess(this.Enlistment.RepoRoot, "checkout " + OldCommitId);
                 checkoutResult.Errors.ShouldContain(
-@"HEAD is now at " + OldCommitId + @"... Add test files for update UpdatePlaceholder tests
-
-GVFS was unable to delete the following files. To recover, close all handles to the files and run these commands:
-    git clean -f Test_EPF_UpdatePlaceholderTests/LockToPreventUpdateAndDelete/test_delete.txt
-    git clean -f Test_EPF_UpdatePlaceholderTests/LockToPreventUpdateAndDelete/test_delete2.txt
-    git clean -f Test_EPF_UpdatePlaceholderTests/LockToPreventUpdateAndDelete/test_delete3.txt
-
-GVFS was unable to update the following files. To recover, close all handles to the files and run these commands:
-    git checkout -- Test_EPF_UpdatePlaceholderTests/LockToPreventUpdateAndDelete/test.txt
-    git checkout -- Test_EPF_UpdatePlaceholderTests/LockToPreventUpdateAndDelete/test2.txt
-    git checkout -- Test_EPF_UpdatePlaceholderTests/LockToPreventUpdateAndDelete/test3.txt");
+                    "HEAD is now at " + OldCommitId + @"... Add test files for update UpdatePlaceholder tests",
+                    "GVFS was unable to delete the following files. To recover, close all handles to the files and run these commands:",
+                    "git clean -f " + TestParentFolderName + "/LockToPreventUpdateAndDelete/" + testFileDelete1Name,
+                    "git clean -f " + TestParentFolderName + "/LockToPreventUpdateAndDelete/" + testFileDelete2Name,
+                    "git clean -f " + TestParentFolderName + "/LockToPreventUpdateAndDelete/" + testFileDelete3Name,
+                    "GVFS was unable to update the following files. To recover, close all handles to the files and run these commands:",
+                    "git checkout -- " + TestParentFolderName + "/LockToPreventUpdateAndDelete/" + testFileUpdate1Name,
+                    "git checkout -- " + TestParentFolderName + "/LockToPreventUpdateAndDelete/" + testFileUpdate2Name,
+                    "git checkout -- " + TestParentFolderName + "/LockToPreventUpdateAndDelete/" + testFileUpdate3Name);
 
                 GitHelpers.CheckGitCommandAgainstGVFSRepo(
                     this.Enlistment.RepoRoot, 
@@ -364,31 +363,45 @@ GVFS was unable to update the following files. To recover, close all handles to 
             testFileUpdate4Path.ShouldBeAFile(this.fileSystem).WithContents(testFileUpdate4Contents);
             testFileDelete4Path.ShouldBeAFile(this.fileSystem).WithContents(testFileDelete4Contents);
 
-            using (SafeFileHandle testFileUpdate4Handle = this.CreateFile(testFileUpdate4Path, FileShare.Read | FileShare.Delete))
-            using (SafeFileHandle testFileDelete4Handle = this.CreateFile(testFileDelete4Path, FileShare.Read | FileShare.Delete))
+            if (this.CanUpdateAndDeletePlaceholdersWithOpenHandles())
             {
-                testFileUpdate4Handle.IsInvalid.ShouldEqual(false);
-                testFileDelete4Handle.IsInvalid.ShouldEqual(false);
+                using (SafeFileHandle testFileUpdate4Handle = this.CreateFile(testFileUpdate4Path, FileShare.Read | FileShare.Delete))
+                using (SafeFileHandle testFileDelete4Handle = this.CreateFile(testFileDelete4Path, FileShare.Read | FileShare.Delete))
+                {
+                    testFileUpdate4Handle.IsInvalid.ShouldEqual(false);
+                    testFileDelete4Handle.IsInvalid.ShouldEqual(false);
 
-                ProcessResult checkoutResult = GitProcess.InvokeProcess(this.Enlistment.RepoRoot, "checkout " + OldCommitId);
-                checkoutResult.Errors.ShouldContain(
-@"HEAD is now at " + OldCommitId + @"... Add test files for update UpdatePlaceholder tests
-
-GVFS was unable to update the following files. To recover, close all handles to the files and run these commands:
-    git checkout -- Test_EPF_UpdatePlaceholderTests/LockToPreventUpdateAndDelete/test4.txt");
-
-                GitHelpers.CheckGitCommandAgainstGVFSRepo(
-                    this.Enlistment.RepoRoot, 
-                    "status",
-                    "HEAD detached at " + OldCommitId,
-                    "modified:   Test_EPF_UpdatePlaceholderTests/LockToPreventUpdateAndDelete/test4.txt",
-                    "no changes added to commit (use \"git add\" and/or \"git commit -a\")\n");
+                    this.GitCheckoutCommitId(OldCommitId);
+                    this.GitStatusShouldBeClean(OldCommitId);
+                }
             }
+            else
+            {
+                using (SafeFileHandle testFileUpdate4Handle = this.CreateFile(testFileUpdate4Path, FileShare.Read | FileShare.Delete))
+                using (SafeFileHandle testFileDelete4Handle = this.CreateFile(testFileDelete4Path, FileShare.Read | FileShare.Delete))
+                {
+                    testFileUpdate4Handle.IsInvalid.ShouldEqual(false);
+                    testFileDelete4Handle.IsInvalid.ShouldEqual(false);
 
-            this.GitCheckoutToDiscardChanges(TestParentFolderName + "/LockToPreventUpdateAndDelete/" + testFileUpdate4Name);
-            this.GitStatusShouldBeClean(OldCommitId);
+                    ProcessResult checkoutResult = GitProcess.InvokeProcess(this.Enlistment.RepoRoot, "checkout " + OldCommitId);
+                    checkoutResult.Errors.ShouldContain(
+                        "HEAD is now at " + OldCommitId + @"... Add test files for update UpdatePlaceholder tests",
+                        "GVFS was unable to update the following files. To recover, close all handles to the files and run these commands:",
+                        "git checkout -- Test_EPF_UpdatePlaceholderTests/LockToPreventUpdateAndDelete/test4.txt");
 
-            this.SparseCheckoutShouldContain(TestParentFolderName + "/LockToPreventUpdateAndDelete/" + testFileUpdate4Name);
+                    GitHelpers.CheckGitCommandAgainstGVFSRepo(
+                        this.Enlistment.RepoRoot,
+                        "status",
+                        "HEAD detached at " + OldCommitId,
+                        "modified:   Test_EPF_UpdatePlaceholderTests/LockToPreventUpdateAndDelete/test4.txt",
+                        "no changes added to commit (use \"git add\" and/or \"git commit -a\")\n");
+                }
+
+                this.GitCheckoutToDiscardChanges(TestParentFolderName + "/LockToPreventUpdateAndDelete/" + testFileUpdate4Name);
+                this.GitStatusShouldBeClean(OldCommitId);
+
+                this.SparseCheckoutShouldContain(TestParentFolderName + "/LockToPreventUpdateAndDelete/" + testFileUpdate4Name);
+            }
 
             testFileUpdate4Path.ShouldBeAFile(this.fileSystem).WithContents(testFileUpdate4OldContents);
             testFileDelete4Path.ShouldNotExistOnDisk(this.fileSystem);
@@ -505,9 +518,38 @@ GVFS was unable to update the following files. To recover, close all handles to 
             this.GitStatusShouldBeClean(NewFilesAndChangesCommitId);
         }
 
+        [TestCase, Order(9)]
+        public void FullFilesDontAffectThePlaceholderDatabase()
+        {
+            string testFile = Path.Combine(this.Enlistment.RepoRoot, "FullFilesDontAffectThePlaceholderDatabase");
+
+            string placeholderDatabase = Path.Combine(this.Enlistment.DotGVFSRoot, "databases", "PlaceholderList.dat");
+            string placeholdersBefore = this.ReadAllTextFromWriteLockedFile(placeholderDatabase);
+            
+            this.fileSystem.CreateEmptyFile(testFile);
+
+            this.Enlistment.WaitForBackgroundOperations().ShouldEqual(true, "Background operations failed to complete.");
+            this.ReadAllTextFromWriteLockedFile(placeholderDatabase).ShouldEqual(placeholdersBefore);
+
+            this.fileSystem.DeleteFile(testFile);
+
+            this.Enlistment.WaitForBackgroundOperations().ShouldEqual(true, "Background operations failed to complete.");
+            this.ReadAllTextFromWriteLockedFile(placeholderDatabase).ShouldEqual(placeholdersBefore);
+        }
+
         private ProcessResult InvokeGitAgainstGVFSRepo(string command)
         {
             return GitHelpers.InvokeGitAgainstGVFSRepo(this.Enlistment.RepoRoot, command);
+        }
+
+        private string ReadAllTextFromWriteLockedFile(string filename)
+        {
+            // File.ReadAllText and others attempt to open for read and FileShare.None, which always fail on 
+            // the placeholder db and other files that open for write and only share read access
+            using (StreamReader reader = new StreamReader(File.Open(filename, FileMode.Open, FileAccess.Read, FileShare.ReadWrite)))
+            {
+                return reader.ReadToEnd();
+            }
         }
 
         private void GitStatusShouldBeClean(string commitId)
@@ -559,6 +601,20 @@ GVFS was unable to update the following files. To recover, close all handles to 
                 FileMode.Open,
                 (uint)FileAttributes.Normal,
                 IntPtr.Zero);
+        }
+
+        private bool CanUpdateAndDeletePlaceholdersWithOpenHandles()
+        {
+            // https://msdn.microsoft.com/en-us/library/windows/desktop/ms724429(v=vs.85).aspx
+            FileVersionInfo kernel32Info = FileVersionInfo.GetVersionInfo(Path.Combine(Environment.SystemDirectory, "kernel32.dll"));
+
+            // 16248 is first build with support - see 12658248 for details
+            if (kernel32Info.FileBuildPart >= 16248)
+            {
+                return true;
+            }
+
+            return false;
         }
     }
 }

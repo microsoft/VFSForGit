@@ -67,28 +67,31 @@
       <Link>Common\ConsoleHelper.cs</Link>
     </Compile>
     <Compile Include="..\GVFS.Common\Git\GitConfigHelper.cs">
-      <Link>Common\GitConfigHelper.cs</Link>
+      <Link>Common\Git\GitConfigHelper.cs</Link>
     </Compile>
     <Compile Include="..\GVFS.Common\Git\GitConfigSetting.cs">
-      <Link>Common\GitConfigSetting.cs</Link>
+      <Link>Common\Git\GitConfigSetting.cs</Link>
     </Compile>
     <Compile Include="..\GVFS.Common\Git\GitVersion.cs">
-      <Link>Common\GitVersion.cs</Link>
+      <Link>Common\Git\GitVersion.cs</Link>
     </Compile>
     <Compile Include="..\GVFS.Common\GVFSConstants.cs">
       <Link>Common\GVFSConstants.cs</Link>
+    </Compile>
+    <Compile Include="..\GVFS.Common\GVFSEnlistment.Shared.cs">
+      <Link>Common\GVFSEnlistment.Shared.cs</Link>
     </Compile>
     <Compile Include="..\GVFS.Common\GVFSLock.Shared.cs">
       <Link>Common\GVFSLock.Shared.cs</Link>
     </Compile>
     <Compile Include="..\GVFS.Common\NamedPipes\BrokenPipeException.cs">
-      <Link>Common\BrokenPipeException.cs</Link>
+      <Link>Common\NamedPipes\BrokenPipeException.cs</Link>
     </Compile>
     <Compile Include="..\GVFS.Common\NamedPipes\LockNamedPipeMessages.cs">
-      <Link>Common\LockNamedPipeMessages.cs</Link>
+      <Link>Common\NamedPipes\LockNamedPipeMessages.cs</Link>
     </Compile>
     <Compile Include="..\GVFS.Common\NamedPipes\NamedPipeClient.cs">
-      <Link>Common\NamedPipeClient.cs</Link>
+      <Link>Common\NamedPipes\NamedPipeClient.cs</Link>
     </Compile>
     <Compile Include="..\GVFS.Common\Paths.cs">
       <Link>Common\Paths.cs</Link>
@@ -98,6 +101,15 @@
     </Compile>
     <Compile Include="..\GVFS.Common\ProcessResult.cs">
       <Link>Common\ProcessResult.cs</Link>
+    </Compile>
+    <Compile Include="..\GVFS.Common\Tracing\EventMetadata.cs">
+      <Link>Common\Tracing\EventMetadata.cs</Link>
+    </Compile>
+    <Compile Include="..\GVFS.Common\Tracing\ITracer.cs">
+      <Link>Common\Tracing\ITracer.cs</Link>
+    </Compile>
+    <Compile Include="..\GVFS.Common\Tracing\Keywords.cs">
+      <Link>Common\Tracing\Keywords.cs</Link>
     </Compile>
     <Compile Include="KnownGitCommands.cs" />
     <Compile Include="Program.cs" />

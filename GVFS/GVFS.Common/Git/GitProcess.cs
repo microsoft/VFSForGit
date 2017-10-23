@@ -1,3 +1,4 @@
+using GVFS.Common.FileSystem;
 using GVFS.Common.Tracing;
 using Microsoft.Diagnostics.Tracing;
 using Microsoft.Win32;
@@ -23,6 +24,7 @@ namespace GVFS.Common.Git
         private object executionLock = new object();
 
         private Enlistment enlistment;
+        private PhysicalFileSystem fileSystem;
 
         static GitProcess()
         {
@@ -34,19 +36,20 @@ namespace GVFS.Common.Git
             }
         }
 
-        public GitProcess(Enlistment enlistment)
+        public GitProcess(Enlistment enlistment, PhysicalFileSystem filesystem = null)
         {
             if (enlistment == null)
             {
                 throw new ArgumentNullException(nameof(enlistment));
             }
-
+            
             if (string.IsNullOrWhiteSpace(enlistment.GitBinPath))
             {
                 throw new ArgumentException(nameof(enlistment.GitBinPath));
             }
 
             this.enlistment = enlistment;
+            this.fileSystem = filesystem ?? new PhysicalFileSystem();
         }
 
         public static bool GitExists(string gitBinPath)
@@ -110,8 +113,11 @@ namespace GVFS.Common.Git
                 if (gitCredentialOutput.HasErrors)
                 {
                     EventMetadata errorData = new EventMetadata();
-                    errorData.Add("ErrorMessage", "Git could not get credentials: " + gitCredentialOutput.Errors);
-                    tracer.RelatedError(errorData, Keywords.Network);
+                    tracer.RelatedWarning(
+                        errorData, 
+                        "Git could not get credentials: " + gitCredentialOutput.Errors, 
+                        Keywords.Network | Keywords.Telemetry);
+
                     return false;
                 }
 
@@ -156,7 +162,7 @@ namespace GVFS.Common.Git
         public Result SetInLocalConfig(string settingName, string value, bool replaceAll = false)
         {
             return this.InvokeGitAgainstDotGitFolder(string.Format(
-                "config --local {0} {1} {2}",
+                "config --local {0} \"{1}\" \"{2}\"",
                  replaceAll ? "--replace-all " : string.Empty,
                  settingName,
                  value));
@@ -199,9 +205,14 @@ namespace GVFS.Common.Git
 
             // This method is called at clone time, so the physical repo may not exist yet.
             return 
-                Directory.Exists(this.enlistment.WorkingDirectoryRoot) && !forceOutsideEnlistment
+                this.fileSystem.DirectoryExists(this.enlistment.WorkingDirectoryRoot) && !forceOutsideEnlistment
                     ? this.InvokeGitAgainstDotGitFolder(command) 
                     : this.InvokeGitOutsideEnlistment(command);
+        }
+
+        public Result GetFromLocalConfig(string settingName)
+        {
+            return this.InvokeGitAgainstDotGitFolder("config --local " + settingName);
         }
 
         /// <summary>
@@ -245,7 +256,7 @@ namespace GVFS.Common.Git
 
         public Result CreateBranchWithUpstream(string branchToCreate, string upstreamBranch)
         {
-            return this.InvokeGitAgainstDotGitFolder("branch --set-upstream " + branchToCreate + " " + upstreamBranch);
+            return this.InvokeGitAgainstDotGitFolder("branch " + branchToCreate + " --track " + upstreamBranch);
         }
 
         public Result ForceCheckout(string target)

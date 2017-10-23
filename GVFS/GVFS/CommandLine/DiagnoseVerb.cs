@@ -3,7 +3,6 @@ using GVFS.Common;
 using GVFS.Common.FileSystem;
 using GVFS.Common.Git;
 using GVFS.Common.Http;
-using GVFS.GVFlt;
 using Microsoft.Isam.Esent.Collections.Generic;
 using System;
 using System.IO;
@@ -24,13 +23,6 @@ namespace GVFS.CommandLine
         private const string GvFltLoggerSessionName = "Microsoft-Windows-Git-Filter-Log";
 
         private TextWriter diagnosticLogFileWriter;
-
-        [Option(
-            GVFSConstants.VerbParameters.Unmount.SkipLock,
-            Default = false,
-            Required = false,
-            HelpText = "Force unmount even if the lock is not available.")]
-        public bool SkipLock { get; set; }
 
         protected override string VerbName
         {
@@ -61,104 +53,79 @@ namespace GVFS.CommandLine
                 this.WriteMessage(string.Empty);
                 this.WriteMessage("Enlistment root: " + enlistment.EnlistmentRoot);
                 this.WriteMessage("Repo URL: " + enlistment.RepoUrl);
-
-                string error;
-                CacheServerInfo cacheServer;
-                if (CacheServerInfo.TryDetermineCacheServer(null, enlistment, null, out cacheServer, out error))
-                {
-                    this.WriteMessage("Cache Server: " + cacheServer);
-                }
-                else
-                {
-                    this.WriteMessage(error);
-                }
+                this.WriteMessage("Cache Server: " + CacheServerResolver.GetUrlFromConfig(enlistment));
 
                 this.WriteMessage(string.Empty);
 
-                this.WriteMessage("Copying .gvfs folder...");
-                this.CopyAllFiles(enlistment.EnlistmentRoot, archiveFolderPath, GVFSConstants.DotGVFS.Root, copySubFolders: false);
-
-                this.WriteMessage("Copying GVFlt logs...");
-                this.FlushGvFltLogBuffers();
-                string system32LogFilesPath = Environment.ExpandEnvironmentVariables(System32LogFilesRoot);
-                this.CopyAllFiles(system32LogFilesPath, archiveFolderPath, GVFltLogFolderName, copySubFolders: false);
-                this.LogGvFltTimeout();
-
-                this.WriteMessage("Checking on GVFS...");
-                this.RunAndRecordGVFSVerb<LogVerb>(archiveFolderPath, "gvfs_log.txt");
-                ReturnCode statusResult = this.RunAndRecordGVFSVerb<StatusVerb>(archiveFolderPath, "gvfs_status.txt");
-
-                if (statusResult == ReturnCode.Success)
-                {
-                    this.WriteMessage("GVFS is mounted. Unmounting so we can read files that GVFS has locked...");
-                    this.RunAndRecordGVFSVerb<UnmountVerb>(archiveFolderPath, "gvfs_unmount.txt", verb => verb.SkipLock = this.SkipLock);
-                }
-                else
-                {
-                    this.WriteMessage("GVFS was not mounted.");
-                }
-
-                this.WriteMessage("Checking Defender exclusion...");
                 this.WriteAntiVirusExclusions(enlistment.EnlistmentRoot, archiveFolderPath, "DefenderExclusionInfo.txt");
 
-                this.WriteMessage("Copying .git folder...");
-                this.CopyAllFiles(enlistment.WorkingDirectoryRoot, archiveFolderPath, GVFSConstants.DotGit.Root, copySubFolders: false);
-                this.CopyAllFiles(enlistment.WorkingDirectoryRoot, archiveFolderPath, GVFSConstants.DotGit.Hooks.Root, copySubFolders: false);
-                this.CopyAllFiles(enlistment.WorkingDirectoryRoot, archiveFolderPath, GVFSConstants.DotGit.Info.Root, copySubFolders: false);
-                this.CopyAllFiles(enlistment.WorkingDirectoryRoot, archiveFolderPath, GVFSConstants.DotGit.Logs.Root, copySubFolders: true);
-                this.CopyAllFiles(enlistment.WorkingDirectoryRoot, archiveFolderPath, GVFSConstants.DotGit.Refs.Root, copySubFolders: true);
-                this.CopyAllFiles(enlistment.WorkingDirectoryRoot, archiveFolderPath, GVFSConstants.DotGit.Objects.Info.Root, copySubFolders: false);
+                this.ShowStatusWhileRunning(
+                    () => 
+                        this.RunAndRecordGVFSVerb<StatusVerb>(archiveFolderPath, "gvfs_status.txt") != ReturnCode.Success ||
+                        this.RunAndRecordGVFSVerb<UnmountVerb>(archiveFolderPath, "gvfs_unmount.txt", verb => verb.SkipLock = true) == ReturnCode.Success,
+                    "Unmounting",
+                    suppressGvfsLogMessage: true);
 
-                this.CopyEsentDatabase<long, GVFltCallbacks.BackgroundGitUpdate>(
-                    enlistment.DotGVFSRoot,
-                    Path.Combine(archiveFolderPath, GVFSConstants.DotGVFS.Root),
-                    GVFSConstants.DatabaseNames.BackgroundGitUpdates);
-                this.CopyEsentDatabase<string, string>(
-                    enlistment.DotGVFSRoot,
-                    Path.Combine(archiveFolderPath, GVFSConstants.DotGVFS.Root),
-                    GVFSConstants.DatabaseNames.PlaceholderList);
-                this.CopyEsentDatabase<string, long>(
-                    enlistment.DotGVFSRoot,
-                    Path.Combine(archiveFolderPath, GVFSConstants.DotGVFS.Root),
-                    GVFSConstants.DatabaseNames.BlobSizes);
-                this.CopyEsentDatabase<string, string>(
-                    enlistment.DotGVFSRoot,
-                    Path.Combine(archiveFolderPath, GVFSConstants.DotGVFS.Root),
-                    GVFSConstants.DatabaseNames.RepoMetadata);
+                this.ShowStatusWhileRunning(
+                    () =>
+                    {
+                        // .gvfs
+                        this.CopyAllFiles(enlistment.EnlistmentRoot, archiveFolderPath, GVFSConstants.DotGVFS.Root, copySubFolders: false);
 
-                this.CopyAllFiles(enlistment.DotGVFSRoot, Path.Combine(archiveFolderPath, GVFSConstants.DotGVFS.Root), GVFSConstants.DotGVFS.CorruptObjectsName, copySubFolders: false);
+                        // gvflt
+                        this.FlushGvFltLogBuffers();
+                        string system32LogFilesPath = Environment.ExpandEnvironmentVariables(System32LogFilesRoot);
+                        this.CopyAllFiles(system32LogFilesPath, archiveFolderPath, GVFltLogFolderName, copySubFolders: false);
 
-                this.WriteMessage("Copying GVFS.Service logs and data...");
-                this.CopyAllFiles(
-                    Paths.GetServiceDataRoot(string.Empty),
-                    archiveFolderPath,
-                    this.ServiceName,
-                    copySubFolders: true);
+                        // .git
+                        this.CopyAllFiles(enlistment.WorkingDirectoryRoot, archiveFolderPath, GVFSConstants.DotGit.Root, copySubFolders: false);
+                        this.CopyAllFiles(enlistment.WorkingDirectoryRoot, archiveFolderPath, GVFSConstants.DotGit.Hooks.Root, copySubFolders: false);
+                        this.CopyAllFiles(enlistment.WorkingDirectoryRoot, archiveFolderPath, GVFSConstants.DotGit.Info.Root, copySubFolders: false);
+                        this.CopyAllFiles(enlistment.WorkingDirectoryRoot, archiveFolderPath, GVFSConstants.DotGit.Logs.Root, copySubFolders: true);
+                        this.CopyAllFiles(enlistment.WorkingDirectoryRoot, archiveFolderPath, GVFSConstants.DotGit.Refs.Root, copySubFolders: true);
+                        this.CopyAllFiles(enlistment.WorkingDirectoryRoot, archiveFolderPath, GVFSConstants.DotGit.Objects.Info.Root, copySubFolders: false);
 
-                this.WriteMessage(string.Empty);
-                this.WriteMessage("Remounting GVFS...");
-                ReturnCode mountResult = this.RunAndRecordGVFSVerb<MountVerb>(archiveFolderPath, "gvfs_mount.txt");
-                if (mountResult == ReturnCode.Success)
-                {
-                    this.WriteMessage("Mount succeeded");
-                }
-                else
-                {
-                    this.WriteMessage("Failed to remount. The reason for failure was captured.");
-                }
+                        // databases
+                        this.CopyEsentDatabase<string, long>(enlistment.DotGVFSRoot, Path.Combine(archiveFolderPath, GVFSConstants.DotGVFS.Root), GVFSConstants.DotGVFS.BlobSizesName);
+                        this.CopyAllFiles(enlistment.DotGVFSRoot, Path.Combine(archiveFolderPath, GVFSConstants.DotGVFS.Root), GVFSConstants.DotGVFS.Databases.Name, copySubFolders: false);
+
+                        // corrupt objects
+                        this.CopyAllFiles(enlistment.DotGVFSRoot, Path.Combine(archiveFolderPath, GVFSConstants.DotGVFS.Root), GVFSConstants.DotGVFS.CorruptObjectsName, copySubFolders: false);
+
+                        // service
+                        this.CopyAllFiles(
+                            Paths.GetServiceDataRoot(string.Empty),
+                            archiveFolderPath,
+                            this.ServiceName,
+                            copySubFolders: true);
+
+                        return true;
+                    },
+                    "Copying logs");
+
+                this.ShowStatusWhileRunning(
+                    () => this.RunAndRecordGVFSVerb<MountVerb>(archiveFolderPath, "gvfs_mount.txt") == ReturnCode.Success,
+                    "Mounting",
+                    suppressGvfsLogMessage: true);
 
                 this.CopyAllFiles(enlistment.DotGVFSRoot, Path.Combine(archiveFolderPath, GVFSConstants.DotGVFS.Root), "logs", copySubFolders: false);
             }
 
             string zipFilePath = archiveFolderPath + ".zip";
-            ZipFile.CreateFromDirectory(archiveFolderPath, zipFilePath);
-            PhysicalFileSystem.RecursiveDelete(archiveFolderPath);
+            this.ShowStatusWhileRunning(
+                () =>
+                {
+                    ZipFile.CreateFromDirectory(archiveFolderPath, zipFilePath);
+                    PhysicalFileSystem.RecursiveDelete(archiveFolderPath);
+
+                    return true;
+                },
+                "Creating zip file",
+                suppressGvfsLogMessage: true);
 
             this.Output.WriteLine();
             this.Output.WriteLine("Diagnostics complete. All of the gathered info, as well as all of the output above, is captured in");
             this.Output.WriteLine(zipFilePath);
-            this.Output.WriteLine();
-            this.Output.WriteLine("If you are experiencing an issue, please email the GVFS team with your repro steps and include this zip file.");
         }
 
         private void WriteMessage(string message)
@@ -178,7 +145,6 @@ namespace GVFS.CommandLine
             {
                 if (!Directory.Exists(sourceFolder))
                 {
-                    this.WriteMessage(string.Format("Skipping {0}, folder does not exist", sourceFolder));
                     return;
                 }
 
@@ -247,7 +213,7 @@ namespace GVFS.CommandLine
             }
         }
 
-        private ReturnCode RunAndRecordGVFSVerb<TVerb>(string archiveFolderPath, string outputFileName, Action<TVerb> customConfigureVerb = null)
+        private ReturnCode RunAndRecordGVFSVerb<TVerb>(string archiveFolderPath, string outputFileName, Action<TVerb> configureVerb = null)
             where TVerb : GVFSVerb, new()
         {
             try
@@ -255,16 +221,16 @@ namespace GVFS.CommandLine
                 using (FileStream file = new FileStream(Path.Combine(archiveFolderPath, outputFileName), FileMode.CreateNew))
                 using (StreamWriter writer = new StreamWriter(file))
                 {
-                    customConfigureVerb = customConfigureVerb ?? new Action<TVerb>(verb => { });
-                    Action<TVerb> composedVerbConfiguration;
-                    composedVerbConfiguration = verb =>
-                    {
-                        customConfigureVerb(verb);
-                        verb.Output = writer;
-                        verb.ServiceName = this.ServiceName;
-                    };
+                    return this.Execute<TVerb>(
+                        verb =>
+                        {
+                            if (configureVerb != null)
+                            {
+                                configureVerb(verb);
+                            }
 
-                    return GVFSVerb.Execute<TVerb>(this.EnlistmentRootPath, composedVerbConfiguration);
+                            verb.Output = writer;
+                        });
                 }
             }
             catch (Exception e)
@@ -329,11 +295,6 @@ namespace GVFS.CommandLine
                     using (PersistentDictionary<TKey, TValue> dictionary = new PersistentDictionary<TKey, TValue>(
                         Path.Combine(sourceFolder, databaseName)))
                     {
-                        this.WriteMessage(string.Format(
-                            "Found {0} entries in {1}",
-                            dictionary.Count,
-                            databaseName));
-
                         foreach (TKey key in dictionary.Keys)
                         {
                             writer.Write(key);
@@ -355,20 +316,6 @@ namespace GVFS.CommandLine
             this.CopyAllFiles(sourceFolder, targetFolder, databaseName, copySubFolders: false);
         }
 
-        private void LogGvFltTimeout()
-        {
-            int gvfltTimeoutMs;
-            string error;
-            if (GvFltFilter.TryGetTimeout(out gvfltTimeoutMs, out error))
-            {
-                this.WriteMessage(string.Format("GvFlt timeout (ms) = {0}", gvfltTimeoutMs));
-            }
-            else
-            {
-                this.WriteMessage(string.Format("Failed to GvFlt timeout, error: {0}", error));
-            }
-        }
-
         private void FlushGvFltLogBuffers()
         {
             try
@@ -380,12 +327,6 @@ namespace GVFS.CommandLine
                     this.WriteMessage(string.Format(
                         "Failed to flush GvFlt log buffers {0}",
                         result));
-                }
-                else
-                {
-                    this.WriteMessage(string.Format(
-                        "Flushed GvFlt log buffer ({0})",
-                        logfileName));
                 }
             }
             catch (Exception e)

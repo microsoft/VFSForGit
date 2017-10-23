@@ -1,9 +1,12 @@
-﻿using GVFS.Common.Http;
+﻿using GVFS.Common.FileSystem;
+using GVFS.Common.Http;
 using GVFS.Common.Tracing;
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
+using System.Threading;
 
 namespace GVFS.Common.Git
 {
@@ -12,9 +15,9 @@ namespace GVFS.Common.Git
         private static readonly TimeSpan NegativeCacheTTL = TimeSpan.FromSeconds(30);
 
         private ConcurrentDictionary<string, DateTime> objectNegativeCache;
-
+        
         public GVFSGitObjects(GVFSContext context, GitObjectsHttpRequestor objectRequestor)
-            : base(context.Tracer, context.Enlistment, objectRequestor)
+            : base(context.Tracer, context.Enlistment, objectRequestor, context.FileSystem)
         {
             this.Context = context;
             this.objectNegativeCache = new ConcurrentDictionary<string, DateTime>(StringComparer.OrdinalIgnoreCase);
@@ -22,9 +25,22 @@ namespace GVFS.Common.Git
 
         protected GVFSContext Context { get; private set; }
 
-        public bool TryCopyBlobContentStream(string sha, Action<Stream, long> writeAction)
+        public override bool TryEnsureCommitIsLocal(string commitSha, int commitDepth)
         {
-            RetryWrapper<bool> retrier = new RetryWrapper<bool>(this.GitObjectRequestor.RetryConfig.MaxAttempts);
+            if (this.Context.Repository.CommitAndRootTreeExists(commitSha))
+            {
+                return true;
+            }
+
+            return base.TryEnsureCommitIsLocal(commitSha, commitDepth);
+        }
+
+        public virtual bool TryCopyBlobContentStream(
+            string sha, 
+            CancellationToken cancellationToken, 
+            Action<Stream, long> writeAction)
+        {
+            RetryWrapper<bool> retrier = new RetryWrapper<bool>(this.GitObjectRequestor.RetryConfig.MaxAttempts, cancellationToken);
             retrier.OnFailure += 
                 errorArgs =>
                 {
@@ -32,13 +48,18 @@ namespace GVFS.Common.Git
                     metadata.Add("sha", sha);
                     metadata.Add("AttemptNumber", errorArgs.TryCount);
                     metadata.Add("WillRetry", errorArgs.WillRetry);
-                    metadata.Add("ErrorMessage", "TryCopyBlobContentStream: Failed to provide blob contents");
-                    this.Tracer.RelatedError(metadata);
+
+                    string message = "TryCopyBlobContentStream: Failed to provide blob contents";
+                    if (errorArgs.WillRetry)
+                    {
+                        this.Tracer.RelatedWarning(metadata, message, Keywords.Telemetry);
+                    }
+                    else
+                    {
+                        this.Tracer.RelatedError(metadata, message);
+                    }
                 };
-
-            string firstTwoShaDigits = sha.Substring(0, 2);
-            string remainingShaDigits = sha.Substring(2);
-
+            
             RetryWrapper<bool>.InvocationResult invokeResult = retrier.Invoke(
                 tryCount =>
                 {
@@ -49,8 +70,8 @@ namespace GVFS.Common.Git
                     }
                     else
                     {
-                        // Pass in 1 for maxAttempts because the retrier in this method manages multiple attempts
-                        if (this.TryDownloadAndSaveObject(firstTwoShaDigits, remainingShaDigits, maxAttempts: 1))
+                        // Pass in false for retryOnFailure because the retrier in this method manages multiple attempts
+                        if (this.TryDownloadAndSaveObject(sha, cancellationToken, retryOnFailure: false) == DownloadAndSaveObjectResult.Success)
                         {
                             if (this.Context.Repository.TryCopyBlobContentStream(sha, writeAction))
                             {
@@ -65,40 +86,9 @@ namespace GVFS.Common.Git
             return invokeResult.Result;
         }
 
-        public bool TryDownloadAndSaveObject(string firstTwoShaDigits, string remainingShaDigits)
+        public DownloadAndSaveObjectResult TryDownloadAndSaveObject(string objectId)
         {
-            return this.TryDownloadAndSaveObject(firstTwoShaDigits, remainingShaDigits, GitObjectsHttpRequestor.UseConfiguredMaxAttempts);
-        }
-
-        public bool TryDownloadAndSaveObject(string firstTwoShaDigits, string remainingShaDigits, int maxAttempts)
-        {
-            DateTime negativeCacheRequestTime;
-            string objectId = firstTwoShaDigits + remainingShaDigits;
-
-            if (this.objectNegativeCache.TryGetValue(objectId, out negativeCacheRequestTime))
-            {
-                if (negativeCacheRequestTime > DateTime.Now.Subtract(NegativeCacheTTL))
-                {
-                    return false;
-                }
-
-                this.objectNegativeCache.TryRemove(objectId, out negativeCacheRequestTime);
-            }
-
-            DownloadAndSaveObjectResult result = this.TryDownloadAndSaveObject(objectId, maxAttempts);
-
-            switch (result)
-            {
-                case DownloadAndSaveObjectResult.Success:
-                    return true;
-                case DownloadAndSaveObjectResult.ObjectNotOnServer:
-                    this.objectNegativeCache.AddOrUpdate(objectId, DateTime.Now, (unused1, unused2) => DateTime.Now);
-                    return false;
-                case DownloadAndSaveObjectResult.Error:
-                    return false;
-                default:
-                    throw new InvalidOperationException("Unknown DownloadAndSaveObjectResult value");
-            }
+            return this.TryDownloadAndSaveObject(objectId, new CancellationToken(canceled: false), retryOnFailure: true);
         }
 
         public bool TryGetBlobSizeLocally(string sha, out long length)
@@ -106,9 +96,32 @@ namespace GVFS.Common.Git
             return this.Context.Repository.TryGetBlobLength(sha, out length);
         }
 
-        public List<GitObjectsHttpRequestor.GitObjectSize> GetFileSizes(IEnumerable<string> objectIds)
+        public List<GitObjectsHttpRequestor.GitObjectSize> GetFileSizes(IEnumerable<string> objectIds, CancellationToken cancellationToken)
         {
-            return this.GitObjectRequestor.QueryForFileSizes(objectIds);
+            return this.GitObjectRequestor.QueryForFileSizes(objectIds, cancellationToken);
+        }
+
+        protected override DownloadAndSaveObjectResult TryDownloadAndSaveObject(string objectId, CancellationToken cancellationToken, bool retryOnFailure)
+        {
+            DateTime negativeCacheRequestTime;
+            if (this.objectNegativeCache.TryGetValue(objectId, out negativeCacheRequestTime))
+            {
+                if (negativeCacheRequestTime > DateTime.Now.Subtract(NegativeCacheTTL))
+                {
+                    return DownloadAndSaveObjectResult.ObjectNotOnServer;
+                }
+
+                this.objectNegativeCache.TryRemove(objectId, out negativeCacheRequestTime);
+            }
+
+            DownloadAndSaveObjectResult result = base.TryDownloadAndSaveObject(objectId, cancellationToken, retryOnFailure);
+
+            if (result == DownloadAndSaveObjectResult.ObjectNotOnServer)
+            {
+                this.objectNegativeCache.AddOrUpdate(objectId, DateTime.Now, (unused1, unused2) => DateTime.Now);
+            }
+
+            return result;
         }
     }
 }

@@ -3,6 +3,7 @@ using GVFS.Common.Git;
 using GVFS.Common.Tracing;
 using GVFS.Tests.Should;
 using GVFS.UnitTests.Mock.Common;
+using GVFS.UnitTests.Mock.FileSystem;
 using GVFS.UnitTests.Mock.Git;
 using NUnit.Framework;
 
@@ -190,7 +191,7 @@ namespace GVFS.UnitTests.Git
 
         private MockGitProcess GetGitProcess()
         {
-            MockGitProcess gitProcess = new MockGitProcess();
+            MockGitProcess gitProcess = new MockGitProcess(new ConfigurableFileSystem());
             gitProcess.SetExpectedCommandResult("config gvfs.FunctionalTests.UserName", () => new GitProcess.Result(string.Empty, string.Empty, GitProcess.Result.GenericFailureCode));
             gitProcess.SetExpectedCommandResult("config gvfs.FunctionalTests.Password", () => new GitProcess.Result(string.Empty, string.Empty, GitProcess.Result.GenericFailureCode));
 

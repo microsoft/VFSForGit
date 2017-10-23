@@ -15,23 +15,21 @@ namespace GVFS.FunctionalTests.Tools
         public static void CheckGitCommand(string virtualRepoRoot, string command, params string[] expectedLinesInResult)
         {
             ProcessResult result = GitProcess.InvokeProcess(virtualRepoRoot, command);
+            result.Errors.ShouldBeEmpty();
             foreach (string line in expectedLinesInResult)
             {
                 result.Output.ShouldContain(line);
             }
-
-            result.Errors.ShouldBeEmpty();
         }
 
         public static void CheckGitCommandAgainstGVFSRepo(string virtualRepoRoot, string command, params string[] expectedLinesInResult)
         {
             ProcessResult result = InvokeGitAgainstGVFSRepo(virtualRepoRoot, command);
+            result.Errors.ShouldBeEmpty();
             foreach (string line in expectedLinesInResult)
             {
                 result.Output.ShouldContain(line);
             }
-
-            result.Errors.ShouldBeEmpty();
         }
 
         public static ProcessResult InvokeGitAgainstGVFSRepo(string gvfsRepoRoot, string command, bool cleanErrors = true)

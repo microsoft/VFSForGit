@@ -1,11 +1,11 @@
 #pragma once
 
-namespace GvFlt
+namespace GvLib
 {
     public enum class NtStatus : long
     {
         // Subset of NTSTATUS values.  Add more values as needed.
-        Succcess = STATUS_SUCCESS,
+        Success = STATUS_SUCCESS,
         Timeout = STATUS_TIMEOUT,
         FileNotAvailable = STATUS_FILE_NOT_AVAILABLE,
         Unsuccessful = STATUS_UNSUCCESSFUL,
@@ -34,6 +34,19 @@ namespace GvFlt
         SharingViolation = STATUS_SHARING_VIOLATION,
         DeletePending = STATUS_DELETE_PENDING,
         FileSystemVirtualizationInvalidOperation = STATUS_FILE_SYSTEM_VIRTUALIZATION_INVALID_OPERATION,
-        InsufficientResources = STATUS_INSUFFICIENT_RESOURCES
+        InsufficientResources = STATUS_INSUFFICIENT_RESOURCES,
+        Pending = STATUS_PENDING,
+        AccessViolation = STATUS_ACCESS_VIOLATION,
+        NotLocked = STATUS_NOT_LOCKED,
+        InfoLengthMismatch = STATUS_INFO_LENGTH_MISMATCH,
+        StackOverflow = STATUS_STACK_OVERFLOW,
+        EntrypointNotFound = STATUS_ENTRYPOINT_NOT_FOUND,
+        MoreEntries = STATUS_MORE_ENTRIES,
+        IntegerOverflow = STATUS_INTEGER_OVERFLOW,
+        NoMoreEntries = STATUS_NO_MORE_ENTRIES,
+        DiskFull = STATUS_DISK_FULL,
+        NotADirectory = STATUS_NOT_A_DIRECTORY,
+        FileInvalid = STATUS_FILE_INVALID,
+        IoDeviceError = STATUS_IO_DEVICE_ERROR
     };
 }

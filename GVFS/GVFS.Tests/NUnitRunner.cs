@@ -2,6 +2,7 @@
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.Linq;
 using System.Reflection;
 using System.Threading;
 
@@ -16,6 +17,18 @@ namespace GVFS.Tests
         {
             this.args = new List<string>(args);
             this.excludedCategories = new List<string>();
+        }
+
+        public string GetCustomArgWithParam(string arg)
+        {
+            string match = this.args.Where(a => a.StartsWith(arg + "=")).SingleOrDefault();
+            if (match == null)
+            {
+                return null;
+            }
+            
+            this.args.Remove(match);
+            return match.Substring(arg.Length + 1);
         }
 
         public bool HasCustomArg(string arg)

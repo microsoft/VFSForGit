@@ -66,7 +66,7 @@ namespace FastFetch
             // Configure pipeline
             // Checkout uses DiffHelper when running checkout.Start(), which we use instead of LsTreeHelper like in FetchHelper.cs
             // Checkout diff output => FindMissingBlobs => BatchDownload => IndexPack => Checkout available blobs
-            CheckoutJob checkout = new CheckoutJob(this.checkoutThreadCount, this.PathWhitelist, commitToFetch, this.Tracer, this.Enlistment);
+            CheckoutJob checkout = new CheckoutJob(this.checkoutThreadCount, this.FolderList, commitToFetch, this.Tracer, this.Enlistment);
             FindMissingBlobsJob blobFinder = new FindMissingBlobsJob(this.SearchThreadCount, checkout.RequiredBlobs, checkout.AvailableBlobShas, this.Tracer, this.Enlistment);
             BatchObjectDownloadJob downloader = new BatchObjectDownloadJob(this.DownloadThreadCount, this.ChunkSize, blobFinder.DownloadQueue, checkout.AvailableBlobShas, this.Tracer, this.Enlistment, this.ObjectRequestor, this.GitObjects);
             IndexPackJob packIndexer = new IndexPackJob(this.IndexThreadCount, downloader.AvailablePacks, checkout.AvailableBlobShas, this.Tracer, this.GitObjects);

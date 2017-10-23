@@ -1,12 +1,10 @@
 #pragma once
 
-namespace GvFlt
+namespace GvLib
 {
     public ref class DirectoryEnumerationResult abstract
     {
     public:
-        DirectoryEnumerationResult();
-
         property System::DateTime CreationTime
         {
             virtual void set(System::DateTime value) abstract;
@@ -47,6 +45,8 @@ namespace GvFlt
         virtual bool TrySetFileName(System::String^ value) abstract;
 
     protected:
+        DirectoryEnumerationResult();
+
         unsigned long bytesWritten;
 
     };

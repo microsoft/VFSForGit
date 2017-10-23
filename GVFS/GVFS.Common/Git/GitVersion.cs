@@ -1,4 +1,6 @@
-﻿namespace GVFS.Common.Git
+﻿using System;
+
+namespace GVFS.Common.Git
 {
     public class GitVersion
     {
@@ -19,7 +21,27 @@
         public int Revision { get; private set; }
         public int MinorRevision { get; private set; }
 
-        public static bool TryParse(string input, out GitVersion version)
+        public static bool TryParseInstallerName(string input, out GitVersion version)
+        {
+            // Installer name is of the form
+            // Git-2.14.1.gvfs.1.1.gb16030b-64-bit.exe
+
+            version = null;
+
+            if (!input.StartsWith("Git-", StringComparison.InvariantCultureIgnoreCase))
+            {
+                return false;
+            }
+
+            if (!input.EndsWith("-64-bit.exe", StringComparison.InvariantCultureIgnoreCase))
+            {
+                return false;
+            }
+
+            return TryParseVersion(input.Substring(4, input.Length - 15), out version);
+        }
+
+        public static bool TryParseVersion(string input, out GitVersion version)
         {
             version = null;
             int major, minor, build, revision, minorRevision;

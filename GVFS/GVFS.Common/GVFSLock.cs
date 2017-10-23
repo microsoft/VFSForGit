@@ -46,6 +46,8 @@ namespace GVFS.Common
             EventMetadata metadata = new EventMetadata();
             EventLevel eventLevel = EventLevel.Verbose;
             metadata.Add("LockRequest", requester.ToString());
+            metadata.Add("IsElevated", requester.IsElevated);
+
             try
             {
                 lock (this.acquisitionLock)
@@ -168,6 +170,11 @@ namespace GVFS.Common
             return this.lockHolder != null;
         }
 
+        public NamedPipeMessages.LockData GetExternalLockHolder()
+        {
+            return this.lockHolder;
+        }
+
         public string GetLockedGitCommand()
         {
             NamedPipeMessages.LockData currentHolder = this.lockHolder;
@@ -186,13 +193,10 @@ namespace GVFS.Common
                 return "Held by GVFS.";
             }
 
-            lock (this.acquisitionLock)
+            NamedPipeMessages.LockData currentHolder = this.lockHolder;
+            if (currentHolder != null)
             {
-                string lockedCommand = this.GetLockedGitCommand();
-                if (!string.IsNullOrEmpty(lockedCommand))
-                {
-                    return string.Format("Held by {0} (PID:{1})", lockedCommand, this.lockHolder.PID);
-                }
+                return string.Format("Held by {0} (PID:{1})", currentHolder.ParsedCommand, currentHolder.PID);
             }
 
             return "Free";
@@ -243,6 +247,7 @@ namespace GVFS.Common
                     }
 
                     metadata.Add("CurrentLockHolder", this.lockHolder.ToString());
+                    metadata.Add("IsElevated", this.lockHolder.IsElevated);
 
                     if (this.lockHolder.PID != pid)
                     {

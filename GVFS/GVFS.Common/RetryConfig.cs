@@ -46,8 +46,6 @@ namespace GVFS.Common
 
         public static bool TryLoadFromGitConfig(ITracer tracer, GitProcess git, out RetryConfig retryConfig, out string error)
         {
-            // TODO 1026787: Log failures to event log
-
             retryConfig = null;
 
             int maxRetries;
@@ -59,9 +57,9 @@ namespace GVFS.Common
                         new EventMetadata
                         {
                             { "Area", EtwArea },
-                            { "error", error },
-                            { "ErrorMessage", "TryLoadConfig: TryLoadMaxRetries failed" }
-                        });
+                            { "error", error }
+                        },
+                        "TryLoadConfig: TryLoadMaxRetries failed");
                 }
 
                 return false;
@@ -77,9 +75,9 @@ namespace GVFS.Common
                         {
                             { "Area", EtwArea },
                             { "maxRetries", maxRetries },
-                            { "error", error },
-                            { "ErrorMessage", "TryLoadConfig: TryLoadTimeout failed" }
-                        });
+                            { "error", error }
+                        },
+                        "TryLoadConfig: TryLoadTimeout failed");
                 }
 
                 return false;
@@ -97,7 +95,7 @@ namespace GVFS.Common
                         { "Area", EtwArea },
                         { "Timeout", retryConfig.Timeout },
                         { "MaxRetries", retryConfig.MaxRetries },
-                        { "Message", "RetryConfigLoaded" }
+                        { TracingConstants.MessageKey.InfoMessage, "RetryConfigLoaded" }
                     });
             }
 

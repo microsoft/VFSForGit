@@ -24,7 +24,7 @@ namespace GVFS.UnitTests.GVFlt.DotGit
         }
 
         [TestCase]
-        public void WritesOnFolderChange()
+        public void WritesParentFoldersWithoutDuplicates()
         {
             string alwaysExcludeFilePath = Path.Combine(this.Repo.GitParentPath, GVFS.Common.GVFSConstants.DotGit.Info.AlwaysExcludeName);
             AlwaysExcludeFile alwaysExcludeFile = new AlwaysExcludeFile(this.Repo.Context, alwaysExcludeFilePath);
@@ -32,17 +32,18 @@ namespace GVFS.UnitTests.GVFlt.DotGit
             alwaysExcludeFile.LoadOrCreate();
             this.Repo.Context.FileSystem.FileExists(alwaysExcludeFilePath).ShouldEqual(true);
 
-            alwaysExcludeFile.AddEntriesForFileOrFolder("A\\B\\C", isFolder: true);
-            alwaysExcludeFile.AddEntriesForFileOrFolder("A\\D\\E", isFolder: true);
-            alwaysExcludeFile.AddEntriesForFileOrFolder("A\\C\\E.txt", isFolder: false);
+            alwaysExcludeFile.AddEntriesForFile("a\\1.txt");
+            alwaysExcludeFile.AddEntriesForFile("a\\2.txt");
+            alwaysExcludeFile.AddEntriesForFile("a\\3.txt");
+            alwaysExcludeFile.AddEntriesForFile("a\\b\\1.txt");
+            alwaysExcludeFile.AddEntriesForFile("c\\1.txt");
 
-            List<string> expectedContents = new List<string>() { "*", "!/A", "!/A/B", "!/A/B/C", "!/A/B/C/*", "!/A/D", "!/A/D/E", "!/A/D/E/*", "!/A/C", "!/A/C/*" };
+            List<string> expectedContents = new List<string>() { "*", "!/a/", "!/a/1.txt", "!/a/2.txt", "!/a/3.txt", "!/a/b/", "!/a/b/1.txt", "!/c/", "!/c/1.txt" };
             this.CheckFileContents(alwaysExcludeFilePath, expectedContents);
         }
 
         [TestCase]
-
-        public void DoesNotWriteDuplicateFolderEntries()
+        public void HandlesCaseCorrectly()
         {
             string alwaysExcludeFilePath = Path.Combine(this.Repo.GitParentPath, GVFS.Common.GVFSConstants.DotGit.Info.AlwaysExcludeName);
             AlwaysExcludeFile alwaysExcludeFile = new AlwaysExcludeFile(this.Repo.Context, alwaysExcludeFilePath);
@@ -50,16 +51,14 @@ namespace GVFS.UnitTests.GVFlt.DotGit
             alwaysExcludeFile.LoadOrCreate();
             this.Repo.Context.FileSystem.FileExists(alwaysExcludeFilePath).ShouldEqual(true);
 
-            alwaysExcludeFile.AddEntriesForFileOrFolder("A\\B", isFolder: true);
-            alwaysExcludeFile.AddEntriesForFileOrFolder("a\\b", isFolder: true);
-            alwaysExcludeFile.AddEntriesForFileOrFolder("a\\b.txt", isFolder: false);
-            alwaysExcludeFile.AddEntriesForFileOrFolder("a\\b\\c.txt", isFolder: false);
-            alwaysExcludeFile.AddEntriesForFileOrFolder("A\\D", isFolder: true);
-            alwaysExcludeFile.AddEntriesForFileOrFolder("A\\d", isFolder: true);
-            alwaysExcludeFile.AddEntriesForFileOrFolder("a\\f", isFolder: true);
-            alwaysExcludeFile.AddEntriesForFileOrFolder("a\\F", isFolder: true);
+            alwaysExcludeFile.AddEntriesForFile("a\\1.txt");
+            alwaysExcludeFile.AddEntriesForFile("A\\2.txt");
+            alwaysExcludeFile.AddEntriesForFile("a\\b\\1.txt");
+            alwaysExcludeFile.AddEntriesForFile("a\\B\\2.txt");
+            alwaysExcludeFile.AddEntriesForFile("A\\b\\3.txt");
+            alwaysExcludeFile.AddEntriesForFile("A\\B\\4.txt");
 
-            List<string> expectedContents = new List<string>() { "*", "!/A", "!/A/B", "!/A/B/*", "!/a/*", "!/A/D", "!/A/D/*", "!/a/f", "!/a/f/*" };
+            List<string> expectedContents = new List<string>() { "*", "!/a/", "!/a/1.txt", "!/A/2.txt", "!/a/b/", "!/a/b/1.txt", "!/a/B/2.txt", "!/A/b/3.txt", "!/A/B/4.txt" };
             this.CheckFileContents(alwaysExcludeFilePath, expectedContents);
         }
 
@@ -72,17 +71,54 @@ namespace GVFS.UnitTests.GVFlt.DotGit
             alwaysExcludeFile.LoadOrCreate();
             this.Repo.Context.FileSystem.FileExists(alwaysExcludeFilePath).ShouldEqual(true);
 
-            alwaysExcludeFile.AddEntriesForFileOrFolder("A\\B", isFolder: true);
-            alwaysExcludeFile.AddEntriesForFileOrFolder("A\\D", isFolder: true);
+            alwaysExcludeFile.AddEntriesForFile("a\\1.txt");
+            alwaysExcludeFile.AddEntriesForFile("a\\2.txt");
 
-            List<string> expectedContents = new List<string>() { "*", "!/A", "!/A/B", "!/A/B/*", "!/A/D", "!/A/D/*" };
+            List<string> expectedContents = new List<string>() { "*", "!/a/", "!/a/1.txt", "!/a/2.txt" };
             this.CheckFileContents(alwaysExcludeFilePath, expectedContents);
 
             alwaysExcludeFile = new AlwaysExcludeFile(this.Repo.Context, alwaysExcludeFilePath);
             alwaysExcludeFile.LoadOrCreate();
-            alwaysExcludeFile.AddEntriesForFileOrFolder("a\\f", isFolder: true);
+            alwaysExcludeFile.AddEntriesForFile("a\\3.txt");
 
-            expectedContents = new List<string>() { "*", "!/A", "!/A/B", "!/A/B/*", "!/A/D", "!/A/D/*", "!/a/f", "!/a/f/*" };
+            expectedContents = new List<string>() { "*", "!/a/", "!/a/1.txt", "!/a/2.txt", "!/a/3.txt" };
+            this.CheckFileContents(alwaysExcludeFilePath, expectedContents);
+        }
+
+        [TestCase]
+        public void RemovesEntries()
+        {
+            string alwaysExcludeFilePath = Path.Combine(this.Repo.GitParentPath, GVFS.Common.GVFSConstants.DotGit.Info.AlwaysExcludeName);
+            AlwaysExcludeFile alwaysExcludeFile = new AlwaysExcludeFile(this.Repo.Context, alwaysExcludeFilePath);
+            this.Repo.Context.FileSystem.FileExists(alwaysExcludeFilePath).ShouldEqual(false);
+            alwaysExcludeFile.LoadOrCreate();
+            this.Repo.Context.FileSystem.FileExists(alwaysExcludeFilePath).ShouldEqual(true);
+
+            alwaysExcludeFile.AddEntriesForFile("a\\1.txt");
+            alwaysExcludeFile.AddEntriesForFile("a\\2.txt");
+            alwaysExcludeFile.RemoveEntriesForFiles(new List<string> { "a\\1.txt" });
+            alwaysExcludeFile.FlushAndClose();
+
+            List<string> expectedContents = new List<string>() { "*", "!/a/", "!/a/2.txt" };
+            this.CheckFileContents(alwaysExcludeFilePath, expectedContents);
+        }
+
+        [TestCase]
+        public void RemovesEntriesWithDifferentCase()
+        {
+            string alwaysExcludeFilePath = Path.Combine(this.Repo.GitParentPath, GVFS.Common.GVFSConstants.DotGit.Info.AlwaysExcludeName);
+            AlwaysExcludeFile alwaysExcludeFile = new AlwaysExcludeFile(this.Repo.Context, alwaysExcludeFilePath);
+            this.Repo.Context.FileSystem.FileExists(alwaysExcludeFilePath).ShouldEqual(false);
+            alwaysExcludeFile.LoadOrCreate();
+            this.Repo.Context.FileSystem.FileExists(alwaysExcludeFilePath).ShouldEqual(true);
+
+            alwaysExcludeFile.AddEntriesForFile("a\\x.txt");
+            alwaysExcludeFile.AddEntriesForFile("A\\y.txt");
+            alwaysExcludeFile.AddEntriesForFile("a\\Z.txt");
+            alwaysExcludeFile.RemoveEntriesForFiles(new List<string> { "a\\y.txt", "a\\z.txt" });
+            alwaysExcludeFile.FlushAndClose();
+
+            List<string> expectedContents = new List<string>() { "*", "!/a/", "!/a/x.txt" };
             this.CheckFileContents(alwaysExcludeFilePath, expectedContents);
         }
 

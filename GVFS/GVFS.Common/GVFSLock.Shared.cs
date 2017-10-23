@@ -9,15 +9,16 @@ namespace GVFS.Common
     public partial class GVFSLock
     {
         public static bool TryAcquireGVFSLockForProcess(
+            bool unattended,
             NamedPipeClient pipeClient, 
             string fullCommand, 
             int pid, 
+            bool isElevated,
             Process parentProcess, 
             string gvfsEnlistmentRoot,
             out string result)
         {
-            NamedPipeMessages.LockRequest request =
-                new NamedPipeMessages.LockRequest(pid, fullCommand);
+            NamedPipeMessages.LockRequest request = new NamedPipeMessages.LockRequest(pid, isElevated, fullCommand);
 
             NamedPipeMessages.Message requestMessage = request.CreateMessage(NamedPipeMessages.AcquireLock.AcquireRequest);
             pipeClient.SendRequest(requestMessage);
@@ -55,7 +56,7 @@ namespace GVFS.Common
                         return false;
                 }
 
-                ConsoleHelper.ShowStatusWhileRunning(
+                Func<bool> waitForLock =
                     () =>
                     {
                         while (response.Result != NamedPipeMessages.AcquireLock.AcceptResult)
@@ -66,11 +67,21 @@ namespace GVFS.Common
                         }
 
                         return true;
-                    },
-                    message,
-                    output: Console.Out,
-                    showSpinner: !ConsoleHelper.IsConsoleOutputRedirectedToFile(),
-                    gvfsLogEnlistmentRoot: gvfsEnlistmentRoot);
+                    };
+
+                if (unattended)
+                {
+                    waitForLock();
+                }
+                else
+                {
+                    ConsoleHelper.ShowStatusWhileRunning(
+                        waitForLock,
+                        message,
+                        output: Console.Out,
+                        showSpinner: !ConsoleHelper.IsConsoleOutputRedirectedToFile(),
+                        gvfsLogEnlistmentRoot: gvfsEnlistmentRoot);
+                }
 
                 result = null;
                 return true;
@@ -78,38 +89,40 @@ namespace GVFS.Common
         }
 
         public static void ReleaseGVFSLock(
+            bool unattended,
             NamedPipeClient pipeClient,
             string fullCommand,
             int pid,
+            bool isElevated,
             Process parentProcess,
             Action<NamedPipeMessages.ReleaseLock.Response> responseHandler,
             string gvfsEnlistmentRoot,
             string waitingMessage = "",
             int spinnerDelay = 0)
         {
-            NamedPipeMessages.LockRequest request =
-                new NamedPipeMessages.LockRequest(pid, fullCommand);
+            NamedPipeMessages.LockRequest request = new NamedPipeMessages.LockRequest(pid, isElevated, fullCommand);
 
             NamedPipeMessages.Message requestMessage = request.CreateMessage(NamedPipeMessages.ReleaseLock.Request);
 
             pipeClient.SendRequest(requestMessage);
             NamedPipeMessages.ReleaseLock.Response response = null;
 
-            if (ConsoleHelper.IsConsoleOutputRedirectedToFile())
+            Func<ConsoleHelper.ActionResult> releaseLock =
+                () =>
+                {
+                    response = new NamedPipeMessages.ReleaseLock.Response(pipeClient.ReadResponse());
+                    responseHandler(response);
+                    return ConsoleHelper.ActionResult.Success;
+                };
+
+            if (unattended || ConsoleHelper.IsConsoleOutputRedirectedToFile())
             {
-                // If output is redirected then don't show waiting message or it might be interpreted as error
-                response = new NamedPipeMessages.ReleaseLock.Response(pipeClient.ReadResponse());
-                responseHandler(response);
+                releaseLock();
             }
             else
             {
                 ConsoleHelper.ShowStatusWhileRunning(
-                    () =>
-                    {
-                        response = new NamedPipeMessages.ReleaseLock.Response(pipeClient.ReadResponse());
-                        responseHandler(response);
-                        return ConsoleHelper.ActionResult.Success;
-                    },
+                    releaseLock,
                     waitingMessage,
                     output: Console.Out,
                     showSpinner: true,

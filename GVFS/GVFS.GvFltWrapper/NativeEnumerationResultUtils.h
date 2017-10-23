@@ -1,6 +1,6 @@
 #pragma once
 
-namespace GvFlt
+namespace GvLib
 {
     // PopulateNameInEnumerationData
     //

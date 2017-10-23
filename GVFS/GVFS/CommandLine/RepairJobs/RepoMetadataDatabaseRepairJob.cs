@@ -7,12 +7,9 @@ namespace GVFS.CommandLine.RepairJobs
 {
     public class RepoMetadataDatabaseRepairJob : RepairJob
     {
-        private readonly string databasePath;
-
         public RepoMetadataDatabaseRepairJob(ITracer tracer, TextWriter output, GVFSEnlistment enlistment)
             : base(tracer, output, enlistment)
         {
-            this.databasePath = Path.Combine(this.Enlistment.DotGVFSRoot, GVFSConstants.DatabaseNames.RepoMetadata);
         }
 
         public override string Name
@@ -22,8 +19,10 @@ namespace GVFS.CommandLine.RepairJobs
         
         public override IssueType HasIssue(List<string> messages)
         {
-            if (!this.TryCreatePersistentDictionary<string, string>(this.databasePath, messages))
+            string error;
+            if (!RepoMetadata.TryInitialize(this.Tracer, this.Enlistment.DotGVFSRoot, out error))
             {
+                messages.Add("Could not open repo metadata: " + error);
                 return IssueType.CantFix;
             }
 

@@ -44,6 +44,35 @@ namespace GVFS.GVFlt.DotGit
         /// <param name="line">Line to append</param>
         public void AppendLine(string line)
         {
+            this.Open();
+            this.fileWriter.Write(line + "\n");
+        }
+
+        public void ReplaceFile(HashSet<string> lines)
+        {
+            this.Close();
+            string tempFilePath = this.filePath + ".temp";
+            this.context.FileSystem.WriteAllText(tempFilePath, string.Join("\n", lines) + "\n");
+            this.context.FileSystem.MoveAndOverwriteFile(tempFilePath, this.filePath);
+        }
+
+        public void Close()
+        {
+            if (this.fileWriter != null)
+            {
+                this.fileWriter.Dispose();
+                this.fileWriter = null;
+            }
+
+            if (this.fileStream != null)
+            {
+                this.fileStream.Dispose();
+                this.fileStream = null;
+            }
+        }
+
+        private void Open()
+        {
             try
             {
                 if (this.fileStream == null)
@@ -66,23 +95,6 @@ namespace GVFS.GVFlt.DotGit
             {
                 this.Close();
                 throw;
-            }
-
-            this.fileWriter.Write(line + "\n");
-        }
-
-        public void Close()
-        {
-            if (this.fileWriter != null)
-            {
-                this.fileWriter.Dispose();
-                this.fileWriter = null;
-            }
-
-            if (this.fileStream != null)
-            {
-                this.fileStream.Dispose();
-                this.fileStream = null;
             }
         }
     }

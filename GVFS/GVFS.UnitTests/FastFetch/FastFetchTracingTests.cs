@@ -22,7 +22,7 @@ namespace GVFS.UnitTests.FastFetch
             {
                 MockEnlistment enlistment = new MockEnlistment();
                 MockHttpGitObjects httpGitObjects = new MockHttpGitObjects(tracer, enlistment);
-                MockPhysicalGitObjects gitObjects = new MockPhysicalGitObjects(tracer, enlistment, httpGitObjects);
+                MockPhysicalGitObjects gitObjects = new MockPhysicalGitObjects(tracer, null, enlistment, httpGitObjects);
 
                 BlockingCollection<string> input = new BlockingCollection<string>();
                 input.Add(FakeSha);
@@ -48,7 +48,7 @@ namespace GVFS.UnitTests.FastFetch
                 MockEnlistment enlistment = new MockEnlistment();
                 MockHttpGitObjects httpGitObjects = new MockHttpGitObjects(tracer, enlistment);
                 httpGitObjects.AddBlobContent(FakeSha, FakeShaContents);
-                MockPhysicalGitObjects gitObjects = new MockPhysicalGitObjects(tracer, enlistment, httpGitObjects);
+                MockPhysicalGitObjects gitObjects = new MockPhysicalGitObjects(tracer, null, enlistment, httpGitObjects);
 
                 BlockingCollection<string> input = new BlockingCollection<string>();
                 input.Add(FakeSha);
@@ -74,7 +74,7 @@ namespace GVFS.UnitTests.FastFetch
             using (JsonEtwTracer tracer = CreateTracer())
             {
                 MockEnlistment enlistment = new MockEnlistment();
-                MockPhysicalGitObjects gitObjects = new MockPhysicalGitObjects(tracer, enlistment, null);
+                MockPhysicalGitObjects gitObjects = new MockPhysicalGitObjects(tracer, null, enlistment, null);
 
                 BlockingCollection<IndexPackRequest> input = new BlockingCollection<IndexPackRequest>();
                 BlobDownloadRequest downloadRequest = new BlobDownloadRequest(new string[] { FakeSha });
@@ -89,7 +89,7 @@ namespace GVFS.UnitTests.FastFetch
 
         private static JsonEtwTracer CreateTracer()
         {
-            return new JsonEtwTracer("Microsoft-GVFS-Test", "FastFetchTest");
+            return new JsonEtwTracer("Microsoft-GVFS-Test", "FastFetchTest", useCriticalTelemetryFlag: false);
         }
     }
 }

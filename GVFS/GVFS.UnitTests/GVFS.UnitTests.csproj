@@ -40,6 +40,21 @@
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
   </PropertyGroup>
   <ItemGroup>
+    <Reference Include="Esent.Collections, Version=1.9.4.0, Culture=neutral, PublicKeyToken=31bf3856ad364e35, processorArchitecture=MSIL">
+      <SpecificVersion>False</SpecificVersion>
+      <HintPath>..\..\..\packages\Microsoft.Database.Collections.Generic.1.9.4\lib\net40\Esent.Collections.dll</HintPath>
+      <Private>True</Private>
+    </Reference>
+    <Reference Include="Esent.Interop, Version=1.9.4.0, Culture=neutral, PublicKeyToken=31bf3856ad364e35, processorArchitecture=MSIL">
+      <SpecificVersion>False</SpecificVersion>
+      <HintPath>..\..\..\packages\ManagedEsent.1.9.4\lib\net40\Esent.Interop.dll</HintPath>
+      <Private>True</Private>
+    </Reference>
+    <Reference Include="Esent.Isam, Version=1.9.4.0, Culture=neutral, PublicKeyToken=31bf3856ad364e35, processorArchitecture=MSIL">
+      <SpecificVersion>False</SpecificVersion>
+      <HintPath>..\..\..\packages\Microsoft.Database.Isam.1.9.4\lib\net40\Esent.Isam.dll</HintPath>
+      <Private>True</Private>
+    </Reference>
     <Reference Include="Microsoft.Diagnostics.Tracing.EventSource, Version=1.1.28.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a, processorArchitecture=MSIL">
       <SpecificVersion>False</SpecificVersion>
       <HintPath>..\..\..\packages\Microsoft.Diagnostics.Tracing.EventSource.Redist.1.1.28\lib\net40\Microsoft.Diagnostics.Tracing.EventSource.dll</HintPath>
@@ -66,8 +81,11 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="Category\CategoryConstants.cs" />
-    <Compile Include="Common\CacheServerInfoTests.cs" />
     <Compile Include="CommandLine\HooksInstallerTests.cs" />
+    <Compile Include="Common\CacheServerResolverTests.cs" />
+    <Compile Include="Common\FileBasedDictionaryTests.cs" />
+    <Compile Include="Common\PlaceholderDatabaseTests.cs" />
+    <Compile Include="Common\BackgroundGitUpdateQueueTests.cs" />
     <Compile Include="Common\GitConfigHelperTests.cs" />
     <Compile Include="Common\GitCommandLineParserTests.cs" />
     <Compile Include="Common\GitPathConverterTests.cs" />
@@ -89,18 +107,22 @@
     <Compile Include="GVFlt\GVFltCallbacksTests.cs" />
     <Compile Include="Mock\Common\MockEnlistment.cs" />
     <Compile Include="Mock\Common\MockTracer.cs" />
-    <Compile Include="Mock\FileSystem\MassiveMockFileSystem.cs" />
     <Compile Include="Mock\FileSystem\MockFile.cs" />
     <Compile Include="Mock\FileSystem\MockFileSystem.cs" />
     <Compile Include="Mock\FileSystem\MockDirectory.cs" />
-    <Compile Include="Mock\FileSystem\MockSafeHandle.cs" />
+    <Compile Include="Mock\FileSystem\MockFileSystemWithCallbacks.cs" />
+    <Compile Include="Mock\FileSystem\ConfigurableFileSystem.cs" />
     <Compile Include="Mock\Git\MockBatchHttpGitObjects.cs" />
+    <Compile Include="Mock\Git\MockLibGit2Repo.cs" />
     <Compile Include="Mock\Git\MockHttpGitObjects.cs" />
     <Compile Include="Mock\Git\MockGitRepo.cs" />
     <Compile Include="Mock\Git\MockGVFSGitObjects.cs" />
     <Compile Include="Mock\Common\MockPhysicalGitObjects.cs" />
+    <Compile Include="Mock\GVFS.GvFlt\DotGit\MockGitIndexProjection.cs" />
+    <Compile Include="Mock\GVFS.GvFlt\MockReliableBackgroundOperations.cs" />
     <Compile Include="Mock\MockCacheServerInfo.cs" />
     <Compile Include="Mock\Git\MockGitProcess.cs" />
+    <Compile Include="Mock\GvFlt\MockVirtualizationInstance.cs" />
     <Compile Include="Mock\ReusableMemoryStream.cs" />
     <Compile Include="Git\GitAuthenticationTests.cs" />
     <Compile Include="Git\GVFSGitObjectsTests.cs" />
@@ -129,6 +151,10 @@
     <ProjectReference Include="..\GVFS.Common\GVFS.Common.csproj">
       <Project>{374bf1e5-0b2d-4d4a-bd5e-4212299def09}</Project>
       <Name>GVFS.Common</Name>
+    </ProjectReference>
+    <ProjectReference Include="..\GVFS.GvFltWrapper\GvLib.vcxproj">
+      <Project>{fb0831ae-9997-401b-b31f-3a065fdbeb20}</Project>
+      <Name>GvLib.Managed</Name>
     </ProjectReference>
     <ProjectReference Include="..\GVFS.GVFlt\GVFS.GVFlt.csproj">
       <Project>{1118b427-7063-422f-83b9-5023c8ec5a7a}</Project>

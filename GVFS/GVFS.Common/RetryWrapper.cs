@@ -4,6 +4,7 @@ using System;
 using System.IO;
 using System.Net.Http;
 using System.Threading;
+using System.Threading.Tasks;
 using System.Web;
 
 namespace GVFS.Common
@@ -13,16 +14,18 @@ namespace GVFS.Common
         private const float MaxBackoffInSeconds = 300; // 5 minutes
         private readonly int maxAttempts;        
         private readonly double exponentialBackoffBase;
+        private readonly CancellationToken cancellationToken;
 
-        public RetryWrapper(int maxAttempts, double exponentialBackoffBase = RetryBackoff.DefaultExponentialBackoffBase)
+        public RetryWrapper(int maxAttempts, CancellationToken cancellationToken, double exponentialBackoffBase = RetryBackoff.DefaultExponentialBackoffBase)
         {
             this.maxAttempts = maxAttempts;
+            this.cancellationToken = cancellationToken;
             this.exponentialBackoffBase = exponentialBackoffBase;
         }
 
         public event Action<ErrorEventArgs> OnFailure = delegate { };
 
-        public static Action<ErrorEventArgs> StandardErrorHandler(ITracer tracer, long requestId, string actionName)
+        public static Action<ErrorEventArgs> StandardErrorHandler(ITracer tracer, long requestId, string actionName, bool forceLogAsWarning = false)
         {
             return eArgs =>
             {
@@ -31,11 +34,19 @@ namespace GVFS.Common
                 metadata.Add("AttemptNumber", eArgs.TryCount);
                 metadata.Add("Operation", actionName);
                 metadata.Add("WillRetry", eArgs.WillRetry);
-                metadata.Add("ErrorMessage", eArgs.Error != null ? eArgs.Error.Message : null);
-                tracer.RelatedError(metadata, Keywords.Network);
+                string message = eArgs.Error != null ? eArgs.Error.Message : null;
+
+                if (eArgs.WillRetry || forceLogAsWarning)
+                {
+                    tracer.RelatedWarning(metadata, message, Keywords.Network);
+                }
+                else
+                {
+                    tracer.RelatedError(metadata, message, Keywords.Network);
+                }
 
                 // Emit with stack at a higher verbosity.
-                metadata["ErrorMessage"] = eArgs.Error != null ? eArgs.Error.ToString() : null;
+                metadata[TracingConstants.MessageKey.VerboseMessage] = eArgs.Error != null ? eArgs.Error.ToString() : null;
                 tracer.RelatedEvent(EventLevel.Verbose, JsonEtwTracer.NetworkErrorEventName, metadata, Keywords.Network);
             };
         }        
@@ -45,6 +56,8 @@ namespace GVFS.Common
             // Use 1-based counting. This makes reporting look a lot nicer and saves a lot of +1s
             for (int tryCount = 1; tryCount <= this.maxAttempts; ++tryCount)
             {
+                this.cancellationToken.ThrowIfCancellationRequested();
+
                 try
                 {
                     CallbackResult result = toInvoke(tryCount);
@@ -83,7 +96,14 @@ namespace GVFS.Common
                 if (tryCount > 1 && tryCount < this.maxAttempts)
                 {
                     double backOffSeconds = RetryBackoff.CalculateBackoffSeconds(tryCount, MaxBackoffInSeconds, this.exponentialBackoffBase);
-                    Thread.Sleep(TimeSpan.FromSeconds(backOffSeconds));
+                    try
+                    {
+                        Task.Delay(TimeSpan.FromSeconds(backOffSeconds), this.cancellationToken).GetAwaiter().GetResult();
+                    }
+                    catch (TaskCanceledException)
+                    {
+                        throw new OperationCanceledException(this.cancellationToken);
+                    }
                 }
             }
 

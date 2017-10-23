@@ -1,16 +1,20 @@
 ﻿using GVFS.Common;
+using GVFS.Common.FileSystem;
 using GVFS.Common.Git;
 using GVFS.Common.Http;
 using GVFS.Tests.Should;
 using GVFS.UnitTests.Category;
 using GVFS.UnitTests.Mock;
 using GVFS.UnitTests.Mock.Common;
+using GVFS.UnitTests.Mock.FileSystem;
+using GVFS.UnitTests.Mock.Git;
 using NUnit.Framework;
 using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Net;
 using System.Reflection;
+using System.Threading;
 
 namespace GVFS.UnitTests.Git
 {
@@ -18,33 +22,49 @@ namespace GVFS.UnitTests.Git
     public class GVFSGitObjectsTests
     {
         private const string ValidTestObjectFileContents = "421dc4df5e1de427e363b8acd9ddb2d41385dbdf";
-        private string tempFolder;
+        private const string TestEnlistmentRoot = "mock:\\src";
 
-        [OneTimeSetUp]
-        public void Setup()
+        [TestCase]
+        [Category(CategoryConstants.ExceptionExpected)]
+        public void CatchesFileNotFoundAfterFileDeleted()
         {
-            this.tempFolder = Path.Combine(Environment.CurrentDirectory, Path.GetRandomFileName());
-            string packFolder = Path.Combine(this.tempFolder, ".gvfs\\gitObjectCache\\pack");
-            Directory.CreateDirectory(packFolder);
-        }
+            MockFileSystemWithCallbacks fileSystem = new MockFileSystemWithCallbacks();
+            fileSystem.OnFileExists = () => true;
+            fileSystem.OnOpenFileStream = (path, fileMode, fileAccess) =>
+            {
+                if (fileAccess == FileAccess.Write)
+                {
+                    return new MemoryStream();
+                }
 
-        [OneTimeTearDown]
-        public void Teardown()
-        {
-            Directory.Delete(this.tempFolder, true);
+                throw new FileNotFoundException();
+            };
+
+            MockHttpGitObjects httpObjects = new MockHttpGitObjects();
+            using (httpObjects.InputStream = new MemoryStream(System.Text.Encoding.ASCII.GetBytes(ValidTestObjectFileContents)))
+            {
+                httpObjects.MediaType = GVFSConstants.MediaTypes.LooseObjectMediaType;
+                GVFSGitObjects dut = this.CreateTestableGVFSGitObjects(httpObjects, fileSystem);
+
+                dut.TryCopyBlobContentStream(ValidTestObjectFileContents, new CancellationToken(), (stream, length) => Assert.Fail("Should not be able to call copy stream callback"))
+                    .ShouldEqual(false);
+            }
         }
 
         [TestCase]
         public void SucceedsForNormalLookingLooseObjectDownloads()
         {
+            MockFileSystemWithCallbacks fileSystem = new Mock.FileSystem.MockFileSystemWithCallbacks();
+            fileSystem.OnFileExists = () => true;
+            fileSystem.OnOpenFileStream = (path, mode, access) => new MemoryStream();
             MockHttpGitObjects httpObjects = new MockHttpGitObjects();
             using (httpObjects.InputStream = new MemoryStream(System.Text.Encoding.ASCII.GetBytes(ValidTestObjectFileContents)))
             {
                 httpObjects.MediaType = GVFSConstants.MediaTypes.LooseObjectMediaType;
-                GVFSGitObjects dut = this.CreateTestableGVFSGitObjects(httpObjects);
+                GVFSGitObjects dut = this.CreateTestableGVFSGitObjects(httpObjects, fileSystem);
 
-                dut.TryDownloadAndSaveObject(ValidTestObjectFileContents.Substring(0, 2), ValidTestObjectFileContents.Substring(2))
-                    .ShouldEqual(true);
+                dut.TryDownloadAndSaveObject(ValidTestObjectFileContents)
+                    .ShouldEqual(GitObjects.DownloadAndSaveObjectResult.Success);
             }
         }
 
@@ -55,7 +75,7 @@ namespace GVFS.UnitTests.Git
             this.AssertRetryableExceptionOnDownload(
                 new MemoryStream(),
                 GVFSConstants.MediaTypes.LooseObjectMediaType,
-                gitObjects => gitObjects.TryDownloadAndSaveObject("aa", "bbcc"));
+                gitObjects => gitObjects.TryDownloadAndSaveObject("aabbcc"));
         }
 
         [TestCase]
@@ -65,7 +85,7 @@ namespace GVFS.UnitTests.Git
             this.AssertRetryableExceptionOnDownload(
                 new MemoryStream(new byte[256]),
                 GVFSConstants.MediaTypes.LooseObjectMediaType,
-                gitObjects => gitObjects.TryDownloadAndSaveObject("aa", "bbcc"));
+                gitObjects => gitObjects.TryDownloadAndSaveObject("aabbcc"));
         }
 
         [TestCase]
@@ -75,7 +95,7 @@ namespace GVFS.UnitTests.Git
             this.AssertRetryableExceptionOnDownload(
                 new MemoryStream(),
                 GVFSConstants.MediaTypes.PackFileMediaType,
-                gitObjects => gitObjects.TryDownloadAndSaveCommit("object0", 0));
+                gitObjects => gitObjects.TryEnsureCommitIsLocal("object0", 0));
         }
 
         [TestCase]
@@ -85,7 +105,7 @@ namespace GVFS.UnitTests.Git
             this.AssertRetryableExceptionOnDownload(
                 new MemoryStream(new byte[256]),
                 GVFSConstants.MediaTypes.PackFileMediaType,
-                gitObjects => gitObjects.TryDownloadAndSaveCommit("object0", 0));
+                gitObjects => gitObjects.TryEnsureCommitIsLocal("object0", 0));
         }
 
         private void AssertRetryableExceptionOnDownload(
@@ -96,18 +116,27 @@ namespace GVFS.UnitTests.Git
             MockHttpGitObjects httpObjects = new MockHttpGitObjects();
             httpObjects.InputStream = inputStream;
             httpObjects.MediaType = mediaType;
-            GVFSGitObjects gitObjects = this.CreateTestableGVFSGitObjects(httpObjects);
+            MockFileSystemWithCallbacks fileSystem = new MockFileSystemWithCallbacks();
 
-            Assert.Throws<RetryableException>(() => download(gitObjects));
-            inputStream.Dispose();
+            using (ReusableMemoryStream downloadDestination = new ReusableMemoryStream(string.Empty))
+            {
+                fileSystem.OnFileExists = () => false;
+                fileSystem.OnOpenFileStream = (path, mode, access) => downloadDestination;
+
+                GVFSGitObjects gitObjects = this.CreateTestableGVFSGitObjects(httpObjects, fileSystem);
+
+                Assert.Throws<RetryableException>(() => download(gitObjects));
+                inputStream.Dispose();
+            }
         }
 
-        private GVFSGitObjects CreateTestableGVFSGitObjects(MockHttpGitObjects httpObjects)
+        private GVFSGitObjects CreateTestableGVFSGitObjects(MockHttpGitObjects httpObjects, MockFileSystemWithCallbacks fileSystem)
         {
             MockTracer tracer = new MockTracer();
-            GVFSEnlistment enlistment = new GVFSEnlistment(this.tempFolder, "https://fakeRepoUrl", "fakeGitBinPath", gvfsHooksRoot: null);
+            GVFSEnlistment enlistment = new GVFSEnlistment(TestEnlistmentRoot, "https://fakeRepoUrl", "fakeGitBinPath", gvfsHooksRoot: null);
+            GitRepo repo = new GitRepo(tracer, enlistment, fileSystem, () => new MockLibGit2Repo(tracer));
 
-            GVFSContext context = new GVFSContext(tracer, null, null, enlistment);
+            GVFSContext context = new GVFSContext(tracer, fileSystem, repo, enlistment);
             GVFSGitObjects dut = new GVFSGitObjects(context, httpObjects);
             return dut;
         }
@@ -126,7 +155,7 @@ namespace GVFS.UnitTests.Git
             }
 
             private MockHttpGitObjects(MockEnlistment enlistment)
-                : base(new MockTracer(), enlistment, new MockCacheServerInfo(), new RetryConfig())
+                : base(new MockTracer(), enlistment, new MockCacheServerInfo(), new RetryConfig(maxRetries: 1))
             {
             }
 
@@ -148,14 +177,8 @@ namespace GVFS.UnitTests.Git
 
             public override RetryWrapper<GitObjectTaskResult>.InvocationResult TryDownloadLooseObject(
                 string objectId,
-                Func<int, GitEndPointResponseData, RetryWrapper<GitObjectTaskResult>.CallbackResult> onSuccess)
-            {
-                return this.TryDownloadObjects(new[] { objectId }, 0, onSuccess, null, false);
-            }
-
-            public override RetryWrapper<GitObjectTaskResult>.InvocationResult TryDownloadLooseObject(
-                string objectId,
-                int maxAttempts,
+                bool retryOnFailure,
+                CancellationToken cancellationToken,
                 Func<int, GitEndPointResponseData, RetryWrapper<GitObjectTaskResult>.CallbackResult> onSuccess)
             {
                 return this.TryDownloadObjects(new[] { objectId }, 0, onSuccess, null, false);
@@ -174,7 +197,7 @@ namespace GVFS.UnitTests.Git
                 return new RetryWrapper<GitObjectTaskResult>.InvocationResult(0, true, result);
             }
 
-            public override List<GitObjectSize> QueryForFileSizes(IEnumerable<string> objectIds)
+            public override List<GitObjectSize> QueryForFileSizes(IEnumerable<string> objectIds, CancellationToken cancellationToken)
             {
                 throw new NotImplementedException();
             }

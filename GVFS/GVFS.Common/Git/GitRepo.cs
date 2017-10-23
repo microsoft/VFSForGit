@@ -17,7 +17,7 @@ namespace GVFS.Common.Git
         private LibGit2RepoPool libgit2RepoPool;
         private Enlistment enlistment;
 
-        public GitRepo(ITracer tracer, Enlistment enlistment, PhysicalFileSystem fileSystem)
+        public GitRepo(ITracer tracer, Enlistment enlistment, PhysicalFileSystem fileSystem, Func<LibGit2Repo> repoFactory = null)
         {
             this.tracer = tracer;
             this.enlistment = enlistment;
@@ -27,13 +27,14 @@ namespace GVFS.Common.Git
             
             this.libgit2RepoPool = new LibGit2RepoPool(
                 tracer,
-                () => new LibGit2Repo(tracer, enlistment.WorkingDirectoryRoot),
+                repoFactory ?? (() => new LibGit2Repo(this.tracer, this.enlistment.WorkingDirectoryRoot)),
                 Environment.ProcessorCount * 2);
         }
 
         // For Unit Testing
-        protected GitRepo()
+        protected GitRepo(ITracer tracer)
         {
+            this.GVFSLock = new GVFSLock(tracer);
         }
 
         public GVFSLock GVFSLock
@@ -52,9 +53,9 @@ namespace GVFS.Common.Git
             bool corruptLooseObject = false;
             try
             {
-                if (File.Exists(blobPath))
+                if (this.fileSystem.FileExists(blobPath))
                 {
-                    using (Stream file = new FileStream(blobPath, FileMode.Open, FileAccess.Read, FileShare.Read))
+                    using (Stream file = this.fileSystem.OpenFileStream(blobPath, FileMode.Open, FileAccess.Read, FileShare.Read))
                     {
                         // The DeflateStream header starts 2 bytes into the gzip header, but they are otherwise compatible
                         file.Position = 2;
@@ -80,8 +81,7 @@ namespace GVFS.Common.Git
                 EventMetadata metadata = new EventMetadata();
                 metadata.Add("blobPath", blobPath);
                 metadata.Add("Exception", ex.ToString());
-                metadata.Add("ErrorMessage", "TryCopyBlobContentStream: Failed to stream blob (InvalidDataException)");
-                this.tracer.RelatedError(metadata);
+                this.tracer.RelatedWarning(metadata, "TryCopyBlobContentStream: Failed to stream blob (InvalidDataException)", Keywords.Telemetry);
 
                 return false;
             }
@@ -90,8 +90,7 @@ namespace GVFS.Common.Git
                 EventMetadata metadata = new EventMetadata();
                 metadata.Add("blobPath", blobPath);
                 metadata.Add("Exception", ex.ToString());
-                metadata.Add("ErrorMessage", "TryCopyBlobContentStream: Failed to stream blob from disk");
-                this.tracer.RelatedError(metadata);
+                this.tracer.RelatedWarning(metadata, "TryCopyBlobContentStream: Failed to stream blob from disk", Keywords.Telemetry);
 
                 return false;
             }
@@ -105,7 +104,7 @@ namespace GVFS.Common.Git
                     EventMetadata metadata = new EventMetadata();
                     metadata.Add("blobPath", blobPath);
                     metadata.Add("corruptBlobPath", corruptBlobPath);
-                    metadata.Add("Message", "TryCopyBlobContentStream: Renaming corrupt loose object");
+                    metadata.Add(TracingConstants.MessageKey.InfoMessage, "TryCopyBlobContentStream: Renaming corrupt loose object");
                     this.tracer.RelatedEvent(EventLevel.Informational, "TryCopyBlobContentStream_RenameCorruptObject", metadata);
 
                     try
@@ -119,8 +118,8 @@ namespace GVFS.Common.Git
                         metadata.Add("blobPath", blobPath);
                         metadata.Add("blobBackupPath", corruptBlobPath);
                         metadata.Add("Exception", e.ToString());
-                        metadata.Add("Message", "TryCopyBlobContentStream: Failed to rename corrupt loose object");
-                        this.tracer.RelatedEvent(EventLevel.Warning, "TryCopyBlobContentStream_RenameCorruptObjectFailed", metadata);
+                        metadata.Add(TracingConstants.MessageKey.WarningMessage, "TryCopyBlobContentStream: Failed to rename corrupt loose object");
+                        this.tracer.RelatedEvent(EventLevel.Warning, "TryCopyBlobContentStream_RenameCorruptObjectFailed", metadata, Keywords.Telemetry);
                     }
                 }
             }
@@ -132,6 +131,20 @@ namespace GVFS.Common.Git
             }
 
             return copyBlobResult;
+        }
+
+        public virtual bool CommitAndRootTreeExists(string commitSha)
+        {
+            bool output = false;
+            this.libgit2RepoPool.TryInvoke(repo => repo.CommitAndRootTreeExists(commitSha), out output);
+            return output;
+        }
+
+        public virtual bool ObjectExists(string blobSha)
+        {
+            bool output = false;
+            this.libgit2RepoPool.TryInvoke(repo => repo.ObjectExists(blobSha), out output);
+            return output;
         }
 
         public virtual bool TryGetBlobLength(string blobSha, out long size)

@@ -5,7 +5,6 @@ using GVFS.Common.Http;
 using GVFS.Common.Tracing;
 using Microsoft.Diagnostics.Tracing;
 using System;
-using System.Diagnostics;
 
 namespace FastFetch
 {
@@ -103,15 +102,15 @@ namespace FastFetch
             "folders",
             Required = false,
             Default = "",
-            HelpText = "A semicolon-delimited list of paths to fetch")]
-        public string PathWhitelist { get; set; }
+            HelpText = "A semicolon-delimited list of folders to fetch")]
+        public string FolderList { get; set; }
 
         [Option(
             "folders-list",
             Required = false,
             Default = "",
-            HelpText = "A file containing line-delimited list of paths to fetch")]
-        public string PathWhitelistFile { get; set; }
+            HelpText = "A file containing line-delimited list of folders to fetch")]
+        public string FolderListFile { get; set; }
 
         [Option(
             "Allow-index-metadata-update-from-working-tree",
@@ -192,7 +191,7 @@ namespace FastFetch
                 Console.WriteLine("The ParentActivityId provided (" + this.ParentActivityId + ") is not a valid GUID.");
             }
 
-            using (JsonEtwTracer tracer = new JsonEtwTracer("Microsoft.Git.FastFetch", parentActivityId, "FastFetch"))
+            using (JsonEtwTracer tracer = new JsonEtwTracer("Microsoft.Git.FastFetch", parentActivityId, "FastFetch", useCriticalTelemetryFlag: false))
             {
                 if (this.Verbose)
                 {
@@ -206,29 +205,26 @@ namespace FastFetch
                 string fastfetchLogFile = Enlistment.GetNewLogFileName(enlistment.FastFetchLogRoot, "fastfetch");
                 tracer.AddLogFileEventListener(fastfetchLogFile, EventLevel.Informational, Keywords.Any);
 
-                RetryConfig retryConfig = new RetryConfig(this.MaxAttempts, TimeSpan.FromMinutes(RetryConfig.FetchAndCloneTimeoutMinutes));
-
-                string error;
-                CacheServerInfo cacheServer;
-                if (!CacheServerInfo.TryDetermineCacheServer(this.CacheServerUrl, tracer, enlistment, retryConfig, out cacheServer, out error))
-                {
-                    tracer.RelatedError(error);
-                    return ExitFailure;
-                }
+                CacheServerInfo cacheServer = new CacheServerInfo(this.GetRemoteUrl(enlistment), null);
 
                 tracer.WriteStartEvent(
                     enlistment.EnlistmentRoot,
                     enlistment.RepoUrl,
                     cacheServer.Url,
+                    enlistment.GitObjectsRoot,
                     new EventMetadata
                     {
                         { "TargetCommitish", commitish },
                         { "Checkout", this.Checkout },
                     });
                 
+                RetryConfig retryConfig = new RetryConfig(this.MaxAttempts, TimeSpan.FromMinutes(RetryConfig.FetchAndCloneTimeoutMinutes));
                 FetchHelper fetchHelper = this.GetFetchHelper(tracer, enlistment, cacheServer, retryConfig);
-                if (!FetchHelper.TryLoadPathWhitelist(tracer, this.PathWhitelist, this.PathWhitelistFile, enlistment, fetchHelper.PathWhitelist))
+                string error;
+                if (!FetchHelper.TryLoadFolderList(enlistment, this.FolderList, this.FolderListFile, fetchHelper.FolderList, out error))
                 {
+                    tracer.RelatedError(error);
+                    Console.WriteLine(error);
                     return ExitFailure;
                 }
 
@@ -291,7 +287,23 @@ namespace FastFetch
                 return isSuccess ? ExitSuccess : ExitFailure;
             }
         }
-        
+
+        private string GetRemoteUrl(Enlistment enlistment)
+        {
+            if (!string.IsNullOrWhiteSpace(this.CacheServerUrl))
+            {
+                return this.CacheServerUrl;
+            }
+
+            string configuredUrl = CacheServerResolver.GetUrlFromConfig(enlistment);
+            if (!string.IsNullOrWhiteSpace(configuredUrl))
+            {
+                return configuredUrl;
+            }
+
+            return enlistment.RepoUrl;
+        }
+
         private FetchHelper GetFetchHelper(ITracer tracer, Enlistment enlistment, CacheServerInfo cacheServer, RetryConfig retryConfig)
         {
             GitObjectsHttpRequestor objectRequestor = new GitObjectsHttpRequestor(tracer, enlistment, cacheServer, retryConfig);

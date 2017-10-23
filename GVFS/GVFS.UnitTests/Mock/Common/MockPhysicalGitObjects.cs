@@ -1,4 +1,5 @@
 ﻿using GVFS.Common;
+using GVFS.Common.FileSystem;
 using GVFS.Common.Git;
 using GVFS.Common.Http;
 using GVFS.Common.Tracing;
@@ -9,8 +10,8 @@ namespace GVFS.UnitTests.Mock.Common
 {
     public class MockPhysicalGitObjects : GitObjects
     {
-        public MockPhysicalGitObjects(ITracer tracer, Enlistment enlistment, GitObjectsHttpRequestor objectRequestor)
-            : base(tracer, enlistment, objectRequestor)
+        public MockPhysicalGitObjects(ITracer tracer, PhysicalFileSystem fileSystem, Enlistment enlistment, GitObjectsHttpRequestor objectRequestor)
+            : base(tracer, enlistment, objectRequestor, fileSystem)
         {
         }
         

@@ -8,10 +8,18 @@ namespace GVFS.UnitTests.Common
     public class GitVersionTests
     {
         [TestCase]
+        public void TryParseInstallerName()
+        {
+            this.ParseAndValidateInstallerVersion("Git-1.2.3.gvfs.4.5.gb16030b-64-bit.exe");
+            this.ParseAndValidateInstallerVersion("git-1.2.3.gvfs.4.5.gb16030b-64-bit.exe");
+            this.ParseAndValidateInstallerVersion("Git-1.2.3.gvfs.4.5.gb16030b-64-bit.EXE");
+        }
+
+        [TestCase]
         public void Version_Data_Null_Returns_False()
         {
             GitVersion version;
-            bool success = GitVersion.TryParse(null, out version);
+            bool success = GitVersion.TryParseVersion(null, out version);
             success.ShouldEqual(false);
         }
 
@@ -19,7 +27,7 @@ namespace GVFS.UnitTests.Common
         public void Version_Data_Empty_Returns_False()
         {
             GitVersion version;
-            bool success = GitVersion.TryParse(string.Empty, out version);
+            bool success = GitVersion.TryParseVersion(string.Empty, out version);
             success.ShouldEqual(false);
         }
 
@@ -27,7 +35,7 @@ namespace GVFS.UnitTests.Common
         public void Version_Data_Not_Enough_Numbers_Returns_False()
         {
             GitVersion version;
-            bool success = GitVersion.TryParse("2.0.1.test", out version);
+            bool success = GitVersion.TryParseVersion("2.0.1.test", out version);
             success.ShouldEqual(false);
         }
 
@@ -35,7 +43,7 @@ namespace GVFS.UnitTests.Common
         public void Version_Data_Too_Many_Numbers_Returns_True()
         {
             GitVersion version;
-            bool success = GitVersion.TryParse("2.0.1.test.1.4.3.6", out version);
+            bool success = GitVersion.TryParseVersion("2.0.1.test.1.4.3.6", out version);
             success.ShouldEqual(true);
         }
 
@@ -43,7 +51,7 @@ namespace GVFS.UnitTests.Common
         public void Version_Data_Valid_Returns_True()
         {
             GitVersion version;
-            bool success = GitVersion.TryParse("2.0.1.test.1.2", out version);
+            bool success = GitVersion.TryParseVersion("2.0.1.test.1.2", out version);
             success.ShouldEqual(true);
         }
 
@@ -159,13 +167,13 @@ namespace GVFS.UnitTests.Common
         public void Allow_Blank_Minor_Revision()
         {
             GitVersion version;
-            GitVersion.TryParse("1.2.3.test.4", out version).ShouldEqual(true);
+            GitVersion.TryParseVersion("1.2.3.test.4", out version).ShouldEqual(true);
 
             version.Major.ShouldEqual(1);
             version.Minor.ShouldEqual(2);
             version.Build.ShouldEqual(3);
-            version.Revision.ShouldEqual(4);
             version.Platform.ShouldEqual("test");
+            version.Revision.ShouldEqual(4);
             version.MinorRevision.ShouldEqual(0);
         }
 
@@ -173,14 +181,28 @@ namespace GVFS.UnitTests.Common
         public void Allow_Invalid_Minor_Revision()
         {
             GitVersion version;
-            GitVersion.TryParse("1.2.3.test.4.notint", out version).ShouldEqual(true);
+            GitVersion.TryParseVersion("1.2.3.test.4.notint", out version).ShouldEqual(true);
 
             version.Major.ShouldEqual(1);
             version.Minor.ShouldEqual(2);
             version.Build.ShouldEqual(3);
-            version.Revision.ShouldEqual(4);
             version.Platform.ShouldEqual("test");
+            version.Revision.ShouldEqual(4);
             version.MinorRevision.ShouldEqual(0);
+        }
+
+        private void ParseAndValidateInstallerVersion(string installerName)
+        {
+            GitVersion version;
+            bool success = GitVersion.TryParseInstallerName(installerName, out version);
+            success.ShouldBeTrue();
+
+            version.Major.ShouldEqual(1);
+            version.Minor.ShouldEqual(2);
+            version.Build.ShouldEqual(3);
+            version.Platform.ShouldEqual("gvfs");
+            version.Revision.ShouldEqual(4);
+            version.MinorRevision.ShouldEqual(5);
         }
     }
 }

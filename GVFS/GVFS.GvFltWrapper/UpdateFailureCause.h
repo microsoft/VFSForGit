@@ -1,6 +1,6 @@
 #pragma once
 
-namespace GvFlt
+namespace GvLib
 {
     [System::FlagsAttribute]
     public enum class UpdateFailureCause : unsigned long

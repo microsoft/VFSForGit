@@ -9,8 +9,8 @@ int ExecuteHook(const std::wstring &applicationName, wchar_t *hookName, int argc
 
 int wmain(int argc, WCHAR *argv[])
 {
-    LARGE_INTEGER tickFrequency;
-    LARGE_INTEGER startTime, endTime;
+	LARGE_INTEGER tickFrequency = { 0 };
+	LARGE_INTEGER startTime = { 0 }, endTime = { 0 };
     bool perfTraceEnabled = false;
 
     size_t requiredCount = 0;

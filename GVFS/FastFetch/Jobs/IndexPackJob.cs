@@ -49,8 +49,7 @@ namespace FastFetch.Jobs
                     {
                         EventMetadata errorMetadata = new EventMetadata();
                         errorMetadata.Add("PackId", request.DownloadRequest.PackId);
-                        errorMetadata.Add("ErrorMessage", result.Errors);
-                        activity.RelatedError(errorMetadata);
+                        activity.RelatedError(errorMetadata, result.Errors);
                         this.HasFailures = true;
                     }
 

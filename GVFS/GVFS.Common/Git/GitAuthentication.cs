@@ -88,8 +88,6 @@ namespace GVFS.Common.Git
                         {
                             gitAuthString = null;
                             errorMessage = "Auth failed. No retries will be made until: " + this.GetNextAuthAttemptTime();
-
-                            // TODO 1026787: Log to event log if numberOfRetries >=3
                             return false;
                         }
 

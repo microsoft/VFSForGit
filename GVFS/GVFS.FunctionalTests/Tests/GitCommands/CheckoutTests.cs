@@ -2,8 +2,13 @@
 using GVFS.FunctionalTests.Should;
 using GVFS.FunctionalTests.Tools;
 using GVFS.Tests.Should;
+using Microsoft.Win32.SafeHandles;
 using NUnit.Framework;
+using System;
 using System.IO;
+using System.Runtime.InteropServices;
+using System.Threading;
+using System.Threading.Tasks;
 
 namespace GVFS.FunctionalTests.Tests.GitCommands
 {
@@ -13,6 +18,74 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
     {
         public CheckoutTests() : base(enlistmentPerTest: true)
         {
+        }
+
+        private enum NativeFileAttributes : uint
+        {
+            FILE_ATTRIBUTE_READONLY = 1,
+            FILE_ATTRIBUTE_HIDDEN = 2,
+            FILE_ATTRIBUTE_SYSTEM = 4,
+            FILE_ATTRIBUTE_DIRECTORY = 16,
+            FILE_ATTRIBUTE_ARCHIVE = 32,
+            FILE_ATTRIBUTE_DEVICE = 64,
+            FILE_ATTRIBUTE_NORMAL = 128,
+            FILE_ATTRIBUTE_TEMPORARY = 256,
+            FILE_ATTRIBUTE_SPARSEFILE = 512,
+            FILE_ATTRIBUTE_REPARSEPOINT = 1024,
+            FILE_ATTRIBUTE_COMPRESSED = 2048,
+            FILE_ATTRIBUTE_OFFLINE = 4096,
+            FILE_ATTRIBUTE_NOT_CONTENT_INDEXED = 8192,
+            FILE_ATTRIBUTE_ENCRYPTED = 16384,
+            FILE_FLAG_FIRST_PIPE_INSTANCE = 524288,
+            FILE_FLAG_OPEN_NO_RECALL = 1048576,
+            FILE_FLAG_OPEN_REPARSE_POINT = 2097152,
+            FILE_FLAG_POSIX_SEMANTICS = 16777216,
+            FILE_FLAG_BACKUP_SEMANTICS = 33554432,
+            FILE_FLAG_DELETE_ON_CLOSE = 67108864,
+            FILE_FLAG_SEQUENTIAL_SCAN = 134217728,
+            FILE_FLAG_RANDOM_ACCESS = 268435456,
+            FILE_FLAG_NO_BUFFERING = 536870912,
+            FILE_FLAG_OVERLAPPED = 1073741824,
+            FILE_FLAG_WRITE_THROUGH = 2147483648
+        }
+
+        private enum NativeFileAccess : uint
+        {
+            FILE_READ_DATA = 1,
+            FILE_LIST_DIRECTORY = 1,
+            FILE_WRITE_DATA = 2,
+            FILE_ADD_FILE = 2,
+            FILE_APPEND_DATA = 4,
+            FILE_ADD_SUBDIRECTORY = 4,
+            FILE_CREATE_PIPE_INSTANCE = 4,
+            FILE_READ_EA = 8,
+            FILE_WRITE_EA = 16,
+            FILE_EXECUTE = 32,
+            FILE_TRAVERSE = 32,
+            FILE_DELETE_CHILD = 64,
+            FILE_READ_ATTRIBUTES = 128,
+            FILE_WRITE_ATTRIBUTES = 256,
+            SPECIFIC_RIGHTS_ALL = 65535,
+            DELETE = 65536,
+            READ_CONTROL = 131072,
+            STANDARD_RIGHTS_READ = 131072,
+            STANDARD_RIGHTS_WRITE = 131072,
+            STANDARD_RIGHTS_EXECUTE = 131072,
+            WRITE_DAC = 262144,
+            WRITE_OWNER = 524288,
+            STANDARD_RIGHTS_REQUIRED = 983040,
+            SYNCHRONIZE = 1048576,
+            FILE_GENERIC_READ = 1179785,
+            FILE_GENERIC_EXECUTE = 1179808,
+            FILE_GENERIC_WRITE = 1179926,
+            STANDARD_RIGHTS_ALL = 2031616,
+            FILE_ALL_ACCESS = 2032127,
+            ACCESS_SYSTEM_SECURITY = 16777216,
+            MAXIMUM_ALLOWED = 33554432,
+            GENERIC_ALL = 268435456,
+            GENERIC_EXECUTE = 536870912,
+            GENERIC_WRITE = 1073741824,
+            GENERIC_READ = 2147483648
         }
 
         [TestCase]
@@ -319,5 +392,276 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
             this.RunGitCommand("checkout -b tests/functional/ResetMixedToCommitWithNewFileThenCheckoutNewBranchAndCheckoutCommitWithNewFile");
             this.ValidateGitCommand("checkout f2546f8e9ce7d7b1e3a0835932f0d6a6145665b1");
         }
+
+        // ReadFileAfterTryingToReadFileAtCommitWhereFileDoesNotExist is meant to exercise the NegativePathCache and its
+        // behavior when projections change
+        [TestCase]
+        public void ReadFileAfterTryingToReadFileAtCommitWhereFileDoesNotExist()
+        {
+            this.ControlGitRepo.Fetch(GitRepoTests.ConflictSourceBranch);
+
+            // Commit 170b13ce1990c53944403a70e93c257061598ae0 was prior to the additional of these
+            // three files in commit f2546f8e9ce7d7b1e3a0835932f0d6a6145665b1:
+            //    Test_ConflictTests/AddedFiles/AddedByBothDifferentContent.txt
+            //    Test_ConflictTests/AddedFiles/AddedByBothSameContent.txt
+            //    Test_ConflictTests/AddedFiles/AddedBySource.txt            
+            this.ValidateGitCommand("checkout 170b13ce1990c53944403a70e93c257061598ae0");
+
+            // Files should not exist
+            this.ShouldNotExistOnDisk(@"Test_ConflictTests\AddedFiles\AddedByBothDifferentContent.txt");
+            this.ShouldNotExistOnDisk(@"Test_ConflictTests\AddedFiles\AddedByBothSameContent.txt");
+            this.ShouldNotExistOnDisk(@"Test_ConflictTests\AddedFiles\AddedBySource.txt");
+
+            // Check a second time to exercise the GvFlt negative cache
+            this.ShouldNotExistOnDisk(@"Test_ConflictTests\AddedFiles\AddedByBothDifferentContent.txt");
+            this.ShouldNotExistOnDisk(@"Test_ConflictTests\AddedFiles\AddedByBothSameContent.txt");
+            this.ShouldNotExistOnDisk(@"Test_ConflictTests\AddedFiles\AddedBySource.txt");
+
+            // Switch to commit where files should exist
+            this.ValidateGitCommand("checkout f2546f8e9ce7d7b1e3a0835932f0d6a6145665b1");
+
+            // Confirm files exist
+            this.FileContentsShouldMatch(@"Test_ConflictTests\AddedFiles\AddedByBothDifferentContent.txt");
+            this.FileContentsShouldMatch(@"Test_ConflictTests\AddedFiles\AddedByBothSameContent.txt");
+            this.FileContentsShouldMatch(@"Test_ConflictTests\AddedFiles\AddedBySource.txt");
+
+            // Switch to commit where files should not exist
+            this.ValidateGitCommand("checkout 170b13ce1990c53944403a70e93c257061598ae0");
+
+            // Verify files do not not exist
+            this.ShouldNotExistOnDisk(@"Test_ConflictTests\AddedFiles\AddedByBothDifferentContent.txt");
+            this.ShouldNotExistOnDisk(@"Test_ConflictTests\AddedFiles\AddedByBothSameContent.txt");
+            this.ShouldNotExistOnDisk(@"Test_ConflictTests\AddedFiles\AddedBySource.txt");
+
+            // Check a second time to exercise the GvFlt negative cache
+            this.ShouldNotExistOnDisk(@"Test_ConflictTests\AddedFiles\AddedByBothDifferentContent.txt");
+            this.ShouldNotExistOnDisk(@"Test_ConflictTests\AddedFiles\AddedByBothSameContent.txt");
+            this.ShouldNotExistOnDisk(@"Test_ConflictTests\AddedFiles\AddedBySource.txt");
+        }
+
+        [TestCase]
+        public void CheckoutBranchWithOpenHandleBlockingRepoMetdataUpdate()
+        {
+            this.ControlGitRepo.Fetch(GitRepoTests.ConflictSourceBranch);
+            this.ControlGitRepo.Fetch(GitRepoTests.ConflictTargetBranch);
+
+            ManualResetEventSlim testReady = new ManualResetEventSlim(initialState: false);
+            ManualResetEventSlim fileLocked = new ManualResetEventSlim(initialState: false);
+            Task task = Task.Run(() =>
+            {
+                int attempts = 0;
+                while (attempts < 100)
+                {
+                    try
+                    {
+                        using (FileStream stream = new FileStream(Path.Combine(this.Enlistment.DotGVFSRoot, "databases", "RepoMetadata.dat"), FileMode.Open, FileAccess.Read, FileShare.None))
+                        {
+                            fileLocked.Set();
+                            testReady.Set();
+                            Thread.Sleep(15000);
+                            return;
+                        }
+                    }
+                    catch (Exception)
+                    {
+                        ++attempts;
+                        Thread.Sleep(50);
+                    }
+                }
+
+                testReady.Set();
+            });
+
+            // Wait for task to acquire the handle
+            testReady.Wait();
+            fileLocked.IsSet.ShouldBeTrue("Failed to obtain exclusive file handle.  Exclusive handle required to validate behavior");
+
+            try
+            {                
+                this.ValidateGitCommand("checkout " + GitRepoTests.ConflictTargetBranch);
+            }
+            catch (Exception)
+            {
+                // If the test fails, we should wait for the Task to complete so that it does not keep a handle open
+                task.Wait();
+                throw;
+            }
+        }
+
+        [TestCase]
+        public void CheckoutBranchWithOpenHandleBlockingProjectionDeleteAndRepoMetdataUpdate()
+        {
+            this.ControlGitRepo.Fetch(GitRepoTests.ConflictSourceBranch);
+            this.ControlGitRepo.Fetch(GitRepoTests.ConflictTargetBranch);
+
+            ManualResetEventSlim testReady = new ManualResetEventSlim(initialState: false);
+            ManualResetEventSlim fileLocked = new ManualResetEventSlim(initialState: false);
+            Task task = Task.Run(() =>
+            {
+                int attempts = 0;
+                while (attempts < 100)
+                {
+                    try
+                    {
+                        using (FileStream projectionStream = new FileStream(Path.Combine(this.Enlistment.DotGVFSRoot, "GVFS_projection"), FileMode.Open, FileAccess.Read, FileShare.None))
+                        using (FileStream metadataStream = new FileStream(Path.Combine(this.Enlistment.DotGVFSRoot, "databases", "RepoMetadata.dat"), FileMode.Open, FileAccess.Read, FileShare.None))
+                        {
+                            fileLocked.Set();
+                            testReady.Set();
+                            Thread.Sleep(15000);
+                            return;
+                        }
+                    }
+                    catch (Exception)
+                    {
+                        ++attempts;
+                        Thread.Sleep(50);
+                    }
+                }
+
+                testReady.Set();
+            });
+
+            // Wait for task to acquire the handle
+            testReady.Wait();
+            fileLocked.IsSet.ShouldBeTrue("Failed to obtain exclusive file handle.  Exclusive handle required to validate behavior");
+
+            try
+            {                
+                this.ValidateGitCommand("checkout " + GitRepoTests.ConflictTargetBranch);
+            }
+            catch (Exception)
+            {
+                // If the test fails, we should wait for the Task to complete so that it does not keep a handle open
+                task.Wait();
+                throw;
+            }
+        }
+
+        [TestCase]
+        public void CheckoutBranchWithStaleRepoMetadataTmpFileOnDisk()
+        {
+            this.ControlGitRepo.Fetch(GitRepoTests.ConflictSourceBranch);
+            this.ControlGitRepo.Fetch(GitRepoTests.ConflictTargetBranch);
+
+            this.FileSystem.WriteAllText(Path.Combine(this.Enlistment.DotGVFSRoot, "databases", "RepoMetadata.dat.tmp"), "Stale RepoMetadata.dat.tmp file");
+            this.ValidateGitCommand("checkout " + GitRepoTests.ConflictTargetBranch);
+        }
+
+        [TestCase]
+        public void CheckoutBranchWhileOutsideToolDoesNotAllowDeleteOfOpenRepoMetadata()
+        {
+            this.ControlGitRepo.Fetch(GitRepoTests.ConflictSourceBranch);
+            this.ControlGitRepo.Fetch(GitRepoTests.ConflictTargetBranch);
+
+            ManualResetEventSlim testReady = new ManualResetEventSlim(initialState: false);
+            ManualResetEventSlim fileLocked = new ManualResetEventSlim(initialState: false);
+            Task task = Task.Run(() =>
+            {
+                int attempts = 0;
+                while (attempts < 100)
+                {
+                    try
+                    {
+                        using (FileStream stream = new FileStream(Path.Combine(this.Enlistment.DotGVFSRoot, "databases", "RepoMetadata.dat"), FileMode.Open, FileAccess.Read, FileShare.ReadWrite))
+                        {
+                            fileLocked.Set();
+                            testReady.Set();
+                            Thread.Sleep(15000);
+                            return;
+                        }
+                    }
+                    catch (Exception)
+                    {
+                        ++attempts;
+                        Thread.Sleep(50);
+                    }
+                }
+
+                testReady.Set();
+            });
+
+            // Wait for task to acquire the handle
+            testReady.Wait();
+            fileLocked.IsSet.ShouldBeTrue("Failed to obtain file handle.  Handle required to validate behavior");
+
+            try
+            {                
+                this.ValidateGitCommand("checkout " + GitRepoTests.ConflictTargetBranch);
+            }
+            catch (Exception)
+            {
+                // If the test fails, we should wait for the Task to complete so that it does not keep a handle open
+                task.Wait();
+                throw;
+            }
+        }
+
+        [TestCase]
+        public void CheckoutBranchWhileOutsideToolHasExclusiveReadHandleOnDatabasesFolder()
+        {
+            this.ControlGitRepo.Fetch(GitRepoTests.ConflictSourceBranch);
+            this.ControlGitRepo.Fetch(GitRepoTests.ConflictTargetBranch);
+
+            ManualResetEventSlim testReady = new ManualResetEventSlim(initialState: false);
+            ManualResetEventSlim folderLocked = new ManualResetEventSlim(initialState: false);
+            Task task = Task.Run(() =>
+            {
+                int attempts = 0;
+                string databasesPath = Path.Combine(this.Enlistment.DotGVFSRoot, "databases");
+                while (attempts < 100)
+                {
+                    using (SafeFileHandle result = CreateFile(
+                        databasesPath,
+                        NativeFileAccess.GENERIC_READ,
+                        FileShare.Read,
+                        IntPtr.Zero,
+                        FileMode.Open,
+                        NativeFileAttributes.FILE_FLAG_BACKUP_SEMANTICS | NativeFileAttributes.FILE_FLAG_OPEN_REPARSE_POINT,
+                        IntPtr.Zero))
+                    {
+                        if (result.IsInvalid)
+                        {
+                            ++attempts;
+                            Thread.Sleep(50);
+                        }
+                        else
+                        {
+                            folderLocked.Set();
+                            testReady.Set();
+                            Thread.Sleep(15000);
+                            return;
+                        }
+                    }
+                }
+
+                testReady.Set();
+            });
+
+            // Wait for task to acquire the handle
+            testReady.Wait();
+            folderLocked.IsSet.ShouldBeTrue("Failed to obtain exclusive file handle.  Handle required to validate behavior");
+
+            try
+            {                
+                this.ValidateGitCommand("checkout " + GitRepoTests.ConflictTargetBranch);
+            }
+            catch (Exception)
+            {
+                // If the test fails, we should wait for the Task to complete so that it does not keep a handle open
+                task.Wait();
+                throw;
+            }
+        }
+
+        [DllImport("kernel32.dll", SetLastError = true, CharSet = CharSet.Unicode)]
+        private static extern SafeFileHandle CreateFile(
+            [In] string fileName,
+            [MarshalAs(UnmanagedType.U4)] NativeFileAccess desiredAccess,
+            FileShare shareMode,
+            [In] IntPtr securityAttributes,
+            [MarshalAs(UnmanagedType.U4)]FileMode creationDisposition,
+            [MarshalAs(UnmanagedType.U4)]NativeFileAttributes flagsAndAttributes,
+            [In] IntPtr templateFile);
     }
 }

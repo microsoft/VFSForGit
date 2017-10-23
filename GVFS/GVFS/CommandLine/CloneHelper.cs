@@ -1,4 +1,5 @@
 ﻿using GVFS.Common;
+using GVFS.Common.FileSystem;
 using GVFS.Common.Git;
 using GVFS.Common.Http;
 using GVFS.Common.Tracing;
@@ -26,8 +27,6 @@ namespace GVFS.CommandLine
 
         public CloneVerb.Result CreateClone(GitRefs refs, string branch)
         {
-            GitObjects gitObjects = new GitObjects(this.tracer, this.enlistment, this.objectRequestor);
-
             CloneVerb.Result initRepoResult = this.TryInitRepo(refs, this.enlistment);
             if (!initRepoResult.Success)
             {
@@ -40,17 +39,27 @@ namespace GVFS.CommandLine
                 return new CloneVerb.Result("Error configuring alternate: " + errorMessage);
             }
 
-            if (!gitObjects.TryDownloadAndSaveCommit(refs.GetTipCommitId(branch), commitDepth: 2))
+            PhysicalFileSystem fileSystem = new PhysicalFileSystem();
+            GitRepo gitRepo = new GitRepo(this.tracer, this.enlistment, fileSystem);
+            GVFSGitObjects gitObjects = new GVFSGitObjects(new GVFSContext(this.tracer, fileSystem, gitRepo, this.enlistment), this.objectRequestor);
+
+            if (!gitObjects.TryEnsureCommitIsLocal(refs.GetTipCommitId(branch), commitDepth: 2))
             {
                 return new CloneVerb.Result("Could not download tip commits from: " + Uri.EscapeUriString(this.objectRequestor.CacheServer.ObjectsEndpointUrl));
             }
 
-            GitProcess git = new GitProcess(this.enlistment);
-            if (!this.SetConfigSettings(git, this.objectRequestor.CacheServer))
+            if (!GVFSVerb.TrySetGitConfigSettings(this.enlistment))
             {
                 return new CloneVerb.Result("Unable to configure git repo");
             }
+            
+            CacheServerResolver cacheServerResolver = new CacheServerResolver(this.tracer, this.enlistment);
+            if (!cacheServerResolver.TrySaveUrlToLocalConfig(this.objectRequestor.CacheServer, out errorMessage))
+            {
+                return new CloneVerb.Result("Unable to configure cache server: " + errorMessage);
+            }
 
+            GitProcess git = new GitProcess(this.enlistment);
             string originBranchName = "origin/" + branch;
             GitProcess.Result createBranchResult = git.CreateBranchWithUpstream(branch, originBranchName);
             if (createBranchResult.HasErrors)
@@ -66,7 +75,7 @@ namespace GVFS.CommandLine
                 Path.Combine(this.enlistment.WorkingDirectoryRoot, GVFSConstants.DotGit.Info.SparseCheckoutPath),
                 GVFSConstants.GitPathSeparatorString + GVFSConstants.SpecialGitFiles.GitAttributes + "\n");
 
-            CloneVerb.Result hydrateResult = this.HydrateRootGitAttributes(gitObjects, branch);
+            CloneVerb.Result hydrateResult = this.HydrateRootGitAttributes(gitObjects, gitRepo, branch);
             if (!hydrateResult.Success)
             {
                 return hydrateResult;
@@ -110,9 +119,24 @@ namespace GVFS.CommandLine
                 return new CloneVerb.Result(installHooksError);
             }
             
-            using (RepoMetadata repoMetadata = new RepoMetadata(this.enlistment.DotGVFSRoot))
+            if (!RepoMetadata.TryInitialize(this.tracer, this.enlistment.DotGVFSRoot, out errorMessage))
             {
-                repoMetadata.SaveCurrentDiskLayoutVersion();
+                this.tracer.RelatedError(errorMessage);
+                return new CloneVerb.Result(errorMessage);
+            }
+
+            try
+            {
+                RepoMetadata.Instance.SaveCurrentDiskLayoutVersion();
+            }
+            catch (Exception e)
+            {
+                this.tracer.RelatedError(e.ToString());
+                return new CloneVerb.Result(e.Message);
+            }
+            finally
+            {
+                RepoMetadata.Shutdown();
             }
 
             // Prepare the working directory folder for GVFS last to ensure that gvfs mount will fail if gvfs clone has failed
@@ -137,14 +161,7 @@ namespace GVFS.CommandLine
             return true;
         }
 
-        private bool SetConfigSettings(GitProcess git, CacheServerInfo cacheServer)
-        {
-            string error;
-            return CacheServerInfo.TrySaveToConfig(git, cacheServer, out error) &&
-                GVFSVerb.TrySetGitConfigSettings(git);
-        }
-
-        private CloneVerb.Result HydrateRootGitAttributes(GitObjects gitObjects, string branch)
+        private CloneVerb.Result HydrateRootGitAttributes(GVFSGitObjects gitObjects, GitRepo repo, string branch)
         {
             List<DiffTreeResult> rootEntries = new List<DiffTreeResult>();
             GitProcess git = new GitProcess(this.enlistment);
@@ -164,9 +181,12 @@ namespace GVFS.CommandLine
                 return new CloneVerb.Result("This branch does not contain a " + GVFSConstants.SpecialGitFiles.GitAttributes + " file in the root folder.  This file is required by GVFS clone");
             }
 
-            if (!gitObjects.TryDownloadAndSaveBlobs(new[] { gitAttributes.TargetSha }))
+            if (!repo.ObjectExists(gitAttributes.TargetSha))
             {
-                return new CloneVerb.Result("Could not download " + GVFSConstants.SpecialGitFiles.GitAttributes + " file");
+                if (gitObjects.TryDownloadAndSaveObject(gitAttributes.TargetSha) != GitObjects.DownloadAndSaveObjectResult.Success)
+                {
+                    return new CloneVerb.Result("Could not download " + GVFSConstants.SpecialGitFiles.GitAttributes + " file");
+                }
             }
 
             return new CloneVerb.Result(true);

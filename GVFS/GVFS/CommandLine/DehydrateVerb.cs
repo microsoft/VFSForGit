@@ -1,4 +1,5 @@
 ﻿using CommandLine;
+using GVFS.CommandLine.DiskLayoutUpgrades;
 using GVFS.Common;
 using GVFS.Common.Git;
 using GVFS.Common.Http;
@@ -48,7 +49,8 @@ namespace GVFS.CommandLine
                 tracer.WriteStartEvent(
                     enlistment.EnlistmentRoot,
                     enlistment.RepoUrl,
-                    CacheServerInfo.GetCacheServerValueFromConfig(enlistment),
+                    CacheServerResolver.GetUrlFromConfig(enlistment),
+                    enlistment.GitObjectsRoot,
                     new EventMetadata
                     {
                         { "Confirmed", this.Confirmed },
@@ -86,12 +88,11 @@ To actually execute the dehydrate, run 'gvfs dehydrate --confirm'
                 this.Output.WriteLine();
 
                 this.Unmount(tracer);
-
-                bool allowUpgrade = false;
+                
                 string error;
-                if (!RepoMetadata.CheckDiskLayoutVersion(enlistment.DotGVFSRoot, allowUpgrade, out error))
+                if (!DiskLayoutUpgrade.TryCheckDiskLayoutVersion(tracer, enlistment.EnlistmentRoot, out error))
                 {
-                    this.WriteErrorAndExit(tracer, "GVFS disk layout version doesn't match current version.  Run 'gvfs mount' first, then try dehydrate again.");
+                    this.WriteErrorAndExit(tracer, error);
                 }
 
                 if (this.TryBackupFiles(tracer, enlistment, backupRoot) &&
@@ -219,6 +220,7 @@ To actually execute the dehydrate, run 'gvfs dehydrate --confirm'
             string backupGit = Path.Combine(backupRoot, ".git");
             string backupInfo = Path.Combine(backupGit, GVFSConstants.DotGit.Info.Name);
             string backupGvfs = Path.Combine(backupRoot, ".gvfs");
+            string backupDatabases = Path.Combine(backupGvfs, GVFSConstants.DotGVFS.Databases.Name);
 
             string errorMessage = string.Empty;
             if (!this.ShowStatusWhileRunning(
@@ -228,7 +230,8 @@ To actually execute the dehydrate, run 'gvfs dehydrate --confirm'
                     if (!this.TryIO(tracer, () => Directory.CreateDirectory(backupRoot), "Create backup directory", out ioError) ||
                         !this.TryIO(tracer, () => Directory.CreateDirectory(backupGit), "Create backup .git directory", out ioError) ||
                         !this.TryIO(tracer, () => Directory.CreateDirectory(backupInfo), "Create backup .git\\info directory", out ioError) ||
-                        !this.TryIO(tracer, () => Directory.CreateDirectory(backupGvfs), "Create backup .gvfs directory", out ioError))
+                        !this.TryIO(tracer, () => Directory.CreateDirectory(backupGvfs), "Create backup .gvfs directory", out ioError) ||
+                        !this.TryIO(tracer, () => Directory.CreateDirectory(backupDatabases), "Create backup .gvfs databases directory", out ioError))
                     {
                         errorMessage = "Failed to create backup folders at " + backupRoot + ": " + ioError;
                         return false;
@@ -289,12 +292,16 @@ To actually execute the dehydrate, run 'gvfs dehydrate --confirm'
                     // ... backup the .gvfs hydration-related data structures...
                     if (!this.TryIO(
                             tracer,
-                            () => Directory.Move(Path.Combine(enlistment.DotGVFSRoot, GVFSConstants.DatabaseNames.BackgroundGitUpdates), Path.Combine(backupGvfs, GVFSConstants.DatabaseNames.BackgroundGitUpdates)),
+                            () => File.Move(
+                                Path.Combine(enlistment.DotGVFSRoot, GVFSConstants.DotGVFS.Databases.BackgroundGitOperations), 
+                                Path.Combine(backupGvfs, GVFSConstants.DotGVFS.Databases.BackgroundGitOperations)),
                             "Backup the BackgroundGitUpdates database",
                             out errorMessage) ||
                         !this.TryIO(
                             tracer,
-                            () => Directory.Move(Path.Combine(enlistment.DotGVFSRoot, GVFSConstants.DatabaseNames.PlaceholderList), Path.Combine(backupGvfs, GVFSConstants.DatabaseNames.PlaceholderList)),
+                            () => File.Move(
+                                Path.Combine(enlistment.DotGVFSRoot, GVFSConstants.DotGVFS.Databases.PlaceholderList), 
+                                Path.Combine(backupGvfs, GVFSConstants.DotGVFS.Databases.PlaceholderList)),
                             "Backup the PlaceholderList database",
                             out errorMessage))
                     {
@@ -374,14 +381,13 @@ To actually execute the dehydrate, run 'gvfs dehydrate --confirm'
                 "Dehydrate",
                 new EventMetadata
                 {
-                    { "Message", message }
+                    { TracingConstants.MessageKey.InfoMessage, message }
                 });
         }
 
         private void WriteErrorAndExit(ITracer tracer, string message)
         {
-            tracer.RelatedError(message);
-            this.ReportErrorAndExit("ERROR: " + message);
+            this.ReportErrorAndExit(tracer, "ERROR: " + message);
         }
 
         private ReturnCode ExecuteGVFSVerb<TVerb>(ITracer tracer)
@@ -393,13 +399,7 @@ To actually execute the dehydrate, run 'gvfs dehydrate --confirm'
                 StringBuilder commandOutput = new StringBuilder();
                 using (StringWriter writer = new StringWriter(commandOutput))
                 {
-                    returnCode = GVFSVerb.Execute<TVerb>(
-                        this.EnlistmentRootPath, 
-                        verb =>
-                        {
-                            verb.Output = writer;
-                            verb.ServiceName = this.ServiceName;
-                        });
+                    returnCode = this.Execute<TVerb>(verb => verb.Output = writer);
                 }
 
                 tracer.RelatedEvent(
@@ -420,7 +420,8 @@ To actually execute the dehydrate, run 'gvfs dehydrate --confirm'
                     {
                         { "Verb", typeof(TVerb).Name },
                         { "Exception", e.ToString() }
-                    });
+                    },
+                    "ExecuteGVFSVerb: Caught exception");
 
                 return ReturnCode.GenericError;
             }
@@ -449,8 +450,9 @@ To actually execute the dehydrate, run 'gvfs dehydrate --confirm'
                     new EventMetadata
                     {
                         { "Description", description },
-                        { "Error", error },
-                    });
+                        { "Error", error }
+                    },
+                    "TryIO: Caught exception performing action");
             }
 
             return false;

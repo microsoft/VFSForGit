@@ -53,7 +53,7 @@ namespace GVFS.Common
             }
             catch (Exception e)
             {
-                this.tracer.RelatedError("Exception while invoking libgit2: " + e.ToString());
+                this.tracer.RelatedWarning("Exception while invoking libgit2: " + e.ToString(), Keywords.Telemetry);
                 throw;
             }
             finally

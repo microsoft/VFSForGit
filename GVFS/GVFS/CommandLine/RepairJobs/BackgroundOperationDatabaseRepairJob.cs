@@ -1,5 +1,7 @@
 ﻿using GVFS.Common;
+using GVFS.Common.FileSystem;
 using GVFS.Common.Tracing;
+using GVFS.GVFlt;
 using System.Collections.Generic;
 using System.IO;
 
@@ -7,12 +9,12 @@ namespace GVFS.CommandLine.RepairJobs
 {
     public class BackgroundOperationDatabaseRepairJob : RepairJob
     {
-        private readonly string databasePath;
+        private readonly string dataPath;
 
         public BackgroundOperationDatabaseRepairJob(ITracer tracer, TextWriter output, GVFSEnlistment enlistment)
             : base(tracer, output, enlistment)
         {
-            this.databasePath = Path.Combine(this.Enlistment.DotGVFSRoot, GVFSConstants.DatabaseNames.BackgroundGitUpdates);
+            this.dataPath = Path.Combine(this.Enlistment.DotGVFSRoot, GVFSConstants.DotGVFS.Databases.BackgroundGitOperations);
         }
 
         public override string Name
@@ -22,8 +24,16 @@ namespace GVFS.CommandLine.RepairJobs
         
         public override IssueType HasIssue(List<string> messages)
         {
-            if (!this.TryCreatePersistentDictionary<long, GVFlt.GVFltCallbacks.BackgroundGitUpdate>(this.databasePath, messages))
+            string error;
+            BackgroundGitUpdateQueue instance;
+            if (!BackgroundGitUpdateQueue.TryCreate(
+                this.Tracer,
+                this.dataPath,
+                new PhysicalFileSystem(),
+                out instance,
+                out error))
             {
+                messages.Add("Failed to read background operations: " + error);
                 return IssueType.CantFix;
             }
 

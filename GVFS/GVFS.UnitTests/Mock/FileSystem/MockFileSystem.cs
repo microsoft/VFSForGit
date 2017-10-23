@@ -5,7 +5,6 @@ using Microsoft.Win32.SafeHandles;
 using System;
 using System.Collections.Generic;
 using System.IO;
-using System.Runtime.InteropServices;
 
 namespace GVFS.UnitTests.Mock.FileSystem
 {
@@ -35,15 +34,43 @@ namespace GVFS.UnitTests.Mock.FileSystem
 
             this.RootDirectory.RemoveFile(path);
         }
-
-        public override Stream OpenFileStream(string path, FileMode fileMode, FileAccess fileAccess, FileShare shareMode)
+        
+        public override void MoveAndOverwriteFile(string sourcePath, string destinationPath)
         {
-            return this.OpenFileStream(path, fileMode, fileAccess, NativeMethods.FileAttributes.FILE_ATTRIBUTE_NORMAL, shareMode);            
-        }
+            if (sourcePath == null || destinationPath == null)
+            {
+                throw new ArgumentNullException();
+            }
 
-        public override Stream OpenFileStream(string path, FileMode fileMode, FileAccess fileAccess, NativeMethods.FileAttributes attributes, FileShare shareMode)
+            MockFile sourceFile = this.RootDirectory.FindFile(sourcePath);
+            MockFile destinationFile = this.RootDirectory.FindFile(destinationPath);
+            if (sourceFile == null)
+            {
+                throw new FileNotFoundException();
+            }           
+
+            if (destinationFile != null)
+            {
+                this.RootDirectory.RemoveFile(destinationPath);
+            }
+
+            this.WriteAllText(destinationPath, this.ReadAllText(sourcePath));
+            this.RootDirectory.RemoveFile(sourcePath);
+        }
+        
+        public override Stream OpenFileStream(string path, FileMode fileMode, FileAccess fileAccess, FileShare shareMode, FileOptions options)
         {
             MockFile file = this.RootDirectory.FindFile(path);
+            if (fileMode == FileMode.Create)
+            {
+                if (file != null)
+                {
+                    this.RootDirectory.RemoveFile(path);
+                }
+
+                return this.CreateAndOpenFileStream(path);
+            }
+
             if (fileMode == FileMode.OpenOrCreate)
             {
                 if (file == null)
@@ -57,23 +84,6 @@ namespace GVFS.UnitTests.Mock.FileSystem
             }
 
             return file.GetContentStream();
-        }
-
-        public override SafeHandle OpenFile(string path, FileMode fileMode, FileAccess fileAccess, FileAttributes attributes, FileShare shareMode)
-        {
-            if (fileMode == FileMode.Create)
-            {
-                MockFile newFile = this.RootDirectory.CreateFile(path);
-                FileProperties newProperties = new FileProperties(
-                    attributes,
-                    newFile.FileProperties.CreationTimeUTC,
-                    newFile.FileProperties.LastAccessTimeUTC,
-                    newFile.FileProperties.LastWriteTimeUTC,
-                    newFile.FileProperties.Length);
-                newFile.FileProperties = newProperties;
-            }
-
-            return new MockSafeHandle(path, this.OpenFileStream(path, fileMode, fileAccess, shareMode));
         }
 
         public override void WriteAllText(string path, string contents)
@@ -106,7 +116,7 @@ namespace GVFS.UnitTests.Mock.FileSystem
 
         public override void CreateDirectory(string path)
         {
-            throw new NotImplementedException();
+            this.RootDirectory.CreateDirectory(path);
         }
 
         public override void DeleteDirectory(string path, bool recursive = false)

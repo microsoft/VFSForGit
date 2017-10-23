@@ -10,8 +10,10 @@ namespace GVFS.Common
 {
     public class FileBasedLock : IDisposable
     {
+        private const int HResultErrorFileExists = -2147024816; // -2147024816 = 0x80070050 = ERROR_FILE_EXISTS
         private const int DefaultStreamWriterBufferSize = 1024; // Copied from: http://referencesource.microsoft.com/#mscorlib/system/io/streamwriter.cs,5516ce201dc06b5f
         private const long InvalidFileLength = -1;
+        private const string EtwArea = nameof(FileBasedLock);
         private static readonly Encoding UTF8NoBOM = new UTF8Encoding(false, true); // Default encoding used by StreamWriter
 
         private readonly object deleteOnCloseStreamLock = new object();
@@ -20,24 +22,14 @@ namespace GVFS.Common
         private ITracer tracer;
         private FileStream deleteOnCloseStream;
 
-        public FileBasedLock(PhysicalFileSystem fileSystem, ITracer tracer, string lockPath, string signature, ExistingLockCleanup existingLockCleanup)
+        public FileBasedLock(PhysicalFileSystem fileSystem, ITracer tracer, string lockPath, string signature)
         {
             this.fileSystem = fileSystem;
             this.tracer = tracer;
             this.lockPath = lockPath;
             this.Signature = signature;
 
-            if (existingLockCleanup != ExistingLockCleanup.LeaveExisting)
-            {
-                this.CleanupStaleLock(existingLockCleanup);
-            }
-        }
-
-        public enum ExistingLockCleanup
-        {
-            LeaveExisting,
-            DeleteExisting,
-            DeleteExistingAndLogSignature
+            this.CleanupStaleLock();
         }
 
         public string Signature { get; private set; }
@@ -56,9 +48,9 @@ namespace GVFS.Common
                     this.deleteOnCloseStream = (FileStream)this.fileSystem.OpenFileStream(
                         this.lockPath,
                         FileMode.CreateNew,
-                        (FileAccess)(NativeMethods.FileAccess.FILE_GENERIC_READ | NativeMethods.FileAccess.FILE_GENERIC_WRITE | NativeMethods.FileAccess.DELETE),
-                        NativeMethods.FileAttributes.FILE_FLAG_DELETE_ON_CLOSE,
-                        FileShare.Read);
+                        FileAccess.ReadWrite,
+                        FileShare.Read,
+                        FileOptions.DeleteOnClose);
 
                     // Pass in true for leaveOpen to ensure that lockStream stays open
                     using (StreamWriter writer = new StreamWriter(
@@ -73,31 +65,37 @@ namespace GVFS.Common
                     return true;
                 }
             }
-            catch (NativeMethods.Win32FileExistsException)
+            catch (IOException e)
             {
+                if (e.HResult != HResultErrorFileExists)
+                {
+                    EventMetadata metadata = this.CreateLockMetadata(e);
+                    this.tracer.RelatedWarning(metadata, "TryAcquireLockAndDeleteOnClose: IOException caught while trying to acquire lock");
+                }
+
                 this.DisposeStream();
                 return false;
             }
-            catch (IOException e)
+            catch (UnauthorizedAccessException e)
             {
-                EventMetadata metadata = this.CreateLockMetadata("IOException caught while trying to acquire lock", e);
-                this.tracer.RelatedEvent(EventLevel.Warning, "TryAcquireLockAndDeleteOnClose", metadata);
+                EventMetadata metadata = this.CreateLockMetadata(e);
+                this.tracer.RelatedWarning(metadata, "TryAcquireLockAndDeleteOnClose: UnauthorizedAccessException caught while trying to acquire lock");
 
                 this.DisposeStream();
                 return false;
             }
             catch (Win32Exception e)
             {
-                EventMetadata metadata = this.CreateLockMetadata("Win32Exception caught while trying to acquire lock", e);
-                this.tracer.RelatedEvent(EventLevel.Warning, "TryAcquireLockAndDeleteOnClose", metadata);
+                EventMetadata metadata = this.CreateLockMetadata(e);
+                this.tracer.RelatedWarning(metadata, "TryAcquireLockAndDeleteOnClose: Win32Exception caught while trying to acquire lock");
 
                 this.DisposeStream();
                 return false;
             }
             catch (Exception e)
             {
-                EventMetadata metadata = this.CreateLockMetadata("Unhandled exception caught while trying to acquire lock", e);
-                this.tracer.RelatedError("TryAcquireLockAndDeleteOnClose", metadata);
+                EventMetadata metadata = this.CreateLockMetadata(e);
+                this.tracer.RelatedError(metadata, "TryAcquireLockAndDeleteOnClose: Unhandled exception caught while trying to acquire lock");
 
                 this.DisposeStream();
                 throw;
@@ -128,8 +126,8 @@ namespace GVFS.Common
             }
             catch (IOException e)
             {
-                EventMetadata metadata = this.CreateLockMetadata("IOException caught while trying to release lock", e);
-                this.tracer.RelatedEvent(EventLevel.Warning, "TryReleaseLock", metadata);
+                EventMetadata metadata = this.CreateLockMetadata(e);
+                this.tracer.RelatedWarning(metadata, "TryReleaseLock: IOException caught while trying to release lock");
 
                 return false;
             }
@@ -187,20 +185,12 @@ namespace GVFS.Common
             return this.fileSystem.FileExists(this.lockPath);
         }
 
-        private void CleanupStaleLock(ExistingLockCleanup existingLockCleanup)
+        private void CleanupStaleLock()
         {
             if (!this.LockFileExists())
             {
                 return;
             }
-
-            if (existingLockCleanup == ExistingLockCleanup.LeaveExisting)
-            {
-                throw new ArgumentException("CleanupStaleLock should not be called with LeaveExisting");
-            }
-
-            EventMetadata metadata = this.CreateLockMetadata();
-            metadata.Add("existingLockCleanup", existingLockCleanup.ToString());
 
             long length = InvalidFileLength;
             try
@@ -210,61 +200,23 @@ namespace GVFS.Common
             }
             catch (Exception e)
             {
+                EventMetadata metadata = this.CreateLockMetadata();
                 metadata.Add("Exception", "Exception while getting lock file length: " + e.ToString());
                 this.tracer.RelatedEvent(EventLevel.Warning, "CleanupEmptyLock", metadata);
             }
 
             if (length == 0)
             {
-                metadata.Add("Message", "Deleting empty lock file: " + this.lockPath);
+                EventMetadata metadata = this.CreateLockMetadata();
+                metadata.Add(TracingConstants.MessageKey.WarningMessage, "Deleting empty lock file: " + this.lockPath);
                 this.tracer.RelatedEvent(EventLevel.Warning, "CleanupEmptyLock", metadata);
             }
             else 
             {
+                EventMetadata metadata = this.CreateLockMetadata();
                 metadata.Add("Length", length == InvalidFileLength ? "Invalid" : length.ToString());
-
-                switch (existingLockCleanup)
-                {
-                    case ExistingLockCleanup.DeleteExisting:
-                        metadata.Add("Message", "Deleting stale lock file: " + this.lockPath);
-                        this.tracer.RelatedEvent(EventLevel.Informational, "CleanupExistingLock", metadata);
-                        break;
-
-                    case ExistingLockCleanup.DeleteExistingAndLogSignature:
-                        string existingSignature;
-                        try
-                        {
-                            string dummyLockerMessage;
-                            this.ReadLockFile(out existingSignature, out dummyLockerMessage);
-                        }
-                        catch (Win32Exception e)
-                        {
-                            if (e.ErrorCode == NativeMethods.ERROR_FILE_NOT_FOUND)
-                            {
-                                // File was deleted before we could read its contents
-                                return;
-                            }
-
-                            throw;
-                        }
-
-                        if (existingSignature == this.Signature)
-                        {
-                            metadata.Add("Message", "Deleting stale lock file: " + this.lockPath);
-                            this.tracer.RelatedEvent(EventLevel.Informational, "CleanupExistingLock", metadata);
-                        }
-                        else
-                        {
-                            metadata.Add("ExistingLockSignature", existingSignature);
-                            metadata.Add("Message", "Deleting stale lock file: " + this.lockPath + " with mismatched signature");
-                            this.tracer.RelatedEvent(EventLevel.Warning, "CleanupSignatureMismatchLock", metadata);
-                        }
-
-                        break;
-
-                    default:
-                        throw new InvalidOperationException("Invalid ExistingLockCleanup");
-                }                
+                metadata.Add(TracingConstants.MessageKey.InfoMessage, "Deleting stale lock file: " + this.lockPath);
+                this.tracer.RelatedEvent(EventLevel.Informational, "CleanupExistingLock", metadata);
             }
 
             this.fileSystem.DeleteFile(this.lockPath);
@@ -279,18 +231,19 @@ namespace GVFS.Common
             }
         }
 
-        private EventMetadata CreateLockMetadata(string message = null, Exception exception = null, bool errorMessage = false)
+        private EventMetadata CreateLockMetadata()
         {
             EventMetadata metadata = new EventMetadata();
-            metadata.Add("Area", "FileBasedLock");
+            metadata.Add("Area", EtwArea);
             metadata.Add("LockPath", this.lockPath);
             metadata.Add("Signature", this.Signature);
 
-            if (message != null)
-            {
-                metadata.Add(errorMessage ? "ErrorMessage" : "Message", message);
-            }
+            return metadata;
+        }
 
+        private EventMetadata CreateLockMetadata(Exception exception = null)
+        {
+            EventMetadata metadata = this.CreateLockMetadata();
             if (exception != null)
             {
                 metadata.Add("Exception", exception.ToString());

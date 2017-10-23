@@ -1,7 +1,9 @@
 ﻿using GVFS.Common;
 using GVFS.Common.Git;
 using GVFS.Common.Http;
+using System;
 using System.IO;
+using System.Threading;
 
 namespace GVFS.UnitTests.Mock.Git
 {
@@ -15,7 +17,10 @@ namespace GVFS.UnitTests.Mock.Git
             this.context = context;
         }
 
-        public override bool TryDownloadAndSaveCommit(string objectSha, int commitDepth)
+        public bool CancelTryCopyBlobContentStream { get; set; }
+        public uint FileLength { get; set; }
+
+        public override bool TryEnsureCommitIsLocal(string objectSha, int commitDepth)
         {
             RetryWrapper<GitObjectsHttpRequestor.GitObjectTaskResult>.InvocationResult result = this.GitObjectRequestor.TryDownloadObjects(
                 new[] { objectSha },
@@ -34,6 +39,23 @@ namespace GVFS.UnitTests.Mock.Git
                 preferBatchedLooseObjects: false);
 
             return result.Succeeded && result.Result.Success;
+        }
+
+        public override bool TryCopyBlobContentStream(
+            string sha,
+            CancellationToken cancellationToken,
+            Action<Stream, long> writeAction)
+        {
+            if (this.CancelTryCopyBlobContentStream)
+            {
+                throw new OperationCanceledException();
+            }
+
+            writeAction(
+                new MemoryStream(new byte[this.FileLength]), 
+                this.FileLength);
+
+            return true;
         }
     }
 }

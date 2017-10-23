@@ -43,8 +43,9 @@
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
   </PropertyGroup>
   <ItemGroup>
-    <Reference Include="CommandLine">
-      <HintPath>..\..\..\packages\CommandLineParser.2.0.275-beta\lib\net45\CommandLine.dll</HintPath>
+    <Reference Include="CommandLine, Version=2.0.275.0, Culture=neutral, PublicKeyToken=de6f01bd326f8c32, processorArchitecture=MSIL">
+      <SpecificVersion>False</SpecificVersion>
+      <HintPath>..\..\..\packages\CommandLineParser.2.1.1-beta\lib\net45\CommandLine.dll</HintPath>
       <Private>True</Private>
     </Reference>
     <Reference Include="Microsoft.Diagnostics.Tracing.EventSource">
@@ -69,6 +70,8 @@
     <Compile Include="FetchHelper.cs" />
     <Compile Include="Git\BigEndianReader.cs" />
     <Compile Include="Git\EndianHelper.cs" />
+    <Compile Include="Git\FastFetchGitObjects.cs" />
+    <Compile Include="Git\FastFetchLibGit2Repo.cs" />
     <Compile Include="Git\GitIndexGenerator.cs" />
     <Compile Include="HashingStream.cs" />
     <Compile Include="WorkingTree.cs" />

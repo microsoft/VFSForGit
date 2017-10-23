@@ -1,10 +1,12 @@
 ﻿using CommandLine;
+using GVFS.CommandLine.DiskLayoutUpgrades;
 using GVFS.Common;
 using GVFS.Common.FileSystem;
 using GVFS.Common.Git;
 using GVFS.Common.Http;
 using GVFS.Common.NamedPipes;
 using GVFS.Common.Tracing;
+using GVFS.GVFlt.DotGit;
 using Microsoft.Diagnostics.Tracing;
 using System;
 using System.IO;
@@ -71,14 +73,18 @@ namespace GVFS.CommandLine
                 {
                     if (pipeClient.Connect(500))
                     {
-                        this.ReportErrorAndExit(ReturnCode.Success, "This repo is already mounted.");
+                        this.ReportErrorAndExit(tracer: null, exitCode: ReturnCode.Success, error: "This repo is already mounted.");
                     }
                 }
             }
+            
+            if (!DiskLayoutUpgrade.TryRunAllUpgrades(enlistmentRoot))
+            {
+                this.ReportErrorAndExit("Failed to upgrade repo disk layout. " + ConsoleHelper.GetGVFSLogMessage(enlistmentRoot));
+            }
 
-            bool allowUpgrade = true;
             string error;
-            if (!RepoMetadata.CheckDiskLayoutVersion(Path.Combine(enlistmentRoot, GVFSConstants.DotGVFS.Root), allowUpgrade, out error))
+            if (!DiskLayoutUpgrade.TryCheckDiskLayoutVersion(tracer: null, enlistmentRoot: enlistmentRoot, error: out error))
             {
                 this.ReportErrorAndExit("Error: " + error);
             }
@@ -97,13 +103,40 @@ namespace GVFS.CommandLine
                 this.ReportErrorAndExit("Error configuring alternate: " + errorMessage);
             }
 
+            CacheServerInfo cacheServer = CacheServerResolver.GetCacheServerFromConfig(enlistment);
+
+            string mountExeLocation = null;
             using (JsonEtwTracer tracer = new JsonEtwTracer(GVFSConstants.GVFSEtwProviderName, "PreMount"))
             {
                 tracer.AddLogFileEventListener(
-                    GVFSEnlistment.GetNewGVFSLogFileName(enlistment.GVFSLogsRoot, GVFSConstants.LogFileTypes.Mount),
+                    GVFSEnlistment.GetNewGVFSLogFileName(enlistment.GVFSLogsRoot, GVFSConstants.LogFileTypes.MountVerb),
                     EventLevel.Verbose,
                     Keywords.Any);
-                                
+                tracer.WriteStartEvent(
+                    enlistment.EnlistmentRoot,
+                    enlistment.RepoUrl,
+                    cacheServer.Url,
+                    enlistment.GitObjectsRoot,
+                    new EventMetadata
+                    {
+                        { "Unattended", this.Unattended },
+                        { "IsElevated", ProcessHelper.IsAdminElevated() },
+                    });
+
+                // TODO 1050199: Once the service is an optional component, GVFS should only attempt to attach
+                // GvFlt via the service if the service is present\enabled
+                if (!GvFltFilter.TryAttach(tracer, enlistment.EnlistmentRoot, out errorMessage))
+                {
+                    if (!this.ShowStatusWhileRunning(
+                        () => { return this.AttachGvFltThroughService(enlistment, out errorMessage); },
+                        "Attaching GvFlt to volume"))
+                    {
+                        this.ReportErrorAndExit(tracer, errorMessage);
+                    }
+                }
+
+                this.CheckAntiVirusExclusion(tracer, enlistment.EnlistmentRoot);
+
                 if (!this.SkipVersionCheck)
                 {
                     string authErrorMessage = null;
@@ -114,58 +147,83 @@ namespace GVFS.CommandLine
                         this.Output.WriteLine("    WARNING: " + authErrorMessage);
                         this.Output.WriteLine("    Mount will proceed, but new files cannot be accessed until GVFS can authenticate.");
                     }
+
+                    RetryConfig retryConfig = this.GetRetryConfig(tracer, enlistment);
+                    GVFSConfig gvfsConfig = this.QueryGVFSConfig(tracer, enlistment, retryConfig);
+
+                    this.ValidateClientVersions(tracer, enlistment, gvfsConfig, showWarnings: true);
+
+                    CacheServerResolver cacheServerResolver = new CacheServerResolver(tracer, enlistment);
+                    cacheServer = cacheServerResolver.ResolveNameFromRemote(cacheServer.Url, gvfsConfig);
+                    this.Output.WriteLine("Configured cache server: " + cacheServer);
                 }
 
-                RetryConfig retryConfig = null;
-                string error;
-                if (!RetryConfig.TryLoadFromGitConfig(tracer, enlistment, out retryConfig, out error))
+                if (!this.ShowStatusWhileRunning(
+                    () => { return this.PerformPreMountValidation(tracer, enlistment, out mountExeLocation, out errorMessage); },
+                    "Validating repo"))
                 {
-                    this.ReportErrorAndExit("Failed to determine GVFS timeout and max retries: " + error);
+                    this.ReportErrorAndExit(tracer, errorMessage);
                 }
-
-                GVFSConfig gvfsConfig;
-                CacheServerInfo cacheServer;
-                using (ConfigHttpRequestor configRequestor = new ConfigHttpRequestor(tracer, enlistment, retryConfig))
-                {
-                    gvfsConfig = configRequestor.QueryGVFSConfig();
-                }
-
-                if (!CacheServerInfo.TryDetermineCacheServer(null, enlistment, gvfsConfig.CacheServers, out cacheServer, out error))
-                {
-                    this.ReportErrorAndExit(error);
-                }
-
-                tracer.WriteStartEvent(
-                    enlistment.EnlistmentRoot,
-                    enlistment.RepoUrl,
-                    cacheServer.Url);
-
-                if (!GvFltFilter.TryAttach(tracer, enlistment.EnlistmentRoot, out errorMessage))
-                {
-                    if (!this.ShowStatusWhileRunning(
-                        () => { return this.AttachGvFltThroughService(enlistment, out errorMessage); },
-                        "Attaching GvFlt to volume"))
-                    {
-                        this.ReportErrorAndExit(errorMessage);
-                    }
-                }
-
-                this.ValidateClientVersions(tracer, enlistment, gvfsConfig);
             }
 
             if (!this.ShowStatusWhileRunning(
-                () => { return this.TryMount(enlistment, out errorMessage); },
+                () => { return this.TryMount(enlistment, mountExeLocation, out errorMessage); },
                 "Mounting"))
             {
                 this.ReportErrorAndExit(errorMessage);
             }
 
-            if (!this.ShowStatusWhileRunning(
-                () => { return this.RegisterMount(enlistment, out errorMessage); },
-                "Registering for automount"))
+            if (!this.Unattended)
             {
-                this.Output.WriteLine("    WARNING: " + errorMessage);
+                if (!this.ShowStatusWhileRunning(
+                    () => { return this.RegisterMount(enlistment, out errorMessage); },
+                    "Registering for automount"))
+                {
+                    this.Output.WriteLine("    WARNING: " + errorMessage);
+                }
             }
+        }
+
+        private bool PerformPreMountValidation(ITracer tracer, GVFSEnlistment enlistment, out string mountExeLocation, out string errorMessage)
+        {
+            errorMessage = string.Empty;
+            mountExeLocation = string.Empty;
+
+            // We have to parse these parameters here to make sure they are valid before 
+            // handing them to the background process which cannot tell the user when they are bad
+            EventLevel verbosity;
+            Keywords keywords;
+            this.ParseEnumArgs(out verbosity, out keywords);
+
+            mountExeLocation = Path.Combine(ProcessHelper.GetCurrentProcessLocation(), GVFSConstants.MountExecutableName);
+            if (!File.Exists(mountExeLocation))
+            {
+                errorMessage = "Could not find GVFS.Mount.exe. You may need to reinstall GVFS.";
+                return false;
+            }
+
+            GitProcess git = new GitProcess(enlistment);
+            if (!git.IsValidRepo())
+            {
+                errorMessage = "The .git folder is missing or has invalid contents";
+                return false;
+            }
+
+            try
+            {
+                GitIndexProjection.ReadIndex(Path.Combine(enlistment.WorkingDirectoryRoot, GVFSConstants.DotGit.Index));
+            }
+            catch (Exception e)
+            {
+                EventMetadata metadata = new EventMetadata();
+                metadata.Add("Exception", e.ToString());
+                tracer.RelatedError(metadata, "Index validation failed");
+                errorMessage = "Index validation failed, run 'gvfs repair' to repair index.";
+
+                return false;
+            }
+
+            return true;
         }
 
         private bool AttachGvFltThroughService(GVFSEnlistment enlistment, out string errorMessage)
@@ -179,7 +237,7 @@ namespace GVFS.CommandLine
             {
                 if (!client.Connect())
                 {
-                    errorMessage = "Unable to mount because GVFS.Service is not responding. Run 'sc start GVFS.Service' from an elevated command prompt to ensure it is running.";
+                    errorMessage = "Unable to mount because GVFS.Service is not responding. " + GVFSVerb.StartServiceInstructions;
                     return false;
                 }
 
@@ -221,29 +279,136 @@ namespace GVFS.CommandLine
             }
         }
 
-        private bool TryMount(GVFSEnlistment enlistment, out string errorMessage)
+        private bool ExcludeFromAntiVirusThroughService(string path, out string errorMessage)
         {
-            // We have to parse these parameters here to make sure they are valid before 
-            // handing them to the background process which cannot tell the user when they are bad
-            EventLevel verbosity;
-            Keywords keywords;
-            this.ParseEnumArgs(out verbosity, out keywords);
+            errorMessage = string.Empty;
 
-            string mountExeLocation = Path.Combine(ProcessHelper.GetCurrentProcessLocation(), GVFSConstants.MountExecutableName);
-            if (!File.Exists(mountExeLocation))
+            NamedPipeMessages.ExcludeFromAntiVirusRequest request = new NamedPipeMessages.ExcludeFromAntiVirusRequest();
+            request.ExclusionPath = path;
+
+            using (NamedPipeClient client = new NamedPipeClient(this.ServicePipeName))
             {
-                errorMessage = "Could not find GVFS.Mount.exe. You may need to reinstall GVFS.";
-                return false;
+                if (!client.Connect())
+                {
+                    errorMessage = "Unable to exclude from antivirus because GVFS.Service is not responding. " + GVFSVerb.StartServiceInstructions;
+                    return false;
+                }
+
+                try
+                {
+                    client.SendRequest(request.ToMessage());
+                    NamedPipeMessages.Message response = client.ReadResponse();
+                    if (response.Header == NamedPipeMessages.ExcludeFromAntiVirusRequest.Response.Header)
+                    {
+                        NamedPipeMessages.ExcludeFromAntiVirusRequest.Response message = NamedPipeMessages.ExcludeFromAntiVirusRequest.Response.FromMessage(response);
+
+                        if (!string.IsNullOrEmpty(message.ErrorMessage))
+                        {
+                            errorMessage = message.ErrorMessage;
+                            return false;
+                        }
+
+                        return message.State == NamedPipeMessages.CompletionState.Success;
+                    }
+                    else
+                    {
+                        errorMessage = string.Format("GVFS.Service responded with unexpected message: {0}", response);
+                        return false;
+                    }
+                }
+                catch (BrokenPipeException e)
+                {
+                    errorMessage = "Unable to communicate with GVFS.Service: " + e.ToString();
+                    return false;
+                }
+            }
+        }
+
+        private void CheckAntiVirusExclusion(ITracer tracer, string path)
+        {
+            bool isExcluded;
+            string getError;
+            if (AntiVirusExclusions.TryGetIsPathExcluded(path, out isExcluded, out getError))
+            {
+                if (!isExcluded)
+                {
+                    if (ProcessHelper.IsAdminElevated())
+                    {
+                        string addError;
+                        if (AntiVirusExclusions.AddAntiVirusExclusion(path, out addError))
+                        {
+                            addError = string.Empty;
+                            if (!AntiVirusExclusions.TryGetIsPathExcluded(path, out isExcluded, out getError))
+                            {
+                                EventMetadata metadata = new EventMetadata();
+                                metadata.Add("getError", getError);
+                                metadata.Add("path", path);
+                                tracer.RelatedWarning(metadata, "CheckAntiVirusExclusion: Failed to determine if path excluded after adding it");
+                            }
+                        }
+                        else
+                        {
+                            EventMetadata metadata = new EventMetadata();
+                            metadata.Add("addError", addError);
+                            metadata.Add("path", path);
+                            tracer.RelatedWarning(metadata, "CheckAntiVirusExclusion: AddAntiVirusExclusion failed");
+                        }
+                    }
+                    else
+                    {
+                        EventMetadata metadata = new EventMetadata();
+                        metadata.Add("path", path);
+                        metadata.Add(TracingConstants.MessageKey.InfoMessage, "CheckAntiVirusExclusion: Skipping call to AddAntiVirusExclusion, GVFS is not running with elevation");
+                        tracer.RelatedEvent(EventLevel.Informational, "CheckAntiVirusExclusion_SkipLocalAdd", metadata);
+                    }
+                }                
+            }
+            else
+            {
+                EventMetadata metadata = new EventMetadata();
+                metadata.Add("getError", getError);
+                metadata.Add("path", path);
+                tracer.RelatedWarning(metadata, "CheckAntiVirusExclusion: Failed to determine if path excluded");
             }
 
-            GitProcess git = new GitProcess(enlistment);
-            if (!git.IsValidRepo())
+            string errorMessage = null;
+            if (!isExcluded && !this.Unattended)
             {
-                errorMessage = "The physical git repo is missing or invalid";
-                return false;
+                if (this.ShowStatusWhileRunning(
+                    () => { return this.ExcludeFromAntiVirusThroughService(path, out errorMessage); },
+                    string.Format("Excluding '{0}' from antivirus", path)))
+                {
+                    isExcluded = true;
+                }
+                else
+                {
+                    EventMetadata metadata = new EventMetadata();
+                    metadata.Add("errorMessage", errorMessage);
+                    metadata.Add("path", path);
+                    tracer.RelatedWarning(metadata, "CheckAntiVirusExclusion: Failed to exclude path through service");
+                }
             }
 
-            this.SetGitConfigSettings(git);
+            if (!isExcluded)
+            {
+                this.Output.WriteLine();
+                this.Output.WriteLine("WARNING: Unable to ensure that '{0}' is excluded from antivirus", path);
+                if (!string.IsNullOrEmpty(errorMessage))
+                {
+                    this.Output.WriteLine(errorMessage);
+                }
+                
+                this.Output.WriteLine();
+            }
+        }
+
+        private bool TryMount(GVFSEnlistment enlistment, string mountExeLocation, out string errorMessage)
+        {
+            if (!GVFSVerb.TrySetGitConfigSettings(enlistment))
+            {
+                errorMessage = "Unable to configure git repo";
+                return false;
+            }
 
             const string ParamPrefix = "--";
             ProcessHelper.StartBackgroundProcess(
@@ -258,7 +423,7 @@ namespace GVFS.CommandLine
                     this.ShowDebugWindow ? ParamPrefix + GVFSConstants.VerbParameters.Mount.DebugWindow : string.Empty),
                 createWindow: this.ShowDebugWindow);
 
-            return GVFSEnlistment.WaitUntilMounted(enlistment.EnlistmentRoot, out errorMessage);
+            return GVFSEnlistment.WaitUntilMounted(enlistment.EnlistmentRoot, this.Unattended, out errorMessage);
         }
 
         private bool RegisterMount(GVFSEnlistment enlistment, out string errorMessage)
@@ -316,14 +481,6 @@ namespace GVFS.CommandLine
                     errorMessage = "Unable to communicate with GVFS.Service: " + e.ToString();
                     return false;
                 }
-            }
-        }
-
-        private void SetGitConfigSettings(GitProcess git)
-        {
-            if (!GVFSVerb.TrySetGitConfigSettings(git))
-            {
-                this.ReportErrorAndExit("Unable to configure git repo");
             }
         }
 

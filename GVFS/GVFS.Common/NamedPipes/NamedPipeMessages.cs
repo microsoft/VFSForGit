@@ -203,6 +203,31 @@ namespace GVFS.Common.NamedPipes
             }
         }
 
+        public class ExcludeFromAntiVirusRequest
+        {
+            public const string Header = nameof(ExcludeFromAntiVirusRequest);
+
+            public string ExclusionPath { get; set; }
+
+            public static ExcludeFromAntiVirusRequest FromMessage(Message message)
+            {
+                return JsonConvert.DeserializeObject<ExcludeFromAntiVirusRequest>(message.Body);
+            }
+
+            public Message ToMessage()
+            {
+                return new Message(Header, JsonConvert.SerializeObject(this));
+            }
+
+            public class Response : BaseResponse<ExcludeFromAntiVirusRequest>
+            {
+                public static Response FromMessage(Message message)
+                {
+                    return JsonConvert.DeserializeObject<Response>(message.Body);
+                }
+            }
+        }
+
         public class BaseResponse<TRequest>
         {
             public const string Header = nameof(TRequest) + ResponseSuffix;
