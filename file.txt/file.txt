@@ -1,0 +1,2 @@
+This is a file in a directory where the directory is named the same as the file
+and the directory will get deleted and the file moved where the directory was.
