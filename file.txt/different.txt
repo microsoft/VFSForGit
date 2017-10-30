@@ -1,0 +1,1 @@
+This file is for a checkout of a directory where there was only one file.
