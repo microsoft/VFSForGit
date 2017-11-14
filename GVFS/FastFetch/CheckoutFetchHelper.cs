@@ -68,7 +68,7 @@ namespace FastFetch
             // Checkout diff output => FindMissingBlobs => BatchDownload => IndexPack => Checkout available blobs
             CheckoutJob checkout = new CheckoutJob(this.checkoutThreadCount, this.FolderList, commitToFetch, this.Tracer, this.Enlistment);
             FindMissingBlobsJob blobFinder = new FindMissingBlobsJob(this.SearchThreadCount, checkout.RequiredBlobs, checkout.AvailableBlobShas, this.Tracer, this.Enlistment);
-            BatchObjectDownloadJob downloader = new BatchObjectDownloadJob(this.DownloadThreadCount, this.ChunkSize, blobFinder.DownloadQueue, checkout.AvailableBlobShas, this.Tracer, this.Enlistment, this.ObjectRequestor, this.GitObjects);
+            BatchObjectDownloadJob downloader = new BatchObjectDownloadJob(this.DownloadThreadCount, this.ChunkSize, blobFinder.MissingBlobs, checkout.AvailableBlobShas, this.Tracer, this.Enlistment, this.ObjectRequestor, this.GitObjects);
             IndexPackJob packIndexer = new IndexPackJob(this.IndexThreadCount, downloader.AvailablePacks, checkout.AvailableBlobShas, this.Tracer, this.GitObjects);
 
             // Start pipeline

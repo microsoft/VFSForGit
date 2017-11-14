@@ -2,9 +2,9 @@
 
 namespace GvLib
 {
-    public enum class NtStatus : long
+    ///<summary>Subset of NTSTATUS values</summary>
+    public enum class NtStatus : NTSTATUS
     {
-        // Subset of NTSTATUS values.  Add more values as needed.
         Success = STATUS_SUCCESS,
         Timeout = STATUS_TIMEOUT,
         FileNotAvailable = STATUS_FILE_NOT_AVAILABLE,

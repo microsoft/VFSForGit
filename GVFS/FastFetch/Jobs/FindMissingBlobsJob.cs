@@ -20,28 +20,28 @@ namespace FastFetch.Jobs
         private int missingBlobCount;
         private int availableBlobCount;
 
-        private BlockingCollection<string> inputQueue;
+        private BlockingCollection<string> requiredBlobs;
 
         private ConcurrentHashSet<string> alreadyFoundBlobIds;
 
         public FindMissingBlobsJob(
             int maxParallel,
-            BlockingCollection<string> inputQueue,
+            BlockingCollection<string> requiredBlobs,
             BlockingCollection<string> availableBlobs,
             ITracer tracer,
             Enlistment enlistment)
             : base(maxParallel)
         {
             this.tracer = tracer.StartActivity(AreaPath, EventLevel.Informational, Keywords.Telemetry, metadata: null);
-            this.inputQueue = inputQueue;
+            this.requiredBlobs = requiredBlobs;
             this.enlistment = enlistment;
             this.alreadyFoundBlobIds = new ConcurrentHashSet<string>();
 
-            this.DownloadQueue = new BlockingCollection<string>();
+            this.MissingBlobs = new BlockingCollection<string>();
             this.AvailableBlobs = availableBlobs;
         }
 
-        public BlockingCollection<string> DownloadQueue { get; }
+        public BlockingCollection<string> MissingBlobs { get; }
         public BlockingCollection<string> AvailableBlobs { get; }
 
         public int MissingBlobCount
@@ -59,14 +59,14 @@ namespace FastFetch.Jobs
             string blobId;
             using (FastFetchLibGit2Repo repo = new FastFetchLibGit2Repo(this.tracer, this.enlistment.WorkingDirectoryRoot))
             {
-                while (this.inputQueue.TryTake(out blobId, Timeout.Infinite))
+                while (this.requiredBlobs.TryTake(out blobId, Timeout.Infinite))
                 {
                     if (this.alreadyFoundBlobIds.Add(blobId))
                     {
                         if (!repo.ObjectExists(blobId))
                         {
                             Interlocked.Increment(ref this.missingBlobCount);
-                            this.DownloadQueue.Add(blobId);
+                            this.MissingBlobs.Add(blobId);
                         }
                         else
                         {
@@ -80,7 +80,7 @@ namespace FastFetch.Jobs
 
         protected override void DoAfterWork()
         {
-            this.DownloadQueue.CompleteAdding();
+            this.MissingBlobs.CompleteAdding();
 
             EventMetadata metadata = new EventMetadata();
             metadata.Add("TotalMissingObjects", this.missingBlobCount);

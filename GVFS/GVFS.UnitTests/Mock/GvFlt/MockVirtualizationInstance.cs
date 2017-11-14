@@ -33,8 +33,11 @@ namespace GVFS.UnitTests.Mock.GvFlt
         public GetDirectoryEnumerationEvent OnGetDirectoryEnumeration { get; set; }
         public GetFileStreamEvent OnGetFileStream { get; set; }
         public GetPlaceholderInformationEvent OnGetPlaceholderInformation { get; set; }
-        public NotifyFileHandleClosedEvent OnNotifyFileHandleClosed { get; set; }
-        public NotifyFileHandleCreatedEvent OnNotifyFileHandleCreated { get; set; }
+        public NotifyPostCreateHandleOnlyEvent OnNotifyPostCreateHandleOnly { get; set; }
+        public NotifyPostCreateNewFileEvent OnNotifyPostCreateNewFile { get; set; }
+        public NotifyPostCreateOverwrittenOrSupersededEvent OnNotifyPostCreateOverwrittenOrSuperseded { get; set; }
+        public NotifyFileHandleClosedOnlyEvent OnNotifyFileHandleClosedOnly { get; set; }
+        public NotifyFileHandleClosedModifiedOrDeletedEvent OnNotifyFileHandleClosedModifiedOrDeleted { get; set; }
         public NotifyFileRenamedEvent OnNotifyFileRenamed { get; set; }
         public NotifyFirstWriteEvent OnNotifyFirstWrite { get; set; }
         public NotifyHardlinkCreatedEvent OnNotifyHardlinkCreated { get; set; }
@@ -51,6 +54,7 @@ namespace GVFS.UnitTests.Mock.GvFlt
             uint poolThreadCount, 
             uint concurrentThreadCount,
             bool enableNegativePathCache,
+            NotificationType globalNotificationMask,
             ref uint logicalBytesPerSector,
             ref uint writeBufferAlignment)
         {

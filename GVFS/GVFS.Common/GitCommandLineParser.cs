@@ -10,6 +10,7 @@ namespace GVFS.Common
         private const int ArgumentsOffset = 2;
 
         private readonly string[] parts;
+        private Verbs commandVerb;
 
         public GitCommandLineParser(string command)
         {
@@ -22,7 +23,25 @@ namespace GVFS.Common
                 {
                     this.parts = null;
                 }
+                else
+                {
+                    this.commandVerb = this.StringToVerbs(this.parts[VerbIndex]);
+                }
             }
+        }
+
+        [Flags]
+        public enum Verbs
+        {
+            Other       = 1 << 0,
+            AddOrStage  = 1 << 1,
+            Checkout    = 1 << 2,
+            Clean       = 1 << 3,
+            Commit      = 1 << 4,
+            Move        = 1 << 5,
+            Reset       = 1 << 6,
+            Status      = 1 << 8,
+            UpdateIndex = 1 << 9,
         }
 
         public bool IsValidGitCommand
@@ -33,7 +52,7 @@ namespace GVFS.Common
         public bool IsResetSoftOrMixed()
         {
             return
-                this.IsVerb("reset") &&
+                this.IsVerb(Verbs.Reset) &&
                 !this.HasArgument("--hard") &&
                 !this.HasArgument("--keep") &&
                 !this.HasArgument("--merge");
@@ -41,7 +60,7 @@ namespace GVFS.Common
 
         public bool IsResetHard()
         {
-            return this.IsVerb("reset") && this.HasArgument("--hard");
+            return this.IsVerb(Verbs.Reset) && this.HasArgument("--hard");
         }
 
         /// <summary>
@@ -51,7 +70,7 @@ namespace GVFS.Common
         /// <returns>True if file paths were detected, otherwise false</returns>
         public bool IsCheckoutWithFilePaths()
         {
-            if (this.IsVerb("checkout"))
+            if (this.IsVerb(Verbs.Checkout))
             {
                 int numArguments = this.parts.Length - ArgumentsOffset;
 
@@ -82,14 +101,31 @@ namespace GVFS.Common
             return false;
         }
 
-        public bool IsVerb(params string[] verbs)
+        public bool IsVerb(Verbs verbs)
         {
             if (!this.IsValidGitCommand)
             {
                 return false;
             }
 
-            return verbs.Any(v => this.parts[VerbIndex] == v);
+            return (verbs & this.commandVerb) == this.commandVerb;
+        }
+
+        private Verbs StringToVerbs(string verb)
+        {
+            switch (verb)
+            {
+                case "add": return Verbs.AddOrStage;
+                case "checkout": return Verbs.Checkout;
+                case "clean": return Verbs.Clean;
+                case "commit": return Verbs.Commit;
+                case "mv": return Verbs.Move;
+                case "reset": return Verbs.Reset;
+                case "stage": return Verbs.AddOrStage;
+                case "status": return Verbs.Status;
+                case "update-index": return Verbs.UpdateIndex;
+                default: return Verbs.Other;
+            }
         }
 
         private bool HasArgument(string argument)

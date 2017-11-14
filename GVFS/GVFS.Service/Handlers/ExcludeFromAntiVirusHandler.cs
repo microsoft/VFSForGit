@@ -4,7 +4,7 @@ using GVFS.Common.Tracing;
 
 namespace GVFS.Service.Handlers
 {
-    public class ExcludeFromAntiVirusHandler
+    public class ExcludeFromAntiVirusHandler : MessageHandler
     {
         private NamedPipeServer.Connection connection;
         private NamedPipeMessages.ExcludeFromAntiVirusRequest request;
@@ -62,16 +62,12 @@ namespace GVFS.Service.Handlers
                 state = NamedPipeMessages.CompletionState.Failure;
             }
 
-            this.WriteToClient(new NamedPipeMessages.ExcludeFromAntiVirusRequest.Response() { State = state, ErrorMessage = errorMessage });
-        }
+            NamedPipeMessages.ExcludeFromAntiVirusRequest.Response response = new NamedPipeMessages.ExcludeFromAntiVirusRequest.Response();
 
-        private void WriteToClient(NamedPipeMessages.ExcludeFromAntiVirusRequest.Response response)
-        {
-            NamedPipeMessages.Message message = response.ToMessage();
-            if (!this.connection.TrySendResponse(message))
-            {
-                this.tracer.RelatedError("Failed to send line to client: {0}", message);
-            }
+            response.State = state;
+            response.ErrorMessage = errorMessage;
+
+            this.WriteToClient(response.ToMessage(), this.connection, this.tracer);
         }
     }
 }

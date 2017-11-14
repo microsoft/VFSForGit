@@ -2,14 +2,14 @@
 using GVFS.Common.Tracing;
 using System;
 using System.Collections.Concurrent;
-using System.IO;
+using System.Threading;
 
 namespace GVFS.Common
 {
     public class LibGit2RepoPool
     {
         private const int TryAddTimeoutMilliseconds = 10;
-        private const int TryTakeTimeoutMilliseconds = -1;
+        private const int TryTakeTimeoutMilliseconds = Timeout.Infinite;
         
         private readonly BlockingCollection<LibGit2Repo> pool;
         private readonly ITracer tracer;

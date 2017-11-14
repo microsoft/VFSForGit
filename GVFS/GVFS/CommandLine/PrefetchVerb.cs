@@ -43,6 +43,13 @@ namespace GVFS.CommandLine
         public string FoldersListFile { get; set; }
 
         [Option(
+            "hydrate",
+            Required = false,
+            Default = false,
+            HelpText = "Specify this flag to also hydrate files in the working directory")]
+        public bool HydrateFiles { get; set; }
+
+        [Option(
             'c',
             "commits",
             Required = false,
@@ -125,6 +132,11 @@ namespace GVFS.CommandLine
                             !string.IsNullOrWhiteSpace(this.FoldersListFile))
                         {
                             this.ReportErrorAndExit(tracer, "You cannot prefetch commits and blobs at the same time.");
+                        }
+
+                        if (this.HydrateFiles)
+                        {
+                            this.ReportErrorAndExit(tracer, "You can only specify --hydrate with --files or --folders");
                         }
 
                         this.PrefetchCommits(tracer, enlistment, objectRequestor, cacheServer);
@@ -214,6 +226,21 @@ namespace GVFS.CommandLine
                 this.ReportErrorAndExit(tracer, "Did you mean to fetch all blobs? If so, specify `--files *` to confirm.");
             }
 
+            if (this.HydrateFiles)
+            {
+                if (!ConsoleHelper.ShowStatusWhileRunning(
+                    () => this.Execute<StatusVerb>(
+                        this.EnlistmentRootPath,
+                        verb => verb.Output = new StreamWriter(new MemoryStream())) == ReturnCode.Success,
+                    "Checking that GVFS is mounted",
+                    this.Output,
+                    showSpinner: true,
+                    gvfsLogEnlistmentRoot: null))
+                {
+                    this.ReportErrorAndExit("You can only specify --hydrate if the repo is mounted. Run 'gvfs mount' and try again.");
+                }
+            }
+
             GitProcess gitProcess = new GitProcess(enlistment);
             GitProcess.Result result = gitProcess.RevParse(GVFSConstants.DotGit.HeadName);
             if (result.HasErrors)
@@ -224,8 +251,9 @@ namespace GVFS.CommandLine
                 return;
             }
 
-            int matchedBlobs = 0;
-            int downloadedBlobs = 0;
+            int matchedBlobCount = 0;
+            int downloadedBlobCount = 0;
+            int readFileCount = 0;
 
             string headCommitId = result.Output;
             Func<bool> doPrefetch =
@@ -236,8 +264,10 @@ namespace GVFS.CommandLine
                         fetchHelper.FastFetchWithStats(
                             headCommitId.Trim(),
                             isBranch: false,
-                            matchedBlobs: out matchedBlobs,
-                            downloadedBlobs: out downloadedBlobs);
+                            readFilesAfterDownload: this.HydrateFiles,
+                            matchedBlobCount: out matchedBlobCount,
+                            downloadedBlobCount: out downloadedBlobCount,
+                            readFileCount: out readFileCount);
                         return !fetchHelper.HasFailures;
                     }
                     catch (FetchHelper.FetchException e)
@@ -253,7 +283,11 @@ namespace GVFS.CommandLine
             }
             else
             {
-                this.ShowStatusWhileRunning(doPrefetch, "Fetching blobs " + this.GetCacheServerDisplay(cacheServer));
+                string message =
+                    this.HydrateFiles
+                    ? "Fetching blobs and hydrating files "
+                    : "Fetching blobs ";
+                this.ShowStatusWhileRunning(doPrefetch, message + this.GetCacheServerDisplay(cacheServer));
             }
 
             if (fetchHelper.HasFailures)
@@ -262,7 +296,15 @@ namespace GVFS.CommandLine
             }
             else
             {
-                Console.WriteLine("Your filter matched {0} blob(s), and {1} new blob(s) were downloaded.", matchedBlobs, downloadedBlobs);
+                Console.WriteLine();
+                Console.WriteLine("Stats:");
+                Console.WriteLine("  Matched blobs:    " + matchedBlobCount);
+                Console.WriteLine("  Already cached:   " + (matchedBlobCount - downloadedBlobCount));
+                Console.WriteLine("  Downloaded:       " + downloadedBlobCount);
+                if (this.HydrateFiles)
+                {
+                    Console.WriteLine("  Hydrated files:   " + readFileCount);
+                }
             }
         }
 

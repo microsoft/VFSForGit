@@ -165,7 +165,7 @@ namespace GvLib
     /// </remarks>
     public delegate NtStatus NotifyFirstWriteEvent(System::String^ relativePath);
 
-    /// <summary>A handle to a file or folder has been created</summary>
+    /// <summary>A handle to a file or folder has been created (and ioStatusBlock is not FileSuperseded, FileOverwritten, or FileCreated)</summary>
     /// <param name="relativePath">The path (relative to the virtualization root) of the file or folder</param>
     /// <param name="isDirectory">true if relativePath is for a folder, false if relativePath is for a file</param>
     /// <param name="desiredAccess">Desired access specified for handle</param>
@@ -179,11 +179,13 @@ namespace GvLib
     /// If this field is not set, no notification will be watched.
     /// </param>
     /// <remarks>
+    /// This callback is triggered when a handle to a file is created and the ioStatusBlock is not FileSuperseded, FileOverwritten, or FileCreated
+    ///
     /// Refer to the MSDN page for NtCreateFile for more details and possible values for
     /// desiredAccess, shareMode, createDisposition, createOptions and ioStatusBlock parameters -
     /// https://msdn.microsoft.com/en-us/library/bb432380(v=vs.85).aspx
-    ///</remarks>
-    public delegate void NotifyFileHandleCreatedEvent(
+    /// </remarks>
+    public delegate void NotifyPostCreateHandleOnlyEvent(
         System::String^ relativePath,
 		bool isDirectory,
         unsigned long desiredAccess,
@@ -191,7 +193,66 @@ namespace GvLib
         unsigned long createDisposition,
         unsigned long createOptions,
         IoStatusBlockValue ioStatusBlock,
-        unsigned long% notificationMask);
+        NotificationType% notificationMask);
+
+    /// <summary>A handle to a new file or folder has been created</summary>
+    /// <param name="relativePath">The path (relative to the virtualization root) of the file or folder</param>
+    /// <param name="isDirectory">true if relativePath is for a folder, false if relativePath is for a file</param>
+    /// <param name="desiredAccess">Desired access specified for handle</param>
+    /// <param name="shareMode">Share mode specified for handle</param>
+    /// <param name="createDisposition">Create disposition specified for handle</param>
+    /// <param name="createOptions">Create options specified for handle</param>
+    /// <param name="ioStatusBlock">Final completion status of the handle create operation</param>
+    /// <param name="notificationMask">
+    /// [Out] A bit mask that indicates which notifications the provider wants to watch for the target file.
+    /// Refer to the NotificationType enum for a list of notifications the provider can watch.
+    /// If this field is not set, no notification will be watched.
+    /// </param>
+    /// <remarks>
+    /// This callback is triggered when a handle to a file is created and the ioStatusBlock is FileCreated
+    ///
+    /// Refer to the MSDN page for NtCreateFile for more details and possible values for
+    /// desiredAccess, shareMode, createDisposition, createOptions and ioStatusBlock parameters -
+    /// https://msdn.microsoft.com/en-us/library/bb432380(v=vs.85).aspx
+    /// </remarks>
+    public delegate void NotifyPostCreateNewFileEvent(
+        System::String^ relativePath,
+        bool isDirectory,
+        unsigned long desiredAccess,
+        unsigned long shareMode,
+        unsigned long createDisposition,
+        unsigned long createOptions,
+        NotificationType% notificationMask);
+
+    /// <summary>A handle to a file or folder has been created (and ioStatusBlock is FileOverwritten or FileSuperseded)</summary>
+    /// <param name="relativePath">The path (relative to the virtualization root) of the file or folder</param>
+    /// <param name="isDirectory">true if relativePath is for a folder, false if relativePath is for a file</param>
+    /// <param name="desiredAccess">Desired access specified for handle</param>
+    /// <param name="shareMode">Share mode specified for handle</param>
+    /// <param name="createDisposition">Create disposition specified for handle</param>
+    /// <param name="createOptions">Create options specified for handle</param>
+    /// <param name="ioStatusBlock">Final completion status of the handle create operation</param>
+    /// <param name="notificationMask">
+    /// [Out] A bit mask that indicates which notifications the provider wants to watch for the target file.
+    /// Refer to the NotificationType enum for a list of notifications the provider can watch.
+    /// If this field is not set, no notification will be watched.
+    /// </param>
+    /// <remarks>
+    /// This callback is triggered when a handle to a file is created and the ioStatusBlock is FileOverwritten or FileSuperseded
+    ///
+    /// Refer to the MSDN page for NtCreateFile for more details and possible values for
+    /// desiredAccess, shareMode, createDisposition, createOptions and ioStatusBlock parameters -
+    /// https://msdn.microsoft.com/en-us/library/bb432380(v=vs.85).aspx
+    /// </remarks>
+    public delegate void NotifyPostCreateOverwrittenOrSupersededEvent(
+        System::String^ relativePath,
+        bool isDirectory,
+        unsigned long desiredAccess,
+        unsigned long shareMode,
+        unsigned long createDisposition,
+        unsigned long createOptions,
+        IoStatusBlockValue ioStatusBlock,
+        NotificationType% notificationMask);
 
     /// <summary>An attempt to delete a watched file or directory is made</summary>
     /// <param name="relativePath">The path (relative to the virtualization root) of the file or folder</param>
@@ -265,7 +326,7 @@ namespace GvLib
         System::String^ relativePath, 
         System::String^ destinationPath, 
         bool isDirectory, 
-        unsigned long% notificationMask);
+        NotificationType% notificationMask);
 
     /// <summary>A hardlink within the virtualization root was created</summary>
     /// <param name="relativePath">The path (relative to the virtualization root) of the file or folder</param>
@@ -275,11 +336,9 @@ namespace GvLib
         System::String^ relativePath, 
         System::String^ destinationPath);
 
-    /// <summary>A handle to a watched file or directory was closed</summary>
+    /// <summary>A handle to a watched file or directory was closed, and it was not used to modify or delete the file</summary>
     /// <param name="relativePath">The path (relative to the virtualization root) of the file or folder</param>
     /// <param name="isDirectory">true if relativePath is for a folder, false if relativePath is for a file</param>
-    /// <param name="fileModified">If true, a handle which was used to modify the file's main stream data was closed.</param>
-    /// <param name="fileDeleted">If true, the file has been deleted from the file system</param>
     /// <remarks>
     /// fileModified is set to true if:
     ///    1) A cached write was made using the handle.
@@ -292,12 +351,32 @@ namespace GvLib
     ///
     /// #define FILE_RETURNS_CLEANUP_RESULT_INFO    0x00000200  // winnt
     /// </remarks>
-    public delegate void NotifyFileHandleClosedEvent(
+    public delegate void NotifyFileHandleClosedOnlyEvent(
         System::String^ relativePath,
-        bool isDirectory,
-        bool fileModified, 
-        bool fileDeleted);
+        bool isDirectory);
 
+    /// <summary>A handle to a watched file or directory was closed, and it was used to modify and\or delete the file</summary>
+    /// <param name="relativePath">The path (relative to the virtualization root) of the file or folder</param>
+    /// <param name="isDirectory">true if relativePath is for a folder, false if relativePath is for a file</param>
+    /// <param name="isFileModified">true if a handle which was used to modify the file's main stream data was closed.</param>
+    /// <param name="isFileDeleted">true if the file has been deleted from the file system</param>
+    /// <remarks>
+    /// A file is considered modified if:
+    ///    1) A cached write was made using the handle.
+    /// Or 2) A non-cached write was made using the handle.
+    /// Or 3) A writable section was created using the handle.
+    /// 
+    /// fileDeleted requires that the OS support the 'reliable delete information' feature, otherwise it will always be false.
+    /// To check if the target volume supports this feature, the provider can retrieve the volume info and query if the flag below is set. 
+    /// See also https://msdn.microsoft.com/en-us/library/windows/desktop/aa364993(v=vs.85).aspx
+    ///
+    /// #define FILE_RETURNS_CLEANUP_RESULT_INFO    0x00000200  // winnt
+    /// </remarks>
+    public delegate void NotifyFileHandleClosedModifiedOrDeletedEvent(
+        System::String^ relativePath,        
+        bool isDirectory,
+        bool isFileModified,
+        bool isFileDeleted);
 
     /// <summary>Notification that the provider should complete the specified command as cancelled</summary>
     /// <param name="commandId">ID that uniquely identifies this command\request</param>

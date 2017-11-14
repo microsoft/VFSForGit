@@ -1,4 +1,3 @@
-using GVFS.FunctionalTests.Category;
 using GVFS.FunctionalTests.Tests;
 using GVFS.FunctionalTests.Tools;
 using GVFS.Tests;
@@ -20,6 +19,10 @@ namespace GVFS.FunctionalTests
                 Console.WriteLine("Running the full suite of tests");
                 GVFSTestConfig.UseAllRunners = true;
             }
+
+            GVFSTestConfig.RepoToClone =
+                runner.GetCustomArgWithParam("--repo-to-clone")
+                ?? Properties.Settings.Default.RepoToClone;
             
             string servicePath = Path.Combine(TestContext.CurrentContext.TestDirectory, Properties.Settings.Default.PathToGVFSService);
             GVFSServiceProcess.InstallService(servicePath);

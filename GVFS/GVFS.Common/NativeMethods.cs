@@ -117,7 +117,7 @@ namespace GVFS.Common
                 IntPtr.Zero);
             if (result.IsInvalid)
             {
-                ThrowWin32Exception(Marshal.GetLastWin32Error());
+                ThrowLastWin32Exception();
             }
 
             return result;
@@ -139,7 +139,7 @@ namespace GVFS.Common
                 null,
                 0))
             {
-                ThrowWin32Exception(Marshal.GetLastWin32Error());
+                ThrowLastWin32Exception();
             }
 
             return (fileSystemFlags & (uint)flags) == (uint)flags;
@@ -161,18 +161,13 @@ namespace GVFS.Common
         {
             if (!MoveFileEx(existingFileName, newFileName, (uint)flags))
             {
-                ThrowWin32Exception(Marshal.GetLastWin32Error());
+                ThrowLastWin32Exception();
             }
         }
 
-        public static void ThrowWin32Exception(int error, params int[] ignoreErrors)
+        private static void ThrowLastWin32Exception()
         {
-            if (ignoreErrors.Any(ignored => ignored == error))
-            {
-                return;
-            }
-
-            throw new Win32Exception(error);
+            throw new Win32Exception(Marshal.GetLastWin32Error());
         }
 
         [DllImport("kernel32.dll", SetLastError = true, CharSet = CharSet.Unicode)]

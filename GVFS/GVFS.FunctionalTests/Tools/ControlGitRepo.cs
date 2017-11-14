@@ -10,7 +10,7 @@ namespace GVFS.FunctionalTests.Tools
         {
             if (!Directory.Exists(CachePath))
             {
-                GitProcess.Invoke(Environment.SystemDirectory, "clone " + Properties.Settings.Default.RepoToClone + " " + CachePath + " --bare");
+                GitProcess.Invoke(Environment.SystemDirectory, "clone " + GVFSTestConfig.RepoToClone + " " + CachePath + " --bare");
             }
             else
             {
@@ -38,7 +38,7 @@ namespace GVFS.FunctionalTests.Tools
         {
             string clonePath = Path.Combine(Properties.Settings.Default.ControlGitRepoRoot, Guid.NewGuid().ToString("N"));
             return new ControlGitRepo(
-                Properties.Settings.Default.RepoToClone,
+                GVFSTestConfig.RepoToClone,
                 clonePath,
                 commitish == null ? Properties.Settings.Default.Commitish : commitish);
         }

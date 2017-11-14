@@ -25,6 +25,18 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
         }
 
         [TestCase]
+        public void MergeConflictWithFileReads()
+        {
+            // No need to tear down this config since these tests are for enlistment per test.
+            this.SetupRenameDetectionAvoidanceInConfig();
+
+            this.ValidateGitCommand("checkout " + GitRepoTests.ConflictTargetBranch);
+            this.ReadConflictTargetFiles();
+            this.RunGitCommand("merge " + GitRepoTests.ConflictSourceBranch);
+            this.FilesShouldMatchAfterConflict();
+        }
+
+        [TestCase]
         public void MergeConflict_ThenAbort()
         {
             // No need to tear down this config since these tests are for enlistment per test.
@@ -34,6 +46,39 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
             this.RunGitCommand("merge " + GitRepoTests.ConflictSourceBranch);
             this.ValidateGitCommand("merge --abort");
             this.FilesShouldMatchCheckoutOfTargetBranch();
+        }
+        
+        [TestCase]
+        public void MergeConflict_UsingOurs()
+        {
+            // No need to tear down this config since these tests are for enlistment per test.
+            this.SetupRenameDetectionAvoidanceInConfig();
+
+            this.ValidateGitCommand("checkout " + GitRepoTests.ConflictTargetBranch);
+            this.RunGitCommand($"merge -s ours {GitRepoTests.ConflictSourceBranch}");
+            this.FilesShouldMatchCheckoutOfTargetBranch();
+        }
+
+        [TestCase]
+        public void MergeConflict_UsingStrategyTheirs()
+        {
+            // No need to tear down this config since these tests are for enlistment per test.
+            this.SetupRenameDetectionAvoidanceInConfig();
+
+            this.ValidateGitCommand("checkout " + GitRepoTests.ConflictTargetBranch);
+            this.RunGitCommand($"merge -s recursive -Xtheirs {GitRepoTests.ConflictSourceBranch}");
+            this.FilesShouldMatchAfterConflict();
+        }
+
+        [TestCase]
+        public void MergeConflict_UsingStrategyOurs()
+        {
+            // No need to tear down this config since these tests are for enlistment per test.
+            this.SetupRenameDetectionAvoidanceInConfig();
+
+            this.ValidateGitCommand("checkout " + GitRepoTests.ConflictTargetBranch);
+            this.RunGitCommand($"merge -s recursive -Xours {GitRepoTests.ConflictSourceBranch}");
+            this.FilesShouldMatchAfterConflict();
         }
 
         [TestCase]

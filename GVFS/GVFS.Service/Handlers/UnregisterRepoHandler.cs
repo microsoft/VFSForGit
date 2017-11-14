@@ -3,14 +3,18 @@ using GVFS.Common.Tracing;
 
 namespace GVFS.Service.Handlers
 {
-    public class UnregisterRepoHandler
+    public class UnregisterRepoHandler : MessageHandler
     {
         private NamedPipeServer.Connection connection;
         private NamedPipeMessages.UnregisterRepoRequest request;
         private ITracer tracer;
         private RepoRegistry registry;
 
-        public UnregisterRepoHandler(ITracer tracer, RepoRegistry registry, NamedPipeServer.Connection connection, NamedPipeMessages.UnregisterRepoRequest request)
+        public UnregisterRepoHandler(
+            ITracer tracer,
+            RepoRegistry registry,
+            NamedPipeServer.Connection connection,
+            NamedPipeMessages.UnregisterRepoRequest request)
         {
             this.tracer = tracer;
             this.registry = registry;
@@ -26,23 +30,16 @@ namespace GVFS.Service.Handlers
             if (this.registry.TryDeactivateRepo(this.request.EnlistmentRoot, out errorMessage))
             {
                 response.State = NamedPipeMessages.CompletionState.Success;
+                this.tracer.RelatedInfo("Deactivated repo {0}", this.request.EnlistmentRoot);
             }
             else
             {
                 response.ErrorMessage = errorMessage;
                 response.State = NamedPipeMessages.CompletionState.Failure;
+                this.tracer.RelatedError("Failed to deactivate repo {0} with error: {1}", this.request.EnlistmentRoot, errorMessage);
             }
 
-            this.WriteToClient(response);
-        }
-        
-        private void WriteToClient(NamedPipeMessages.UnregisterRepoRequest.Response response)
-        {
-            NamedPipeMessages.Message message = response.ToMessage();
-            if (!this.connection.TrySendResponse(message))
-            {
-                this.tracer.RelatedError("Failed to send line to client: {0}", message);
-            }
+            this.WriteToClient(response.ToMessage(), this.connection, this.tracer);
         }
     }
 }

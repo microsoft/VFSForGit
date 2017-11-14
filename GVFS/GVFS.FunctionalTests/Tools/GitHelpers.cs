@@ -77,7 +77,18 @@ namespace GVFS.FunctionalTests.Tools
             }
         }
 
-        public static ManualResetEventSlim AcquireGVFSLock(GVFSFunctionalTestEnlistment enlistment, int resetTimeout = Timeout.Infinite)
+        public static ManualResetEventSlim AcquireGVFSLock(
+            GVFSFunctionalTestEnlistment enlistment,
+            int resetTimeout = Timeout.Infinite)
+        {
+            return RunGitCommandWithWaitAndStdIn(enlistment, resetTimeout: resetTimeout, command: "hash-object --stdin", stdinToQuit: "dummy");
+        }
+
+        public static ManualResetEventSlim RunGitCommandWithWaitAndStdIn(
+            GVFSFunctionalTestEnlistment enlistment,
+            int resetTimeout,
+            string command,
+            string stdinToQuit)
         {
             ManualResetEventSlim resetEvent = new ManualResetEventSlim(initialState: false);
 
@@ -87,12 +98,12 @@ namespace GVFS.FunctionalTests.Tools
             processInfo.RedirectStandardOutput = true;
             processInfo.RedirectStandardError = true;
             processInfo.RedirectStandardInput = true;
-            processInfo.Arguments = "hash-object --stdin";
+            processInfo.Arguments = command;
 
             Process holdingProcess = Process.Start(processInfo);
             StreamWriter stdin = holdingProcess.StandardInput;
 
-            enlistment.WaitForLock("git hash-object --stdin");
+            enlistment.WaitForLock("git " + command);
 
             Task.Run(
                 () =>
@@ -102,7 +113,7 @@ namespace GVFS.FunctionalTests.Tools
                     // Make sure to let the holding process end.
                     if (stdin != null)
                     {
-                        stdin.WriteLine("dummy");
+                        stdin.WriteLine(stdinToQuit);
                         stdin.Close();
                     }
 
@@ -115,6 +126,8 @@ namespace GVFS.FunctionalTests.Tools
 
                         holdingProcess.Dispose();
                     }
+
+                    resetEvent.Set();
                 });
 
             return resetEvent;

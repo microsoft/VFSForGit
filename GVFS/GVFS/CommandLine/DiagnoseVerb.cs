@@ -5,8 +5,11 @@ using GVFS.Common.Git;
 using GVFS.Common.Http;
 using Microsoft.Isam.Esent.Collections.Generic;
 using System;
+using System.Collections.Generic;
+using System.Diagnostics;
 using System.IO;
 using System.IO.Compression;
+using System.Linq;
 
 namespace GVFS.CommandLine
 {
@@ -40,7 +43,7 @@ namespace GVFS.CommandLine
 
             string archiveFolderPath = Path.Combine(diagnosticsRoot, "gvfs_" + DateTime.Now.ToString("yyyyMMdd_HHmmss"));
             Directory.CreateDirectory(archiveFolderPath);
-            
+
             using (FileStream diagnosticLogFile = new FileStream(Path.Combine(archiveFolderPath, "diagnostics.log"), FileMode.CreateNew))
             using (this.diagnosticLogFileWriter = new StreamWriter(diagnosticLogFile))
             {
@@ -60,7 +63,7 @@ namespace GVFS.CommandLine
                 this.WriteAntiVirusExclusions(enlistment.EnlistmentRoot, archiveFolderPath, "DefenderExclusionInfo.txt");
 
                 this.ShowStatusWhileRunning(
-                    () => 
+                    () =>
                         this.RunAndRecordGVFSVerb<StatusVerb>(archiveFolderPath, "gvfs_status.txt") != ReturnCode.Success ||
                         this.RunAndRecordGVFSVerb<UnmountVerb>(archiveFolderPath, "gvfs_unmount.txt", verb => verb.SkipLock = true) == ReturnCode.Success,
                     "Unmounting",
@@ -84,6 +87,10 @@ namespace GVFS.CommandLine
                         this.CopyAllFiles(enlistment.WorkingDirectoryRoot, archiveFolderPath, GVFSConstants.DotGit.Logs.Root, copySubFolders: true);
                         this.CopyAllFiles(enlistment.WorkingDirectoryRoot, archiveFolderPath, GVFSConstants.DotGit.Refs.Root, copySubFolders: true);
                         this.CopyAllFiles(enlistment.WorkingDirectoryRoot, archiveFolderPath, GVFSConstants.DotGit.Objects.Info.Root, copySubFolders: false);
+                        this.LogDirectoryEnumeration(enlistment.WorkingDirectoryRoot, archiveFolderPath, GVFSConstants.DotGit.Objects.Pack.Root, "packs-local.txt");
+                        this.LogLooseObjectCount(enlistment.WorkingDirectoryRoot, archiveFolderPath, GVFSConstants.DotGit.Objects.Root, "objects-local.txt");
+                        this.LogDirectoryEnumeration(enlistment.GitObjectsRoot, archiveFolderPath, GVFSConstants.DotGit.Objects.Pack.Name, "packs-cached.txt");
+                        this.LogLooseObjectCount(enlistment.GitObjectsRoot, archiveFolderPath, string.Empty, "objects-cached.txt");
 
                         // databases
                         this.CopyEsentDatabase<string, long>(enlistment.DotGVFSRoot, Path.Combine(archiveFolderPath, GVFSConstants.DotGVFS.Root), GVFSConstants.DotGVFS.BlobSizesName);
@@ -161,6 +168,84 @@ namespace GVFS.CommandLine
             }
         }
 
+        private void LogDirectoryEnumeration(string sourceRoot, string targetRoot, string folderName, string logfile)
+        {
+            string folder = Path.Combine(sourceRoot, folderName);
+            string targetLog = Path.Combine(targetRoot, logfile);
+
+            try
+            {
+                List<string> lines = new List<string>();
+
+                if (Directory.Exists(folder))
+                {
+                    DirectoryInfo packDirectory = new DirectoryInfo(folder);
+
+                    lines.Add($"Contents of {folder}:");
+                    foreach (FileInfo file in packDirectory.EnumerateFiles())
+                    {
+                        lines.Add($"{file.Name,-70} {file.Length,16}");
+                    }
+                }
+
+                File.WriteAllLines(targetLog, lines.ToArray());
+            }
+            catch (Exception e)
+            {
+                this.WriteMessage(string.Format(
+                    "Failed to log file sizes for {0} in {1} with exception {2}. logfile: {3}",
+                    folderName,
+                    sourceRoot,
+                    e,
+                    logfile));
+            }
+        }
+
+        private void LogLooseObjectCount(string sourceRoot, string targetRoot, string folderName, string logfile)
+        {
+            string objectFolder = Path.Combine(sourceRoot, folderName);
+            string targetLog = Path.Combine(targetRoot, logfile);
+
+            try
+            {
+                List<string> lines = new List<string>();
+
+                if (Directory.Exists(objectFolder))
+                {
+                    DirectoryInfo objectDirectory = new DirectoryInfo(objectFolder);
+
+                    int countLoose = 0;
+                    int countFolders = 0;
+
+                    lines.Add($"Object directory stats for {objectFolder}:");
+
+                    foreach (DirectoryInfo directory in objectDirectory.EnumerateDirectories())
+                    {
+                        if (directory.Name.Length == 2)
+                        {
+                            countFolders++;
+                            int numObjects = directory.EnumerateFiles().Count();
+                            lines.Add($"{directory.Name} : {numObjects,7} objects");
+                            countLoose += numObjects;
+                        }
+                    }
+
+                    lines.Add($"Total: {countLoose} loose objects");
+                }
+
+                File.WriteAllLines(targetLog, lines.ToArray());
+            }
+            catch (Exception e)
+            {
+                this.WriteMessage(string.Format(
+                    "Failed to log loose object count for {0} in {1} with exception {2}. logfile: {3}",
+                    folderName,
+                    sourceRoot,
+                    e,
+                    logfile));
+            }
+        }
+
         private void RecursiveFileCopyImpl(string sourcePath, string targetPath, bool copySubFolders)
         {
             if (!Directory.Exists(targetPath))
@@ -222,6 +307,7 @@ namespace GVFS.CommandLine
                 using (StreamWriter writer = new StreamWriter(file))
                 {
                     return this.Execute<TVerb>(
+                        this.EnlistmentRootPath,
                         verb =>
                         {
                             if (configureVerb != null)

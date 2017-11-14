@@ -2,10 +2,9 @@
 
 namespace GvLib
 {
+    ///<summary>Subset of HRESULT values</summary>
     public enum class HResult : long
     {
-        // Subset of HRESULT values.  Add more values as needed.
-
         Ok = S_OK,                                   // Operation successful
         Abort = E_ABORT,                             // Operation aborted
         AccessDenied = E_ACCESSDENIED,               // General access denied error
@@ -18,7 +17,6 @@ namespace GvLib
         Pointer = E_POINTER,                         // Pointer that is not valid
         Unexpected = E_UNEXPECTED,                   // Unexpected failure
         PrivilegeNotHeld = ERROR_PRIVILEGE_NOT_HELD, // A required privilege is not held by the client.
-        ReparsePointEncountered = __HRESULT_FROM_WIN32(ERROR_REPARSE_POINT_ENCOUNTERED) // The object manager encountered a reparse point while retrieving an object.
-        
+        ReparsePointEncountered = __HRESULT_FROM_WIN32(ERROR_REPARSE_POINT_ENCOUNTERED) // The object manager encountered a reparse point while retrieving an object.        
     };
 }

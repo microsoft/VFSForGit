@@ -144,7 +144,6 @@ namespace GVFS.Common.Http
 
         public virtual RetryWrapper<GitObjectTaskResult>.InvocationResult TryDownloadObjects(
             Func<IEnumerable<string>> objectIdGenerator,
-            int commitDepth,
             Func<int, GitEndPointResponseData, RetryWrapper<GitObjectTaskResult>.CallbackResult> onSuccess,
             Action<RetryWrapper<GitObjectTaskResult>.ErrorEventArgs> onFailure,
             bool preferBatchedLooseObjects)
@@ -159,20 +158,19 @@ namespace GVFS.Common.Http
                 HttpMethod.Post,
                 new Uri(this.CacheServer.ObjectsEndpointUrl),
                 new CancellationToken(canceled: false),
-                () => this.ObjectIdsJsonGenerator(requestId, objectIdGenerator, commitDepth),
+                () => this.ObjectIdsJsonGenerator(requestId, objectIdGenerator),
                 preferBatchedLooseObjects ? CustomLooseObjectsHeader : null);
         }
 
         public virtual RetryWrapper<GitObjectTaskResult>.InvocationResult TryDownloadObjects(
             IEnumerable<string> objectIds,
-            int commitDepth,
             Func<int, GitEndPointResponseData, RetryWrapper<GitObjectTaskResult>.CallbackResult> onSuccess,
             Action<RetryWrapper<GitObjectTaskResult>.ErrorEventArgs> onFailure,
             bool preferBatchedLooseObjects)
         {
             long requestId = HttpRequestor.GetNewRequestId();
 
-            string objectIdsJson = CreateObjectIdJson(objectIds, commitDepth);
+            string objectIdsJson = CreateObjectIdJson(objectIds);
             int objectCount = objectIds.Count();
             EventMetadata metadata = new EventMetadata();
             metadata.Add("RequestId", requestId);
@@ -290,9 +288,9 @@ namespace GVFS.Common.Http
             return "[\"" + string.Join("\",\"", strings) + "\"]";
         }
 
-        private static string CreateObjectIdJson(IEnumerable<string> strings, int commitDepth)
+        private static string CreateObjectIdJson(IEnumerable<string> strings)
         {
-            return "{\"commitDepth\": " + commitDepth + ", \"objectIds\":" + ToJsonList(strings) + "}";
+            return "{\"commitDepth\": 1, \"objectIds\":" + ToJsonList(strings) + "}";
         }
 
         private void HandleDownloadAndSaveObjectError(bool retryOnFailure, long requestId, RetryWrapper<GitObjectsHttpRequestor.GitObjectTaskResult>.ErrorEventArgs errorArgs)
@@ -310,10 +308,10 @@ namespace GVFS.Common.Http
             RetryWrapper<GitObjectsHttpRequestor.GitObjectTaskResult>.StandardErrorHandler(this.Tracer, requestId, nameof(this.TryDownloadLooseObject), forceLogAsWarning)(errorArgs);
         }
 
-        private string ObjectIdsJsonGenerator(long requestId, Func<IEnumerable<string>> objectIdGenerator, int commitDepth)
+        private string ObjectIdsJsonGenerator(long requestId, Func<IEnumerable<string>> objectIdGenerator)
         {
             IEnumerable<string> objectIds = objectIdGenerator();
-            string objectIdsJson = CreateObjectIdJson(objectIds, commitDepth);
+            string objectIdsJson = CreateObjectIdJson(objectIds);
             int objectCount = objectIds.Count();
             EventMetadata metadata = new EventMetadata();
             metadata.Add("RequestId", requestId);

@@ -1,13 +1,16 @@
 ﻿using CommandLine;
 using GVFS.Common;
+using GVFS.Common.FileSystem;
 using GVFS.Common.Git;
 using GVFS.Common.Http;
 using GVFS.Common.NamedPipes;
 using GVFS.Common.Tracing;
+using GVFS.GVFlt;
 using Microsoft.Diagnostics.Tracing;
 using System;
 using System.IO;
 using System.Linq;
+using System.Text;
 
 namespace GVFS.CommandLine
 {
@@ -154,6 +157,7 @@ namespace GVFS.CommandLine
                     if (!this.NoPrefetch)
                     {
                         this.Execute<PrefetchVerb>(
+                            this.EnlistmentRootPath,
                             verb =>
                             {
                                 verb.Commits = true;
@@ -170,6 +174,7 @@ namespace GVFS.CommandLine
                     else
                     {
                         this.Execute<MountVerb>(
+                            this.EnlistmentRootPath,
                             verb =>
                             {
                                 verb.SkipMountedCheck = true;
@@ -204,6 +209,17 @@ namespace GVFS.CommandLine
             }
 
             Environment.Exit(exitCode);
+        }
+
+        private static bool IsForceCheckoutErrorCloneFailure(string checkoutError)
+        {
+            if (string.IsNullOrWhiteSpace(checkoutError) ||
+                checkoutError.Contains("Already on"))
+            {
+                return false;
+            }
+
+            return true;
         }
 
         private Result TryCreateEnlistment(out GVFSEnlistment enlistment)
@@ -281,8 +297,7 @@ namespace GVFS.CommandLine
                         return new Result(error);
                     }
                     
-                    CloneHelper cloneHelper = new CloneHelper(tracer, enlistment, objectRequestor);
-                    return cloneHelper.CreateClone(refs, this.Branch);
+                    return this.CreateClone(tracer, enlistment, objectRequestor, refs, this.Branch);
                 }
             }
         }
@@ -329,7 +344,192 @@ namespace GVFS.CommandLine
             }
         }
 
-        public class Result
+        private Result CreateClone(
+            ITracer tracer,
+            GVFSEnlistment enlistment,
+            GitObjectsHttpRequestor objectRequestor,
+            GitRefs refs,
+            string branch)
+        {
+            Result initRepoResult = this.TryInitRepo(tracer, refs, enlistment);
+            if (!initRepoResult.Success)
+            {
+                return initRepoResult;
+            }
+
+            string errorMessage;
+            if (!enlistment.TryConfigureAlternate(out errorMessage))
+            {
+                return new Result("Error configuring alternate: " + errorMessage);
+            }
+
+            PhysicalFileSystem fileSystem = new PhysicalFileSystem();
+            GitRepo gitRepo = new GitRepo(tracer, enlistment, fileSystem);
+            GVFSGitObjects gitObjects = new GVFSGitObjects(new GVFSContext(tracer, fileSystem, gitRepo, enlistment), objectRequestor);
+
+            if (!this.TryDownloadCommit(
+                refs.GetTipCommitId(branch),
+                enlistment,
+                objectRequestor,
+                gitObjects,
+                gitRepo,
+                out errorMessage))
+            {
+                return new Result(errorMessage);
+            }
+
+            if (!GVFSVerb.TrySetGitConfigSettings(enlistment))
+            {
+                return new Result("Unable to configure git repo");
+            }
+
+            CacheServerResolver cacheServerResolver = new CacheServerResolver(tracer, enlistment);
+            if (!cacheServerResolver.TrySaveUrlToLocalConfig(objectRequestor.CacheServer, out errorMessage))
+            {
+                return new Result("Unable to configure cache server: " + errorMessage);
+            }
+
+            GitProcess git = new GitProcess(enlistment);
+            string originBranchName = "origin/" + branch;
+            GitProcess.Result createBranchResult = git.CreateBranchWithUpstream(branch, originBranchName);
+            if (createBranchResult.HasErrors)
+            {
+                return new Result("Unable to create branch '" + originBranchName + "': " + createBranchResult.Errors + "\r\n" + createBranchResult.Output);
+            }
+
+            File.WriteAllText(
+                Path.Combine(enlistment.WorkingDirectoryRoot, GVFSConstants.DotGit.Head),
+                "ref: refs/heads/" + branch);
+
+            File.AppendAllText(
+                Path.Combine(enlistment.WorkingDirectoryRoot, GVFSConstants.DotGit.Info.SparseCheckoutPath),
+                GVFSConstants.GitPathSeparatorString + GVFSConstants.SpecialGitFiles.GitAttributes + "\n");
+
+            if (!this.TryDownloadRootGitAttributes(enlistment, gitObjects, gitRepo, out errorMessage))
+            {
+                return new Result(errorMessage);
+            }
+
+            this.CreateGitScript(enlistment);
+
+            GitProcess.Result forceCheckoutResult = git.ForceCheckout(branch);
+            if (forceCheckoutResult.HasErrors)
+            {
+                string[] errorLines = forceCheckoutResult.Errors.Split('\n');
+                StringBuilder checkoutErrors = new StringBuilder();
+                foreach (string gitError in errorLines)
+                {
+                    if (IsForceCheckoutErrorCloneFailure(gitError))
+                    {
+                        checkoutErrors.AppendLine(gitError);
+                    }
+                }
+
+                if (checkoutErrors.Length > 0)
+                {
+                    string error = "Could not complete checkout of branch: " + branch + ", " + checkoutErrors.ToString();
+                    tracer.RelatedError(error);
+                    return new Result(error);
+                }
+            }
+
+            GitProcess.Result updateIndexresult = git.UpdateIndexVersion4();
+            if (updateIndexresult.HasErrors)
+            {
+                string error = "Could not update index, error: " + updateIndexresult.Errors;
+                tracer.RelatedError(error);
+                return new Result(error);
+            }
+
+            string installHooksError;
+            if (!HooksInstaller.InstallHooks(enlistment, out installHooksError))
+            {
+                tracer.RelatedError(installHooksError);
+                return new Result(installHooksError);
+            }
+
+            if (!RepoMetadata.TryInitialize(tracer, enlistment.DotGVFSRoot, out errorMessage))
+            {
+                tracer.RelatedError(errorMessage);
+                return new Result(errorMessage);
+            }
+
+            try
+            {
+                RepoMetadata.Instance.SaveCurrentDiskLayoutVersion();
+            }
+            catch (Exception e)
+            {
+                tracer.RelatedError(e.ToString());
+                return new Result(e.Message);
+            }
+            finally
+            {
+                RepoMetadata.Shutdown();
+            }
+
+            // Prepare the working directory folder for GVFS last to ensure that gvfs mount will fail if gvfs clone has failed
+            string prepGVFltError;
+            if (!GVFltCallbacks.TryPrepareFolderForGVFltCallbacks(enlistment.WorkingDirectoryRoot, out prepGVFltError))
+            {
+                tracer.RelatedError(prepGVFltError);
+                return new Result(prepGVFltError);
+            }
+
+            return new Result(true);
+        }
+
+        private void CreateGitScript(GVFSEnlistment enlistment)
+        {
+            FileInfo gitCmd = new FileInfo(Path.Combine(enlistment.EnlistmentRoot, "git.cmd"));
+            using (FileStream fs = gitCmd.Create())
+            using (StreamWriter writer = new StreamWriter(fs))
+            {
+                writer.Write(
+@"
+@echo OFF
+echo .
+echo ^[105;30m                                                                                     
+echo      This repo was cloned using GVFS, and the git repo is in the 'src' directory     
+echo      Switching you to the 'src' directory and rerunning your git command             
+echo                                                                                      [0m                                                                            
+
+@echo ON
+cd src
+git %*
+");
+            }
+
+            gitCmd.Attributes = FileAttributes.Hidden;
+        }
+
+        private Result TryInitRepo(ITracer tracer, GitRefs refs, Enlistment enlistmentToInit)
+        {
+            string repoPath = enlistmentToInit.WorkingDirectoryRoot;
+            GitProcess.Result initResult = GitProcess.Init(enlistmentToInit);
+            if (initResult.HasErrors)
+            {
+                string error = string.Format("Could not init repo at to {0}: {1}", repoPath, initResult.Errors);
+                tracer.RelatedError(error);
+                return new Result(error);
+            }
+
+            GitProcess.Result remoteAddResult = new GitProcess(enlistmentToInit).RemoteAdd("origin", enlistmentToInit.RepoUrl);
+            if (remoteAddResult.HasErrors)
+            {
+                string error = string.Format("Could not add remote to {0}: {1}", repoPath, remoteAddResult.Errors);
+                tracer.RelatedError(error);
+                return new Result(error);
+            }
+
+            File.WriteAllText(
+                Path.Combine(repoPath, GVFSConstants.DotGit.PackedRefs),
+                refs.ToPackedRefs());
+
+            return new Result(true);
+        }
+
+        private class Result
         {
             public Result(bool success)
             {

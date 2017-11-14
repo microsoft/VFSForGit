@@ -4,15 +4,15 @@ using GVFS.Common.Tracing;
 
 namespace GVFS.Service.Handlers
 {
-    public class AttachGvFltHandler
+    public class AttachGvFltHandler : MessageHandler
     {
         private NamedPipeServer.Connection connection;
         private NamedPipeMessages.AttachGvFltRequest request;
         private ITracer tracer;
 
         public AttachGvFltHandler(
-            ITracer tracer, 
-            NamedPipeServer.Connection connection, 
+            ITracer tracer,
+            NamedPipeServer.Connection connection,
             NamedPipeMessages.AttachGvFltRequest request)
         {
             this.tracer = tracer;
@@ -30,16 +30,12 @@ namespace GVFS.Service.Handlers
                 this.tracer.RelatedError("Unable to attach filter to volume. Enlistment root: {0} \nError: {1} ", this.request.EnlistmentRoot, errorMessage);
             }
 
-            this.WriteToClient(new NamedPipeMessages.AttachGvFltRequest.Response() { State = state, ErrorMessage = errorMessage });
-        }
+            NamedPipeMessages.AttachGvFltRequest.Response response = new NamedPipeMessages.AttachGvFltRequest.Response();
 
-        private void WriteToClient(NamedPipeMessages.AttachGvFltRequest.Response response)
-        {
-            NamedPipeMessages.Message message = response.ToMessage();
-            if (!this.connection.TrySendResponse(message))
-            {
-                this.tracer.RelatedError("Failed to send line to client: {0}", message);
-            }
+            response.State = state;
+            response.ErrorMessage = errorMessage;
+
+            this.WriteToClient(response.ToMessage(), this.connection, this.tracer);
         }
     }
 }

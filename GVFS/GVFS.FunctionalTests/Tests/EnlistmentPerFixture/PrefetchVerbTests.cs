@@ -70,7 +70,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
 
         private void ExpectBlobCount(string output, int expectedCount)
         {
-            output.ShouldContain(string.Format("Your filter matched {0} blob(s)", expectedCount));
+            output.ShouldContain("Matched blobs:    " + expectedCount);
         }
     }
 }

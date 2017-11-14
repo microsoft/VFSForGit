@@ -13,7 +13,7 @@ namespace GVFS.FunctionalTests.Tests.MultiEnlistmentTests
 {
     [TestFixture]
     [Ignore("TODO 1081003: Re-enable shared cache")]
-    public class SharedCacheTests
+    public class SharedCacheTests : TestsWithMultiEnlistment
     {
         private const string WellKnownFile = "Readme.md";
 
@@ -21,7 +21,6 @@ namespace GVFS.FunctionalTests.Tests.MultiEnlistmentTests
         private const string WellKnownBranch = "FunctionalTests/20170602";
         private const string WellKnownCommitSha = "b407df4e21261e2bf022ef7031fabcf21ee0e14d";
 
-        private List<GVFSFunctionalTestEnlistment> enlistmentsToDelete = new List<GVFSFunctionalTestEnlistment>();
         private string pathToObjectCache;
         private string localGvfsRoot;
 
@@ -33,27 +32,20 @@ namespace GVFS.FunctionalTests.Tests.MultiEnlistmentTests
         }
 
         [TearDown]
-        public void DeleteEnlistmentsAndCache()
+        public void DeleteCache()
         {
-            foreach (GVFSFunctionalTestEnlistment enlistment in this.enlistmentsToDelete)
-            {
-                enlistment.UnmountAndDeleteAll();
-            }
-
-            this.enlistmentsToDelete.Clear();
-
             this.DeleteSharedCache();
         }
 
         [TestCase]
         public void SecondCloneDoesNotDownloadAdditionalObjects()
         {
-            GVFSFunctionalTestEnlistment enlistment1 = this.CreateNewEnlistment();
+            GVFSFunctionalTestEnlistment enlistment1 = this.CreateNewEnlistment(this.pathToObjectCache);
             File.ReadAllText(Path.Combine(enlistment1.RepoRoot, WellKnownFile));
             
             string[] allObjects = Directory.EnumerateFiles(enlistment1.ObjectRoot, "*", SearchOption.AllDirectories).ToArray();
 
-            GVFSFunctionalTestEnlistment enlistment2 = this.CreateNewEnlistment();
+            GVFSFunctionalTestEnlistment enlistment2 = this.CreateNewEnlistment(this.pathToObjectCache);
             File.ReadAllText(Path.Combine(enlistment2.RepoRoot, WellKnownFile));
 
             enlistment2.ObjectRoot.ShouldEqual(enlistment1.ObjectRoot, "Sanity: Object roots are expected to match.");
@@ -64,13 +56,13 @@ namespace GVFS.FunctionalTests.Tests.MultiEnlistmentTests
         [TestCase]
         public void ParallelReadsInASharedCache()
         {
-            GVFSFunctionalTestEnlistment enlistment1 = this.CreateNewEnlistment();
-            GVFSFunctionalTestEnlistment enlistment2 = this.CreateNewEnlistment();
+            GVFSFunctionalTestEnlistment enlistment1 = this.CreateNewEnlistment(this.pathToObjectCache);
+            GVFSFunctionalTestEnlistment enlistment2 = this.CreateNewEnlistment(this.pathToObjectCache);
             GVFSFunctionalTestEnlistment enlistment3 = null;
 
             Task task1 = Task.Run(() => this.HydrateEntireRepo(enlistment1));
             Task task2 = Task.Run(() => this.HydrateEntireRepo(enlistment2));
-            Task task3 = Task.Run(() => enlistment3 = this.CreateNewEnlistment());
+            Task task3 = Task.Run(() => enlistment3 = this.CreateNewEnlistment(this.pathToObjectCache));
 
             task1.Wait();
             task2.Wait();
@@ -84,8 +76,8 @@ namespace GVFS.FunctionalTests.Tests.MultiEnlistmentTests
         [TestCase]
         public void DeleteCacheBeforeMount()
         {
-            GVFSFunctionalTestEnlistment enlistment1 = this.CreateNewEnlistment();
-            GVFSFunctionalTestEnlistment enlistment2 = this.CreateNewEnlistment();
+            GVFSFunctionalTestEnlistment enlistment1 = this.CreateNewEnlistment(this.pathToObjectCache);
+            GVFSFunctionalTestEnlistment enlistment2 = this.CreateNewEnlistment(this.pathToObjectCache);
 
             enlistment1.UnmountGVFS();
 
@@ -105,7 +97,7 @@ namespace GVFS.FunctionalTests.Tests.MultiEnlistmentTests
         [TestCase]
         public void DeleteCacheAtOffsetBetweenHydrations()
         {
-            GVFSFunctionalTestEnlistment enlistment1 = this.CreateNewEnlistment();
+            GVFSFunctionalTestEnlistment enlistment1 = this.CreateNewEnlistment(this.pathToObjectCache);
 
             Task task1 = Task.Run(() =>
             {
@@ -131,10 +123,10 @@ namespace GVFS.FunctionalTests.Tests.MultiEnlistmentTests
         [TestCase]
         public void DownloadingACommitWithoutTreesDoesntBreakNextClone()
         {
-            GVFSFunctionalTestEnlistment enlistment1 = this.CreateNewEnlistment();
+            GVFSFunctionalTestEnlistment enlistment1 = this.CreateNewEnlistment(this.pathToObjectCache);
             GitProcess.Invoke(enlistment1.RepoRoot, "cat-file -s " + WellKnownCommitSha).ShouldEqual("293\n");
 
-            GVFSFunctionalTestEnlistment enlistment2 = this.CreateNewEnlistment(WellKnownBranch);
+            GVFSFunctionalTestEnlistment enlistment2 = this.CreateNewEnlistment(this.pathToObjectCache, WellKnownBranch);
             enlistment2.Status().ShouldContain("Mount status: Ready");
         }
 
@@ -145,18 +137,6 @@ namespace GVFS.FunctionalTests.Tests.MultiEnlistmentTests
             {
                 File.ReadAllText(allFiles[i]);
             }
-        }
-
-        private GVFSFunctionalTestEnlistment CreateNewEnlistment(string branch = null)
-        {
-            string pathToGvfs = Path.Combine(TestContext.CurrentContext.TestDirectory, Properties.Settings.Default.PathToGVFS);
-
-            // TODO 1081003: Re-enable shared cache 
-            // GVFSFunctionalTestEnlistment output = GVFSFunctionalTestEnlistment.CloneAndMount(pathToGvfs, commitish: branch, objectCachePath: this.pathToObjectCache);
-            GVFSFunctionalTestEnlistment output = null;
-
-            this.enlistmentsToDelete.Add(output);
-            return output;
         }
 
         private void DeleteSharedCache()

@@ -488,6 +488,14 @@ namespace GVFS.Mount
                 this.FailMountAndExit("Error: {0}", error);
             }
 
+            if (persistedVersion != RepoMetadata.DiskLayoutVersion.CurrentDiskLayoutVersion)
+            {
+                this.FailMountAndExit(
+                    "Error: On disk version ({0}) does not match current version ({1})",
+                    persistedVersion,
+                    RepoMetadata.DiskLayoutVersion.CurrentDiskLayoutVersion);
+            }
+
             try
             {
                 if (!this.gvfltCallbacks.TryStart(out error))
@@ -498,15 +506,6 @@ namespace GVFS.Mount
             catch (Exception e)
             {
                 this.FailMountAndExit("Failed to initialize src folder callbacks. {0}", e.ToString());
-            }
-
-            try
-            {
-                RepoMetadata.Instance.SaveCurrentDiskLayoutVersion();
-            }
-            catch (Exception e)
-            {
-                this.FailMountAndExit("Failed to update repo disk layout version: {0}", e.ToString());
             }
 
             this.AcquireFolderLocks(context);

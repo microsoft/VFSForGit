@@ -25,6 +25,8 @@ namespace GVFS.CommandLine
             HelpText = "Force unmount even if the lock is not available.")]
         public bool SkipLock { get; set; }
 
+        public bool SkipUnregister { get; set; }
+
         protected override string VerbName
         {
             get { return UnmountVerbName; }
@@ -53,7 +55,7 @@ namespace GVFS.CommandLine
                 this.ReportErrorAndExit(errorMessage);
             }
 
-            if (!this.Unattended)
+            if (!this.Unattended && !this.SkipUnregister)
             {
                 if (!this.ShowStatusWhileRunning(
                     () => { return this.UnregisterRepo(root, out errorMessage); },

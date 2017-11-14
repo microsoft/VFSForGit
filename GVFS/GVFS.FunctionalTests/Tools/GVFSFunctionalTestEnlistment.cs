@@ -181,7 +181,7 @@ namespace GVFS.FunctionalTests.Tools
             GVFSFunctionalTestEnlistment enlistment = new GVFSFunctionalTestEnlistment(
                 pathToGvfs,
                 enlistmentRoot ?? GetUniqueEnlistmentRoot(),
-                Properties.Settings.Default.RepoToClone,
+                GVFSTestConfig.RepoToClone,
                 commitish ?? Properties.Settings.Default.Commitish);
 
             try

@@ -181,7 +181,7 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
 
         protected void CreateEmptyFile()
         {
-            string filePath = "emptyFile.txt";
+            string filePath = Path.GetRandomFileName() + "emptyFile.txt";
             string virtualFile = Path.Combine(this.Enlistment.RepoRoot, filePath);
             string controlFile = Path.Combine(this.ControlGitRepo.RootPath, filePath);
             this.FileSystem.CreateEmptyFile(virtualFile);
@@ -344,6 +344,20 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
             string controlFile = Path.Combine(this.ControlGitRepo.RootPath, filePath);
             this.FileSystem.WriteAllText(virtualFile, newContent);
             this.FileSystem.WriteAllText(controlFile, newContent);
+        }
+
+        protected void ReadConflictTargetFiles()
+        {
+            this.FileContentsShouldMatch(@"Test_ConflictTests\AddedFiles\AddedByBothDifferentContent.txt");
+            this.FileContentsShouldMatch(@"Test_ConflictTests\AddedFiles\AddedByBothSameContent.txt");
+            this.FileContentsShouldMatch(@"Test_ConflictTests\AddedFiles\AddedByTarget.txt");
+            this.FileContentsShouldMatch(@"Test_ConflictTests\ModifiedFiles\ChangeInSource.txt");
+            this.FileContentsShouldMatch(@"Test_ConflictTests\ModifiedFiles\ChangeInTarget.txt");
+            this.FileContentsShouldMatch(@"Test_ConflictTests\ModifiedFiles\ChangeInTargetDeleteInSource.txt");
+            this.FileContentsShouldMatch(@"Test_ConflictTests\ModifiedFiles\ConflictingChange.txt");
+            this.FileContentsShouldMatch(@"Test_ConflictTests\ModifiedFiles\SameChange.txt");
+            this.FileContentsShouldMatch(@"Test_ConflictTests\ModifiedFiles\SuccessfulMerge.txt");
+            this.FileContentsShouldMatch(@"Test_ConflictTests\DeletedFiles\DeleteInSource.txt");
         }
 
         protected void FilesShouldMatchCheckoutOfTargetBranch()

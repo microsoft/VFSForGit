@@ -54,6 +54,8 @@ namespace FastFetch.Jobs
 
         protected abstract void DoWork();
 
-        protected abstract void DoAfterWork();
+        protected virtual void DoAfterWork()
+        {
+        }
     }
 }

@@ -1,11 +1,9 @@
-﻿using GVFS.Common.FileSystem;
-using GVFS.Common.Http;
+﻿using GVFS.Common.Http;
 using GVFS.Common.Tracing;
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.IO;
-using System.Linq;
 using System.Threading;
 
 namespace GVFS.Common.Git
@@ -24,16 +22,6 @@ namespace GVFS.Common.Git
         }
 
         protected GVFSContext Context { get; private set; }
-
-        public override bool TryEnsureCommitIsLocal(string commitSha, int commitDepth)
-        {
-            if (this.Context.Repository.CommitAndRootTreeExists(commitSha))
-            {
-                return true;
-            }
-
-            return base.TryEnsureCommitIsLocal(commitSha, commitDepth);
-        }
 
         public virtual bool TryCopyBlobContentStream(
             string sha, 

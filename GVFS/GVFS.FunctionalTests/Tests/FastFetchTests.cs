@@ -25,7 +25,7 @@ namespace GVFS.FunctionalTests.Tests
         public void InitControlRepo()
         {
             Directory.CreateDirectory(this.fastFetchControlRoot);
-            GitProcess.Invoke("C:\\", "clone -b " + Settings.Default.Commitish + " " + Settings.Default.RepoToClone + " " + this.fastFetchControlRoot);
+            GitProcess.Invoke("C:\\", "clone -b " + Settings.Default.Commitish + " " + GVFSTestConfig.RepoToClone + " " + this.fastFetchControlRoot);
         }
 
         [SetUp]
@@ -39,7 +39,7 @@ namespace GVFS.FunctionalTests.Tests
 
             Directory.CreateDirectory(this.fastFetchRepoRoot);
             GitProcess.Invoke(this.fastFetchRepoRoot, "init");
-            GitProcess.Invoke(this.fastFetchRepoRoot, "remote add origin " + Settings.Default.RepoToClone);
+            GitProcess.Invoke(this.fastFetchRepoRoot, "remote add origin " + GVFSTestConfig.RepoToClone);
         }
 
         [TearDown]
@@ -63,7 +63,7 @@ namespace GVFS.FunctionalTests.Tests
 
             ProcessResult checkoutResult = GitProcess.InvokeProcess(this.fastFetchRepoRoot, "checkout " + Settings.Default.Commitish);
             checkoutResult.Errors.ShouldEqual("Switched to a new branch '" + Settings.Default.Commitish + "'\r\n");
-            checkoutResult.Output.ShouldEqual("Branch " + Settings.Default.Commitish + " set up to track remote branch " + Settings.Default.Commitish + " from origin.\n");
+            checkoutResult.Output.ShouldEqual("Branch '" + Settings.Default.Commitish + "' set up to track remote branch '" + Settings.Default.Commitish + "' from 'origin'.\n");
 
             // When checking out with git, must manually update shallow.
             ProcessResult updateRefResult = GitProcess.InvokeProcess(this.fastFetchRepoRoot, "update-ref shallow " + Settings.Default.Commitish);
@@ -254,22 +254,87 @@ namespace GVFS.FunctionalTests.Tests
         [TestCase]
         public void SuccessfullyChecksOutDirectoryToFileToDirectory()
         {
-            // The delta between these two is:
-            // renamed:    GVFlt_MoveFileTest/NoneToNone/from/subFolder/from.txt -> GVFlt_MoveFileTest/NoneToNone/from/subFolder
-            //   where "subFolder" is a folder first, then becomes a file called "subFolder"
-            this.RunFastFetch("--checkout -c b5fd7d23706a18cff3e2b8225588d479f7e51138");
-            Path.Combine(this.fastFetchRepoRoot, "GVFlt_MoveFileTest\\NoneToNone\\from\\subFolder\\from.txt")
+            // This test switches between two branches and verifies specific transitions occured
+            this.RunFastFetch("--checkout -b FunctionalTests/20171103_DirectoryFileTransitionsPart1");
+
+            // Delta of interest - Check initial state
+            // renamed:    foo.cpp\foo.cpp -> foo.cpp
+            //   where the top level "foo.cpp" is a folder with a file, then becomes just a file
+            //   note that folder\file names picked illustrate a real example
+            Path.Combine(this.fastFetchRepoRoot, "foo.cpp\\foo.cpp")
                 .ShouldBeAFile(FileSystemRunner.DefaultRunner);
 
-            // This commit is tracked by the "FunctionalTests/20171017_RenameDirectoryToFile" test branch 
-            this.RunFastFetch("--checkout -c e6c02e421504313797b34eba50f8141472fb64ef");
-            Path.Combine(this.fastFetchRepoRoot, "GVFlt_MoveFileTest\\NoneToNone\\from\\subFolder")
+            // Delta of interest - Check initial state
+            // renamed:    a\a <-> b && b <-> a
+            //   where a\a contains "file contents one"
+            //   and b contains "file contents two"
+            //   This tests two types of renames crossing into each other
+            Path.Combine(this.fastFetchRepoRoot, "a\\a")
+                .ShouldBeAFile(FileSystemRunner.DefaultRunner).WithContents("file contents one");
+            Path.Combine(this.fastFetchRepoRoot, "b")
+                .ShouldBeAFile(FileSystemRunner.DefaultRunner).WithContents("file contents two");
+
+            // Delta of interest - Check initial state
+            // renamed:    c\c <-> d\c && d\d <-> c\d
+            //   where c\c contains "file contents c"
+            //   and d\d contains "file contents d"
+            //   This tests two types of renames crossing into each other
+            Path.Combine(this.fastFetchRepoRoot, "c\\c")
+                .ShouldBeAFile(FileSystemRunner.DefaultRunner).WithContents("file contents c");
+            Path.Combine(this.fastFetchRepoRoot, "d\\d")
+                .ShouldBeAFile(FileSystemRunner.DefaultRunner).WithContents("file contents d");
+
+            // Now switch to second branch, part2 and verify transitions
+            this.RunFastFetch("--checkout -b FunctionalTests/20171103_DirectoryFileTransitionsPart2");
+
+            // Delta of interest - Verify change
+            // renamed:    foo.cpp\foo.cpp -> foo.cpp
+            Path.Combine(this.fastFetchRepoRoot, "foo.cpp")
                 .ShouldBeAFile(FileSystemRunner.DefaultRunner);
+
+            // Delta of interest - Verify change
+            // renamed:    a\a <-> b && b <-> a
+            Path.Combine(this.fastFetchRepoRoot, "a")
+                .ShouldBeAFile(FileSystemRunner.DefaultRunner).WithContents("file contents two");
+            Path.Combine(this.fastFetchRepoRoot, "b")
+                .ShouldBeAFile(FileSystemRunner.DefaultRunner).WithContents("file contents one");
+
+            // Delta of interest - Verify change
+            // renamed:    c\c <-> d\c && d\d <-> c\d
+            Path.Combine(this.fastFetchRepoRoot, "c\\d")
+                .ShouldBeAFile(FileSystemRunner.DefaultRunner).WithContents("file contents d");
+            Path.Combine(this.fastFetchRepoRoot, "d\\c")
+                .ShouldBeAFile(FileSystemRunner.DefaultRunner).WithContents("file contents c");
+            Path.Combine(this.fastFetchRepoRoot, "c\\c")
+                .ShouldNotExistOnDisk(FileSystemRunner.DefaultRunner);
+            Path.Combine(this.fastFetchRepoRoot, "d\\d")
+                .ShouldNotExistOnDisk(FileSystemRunner.DefaultRunner);
 
             // And back again
-            this.RunFastFetch("--checkout -c b5fd7d23706a18cff3e2b8225588d479f7e51138");
-            Path.Combine(this.fastFetchRepoRoot, "GVFlt_MoveFileTest\\NoneToNone\\from\\subFolder\\from.txt")
+            this.RunFastFetch("--checkout -b FunctionalTests/20171103_DirectoryFileTransitionsPart1");
+
+            // Delta of interest - Final validation
+            // renamed:    foo.cpp\foo.cpp -> foo.cpp
+            Path.Combine(this.fastFetchRepoRoot, "foo.cpp\\foo.cpp")
                 .ShouldBeAFile(FileSystemRunner.DefaultRunner);
+
+            // Delta of interest - Final validation
+            // renamed:    a\a <-> b && b <-> a
+            Path.Combine(this.fastFetchRepoRoot, "a\\a")
+                .ShouldBeAFile(FileSystemRunner.DefaultRunner).WithContents("file contents one");
+            Path.Combine(this.fastFetchRepoRoot, "b")
+                .ShouldBeAFile(FileSystemRunner.DefaultRunner).WithContents("file contents two");
+
+            // Delta of interest - Final validation
+            // renamed:    c\c <-> d\c && d\d <-> c\d
+            Path.Combine(this.fastFetchRepoRoot, "c\\c")
+                .ShouldBeAFile(FileSystemRunner.DefaultRunner).WithContents("file contents c");
+            Path.Combine(this.fastFetchRepoRoot, "d\\d")
+                .ShouldBeAFile(FileSystemRunner.DefaultRunner).WithContents("file contents d");
+            Path.Combine(this.fastFetchRepoRoot, "c\\d")
+                .ShouldNotExistOnDisk(FileSystemRunner.DefaultRunner);
+            Path.Combine(this.fastFetchRepoRoot, "d\\c")
+                .ShouldNotExistOnDisk(FileSystemRunner.DefaultRunner);
         }
 
         private void AllFetchedFilePathsShouldPassCheck(Func<string, bool> checkPath)

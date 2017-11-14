@@ -69,13 +69,11 @@ namespace GVFS.Service
                     }
                 }
 
-                this.tracer.RelatedInfo("Registered repo {0}", repoRoot);
                 return true;
             }
             catch (Exception e)
             {
                 errorMessage = string.Format("Error while registering repo {0}: {1}", repoRoot, e.ToString());
-                this.tracer.RelatedError(errorMessage);
             }
 
             return false;
@@ -115,23 +113,20 @@ namespace GVFS.Service
                         if (repo.IsActive)
                         {
                             repo.IsActive = false;
-                            this.WriteRegistry(allRepos);                            
+                            this.WriteRegistry(allRepos);
                         }
 
-                        this.tracer.RelatedInfo("Deactivated repo {0}", repoRoot);
                         return true;
                     }
                     else
                     {
                         errorMessage = string.Format("Attempted to deactivate non-existent repo at '{0}'", repoRoot);
-                        this.tracer.RelatedWarning(errorMessage, Keywords.Telemetry);
                     }
                 }
             }
             catch (Exception e)
             {
                 errorMessage = string.Format("Error while deactivating repo {0}: {1}", repoRoot, e.ToString());
-                this.tracer.RelatedError(errorMessage);
             }
 
             return false;
@@ -220,6 +215,30 @@ namespace GVFS.Service
             }
 
             return allRepos;
+        }
+
+        public bool TryGetActiveRepos(out List<RepoRegistration> repoList, out string errorMessage)
+        {
+            repoList = null;
+            errorMessage = null;
+
+            lock (this.repoLock)
+            {
+                try
+                {
+                    Dictionary<string, RepoRegistration> repos = this.ReadRegistry();
+                    repoList = repos
+                        .Values
+                        .Where(repo => repo.IsActive)
+                        .ToList();
+                    return true;
+                }
+                catch (Exception e)
+                {
+                    errorMessage = string.Format("Unable to get list of active repos: {0}", e.ToString());
+                    return false;
+                }
+            }
         }
 
         private List<RepoRegistration> GetActiveReposForUser(string ownerSID)

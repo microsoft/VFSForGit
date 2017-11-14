@@ -84,23 +84,49 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
         [TestCase]
         public void UntrackedFileTest()
         {
-            this.ValidateGitCommand("checkout -b tests/functional/UntrackedFileTest");
-            this.CreateFile();
-            this.ValidateGitCommand("status");
-            this.ValidateGitCommand("add .");
-            this.RunGitCommand("commit -m \"Add new file\"");
-            this.ValidateGitCommand("status");
+            this.BasicCommit(this.CreateFile, addCommand: "add .");
         }
 
         [TestCase]
         public void UntrackedEmptyFileTest()
         {
-            this.ValidateGitCommand("checkout -b tests/functional/UntrackedEmptyFileTest");
-            this.CreateEmptyFile();
-            this.ValidateGitCommand("status");
-            this.ValidateGitCommand("add .");
-            this.RunGitCommand("commit -m \"Add new file\"");
-            this.ValidateGitCommand("status");
+            this.BasicCommit(this.CreateEmptyFile, addCommand: "add .");
+        }
+
+        [TestCase]
+        public void UntrackedFileAddAllTest()
+        {
+            this.BasicCommit(this.CreateFile, addCommand: "add --all");
+        }
+
+        [TestCase]
+        public void UntrackedEmptyFileAddAllTest()
+        {
+            this.BasicCommit(this.CreateEmptyFile, addCommand: "add --all");
+        }
+
+        [TestCase]
+        public void StageUntrackedFileTest()
+        {
+            this.BasicCommit(this.CreateFile, addCommand: "stage .");
+        }
+
+        [TestCase]
+        public void StageUntrackedEmptyFileTest()
+        {
+            this.BasicCommit(this.CreateEmptyFile, addCommand: "stage .");
+        }
+
+        [TestCase]
+        public void StageUntrackedFileAddAllTest()
+        {
+            this.BasicCommit(this.CreateFile, addCommand: "stage --all");
+        }
+
+        [TestCase]
+        public void StageUntrackedEmptyFileAddAllTest()
+        {
+            this.BasicCommit(this.CreateEmptyFile, addCommand: "stage --all");
         }
 
         [TestCase]
@@ -1045,6 +1071,15 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
             this.RunGitCommand("commit -m\"Delete only file.\"");
         }
 
+        private void BasicCommit(Action fileSystemAction, string addCommand, [CallerMemberName]string test = GitCommandsTests.UnknownTestName)
+        {
+            this.ValidateGitCommand($"checkout -b tests/functional/{test}");
+            fileSystemAction();
+            this.ValidateGitCommand("status");
+            this.ValidateGitCommand(addCommand);
+            this.RunGitCommand("commit -m \"BasicCommit for {test}\"");
+        }
+
         private void SwitchBranch(Action fileSystemAction, [CallerMemberName]string test = GitCommandsTests.UnknownTestName)
         {
             this.ValidateGitCommand("checkout -b tests/functional/{0}", test);
@@ -1086,7 +1121,7 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
 
         private void CreateFile()
         {
-            this.CreateFile("tempFile.txt", "Some content here");
+            this.CreateFile(Path.GetRandomFileName() + "tempFile.txt", "Some content here");
         }
 
         private void EditFile()

@@ -137,6 +137,16 @@ namespace GVFS.UnitTests.Common
             error.ShouldNotBeNull();
         }
 
+        [TestCase]
+        public void HasResolvedName()
+        {
+            new CacheServerInfo(null, null).HasResolvedName().ShouldBeFalse();
+            new CacheServerInfo(null, CacheServerInfo.ReservedNames.None).HasResolvedName().ShouldBeFalse();
+            new CacheServerInfo(null, CacheServerInfo.ReservedNames.Default).HasResolvedName().ShouldBeFalse();
+            new CacheServerInfo(null, CacheServerInfo.ReservedNames.UserDefined).HasResolvedName().ShouldBeFalse();
+            new CacheServerInfo(null, "MyCacheServer").HasResolvedName().ShouldBeTrue();
+        }
+
         private void ValidateIsNone(Enlistment enlistment, CacheServerInfo cacheServer)
         {
             cacheServer.Url.ShouldEqual(enlistment.RepoUrl);

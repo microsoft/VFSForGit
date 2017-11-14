@@ -254,6 +254,20 @@ namespace GVFS.Service
 
                         break;
 
+                    case NamedPipeMessages.GetActiveRepoListRequest.Header:
+                        try
+                        {
+                            NamedPipeMessages.GetActiveRepoListRequest repoListRequest = NamedPipeMessages.GetActiveRepoListRequest.FromMessage(message);
+                            GetActiveRepoListHandler excludeHandler = new GetActiveRepoListHandler(activity, this.repoRegistry, connection, repoListRequest);
+                            excludeHandler.Run();
+                        }
+                        catch (SerializationException ex)
+                        {
+                            activity.RelatedError("Could not deserialize repo list request: {0}", ex.Message);
+                        }
+
+                        break;
+
                     default:
                         EventMetadata metadata = new EventMetadata();
                         metadata.Add("Area", EtwArea);

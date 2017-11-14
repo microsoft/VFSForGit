@@ -12,7 +12,7 @@ namespace FastFetch.Jobs
         private const string AreaPath = "IndexPackJob";
         private const string IndexPackAreaPath = "IndexPack";
 
-        private readonly BlockingCollection<IndexPackRequest> inputQueue;
+        private readonly BlockingCollection<IndexPackRequest> availablePacks;
 
         private ITracer tracer;
         private GitObjects gitObjects;
@@ -21,14 +21,14 @@ namespace FastFetch.Jobs
 
         public IndexPackJob(
             int maxParallel,
-            BlockingCollection<IndexPackRequest> inputQueue,
+            BlockingCollection<IndexPackRequest> availablePacks,
             BlockingCollection<string> availableBlobs,
             ITracer tracer,
             GitObjects gitObjects)
             : base(maxParallel)
         {
             this.tracer = tracer.StartActivity(AreaPath, EventLevel.Informational, Keywords.Telemetry, metadata: null);
-            this.inputQueue = inputQueue;
+            this.availablePacks = availablePacks;
             this.gitObjects = gitObjects;
             this.AvailableBlobs = availableBlobs;
         }
@@ -38,7 +38,7 @@ namespace FastFetch.Jobs
         protected override void DoWork()
         {
             IndexPackRequest request;
-            while (this.inputQueue.TryTake(out request, millisecondsTimeout: -1))
+            while (this.availablePacks.TryTake(out request, Timeout.Infinite))
             {
                 EventMetadata metadata = new EventMetadata();
                 metadata.Add("PackId", request.DownloadRequest.PackId);

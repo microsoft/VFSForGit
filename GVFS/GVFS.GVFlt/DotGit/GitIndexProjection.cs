@@ -115,6 +115,14 @@ namespace GVFS.GVFlt.DotGit
         {
         }
 
+        private enum MergeStage : byte
+        {
+            NoConflicts = 0,
+            CommonAncestor = 1,
+            Yours = 2,
+            Theirs = 3
+        }
+
         private enum IndexAction
         {
             RebuildProjection,
@@ -409,7 +417,7 @@ namespace GVFS.GVFlt.DotGit
                 FileOrFolderData folderData;
                 if (this.TryGetOrAddFolderDataFromCache(folderPath, out folderData))
                 {
-                    folderData.PopulateSizes(this.context.Tracer, this.gitObjects, this.blobSizes, cancellationToken);
+                    folderData.FolderOnly_PopulateSizes(this.context.Tracer, this.gitObjects, this.blobSizes, cancellationToken);
                     List<GVFltFileInfo> childItems = new List<GVFltFileInfo>(folderData.ChildEntries.Count);
                     foreach (KeyValuePair<string, FileOrFolderData> childEntry in folderData.ChildEntries)
                     {
@@ -892,6 +900,7 @@ namespace GVFS.GVFlt.DotGit
                 indexFileStream.Read(sha, 0, 20);
 
                 ushort flags = ReadUInt16(buffer, indexFileStream);
+                MergeStage mergeStage = (MergeStage)((flags >> 12) & 3);
                 bool isExtended = (flags & ExtendedBit) == ExtendedBit;
                 int pathLength = (ushort)(flags & 0xFFF);
 
@@ -915,6 +924,11 @@ namespace GVFS.GVFlt.DotGit
                         {
                             string path = Encoding.UTF8.GetString(pathBuffer, 0, pathLength);
                             projection.AddItem(path, sha, entryOffset, ref lastParent, ref lastParentPath);
+                        }
+                        else if (mergeStage == MergeStage.Yours)
+                        {
+                            string path = Encoding.UTF8.GetString(pathBuffer, 0, pathLength);
+                            projection.AddItem(path, sha, FileOrFolderData.InvalidOffset, ref lastParent, ref lastParentPath);
                         }
 
                         break;
@@ -1118,7 +1132,7 @@ namespace GVFS.GVFlt.DotGit
             FileOrFolderData fileData;
             if (parentFolderData.ChildEntries.TryGetValue(childName, out fileData))
             {
-                if (!fileData.IsFolder && fileData.LastUpdateTime == this.lastUpdateTime)
+                if (!fileData.IsFolder && fileData.LastUpdateTime == this.lastUpdateTime && fileData.Offset >= 0)
                 {
                     offset = fileData.Offset;
                     return true;
@@ -1192,8 +1206,11 @@ namespace GVFS.GVFlt.DotGit
                         FileOrFolderData childData = parentFolderData.ChildEntries.Values[childIndex];
                         if (populateSize && !childData.IsFolder && !childData.IsSizeSet())
                         {
-                            // If we need the size for a single file, batch the request and get sizes for all files in the folder
-                            parentFolderData.PopulateSizes(this.context.Tracer, this.gitObjects, this.blobSizes, cancellationToken);
+                            string sha;
+                            if (!childData.FileOnly_TryPopulateSizeLocally(this.gitObjects, this.blobSizes, out sha))
+                            {
+                                parentFolderData.FolderOnly_PopulateSizes(this.context.Tracer, this.gitObjects, this.blobSizes, cancellationToken);
+                            }
                         }
 
                         return childData;
@@ -1610,6 +1627,11 @@ namespace GVFS.GVFlt.DotGit
                     //      is used to remove a file from the index before converting the file to full.  Because a skip-worktree bit 
                     //      is not cleared when this file file is converted to full, GVFltCallbacks assumes that there is no placeholder
                     //      that needs to be removed removed from the list
+                    //
+                    //    - When there is a merge conflict the conflicting file will get the skip worktree bit removed. In some cases git 
+                    //      will not make any changes to the file in the working directory. In order to handle this case we have to check
+                    //      the merge stage in the index and add that entry to the placeholder list. In doing so the files that git did
+                    //      update in the working directory will be full files but we will have a placeholder entry for them as well.
 
                     // There have been reports of FileSystemVirtualizationInvalidOperation getting hit without a corresponding background
                     // task having been scheduled (to add the file to the sparse-checkout and clear the skip-worktree bit).  
@@ -1883,7 +1905,7 @@ namespace GVFS.GVFlt.DotGit
                 }
             }
 
-            public void PopulateSizes(
+            public void FolderOnly_PopulateSizes(
                 ITracer tracer,                
                 GVFSGitObjects gitObjects,
                 PersistentDictionary<string, long> blobSizes,
@@ -1896,7 +1918,7 @@ namespace GVFS.GVFlt.DotGit
 
                 HashSet<string> missingShas;
                 List<FileMissingSize> childrenMissingSizes;
-                this.PopulateSizesLocally(gitObjects, blobSizes, out missingShas, out childrenMissingSizes);
+                this.FolderOnly_PopulateSizesLocally(gitObjects, blobSizes, out missingShas, out childrenMissingSizes);
 
                 lock (this)
                 {
@@ -1915,6 +1937,32 @@ namespace GVFS.GVFlt.DotGit
                         childrenMissingSizes,
                         cancellationToken);
                 }
+            }
+
+            public bool FileOnly_TryPopulateSizeLocally(
+                GVFSGitObjects gitObjects,
+                PersistentDictionary<string, long> blobSizes,
+                out string sha)
+            {
+                sha = this.ConvertShaToString();
+
+                long blobLength = 0;
+                if (blobSizes.TryGetValue(sha, out blobLength))
+                {
+                    this.Size = blobLength;
+                    return true;
+                }
+                else if (gitObjects.TryGetBlobSizeLocally(sha, out blobLength))
+                {
+                    this.Size = blobLength;
+
+                    // There is no flush for this value because It's already local, so there's little loss if it doesn't get persisted
+                    // But it's faster to wait for some remote call to batch this value into a different flush
+                    blobSizes[sha] = blobLength;
+                    return true;
+                }
+
+                return false;
             }
 
             private static char GetHexValue(int i)
@@ -1943,7 +1991,7 @@ namespace GVFS.GVFlt.DotGit
             /// <summary>
             /// Populates the sizes of child entries in the folder using locally available data
             /// </summary>
-            private void PopulateSizesLocally(
+            private void FolderOnly_PopulateSizesLocally(
                 GVFSGitObjects gitObjects,
                 PersistentDictionary<string, long> blobSizes,
                 out HashSet<string> missingShas,
@@ -1962,21 +2010,8 @@ namespace GVFS.GVFlt.DotGit
                 {
                     if (!childEntry.Value.IsFolder && !childEntry.Value.IsSizeSet())
                     {
-                        string sha = childEntry.Value.ConvertShaToString();
-                        long blobLength = 0;
-                        if (blobSizes.TryGetValue(sha, out blobLength))
-                        {
-                            childEntry.Value.Size = blobLength;
-                        }
-                        else if (gitObjects.TryGetBlobSizeLocally(sha, out blobLength))
-                        {
-                            childEntry.Value.Size = blobLength;
-
-                            // There is no flush for this value because It's already local, so there's no little loss if it doesn't get persisted
-                            // But it's faster to wait for some remote call to batch this value into a different flush
-                            blobSizes[sha] = blobLength;
-                        }
-                        else
+                        string sha;
+                        if (!childEntry.Value.FileOnly_TryPopulateSizeLocally(gitObjects, blobSizes, out sha))
                         {
                             childrenMissingSizes.Add(new FileMissingSize(childEntry.Value, sha));
                             missingShas.Add(sha);

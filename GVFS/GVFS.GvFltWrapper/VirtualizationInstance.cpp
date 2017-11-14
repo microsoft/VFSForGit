@@ -103,6 +103,13 @@ namespace
         bool directory,
         array<System::Byte>^ contentId,
         array<System::Byte>^ epochId);
+
+    // Converts a strongly typed enum to its underlying type
+    template <typename T>
+    constexpr std::underlying_type_t<T> CastToUnderlyingType(T e) noexcept
+    {
+        return static_cast<std::underlying_type_t<T>>(e);
+    }
 }
 
 VirtualizationInstance::VirtualizationInstance()
@@ -190,15 +197,37 @@ void VirtualizationInstance::OnNotifyFirstWrite::set(NotifyFirstWriteEvent^ even
     this->notifyFirstWriteEvent = eventCB;
 }
 
-NotifyFileHandleCreatedEvent^ VirtualizationInstance::OnNotifyFileHandleCreated::get(void)
+NotifyPostCreateHandleOnlyEvent^ VirtualizationInstance::OnNotifyPostCreateHandleOnly::get(void)
 {
-    return this->notifyFileHandleCreatedEvent;
+    return this->notifyPostCreateHandleOnlyEvent;
 }
 
-void VirtualizationInstance::OnNotifyFileHandleCreated::set(NotifyFileHandleCreatedEvent^ eventCB)
+void VirtualizationInstance::OnNotifyPostCreateHandleOnly::set(NotifyPostCreateHandleOnlyEvent^ eventCB)
 {
     this->ConfirmNotStarted();
-    this->notifyFileHandleCreatedEvent = eventCB;
+    this->notifyPostCreateHandleOnlyEvent = eventCB;
+}
+
+NotifyPostCreateNewFileEvent^ VirtualizationInstance::OnNotifyPostCreateNewFile::get(void)
+{
+    return this->notifyPostCreateNewFileEvent;
+}
+
+void VirtualizationInstance::OnNotifyPostCreateNewFile::set(NotifyPostCreateNewFileEvent^ eventCB)
+{
+    this->ConfirmNotStarted();
+    this->notifyPostCreateNewFileEvent = eventCB;
+}
+
+NotifyPostCreateOverwrittenOrSupersededEvent^ VirtualizationInstance::OnNotifyPostCreateOverwrittenOrSuperseded::get(void)
+{
+    return this->notifyPostCreateOverwrittenOrSupersededEvent;
+}
+
+void VirtualizationInstance::OnNotifyPostCreateOverwrittenOrSuperseded::set(NotifyPostCreateOverwrittenOrSupersededEvent^ eventCB)
+{
+    this->ConfirmNotStarted();
+    this->notifyPostCreateOverwrittenOrSupersededEvent = eventCB;
 }
 
 NotifyPreDeleteEvent^ VirtualizationInstance::OnNotifyPreDelete::get(void)
@@ -256,15 +285,26 @@ void VirtualizationInstance::OnNotifyHardlinkCreated::set(NotifyHardlinkCreatedE
     this->notifyHardlinkCreatedEvent = eventCB;
 }
 
-NotifyFileHandleClosedEvent^ VirtualizationInstance::OnNotifyFileHandleClosed::get(void)
+NotifyFileHandleClosedOnlyEvent^ VirtualizationInstance::OnNotifyFileHandleClosedOnly::get(void)
 {
-    return this->notifyFileHandleClosedEvent;
+    return this->notifyFileHandleClosedOnlyEvent;
 }
 
-void VirtualizationInstance::OnNotifyFileHandleClosed::set(NotifyFileHandleClosedEvent^ eventCB)
+void VirtualizationInstance::OnNotifyFileHandleClosedOnly::set(NotifyFileHandleClosedOnlyEvent^ eventCB)
 {
     this->ConfirmNotStarted();
-    this->notifyFileHandleClosedEvent = eventCB;
+    this->notifyFileHandleClosedOnlyEvent = eventCB;
+}
+
+NotifyFileHandleClosedModifiedOrDeletedEvent^ VirtualizationInstance::OnNotifyFileHandleClosedModifiedOrDeleted::get(void)
+{
+    return this->notifyFileHandleClosedModifiedOrDeletedEvent;
+}
+
+void VirtualizationInstance::OnNotifyFileHandleClosedModifiedOrDeleted::set(NotifyFileHandleClosedModifiedOrDeletedEvent^ eventCB)
+{
+    this->ConfirmNotStarted();
+    this->notifyFileHandleClosedModifiedOrDeletedEvent = eventCB;
 }
 
 CancelCommandEvent^ VirtualizationInstance::OnCancelCommand::get(void)
@@ -283,6 +323,7 @@ HResult VirtualizationInstance::StartVirtualizationInstance(
     unsigned long poolThreadCount,
     unsigned long concurrentThreadCount,
     bool enableNegativePathCache,
+    NotificationType globalNotificationMask,
     unsigned long% logicalBytesPerSector,
     unsigned long% writeBufferAlignment)
 {
@@ -322,6 +363,7 @@ HResult VirtualizationInstance::StartVirtualizationInstance(
         rootPath,
         &callbacks,
         enableNegativePathCache ? GV_FLAG_INSTANCE_NEGATIVE_PATH_CACHE : 0,
+        CastToUnderlyingType(globalNotificationMask),
         poolThreadCount,
         concurrentThreadCount,
         NULL, // InstanceContext, pointer to context information defined by the provider for each instance
@@ -472,7 +514,7 @@ NtStatus VirtualizationInstance::UpdatePlaceholderIfNeeded(
         path,
         fileInformation.get(),
         FIELD_OFFSET(GV_PLACEHOLDER_INFORMATION, VariableData), // We have written no variable data
-        static_cast<ULONG>(updateFlags),
+        CastToUnderlyingType(updateFlags),
         &updateFailureReason));
 
     failureReason = static_cast<UpdateFailureCause>(updateFailureReason);
@@ -867,7 +909,7 @@ namespace
     {
         if (VirtualizationManager::activeInstance != nullptr)
         {
-            NTSTATUS result = STATUS_SUCCESS;
+            NtStatus result = NtStatus::Success;
 
             // NOTE: Post callbacks have void return type.  The return type is void because
             // they are not allowed to fail as the operation has already taken place.  If, in the
@@ -875,10 +917,11 @@ namespace
             // all necessary actions to undo the operation that has succeeded.
             switch (notificationType)
             {
-            case GV_NOTIFICATION_POST_CREATE:
-                if (VirtualizationManager::activeInstance->OnNotifyFileHandleCreated != nullptr)
+            case GV_NOTIFICATION_POST_CREATE_HANDLE_ONLY:
+                if (VirtualizationManager::activeInstance->OnNotifyPostCreateHandleOnly != nullptr)
                 {
-                    VirtualizationManager::activeInstance->OnNotifyFileHandleCreated(
+                    NotificationType notificationMask;
+                    VirtualizationManager::activeInstance->OnNotifyPostCreateHandleOnly(
                         gcnew String(callbackData->FilePathName),
                         isDirectory != FALSE,
                         operationParameters->PostCreate.DesiredAccess,
@@ -886,43 +929,79 @@ namespace
                         operationParameters->PostCreate.CreateDisposition,
                         operationParameters->PostCreate.CreateOptions,
                         static_cast<IoStatusBlockValue>(operationParameters->PostCreate.IoStatusBlock),
-                        operationParameters->PostCreate.NotificationMask);
+                        notificationMask);
+                    operationParameters->PostCreate.NotificationMask = CastToUnderlyingType(notificationMask);
+                }
+                break;
+
+            case GV_NOTIFICATION_POST_CREATE_NEW_FILE:
+                if (VirtualizationManager::activeInstance->OnNotifyPostCreateNewFile != nullptr)
+                {
+                    NotificationType notificationMask;
+                    VirtualizationManager::activeInstance->OnNotifyPostCreateNewFile(
+                        gcnew String(callbackData->FilePathName),
+                        isDirectory != FALSE,
+                        operationParameters->PostCreate.DesiredAccess,
+                        operationParameters->PostCreate.ShareMode,
+                        operationParameters->PostCreate.CreateDisposition,
+                        operationParameters->PostCreate.CreateOptions,
+                        notificationMask);
+                    operationParameters->PostCreate.NotificationMask = CastToUnderlyingType(notificationMask);
+                }
+                break;
+
+            case GV_NOTIFICATION_POST_CREATE_OVERWRITTEN_OR_SUPERSEDED:
+                if (VirtualizationManager::activeInstance->OnNotifyPostCreateOverwrittenOrSuperseded != nullptr)
+                {
+                    NotificationType notificationMask;
+                    VirtualizationManager::activeInstance->OnNotifyPostCreateOverwrittenOrSuperseded(
+                        gcnew String(callbackData->FilePathName),
+                        isDirectory != FALSE,
+                        operationParameters->PostCreate.DesiredAccess,
+                        operationParameters->PostCreate.ShareMode,
+                        operationParameters->PostCreate.CreateDisposition,
+                        operationParameters->PostCreate.CreateOptions,
+                        static_cast<IoStatusBlockValue>(operationParameters->PostCreate.IoStatusBlock),
+                        notificationMask);
+                    operationParameters->PostCreate.NotificationMask = CastToUnderlyingType(notificationMask);
                 }
                 break;
 
             case GV_NOTIFICATION_PRE_DELETE:
                 if (VirtualizationManager::activeInstance->OnNotifyPreDelete != nullptr)
                 {
-                    result = static_cast<NTSTATUS>(VirtualizationManager::activeInstance->OnNotifyPreDelete(gcnew String(callbackData->FilePathName), isDirectory != FALSE));
+                    result = VirtualizationManager::activeInstance->OnNotifyPreDelete(gcnew String(callbackData->FilePathName), isDirectory != FALSE);
                 }
                 break;
 
             case GV_NOTIFICATION_PRE_RENAME:
                 if (VirtualizationManager::activeInstance->OnNotifyPreRename != nullptr)
                 {
-                    result = static_cast<NTSTATUS>(VirtualizationManager::activeInstance->OnNotifyPreRename(
+                    result = VirtualizationManager::activeInstance->OnNotifyPreRename(
                         gcnew String(callbackData->FilePathName),
-                        gcnew String(destinationFileName)));
+                        gcnew String(destinationFileName));
                 }
                 break;
 
             case GV_NOTIFICATION_PRE_SET_HARDLINK:
                 if (VirtualizationManager::activeInstance->OnNotifyPreSetHardlink != nullptr)
                 {
-                    result = static_cast<NTSTATUS>(VirtualizationManager::activeInstance->OnNotifyPreSetHardlink(
+                    result = VirtualizationManager::activeInstance->OnNotifyPreSetHardlink(
                         gcnew String(callbackData->FilePathName),
-                        gcnew String(destinationFileName)));
+                        gcnew String(destinationFileName));
                 }
                 break;
 
             case GV_NOTIFICATION_FILE_RENAMED:
                 if (VirtualizationManager::activeInstance->OnNotifyFileRenamed != nullptr)
                 {
+                    NotificationType notificationMask;
                     VirtualizationManager::activeInstance->OnNotifyFileRenamed(
                         gcnew String(callbackData->FilePathName),
                         gcnew String(destinationFileName),
                         isDirectory != FALSE,
-                        operationParameters->FileRenamed.NotificationMask);
+                        notificationMask);
+                    operationParameters->FileRenamed.NotificationMask = CastToUnderlyingType(notificationMask);
                 }
                 break;
 
@@ -935,14 +1014,34 @@ namespace
                 }
                 break;
 
-            case GV_NOTIFICATION_FILE_HANDLE_CLOSED:
-                if (VirtualizationManager::activeInstance->OnNotifyFileHandleClosed != nullptr)
+            case GV_NOTIFICATION_FILE_HANDLE_CLOSED_ONLY:
+                if (VirtualizationManager::activeInstance->OnNotifyFileHandleClosedOnly != nullptr)
                 {
-                    VirtualizationManager::activeInstance->OnNotifyFileHandleClosed(
+                    VirtualizationManager::activeInstance->OnNotifyFileHandleClosedOnly(
+                        gcnew String(callbackData->FilePathName),
+                        isDirectory != FALSE);
+                }
+                break;
+
+            case GV_NOTIFICATION_FILE_HANDLE_CLOSED_MODIFIED:
+                if (VirtualizationManager::activeInstance->OnNotifyFileHandleClosedModifiedOrDeleted != nullptr)
+                {
+                    VirtualizationManager::activeInstance->OnNotifyFileHandleClosedModifiedOrDeleted(
                         gcnew String(callbackData->FilePathName),
                         isDirectory != FALSE,
-                        (operationParameters->HandleClosed.FileModified != FALSE),
-                        (operationParameters->HandleClosed.FileDeleted != FALSE));
+                        true,    // isFileModified
+                        false);  // isFileDeleted
+                }
+                break;
+
+            case GV_NOTIFICATION_FILE_HANDLE_CLOSED_DELETED:
+                if (VirtualizationManager::activeInstance->OnNotifyFileHandleClosedModifiedOrDeleted != nullptr)
+                {
+                    VirtualizationManager::activeInstance->OnNotifyFileHandleClosedModifiedOrDeleted(
+                        gcnew String(callbackData->FilePathName),
+                        isDirectory != FALSE,
+                        operationParameters->FileDeletedOnHandleClose.IsFileModified != FALSE,    // isFileModified
+                        true);  // isFileDeleted
                 }
                 break;
 
@@ -951,7 +1050,7 @@ namespace
                 break;
             }
             
-            return result;
+            return static_cast<NTSTATUS>(result);
         }
 
         return STATUS_INVALID_DEVICE_STATE;

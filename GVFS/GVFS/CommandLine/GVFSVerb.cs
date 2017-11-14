@@ -115,11 +115,12 @@ namespace GVFS.CommandLine
         }
 
         protected ReturnCode Execute<TVerb>(
+            string enlistmentRootPath,
             Action<TVerb> configureVerb = null)
             where TVerb : GVFSVerb, new()
         {
             TVerb verb = new TVerb();
-            verb.EnlistmentRootPath = this.EnlistmentRootPath;
+            verb.EnlistmentRootPath = enlistmentRootPath;
             verb.ServiceName = this.ServiceName;
             verb.Unattended = this.Unattended;
 
@@ -316,6 +317,62 @@ You can specify a URL, a name of a configured cache server, or the special names
 
             this.Output.WriteLine("Using cache server: " + resolvedCacheServer);
             return resolvedCacheServer;
+        }
+
+        protected bool TryDownloadCommit(
+            string commitId,
+            GVFSEnlistment enlistment,
+            GitObjectsHttpRequestor objectRequestor,
+            GVFSGitObjects gitObjects,
+            GitRepo repo,
+            out string error)
+        {
+            if (!repo.CommitAndRootTreeExists(commitId))
+            {
+                if (!gitObjects.TryDownloadCommit(commitId))
+                {
+                    error = "Could not download commit " + commitId + " from: " + Uri.EscapeUriString(objectRequestor.CacheServer.ObjectsEndpointUrl);
+                    return false;
+                }
+            }
+
+            error = null;
+            return true;
+        }
+
+        protected bool TryDownloadRootGitAttributes(GVFSEnlistment enlistment, GVFSGitObjects gitObjects, GitRepo repo, out string error)
+        {
+            List<DiffTreeResult> rootEntries = new List<DiffTreeResult>();
+            GitProcess git = new GitProcess(enlistment);
+            GitProcess.Result result = git.LsTree(
+                GVFSConstants.DotGit.HeadName,
+                line => rootEntries.Add(DiffTreeResult.ParseFromLsTreeLine(line, repoRoot: string.Empty)),
+                recursive: false);
+
+            if (result.HasErrors)
+            {
+                error = "Error returned from ls-tree to find " + GVFSConstants.SpecialGitFiles.GitAttributes + " file: " + result.Errors;
+                return false;
+            }
+
+            DiffTreeResult gitAttributes = rootEntries.FirstOrDefault(entry => entry.TargetFilename.Equals(GVFSConstants.SpecialGitFiles.GitAttributes));
+            if (gitAttributes == null)
+            {
+                error = "This branch does not contain a " + GVFSConstants.SpecialGitFiles.GitAttributes + " file in the root folder.  This file is required by GVFS clone";
+                return false;
+            }
+
+            if (!repo.ObjectExists(gitAttributes.TargetSha))
+            {
+                if (gitObjects.TryDownloadAndSaveObject(gitAttributes.TargetSha) != GitObjects.DownloadAndSaveObjectResult.Success)
+                {
+                    error = "Could not download " + GVFSConstants.SpecialGitFiles.GitAttributes + " file";
+                    return false;
+                }
+            }
+
+            error = null;
+            return true;
         }
 
         private void CheckVolumeSupportsDeleteNotifications(ITracer tracer, Enlistment enlistment)

@@ -26,7 +26,7 @@ GVFS is still in progress, but it is available here for anyone to try out. Feel 
 ## Testing GVFS
 
 * GVFS requires Windows 10 Creators Update (Windows 10 version 1703) or later
-* Install GVFS-enabled Git for Windows (2.13.0.gvfs.1 or later) from https://github.com/Microsoft/git/releases
+* Install GVFS-enabled Git for Windows (2.15.0.gvfs.1 or later) from https://github.com/Microsoft/git/releases
   * This build behaves the same as Git for Windows except if the config value `core.gvfs` is set to `true`.
 * Install GVFS from your build output
   * If you built it as described above, the installer can be found at `C:\Repos\GVFS\BuildOutput\GVFS\bin\x64\[Debug|Release]\Setup\SetupGVFS.exe`

@@ -104,17 +104,45 @@ namespace GvLib
             void set(NotifyFirstWriteEvent^ eventCB);
         };
 
-        /// <summary>File handle created notification callback</summary>
-        /// <seealso cref="NotifyFileHandleCreatedEvent"/>
+        /// <summary>
+        /// File handle created notification callback (when IoStatusBlockValue is not FileSuperseded, FileOverwritten, or FileCreated)
+        /// </summary>
+        /// <seealso cref="NotifyPostCreateHandleOnlyEvent"/>
         /// <remarks>This callback is optional</remarks>
-        property NotifyFileHandleCreatedEvent^ OnNotifyFileHandleCreated
+        property NotifyPostCreateHandleOnlyEvent^ OnNotifyPostCreateHandleOnly
         {
-            NotifyFileHandleCreatedEvent^ get(void);
+            NotifyPostCreateHandleOnlyEvent^ get(void);
 
             /// <exception cref="System::InvalidOperationException">
             /// Thrown if the VirtualizationInstance has already been started
             /// </exception>
-            void set(NotifyFileHandleCreatedEvent^ eventCB);
+            void set(NotifyPostCreateHandleOnlyEvent^ eventCB);
+        };
+
+        /// <summary>File handle created notification callback (when a new file or folder has been created)</summary>
+        /// <seealso cref="NotifyPostCreateNewFileEvent"/>
+        /// <remarks>This callback is optional</remarks>
+        property NotifyPostCreateNewFileEvent^ OnNotifyPostCreateNewFile
+        {
+            NotifyPostCreateNewFileEvent^ get(void);
+
+            /// <exception cref="System::InvalidOperationException">
+            /// Thrown if the VirtualizationInstance has already been started
+            /// </exception>
+            void set(NotifyPostCreateNewFileEvent^ eventCB);
+        };
+
+        /// <summary>File handle created notification callback (when the IoStatusBlockValue is FileOverwritten or FileSuperseded)</summary>
+        /// <seealso cref="NotifyPostCreateOverwrittenOrSupersededEvent"/>
+        /// <remarks>This callback is optional</remarks>
+        property NotifyPostCreateOverwrittenOrSupersededEvent^ OnNotifyPostCreateOverwrittenOrSuperseded
+        {
+            NotifyPostCreateOverwrittenOrSupersededEvent^ get(void);
+
+            /// <exception cref="System::InvalidOperationException">
+            /// Thrown if the VirtualizationInstance has already been started
+            /// </exception>
+            void set(NotifyPostCreateOverwrittenOrSupersededEvent^ eventCB);
         };
 
         /// <summary>Pre-delete notification callback</summary>
@@ -182,17 +210,32 @@ namespace GvLib
             void set(NotifyHardlinkCreatedEvent^ eventCB);
         }
 
-        /// <summary>File handle closed notification callback</summary>
-        /// <seealso cref="NotifyFileHandleClosedEvent"/>
+        /// <summary>
+        /// File handle closed notification callback (when handle was not used to modify or delete file)
+        /// </summary>
+        /// <seealso cref="NotifyFileHandleClosedOnlyEvent"/>
         /// <remarks>This callback is optional</remarks>
-        property NotifyFileHandleClosedEvent^ OnNotifyFileHandleClosed
+        property NotifyFileHandleClosedOnlyEvent^ OnNotifyFileHandleClosedOnly
         {
-            NotifyFileHandleClosedEvent^ get(void);
+            NotifyFileHandleClosedOnlyEvent^ get(void);
 
             /// <exception cref="System::InvalidOperationException">
             /// Thrown if the VirtualizationInstance has already been started
             /// </exception>
-            void set(NotifyFileHandleClosedEvent^ eventCB);
+            void set(NotifyFileHandleClosedOnlyEvent^ eventCB);
+        }
+
+        /// <summary>File handle closed notification callback (when handle was used to modify and\or delete file)</summary>
+        /// <seealso cref="NotifyFileHandleClosedModifiedOrDeletedEvent"/>
+        /// <remarks>This callback is optional</remarks>
+        property NotifyFileHandleClosedModifiedOrDeletedEvent^ OnNotifyFileHandleClosedModifiedOrDeleted
+        {
+            NotifyFileHandleClosedModifiedOrDeletedEvent^ get(void);
+
+            /// <exception cref="System::InvalidOperationException">
+            /// Thrown if the VirtualizationInstance has already been started
+            /// </exception>
+            void set(NotifyFileHandleClosedModifiedOrDeletedEvent^ eventCB);
         }
 
         /// <summary>Command cancelled callback</summary>
@@ -229,6 +272,9 @@ namespace GvLib
         /// that this path doesn't exist in the provider's namespace, and fail 
         /// the subsequent file opens for the same path without consulting the provider.
         /// The provider can call ClearNegativePathCache to clear this cache.
+        /// </param>
+        /// <param name="globalNotificationMask">
+        /// Bit mask that indicates which notifications the provider wants for each file under the virtualization root.
         /// </param>
         /// <param name ="logicalBytesPerSector">
         /// [Out] Logical bytes per sector reported by physical storage.  Used by CreateWriteBuffer to determine size
@@ -269,6 +315,7 @@ namespace GvLib
             unsigned long poolThreadCount,
             unsigned long concurrentThreadCount,
             bool enableNegativePathCache,
+            NotificationType globalNotificationMask,
             unsigned long% logicalBytesPerSector,
             unsigned long% writeBufferAlignment);
 

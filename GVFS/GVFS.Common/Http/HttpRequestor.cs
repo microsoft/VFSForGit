@@ -26,6 +26,7 @@ namespace GVFS.Common.Http
 
         static HttpRequestor()
         {
+            ServicePointManager.SecurityProtocol = ServicePointManager.SecurityProtocol | SecurityProtocolType.Tls12;
             ServicePointManager.DefaultConnectionLimit = Environment.ProcessorCount;
             availableConnections = new SemaphoreSlim(ServicePointManager.DefaultConnectionLimit);
         }

@@ -24,7 +24,7 @@ namespace FastFetch.Jobs
         
         private static readonly TimeSpan HeartBeatPeriod = TimeSpan.FromSeconds(20);
 
-        private readonly BlockingAggregator<string, BlobDownloadRequest> inputQueue;
+        private readonly DownloadRequestAggregator downloadRequests;
 
         private int activeDownloadCount;
 
@@ -39,7 +39,7 @@ namespace FastFetch.Jobs
         public BatchObjectDownloadJob(
             int maxParallel,
             int chunkSize,
-            BlockingCollection<string> inputQueue,
+            BlockingCollection<string> missingBlobs,
             BlockingCollection<string> availableBlobs,
             ITracer tracer,
             Enlistment enlistment,
@@ -49,7 +49,7 @@ namespace FastFetch.Jobs
         {
             this.tracer = tracer.StartActivity(AreaPath, EventLevel.Informational, Keywords.Telemetry, metadata: null);
             
-            this.inputQueue = new BlockingAggregator<string, BlobDownloadRequest>(inputQueue, chunkSize, objectIds => new BlobDownloadRequest(objectIds));
+            this.downloadRequests = new DownloadRequestAggregator(missingBlobs, chunkSize);
 
             this.enlistment = enlistment;
             this.objectRequestor = objectRequestor;
@@ -73,7 +73,7 @@ namespace FastFetch.Jobs
         protected override void DoWork()
         {
             BlobDownloadRequest request;
-            while (this.inputQueue.TryTake(out request))
+            while (this.downloadRequests.TryTake(out request))
             {
                 Interlocked.Increment(ref this.activeDownloadCount);
 
@@ -89,7 +89,6 @@ namespace FastFetch.Jobs
                         HashSet<string> successfulDownloads = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
                         RetryWrapper<GitObjectsHttpRequestor.GitObjectTaskResult>.InvocationResult result = this.objectRequestor.TryDownloadObjects(
                                 () => request.ObjectIds.Except(successfulDownloads),
-                                commitDepth: 1,
                                 onSuccess: (tryCount, response) => this.WriteObjectOrPack(request, tryCount, response, successfulDownloads),
                                 onFailure: RetryWrapper<GitObjectsHttpRequestor.GitObjectTaskResult>.StandardErrorHandler(activity, request.PackId, DownloadAreaPath),
                                 preferBatchedLooseObjects: true);
@@ -199,42 +198,45 @@ namespace FastFetch.Jobs
             this.tracer.RelatedEvent(EventLevel.Verbose, "DownloadHeartbeat", metadata);
         }
 
-        private class BlockingAggregator<InputType, OutputType>
+        private class DownloadRequestAggregator
         {
-            private BlockingCollection<InputType> inputQueue;
+            private BlockingCollection<string> missingBlobs;
             private int chunkSize;
-            private Func<List<InputType>, OutputType> factory;
 
-            public BlockingAggregator(BlockingCollection<InputType> input, int chunkSize, Func<List<InputType>, OutputType> factory)
+            public DownloadRequestAggregator(BlockingCollection<string> missingBlobs, int chunkSize)
             {
-                this.inputQueue = input;
+                this.missingBlobs = missingBlobs;
                 this.chunkSize = chunkSize;
-                this.factory = factory;
             }
 
-            public bool TryTake(out OutputType output)
+            public bool TryTake(out BlobDownloadRequest request)
             {
-                List<InputType> intermediary = new List<InputType>();
+                List<string> blobsInChunk = new List<string>();
+
                 for (int i = 0; i < this.chunkSize; ++i)
                 {
-                    InputType data;
-                    if (this.inputQueue.TryTake(out data, millisecondsTimeout: -1))
+                    // Only wait a short while for new work to show up, otherwise go ahead and download what we have accumulated so far
+                    const int TimeoutMs = 100;
+
+                    string blobId;
+                    if (this.missingBlobs.TryTake(out blobId, TimeoutMs))
                     {
-                        intermediary.Add(data);
+                        blobsInChunk.Add(blobId);
                     }
-                    else
+                    else if (blobsInChunk.Count > 0 ||
+                        this.missingBlobs.IsAddingCompleted)
                     {
                         break;
                     }
                 }
 
-                if (intermediary.Any())
+                if (blobsInChunk.Count > 0)
                 {
-                    output = this.factory(intermediary);
+                    request = new BlobDownloadRequest(blobsInChunk);
                     return true;
                 }
 
-                output = default(OutputType);
+                request = null;
                 return false;
             }
         }

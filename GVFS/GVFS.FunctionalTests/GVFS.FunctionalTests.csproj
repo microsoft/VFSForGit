@@ -101,6 +101,8 @@
     <Compile Include="Tests\EnlistmentPerFixture\CloneTests.cs" />
     <Compile Include="Tests\EnlistmentPerFixture\DehydrateTests.cs" />
     <Compile Include="Tests\EnlistmentPerFixture\DiagnoseTests.cs" />
+    <Compile Include="Tests\GitCommands\AddStageTests.cs" />
+    <Compile Include="Tests\MultiEnlistmentTests\ServiceVerbTests.cs" />
     <Compile Include="Tests\MultiEnlistmentTests\SharedCacheTests.cs" />
     <Compile Include="Tests\EnlistmentPerTestCase\DiskLayoutUpgradeTests.cs" />
     <Compile Include="Tests\EnlistmentPerFixture\UnmountTests.cs" />
@@ -134,6 +136,7 @@
     <Compile Include="Tests\FastFetchTests.cs" />
     <Compile Include="Tests\GitCommands\UpdateRefTests.cs" />
     <Compile Include="Tests\GVFSVerbTests.cs" />
+    <Compile Include="Tests\MultiEnlistmentTests\TestsWithMultiEnlistment.cs" />
     <Compile Include="Tests\TestResultsHelper.cs" />
     <Compile Include="Tests\EnlistmentPerFixture\GitMoveRenameTests.cs" />
     <Compile Include="Tests\LongRunningEnlistment\MultithreadedReadWriteTests.cs" />

@@ -28,7 +28,7 @@ namespace GVFS.Common
         public const string ExecutableExtension = ".exe";
         public const string GitIsNotInstalledError = "Could not find git.exe.  Ensure that Git is installed.";
 
-        public static readonly GitVersion MinimumGitVersion = new GitVersion(2, 14, 1, "gvfs", 1, 0);
+        public static readonly GitVersion MinimumGitVersion = new GitVersion(2, 15, 0, "gvfs", 1, 0);
 
         public static class GitConfig
         {
@@ -167,6 +167,7 @@ namespace GVFS.Common
                 public static class Pack
                 {
                     public static readonly string Name = "pack";
+                    public static readonly string Root = Path.Combine(Objects.Root, Name);
                 }
             }
 

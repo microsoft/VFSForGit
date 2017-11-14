@@ -95,7 +95,7 @@ namespace GVFS.UnitTests.Git
             this.AssertRetryableExceptionOnDownload(
                 new MemoryStream(),
                 GVFSConstants.MediaTypes.PackFileMediaType,
-                gitObjects => gitObjects.TryEnsureCommitIsLocal("object0", 0));
+                gitObjects => gitObjects.TryDownloadCommit("object0"));
         }
 
         [TestCase]
@@ -105,7 +105,7 @@ namespace GVFS.UnitTests.Git
             this.AssertRetryableExceptionOnDownload(
                 new MemoryStream(new byte[256]),
                 GVFSConstants.MediaTypes.PackFileMediaType,
-                gitObjects => gitObjects.TryEnsureCommitIsLocal("object0", 0));
+                gitObjects => gitObjects.TryDownloadCommit("object0"));
         }
 
         private void AssertRetryableExceptionOnDownload(
@@ -181,12 +181,11 @@ namespace GVFS.UnitTests.Git
                 CancellationToken cancellationToken,
                 Func<int, GitEndPointResponseData, RetryWrapper<GitObjectTaskResult>.CallbackResult> onSuccess)
             {
-                return this.TryDownloadObjects(new[] { objectId }, 0, onSuccess, null, false);
+                return this.TryDownloadObjects(new[] { objectId }, onSuccess, null, false);
             }
 
             public override RetryWrapper<GitObjectTaskResult>.InvocationResult TryDownloadObjects(
                 IEnumerable<string> objectIds,
-                int commitDepth,
                 Func<int, GitEndPointResponseData, RetryWrapper<GitObjectTaskResult>.CallbackResult> onSuccess,
                 Action<RetryWrapper<GitObjectTaskResult>.ErrorEventArgs> onFailure,
                 bool preferBatchedLooseObjects)

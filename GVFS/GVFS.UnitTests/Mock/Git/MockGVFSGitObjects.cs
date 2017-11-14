@@ -20,11 +20,10 @@ namespace GVFS.UnitTests.Mock.Git
         public bool CancelTryCopyBlobContentStream { get; set; }
         public uint FileLength { get; set; }
 
-        public override bool TryEnsureCommitIsLocal(string objectSha, int commitDepth)
+        public override bool TryDownloadCommit(string objectSha)
         {
             RetryWrapper<GitObjectsHttpRequestor.GitObjectTaskResult>.InvocationResult result = this.GitObjectRequestor.TryDownloadObjects(
                 new[] { objectSha },
-                commitDepth,
                 onSuccess: (tryCount, response) =>
                 {
                     // Add the contents to the mock repo

@@ -20,6 +20,29 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
         }
 
         [TestCase]
+        public void CherryPickConflictWithFileReads()
+        {
+            this.ValidateGitCommand("checkout " + GitRepoTests.ConflictTargetBranch);
+            this.ReadConflictTargetFiles();
+            this.ValidateGitCommand("status");
+            this.ValidateGitCommand("cherry-pick " + GitRepoTests.ConflictSourceBranch);
+            this.FilesShouldMatchAfterConflict();
+        }
+
+        [TestCase]
+        public void CherryPickConflictWithFileReads2()
+        {
+            this.ValidateGitCommand("checkout " + GitRepoTests.ConflictTargetBranch);
+            this.ReadConflictTargetFiles();
+            this.ValidateGitCommand("status");
+            this.ValidateGitCommand("cherry-pick " + GitRepoTests.ConflictSourceBranch);
+            this.FilesShouldMatchAfterConflict();
+            this.ValidateGitCommand("cherry-pick --abort");
+            this.FilesShouldMatchCheckoutOfTargetBranch();
+            this.ValidateGitCommand("checkout " + GitRepoTests.ConflictSourceBranch);
+        }
+
+        [TestCase]
         public void CherryPickConflict_ThenAbort()
         {
             this.ValidateGitCommand("checkout " + GitRepoTests.ConflictTargetBranch);
@@ -34,6 +57,22 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
             this.ValidateGitCommand("checkout " + GitRepoTests.ConflictTargetBranch);
             this.ValidateGitCommand("cherry-pick " + GitRepoTests.ConflictSourceBranch);
             this.ValidateGitCommand("cherry-pick --skip");
+            this.FilesShouldMatchAfterConflict();
+        }
+
+        [TestCase]
+        public void CherryPickConflict_UsingOurs()
+        {
+            this.ValidateGitCommand("checkout " + GitRepoTests.ConflictTargetBranch);
+            this.ValidateGitCommand("cherry-pick -Xours " + GitRepoTests.ConflictSourceBranch);
+            this.FilesShouldMatchAfterConflict();
+        }
+
+        [TestCase]
+        public void CherryPickConflict_UsingTheirs()
+        {
+            this.ValidateGitCommand("checkout " + GitRepoTests.ConflictTargetBranch);
+            this.ValidateGitCommand("cherry-pick -Xtheirs " + GitRepoTests.ConflictSourceBranch);
             this.FilesShouldMatchAfterConflict();
         }
 

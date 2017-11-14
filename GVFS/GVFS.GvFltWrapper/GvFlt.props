@@ -2,7 +2,7 @@
 <Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ImportGroup Label="PropertySheets" />
   <PropertyGroup Label="UserMacros">
-    <GvFltPackage>Microsoft.GVFS.GvFlt.0.171023.1-preview</GvFltPackage>
+    <GvFltPackage>Microsoft.GVFS.GvFlt.0.171113.1-preview</GvFltPackage>
   </PropertyGroup>
   <PropertyGroup />
   <ItemDefinitionGroup />

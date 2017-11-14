@@ -30,7 +30,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
             string pathToGVFS = Path.Combine(TestContext.CurrentContext.TestDirectory, Properties.Settings.Default.PathToGVFS);
 
             ProcessStartInfo processInfo = new ProcessStartInfo(pathToGVFS);
-            processInfo.Arguments = "clone " + Properties.Settings.Default.RepoToClone + " src\\gvfs\\test1";
+            processInfo.Arguments = "clone " + GVFSTestConfig.RepoToClone + " src\\gvfs\\test1";
             processInfo.WindowStyle = ProcessWindowStyle.Hidden;
             processInfo.CreateNoWindow = true;
             processInfo.WorkingDirectory = this.Enlistment.EnlistmentRoot;

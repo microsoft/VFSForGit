@@ -84,7 +84,7 @@ To actually execute any necessary repair(s), run 'gvfs repair --confirm'
 
                     return false;
                 },
-                "Checking if GVFS is mounted",
+                "Checking that GVFS is not mounted",
                 this.Output,
                 showSpinner: true,
                 gvfsLogEnlistmentRoot: null))

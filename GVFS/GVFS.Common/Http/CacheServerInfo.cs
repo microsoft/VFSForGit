@@ -46,6 +46,7 @@ namespace GVFS.Common.Http
         public bool HasResolvedName()
         {
             return
+                this.Name != null &&
                 !this.Name.Equals(ReservedNames.None) &&
                 !this.Name.Equals(ReservedNames.Default) &&
                 !this.Name.Equals(ReservedNames.UserDefined);

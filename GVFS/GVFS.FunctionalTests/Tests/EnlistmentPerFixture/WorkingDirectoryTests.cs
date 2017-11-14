@@ -556,7 +556,7 @@ BOOL APIENTRY DllMain( HMODULE hModule,
 
             this.fileSystem.MoveFile(newFilePath, filePath);
             filePath.ShouldBeAFile(this.fileSystem).WithContents(fileContents);
-        }        
+        }
 
         private void FolderEnumerationShouldHaveSingleEntry(string folderVirtualPath, string expectedEntryName, string searchPatten)
         {

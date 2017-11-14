@@ -86,6 +86,15 @@ namespace GVFS.FunctionalTests.Tools
             return statusResult.Contains("Mount status: Ready");
         }
 
+        public string RunServiceVerb(string argument)
+        {
+            string serviceVerbArgs = string.Join(
+                " ",
+                "service " + argument,
+                "--internal_use_only_service_name " + GVFSServiceProcess.TestServiceName);
+            return this.CallGVFS(serviceVerbArgs, failOnError: true);
+        }
+
         private string CallGVFS(string args, bool failOnError = false)
         {
             ProcessStartInfo processInfo = new ProcessStartInfo(this.pathToGVFS);

@@ -16,17 +16,15 @@ namespace GVFS
         {
             Type[] verbTypes = new Type[]
             {
-                // Verbs that work without an existing enlistment
-                typeof(CloneVerb),
-
-                // Verbs that require an existing enlistment
                 typeof(CacheServerVerb),
+                typeof(CloneVerb),
                 typeof(DehydrateVerb),
                 typeof(DiagnoseVerb),
                 typeof(LogVerb),
                 typeof(MountVerb),
                 typeof(PrefetchVerb),
                 typeof(RepairVerb),
+                typeof(ServiceVerb),
                 typeof(StatusVerb),
                 typeof(UnmountVerb),
             };
@@ -47,7 +45,7 @@ namespace GVFS
                         {
                             if (errors.Any(error => error is TokenError))
                             {
-                                Environment.ExitCode = (int)ReturnCode.ParsingError;
+                                Environment.Exit((int)ReturnCode.ParsingError);
                             }
                         })
                     .WithParsed<CloneVerb>(
@@ -56,7 +54,15 @@ namespace GVFS
                             // We handle the clone verb differently, because clone cares if the enlistment path
                             // was not specified vs if it was specified to be the current directory
                             clone.Execute();
-                            Environment.ExitCode = (int)ReturnCode.Success;
+                            Environment.Exit((int)ReturnCode.Success);
+                        })
+                    .WithParsed<ServiceVerb>(
+                        service =>
+                        {
+                            // The service verb doesn't operate on a repo, so it doesn't use the enlistment
+                            // path at all.
+                            service.Execute();
+                            Environment.Exit((int)ReturnCode.Success);
                         })
                     .WithParsed<GVFSVerb>(
                         verb =>
@@ -69,7 +75,7 @@ namespace GVFS
                             }
 
                             verb.Execute();
-                            Environment.ExitCode = (int)ReturnCode.Success;
+                            Environment.Exit((int)ReturnCode.Success);
                         });
             }
             catch (GVFSVerb.VerbAbortedException e)

@@ -40,14 +40,13 @@ namespace GVFS.Common.Git
             Error
         }
 
-        public virtual bool TryEnsureCommitIsLocal(string commitSha, int commitDepth)
+        public virtual bool TryDownloadCommit(string commitSha)
         {
             const bool PreferLooseObjects = false;
             IEnumerable<string> objectIds = new[] { commitSha };
             
             RetryWrapper<GitObjectsHttpRequestor.GitObjectTaskResult>.InvocationResult output = this.GitObjectRequestor.TryDownloadObjects(
                 objectIds,
-                commitDepth,
                 onSuccess: (tryCount, response) => this.TrySavePackOrLooseObject(objectIds, PreferLooseObjects, response),
                 onFailure: (eArgs) =>
                 {
@@ -300,7 +299,7 @@ namespace GVFS.Common.Git
                 tempFile: Path.Combine(twoLetterFolderName, Path.GetRandomFileName()),
                 actualFile: Path.Combine(twoLetterFolderName, remainingDigits));
         }
-        
+
         /// <summary>
         /// Uses a <see cref="PrefetchPacksDeserializer"/> to read the packs from the stream.
         /// </summary>
@@ -522,9 +521,9 @@ namespace GVFS.Common.Git
 
         private GitProcess.Result TryAddPackFile(Stream contents, bool unpackObjects)
         {
-            Debug.Assert(contents != null, "contents should not be null");
-
             GitProcess.Result result;
+
+            this.fileSystem.CreateDirectory(this.Enlistment.GitPackRoot);
 
             if (unpackObjects)
             {

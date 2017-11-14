@@ -2,6 +2,7 @@
 using Microsoft.Diagnostics.Tracing;
 using Newtonsoft.Json;
 using System;
+using System.Collections.Generic;
 using System.Runtime.Serialization;
 
 namespace GVFS.Common.NamedPipes
@@ -221,6 +222,31 @@ namespace GVFS.Common.NamedPipes
 
             public class Response : BaseResponse<ExcludeFromAntiVirusRequest>
             {
+                public static Response FromMessage(Message message)
+                {
+                    return JsonConvert.DeserializeObject<Response>(message.Body);
+                }
+            }
+        }
+
+        public class GetActiveRepoListRequest
+        {
+            public const string Header = nameof(GetActiveRepoListRequest);
+
+            public static GetActiveRepoListRequest FromMessage(Message message)
+            {
+                return JsonConvert.DeserializeObject<GetActiveRepoListRequest>(message.Body);
+            }
+
+            public Message ToMessage()
+            {
+                return new Message(Header, JsonConvert.SerializeObject(this));
+            }
+
+            public class Response : BaseResponse<GetActiveRepoListRequest>
+            {
+                public List<string> RepoList { get; set; }
+
                 public static Response FromMessage(Message message)
                 {
                     return JsonConvert.DeserializeObject<Response>(message.Body);

@@ -18,6 +18,12 @@ namespace GVFS.CommandLine
             HelpText = "Full or relative path to the GVFS enlistment root")]
         public override string EnlistmentRootPath { get; set; }
 
+        [Option(
+            "type",
+            Default = null,
+            HelpText = "The type of log file to display on the console")]
+        public string LogType { get; set; }
+
         protected override string VerbName
         {
             get { return LogVerbName; }
@@ -38,20 +44,41 @@ namespace GVFS.CommandLine
             string gvfsLogsRoot = Path.Combine(
                 enlistmentRoot,
                 GVFSConstants.DotGVFS.LogPath);
-            this.DisplayMostRecent(gvfsLogsRoot, GetLogFilePatternForType(GVFSConstants.LogFileTypes.Clone), GVFSConstants.LogFileTypes.Clone);
 
-            // By using MountPrefix ("mount") DisplayMostRecent will display either mount_verb, mount_upgrade, or mount_process, whichever is more recent
-            this.DisplayMostRecent(gvfsLogsRoot, GetLogFilePatternForType(GVFSConstants.LogFileTypes.MountPrefix), GVFSConstants.LogFileTypes.MountPrefix);
-            this.DisplayMostRecent(gvfsLogsRoot, GetLogFilePatternForType(GVFSConstants.LogFileTypes.Prefetch), GVFSConstants.LogFileTypes.Prefetch);
-            this.DisplayMostRecent(gvfsLogsRoot, GetLogFilePatternForType(GVFSConstants.LogFileTypes.Dehydrate), GVFSConstants.LogFileTypes.Dehydrate);
-            this.DisplayMostRecent(gvfsLogsRoot, GetLogFilePatternForType(GVFSConstants.LogFileTypes.Repair), GVFSConstants.LogFileTypes.Repair);
+            if (this.LogType == null)
+            {
+                this.DisplayMostRecent(gvfsLogsRoot, GVFSConstants.LogFileTypes.Clone);
 
-            string serviceLogsRoot = Paths.GetServiceLogsPath(this.ServiceName);
-            this.DisplayMostRecent(serviceLogsRoot, GetLogFilePatternForType(GVFSConstants.LogFileTypes.Service), GVFSConstants.LogFileTypes.Service);
+                // By using MountPrefix ("mount") DisplayMostRecent will display either mount_verb, mount_upgrade, or mount_process, whichever is more recent
+                this.DisplayMostRecent(gvfsLogsRoot, GVFSConstants.LogFileTypes.MountPrefix);
+                this.DisplayMostRecent(gvfsLogsRoot, GVFSConstants.LogFileTypes.Prefetch);
+                this.DisplayMostRecent(gvfsLogsRoot, GVFSConstants.LogFileTypes.Dehydrate);
+                this.DisplayMostRecent(gvfsLogsRoot, GVFSConstants.LogFileTypes.Repair);
+
+                string serviceLogsRoot = Paths.GetServiceLogsPath(this.ServiceName);
+                this.DisplayMostRecent(serviceLogsRoot, GVFSConstants.LogFileTypes.Service);
+            }
+            else
+            {
+                string logFile = FindNewestFileInFolder(gvfsLogsRoot, this.LogType);
+                if (logFile == null)
+                {
+                    this.ReportErrorAndExit("No log file found");
+                }
+                else
+                {
+                    foreach (string line in File.ReadAllLines(logFile))
+                    {
+                        this.Output.WriteLine(line);
+                    }
+                }
+            }
         }
 
-        private static string FindNewestFileInFolder(string folderName, string logFilePattern)
+        private static string FindNewestFileInFolder(string folderName, string logFileType)
         {
+            string logFilePattern = GetLogFilePatternForType(logFileType);
+
             DirectoryInfo logDirectory = new DirectoryInfo(folderName);
             if (!logDirectory.Exists)
             {
@@ -76,12 +103,12 @@ namespace GVFS.CommandLine
             return "gvfs_" + logFileType + "_*.log";
         }
 
-        private void DisplayMostRecent(string logFolder, string logFilePattern, string logDisplayName)
+        private void DisplayMostRecent(string logFolder, string logFileType)
         {
-            string logFile = FindNewestFileInFolder(logFolder, logFilePattern);
+            string logFile = FindNewestFileInFolder(logFolder, logFileType);
             this.Output.WriteLine(
                 "  {0, -10}: {1}",
-                logDisplayName,
+                logFileType,
                 logFile == null ? "None" : logFile);
         }
     }

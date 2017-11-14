@@ -34,17 +34,15 @@ namespace GVFS.UnitTests.Mock.Git
         
         public override RetryWrapper<GitObjectTaskResult>.InvocationResult TryDownloadObjects(
             Func<IEnumerable<string>> objectIdGenerator,
-            int commitDepth,
             Func<int, GitEndPointResponseData, RetryWrapper<GitObjectTaskResult>.CallbackResult> onSuccess,
             Action<RetryWrapper<GitObjectTaskResult>.ErrorEventArgs> onFailure,
             bool preferBatchedLooseObjects)
         {
-            return this.TryDownloadObjects(objectIdGenerator(), commitDepth, onSuccess, onFailure, preferBatchedLooseObjects);
+            return this.TryDownloadObjects(objectIdGenerator(), onSuccess, onFailure, preferBatchedLooseObjects);
         }
 
         public override RetryWrapper<GitObjectTaskResult>.InvocationResult TryDownloadObjects(
             IEnumerable<string> objectIds,
-            int commitDepth,
             Func<int, GitEndPointResponseData, RetryWrapper<GitObjectTaskResult>.CallbackResult> onSuccess,
             Action<RetryWrapper<GitObjectTaskResult>.ErrorEventArgs> onFailure,
             bool preferBatchedLooseObjects)

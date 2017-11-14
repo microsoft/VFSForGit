@@ -1,6 +1,7 @@
 ﻿using CommandLine;
 using GVFS.CommandLine.DiskLayoutUpgrades;
 using GVFS.Common;
+using GVFS.Common.FileSystem;
 using GVFS.Common.Git;
 using GVFS.Common.Http;
 using GVFS.Common.NamedPipes;
@@ -95,15 +96,18 @@ To actually execute the dehydrate, run 'gvfs dehydrate --confirm'
                     this.WriteErrorAndExit(tracer, error);
                 }
 
-                if (this.TryBackupFiles(tracer, enlistment, backupRoot) &&
-                    this.TryRecreateIndex(tracer, enlistment))
+                if (this.TryBackupFiles(tracer, enlistment, backupRoot))
                 {
-                    // Converting the src folder to partial must be the final step before mount
-                    this.PrepareSrcFolder(tracer, enlistment);
-                    this.Mount(tracer);
+                    if (this.TryDownloadGitObjects(tracer, enlistment) &&
+                        this.TryRecreateIndex(tracer, enlistment))
+                    {
+                        // Converting the src folder to partial must be the final step before mount
+                        this.PrepareSrcFolder(tracer, enlistment);
+                        this.Mount(tracer);
 
-                    this.Output.WriteLine();
-                    this.WriteMessage(tracer, "The repo was successfully dehydrated and remounted");
+                        this.Output.WriteLine();
+                        this.WriteMessage(tracer, "The repo was successfully dehydrated and remounted");
+                    }
                 }
                 else
                 {
@@ -355,9 +359,60 @@ To actually execute the dehydrate, run 'gvfs dehydrate --confirm'
             return true;
         }
 
+        private bool TryDownloadGitObjects(ITracer tracer, GVFSEnlistment enlistment)
+        {
+            string errorMessage = null;
+
+            if (!this.ShowStatusWhileRunning(
+                () =>
+                {
+                    RetryConfig retryConfig;
+                    if (!RetryConfig.TryLoadFromGitConfig(tracer, enlistment, out retryConfig, out errorMessage))
+                    {
+                        errorMessage = "Failed to determine GVFS timeout and max retries: " + errorMessage;
+                        return false;
+                    }
+
+                    CacheServerInfo cacheServer = new CacheServerInfo(enlistment.RepoUrl, null);
+                    using (GitObjectsHttpRequestor objectRequestor = new GitObjectsHttpRequestor(tracer, enlistment, cacheServer, retryConfig))
+                    {
+                        PhysicalFileSystem fileSystem = new PhysicalFileSystem();
+                        GitRepo gitRepo = new GitRepo(tracer, enlistment, fileSystem);
+                        GVFSGitObjects gitObjects = new GVFSGitObjects(new GVFSContext(tracer, fileSystem, gitRepo, enlistment), objectRequestor);
+
+                        GitProcess.Result revParseResult = enlistment.CreateGitProcess().RevParse("HEAD");
+                        if (revParseResult.HasErrors)
+                        {
+                            errorMessage = "Unable to determine HEAD commit id: " + revParseResult.Errors;
+                            return false;
+                        }
+
+                        string headCommit = revParseResult.Output.TrimEnd('\n');
+
+                        if (!this.TryDownloadCommit(headCommit, enlistment, objectRequestor, gitObjects, gitRepo, out errorMessage) ||
+                            !this.TryDownloadRootGitAttributes(enlistment, gitObjects, gitRepo, out errorMessage))
+                        {
+                            return false;
+                        }
+                    }
+
+                    return true;
+                },
+                "Downloading git objects",
+                suppressGvfsLogMessage: true))
+            {
+                this.WriteMessage(tracer, errorMessage);
+                return false;
+            }
+
+            return true;
+        }
+
         private bool TryRecreateIndex(ITracer tracer, GVFSEnlistment enlistment)
         {
-            return this.ShowStatusWhileRunning(
+            string errorMessage = null;
+
+            if (!this.ShowStatusWhileRunning(
                 () =>
                 {
                     // Create a new index based on the new minimal sparse-checkout
@@ -366,11 +421,18 @@ To actually execute the dehydrate, run 'gvfs dehydrate --confirm'
                         GitProcess git = new GitProcess(enlistment);
                         GitProcess.Result checkoutResult = git.ForceCheckout("HEAD");
 
+                        errorMessage = checkoutResult.Errors;
                         return !checkoutResult.HasErrors;
                     }
                 },
                 "Recreating git index",
-                suppressGvfsLogMessage: true);
+                suppressGvfsLogMessage: true))
+            {
+                this.WriteMessage(tracer, "Failed to recreate index: " + errorMessage);
+                return false;
+            }
+
+            return true;
         }
 
         private void WriteMessage(ITracer tracer, string message)
@@ -399,7 +461,7 @@ To actually execute the dehydrate, run 'gvfs dehydrate --confirm'
                 StringBuilder commandOutput = new StringBuilder();
                 using (StringWriter writer = new StringWriter(commandOutput))
                 {
-                    returnCode = this.Execute<TVerb>(verb => verb.Output = writer);
+                    returnCode = this.Execute<TVerb>(this.EnlistmentRootPath, verb => verb.Output = writer);
                 }
 
                 tracer.RelatedEvent(

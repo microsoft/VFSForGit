@@ -282,7 +282,7 @@ namespace FastFetch.Jobs
             using (FastFetchLibGit2Repo repo = new FastFetchLibGit2Repo(this.tracer, this.enlistment.WorkingDirectoryRoot))
             {
                 string availableBlob;
-                while (this.AvailableBlobShas.TryTake(out availableBlob, millisecondsTimeout: -1))
+                while (this.AvailableBlobShas.TryTake(out availableBlob, Timeout.Infinite))
                 {
                     if (this.HasFailures)
                     {

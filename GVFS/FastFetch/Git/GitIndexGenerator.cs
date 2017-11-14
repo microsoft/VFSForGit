@@ -108,7 +108,7 @@ namespace FastFetch.Git
 
                     uint lastStringLength = 0;
                     LsTreeEntry entry;
-                    while (this.entryQueue.TryTake(out entry, millisecondsTimeout: -1))
+                    while (this.entryQueue.TryTake(out entry, Timeout.Infinite))
                     {
                         bool skipWorkTree = 
                             sparseCheckoutEntries != null && 

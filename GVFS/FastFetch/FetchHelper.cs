@@ -10,6 +10,7 @@ using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Threading;
 
 namespace FastFetch
 {
@@ -30,7 +31,6 @@ namespace FastFetch
         protected readonly bool SkipConfigUpdate;
 
         private const string AreaPath = nameof(FetchHelper);
-        private const int CommitDepth = 1;
 
         public FetchHelper(
             ITracer tracer,
@@ -132,15 +132,24 @@ namespace FastFetch
         /// <param name="branchOrCommit">A specific branch to filter for, or null for all branches returned from info/refs</param>
         public virtual void FastFetch(string branchOrCommit, bool isBranch)
         {
-            int matchedBlobs;
-            int downloadedBlobs;
-            this.FastFetchWithStats(branchOrCommit, isBranch, out matchedBlobs, out downloadedBlobs);
+            int matchedBlobCount;
+            int downloadedBlobCount;
+            int readFileCount;
+            
+            this.FastFetchWithStats(branchOrCommit, isBranch, false, out matchedBlobCount, out downloadedBlobCount, out readFileCount);
         }
 
-        public void FastFetchWithStats(string branchOrCommit, bool isBranch, out int matchedBlobs, out int downloadedBlobs)
+        public void FastFetchWithStats(
+            string branchOrCommit,
+            bool isBranch,
+            bool readFilesAfterDownload,
+            out int matchedBlobCount,
+            out int downloadedBlobCount,
+            out int readFileCount)
         {
-            matchedBlobs = 0;
-            downloadedBlobs = 0;
+            matchedBlobCount = 0;
+            downloadedBlobCount = 0;
+            readFileCount = 0;
 
             if (string.IsNullOrWhiteSpace(branchOrCommit))
             {
@@ -169,16 +178,13 @@ namespace FastFetch
             }
 
             this.DownloadMissingCommit(commitToFetch, this.GitObjects);
-            
-            // Dummy output queue since we don't need to checkout available blobs
-            BlockingCollection<string> availableBlobs = new BlockingCollection<string>();
 
             // Configure pipeline
             // LsTreeHelper output => FindMissingBlobs => BatchDownload => IndexPack
             string shallowFile = Path.Combine(this.Enlistment.WorkingDirectoryRoot, GVFSConstants.DotGit.Shallow);
 
             string previousCommit = null;
-            
+
             // Use the shallow file to find a recent commit to diff against to try and reduce the number of SHAs to check
             DiffHelper blobEnumerator = new DiffHelper(this.Tracer, this.Enlistment, this.FileList, this.FolderList);
             if (File.Exists(shallowFile))
@@ -192,21 +198,32 @@ namespace FastFetch
                 }
             }
 
-            blobEnumerator.PerformDiff(previousCommit, commitToFetch);
-            this.HasFailures |= blobEnumerator.HasFailures;
+            new Thread(
+                () =>
+                {
+                    blobEnumerator.PerformDiff(previousCommit, commitToFetch);
+                    this.HasFailures |= blobEnumerator.HasFailures;
+                }).Start();
+
+            BlockingCollection<string> availableBlobs = new BlockingCollection<string>();
 
             FindMissingBlobsJob blobFinder = new FindMissingBlobsJob(this.SearchThreadCount, blobEnumerator.RequiredBlobs, availableBlobs, this.Tracer, this.Enlistment);
-            BatchObjectDownloadJob downloader = new BatchObjectDownloadJob(this.DownloadThreadCount, this.ChunkSize, blobFinder.DownloadQueue, availableBlobs, this.Tracer, this.Enlistment, this.ObjectRequestor, this.GitObjects);
+            BatchObjectDownloadJob downloader = new BatchObjectDownloadJob(this.DownloadThreadCount, this.ChunkSize, blobFinder.MissingBlobs, availableBlobs, this.Tracer, this.Enlistment, this.ObjectRequestor, this.GitObjects);
             IndexPackJob packIndexer = new IndexPackJob(this.IndexThreadCount, downloader.AvailablePacks, availableBlobs, this.Tracer, this.GitObjects);
+            ReadFilesJob readFiles = new ReadFilesJob(Environment.ProcessorCount * 2, blobEnumerator.FileAddOperations, availableBlobs, this.Tracer);
             
             blobFinder.Start();
             downloader.Start();
-            
+
+            if (readFilesAfterDownload)
+            {
+                readFiles.Start();
+            }
+
             // If indexing happens during searching, searching progressively gets slower, so wait on searching before indexing.
             blobFinder.WaitForCompletion();
             this.HasFailures |= blobFinder.HasFailures;
 
-            // Index regardless of failures, it'll shorten the next fetch.
             packIndexer.Start();
 
             downloader.WaitForCompletion();
@@ -215,8 +232,17 @@ namespace FastFetch
             packIndexer.WaitForCompletion();
             this.HasFailures |= packIndexer.HasFailures;
 
-            matchedBlobs = blobFinder.AvailableBlobCount + blobFinder.MissingBlobCount;
-            downloadedBlobs = blobFinder.MissingBlobCount;
+            availableBlobs.CompleteAdding();
+
+            if (readFilesAfterDownload)
+            {
+                readFiles.WaitForCompletion();
+                this.HasFailures |= readFiles.HasFailures;
+            }
+
+            matchedBlobCount = blobFinder.AvailableBlobCount + blobFinder.MissingBlobCount;
+            downloadedBlobCount = blobFinder.MissingBlobCount;
+            readFileCount = readFiles.ReadFileCount;
 
             if (!this.SkipConfigUpdate && !this.HasFailures)
             {
@@ -313,7 +339,6 @@ namespace FastFetch
         {
             EventMetadata startMetadata = new EventMetadata();
             startMetadata.Add("CommitSha", commitSha);
-            startMetadata.Add("CommitDepth", CommitDepth);
 
             using (ITracer activity = this.Tracer.StartActivity("DownloadTrees", EventLevel.Informational, Keywords.Telemetry, startMetadata))
             {
@@ -321,7 +346,7 @@ namespace FastFetch
                 {
                     if (!repo.ObjectExists(commitSha))
                     {
-                        if (!gitObjects.TryEnsureCommitIsLocal(commitSha, commitDepth: CommitDepth))
+                        if (!gitObjects.TryDownloadCommit(commitSha))
                         {
                             EventMetadata metadata = new EventMetadata();
                             metadata.Add("ObjectsEndpointUrl", this.ObjectRequestor.CacheServer.ObjectsEndpointUrl);

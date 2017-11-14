@@ -30,6 +30,11 @@ namespace GVFS.GVFlt
         private const string EtwArea = "GVFltCallbacks";
         private const int MinGvFltThreads = 5;
 
+        private static readonly GitCommandLineParser.Verbs CanCreatePlaceholderVerbs =
+            GitCommandLineParser.Verbs.AddOrStage | GitCommandLineParser.Verbs.Move | GitCommandLineParser.Verbs.Status;
+        private static readonly GitCommandLineParser.Verbs LeavesProjectionUnchangedVerbs =
+            GitCommandLineParser.Verbs.AddOrStage | GitCommandLineParser.Verbs.Commit | GitCommandLineParser.Verbs.Status | GitCommandLineParser.Verbs.UpdateIndex;
+
         private readonly string logsHeadPath;
 
         private IVirtualizationInstance gvflt;
@@ -158,17 +163,6 @@ namespace GVFS.GVFlt
             return true;
         }
 
-        public static bool IsPathMonitoredForWrites(string virtualPath)
-        {
-            if (virtualPath.Equals(GVFSConstants.DotGit.Index, StringComparison.OrdinalIgnoreCase) ||
-                virtualPath.Equals(GVFSConstants.DotGit.Logs.Head, StringComparison.OrdinalIgnoreCase))
-            {
-                return true;
-            }
-
-            return false;
-        }
-
         public static string GetShaFromContentId(byte[] contentId)
         {
             return Encoding.Unicode.GetString(contentId, 0, GVFSConstants.ShaStringLength * sizeof(char));
@@ -220,13 +214,16 @@ namespace GVFS.GVFlt
             this.gvflt.OnGetFileStream = this.GVFltGetFileStreamHandler;
             this.gvflt.OnNotifyFirstWrite = this.GVFltNotifyFirstWriteHandler;
 
-            this.gvflt.OnNotifyFileHandleCreated = this.GVFltNotifyFileHandleCreatedHandler;
+            this.gvflt.OnNotifyPostCreateHandleOnly = null;
+            this.gvflt.OnNotifyPostCreateNewFile = this.GVFltNotifyPostCreateNewFileHandler;
+            this.gvflt.OnNotifyPostCreateOverwrittenOrSuperseded = this.GVFltNotifyPostCreateOverwrittenOrSupersededHandler;
             this.gvflt.OnNotifyPreDelete = this.GVFltNotifyPreDeleteHandler;
             this.gvflt.OnNotifyPreRename = this.GvFltNotifyPreRenameHandler;
             this.gvflt.OnNotifyPreSetHardlink = null;
             this.gvflt.OnNotifyFileRenamed = this.GVFltNotifyFileRenamedHandler;
             this.gvflt.OnNotifyHardlinkCreated = null;
-            this.gvflt.OnNotifyFileHandleClosed = this.GVFltNotifyFileHandleClosedHandler;
+            this.gvflt.OnNotifyFileHandleClosedOnly = null;
+            this.gvflt.OnNotifyFileHandleClosedModifiedOrDeleted = this.GVFltNotifyFileHandleClosedModifiedOrDeletedHandler;
 
             this.gvflt.OnCancelCommand = this.GVFltCancelCommandHandler;
 
@@ -235,6 +232,14 @@ namespace GVFS.GVFlt
             uint logicalBytesPerSector = 0;
             uint writeBufferAlignment = 0;
 
+            NotificationType globalNotificationMask =
+                Notifications.DotGitFolder |
+                Notifications.IndexFile |
+                Notifications.IndexLockFile |
+                Notifications.LogsHeadFile |
+                Notifications.FilesInWorkingFolder |
+                Notifications.FoldersInWorkingFolder;
+
             // We currently use twice as many threads as connections to allow for 
             // non-network operations to possibly succeed despite the connection limit
             HResult result = this.gvflt.StartVirtualizationInstance(
@@ -242,6 +247,7 @@ namespace GVFS.GVFlt
                 poolThreadCount: threadCount,
                 concurrentThreadCount: threadCount,
                 enableNegativePathCache: true,
+                globalNotificationMask: globalNotificationMask,
                 logicalBytesPerSector: ref logicalBytesPerSector,
                 writeBufferAlignment: ref writeBufferAlignment);
 
@@ -406,7 +412,7 @@ namespace GVFS.GVFlt
         private bool GitCommandLeavesProjectionUnchanged(GitCommandLineParser gitCommand)
         {
             return
-                gitCommand.IsVerb("add", "commit", "status", "update-index") ||
+                gitCommand.IsVerb(LeavesProjectionUnchangedVerbs) ||
                 gitCommand.IsResetSoftOrMixed() ||
                 gitCommand.IsCheckoutWithFilePaths();
         }    
@@ -1248,7 +1254,42 @@ namespace GVFS.GVFlt
             return NtStatus.Success;
         }
 
-        private void GVFltNotifyFileHandleCreatedHandler(
+        private void GVFltNotifyPostCreateNewFileHandler(
+            string virtualPath,
+            bool isDirectory,
+            uint desiredAccess,
+            uint shareMode,
+            uint createDisposition,
+            uint createOptions,
+            ref NotificationType notificationMask)
+        {
+            try
+            {
+                if (!PathUtil.IsPathInsideDotGit(virtualPath))
+                {
+                    if (isDirectory)
+                    {
+                        this.background.Enqueue(BackgroundGitUpdate.OnFolderCreated(virtualPath));
+                    }
+                    else
+                    {
+                        this.background.Enqueue(BackgroundGitUpdate.OnFileCreated(virtualPath));
+                    }
+                }
+            }
+            catch (Exception e)
+            {
+                EventMetadata metadata = this.CreateEventMetadata(virtualPath, e);
+                metadata.Add("isDirectory", isDirectory);
+                metadata.Add("desiredAccess", desiredAccess);
+                metadata.Add("shareMode", shareMode);
+                metadata.Add("createDisposition", createDisposition);
+                metadata.Add("createOptions", createOptions);
+                this.LogUnhandledExceptionAndExit(nameof(this.GVFltNotifyPostCreateNewFileHandler), metadata);
+            }
+        }
+
+        private void GVFltNotifyPostCreateOverwrittenOrSupersededHandler(
             string virtualPath,
             bool isDirectory,
             uint desiredAccess,
@@ -1256,32 +1297,14 @@ namespace GVFS.GVFlt
             uint createDisposition,
             uint createOptions,
             IoStatusBlockValue iostatusBlock,
-            ref uint notificationMask)
+            ref NotificationType notificationMask)
         {
             try
             {
-                if (PathUtil.IsPathInsideDotGit(virtualPath))
+                if (!PathUtil.IsPathInsideDotGit(virtualPath))
                 {
-                    notificationMask = this.GetDotGitNotificationMask(virtualPath);
-                }
-                else
-                {
-                    notificationMask = this.GetWorkingDirectoryNotificationMask(isDirectory);
-
                     switch (iostatusBlock)
                     {
-                        case IoStatusBlockValue.FileCreated:
-                            if (isDirectory)
-                            {
-                                this.background.Enqueue(BackgroundGitUpdate.OnFolderCreated(virtualPath));
-                            }
-                            else
-                            {
-                                this.background.Enqueue(BackgroundGitUpdate.OnFileCreated(virtualPath));
-                            }
-
-                            break;
-
                         case IoStatusBlockValue.FileOverwritten:
                             if (!isDirectory)
                             {
@@ -1312,7 +1335,7 @@ namespace GVFS.GVFlt
                 metadata.Add("createDisposition", createDisposition);
                 metadata.Add("createOptions", createOptions);
                 metadata.Add("iostatusBlock", iostatusBlock);
-                this.LogUnhandledExceptionAndExit(nameof(this.GVFltNotifyFileHandleCreatedHandler), metadata);
+                this.LogUnhandledExceptionAndExit(nameof(this.GVFltNotifyPostCreateOverwrittenOrSupersededHandler), metadata);
             }
         }
 
@@ -1385,7 +1408,7 @@ namespace GVFS.GVFlt
             GitCommandLineParser gitCommand = new GitCommandLineParser(this.context.Repository.GVFSLock.GetLockedGitCommand());
             return 
                 !gitCommand.IsValidGitCommand ||
-                gitCommand.IsVerb("clean") ||
+                gitCommand.IsVerb(GitCommandLineParser.Verbs.Clean) ||
                 gitCommand.IsResetHard();
         }
 
@@ -1393,18 +1416,16 @@ namespace GVFS.GVFlt
             string virtualPath,
             string destinationPath,
             bool isDirectory,
-            ref uint notificationMask)
+            ref NotificationType notificationMask)
         {
             try
             {
                 if (PathUtil.IsPathInsideDotGit(destinationPath))
                 {
-                    notificationMask = this.GetDotGitNotificationMask(destinationPath);
                     this.OnDotGitFileChanged(destinationPath);
                 }
                 else
                 {
-                    notificationMask = this.GetWorkingDirectoryNotificationMask(isDirectory);
                     if (isDirectory)
                     {
                         this.background.Enqueue(BackgroundGitUpdate.OnFolderRenamed(virtualPath, destinationPath));
@@ -1424,27 +1445,22 @@ namespace GVFS.GVFlt
             }
         }
 
-        private void GVFltNotifyFileHandleClosedHandler(
-            string virtualPath,
+        private void GVFltNotifyFileHandleClosedModifiedOrDeletedHandler(
+            string virtualPath, 
             bool isDirectory,
-            bool fileModified,
-            bool fileDeleted)
+            bool isFileModified,
+            bool isFileDeleted)
         {
             try
             {
-                bool pathInsideDotGit = false;
+                bool pathInsideDotGit = PathUtil.IsPathInsideDotGit(virtualPath);
 
-                if (fileModified || fileDeleted)
-                {
-                    pathInsideDotGit = PathUtil.IsPathInsideDotGit(virtualPath);
-                }
-
-                if (fileModified && pathInsideDotGit)
+                if (isFileModified && pathInsideDotGit)
                 {
                     // TODO 876861: See if GVFlt can provide process ID\name in this callback
                     this.OnDotGitFileChanged(virtualPath);
                 }
-                else if (fileDeleted && !pathInsideDotGit)
+                else if (isFileDeleted && !pathInsideDotGit)
                 {
                     if (isDirectory)
                     {
@@ -1460,11 +1476,11 @@ namespace GVFS.GVFlt
             {
                 EventMetadata metadata = this.CreateEventMetadata(virtualPath, e);
                 metadata.Add("isDirectory", isDirectory);
-                metadata.Add("fileModified", fileModified);
-                metadata.Add("fileDeleted", fileDeleted);
-                this.LogUnhandledExceptionAndExit(nameof(this.GVFltNotifyFileHandleClosedHandler), metadata);
+                metadata.Add("isFileModified", isFileModified);
+                metadata.Add("isFileDeleted", isFileDeleted);
+                this.LogUnhandledExceptionAndExit(nameof(this.GVFltNotifyFileHandleClosedModifiedOrDeletedHandler), metadata);
             }
-        }
+        }        
 
         private void GVFltCancelCommandHandler(int commandId)
         {
@@ -1516,42 +1532,6 @@ namespace GVFS.GVFlt
             {
                 this.OnLogsHeadChange();
             }
-        }
-
-        private uint GetDotGitNotificationMask(string virtualPath)
-        {
-            uint notificationMask = (uint)NotificationType.FileRenamed;
-
-            if (!DoesPathAllowDelete(virtualPath))
-            {
-                notificationMask |= (uint)NotificationType.PreDelete;
-            }
-
-            if (IsPathMonitoredForWrites(virtualPath))
-            {
-                notificationMask |= (uint)NotificationType.FileHandleClosed;
-            }
-
-            if (virtualPath.Equals(GVFSConstants.DotGit.IndexLock, StringComparison.OrdinalIgnoreCase))
-            {
-                notificationMask |= (uint)NotificationType.PreRename;
-            }
-
-            return notificationMask;
-        }
-
-        private uint GetWorkingDirectoryNotificationMask(bool isDirectory)
-        {
-            uint notificationMask = (uint)NotificationType.FileRenamed;
-
-            if (isDirectory)
-            {
-                notificationMask |= (uint)NotificationType.PreDelete;
-            }
-
-            notificationMask |= (uint)NotificationType.FileHandleClosed;
-
-            return notificationMask;
         }
 
         private CallbackResult PreBackgroundOperation()
@@ -1847,7 +1827,7 @@ namespace GVFS.GVFlt
             GitCommandLineParser gitCommand = new GitCommandLineParser(this.context.Repository.GVFSLock.GetLockedGitCommand());
             return
                 !gitCommand.IsValidGitCommand ||
-                gitCommand.IsVerb("status", "add", "mv");
+                gitCommand.IsVerb(CanCreatePlaceholderVerbs);
         }
 
         private void LogUnhandledExceptionAndExit(string methodName, EventMetadata metadata)
@@ -1996,6 +1976,36 @@ namespace GVFS.GVFlt
             }
 
             public NtStatus ErrorCode { get; private set; }
+        }
+
+        private class Notifications
+        {
+            public const NotificationType DotGitFolder = NotificationType.FileRenamed;
+
+            public const NotificationType IndexFile =
+                NotificationType.PreDelete |
+                NotificationType.FileRenamed |
+                NotificationType.FileHandleClosedModified;
+
+            public const NotificationType IndexLockFile =
+                NotificationType.PreRename |
+                NotificationType.FileRenamed;
+
+            public const NotificationType LogsHeadFile = 
+                NotificationType.FileRenamed | 
+                NotificationType.FileHandleClosedModified;
+
+            public const NotificationType FilesInWorkingFolder =
+                NotificationType.PostCreateNewFile |
+                NotificationType.PostCreateOverwrittenOrSuperseded |
+                NotificationType.FileRenamed |
+                NotificationType.FileHandleClosedDeleted;
+
+            public const NotificationType FoldersInWorkingFolder =
+                NotificationType.PostCreateNewFile |
+                NotificationType.PreDelete |
+                NotificationType.FileRenamed |
+                NotificationType.FileHandleClosedDeleted;
         }
     }
 }
