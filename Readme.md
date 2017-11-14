@@ -7,10 +7,16 @@ see what appears to be a normal repo, but GVFS only downloads objects as they ar
 to ensure that git operations like status, checkout, etc., can be as quick as possible because they will only consider the files
 that the user has accessed, not all files in the repo.
 
-GVFS is still in progress, but it is available here for anyone to try out. Feel free to send us feedback, bug reports, suggestions, and pull requests!
+## Installing GVFS
+
+* GVFS requires Windows 10 Creators Update (Windows 10 version 1703) or later
+* Install the latest GVFS-enabled Git for Windows from https://github.com/Microsoft/git/releases
+  * This build behaves the same as Git for Windows except if the config value `core.gvfs` is set to `true`.
+* Install the latest GVFS from https://github.com/Microsoft/GVFS/releases
 
 ## Building GVFS
 
+If you'd like to build your own GVFS installer:
 * Install Visual Studio 2017 Community Edition or higher (https://www.visualstudio.com/downloads/). Include the ".Net desktop development" and 
 "Desktop development with C++" workloads, as well as the following additional components:
   * .Net Framework 3.5 development tools
@@ -23,15 +29,12 @@ GVFS is still in progress, but it is available here for anyone to try out. Feel 
 * Open `src\GVFS.sln` in Visual Studio. Do not upgrade any projects.
 * Build `GVFS.sln`
 
-## Testing GVFS
+The installer can now be found at `C:\Repos\GVFS\BuildOutput\GVFS\bin\x64\[Debug|Release]\Setup\SetupGVFS.exe
 
-* GVFS requires Windows 10 Creators Update (Windows 10 version 1703) or later
-* Install GVFS-enabled Git for Windows (2.15.0.gvfs.1 or later) from https://github.com/Microsoft/git/releases
-  * This build behaves the same as Git for Windows except if the config value `core.gvfs` is set to `true`.
-* Install GVFS from your build output
-  * If you built it as described above, the installer can be found at `C:\Repos\GVFS\BuildOutput\GVFS\bin\x64\[Debug|Release]\Setup\SetupGVFS.exe`
+## Trying out GVFS
+
 * GVFS will work with any git service that supports the GVFS [protocol](Protocol.md). For now, that means you'll need to create a repo in 
-Team Services (https://www.visualstudio.com/team-services/), and push some contents to it. There are two constraints:
+Visual Studio Team Services (https://www.visualstudio.com/team-services/), and push some contents to it. There are two constraints:
   * Your repo must not enable any clean/smudge filters
   * Your repo must have a `.gitattributes` file in the root that includes the line `* -text`
 * `gvfs clone <URL of repo you just created>`
