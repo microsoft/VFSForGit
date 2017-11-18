@@ -1,23 +1,23 @@
-# The GVFS Protocol (v1)
+# The RGFS Protocol (v1)
 
-The GVFS network protocol consists of four operations on three endpoints. In summary:
-* `GET /gvfs/objects/{objectId}`
+The RGFS network protocol consists of four operations on three endpoints. In summary:
+* `GET /rgfs/objects/{objectId}`
   * Provides a single object in loose-object format
-* `POST /gvfs/objects`
+* `POST /rgfs/objects`
   * Provides one or more objects in packfile or streaming loose object format
-* `GET /gvfs/prefetch[?lastPackTimestamp={secondsSinceEpoch}]`
+* `GET /rgfs/prefetch[?lastPackTimestamp={secondsSinceEpoch}]`
   * Provides one or more packfiles of non-blobs and optionally packfile indexes in a streaming format
-* `POST /gvfs/sizes`
+* `POST /rgfs/sizes`
   * Provides the uncompressed, undeltified size of one or more objects
-* `GET /gvfs/config`
+* `GET /rgfs/config`
   * Provides server-set client configuration options
 
-# `GET /gvfs/objects/{objectId}`
+# `GET /rgfs/objects/{objectId}`
 Will return a single object in compressed loose object format, which can be directly
 written to `.git/xx/yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy` if desired. The request/response looks
 similar to the "Dumb Protocol" as described [here](https://git-scm.com/book/en/v2/Git-Internals-Transfer-Protocols).
 
-# `POST /gvfs/objects`
+# `POST /rgfs/objects`
 Will return multiple objects, possibly more than the client requested based on request parameters.
 
 The request consists of a JSON body with the following format:
@@ -53,7 +53,7 @@ If any other object type is requested (`tree`, `blob`, or `tag`), then only that
 `commitDepth` - if the requested object is a `commit`, all parents up to `n` levels deep will be returned, along
 with all their trees as previously described. Does not include any `blob`s.
 
-## `Accept: application/x-gvfs-loose-objects`
+## `Accept: application/x-rgfs-loose-objects`
 
 **NOTE**: This format is currently only supposed by the cache server, not by VSTS.
 
@@ -61,8 +61,8 @@ To enable scenarios where multiple objects are required, but less overhead would
 loose objects (e.g. on a caching proxy), an alternative, packfile-like response format that contains loose objects 
 is also supported.
 
-To receive objects in this format, the client **MUST** supply an `Accept` header of `application/x-gvfs-loose-objects` 
-to the `POST /gvfs/objects` endpoint. Otherwise, the response format will be `application/x-git-packfile`.
+To receive objects in this format, the client **MUST** supply an `Accept` header of `application/x-rgfs-loose-objects` 
+to the `POST /rgfs/objects` endpoint. Otherwise, the response format will be `application/x-git-packfile`.
 
 This format will **NOT** perform any `commit` to `tree` expansion, and will return an error if a `commitDepth`
 greater than `1` is supplied. Said another way, this `Accept`/return type has no concept of "implicitly-requested"
@@ -79,7 +79,7 @@ Count            Size (bytes)    Chunk Description
 
 HEADER
                 +-------------------------------------------------------------------------------+
-1               |          5 | UTF-8 encoded 'GVFS '                                            |
+1               |          5 | UTF-8 encoded 'RGFS '                                            |
                 |          1 | Unsigned byte version number. Currently, 1.                      |
                 +-------------------------------------------------------------------------------+
 
@@ -96,7 +96,7 @@ TRAILER
                 +-------------------------------------------------------------------------------+
 ```
 
-# `GET /gvfs/prefetch[?lastPackTimestamp={secondsSinceEpoch}]`
+# `GET /rgfs/prefetch[?lastPackTimestamp={secondsSinceEpoch}]`
 
 To enable the reuse of already-existing packfiles and indexes, a custom format for transmitting these files
 is supported. The `prefetch` endpoint will return one or more packfiles of **non-blob** objects.  
@@ -106,7 +106,7 @@ after the specific Unix epoch time (approximately, ±10 minutes or so) will be r
 will contain only objects introduced to the repository after that UTC-based timestamp, but will not contain
 **all** objects introduced after that timestamp.
 
-A media-type of `application/x-gvfs-timestamped-packfiles-indexes` will be returned from this endpoint.
+A media-type of `application/x-rgfs-timestamped-packfiles-indexes` will be returned from this endpoint.
 
 ## Response format
 
@@ -144,7 +144,7 @@ num_packs       |          8 | Signed-long pack timestamp in seconds since UTC e
 Packs **MUST** be sent in increasing `timestamp` order. In the case of a failed connection, this allows the 
 client to keep the packs it received successfully and "resume" by sending the highest completed timestamp.
 
-# `POST /gvfs/sizes`
+# `POST /rgfs/sizes`
 Will return the uncompressed, undeltified length of the requested objects in JSON format.
 
 The request consists of a JSON body with the following format:
@@ -174,22 +174,22 @@ will result in a a response like:
 ]
 ```
 
-# `GET /gvfs/config`
-This optional endpoint will return all server-set GVFS client configuration options. It currently
+# `GET /rgfs/config`
+This optional endpoint will return all server-set RGFS client configuration options. It currently
 provides:
 
-* A set of allowed GVFS client version ranges, in order to block older clients from running in 
+* A set of allowed RGFS client version ranges, in order to block older clients from running in 
 certain scenarios. For example, a data corruption bug may be found and encouraging clients to 
 avoid that version is desirable.
 * A list of available cache servers, each describing their url and default-ness with a friendly name
 that users can use to inform which cache server to use. Note that the names "None" and "User Defined" 
-are reserved by GVFS. Any caches with these names may cause undefined behavior in the GVFS client.
+are reserved by RGFS. Any caches with these names may cause undefined behavior in the RGFS client.
 
 An example response is provided below. Note that the `null` `"Max"` value is only allowed for the last
 (or greatest) range, since it logically excludes greater version numbers from having an effect.
 ```
 {
-	"AllowedGvfsClientVersions": [{
+	"AllowedRgfsClientVersions": [{
 		"Max": {
 			"Major": 0,
 			"Minor": 4,
