@@ -1,0 +1,73 @@
+﻿using RGFS.FunctionalTests.FileSystemRunners;
+using System;
+using System.IO;
+
+namespace RGFS.FunctionalTests.Tools
+{
+    public class ControlGitRepo
+    {
+        static ControlGitRepo()
+        {
+            if (!Directory.Exists(CachePath))
+            {
+                GitProcess.Invoke(Environment.SystemDirectory, "clone " + RGFSTestConfig.RepoToClone + " " + CachePath + " --bare");
+            }
+            else
+            {
+                GitProcess.Invoke(CachePath, "fetch origin");
+            }
+        }
+
+        private ControlGitRepo(string repoUrl, string rootPath, string commitish)
+        {
+            this.RootPath = rootPath;
+            this.RepoUrl = repoUrl;
+            this.Commitish = commitish;
+        }
+
+        public string RootPath { get; private set; }
+        public string RepoUrl { get; private set; }
+        public string Commitish { get; private set; }
+
+        private static string CachePath
+        {
+            get { return Path.Combine(Properties.Settings.Default.ControlGitRepoRoot, "cache"); }
+        }
+
+        public static ControlGitRepo Create(string commitish = null)
+        {
+            string clonePath = Path.Combine(Properties.Settings.Default.ControlGitRepoRoot, Guid.NewGuid().ToString("N"));
+            return new ControlGitRepo(
+                RGFSTestConfig.RepoToClone,
+                clonePath,
+                commitish == null ? Properties.Settings.Default.Commitish : commitish);
+        }
+
+        public void Initialize()
+        {
+            Directory.CreateDirectory(this.RootPath);
+            GitProcess.Invoke(this.RootPath, "init");
+            GitProcess.Invoke(this.RootPath, "config core.autocrlf false");
+            GitProcess.Invoke(this.RootPath, "config merge.stat false");
+            GitProcess.Invoke(this.RootPath, "config advice.statusUoption false");
+            GitProcess.Invoke(this.RootPath, "config core.abbrev 40");
+            GitProcess.Invoke(this.RootPath, "config user.name \"Functional Test User\"");
+            GitProcess.Invoke(this.RootPath, "config user.email \"functional@test.com\"");
+            GitProcess.Invoke(this.RootPath, "remote add origin " + CachePath);
+            this.Fetch(this.Commitish);
+            GitProcess.Invoke(this.RootPath, "branch --set-upstream " + this.Commitish + " origin/" + this.Commitish);
+            GitProcess.Invoke(this.RootPath, "checkout " + this.Commitish);
+            GitProcess.Invoke(this.RootPath, "branch --unset-upstream");
+        }
+
+        public void Fetch(string commitish)
+        {
+            GitProcess.Invoke(this.RootPath, "fetch origin " + commitish);
+        }
+
+        public void Delete()
+        {
+            CmdRunner.DeleteDirectoryWithRetry(this.RootPath);
+        }
+    }
+}

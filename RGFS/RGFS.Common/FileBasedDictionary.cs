@@ -1,0 +1,131 @@
+﻿using RGFS.Common.FileSystem;
+using RGFS.Common.Tracing;
+using Newtonsoft.Json;
+using System;
+using System.Collections.Concurrent;
+using System.Collections.Generic;
+
+namespace RGFS.Common
+{
+    public class FileBasedDictionary<TKey, TValue> : FileBasedCollection
+    {
+        private ConcurrentDictionary<TKey, TValue> data = new ConcurrentDictionary<TKey, TValue>();
+
+        private FileBasedDictionary(ITracer tracer, PhysicalFileSystem fileSystem, string dataFilePath) 
+            : base(tracer, fileSystem, dataFilePath, collectionAppendsDirectlyToFile: false)
+        {
+        }
+
+        public static bool TryCreate(ITracer tracer, string dictionaryPath, PhysicalFileSystem fileSystem, out FileBasedDictionary<TKey, TValue> output, out string error)
+        {
+            output = new FileBasedDictionary<TKey, TValue>(tracer, fileSystem, dictionaryPath);
+            if (!output.TryLoadFromDisk<TKey, TValue>(
+                output.TryParseAddLine,
+                output.TryParseRemoveLine,
+                output.HandleAddLine,
+                out error))
+            {
+                output = null;
+                return false;
+            }
+
+            return true;
+        }
+
+        public void SetValueAndFlush(TKey key, TValue value)
+        {
+            try
+            {
+                this.data[key] = value;
+                this.Flush();
+            }
+            catch (Exception e)
+            {
+                throw new FileBasedCollectionException(e);
+            }
+        }
+
+        public bool TryGetValue(TKey key, out TValue value)
+        {
+            try
+            {
+                return this.data.TryGetValue(key, out value);
+            }
+            catch (Exception e)
+            {
+                throw new FileBasedCollectionException(e);
+            }
+        }
+
+        public void RemoveAndFlush(TKey key)
+        {
+            try
+            {
+                TValue value;
+                if (this.data.TryRemove(key, out value))
+                {
+                    this.Flush();
+                }
+            }
+            catch (Exception e)
+            {
+                throw new FileBasedCollectionException(e);
+            }
+        }
+
+        private void Flush()
+        {
+            this.WriteAndReplaceDataFile(this.GenerateDataLines);
+        }
+
+        private bool TryParseAddLine(string line, out TKey key, out TValue value, out string error)
+        {
+            try
+            {
+                KeyValuePair<TKey, TValue> kvp = JsonConvert.DeserializeObject<KeyValuePair<TKey, TValue>>(line);
+                key = kvp.Key;
+                value = kvp.Value;
+            }
+            catch (JsonException ex)
+            {
+                key = default(TKey);
+                value = default(TValue);
+                error = "Could not deserialize JSON for add line: " + ex.Message;
+                return false;
+            }
+
+            error = null;
+            return true;
+        }
+
+        private bool TryParseRemoveLine(string line, out TKey key, out string error)
+        {
+            try
+            {
+                key = JsonConvert.DeserializeObject<TKey>(line);
+            }
+            catch (JsonException ex)
+            {
+                key = default(TKey);
+                error = "Could not deserialize JSON for delete line: " + ex.Message;
+                return false;
+            }
+
+            error = null;
+            return true;
+        }
+
+        private void HandleAddLine(TKey key, TValue value)
+        {
+            this.data.TryAdd(key, value);
+        }
+
+        private IEnumerable<string> GenerateDataLines()
+        {
+            foreach (KeyValuePair<TKey, TValue> kvp in this.data)
+            {
+                yield return this.FormatAddLine(JsonConvert.SerializeObject(kvp).Trim());
+            }
+        }
+    }
+}

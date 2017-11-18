@@ -1,0 +1,39 @@
+﻿<?xml version='1.0' encoding='utf-8'?>
+<SettingsFile xmlns="http://schemas.microsoft.com/VisualStudio/2004/01/settings" CurrentProfile="(Default)" GeneratedClassNamespace="RGFS.FunctionalTests.Properties" GeneratedClassName="Settings">
+  <Profiles />
+  <Settings>
+    <Setting Name="PathToRGFS" Type="System.String" Scope="Application">
+      <Value Profile="(Default)">RGFS.exe</Value>
+    </Setting>
+    <Setting Name="EnlistmentRoot" Type="System.String" Scope="Application">
+      <Value Profile="(Default)">C:\Repos\RGFSFunctionalTests\enlistment</Value>
+    </Setting>
+    <Setting Name="TestRepeatCount" Type="System.Int32" Scope="Application">
+      <Value Profile="(Default)">1</Value>
+    </Setting>
+    <Setting Name="PathToBash" Type="System.String" Scope="Application">
+      <Value Profile="(Default)">C:\Program Files\Git\bin\bash.exe</Value>
+    </Setting>
+    <Setting Name="Commitish" Type="System.String" Scope="Application">
+      <Value Profile="(Default)">FunctionalTests/20170905</Value>
+    </Setting>
+    <Setting Name="ControlGitRepoRoot" Type="System.String" Scope="Application">
+      <Value Profile="(Default)">C:\Repos\RGFSFunctionalTests\ControlRepo</Value>
+    </Setting>
+    <Setting Name="FastFetchRoot" Type="System.String" Scope="Application">
+      <Value Profile="(Default)">C:\Repos\RGFSFunctionalTests\FastFetch\Test</Value>
+    </Setting>
+    <Setting Name="FastFetchControl" Type="System.String" Scope="Application">
+      <Value Profile="(Default)">C:\Repos\RGFSFunctionalTests\FastFetch\Control</Value>
+    </Setting>
+    <Setting Name="PathToGit" Type="System.String" Scope="Application">
+      <Value Profile="(Default)">C:\Program Files\Git\cmd\git.exe</Value>
+    </Setting>
+    <Setting Name="PathToRGFSService" Type="System.String" Scope="Application">
+      <Value Profile="(Default)">RGFS.Service.exe</Value>
+    </Setting>
+    <Setting Name="RepoToClone" Type="System.String" Scope="Application">
+      <Value Profile="(Default)">TODO</Value>
+    </Setting>
+  </Settings>
+</SettingsFile>
