@@ -29,7 +29,7 @@ If you'd like to build your own GVFS installer:
 * Open `src\GVFS.sln` in Visual Studio. Do not upgrade any projects.
 * Build `GVFS.sln`
 
-The installer can now be found at `C:\Repos\GVFS\BuildOutput\GVFS\bin\x64\[Debug|Release]\Setup\SetupGVFS.exe
+The installer can now be found at `C:\Repos\GVFS\BuildOutput\GVFS\bin\x64\[Debug|Release]\Setup\SetupGVFS.exe`
 
 ## Trying out GVFS
 
