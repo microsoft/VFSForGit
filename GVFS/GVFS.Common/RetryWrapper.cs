@@ -34,7 +34,20 @@ namespace GVFS.Common
                 metadata.Add("AttemptNumber", eArgs.TryCount);
                 metadata.Add("Operation", actionName);
                 metadata.Add("WillRetry", eArgs.WillRetry);
-                string message = eArgs.Error != null ? eArgs.Error.Message : null;
+                string message = null;
+                if (eArgs.Error != null)
+                {
+                    message = eArgs.Error.Message;
+                    metadata.Add("Exception", eArgs.Error.ToString());
+
+                    int innerCounter = 1;
+                    Exception e = eArgs.Error.InnerException;
+                    while (e != null)
+                    {
+                        metadata.Add("InnerException" + innerCounter++, e.ToString());
+                        e = e.InnerException;
+                    }
+                }
 
                 if (eArgs.WillRetry || forceLogAsWarning)
                 {
@@ -44,10 +57,6 @@ namespace GVFS.Common
                 {
                     tracer.RelatedError(metadata, message, Keywords.Network);
                 }
-
-                // Emit with stack at a higher verbosity.
-                metadata[TracingConstants.MessageKey.VerboseMessage] = eArgs.Error != null ? eArgs.Error.ToString() : null;
-                tracer.RelatedEvent(EventLevel.Verbose, JsonEtwTracer.NetworkErrorEventName, metadata, Keywords.Network);
             };
         }        
 

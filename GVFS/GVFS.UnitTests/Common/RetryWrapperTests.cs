@@ -18,7 +18,7 @@ namespace GVFS.UnitTests.Common
         {
             const int ExpectedTries = 5;
 
-            RetryWrapper<bool> dut = new RetryWrapper<bool>(ExpectedTries, new CancellationToken(canceled: false), exponentialBackoffBase: 0);
+            RetryWrapper<bool> dut = new RetryWrapper<bool>(ExpectedTries, CancellationToken.None, exponentialBackoffBase: 0);
 
             int actualTries = 0;
             RetryWrapper<bool>.InvocationResult output = dut.Invoke(
@@ -38,7 +38,7 @@ namespace GVFS.UnitTests.Common
         {
             const int MaxTries = 5;
 
-            RetryWrapper<bool> dut = new RetryWrapper<bool>(MaxTries, new CancellationToken(canceled: false), exponentialBackoffBase: 0);
+            RetryWrapper<bool> dut = new RetryWrapper<bool>(MaxTries, CancellationToken.None, exponentialBackoffBase: 0);
 
             Assert.Throws<Exception>(
                 () =>
@@ -141,7 +141,7 @@ namespace GVFS.UnitTests.Common
             const int MaxTries = 5;
             const int ExpectedFailures = 5;
 
-            RetryWrapper<bool> dut = new RetryWrapper<bool>(MaxTries, new CancellationToken(canceled: false), exponentialBackoffBase: 0);
+            RetryWrapper<bool> dut = new RetryWrapper<bool>(MaxTries, CancellationToken.None, exponentialBackoffBase: 0);
 
             int actualFailures = 0;
             dut.OnFailure += errorArgs => actualFailures++;
@@ -163,7 +163,7 @@ namespace GVFS.UnitTests.Common
             const int ExpectedFailures = 0;
             const int ExpectedTries = 1;
 
-            RetryWrapper<bool> dut = new RetryWrapper<bool>(MaxTries, new CancellationToken(canceled: false), exponentialBackoffBase: 0);
+            RetryWrapper<bool> dut = new RetryWrapper<bool>(MaxTries, CancellationToken.None, exponentialBackoffBase: 0);
 
             int actualFailures = 0;
             dut.OnFailure += errorArgs => actualFailures++;
@@ -189,7 +189,7 @@ namespace GVFS.UnitTests.Common
             const int ExpectedFailures = 1;
             const int ExpectedTries = 1;
 
-            RetryWrapper<bool> dut = new RetryWrapper<bool>(MaxTries, new CancellationToken(canceled: false), exponentialBackoffBase: 0);
+            RetryWrapper<bool> dut = new RetryWrapper<bool>(MaxTries, CancellationToken.None, exponentialBackoffBase: 0);
 
             int actualFailures = 0;
             dut.OnFailure += errorArgs => actualFailures++;
@@ -215,7 +215,7 @@ namespace GVFS.UnitTests.Common
             const int ExpectedFailures = 5;
             const int ExpectedTries = 5;
 
-            RetryWrapper<bool> dut = new RetryWrapper<bool>(MaxTries, new CancellationToken(canceled: false), exponentialBackoffBase: 0);
+            RetryWrapper<bool> dut = new RetryWrapper<bool>(MaxTries, CancellationToken.None, exponentialBackoffBase: 0);
 
             int actualFailures = 0;
             dut.OnFailure += errorArgs => actualFailures++;

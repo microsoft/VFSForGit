@@ -51,7 +51,6 @@ namespace GVFS.CommandLine
                     enlistment.EnlistmentRoot,
                     enlistment.RepoUrl,
                     CacheServerResolver.GetUrlFromConfig(enlistment),
-                    enlistment.GitObjectsRoot,
                     new EventMetadata
                     {
                         { "Confirmed", this.Confirmed },
@@ -93,12 +92,21 @@ To actually execute the dehydrate, run 'gvfs dehydrate --confirm'
                 string error;
                 if (!DiskLayoutUpgrade.TryCheckDiskLayoutVersion(tracer, enlistment.EnlistmentRoot, out error))
                 {
-                    this.WriteErrorAndExit(tracer, error);
+                    this.ReportErrorAndExit(tracer, error);
                 }
+                
+                RetryConfig retryConfig;
+                if (!RetryConfig.TryLoadFromGitConfig(tracer, enlistment, out retryConfig, out error))
+                {
+                    this.ReportErrorAndExit(tracer, "Failed to determine GVFS timeout and max retries: " + error);
+                }
+
+                // Local cache and objects paths are required for TryDownloadGitObjects
+                this.InitializeLocalCacheAndObjectsPaths(tracer, enlistment, retryConfig, gvfsConfig: null, cacheServer: null);
 
                 if (this.TryBackupFiles(tracer, enlistment, backupRoot))
                 {
-                    if (this.TryDownloadGitObjects(tracer, enlistment) &&
+                    if (this.TryDownloadGitObjects(tracer, enlistment, retryConfig) &&
                         this.TryRecreateIndex(tracer, enlistment))
                     {
                         // Converting the src folder to partial must be the final step before mount
@@ -175,7 +183,7 @@ To actually execute the dehydrate, run 'gvfs dehydrate --confirm'
                         this.WriteMessage(tracer, "Either commit your changes or run dehydrate with --no-status");
                     }
 
-                    this.WriteErrorAndExit(tracer, "Dehydrate was aborted");
+                    this.ReportErrorAndExit(tracer, "Dehydrate was aborted");
                 }
             }
         }
@@ -192,7 +200,7 @@ To actually execute the dehydrate, run 'gvfs dehydrate --confirm'
                 "Unmounting",
                 suppressGvfsLogMessage: true))
             {
-                this.WriteErrorAndExit(tracer, "Unable to unmount.");
+                this.ReportErrorAndExit(tracer, "Unable to unmount.");
             }
         }
 
@@ -205,7 +213,7 @@ To actually execute the dehydrate, run 'gvfs dehydrate --confirm'
                 },
                 "Mounting"))
             {
-                this.WriteErrorAndExit(tracer, "Failed to mount after dehydrating.");
+                this.ReportErrorAndExit(tracer, "Failed to mount after dehydrating.");
             }
         }
 
@@ -214,7 +222,7 @@ To actually execute the dehydrate, run 'gvfs dehydrate --confirm'
             string error;
             if (!GVFltCallbacks.TryPrepareFolderForGVFltCallbacks(enlistment.WorkingDirectoryRoot, out error))
             {
-                this.WriteErrorAndExit(tracer, "Failed to recreate the virtualization root: " + error);
+                this.ReportErrorAndExit(tracer, "Failed to recreate the virtualization root: " + error);
             }
         }
 
@@ -359,20 +367,13 @@ To actually execute the dehydrate, run 'gvfs dehydrate --confirm'
             return true;
         }
 
-        private bool TryDownloadGitObjects(ITracer tracer, GVFSEnlistment enlistment)
+        private bool TryDownloadGitObjects(ITracer tracer, GVFSEnlistment enlistment, RetryConfig retryConfig)
         {
             string errorMessage = null;
 
             if (!this.ShowStatusWhileRunning(
                 () =>
                 {
-                    RetryConfig retryConfig;
-                    if (!RetryConfig.TryLoadFromGitConfig(tracer, enlistment, out retryConfig, out errorMessage))
-                    {
-                        errorMessage = "Failed to determine GVFS timeout and max retries: " + errorMessage;
-                        return false;
-                    }
-
                     CacheServerInfo cacheServer = new CacheServerInfo(enlistment.RepoUrl, null);
                     using (GitObjectsHttpRequestor objectRequestor = new GitObjectsHttpRequestor(tracer, enlistment, cacheServer, retryConfig))
                     {
@@ -445,11 +446,6 @@ To actually execute the dehydrate, run 'gvfs dehydrate --confirm'
                 {
                     { TracingConstants.MessageKey.InfoMessage, message }
                 });
-        }
-
-        private void WriteErrorAndExit(ITracer tracer, string message)
-        {
-            this.ReportErrorAndExit(tracer, "ERROR: " + message);
         }
 
         private ReturnCode ExecuteGVFSVerb<TVerb>(ITracer tracer)

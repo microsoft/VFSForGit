@@ -1,9 +1,8 @@
 ﻿<?xml version="1.0" encoding="utf-8"?>
 <Project ToolsVersion="14.0" DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <Import Project="$(MSBuildExtensionsPath)\$(MSBuildToolsVersion)\Microsoft.Common.props" Condition="Exists('$(MSBuildExtensionsPath)\$(MSBuildToolsVersion)\Microsoft.Common.props')" />
+  <Import Project="$(SolutionDir)\GVFS\GVFS.Build\GVFS.props" />
   <PropertyGroup>
-    <Configuration Condition=" '$(Configuration)' == '' ">Debug</Configuration>
-    <Platform Condition=" '$(Platform)' == '' ">AnyCPU</Platform>
     <ProjectGuid>{17498502-AEFF-4E70-90CC-1D0B56A8ADF5}</ProjectGuid>
     <OutputType>Exe</OutputType>
     <AppDesignerFolder>Properties</AppDesignerFolder>
@@ -20,8 +19,6 @@
     <DebugSymbols>true</DebugSymbols>
     <DebugType>full</DebugType>
     <Optimize>false</Optimize>
-    <OutputPath>..\..\..\BuildOutput\GVFS.Mount\bin\x64\Debug\</OutputPath>
-    <IntermediateOutputPath>..\..\..\BuildOutput\GVFS.Mount\obj\x64\Debug\</IntermediateOutputPath>
     <DefineConstants>DEBUG;TRACE</DefineConstants>
     <ErrorReport>prompt</ErrorReport>
     <WarningLevel>4</WarningLevel>
@@ -31,8 +28,6 @@
     <PlatformTarget>x64</PlatformTarget>
     <DebugType>pdbonly</DebugType>
     <Optimize>true</Optimize>
-    <OutputPath>..\..\..\BuildOutput\GVFS.Mount\bin\x64\Release\</OutputPath>
-    <IntermediateOutputPath>..\..\..\BuildOutput\GVFS.Mount\obj\x64\Release\</IntermediateOutputPath>
     <DefineConstants>TRACE</DefineConstants>
     <ErrorReport>prompt</ErrorReport>
     <WarningLevel>4</WarningLevel>
@@ -63,7 +58,7 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
-    <Compile Include="..\..\..\BuildOutput\CommonAssemblyVersion.cs">
+    <Compile Include="$(BuildOutputDir)\CommonAssemblyVersion.cs">
       <Link>CommonAssemblyVersion.cs</Link>
     </Compile>
     <Compile Include="InProcessMount.cs" />
@@ -101,8 +96,8 @@
   <Import Project="..\..\..\packages\StyleCop.MSBuild.4.7.54.0\build\StyleCop.MSBuild.targets" Condition="Exists('..\..\..\packages\StyleCop.MSBuild.4.7.54.0\build\StyleCop.MSBuild.targets')" />
   <Import Project="..\..\..\packages\StyleCop.Error.MSBuild.1.0.0\build\StyleCop.Error.MSBuild.Targets" Condition="Exists('..\..\..\packages\StyleCop.Error.MSBuild.1.0.0\build\StyleCop.Error.MSBuild.Targets')" />
   <PropertyGroup>
-    <PostBuildEvent>xcopy /Y $(SolutionDir)..\BuildOutput\GVFS.ReadObjectHook\bin\$(Platform)\$(Configuration)\GVFS.ReadObjectHook.* $(TargetDir)
-xcopy /Y $(SolutionDir)..\BuildOutput\GVFS.Hooks\bin\$(Platform)\$(Configuration)\GVFS.Hooks.* $(TargetDir)</PostBuildEvent>
+    <PostBuildEvent>xcopy /Y $(BuildOutputDir)\GVFS.ReadObjectHook\bin\$(Platform)\$(Configuration)\GVFS.ReadObjectHook.* $(TargetDir)
+xcopy /Y $(BuildOutputDir)\GVFS.Hooks\bin\$(Platform)\$(Configuration)\GVFS.Hooks.* $(TargetDir)</PostBuildEvent>
   </PropertyGroup>
   <!-- To modify your build process, add your task inside one of the targets below and uncomment it. 
        Other similar extension points exist, see Microsoft.Common.targets.

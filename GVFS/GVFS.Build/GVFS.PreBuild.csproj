@@ -1,9 +1,8 @@
 ﻿<?xml version="1.0" encoding="utf-8"?>
 <Project ToolsVersion="14.0" DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <Import Project="$(MSBuildExtensionsPath)\$(MSBuildToolsVersion)\Microsoft.Common.props" Condition="Exists('$(MSBuildExtensionsPath)\$(MSBuildToolsVersion)\Microsoft.Common.props')" />
+  <Import Project="GVFS.props" />
   <PropertyGroup>
-    <Configuration Condition=" '$(Configuration)' == '' ">Debug</Configuration>
-    <Platform Condition=" '$(Platform)' == '' ">AnyCPU</Platform>
     <ProjectGuid>{A4984251-840E-4622-AD0C-66DFCE2B2574}</ProjectGuid>
     <OutputType>Library</OutputType>
     <AppDesignerFolder>Properties</AppDesignerFolder>
@@ -14,8 +13,6 @@
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)' == 'Debug|x64'">
     <DebugSymbols>true</DebugSymbols>
-    <OutputPath>..\..\..\BuildOutput\GVFS.Build\bin\x64\Debug\</OutputPath>
-    <IntermediateOutputPath>..\..\..\BuildOutput\GVFS.Build\obj\x64\Debug\</IntermediateOutputPath>
     <DefineConstants>DEBUG;TRACE</DefineConstants>
     <DebugType>full</DebugType>
     <PlatformTarget>x64</PlatformTarget>
@@ -26,8 +23,6 @@
     <RegisterForComInterop>true</RegisterForComInterop>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)' == 'Release|x64'">
-    <OutputPath>..\..\..\BuildOutput\GVFS.Build\bin\x64\Release\</OutputPath>
-    <IntermediateOutputPath>..\..\..\BuildOutput\GVFS.Build\obj\x64\Release\</IntermediateOutputPath>
     <DefineConstants>TRACE</DefineConstants>
     <Optimize>true</Optimize>
     <DebugType>pdbonly</DebugType>
@@ -38,6 +33,11 @@
   </PropertyGroup>
   <ItemGroup>
     <Compile Include="GenerateVersionInfo.cs" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="GVFS.props">
+      <SubType>Designer</SubType>
+    </None>
   </ItemGroup>
   <Target Name="GetTargetFrameworkProperties" />
   <Target Name="GetNativeManifest" />
@@ -51,11 +51,6 @@
       <Code Type="Class" Source="GenerateVersionInfo.cs" />
     </Task>
   </UsingTask>
-  <PropertyGroup>
-    <GVFSVersion>0.2.173.2</GVFSVersion>
-    <PackagesPath>$(ProjectDir)..\..\..\packages</PackagesPath>
-    <BuildOutputPath>$(ProjectDir)..\..\..\BuildOutput</BuildOutputPath>
-  </PropertyGroup>
   <Target Name="Build">
     <CallTarget Targets="GenerateAll" />
   </Target>
@@ -67,6 +62,6 @@
     <Delete Files="$(BuildOutputPath)\CommonAssemblyVersion.cs;$(BuildOutputPath)\CommonVersionHeader.h" />
   </Target>
   <Target Name="GenerateAll">
-    <GenerateVersionInfo Version="$(GVFSVersion)" BuildOutputPath="$(BuildOutputPath)" />
+    <GenerateVersionInfo Version="$(GVFSVersion)" BuildOutputPath="$(BuildOutputDir)" />
   </Target>
 </Project>

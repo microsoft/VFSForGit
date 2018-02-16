@@ -20,12 +20,11 @@ namespace GVFS.FunctionalTests.Tests.MultiEnlistmentTests
             this.enlistmentsToDelete.Clear();
         }
 
-        protected GVFSFunctionalTestEnlistment CreateNewEnlistment(string objectCachePath = null, string branch = null)
+        protected GVFSFunctionalTestEnlistment CreateNewEnlistment(string localCacheRoot = null, string branch = null)
         {
             string pathToGvfs = Path.Combine(TestContext.CurrentContext.TestDirectory, Properties.Settings.Default.PathToGVFS);
 
-            // TODO 1081003: Re-enable shared cache - use objectCachePath argument
-            GVFSFunctionalTestEnlistment output = GVFSFunctionalTestEnlistment.CloneAndMount(pathToGvfs, branch);
+            GVFSFunctionalTestEnlistment output = GVFSFunctionalTestEnlistment.CloneAndMount(pathToGvfs, branch, localCacheRoot);
             this.enlistmentsToDelete.Add(output);
             return output;
         }

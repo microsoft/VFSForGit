@@ -16,6 +16,11 @@ namespace GVFS.PreBuild
         {
             this.Log.LogMessage(MessageImportance.High, "Creating version files");
 
+            if (!Directory.Exists(this.BuildOutputPath))
+            {
+                Directory.CreateDirectory(this.BuildOutputPath);
+            }
+
             File.WriteAllText(
                 Path.Combine(this.BuildOutputPath, "CommonAssemblyVersion.cs"),
                 string.Format(

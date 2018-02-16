@@ -11,14 +11,14 @@ namespace GvLib
         /// <summary> Register for no notification callbacks </summary>
         None = GV_NOTIFICATION_NONE,
 
-        /// <summary> Register for OnNotifyPostCreateHandleOnly callback </summary>
-        PostCreateHandleOnly = GV_NOTIFICATION_POST_CREATE_HANDLE_ONLY,
+        /// <summary> Register for OnNotifyFileOpened callback </summary>
+        FileOpened = GV_NOTIFICATION_FILE_OPENED,
 
-        /// <summary> Register for OnNotifyPostCreateNewFile callback </summary>
-        PostCreateNewFile = GV_NOTIFICATION_POST_CREATE_NEW_FILE,
+        /// <summary> Register for OnNotifyNewFileCreated callback </summary>
+        NewFileCreated = GV_NOTIFICATION_NEW_FILE_CREATED,
 
-        /// <summary> Register for OnNotifyPostCreateOverwrittenOrSuperseded callback </summary>
-        PostCreateOverwrittenOrSuperseded = GV_NOTIFICATION_POST_CREATE_OVERWRITTEN_OR_SUPERSEDED,
+        /// <summary> Register for OnNotifyFileSupersededOrOverwritten callback </summary>
+        FileSupersededOrOverwritten = GV_NOTIFICATION_FILE_SUPERSEDED_OR_OVERWRITTEN,
 
         /// <summary> Register for OnNotifyPreDelete callback </summary>
         PreDelete = GV_NOTIFICATION_PRE_DELETE,
@@ -35,14 +35,14 @@ namespace GvLib
         /// <summary> Register for OnNotifyHardlinkCreated callback </summary>
         HardlinkCreated = GV_NOTIFICATION_HARDLINK_CREATED,
 
-        /// <summary> Register for OnNotifyFileHandleClosedOnly callback </summary>
-        FileHandleClosedOnly = GV_NOTIFICATION_FILE_HANDLE_CLOSED_ONLY,
+        /// <summary> Register for OnNotifyFileHandleClosedNoModification callback </summary>
+        FileHandleClosedNoModification = GV_NOTIFICATION_FILE_HANDLE_CLOSED_NO_MODIFICATION,
 
-        /// <summary> Register to receive OnNotifyFileHandleClosedModifiedOrDeleted callback when a file is modified</summary>
-        FileHandleClosedModified = GV_NOTIFICATION_FILE_HANDLE_CLOSED_MODIFIED,
+        /// <summary> Register to receive OnNotifyFileHandleClosedFileModifiedOrDeleted callback when a file is modified</summary>
+        FileHandleClosedFileModified = GV_NOTIFICATION_FILE_HANDLE_CLOSED_FILE_MODIFIED,
 
         /// <summary> Register to receive OnNotifyFileHandleClosedModifiedOrDeleted callback when a file is deleted </summary>
-        FileHandleClosedDeleted = GV_NOTIFICATION_FILE_HANDLE_CLOSED_DELETED,
+        FileHandleClosedFileDeleted = GV_NOTIFICATION_FILE_HANDLE_CLOSED_FILE_DELETED,
 
         /// <summary> 
         /// Continue to use the notifications specified in globalNotificationMask when 

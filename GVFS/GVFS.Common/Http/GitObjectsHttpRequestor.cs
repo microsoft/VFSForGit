@@ -1,11 +1,9 @@
 ﻿using GVFS.Common.Git;
-using GVFS.Common.NetworkStreams;
 using GVFS.Common.Tracing;
 using Microsoft.Diagnostics.Tracing;
 using Newtonsoft.Json;
 using System;
 using System.Collections.Generic;
-using System.IO;
 using System.Linq;
 using System.Net;
 using System.Net.Http;
@@ -57,15 +55,14 @@ namespace GVFS.Common.Http
             RetryWrapper<List<GitObjectSize>>.InvocationResult requestTask = retrier.Invoke(
                 tryCount =>
                 {
-                    GitEndPointResponseData response = this.SendRequest(requestId, gvfsEndpoint, HttpMethod.Post, objectIdsJson, cancellationToken);
-                    if (response.HasErrors)
+                    using (GitEndPointResponseData response = this.SendRequest(requestId, gvfsEndpoint, HttpMethod.Post, objectIdsJson, cancellationToken))
                     {
-                        return new RetryWrapper<List<GitObjectSize>>.CallbackResult(response.Error, response.ShouldRetry);
-                    }
+                        if (response.HasErrors)
+                        {
+                            return new RetryWrapper<List<GitObjectSize>>.CallbackResult(response.Error, response.ShouldRetry);
+                        }
 
-                    using (StreamReader reader = new StreamReader(response.Stream))
-                    {
-                        string objectSizesString = reader.RetryableReadToEnd();
+                        string objectSizesString = response.RetryableReadToEnd();
                         List<GitObjectSize> objectSizes = JsonConvert.DeserializeObject<List<GitObjectSize>>(objectSizesString);
                         return new RetryWrapper<List<GitObjectSize>>.CallbackResult(objectSizes);
                     }
@@ -88,28 +85,25 @@ namespace GVFS.Common.Http
                 return null;
             }
 
-            CancellationToken neverCanceledToken = new CancellationToken(canceled: false);
-            RetryWrapper<GitRefs> retrier = new RetryWrapper<GitRefs>(this.RetryConfig.MaxAttempts, neverCanceledToken);
+            RetryWrapper<GitRefs> retrier = new RetryWrapper<GitRefs>(this.RetryConfig.MaxAttempts, CancellationToken.None);
             retrier.OnFailure += RetryWrapper<GitRefs>.StandardErrorHandler(this.Tracer, requestId, "QueryInfoRefs");
 
             RetryWrapper<GitRefs>.InvocationResult output = retrier.Invoke(
                 tryCount =>
                 {
-                    GitEndPointResponseData response = this.SendRequest(
-                        requestId, 
-                        infoRefsEndpoint, 
-                        HttpMethod.Get, 
-                        requestContent: null, 
-                        cancellationToken: neverCanceledToken);
-
-                    if (response.HasErrors)
+                    using (GitEndPointResponseData response = this.SendRequest(
+                        requestId,
+                        infoRefsEndpoint,
+                        HttpMethod.Get,
+                        requestContent: null,
+                        cancellationToken: CancellationToken.None))
                     {
-                        return new RetryWrapper<GitRefs>.CallbackResult(response.Error, response.ShouldRetry);
-                    }
+                        if (response.HasErrors)
+                        {
+                            return new RetryWrapper<GitRefs>.CallbackResult(response.Error, response.ShouldRetry);
+                        }
 
-                    using (StreamReader reader = new StreamReader(response.Stream))
-                    {
-                        List<string> infoRefsResponse = reader.RetryableReadAllLines();
+                        List<string> infoRefsResponse = response.RetryableReadAllLines();
                         return new RetryWrapper<GitRefs>.CallbackResult(new GitRefs(infoRefsResponse, branch));
                     }
                 });
@@ -121,13 +115,15 @@ namespace GVFS.Common.Http
             string objectId,
             bool retryOnFailure,
             CancellationToken cancellationToken,
+            string requestSource,
             Func<int, GitEndPointResponseData, RetryWrapper<GitObjectTaskResult>.CallbackResult> onSuccess)
         {
             long requestId = HttpRequestor.GetNewRequestId();
             EventMetadata metadata = new EventMetadata();
-            metadata.Add("ObjectId", objectId);
+            metadata.Add("objectId", objectId);
             metadata.Add("retryOnFailure", retryOnFailure);
-            metadata.Add("RequestId", requestId);
+            metadata.Add("requestId", requestId);
+            metadata.Add("requestSource", requestSource);
             this.Tracer.RelatedEvent(EventLevel.Informational, "DownloadLooseObject", metadata, Keywords.Network);
 
             return this.TrySendProtocolRequest(
@@ -157,7 +153,7 @@ namespace GVFS.Common.Http
                 onFailure,
                 HttpMethod.Post,
                 new Uri(this.CacheServer.ObjectsEndpointUrl),
-                new CancellationToken(canceled: false),
+                CancellationToken.None,
                 () => this.ObjectIdsJsonGenerator(requestId, objectIdGenerator),
                 preferBatchedLooseObjects ? CustomLooseObjectsHeader : null);
         }
@@ -191,7 +187,7 @@ namespace GVFS.Common.Http
                 onFailure,
                 HttpMethod.Post,
                 new Uri(this.CacheServer.ObjectsEndpointUrl),
-                new CancellationToken(canceled: false),
+                CancellationToken.None,
                 objectIdsJson,
                 preferBatchedLooseObjects ? CustomLooseObjectsHeader : null);
         }
@@ -264,20 +260,19 @@ namespace GVFS.Common.Http
             return retrier.Invoke(
                 tryCount =>
                 {
-                    GitEndPointResponseData response = this.SendRequest(
+                    using (GitEndPointResponseData response = this.SendRequest(
                         requestId,
                         endPointGenerator(),
                         method,
                         requestBodyGenerator(),
                         cancellationToken,
-                        acceptType);
-                    if (response.HasErrors)
+                        acceptType))
                     {
-                        return new RetryWrapper<GitObjectTaskResult>.CallbackResult(response.Error, response.ShouldRetry, new GitObjectTaskResult(response.StatusCode));
-                    }
+                        if (response.HasErrors)
+                        {
+                            return new RetryWrapper<GitObjectTaskResult>.CallbackResult(response.Error, response.ShouldRetry, new GitObjectTaskResult(response.StatusCode));
+                        }
 
-                    using (Stream responseStream = response.Stream)
-                    {
                         return onSuccess(tryCount, response);
                     }
                 });

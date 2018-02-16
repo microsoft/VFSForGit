@@ -15,7 +15,7 @@ namespace GVFS.GVFlt
         private const int MaxCallbackAttemptsOnShutdown = 5;
         private const int LogUpdateTaskThreshold = 25000;
         private static readonly string EtwArea = "ProcessBackgroundOperations";
-        
+
         private BackgroundGitUpdateQueue backgroundOperations;
         private AutoResetEvent wakeUpThread;
         private Task backgroundThread;
@@ -30,7 +30,7 @@ namespace GVFS.GVFlt
 
         public ReliableBackgroundOperations(
             GVFSContext context,
-            Func<CallbackResult> preCallback,             
+            Func<CallbackResult> preCallback,
             Func<GVFltCallbacks.BackgroundGitUpdate, CallbackResult> callback,
             Func<CallbackResult> postCallback,
             string databasePath)
@@ -91,7 +91,7 @@ namespace GVFS.GVFlt
             }
         }
 
-        public void Shutdown()
+        public virtual void Shutdown()
         {
             this.isStopping = true;
             this.wakeUpThread.Set();
@@ -112,7 +112,7 @@ namespace GVFS.GVFlt
                 this.backgroundThread = null;
             }
         }
-                
+
         private AcquireGVFSLockResult WaitToAcquireGVFSLock()
         {
             int attempts = 0;
@@ -135,7 +135,7 @@ namespace GVFS.GVFlt
 
             return AcquireGVFSLockResult.LockAcquired;
         }
-     
+
         private void ProcessBackgroundOperations()
         {
             GVFltCallbacks.BackgroundGitUpdate backgroundOperation;
@@ -183,7 +183,7 @@ namespace GVFS.GVFlt
                             // proceed.  GVFS will resume any queued tasks next time it is mounted
                             return;
                         }
-                        
+
                         CallbackResult callbackResult = this.callback(backgroundOperation);
                         switch (callbackResult)
                         {
@@ -230,15 +230,27 @@ namespace GVFS.GVFlt
                 }
                 finally
                 {
-                    if (acquireLockResult == AcquireGVFSLockResult.LockAcquired)
+                    this.PerformPostOperationProcessing(acquireLockResult);
+                }
+            }
+        }
+
+        private void PerformPostOperationProcessing(AcquireGVFSLockResult acquireLockResult)
+        {
+            try
+            {
+                if (acquireLockResult == AcquireGVFSLockResult.LockAcquired)
+                {
+                    this.RunCallbackUntilSuccess(this.postCallback, "PostCallback");
+                    if (this.backgroundOperations.Count == 0)
                     {
-                        this.RunCallbackUntilSuccess(this.postCallback, "PostCallback");
-                        if (this.backgroundOperations.Count == 0)
-                        {
-                            this.context.Repository.GVFSLock.ReleaseLock();
-                        }
+                        this.context.Repository.GVFSLock.ReleaseLock();
                     }
                 }
+            }
+            catch (Exception e)
+            {
+                this.LogErrorAndExit("ProcessBackgroundOperations caught unhandled exception in PerformPostOperationProcessing, exiting process", e);
             }
         }
 

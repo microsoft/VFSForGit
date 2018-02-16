@@ -162,7 +162,7 @@ namespace GVFS.UnitTests.Common
             {
             }
 
-            public override Stream OpenFileStream(string path, FileMode fileMode, FileAccess fileAccess, FileShare shareMode, FileOptions options)
+            public override Stream OpenFileStream(string path, FileMode fileMode, FileAccess fileAccess, FileShare shareMode, FileOptions options, bool flushesToDisk)
             {
                 if (this.ThrowDuringOpen)
                 {

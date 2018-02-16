@@ -1,5 +1,4 @@
 ﻿using GVFS.Common.FileSystem;
-using NUnit.Framework;
 using System;
 using System.IO;
 
@@ -26,7 +25,7 @@ namespace GVFS.UnitTests.Mock.FileSystem
             return this.OnFileExists();
         }
 
-        public override Stream OpenFileStream(string path, FileMode fileMode, FileAccess fileAccess, FileShare shareMode, FileOptions options)
+        public override Stream OpenFileStream(string path, FileMode fileMode, FileAccess fileAccess, FileShare shareMode, FileOptions options, bool flushesToDisk)
         {
             if (this.OnOpenFileStream == null)
             {
@@ -55,6 +54,15 @@ namespace GVFS.UnitTests.Mock.FileSystem
         }
 
         public override void CreateDirectory(string path)
+        {
+        }
+
+        public override FileAttributes GetAttributes(string path)
+        {
+            return FileAttributes.Normal;
+        }
+
+        public override void SetAttributes(string path, FileAttributes fileAttributes)
         {
         }
     }

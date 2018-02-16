@@ -56,6 +56,7 @@ namespace GVFS.UnitTests.GVFlt.DotGit
                 mockGvFlt.OnStartDirectoryEnumeration(1, enumerationGuid, "test").ShouldEqual(NtStatus.Pending);
                 mockGvFlt.WaitForCompletionStatus().ShouldEqual(NtStatus.Success);
                 mockGvFlt.OnEndDirectoryEnumeration(enumerationGuid).ShouldEqual(NtStatus.Success);
+                callbacks.Stop();
             }
         }
 
@@ -81,6 +82,7 @@ namespace GVFS.UnitTests.GVFlt.DotGit
                 gitIndexProjection.EnumerationInMemory = true;
                 mockGvFlt.OnStartDirectoryEnumeration(1, enumerationGuid, "test").ShouldEqual(NtStatus.Success);
                 mockGvFlt.OnEndDirectoryEnumeration(enumerationGuid).ShouldEqual(NtStatus.Success);
+                callbacks.Stop();
             }
         }
 
@@ -103,6 +105,8 @@ namespace GVFS.UnitTests.GVFlt.DotGit
                 callbacks.TryStart(out error).ShouldEqual(true);
 
                 mockGvFlt.OnGetPlaceholderInformation(1, "doesNotExist", 0, 0, 0, 0, 1, "UnitTests").ShouldEqual(NtStatus.ObjectNameNotFound);
+
+                callbacks.Stop();
             }
         }
 
@@ -128,6 +132,8 @@ namespace GVFS.UnitTests.GVFlt.DotGit
                 mockGvFlt.WaitForCompletionStatus().ShouldEqual(NtStatus.Success);
                 mockGvFlt.CreatedPlaceholders.ShouldContain(entry => entry == "test.txt");
                 gitIndexProjection.PlaceholdersCreated.ShouldContain(entry => entry == "test.txt");
+
+                callbacks.Stop();
             }
         }
 
@@ -167,6 +173,8 @@ namespace GVFS.UnitTests.GVFlt.DotGit
                 gitIndexProjection.WaitForPlaceholderCreate();
                 mockGvFlt.CreatedPlaceholders.ShouldContain(entry => entry == "test.txt");
                 gitIndexProjection.PlaceholdersCreated.ShouldContain(entry => entry == "test.txt");
+
+                callbacks.Stop();
             }
         }
 
@@ -200,6 +208,8 @@ namespace GVFS.UnitTests.GVFlt.DotGit
                 gitIndexProjection.WaitForPlaceholderCreate();
                 mockGvFlt.CreatedPlaceholders.ShouldContain(entry => entry == "test.txt");
                 gitIndexProjection.PlaceholdersCreated.ShouldContain(entry => entry == "test.txt");
+
+                callbacks.Stop();
             }
         }
 
@@ -232,6 +242,8 @@ namespace GVFS.UnitTests.GVFlt.DotGit
                 mockTracker.WaitForRelatedEvent();
                 mockGvFlt.CreatedPlaceholders.ShouldNotContain(entry => entry == "test.txt");
                 gitIndexProjection.PlaceholdersCreated.ShouldNotContain(entry => entry == "test.txt");
+
+                callbacks.Stop();
             }
         }
 
@@ -268,6 +280,8 @@ namespace GVFS.UnitTests.GVFlt.DotGit
                     epochId: epochId,
                     triggeringProcessId: 2,
                     triggeringProcessImageFileName: "UnitTest").ShouldEqual(NtStatus.InvalidParameter);
+
+                callbacks.Stop();
             }
         }
 
@@ -304,6 +318,8 @@ namespace GVFS.UnitTests.GVFlt.DotGit
                     epochId: epochId,
                     triggeringProcessId: 2,
                     triggeringProcessImageFileName: "UnitTest").ShouldEqual(NtStatus.InternalError);
+
+                callbacks.Stop();
             }
         }
 
@@ -347,6 +363,8 @@ namespace GVFS.UnitTests.GVFlt.DotGit
                     triggeringProcessImageFileName: "UnitTest").ShouldEqual(NtStatus.Pending);
 
                 mockGvFlt.WaitForCompletionStatus().ShouldEqual(NtStatus.Success);
+
+                callbacks.Stop();
             }
         }
 
@@ -392,6 +410,8 @@ namespace GVFS.UnitTests.GVFlt.DotGit
                     triggeringProcessImageFileName: "UnitTest").ShouldEqual(NtStatus.Pending);
 
                 mockTracker.WaitForRelatedEvent();
+
+                callbacks.Stop();
             }
         }
 
@@ -442,6 +462,8 @@ namespace GVFS.UnitTests.GVFlt.DotGit
                 mockGvFlt.OnCancelCommand(1);
                 mockGvFlt.UnblockCreateWriteBuffer();
                 mockTracker.WaitForRelatedEvent();
+
+                callbacks.Stop();
             }
         }
 
@@ -489,6 +511,8 @@ namespace GVFS.UnitTests.GVFlt.DotGit
                     triggeringProcessImageFileName: "UnitTest").ShouldEqual(NtStatus.Pending);
 
                 mockGvFlt.WaitForCompletionStatus().ShouldEqual(mockGvFlt.WriteFileReturnStatus);
+
+                callbacks.Stop();
             }
         }
     }

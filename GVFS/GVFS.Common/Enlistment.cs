@@ -14,7 +14,8 @@ namespace GVFS.Common
             string workingDirectoryRoot,
             string repoUrl,
             string gitBinPath,
-            string gvfsHooksRoot)
+            string gvfsHooksRoot,
+            bool flushFileBuffersForPacks)
         {
             if (string.IsNullOrWhiteSpace(gitBinPath))
             {
@@ -26,6 +27,7 @@ namespace GVFS.Common
             this.DotGitRoot = Path.Combine(this.WorkingDirectoryRoot, GVFSConstants.DotGit.Root);
             this.GitBinPath = gitBinPath;
             this.GVFSHooksRoot = gvfsHooksRoot;
+            this.FlushFileBuffersForPacks = flushFileBuffersForPacks;
 
             if (repoUrl != null)
             {
@@ -53,9 +55,10 @@ namespace GVFS.Common
         public string EnlistmentRoot { get; }
         public string WorkingDirectoryRoot { get; }
         public string DotGitRoot { get; private set; }
-        public abstract string GitObjectsRoot { get; }
-        public abstract string GitPackRoot { get; }
+        public abstract string GitObjectsRoot { get; protected set; }
+        public abstract string GitPackRoot { get; protected set; }
         public string RepoUrl { get; }
+        public bool FlushFileBuffersForPacks { get; }
 
         public string GitBinPath { get; }
         public string GVFSHooksRoot { get; }

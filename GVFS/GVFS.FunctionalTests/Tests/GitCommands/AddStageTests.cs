@@ -46,7 +46,7 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
             this.EditFile("Readme.md", $"Some new content for {command}.");
             ManualResetEventSlim resetEvent = GitHelpers.RunGitCommandWithWaitAndStdIn(this.Enlistment, resetTimeout: 3000, command: $"{command} -p", stdinToQuit: "q");
             this.FileContentsShouldMatch(fileToRead);
-            this.ValidateGitCommand("status --no-lock-index");
+            this.ValidateGitCommand("--no-optional-locks status");
             resetEvent.Wait();
             this.RunGitCommand("reset --hard");
         }

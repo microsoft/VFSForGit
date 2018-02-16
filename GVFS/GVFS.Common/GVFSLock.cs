@@ -12,16 +12,17 @@ namespace GVFS.Common
         private readonly object acquisitionLock = new object();
 
         private readonly ITracer tracer;
-        private ProcessWatcher processWatcher;
         private NamedPipeMessages.LockData lockHolder;
 
         private ManualResetEvent externalLockReleased;
+
+        private Stats stats;
 
         public GVFSLock(ITracer tracer)
         {
             this.tracer = tracer;
             this.externalLockReleased = new ManualResetEvent(initialState: true);
-            this.processWatcher = new ProcessWatcher(this.ReleaseLockForTerminatedProcess);
+            this.stats = new Stats();
         }
 
         public bool IsLockedByGVFS
@@ -34,10 +35,7 @@ namespace GVFS.Common
         /// Allows external callers (non-GVFS) to acquire the lock.
         /// </summary>
         /// <param name="requester">The data for the external acquisition request.</param>
-        /// <param name="holder">
-        /// The current holder of the lock if the acquisition fails, or
-        /// the input request if it succeeds.
-        /// </param>
+        /// <param name="holder">The current holder of the lock if the acquisition fails.</param>
         /// <returns>True if the lock was acquired, false otherwise.</returns>
         public bool TryAcquireLock(
             NamedPipeMessages.LockData requester,
@@ -48,57 +46,38 @@ namespace GVFS.Common
             metadata.Add("LockRequest", requester.ToString());
             metadata.Add("IsElevated", requester.IsElevated);
 
+            holder = null;
+
             try
             {
                 lock (this.acquisitionLock)
                 {
                     if (this.IsLockedByGVFS)
                     {
-                        holder = null;
                         metadata.Add("CurrentLockHolder", "GVFS");
                         metadata.Add("Result", "Denied");
 
                         return false;
                     }
 
-                    if (this.lockHolder != null &&
+                    if (this.IsExternalLockHolderAlive() &&
                         this.lockHolder.PID != requester.PID)
                     {
-                        holder = this.lockHolder;
-
                         metadata.Add("CurrentLockHolder", this.lockHolder.ToString());
                         metadata.Add("Result", "Denied");
+
+                        holder = this.lockHolder;
                         return false;
                     }
                     
                     metadata.Add("Result", "Accepted");
                     eventLevel = EventLevel.Informational;
 
-                    Process process;
-                    if (ProcessHelper.TryGetProcess(requester.PID, out process))
-                    {
-                        this.processWatcher.WatchForTermination(requester.PID);
+                    this.lockHolder = requester;
+                    this.externalLockReleased.Reset();
+                    this.stats = new Stats();
 
-                        process.Dispose();
-                        this.lockHolder = requester;
-                        holder = requester;
-                        this.externalLockReleased.Reset();
-
-                        return true;
-                    }
-                    else
-                    {
-                        // Process is no longer running so let it 
-                        // succeed since the process non-existence
-                        // signals the lock release.
-                        if (process != null)
-                        {
-                            process.Dispose();
-                        }
-
-                        holder = null;
-                        return true;
-                    }
+                    return true;
                 }
             }
             finally
@@ -123,7 +102,7 @@ namespace GVFS.Common
                         return true;
                     }
 
-                    if (this.lockHolder != null)
+                    if (this.IsExternalLockHolderAlive())
                     {
                         metadata.Add("CurrentLockHolder", this.lockHolder.ToString());
                         metadata.Add("Result", "Denied");
@@ -140,6 +119,11 @@ namespace GVFS.Common
             {
                 this.tracer.RelatedEvent(EventLevel.Verbose, "TryAcquireLockInternal", metadata);
             }
+        }
+
+        public void RecordObjectDownload(bool isBlob, long downloadTimeMs)
+        {
+            this.stats.RecordObjectDownload(isBlob, downloadTimeMs);
         }
 
         /// <summary>
@@ -167,7 +151,33 @@ namespace GVFS.Common
 
         public bool IsExternalLockHolderAlive()
         {
-            return this.lockHolder != null;
+            lock (this.acquisitionLock)
+            {
+                if (this.lockHolder == null)
+                {
+                    return false;
+                }
+
+                Process process = null;
+                try
+                {
+                    int pid = this.lockHolder.PID;
+                    if (ProcessHelper.TryGetProcess(pid, out process))
+                    {
+                        return true;
+                    }
+
+                    this.ReleaseLockForTerminatedProcess(pid);
+                    return false;
+                }
+                finally
+                {
+                    if (process != null)
+                    {
+                        process.Dispose();
+                    }
+                }
+            }
         }
 
         public NamedPipeMessages.LockData GetExternalLockHolder()
@@ -212,12 +222,6 @@ namespace GVFS.Common
         {
             if (disposing)
             {
-                if (this.processWatcher != null)
-                {
-                    this.processWatcher.Dispose();
-                    this.processWatcher = null;
-                }
-
                 if (this.externalLockReleased != null)
                 {
                     this.externalLockReleased.Dispose();
@@ -257,14 +261,15 @@ namespace GVFS.Common
                     }
 
                     this.lockHolder = null;
-                    this.processWatcher.StopWatching(pid);
                     this.externalLockReleased.Set();
                     metadata.Add("Result", "Released");
+                    this.stats.AddStatsToTelemetry(metadata);
+
                     return true;
                 }
                 finally
                 {
-                    this.tracer.RelatedEvent(EventLevel.Informational, eventName, metadata);
+                    this.tracer.RelatedEvent(EventLevel.Informational, eventName, metadata, Keywords.Telemetry);
                 }
             }
         }
@@ -279,6 +284,45 @@ namespace GVFS.Common
             public GVFSLockException(string message)
                 : base(message)
             {
+            }
+        }
+
+        // The lock release event is a convenient place to record stats about things that happened while a git command was running,
+        // such as duration/count of object downloads during a git command, cache hits during a git command, etc.
+        private class Stats
+        {
+            private Stopwatch lockAcquiredTime;
+            private int numBlobs;
+            private long blobDownloadTime;
+            private int numCommitsAndTrees;
+            private long commitAndTreeDownloadTime;
+
+            public Stats()
+            {
+                this.lockAcquiredTime = Stopwatch.StartNew();
+            }
+
+            public void RecordObjectDownload(bool isBlob, long downloadTimeMs)
+            {
+                if (isBlob)
+                {
+                    Interlocked.Increment(ref this.numBlobs);
+                    Interlocked.Add(ref this.blobDownloadTime, downloadTimeMs);
+                }
+                else
+                {
+                    Interlocked.Increment(ref this.numCommitsAndTrees);
+                    Interlocked.Add(ref this.commitAndTreeDownloadTime, downloadTimeMs);
+                }
+            }
+
+            public void AddStatsToTelemetry(EventMetadata metadata)
+            {
+                metadata.Add("DurationMS", this.lockAcquiredTime.ElapsedMilliseconds);
+                metadata.Add("BlobsDownloaded", this.numBlobs);
+                metadata.Add("BlobDownloadTimeMS", this.blobDownloadTime);
+                metadata.Add("CommitsAndTreesDownloaded", this.numCommitsAndTrees);
+                metadata.Add("CommitsAndTreesDownloadTimeMS", this.commitAndTreeDownloadTime);
             }
         }
     }

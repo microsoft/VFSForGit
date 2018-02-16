@@ -6,6 +6,7 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
+using System.Security;
 
 namespace GVFS.Hooks
 {
@@ -327,6 +328,23 @@ namespace GVFS.Hooks
             return false;
         }
 
+        private static bool IsGitEnvVarDisabled(string envVar)
+        {
+                string envVarValue = Environment.GetEnvironmentVariable(envVar);
+                if (!string.IsNullOrEmpty(envVarValue))
+                {
+                    if (string.Equals(envVarValue, "false", StringComparison.OrdinalIgnoreCase) ||
+                        string.Equals(envVarValue, "no", StringComparison.OrdinalIgnoreCase) ||
+                        string.Equals(envVarValue, "off", StringComparison.OrdinalIgnoreCase) ||
+                        string.Equals(envVarValue, "0", StringComparison.OrdinalIgnoreCase))
+                    {
+                        return true;
+                    }
+                }
+
+            return false;
+        }
+
         private static bool ShouldLock(string[] args)
         {
             string gitCommand = GetGitCommand(args);
@@ -374,12 +392,20 @@ namespace GVFS.Hooks
                 return false;
             }
 
-            // Don't acquire the lock if we've been explicitly asked not to. This enables tools, such as the VS Git
-            // integration, to provide a "best effort" status without writing to the index. We assume that any such
-            // tools will be constantly polling in the background, so missing a file once isn't a problem.
-            if (gitCommand == "status" && args.Contains("--no-lock-index"))
+            try
             {
-                return false;
+                // Don't acquire the lock if we've been explicitly asked not to. This enables tools, such as the VS Git
+                // integration, to provide a "best effort" status without writing to the index. We assume that any such
+                // tools will be constantly polling in the background, so missing a file once isn't a problem.
+                // The git argument "--no-optional-locks" results in a 'negative' value GIT_OPTIONAL_LOCKS environment variable.
+                if (gitCommand == "status" && (args.Contains("--no-lock-index") || IsGitEnvVarDisabled("GIT_OPTIONAL_LOCKS")))
+                {
+                    return false;
+                }
+            }
+            catch (Exception e)
+            {
+                ExitWithError("Failed to check if GVFS should lock: " + e.ToString());
             }
 
             if (!KnownGitCommands.Contains(gitCommand) &&

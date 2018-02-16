@@ -32,6 +32,23 @@ namespace GVFS.Common
             return true;
         }
 
+        public void SetValuesAndFlush(IEnumerable<KeyValuePair<TKey, TValue>> values)
+        {
+            try
+            {
+                foreach (KeyValuePair<TKey, TValue> kvp in values)
+                {
+                    this.data[kvp.Key] = kvp.Value;
+                }
+
+                this.Flush();
+            }
+            catch (Exception e)
+            {
+                throw new FileBasedCollectionException(e);
+            }
+        }
+
         public void SetValueAndFlush(TKey key, TValue value)
         {
             try

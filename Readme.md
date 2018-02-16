@@ -23,13 +23,12 @@ If you'd like to build your own GVFS installer:
   * C++/CLI support
   * VC++ 2015.3 v140 toolset
   * Windows 10 SDK (10.0.10240.0)
-* Install InnoSetup 5.5.9 or later (http://www.jrsoftware.org/isdl.php) to its default location (or you'll have to change the path in `GVFS.csproj` post-build step to match)
 * Create a folder to clone into, e.g. `C:\Repos\GVFS`
 * Clone this repo into the `src` subfolder, e.g. `C:\Repos\GVFS\src`
 * Open `src\GVFS.sln` in Visual Studio. Do not upgrade any projects.
 * Build `GVFS.sln`
 
-The installer can now be found at `C:\Repos\GVFS\BuildOutput\GVFS\bin\x64\[Debug|Release]\Setup\SetupGVFS.exe
+The installer can now be found at `C:\Repos\GVFS\BuildOutput\GVFS.Installer\bin\x64\[Debug|Release]\SetupGVFS.<version>.exe`
 
 ## Trying out GVFS
 

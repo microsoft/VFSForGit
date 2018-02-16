@@ -1,4 +1,5 @@
 ﻿using Newtonsoft.Json;
+using System;
 
 namespace GVFS.Common.Http
 {
@@ -28,6 +29,11 @@ namespace GVFS.Common.Http
         public string ObjectsEndpointUrl { get; }
         public string PrefetchEndpointUrl { get; }
 
+        public bool HasValidUrl()
+        {
+            return Uri.IsWellFormedUriString(this.Url, UriKind.Absolute);
+        }
+
         public override string ToString()
         {
             if (string.IsNullOrWhiteSpace(this.Name))
@@ -41,15 +47,6 @@ namespace GVFS.Common.Http
             }
 
             return string.Format("{0} ({1})", this.Name, this.Url);
-        }
-
-        public bool HasResolvedName()
-        {
-            return
-                this.Name != null &&
-                !this.Name.Equals(ReservedNames.None) &&
-                !this.Name.Equals(ReservedNames.Default) &&
-                !this.Name.Equals(ReservedNames.UserDefined);
         }
 
         public static class ReservedNames

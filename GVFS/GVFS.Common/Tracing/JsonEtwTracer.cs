@@ -191,7 +191,6 @@ namespace GVFS.Common.Tracing
             string enlistmentRoot,
             string repoUrl,
             string cacheServerUrl,
-            string gitObjectsRoot,
             EventMetadata additionalMetadata = null)
         {
             EventMetadata metadata = new EventMetadata();
@@ -212,11 +211,6 @@ namespace GVFS.Common.Tracing
             {
                 // Changing this key to CacheServerUrl will mess with our telemetry, so it stays for historical reasons
                 metadata.Add("ObjectsEndpoint", Uri.EscapeUriString(cacheServerUrl));
-            }
-
-            if (gitObjectsRoot != null)
-            {
-                metadata.Add("GitObjectsRoot", gitObjectsRoot);
             }
 
             if (additionalMetadata != null)

@@ -1,6 +1,8 @@
 ﻿using GVFS.Common.Tracing;
 using Microsoft.Diagnostics.Tracing;
+using Newtonsoft.Json;
 using System;
+using System.Collections.Generic;
 using System.Threading;
 
 namespace GVFS.UnitTests.Mock.Common
@@ -12,9 +14,14 @@ namespace GVFS.UnitTests.Mock.Common
         public MockTracer()
         {
             this.waitEvent = new AutoResetEvent(false);
+            this.RelatedInfoEvents = new List<string>();
+            this.RelatedWarningEvents = new List<string>();
         }
 
         public string WaitRelatedEventName { get; set; }
+
+        public List<string> RelatedInfoEvents { get; }
+        public List<string> RelatedWarningEvents { get; }
 
         public void WaitForRelatedEvent()
         {
@@ -39,22 +46,28 @@ namespace GVFS.UnitTests.Mock.Common
 
         public void RelatedInfo(string format, params object[] args)
         {
+            this.RelatedInfoEvents.Add(string.Format(format, args));
         }
         
         public void RelatedWarning(EventMetadata metadata, string message)
         {
+            metadata[TracingConstants.MessageKey.WarningMessage] = message;
+            this.RelatedWarningEvents.Add(JsonConvert.SerializeObject(metadata));
         }
 
         public void RelatedWarning(EventMetadata metadata, string message, Keywords keyword)
         {
+            this.RelatedWarning(metadata, message);
         }
 
         public void RelatedWarning(string message)
         {
+            this.RelatedWarningEvents.Add(message);
         }
 
         public void RelatedWarning(string format, params object[] args)
         {
+            this.RelatedWarningEvents.Add(string.Format(format, args));
         }
         
         public void RelatedError(EventMetadata metadata, string message)

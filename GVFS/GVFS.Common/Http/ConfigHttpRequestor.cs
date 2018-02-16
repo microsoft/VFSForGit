@@ -1,8 +1,6 @@
-﻿using GVFS.Common.NetworkStreams;
-using GVFS.Common.Tracing;
+﻿using GVFS.Common.Tracing;
 using Newtonsoft.Json;
 using System;
-using System.IO;
 using System.Net.Http;
 using System.Threading;
 
@@ -39,38 +37,35 @@ namespace GVFS.Common.Http
                 return false;
             }
 
-            CancellationToken neverCanceledToken = new CancellationToken(canceled: false);
             long requestId = HttpRequestor.GetNewRequestId();
-            RetryWrapper<GVFSConfig> retrier = new RetryWrapper<GVFSConfig>(this.RetryConfig.MaxAttempts, neverCanceledToken);
+            RetryWrapper<GVFSConfig> retrier = new RetryWrapper<GVFSConfig>(this.RetryConfig.MaxAttempts, CancellationToken.None);
             retrier.OnFailure += RetryWrapper<GVFSConfig>.StandardErrorHandler(this.Tracer, requestId, "QueryGvfsConfig");
 
             RetryWrapper<GVFSConfig>.InvocationResult output = retrier.Invoke(
                 tryCount =>
                 {
-                    GitEndPointResponseData response = this.SendRequest(
-                        requestId, 
-                        gvfsConfigEndpoint, 
-                        HttpMethod.Get, 
-                        requestContent: null, 
-                        cancellationToken: neverCanceledToken);
-
-                    if (response.HasErrors)
+                    using (GitEndPointResponseData response = this.SendRequest(
+                        requestId,
+                        gvfsConfigEndpoint,
+                        HttpMethod.Get,
+                        requestContent: null,
+                        cancellationToken: CancellationToken.None))
                     {
-                        return new RetryWrapper<GVFSConfig>.CallbackResult(response.Error, response.ShouldRetry);
-                    }
-
-                    try
-                    {
-                        using (StreamReader reader = new StreamReader(response.Stream))
+                        if (response.HasErrors)
                         {
-                            string configString = reader.RetryableReadToEnd();
+                            return new RetryWrapper<GVFSConfig>.CallbackResult(response.Error, response.ShouldRetry);
+                        }
+
+                        try
+                        {
+                            string configString = response.RetryableReadToEnd();
                             GVFSConfig config = JsonConvert.DeserializeObject<GVFSConfig>(configString);
                             return new RetryWrapper<GVFSConfig>.CallbackResult(config);
                         }
-                    }
-                    catch (JsonReaderException e)
-                    {
-                        return new RetryWrapper<GVFSConfig>.CallbackResult(e, false);
+                        catch (JsonReaderException e)
+                        {
+                            return new RetryWrapper<GVFSConfig>.CallbackResult(e, shouldRetry: false);
+                        }
                     }
                 });
 

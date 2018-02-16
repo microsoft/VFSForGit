@@ -42,6 +42,18 @@ namespace GVFS.Tests.Should
             item.ShouldEqual(default(T));
         }
 
+        public static IEnumerable<T> ShouldNotContain<T>(this IEnumerable<T> group, IEnumerable<T> unexpectedValues, Func<T, T, bool> predicate)
+        {
+            List<T> groupList = new List<T>(group);
+
+            foreach (T unexpectedValue in unexpectedValues)
+            {
+                Assert.IsFalse(groupList.Any(item => predicate(item, unexpectedValue)));
+            }
+
+            return group;
+        }
+
         public static IEnumerable<T> ShouldContain<T>(this IEnumerable<T> group, IEnumerable<T> expectedValues, Func<T, T, bool> predicate)
         {
             List<T> groupList = new List<T>(group);

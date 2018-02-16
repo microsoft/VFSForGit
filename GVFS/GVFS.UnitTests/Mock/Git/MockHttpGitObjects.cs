@@ -78,13 +78,16 @@ namespace GVFS.UnitTests.Mock.Git
         {
             if (this.shaContents.ContainsKey(objectId))
             {
-                RetryWrapper<GitObjectTaskResult>.CallbackResult result = onSuccess(
-                    1,
-                    new GitEndPointResponseData(
-                        HttpStatusCode.OK,
-                        GVFSConstants.MediaTypes.LooseObjectMediaType,
-                        new ReusableMemoryStream(this.shaContents[objectId])));
-                return new RetryWrapper<GitObjectTaskResult>.InvocationResult(1, true, result.Result);
+                using (GitEndPointResponseData response = new GitEndPointResponseData(
+                    HttpStatusCode.OK,
+                    GVFSConstants.MediaTypes.LooseObjectMediaType,
+                    new ReusableMemoryStream(this.shaContents[objectId]),
+                    message: null,
+                    onResponseDisposed: null))
+                {
+                    RetryWrapper<GitObjectTaskResult>.CallbackResult result = onSuccess(1, response);
+                    return new RetryWrapper<GitObjectTaskResult>.InvocationResult(1, true, result.Result);
+                }                
             }
 
             if (onFailure != null)

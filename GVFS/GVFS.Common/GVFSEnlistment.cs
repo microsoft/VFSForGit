@@ -1,6 +1,12 @@
+using GVFS.Common.FileSystem;
+using GVFS.Common.Git;
 using GVFS.Common.NamedPipes;
 using Newtonsoft.Json;
+using System;
+using System.Collections.Generic;
 using System.IO;
+using System.Linq;
+using System.Security;
 using System.Security.AccessControl;
 using System.Security.Principal;
 using System.Threading;
@@ -9,8 +15,9 @@ namespace GVFS.Common
 {
     public partial class GVFSEnlistment : Enlistment
     {
-        public const string InvalidRepoUrl = "invalid://repoUrl";
-
+        private const string GitObjectCacheName = "gitObjects";
+        private const string InvalidRepoUrl = "invalid://repoUrl";
+        
         // New enlistment
         public GVFSEnlistment(string enlistmentRoot, string repoUrl, string gitBinPath, string gvfsHooksRoot)
             : base(
@@ -18,14 +25,12 @@ namespace GVFS.Common
                   Path.Combine(enlistmentRoot, GVFSConstants.WorkingDirectoryRootName),
                   repoUrl,
                   gitBinPath,
-                  gvfsHooksRoot)
+                  gvfsHooksRoot,
+                  flushFileBuffersForPacks: true)
         {
             this.NamedPipeName = Paths.GetNamedPipeName(this.EnlistmentRoot);
             this.DotGVFSRoot = Path.Combine(this.EnlistmentRoot, GVFSConstants.DotGVFS.Root);
             this.GVFSLogsRoot = Path.Combine(this.EnlistmentRoot, GVFSConstants.DotGVFS.LogPath);
-
-            this.GitObjectsRoot = Path.Combine(enlistmentRoot, GVFSConstants.DotGVFS.GitObjectCachePath);
-            this.GitPackRoot = Path.Combine(this.GitObjectsRoot, GVFSConstants.DotGit.Objects.Pack.Name);
         }
         
         // Existing, configured enlistment
@@ -44,9 +49,11 @@ namespace GVFS.Common
 
         public string GVFSLogsRoot { get; }
 
-        public override string GitObjectsRoot { get; }
-        public override string GitPackRoot { get; }
+        public string LocalCacheRoot { get; private set; }
 
+        public override string GitObjectsRoot { get; protected set; }
+        public override string GitPackRoot { get; protected set; }
+        
         public static GVFSEnlistment CreateWithoutRepoUrlFromDirectory(string directory, string gitBinRoot, string gvfsHooksRoot)
         {
             if (Directory.Exists(directory))
@@ -87,7 +94,7 @@ namespace GVFS.Common
             errorMessage = null;
             using (NamedPipeClient pipeClient = new NamedPipeClient(NamedPipeClient.GetPipeNameFromPath(enlistmentRoot)))
             {
-                int timeout = unattended ? 300000 : 10000;
+                int timeout = unattended ? 300000 : 60000;
                 if (!pipeClient.Connect(timeout))
                 {
                     errorMessage = "Unable to mount because the GVFS.Mount process is not responding.";
@@ -131,7 +138,19 @@ namespace GVFS.Common
                 }
             }
         }
-        
+
+        public void InitializeLocalCacheAndObjectsPathsFromKey(string localCacheRoot, string localCacheKey)
+        {
+            this.InitializeLocalCacheAndObjectPaths(localCacheRoot, Path.Combine(localCacheRoot, localCacheKey, GitObjectCacheName));
+        }
+
+        public void InitializeLocalCacheAndObjectPaths(string localCacheRoot, string gitObjectsRoot)
+        {
+            this.LocalCacheRoot = localCacheRoot;
+            this.GitObjectsRoot = gitObjectsRoot;
+            this.GitPackRoot = Path.Combine(this.GitObjectsRoot, GVFSConstants.DotGit.Objects.Pack.Name);
+        }
+
         public bool TryCreateEnlistmentFolders()
         {
             try
@@ -170,30 +189,6 @@ namespace GVFS.Common
                 return false;
             }
 
-            return true;
-        }
-
-        public bool TryConfigureAlternate(out string errorMessage)
-        {
-            try
-            {
-                if (!Directory.Exists(this.GitObjectsRoot))
-                {
-                    Directory.CreateDirectory(this.GitObjectsRoot);
-                    Directory.CreateDirectory(this.GitPackRoot);
-                }
-
-                File.WriteAllText(
-                    Path.Combine(this.WorkingDirectoryRoot, GVFSConstants.DotGit.Objects.Info.Alternates),
-                    @"..\..\..\" + GVFSConstants.DotGVFS.GitObjectCachePath);
-            }
-            catch (IOException e)
-            {
-                errorMessage = e.Message;
-                return false;
-            }
-
-            errorMessage = null;
             return true;
         }
         

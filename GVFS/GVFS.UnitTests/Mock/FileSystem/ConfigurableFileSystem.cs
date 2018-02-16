@@ -30,7 +30,7 @@ namespace GVFS.UnitTests.Mock.FileSystem
             this.ExpectedFiles[destinationFilename] = source;
         }
 
-        public override Stream OpenFileStream(string path, FileMode fileMode, FileAccess fileAccess, FileShare shareMode, FileOptions options)
+        public override Stream OpenFileStream(string path, FileMode fileMode, FileAccess fileAccess, FileShare shareMode, FileOptions options, bool flushesToDisk)
         {
             ReusableMemoryStream stream;
             this.ExpectedFiles.TryGetValue(path, out stream).ShouldEqual(true, "Unexpected access of file: " + path);

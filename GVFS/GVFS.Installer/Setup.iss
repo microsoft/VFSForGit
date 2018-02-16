@@ -3,22 +3,23 @@
 
 ; General documentation on how to use InnoSetup scripts: http://www.jrsoftware.org/ishelp/index.php
 
+#define GVFltDir PackagesDir + "\" + GvFltPackage + "\filter" 
+#define GVFSDir BuildOutputDir + "\GVFS\bin\" + PlatformAndConfiguration
+#define GVFSCommonDir BuildOutputDir + "\GVFS.Common\bin\" + PlatformAndConfiguration
+#define HooksDir BuildOutputDir + "\GVFS.Hooks\bin\" + PlatformAndConfiguration
+#define HooksLoaderDir BuildOutputDir + "\GitHooksLoader\bin\" + PlatformAndConfiguration
+#define ServiceDir BuildOutputDir + "\GVFS.Service\bin\" + PlatformAndConfiguration
+#define ServiceUIDir BuildOutputDir + "\GVFS.Service.UI\bin\" + PlatformAndConfiguration
+#define GVFSMountDir BuildOutputDir + "\GVFS.Mount\bin\" + PlatformAndConfiguration
+#define ReadObjectDir BuildOutputDir + "\GVFS.ReadObjectHook\bin\" + PlatformAndConfiguration
+
 #define MyAppName "GVFS"
-#define MyAppInstallerVersion GetFileVersion("GVFS.exe")
+#define MyAppInstallerVersion GetFileVersion(GVFSDir + "\GVFS.exe")
 #define MyAppPublisher "Microsoft Corporation"
 #define MyAppPublisherURL "http://www.microsoft.com"
 #define MyAppURL "https://github.com/Microsoft/gvfs"
 #define MyAppExeName "GVFS.exe"
 #define EnvironmentKey "SYSTEM\CurrentControlSet\Control\Session Manager\Environment"
-
-#define GVFltRelative "..\..\..\..\..\packages\" + GvFltPackage + "\filter" 
-#define GVFSCommonRelative "..\..\..\..\GVFS.Common\bin"
-#define HooksRelative "..\..\..\..\GVFS.Hooks\bin"
-#define HooksLoaderRelative "..\..\..\..\GitHooksLoader\bin"
-#define ServiceRelative "..\..\..\..\GVFS.Service\bin"
-#define ServiceUIRelative "..\..\..\..\GVFS.Service.UI\bin"
-#define GVFSMountRelative "..\..\..\..\GVFS.Mount\bin"
-#define ReadObjectRelative "..\..\..\..\GVFS.ReadObjectHook\bin"
 
 [Setup]
 AppId={{489CA581-F131-4C28-BE04-4FB178933E6D}
@@ -33,7 +34,7 @@ AppCopyright=Copyright © Microsoft 2017
 BackColor=clWhite
 BackSolid=yes
 DefaultDirName={pf}\{#MyAppName}
-OutputBaseFilename=SetupGVFS
+OutputBaseFilename=SetupGVFS.{#GVFSVersion}
 OutputDir=Setup
 Compression=lzma2
 InternalCompressLevel=ultra64
@@ -41,11 +42,9 @@ SolidCompression=yes
 MinVersion=10.0.15063
 DisableDirPage=yes
 DisableReadyPage=yes
-SetupIconFile=GitVirtualFileSystem.ico
+SetupIconFile="{#GVFSDir}\GitVirtualFileSystem.ico"
 ArchitecturesInstallIn64BitMode=x64
 ArchitecturesAllowed=x64
-;WizardImageFile=Assets\gcmicon128.bmp
-;WizardSmallImageFile=Assets\gcmicon64.bmp
 WizardImageStretch=no
 WindowResizable=no
 CloseApplications=yes
@@ -62,63 +61,63 @@ Name: "full"; Description: "Full installation"; Flags: iscustom;
 
 [Files]
 ; GVFlt Files
-DestDir: "{app}\Filter"; Flags: ignoreversion; Source:"{#GVFltRelative}\GvFlt.sys"
+DestDir: "{app}\Filter"; Flags: ignoreversion; Source:"{#GVFltDir}\GvFlt.sys"
 ; gvflt.inf is declared explicitly last within the filter files, so we run the GVFlt install only once after required filter files are present
-DestDir: "{app}\Filter"; Flags: ignoreversion; Source: "{#GVFltRelative}\gvflt.inf"; AfterInstall: InstallGVFlt
+DestDir: "{app}\Filter"; Flags: ignoreversion; Source: "{#GVFltDir}\gvflt.inf"; AfterInstall: InstallGVFlt
 
 ; GitHooks Files
-DestDir: "{app}"; Flags: ignoreversion; Source:"{#HooksRelative}\{#PlatformAndConfiguration}\GVFS.Hooks.pdb"
-DestDir: "{app}"; Flags: ignoreversion; Source:"{#HooksRelative}\{#PlatformAndConfiguration}\GVFS.Hooks.exe"
-DestDir: "{app}"; Flags: ignoreversion; Source:"{#HooksRelative}\{#PlatformAndConfiguration}\GVFS.Hooks.exe.config"
-DestDir: "{app}"; Flags: ignoreversion; Source:"{#HooksLoaderRelative}\{#PlatformAndConfiguration}\GitHooksLoader.pdb"
-DestDir: "{app}"; Flags: ignoreversion; Source:"{#HooksLoaderRelative}\{#PlatformAndConfiguration}\GitHooksLoader.exe"
+DestDir: "{app}"; Flags: ignoreversion; Source:"{#HooksDir}\GVFS.Hooks.pdb"
+DestDir: "{app}"; Flags: ignoreversion; Source:"{#HooksDir}\GVFS.Hooks.exe"
+DestDir: "{app}"; Flags: ignoreversion; Source:"{#HooksDir}\GVFS.Hooks.exe.config"
+DestDir: "{app}"; Flags: ignoreversion; Source:"{#HooksLoaderDir}\GitHooksLoader.pdb"
+DestDir: "{app}"; Flags: ignoreversion; Source:"{#HooksLoaderDir}\GitHooksLoader.exe"
 
 ; GVFS.Common Files
-DestDir: "{app}"; Flags: ignoreversion; Source:"{#GVFSCommonRelative}\{#PlatformAndConfiguration}\git2.dll"
+DestDir: "{app}"; Flags: ignoreversion; Source:"{#GVFSCommonDir}\git2.dll"
 
 ; GVFS.Mount Files
-DestDir: "{app}"; Flags: ignoreversion; Source:"{#GVFSMountRelative}\{#PlatformAndConfiguration}\GVFS.Mount.pdb"
-DestDir: "{app}"; Flags: ignoreversion; Source:"{#GVFSMountRelative}\{#PlatformAndConfiguration}\GVFS.Mount.exe"
+DestDir: "{app}"; Flags: ignoreversion; Source:"{#GVFSMountDir}\GVFS.Mount.pdb"
+DestDir: "{app}"; Flags: ignoreversion; Source:"{#GVFSMountDir}\GVFS.Mount.exe"
 
 ; GVFS.ReadObjectHook files
-DestDir: "{app}"; Flags: ignoreversion; Source:"{#ReadObjectRelative}\{#PlatformAndConfiguration}\GVFS.ReadObjectHook.pdb"
-DestDir: "{app}"; Flags: ignoreversion; Source:"{#ReadObjectRelative}\{#PlatformAndConfiguration}\GVFS.ReadObjectHook.exe"
+DestDir: "{app}"; Flags: ignoreversion; Source:"{#ReadObjectDir}\GVFS.ReadObjectHook.pdb"
+DestDir: "{app}"; Flags: ignoreversion; Source:"{#ReadObjectDir}\GVFS.ReadObjectHook.exe"
 
 ; GVFS and FastFetch PDB's
-DestDir: "{app}"; Flags: ignoreversion; Source:"Esent.Collections.pdb"
-DestDir: "{app}"; Flags: ignoreversion; Source:"Esent.Interop.pdb"
-DestDir: "{app}"; Flags: ignoreversion; Source:"Esent.Isam.pdb"
-DestDir: "{app}"; Flags: ignoreversion; Source:"FastFetch.pdb"
-DestDir: "{app}"; Flags: ignoreversion; Source:"GVFS.Common.pdb"
-DestDir: "{app}"; Flags: ignoreversion; Source:"GVFS.GVFlt.pdb"
-DestDir: "{app}"; Flags: ignoreversion; Source:"GVFS.pdb"
+DestDir: "{app}"; Flags: ignoreversion; Source:"{#GVFSDir}\Esent.Collections.pdb"
+DestDir: "{app}"; Flags: ignoreversion; Source:"{#GVFSDir}\Esent.Interop.pdb"
+DestDir: "{app}"; Flags: ignoreversion; Source:"{#GVFSDir}\Esent.Isam.pdb"
+DestDir: "{app}"; Flags: ignoreversion; Source:"{#GVFSDir}\FastFetch.pdb"
+DestDir: "{app}"; Flags: ignoreversion; Source:"{#GVFSDir}\GVFS.Common.pdb"
+DestDir: "{app}"; Flags: ignoreversion; Source:"{#GVFSDir}\GVFS.GVFlt.pdb"
+DestDir: "{app}"; Flags: ignoreversion; Source:"{#GVFSDir}\GVFS.pdb"
 
 ; GVFS.Service.UI Files
-DestDir: "{app}"; Flags: ignoreversion; Source:"{#ServiceUIRelative}\{#PlatformAndConfiguration}\GVFS.Service.UI.exe" 
-DestDir: "{app}"; Flags: ignoreversion; Source:"{#ServiceUIRelative}\{#PlatformAndConfiguration}\GVFS.Service.UI.pdb"
-DestDir: "{app}"; Flags: ignoreversion; Source:"{#ServiceUIRelative}\{#PlatformAndConfiguration}\GitVirtualFileSystem.ico"
+DestDir: "{app}"; Flags: ignoreversion; Source:"{#ServiceUIDir}\GVFS.Service.UI.exe" 
+DestDir: "{app}"; Flags: ignoreversion; Source:"{#ServiceUIDir}\GVFS.Service.UI.pdb"
+DestDir: "{app}"; Flags: ignoreversion; Source:"{#ServiceUIDir}\GitVirtualFileSystem.ico"
 
 ; FastFetch Files
-DestDir: "{app}"; Flags: ignoreversion; Source:"FastFetch.exe"
+DestDir: "{app}"; Flags: ignoreversion; Source:"{#GVFSDir}\FastFetch.exe"
 
 ; GVFS Files
-DestDir: "{app}"; Flags: ignoreversion; Source:"CommandLine.dll"
-DestDir: "{app}"; Flags: ignoreversion; Source:"Esent.Collections.dll"
-DestDir: "{app}"; Flags: ignoreversion; Source:"Esent.Interop.dll"
-DestDir: "{app}"; Flags: ignoreversion; Source:"Esent.Isam.dll"
-DestDir: "{app}"; Flags: ignoreversion; Source:"GVFS.Common.dll"
-DestDir: "{app}"; Flags: ignoreversion; Source:"GVFS.GVFlt.dll"
-DestDir: "{app}"; Flags: ignoreversion; Source:"GvLib.Managed.dll"
-DestDir: "{app}"; Flags: ignoreversion; Source:"GvLib.dll"
-DestDir: "{app}"; Flags: ignoreversion; Source:"Microsoft.Diagnostics.Tracing.EventSource.dll"
-DestDir: "{app}"; Flags: ignoreversion; Source:"Newtonsoft.Json.dll"
-DestDir: "{app}"; Flags: ignoreversion; Source:"GVFS.exe.config"
-DestDir: "{app}"; Flags: ignoreversion; Source:"GitVirtualFileSystem.ico"  
-DestDir: "{app}"; Flags: ignoreversion; Source:"GVFS.exe" 
+DestDir: "{app}"; Flags: ignoreversion; Source:"{#GVFSDir}\CommandLine.dll"
+DestDir: "{app}"; Flags: ignoreversion; Source:"{#GVFSDir}\Esent.Collections.dll"
+DestDir: "{app}"; Flags: ignoreversion; Source:"{#GVFSDir}\Esent.Interop.dll"
+DestDir: "{app}"; Flags: ignoreversion; Source:"{#GVFSDir}\Esent.Isam.dll"
+DestDir: "{app}"; Flags: ignoreversion; Source:"{#GVFSDir}\GVFS.Common.dll"
+DestDir: "{app}"; Flags: ignoreversion; Source:"{#GVFSDir}\GVFS.GVFlt.dll"
+DestDir: "{app}"; Flags: ignoreversion; Source:"{#GVFSDir}\GvLib.Managed.dll"
+DestDir: "{app}"; Flags: ignoreversion; Source:"{#GVFSDir}\GvLib.dll"
+DestDir: "{app}"; Flags: ignoreversion; Source:"{#GVFSDir}\Microsoft.Diagnostics.Tracing.EventSource.dll"
+DestDir: "{app}"; Flags: ignoreversion; Source:"{#GVFSDir}\Newtonsoft.Json.dll"
+DestDir: "{app}"; Flags: ignoreversion; Source:"{#GVFSDir}\GVFS.exe.config"
+DestDir: "{app}"; Flags: ignoreversion; Source:"{#GVFSDir}\GitVirtualFileSystem.ico"  
+DestDir: "{app}"; Flags: ignoreversion; Source:"{#GVFSDir}\GVFS.exe" 
 
 ; GVFS.Service Files and PDB's
-DestDir: "{app}"; Flags: ignoreversion; Source:"{#ServiceRelative}\{#PlatformAndConfiguration}\GVFS.Service.pdb"
-DestDir: "{app}"; Flags: ignoreversion; Source:"{#ServiceRelative}\{#PlatformAndConfiguration}\GVFS.Service.exe"; AfterInstall: InstallGVFSService
+DestDir: "{app}"; Flags: ignoreversion; Source:"{#ServiceDir}\GVFS.Service.pdb"
+DestDir: "{app}"; Flags: ignoreversion; Source:"{#ServiceDir}\GVFS.Service.exe"; AfterInstall: InstallGVFSService
 
 [UninstallDelete]
 ; Deletes the entire installation directory, including files and subdirectories
@@ -130,6 +129,9 @@ Root: HKLM; Subkey: "{#EnvironmentKey}"; \
     Check: NeedsAddPath(ExpandConstant('{app}'))
 
 [Code]
+var
+  ExitCode: Integer;
+
 function NeedsAddPath(Param: string): boolean;
 var
   OrigPath: string;
@@ -213,10 +215,10 @@ begin
             RaiseException('Fatal: Could not uninstall existing GVFS.Service.');
           end;
 
-          if (ShowProgress) then
-            begin
-              WizardForm.StatusLabel.Caption := 'Waiting for pending GVFS.Service deletion to complete. This may take a while.';
-            end;
+        if (ShowProgress) then
+          begin
+            WizardForm.StatusLabel.Caption := 'Waiting for pending GVFS.Service deletion to complete. This may take a while.';
+          end;
 
       finally
         if (ShowProgress) then
@@ -312,13 +314,93 @@ begin
     end;
 end;
 
+function ExecWithResult(Filename, Params, WorkingDir: String; ShowCmd: Integer;
+  Wait: TExecWait; var ResultCode: Integer; var ResultString: ansiString): Boolean;
+var
+  TempFilename: string;
+  Command: string;
+begin
+  TempFilename := ExpandConstant('{tmp}\~execwithresult.txt');
+  { Exec via cmd and redirect output to file. Must use special string-behavior to work. }
+  Command := Format('"%s" /S /C ""%s" %s > "%s""', [ExpandConstant('{cmd}'), Filename, Params, TempFilename]);
+  Result := Exec(ExpandConstant('{cmd}'), Command, WorkingDir, ShowCmd, Wait, ResultCode);
+  if Result then
+    begin
+      LoadStringFromFile(TempFilename, ResultString);
+    end;
+  DeleteFile(TempFilename);
+end;
+
+procedure UnmountRepos();
+var
+  ResultCode: integer;
+begin
+  Exec('gvfs.exe', 'service --unmount-all', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
+end;
+
+procedure MountRepos();
+var
+  StatusText: string;
+  MountOutput: ansiString;
+  ResultCode: integer;
+  MsgBoxText: string;
+begin
+  StatusText := WizardForm.StatusLabel.Caption;
+  WizardForm.StatusLabel.Caption := 'Mounting Repos.';
+  WizardForm.ProgressGauge.Style := npbstMarquee;
+
+  ExecWithResult(ExpandConstant('{app}') + '\gvfs.exe', 'service --mount-all', '', SW_HIDE, ewWaitUntilTerminated, ResultCode, MountOutput);
+  WizardForm.StatusLabel.Caption := StatusText;
+  WizardForm.ProgressGauge.Style := npbstNormal;
+  
+  if (ResultCode <> 0) then
+    begin
+      MsgBoxText := 'Mounting one or more repos failed:' + #13#10 + MountOutput;
+      SuppressibleMsgBox(MsgBoxText, mbConfirmation, MB_OK, IDOK);
+      ExitCode := 17;
+    end;
+end;
+
+function ConfirmUnmountAll(): Boolean;
+var
+  MsgBoxResult: integer;
+  Repos: ansiString;
+  ResultCode: integer;
+  MsgBoxText: string;
+begin
+  Result := False;
+  if ExecWithResult('gvfs.exe', 'service --list-mounted', '', SW_HIDE, ewWaitUntilTerminated, ResultCode, Repos) then
+    begin
+      if Repos = '' then
+        begin
+          Result := False;
+        end
+      else
+        begin
+          if ResultCode = 0 then
+            begin
+              MsgBoxText := 'The following repos are currently mounted:' + #13#10 + Repos + #13#10 + 'Setup needs to unmount all repos before it can proceed, and those repos will be unavailable while setup is running. Do you want to continue?';
+              MsgBoxResult := SuppressibleMsgBox(MsgBoxText, mbConfirmation, MB_OKCANCEL, IDOK);
+              if (MsgBoxResult = IDOK) then
+                begin
+                  Result := True;
+                end
+              else
+                begin
+                  Abort();
+                end;
+            end;
+        end;
+    end;
+end;
+
 function EnsureGvfsNotRunning(): Boolean;
 var
-  MsgBoxResult: Integer;
+  MsgBoxResult: integer;
 begin
   MsgBoxResult := IDRETRY;
   while (IsGVFSRunning()) Do
-    begin    
+    begin
       if(MsgBoxResult = IDRETRY) then
         begin
           MsgBoxResult := SuppressibleMsgBox('GVFS is currently running. Please close all instances of GVFS before continuing the installation.', mbError, MB_RETRYCANCEL, IDCANCEL);
@@ -337,6 +419,7 @@ end;
 
 function InitializeUninstall(): Boolean;
 begin
+  UnmountRepos();
   Result := EnsureGvfsNotRunning();
 end;
 
@@ -358,7 +441,16 @@ begin
       begin
         UninstallGVFSService(True);
       end;
+    ssPostInstall:
+      begin
+        MountRepos();
+      end;
     end;
+end;
+
+function GetCustomSetupExitCode: Integer;
+begin
+  Result := ExitCode;
 end;
 
 procedure CurUninstallStepChanged(CurStep: TUninstallStep);
@@ -366,19 +458,23 @@ begin
   case CurStep of
     usUninstall:
       begin
-	    UninstallGVFSService(False);
-
+        UninstallGVFSService(False);
         RemovePath(ExpandConstant('{app}'));
       end;
     end;
 end;
 
-procedure InitializeWizard;
+function PrepareToInstall(var NeedsRestart: Boolean): String;
 begin
+  NeedsRestart := False;
+  Result := '';
+  if ConfirmUnmountAll() then
+    begin
+      UnmountRepos();
+    end;
   if not EnsureGvfsNotRunning() then
     begin
       Abort();
     end;
-
   StopGVFSService();
 end;

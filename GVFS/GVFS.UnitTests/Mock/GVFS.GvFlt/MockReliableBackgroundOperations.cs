@@ -22,5 +22,9 @@ namespace GVFS.UnitTests.Mock.GVFS.GvFlt
         public override void Enqueue(GVFltCallbacks.BackgroundGitUpdate backgroundOperation)
         {
         }
+
+        public override void Shutdown()
+        {
+        }
     }
 }

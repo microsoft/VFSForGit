@@ -140,11 +140,12 @@ namespace FastFetch.Jobs
                     fileName = this.gitObjects.WriteLooseObject(
                         response.Stream,
                         sha,
-                        bufToCopyWith);
+                        overwriteExistingObject: false, 
+                        bufToCopyWith: bufToCopyWith);
                     this.AvailableObjects.Add(sha);
                     break;
                 case GitObjectContentType.PackFile:
-                    fileName = this.gitObjects.WriteTempPackFile(response);
+                    fileName = this.gitObjects.WriteTempPackFile(response.Stream);
                     this.AvailablePacks.Add(new IndexPackRequest(fileName, request));
                     break;
                 case GitObjectContentType.BatchedLooseObjects:
@@ -153,7 +154,8 @@ namespace FastFetch.Jobs
                         this.gitObjects.WriteLooseObject(
                             objectStream,
                             sha1,
-                            bufToCopyWith);
+                            overwriteExistingObject: false,
+                            bufToCopyWith: bufToCopyWith);
                         this.AvailableObjects.Add(sha1);
 
                         if (successfulDownloads != null)

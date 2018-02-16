@@ -22,18 +22,12 @@ namespace GVFS.Service
         public CurrentUser CurrentUser { get; private set; }
 
         public bool Mount(string repoRoot)
-        {            
+        {
             string error;
             if (!GvFltFilter.IsHealthy(out error, this.tracer))
             {
                 return false;
             }
-
-            // Ensure the repo is excluded from antivirus before calling 'gvfs mount' 
-            // to reduce chatter between GVFS.exe and GVFS.Service.exe
-            string errorMessage;
-            bool isExcluded;
-            ExcludeFromAntiVirusHandler.CheckAntiVirusExclusion(this.tracer, repoRoot, out isExcluded, out errorMessage);
 
             string unusedMessage;
             if (!GvFltFilter.TryAttach(this.tracer, repoRoot, out unusedMessage))
@@ -47,6 +41,7 @@ namespace GVFS.Service
                 return false;
             }
 
+            string errorMessage;
             if (!GVFSEnlistment.WaitUntilMounted(repoRoot, false, out errorMessage))
             {
                 this.tracer.RelatedError(errorMessage);

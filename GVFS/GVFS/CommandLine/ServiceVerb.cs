@@ -69,7 +69,10 @@ namespace GVFS.CommandLine
             {
                 foreach (string repoRoot in repoList)
                 {
-                    this.Output.WriteLine(repoRoot);
+                    if (this.IsRepoMounted(repoRoot))
+                    {
+                        this.Output.WriteLine(repoRoot);
+                    }
                 }
             }
             else if (this.MountAll)
@@ -78,11 +81,6 @@ namespace GVFS.CommandLine
 
                 foreach (string repoRoot in repoList)
                 {
-                    if (!this.IsValidRepo(repoRoot))
-                    {
-                        continue;
-                    }
-
                     if (!this.IsRepoMounted(repoRoot))
                     {
                         this.Output.WriteLine("\r\nMounting repo at " + repoRoot);
@@ -106,11 +104,6 @@ namespace GVFS.CommandLine
 
                 foreach (string repoRoot in repoList)
                 {
-                    if (!this.IsValidRepo(repoRoot))
-                    {
-                        continue;
-                    }
-
                     if (this.IsRepoMounted(repoRoot))
                     {
                         this.Output.WriteLine("\r\nUnmounting repo at " + repoRoot);
@@ -119,6 +112,7 @@ namespace GVFS.CommandLine
                             verb =>
                             {
                                 verb.SkipUnregister = true;
+                                verb.SkipLock = true;
                             });
 
                         if (result != ReturnCode.Success)
@@ -187,29 +181,6 @@ namespace GVFS.CommandLine
 
                 return false;
             }
-        }
-
-        private bool IsValidRepo(string repoRoot)
-        {
-            string gitBinPath = GitProcess.GetInstalledGitBinPath();
-            string hooksPath = this.GetGVFSHooksPathAndCheckVersion(tracer: null);
-            GVFSEnlistment enlistment = null;
-
-            try
-            {
-                enlistment = GVFSEnlistment.CreateFromDirectory(repoRoot, gitBinPath, hooksPath);
-            }
-            catch (InvalidRepoException)
-            {
-                return false;
-            }
-
-            if (enlistment == null)
-            {
-                return false;
-            }
-
-            return true;
         }
 
         private bool IsRepoMounted(string repoRoot)

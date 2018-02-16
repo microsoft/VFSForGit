@@ -23,6 +23,7 @@ namespace GVFS.UnitTests.Virtual
 
             string enlistmentRoot = @"mock:\GVFS\UnitTests\Repo";
             GVFSEnlistment enlistment = new GVFSEnlistment(enlistmentRoot, "fake://repoUrl", gitBinPath, null);
+            enlistment.InitializeLocalCacheAndObjectsPathsFromKey("fake:\\objectCache", "fakeObjectCacheKey");
 
             this.GitParentPath = enlistment.WorkingDirectoryRoot;
             this.GVFSMetadataPath = enlistment.DotGVFSRoot;

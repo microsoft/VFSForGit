@@ -25,6 +25,25 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
             this.Enlistment.MountGVFS();
         }
 
+        [TestCase]
+        public void CloneWithLocalCachePathWithinSrc()
+        {
+            string pathToGVFS = Path.Combine(TestContext.CurrentContext.TestDirectory, Properties.Settings.Default.PathToGVFS);
+            string newEnlistmentRoot = GVFSFunctionalTestEnlistment.GetUniqueEnlistmentRoot();
+
+            ProcessStartInfo processInfo = new ProcessStartInfo(pathToGVFS);
+            processInfo.Arguments = $"clone {Properties.Settings.Default.RepoToClone} {newEnlistmentRoot} --local-cache-path {Path.Combine(newEnlistmentRoot, "src", ".gvfsCache")}";
+            processInfo.WindowStyle = ProcessWindowStyle.Hidden;
+            processInfo.CreateNoWindow = true;
+            processInfo.WorkingDirectory = Path.GetDirectoryName(this.Enlistment.EnlistmentRoot);
+            processInfo.UseShellExecute = false;
+            processInfo.RedirectStandardOutput = true;
+
+            ProcessResult result = ProcessHelper.Run(processInfo);
+            result.ExitCode.ShouldEqual(GVFSGenericError);
+            result.Output.ShouldContain("'--local-cache-path' cannot be inside the src folder");
+        }
+
         private void SubfolderCloneShouldFail()
         {
             string pathToGVFS = Path.Combine(TestContext.CurrentContext.TestDirectory, Properties.Settings.Default.PathToGVFS);

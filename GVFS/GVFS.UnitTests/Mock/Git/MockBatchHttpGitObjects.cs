@@ -85,13 +85,16 @@ namespace GVFS.UnitTests.Mock.Git
                         writer.Flush();
                         mem.Seek(0, SeekOrigin.Begin);
 
-                        RetryWrapper<GitObjectTaskResult>.CallbackResult result = onSuccess(
-                                    1,
-                                    new GitEndPointResponseData(
-                                        HttpStatusCode.OK,
-                                        GVFSConstants.MediaTypes.CustomLooseObjectsMediaType,
-                                        mem));
-                        return new RetryWrapper<GitObjectTaskResult>.InvocationResult(1, true, result.Result);
+                        using (GitEndPointResponseData response = new GitEndPointResponseData(
+                            HttpStatusCode.OK,
+                            GVFSConstants.MediaTypes.CustomLooseObjectsMediaType,
+                            mem,
+                            message: null,
+                            onResponseDisposed: null))
+                        {
+                            RetryWrapper<GitObjectTaskResult>.CallbackResult result = onSuccess(1, response);
+                            return new RetryWrapper<GitObjectTaskResult>.InvocationResult(1, true, result.Result);
+                        }
                     }
                 }
                 catch

@@ -2,7 +2,6 @@
 using System;
 using System.ComponentModel;
 using System.IO;
-using System.Linq;
 using System.Runtime.InteropServices;
 using System.Text;
 
@@ -123,6 +122,29 @@ namespace GVFS.Common
             return result;
         }
 
+        public static void FlushFileBuffers(string path)
+        {
+            using (SafeFileHandle fileHandle = CreateFile(
+                path,
+                FileAccess.GENERIC_WRITE,
+                FileShare.ReadWrite,
+                IntPtr.Zero,
+                FileMode.Open,
+                FileAttributes.FILE_ATTRIBUTE_NORMAL,
+                IntPtr.Zero))
+            {
+                if (fileHandle.IsInvalid)
+                {
+                    ThrowLastWin32Exception();
+                }
+
+                if (!FlushFileBuffers(fileHandle))
+                {
+                    ThrowLastWin32Exception();
+                }
+            }
+        }
+
         public static bool IsFeatureSupportedByVolume(string volumeRoot, FileSystemFlags flags)
         {
             uint volumeSerialNumber;
@@ -165,6 +187,54 @@ namespace GVFS.Common
             }
         }
 
+        public static string GetFinalPathName(string path)
+        {
+            // Using FILE_FLAG_BACKUP_SEMANTICS as it works with file as well as folder path
+            // According to MSDN, https://msdn.microsoft.com/en-us/library/windows/desktop/aa363858(v=vs.85).aspx,
+            // we must set this flag to obtain a handle to a directory
+            using (SafeFileHandle fileHandle = CreateFile(
+                path,
+                FileAccess.FILE_READ_ATTRIBUTES,
+                FileShare.ReadWrite,
+                IntPtr.Zero,
+                FileMode.Open,
+                FileAttributes.FILE_FLAG_BACKUP_SEMANTICS,
+                IntPtr.Zero))
+            {
+                if (fileHandle.IsInvalid)
+                {
+                    ThrowLastWin32Exception();
+                }
+
+                int finalPathSize = GetFinalPathNameByHandle(fileHandle, null, 0, 0);
+                StringBuilder finalPath = new StringBuilder(finalPathSize + 1);
+
+                // GetFinalPathNameByHandle buffer size should not include a NULL termination character
+                finalPathSize = GetFinalPathNameByHandle(fileHandle, finalPath, finalPathSize, 0);
+                if (finalPathSize == 0)
+                {
+                    ThrowLastWin32Exception();
+                }
+
+                string pathString = finalPath.ToString();
+
+                // The remarks section of GetFinalPathNameByHandle mentions the return being prefixed with "\\?\" or "\\?\UNC\"
+                // More information the prefixes is here http://msdn.microsoft.com/en-us/library/aa365247(v=VS.85).aspx
+                const string PathPrefix = @"\\?\";
+                const string UncPrefix = @"\\?\UNC\";
+                if (pathString.StartsWith(UncPrefix, StringComparison.Ordinal))
+                {
+                    pathString = @"\\" + pathString.Substring(UncPrefix.Length);
+                }
+                else if (pathString.StartsWith(PathPrefix, StringComparison.Ordinal))
+                {
+                    pathString = pathString.Substring(PathPrefix.Length);
+                }
+
+                return pathString;
+            }
+        }
+
         private static void ThrowLastWin32Exception()
         {
             throw new Win32Exception(Marshal.GetLastWin32Error());
@@ -185,6 +255,16 @@ namespace GVFS.Common
             string existingFileName,
             string newFileName,
             uint flags);
+
+        [DllImport("kernel32.dll", SetLastError = true, CharSet = CharSet.Unicode)]
+        private static extern int GetFinalPathNameByHandle(
+            SafeFileHandle hFile,
+            [Out] StringBuilder lpszFilePath, 
+            int cchFilePath, 
+            int dwFlags);
+
+        [DllImport("kernel32.dll", SetLastError = true)]
+        private static extern bool FlushFileBuffers(SafeFileHandle hFile);
 
         [DllImport("kernel32.dll", SetLastError = true, CharSet = CharSet.Unicode)]
         private static extern bool GetVolumeInformation(

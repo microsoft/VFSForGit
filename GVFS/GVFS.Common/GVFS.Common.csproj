@@ -2,9 +2,8 @@
 <Project ToolsVersion="14.0" DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <Import Project="..\LibGit2Sharp.NativeBinaries.props" Condition="Exists('..\LibGit2Sharp.NativeBinaries.props')" />
   <Import Project="$(MSBuildExtensionsPath)\$(MSBuildToolsVersion)\Microsoft.Common.props" Condition="Exists('$(MSBuildExtensionsPath)\$(MSBuildToolsVersion)\Microsoft.Common.props')" />
+  <Import Project="$(SolutionDir)\GVFS\GVFS.Build\GVFS.props" />
   <PropertyGroup>
-    <Configuration Condition=" '$(Configuration)' == '' ">Debug</Configuration>
-    <Platform Condition=" '$(Platform)' == '' ">AnyCPU</Platform>
     <ProjectGuid>{374BF1E5-0B2D-4D4A-BD5E-4212299DEF09}</ProjectGuid>
     <OutputType>Library</OutputType>
     <AppDesignerFolder>Properties</AppDesignerFolder>
@@ -17,8 +16,6 @@
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)' == 'Debug|x64'">
     <DebugSymbols>true</DebugSymbols>
-    <OutputPath>..\..\..\BuildOutput\GVFS.Common\bin\x64\Debug\</OutputPath>
-    <IntermediateOutputPath>..\..\..\BuildOutput\GVFS.Common\obj\x64\Debug\</IntermediateOutputPath>
     <DefineConstants>DEBUG;TRACE</DefineConstants>
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
     <DebugType>full</DebugType>
@@ -28,8 +25,6 @@
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)' == 'Release|x64'">
-    <OutputPath>..\..\..\BuildOutput\GVFS.Common\bin\x64\Release\</OutputPath>
-    <IntermediateOutputPath>..\..\..\BuildOutput\GVFS.Common\obj\x64\Release\</IntermediateOutputPath>
     <DefineConstants>TRACE</DefineConstants>
     <Optimize>true</Optimize>
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
@@ -64,18 +59,21 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
-    <Compile Include="..\..\..\BuildOutput\CommonAssemblyVersion.cs">
+    <Compile Include="$(BuildOutputDir)\CommonAssemblyVersion.cs">
       <Link>CommonAssemblyVersion.cs</Link>
     </Compile>
     <Compile Include="FileBasedCollection.cs" />
     <Compile Include="FileBasedCollectionException.cs" />
+    <Compile Include="FileSystem\PhysicalFileSystemExtensions.cs" />
+    <Compile Include="FileSystem\FlushToDiskFileStream.cs" />
+    <Compile Include="LocalCacheResolver.cs" />
     <Compile Include="Http\CacheServerResolver.cs" />
+    <Compile Include="Paths.Shared.cs" />
     <Compile Include="PlaceholderListDatabase.cs" />
     <Compile Include="FileSystem\GvFltFilter.cs" />
     <Compile Include="GVFSEnlistment.Shared.cs" />
     <Compile Include="NetworkStreams\BatchedLooseObjectDeserializer.cs" />
     <Compile Include="NetworkStreams\RestrictedStream.cs" />
-    <Compile Include="AntiVirusExclusions.cs" />
     <Compile Include="ConsoleHelper.cs" />
     <Compile Include="FileBasedDictionary.cs" />
     <Compile Include="Http\CacheServerInfo.cs" />
@@ -103,10 +101,8 @@
     <Compile Include="NamedPipes\AllowAllLocksNamedPipeServer.cs" />
     <Compile Include="NamedPipes\LockNamedPipeMessages.cs" />
     <Compile Include="NamedPipes\PipeNameLengthException.cs" />
-    <Compile Include="NetworkStreams\StreamReaderExtensions.cs" />
     <Compile Include="RepoMetadata.cs" />
     <Compile Include="NetworkStreams\PrefetchPacksDeserializer.cs" />
-    <Compile Include="ProcessWatcher.cs" />
     <Compile Include="RetryableException.cs" />
     <Compile Include="RetryBackoff.cs" />
     <Compile Include="ReturnCode.cs" />

@@ -39,6 +39,7 @@ namespace GVFS.Common.NamedPipes
             {
                 public string MountStatus { get; set; }
                 public string EnlistmentRoot { get; set; }
+                public string LocalCacheRoot { get; set; }
                 public string RepoUrl { get; set; }
                 public string CacheServer { get; set; }
                 public int BackgroundOperationCount { get; set; }
@@ -196,31 +197,6 @@ namespace GVFS.Common.NamedPipes
             }
 
             public class Response : BaseResponse<AttachGvFltRequest>
-            {
-                public static Response FromMessage(Message message)
-                {
-                    return JsonConvert.DeserializeObject<Response>(message.Body);
-                }
-            }
-        }
-
-        public class ExcludeFromAntiVirusRequest
-        {
-            public const string Header = nameof(ExcludeFromAntiVirusRequest);
-
-            public string ExclusionPath { get; set; }
-
-            public static ExcludeFromAntiVirusRequest FromMessage(Message message)
-            {
-                return JsonConvert.DeserializeObject<ExcludeFromAntiVirusRequest>(message.Body);
-            }
-
-            public Message ToMessage()
-            {
-                return new Message(Header, JsonConvert.SerializeObject(this));
-            }
-
-            public class Response : BaseResponse<ExcludeFromAntiVirusRequest>
             {
                 public static Response FromMessage(Message message)
                 {

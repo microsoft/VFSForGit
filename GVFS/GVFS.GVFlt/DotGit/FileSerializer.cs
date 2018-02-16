@@ -24,7 +24,8 @@ namespace GVFS.GVFlt.DotGit
                     this.filePath,
                     FileMode.OpenOrCreate,
                     FileAccess.Read,
-                    FileShare.None))
+                    FileShare.None,
+                    callFlushFileBuffers: false))
             {
                 using (StreamReader reader = new StreamReader(stream))
                 {
@@ -81,7 +82,8 @@ namespace GVFS.GVFlt.DotGit
                         this.filePath,
                         FileMode.Open,
                         FileAccess.ReadWrite,
-                        FileShare.Read);
+                        FileShare.Read,
+                        callFlushFileBuffers: false);
                     this.fileStream.Position = this.fileStream.Length;
                 }
 

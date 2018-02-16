@@ -10,6 +10,7 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
+using System.Security;
 
 namespace GVFS.CommandLine
 {
@@ -230,11 +231,11 @@ namespace GVFS.CommandLine
                 "Querying remote for config",
                 suppressGvfsLogMessage: true))
             {
-                this.ReportErrorAndExit("Unable to query /gvfs/config");
+                this.ReportErrorAndExit(tracer, "Unable to query /gvfs/config");
             }
 
             return gvfsConfig;
-        }
+        }        
 
         protected void ValidateClientVersions(ITracer tracer, GVFSEnlistment enlistment, GVFSConfig gvfsConfig, bool showWarnings)
         {
@@ -257,6 +258,30 @@ namespace GVFS.CommandLine
                     this.Output.WriteLine();
                 }
             }
+        }
+
+        protected bool TryCreateAlternatesFile(PhysicalFileSystem fileSystem, GVFSEnlistment enlistment, out string errorMessage)
+        {
+            try
+            {
+                string alternatesFilePath = this.GetAlternatesPath(enlistment);
+                string tempFilePath = alternatesFilePath + ".tmp";
+                fileSystem.WriteAllText(tempFilePath, enlistment.GitObjectsRoot);
+                fileSystem.MoveAndOverwriteFile(tempFilePath, alternatesFilePath);
+            }
+            catch (SecurityException e)
+            {
+                errorMessage = e.Message;
+                return false;
+            }
+            catch (IOException e)
+            {
+                errorMessage = e.Message;
+                return false;
+            }
+
+            errorMessage = null;
+            return true;
         }
 
         protected string GetGVFSHooksPathAndCheckVersion(ITracer tracer)
@@ -292,7 +317,7 @@ You can specify a URL, a name of a configured cache server, or the special names
             }
         }
 
-        protected CacheServerInfo ResolveCacheServerUrlIfNeeded(
+        protected CacheServerInfo ResolveCacheServer(
             ITracer tracer,
             CacheServerInfo cacheServer,
             CacheServerResolver cacheServerResolver,
@@ -314,9 +339,28 @@ You can specify a URL, a name of a configured cache server, or the special names
                     this.ReportErrorAndExit(tracer, error);
                 }
             }
+            else if (cacheServer.Name.Equals(CacheServerInfo.ReservedNames.UserDefined))
+            {
+                resolvedCacheServer = cacheServerResolver.ResolveNameFromRemote(cacheServer.Url, gvfsConfig);
+            }
 
             this.Output.WriteLine("Using cache server: " + resolvedCacheServer);
             return resolvedCacheServer;
+        }
+
+        protected void ValidatePathParameter(string path)
+        {
+            if (!string.IsNullOrWhiteSpace(path))
+            {
+                try
+                {
+                    Path.GetFullPath(path);
+                }
+                catch
+                {
+                    this.ReportErrorAndExit("Invalid path: '{0}'", path);
+                }
+            }
         }
 
         protected bool TryDownloadCommit(
@@ -364,7 +408,7 @@ You can specify a URL, a name of a configured cache server, or the special names
 
             if (!repo.ObjectExists(gitAttributes.TargetSha))
             {
-                if (gitObjects.TryDownloadAndSaveObject(gitAttributes.TargetSha) != GitObjects.DownloadAndSaveObjectResult.Success)
+                if (gitObjects.TryDownloadAndSaveObject(gitAttributes.TargetSha, GVFSGitObjects.RequestSource.GVFSVerb) != GitObjects.DownloadAndSaveObjectResult.Success)
                 {
                     error = "Could not download " + GVFSConstants.SpecialGitFiles.GitAttributes + " file";
                     return false;
@@ -373,6 +417,11 @@ You can specify a URL, a name of a configured cache server, or the special names
 
             error = null;
             return true;
+        }
+
+        private string GetAlternatesPath(GVFSEnlistment enlistment)
+        {
+            return Path.Combine(enlistment.WorkingDirectoryRoot, GVFSConstants.DotGit.Objects.Info.Alternates);
         }
 
         private void CheckVolumeSupportsDeleteNotifications(ITracer tracer, Enlistment enlistment)
@@ -507,6 +556,8 @@ You can specify a URL, a name of a configured cache server, or the special names
 
             public sealed override void Execute()
             {
+                this.ValidatePathParameter(this.EnlistmentRootPath);
+
                 this.PreCreateEnlistment();
                 GVFSEnlistment enlistment = this.CreateEnlistment(this.EnlistmentRootPath);
                 this.Execute(enlistment);
@@ -517,6 +568,206 @@ You can specify a URL, a name of a configured cache server, or the special names
             }
 
             protected abstract void Execute(GVFSEnlistment enlistment);
+
+            protected void InitializeLocalCacheAndObjectsPaths(
+                ITracer tracer,
+                GVFSEnlistment enlistment,
+                RetryConfig retryConfig,
+                GVFSConfig gvfsConfig,
+                CacheServerInfo cacheServer)
+            {
+                string error;
+                if (!RepoMetadata.TryInitialize(tracer, Path.Combine(enlistment.EnlistmentRoot, GVFSConstants.DotGVFS.Root), out error))
+                {
+                    this.ReportErrorAndExit(tracer, "Failed to initialize repo metadata: " + error);
+                }
+
+                this.InitializeLocalCacheAndObjectsPathsFromRepoMetadata(tracer, enlistment);
+
+                // Note: Repos cloned with a version of GVFS that predates the local cache will not have a local cache configured
+                if (!string.IsNullOrWhiteSpace(enlistment.LocalCacheRoot))
+                {
+                    this.EnsureLocalCacheIsHealthy(tracer, enlistment, retryConfig, gvfsConfig, cacheServer);
+                }
+
+                RepoMetadata.Shutdown();
+            }
+
+            private void InitializeLocalCacheAndObjectsPathsFromRepoMetadata(
+                ITracer tracer,
+                GVFSEnlistment enlistment)
+            {
+                string error;
+                string gitObjectsRoot;
+                if (!RepoMetadata.Instance.TryGetGitObjectsRoot(out gitObjectsRoot, out error))
+                {
+                    this.ReportErrorAndExit(tracer, "Failed to determine git objects root from repo metadata: " + error);
+                }
+
+                if (string.IsNullOrWhiteSpace(gitObjectsRoot))
+                {
+                    this.ReportErrorAndExit(tracer, "Invalid git objects root (empty or whitespace)");
+                }
+
+                string localCacheRoot;
+                if (!RepoMetadata.Instance.TryGetLocalCacheRoot(out localCacheRoot, out error))
+                {
+                    this.ReportErrorAndExit(tracer, "Failed to determine local cache path from repo metadata: " + error);
+                }
+
+                enlistment.InitializeLocalCacheAndObjectPaths(localCacheRoot, gitObjectsRoot);
+            }
+
+            private void EnsureLocalCacheIsHealthy(
+                ITracer tracer,
+                GVFSEnlistment enlistment,
+                RetryConfig retryConfig,
+                GVFSConfig gvfsConfig,
+                CacheServerInfo cacheServer)
+            {
+                if (!Directory.Exists(enlistment.LocalCacheRoot))
+                {
+                    try
+                    {
+                        tracer.RelatedInfo($"{nameof(this.EnsureLocalCacheIsHealthy)}: Local cache root: {enlistment.LocalCacheRoot} missing, recreating it");
+                        Directory.CreateDirectory(enlistment.LocalCacheRoot);
+                    }
+                    catch (Exception e)
+                    {
+                        EventMetadata metadata = new EventMetadata();
+                        metadata.Add("Exception", e.ToString());
+                        metadata.Add("enlistment.LocalCacheRoot", enlistment.LocalCacheRoot);
+                        tracer.RelatedError(metadata, $"{nameof(this.EnsureLocalCacheIsHealthy)}: Exception while trying to create local cache root");
+
+                        this.ReportErrorAndExit(tracer, "Failed to create local cache: " + enlistment.LocalCacheRoot);
+                    }
+                }
+
+                PhysicalFileSystem fileSystem = new PhysicalFileSystem();
+                if (Directory.Exists(enlistment.GitObjectsRoot))
+                {
+                    bool gitObjectsRootInAlternates = false;
+
+                    string alternatesFilePath = this.GetAlternatesPath(enlistment);
+                    if (File.Exists(alternatesFilePath))
+                    {
+                        try
+                        {                            
+                            using (Stream stream = fileSystem.OpenFileStream(
+                                alternatesFilePath,
+                                FileMode.Open,
+                                FileAccess.Read,
+                                FileShare.ReadWrite,
+                                callFlushFileBuffers: false))
+                            {
+                                using (StreamReader reader = new StreamReader(stream))
+                                {
+                                    while (!reader.EndOfStream)
+                                    {
+                                        string alternatesLine = reader.ReadLine();
+                                        if (string.Equals(alternatesLine, enlistment.GitObjectsRoot, StringComparison.OrdinalIgnoreCase))
+                                        {
+                                            gitObjectsRootInAlternates = true;
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                        catch (Exception e)
+                        {
+                            EventMetadata exceptionMetadata = new EventMetadata();
+                            exceptionMetadata.Add("Exception", e.ToString());
+                            tracer.RelatedError(exceptionMetadata, $"{nameof(this.EnsureLocalCacheIsHealthy)}: Exception while trying to validate alternates file");
+
+                            this.ReportErrorAndExit(tracer, $"Failed to validate that alternates file includes git objects root: {e.Message}");
+                        }
+                    }
+                    else
+                    {
+                        tracer.RelatedInfo($"{nameof(this.EnsureLocalCacheIsHealthy)}: Alternates file not found");
+                    }
+
+                    if (!gitObjectsRootInAlternates)
+                    {
+                        tracer.RelatedInfo($"{nameof(this.EnsureLocalCacheIsHealthy)}: GitObjectsRoot ({enlistment.GitObjectsRoot}) missing from alternates files, recreating alternates");
+                        string error;
+                        if (!this.TryCreateAlternatesFile(fileSystem, enlistment, out error))
+                        {
+                            this.ReportErrorAndExit(tracer, $"Failed to update alternates file to include git objects root: {error}");
+                        }
+                    }
+                }
+                else
+                {
+                    tracer.RelatedInfo($"{nameof(this.EnsureLocalCacheIsHealthy)}: GitObjectsRoot ({enlistment.GitObjectsRoot}) missing, determining new root");
+
+                    if (cacheServer == null)
+                    {
+                        cacheServer = CacheServerResolver.GetCacheServerFromConfig(enlistment);
+                    }
+
+                    string error;
+                    if (gvfsConfig == null)
+                    {
+                        if (retryConfig == null)
+                        {
+                            if (!RetryConfig.TryLoadFromGitConfig(tracer, enlistment, out retryConfig, out error))
+                            {
+                                this.ReportErrorAndExit(tracer, "Failed to determine GVFS timeout and max retries: " + error);
+                            }
+                        }
+
+                        gvfsConfig = this.QueryGVFSConfig(tracer, enlistment, retryConfig);
+                    }
+                    
+                    string localCacheKey;
+                    LocalCacheResolver localCacheResolver = new LocalCacheResolver(enlistment);
+                    if (!localCacheResolver.TryGetLocalCacheKeyFromLocalConfigOrRemoteCacheServers(
+                        tracer,
+                        gvfsConfig,
+                        cacheServer,
+                        enlistment.LocalCacheRoot,
+                        localCacheKey: out localCacheKey,
+                        errorMessage: out error))
+                    {
+                        this.ReportErrorAndExit(tracer, $"Previous git objects root ({enlistment.GitObjectsRoot}) not found, and failed to determine new local cache key: {error}");
+                    }
+
+                    EventMetadata metadata = new EventMetadata();
+                    metadata.Add("localCacheRoot", enlistment.LocalCacheRoot);
+                    metadata.Add("localCacheKey", localCacheKey);
+                    metadata.Add(TracingConstants.MessageKey.InfoMessage, "Initializing and persisting updated paths");
+                    tracer.RelatedEvent(EventLevel.Informational, "GVFSVerb_InitializeLocalCacheAndObjectsPaths", metadata);
+                    enlistment.InitializeLocalCacheAndObjectsPathsFromKey(enlistment.LocalCacheRoot, localCacheKey);
+
+                    tracer.RelatedInfo($"{nameof(this.EnsureLocalCacheIsHealthy)}: Creating GitObjectsRoot ({enlistment.GitObjectsRoot}) and GitPackRoot ({enlistment.GitPackRoot})");
+                    try
+                    {
+                        Directory.CreateDirectory(enlistment.GitObjectsRoot);
+                        Directory.CreateDirectory(enlistment.GitPackRoot);
+                    }
+                    catch (Exception e)
+                    {
+                        EventMetadata exceptionMetadata = new EventMetadata();
+                        exceptionMetadata.Add("Exception", e.ToString());
+                        exceptionMetadata.Add("enlistment.LocalCacheRoot", enlistment.LocalCacheRoot);
+                        exceptionMetadata.Add("enlistment.GitObjectsRoot", enlistment.GitObjectsRoot);
+                        exceptionMetadata.Add("enlistment.GitPackRoot", enlistment.GitPackRoot);
+                        tracer.RelatedError(exceptionMetadata, $"{nameof(this.InitializeLocalCacheAndObjectsPaths)}: Exception while trying to create objects and pack folders");
+
+                        this.ReportErrorAndExit(tracer, "Failed to create objects and pack folders");
+                    }
+
+                    tracer.RelatedInfo($"{nameof(this.EnsureLocalCacheIsHealthy)}: Creating new alternates file");
+                    if (!this.TryCreateAlternatesFile(fileSystem, enlistment, out error))
+                    {
+                        this.ReportErrorAndExit(tracer, $"Failed to update alterates file with new objects path: {error}");
+                    }
+
+                    tracer.RelatedInfo($"{nameof(this.EnsureLocalCacheIsHealthy)}: Saving git objects root ({enlistment.GitObjectsRoot}) in repo metadata");
+                    RepoMetadata.Instance.SetGitObjectsRoot(enlistment.GitObjectsRoot);
+                }
+            }
 
             private GVFSEnlistment CreateEnlistment(string enlistmentRootPath)
             {

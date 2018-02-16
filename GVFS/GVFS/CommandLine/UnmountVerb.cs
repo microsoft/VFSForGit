@@ -34,6 +34,8 @@ namespace GVFS.CommandLine
 
         public override void Execute()
         {
+            this.ValidatePathParameter(this.EnlistmentRootPath);
+
             string root = Paths.GetGVFSEnlistmentRoot(this.EnlistmentRootPath);
             if (root == null)
             {

@@ -1,4 +1,5 @@
 ﻿using GVFS.Common;
+using GVFS.Common.FileSystem;
 using GVFS.Common.NamedPipes;
 using GVFS.Common.Tracing;
 using GVFS.Service.Handlers;
@@ -19,11 +20,13 @@ namespace GVFS.Service
 
         private string registryParentFolderPath;
         private ITracer tracer;
+        private PhysicalFileSystem fileSystem;
         private object repoLock = new object();
 
-        public RepoRegistry(ITracer tracer, string serviceDataLocation)
+        public RepoRegistry(ITracer tracer, PhysicalFileSystem fileSystem, string serviceDataLocation)
         {
             this.tracer = tracer;
+            this.fileSystem = fileSystem;
             this.registryParentFolderPath = serviceDataLocation;
 
             EventMetadata metadata = new EventMetadata();
@@ -132,6 +135,34 @@ namespace GVFS.Service
             return false;
         }
 
+        public bool TryRemoveRepo(string repoRoot, out string errorMessage)
+        {
+            errorMessage = null;
+
+            try
+            {
+                lock (this.repoLock)
+                {
+                    Dictionary<string, RepoRegistration> allRepos = this.ReadRegistry();
+                    if (allRepos.Remove(repoRoot))
+                    {
+                        this.WriteRegistry(allRepos);
+                        return true;
+                    }
+                    else
+                    {
+                        errorMessage = string.Format("Attempted to remove non-existent repo at '{0}'", repoRoot);
+                    }
+                }
+            }
+            catch (Exception e)
+            {
+                errorMessage = string.Format("Error while removing repo {0}: {1}", repoRoot, e.ToString());
+            }
+
+            return false;
+        }
+
         public void AutoMountRepos(int sessionId)
         {
             using (ITracer activity = this.tracer.StartActivity("AutoMount", EventLevel.Informational))
@@ -166,11 +197,12 @@ namespace GVFS.Service
         {
             Dictionary<string, RepoRegistration> allRepos = new Dictionary<string, RepoRegistration>(StringComparer.OrdinalIgnoreCase);
 
-            using (FileStream stream = new FileStream(
+            using (Stream stream = this.fileSystem.OpenFileStream(
                     Path.Combine(this.registryParentFolderPath, RegistryName),
                     FileMode.OpenOrCreate,
                     FileAccess.Read,
-                    FileShare.Read))
+                    FileShare.Read,
+                    callFlushFileBuffers: false))
             {
                 using (StreamReader reader = new StreamReader(stream))
                 {
@@ -274,24 +306,25 @@ namespace GVFS.Service
         private void WriteRegistry(Dictionary<string, RepoRegistration> registry)
         {
             string tempFilePath = Path.Combine(this.registryParentFolderPath, RegistryTempName);
-            using (FileStream stream = new FileStream(
+            using (Stream stream = this.fileSystem.OpenFileStream(
                     tempFilePath,
                     FileMode.Create,
                     FileAccess.Write,
-                    FileShare.None))
+                    FileShare.None,
+                    callFlushFileBuffers: true))
+            using (StreamWriter writer = new StreamWriter(stream))
             {
-                using (StreamWriter writer = new StreamWriter(stream))
-                {
-                    writer.WriteLine(RegistryVersion);
+                writer.WriteLine(RegistryVersion);
 
-                    foreach (RepoRegistration repo in registry.Values)
-                    {
-                        writer.WriteLine(repo.ToJson());
-                    }
+                foreach (RepoRegistration repo in registry.Values)
+                {
+                    writer.WriteLine(repo.ToJson());
                 }
+
+                stream.Flush();
             }
 
-            File.Replace(tempFilePath, Path.Combine(this.registryParentFolderPath, RegistryName), null);
+            this.fileSystem.MoveAndOverwriteFile(tempFilePath, Path.Combine(this.registryParentFolderPath, RegistryName));
         }
     }
 }

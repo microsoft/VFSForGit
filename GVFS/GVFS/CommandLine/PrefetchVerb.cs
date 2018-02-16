@@ -7,7 +7,10 @@ using GVFS.Common.Http;
 using GVFS.Common.Tracing;
 using Microsoft.Diagnostics.Tracing;
 using System;
+using System.Collections.Generic;
 using System.IO;
+using System.Linq;
+using System.Threading;
 
 namespace GVFS.CommandLine
 {
@@ -15,6 +18,11 @@ namespace GVFS.CommandLine
     public class PrefetchVerb : GVFSVerb.ForExistingEnlistment
     {
         private const string PrefetchVerbName = "prefetch";
+
+        private const int LockWaitTimeMs = 100;
+        private const int WaitingOnLockLogThreshold = 50;
+        private const int IoFailureRetryDelayMS = 50;
+        private const string PrefetchCommitsAndTreesLock = "prefetch-commits-trees.lock";
 
         private const int ChunkSize = 4000;
         private static readonly int SearchThreadCount = Environment.ProcessorCount;
@@ -66,6 +74,7 @@ namespace GVFS.CommandLine
 
         public bool SkipVersionCheck { get; set; }
         public CacheServerInfo ResolvedCacheServer { get; set; }
+        public GVFSConfig GVFSConfig { get; set; }
 
         protected override string VerbName
         {
@@ -90,12 +99,12 @@ namespace GVFS.CommandLine
                 tracer.WriteStartEvent(
                     enlistment.EnlistmentRoot,
                     enlistment.RepoUrl,
-                    cacheServerUrl,
-                    enlistment.GitObjectsRoot);
+                    cacheServerUrl);
 
                 RetryConfig retryConfig = this.GetRetryConfig(tracer, enlistment, TimeSpan.FromMinutes(RetryConfig.FetchAndCloneTimeoutMinutes));
 
                 CacheServerInfo cacheServer = this.ResolvedCacheServer;
+                GVFSConfig gvfsConfig = this.GVFSConfig;
                 if (!this.SkipVersionCheck)
                 {
                     string authErrorMessage;
@@ -106,13 +115,23 @@ namespace GVFS.CommandLine
                         this.ReportErrorAndExit(tracer, "Unable to prefetch because authentication failed");
                     }
 
-                    GVFSConfig gvfsConfig = this.QueryGVFSConfig(tracer, enlistment, retryConfig);
+                    if (gvfsConfig == null)
+                    {
+                        gvfsConfig = this.QueryGVFSConfig(tracer, enlistment, retryConfig);
+                    }
 
-                    CacheServerResolver cacheServerResolver = new CacheServerResolver(tracer, enlistment);
-                    cacheServer = cacheServerResolver.ResolveNameFromRemote(cacheServerUrl, gvfsConfig);
+                    if (cacheServer == null)
+                    {
+                        CacheServerResolver cacheServerResolver = new CacheServerResolver(tracer, enlistment);
+                        cacheServer = cacheServerResolver.ResolveNameFromRemote(cacheServerUrl, gvfsConfig);
+                    }
 
                     this.ValidateClientVersions(tracer, enlistment, gvfsConfig, showWarnings: false);
+
+                    this.Output.WriteLine("Configured cache server: " + cacheServer);
                 }
+
+                this.InitializeLocalCacheAndObjectsPaths(tracer, enlistment, retryConfig, gvfsConfig, cacheServer);
 
                 try
                 {
@@ -139,7 +158,18 @@ namespace GVFS.CommandLine
                             this.ReportErrorAndExit(tracer, "You can only specify --hydrate with --files or --folders");
                         }
 
-                        this.PrefetchCommits(tracer, enlistment, objectRequestor, cacheServer);
+                        PhysicalFileSystem fileSystem = new PhysicalFileSystem();
+                        using (FileBasedLock prefetchLock = new FileBasedLock(
+                            fileSystem,
+                            tracer,
+                            Path.Combine(enlistment.GitPackRoot, PrefetchCommitsAndTreesLock),
+                            enlistment.EnlistmentRoot,
+                            cleanupStaleLock: false,
+                            overwriteExistingLock: true))
+                        {
+                            this.WaitUntilLockIsAcquired(tracer, prefetchLock);
+                            this.PrefetchCommits(tracer, enlistment, objectRequestor, cacheServer);
+                        }
                     }
                     else
                     {
@@ -180,21 +210,45 @@ namespace GVFS.CommandLine
                             { "Exception", e.ToString() }
                         },
                         $"Unhandled {e.GetType().Name}: {e.Message}");
+
+                    Environment.ExitCode = (int)ReturnCode.GenericError;
+                }
+            }
+        }
+
+        private void WaitUntilLockIsAcquired(ITracer tracer, FileBasedLock fileBasedLock)
+        {
+            int attempt = 0;
+            while (!fileBasedLock.TryAcquireLockAndDeleteOnClose())
+            {
+                Thread.Sleep(LockWaitTimeMs);
+                ++attempt;
+                if (attempt == WaitingOnLockLogThreshold)
+                {
+                    attempt = 0;
+                    tracer.RelatedInfo("WaitUntilLockIsAcquired: Waiting to acquire prefetch lock");
                 }
             }
         }
 
         private void PrefetchCommits(ITracer tracer, GVFSEnlistment enlistment, GitObjectsHttpRequestor objectRequestor, CacheServerInfo cacheServer)
         {
+            bool success;
+            string error = string.Empty;
             if (this.Verbose)
             {
-                this.TryPrefetchCommitsAndTrees(tracer, enlistment, objectRequestor);
+                success = this.TryPrefetchCommitsAndTrees(tracer, enlistment, objectRequestor, out error);
             }
             else
             {
-                this.ShowStatusWhileRunning(
-                    () => { return this.TryPrefetchCommitsAndTrees(tracer, enlistment, objectRequestor); },
+                success = this.ShowStatusWhileRunning(
+                    () => { return this.TryPrefetchCommitsAndTrees(tracer, enlistment, objectRequestor, out error); },
                     "Fetching commits and trees " + this.GetCacheServerDisplay(cacheServer));
+            }
+
+            if (!success)
+            {
+                this.ReportErrorAndExit(tracer, "Prefetching commits and trees failed: " + error);                
             }
         }
 
@@ -308,25 +362,100 @@ namespace GVFS.CommandLine
             }
         }
 
-        private bool TryPrefetchCommitsAndTrees(ITracer tracer, GVFSEnlistment enlistment, GitObjectsHttpRequestor objectRequestor)
+        private bool TryPrefetchCommitsAndTrees(ITracer tracer, GVFSEnlistment enlistment, GitObjectsHttpRequestor objectRequestor, out string error)
         {
+            error = null;
             PhysicalFileSystem fileSystem = new PhysicalFileSystem();
             GitRepo repo = new GitRepo(tracer, enlistment, fileSystem);
             GVFSContext context = new GVFSContext(tracer, fileSystem, repo, enlistment);
             GitObjects gitObjects = new GVFSGitObjects(context, objectRequestor);
 
-            string[] packs = gitObjects.ReadPackFileNames(GVFSConstants.PrefetchPackPrefix);
-            long max = -1;
-            foreach (string pack in packs)
+            gitObjects.DeleteStaleTempPrefetchPackAndIdxs();
+
+            string[] packs = gitObjects.ReadPackFileNames(enlistment.GitPackRoot, GVFSConstants.PrefetchPackPrefix);
+            List<PrefetchPackInfo> orderedPacks = packs
+                .Where(pack => this.GetTimestamp(pack).HasValue)
+                .Select(pack => new PrefetchPackInfo(this.GetTimestamp(pack).Value, pack))
+                .OrderBy(packInfo => packInfo.Timestamp)
+                .ToList();
+
+            long maxGood = -1;
+            int firstBadPack = -1;
+            for (int i = 0; i < orderedPacks.Count; ++i)
             {
-                long? timestamp = this.GetTimestamp(pack);
-                if (timestamp.HasValue && timestamp > max)
+                long timestamp = orderedPacks[i].Timestamp;
+                string packPath = orderedPacks[i].Path;
+                string idxPath = Path.ChangeExtension(packPath, ".idx");
+                if (!fileSystem.FileExists(idxPath))
                 {
-                    max = timestamp.Value;
+                    EventMetadata metadata = new EventMetadata();
+                    metadata.Add("pack", packPath);
+                    metadata.Add("idxPath", idxPath);
+                    metadata.Add("timestamp", timestamp);
+                    GitProcess.Result indexResult = gitObjects.IndexPackFile(packPath);
+                    if (indexResult.HasErrors)
+                    {
+                        firstBadPack = i;
+
+                        metadata.Add("Errors", indexResult.Errors);
+                        tracer.RelatedWarning(metadata, $"{nameof(this.TryPrefetchCommitsAndTrees)}: Found pack file that's missing idx file, and failed to regenerate idx");
+                        break;
+                    }
+                    else
+                    {
+                        maxGood = timestamp;
+
+                        metadata.Add(TracingConstants.MessageKey.InfoMessage, $"{nameof(this.TryPrefetchCommitsAndTrees)}: Found pack file that's missing idx file, and regenerated idx");
+                        tracer.RelatedEvent(EventLevel.Informational, $"{nameof(this.TryPrefetchCommitsAndTrees)}_RebuildIdx", metadata);
+                    }
+                }
+                else
+                {
+                    maxGood = timestamp;
                 }
             }
 
-            return gitObjects.TryDownloadPrefetchPacks(max);
+            if (firstBadPack != -1)
+            {
+                const int MaxDeleteRetries = 200; // 200 * IoFailureRetryDelayMS (50ms) = 10 seconds
+                const int RetryLoggingThreshold = 40; // 40 * IoFailureRetryDelayMS (50ms) = 2 seconds
+
+                // Delete packs and indexes in reverse order so that if prefetch is killed, subseqeuent prefetch commands will
+                // find the right starting spot.
+                for (int i = orderedPacks.Count - 1; i >= firstBadPack; --i)
+                {
+                    string packPath = orderedPacks[i].Path;
+                    string idxPath = Path.ChangeExtension(packPath, ".idx");                    
+
+                    EventMetadata metadata = new EventMetadata();
+                    metadata.Add("path", idxPath);
+                    metadata.Add(TracingConstants.MessageKey.InfoMessage, $"{nameof(this.TryPrefetchCommitsAndTrees)} deleting bad idx file");
+                    tracer.RelatedEvent(EventLevel.Informational, $"{nameof(this.TryPrefetchCommitsAndTrees)}_DeleteBadIdx", metadata);
+                    if (!fileSystem.TryWaitForDelete(tracer, idxPath, IoFailureRetryDelayMS, MaxDeleteRetries, RetryLoggingThreshold))
+                    {
+                        error = $"Unable to delete {idxPath}";
+                        return false;
+                    }
+
+                    metadata = new EventMetadata();
+                    metadata.Add("path", packPath);
+                    metadata.Add(TracingConstants.MessageKey.InfoMessage, $"{nameof(this.TryPrefetchCommitsAndTrees)} deleting bad pack file");
+                    tracer.RelatedEvent(EventLevel.Informational, $"{nameof(this.TryPrefetchCommitsAndTrees)}_DeleteBadPack", metadata);
+                    if (!fileSystem.TryWaitForDelete(tracer, packPath, IoFailureRetryDelayMS, MaxDeleteRetries, RetryLoggingThreshold))
+                    {
+                        error = $"Unable to delete {packPath}";
+                        return false;
+                    }
+                }
+            }
+
+            if (!gitObjects.TryDownloadPrefetchPacks(maxGood))
+            {
+                error = "Failed to download prefetch packs";
+                return false;
+            }
+
+            return true;
         }
 
         private long? GetTimestamp(string packName)
@@ -345,16 +474,28 @@ namespace GVFS.CommandLine
             }
 
             return null;
-        }
+        }        
 
         private string GetCacheServerDisplay(CacheServerInfo cacheServer)
         {
-            if (cacheServer.HasResolvedName())
+            if (cacheServer.Name != null && !cacheServer.Name.Equals(CacheServerInfo.ReservedNames.None))
             {
-                return "from " + cacheServer.Name + " cache server";
+                return "from cache server";
             }
 
-            return "from " + cacheServer.Url;
+            return "from origin (no cache server)";
+        }
+
+        private class PrefetchPackInfo
+        {
+            public PrefetchPackInfo(long timestamp, string path)
+            {
+                this.Timestamp = timestamp;
+                this.Path = path;
+            }
+
+            public long Timestamp { get; }
+            public string Path { get; }
         }
     }
 }

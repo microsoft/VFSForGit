@@ -10,6 +10,7 @@ namespace GVFS.Common
 {
     public class FileBasedLock : IDisposable
     {
+        private const int HResultErrorSharingViolation = -2147024864; // -2147024864 = 0x80070020 = ERROR_SHARING_VIOLATION
         private const int HResultErrorFileExists = -2147024816; // -2147024816 = 0x80070050 = ERROR_FILE_EXISTS
         private const int DefaultStreamWriterBufferSize = 1024; // Copied from: http://referencesource.microsoft.com/#mscorlib/system/io/streamwriter.cs,5516ce201dc06b5f
         private const long InvalidFileLength = -1;
@@ -21,15 +22,43 @@ namespace GVFS.Common
         private readonly string lockPath;
         private ITracer tracer;
         private FileStream deleteOnCloseStream;
+        private bool overwriteExistingLock;
 
-        public FileBasedLock(PhysicalFileSystem fileSystem, ITracer tracer, string lockPath, string signature)
+        /// <summary>
+        /// FileBasedLock constructor
+        /// </summary>
+        /// <param name="lockPath">Path to lock file</param>
+        /// <param name="signature">Text to write in lock file</param>
+        /// <param name="cleanupStaleLock">
+        /// If true, FileBasedLock constructor will delete the file at lockPath (if one exists on disk)
+        /// </param>
+        /// <param name="overwriteExistingLock">
+        /// If true, FileBasedLock will attempt to overwrite an existing lock file (if one exists on disk) when
+        /// acquiring the lock file.
+        /// </param>
+        /// <remarks>
+        /// GVFS keeps an exclusive write handle open to lock files that it creates with FileBasedLock.  This means that 
+        /// FileBasedLock still ensures exclusivity when "overwriteExistingLock" is true if the lock file is only used for
+        /// coordination between multiple GVFS processes.
+        /// </remarks>
+        public FileBasedLock(
+            PhysicalFileSystem fileSystem, 
+            ITracer tracer, 
+            string lockPath, 
+            string signature, 
+            bool cleanupStaleLock,
+            bool overwriteExistingLock)
         {
             this.fileSystem = fileSystem;
             this.tracer = tracer;
             this.lockPath = lockPath;
             this.Signature = signature;
+            this.overwriteExistingLock = overwriteExistingLock;
 
-            this.CleanupStaleLock();
+            if (cleanupStaleLock)
+            {
+                this.CleanupStaleLock();
+            }
         }
 
         public string Signature { get; private set; }
@@ -47,10 +76,11 @@ namespace GVFS.Common
 
                     this.deleteOnCloseStream = (FileStream)this.fileSystem.OpenFileStream(
                         this.lockPath,
-                        FileMode.CreateNew,
+                        this.overwriteExistingLock ? FileMode.Create : FileMode.CreateNew,
                         FileAccess.ReadWrite,
                         FileShare.Read,
-                        FileOptions.DeleteOnClose);
+                        FileOptions.DeleteOnClose,
+                        callFlushFileBuffers: false);
 
                     // Pass in true for leaveOpen to ensure that lockStream stays open
                     using (StreamWriter writer = new StreamWriter(
@@ -67,7 +97,11 @@ namespace GVFS.Common
             }
             catch (IOException e)
             {
-                if (e.HResult != HResultErrorFileExists)
+                // HResultErrorFileExists is expected when the lock file exists
+                // HResultErrorSharingViolation is expected when the lock file exists and we're in this.overwriteExistingLock mode, as
+                // another GVFS process has likely acquired the lock file
+                if (e.HResult != HResultErrorFileExists &&
+                    !(this.overwriteExistingLock && e.HResult == HResultErrorSharingViolation))
                 {
                     EventMetadata metadata = this.CreateLockMetadata(e);
                     this.tracer.RelatedWarning(metadata, "TryAcquireLockAndDeleteOnClose: IOException caught while trying to acquire lock");
@@ -169,7 +203,7 @@ namespace GVFS.Common
 
         private void ReadLockFile(out string existingSignature, out string lockerMessage)
         {
-            using (Stream fs = this.fileSystem.OpenFileStream(this.lockPath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete))
+            using (Stream fs = this.fileSystem.OpenFileStream(this.lockPath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete, callFlushFileBuffers: false))
             using (StreamReader reader = new StreamReader(fs, UTF8NoBOM))
             {
                 existingSignature = reader.ReadLine();

@@ -32,8 +32,8 @@ namespace GVFS.Mount
         private CacheServerInfo cacheServer;
         private RetryConfig retryConfig;
 
+        private GVFSContext context;
         private GVFSGitObjects gitObjects;
-        private GVFSLock gvfsLock;
 
         private MountState currentState;
         private HeartbeatThread heartbeat;
@@ -70,14 +70,28 @@ namespace GVFS.Mount
             string error;
             if (!RepoMetadata.TryInitialize(this.tracer, this.enlistment.DotGVFSRoot, out error))
             {
-                this.FailMountAndExit("Failed to load repo metadata: {0}", error);
+                this.FailMountAndExit("Failed to load repo metadata: " + error);
             }
+
+            string gitObjectsRoot;
+            if (!RepoMetadata.Instance.TryGetGitObjectsRoot(out gitObjectsRoot, out error))
+            {
+                this.FailMountAndExit("Failed to determine git objects root from repo metadata: " + error);
+            }
+
+            string localCacheRoot;
+            if (!RepoMetadata.Instance.TryGetLocalCacheRoot(out localCacheRoot, out error))
+            {
+                this.FailMountAndExit("Failed to determine local cache path from repo metadata: " + error);
+            }
+
+            this.enlistment.InitializeLocalCacheAndObjectPaths(localCacheRoot, gitObjectsRoot);
 
             using (NamedPipeServer pipeServer = this.StartNamedPipe())
             {
-                GVFSContext context = this.CreateContext();
+                this.context = this.CreateContext();
 
-                if (context.Unattended)
+                if (this.context.Unattended)
                 {
                     this.tracer.RelatedEvent(EventLevel.Critical, GVFSConstants.UnattendedEnvironmentVariable, null);
                 }
@@ -86,8 +100,7 @@ namespace GVFS.Mount
                 this.UpdateHooks();
                 this.SetVisualStudioRegistryKey();
 
-                this.gvfsLock = context.Repository.GVFSLock;
-                this.MountAndStartWorkingDirectoryCallbacks(context, this.cacheServer);
+                this.MountAndStartWorkingDirectoryCallbacks(this.cacheServer);
 
                 Console.Title = "GVFS " + ProcessHelper.GetCurrentProcessVersion() + " - " + this.enlistment.EnlistmentRoot;
 
@@ -309,6 +322,15 @@ namespace GVFS.Mount
             {
                 response = new NamedPipeMessages.AcquireLock.Response(NamedPipeMessages.UnknownRequest, requester);
             }
+            else if (this.currentState == MountState.Unmounting)
+            {
+                response = new NamedPipeMessages.AcquireLock.Response(NamedPipeMessages.AcquireLock.UnmountInProgressResult);
+
+                EventMetadata metadata = new EventMetadata();
+                metadata.Add("LockRequest", requester.ToString());
+                metadata.Add(TracingConstants.MessageKey.InfoMessage, "Request denied, unmount in progress");
+                this.tracer.RelatedEvent(EventLevel.Informational, "HandleLockRequest_UnmountInProgress", metadata);
+            }
             else if (this.currentState != MountState.Ready)
             {
                 response = new NamedPipeMessages.AcquireLock.Response(NamedPipeMessages.AcquireLock.MountNotReadyResult);
@@ -316,14 +338,15 @@ namespace GVFS.Mount
             else
             {
                 bool lockAcquired = false;
-                if (this.gvfltCallbacks.IsReadyForExternalAcquireLockRequests())
+                string denyMessage;
+                if (this.gvfltCallbacks.IsReadyForExternalAcquireLockRequests(requester, out denyMessage))
                 {
-                    lockAcquired = this.gvfsLock.TryAcquireLock(requester, out externalHolder);                   
+                    lockAcquired = this.context.Repository.GVFSLock.TryAcquireLock(requester, out externalHolder);
                 }
                 else
                 {
                     // There might be an external lock holder, and it should be reported to the user
-                    externalHolder = this.gvfsLock.GetExternalLockHolder();
+                    externalHolder = this.context.Repository.GVFSLock.GetExternalLockHolder();
                 }
 
                 if (lockAcquired)
@@ -332,7 +355,7 @@ namespace GVFS.Mount
                 }
                 else if (externalHolder == null)
                 {
-                    response = new NamedPipeMessages.AcquireLock.Response(NamedPipeMessages.AcquireLock.DenyGVFSResult);
+                    response = new NamedPipeMessages.AcquireLock.Response(NamedPipeMessages.AcquireLock.DenyGVFSResult, responseData: null, denyGVFSMessage: denyMessage);
                 }
                 else
                 {
@@ -372,7 +395,8 @@ namespace GVFS.Mount
                 }
                 else
                 {
-                    if (this.gitObjects.TryDownloadAndSaveObject(objectSha) == GitObjects.DownloadAndSaveObjectResult.Success)
+                    Stopwatch downloadTime = Stopwatch.StartNew();
+                    if (this.gitObjects.TryDownloadAndSaveObject(objectSha, GVFSGitObjects.RequestSource.NamedPipeMessage) == GitObjects.DownloadAndSaveObjectResult.Success)
                     {
                         response = new NamedPipeMessages.DownloadObject.Response(NamedPipeMessages.DownloadObject.SuccessResult);
                     }
@@ -380,6 +404,10 @@ namespace GVFS.Mount
                     {
                         response = new NamedPipeMessages.DownloadObject.Response(NamedPipeMessages.DownloadObject.DownloadFailed);
                     }
+
+                    bool isBlob;
+                    this.context.Repository.TryGetIsBlob(objectSha, out isBlob);
+                    this.context.Repository.GVFSLock.RecordObjectDownload(isBlob, downloadTime.ElapsedMilliseconds);
                 }
             }
 
@@ -390,9 +418,10 @@ namespace GVFS.Mount
         {
             NamedPipeMessages.GetStatus.Response response = new NamedPipeMessages.GetStatus.Response();
             response.EnlistmentRoot = this.enlistment.EnlistmentRoot;
+            response.LocalCacheRoot = !string.IsNullOrWhiteSpace(this.enlistment.LocalCacheRoot) ? this.enlistment.LocalCacheRoot : this.enlistment.GitObjectsRoot;
             response.RepoUrl = this.enlistment.RepoUrl;
             response.CacheServer = this.cacheServer.ToString();
-            response.LockStatus = this.gvfsLock != null ? this.gvfsLock.GetStatus() : "Unavailable";
+            response.LockStatus = this.context?.Repository.GVFSLock != null ? this.context.Repository.GVFSLock.GetStatus() : "Unavailable";
             response.DiskLayoutVersion = RepoMetadata.Instance.GetCurrentDiskLayoutVersion();
 
             switch (this.currentState)
@@ -456,10 +485,10 @@ namespace GVFS.Mount
             }
         }
 
-        private void AcquireFolderLocks(GVFSContext context)
+        private void AcquireFolderLocks()
         {
             this.folderLockHandles = new List<SafeFileHandle>();
-            this.folderLockHandles.Add(context.FileSystem.LockDirectory(context.Enlistment.DotGVFSRoot));
+            this.folderLockHandles.Add(this.context.FileSystem.LockDirectory(this.context.Enlistment.DotGVFSRoot));
         }
 
         private void ReleaseFolderLocks()
@@ -470,17 +499,17 @@ namespace GVFS.Mount
             }
         }
 
-        private void MountAndStartWorkingDirectoryCallbacks(GVFSContext context, CacheServerInfo cache)
+        private void MountAndStartWorkingDirectoryCallbacks(CacheServerInfo cache)
         {
             string error;
-            if (!context.Enlistment.Authentication.TryRefreshCredentials(context.Tracer, out error))
+            if (!this.context.Enlistment.Authentication.TryRefreshCredentials(this.context.Tracer, out error))
             {
                 this.FailMountAndExit("Failed to obtain git credentials: " + error);
             }
             
-            GitObjectsHttpRequestor objectRequestor = new GitObjectsHttpRequestor(context.Tracer, context.Enlistment, cache, this.retryConfig);
-            this.gitObjects = new GVFSGitObjects(context, objectRequestor);
-            this.gvfltCallbacks = this.CreateOrReportAndExit(() => new GVFltCallbacks(context, this.gitObjects, RepoMetadata.Instance), "Failed to create src folder callbacks");
+            GitObjectsHttpRequestor objectRequestor = new GitObjectsHttpRequestor(this.context.Tracer, this.context.Enlistment, cache, this.retryConfig);
+            this.gitObjects = new GVFSGitObjects(this.context, objectRequestor);
+            this.gvfltCallbacks = this.CreateOrReportAndExit(() => new GVFltCallbacks(this.context, this.gitObjects, RepoMetadata.Instance), "Failed to create src folder callbacks");
 
             int persistedVersion;
             if (!RepoMetadata.Instance.TryGetOnDiskLayoutVersion(out persistedVersion, out error))
@@ -508,7 +537,7 @@ namespace GVFS.Mount
                 this.FailMountAndExit("Failed to initialize src folder callbacks. {0}", e.ToString());
             }
 
-            this.AcquireFolderLocks(context);
+            this.AcquireFolderLocks();
 
             this.heartbeat = new HeartbeatThread(this.tracer, this.gvfltCallbacks);
             this.heartbeat.Start();

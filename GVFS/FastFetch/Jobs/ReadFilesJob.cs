@@ -84,7 +84,7 @@ namespace FastFetch.Jobs
 
             public static SafeFileHandle Open(string fileName)
             {
-                return CreateFile(fileName, GenericRead, (uint)FileShare.ReadWrite, 0, OpenExisting, 0, 0);
+                return CreateFile(fileName, GenericRead, (uint)(FileShare.ReadWrite | FileShare.Delete), 0, OpenExisting, 0, 0);
             }
 
             public static unsafe bool ReadOneByte(SafeFileHandle handle, byte[] buffer)

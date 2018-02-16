@@ -7,20 +7,23 @@ namespace GVFS.FunctionalTests.Tools
     {
         private readonly string pathToGVFS;
         private readonly string enlistmentRoot;
+        private readonly string localCacheRoot;
         
-        public GVFSProcess(string pathToGVFS, string enlistmentRoot)
+        public GVFSProcess(string pathToGVFS, string enlistmentRoot, string localCacheRoot)
         {
             this.pathToGVFS = pathToGVFS;
             this.enlistmentRoot = enlistmentRoot;
+            this.localCacheRoot = localCacheRoot;
         }
         
         public void Clone(string repositorySource, string branchToCheckout)
         {
             string args = string.Format(
-                "clone \"{0}\" \"{1}\" --branch \"{2}\" --no-mount --no-prefetch",
+                "clone \"{0}\" \"{1}\" --branch \"{2}\" --no-mount --no-prefetch --local-cache-path \"{3}\"",
                 repositorySource,
                 this.enlistmentRoot,
-                branchToCheckout);
+                branchToCheckout,
+                this.localCacheRoot);
             this.CallGVFS(args, failOnError: true);
         }
 
@@ -28,6 +31,7 @@ namespace GVFS.FunctionalTests.Tools
         {
             string output;
             this.TryMount(out output).ShouldEqual(true, "GVFS did not mount: " + output);
+            output.ShouldNotContain(ignoreCase: true, unexpectedSubstrings: "warning");
         }
 
         public bool TryMount(out string output)
@@ -39,9 +43,9 @@ namespace GVFS.FunctionalTests.Tools
             return this.IsEnlistmentMounted();
         }
 
-        public string Prefetch(string args)
+        public string Prefetch(string args, bool failOnError)
         {
-            return this.CallGVFS("prefetch " + this.enlistmentRoot + " " + args);
+            return this.CallGVFS("prefetch " + this.enlistmentRoot + " " + args, failOnError);
         }
 
         public void Repair()

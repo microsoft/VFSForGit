@@ -3,10 +3,11 @@ using GVFS.Common;
 using GVFS.Common.FileSystem;
 using GVFS.Common.Git;
 using GVFS.Common.Http;
+using GVFS.Common.Tracing;
 using Microsoft.Isam.Esent.Collections.Generic;
+using Microsoft.Win32;
 using System;
 using System.Collections.Generic;
-using System.Diagnostics;
 using System.IO;
 using System.IO.Compression;
 using System.Linq;
@@ -20,6 +21,10 @@ namespace GVFS.CommandLine
 
         private const string System32LogFilesRoot = @"%SystemRoot%\System32\LogFiles";
         private const string GVFltLogFolderName = "GvFlt";
+
+        private const string WindowsVersionRegistryKey = "SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion";
+        private const string BuildLabRegistryValue = "BuildLab";
+        private const string BuildLabExRegistryValue = "BuildLabEx";
 
         // From "Autologger" section of gvflt.inf
         private const string GvFltLoggerGuid = "5f6d2558-5c94-48f9-add0-65bc678aa091";
@@ -58,9 +63,13 @@ namespace GVFS.CommandLine
                 this.WriteMessage("Repo URL: " + enlistment.RepoUrl);
                 this.WriteMessage("Cache Server: " + CacheServerResolver.GetUrlFromConfig(enlistment));
 
+                string localCacheRoot;
+                string gitObjectsRoot;
+                this.GetLocalCachePaths(enlistment, out localCacheRoot, out gitObjectsRoot);
+                this.WriteMessage("Local Cache: " + (!string.IsNullOrWhiteSpace(localCacheRoot) ? localCacheRoot : gitObjectsRoot));
                 this.WriteMessage(string.Empty);
 
-                this.WriteAntiVirusExclusions(enlistment.EnlistmentRoot, archiveFolderPath, "DefenderExclusionInfo.txt");
+                this.RecordWindowsVersionInformation();
 
                 this.ShowStatusWhileRunning(
                     () =>
@@ -87,14 +96,15 @@ namespace GVFS.CommandLine
                         this.CopyAllFiles(enlistment.WorkingDirectoryRoot, archiveFolderPath, GVFSConstants.DotGit.Logs.Root, copySubFolders: true);
                         this.CopyAllFiles(enlistment.WorkingDirectoryRoot, archiveFolderPath, GVFSConstants.DotGit.Refs.Root, copySubFolders: true);
                         this.CopyAllFiles(enlistment.WorkingDirectoryRoot, archiveFolderPath, GVFSConstants.DotGit.Objects.Info.Root, copySubFolders: false);
-                        this.LogDirectoryEnumeration(enlistment.WorkingDirectoryRoot, archiveFolderPath, GVFSConstants.DotGit.Objects.Pack.Root, "packs-local.txt");
-                        this.LogLooseObjectCount(enlistment.WorkingDirectoryRoot, archiveFolderPath, GVFSConstants.DotGit.Objects.Root, "objects-local.txt");
-                        this.LogDirectoryEnumeration(enlistment.GitObjectsRoot, archiveFolderPath, GVFSConstants.DotGit.Objects.Pack.Name, "packs-cached.txt");
-                        this.LogLooseObjectCount(enlistment.GitObjectsRoot, archiveFolderPath, string.Empty, "objects-cached.txt");
+                        this.LogDirectoryEnumeration(enlistment.WorkingDirectoryRoot, Path.Combine(archiveFolderPath, GVFSConstants.DotGit.Objects.Root), GVFSConstants.DotGit.Objects.Pack.Root, "packs-local.txt");
+                        this.LogLooseObjectCount(enlistment.WorkingDirectoryRoot, Path.Combine(archiveFolderPath, GVFSConstants.DotGit.Objects.Root), GVFSConstants.DotGit.Objects.Root, "objects-local.txt");
 
                         // databases
                         this.CopyEsentDatabase<string, long>(enlistment.DotGVFSRoot, Path.Combine(archiveFolderPath, GVFSConstants.DotGVFS.Root), GVFSConstants.DotGVFS.BlobSizesName);
                         this.CopyAllFiles(enlistment.DotGVFSRoot, Path.Combine(archiveFolderPath, GVFSConstants.DotGVFS.Root), GVFSConstants.DotGVFS.Databases.Name, copySubFolders: false);
+
+                        // local cache
+                        this.CopyLocalCacheData(archiveFolderPath, localCacheRoot, gitObjectsRoot);
 
                         // corrupt objects
                         this.CopyAllFiles(enlistment.DotGVFSRoot, Path.Combine(archiveFolderPath, GVFSConstants.DotGVFS.Root), GVFSConstants.DotGVFS.CorruptObjectsName, copySubFolders: false);
@@ -143,6 +153,23 @@ namespace GVFS.CommandLine
             this.diagnosticLogFileWriter.WriteLine(message);
         }
 
+        private void RecordWindowsVersionInformation()
+        {
+            try
+            {
+                string buildLabVersion = ProcessHelper.GetStringFromRegistry(RegistryHive.LocalMachine, WindowsVersionRegistryKey, BuildLabRegistryValue);
+                this.diagnosticLogFileWriter.WriteLine($"Windows BuildLab version {buildLabVersion}");
+
+                string buildLabExVersion = ProcessHelper.GetStringFromRegistry(RegistryHive.LocalMachine, WindowsVersionRegistryKey, BuildLabExRegistryValue);
+                this.diagnosticLogFileWriter.WriteLine($"Windows BuildLabEx version {buildLabExVersion}");
+                this.diagnosticLogFileWriter.WriteLine(string.Empty);
+            }
+            catch (Exception e)
+            {
+                this.WriteMessage($"Failed to record Windows version information. Exception: {e}");
+            }
+        }
+
         private void CopyAllFiles(string sourceRoot, string targetRoot, string folderName, bool copySubFolders)
         {
             string sourceFolder = Path.Combine(sourceRoot, folderName);
@@ -168,13 +195,90 @@ namespace GVFS.CommandLine
             }
         }
 
-        private void LogDirectoryEnumeration(string sourceRoot, string targetRoot, string folderName, string logfile)
+        private void GetLocalCachePaths(GVFSEnlistment enlistment, out string localCacheRoot, out string gitObjectsRoot)
         {
-            string folder = Path.Combine(sourceRoot, folderName);
-            string targetLog = Path.Combine(targetRoot, logfile);
+            localCacheRoot = null;
+            gitObjectsRoot = null;
 
             try
             {
+                using (ITracer tracer = new JsonEtwTracer(GVFSConstants.GVFSEtwProviderName, "DiagnoseVerb"))
+                {
+                    string error;
+                    if (RepoMetadata.TryInitialize(tracer, Path.Combine(enlistment.EnlistmentRoot, GVFSConstants.DotGVFS.Root), out error))
+                    {
+                        RepoMetadata.Instance.TryGetLocalCacheRoot(out localCacheRoot, out error);
+                        RepoMetadata.Instance.TryGetGitObjectsRoot(out gitObjectsRoot, out error);
+                    }
+                    else
+                    {
+                        this.WriteMessage("Failed to determine local cache path and git objects root, RepoMetadata error: " + error);
+                    }
+                }
+            }
+            catch (Exception e)
+            {
+                this.WriteMessage(string.Format("Failed to determine local cache path and git objects root, Exception: {0}", e));
+            }
+            finally
+            {
+                RepoMetadata.Shutdown();
+            }
+        }
+
+        private void CopyLocalCacheData(string archiveFolderPath, string localCacheRoot, string gitObjectsRoot)
+        {
+            try
+            {
+                string localCacheArchivePath = Path.Combine(archiveFolderPath, LocalCacheResolver.DefaultGVFSCacheFolderName);
+                Directory.CreateDirectory(localCacheArchivePath);
+
+                if (!string.IsNullOrWhiteSpace(localCacheRoot))
+                {
+                    // Copy all mapping.dat files in the local cache folder (i.e. mapping.dat, mapping.dat.tmp, mapping.dat.lock)
+                    foreach (string filePath in Directory.EnumerateFiles(localCacheRoot, "mapping.dat*"))
+                    {
+                        string fileName = Path.GetFileName(filePath);
+                        try
+                        {
+                            File.Copy(filePath, Path.Combine(localCacheArchivePath, fileName));
+                        }
+                        catch (Exception e)
+                        {
+                            this.WriteMessage(string.Format(
+                                "Failed to copy '{0}' from {1} to {2} with exception {3}",
+                                fileName,
+                                localCacheRoot,
+                                archiveFolderPath,
+                                e));
+                        }
+                    }
+                }
+
+                if (!string.IsNullOrWhiteSpace(gitObjectsRoot))
+                {
+                    this.LogDirectoryEnumeration(gitObjectsRoot, localCacheArchivePath, GVFSConstants.DotGit.Objects.Pack.Name, "packs-cached.txt");
+                    this.LogLooseObjectCount(gitObjectsRoot, localCacheArchivePath, string.Empty, "objects-cached.txt");
+                }
+            }
+            catch (Exception e)
+            {
+                this.WriteMessage(string.Format("Failed to copy local cache data with exception: {0}", e));
+            }
+        }
+
+        private void LogDirectoryEnumeration(string sourceRoot, string targetRoot, string folderName, string logfile)
+        {
+            try
+            {
+                if (!Directory.Exists(targetRoot))
+                {
+                    Directory.CreateDirectory(targetRoot);
+                }
+
+                string folder = Path.Combine(sourceRoot, folderName);
+                string targetLog = Path.Combine(targetRoot, logfile);
+
                 List<string> lines = new List<string>();
 
                 if (Directory.Exists(folder))
@@ -203,11 +307,16 @@ namespace GVFS.CommandLine
 
         private void LogLooseObjectCount(string sourceRoot, string targetRoot, string folderName, string logfile)
         {
-            string objectFolder = Path.Combine(sourceRoot, folderName);
-            string targetLog = Path.Combine(targetRoot, logfile);
-
             try
             {
+                if (!Directory.Exists(targetRoot))
+                {
+                    Directory.CreateDirectory(targetRoot);
+                }
+
+                string objectFolder = Path.Combine(sourceRoot, folderName);
+                string targetLog = Path.Combine(targetRoot, logfile);
+
                 List<string> lines = new List<string>();
 
                 if (Directory.Exists(objectFolder))
@@ -327,41 +436,6 @@ namespace GVFS.CommandLine
                     e));
 
                 return ReturnCode.GenericError;
-            }
-        }
-
-        private void WriteAntiVirusExclusions(string enlistmentRoot, string archiveFolderPath, string outputFileName)
-        {
-            string filepath = Path.Combine(archiveFolderPath, outputFileName);
-            try
-            {
-                bool isExcluded;
-                string error;
-                string message = string.Empty;
-                if (AntiVirusExclusions.TryGetIsPathExcluded(enlistmentRoot, out isExcluded, out error))
-                {
-                    message = "Successfully read Defender exclusions. \n ";
-                    if (isExcluded)
-                    {
-                        message += enlistmentRoot + " is excluded.";
-                    }
-                    else
-                    {
-                        message += enlistmentRoot + " is not excluded.";
-                    }
-                }
-                else
-                {
-                    message = "Unable to read Defender exclusions. \n " + error;
-                }
-
-                File.WriteAllText(filepath, message);
-            }
-            catch (Exception exc)
-            {
-                this.WriteMessage(
-                    "Failed to gather Defender exclusion info. \n" +
-                    exc.ToString());
             }
         }
 

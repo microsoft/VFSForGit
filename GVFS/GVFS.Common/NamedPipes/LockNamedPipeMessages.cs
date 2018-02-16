@@ -23,22 +23,34 @@ namespace GVFS.Common.NamedPipes
             public const string DenyGitResult = "LockDeniedGit";
             public const string AcceptResult = "LockAcquired";
             public const string MountNotReadyResult = "MountNotReady";
+            public const string UnmountInProgressResult = "UnmountInProgress";
 
             public class Response
             {
-                public Response(string result, LockData responseData = null)
+                public Response(string result, LockData responseData = null, string denyGVFSMessage = null)
                 {
                     this.Result = result;
                     this.ResponseData = responseData;
+                    this.DenyGVFSMessage = denyGVFSMessage;
                 }
 
                 public Response(Message message)
                 {
                     this.Result = message.Header;
-                    this.ResponseData = LockData.FromBody(message.Body);
+
+                    if (this.Result == DenyGVFSResult)
+                    {
+                        this.DenyGVFSMessage = message.Body;
+                    }
+                    else
+                    {
+                        this.ResponseData = LockData.FromBody(message.Body);
+                    }
                 }
 
                 public string Result { get; }
+
+                public string DenyGVFSMessage { get; }
 
                 public LockData ResponseData { get; }
 
@@ -48,6 +60,10 @@ namespace GVFS.Common.NamedPipes
                     if (this.ResponseData != null)
                     {
                         messageBody = this.ResponseData.ToMessage();
+                    }
+                    else if (this.DenyGVFSMessage != null)
+                    {
+                        messageBody = this.DenyGVFSMessage;
                     }
 
                     return new Message(this.Result, messageBody);

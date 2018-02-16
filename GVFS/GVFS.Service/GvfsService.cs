@@ -1,4 +1,5 @@
 ﻿using GVFS.Common;
+using GVFS.Common.FileSystem;
 using GVFS.Common.NamedPipes;
 using GVFS.Common.Tracing;
 using GVFS.Service.Handlers;
@@ -35,7 +36,7 @@ namespace GVFS.Service
         {
             try
             {
-                this.repoRegistry = new RepoRegistry(this.tracer, this.serviceDataLocation);
+                this.repoRegistry = new RepoRegistry(this.tracer, new PhysicalFileSystem(), this.serviceDataLocation);
                 this.repoRegistry.Upgrade();
                 string pipeName = this.serviceName + ".Pipe";
                 this.tracer.RelatedInfo("Starting pipe server with name: " + pipeName);
@@ -236,20 +237,6 @@ namespace GVFS.Service
                         catch (SerializationException ex)
                         {
                             activity.RelatedError("Could not deserialize attach volume request: {0}", ex.Message);
-                        }
-
-                        break;
-
-                    case NamedPipeMessages.ExcludeFromAntiVirusRequest.Header:
-                        try
-                        {
-                            NamedPipeMessages.ExcludeFromAntiVirusRequest excludeFromAntiVirusRequest = NamedPipeMessages.ExcludeFromAntiVirusRequest.FromMessage(message);
-                            ExcludeFromAntiVirusHandler excludeHandler = new ExcludeFromAntiVirusHandler(activity, connection, excludeFromAntiVirusRequest);
-                            excludeHandler.Run();
-                        }
-                        catch (SerializationException ex)
-                        {
-                            activity.RelatedError("Could not deserialize exclude from antivirus request: {0}", ex.Message);
                         }
 
                         break;

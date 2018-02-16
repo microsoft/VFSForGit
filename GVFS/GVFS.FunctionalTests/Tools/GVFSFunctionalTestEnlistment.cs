@@ -1,7 +1,11 @@
 ﻿using GVFS.FunctionalTests.FileSystemRunners;
+using GVFS.FunctionalTests.Should;
 using GVFS.FunctionalTests.Tests;
+using GVFS.Tests.Should;
 using System;
+using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Threading;
 
 namespace GVFS.FunctionalTests.Tools
@@ -15,13 +19,29 @@ namespace GVFS.FunctionalTests.Tools
 
         private GVFSProcess gvfsProcess;
         
-        private GVFSFunctionalTestEnlistment(string pathToGVFS, string enlistmentRoot, string repoUrl, string commitish)
+        private GVFSFunctionalTestEnlistment(string pathToGVFS, string enlistmentRoot, string repoUrl, string commitish, string localCacheRoot = null)
         {
             this.EnlistmentRoot = enlistmentRoot;
             this.RepoUrl = repoUrl;
-            this.Commitish = commitish;           
-            this.gvfsProcess = new GVFSProcess(pathToGVFS, this.EnlistmentRoot);
-            this.ObjectRoot = Path.Combine(this.DotGVFSRoot, "gitObjectCache");
+            this.Commitish = commitish;
+            
+            if (localCacheRoot == null)
+            {
+                if (GVFSTestConfig.NoSharedCache)
+                {
+                    // eg C:\Repos\GVFSFunctionalTests\enlistment\7942ca69d7454acbb45ea39ef5be1d15\.gvfs\.gvfsCache
+                    localCacheRoot = GetRepoSpecificLocalCacheRoot(enlistmentRoot);
+                }
+                else
+                {
+                    // eg C:\Repos\GVFSFunctionalTests\.gvfsCache
+                    // Ensures the general cache is not cleaned up between test runs
+                    localCacheRoot = Path.Combine(Properties.Settings.Default.EnlistmentRoot, "..", ".gvfsCache");                    
+                }
+            }
+
+            this.LocalCacheRoot = localCacheRoot;
+            this.gvfsProcess = new GVFSProcess(pathToGVFS, this.EnlistmentRoot, this.LocalCacheRoot);
         }
         
         public string EnlistmentRoot
@@ -34,10 +54,7 @@ namespace GVFS.FunctionalTests.Tools
             get; private set;
         }
         
-        public string ObjectRoot
-        {
-            get; private set;
-        }
+        public string LocalCacheRoot { get; }
 
         public string RepoRoot
         {
@@ -64,15 +81,36 @@ namespace GVFS.FunctionalTests.Tools
             get; private set;
         }
 
+        public static GVFSFunctionalTestEnlistment CloneAndMountWithPerRepoCache(string pathToGvfs, string commitish = null)
+        {
+            string enlistmentRoot = GVFSFunctionalTestEnlistment.GetUniqueEnlistmentRoot();
+            string localCache = GVFSFunctionalTestEnlistment.GetRepoSpecificLocalCacheRoot(enlistmentRoot);
+            return CloneAndMount(pathToGvfs, enlistmentRoot, commitish, localCache);
+        }
+
+        public static GVFSFunctionalTestEnlistment CloneAndMount(string pathToGvfs, string commitish = null, string localCacheRoot = null)
+        {
+            string enlistmentRoot = GVFSFunctionalTestEnlistment.GetUniqueEnlistmentRoot();
+            return CloneAndMount(pathToGvfs, enlistmentRoot, commitish, localCacheRoot);
+        }
+
         public static string GetUniqueEnlistmentRoot()
         {
             return Path.Combine(Properties.Settings.Default.EnlistmentRoot, Guid.NewGuid().ToString("N"));
         }
 
-        public static GVFSFunctionalTestEnlistment CloneAndMount(string pathToGvfs, string commitish = null)
+        public string GetObjectRoot(FileSystemRunner fileSystem)
         {
-            string enlistmentRoot = GVFSFunctionalTestEnlistment.GetUniqueEnlistmentRoot();
-            return CloneAndMount(pathToGvfs, enlistmentRoot, commitish);
+            IEnumerable<FileSystemInfo> localCacheRootItems = this.LocalCacheRoot.ShouldBeADirectory(fileSystem).WithItems();
+            localCacheRootItems.Count().ShouldEqual(2, "Expected local cache root to contain 2 items. Actual items: " + string.Join(",", localCacheRootItems));
+            DirectoryInfo[] directories = localCacheRootItems.Where(info => info is DirectoryInfo).Cast<DirectoryInfo>().ToArray();
+            directories.Length.ShouldEqual(1, this.LocalCacheRoot + " is expected to have only one folder. Actual: " + directories.Count());
+            return Path.Combine(directories[0].FullName, "gitObjects");
+        }
+
+        public string GetPackRoot(FileSystemRunner fileSystem)
+        {
+            return Path.Combine(this.GetObjectRoot(fileSystem), "pack");
         }
 
         public void DeleteEnlistment()
@@ -111,9 +149,9 @@ namespace GVFS.FunctionalTests.Tools
             return this.gvfsProcess.TryMount(out output);
         }
 
-        public string Prefetch(string args)
+        public string Prefetch(string args, bool failOnError = true)
         {
-            return this.gvfsProcess.Prefetch(args);
+            return this.gvfsProcess.Prefetch(args, failOnError);
         }
 
         public void Repair()
@@ -176,13 +214,14 @@ namespace GVFS.FunctionalTests.Tools
                 objectHash.Substring(2));
         }
         
-        private static GVFSFunctionalTestEnlistment CloneAndMount(string pathToGvfs, string enlistmentRoot, string commitish)
+        private static GVFSFunctionalTestEnlistment CloneAndMount(string pathToGvfs, string enlistmentRoot, string commitish, string localCacheRoot)
         {
             GVFSFunctionalTestEnlistment enlistment = new GVFSFunctionalTestEnlistment(
                 pathToGvfs,
                 enlistmentRoot ?? GetUniqueEnlistmentRoot(),
                 GVFSTestConfig.RepoToClone,
-                commitish ?? Properties.Settings.Default.Commitish);
+                commitish ?? Properties.Settings.Default.Commitish,
+                localCacheRoot ?? GVFSTestConfig.LocalCacheRoot);
 
             try
             {
@@ -196,6 +235,11 @@ namespace GVFS.FunctionalTests.Tools
             }
 
             return enlistment;
+        }
+
+        private static string GetRepoSpecificLocalCacheRoot(string enlistmentRoot)
+        {
+            return Path.Combine(enlistmentRoot, ".gvfs", ".gvfsCache");
         }
 
         private bool WaitForStatus(int maxWaitMilliseconds, string statusShouldContain)

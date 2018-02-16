@@ -216,7 +216,10 @@ namespace GVFS.Common
 
                     this.OpenOrCreateDataFile(retryUntilSuccess: false);
 
-                    this.RemoveLastEntryIfInvalid();
+                    if (this.collectionAppendsDirectlyToFile)
+                    {
+                        this.RemoveLastEntryIfInvalid();
+                    }
 
                     long lineCount = 0;
 
@@ -325,7 +328,12 @@ namespace GVFS.Common
                 {
                     if (this.dataFileHandle == null)
                     {
-                        this.dataFileHandle = this.fileSystem.OpenFileStream(this.DataFilePath, FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.Read);
+                        this.dataFileHandle = this.fileSystem.OpenFileStream(
+                            this.DataFilePath, 
+                            FileMode.OpenOrCreate, 
+                            this.collectionAppendsDirectlyToFile ? FileAccess.ReadWrite : FileAccess.Read, 
+                            FileShare.Read,
+                            callFlushFileBuffers: false);
                     }
 
                     this.dataFileHandle.Seek(0, SeekOrigin.End);
@@ -416,13 +424,15 @@ namespace GVFS.Common
 
             try
             {
-                using (Stream tempFile = this.fileSystem.OpenFileStream(this.tempFilePath, FileMode.Create, FileAccess.Write, FileShare.None))
+                using (Stream tempFile = this.fileSystem.OpenFileStream(this.tempFilePath, FileMode.Create, FileAccess.Write, FileShare.None, callFlushFileBuffers: true))
                 using (StreamWriter writer = new StreamWriter(tempFile))
                 {
                     foreach (string line in getDataLines())
                     {
                         writer.Write(line + "\r\n");
                     }
+
+                    tempFile.Flush();
                 }
 
                 return true;

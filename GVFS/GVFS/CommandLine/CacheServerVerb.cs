@@ -50,7 +50,7 @@ namespace GVFS.CommandLine
                 if (this.CacheToSet != null)
                 {
                     CacheServerInfo cacheServer = cacheServerResolver.ParseUrlOrFriendlyName(this.CacheToSet);
-                    cacheServer = this.ResolveCacheServerUrlIfNeeded(tracer, cacheServer, cacheServerResolver, gvfsConfig);
+                    cacheServer = this.ResolveCacheServer(tracer, cacheServer, cacheServerResolver, gvfsConfig);
 
                     if (!cacheServerResolver.TrySaveUrlToLocalConfig(cacheServer, out error))
                     {

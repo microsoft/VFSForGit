@@ -1,9 +1,8 @@
 ﻿<?xml version="1.0" encoding="utf-8"?>
 <Project ToolsVersion="14.0" DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <Import Project="$(MSBuildExtensionsPath)\$(MSBuildToolsVersion)\Microsoft.Common.props" Condition="Exists('$(MSBuildExtensionsPath)\$(MSBuildToolsVersion)\Microsoft.Common.props')" />
+  <Import Project="$(SolutionDir)\GVFS\GVFS.Build\GVFS.props" />
   <PropertyGroup>
-    <Configuration Condition=" '$(Configuration)' == '' ">Debug</Configuration>
-    <Platform Condition=" '$(Platform)' == '' ">x64</Platform>
     <ProjectGuid>{93B403FD-DAFB-46C5-9636-B122792A548A}</ProjectGuid>
     <OutputType>Exe</OutputType>
     <AppDesignerFolder>Properties</AppDesignerFolder>
@@ -18,8 +17,6 @@
     <DebugSymbols>true</DebugSymbols>
     <DebugType>full</DebugType>
     <Optimize>false</Optimize>
-    <OutputPath>..\..\..\BuildOutput\GVFS.Service.UI\bin\x64\Debug\</OutputPath>
-    <IntermediateOutputPath>..\..\..\BuildOutput\GVFS.Service.UI\obj\x64\Debug\</IntermediateOutputPath>
     <DefineConstants>DEBUG;TRACE</DefineConstants>
     <ErrorReport>prompt</ErrorReport>
     <WarningLevel>4</WarningLevel>
@@ -30,8 +27,6 @@
     <PlatformTarget>x64</PlatformTarget>
     <DebugType>pdbonly</DebugType>
     <Optimize>true</Optimize>
-    <OutputPath>..\..\..\BuildOutput\GVFS.Service.UI\bin\x64\Release\</OutputPath>
-    <IntermediateOutputPath>..\..\..\BuildOutput\GVFS.Service.UI\obj\x64\Release\</IntermediateOutputPath>
     <DefineConstants>TRACE</DefineConstants>
     <ErrorReport>prompt</ErrorReport>
     <WarningLevel>4</WarningLevel>
@@ -63,7 +58,7 @@
     <Compile Include="Data\VisualData.cs" />
     <Compile Include="Program.cs" />
     <Compile Include="Data\ToastData.cs" />
-    <Compile Include="..\..\..\BuildOutput\CommonAssemblyVersion.cs">
+    <Compile Include="$(BuildOutputDir)\CommonAssemblyVersion.cs">
       <Link>CommonAssemblyVersion.cs</Link>
     </Compile>
     <Compile Include="XmlList.cs" />

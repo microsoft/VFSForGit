@@ -41,7 +41,32 @@ namespace GVFS.Common.Git
 
         protected ITracer Tracer { get; }
         protected IntPtr RepoHandle { get; private set; }
-        
+
+        public bool IsBlob(string sha)
+        {
+            IntPtr objHandle;
+            if (Native.RevParseSingle(out objHandle, this.RepoHandle, sha) != Native.SuccessCode)
+            {
+                return false;
+            }
+
+            try
+            {
+                switch (Native.Object.GetType(objHandle))
+                {
+                    case Native.ObjectTypes.Blob:
+                        return true;
+
+                    default:
+                        return false;
+                }
+            }
+            finally
+            {
+                Native.Object.Free(objHandle);
+            }
+        }
+
         public virtual string GetTreeSha(string commitish)
         {
             IntPtr objHandle;

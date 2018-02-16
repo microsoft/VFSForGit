@@ -1,7 +1,6 @@
 ﻿using GVFS.Tests.Should;
 using Microsoft.Isam.Esent.Collections.Generic;
-using Newtonsoft.Json.Linq;
-using System;
+using Newtonsoft.Json;
 using System.Collections.Generic;
 using System.IO;
 using System.Reflection;
@@ -20,28 +19,37 @@ namespace GVFS.FunctionalTests.Tools
         public const string RepoMetadataName = "databases\\RepoMetadata.dat";
 
         private const string DiskLayoutVersionKey = "DiskLayoutVersion";
+        private const string LocalCacheRootKey = "LocalCacheRoot";
+        private const string GitObjectsRootKey = "GitObjectsRoot";
 
         public static void SaveDiskLayoutVersion(string dotGVFSRoot, string value)
         {
-            string metadataPath = Path.Combine(dotGVFSRoot, RepoMetadataName);
-            File.WriteAllText(metadataPath, "A {\"Key\":\"" + DiskLayoutVersionKey + "\", \"Value\":\"" + value + "\"}\r\n");
+            SavePersistedValue(dotGVFSRoot, DiskLayoutVersionKey, value);
         }
 
         public static string GetPersistedDiskLayoutVersion(string dotGVFSRoot)
         {
-            string metadataPath = Path.Combine(dotGVFSRoot, RepoMetadataName);
-            string json;
-            using (FileStream fs = new FileStream(metadataPath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete))
-            {
-                json = new StreamReader(fs).ReadToEnd();
-            }
+            return GetPersistedValue(dotGVFSRoot, DiskLayoutVersionKey);
+        }
 
-            json.Substring(0, 2).ShouldEqual("A ");
-            json.Substring(json.Length - 2).ShouldEqual("\r\n");
+        public static void SaveLocalCacheRoot(string dotGVFSRoot, string value)
+        {
+            SavePersistedValue(dotGVFSRoot, LocalCacheRootKey, value);
+        }
 
-            JObject metadata = JObject.Parse(json.Substring(2, json.Length - 4));
-            KeyValuePair<string, string> kvp = metadata.ToObject<KeyValuePair<string, string>>();
-            return kvp.Value;
+        public static string GetPersistedLocalCacheRoot(string dotGVFSRoot)
+        {
+            return GetPersistedValue(dotGVFSRoot, LocalCacheRootKey);
+        }
+
+        public static void SaveGitObjectsRoot(string dotGVFSRoot, string value)
+        {
+            SavePersistedValue(dotGVFSRoot, GitObjectsRootKey, value);
+        }
+
+        public static string GetPersistedGitObjectsRoot(string dotGVFSRoot)
+        {
+            return GetPersistedValue(dotGVFSRoot, GitObjectsRootKey);
         }
 
         public static void SaveDiskLayoutVersionAsEsentDatabase(string dotGVFSRoot, string value)
@@ -78,6 +86,60 @@ namespace GVFS.FunctionalTests.Tools
             }
         }
         
+        private static string GetPersistedValue(string dotGVFSRoot, string key)
+        {
+            string metadataPath = Path.Combine(dotGVFSRoot, RepoMetadataName);
+            string json;
+            using (FileStream fs = new FileStream(metadataPath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete))
+            using (StreamReader reader = new StreamReader(fs))
+            {
+                while (!reader.EndOfStream)
+                {
+                    json = reader.ReadLine();
+                    json.Substring(0, 2).ShouldEqual("A ");
+
+                    KeyValuePair<string, string> kvp = JsonConvert.DeserializeObject<KeyValuePair<string, string>>(json.Substring(2));
+                    if (kvp.Key == key)
+                    {
+                        return kvp.Value;
+                    }
+                }
+            }
+
+            return null;
+        }
+
+        private static void SavePersistedValue(string dotGVFSRoot, string key, string value)
+        {
+            string metadataPath = Path.Combine(dotGVFSRoot, RepoMetadataName);
+
+            Dictionary<string, string> repoMetadata = new Dictionary<string, string>();
+            string json;
+            using (FileStream fs = new FileStream(metadataPath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete))
+            using (StreamReader reader = new StreamReader(fs))
+            {
+                while (!reader.EndOfStream)
+                {
+                    json = reader.ReadLine();
+                    json.Substring(0, 2).ShouldEqual("A ");
+
+                    KeyValuePair<string, string> kvp = JsonConvert.DeserializeObject<KeyValuePair<string, string>>(json.Substring(2));
+                    repoMetadata.Add(kvp.Key, kvp.Value);
+                }
+            }
+
+            repoMetadata[key] = value;
+
+            string newRepoMetadataContents = string.Empty;
+
+            foreach (KeyValuePair<string, string> kvp in repoMetadata)
+            {
+                newRepoMetadataContents += "A " + JsonConvert.SerializeObject(kvp).Trim() + "\r\n";
+            }
+
+            File.WriteAllText(metadataPath, newRepoMetadataContents);
+        }
+
         private static string GetTestDataPath(string fileName)
         {
             string workingDirectory = Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location);

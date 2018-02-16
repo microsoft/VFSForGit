@@ -13,7 +13,7 @@ namespace GVFS.Mount
     public class InProcessMountVerb 
     {
         private TextWriter output;
-        
+
         public InProcessMountVerb()
         {
             this.output = Console.Out;
@@ -68,16 +68,15 @@ namespace GVFS.Mount
             EventLevel verbosity;
             Keywords keywords;
             this.ParseEnumArgs(out verbosity, out keywords);
-            
-            JsonEtwTracer tracer = this.CreateTracer(enlistment, verbosity, keywords);
 
+            JsonEtwTracer tracer = this.CreateTracer(enlistment, verbosity, keywords);
+            
             CacheServerInfo cacheServer = CacheServerResolver.GetCacheServerFromConfig(enlistment);
 
             tracer.WriteStartEvent(
                 enlistment.EnlistmentRoot,
                 enlistment.RepoUrl,
                 cacheServer.Url,
-                enlistment.GitObjectsRoot,
                 new EventMetadata
                 {
                     { "IsElevated", ProcessHelper.IsAdminElevated() },
@@ -88,11 +87,11 @@ namespace GVFS.Mount
                 this.UnhandledGVFSExceptionHandler(tracer, sender, e);
             };
 
-            RetryConfig retryConfig;
             string error;
+            RetryConfig retryConfig;
             if (!RetryConfig.TryLoadFromGitConfig(tracer, enlistment, out retryConfig, out error))
             {
-                this.ReportErrorAndExit("Failed to determine GVFS timeout and max retries: " + error);
+                this.ReportErrorAndExit(tracer, "Failed to determine GVFS timeout and max retries: " + error);
             }
 
             InProcessMount mountHelper = new InProcessMount(tracer, enlistment, cacheServer, retryConfig, this.ShowDebugWindow);
@@ -103,8 +102,7 @@ namespace GVFS.Mount
             }
             catch (Exception ex)
             {
-                tracer.RelatedError("Failed to mount: {0}", ex.ToString());
-                this.ReportErrorAndExit("Failed to mount: {0}", ex.Message);
+                this.ReportErrorAndExit(tracer, "Failed to mount: {0}", ex.Message);
             }
         }
 
@@ -178,6 +176,16 @@ namespace GVFS.Mount
 
         private void ReportErrorAndExit(string error, params object[] args)
         {
+            this.ReportErrorAndExit(null, error, args);
+        }
+
+        private void ReportErrorAndExit(ITracer tracer, string error, params object[] args)
+        {
+            if (tracer != null)
+            {
+                tracer.RelatedError(error, args);
+            }
+
             if (error != null)
             {
                 this.output.WriteLine(error, args);

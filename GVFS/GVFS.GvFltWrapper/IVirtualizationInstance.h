@@ -5,6 +5,7 @@
 #include "HResult.h"
 #include "NtStatus.h"
 #include "WriteBuffer.h"
+#include "NotificationMapping.h"
 
 namespace GvLib
 {
@@ -107,42 +108,42 @@ namespace GvLib
         /// <summary>
         /// File handle created notification callback (when IoStatusBlockValue is not FileSuperseded, FileOverwritten, or FileCreated)
         /// </summary>
-        /// <seealso cref="NotifyPostCreateHandleOnlyEvent"/>
+        /// <seealso cref="NotifyFileOpenedEvent"/>
         /// <remarks>This callback is optional</remarks>
-        property NotifyPostCreateHandleOnlyEvent^ OnNotifyPostCreateHandleOnly
+        property NotifyFileOpenedEvent^ OnNotifyFileOpened
         {
-            NotifyPostCreateHandleOnlyEvent^ get(void);
+            NotifyFileOpenedEvent^ get(void);
 
             /// <exception cref="System::InvalidOperationException">
             /// Thrown if the VirtualizationInstance has already been started
             /// </exception>
-            void set(NotifyPostCreateHandleOnlyEvent^ eventCB);
+            void set(NotifyFileOpenedEvent^ eventCB);
         };
 
         /// <summary>File handle created notification callback (when a new file or folder has been created)</summary>
-        /// <seealso cref="NotifyPostCreateNewFileEvent"/>
+        /// <seealso cref="NotifyNewFileCreatedEvent"/>
         /// <remarks>This callback is optional</remarks>
-        property NotifyPostCreateNewFileEvent^ OnNotifyPostCreateNewFile
+        property NotifyNewFileCreatedEvent^ OnNotifyNewFileCreated
         {
-            NotifyPostCreateNewFileEvent^ get(void);
+            NotifyNewFileCreatedEvent^ get(void);
 
             /// <exception cref="System::InvalidOperationException">
             /// Thrown if the VirtualizationInstance has already been started
             /// </exception>
-            void set(NotifyPostCreateNewFileEvent^ eventCB);
+            void set(NotifyNewFileCreatedEvent^ eventCB);
         };
 
         /// <summary>File handle created notification callback (when the IoStatusBlockValue is FileOverwritten or FileSuperseded)</summary>
-        /// <seealso cref="NotifyPostCreateOverwrittenOrSupersededEvent"/>
+        /// <seealso cref="NotifyFileSupersededOrOverwrittenEvent"/>
         /// <remarks>This callback is optional</remarks>
-        property NotifyPostCreateOverwrittenOrSupersededEvent^ OnNotifyPostCreateOverwrittenOrSuperseded
+        property NotifyFileSupersededOrOverwrittenEvent^ OnNotifyFileSupersededOrOverwritten
         {
-            NotifyPostCreateOverwrittenOrSupersededEvent^ get(void);
+            NotifyFileSupersededOrOverwrittenEvent^ get(void);
 
             /// <exception cref="System::InvalidOperationException">
             /// Thrown if the VirtualizationInstance has already been started
             /// </exception>
-            void set(NotifyPostCreateOverwrittenOrSupersededEvent^ eventCB);
+            void set(NotifyFileSupersededOrOverwrittenEvent^ eventCB);
         };
 
         /// <summary>Pre-delete notification callback</summary>
@@ -213,29 +214,29 @@ namespace GvLib
         /// <summary>
         /// File handle closed notification callback (when handle was not used to modify or delete file)
         /// </summary>
-        /// <seealso cref="NotifyFileHandleClosedOnlyEvent"/>
+        /// <seealso cref="NotifyFileHandleClosedNoModificationEvent"/>
         /// <remarks>This callback is optional</remarks>
-        property NotifyFileHandleClosedOnlyEvent^ OnNotifyFileHandleClosedOnly
+        property NotifyFileHandleClosedNoModificationEvent^ OnNotifyFileHandleClosedNoModification
         {
-            NotifyFileHandleClosedOnlyEvent^ get(void);
+            NotifyFileHandleClosedNoModificationEvent^ get(void);
 
             /// <exception cref="System::InvalidOperationException">
             /// Thrown if the VirtualizationInstance has already been started
             /// </exception>
-            void set(NotifyFileHandleClosedOnlyEvent^ eventCB);
+            void set(NotifyFileHandleClosedNoModificationEvent^ eventCB);
         }
 
         /// <summary>File handle closed notification callback (when handle was used to modify and\or delete file)</summary>
-        /// <seealso cref="NotifyFileHandleClosedModifiedOrDeletedEvent"/>
+        /// <seealso cref="NotifyFileHandleClosedFileModifiedOrDeletedEvent"/>
         /// <remarks>This callback is optional</remarks>
-        property NotifyFileHandleClosedModifiedOrDeletedEvent^ OnNotifyFileHandleClosedModifiedOrDeleted
+        property NotifyFileHandleClosedFileModifiedOrDeletedEvent^ OnNotifyFileHandleClosedFileModifiedOrDeleted
         {
-            NotifyFileHandleClosedModifiedOrDeletedEvent^ get(void);
+            NotifyFileHandleClosedFileModifiedOrDeletedEvent^ get(void);
 
             /// <exception cref="System::InvalidOperationException">
             /// Thrown if the VirtualizationInstance has already been started
             /// </exception>
-            void set(NotifyFileHandleClosedModifiedOrDeletedEvent^ eventCB);
+            void set(NotifyFileHandleClosedFileModifiedOrDeletedEvent^ eventCB);
         }
 
         /// <summary>Command cancelled callback</summary>
@@ -316,6 +317,76 @@ namespace GvLib
             unsigned long concurrentThreadCount,
             bool enableNegativePathCache,
             NotificationType globalNotificationMask,
+            unsigned long% logicalBytesPerSector,
+            unsigned long% writeBufferAlignment);
+
+        /// <summary>Starts a GvFlt virtualization instance</summary>
+        /// <param name="virtualizationRootPath">
+        /// The path to the virtualization root directory.  This directory must have already been
+        /// converted to a virtualization root using ConvertDirectoryToVirtualizationRoot.
+        /// </param>
+        /// <param name="poolThreadCount">
+        /// The number of threads to wait on the completion port and process commands.
+        /// The PoolThreadCount has to > 4 otherwise an invaid parameter error will be returned.
+        /// </param>
+        /// <param name="concurrentThreadCount">
+        /// The target maximum number of threads to run concurrently.  
+        /// The actual number of threads can be less than this (if no commands are waiting for threads)
+        /// or more than this (if one or more threads become computable after waits complete).
+        /// See also - https://msdn.microsoft.com/en-us/library/windows/desktop/aa363862(v=vs.85).aspx
+        /// </param>
+        /// <param name="enableNegativePathCache">
+        /// If true, when the provider returns ObjectNameNotFound
+        /// for a path from OnGetPlaceholderInformation callback, GvFlt will remember 
+        /// that this path doesn't exist in the provider's namespace, and fail 
+        /// the subsequent file opens for the same path without consulting the provider.
+        /// The provider can call ClearNegativePathCache to clear this cache.
+        /// </param>
+        /// <param name="notificationMappings">
+        /// Collection of NotificationMappings that contains the desired notifications. Nested notifications must be
+        /// listed in top-to-bottom order (e.g. "C:\Windows" must appear before "C:\Windows\System32", and the virtualization root
+        /// "" is only allowed as the first entry). 
+        /// </param>
+        /// <param name ="logicalBytesPerSector">
+        /// [Out] Logical bytes per sector reported by physical storage.  Used by CreateWriteBuffer to determine size
+        /// of write buffer.
+        /// </param>
+        /// <param name ="writeBufferAlignment">
+        /// [Out] Memory alignment that will be used when CreateWriteBuffer creates write buffers.
+        /// </param>
+        /// <returns>
+        /// If StartVirtualizationInstance succeeds, Success is returned.
+        ///
+        /// If GvFlt filter driver is not loaded, PrivilegeNotHeld is returned.  
+        ///
+        /// If StartVirtualizationInstance fails, the appropriate error is returned.
+        /// </returns>
+        /// <remarks>
+        /// Currently only one VirtualizationInstance can be running at a time.
+        ///
+        /// StartVirtualizationInstance function starts a GvFlt virtualization instance by performing below actions:
+        /// 
+        ///     1) Attaches the GvFlt driver to the volume that contains the virtualization root
+        ///     2) Establishes two comm ports to the driver
+        ///     3) Registers the callback routine that handles commands from GvFlt
+        /// 
+        /// If GvFlt filter is already attached to the volume, this function can be called from a non-elevated process.
+        /// Otherwise this function will attempt to attach the filter to the volume which requires admin privilege,
+        /// access denied error will be returned if called from a non-elevated process.
+        /// </remarks>
+        /// <exception cref="System::ArgumentNullException"/>
+        /// <exception cref="System::InvalidOperationException">
+        /// Thrown if there is already another running VirtualizationInstance
+        /// </exception>
+        /// <exception cref="GvLibException">
+        /// Thrown if there is a failure determining logicalBytesPerSector or writeBufferAlignment
+        /// </exception> 
+        HResult StartVirtualizationInstanceEx(
+            System::String^ virtualizationRootPath,
+            unsigned long poolThreadCount,
+            unsigned long concurrentThreadCount,
+            bool enableNegativePathCache,
+            System::Collections::Generic::IReadOnlyCollection<NotificationMapping^>^ notificationMappings,
             unsigned long% logicalBytesPerSector,
             unsigned long% writeBufferAlignment);
 

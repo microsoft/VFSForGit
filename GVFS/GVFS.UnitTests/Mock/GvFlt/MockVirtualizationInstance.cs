@@ -1,6 +1,7 @@
 ﻿using GVFS.Common;
 using GvLib;
 using System;
+using System.Collections.Generic;
 using System.Threading;
 
 namespace GVFS.UnitTests.Mock.GvFlt
@@ -33,11 +34,11 @@ namespace GVFS.UnitTests.Mock.GvFlt
         public GetDirectoryEnumerationEvent OnGetDirectoryEnumeration { get; set; }
         public GetFileStreamEvent OnGetFileStream { get; set; }
         public GetPlaceholderInformationEvent OnGetPlaceholderInformation { get; set; }
-        public NotifyPostCreateHandleOnlyEvent OnNotifyPostCreateHandleOnly { get; set; }
-        public NotifyPostCreateNewFileEvent OnNotifyPostCreateNewFile { get; set; }
-        public NotifyPostCreateOverwrittenOrSupersededEvent OnNotifyPostCreateOverwrittenOrSuperseded { get; set; }
-        public NotifyFileHandleClosedOnlyEvent OnNotifyFileHandleClosedOnly { get; set; }
-        public NotifyFileHandleClosedModifiedOrDeletedEvent OnNotifyFileHandleClosedModifiedOrDeleted { get; set; }
+        public NotifyFileOpenedEvent OnNotifyFileOpened { get; set; }
+        public NotifyNewFileCreatedEvent OnNotifyNewFileCreated { get; set; }
+        public NotifyFileSupersededOrOverwrittenEvent OnNotifyFileSupersededOrOverwritten { get; set; }
+        public NotifyFileHandleClosedNoModificationEvent OnNotifyFileHandleClosedNoModification { get; set; }
+        public NotifyFileHandleClosedFileModifiedOrDeletedEvent OnNotifyFileHandleClosedFileModifiedOrDeleted { get; set; }
         public NotifyFileRenamedEvent OnNotifyFileRenamed { get; set; }
         public NotifyFirstWriteEvent OnNotifyFirstWrite { get; set; }
         public NotifyHardlinkCreatedEvent OnNotifyHardlinkCreated { get; set; }
@@ -64,14 +65,29 @@ namespace GVFS.UnitTests.Mock.GvFlt
             return HResult.Ok;
         }
 
+        public HResult StartVirtualizationInstanceEx(
+            string virtualizationRootPath,
+            uint poolThreadCount,
+            uint concurrentThreadCount,
+            bool enableNegativePathCache,
+            IReadOnlyCollection<NotificationMapping> notificationMappings,
+            ref uint logicalBytesPerSector,
+            ref uint writeBufferAlignment)
+        {
+            logicalBytesPerSector = 1;
+            writeBufferAlignment = 1;
+
+            return HResult.Ok;
+        }
+
         public HResult StopVirtualizationInstance()
         {
-            throw new NotImplementedException();
+            return HResult.Ok;
         }
 
         public HResult DetachDriver()
         {
-            throw new NotImplementedException();
+            return HResult.Ok;
         }
 
         public NtStatus ClearNegativePathCache(ref uint totalEntryNumber)

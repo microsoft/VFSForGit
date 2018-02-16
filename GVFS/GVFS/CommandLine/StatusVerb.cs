@@ -16,25 +16,6 @@ namespace GVFS.CommandLine
 
         protected override void Execute(GVFSEnlistment enlistment)
         {
-            bool isExcluded;
-            string errorMessage;
-            if (AntiVirusExclusions.TryGetIsPathExcluded(enlistment.EnlistmentRoot, out isExcluded, out errorMessage))
-            {
-                if (!isExcluded)
-                {
-                    this.Output.WriteLine(
-                        "This repo is not excluded from antivirus.",
-                        enlistment.EnlistmentRoot);
-                }
-            }
-            else
-            {
-                this.Output.WriteLine(
-                    "Could not check if '{0}' is excluded from anti-virus. Please check to ensure that '{0}' is excluded. Error: {1}",
-                    enlistment.EnlistmentRoot, 
-                    errorMessage);
-            }
-
             using (NamedPipeClient pipeClient = new NamedPipeClient(enlistment.NamedPipeName))
             {
                 if (!pipeClient.Connect())
@@ -51,6 +32,7 @@ namespace GVFS.CommandLine
                     this.Output.WriteLine("Enlistment root: " + getStatusResponse.EnlistmentRoot);
                     this.Output.WriteLine("Repo URL: " + getStatusResponse.RepoUrl);
                     this.Output.WriteLine("Cache Server: " + getStatusResponse.CacheServer);
+                    this.Output.WriteLine("Local Cache: " + getStatusResponse.LocalCacheRoot);
                     this.Output.WriteLine("Mount status: " + getStatusResponse.MountStatus);
                     this.Output.WriteLine("GVFS Lock: " + getStatusResponse.LockStatus);
                     this.Output.WriteLine("Background operations: " + getStatusResponse.BackgroundOperationCount);

@@ -1,6 +1,7 @@
 ﻿using FastFetch.Git;
 using FastFetch.Jobs;
 using GVFS.Common;
+using GVFS.Common.FileSystem;
 using GVFS.Common.Git;
 using GVFS.Common.Http;
 using GVFS.Common.Tracing;
@@ -129,6 +130,38 @@ namespace FastFetch
             return true;
         }
 
+        public static void AppendToNewlineSeparatedFile(string filename, string newContent)
+        {
+            AppendToNewlineSeparatedFile(new PhysicalFileSystem(), filename, newContent);
+        }
+
+        public static void AppendToNewlineSeparatedFile(PhysicalFileSystem fileSystem, string filename, string newContent)
+        {
+            using (Stream fileStream = fileSystem.OpenFileStream(filename, FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.ReadWrite, false))
+            {
+                using (StreamReader reader = new StreamReader(fileStream))
+                using (StreamWriter writer = new StreamWriter(fileStream))
+                {
+                    long position = reader.BaseStream.Seek(0, SeekOrigin.End);
+                    if (position > 0)
+                    {
+                        reader.BaseStream.Seek(position - 1, SeekOrigin.Begin);
+                    }
+
+                    string lastCharacter = reader.ReadToEnd();
+                    if (lastCharacter != "\n" && lastCharacter != string.Empty)
+                    {
+                        writer.Write("\n");
+                    }
+
+                    writer.Write(newContent.Trim());
+                    writer.Write("\n");
+                }
+
+                fileStream.Close();
+            }
+        }
+
         /// <param name="branchOrCommit">A specific branch to filter for, or null for all branches returned from info/refs</param>
         public virtual void FastFetch(string branchOrCommit, bool isBranch)
         {
@@ -198,12 +231,22 @@ namespace FastFetch
                 }
             }
 
-            new Thread(
-                () =>
-                {
-                    blobEnumerator.PerformDiff(previousCommit, commitToFetch);
-                    this.HasFailures |= blobEnumerator.HasFailures;
-                }).Start();
+            ThreadStart performDiff = () =>
+            {
+                blobEnumerator.PerformDiff(previousCommit, commitToFetch);
+                this.HasFailures |= blobEnumerator.HasFailures;
+            };
+
+            if (readFilesAfterDownload)
+            {
+                // Call synchronously to ensure that blobEnumerator.FileAddOperations
+                // is completely populated when ReadFilesJob starts
+                performDiff();
+            }
+            else
+            {
+                new Thread(performDiff).Start();
+            }
 
             BlockingCollection<string> availableBlobs = new BlockingCollection<string>();
 
@@ -303,7 +346,7 @@ namespace FastFetch
             }
 
             // Update shallow file to ensure this is a valid shallow repo
-            File.AppendAllText(Path.Combine(this.Enlistment.WorkingDirectoryRoot, GVFSConstants.DotGit.Shallow), commitSha + "\n");
+            AppendToNewlineSeparatedFile(Path.Combine(this.Enlistment.WorkingDirectoryRoot, GVFSConstants.DotGit.Shallow), commitSha);
         }
 
         protected bool UpdateRef(ITracer tracer, string refName, string targetCommitish)

@@ -9,7 +9,7 @@ namespace GVFS.UnitTests.Mock.Common
         private MockGitProcess gitProcess;
 
         public MockEnlistment()
-            : base("mock:\\path", "mock:\\path", "mock:\\repoUrl", "mock:\\git", null)
+            : base("mock:\\path", "mock:\\path", "mock://repoUrl", "mock:\\git", null, flushFileBuffersForPacks: false)
         {
             this.GitObjectsRoot = "mock:\\path\\.git\\objects";
             this.GitPackRoot = "mock:\\path\\.git\\objects\\pack";
@@ -21,9 +21,9 @@ namespace GVFS.UnitTests.Mock.Common
             this.gitProcess = gitProcess;
         }
         
-        public override string GitObjectsRoot { get; }
+        public override string GitObjectsRoot { get; protected set; }
 
-        public override string GitPackRoot { get; }
+        public override string GitPackRoot { get; protected set; }
 
         public override GitProcess CreateGitProcess()
         {

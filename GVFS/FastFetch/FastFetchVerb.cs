@@ -211,7 +211,6 @@ namespace FastFetch
                     enlistment.EnlistmentRoot,
                     enlistment.RepoUrl,
                     cacheServer.Url,
-                    enlistment.GitObjectsRoot,
                     new EventMetadata
                     {
                         { "TargetCommitish", commitish },

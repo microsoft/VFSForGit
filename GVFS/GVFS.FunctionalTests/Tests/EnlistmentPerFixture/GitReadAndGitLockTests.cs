@@ -4,11 +4,12 @@ using GVFS.FunctionalTests.Tools;
 using GVFS.Tests.Should;
 using NUnit.Framework;
 using System.IO;
+using System.Threading;
 
-namespace GVFS.FunctionalTests.Tests.LongRunningEnlistment
+namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
 {
     [TestFixture]
-    public class GitReadAndGitLockTests : TestsWithLongRunningEnlistment
+    public class GitReadAndGitLockTests : TestsWithEnlistmentPerFixture
     {
         private FileSystemRunner fileSystem;
 
@@ -53,6 +54,30 @@ namespace GVFS.FunctionalTests.Tests.LongRunningEnlistment
         }
 
         [TestCase, Order(5)]
+        public void GitStatusNoLockIndexDoesntHoldLock()
+        {
+            ManualResetEventSlim lockHolder = GitHelpers.AcquireGVFSLock(this.Enlistment, resetTimeout: 3000);
+
+            ProcessResult statusWait = GitHelpers.InvokeGitAgainstGVFSRepo(this.Enlistment.RepoRoot, "status --no-lock-index", cleanErrors: false);
+            statusWait.Errors.ShouldBeEmpty();
+
+            // Release the lock
+            lockHolder.Set();
+        }
+
+        [TestCase, Order(6)]
+        public void GitStatusNoOptionalLocksDoesntHoldLock()
+        {
+            ManualResetEventSlim lockHolder = GitHelpers.AcquireGVFSLock(this.Enlistment, resetTimeout: 3000);
+
+            ProcessResult statusWait = GitHelpers.InvokeGitAgainstGVFSRepo(this.Enlistment.RepoRoot, "--no-optional-locks status", cleanErrors: false);
+            statusWait.Errors.ShouldBeEmpty();
+
+            // Release the lock
+            lockHolder.Set();
+        }
+
+        [TestCase, Order(7)]
         public void GitAliasNamedAfterKnownCommandAcquiresLock()
         {
             string alias = nameof(this.GitAliasNamedAfterKnownCommandAcquiresLock);
@@ -63,7 +88,7 @@ namespace GVFS.FunctionalTests.Tests.LongRunningEnlistment
             statusWait.Errors.ShouldContain("Waiting for 'git hash-object --stdin");
         }
 
-        [TestCase, Order(6)]
+        [TestCase, Order(8)]
         public void GitAliasInSubfolderNamedAfterKnownCommandAcquiresLock()
         {
             string alias = nameof(this.GitAliasInSubfolderNamedAfterKnownCommandAcquiresLock);
@@ -78,7 +103,7 @@ namespace GVFS.FunctionalTests.Tests.LongRunningEnlistment
             GitHelpers.CheckGitCommandAgainstGVFSRepo(this.Enlistment.RepoRoot, "rebase --abort");
         }
 
-        [TestCase, Order(7)]
+        [TestCase, Order(9)]
         public void ExternalLockHolderReportedWhenBackgroundTasksArePending()
         {
             GitHelpers.AcquireGVFSLock(this.Enlistment, resetTimeout: 3000);

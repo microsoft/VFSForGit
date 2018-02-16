@@ -12,15 +12,16 @@ namespace FastFetch
                   repoRoot,
                   null,
                   gitBinPath,
-                  gvfsHooksRoot: null)
+                  gvfsHooksRoot: null,
+                  flushFileBuffersForPacks: false)
         {
             this.GitObjectsRoot = Path.Combine(repoRoot, GVFSConstants.DotGit.Objects.Root);
             this.GitPackRoot = Path.Combine(this.GitObjectsRoot, GVFSConstants.DotGit.Objects.Pack.Name);
         }
 
-        public override string GitObjectsRoot { get; }
+        public override string GitObjectsRoot { get; protected set; }
 
-        public override string GitPackRoot { get; }
+        public override string GitPackRoot { get; protected set; }
 
         public string FastFetchLogRoot
         {

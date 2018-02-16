@@ -37,6 +37,8 @@ namespace GVFS.CommandLine
 
         public override void Execute()
         {
+            this.ValidatePathParameter(this.EnlistmentRootPath);
+
             string hooksPath = this.GetGVFSHooksPathAndCheckVersion(tracer: null);
 
             GVFSEnlistment enlistment = GVFSEnlistment.CreateWithoutRepoUrlFromDirectory(
@@ -104,7 +106,6 @@ To actually execute any necessary repair(s), run 'gvfs repair --confirm'
                     enlistment.EnlistmentRoot,
                     enlistment.RepoUrl,
                     "N/A",
-                    enlistment.GitObjectsRoot,
                     new EventMetadata
                     {
                         { "Confirmed", this.Confirmed },

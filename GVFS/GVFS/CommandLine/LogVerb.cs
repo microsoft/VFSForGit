@@ -31,6 +31,8 @@ namespace GVFS.CommandLine
 
         public override void Execute()
         {
+            this.ValidatePathParameter(this.EnlistmentRootPath);
+
             this.Output.WriteLine("Most recent log files:");
 
             string enlistmentRoot = Paths.GetGVFSEnlistmentRoot(this.EnlistmentRootPath);

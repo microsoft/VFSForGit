@@ -28,7 +28,7 @@ namespace GVFS.Common
         public const string ExecutableExtension = ".exe";
         public const string GitIsNotInstalledError = "Could not find git.exe.  Ensure that Git is installed.";
 
-        public static readonly GitVersion MinimumGitVersion = new GitVersion(2, 15, 0, "gvfs", 1, 0);
+        public static readonly GitVersion MinimumGitVersion = new GitVersion(2, 15, 1, "gvfs", 1, 0);
 
         public static class GitConfig
         {
@@ -84,7 +84,6 @@ namespace GVFS.Common
             public const string CorruptObjectsName = "CorruptObjects";
 
             public static readonly string LogPath = Path.Combine(DotGVFS.Root, "logs");
-            public static readonly string GitObjectCachePath = Path.Combine(DotGVFS.Root, "gitObjectCache");
             public static readonly string CorruptObjectsPath = Path.Combine(DotGVFS.Root, CorruptObjectsName);
 
             public static readonly string BlobSizesName = "BlobSizes";

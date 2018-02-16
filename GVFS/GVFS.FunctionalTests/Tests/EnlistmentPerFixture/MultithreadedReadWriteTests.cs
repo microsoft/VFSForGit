@@ -7,11 +7,11 @@ using System.IO;
 using System.Text;
 using System.Threading;
 
-namespace GVFS.FunctionalTests.Tests.LongRunningEnlistment
+namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
 {
     // TODO 469238: Elaborate on these tests?
     [TestFixture]
-    public class MultithreadedReadWriteTests : TestsWithLongRunningEnlistment
+    public class MultithreadedReadWriteTests : TestsWithEnlistmentPerFixture
     {
         [TestCase]
         public void CanReadUnhydratedFileInParallelWithoutTearing()

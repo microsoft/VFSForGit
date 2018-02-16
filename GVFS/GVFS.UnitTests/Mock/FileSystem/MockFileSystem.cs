@@ -57,8 +57,8 @@ namespace GVFS.UnitTests.Mock.FileSystem
             this.WriteAllText(destinationPath, this.ReadAllText(sourcePath));
             this.RootDirectory.RemoveFile(sourcePath);
         }
-        
-        public override Stream OpenFileStream(string path, FileMode fileMode, FileAccess fileAccess, FileShare shareMode, FileOptions options)
+
+        public override Stream OpenFileStream(string path, FileMode fileMode, FileAccess fileAccess, FileShare shareMode, FileOptions options, bool flushesToDisk)
         {
             MockFile file = this.RootDirectory.FindFile(path);
             if (fileMode == FileMode.Create)
@@ -175,12 +175,21 @@ namespace GVFS.UnitTests.Mock.FileSystem
             }
         }
 
+        public override FileAttributes GetAttributes(string path)
+        {
+            return FileAttributes.Normal;
+        }
+
+        public override void SetAttributes(string path, FileAttributes fileAttributes)
+        {            
+        }
+
         private Stream CreateAndOpenFileStream(string path)
         {
             MockFile file = this.RootDirectory.CreateFile(path);
             file.ShouldNotBeNull();
 
-            return this.OpenFileStream(path, FileMode.Open, (FileAccess)NativeMethods.FileAccess.FILE_GENERIC_READ, FileShare.Read);
+            return this.OpenFileStream(path, FileMode.Open, (FileAccess)NativeMethods.FileAccess.FILE_GENERIC_READ, FileShare.Read, callFlushFileBuffers: false);
         }
     }
 }

@@ -80,34 +80,31 @@ namespace GVFS.GVFlt.DotGit
 
         public CallbackResult AddEntriesForFile(string virtualPath)
         {
+            string entry = virtualPath.Replace(GVFSConstants.PathSeparator, GVFSConstants.GitPathSeparator);
+            entry = "!" + GVFSConstants.GitPathSeparatorString + entry;
+
+            CallbackResult result = this.AddFolderEntriesForFile(entry);
+            if (result != CallbackResult.Success)
+            {
+                return result;
+            }
+
             try
             {
-                string[] pathParts = virtualPath.Split(new char[] { GVFSConstants.PathSeparator }, StringSplitOptions.RemoveEmptyEntries);
-                StringBuilder path = new StringBuilder("!" + GVFSConstants.GitPathSeparatorString, virtualPath.Length + 2);
-                for (int i = 0; i < pathParts.Length; i++)
+                if (this.entries.Add(entry))
                 {
-                    path.Append(pathParts[i]);
-                    if (i < pathParts.Length - 1)
-                    {
-                        path.Append(GVFSConstants.GitPathSeparator);
-                    }
-
-                    string entry = path.ToString();
-                    if (this.entries.Add(entry))
-                    {
-                        this.fileSerializer.AppendLine(entry);
-                    }
-
-                    this.entriesToRemove.Remove(entry);
+                    this.fileSerializer.AppendLine(entry);
                 }
+
+                this.entriesToRemove.Remove(entry);
             }
             catch (IOException e)
             {
-                return this.ReportException(e, virtualPath, isRetryable: true);
+                return this.ReportException(e, entry, isRetryable: true);
             }
             catch (Exception e)
             {
-                return this.ReportException(e, virtualPath, isRetryable: false);
+                return this.ReportException(e, entry, isRetryable: false);
             }
 
             return CallbackResult.Success;
@@ -119,7 +116,47 @@ namespace GVFS.GVFlt.DotGit
             {
                 string entry = virtualPath.Replace(GVFSConstants.PathSeparator, GVFSConstants.GitPathSeparator);
                 entry = "!" + GVFSConstants.GitPathSeparatorString + entry;
+
                 this.entriesToRemove.Add(entry);
+
+                // We must add the folder path to this file so that git clean removes the folders if they are empty.
+                CallbackResult result = this.AddFolderEntriesForFile(entry);
+                if (result != CallbackResult.Success)
+                {
+                    return result;
+                }
+            }
+
+            return CallbackResult.Success;
+        }
+
+        private CallbackResult AddFolderEntriesForFile(string fileEntry)
+        {
+            try
+            {
+                string[] pathParts = fileEntry.Split(new char[] { GVFSConstants.GitPathSeparator }, StringSplitOptions.RemoveEmptyEntries);
+                StringBuilder path = new StringBuilder(pathParts[0] + GVFSConstants.GitPathSeparatorString, fileEntry.Length);
+
+                // fileEntry starts with "!/", so we skip i = 0 to avoid adding exactly "!/".
+                for (int i = 1; i < pathParts.Length - 1; i++)
+                {
+                    path.Append(pathParts[i]);
+                    path.Append(GVFSConstants.GitPathSeparator);
+
+                    string entry = path.ToString();
+                    if (this.entries.Add(entry))
+                    {
+                        this.fileSerializer.AppendLine(entry);
+                    }
+                }
+            }
+            catch (IOException e)
+            {
+                return this.ReportException(e, fileEntry, isRetryable: true);
+            }
+            catch (Exception e)
+            {
+                return this.ReportException(e, fileEntry, isRetryable: false);
             }
 
             return CallbackResult.Success;

@@ -4,6 +4,7 @@ using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.IO;
+using System.Net;
 using System.Threading;
 
 namespace GVFS.Common.Git
@@ -21,11 +22,20 @@ namespace GVFS.Common.Git
             this.objectNegativeCache = new ConcurrentDictionary<string, DateTime>(StringComparer.OrdinalIgnoreCase);
         }
 
+        public enum RequestSource
+        {
+            Invalid = 0,
+            FileStreamCallback,
+            GVFSVerb,
+            NamedPipeMessage,
+        }
+
         protected GVFSContext Context { get; private set; }
 
         public virtual bool TryCopyBlobContentStream(
             string sha, 
-            CancellationToken cancellationToken, 
+            CancellationToken cancellationToken,
+            RequestSource requestSource,
             Action<Stream, long> writeAction)
         {
             RetryWrapper<bool> retrier = new RetryWrapper<bool>(this.GitObjectRequestor.RetryConfig.MaxAttempts, cancellationToken);
@@ -36,6 +46,11 @@ namespace GVFS.Common.Git
                     metadata.Add("sha", sha);
                     metadata.Add("AttemptNumber", errorArgs.TryCount);
                     metadata.Add("WillRetry", errorArgs.WillRetry);
+
+                    if (errorArgs.Error != null)
+                    {
+                        metadata.Add("Exception", errorArgs.Error.ToString());
+                    }
 
                     string message = "TryCopyBlobContentStream: Failed to provide blob contents";
                     if (errorArgs.WillRetry)
@@ -59,7 +74,7 @@ namespace GVFS.Common.Git
                     else
                     {
                         // Pass in false for retryOnFailure because the retrier in this method manages multiple attempts
-                        if (this.TryDownloadAndSaveObject(sha, cancellationToken, retryOnFailure: false) == DownloadAndSaveObjectResult.Success)
+                        if (this.TryDownloadAndSaveObject(sha, cancellationToken, requestSource, retryOnFailure: false) == DownloadAndSaveObjectResult.Success)
                         {
                             if (this.Context.Repository.TryCopyBlobContentStream(sha, writeAction))
                             {
@@ -74,9 +89,9 @@ namespace GVFS.Common.Git
             return invokeResult.Result;
         }
 
-        public DownloadAndSaveObjectResult TryDownloadAndSaveObject(string objectId)
+        public DownloadAndSaveObjectResult TryDownloadAndSaveObject(string objectId, RequestSource requestSource)
         {
-            return this.TryDownloadAndSaveObject(objectId, new CancellationToken(canceled: false), retryOnFailure: true);
+            return this.TryDownloadAndSaveObject(objectId, CancellationToken.None, requestSource, retryOnFailure: true);
         }
 
         public bool TryGetBlobSizeLocally(string sha, out long length)
@@ -89,8 +104,17 @@ namespace GVFS.Common.Git
             return this.GitObjectRequestor.QueryForFileSizes(objectIds, cancellationToken);
         }
 
-        protected override DownloadAndSaveObjectResult TryDownloadAndSaveObject(string objectId, CancellationToken cancellationToken, bool retryOnFailure)
+        private DownloadAndSaveObjectResult TryDownloadAndSaveObject(
+            string objectId, 
+            CancellationToken cancellationToken, 
+            RequestSource requestSource, 
+            bool retryOnFailure)
         {
+            if (objectId == GVFSConstants.AllZeroSha)
+            {
+                return DownloadAndSaveObjectResult.Error;
+            }
+
             DateTime negativeCacheRequestTime;
             if (this.objectNegativeCache.TryGetValue(objectId, out negativeCacheRequestTime))
             {
@@ -102,14 +126,42 @@ namespace GVFS.Common.Git
                 this.objectNegativeCache.TryRemove(objectId, out negativeCacheRequestTime);
             }
 
-            DownloadAndSaveObjectResult result = base.TryDownloadAndSaveObject(objectId, cancellationToken, retryOnFailure);
+            // To reduce allocations, reuse the same buffer when writing objects in this batch
+            byte[] bufToCopyWith = new byte[StreamUtil.DefaultCopyBufferSize];
 
-            if (result == DownloadAndSaveObjectResult.ObjectNotOnServer)
+            RetryWrapper<GitObjectsHttpRequestor.GitObjectTaskResult>.InvocationResult output = this.GitObjectRequestor.TryDownloadLooseObject(
+                objectId,
+                retryOnFailure,
+                cancellationToken,
+                requestSource.ToString(),
+                onSuccess: (tryCount, response) =>
+                {
+                    // If the request is from git.exe (i.e. NamedPipeMessage) then we should assume that if there is an
+                    // object on disk it's corrupt somehow (which is why git is asking for it)
+                    this.WriteLooseObject(
+                        response.Stream,
+                        objectId,
+                        overwriteExistingObject: requestSource == RequestSource.NamedPipeMessage,
+                        bufToCopyWith: bufToCopyWith);
+
+                    return new RetryWrapper<GitObjectsHttpRequestor.GitObjectTaskResult>.CallbackResult(new GitObjectsHttpRequestor.GitObjectTaskResult(true));
+                });
+
+            if (output.Result != null)
             {
-                this.objectNegativeCache.AddOrUpdate(objectId, DateTime.Now, (unused1, unused2) => DateTime.Now);
+                if (output.Succeeded && output.Result.Success)
+                {
+                    return DownloadAndSaveObjectResult.Success;
+                }
+
+                if (output.Result.HttpStatusCodeResult == HttpStatusCode.NotFound)
+                {
+                    this.objectNegativeCache.AddOrUpdate(objectId, DateTime.Now, (unused1, unused2) => DateTime.Now);
+                    return DownloadAndSaveObjectResult.ObjectNotOnServer;
+                }
             }
 
-            return result;
+            return DownloadAndSaveObjectResult.Error;
         }
     }
 }

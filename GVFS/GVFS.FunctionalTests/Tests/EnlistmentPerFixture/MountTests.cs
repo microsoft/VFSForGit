@@ -120,6 +120,86 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
             this.Enlistment.MountGVFS();
         }
 
+        [TestCase]
+        public void MountFailsWhenNoLocalCacheRootInRepoMetadata()
+        {
+            this.Enlistment.UnmountGVFS();
+
+            string currentVersion = GVFSHelpers.GetPersistedDiskLayoutVersion(this.Enlistment.DotGVFSRoot).ShouldNotBeNull();
+            string objectsRoot = GVFSHelpers.GetPersistedGitObjectsRoot(this.Enlistment.DotGVFSRoot).ShouldNotBeNull();
+
+            string metadataPath = Path.Combine(this.Enlistment.DotGVFSRoot, GVFSHelpers.RepoMetadataName);
+            string metadataBackupPath = metadataPath + ".backup";
+            this.fileSystem.MoveFile(metadataPath, metadataBackupPath);
+
+            this.fileSystem.CreateEmptyFile(metadataPath);
+            GVFSHelpers.SaveDiskLayoutVersion(this.Enlistment.DotGVFSRoot, currentVersion);
+            GVFSHelpers.SaveGitObjectsRoot(this.Enlistment.DotGVFSRoot, objectsRoot);
+
+            this.MountShouldFail("Failed to determine local cache path from repo metadata");
+
+            this.fileSystem.DeleteFile(metadataPath);
+            this.fileSystem.MoveFile(metadataBackupPath, metadataPath);
+
+            this.Enlistment.MountGVFS();
+        }
+
+        [TestCase]
+        public void MountFailsWhenNoGitObjectsRootInRepoMetadata()
+        {
+            this.Enlistment.UnmountGVFS();
+
+            string currentVersion = GVFSHelpers.GetPersistedDiskLayoutVersion(this.Enlistment.DotGVFSRoot).ShouldNotBeNull();
+            string localCacheRoot = GVFSHelpers.GetPersistedLocalCacheRoot(this.Enlistment.DotGVFSRoot).ShouldNotBeNull();
+
+            string metadataPath = Path.Combine(this.Enlistment.DotGVFSRoot, GVFSHelpers.RepoMetadataName);
+            string metadataBackupPath = metadataPath + ".backup";
+            this.fileSystem.MoveFile(metadataPath, metadataBackupPath);
+
+            this.fileSystem.CreateEmptyFile(metadataPath);
+            GVFSHelpers.SaveDiskLayoutVersion(this.Enlistment.DotGVFSRoot, currentVersion);
+            GVFSHelpers.SaveLocalCacheRoot(this.Enlistment.DotGVFSRoot, localCacheRoot);
+
+            this.MountShouldFail("Failed to determine git objects root from repo metadata");
+
+            this.fileSystem.DeleteFile(metadataPath);
+            this.fileSystem.MoveFile(metadataBackupPath, metadataPath);
+
+            this.Enlistment.MountGVFS();
+        }
+
+        [TestCase]
+        public void MountRegeneratesAlternatesFileWhenMissingGitObjectsRoot()
+        {
+            this.Enlistment.UnmountGVFS();
+
+            string objectsRoot = GVFSHelpers.GetPersistedGitObjectsRoot(this.Enlistment.DotGVFSRoot).ShouldNotBeNull();
+
+            string alternatesFilePath = Path.Combine(this.Enlistment.RepoRoot, ".git", "objects", "info", "alternates");
+            alternatesFilePath.ShouldBeAFile(this.fileSystem).WithContents(objectsRoot);
+            this.fileSystem.WriteAllText(alternatesFilePath, "Z:\\invalidPath");
+
+            this.Enlistment.MountGVFS();
+
+            alternatesFilePath.ShouldBeAFile(this.fileSystem).WithContents(objectsRoot);
+        }
+
+        [TestCase]
+        public void MountRegeneratesAlternatesFileWhenMissingFromDisk()
+        {
+            this.Enlistment.UnmountGVFS();
+
+            string objectsRoot = GVFSHelpers.GetPersistedGitObjectsRoot(this.Enlistment.DotGVFSRoot).ShouldNotBeNull();
+
+            string alternatesFilePath = Path.Combine(this.Enlistment.RepoRoot, ".git", "objects", "info", "alternates");
+            alternatesFilePath.ShouldBeAFile(this.fileSystem).WithContents(objectsRoot);
+            this.fileSystem.DeleteFile(alternatesFilePath);
+
+            this.Enlistment.MountGVFS();
+
+            alternatesFilePath.ShouldBeAFile(this.fileSystem).WithContents(objectsRoot);
+        }
+
         [TestCaseSource(typeof(MountSubfolders), MountSubfolders.MountFolders)]
         public void MountFailsAfterBreakingDowngrade(string mountSubfolder)
         {
@@ -176,71 +256,6 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
                 handle.IsInvalid.ShouldEqual(true);
                 lastError.ShouldNotEqual(0); // 0 == ERROR_SUCCESS
             }
-        }
-
-        [TestCase]
-        public void RepoIsExcludedFromAntiVirus()
-        {
-            bool isExcluded;
-            string error; 
-            this.TryGetIsPathExcluded(this.Enlistment.EnlistmentRoot, out isExcluded, out error).ShouldBeTrue("TryGetIsPathExcluded failed");
-            isExcluded.ShouldBeTrue("Repo should be excluded from antivirus");
-        }
-
-        public bool TryGetIsPathExcluded(string path, out bool isExcluded, out string error)
-        {
-            isExcluded = false;
-            try
-            {
-                string[] exclusions;
-                if (this.TryGetKnownAntiVirusExclusions(out exclusions, out error))
-                {
-                    foreach (string excludedPath in exclusions)
-                    {
-                        if (excludedPath.Trim().Equals(path, StringComparison.OrdinalIgnoreCase))
-                        {
-                            isExcluded = true;
-                            break;
-                        }
-                    }
-
-                    return true;
-                }
-
-                return false;
-            }
-            catch (Exception e)
-            {
-                error = "Unable to get exclusions:" + e.ToString();
-                return false;
-            }
-        }
-
-        private bool TryGetKnownAntiVirusExclusions(out string[] exclusions, out string error)
-        {
-            ProcessStartInfo processInfo = new ProcessStartInfo();
-            processInfo.FileName = "powershell.exe";
-            processInfo.Arguments = "-NonInteractive -NoProfile -Command \"& { Get-MpPreference | Select -ExpandProperty ExclusionPath }\"";
-            processInfo.WindowStyle = ProcessWindowStyle.Hidden;
-            processInfo.CreateNoWindow = true;
-            processInfo.WorkingDirectory = this.Enlistment.EnlistmentRoot;
-            processInfo.UseShellExecute = false;
-            processInfo.RedirectStandardOutput = true;
-
-            ProcessResult getMpPrefrencesResult = ProcessHelper.Run(processInfo);
-
-            // In some cases (like cmdlet not found), the exitCode == 0 but there will be errors and the output will be empty, handle this situation.
-            if (getMpPrefrencesResult.ExitCode != 0 ||
-                (string.IsNullOrEmpty(getMpPrefrencesResult.Output) && !string.IsNullOrEmpty(getMpPrefrencesResult.Errors)))
-            {
-                error = "Error while running PowerShell command to discover Defender exclusions. \n" + getMpPrefrencesResult.Errors;
-                exclusions = null;
-                return false;
-            }
-
-            exclusions = getMpPrefrencesResult.Output.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries);
-            error = null;
-            return true;
         }
 
         private void MountCleansIndexLock(string lockFileContents)

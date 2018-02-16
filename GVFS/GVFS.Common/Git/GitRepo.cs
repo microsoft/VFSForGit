@@ -43,6 +43,11 @@ namespace GVFS.Common.Git
             private set;
         }
 
+        public bool TryGetIsBlob(string sha, out bool isBlob)
+        {
+            return this.libgit2RepoPool.TryInvoke(repo => repo.IsBlob(sha), out isBlob);
+        }
+
         public virtual bool TryCopyBlobContentStream(string blobSha, Action<Stream, long> writeAction)
         {
             string blobPath = Path.Combine(
@@ -55,7 +60,7 @@ namespace GVFS.Common.Git
             {
                 if (this.fileSystem.FileExists(blobPath))
                 {
-                    using (Stream file = this.fileSystem.OpenFileStream(blobPath, FileMode.Open, FileAccess.Read, FileShare.Read))
+                    using (Stream file = this.fileSystem.OpenFileStream(blobPath, FileMode.Open, FileAccess.Read, FileShare.Read, callFlushFileBuffers: false))
                     {
                         // The DeflateStream header starts 2 bytes into the gzip header, but they are otherwise compatible
                         file.Position = 2;

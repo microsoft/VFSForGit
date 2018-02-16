@@ -1,5 +1,6 @@
 ﻿using GVFS.Tests.Should;
 using System;
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
@@ -32,9 +33,13 @@ namespace GVFS.FunctionalTests.Tools
             }
         }
 
-        public static ProcessResult InvokeGitAgainstGVFSRepo(string gvfsRepoRoot, string command, bool cleanErrors = true)
+        public static ProcessResult InvokeGitAgainstGVFSRepo(
+            string gvfsRepoRoot,
+            string command,
+            Dictionary<string, string> environmentVariables = null,
+            bool cleanErrors = true)
         {
-            ProcessResult result = GitProcess.InvokeProcess(gvfsRepoRoot, command);
+            ProcessResult result = GitProcess.InvokeProcess(gvfsRepoRoot, command, environmentVariables);
 
             string errors = result.Errors;
             if (cleanErrors)

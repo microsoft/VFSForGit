@@ -70,9 +70,9 @@ namespace GVFS.Common.FileSystem
             File.WriteAllText(path, contents);
         }
 
-        public Stream OpenFileStream(string path, FileMode fileMode, FileAccess fileAccess, FileShare shareMode)
+        public Stream OpenFileStream(string path, FileMode fileMode, FileAccess fileAccess, FileShare shareMode, bool callFlushFileBuffers)
         {
-            return this.OpenFileStream(path, fileMode, fileAccess, shareMode, FileOptions.None);
+            return this.OpenFileStream(path, fileMode, fileAccess, shareMode, FileOptions.None, callFlushFileBuffers);
         }
 
         public virtual void MoveAndOverwriteFile(string sourceFileName, string destinationFilename)
@@ -80,11 +80,16 @@ namespace GVFS.Common.FileSystem
             NativeMethods.MoveFile(
                 sourceFileName, 
                 destinationFilename, 
-                NativeMethods.MoveFileFlags.MoveFileReplaceExisting | NativeMethods.MoveFileFlags.MoveFileCopyAllowed);
+                NativeMethods.MoveFileFlags.MoveFileReplaceExisting);
         }
 
-        public virtual Stream OpenFileStream(string path, FileMode fileMode, FileAccess fileAccess, FileShare shareMode, FileOptions options)
+        public virtual Stream OpenFileStream(string path, FileMode fileMode, FileAccess fileAccess, FileShare shareMode, FileOptions options, bool callFlushFileBuffers)
         {
+            if (callFlushFileBuffers)
+            {
+                return new FlushToDiskFileStream(path, fileMode, fileAccess, shareMode, DefaultStreamBufferSize, options);
+            }
+
             return new FileStream(path, fileMode, fileAccess, shareMode, DefaultStreamBufferSize, options);
         }
 
@@ -144,6 +149,16 @@ namespace GVFS.Common.FileSystem
             {
                 return FileProperties.DefaultFile;
             }
+        }
+
+        public virtual FileAttributes GetAttributes(string path)
+        {
+            return File.GetAttributes(path);
+        }
+
+        public virtual void SetAttributes(string path, FileAttributes fileAttributes)
+        {
+            File.SetAttributes(path, fileAttributes);
         }
 
         public virtual void MoveFile(string sourcePath, string targetPath)

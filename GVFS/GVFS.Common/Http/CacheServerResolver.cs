@@ -84,7 +84,7 @@ namespace GVFS.Common.Http
                 throw new InvalidOperationException("An empty url is not supported");
             }
 
-            if (cacheServerUrl.Equals(this.enlistment.RepoUrl, StringComparison.OrdinalIgnoreCase))
+            if (this.InputMatchesEnlistmentUrl(cacheServerUrl))
             {
                 return this.CreateNone();
             }
@@ -106,7 +106,7 @@ namespace GVFS.Common.Http
                 throw new InvalidOperationException("A missing input (null) is fine, but an empty input (empty string) is not supported");
             }
 
-            if (userInput.Equals(this.enlistment.RepoUrl, StringComparison.OrdinalIgnoreCase) ||
+            if (this.InputMatchesEnlistmentUrl(userInput) ||
                 userInput.Equals(CacheServerInfo.ReservedNames.None, StringComparison.OrdinalIgnoreCase))
             {
                 return this.CreateNone();
@@ -115,7 +115,7 @@ namespace GVFS.Common.Http
             Uri uri;
             if (Uri.TryCreate(userInput, UriKind.Absolute, out uri))
             {
-                return new CacheServerInfo(userInput, null);
+                return new CacheServerInfo(userInput, CacheServerInfo.ReservedNames.UserDefined);
             }
             else
             {
@@ -165,6 +165,11 @@ namespace GVFS.Common.Http
         private CacheServerInfo CreateNone()
         {
             return new CacheServerInfo(this.enlistment.RepoUrl, CacheServerInfo.ReservedNames.None);
+        }
+
+        private bool InputMatchesEnlistmentUrl(string userInput)
+        {
+            return this.enlistment.RepoUrl.TrimEnd('/').Equals(userInput.TrimEnd('/'), StringComparison.OrdinalIgnoreCase);
         }
     }
 }

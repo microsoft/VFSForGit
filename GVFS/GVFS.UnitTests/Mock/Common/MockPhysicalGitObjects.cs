@@ -15,7 +15,7 @@ namespace GVFS.UnitTests.Mock.Common
         {
         }
         
-        public override string WriteLooseObject(Stream responseStream, string sha, byte[] sharedBuf = null)
+        public override string WriteLooseObject(Stream responseStream, string sha, bool overwriteExisting, byte[] sharedBuf = null)
         {
             using (StreamReader reader = new StreamReader(responseStream))
             {
@@ -24,12 +24,12 @@ namespace GVFS.UnitTests.Mock.Common
             }
         }
 
-        public override string WriteTempPackFile(GitEndPointResponseData response)
+        public override string WriteTempPackFile(Stream stream)
         {
-            Debug.Assert(response.Stream != null, "WriteTempPackFile should not receive a null stream");
+            Debug.Assert(stream != null, "WriteTempPackFile should not receive a null stream");
 
-            using (response.Stream)
-            using (StreamReader reader = new StreamReader(response.Stream))
+            using (stream)
+            using (StreamReader reader = new StreamReader(stream))
             {
                 // Return "file contents" as "file name". Weird, but proves we got the right thing.
                 return reader.ReadToEnd();

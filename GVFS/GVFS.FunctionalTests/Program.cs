@@ -12,7 +12,15 @@ namespace GVFS.FunctionalTests
     {
         public static void Main(string[] args)
         {
-            NUnitRunner runner = new NUnitRunner(args);            
+            NUnitRunner runner = new NUnitRunner(args);
+            
+            if (runner.HasCustomArg("--no-shared-gvfs-cache"))
+            {
+                Console.WriteLine("Running without a shared git object cache");
+                GVFSTestConfig.NoSharedCache = true;
+            }
+
+            GVFSTestConfig.LocalCacheRoot = runner.GetCustomArgWithParam("--shared-gvfs-cache-root");
 
             if (runner.HasCustomArg("--full-suite"))
             {

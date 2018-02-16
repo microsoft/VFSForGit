@@ -33,6 +33,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerTestCase
             "!/GVFS/TestAddFile.txt",
             "!/GVFS/GVFS.Mount/",
             "!/GVFS/GVFS.Mount/MountVerb2.cs",
+            "!/Scripts/",
             "!/TestFileFromDotGit.txt",
             "!/PersistedSparseExcludeTests_outsideRepo.txt"
         };

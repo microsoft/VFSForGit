@@ -173,7 +173,7 @@ namespace GVFS.Common
         private static object GetValueFromRegistry(RegistryHive registryHive, string key, string valueName, RegistryView view)
         {
             RegistryKey localKey = RegistryKey.OpenBaseKey(registryHive, view);
-            var localKeySub = localKey.OpenSubKey(key);
+            RegistryKey localKeySub = localKey.OpenSubKey(key);
 
             object value = localKeySub == null ? null : localKeySub.GetValue(valueName);
             return value;

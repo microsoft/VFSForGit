@@ -31,7 +31,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
             this.Enlistment.SetCacheServer(this.Enlistment.RepoUrl).ShouldContain(noneMessage);
             this.Enlistment.GetCacheServer().ShouldContain(noneMessage);
 
-            this.Enlistment.SetCacheServer(CustomUrl).ShouldContain("Using cache server: " + CustomUrl);
+            this.Enlistment.SetCacheServer(CustomUrl).ShouldContain("Using cache server: User Defined (" + CustomUrl + ")");
             this.Enlistment.GetCacheServer().ShouldContain("Using cache server: User Defined (" + CustomUrl + ")");
         }
     }

@@ -1,10 +1,8 @@
 ﻿<?xml version="1.0" encoding="utf-8"?>
 <Project ToolsVersion="14.0" DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <Import Project="$(MSBuildExtensionsPath)\$(MSBuildToolsVersion)\Microsoft.Common.props" Condition="Exists('$(MSBuildExtensionsPath)\$(MSBuildToolsVersion)\Microsoft.Common.props')" />
-  <Import Project="..\GVFS.GvFltWrapper\GvFlt.props" />
+  <Import Project="$(SolutionDir)\GVFS\GVFS.Build\GVFS.props" />
   <PropertyGroup>
-    <Configuration Condition=" '$(Configuration)' == '' ">Debug</Configuration>
-    <Platform Condition=" '$(Platform)' == '' ">AnyCPU</Platform>
     <ProjectGuid>{32220664-594C-4425-B9A0-88E0BE2F3D2A}</ProjectGuid>
     <OutputType>Exe</OutputType>
     <AppDesignerFolder>Properties</AppDesignerFolder>
@@ -18,8 +16,6 @@
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)' == 'Debug|x64'">
     <DebugSymbols>true</DebugSymbols>
-    <OutputPath>..\..\..\BuildOutput\GVFS\bin\x64\Debug\</OutputPath>
-    <IntermediateOutputPath>..\..\..\BuildOutput\GVFS\obj\x64\Debug\</IntermediateOutputPath>
     <DefineConstants>DEBUG;TRACE</DefineConstants>
     <DebugType>full</DebugType>
     <PlatformTarget>x64</PlatformTarget>
@@ -29,8 +25,6 @@
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)' == 'Release|x64'">
-    <OutputPath>..\..\..\BuildOutput\GVFS\bin\x64\Release\</OutputPath>
-    <IntermediateOutputPath>..\..\..\BuildOutput\GVFS\obj\x64\Release\</IntermediateOutputPath>
     <DefineConstants>TRACE</DefineConstants>
     <Optimize>true</Optimize>
     <DebugType>pdbonly</DebugType>
@@ -78,7 +72,7 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
-    <Compile Include="..\..\..\BuildOutput\CommonAssemblyVersion.cs">
+    <Compile Include="$(BuildOutputDir)\CommonAssemblyVersion.cs">
       <Link>CommonAssemblyVersion.cs</Link>
     </Compile>
     <Compile Include="CommandLine\CacheServerVerb.cs" />
@@ -86,6 +80,7 @@
     <Compile Include="CommandLine\DehydrateVerb.cs" />
     <Compile Include="CommandLine\DiagnoseVerb.cs" />
     <Compile Include="CommandLine\DiskLayoutUpgrades\DiskLayout10to11Upgrade.cs" />
+    <Compile Include="CommandLine\DiskLayoutUpgrades\DiskLayout11to12Upgrade.cs" />
     <Compile Include="CommandLine\DiskLayoutUpgrades\DiskLayout7to8Upgrade.cs" />
     <Compile Include="CommandLine\DiskLayoutUpgrades\DiskLayout9to10Upgrade.cs" />
     <Compile Include="CommandLine\GVFSVerb.cs" />
@@ -112,11 +107,10 @@
   </ItemGroup>
   <ItemGroup>
     <None Include="App.config" />
-    <None Include="packages.config" />
+    <None Include="packages.config">
+      <SubType>Designer</SubType>
+    </None>
     <Content Include="GitVirtualFileSystem.ico">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </Content>
-    <Content Include="Setup.iss">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
   </ItemGroup>
@@ -154,10 +148,9 @@
     <Error Condition="!Exists('..\..\..\packages\StyleCop.MSBuild.4.7.54.0\build\StyleCop.MSBuild.Targets')" Text="$([System.String]::Format('$(ErrorText)', '..\..\..\packages\StyleCop.MSBuild.4.7.54.0\build\StyleCop.MSBuild.Targets'))" />
   </Target>
   <PropertyGroup>
-    <PostBuildEvent>xcopy /Y $(SolutionDir)..\BuildOutput\GVFS.ReadObjectHook\bin\$(Platform)\$(Configuration)\GVFS.ReadObjectHook.* $(TargetDir)
-xcopy /Y $(SolutionDir)..\BuildOutput\GVFS.Hooks\bin\$(Platform)\$(Configuration)\GVFS.Hooks.* $(TargetDir)
-xcopy /Y $(SolutionDir)..\BuildOutput\GitHooksLoader\bin\$(Platform)\$(Configuration)\GitHooksLoader.* $(TargetDir)
-cmd /c ""c:\Program Files (x86)\Inno Setup 5\ISCC.exe" /DPlatformAndConfiguration="$(Platform)\$(Configuration)" /DGvFltPackage="$(GvFltPackage)" $(TargetDir)Setup.iss"</PostBuildEvent>
+    <PostBuildEvent>xcopy /Y $(BuildOutputDir)\GVFS.ReadObjectHook\bin\$(Platform)\$(Configuration)\GVFS.ReadObjectHook.* $(TargetDir)
+xcopy /Y $(BuildOutputDir)\GVFS.Hooks\bin\$(Platform)\$(Configuration)\GVFS.Hooks.* $(TargetDir)
+xcopy /Y $(BuildOutputDir)\GitHooksLoader\bin\$(Platform)\$(Configuration)\GitHooksLoader.* $(TargetDir)</PostBuildEvent>
   </PropertyGroup>
   <Import Project="..\..\..\packages\StyleCop.Error.MSBuild.1.0.0\build\StyleCop.Error.MSBuild.Targets" Condition="Exists('..\..\..\packages\StyleCop.Error.MSBuild.1.0.0\build\StyleCop.Error.MSBuild.Targets')" />
   <Import Project="..\..\..\packages\StyleCop.MSBuild.4.7.54.0\build\StyleCop.MSBuild.Targets" Condition="Exists('..\..\..\packages\StyleCop.MSBuild.4.7.54.0\build\StyleCop.MSBuild.Targets')" />

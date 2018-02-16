@@ -11,6 +11,15 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
     public class DehydrateTests : TestsWithEnlistmentPerFixture
     {
         private const int GVFSGenericError = 3;
+        private FileSystemRunner fileSystem;
+
+        // Set forcePerRepoObjectCache to true so that DehydrateShouldSucceedEvenIfObjectCacheIsDeleted does
+        // not delete the shared local cache
+        public DehydrateTests()
+            : base(forcePerRepoObjectCache: true)
+        {
+            this.fileSystem = new SystemIORunner();
+        }
 
         [TestCase]
         public void DehydrateShouldExitWithoutConfirm()
@@ -36,8 +45,56 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
         public void DehydrateShouldSucceedEvenIfObjectCacheIsDeleted()
         {
             this.Enlistment.UnmountGVFS();
-            CmdRunner.DeleteDirectoryWithRetry(this.Enlistment.ObjectRoot);
+            CmdRunner.DeleteDirectoryWithRetry(this.Enlistment.GetObjectRoot(this.fileSystem));
             this.DehydrateShouldSucceed("The repo was successfully dehydrated and remounted", confirm: true, noStatus: true);
+        }
+
+        [TestCase]
+        public void DehydrateShouldFailIfLocalCacheNotInMetadata()
+        {
+            this.Enlistment.UnmountGVFS();
+
+            string currentVersion = GVFSHelpers.GetPersistedDiskLayoutVersion(this.Enlistment.DotGVFSRoot).ShouldNotBeNull();
+            string objectsRoot = GVFSHelpers.GetPersistedGitObjectsRoot(this.Enlistment.DotGVFSRoot).ShouldNotBeNull();
+
+            string metadataPath = Path.Combine(this.Enlistment.DotGVFSRoot, GVFSHelpers.RepoMetadataName);
+            string metadataBackupPath = metadataPath + ".backup";
+            this.fileSystem.MoveFile(metadataPath, metadataBackupPath);
+
+            this.fileSystem.CreateEmptyFile(metadataPath);
+            GVFSHelpers.SaveDiskLayoutVersion(this.Enlistment.DotGVFSRoot, currentVersion);
+            GVFSHelpers.SaveGitObjectsRoot(this.Enlistment.DotGVFSRoot, objectsRoot);
+
+            this.DehydrateShouldFail("Failed to determine local cache path from repo metadata", noStatus: true);
+
+            this.fileSystem.DeleteFile(metadataPath);
+            this.fileSystem.MoveFile(metadataBackupPath, metadataPath);
+
+            this.Enlistment.MountGVFS();
+        }
+
+        [TestCase]
+        public void DehydrateShouldFailIfGitObjectsRootNotInMetadata()
+        {
+            this.Enlistment.UnmountGVFS();
+
+            string currentVersion = GVFSHelpers.GetPersistedDiskLayoutVersion(this.Enlistment.DotGVFSRoot).ShouldNotBeNull();
+            string localCacheRoot = GVFSHelpers.GetPersistedLocalCacheRoot(this.Enlistment.DotGVFSRoot).ShouldNotBeNull();
+
+            string metadataPath = Path.Combine(this.Enlistment.DotGVFSRoot, GVFSHelpers.RepoMetadataName);
+            string metadataBackupPath = metadataPath + ".backup";
+            this.fileSystem.MoveFile(metadataPath, metadataBackupPath);
+
+            this.fileSystem.CreateEmptyFile(metadataPath);
+            GVFSHelpers.SaveDiskLayoutVersion(this.Enlistment.DotGVFSRoot, currentVersion);
+            GVFSHelpers.SaveLocalCacheRoot(this.Enlistment.DotGVFSRoot, localCacheRoot);
+
+            this.DehydrateShouldFail("Failed to determine git objects root from repo metadata", noStatus: true);
+
+            this.fileSystem.DeleteFile(metadataPath);
+            this.fileSystem.MoveFile(metadataBackupPath, metadataPath);
+
+            this.Enlistment.MountGVFS();
         }
 
         [TestCase]

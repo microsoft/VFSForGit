@@ -27,10 +27,7 @@ namespace GVFS.UnitTests.Mock.Git
                 onSuccess: (tryCount, response) =>
                 {
                     // Add the contents to the mock repo
-                    using (StreamReader reader = new StreamReader(response.Stream))
-                    {
-                        ((MockGitRepo)this.Context.Repository).AddBlob(objectSha, "DownloadedFile", reader.ReadToEnd());
-                    }
+                    ((MockGitRepo)this.Context.Repository).AddBlob(objectSha, "DownloadedFile", response.RetryableReadToEnd());
 
                     return new RetryWrapper<GitObjectsHttpRequestor.GitObjectTaskResult>.CallbackResult(new GitObjectsHttpRequestor.GitObjectTaskResult(true));
                 },
@@ -43,6 +40,7 @@ namespace GVFS.UnitTests.Mock.Git
         public override bool TryCopyBlobContentStream(
             string sha,
             CancellationToken cancellationToken,
+            RequestSource requestSource,
             Action<Stream, long> writeAction)
         {
             if (this.CancelTryCopyBlobContentStream)

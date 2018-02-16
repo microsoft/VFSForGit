@@ -120,6 +120,10 @@ namespace GVFS.UnitTests.Mock.GVFS.GvFlt.DotGit
         {
         }
 
+        public override void Shutdown()
+        {
+        }
+
         public override void InvalidateProjection()
         {
         }

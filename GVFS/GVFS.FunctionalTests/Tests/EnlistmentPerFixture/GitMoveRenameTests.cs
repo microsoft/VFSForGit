@@ -5,6 +5,7 @@ using GVFS.FunctionalTests.Tools;
 using GVFS.Tests.Should;
 using NUnit.Framework;
 using System;
+using System.Collections.Generic;
 using System.IO;
 
 namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
@@ -153,20 +154,20 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
         [TestCase, Order(8)]
         public void GitWithEnvironmentVariables()
         {
-            string previousPerf = Environment.GetEnvironmentVariable("GIT_TRACE_PERFORMANCE");
-            Environment.SetEnvironmentVariable("GIT_TRACE_PERFORMANCE", "1");
-
-            string previousTrace = Environment.GetEnvironmentVariable("git_trace");
-            Environment.SetEnvironmentVariable("git_trace", "1");
-
             // The trace info is an error, so we can't use CheckGitCommand().
             // We just want to make sure this doesn't throw an exception.
-            ProcessResult result = GitHelpers.InvokeGitAgainstGVFSRepo(this.Enlistment.RepoRoot, "branch", cleanErrors: false);
+            ProcessResult result = GitHelpers.InvokeGitAgainstGVFSRepo(
+                this.Enlistment.RepoRoot,
+                "branch",
+                new Dictionary<string, string>
+                {
+                    { "GIT_TRACE_PERFORMANCE", "1" },
+                    { "git_trace", "1" },
+                },
+                cleanErrors: false);
             result.Output.ShouldContain("* FunctionalTests");
             result.Errors.ShouldNotContain(ignoreCase: true, unexpectedSubstrings: "exception");
             result.Errors.ShouldContain("trace.c:", "git command:");
-            Environment.SetEnvironmentVariable("GIT_TRACE_PERFORMANCE", previousPerf);
-            Environment.SetEnvironmentVariable("git_trace", previousTrace);
         }
 
         [TestCase, Order(9)]

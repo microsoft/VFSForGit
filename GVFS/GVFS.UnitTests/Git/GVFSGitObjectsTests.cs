@@ -1,5 +1,4 @@
 ﻿using GVFS.Common;
-using GVFS.Common.FileSystem;
 using GVFS.Common.Git;
 using GVFS.Common.Http;
 using GVFS.Tests.Should;
@@ -23,6 +22,8 @@ namespace GVFS.UnitTests.Git
     {
         private const string ValidTestObjectFileContents = "421dc4df5e1de427e363b8acd9ddb2d41385dbdf";
         private const string TestEnlistmentRoot = "mock:\\src";
+        private const string TestLocalCacheRoot = "mock:\\.gvfs";
+        private const string TestObjecRoot = "mock:\\.gvfs\\gitObjectCache";
 
         [TestCase]
         [Category(CategoryConstants.ExceptionExpected)]
@@ -46,7 +47,11 @@ namespace GVFS.UnitTests.Git
                 httpObjects.MediaType = GVFSConstants.MediaTypes.LooseObjectMediaType;
                 GVFSGitObjects dut = this.CreateTestableGVFSGitObjects(httpObjects, fileSystem);
 
-                dut.TryCopyBlobContentStream(ValidTestObjectFileContents, new CancellationToken(), (stream, length) => Assert.Fail("Should not be able to call copy stream callback"))
+                dut.TryCopyBlobContentStream(
+                    ValidTestObjectFileContents, 
+                    new CancellationToken(),
+                    GVFSGitObjects.RequestSource.FileStreamCallback, 
+                    (stream, length) => Assert.Fail("Should not be able to call copy stream callback"))
                     .ShouldEqual(false);
             }
         }
@@ -63,7 +68,7 @@ namespace GVFS.UnitTests.Git
                 httpObjects.MediaType = GVFSConstants.MediaTypes.LooseObjectMediaType;
                 GVFSGitObjects dut = this.CreateTestableGVFSGitObjects(httpObjects, fileSystem);
 
-                dut.TryDownloadAndSaveObject(ValidTestObjectFileContents)
+                dut.TryDownloadAndSaveObject(ValidTestObjectFileContents, GVFSGitObjects.RequestSource.FileStreamCallback)
                     .ShouldEqual(GitObjects.DownloadAndSaveObjectResult.Success);
             }
         }
@@ -75,7 +80,7 @@ namespace GVFS.UnitTests.Git
             this.AssertRetryableExceptionOnDownload(
                 new MemoryStream(),
                 GVFSConstants.MediaTypes.LooseObjectMediaType,
-                gitObjects => gitObjects.TryDownloadAndSaveObject("aabbcc"));
+                gitObjects => gitObjects.TryDownloadAndSaveObject("aabbcc", GVFSGitObjects.RequestSource.FileStreamCallback));
         }
 
         [TestCase]
@@ -85,7 +90,7 @@ namespace GVFS.UnitTests.Git
             this.AssertRetryableExceptionOnDownload(
                 new MemoryStream(new byte[256]),
                 GVFSConstants.MediaTypes.LooseObjectMediaType,
-                gitObjects => gitObjects.TryDownloadAndSaveObject("aabbcc"));
+                gitObjects => gitObjects.TryDownloadAndSaveObject("aabbcc", GVFSGitObjects.RequestSource.FileStreamCallback));
         }
 
         [TestCase]
@@ -134,6 +139,7 @@ namespace GVFS.UnitTests.Git
         {
             MockTracer tracer = new MockTracer();
             GVFSEnlistment enlistment = new GVFSEnlistment(TestEnlistmentRoot, "https://fakeRepoUrl", "fakeGitBinPath", gvfsHooksRoot: null);
+            enlistment.InitializeLocalCacheAndObjectPaths(TestLocalCacheRoot, TestObjecRoot);
             GitRepo repo = new GitRepo(tracer, enlistment, fileSystem, () => new MockLibGit2Repo(tracer));
 
             GVFSContext context = new GVFSContext(tracer, fileSystem, repo, enlistment);
@@ -179,6 +185,7 @@ namespace GVFS.UnitTests.Git
                 string objectId,
                 bool retryOnFailure,
                 CancellationToken cancellationToken,
+                string requestSource,
                 Func<int, GitEndPointResponseData, RetryWrapper<GitObjectTaskResult>.CallbackResult> onSuccess)
             {
                 return this.TryDownloadObjects(new[] { objectId }, onSuccess, null, false);
@@ -190,7 +197,15 @@ namespace GVFS.UnitTests.Git
                 Action<RetryWrapper<GitObjectTaskResult>.ErrorEventArgs> onFailure,
                 bool preferBatchedLooseObjects)
             {
-                onSuccess(0, new GitEndPointResponseData(HttpStatusCode.OK, this.MediaType, this.InputStream));
+                using (GitEndPointResponseData response = new GitEndPointResponseData(
+                    HttpStatusCode.OK, 
+                    this.MediaType, 
+                    this.InputStream, 
+                    message: null, 
+                    onResponseDisposed: null))
+                {
+                    onSuccess(0, response);
+                }
 
                 GitObjectTaskResult result = new GitObjectTaskResult(true);
                 return new RetryWrapper<GitObjectTaskResult>.InvocationResult(0, true, result);

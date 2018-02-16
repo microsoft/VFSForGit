@@ -7,8 +7,11 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
     [TestFixture]
     public abstract class TestsWithEnlistmentPerFixture
     {
-        public TestsWithEnlistmentPerFixture()
+        private readonly bool forcePerRepoObjectCache;
+        
+        public TestsWithEnlistmentPerFixture(bool forcePerRepoObjectCache = false)
         {
+            this.forcePerRepoObjectCache = forcePerRepoObjectCache;
         }
 
         public GVFSFunctionalTestEnlistment Enlistment
@@ -20,7 +23,14 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
         public virtual void CreateEnlistment()
         {
             string pathToGvfs = Path.Combine(TestContext.CurrentContext.TestDirectory, Properties.Settings.Default.PathToGVFS);
-            this.Enlistment = GVFSFunctionalTestEnlistment.CloneAndMount(pathToGvfs);
+            if (this.forcePerRepoObjectCache)
+            {
+                this.Enlistment = GVFSFunctionalTestEnlistment.CloneAndMountWithPerRepoCache(pathToGvfs);
+            }
+            else
+            {
+                this.Enlistment = GVFSFunctionalTestEnlistment.CloneAndMount(pathToGvfs);
+            }
         }
 
         [OneTimeTearDown]

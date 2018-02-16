@@ -3,6 +3,7 @@ using GVFS.Common.Tracing;
 using Microsoft.Diagnostics.Tracing;
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Net;
@@ -76,7 +77,9 @@ namespace GVFS.Common.Http
                 return new GitEndPointResponseData(
                     HttpStatusCode.Unauthorized,
                     new GitObjectsHttpException(HttpStatusCode.Unauthorized, errorMessage),
-                    shouldRetry: true);
+                    shouldRetry: true, 
+                    message: null,
+                    onResponseDisposed: null);
             }
 
             HttpRequestMessage request = new HttpRequestMessage(httpMethod, requestUri);
@@ -99,12 +102,28 @@ namespace GVFS.Common.Http
 
             EventMetadata responseMetadata = new EventMetadata();
             responseMetadata.Add("RequestId", requestId);
+            responseMetadata.Add("availableConnections", availableConnections.CurrentCount);
 
+            Stopwatch requestStopwatch = Stopwatch.StartNew();
             availableConnections.Wait(cancellationToken);
+            TimeSpan connectionWaitTime = requestStopwatch.Elapsed;
+
+            TimeSpan responseWaitTime = default(TimeSpan);
+            GitEndPointResponseData gitEndPointResponseData = null;
+            HttpResponseMessage response = null;
 
             try
-            {
-                HttpResponseMessage response = this.client.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cancellationToken).GetAwaiter().GetResult();
+            {               
+                requestStopwatch.Restart();
+
+                try
+                {
+                    response = this.client.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cancellationToken).GetAwaiter().GetResult();
+                }
+                finally
+                {
+                    responseWaitTime = requestStopwatch.Elapsed;
+                }
 
                 responseMetadata.Add("CacheName", GetSingleHeaderOrEmpty(response.Headers, "X-Cache-Name"));
                 responseMetadata.Add("StatusCode", response.StatusCode);
@@ -116,7 +135,13 @@ namespace GVFS.Common.Http
 
                     this.authentication.ConfirmCredentialsWorked(authString);
                     Stream responseStream = response.Content.ReadAsStreamAsync().GetAwaiter().GetResult();
-                    return new GitEndPointResponseData(response.StatusCode, contentType, responseStream);
+
+                    gitEndPointResponseData = new GitEndPointResponseData(
+                        response.StatusCode, 
+                        contentType, 
+                        responseStream,
+                        message: response,
+                        onResponseDisposed: () => availableConnections.Release());
                 }
                 else
                 {
@@ -143,7 +168,12 @@ namespace GVFS.Common.Http
                         }
                     }
 
-                    return new GitEndPointResponseData(response.StatusCode, new GitObjectsHttpException(response.StatusCode, errorMessage), ShouldRetry(response.StatusCode));
+                    gitEndPointResponseData = new GitEndPointResponseData(
+                        response.StatusCode,
+                        new GitObjectsHttpException(response.StatusCode, errorMessage),
+                        ShouldRetry(response.StatusCode),
+                        message: response,
+                        onResponseDisposed: () => availableConnections.Release());
                 }
             }
             catch (TaskCanceledException)
@@ -151,17 +181,43 @@ namespace GVFS.Common.Http
                 cancellationToken.ThrowIfCancellationRequested();
 
                 errorMessage = string.Format("Request to {0} timed out", requestUri);
-                return new GitEndPointResponseData(HttpStatusCode.RequestTimeout, new GitObjectsHttpException(HttpStatusCode.RequestTimeout, errorMessage), shouldRetry: true);
+
+                gitEndPointResponseData = new GitEndPointResponseData(
+                    HttpStatusCode.RequestTimeout, 
+                    new GitObjectsHttpException(HttpStatusCode.RequestTimeout, errorMessage), 
+                    shouldRetry: true,
+                    message: response,
+                    onResponseDisposed: () => availableConnections.Release());
             }
             catch (WebException ex)
             {
-                return new GitEndPointResponseData(HttpStatusCode.InternalServerError, ex, shouldRetry: true);
+                gitEndPointResponseData = new GitEndPointResponseData(
+                    HttpStatusCode.InternalServerError, 
+                    ex, 
+                    shouldRetry: true,
+                    message: response,
+                    onResponseDisposed: () => availableConnections.Release());
             }
             finally
             {
+                responseMetadata.Add("connectionWaitTimeMS", $"{connectionWaitTime.TotalMilliseconds:F4}");
+                responseMetadata.Add("responseWaitTimeMS", $"{responseWaitTime.TotalMilliseconds:F4}");
+
                 this.Tracer.RelatedEvent(EventLevel.Informational, "NetworkResponse", responseMetadata);
-                availableConnections.Release();
+                
+                if (gitEndPointResponseData == null)
+                {
+                    // If gitEndPointResponseData is null there was an unhandled exception
+                    if (response != null)
+                    {
+                        response.Dispose();
+                    }
+
+                    availableConnections.Release();
+                }
             }
+
+            return gitEndPointResponseData;
         }
         
         private static bool ShouldRetry(HttpStatusCode statusCode)

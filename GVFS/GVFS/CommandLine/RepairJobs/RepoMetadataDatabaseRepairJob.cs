@@ -20,10 +20,17 @@ namespace GVFS.CommandLine.RepairJobs
         public override IssueType HasIssue(List<string> messages)
         {
             string error;
-            if (!RepoMetadata.TryInitialize(this.Tracer, this.Enlistment.DotGVFSRoot, out error))
+            try
             {
-                messages.Add("Could not open repo metadata: " + error);
-                return IssueType.CantFix;
+                if (!RepoMetadata.TryInitialize(this.Tracer, this.Enlistment.DotGVFSRoot, out error))
+                {
+                    messages.Add("Could not open repo metadata: " + error);
+                    return IssueType.CantFix;
+                }
+            }
+            finally
+            {
+                RepoMetadata.Shutdown();
             }
 
             return IssueType.None;

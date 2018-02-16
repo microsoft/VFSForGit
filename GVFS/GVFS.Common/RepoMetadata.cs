@@ -1,6 +1,7 @@
 using GVFS.Common.FileSystem;
 using GVFS.Common.Tracing;
 using System;
+using System.Collections.Generic;
 using System.IO;
 
 namespace GVFS.Common
@@ -100,9 +101,15 @@ namespace GVFS.Common
             return true;
         }
 
-        public void SaveCurrentDiskLayoutVersion()
+        public void SaveCloneMetadata(string gitObjectsRoot, string localCacheRoot)
         {
-            this.repoMetadata.SetValueAndFlush(Keys.DiskLayoutVersion, DiskLayoutVersion.CurrentDiskLayoutVersion.ToString());
+            this.repoMetadata.SetValuesAndFlush(
+                new[]
+                {
+                    new KeyValuePair<string, string>(Keys.DiskLayoutVersion, DiskLayoutVersion.CurrentDiskLayoutVersion.ToString()),
+                    new KeyValuePair<string, string>(Keys.GitObjectsRoot, gitObjectsRoot),
+                    new KeyValuePair<string, string>(Keys.LocalCacheRoot, localCacheRoot)
+                });
         }
 
         public void SetProjectionInvalid(bool invalid)
@@ -125,6 +132,70 @@ namespace GVFS.Common
             return this.HasEntry(Keys.PlaceholdersNeedUpdate);
         }
         
+        public void SetProjectionInvalidAndPlaceholdersNeedUpdate()
+        {
+            this.repoMetadata.SetValuesAndFlush(
+                new[]
+                {
+                    new KeyValuePair<string, string>(Keys.ProjectionInvalid, bool.TrueString),
+                    new KeyValuePair<string, string>(Keys.PlaceholdersNeedUpdate, bool.TrueString)
+                });
+        }
+
+        public bool TryGetGitObjectsRoot(out string gitObjectsRoot, out string error)
+        {
+            gitObjectsRoot = null;
+
+            try
+            {
+                if (!this.repoMetadata.TryGetValue(Keys.GitObjectsRoot, out gitObjectsRoot))
+                {
+                    error = "Git objects root not found";
+                    return false;
+                }
+            }
+            catch (FileBasedCollectionException ex)
+            {
+                error = ex.Message;
+                return false;
+            }
+
+            error = null;
+            return true;
+        }
+
+        public void SetGitObjectsRoot(string gitObjectsRoot)
+        {
+            this.repoMetadata.SetValueAndFlush(Keys.GitObjectsRoot, gitObjectsRoot);
+        }
+
+        public bool TryGetLocalCacheRoot(out string localCacheRoot, out string error)
+        {
+            localCacheRoot = null;
+
+            try
+            {
+                if (!this.repoMetadata.TryGetValue(Keys.LocalCacheRoot, out localCacheRoot))
+                {
+                    error = "Local cache root not found";
+                    return false;
+                }
+            }
+            catch (FileBasedCollectionException ex)
+            {
+                error = ex.Message;
+                return false;
+            }
+
+            error = null;
+            return true;
+        }
+
+        public void SetLocalCacheRoot(string localCacheRoot)
+        {
+            this.repoMetadata.SetValueAndFlush(Keys.LocalCacheRoot, localCacheRoot);
+        }
+
         public void SetEntry(string keyName, string valueName)
         {
             this.repoMetadata.SetValueAndFlush(keyName, valueName);
@@ -159,13 +230,15 @@ namespace GVFS.Common
             public const string PlaceholdersInvalid = "PlaceholdersInvalid";
             public const string DiskLayoutVersion = "DiskLayoutVersion";
             public const string PlaceholdersNeedUpdate = "PlaceholdersNeedUpdate";
+            public const string GitObjectsRoot = "GitObjectsRoot";
+            public const string LocalCacheRoot = "LocalCacheRoot";
         }
 
         public static class DiskLayoutVersion
         {
             // The current disk layout version.  This number should be bumped whenever a disk format change is made
             // that would impact and older GVFS's ability to mount the repo
-            public const int CurrentDiskLayoutVersion = 11;
+            public const int CurrentDiskLayoutVersion = 12;
 
             public const string MissingVersionError = "Enlistment disk layout version not found, check if a breaking change has been made to GVFS since cloning this enlistment.";
 

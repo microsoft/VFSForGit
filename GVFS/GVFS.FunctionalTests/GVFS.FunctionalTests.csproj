@@ -1,8 +1,8 @@
 ﻿<?xml version="1.0" encoding="utf-8"?>
 <Project ToolsVersion="14.0" DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <Import Project="..\..\..\packages\NUnit.3.10.0-dev-05190\build\NUnit.props" Condition="Exists('..\..\..\packages\NUnit.3.10.0-dev-05190\build\NUnit.props')" />
+  <Import Project="$(SolutionDir)\GVFS\GVFS.Build\GVFS.props" />
   <PropertyGroup>
-    <Configuration Condition=" '$(Configuration)' == '' ">Debug</Configuration>
-    <Platform Condition=" '$(Platform)' == '' ">AnyCPU</Platform>
     <ProjectGuid>{0F0A008E-AB12-40EC-A671-37A541B08C7F}</ProjectGuid>
     <OutputType>Exe</OutputType>
     <AppDesignerFolder>Properties</AppDesignerFolder>
@@ -20,8 +20,6 @@
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)' == 'Debug|x64'">
     <DebugSymbols>true</DebugSymbols>
-    <OutputPath>..\..\..\BuildOutput\GVFS.FunctionalTests\bin\x64\Debug\</OutputPath>
-    <IntermediateOutputPath>..\..\..\BuildOutput\GVFS.FunctionalTests\obj\x64\Debug\</IntermediateOutputPath>
     <DefineConstants>DEBUG;TRACE</DefineConstants>
     <DebugType>full</DebugType>
     <PlatformTarget>x64</PlatformTarget>
@@ -30,8 +28,6 @@
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)' == 'Release|x64'">
-    <OutputPath>..\..\..\BuildOutput\GVFS.FunctionalTests\bin\x64\Release\</OutputPath>
-    <IntermediateOutputPath>..\..\..\BuildOutput\GVFS.FunctionalTests\obj\x64\Release\</IntermediateOutputPath>
     <DefineConstants>TRACE</DefineConstants>
     <Optimize>true</Optimize>
     <DebugType>pdbonly</DebugType>
@@ -67,15 +63,11 @@
       <HintPath>..\..\..\packages\Newtonsoft.Json.7.0.1\lib\net45\Newtonsoft.Json.dll</HintPath>
       <Private>True</Private>
     </Reference>
-    <Reference Include="nunit.framework, Version=3.5.0.0, Culture=neutral, PublicKeyToken=2638cd05610744eb, processorArchitecture=MSIL">
-      <SpecificVersion>False</SpecificVersion>
-      <HintPath>..\..\..\packages\NUnit.3.5.0\lib\net45\nunit.framework.dll</HintPath>
-      <Private>True</Private>
+    <Reference Include="nunit.framework, Version=3.10.0.0, Culture=neutral, PublicKeyToken=2638cd05610744eb, processorArchitecture=MSIL">
+      <HintPath>..\..\..\packages\NUnit.3.10.0-dev-05190\lib\net45\nunit.framework.dll</HintPath>
     </Reference>
-    <Reference Include="nunitlite, Version=3.5.0.0, Culture=neutral, PublicKeyToken=2638cd05610744eb, processorArchitecture=MSIL">
-      <SpecificVersion>False</SpecificVersion>
-      <HintPath>..\..\..\packages\NUnitLite.3.5.0\lib\net45\nunitlite.dll</HintPath>
-      <Private>True</Private>
+    <Reference Include="nunitlite, Version=3.10.0.0, Culture=neutral, PublicKeyToken=2638cd05610744eb, processorArchitecture=MSIL">
+      <HintPath>..\..\..\packages\NUnitLite.3.10.0-dev-05190\lib\net45\nunitlite.dll</HintPath>
     </Reference>
     <Reference Include="System" />
     <Reference Include="System.ServiceProcess" />
@@ -101,14 +93,18 @@
     <Compile Include="Tests\EnlistmentPerFixture\CloneTests.cs" />
     <Compile Include="Tests\EnlistmentPerFixture\DehydrateTests.cs" />
     <Compile Include="Tests\EnlistmentPerFixture\DiagnoseTests.cs" />
+    <Compile Include="Tests\EnlistmentPerFixture\GitCorruptObjectTests.cs" />
+    <Compile Include="Tests\EnlistmentPerFixture\PrefetchVerbWithoutSharedCacheTests.cs" />
     <Compile Include="Tests\GitCommands\AddStageTests.cs" />
+    <Compile Include="Tests\GitCommands\DeleteEmptyFolderTests.cs" />
+    <Compile Include="Tests\EnlistmentPerFixture\BasicFileSystemTests.cs" />
     <Compile Include="Tests\MultiEnlistmentTests\ServiceVerbTests.cs" />
     <Compile Include="Tests\MultiEnlistmentTests\SharedCacheTests.cs" />
     <Compile Include="Tests\EnlistmentPerTestCase\DiskLayoutUpgradeTests.cs" />
     <Compile Include="Tests\EnlistmentPerFixture\UnmountTests.cs" />
     <Compile Include="Tests\EnlistmentPerTestCase\RepairTests.cs" />
     <Compile Include="Tests\EnlistmentPerFixture\UpdatePlaceholderTests.cs" />
-    <Compile Include="Tests\EnlistmentPerTestCase\GVFSLockTests.cs" />
+    <Compile Include="Tests\EnlistmentPerFixture\GVFSLockTests.cs" />
     <Compile Include="Tests\GitCommands\CheckoutTests.cs" />
     <Compile Include="Tests\GitCommands\CherryPickConflictTests.cs" />
     <Compile Include="Tests\GitCommands\EnumerationMergeTest.cs" />
@@ -139,11 +135,8 @@
     <Compile Include="Tests\MultiEnlistmentTests\TestsWithMultiEnlistment.cs" />
     <Compile Include="Tests\TestResultsHelper.cs" />
     <Compile Include="Tests\EnlistmentPerFixture\GitMoveRenameTests.cs" />
-    <Compile Include="Tests\LongRunningEnlistment\MultithreadedReadWriteTests.cs" />
-    <Compile Include="Tests\LongRunningEnlistment\WorkingDirectoryTests.cs" />
-    <Compile Include="Tests\LongRunningEnlistment\GitReadAndGitLockTests.cs" />
-    <Compile Include="Tests\LongRunningEnlistment\LongRunningSetup.cs" />
-    <Compile Include="Tests\LongRunningEnlistment\TestsWithLongRunningEnlistment.cs" />
+    <Compile Include="Tests\EnlistmentPerFixture\MultithreadedReadWriteTests.cs" />
+    <Compile Include="Tests\EnlistmentPerFixture\GitReadAndGitLockTests.cs" />
     <Compile Include="Tests\EnlistmentPerFixture\WorkingDirectoryTests.cs" />
     <Compile Include="Tests\PrintTestCaseStats.cs" />
     <Compile Include="FileSystemRunners\BashRunner.cs" />
@@ -208,7 +201,6 @@
       <Name>GVFS.Tests</Name>
     </ProjectReference>
   </ItemGroup>
-  <ItemGroup />
   <Choose>
     <When Condition="'$(VisualStudioVersion)' == '10.0' And '$(IsCodedUITest)' == 'True'">
       <ItemGroup>
@@ -235,16 +227,17 @@
     </PropertyGroup>
     <Error Condition="!Exists('..\..\..\packages\StyleCop.MSBuild.4.7.54.0\build\StyleCop.MSBuild.Targets')" Text="$([System.String]::Format('$(ErrorText)', '..\..\..\packages\StyleCop.MSBuild.4.7.54.0\build\StyleCop.MSBuild.Targets'))" />
     <Error Condition="!Exists('..\..\..\packages\StyleCop.Error.MSBuild.1.0.0\build\StyleCop.Error.MSBuild.Targets')" Text="$([System.String]::Format('$(ErrorText)', '..\..\..\packages\StyleCop.Error.MSBuild.1.0.0\build\StyleCop.Error.MSBuild.Targets'))" />
+    <Error Condition="!Exists('..\..\..\packages\NUnit.3.10.0-dev-05190\build\NUnit.props')" Text="$([System.String]::Format('$(ErrorText)', '..\..\..\packages\NUnit.3.10.0-dev-05190\build\NUnit.props'))" />
   </Target>
   <Import Project="..\..\..\packages\StyleCop.MSBuild.4.7.54.0\build\StyleCop.MSBuild.Targets" Condition="Exists('..\..\..\packages\StyleCop.MSBuild.4.7.54.0\build\StyleCop.MSBuild.Targets')" />
   <Import Project="..\..\..\packages\StyleCop.Error.MSBuild.1.0.0\build\StyleCop.Error.MSBuild.Targets" Condition="Exists('..\..\..\packages\StyleCop.Error.MSBuild.1.0.0\build\StyleCop.Error.MSBuild.Targets')" />
   <PropertyGroup>
-    <PostBuildEvent>xcopy /Y $(SolutionDir)..\BuildOutput\GVFS\bin\$(Platform)\$(Configuration)\* $(TargetDir)
-xcopy /Y $(SolutionDir)..\BuildOutput\GVFS.Service\bin\$(Platform)\$(Configuration)\* $(TargetDir)
-xcopy /Y $(SolutionDir)..\BuildOutput\GVFS.Mount\bin\$(Platform)\$(Configuration)\* $(TargetDir)
-xcopy /Y $(SolutionDir)..\BuildOutput\FastFetch\bin\$(Platform)\$(Configuration)\* $(TargetDir)
-xcopy /Y $(SolutionDir)..\BuildOutput\GVFS.NativeTests\bin\$(Platform)\$(Configuration)\* $(TargetDir)
-xcopy /Y $(SolutionDir)..\BuildOutput\GVFS.Hooks\bin\$(Platform)\$(Configuration)\* $(TargetDir)</PostBuildEvent>
+    <PostBuildEvent>xcopy /Y $(BuildOutputDir)\GVFS\bin\$(Platform)\$(Configuration)\* $(TargetDir)
+xcopy /Y $(BuildOutputDir)\GVFS.Service\bin\$(Platform)\$(Configuration)\* $(TargetDir)
+xcopy /Y $(BuildOutputDir)\GVFS.Mount\bin\$(Platform)\$(Configuration)\* $(TargetDir)
+xcopy /Y $(BuildOutputDir)\FastFetch\bin\$(Platform)\$(Configuration)\* $(TargetDir)
+xcopy /Y $(BuildOutputDir)\GVFS.NativeTests\bin\$(Platform)\$(Configuration)\* $(TargetDir)
+xcopy /Y $(BuildOutputDir)\GVFS.Hooks\bin\$(Platform)\$(Configuration)\* $(TargetDir)</PostBuildEvent>
   </PropertyGroup>
   <PropertyGroup>
     <PreBuildEvent>

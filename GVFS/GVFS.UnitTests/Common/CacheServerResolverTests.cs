@@ -14,10 +14,6 @@ namespace GVFS.UnitTests.Common
         private const string CacheServerUrl = "https://cache/server";
         private const string CacheServerName = "TestCacheServer";
 
-        private const string NoneFriendlyName = "None";
-        private const string DefaultFriendlyName = "Default";
-        private const string UserDefinedFriendlyName = "User Defined";
-
         [TestCase]
         public void CanGetCacheServerFromNewConfig()
         {
@@ -79,7 +75,22 @@ namespace GVFS.UnitTests.Common
             CacheServerInfo resolvedCacheServer = resolver.ResolveNameFromRemote(CustomUrl, this.CreateGVFSConfig());
 
             resolvedCacheServer.Url.ShouldEqual(CustomUrl);
-            resolvedCacheServer.Name.ShouldEqual(UserDefinedFriendlyName);
+            resolvedCacheServer.Name.ShouldEqual(CacheServerInfo.ReservedNames.UserDefined);
+        }
+
+        [TestCase]
+        public void CanResolveUrlAsRepoUrl()
+        {
+            MockEnlistment enlistment = this.CreateEnlistment();
+            CacheServerResolver resolver = this.CreateResolver(enlistment);
+
+            this.ValidateIsNone(enlistment, resolver.ResolveNameFromRemote(enlistment.RepoUrl, this.CreateGVFSConfig()));
+            this.ValidateIsNone(enlistment, resolver.ResolveNameFromRemote(enlistment.RepoUrl + "/", this.CreateGVFSConfig()));
+            this.ValidateIsNone(enlistment, resolver.ResolveNameFromRemote(enlistment.RepoUrl + "//", this.CreateGVFSConfig()));
+            this.ValidateIsNone(enlistment, resolver.ResolveNameFromRemote(enlistment.RepoUrl.ToUpper(), this.CreateGVFSConfig()));
+            this.ValidateIsNone(enlistment, resolver.ResolveNameFromRemote(enlistment.RepoUrl.ToUpper() + "/", this.CreateGVFSConfig()));
+            this.ValidateIsNone(enlistment, resolver.ResolveNameFromRemote(enlistment.RepoUrl.ToLower(), this.CreateGVFSConfig()));
+            this.ValidateIsNone(enlistment, resolver.ResolveNameFromRemote(enlistment.RepoUrl.ToLower() + "/", this.CreateGVFSConfig()));
         }
 
         [TestCase]
@@ -89,7 +100,7 @@ namespace GVFS.UnitTests.Common
             CacheServerInfo parsedCacheServer = resolver.ParseUrlOrFriendlyName(CacheServerUrl);
 
             parsedCacheServer.Url.ShouldEqual(CacheServerUrl);
-            parsedCacheServer.Name.ShouldEqual(null);
+            parsedCacheServer.Name.ShouldEqual(CacheServerInfo.ReservedNames.UserDefined);
         }
 
         [TestCase]
@@ -109,7 +120,7 @@ namespace GVFS.UnitTests.Common
 
             CacheServerInfo parsedCacheServer = resolver.ParseUrlOrFriendlyName(null);
             parsedCacheServer.Url.ShouldEqual(null);
-            parsedCacheServer.Name.ShouldEqual(DefaultFriendlyName);
+            parsedCacheServer.Name.ShouldEqual(CacheServerInfo.ReservedNames.Default);
 
             CacheServerInfo resolvedCacheServer;
             string error;
@@ -125,32 +136,29 @@ namespace GVFS.UnitTests.Common
             MockEnlistment enlistment = this.CreateEnlistment();
             CacheServerResolver resolver = this.CreateResolver(enlistment);
 
-            this.ValidateIsNone(enlistment, resolver.ParseUrlOrFriendlyName(NoneFriendlyName));
+            this.ValidateIsNone(enlistment, resolver.ParseUrlOrFriendlyName(CacheServerInfo.ReservedNames.None));
             this.ValidateIsNone(enlistment, resolver.ParseUrlOrFriendlyName(enlistment.RepoUrl));
+            this.ValidateIsNone(enlistment, resolver.ParseUrlOrFriendlyName(enlistment.RepoUrl));
+            this.ValidateIsNone(enlistment, resolver.ParseUrlOrFriendlyName(enlistment.RepoUrl + "/"));
+            this.ValidateIsNone(enlistment, resolver.ParseUrlOrFriendlyName(enlistment.RepoUrl + "//"));
+            this.ValidateIsNone(enlistment, resolver.ParseUrlOrFriendlyName(enlistment.RepoUrl.ToUpper()));
+            this.ValidateIsNone(enlistment, resolver.ParseUrlOrFriendlyName(enlistment.RepoUrl.ToUpper() + "/"));
+            this.ValidateIsNone(enlistment, resolver.ParseUrlOrFriendlyName(enlistment.RepoUrl.ToLower()));
+            this.ValidateIsNone(enlistment, resolver.ParseUrlOrFriendlyName(enlistment.RepoUrl.ToLower() + "/"));
 
             CacheServerInfo resolvedCacheServer;
             string error;
-            resolver.TryResolveUrlFromRemote(NoneFriendlyName, this.CreateGVFSConfig(), out resolvedCacheServer, out error)
+            resolver.TryResolveUrlFromRemote(CacheServerInfo.ReservedNames.None, this.CreateGVFSConfig(), out resolvedCacheServer, out error)
                 .ShouldEqual(false, "Should not succeed in resolving the name 'None'");
 
             resolvedCacheServer.ShouldEqual(null);
             error.ShouldNotBeNull();
         }
 
-        [TestCase]
-        public void HasResolvedName()
-        {
-            new CacheServerInfo(null, null).HasResolvedName().ShouldBeFalse();
-            new CacheServerInfo(null, CacheServerInfo.ReservedNames.None).HasResolvedName().ShouldBeFalse();
-            new CacheServerInfo(null, CacheServerInfo.ReservedNames.Default).HasResolvedName().ShouldBeFalse();
-            new CacheServerInfo(null, CacheServerInfo.ReservedNames.UserDefined).HasResolvedName().ShouldBeFalse();
-            new CacheServerInfo(null, "MyCacheServer").HasResolvedName().ShouldBeTrue();
-        }
-
         private void ValidateIsNone(Enlistment enlistment, CacheServerInfo cacheServer)
         {
             cacheServer.Url.ShouldEqual(enlistment.RepoUrl);
-            cacheServer.Name.ShouldEqual(NoneFriendlyName);
+            cacheServer.Name.ShouldEqual(CacheServerInfo.ReservedNames.None);
         }
 
         private MockEnlistment CreateEnlistment(string newConfigValue = null, string oldConfigValue = null)
@@ -160,7 +168,7 @@ namespace GVFS.UnitTests.Common
                 "config --local gvfs.cache-server", 
                 () => new GitProcess.Result(newConfigValue ?? string.Empty, string.Empty, newConfigValue != null ? GitProcess.Result.SuccessCode : GitProcess.Result.GenericFailureCode));
             gitProcess.SetExpectedCommandResult(
-                "config gvfs.mock:\\repourl.cache-server-url",
+                "config gvfs.mock:..repourl.cache-server-url",
                 () => new GitProcess.Result(oldConfigValue ?? string.Empty, string.Empty, oldConfigValue != null ? GitProcess.Result.SuccessCode : GitProcess.Result.GenericFailureCode));
 
             return new MockEnlistment(gitProcess);

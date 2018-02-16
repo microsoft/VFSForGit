@@ -1,77 +1,40 @@
-﻿using System;
+﻿using System.ComponentModel;
 using System.IO;
-using System.Linq;
 
 namespace GVFS.Common
 {
-    public static class Paths
+    public static partial class Paths
     {
-        public static string GetGVFSEnlistmentRoot(string directory)
+        public static bool TryGetPathRoot(string path, out string pathRoot, out string errorMessage)
         {
-            return GetRoot(directory, GVFSConstants.DotGVFS.Root);
-        }
-
-        public static string GetGitEnlistmentRoot(string directory)
-        {
-            return GetRoot(directory, GVFSConstants.DotGit.Root);
-        }
-
-        public static string GetNamedPipeName(string enlistmentRoot)
-        {
-            return "GVFS_" + enlistmentRoot.ToUpper().Replace(':', '_');
-        }
-
-        public static string GetServiceDataRoot(string serviceName)
-        {
-            return Path.Combine(
-                Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData, Environment.SpecialFolderOption.Create),
-                "GVFS",
-                serviceName);
-        }
-
-        public static string GetServiceLogsPath(string serviceName)
-        { 
-            return Path.Combine(GetServiceDataRoot(serviceName), "Logs");
-        }
-
-        private static string GetRoot(string startingDirectory, string rootName)
-        {
-            startingDirectory = startingDirectory.TrimEnd(GVFSConstants.PathSeparator);
-            DirectoryInfo dirInfo;
-
+            pathRoot = null;
+            errorMessage = null;
+            string finalPathName = null;
             try
             {
-                dirInfo = new DirectoryInfo(startingDirectory);
-            }
-            catch (Exception)
-            {
-                return null;
-            }
-
-            while (dirInfo != null)
-            {
-                if (dirInfo.Exists)
+                // The folder might not be on disk yet, walk up the path until we find a folder that's on disk
+                string parentPath = path;
+                while (!string.IsNullOrWhiteSpace(parentPath) && !Directory.Exists(parentPath))
                 {
-                    DirectoryInfo[] dotGVFSDirs = new DirectoryInfo[0];
-
-                    try
-                    {
-                        dotGVFSDirs = dirInfo.GetDirectories(rootName);
-                    }
-                    catch (IOException)
-                    {
-                    }
-
-                    if (dotGVFSDirs.Count() == 1)
-                    {
-                        return dirInfo.FullName;
-                    }
+                    parentPath = Path.GetDirectoryName(parentPath);
                 }
 
-                dirInfo = dirInfo.Parent;
+                if (string.IsNullOrWhiteSpace(parentPath))
+                {
+                    errorMessage = "Could not get path root. Specified path does not exist and unable to find ancestor of path on disk";
+                    return false;
+                }
+
+                finalPathName = NativeMethods.GetFinalPathName(parentPath);
+            }
+            catch (Win32Exception e)
+            {
+                errorMessage = "Could not get path root. Failed to determine volume: " + e.Message;
+                return false;
             }
 
-            return null;
+            pathRoot = Path.GetPathRoot(finalPathName);
+            return true;
         }
     }
 }

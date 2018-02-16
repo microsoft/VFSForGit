@@ -10,11 +10,11 @@ namespace GVFS.Common
     {
         public static bool TryAcquireGVFSLockForProcess(
             bool unattended,
-            NamedPipeClient pipeClient, 
-            string fullCommand, 
-            int pid, 
+            NamedPipeClient pipeClient,
+            string fullCommand,
+            int pid,
             bool isElevated,
-            Process parentProcess, 
+            Process parentProcess,
             string gvfsEnlistmentRoot,
             out string result)
         {
@@ -25,67 +25,72 @@ namespace GVFS.Common
 
             NamedPipeMessages.AcquireLock.Response response = new NamedPipeMessages.AcquireLock.Response(pipeClient.ReadResponse());
 
-            if (response.Result == NamedPipeMessages.AcquireLock.AcceptResult)
+            string message = string.Empty;
+            switch (response.Result)
             {
-                result = null;
-                return true;
+                case NamedPipeMessages.AcquireLock.AcceptResult:
+                    result = null;
+                    return true;
+
+                case NamedPipeMessages.AcquireLock.MountNotReadyResult:
+                    result = "GVFS has not finished initializing, please wait a few seconds and try again.";
+                    return false;
+
+                case NamedPipeMessages.AcquireLock.UnmountInProgressResult:
+                    result = "GVFS is unmounting.";
+                    return false;
+
+                case NamedPipeMessages.AcquireLock.DenyGVFSResult:
+                    message = response.DenyGVFSMessage;
+                    break;
+
+                case NamedPipeMessages.AcquireLock.DenyGitResult:
+                    message = string.Format("Waiting for '{0}' to release the lock", response.ResponseData.ParsedCommand);
+                    break;
+
+                default:
+                    result = "Error when acquiring the lock. Unrecognized response: " + response.CreateMessage();
+                    return false;
             }
-            else if (response.Result == NamedPipeMessages.AcquireLock.MountNotReadyResult)
+
+            Func<bool> waitForLock =
+                () =>
+                {
+                    while (true)
+                    {
+                        Thread.Sleep(250);
+                        pipeClient.SendRequest(requestMessage);
+                        response = new NamedPipeMessages.AcquireLock.Response(pipeClient.ReadResponse());
+                        switch (response.Result)
+                        {
+                            case NamedPipeMessages.AcquireLock.AcceptResult:
+                                return true;
+
+                            case NamedPipeMessages.AcquireLock.UnmountInProgressResult:
+                                return false;
+
+                            default:
+                                break;
+                        }
+                    }
+                };
+
+            if (unattended)
             {
-                result = "GVFS has not finished initializing, please wait a few seconds and try again.";
-                return false;
+                waitForLock();
             }
             else
             {
-                string message = string.Empty;
-                switch (response.Result)
-                {
-                    case NamedPipeMessages.AcquireLock.AcceptResult:
-                        break;
-
-                    case NamedPipeMessages.AcquireLock.DenyGVFSResult:
-                        message = "Waiting for GVFS to release the lock";
-                        break;
-
-                    case NamedPipeMessages.AcquireLock.DenyGitResult:
-                        message = string.Format("Waiting for '{0}' to release the lock", response.ResponseData.ParsedCommand);
-                        break;
-
-                    default:
-                        result = "Error when acquiring the lock. Unrecognized response: " + response.CreateMessage();
-                        return false;
-                }
-
-                Func<bool> waitForLock =
-                    () =>
-                    {
-                        while (response.Result != NamedPipeMessages.AcquireLock.AcceptResult)
-                        {
-                            Thread.Sleep(250);
-                            pipeClient.SendRequest(requestMessage);
-                            response = new NamedPipeMessages.AcquireLock.Response(pipeClient.ReadResponse());
-                        }
-
-                        return true;
-                    };
-
-                if (unattended)
-                {
-                    waitForLock();
-                }
-                else
-                {
-                    ConsoleHelper.ShowStatusWhileRunning(
-                        waitForLock,
-                        message,
-                        output: Console.Out,
-                        showSpinner: !ConsoleHelper.IsConsoleOutputRedirectedToFile(),
-                        gvfsLogEnlistmentRoot: gvfsEnlistmentRoot);
-                }
-
-                result = null;
-                return true;
+                ConsoleHelper.ShowStatusWhileRunning(
+                    waitForLock,
+                    message,
+                    output: Console.Out,
+                    showSpinner: !ConsoleHelper.IsConsoleOutputRedirectedToFile(),
+                    gvfsLogEnlistmentRoot: gvfsEnlistmentRoot);
             }
+
+            result = null;
+            return true;
         }
 
         public static void ReleaseGVFSLock(

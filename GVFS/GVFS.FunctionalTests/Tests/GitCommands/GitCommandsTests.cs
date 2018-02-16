@@ -775,22 +775,6 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
         }
 
         [TestCase]
-        public void ResetMixedTwiceThenCheckout()
-        {
-            this.ValidateGitCommand("checkout -b tests/functional/ResetMixedTwice");
-
-            // A folder rename occured between ab438d5782f6ef9584769362a9877c23eb2d970e and 
-            // the subsequent commit 1973ec15b70273d8d46448bf842b4973b7402255
-            this.ValidateGitCommand("reset --mixed 60d19c87328120d11618ad563c396044a50985b2");
-            this.ValidateGitCommand("reset --mixed 99fc72275f950b0052c8548bbcf83a851f2b4467");
-
-            // This test will fail if the checkout get the GVFS lock before the BG thread
-            // because the always_exclude will not be updated and the GVFS repo will not warn
-            // of untracked files that would be overwritten by the checkout.
-            this.ValidateGitCommand("checkout " + this.ControlGitRepo.Commitish);
-        }
-
-        [TestCase]
         public void ResetHardAfterCreate()
         {
             this.ValidateGitCommand("checkout -b tests/functional/ResetHardAfterCreate");
@@ -1027,26 +1011,6 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
         }
 
         [TestCase]
-        public void VerifyResetHardDeletesEmptyFolders()
-        {
-            this.SetupFolderDeleteTest();
-
-            this.RunGitCommand("reset --hard HEAD");
-            this.Enlistment.RepoRoot.ShouldBeADirectory(this.FileSystem)
-                .WithDeepStructure(this.FileSystem, this.ControlGitRepo.RootPath, skipEmptyDirectories: false);
-        }
-
-        [TestCase]
-        public void VerifyCleanDeletesEmptyFolders()
-        {
-            this.SetupFolderDeleteTest();
-
-            this.RunGitCommand("clean -fd");
-            this.Enlistment.RepoRoot.ShouldBeADirectory(this.FileSystem)
-                .WithDeepStructure(this.FileSystem, this.ControlGitRepo.RootPath, skipEmptyDirectories: false);
-        }
-
-        [TestCase]
         public void UpdateIndexCannotModifySkipWorktreeBit()
         {
             ProcessResult result = GitHelpers.InvokeGitAgainstGVFSRepo(this.Enlistment.RepoRoot, "update-index --skip-worktree Readme.md");
@@ -1060,15 +1024,6 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
         public void BlameTest()
         {
             this.ValidateGitCommand("blame Readme.md");
-        }
-
-        private void SetupFolderDeleteTest()
-        {
-            ControlGitRepo.Fetch("FunctionalTests/20170202_RenameTestMergeTarget");
-            this.ValidateGitCommand("checkout FunctionalTests/20170202_RenameTestMergeTarget");
-            this.DeleteFile("Test_EPF_GitCommandsTestOnlyFileFolder\\file.txt");
-            this.ValidateGitCommand("add .");
-            this.RunGitCommand("commit -m\"Delete only file.\"");
         }
 
         private void BasicCommit(Action fileSystemAction, string addCommand, [CallerMemberName]string test = GitCommandsTests.UnknownTestName)

@@ -21,6 +21,7 @@ namespace GVFS.CommandLine.DiskLayoutUpgrades
             new DiskLayout8to9Upgrade(),
             new DiskLayout9to10Upgrade(),
             new DiskLayout10to11Upgrade(),
+            new DiskLayout11to12Upgrade(),
         }.ToDictionary(
             upgrader => upgrader.SourceLayoutVersion, 
             upgrader => upgrader);
@@ -278,7 +279,7 @@ namespace GVFS.CommandLine.DiskLayoutUpgrades
                     EventLevel.Informational,
                     Keywords.Any);
 
-                tracer.WriteStartEvent(enlistmentRoot, repoUrl: "N/A", cacheServerUrl: "N/A", gitObjectsRoot: "N/A");
+                tracer.WriteStartEvent(enlistmentRoot, repoUrl: "N/A", cacheServerUrl: "N/A");
             }
         }
     }

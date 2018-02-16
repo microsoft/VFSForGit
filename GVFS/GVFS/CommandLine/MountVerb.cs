@@ -45,6 +45,8 @@ namespace GVFS.CommandLine
 
         public bool SkipMountedCheck { get; set; }
         public bool SkipVersionCheck { get; set; }
+        public CacheServerInfo ResolvedCacheServer { get; set; }
+        public GVFSConfig DownloadedGVFSConfig { get; set; }
 
         protected override string VerbName
         {
@@ -98,16 +100,11 @@ namespace GVFS.CommandLine
                 this.ReportErrorAndExit("Error installing hooks: " + errorMessage);
             }
 
-            if (!enlistment.TryConfigureAlternate(out errorMessage))
-            {
-                this.ReportErrorAndExit("Error configuring alternate: " + errorMessage);
-            }
-
-            CacheServerInfo cacheServer = CacheServerResolver.GetCacheServerFromConfig(enlistment);
-
             string mountExeLocation = null;
             using (JsonEtwTracer tracer = new JsonEtwTracer(GVFSConstants.GVFSEtwProviderName, "PreMount"))
             {
+                CacheServerInfo cacheServer = this.ResolvedCacheServer ?? CacheServerResolver.GetCacheServerFromConfig(enlistment);
+
                 tracer.AddLogFileEventListener(
                     GVFSEnlistment.GetNewGVFSLogFileName(enlistment.GVFSLogsRoot, GVFSConstants.LogFileTypes.MountVerb),
                     EventLevel.Verbose,
@@ -116,13 +113,12 @@ namespace GVFS.CommandLine
                     enlistment.EnlistmentRoot,
                     enlistment.RepoUrl,
                     cacheServer.Url,
-                    enlistment.GitObjectsRoot,
                     new EventMetadata
                     {
                         { "Unattended", this.Unattended },
                         { "IsElevated", ProcessHelper.IsAdminElevated() },
                     });
-
+                
                 // TODO 1050199: Once the service is an optional component, GVFS should only attempt to attach
                 // GvFlt via the service if the service is present\enabled
                 if (!GvFltFilter.TryAttach(tracer, enlistment.EnlistmentRoot, out errorMessage))
@@ -135,8 +131,8 @@ namespace GVFS.CommandLine
                     }
                 }
 
-                this.CheckAntiVirusExclusion(tracer, enlistment.EnlistmentRoot);
-
+                RetryConfig retryConfig = null;
+                GVFSConfig gvfsConfig = this.DownloadedGVFSConfig;
                 if (!this.SkipVersionCheck)
                 {
                     string authErrorMessage = null;
@@ -148,8 +144,15 @@ namespace GVFS.CommandLine
                         this.Output.WriteLine("    Mount will proceed, but new files cannot be accessed until GVFS can authenticate.");
                     }
 
-                    RetryConfig retryConfig = this.GetRetryConfig(tracer, enlistment);
-                    GVFSConfig gvfsConfig = this.QueryGVFSConfig(tracer, enlistment, retryConfig);
+                    if (gvfsConfig == null)
+                    {
+                        if (retryConfig == null)
+                        {
+                            retryConfig = this.GetRetryConfig(tracer, enlistment);
+                        }
+
+                        gvfsConfig = this.QueryGVFSConfig(tracer, enlistment, retryConfig);
+                    }
 
                     this.ValidateClientVersions(tracer, enlistment, gvfsConfig, showWarnings: true);
 
@@ -157,6 +160,8 @@ namespace GVFS.CommandLine
                     cacheServer = cacheServerResolver.ResolveNameFromRemote(cacheServer.Url, gvfsConfig);
                     this.Output.WriteLine("Configured cache server: " + cacheServer);
                 }
+
+                this.InitializeLocalCacheAndObjectsPaths(tracer, enlistment, retryConfig, gvfsConfig, cacheServer);
 
                 if (!this.ShowStatusWhileRunning(
                     () => { return this.PerformPreMountValidation(tracer, enlistment, out mountExeLocation, out errorMessage); },
@@ -276,129 +281,6 @@ namespace GVFS.CommandLine
                     errorMessage = "Unable to communicate with GVFS.Service: " + e.ToString();
                     return false;
                 }
-            }
-        }
-
-        private bool ExcludeFromAntiVirusThroughService(string path, out string errorMessage)
-        {
-            errorMessage = string.Empty;
-
-            NamedPipeMessages.ExcludeFromAntiVirusRequest request = new NamedPipeMessages.ExcludeFromAntiVirusRequest();
-            request.ExclusionPath = path;
-
-            using (NamedPipeClient client = new NamedPipeClient(this.ServicePipeName))
-            {
-                if (!client.Connect())
-                {
-                    errorMessage = "Unable to exclude from antivirus because GVFS.Service is not responding. " + GVFSVerb.StartServiceInstructions;
-                    return false;
-                }
-
-                try
-                {
-                    client.SendRequest(request.ToMessage());
-                    NamedPipeMessages.Message response = client.ReadResponse();
-                    if (response.Header == NamedPipeMessages.ExcludeFromAntiVirusRequest.Response.Header)
-                    {
-                        NamedPipeMessages.ExcludeFromAntiVirusRequest.Response message = NamedPipeMessages.ExcludeFromAntiVirusRequest.Response.FromMessage(response);
-
-                        if (!string.IsNullOrEmpty(message.ErrorMessage))
-                        {
-                            errorMessage = message.ErrorMessage;
-                            return false;
-                        }
-
-                        return message.State == NamedPipeMessages.CompletionState.Success;
-                    }
-                    else
-                    {
-                        errorMessage = string.Format("GVFS.Service responded with unexpected message: {0}", response);
-                        return false;
-                    }
-                }
-                catch (BrokenPipeException e)
-                {
-                    errorMessage = "Unable to communicate with GVFS.Service: " + e.ToString();
-                    return false;
-                }
-            }
-        }
-
-        private void CheckAntiVirusExclusion(ITracer tracer, string path)
-        {
-            bool isExcluded;
-            string getError;
-            if (AntiVirusExclusions.TryGetIsPathExcluded(path, out isExcluded, out getError))
-            {
-                if (!isExcluded)
-                {
-                    if (ProcessHelper.IsAdminElevated())
-                    {
-                        string addError;
-                        if (AntiVirusExclusions.AddAntiVirusExclusion(path, out addError))
-                        {
-                            addError = string.Empty;
-                            if (!AntiVirusExclusions.TryGetIsPathExcluded(path, out isExcluded, out getError))
-                            {
-                                EventMetadata metadata = new EventMetadata();
-                                metadata.Add("getError", getError);
-                                metadata.Add("path", path);
-                                tracer.RelatedWarning(metadata, "CheckAntiVirusExclusion: Failed to determine if path excluded after adding it");
-                            }
-                        }
-                        else
-                        {
-                            EventMetadata metadata = new EventMetadata();
-                            metadata.Add("addError", addError);
-                            metadata.Add("path", path);
-                            tracer.RelatedWarning(metadata, "CheckAntiVirusExclusion: AddAntiVirusExclusion failed");
-                        }
-                    }
-                    else
-                    {
-                        EventMetadata metadata = new EventMetadata();
-                        metadata.Add("path", path);
-                        metadata.Add(TracingConstants.MessageKey.InfoMessage, "CheckAntiVirusExclusion: Skipping call to AddAntiVirusExclusion, GVFS is not running with elevation");
-                        tracer.RelatedEvent(EventLevel.Informational, "CheckAntiVirusExclusion_SkipLocalAdd", metadata);
-                    }
-                }                
-            }
-            else
-            {
-                EventMetadata metadata = new EventMetadata();
-                metadata.Add("getError", getError);
-                metadata.Add("path", path);
-                tracer.RelatedWarning(metadata, "CheckAntiVirusExclusion: Failed to determine if path excluded");
-            }
-
-            string errorMessage = null;
-            if (!isExcluded && !this.Unattended)
-            {
-                if (this.ShowStatusWhileRunning(
-                    () => { return this.ExcludeFromAntiVirusThroughService(path, out errorMessage); },
-                    string.Format("Excluding '{0}' from antivirus", path)))
-                {
-                    isExcluded = true;
-                }
-                else
-                {
-                    EventMetadata metadata = new EventMetadata();
-                    metadata.Add("errorMessage", errorMessage);
-                    metadata.Add("path", path);
-                    tracer.RelatedWarning(metadata, "CheckAntiVirusExclusion: Failed to exclude path through service");
-                }
-            }
-
-            if (!isExcluded)
-            {
-                this.Output.WriteLine();
-                this.Output.WriteLine("WARNING: Unable to ensure that '{0}' is excluded from antivirus", path);
-                if (!string.IsNullOrEmpty(errorMessage))
-                {
-                    this.Output.WriteLine(errorMessage);
-                }
-                
-                this.Output.WriteLine();
             }
         }
 

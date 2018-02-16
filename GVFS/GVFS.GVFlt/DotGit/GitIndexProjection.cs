@@ -212,7 +212,9 @@ namespace GVFS.GVFlt.DotGit
                 this.context.FileSystem,
                 this.context.Tracer,
                 Path.Combine(this.context.Enlistment.WorkingDirectoryRoot, GVFSConstants.DotGit.Index + GVFSConstants.DotGit.LockExtension),
-                "GVFS");
+                "GVFS",
+                cleanupStaleLock: true,
+                overwriteExistingLock: false);
 
             this.background = backgroundQueue;
 
@@ -255,7 +257,7 @@ namespace GVFS.GVFlt.DotGit
             this.backgroundThread = Task.Factory.StartNew((Action)this.ParseIndexThreadMain, TaskCreationOptions.LongRunning);            
         }
 
-        public void Shutdown()
+        public virtual void Shutdown()
         {
             this.isStopping = true;
             this.wakeUpThread.Set();
@@ -1017,8 +1019,8 @@ namespace GVFS.GVFlt.DotGit
 
         private void SetProjectionAndPlaceholdersAndOffsetsAsInvalid()
         {
-            this.SetProjectionInvalid(true);
-            this.repoMetadata.SetPlaceholdersNeedUpdate(true);
+            this.projectionInvalid = true;
+            this.repoMetadata.SetProjectionInvalidAndPlaceholdersNeedUpdate();
 
             this.offsetsInvalid = true;
         }
@@ -1229,7 +1231,7 @@ namespace GVFS.GVFlt.DotGit
         private FileOrFolderData GetProjectedFileOrFolderData(string childName, string parentKey, bool populateSize)
         {
             string gitCasedChildName;
-            return this.GetProjectedFileOrFolderData(childName, parentKey, populateSize, new CancellationToken(canceled: false), out gitCasedChildName);
+            return this.GetProjectedFileOrFolderData(childName, parentKey, populateSize, CancellationToken.None, out gitCasedChildName);
         }
 
         /// <summary>

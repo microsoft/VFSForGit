@@ -654,14 +654,52 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
             }
         }
 
+        [TestCase]
+        public void ResetMixedTwiceThenCheckoutWithChanges()
+        {
+            this.ControlGitRepo.Fetch("FunctionalTests/20171219_MultipleFileEdits");
+
+            this.ValidateGitCommand("checkout 2cea00f61ad600e03c35bfb8db73e4cd5827552f");
+            this.ValidateGitCommand("checkout -b tests/functional/ResetMixedTwice");
+
+            // Between the original commit 2cea00f61ad600e03c35bfb8db73e4cd5827552f and the second reset
+            // 437910d00a04aba7672fb011f72bc2acd92ec043, several files are changed, but none are added or
+            // removed.  The middle commit 0782e6e03604316a37049a6aaea5368ff582a727 includes a variety
+            // of changes including a renamed folder and new and removed files.  The final checkout is
+            // expected to error on changed files only.
+            this.ValidateGitCommand("reset --mixed 0782e6e03604316a37049a6aaea5368ff582a727");
+            this.ValidateGitCommand("reset --mixed 437910d00a04aba7672fb011f72bc2acd92ec043");
+
+            this.ValidateGitCommand("checkout " + this.ControlGitRepo.Commitish);
+        }
+
+        [TestCase]
+        public void ResetMixedTwiceThenCheckoutWithRemovedFiles()
+        {
+            this.ControlGitRepo.Fetch("FunctionalTests/20180102_MultipleFileDeletes");
+
+            this.ValidateGitCommand("checkout d0ffd18c85e2f7aea967d9ea0287ab2677df2067");
+            this.ValidateGitCommand("checkout -b tests/functional/ResetMixedTwice");
+
+            // Between the original commit d0ffd18c85e2f7aea967d9ea0287ab2677df2067 and the second reset
+            // da8aaf4cd4d13677b2a71d04d4f3c7290a8ea0da, several files are removed, but none are changed.
+            // The middle commit 95de01c9d5fb413b65d8ba097ed5aecf35477515 includes a variety of changes
+            // including a renamed folder as well as new, removed and changed files.  The final checkout
+            // is expected to error on untracked (new) files only.
+            this.ValidateGitCommand("reset --mixed 95de01c9d5fb413b65d8ba097ed5aecf35477515");
+            this.ValidateGitCommand("reset --mixed da8aaf4cd4d13677b2a71d04d4f3c7290a8ea0da");
+
+            this.ValidateGitCommand("checkout " + this.ControlGitRepo.Commitish);
+        }
+
         [DllImport("kernel32.dll", SetLastError = true, CharSet = CharSet.Unicode)]
         private static extern SafeFileHandle CreateFile(
             [In] string fileName,
             [MarshalAs(UnmanagedType.U4)] NativeFileAccess desiredAccess,
             FileShare shareMode,
             [In] IntPtr securityAttributes,
-            [MarshalAs(UnmanagedType.U4)]FileMode creationDisposition,
-            [MarshalAs(UnmanagedType.U4)]NativeFileAttributes flagsAndAttributes,
+            [MarshalAs(UnmanagedType.U4)] FileMode creationDisposition,
+            [MarshalAs(UnmanagedType.U4)] NativeFileAttributes flagsAndAttributes,
             [In] IntPtr templateFile);
     }
 }

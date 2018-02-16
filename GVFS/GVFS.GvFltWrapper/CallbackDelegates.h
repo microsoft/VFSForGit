@@ -185,7 +185,7 @@ namespace GvLib
     /// desiredAccess, shareMode, createDisposition, createOptions and ioStatusBlock parameters -
     /// https://msdn.microsoft.com/en-us/library/bb432380(v=vs.85).aspx
     /// </remarks>
-    public delegate void NotifyPostCreateHandleOnlyEvent(
+    public delegate void NotifyFileOpenedEvent(
         System::String^ relativePath,
 		bool isDirectory,
         unsigned long desiredAccess,
@@ -215,7 +215,7 @@ namespace GvLib
     /// desiredAccess, shareMode, createDisposition, createOptions and ioStatusBlock parameters -
     /// https://msdn.microsoft.com/en-us/library/bb432380(v=vs.85).aspx
     /// </remarks>
-    public delegate void NotifyPostCreateNewFileEvent(
+    public delegate void NotifyNewFileCreatedEvent(
         System::String^ relativePath,
         bool isDirectory,
         unsigned long desiredAccess,
@@ -244,7 +244,7 @@ namespace GvLib
     /// desiredAccess, shareMode, createDisposition, createOptions and ioStatusBlock parameters -
     /// https://msdn.microsoft.com/en-us/library/bb432380(v=vs.85).aspx
     /// </remarks>
-    public delegate void NotifyPostCreateOverwrittenOrSupersededEvent(
+    public delegate void NotifyFileSupersededOrOverwrittenEvent(
         System::String^ relativePath,
         bool isDirectory,
         unsigned long desiredAccess,
@@ -351,7 +351,7 @@ namespace GvLib
     ///
     /// #define FILE_RETURNS_CLEANUP_RESULT_INFO    0x00000200  // winnt
     /// </remarks>
-    public delegate void NotifyFileHandleClosedOnlyEvent(
+    public delegate void NotifyFileHandleClosedNoModificationEvent(
         System::String^ relativePath,
         bool isDirectory);
 
@@ -372,7 +372,7 @@ namespace GvLib
     ///
     /// #define FILE_RETURNS_CLEANUP_RESULT_INFO    0x00000200  // winnt
     /// </remarks>
-    public delegate void NotifyFileHandleClosedModifiedOrDeletedEvent(
+    public delegate void NotifyFileHandleClosedFileModifiedOrDeletedEvent(
         System::String^ relativePath,        
         bool isDirectory,
         bool isFileModified,

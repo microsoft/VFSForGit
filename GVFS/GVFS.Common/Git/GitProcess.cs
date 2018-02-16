@@ -286,9 +286,9 @@ namespace GVFS.Common.Git
                 null);
         }
 
-        public Result IndexPack(string packfilePath)
+        public Result IndexPack(string packfilePath, string idxOutputPath)
         {
-            return this.InvokeGitAgainstDotGitFolder("index-pack \"" + packfilePath + "\"");
+            return this.InvokeGitAgainstDotGitFolder($"index-pack -o \"{idxOutputPath}\" \"{packfilePath}\"");
         }
 
         public Result RemoteAdd(string remoteName, string url)

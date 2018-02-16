@@ -10,7 +10,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerTestCase
     [TestFixture]
     public class DiskLayoutUpgradeTests : TestsWithEnlistmentPerTestCase
     {
-        private const int CurrentDiskLayoutVersion = 11;
+        private const int CurrentDiskLayoutVersion = 12;
         private FileSystemRunner fileSystem = new SystemIORunner();
 
         [TestCase]
@@ -90,6 +90,38 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerTestCase
             esentDatabasePath.ShouldBeADirectory(this.fileSystem);
         }
 
+        [TestCase]
+        public void MountSetsGitObjectsRootToLegacyDotGVFSCache()
+        {
+            this.Enlistment.UnmountGVFS();
+
+            // Delete the existing repo metadata
+            string versionJsonPath = Path.Combine(this.Enlistment.DotGVFSRoot, GVFSHelpers.RepoMetadataName);
+            versionJsonPath.ShouldBeAFile(this.fileSystem);
+            this.fileSystem.DeleteFile(versionJsonPath);
+
+            // "11" was the last version before the introduction of a volume wide GVFS cache
+            string metadataPath = Path.Combine(this.Enlistment.DotGVFSRoot, GVFSHelpers.RepoMetadataName);
+            this.fileSystem.CreateEmptyFile(metadataPath);
+            GVFSHelpers.SaveDiskLayoutVersion(this.Enlistment.DotGVFSRoot, "11");
+
+            // Create the legacy cache location: <root>\.gvfs\gitObjectCache
+            string legacyGitObjectsCachePath = Path.Combine(this.Enlistment.DotGVFSRoot, "gitObjectCache");
+            this.fileSystem.CreateDirectory(legacyGitObjectsCachePath);
+
+            this.Enlistment.MountGVFS();
+
+            GVFSHelpers.GetPersistedDiskLayoutVersion(this.Enlistment.DotGVFSRoot)
+                .ShouldBeAnInt("Disk layout version should always be an int")
+                .ShouldEqual(CurrentDiskLayoutVersion, "Disk layout version should be upgraded to the latest");
+
+            GVFSHelpers.GetPersistedLocalCacheRoot(this.Enlistment.DotGVFSRoot)
+                .ShouldEqual(string.Empty, "LocalCacheRoot should be an empty string when upgrading from a version prior to 12");
+
+            GVFSHelpers.GetPersistedGitObjectsRoot(this.Enlistment.DotGVFSRoot)
+                .ShouldEqual(legacyGitObjectsCachePath);
+        }
+
         private void RunEsentRepoMetadataUpgradeTest(string sourceVersion)
         {
             this.Enlistment.UnmountGVFS();
@@ -111,6 +143,17 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerTestCase
             GVFSHelpers.GetPersistedDiskLayoutVersion(this.Enlistment.DotGVFSRoot)
                 .ShouldBeAnInt("Disk layout version should always be an int")
                 .ShouldEqual(CurrentDiskLayoutVersion, "Disk layout version should be upgraded to the latest");
+
+            GVFSHelpers.GetPersistedLocalCacheRoot(this.Enlistment.DotGVFSRoot)
+                .ShouldEqual(string.Empty, "LocalCacheRoot should be an empty string when upgrading from a version prior to 12");
+
+            // We're starting with fresh enlisments, and so the legacy cache location: <root>\.gvfs\gitObjectCache should not be on disk
+            Path.Combine(this.Enlistment.DotGVFSRoot, @".gvfs\gitObjectCache").ShouldNotExistOnDisk(this.fileSystem);
+
+            // The upgrader should set GitObjectsRoot to src\.git\objects (because the legacy cache location is not on disk)
+            GVFSHelpers.GetPersistedGitObjectsRoot(this.Enlistment.DotGVFSRoot)
+                .ShouldNotBeNull("GitObjectsRoot should not be null")
+                .ShouldEqual(Path.Combine(this.Enlistment.RepoRoot, @".git\objects"));
         }
     }
 }

@@ -23,6 +23,13 @@ namespace GVFS.UnitTests.Common
         private const string TestEntry = "A {\"Key\":\"akey\",\"Value\":\"avalue\"}\r\n";
         private const string UpdatedTestEntry = "A {\"Key\":\"akey\",\"Value\":\"avalue2\"}\r\n";
 
+        private const string TestKey2 = "bkey";
+        private const string TestValue2 = "bvalue";
+        private const string UpdatedTestValue2 = "bvalue2";
+
+        private const string TestEntry2 = "A {\"Key\":\"bkey\",\"Value\":\"bvalue\"}\r\n";
+        private const string UpdatedTestEntry2 = "A {\"Key\":\"bkey\",\"Value\":\"bvalue2\"}\r\n";
+
         [TestCase]
         public void ParsesExistingDataCorrectly()
         {
@@ -42,6 +49,81 @@ namespace GVFS.UnitTests.Common
             dut.SetValueAndFlush(TestKey, TestValue);
 
             fs.ExpectedFiles[MockEntryFileName].ReadAsString().ShouldEqual(TestEntry);
+        }
+
+        [TestCase]
+        public void SetValuesAndFlushWritesEntriesToDisk()
+        {
+            FileBasedDictionaryFileSystem fs = new FileBasedDictionaryFileSystem();
+            FileBasedDictionary<string, string> dut = CreateFileBasedDictionary(fs, string.Empty);
+            dut.SetValuesAndFlush(
+                new[] 
+                {
+                    new KeyValuePair<string, string>(TestKey, TestValue),
+                    new KeyValuePair<string, string>(TestKey2, TestValue2),
+                });
+
+            fs.ExpectedFiles[MockEntryFileName].ReadAsString().ShouldEqual(TestEntry + TestEntry2);
+        }
+
+        [TestCase]
+        public void SetValuesAndFlushWritesNewEntryAndUpdatesExistingEntryOnDisk()
+        {
+            FileBasedDictionaryFileSystem fs = new FileBasedDictionaryFileSystem();
+            FileBasedDictionary<string, string> dut = CreateFileBasedDictionary(fs, string.Empty);
+
+            // Add TestKey to disk
+            dut.SetValueAndFlush(TestKey, TestValue);
+            fs.ExpectedFiles[MockEntryFileName].ReadAsString().ShouldEqual(TestEntry);
+
+            // This call to SetValuesAndFlush should update TestKey and write TestKey2
+            dut.SetValuesAndFlush(
+                new[]
+                {
+                    new KeyValuePair<string, string>(TestKey, UpdatedTestValue),
+                    new KeyValuePair<string, string>(TestKey2, TestValue2),
+                });
+
+            fs.ExpectedFiles[MockEntryFileName].ReadAsString().ShouldEqual(UpdatedTestEntry + TestEntry2);
+        }
+
+        [TestCase]
+        public void SetValuesAndFlushWritesUpdatesExistingEntriesOnDisk()
+        {
+            FileBasedDictionaryFileSystem fs = new FileBasedDictionaryFileSystem();
+            FileBasedDictionary<string, string> dut = CreateFileBasedDictionary(fs, string.Empty);
+
+            dut.SetValuesAndFlush(
+                new[] 
+                {
+                    new KeyValuePair<string, string>(TestKey, TestValue),
+                    new KeyValuePair<string, string>(TestKey2, TestValue2),
+                });
+            fs.ExpectedFiles[MockEntryFileName].ReadAsString().ShouldEqual(TestEntry + TestEntry2);
+
+            dut.SetValuesAndFlush(
+                new[]
+                {
+                    new KeyValuePair<string, string>(TestKey, UpdatedTestValue),
+                    new KeyValuePair<string, string>(TestKey2, UpdatedTestValue2),
+                });
+
+            fs.ExpectedFiles[MockEntryFileName].ReadAsString().ShouldEqual(UpdatedTestEntry + UpdatedTestEntry2);
+        }
+
+        [TestCase]
+        public void SetValuesAndFlushUsesLastValueWhenKeyDuplicated()
+        {
+            FileBasedDictionaryFileSystem fs = new FileBasedDictionaryFileSystem();
+            FileBasedDictionary<string, string> dut = CreateFileBasedDictionary(fs, string.Empty);
+
+            dut.SetValuesAndFlush(
+                new[]
+                {
+                    new KeyValuePair<string, string>(TestKey, TestValue),
+                    new KeyValuePair<string, string>(TestKey, UpdatedTestValue),
+                });
+            fs.ExpectedFiles[MockEntryFileName].ReadAsString().ShouldEqual(UpdatedTestEntry);
         }
 
         [TestCase]
@@ -284,7 +366,7 @@ namespace GVFS.UnitTests.Common
                 this.ExpectedFiles[destinationFilename] = source;
             }
 
-            public override Stream OpenFileStream(string path, FileMode fileMode, FileAccess fileAccess, FileShare shareMode, FileOptions options)
+            public override Stream OpenFileStream(string path, FileMode fileMode, FileAccess fileAccess, FileShare shareMode, FileOptions options, bool flushesToDisk)
             {
                 ReusableMemoryStream stream;
                 this.ExpectedOpenFileStreams.TryGetValue(path, out stream).ShouldEqual(true, "Unexpected access of file: " + path);

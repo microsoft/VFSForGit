@@ -2,7 +2,6 @@
 using GVFS.Common.FileSystem;
 using GVFS.Common.Git;
 using GVFS.Common.NamedPipes;
-using GVFS.Common.NetworkStreams;
 using GVFS.Common.Tracing;
 using GVFS.GVFlt.DotGit;
 using GvLib;
@@ -54,6 +53,9 @@ namespace GVFS.GVFlt
         private GVFSContext context;
         private RepoMetadata repoMetadata;
         private FileProperties logsHeadFileProperties;
+        
+        private BlockingCollection<FileOrNetworkRequest> fileAndNetworkRequests;
+        private Thread[] fileAndNetworkWorkerThreads;
 
         public GVFltCallbacks(GVFSContext context, GVFSGitObjects gitObjects, RepoMetadata repoMetadata)
             : this(
@@ -93,7 +95,7 @@ namespace GVFS.GVFlt
 
             this.blobSizes = blobSizes;
 
-            this.gvfsGitObjects = gitObjects;
+            this.gvfsGitObjects = gitObjects;            
 
             string error;
             PlaceholderListDatabase placeholders;
@@ -125,6 +127,8 @@ namespace GVFS.GVFlt
 
             this.logsHeadPath = Path.Combine(this.context.Enlistment.WorkingDirectoryRoot, GVFSConstants.DotGit.Logs.Head);
             this.placeHolderCreationCount = new ConcurrentDictionary<string, PlaceHolderCreateCounter>(StringComparer.OrdinalIgnoreCase);
+
+            this.fileAndNetworkRequests = new BlockingCollection<FileOrNetworkRequest>();
             this.activeCommands = new ConcurrentDictionary<int, CancellationTokenSource>();
 
             EventMetadata metadata = new EventMetadata();
@@ -193,9 +197,33 @@ namespace GVFS.GVFlt
             return this.background.Count;
         }
 
-        public bool IsReadyForExternalAcquireLockRequests()
+        public bool IsReadyForExternalAcquireLockRequests(NamedPipeMessages.LockData requester, out string denyMessage)
         {
-            return this.isMountComplete && this.GetBackgroundOperationCount() == 0 && this.gitIndexProjection.IsProjectionParseComplete();
+            if (!this.isMountComplete)
+            {
+                denyMessage = "Waiting for mount to complete";
+                return false;
+            }
+
+            if (this.GetBackgroundOperationCount() != 0)
+            {
+                denyMessage = "Waiting for background operations to complete and for GVFS to release the lock";
+                return false;
+            }
+
+            if (!this.gitIndexProjection.IsProjectionParseComplete())
+            {
+                denyMessage = "Waiting for GVFS to parse index and update placeholder files";
+                return false;
+            }
+
+            // Even though we're returning true and saying it's safe to ask for the lock
+            // there is no guarantee that the lock will be acquired, because GVFS itself
+            // could obtain the lock before the external holder gets it. Setting up an 
+            // appropriate error message in case that happens
+            denyMessage = "Waiting for GVFS to release the lock";
+
+            return true;
         }
 
         public bool TryStart(out string error)
@@ -214,16 +242,16 @@ namespace GVFS.GVFlt
             this.gvflt.OnGetFileStream = this.GVFltGetFileStreamHandler;
             this.gvflt.OnNotifyFirstWrite = this.GVFltNotifyFirstWriteHandler;
 
-            this.gvflt.OnNotifyPostCreateHandleOnly = null;
-            this.gvflt.OnNotifyPostCreateNewFile = this.GVFltNotifyPostCreateNewFileHandler;
-            this.gvflt.OnNotifyPostCreateOverwrittenOrSuperseded = this.GVFltNotifyPostCreateOverwrittenOrSupersededHandler;
+            this.gvflt.OnNotifyFileOpened = null;
+            this.gvflt.OnNotifyNewFileCreated = this.GVFltNotifyNewFileCreatedHandler;
+            this.gvflt.OnNotifyFileSupersededOrOverwritten = this.GVFltNotifyFileSupersededOrOverwrittenHandler;
             this.gvflt.OnNotifyPreDelete = this.GVFltNotifyPreDeleteHandler;
             this.gvflt.OnNotifyPreRename = this.GvFltNotifyPreRenameHandler;
             this.gvflt.OnNotifyPreSetHardlink = null;
             this.gvflt.OnNotifyFileRenamed = this.GVFltNotifyFileRenamedHandler;
             this.gvflt.OnNotifyHardlinkCreated = null;
-            this.gvflt.OnNotifyFileHandleClosedOnly = null;
-            this.gvflt.OnNotifyFileHandleClosedModifiedOrDeleted = this.GVFltNotifyFileHandleClosedModifiedOrDeletedHandler;
+            this.gvflt.OnNotifyFileHandleClosedNoModification = null;
+            this.gvflt.OnNotifyFileHandleClosedFileModifiedOrDeleted = this.GVFltNotifyFileHandleClosedFileModifiedOrDeletedHandler;
 
             this.gvflt.OnCancelCommand = this.GVFltCancelCommandHandler;
 
@@ -232,22 +260,30 @@ namespace GVFS.GVFlt
             uint logicalBytesPerSector = 0;
             uint writeBufferAlignment = 0;
 
-            NotificationType globalNotificationMask =
-                Notifications.DotGitFolder |
-                Notifications.IndexFile |
-                Notifications.IndexLockFile |
-                Notifications.LogsHeadFile |
-                Notifications.FilesInWorkingFolder |
-                Notifications.FoldersInWorkingFolder;
+            List<NotificationMapping> notificationMappings = new List<NotificationMapping>()
+            {
+                new NotificationMapping(Notifications.FilesInWorkingFolder | Notifications.FoldersInWorkingFolder, string.Empty),
+                new NotificationMapping(NotificationType.None, GVFSConstants.DotGit.Root),
+                new NotificationMapping(Notifications.IndexFile, GVFSConstants.DotGit.Index),
+                new NotificationMapping(Notifications.LogsHeadFile, GVFSConstants.DotGit.Logs.Head),
+            };
+
+            this.fileAndNetworkWorkerThreads = new Thread[Environment.ProcessorCount];
+            for (int i = 0; i < this.fileAndNetworkWorkerThreads.Length; ++i)
+            {
+                this.fileAndNetworkWorkerThreads[i] = new Thread(this.ExecuteFileOrNetworkRequest);
+                this.fileAndNetworkWorkerThreads[i].IsBackground = true;
+                this.fileAndNetworkWorkerThreads[i].Start();
+            }
 
             // We currently use twice as many threads as connections to allow for 
             // non-network operations to possibly succeed despite the connection limit
-            HResult result = this.gvflt.StartVirtualizationInstance(
+            HResult result = this.gvflt.StartVirtualizationInstanceEx(
                 this.context.Enlistment.WorkingDirectoryRoot,
                 poolThreadCount: threadCount,
                 concurrentThreadCount: threadCount,
                 enableNegativePathCache: true,
-                globalNotificationMask: globalNotificationMask,
+                notificationMappings: notificationMappings,
                 logicalBytesPerSector: ref logicalBytesPerSector,
                 writeBufferAlignment: ref writeBufferAlignment);
 
@@ -281,8 +317,12 @@ namespace GVFS.GVFlt
         {
             lock (this.stopLock)
             {
-                // Stop the background thread first since some of its operations might require that the GVFlt
-                // Virtualization Instance still be present
+                this.fileAndNetworkRequests.CompleteAdding();
+                foreach (Thread t in this.fileAndNetworkWorkerThreads)
+                {
+                    t.Join();
+                }
+
                 this.background.Shutdown();
                 this.gitIndexProjection.Shutdown();
 
@@ -290,7 +330,6 @@ namespace GVFS.GVFlt
                 {
                     this.gvflt.StopVirtualizationInstance();
                     this.gvflt.DetachDriver();
-                    Console.WriteLine("GVFlt callbacks stopped");
                     this.gvfltIsStarted = false;
                 }
             }
@@ -343,6 +382,12 @@ namespace GVFS.GVFlt
                     this.blobSizes = null;
                 }
 
+                if (this.fileAndNetworkRequests != null)
+                {
+                    this.fileAndNetworkRequests.Dispose();
+                    this.fileAndNetworkRequests = null;
+                }
+
                 if (this.gitIndexProjection != null)
                 {
                     this.gitIndexProjection.Dispose();
@@ -360,6 +405,23 @@ namespace GVFS.GVFlt
                     this.context.Dispose();
                     this.context = null;
                 }
+            }
+        }
+
+        private static void StreamCopyBlockTo(Stream input, Stream destination, long numBytes, byte[] buffer)
+        {
+            int read;
+            while (numBytes > 0)
+            {
+                int bytesToRead = Math.Min(buffer.Length, (int)numBytes);
+                read = input.Read(buffer, 0, bytesToRead);
+                if (read <= 0)
+                {
+                    break;
+                }
+
+                destination.Write(buffer, 0, read);
+                numBytes -= read;
             }
         }
 
@@ -484,16 +546,31 @@ namespace GVFS.GVFlt
                     this.context.Tracer.RelatedWarning(metadata, nameof(this.GVFltStartDirectoryEnumerationHandler) + ": Failed to register command");
                 }
 
-                Task.Run(
+                FileOrNetworkRequest startDirectoryEnumerationHandler = new FileOrNetworkRequest(
                     () => this.GVFltStartDirectoryEnumerationAsyncHandler(
                         cancellationSource.Token,
                         commandId,
                         enumerationId,
                         virtualPath),
-                    cancellationSource.Token).ContinueWith((result) =>
-                    {
-                        cancellationSource.Dispose();
-                    });
+                    () => cancellationSource.Dispose());
+
+                try
+                {
+                    this.fileAndNetworkRequests.Add(startDirectoryEnumerationHandler);
+                }
+                catch (InvalidOperationException e)
+                {
+                    // Attempted to call Add after CompleteAdding has been called
+
+                    EventMetadata metadata = this.CreateEventMetadata(virtualPath, e);
+                    metadata.Add("commandId", commandId);
+                    metadata.Add(TracingConstants.MessageKey.WarningMessage, nameof(this.GVFltStartDirectoryEnumerationHandler) + ": Failed to schedule async handler");
+                    this.context.Tracer.RelatedEvent(EventLevel.Warning, nameof(this.GVFltStartDirectoryEnumerationHandler) + "_FailedToScheduleAsyncHandler", metadata);
+
+                    cancellationSource.Dispose();
+
+                    return NtStatus.DeviceNotReady;
+                }
             }
             catch (Exception e)
             {
@@ -813,7 +890,7 @@ namespace GVFS.GVFlt
                     this.context.Tracer.RelatedWarning(metadata, nameof(this.GVFltGetPlaceholderInformationHandler) + ": Failed to register command");
                 }
 
-                Task.Run(
+                FileOrNetworkRequest getPlaceholderInformationHandler = new FileOrNetworkRequest(
                     () => this.GVFltGetPlaceholderInformationAsyncHandler(
                         cancellationSource.Token,
                         commandId,
@@ -824,10 +901,31 @@ namespace GVFS.GVFlt
                         createOptions,
                         triggeringProcessId,
                         triggeringProcessImageFileName),
-                    cancellationSource.Token).ContinueWith((result) =>
-                    {
-                        cancellationSource.Dispose();
-                    });
+                    () => cancellationSource.Dispose());
+
+                try
+                {
+                    this.fileAndNetworkRequests.Add(getPlaceholderInformationHandler);
+                }
+                catch (InvalidOperationException e)
+                {
+                    // Attempted to call Add after CompleteAdding has been called
+
+                    EventMetadata metadata = this.CreateEventMetadata(virtualPath, e);
+                    metadata.Add("commandId", commandId);
+                    metadata.Add("desiredAccess", desiredAccess);
+                    metadata.Add("shareMode", shareMode);
+                    metadata.Add("createDisposition", createDisposition);
+                    metadata.Add("createOptions", createOptions);
+                    metadata.Add("triggeringProcessId", triggeringProcessId);
+                    metadata.Add("triggeringProcessImageFileName", triggeringProcessImageFileName);
+                    metadata.Add(TracingConstants.MessageKey.WarningMessage, nameof(this.GVFltGetPlaceholderInformationHandler) + ": Failed to schedule async handler");
+                    this.context.Tracer.RelatedEvent(EventLevel.Warning, nameof(this.GVFltGetPlaceholderInformationHandler) + "_FailedToScheduleAsyncHandler", metadata);
+
+                    cancellationSource.Dispose();
+
+                    return NtStatus.DeviceNotReady;
+                }
             }
             catch (Exception e)
             {
@@ -1059,10 +1157,10 @@ namespace GVFS.GVFlt
                 if (!this.TryRegisterCommand(commandId, out cancellationSource))
                 {
                     metadata.Add(TracingConstants.MessageKey.WarningMessage, nameof(this.GVFltGetFileStreamHandler) + ": Failed to register command");
-                    this.context.Tracer.RelatedEvent(EventLevel.Warning, nameof(this.GVFltGetFileStreamHandler) + "_FailedToRegisterCommand", metadata);
+                    activity.RelatedEvent(EventLevel.Warning, nameof(this.GVFltGetFileStreamHandler) + "_FailedToRegisterCommand", metadata);
                 }
 
-                Task.Run(
+                FileOrNetworkRequest getFileStreamHandler = new FileOrNetworkRequest(
                     () => this.GVFltGetFileStreamHandlerAsyncHandler(
                         cancellationSource.Token,
                         commandId,
@@ -1071,11 +1169,29 @@ namespace GVFS.GVFlt
                         sha,
                         metadata,
                         activity),
-                    cancellationSource.Token).ContinueWith((result) =>
+                    () =>
                     {
                         activity.Dispose();
                         cancellationSource.Dispose();
                     });
+
+                try
+                {
+                    this.fileAndNetworkRequests.Add(getFileStreamHandler);
+                }
+                catch (InvalidOperationException e)
+                {
+                    // Attempted to call Add after CompleteAdding has been called
+
+                    metadata.Add("Exception", e.ToString());
+                    metadata.Add(TracingConstants.MessageKey.WarningMessage, nameof(this.GVFltGetFileStreamHandler) + ": Failed to schedule async handler");
+                    activity.RelatedEvent(EventLevel.Warning, nameof(this.GVFltGetFileStreamHandler) + "_FailedToScheduleAsyncHandler", metadata);
+
+                    activity.Dispose();
+                    cancellationSource.Dispose();
+
+                    return NtStatus.DeviceNotReady;
+                }
             }
             catch (Exception e)
             {
@@ -1112,6 +1228,7 @@ namespace GVFS.GVFlt
                 if (!this.gvfsGitObjects.TryCopyBlobContentStream(
                     sha,
                     cancellationToken,
+                    GVFSGitObjects.RequestSource.FileStreamCallback,
                     (stream, blobLength) =>
                     {
                         if (blobLength != length)
@@ -1136,7 +1253,7 @@ namespace GVFS.GVFlt
                                 try
                                 {
                                     targetBuffer.Stream.Seek(0, SeekOrigin.Begin);
-                                    stream.CopyBlockTo(targetBuffer.Stream, bytesToCopy, buffer);
+                                    StreamCopyBlockTo(stream, targetBuffer.Stream, bytesToCopy, buffer);
                                 }
                                 catch (IOException e)
                                 {
@@ -1254,7 +1371,7 @@ namespace GVFS.GVFlt
             return NtStatus.Success;
         }
 
-        private void GVFltNotifyPostCreateNewFileHandler(
+        private void GVFltNotifyNewFileCreatedHandler(
             string virtualPath,
             bool isDirectory,
             uint desiredAccess,
@@ -1285,11 +1402,11 @@ namespace GVFS.GVFlt
                 metadata.Add("shareMode", shareMode);
                 metadata.Add("createDisposition", createDisposition);
                 metadata.Add("createOptions", createOptions);
-                this.LogUnhandledExceptionAndExit(nameof(this.GVFltNotifyPostCreateNewFileHandler), metadata);
+                this.LogUnhandledExceptionAndExit(nameof(this.GVFltNotifyNewFileCreatedHandler), metadata);
             }
         }
 
-        private void GVFltNotifyPostCreateOverwrittenOrSupersededHandler(
+        private void GVFltNotifyFileSupersededOrOverwrittenHandler(
             string virtualPath,
             bool isDirectory,
             uint desiredAccess,
@@ -1335,7 +1452,7 @@ namespace GVFS.GVFlt
                 metadata.Add("createDisposition", createDisposition);
                 metadata.Add("createOptions", createOptions);
                 metadata.Add("iostatusBlock", iostatusBlock);
-                this.LogUnhandledExceptionAndExit(nameof(this.GVFltNotifyPostCreateOverwrittenOrSupersededHandler), metadata);
+                this.LogUnhandledExceptionAndExit(nameof(this.GVFltNotifyFileSupersededOrOverwrittenHandler), metadata);
             }
         }
 
@@ -1445,7 +1562,7 @@ namespace GVFS.GVFlt
             }
         }
 
-        private void GVFltNotifyFileHandleClosedModifiedOrDeletedHandler(
+        private void GVFltNotifyFileHandleClosedFileModifiedOrDeletedHandler(
             string virtualPath, 
             bool isDirectory,
             bool isFileModified,
@@ -1478,7 +1595,7 @@ namespace GVFS.GVFlt
                 metadata.Add("isDirectory", isDirectory);
                 metadata.Add("isFileModified", isFileModified);
                 metadata.Add("isFileDeleted", isFileDeleted);
-                this.LogUnhandledExceptionAndExit(nameof(this.GVFltNotifyFileHandleClosedModifiedOrDeletedHandler), metadata);
+                this.LogUnhandledExceptionAndExit(nameof(this.GVFltNotifyFileHandleClosedFileModifiedOrDeletedHandler), metadata);
             }
         }        
 
@@ -1836,6 +1953,33 @@ namespace GVFS.GVFlt
             Environment.Exit(1);
         }
 
+        private void ExecuteFileOrNetworkRequest()
+        {
+            FileOrNetworkRequest request;
+            while (this.fileAndNetworkRequests.TryTake(out request, Timeout.Infinite))
+            {
+                try
+                {
+                    request.Work();
+                }
+                catch (Exception e)
+                {
+                    EventMetadata metadata = this.CreateEventMetadata(virtualPath: null, exception: e);
+                    this.LogUnhandledExceptionAndExit($"{nameof(this.ExecuteFileOrNetworkRequest)}_Work", metadata);
+                }
+
+                try
+                {
+                    request.Cleanup();
+                }
+                catch (Exception e)
+                {
+                    EventMetadata metadata = this.CreateEventMetadata(virtualPath: null, exception: e);
+                    this.LogUnhandledExceptionAndExit($"{nameof(this.ExecuteFileOrNetworkRequest)}_Cleanup", metadata);
+                }
+            }
+        }
+
         [Serializable]
         public struct BackgroundGitUpdate
         {
@@ -1980,32 +2124,48 @@ namespace GVFS.GVFlt
 
         private class Notifications
         {
-            public const NotificationType DotGitFolder = NotificationType.FileRenamed;
-
             public const NotificationType IndexFile =
+                NotificationType.PreRename |
                 NotificationType.PreDelete |
                 NotificationType.FileRenamed |
-                NotificationType.FileHandleClosedModified;
-
-            public const NotificationType IndexLockFile =
-                NotificationType.PreRename |
-                NotificationType.FileRenamed;
+                NotificationType.FileHandleClosedFileModified;
 
             public const NotificationType LogsHeadFile = 
                 NotificationType.FileRenamed | 
-                NotificationType.FileHandleClosedModified;
+                NotificationType.FileHandleClosedFileModified;
 
             public const NotificationType FilesInWorkingFolder =
-                NotificationType.PostCreateNewFile |
-                NotificationType.PostCreateOverwrittenOrSuperseded |
+                NotificationType.NewFileCreated |
+                NotificationType.FileSupersededOrOverwritten |
                 NotificationType.FileRenamed |
-                NotificationType.FileHandleClosedDeleted;
+                NotificationType.FileHandleClosedFileDeleted;
 
             public const NotificationType FoldersInWorkingFolder =
-                NotificationType.PostCreateNewFile |
+                NotificationType.NewFileCreated |
                 NotificationType.PreDelete |
                 NotificationType.FileRenamed |
-                NotificationType.FileHandleClosedDeleted;
+                NotificationType.FileHandleClosedFileDeleted;
+        }
+
+        /// <summary>
+        /// Request from GvFlt that requires file and\or network access (and hence
+        /// should be executed asynchronously).
+        /// </summary>
+        private class FileOrNetworkRequest
+        {
+            /// <summary>
+            /// FileOrNetworkRequest constructor 
+            /// </summary>
+            /// <param name="work">Action that requires file and\or network access</param>
+            /// <param name="cleanup">Cleanup action to take after performing work</param>
+            public FileOrNetworkRequest(Action work, Action cleanup)
+            {
+                this.Work = work;
+                this.Cleanup = cleanup;
+            }
+
+            public Action Work { get; }
+            public Action Cleanup { get; }
         }
     }
 }
