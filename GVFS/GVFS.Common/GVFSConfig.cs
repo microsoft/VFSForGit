@@ -1,6 +1,7 @@
 ﻿using GVFS.Common.Http;
 using System;
 using System.Collections.Generic;
+using System.Linq;
 
 namespace GVFS.Common
 {
@@ -8,7 +9,7 @@ namespace GVFS.Common
     {
         public IEnumerable<VersionRange> AllowedGVFSClientVersions { get; set; }
 
-        public IEnumerable<CacheServerInfo> CacheServers { get; set; }
+        public IEnumerable<CacheServerInfo> CacheServers { get; set; } = Enumerable.Empty<CacheServerInfo>();
 
         public class VersionRange
         {

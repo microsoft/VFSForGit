@@ -85,7 +85,23 @@ namespace GVFS.Mount
                 this.FailMountAndExit("Failed to determine local cache path from repo metadata: " + error);
             }
 
-            this.enlistment.InitializeLocalCacheAndObjectPaths(localCacheRoot, gitObjectsRoot);
+            string blobSizesRoot;
+            if (!RepoMetadata.Instance.TryGetBlobSizesRoot(out blobSizesRoot, out error))
+            {
+                this.FailMountAndExit("Failed to determine blob sizes root from repo metadata: " + error);
+            }
+
+            this.tracer.RelatedEvent(
+                EventLevel.Informational,
+                "CachePathsLoaded",
+                new EventMetadata
+                {
+                    { "gitObjectsRoot", gitObjectsRoot },
+                    { "localCacheRoot", localCacheRoot },
+                    { "blobSizesRoot", blobSizesRoot },
+                });
+
+            this.enlistment.InitializeCachePaths(localCacheRoot, gitObjectsRoot, blobSizesRoot);
 
             using (NamedPipeServer pipeServer = this.StartNamedPipe())
             {
@@ -314,7 +330,6 @@ namespace GVFS.Mount
         private void HandleLockRequest(string messageBody, NamedPipeServer.Connection connection)
         {
             NamedPipeMessages.AcquireLock.Response response;
-            NamedPipeMessages.LockData externalHolder;
 
             NamedPipeMessages.LockRequest request = new NamedPipeMessages.LockRequest(messageBody);
             NamedPipeMessages.LockData requester = request.RequestData;
@@ -338,18 +353,27 @@ namespace GVFS.Mount
             else
             {
                 bool lockAcquired = false;
-                string denyMessage;
-                if (this.gvfltCallbacks.IsReadyForExternalAcquireLockRequests(requester, out denyMessage))
+                bool lockAvailable = false;
+
+                NamedPipeMessages.LockData externalHolder = this.context.Repository.GVFSLock.GetExternalLockHolder();
+
+                string denyMessage = null;
+                if (externalHolder == null &&
+                    this.gvfltCallbacks.IsReadyForExternalAcquireLockRequests(requester, out denyMessage))
                 {
-                    lockAcquired = this.context.Repository.GVFSLock.TryAcquireLock(requester, out externalHolder);
-                }
-                else
-                {
-                    // There might be an external lock holder, and it should be reported to the user
-                    externalHolder = this.context.Repository.GVFSLock.GetExternalLockHolder();
+                    lockAvailable = this.context.Repository.GVFSLock.IsLockAvailable();
+
+                    if (!requester.CheckAvailabilityOnly)
+                    {
+                        lockAcquired = this.context.Repository.GVFSLock.TryAcquireLock(requester, out externalHolder);
+                    }
                 }
 
-                if (lockAcquired)
+                if (lockAvailable && requester.CheckAvailabilityOnly)
+                {
+                    response = new NamedPipeMessages.AcquireLock.Response(NamedPipeMessages.AcquireLock.AvailableResult);
+                }
+                else if (lockAcquired)
                 {
                     response = new NamedPipeMessages.AcquireLock.Response(NamedPipeMessages.AcquireLock.AcceptResult);
                 }
@@ -407,7 +431,7 @@ namespace GVFS.Mount
 
                     bool isBlob;
                     this.context.Repository.TryGetIsBlob(objectSha, out isBlob);
-                    this.context.Repository.GVFSLock.RecordObjectDownload(isBlob, downloadTime.ElapsedMilliseconds);
+                    this.context.Repository.GVFSLock.Stats.RecordObjectDownload(isBlob, downloadTime.ElapsedMilliseconds);
                 }
             }
 
@@ -511,18 +535,19 @@ namespace GVFS.Mount
             this.gitObjects = new GVFSGitObjects(this.context, objectRequestor);
             this.gvfltCallbacks = this.CreateOrReportAndExit(() => new GVFltCallbacks(this.context, this.gitObjects, RepoMetadata.Instance), "Failed to create src folder callbacks");
 
-            int persistedVersion;
-            if (!RepoMetadata.Instance.TryGetOnDiskLayoutVersion(out persistedVersion, out error))
+            int majorVersion;
+            int minorVersion;
+            if (!RepoMetadata.Instance.TryGetOnDiskLayoutVersion(out majorVersion, out minorVersion, out error))
             {
                 this.FailMountAndExit("Error: {0}", error);
             }
 
-            if (persistedVersion != RepoMetadata.DiskLayoutVersion.CurrentDiskLayoutVersion)
+            if (majorVersion != RepoMetadata.DiskLayoutVersion.CurrentMajorVersion)
             {
                 this.FailMountAndExit(
                     "Error: On disk version ({0}) does not match current version ({1})",
-                    persistedVersion,
-                    RepoMetadata.DiskLayoutVersion.CurrentDiskLayoutVersion);
+                    majorVersion,
+                    RepoMetadata.DiskLayoutVersion.CurrentMajorVersion);
             }
 
             try

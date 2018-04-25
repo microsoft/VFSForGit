@@ -133,6 +133,11 @@ namespace GVFS.Common.FileSystem
             }
         }
 
+        public virtual IEnumerable<string> EnumerateDirectories(string path)
+        {
+            return Directory.EnumerateDirectories(path);
+        }
+
         public virtual FileProperties GetFileProperties(string path)
         {
             FileInfo entry = new FileInfo(path);

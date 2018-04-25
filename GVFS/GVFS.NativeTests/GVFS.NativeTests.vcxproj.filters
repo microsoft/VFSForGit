@@ -55,9 +55,6 @@
     <ClInclude Include="include\TestVerifiers.h">
       <Filter>include</Filter>
     </ClInclude>
-    <ClInclude Include="include\gvlib_internal.h">
-      <Filter>include</Filter>
-    </ClInclude>
     <ClInclude Include="include\gvflt.h">
       <Filter>include</Filter>
     </ClInclude>
@@ -99,6 +96,9 @@
     </ClInclude>
     <ClInclude Include="FileUtils.h">
       <Filter>interface</Filter>
+    </ClInclude>
+    <ClInclude Include="include\prjlib_internal.h">
+      <Filter>include</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

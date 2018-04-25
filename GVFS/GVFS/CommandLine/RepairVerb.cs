@@ -1,10 +1,10 @@
 ﻿using CommandLine;
-using GVFS.CommandLine.DiskLayoutUpgrades;
-using GVFS.CommandLine.RepairJobs;
 using GVFS.Common;
 using GVFS.Common.Git;
 using GVFS.Common.NamedPipes;
 using GVFS.Common.Tracing;
+using GVFS.DiskLayoutUpgrades;
+using GVFS.RepairJobs;
 using Microsoft.Diagnostics.Tracing;
 using System.Collections.Generic;
 
@@ -39,7 +39,7 @@ namespace GVFS.CommandLine
         {
             this.ValidatePathParameter(this.EnlistmentRootPath);
 
-            string hooksPath = this.GetGVFSHooksPathAndCheckVersion(tracer: null);
+            string hooksPath = this.GetGVFSHooksPathAndCheckVersion(tracer: null, version: out _);
 
             GVFSEnlistment enlistment = GVFSEnlistment.CreateWithoutRepoUrlFromDirectory(
                 this.EnlistmentRootPath,

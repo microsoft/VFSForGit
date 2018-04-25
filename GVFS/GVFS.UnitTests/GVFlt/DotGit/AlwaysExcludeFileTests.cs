@@ -32,11 +32,11 @@ namespace GVFS.UnitTests.GVFlt.DotGit
             alwaysExcludeFile.LoadOrCreate();
             this.Repo.Context.FileSystem.FileExists(alwaysExcludeFilePath).ShouldEqual(true);
 
-            alwaysExcludeFile.AddEntriesForFile("a\\1.txt");
-            alwaysExcludeFile.AddEntriesForFile("a\\2.txt");
-            alwaysExcludeFile.AddEntriesForFile("a\\3.txt");
-            alwaysExcludeFile.AddEntriesForFile("a\\b\\1.txt");
-            alwaysExcludeFile.AddEntriesForFile("c\\1.txt");
+            alwaysExcludeFile.AddEntriesForPath("a\\1.txt");
+            alwaysExcludeFile.AddEntriesForPath("a\\2.txt");
+            alwaysExcludeFile.AddEntriesForPath("a\\3.txt");
+            alwaysExcludeFile.AddEntriesForPath("a\\b\\1.txt");
+            alwaysExcludeFile.AddEntriesForPath("c\\1.txt");
 
             List<string> expectedContents = new List<string>() { "*", "!/a/", "!/a/1.txt", "!/a/2.txt", "!/a/3.txt", "!/a/b/", "!/a/b/1.txt", "!/c/", "!/c/1.txt" };
             this.CheckFileContents(alwaysExcludeFilePath, expectedContents);
@@ -51,12 +51,12 @@ namespace GVFS.UnitTests.GVFlt.DotGit
             alwaysExcludeFile.LoadOrCreate();
             this.Repo.Context.FileSystem.FileExists(alwaysExcludeFilePath).ShouldEqual(true);
 
-            alwaysExcludeFile.AddEntriesForFile("a\\1.txt");
-            alwaysExcludeFile.AddEntriesForFile("A\\2.txt");
-            alwaysExcludeFile.AddEntriesForFile("a\\b\\1.txt");
-            alwaysExcludeFile.AddEntriesForFile("a\\B\\2.txt");
-            alwaysExcludeFile.AddEntriesForFile("A\\b\\3.txt");
-            alwaysExcludeFile.AddEntriesForFile("A\\B\\4.txt");
+            alwaysExcludeFile.AddEntriesForPath("a\\1.txt");
+            alwaysExcludeFile.AddEntriesForPath("A\\2.txt");
+            alwaysExcludeFile.AddEntriesForPath("a\\b\\1.txt");
+            alwaysExcludeFile.AddEntriesForPath("a\\B\\2.txt");
+            alwaysExcludeFile.AddEntriesForPath("A\\b\\3.txt");
+            alwaysExcludeFile.AddEntriesForPath("A\\B\\4.txt");
 
             List<string> expectedContents = new List<string>() { "*", "!/a/", "!/a/1.txt", "!/A/2.txt", "!/a/b/", "!/a/b/1.txt", "!/a/B/2.txt", "!/A/b/3.txt", "!/A/B/4.txt" };
             this.CheckFileContents(alwaysExcludeFilePath, expectedContents);
@@ -71,15 +71,15 @@ namespace GVFS.UnitTests.GVFlt.DotGit
             alwaysExcludeFile.LoadOrCreate();
             this.Repo.Context.FileSystem.FileExists(alwaysExcludeFilePath).ShouldEqual(true);
 
-            alwaysExcludeFile.AddEntriesForFile("a\\1.txt");
-            alwaysExcludeFile.AddEntriesForFile("a\\2.txt");
+            alwaysExcludeFile.AddEntriesForPath("a\\1.txt");
+            alwaysExcludeFile.AddEntriesForPath("a\\2.txt");
 
             List<string> expectedContents = new List<string>() { "*", "!/a/", "!/a/1.txt", "!/a/2.txt" };
             this.CheckFileContents(alwaysExcludeFilePath, expectedContents);
 
             alwaysExcludeFile = new AlwaysExcludeFile(this.Repo.Context, alwaysExcludeFilePath);
             alwaysExcludeFile.LoadOrCreate();
-            alwaysExcludeFile.AddEntriesForFile("a\\3.txt");
+            alwaysExcludeFile.AddEntriesForPath("a\\3.txt");
 
             expectedContents = new List<string>() { "*", "!/a/", "!/a/1.txt", "!/a/2.txt", "!/a/3.txt" };
             this.CheckFileContents(alwaysExcludeFilePath, expectedContents);
@@ -94,9 +94,9 @@ namespace GVFS.UnitTests.GVFlt.DotGit
             alwaysExcludeFile.LoadOrCreate();
             this.Repo.Context.FileSystem.FileExists(alwaysExcludeFilePath).ShouldEqual(true);
 
-            alwaysExcludeFile.AddEntriesForFile("a\\1.txt");
-            alwaysExcludeFile.AddEntriesForFile("a\\2.txt");
-            alwaysExcludeFile.RemoveEntriesForFiles(new List<string> { "a\\1.txt" });
+            alwaysExcludeFile.AddEntriesForPath("a\\1.txt");
+            alwaysExcludeFile.AddEntriesForPath("a\\2.txt");
+            alwaysExcludeFile.RemoveEntriesForFile("a\\1.txt");
             alwaysExcludeFile.FlushAndClose();
 
             List<string> expectedContents = new List<string>() { "*", "!/a/", "!/a/2.txt" };
@@ -112,10 +112,11 @@ namespace GVFS.UnitTests.GVFlt.DotGit
             alwaysExcludeFile.LoadOrCreate();
             this.Repo.Context.FileSystem.FileExists(alwaysExcludeFilePath).ShouldEqual(true);
 
-            alwaysExcludeFile.AddEntriesForFile("a\\x.txt");
-            alwaysExcludeFile.AddEntriesForFile("A\\y.txt");
-            alwaysExcludeFile.AddEntriesForFile("a\\Z.txt");
-            alwaysExcludeFile.RemoveEntriesForFiles(new List<string> { "a\\y.txt", "a\\z.txt" });
+            alwaysExcludeFile.AddEntriesForPath("a\\x.txt");
+            alwaysExcludeFile.AddEntriesForPath("A\\y.txt");
+            alwaysExcludeFile.AddEntriesForPath("a\\Z.txt");
+            alwaysExcludeFile.RemoveEntriesForFile("a\\y.txt");
+            alwaysExcludeFile.RemoveEntriesForFile("a\\z.txt");
             alwaysExcludeFile.FlushAndClose();
 
             List<string> expectedContents = new List<string>() { "*", "!/a/", "!/a/x.txt" };

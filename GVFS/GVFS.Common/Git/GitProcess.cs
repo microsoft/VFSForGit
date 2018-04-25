@@ -42,7 +42,7 @@ namespace GVFS.Common.Git
             {
                 throw new ArgumentNullException(nameof(enlistment));
             }
-            
+
             if (string.IsNullOrWhiteSpace(enlistment.GitBinPath))
             {
                 throw new ArgumentException(nameof(enlistment.GitBinPath));
@@ -79,14 +79,14 @@ namespace GVFS.Common.Git
 
         public static Result Init(Enlistment enlistment)
         {
-            return new GitProcess(enlistment).InvokeGitOutsideEnlistment("init " + enlistment.WorkingDirectoryRoot);
+            return new GitProcess(enlistment).InvokeGitOutsideEnlistment("init \"" + enlistment.WorkingDirectoryRoot + "\"");
         }
 
         public static Result Version(Enlistment enlistment)
         {
             return new GitProcess(enlistment).InvokeGitOutsideEnlistment("--version");
         }
-        
+
         public virtual void RevokeCredential()
         {
             this.InvokeGitOutsideEnlistment(
@@ -114,8 +114,8 @@ namespace GVFS.Common.Git
                 {
                     EventMetadata errorData = new EventMetadata();
                     tracer.RelatedWarning(
-                        errorData, 
-                        "Git could not get credentials: " + gitCredentialOutput.Errors, 
+                        errorData,
+                        "Git could not get credentials: " + gitCredentialOutput.Errors,
                         Keywords.Network | Keywords.Telemetry);
 
                     return false;
@@ -176,9 +176,10 @@ namespace GVFS.Common.Git
                  value));
         }
 
-        public bool TryGetAllLocalConfig(out Dictionary<string, GitConfigSetting> configSettings)
+        public bool TryGetAllConfig(bool localOnly, out Dictionary<string, GitConfigSetting> configSettings)
         {
-            Result result = this.InvokeGitAgainstDotGitFolder("config --list --local");
+            string localParameter = localOnly ? "--local" : string.Empty;
+            Result result = this.InvokeGitAgainstDotGitFolder("config --list " + localParameter);
             if (result.HasErrors)
             {
                 configSettings = null;
@@ -186,7 +187,6 @@ namespace GVFS.Common.Git
             }
 
             configSettings = GitConfigHelper.ParseKeyValues(result.Output);
-
             return true;
         }
 
@@ -195,7 +195,7 @@ namespace GVFS.Common.Git
         /// </summary>
         /// <param name="settingName">The name of the config setting</param>
         /// <param name="forceOutsideEnlistment">
-        /// If false, will run the call from inside the enlistment if the working dir found, 
+        /// If false, will run the call from inside the enlistment if the working dir found,
         /// otherwise it will run it from outside the enlistment.
         /// </param>
         /// <returns>The value found for the setting.</returns>
@@ -204,9 +204,9 @@ namespace GVFS.Common.Git
             string command = string.Format("config {0}", settingName);
 
             // This method is called at clone time, so the physical repo may not exist yet.
-            return 
+            return
                 this.fileSystem.DirectoryExists(this.enlistment.WorkingDirectoryRoot) && !forceOutsideEnlistment
-                    ? this.InvokeGitAgainstDotGitFolder(command) 
+                    ? this.InvokeGitAgainstDotGitFolder(command)
                     : this.InvokeGitOutsideEnlistment(command);
         }
 
@@ -220,7 +220,7 @@ namespace GVFS.Common.Git
         /// </summary>
         /// <param name="settingName">The name of the config setting</param>
         /// <param name="forceOutsideEnlistment">
-        /// If false, will run the call from inside the enlistment if the working dir found, 
+        /// If false, will run the call from inside the enlistment if the working dir found,
         /// otherwise it will run it from outside the enlistment.
         /// </param>
         /// <param value>The value found for the config setting.</param>
@@ -286,21 +286,60 @@ namespace GVFS.Common.Git
                 null);
         }
 
+        /// <summary>
+        /// Write a new commit graph in the specified pack directory. Crawl the given pack-
+        /// indexes for commits and then close under everything reachable or exists in the
+        /// previous graph file.
+        ///
+        /// This will update the graph-head file to point to the new commit graph and delete
+        /// any expired graph files that previously existed.
+        /// </summary>
+        public Result WriteCommitGraph(string objectDir, List<string> packs)
+        {
+            string command = "commit-graph write --stdin-packs --append --object-dir \"" + objectDir + "\"";
+            return this.InvokeGitInWorkingDirectoryRoot(
+                command,
+                useReadObjectHook: true,
+                writeStdIn: writer =>
+                {
+                    foreach (string packIndex in packs)
+                    {
+                        writer.WriteLine(packIndex);
+                    }
+
+                    // We need to close stdin or else the process will not terminate.
+                    writer.Close();
+                });
+        }
+
         public Result IndexPack(string packfilePath, string idxOutputPath)
         {
             return this.InvokeGitAgainstDotGitFolder($"index-pack -o \"{idxOutputPath}\" \"{packfilePath}\"");
+        }
+
+        /// <summary>
+        /// Write a new multi-pack-index (MIDX) in the specified pack directory.
+        /// 
+        /// This will update the midx-head file to point to the new MIDX file.
+        /// 
+        /// If no new packfiles are found, then this is a no-op.
+        /// </summary>
+        public Result WriteMultiPackIndex(string packDir)
+        {
+            // We override the config settings so we keep writing the MIDX file even if it is disabled for reads.
+            return this.InvokeGitAgainstDotGitFolder("-c core.midx=true midx --write --update-head --pack-dir \"" + packDir + "\"");
         }
 
         public Result RemoteAdd(string remoteName, string url)
         {
             return this.InvokeGitAgainstDotGitFolder("remote add " + remoteName + " " + url);
         }
-        
+
         public Result CatFileGetType(string objectId)
         {
             return this.InvokeGitAgainstDotGitFolder("cat-file -t " + objectId);
         }
-        
+
         public Result LsTree(string treeish, Action<string> parseStdOutLine, bool recursive, bool showAllTrees = false)
         {
             return this.InvokeGitAgainstDotGitFolder(
@@ -361,6 +400,7 @@ namespace GVFS.Common.Git
             }
 
             processInfo.EnvironmentVariables["GIT_TERMINAL_PROMPT"] = "0";
+            processInfo.EnvironmentVariables["GCM_VALIDATE"] = "0";
             processInfo.EnvironmentVariables["PATH"] =
                 string.Join(
                     ";",
@@ -502,14 +542,17 @@ namespace GVFS.Common.Git
         /// <summary>
         /// Invokes git.exe from an enlistment's repository root
         /// </summary>
-        private Result InvokeGitInWorkingDirectoryRoot(string command, bool useReadObjectHook)
+        private Result InvokeGitInWorkingDirectoryRoot(
+            string command,
+            bool useReadObjectHook,
+            Action<StreamWriter> writeStdIn = null)
         {
             return this.InvokeGitImpl(
                 command,
                 workingDirectory: this.enlistment.WorkingDirectoryRoot,
                 dotGitDirectory: null,
                 useReadObjectHook: useReadObjectHook,
-                writeStdIn: null,
+                writeStdIn: writeStdIn,
                 parseStdOutLine: null,
                 timeoutMs: -1);
         }

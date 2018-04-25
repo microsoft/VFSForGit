@@ -15,8 +15,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerTestCase
         [SetUp]
         public virtual void CreateEnlistment()
         {
-            string pathToGvfs = Path.Combine(TestContext.CurrentContext.TestDirectory, Properties.Settings.Default.PathToGVFS);
-            this.Enlistment = GVFSFunctionalTestEnlistment.CloneAndMount(pathToGvfs);
+            this.Enlistment = GVFSFunctionalTestEnlistment.CloneAndMount(GVFSTestConfig.PathToGVFS);
         }
 
         [TearDown]

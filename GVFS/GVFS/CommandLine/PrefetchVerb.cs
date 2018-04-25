@@ -28,7 +28,7 @@ namespace GVFS.CommandLine
         private static readonly int SearchThreadCount = Environment.ProcessorCount;
         private static readonly int DownloadThreadCount = Environment.ProcessorCount;
         private static readonly int IndexThreadCount = Environment.ProcessorCount;
-        
+
         [Option(
             "files",
             Required = false,
@@ -140,6 +140,7 @@ namespace GVFS.CommandLine
                     metadata.Add("Files", this.Files);
                     metadata.Add("Folders", this.Folders);
                     metadata.Add("FoldersListFile", this.FoldersListFile);
+                    metadata.Add("HydrateFiles", this.HydrateFiles);
                     tracer.RelatedEvent(EventLevel.Informational, "PerformPrefetch", metadata);
 
                     GitObjectsHttpRequestor objectRequestor = new GitObjectsHttpRequestor(tracer, enlistment, cacheServer, retryConfig);
@@ -235,20 +236,24 @@ namespace GVFS.CommandLine
         {
             bool success;
             string error = string.Empty;
+            PhysicalFileSystem fileSystem = new PhysicalFileSystem();
+            GitRepo repo = new GitRepo(tracer, enlistment, fileSystem);
+            GVFSContext context = new GVFSContext(tracer, fileSystem, repo, enlistment);
+            GitObjects gitObjects = new GVFSGitObjects(context, objectRequestor);
             if (this.Verbose)
             {
-                success = this.TryPrefetchCommitsAndTrees(tracer, enlistment, objectRequestor, out error);
+                success = this.TryPrefetchCommitsAndTrees(tracer, enlistment, fileSystem, gitObjects, out error);
             }
             else
             {
                 success = this.ShowStatusWhileRunning(
-                    () => { return this.TryPrefetchCommitsAndTrees(tracer, enlistment, objectRequestor, out error); },
+                    () => this.TryPrefetchCommitsAndTrees(tracer, enlistment, fileSystem, gitObjects, out error),
                     "Fetching commits and trees " + this.GetCacheServerDisplay(cacheServer));
             }
 
             if (!success)
             {
-                this.ReportErrorAndExit(tracer, "Prefetching commits and trees failed: " + error);                
+                this.ReportErrorAndExit(tracer, "Prefetching commits and trees failed: " + error);
             }
         }
 
@@ -282,14 +287,7 @@ namespace GVFS.CommandLine
 
             if (this.HydrateFiles)
             {
-                if (!ConsoleHelper.ShowStatusWhileRunning(
-                    () => this.Execute<StatusVerb>(
-                        this.EnlistmentRootPath,
-                        verb => verb.Output = new StreamWriter(new MemoryStream())) == ReturnCode.Success,
-                    "Checking that GVFS is mounted",
-                    this.Output,
-                    showSpinner: true,
-                    gvfsLogEnlistmentRoot: null))
+                if (!this.CheckIsMounted(verbose: true))
                 {
                     this.ReportErrorAndExit("You can only specify --hydrate if the repo is mounted. Run 'gvfs mount' and try again.");
                 }
@@ -362,14 +360,59 @@ namespace GVFS.CommandLine
             }
         }
 
-        private bool TryPrefetchCommitsAndTrees(ITracer tracer, GVFSEnlistment enlistment, GitObjectsHttpRequestor objectRequestor, out string error)
+        private bool CheckIsMounted(bool verbose)
         {
-            error = null;
-            PhysicalFileSystem fileSystem = new PhysicalFileSystem();
-            GitRepo repo = new GitRepo(tracer, enlistment, fileSystem);
-            GVFSContext context = new GVFSContext(tracer, fileSystem, repo, enlistment);
-            GitObjects gitObjects = new GVFSGitObjects(context, objectRequestor);
+            Func<bool> checkMount = () => this.Execute<StatusVerb>(
+                    this.EnlistmentRootPath,
+                    verb => verb.Output = new StreamWriter(new MemoryStream())) == ReturnCode.Success;
 
+            if (verbose)
+            {
+                return ConsoleHelper.ShowStatusWhileRunning(
+                    checkMount,
+                    "Checking that GVFS is mounted",
+                    this.Output,
+                    showSpinner: true,
+                    gvfsLogEnlistmentRoot: null);
+            }
+            else
+            {
+                return checkMount();
+            }
+        }
+
+        private bool TryPrefetchCommitsAndTrees(ITracer tracer, GVFSEnlistment enlistment, PhysicalFileSystem fileSystem, GitObjects gitObjects, out string error)
+        {
+            long maxGoodTimeStamp;
+            if (!this.TryGetMaxGoodPrefetchTimestamp(tracer, enlistment, fileSystem, gitObjects, out maxGoodTimeStamp, out error))
+            {
+                return false;
+            }
+
+            List<string> packIndexes;
+            if (!gitObjects.TryDownloadPrefetchPacks(maxGoodTimeStamp, out packIndexes))
+            {
+                error = "Failed to download prefetch packs";
+                return false;
+            }
+
+            if (!gitObjects.TryWriteMultiPackIndex(tracer, enlistment, fileSystem))
+            {
+                error = "Failed to generate midx for new packfiles";
+                return false;
+            }
+
+            return true;
+        }
+
+        private bool TryGetMaxGoodPrefetchTimestamp(
+            ITracer tracer,
+            GVFSEnlistment enlistment,
+            PhysicalFileSystem fileSystem,
+            GitObjects gitObjects,
+            out long maxGoodTimestamp,
+            out string error)
+        {
             gitObjects.DeleteStaleTempPrefetchPackAndIdxs();
 
             string[] packs = gitObjects.ReadPackFileNames(enlistment.GitPackRoot, GVFSConstants.PrefetchPackPrefix);
@@ -379,7 +422,8 @@ namespace GVFS.CommandLine
                 .OrderBy(packInfo => packInfo.Timestamp)
                 .ToList();
 
-            long maxGood = -1;
+            maxGoodTimestamp = -1;
+
             int firstBadPack = -1;
             for (int i = 0; i < orderedPacks.Count; ++i)
             {
@@ -403,7 +447,7 @@ namespace GVFS.CommandLine
                     }
                     else
                     {
-                        maxGood = timestamp;
+                        maxGoodTimestamp = timestamp;
 
                         metadata.Add(TracingConstants.MessageKey.InfoMessage, $"{nameof(this.TryPrefetchCommitsAndTrees)}: Found pack file that's missing idx file, and regenerated idx");
                         tracer.RelatedEvent(EventLevel.Informational, $"{nameof(this.TryPrefetchCommitsAndTrees)}_RebuildIdx", metadata);
@@ -411,7 +455,7 @@ namespace GVFS.CommandLine
                 }
                 else
                 {
-                    maxGood = timestamp;
+                    maxGoodTimestamp = timestamp;
                 }
             }
 
@@ -425,7 +469,7 @@ namespace GVFS.CommandLine
                 for (int i = orderedPacks.Count - 1; i >= firstBadPack; --i)
                 {
                     string packPath = orderedPacks[i].Path;
-                    string idxPath = Path.ChangeExtension(packPath, ".idx");                    
+                    string idxPath = Path.ChangeExtension(packPath, ".idx");
 
                     EventMetadata metadata = new EventMetadata();
                     metadata.Add("path", idxPath);
@@ -449,12 +493,7 @@ namespace GVFS.CommandLine
                 }
             }
 
-            if (!gitObjects.TryDownloadPrefetchPacks(maxGood))
-            {
-                error = "Failed to download prefetch packs";
-                return false;
-            }
-
+            error = null;
             return true;
         }
 
@@ -474,7 +513,7 @@ namespace GVFS.CommandLine
             }
 
             return null;
-        }        
+        }
 
         private string GetCacheServerDisplay(CacheServerInfo cacheServer)
         {

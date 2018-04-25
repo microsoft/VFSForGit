@@ -1,31 +1,27 @@
 using GVFS.Common.NamedPipes;
 using GVFS.Common.Tracing;
 using Microsoft.Diagnostics.Tracing;
-using System;
 using System.Diagnostics;
 using System.Threading;
 
 namespace GVFS.Common
 {
-    public partial class GVFSLock : IDisposable
+    public partial class GVFSLock
     {
         private readonly object acquisitionLock = new object();
 
         private readonly ITracer tracer;
-        private NamedPipeMessages.LockData lockHolder;
 
-        private ManualResetEvent externalLockReleased;
-
-        private Stats stats;
+        private bool isLockedByGVFS;
+        private NamedPipeMessages.LockData externalLockHolder;
 
         public GVFSLock(ITracer tracer)
         {
             this.tracer = tracer;
-            this.externalLockReleased = new ManualResetEvent(initialState: true);
-            this.stats = new Stats();
+            this.Stats = new ActiveGitCommandStats();
         }
 
-        public bool IsLockedByGVFS
+        public ActiveGitCommandStats Stats
         {
             get;
             private set;
@@ -52,7 +48,7 @@ namespace GVFS.Common
             {
                 lock (this.acquisitionLock)
                 {
-                    if (this.IsLockedByGVFS)
+                    if (this.isLockedByGVFS)
                     {
                         metadata.Add("CurrentLockHolder", "GVFS");
                         metadata.Add("Result", "Denied");
@@ -60,22 +56,20 @@ namespace GVFS.Common
                         return false;
                     }
 
-                    if (this.IsExternalLockHolderAlive() &&
-                        this.lockHolder.PID != requester.PID)
+                    if (!this.IsLockAvailable(checkExternalHolderOnly: true))
                     {
-                        metadata.Add("CurrentLockHolder", this.lockHolder.ToString());
+                        metadata.Add("CurrentLockHolder", this.externalLockHolder.ToString());
                         metadata.Add("Result", "Denied");
 
-                        holder = this.lockHolder;
+                        holder = this.externalLockHolder;
                         return false;
                     }
                     
                     metadata.Add("Result", "Accepted");
                     eventLevel = EventLevel.Informational;
 
-                    this.lockHolder = requester;
-                    this.externalLockReleased.Reset();
-                    this.stats = new Stats();
+                    this.externalLockHolder = requester;
+                    this.Stats = new ActiveGitCommandStats();
 
                     return true;
                 }
@@ -97,20 +91,19 @@ namespace GVFS.Common
             {
                 lock (this.acquisitionLock)
                 {
-                    if (this.IsLockedByGVFS)
+                    if (this.isLockedByGVFS)
                     {
                         return true;
                     }
 
-                    if (this.IsExternalLockHolderAlive())
+                    if (!this.IsLockAvailable(checkExternalHolderOnly: true))
                     {
-                        metadata.Add("CurrentLockHolder", this.lockHolder.ToString());
+                        metadata.Add("CurrentLockHolder", this.externalLockHolder.ToString());
                         metadata.Add("Result", "Denied");
                         return false;
                     }
 
-                    this.IsLockedByGVFS = true;
-                    this.externalLockReleased.Set();
+                    this.isLockedByGVFS = true;
                     metadata.Add("Result", "Accepted");
                     return true;
                 }
@@ -119,11 +112,6 @@ namespace GVFS.Common
             {
                 this.tracer.RelatedEvent(EventLevel.Verbose, "TryAcquireLockInternal", metadata);
             }
-        }
-
-        public void RecordObjectDownload(bool isBlob, long downloadTimeMs)
-        {
-            this.stats.RecordObjectDownload(isBlob, downloadTimeMs);
         }
 
         /// <summary>
@@ -136,7 +124,7 @@ namespace GVFS.Common
         public void ReleaseLock()
         {
             this.tracer.RelatedEvent(EventLevel.Verbose, "ReleaseLock", new EventMetadata());
-            this.IsLockedByGVFS = false;
+            this.isLockedByGVFS = false;
         }
 
         public bool ReleaseExternalLock(int pid)
@@ -144,31 +132,32 @@ namespace GVFS.Common
             return this.ReleaseExternalLock(pid, nameof(this.ReleaseExternalLock));
         }
 
-        public bool WaitOnExternalLockRelease(int millisecondsTimeout)
-        {
-            return this.externalLockReleased.WaitOne(millisecondsTimeout);
-        }
-
-        public bool IsExternalLockHolderAlive()
+        public bool IsLockAvailable(bool checkExternalHolderOnly = false)
         {
             lock (this.acquisitionLock)
             {
-                if (this.lockHolder == null)
+                if (!checkExternalHolderOnly &&
+                    this.isLockedByGVFS)
                 {
                     return false;
+                }
+
+                if (this.externalLockHolder == null)
+                {
+                    return true;
                 }
 
                 Process process = null;
                 try
                 {
-                    int pid = this.lockHolder.PID;
+                    int pid = this.externalLockHolder.PID;
                     if (ProcessHelper.TryGetProcess(pid, out process))
                     {
-                        return true;
+                        return false;
                     }
 
                     this.ReleaseLockForTerminatedProcess(pid);
-                    return false;
+                    return true;
                 }
                 finally
                 {
@@ -182,12 +171,12 @@ namespace GVFS.Common
 
         public NamedPipeMessages.LockData GetExternalLockHolder()
         {
-            return this.lockHolder;
+            return this.externalLockHolder;
         }
 
         public string GetLockedGitCommand()
         {
-            NamedPipeMessages.LockData currentHolder = this.lockHolder;
+            NamedPipeMessages.LockData currentHolder = this.externalLockHolder;
             if (currentHolder != null)
             {
                 return currentHolder.ParsedCommand;
@@ -198,36 +187,18 @@ namespace GVFS.Common
 
         public string GetStatus()
         {
-            if (this.IsLockedByGVFS)
+            if (this.isLockedByGVFS)
             {
                 return "Held by GVFS.";
             }
 
-            NamedPipeMessages.LockData currentHolder = this.lockHolder;
+            NamedPipeMessages.LockData currentHolder = this.externalLockHolder;
             if (currentHolder != null)
             {
                 return string.Format("Held by {0} (PID:{1})", currentHolder.ParsedCommand, currentHolder.PID);
             }
 
             return "Free";
-        }
-
-        public void Dispose()
-        {
-            this.Dispose(true);
-            GC.SuppressFinalize(this);
-        }
-
-        protected void Dispose(bool disposing)
-        {
-            if (disposing)
-            {
-                if (this.externalLockReleased != null)
-                {
-                    this.externalLockReleased.Dispose();
-                    this.externalLockReleased = null;
-                }
-            }
         }
 
         private bool ReleaseExternalLock(int pid, string eventName)
@@ -238,32 +209,32 @@ namespace GVFS.Common
 
                 try
                 {
-                    if (this.IsLockedByGVFS)
+                    if (this.isLockedByGVFS)
                     {
                         metadata.Add("IsLockedByGVFS", "true");
                         return false;
                     }
 
-                    if (this.lockHolder == null)
+                    if (this.externalLockHolder == null)
                     {
                         metadata.Add("Result", "Failed (no current holder, requested PID=" + pid + ")");
                         return false;
                     }
 
-                    metadata.Add("CurrentLockHolder", this.lockHolder.ToString());
-                    metadata.Add("IsElevated", this.lockHolder.IsElevated);
+                    metadata.Add("CurrentLockHolder", this.externalLockHolder.ToString());
+                    metadata.Add("IsElevated", this.externalLockHolder.IsElevated);
+                    metadata.Add(nameof(RepoMetadata.Instance.EnlistmentId), RepoMetadata.Instance.EnlistmentId);
 
-                    if (this.lockHolder.PID != pid)
+                    if (this.externalLockHolder.PID != pid)
                     {
                         metadata.Add("pid", pid);
                         metadata.Add("Result", "Failed (wrong PID)");
                         return false;
                     }
 
-                    this.lockHolder = null;
-                    this.externalLockReleased.Set();
+                    this.externalLockHolder = null;
                     metadata.Add("Result", "Released");
-                    this.stats.AddStatsToTelemetry(metadata);
+                    this.Stats.AddStatsToTelemetry(metadata);
 
                     return true;
                 }
@@ -279,27 +250,43 @@ namespace GVFS.Common
             this.ReleaseExternalLock(pid, "ExternalLockHolderExited");
         }
 
-        public class GVFSLockException : Exception
-        {
-            public GVFSLockException(string message)
-                : base(message)
-            {
-            }
-        }
-
         // The lock release event is a convenient place to record stats about things that happened while a git command was running,
         // such as duration/count of object downloads during a git command, cache hits during a git command, etc.
-        private class Stats
+        public class ActiveGitCommandStats
         {
             private Stopwatch lockAcquiredTime;
-            private int numBlobs;
-            private long blobDownloadTime;
-            private int numCommitsAndTrees;
-            private long commitAndTreeDownloadTime;
+            private long lockHeldExternallyTimeMs;
 
-            public Stats()
+            private long placeholderUpdateTimeMs;
+            private long parseGitIndexTimeMs;
+
+            private int numBlobs;
+            private long blobDownloadTimeMs;
+
+            private int numCommitsAndTrees;
+            private long commitAndTreeDownloadTimeMs;
+
+            private int numSizeQueries;
+            private long sizeQueryTimeMs;
+
+            public ActiveGitCommandStats()
             {
                 this.lockAcquiredTime = Stopwatch.StartNew();
+            }
+
+            public void RecordReleaseExternalLockRequested()
+            {
+                this.lockHeldExternallyTimeMs = this.lockAcquiredTime.ElapsedMilliseconds;
+            }
+
+            public void RecordUpdatePlaceholders(long durationMs)
+            {
+                this.placeholderUpdateTimeMs = durationMs;
+            }
+
+            public void RecordParseGitIndex(long durationMs)
+            {
+                this.parseGitIndexTimeMs = durationMs;
             }
 
             public void RecordObjectDownload(bool isBlob, long downloadTimeMs)
@@ -307,22 +294,36 @@ namespace GVFS.Common
                 if (isBlob)
                 {
                     Interlocked.Increment(ref this.numBlobs);
-                    Interlocked.Add(ref this.blobDownloadTime, downloadTimeMs);
+                    Interlocked.Add(ref this.blobDownloadTimeMs, downloadTimeMs);
                 }
                 else
                 {
                     Interlocked.Increment(ref this.numCommitsAndTrees);
-                    Interlocked.Add(ref this.commitAndTreeDownloadTime, downloadTimeMs);
+                    Interlocked.Add(ref this.commitAndTreeDownloadTimeMs, downloadTimeMs);
                 }
+            }
+
+            public void RecordSizeQuery(long queryTimeMs)
+            {
+                Interlocked.Increment(ref this.numSizeQueries);
+                Interlocked.Add(ref this.sizeQueryTimeMs, queryTimeMs);
             }
 
             public void AddStatsToTelemetry(EventMetadata metadata)
             {
                 metadata.Add("DurationMS", this.lockAcquiredTime.ElapsedMilliseconds);
+                metadata.Add("LockHeldExternallyMS", this.lockHeldExternallyTimeMs);
+                metadata.Add("ParseGitIndexMS", this.parseGitIndexTimeMs);
+                metadata.Add("UpdatePlaceholdersMS", this.placeholderUpdateTimeMs);
+
                 metadata.Add("BlobsDownloaded", this.numBlobs);
-                metadata.Add("BlobDownloadTimeMS", this.blobDownloadTime);
+                metadata.Add("BlobDownloadTimeMS", this.blobDownloadTimeMs);
+
                 metadata.Add("CommitsAndTreesDownloaded", this.numCommitsAndTrees);
-                metadata.Add("CommitsAndTreesDownloadTimeMS", this.commitAndTreeDownloadTime);
+                metadata.Add("CommitsAndTreesDownloadTimeMS", this.commitAndTreeDownloadTimeMs);
+
+                metadata.Add("SizeQueries", this.numSizeQueries);
+                metadata.Add("SizeQueryTimeMS", this.sizeQueryTimeMs);
             }
         }
     }

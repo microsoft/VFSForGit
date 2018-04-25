@@ -3,7 +3,6 @@ using GVFS.Common.Git;
 using GVFS.UnitTests.Mock.Common;
 using GVFS.UnitTests.Mock.FileSystem;
 using GVFS.UnitTests.Mock.Git;
-using NUnit.Framework;
 using System;
 using System.IO;
 
@@ -15,15 +14,9 @@ namespace GVFS.UnitTests.Virtual
         {
             MockTracer tracer = new MockTracer();
 
-            string gitBinPath = GitProcess.GetInstalledGitBinPath();
-            if (string.IsNullOrWhiteSpace(gitBinPath))
-            {
-                Assert.Fail("Failed to find git.exe");
-            }
-
             string enlistmentRoot = @"mock:\GVFS\UnitTests\Repo";
-            GVFSEnlistment enlistment = new GVFSEnlistment(enlistmentRoot, "fake://repoUrl", gitBinPath, null);
-            enlistment.InitializeLocalCacheAndObjectsPathsFromKey("fake:\\objectCache", "fakeObjectCacheKey");
+            GVFSEnlistment enlistment = new GVFSEnlistment(enlistmentRoot, "fake://repoUrl", "fake://gitBinPath", null);
+            enlistment.InitializeCachePathsFromKey("fake:\\gvfsSharedCache", "fakeCacheKey");
 
             this.GitParentPath = enlistment.WorkingDirectoryRoot;
             this.GVFSMetadataPath = enlistment.DotGVFSRoot;

@@ -158,6 +158,11 @@ namespace GVFS.FunctionalTests.FileSystemRunners
             this.MoveFile(sourcePath, targetPath);
         }
 
+        public override void RenameDirectory(string workingDirectory, string source, string target)
+        {
+            this.MoveDirectory(Path.Combine(workingDirectory, source), Path.Combine(workingDirectory, target));
+        }
+
         public override void MoveDirectory_RequestShouldNotBeSupported(string sourcePath, string targetPath)
         {
             this.MoveFile(sourcePath, targetPath).ShouldContain(moveDirectoryNotSupportedMessage);
@@ -180,6 +185,13 @@ namespace GVFS.FunctionalTests.FileSystemRunners
             string bashPath = this.ConvertWinPathToBashPath(path);
 
             return this.RunProcess(string.Format("-c \"rm -rf {0}\"", bashPath));
+        }
+
+        public override string EnumerateDirectory(string path)
+        {
+            string bashPath = this.ConvertWinPathToBashPath(path);
+
+            return this.RunProcess(string.Format("-c \"ls {0}\"", bashPath));
         }
 
         public override void ReplaceFile_FileShouldNotBeFound(string sourcePath, string targetPath)

@@ -1817,6 +1817,18 @@ namespace GVFS.FunctionalTests.Tests.LongRunningEnlistment
         }
 
         [TestCase]
+        public void Native_GVFlt_EnumTestNoMoreNoSuchReturnCodes()
+        {
+            GVFlt_DirEnumTest.GVFlt_EnumTestNoMoreNoSuchReturnCodes(this.Enlistment.RepoRoot).ShouldEqual(true);
+        }
+
+        [TestCase]
+        public void Native_GVFlt_EnumTestQueryDirectoryFileRestartScanProjectedFile()
+        {
+            GVFlt_DirEnumTest.GVFlt_EnumTestQueryDirectoryFileRestartScanProjectedFile(this.Enlistment.RepoRoot).ShouldEqual(true);
+        }
+
+        [TestCase]
         public void Native_GVFlt_ModifyFileInScratchAndCheckLastWriteTime()
         {
             GVFlt_FileAttributeTest.GVFlt_ModifyFileInScratchAndCheckLastWriteTime(this.Enlistment.RepoRoot).ShouldEqual(true);
@@ -2275,6 +2287,12 @@ namespace GVFS.FunctionalTests.Tests.LongRunningEnlistment
 
             [DllImport("GVFS.NativeTests.dll")]
             public static extern bool GVFlt_EnumFolderSmallBuffer(string enumFolderSmallBufferPath);
+
+            [DllImport("GVFS.NativeTests.dll")]
+            public static extern bool GVFlt_EnumTestNoMoreNoSuchReturnCodes(string virtualRootPath);
+            
+            [DllImport("GVFS.NativeTests.dll")]
+            public static extern bool GVFlt_EnumTestQueryDirectoryFileRestartScanProjectedFile(string virtualRootPath);
         }
 
         private class GVFlt_FileAttributeTest

@@ -22,6 +22,7 @@ namespace GVFS.Common.NamedPipes
             public const string DenyGVFSResult = "LockDeniedGVFS";
             public const string DenyGitResult = "LockDeniedGit";
             public const string AcceptResult = "LockAcquired";
+            public const string AvailableResult = "LockAvailable";
             public const string MountNotReadyResult = "MountNotReady";
             public const string UnmountInProgressResult = "UnmountInProgress";
 
@@ -234,9 +235,9 @@ namespace GVFS.Common.NamedPipes
                 this.RequestData = LockData.FromBody(messageBody);
             }
 
-            public LockRequest(int pid, bool isElevated, string parsedCommand)
+            public LockRequest(int pid, bool isElevated, bool checkAvailabilityOnly, string parsedCommand)
             {
-                this.RequestData = new LockData(pid, isElevated, parsedCommand);
+                this.RequestData = new LockData(pid, isElevated, checkAvailabilityOnly, parsedCommand);
             }
 
             public LockData RequestData { get; }
@@ -249,16 +250,23 @@ namespace GVFS.Common.NamedPipes
 
         public class LockData
         {
-            public LockData(int pid, bool isElevated, string parsedCommand)
+            public LockData(int pid, bool isElevated, bool checkAvailabilityOnly, string parsedCommand)
             {
                 this.PID = pid;
                 this.IsElevated = isElevated;
+                this.CheckAvailabilityOnly = checkAvailabilityOnly;
                 this.ParsedCommand = parsedCommand;
             }
 
             public int PID { get; set; }
 
             public bool IsElevated { get; set; }
+
+            /// <summary>
+            /// Should the command actually acquire the GVFSLock or
+            /// only check if the lock is available.
+            /// </summary>
+            public bool CheckAvailabilityOnly { get; set; }
 
             /// <summary>
             /// The command line requesting the lock, built internally for parsing purposes.
@@ -278,27 +286,32 @@ namespace GVFS.Common.NamedPipes
                     string[] dataParts = body.Split(MessageSeparator);
                     int pid;
                     bool isElevated = false;
+                    bool checkAvailabilityOnly = false;
                     string parsedCommand = null;
 
-                    if (dataParts.Length > 0)
+                    if (dataParts.Length != 4)
                     {
-                        if (!int.TryParse(dataParts[0], out pid))
-                        {
-                            throw new InvalidOperationException("Invalid lock message. Expected PID, got: " + dataParts[0]);
-                        }
-
-                        if (dataParts.Length > 1)
-                        {
-                            bool.TryParse(dataParts[1], out isElevated);
-                        }
-
-                        if (dataParts.Length > 2)
-                        {
-                            parsedCommand = dataParts[2];
-                        }
-
-                        return new LockData(pid, isElevated, parsedCommand);
+                        throw new InvalidOperationException("Invalid lock message. Expected 4 parts, got: {0}" + dataParts.Length);
                     }
+
+                    if (!int.TryParse(dataParts[0], out pid))
+                    {
+                        throw new InvalidOperationException("Invalid lock message. Expected PID, got: " + dataParts[0]);
+                    }
+
+                    if (!bool.TryParse(dataParts[1], out isElevated))
+                    {
+                        throw new InvalidOperationException("Invalid lock message. Expected bool for isElevated, got: " + dataParts[1]);
+                    }
+
+                    if (!bool.TryParse(dataParts[2], out checkAvailabilityOnly))
+                    {
+                        throw new InvalidOperationException("Invalid lock message. Expected bool for checkAvailabilityOnly, got: " + dataParts[2]);
+                    }
+
+                    parsedCommand = dataParts[3];
+
+                    return new LockData(pid, isElevated, checkAvailabilityOnly, parsedCommand);
                 }
 
                 return null;
@@ -306,7 +319,7 @@ namespace GVFS.Common.NamedPipes
 
             internal string ToMessage()
             {
-                return string.Join(MessageSeparator.ToString(), this.PID, this.IsElevated, this.ParsedCommand);
+                return string.Join(MessageSeparator.ToString(), this.PID, this.IsElevated, this.CheckAvailabilityOnly, this.ParsedCommand);
             }
         }
 

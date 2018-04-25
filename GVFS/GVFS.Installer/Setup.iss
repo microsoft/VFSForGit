@@ -3,7 +3,7 @@
 
 ; General documentation on how to use InnoSetup scripts: http://www.jrsoftware.org/ishelp/index.php
 
-#define GVFltDir PackagesDir + "\" + GvFltPackage + "\filter" 
+#define PrjFltDir PackagesDir + "\" + ProjFSPackage + "\filter" 
 #define GVFSDir BuildOutputDir + "\GVFS\bin\" + PlatformAndConfiguration
 #define GVFSCommonDir BuildOutputDir + "\GVFS.Common\bin\" + PlatformAndConfiguration
 #define HooksDir BuildOutputDir + "\GVFS.Hooks\bin\" + PlatformAndConfiguration
@@ -20,6 +20,8 @@
 #define MyAppURL "https://github.com/Microsoft/gvfs"
 #define MyAppExeName "GVFS.exe"
 #define EnvironmentKey "SYSTEM\CurrentControlSet\Control\Session Manager\Environment"
+#define FileSystemKey "SYSTEM\CurrentControlSet\Control\FileSystem"
+#define GvFltAutologgerKey "SYSTEM\CurrentControlSet\Control\WMI\Autologger\Microsoft-Windows-Git-Filter-Log"
 
 [Setup]
 AppId={{489CA581-F131-4C28-BE04-4FB178933E6D}
@@ -39,7 +41,7 @@ OutputDir=Setup
 Compression=lzma2
 InternalCompressLevel=ultra64
 SolidCompression=yes
-MinVersion=10.0.15063
+MinVersion=10.0.14374
 DisableDirPage=yes
 DisableReadyPage=yes
 SetupIconFile="{#GVFSDir}\GitVirtualFileSystem.ico"
@@ -60,10 +62,15 @@ Name: "full"; Description: "Full installation"; Flags: iscustom;
 [Components]
 
 [Files]
-; GVFlt Files
-DestDir: "{app}\Filter"; Flags: ignoreversion; Source:"{#GVFltDir}\GvFlt.sys"
-; gvflt.inf is declared explicitly last within the filter files, so we run the GVFlt install only once after required filter files are present
-DestDir: "{app}\Filter"; Flags: ignoreversion; Source: "{#GVFltDir}\gvflt.inf"; AfterInstall: InstallGVFlt
+; PrjFlt Filter Files
+DestDir: "{app}\Filter"; Flags: ignoreversion; Source:"{#PrjFltDir}\PrjFlt.sys"
+DestDir : "{app}\Filter"; Flags: ignoreversion; Source: "{#PrjFltDir}\prjflt.inf"
+
+; PrjFlt Native Library Files, the GVFS.Service will copy these files into the {app} directory if needed
+DestDir: "{app}\ProjFS"; Flags: ignoreversion; Source:"{#GVFSDir}\ProjectedFSLib.dll"
+
+; PrjFlt Managed Assembly Files
+DestDir: "{app}"; Flags: ignoreversion; Source:"{#GVFSDir}\ProjectedFSLib.Managed.dll"
 
 ; GitHooks Files
 DestDir: "{app}"; Flags: ignoreversion; Source:"{#HooksDir}\GVFS.Hooks.pdb"
@@ -78,6 +85,7 @@ DestDir: "{app}"; Flags: ignoreversion; Source:"{#GVFSCommonDir}\git2.dll"
 ; GVFS.Mount Files
 DestDir: "{app}"; Flags: ignoreversion; Source:"{#GVFSMountDir}\GVFS.Mount.pdb"
 DestDir: "{app}"; Flags: ignoreversion; Source:"{#GVFSMountDir}\GVFS.Mount.exe"
+DestDir: "{app}"; Flags: ignoreversion; Source:"{#GVFSMountDir}\GVFS.Mount.exe.config"
 
 ; GVFS.ReadObjectHook files
 DestDir: "{app}"; Flags: ignoreversion; Source:"{#ReadObjectDir}\GVFS.ReadObjectHook.pdb"
@@ -94,29 +102,43 @@ DestDir: "{app}"; Flags: ignoreversion; Source:"{#GVFSDir}\GVFS.pdb"
 
 ; GVFS.Service.UI Files
 DestDir: "{app}"; Flags: ignoreversion; Source:"{#ServiceUIDir}\GVFS.Service.UI.exe" 
+DestDir: "{app}"; Flags: ignoreversion; Source:"{#ServiceUIDir}\GVFS.Service.UI.exe.config" 
 DestDir: "{app}"; Flags: ignoreversion; Source:"{#ServiceUIDir}\GVFS.Service.UI.pdb"
 DestDir: "{app}"; Flags: ignoreversion; Source:"{#ServiceUIDir}\GitVirtualFileSystem.ico"
 
 ; FastFetch Files
 DestDir: "{app}"; Flags: ignoreversion; Source:"{#GVFSDir}\FastFetch.exe"
+DestDir: "{app}"; Flags: ignoreversion; Source:"{#GVFSDir}\FastFetch.exe.config"
 
 ; GVFS Files
 DestDir: "{app}"; Flags: ignoreversion; Source:"{#GVFSDir}\CommandLine.dll"
 DestDir: "{app}"; Flags: ignoreversion; Source:"{#GVFSDir}\Esent.Collections.dll"
 DestDir: "{app}"; Flags: ignoreversion; Source:"{#GVFSDir}\Esent.Interop.dll"
 DestDir: "{app}"; Flags: ignoreversion; Source:"{#GVFSDir}\Esent.Isam.dll"
+DestDir: "{app}"; Flags: ignoreversion; Source:"{#GVFSDir}\Microsoft.Data.Sqlite.dll"
+DestDir: "{app}"; Flags: ignoreversion; Source:"{#GVFSDir}\SQLitePCLRaw.batteries_green.dll"
+DestDir: "{app}"; Flags: ignoreversion; Source:"{#GVFSDir}\SQLitePCLRaw.batteries_v2.dll"
+DestDir: "{app}"; Flags: ignoreversion; Source:"{#GVFSDir}\SQLitePCLRaw.core.dll"
+DestDir: "{app}"; Flags: ignoreversion; Source:"{#GVFSDir}\SQLitePCLRaw.provider.e_sqlite3.dll"
+DestDir: "{app}"; Flags: ignoreversion; Source:"{#GVFSDir}\x64\e_sqlite3.dll"
 DestDir: "{app}"; Flags: ignoreversion; Source:"{#GVFSDir}\GVFS.Common.dll"
 DestDir: "{app}"; Flags: ignoreversion; Source:"{#GVFSDir}\GVFS.GVFlt.dll"
-DestDir: "{app}"; Flags: ignoreversion; Source:"{#GVFSDir}\GvLib.Managed.dll"
-DestDir: "{app}"; Flags: ignoreversion; Source:"{#GVFSDir}\GvLib.dll"
 DestDir: "{app}"; Flags: ignoreversion; Source:"{#GVFSDir}\Microsoft.Diagnostics.Tracing.EventSource.dll"
 DestDir: "{app}"; Flags: ignoreversion; Source:"{#GVFSDir}\Newtonsoft.Json.dll"
 DestDir: "{app}"; Flags: ignoreversion; Source:"{#GVFSDir}\GVFS.exe.config"
 DestDir: "{app}"; Flags: ignoreversion; Source:"{#GVFSDir}\GitVirtualFileSystem.ico"  
 DestDir: "{app}"; Flags: ignoreversion; Source:"{#GVFSDir}\GVFS.exe" 
 
+; .NET Standard Files
+; See https://github.com/dotnet/standard/issues/415 for a discussion on why this are copied
+DestDir: "{app}"; Flags: ignoreversion; Source:"{#GVFSDir}\netstandard.dll"
+DestDir: "{app}"; Flags: ignoreversion; Source:"{#GVFSDir}\System.Net.Http.dll"
+DestDir: "{app}"; Flags: ignoreversion; Source:"{#GVFSDir}\System.ValueTuple.dll"
+DestDir: "{app}"; Flags: ignoreversion; Source:"{#GVFSDir}\System.IO.Compression.dll"
+
 ; GVFS.Service Files and PDB's
 DestDir: "{app}"; Flags: ignoreversion; Source:"{#ServiceDir}\GVFS.Service.pdb"
+DestDir: "{app}"; Flags: ignoreversion; Source:"{#ServiceDir}\GVFS.Service.exe.config"
 DestDir: "{app}"; Flags: ignoreversion; Source:"{#ServiceDir}\GVFS.Service.exe"; AfterInstall: InstallGVFSService
 
 [UninstallDelete]
@@ -127,6 +149,12 @@ Type: filesandordirs; Name: "{app}";
 Root: HKLM; Subkey: "{#EnvironmentKey}"; \
     ValueType: expandsz; ValueName: "PATH"; ValueData: "{olddata};{app}"; \
     Check: NeedsAddPath(ExpandConstant('{app}'))
+
+Root: HKLM; Subkey: "{#FileSystemKey}"; \
+    ValueType: dword; ValueName: "NtfsEnableDetailedCleanupResults"; ValueData: "1"; \
+    Check: IsWindows10VersionPriorToCreatorsUpdate
+
+Root: HKLM; SubKey: "{#GvFltAutologgerKey}"; Flags: deletekey
 
 [Code]
 var
@@ -146,6 +174,29 @@ begin
   // look for the path with leading and trailing semicolon
   // Pos() returns 0 if not found    
   Result := Pos(';' + Param + ';', ';' + OrigPath + ';') = 0;
+end;
+
+function IsWindows10VersionPriorToCreatorsUpdate(): Boolean;
+var
+  Version: TWindowsVersion;
+begin
+  GetWindowsVersionEx(Version);
+  Result := (Version.Major = 10) and (Version.Minor = 0) and (Version.Build < 15063);
+end;
+
+function DoesWindowsVersionNotHavePrjFltInbox(): Boolean;
+var
+  Version: TWindowsVersion;
+begin
+  GetWindowsVersionEx(Version);
+
+  // 17121 -> Min RS4 version with inbox PrjFlt
+  // 17600 -> First RS5 version
+  // 17626 -> Min RS5 version with inbox PrjFlt
+
+  Log(Format('Version.Build is [%d]', [Version.Build]));
+
+  Result := (Version.Major = 10) and (Version.Minor = 0) and ((Version.Build < 17121) or ((Version.Build >= 17600) and (Version.Build < 17626)));
 end;
 
 procedure RemovePath(Path: string);
@@ -265,35 +316,149 @@ begin
     end;
 end;
 
-procedure InstallGVFlt();
+procedure UninstallGvFlt();
 var
   ResultCode: integer;
   StatusText: string;
-  InstallSuccessful: Boolean;
+  UninstallSuccessful: Boolean;
 begin
-  InstallSuccessful := False;
+  if (FileExists(ExpandConstant('{app}\Filter\GvFlt.inf'))) then
+  begin
+    UninstallSuccessful := False;
 
-  StatusText := WizardForm.StatusLabel.Caption;
-  WizardForm.StatusLabel.Caption := 'Installing GVFlt Driver.';
-  WizardForm.ProgressGauge.Style := npbstMarquee;
+    StatusText := WizardForm.StatusLabel.Caption;
+    WizardForm.StatusLabel.Caption := 'Uninstalling GvFlt Driver.';
+    WizardForm.ProgressGauge.Style := npbstMarquee;
 
-  try
+    try
     Exec(ExpandConstant('SC.EXE'), 'stop gvflt', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
 
-    // Note: Programatic install of INF notifies user if the driver being upgraded to is older than the existing, otherwise it works silently... doesn't seem like there is a way to block
-    if Exec(ExpandConstant('RUNDLL32.EXE'), ExpandConstant('SETUPAPI.DLL,InstallHinfSection DefaultInstall 128 {app}\Filter\gvflt.inf'), '', SW_HIDE, ewWaitUntilTerminated, ResultCode) then
+    if Exec(ExpandConstant('RUNDLL32.EXE'), ExpandConstant('SETUPAPI.DLL,InstallHinfSection DefaultUninstall 128 {app}\Filter\GvFlt.inf'), '', SW_HIDE, ewWaitUntilTerminated, ResultCode) then
       begin
-        InstallSuccessful := True;
+        UninstallSuccessful := True;
+      end;
+    finally
+    WizardForm.StatusLabel.Caption := StatusText;
+    WizardForm.ProgressGauge.Style := npbstNormal;
+    end;
+
+    if UninstallSuccessful = True then
+      begin
+        if not DeleteFile(ExpandConstant('{app}\Filter\GvFlt.inf')) then
+          begin
+            Log('UninstallGvFlt: Failed to delete GvFlt.inf');
+          end;
+      end
+    else
+      begin
+          RaiseException('Fatal: An error occured while uninstalling GvFlt drivers.');
+      end;
+  end;
+end;
+
+function DeleteNativeProjFSLibFromAppsFolder() : Boolean;
+begin
+  Result := False;
+  if FileExists(ExpandConstant('{app}\ProjectedFSLib.dll')) then
+    begin
+      Log('DeleteNativeProjFSLibFromAppsFolder: Removing ProjFS native library from app folder');
+      if DeleteFile(ExpandConstant('{app}\ProjectedFSLib.dll')) then
+        begin
+          Result := True;
+        end
+      else
+        begin
+          Log('DeleteNativeProjFSLibFromAppsFolder: Failed to delete ProjFS native library from app folder');
+        end;
+    end
+  else
+    begin
+      Result := True;
+    end;
+end;
+
+function UninstallPrjFlt(): Boolean;
+var
+  ResultCode: integer;
+  StatusText: string;
+begin
+  Result := False;
+  StatusText := WizardForm.StatusLabel.Caption;
+  WizardForm.StatusLabel.Caption := 'Uninstalling PrjFlt Driver.';
+  WizardForm.ProgressGauge.Style := npbstMarquee;
+    
+  Log('UninstallPrjFlt: Uninstalling PrjFlt Driver');
+  try
+    Exec(ExpandConstant('SC.EXE'), 'stop prjflt', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
+    
+    if Exec(ExpandConstant('RUNDLL32.EXE'), ExpandConstant('SETUPAPI.DLL,InstallHinfSection DefaultUninstall 128 {app}\Filter\prjflt.inf'), '', SW_HIDE, ewWaitUntilTerminated, ResultCode) then
+      begin
+        if DeleteNativeProjFSLibFromAppsFolder() then
+          begin
+            Result := True;
+          end;
+      end
+    else
+      begin
+        Log('UninstallNonInboxPrjFltWhenInboxAvailable: Uninstalling PrjFlt Driver failed');
       end;
   finally
     WizardForm.StatusLabel.Caption := StatusText;
-    WizardForm.ProgressGauge.Style := npbstNormal;    
-    Exec(ExpandConstant('SC.EXE'), 'start gvflt', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
+    WizardForm.ProgressGauge.Style := npbstNormal;
   end;
+end;
 
-  if InstallSuccessful = False then
+procedure UninstallNonInboxPrjFlt();
+var
+  ProjFSFeatureEnabledResultCode: integer;
+  UninstallSuccessful: Boolean;
+begin
+  if FileExists(ExpandConstant('{app}\Filter\PrjFlt.inf')) and FileExists(ExpandConstant('{sys}\drivers\prjflt.sys')) then
     begin
-      RaiseException('Fatal: An error occured while installing GVFlt drivers.');
+      UninstallSuccessful := False;
+      
+      if DoesWindowsVersionNotHavePrjFltInbox() then
+        begin
+          if UninstallPrjFlt() then
+          begin
+            UninstallSuccessful := True;
+          end;
+        end
+      else
+        begin            
+          if Exec('powershell.exe', '-NoProfile "$var=(Get-WindowsOptionalFeature -Online -FeatureName Client-ProjFS);  if($var -eq $null){exit 2}else{if($var.State -eq ''Enabled''){exit 3}else{exit 4}}"', '', SW_HIDE, ewWaitUntilTerminated, ProjFSFeatureEnabledResultCode) then
+            begin
+              if ProjFSFeatureEnabledResultCode = 2 then
+                begin
+                  // Client-ProjFS is not an optional feature
+                  Log('UninstallNonInboxPrjFlt: Fatal: Could not locate Windows Projected File System optional feature');
+                  RaiseException('Fatal: Could not locate Windows Projected File System optional feature.');
+                end;
+              if ProjFSFeatureEnabledResultCode = 3 then
+                begin
+                  // Client-ProjFS is already enabled, confirm the native ProjFS library is not on the path
+                  Log('UninstallNonInboxPrjFlt: Client-ProjFS already enabled');
+                  if DeleteNativeProjFSLibFromAppsFolder() then
+                    begin
+                      UninstallSuccessful := True;
+                    end;
+                end;
+              if ProjFSFeatureEnabledResultCode = 4 then
+                begin
+                  // Client-ProjFS is currently disabled but prjflt.sys is present and should be removed
+                  Log('UninstallNonInboxPrjFlt: Client-ProjFS is disabled, uninstalling PrjFlt');
+                  if UninstallPrjFlt() then
+                    begin
+                      UninstallSuccessful := True;
+                    end;
+                end;
+            end;
+        end;
+      
+      if UninstallSuccessful = False then
+      begin
+        RaiseException('Fatal: An error occured while uninstalling PrjFlt drivers.');
+      end;
     end;
 end;
 
@@ -353,7 +518,12 @@ begin
   WizardForm.StatusLabel.Caption := StatusText;
   WizardForm.ProgressGauge.Style := npbstNormal;
   
-  if (ResultCode <> 0) then
+  // 4 = ReturnCode.FilterError
+  if (ResultCode = 4) then
+    begin
+      RaiseException('Fatal: Could not configure and start Windows Projected File System.');
+    end
+  else if (ResultCode <> 0) then
     begin
       MsgBoxText := 'Mounting one or more repos failed:' + #13#10 + MountOutput;
       SuppressibleMsgBox(MsgBoxText, mbConfirmation, MB_OK, IDOK);
@@ -477,4 +647,6 @@ begin
       Abort();
     end;
   StopGVFSService();
+  UninstallGvFlt();
+  UninstallNonInboxPrjFlt();
 end;

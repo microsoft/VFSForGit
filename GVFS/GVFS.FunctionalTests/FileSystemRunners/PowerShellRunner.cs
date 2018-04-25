@@ -134,6 +134,11 @@ namespace GVFS.FunctionalTests.FileSystemRunners
             this.MoveFile(sourcePath, targetPath);
         }
 
+        public override void RenameDirectory(string workingDirectory, string source, string target)
+        {
+            this.RunProcess(string.Format("-Command \"& {{ Rename-Item -Path {0} -NewName {1} -force }}\"", Path.Combine(workingDirectory, source), target));
+        }
+
         public override void MoveDirectory_RequestShouldNotBeSupported(string sourcePath, string targetPath)
         {
             this.MoveFile(sourcePath, targetPath).ShouldContain(moveDirectoryNotSupportedMessage);
@@ -152,6 +157,11 @@ namespace GVFS.FunctionalTests.FileSystemRunners
         public override string DeleteDirectory(string path)
         {
             return this.RunProcess(string.Format("-Command \"&{{ Remove-Item -Force -Recurse {0} }}\"", path));
+        }
+
+        public override string EnumerateDirectory(string path)
+        {
+            return this.RunProcess(string.Format("-Command \"&{{ Get-ChildItem {0} }}\"", path));
         }
 
         public override void ReplaceFile_FileShouldNotBeFound(string sourcePath, string targetPath)
@@ -184,9 +194,9 @@ namespace GVFS.FunctionalTests.FileSystemRunners
             this.DeleteDirectory(path).ShouldContain(fileUsedByAnotherProcessMessage);
         }
 
-        protected override string RunProcess(string command, string errorMsgDelimeter = "")
+        protected override string RunProcess(string command, string workingDirectory = "", string errorMsgDelimeter = "")
         {
-            return base.RunProcess("-NoProfile " + command, errorMsgDelimeter);
+            return base.RunProcess("-NoProfile " + command, workingDirectory, errorMsgDelimeter);
         }
     }
 }

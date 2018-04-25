@@ -54,30 +54,6 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
         }
 
         [TestCase, Order(5)]
-        public void GitStatusNoLockIndexDoesntHoldLock()
-        {
-            ManualResetEventSlim lockHolder = GitHelpers.AcquireGVFSLock(this.Enlistment, resetTimeout: 3000);
-
-            ProcessResult statusWait = GitHelpers.InvokeGitAgainstGVFSRepo(this.Enlistment.RepoRoot, "status --no-lock-index", cleanErrors: false);
-            statusWait.Errors.ShouldBeEmpty();
-
-            // Release the lock
-            lockHolder.Set();
-        }
-
-        [TestCase, Order(6)]
-        public void GitStatusNoOptionalLocksDoesntHoldLock()
-        {
-            ManualResetEventSlim lockHolder = GitHelpers.AcquireGVFSLock(this.Enlistment, resetTimeout: 3000);
-
-            ProcessResult statusWait = GitHelpers.InvokeGitAgainstGVFSRepo(this.Enlistment.RepoRoot, "--no-optional-locks status", cleanErrors: false);
-            statusWait.Errors.ShouldBeEmpty();
-
-            // Release the lock
-            lockHolder.Set();
-        }
-
-        [TestCase, Order(7)]
         public void GitAliasNamedAfterKnownCommandAcquiresLock()
         {
             string alias = nameof(this.GitAliasNamedAfterKnownCommandAcquiresLock);
@@ -88,7 +64,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
             statusWait.Errors.ShouldContain("Waiting for 'git hash-object --stdin");
         }
 
-        [TestCase, Order(8)]
+        [TestCase, Order(6)]
         public void GitAliasInSubfolderNamedAfterKnownCommandAcquiresLock()
         {
             string alias = nameof(this.GitAliasInSubfolderNamedAfterKnownCommandAcquiresLock);
@@ -103,7 +79,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
             GitHelpers.CheckGitCommandAgainstGVFSRepo(this.Enlistment.RepoRoot, "rebase --abort");
         }
 
-        [TestCase, Order(9)]
+        [TestCase, Order(7)]
         public void ExternalLockHolderReportedWhenBackgroundTasksArePending()
         {
             GitHelpers.AcquireGVFSLock(this.Enlistment, resetTimeout: 3000);

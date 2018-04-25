@@ -1,11 +1,11 @@
 ﻿using CommandLine;
-using GVFS.CommandLine.DiskLayoutUpgrades;
 using GVFS.Common;
 using GVFS.Common.FileSystem;
 using GVFS.Common.Git;
 using GVFS.Common.Http;
 using GVFS.Common.NamedPipes;
 using GVFS.Common.Tracing;
+using GVFS.DiskLayoutUpgrades;
 using GVFS.GVFlt.DotGit;
 using Microsoft.Diagnostics.Tracing;
 using System;
@@ -61,8 +61,6 @@ namespace GVFS.CommandLine
 
         protected override void PreCreateEnlistment()
         {
-            this.CheckGVFltHealthy();
-
             string enlistmentRoot = Paths.GetGVFSEnlistmentRoot(this.EnlistmentRootPath);
             if (enlistmentRoot == null)
             {
@@ -118,16 +116,20 @@ namespace GVFS.CommandLine
                         { "Unattended", this.Unattended },
                         { "IsElevated", ProcessHelper.IsAdminElevated() },
                     });
-                
+
                 // TODO 1050199: Once the service is an optional component, GVFS should only attempt to attach
-                // GvFlt via the service if the service is present\enabled
-                if (!GvFltFilter.TryAttach(tracer, enlistment.EnlistmentRoot, out errorMessage))
+                // the filter via the service if the service is present\enabled
+                if (!ProjFSFilter.IsServiceRunning(tracer) || 
+                    !ProjFSFilter.IsNativeLibInstalled(tracer, new PhysicalFileSystem()) ||
+                    !ProjFSFilter.TryAttach(tracer, enlistment.EnlistmentRoot, out errorMessage))
                 {
+                    tracer.RelatedInfo($"{nameof(MountVerb)}.{nameof(this.Execute)}: Enabling and attaching ProjFS through service");
+
                     if (!this.ShowStatusWhileRunning(
-                        () => { return this.AttachGvFltThroughService(enlistment, out errorMessage); },
-                        "Attaching GvFlt to volume"))
+                        () => { return this.TryEnableAndAttachGvFltThroughService(enlistment.EnlistmentRoot, out errorMessage); },
+                        $"Attaching {ProjFSFilter.ServiceName} to volume"))
                     {
-                        this.ReportErrorAndExit(tracer, errorMessage);
+                        this.ReportErrorAndExit(tracer, ReturnCode.FilterError, errorMessage);
                     }
                 }
 
@@ -168,6 +170,35 @@ namespace GVFS.CommandLine
                     "Validating repo"))
                 {
                     this.ReportErrorAndExit(tracer, errorMessage);
+                }
+
+                if (!this.SkipVersionCheck)
+                {
+                    string error;
+                    if (!RepoMetadata.TryInitialize(tracer, enlistment.DotGVFSRoot, out error))
+                    {
+                        this.ReportErrorAndExit(tracer, error);
+                    }
+
+                    try
+                    {
+                        EventMetadata metadata = new EventMetadata();
+                        metadata.Add(nameof(RepoMetadata.Instance.EnlistmentId), RepoMetadata.Instance.EnlistmentId);
+                        metadata.Add("Enlistment", enlistment);
+                        tracer.RelatedEvent(EventLevel.Informational, "EnlistmentInfo", metadata, Keywords.Telemetry);
+
+                        GitProcess git = new GitProcess(enlistment, new PhysicalFileSystem());
+                        GitProcess.Result configResult = git.SetInLocalConfig(GVFSConstants.GitConfig.EnlistmentId, RepoMetadata.Instance.EnlistmentId, replaceAll: true);
+                        if (configResult.HasErrors)
+                        {
+                            error = "Could not update config with enlistment id, error: " + configResult.Errors;
+                            tracer.RelatedWarning(error);
+                        }
+                    }
+                    finally
+                    {
+                        RepoMetadata.Shutdown();
+                    }
                 }
             }
 
@@ -229,64 +260,11 @@ namespace GVFS.CommandLine
             }
 
             return true;
-        }
-
-        private bool AttachGvFltThroughService(GVFSEnlistment enlistment, out string errorMessage)
-        {
-            errorMessage = string.Empty;
-
-            NamedPipeMessages.AttachGvFltRequest request = new NamedPipeMessages.AttachGvFltRequest();
-            request.EnlistmentRoot = enlistment.EnlistmentRoot;
-
-            using (NamedPipeClient client = new NamedPipeClient(this.ServicePipeName))
-            {
-                if (!client.Connect())
-                {
-                    errorMessage = "Unable to mount because GVFS.Service is not responding. " + GVFSVerb.StartServiceInstructions;
-                    return false;
-                }
-
-                try
-                {
-                    client.SendRequest(request.ToMessage());
-                    NamedPipeMessages.Message response = client.ReadResponse();
-                    if (response.Header == NamedPipeMessages.AttachGvFltRequest.Response.Header)
-                    {
-                        NamedPipeMessages.AttachGvFltRequest.Response message = NamedPipeMessages.AttachGvFltRequest.Response.FromMessage(response);
-
-                        if (!string.IsNullOrEmpty(message.ErrorMessage))
-                        {
-                            errorMessage = message.ErrorMessage;
-                            return false;
-                        }
-
-                        if (message.State != NamedPipeMessages.CompletionState.Success)
-                        {
-                            errorMessage = "Failed to attach GvFlt to volume.";
-                            return false;
-                        }
-                        else
-                        {
-                            return true;
-                        }
-                    }
-                    else
-                    {
-                        errorMessage = string.Format("GVFS.Service responded with unexpected message: {0}", response);
-                        return false;
-                    }
-                }
-                catch (BrokenPipeException e)
-                {
-                    errorMessage = "Unable to communicate with GVFS.Service: " + e.ToString();
-                    return false;
-                }
-            }
-        }
+        }        
 
         private bool TryMount(GVFSEnlistment enlistment, string mountExeLocation, out string errorMessage)
         {
-            if (!GVFSVerb.TrySetGitConfigSettings(enlistment))
+            if (!GVFSVerb.TrySetRequiredGitConfigSettings(enlistment))
             {
                 errorMessage = "Unable to configure git repo";
                 return false;
@@ -297,7 +275,7 @@ namespace GVFS.CommandLine
                 mountExeLocation,
                 string.Join(
                     " ",
-                    enlistment.EnlistmentRoot,
+                    "\"" + enlistment.EnlistmentRoot + "\"",
                     ParamPrefix + GVFSConstants.VerbParameters.Mount.Verbosity,
                     this.Verbosity,
                     ParamPrefix + GVFSConstants.VerbParameters.Mount.Keywords,

@@ -1,7 +1,7 @@
 #pragma once
 
 #include "Should.h"
-#include "gvlib_internal.h"
+#include "prjlib_internal.h"
 
 // Map GVFlt testing macros to GVFS testing macros
 #define VERIFY_ARE_EQUAL SHOULD_EQUAL
@@ -171,8 +171,9 @@ inline std::shared_ptr<GV_REPARSE_INFO> GetReparseInfo(const std::string& path)
     std::shared_ptr<GV_REPARSE_INFO> reparseInfo((PGV_REPARSE_INFO)calloc(1, dataSize), free);
 
     std::wstring_convert<std::codecvt_utf8_utf16<wchar_t>> utf16conv;
-
-    HRESULT hr = GvReadGvReparsePointData(utf16conv.from_bytes(path).c_str(), reparseInfo.get(), &dataSize);
+    
+    ULONG reparseTag;
+    HRESULT hr = PrjpReadPrjReparsePointData(utf16conv.from_bytes(path).c_str(), reparseInfo.get(), &reparseTag, &dataSize);
     if (FAILED(hr)) {
         if (hr == HRESULT_FROM_WIN32(ERROR_NOT_A_REPARSE_POINT)) {
             // ERROR: target is not a reparse point
@@ -456,9 +457,9 @@ inline NTSTATUS ReadEAInfo(const std::string& path, PFILE_FULL_EA_INFORMATION ea
 
     IO_STATUS_BLOCK IoStatusBlock;
     
-    // In the GVFlt tests, Index of 0 is used, however, per minkernel\fs\ntfs\ea.c
+    // In the GVFlt tests, Index of 0 is used, however, per the EA comments
     // "If the index value is zero, there are no Eas to return"  Confirmed index of 1
-    // properly reads EAs created using ea.exe test tool provided by GVFlt (\\craigba-dev\Bin\amd64\Ea.exe)
+    // properly reads EAs created using ea.exe test tool provided by GVFlt
     ULONG Index = 1;
     FILE_EA_INFORMATION eaInfo = { 0 };
 
@@ -606,6 +607,62 @@ inline bool NewHardLink(const std::string& newlink, const std::string& existingF
 {
     auto created = CreateHardLink(newlink.c_str(), existingFile.c_str(), NULL);
     return created == TRUE;
+}
+
+inline void VerifyEnumerationMatches(void* folderHandle, PUNICODE_STRING filter, const std::vector<std::wstring>& expectedContents)
+{
+    SHOULD_NOT_EQUAL(folderHandle, INVALID_HANDLE_VALUE);
+
+    UCHAR buffer[2048];
+    NTSTATUS status;
+    IO_STATUS_BLOCK ioStatus;
+    BOOLEAN restart = TRUE;
+    size_t expectedIndex = 0;
+
+    do
+    {
+        status = NtQueryDirectoryFile(folderHandle,
+            NULL,
+            NULL,
+            NULL,
+            &ioStatus,
+            buffer,
+            ARRAYSIZE(buffer),
+            FileBothDirectoryInformation,
+            FALSE,
+            filter,
+            restart);
+
+        if (status == STATUS_SUCCESS)
+        {
+            PFILE_BOTH_DIR_INFORMATION dirInfo;
+            PUCHAR entry = buffer;
+
+            do
+            {
+                dirInfo = (PFILE_BOTH_DIR_INFORMATION)entry;
+
+                std::wstring entryName(dirInfo->FileName, dirInfo->FileNameLength / sizeof(WCHAR));
+
+                SHOULD_EQUAL(entryName, expectedContents[expectedIndex]);
+
+                entry = entry + dirInfo->NextEntryOffset;
+                ++expectedIndex;
+
+            } while (dirInfo->NextEntryOffset > 0 && expectedIndex < expectedContents.size());
+
+            restart = FALSE;
+        }
+
+    } while (status == STATUS_SUCCESS);
+
+    SHOULD_EQUAL(expectedIndex, expectedContents.size());
+    SHOULD_EQUAL(status, STATUS_NO_MORE_FILES);
+}
+
+inline void VerifyEnumerationMatches(void* folderHandle, const std::vector<std::wstring>& expectedContents)
+{
+    VerifyEnumerationMatches(folderHandle, nullptr, expectedContents);
 }
 
 } // namespace TestHelpers

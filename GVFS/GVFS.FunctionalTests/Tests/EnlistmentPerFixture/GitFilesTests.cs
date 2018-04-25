@@ -128,6 +128,29 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
         }
 
         [TestCase, Order(5)]
+        public void CaseOnlyRenameOfNewFolderKeepsExcludeEntries()
+        {
+            string[] expectedAlwaysExcludeEntries =
+            {
+                "*",
+                "!/Folder/",
+                "!/Folder/testfile",
+            };
+
+            this.fileSystem.CreateDirectory(Path.Combine(this.Enlistment.RepoRoot, "Folder"));
+            this.fileSystem.CreateEmptyFile(Path.Combine(this.Enlistment.RepoRoot, "Folder", "testfile"));
+            this.Enlistment.WaitForBackgroundOperations().ShouldEqual(true, "Background operations failed to complete.");
+
+            string alwaysExcludeFileVirtualPath = this.Enlistment.GetVirtualPathTo(GitHelpers.AlwaysExcludeFilePath);
+            alwaysExcludeFileVirtualPath.ShouldBeAFile(this.fileSystem).WithContents().ShouldContain(expectedAlwaysExcludeEntries);
+
+            this.fileSystem.RenameDirectory(this.Enlistment.RepoRoot, "Folder", "folder");
+            this.Enlistment.WaitForBackgroundOperations().ShouldEqual(true, "Background operations failed to complete.");
+
+            alwaysExcludeFileVirtualPath.ShouldBeAFile(this.fileSystem).WithContents().ShouldContain(expectedAlwaysExcludeEntries);
+        }
+
+        [TestCase, Order(6)]
         public void ReadingFileDoesNotUpdateIndexOrSparseCheckout()
         {
             string gitFileToCheck = "GVFS/GVFS.FunctionalTests/Category/CategoryConstants.cs";
@@ -156,7 +179,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
             sparseCheckoutFile.ShouldBeAFile(this.fileSystem).WithContents().ShouldNotContain(ignoreCase: true, unexpectedSubstrings: gitFileToCheck);
         }
 
-        [TestCase, Order(6)]
+        [TestCase, Order(7)]
         public void ModifiedFileWillGetSkipworktreeBitCleared()
         {
             string fileToTest = "GVFS\\GVFS.Common\\RetryWrapper.cs";
@@ -177,7 +200,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
             this.VerifyWorktreeBit(gitFileToTest, LsFilesStatus.Cached);
         }
 
-        [TestCase, Order(7)]
+        [TestCase, Order(8)]
         public void RenamedFileAddedToSparseCheckoutAndSkipWorktreeBitCleared()
         {
             string fileToRenameSparseCheckoutEntry = "/Test_EPF_MoveRenameFileTests/ChangeUnhydratedFileName/Program.cs";
@@ -200,7 +223,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
             this.VerifyWorktreeBit(fileToRenameSparseCheckoutEntry.TrimStart(new char[] { '/' }), LsFilesStatus.Cached);
         }
 
-        [TestCase, Order(8)]
+        [TestCase, Order(9)]
         public void RenamedFileAndOverwrittenTargetAddedToSparseCheckoutAndSkipWorktreeBitCleared()
         {
             string fileToRenameSparseCheckoutEntry = "/Test_EPF_MoveRenameFileTests_2/MoveUnhydratedFileToOverwriteUnhydratedFileAndWrite/RunUnitTests.bat";
@@ -225,7 +248,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
             this.VerifyWorktreeBit(fileToRenameTargetSparseCheckoutEntry.TrimStart(new char[] { '/' }), LsFilesStatus.Cached);
         }
 
-        [TestCase, Order(9)]
+        [TestCase, Order(10)]
         public void DeletedFileAddedToSparseCheckoutAndSkipWorktreeBitCleared()
         {
             string fileToDeleteSparseCheckoutEntry = "/GVFlt_DeleteFileTest/GVFlt_DeleteFullFileWithoutFileContext_DeleteOnClose/a.txt";
@@ -243,7 +266,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
             this.VerifyWorktreeBit(fileToDeleteSparseCheckoutEntry.TrimStart(new char[] { '/' }), LsFilesStatus.Cached);
         }
 
-        [TestCase, Order(10)]
+        [TestCase, Order(11)]
         public void DeletedFolderAndChildrenAddedToSparseCheckoutAndSkipWorktreeBitCleared()
         {
             string folderToDelete = "Scripts";
@@ -277,7 +300,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
             }
         }
 
-        [TestCase, Order(11)]
+        [TestCase, Order(12)]
         public void FileRenamedOutOfRepoAddedToSparseCheckoutAndSkipWorktreeBitCleared()
         {
             string fileToRenameSparseCheckoutEntry = "/GVFlt_MoveFileTest/PartialToOutside/from/lessInFrom.txt";
@@ -297,7 +320,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
             this.VerifyWorktreeBit(fileToRenameSparseCheckoutEntry.TrimStart(new char[] { '/' }), LsFilesStatus.Cached);
         }
 
-        [TestCase, Order(12)]
+        [TestCase, Order(13)]
         public void OverwrittenFileAddedToSparseCheckoutAndSkipWorktreeBitCleared()
         {
             string fileToOverwriteSparseCheckoutEntry = "/Test_EPF_WorkingDirectoryTests/1/2/3/4/ReadDeepProjectedFile.cpp";
@@ -319,7 +342,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
             this.VerifyWorktreeBit(fileToOverwriteSparseCheckoutEntry.TrimStart(new char[] { '/' }), LsFilesStatus.Cached);
         }
 
-        [TestCase, Order(13)]
+        [TestCase, Order(14)]
         public void SupersededFileAddedToSparseCheckoutAndSkipWorktreeBitCleared()
         {
             string fileToSupersedeSparseCheckoutEntry = "/GVFlt_FileOperationTest/WriteAndVerify.txt";

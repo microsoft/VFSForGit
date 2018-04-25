@@ -46,20 +46,5 @@ namespace GVFS.UnitTests.GVFlt
             PathUtil.RemoveTrailingSlashIfPresent(@"C:\test\\").ShouldEqual(@"C:\test");
             PathUtil.RemoveTrailingSlashIfPresent(@"C:\test\\\").ShouldEqual(@"C:\test");
         }
-
-        [TestCase]
-        public void IsEnumerationFilterSet()
-        {
-            PathUtil.IsEnumerationFilterSet(null).ShouldEqual(false);
-            PathUtil.IsEnumerationFilterSet(string.Empty).ShouldEqual(false);
-            PathUtil.IsEnumerationFilterSet(" ").ShouldEqual(false);
-            PathUtil.IsEnumerationFilterSet("*").ShouldEqual(false);
-
-            PathUtil.IsEnumerationFilterSet("*.*").ShouldEqual(true);
-            PathUtil.IsEnumerationFilterSet("A.*").ShouldEqual(true);
-            PathUtil.IsEnumerationFilterSet("*.txt").ShouldEqual(true);
-            PathUtil.IsEnumerationFilterSet("A.txt").ShouldEqual(true);
-            PathUtil.IsEnumerationFilterSet("A").ShouldEqual(true);
-        }
     }
 }

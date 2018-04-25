@@ -1,11 +1,11 @@
 ﻿using CommandLine;
-using GVFS.CommandLine.DiskLayoutUpgrades;
 using GVFS.Common;
 using GVFS.Common.FileSystem;
 using GVFS.Common.Git;
 using GVFS.Common.Http;
 using GVFS.Common.NamedPipes;
 using GVFS.Common.Tracing;
+using GVFS.DiskLayoutUpgrades;
 using GVFS.GVFlt;
 using GVFS.GVFlt.DotGit;
 using Microsoft.Diagnostics.Tracing;

@@ -32,6 +32,6 @@ namespace GVFS.Common.Tracing
 
         void RelatedError(string format, params object[] args);
 
-        void Stop(EventMetadata metadata);
+        TimeSpan Stop(EventMetadata metadata);
     }
 }

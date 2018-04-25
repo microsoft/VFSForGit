@@ -5,6 +5,7 @@ using GVFS.Common.Tracing;
 using GVFS.Service.Handlers;
 using Microsoft.Diagnostics.Tracing;
 using System;
+using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Runtime.Serialization;
@@ -40,8 +41,15 @@ namespace GVFS.Service
                 this.repoRegistry.Upgrade();
                 string pipeName = this.serviceName + ".Pipe";
                 this.tracer.RelatedInfo("Starting pipe server with name: " + pipeName);
+
                 using (NamedPipeServer pipeServer = NamedPipeServer.StartNewServer(pipeName, this.tracer, this.HandleRequest))
                 {
+                    using (ITracer activity = this.tracer.StartActivity("EnsurePrjFltHealthy", EventLevel.Informational))
+                    {
+                        string error;
+                        EnableAndAttachProjFSHandler.TryEnablePrjFlt(activity, out error);
+                    }
+
                     this.serviceStopped.WaitOne();
                 }
             }
@@ -185,7 +193,7 @@ namespace GVFS.Service
             this.serviceThread = new Thread(this.Run);
 
             this.serviceThread.Start();
-        }
+        }        
 
         private void HandleRequest(ITracer tracer, string request, NamedPipeServer.Connection connection)
         {
@@ -227,11 +235,11 @@ namespace GVFS.Service
 
                         break;
 
-                    case NamedPipeMessages.AttachGvFltRequest.Header:
+                    case NamedPipeMessages.EnableAndAttachProjFSRequest.Header:
                         try
                         {
-                            NamedPipeMessages.AttachGvFltRequest attachRequest = NamedPipeMessages.AttachGvFltRequest.FromMessage(message);
-                            AttachGvFltHandler attachHandler = new AttachGvFltHandler(activity, connection, attachRequest);
+                            NamedPipeMessages.EnableAndAttachProjFSRequest attachRequest = NamedPipeMessages.EnableAndAttachProjFSRequest.FromMessage(message);
+                            EnableAndAttachProjFSHandler attachHandler = new EnableAndAttachProjFSHandler(activity, connection, attachRequest);
                             attachHandler.Run();
                         }
                         catch (SerializationException ex)

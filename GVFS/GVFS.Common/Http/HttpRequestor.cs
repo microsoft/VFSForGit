@@ -83,6 +83,11 @@ namespace GVFS.Common.Http
             }
 
             HttpRequestMessage request = new HttpRequestMessage(httpMethod, requestUri);
+
+            // By default, VSTS auth failures result in redirects to SPS to reauthenticate.
+            // To provide more consistent behavior when using the GCM, have them send us 401s instead
+            request.Headers.Add("X-TFS-FedAuthRedirect", "Suppress");
+
             request.Headers.UserAgent.Add(this.userAgentHeader);
 
             if (!string.IsNullOrEmpty(authString))
@@ -148,24 +153,21 @@ namespace GVFS.Common.Http
                     errorMessage = response.Content.ReadAsStringAsync().GetAwaiter().GetResult();
                     int statusInt = (int)response.StatusCode;
 
-                    if (string.IsNullOrWhiteSpace(errorMessage))
+                    if (response.StatusCode == HttpStatusCode.Unauthorized || response.StatusCode == HttpStatusCode.BadRequest || response.StatusCode == HttpStatusCode.Redirect)
                     {
-                        if (response.StatusCode == HttpStatusCode.Unauthorized)
+                        this.authentication.Revoke(authString);
+                        if (!this.authentication.IsBackingOff)
                         {
-                            this.authentication.Revoke(authString);
-                            if (!this.authentication.IsBackingOff)
-                            {
-                                errorMessage = "Server returned error code 401 (Unauthorized). Your PAT may be expired and we are asking for a new one.";
-                            }
-                            else
-                            {
-                                errorMessage = "Server returned error code 401 (Unauthorized) after successfully renewing your PAT. You may not have access to this repo";
-                            }
+                            errorMessage = string.Format("Server returned error code {0} ({1}). Your PAT may be expired and we are asking for a new one. Original error message from server: {2}", statusInt, response.StatusCode, errorMessage);
                         }
                         else
                         {
-                            errorMessage = string.Format("Server returned error code {0} ({1})", statusInt, response.StatusCode);
+                            errorMessage = string.Format("Server returned error code {0} ({1}) after successfully renewing your PAT. You may not have access to this repo. Original error message from server: {2}", statusInt, response.StatusCode, errorMessage);
                         }
+                    }
+                    else
+                    {
+                        errorMessage = string.Format("Server returned error code {0} ({1}). Original error message from server: {2}", statusInt, response.StatusCode, errorMessage);
                     }
 
                     gitEndPointResponseData = new GitEndPointResponseData(

@@ -50,7 +50,7 @@ namespace GVFS.FunctionalTests.Tools
             }
         }
 
-        private static void StartService()
+        public static void StartService()
         {
             using (ServiceController controller = new ServiceController(TestServiceName))
             {
@@ -60,7 +60,7 @@ namespace GVFS.FunctionalTests.Tools
             }
         }
 
-        private static void StopService()
+        public static void StopService()
         {
             try
             {

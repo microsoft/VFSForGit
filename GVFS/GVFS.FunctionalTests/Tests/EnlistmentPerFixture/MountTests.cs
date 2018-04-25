@@ -12,6 +12,7 @@ using System.Runtime.InteropServices;
 namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
 {
     [TestFixture]
+    [Category(Categories.FullSuiteOnly)]
     public class MountTests : TestsWithEnlistmentPerFixture
     {
         private const int GVFSGenericError = 3;
@@ -95,9 +96,14 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
             this.Enlistment.UnmountGVFS();
 
             // Get the current disk layout version
-            string currentVersion = GVFSHelpers.GetPersistedDiskLayoutVersion(this.Enlistment.DotGVFSRoot).ShouldNotBeNull();
-            int currentVersionNum;
-            int.TryParse(currentVersion, out currentVersionNum).ShouldEqual(true);
+            string majorVersion;
+            string minorVersion;
+            GVFSHelpers.GetPersistedDiskLayoutVersion(this.Enlistment.DotGVFSRoot, out majorVersion, out minorVersion);
+
+            int majorVersionNum;
+            int minorVersionNum;
+            int.TryParse(majorVersion.ShouldNotBeNull(), out majorVersionNum).ShouldEqual(true);
+            int.TryParse(minorVersion.ShouldNotBeNull(), out minorVersionNum).ShouldEqual(true);
 
             // Move the RepoMetadata database to a temp file
             string versionDatabasePath = Path.Combine(this.Enlistment.DotGVFSRoot, GVFSHelpers.RepoMetadataName);
@@ -125,7 +131,12 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
         {
             this.Enlistment.UnmountGVFS();
 
-            string currentVersion = GVFSHelpers.GetPersistedDiskLayoutVersion(this.Enlistment.DotGVFSRoot).ShouldNotBeNull();
+            string majorVersion;
+            string minorVersion;
+            GVFSHelpers.GetPersistedDiskLayoutVersion(this.Enlistment.DotGVFSRoot, out majorVersion, out minorVersion);
+            majorVersion.ShouldNotBeNull();
+            minorVersion.ShouldNotBeNull();
+
             string objectsRoot = GVFSHelpers.GetPersistedGitObjectsRoot(this.Enlistment.DotGVFSRoot).ShouldNotBeNull();
 
             string metadataPath = Path.Combine(this.Enlistment.DotGVFSRoot, GVFSHelpers.RepoMetadataName);
@@ -133,7 +144,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
             this.fileSystem.MoveFile(metadataPath, metadataBackupPath);
 
             this.fileSystem.CreateEmptyFile(metadataPath);
-            GVFSHelpers.SaveDiskLayoutVersion(this.Enlistment.DotGVFSRoot, currentVersion);
+            GVFSHelpers.SaveDiskLayoutVersion(this.Enlistment.DotGVFSRoot, majorVersion, minorVersion);
             GVFSHelpers.SaveGitObjectsRoot(this.Enlistment.DotGVFSRoot, objectsRoot);
 
             this.MountShouldFail("Failed to determine local cache path from repo metadata");
@@ -149,7 +160,12 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
         {
             this.Enlistment.UnmountGVFS();
 
-            string currentVersion = GVFSHelpers.GetPersistedDiskLayoutVersion(this.Enlistment.DotGVFSRoot).ShouldNotBeNull();
+            string majorVersion;
+            string minorVersion;
+            GVFSHelpers.GetPersistedDiskLayoutVersion(this.Enlistment.DotGVFSRoot, out majorVersion, out minorVersion);
+            majorVersion.ShouldNotBeNull();
+            minorVersion.ShouldNotBeNull();
+
             string localCacheRoot = GVFSHelpers.GetPersistedLocalCacheRoot(this.Enlistment.DotGVFSRoot).ShouldNotBeNull();
 
             string metadataPath = Path.Combine(this.Enlistment.DotGVFSRoot, GVFSHelpers.RepoMetadataName);
@@ -157,7 +173,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
             this.fileSystem.MoveFile(metadataPath, metadataBackupPath);
 
             this.fileSystem.CreateEmptyFile(metadataPath);
-            GVFSHelpers.SaveDiskLayoutVersion(this.Enlistment.DotGVFSRoot, currentVersion);
+            GVFSHelpers.SaveDiskLayoutVersion(this.Enlistment.DotGVFSRoot, majorVersion, minorVersion);
             GVFSHelpers.SaveLocalCacheRoot(this.Enlistment.DotGVFSRoot, localCacheRoot);
 
             this.MountShouldFail("Failed to determine git objects root from repo metadata");
@@ -206,14 +222,20 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
             MountSubfolders.EnsureSubfoldersOnDisk(this.Enlistment, this.fileSystem);
             this.Enlistment.UnmountGVFS();
 
-            string currentVersion = GVFSHelpers.GetPersistedDiskLayoutVersion(this.Enlistment.DotGVFSRoot).ShouldNotBeNull();
-            int currentVersionNum;
-            int.TryParse(currentVersion, out currentVersionNum).ShouldEqual(true);
-            GVFSHelpers.SaveDiskLayoutVersion(this.Enlistment.DotGVFSRoot, (currentVersionNum + 1).ToString());
+            string majorVersion;
+            string minorVersion;
+            GVFSHelpers.GetPersistedDiskLayoutVersion(this.Enlistment.DotGVFSRoot, out majorVersion, out minorVersion);
+
+            int majorVersionNum;
+            int minorVersionNum;
+            int.TryParse(majorVersion.ShouldNotBeNull(), out majorVersionNum).ShouldEqual(true);
+            int.TryParse(minorVersion.ShouldNotBeNull(), out minorVersionNum).ShouldEqual(true);
+
+            GVFSHelpers.SaveDiskLayoutVersion(this.Enlistment.DotGVFSRoot, (majorVersionNum + 1).ToString(), "0");
 
             this.MountShouldFail("do not allow mounting after downgrade", this.Enlistment.GetVirtualPathTo(mountSubfolder));
 
-            GVFSHelpers.SaveDiskLayoutVersion(this.Enlistment.DotGVFSRoot, currentVersionNum.ToString());
+            GVFSHelpers.SaveDiskLayoutVersion(this.Enlistment.DotGVFSRoot, majorVersionNum.ToString(), minorVersionNum.ToString());
             this.Enlistment.MountGVFS();
         }
 
@@ -225,15 +247,20 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
 
             this.Enlistment.UnmountGVFS();
 
-            string currentVersion = GVFSHelpers.GetPersistedDiskLayoutVersion(this.Enlistment.DotGVFSRoot).ShouldNotBeNull();
-            int currentVersionNum;
-            int.TryParse(currentVersion, out currentVersionNum).ShouldEqual(true);
+            string majorVersion;
+            string minorVersion;
+            GVFSHelpers.GetPersistedDiskLayoutVersion(this.Enlistment.DotGVFSRoot, out majorVersion, out minorVersion);
+
+            int majorVersionNum;
+            int minorVersionNum;
+            int.TryParse(majorVersion.ShouldNotBeNull(), out majorVersionNum).ShouldEqual(true);
+            int.TryParse(minorVersion.ShouldNotBeNull(), out minorVersionNum).ShouldEqual(true);
 
             // 1 will always be below the minumum support version number
-            GVFSHelpers.SaveDiskLayoutVersion(this.Enlistment.DotGVFSRoot, "1");
+            GVFSHelpers.SaveDiskLayoutVersion(this.Enlistment.DotGVFSRoot, "1", "0");
             this.MountShouldFail("Breaking change to GVFS disk layout has been made since cloning", this.Enlistment.GetVirtualPathTo(mountSubfolder));
 
-            GVFSHelpers.SaveDiskLayoutVersion(this.Enlistment.DotGVFSRoot, currentVersionNum.ToString());
+            GVFSHelpers.SaveDiskLayoutVersion(this.Enlistment.DotGVFSRoot, majorVersionNum.ToString(), minorVersionNum.ToString());
             this.Enlistment.MountGVFS();
         }
 
@@ -281,11 +308,10 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
 
         private void MountShouldFail(int expectedExitCode, string expectedErrorMessage, string mountWorkingDirectory = null)
         {
-            string pathToGVFS = Path.Combine(TestContext.CurrentContext.TestDirectory, Properties.Settings.Default.PathToGVFS);
             string enlistmentRoot = this.Enlistment.EnlistmentRoot;
 
             // TODO: 865304 Use app.config instead of --internal* arguments
-            ProcessStartInfo processInfo = new ProcessStartInfo(pathToGVFS);
+            ProcessStartInfo processInfo = new ProcessStartInfo(GVFSTestConfig.PathToGVFS);
             processInfo.Arguments = "mount --internal_use_only_service_name " + GVFSServiceProcess.TestServiceName;
             processInfo.WindowStyle = ProcessWindowStyle.Hidden;
             processInfo.WorkingDirectory = string.IsNullOrEmpty(mountWorkingDirectory) ? enlistmentRoot : mountWorkingDirectory;

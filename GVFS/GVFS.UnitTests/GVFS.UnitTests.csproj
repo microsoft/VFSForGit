@@ -2,6 +2,7 @@
 <Project ToolsVersion="14.0" DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <Import Project="..\..\..\packages\NUnit.3.10.0-dev-05190\build\NUnit.props" Condition="Exists('..\..\..\packages\NUnit.3.10.0-dev-05190\build\NUnit.props')" />
   <Import Project="$(MSBuildExtensionsPath)\$(MSBuildToolsVersion)\Microsoft.Common.props" Condition="Exists('$(MSBuildExtensionsPath)\$(MSBuildToolsVersion)\Microsoft.Common.props')" />
+  <Import Project="$(SolutionDir)\GVFS\GVFS.Build\ProjFS.props" />
   <Import Project="$(SolutionDir)\GVFS\GVFS.Build\GVFS.props" />
   <PropertyGroup>
     <ProjectGuid>{8E0D0989-21F6-4DD8-946C-39F992523CC6}</ProjectGuid>
@@ -9,7 +10,7 @@
     <AppDesignerFolder>Properties</AppDesignerFolder>
     <RootNamespace>GVFS.UnitTests</RootNamespace>
     <AssemblyName>GVFS.UnitTests</AssemblyName>
-    <TargetFrameworkVersion>v4.5.2</TargetFrameworkVersion>
+    <TargetFrameworkVersion>v4.6.1</TargetFrameworkVersion>
     <FileAlignment>512</FileAlignment>
     <AutoGenerateBindingRedirects>true</AutoGenerateBindingRedirects>
     <NuGetPackageImportStamp>
@@ -36,24 +37,9 @@
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
   </PropertyGroup>
   <ItemGroup>
-    <Reference Include="Esent.Collections, Version=1.9.4.0, Culture=neutral, PublicKeyToken=31bf3856ad364e35, processorArchitecture=MSIL">
-      <SpecificVersion>False</SpecificVersion>
-      <HintPath>..\..\..\packages\Microsoft.Database.Collections.Generic.1.9.4\lib\net40\Esent.Collections.dll</HintPath>
-      <Private>True</Private>
-    </Reference>
-    <Reference Include="Esent.Interop, Version=1.9.4.0, Culture=neutral, PublicKeyToken=31bf3856ad364e35, processorArchitecture=MSIL">
-      <SpecificVersion>False</SpecificVersion>
-      <HintPath>..\..\..\packages\ManagedEsent.1.9.4\lib\net40\Esent.Interop.dll</HintPath>
-      <Private>True</Private>
-    </Reference>
-    <Reference Include="Esent.Isam, Version=1.9.4.0, Culture=neutral, PublicKeyToken=31bf3856ad364e35, processorArchitecture=MSIL">
-      <SpecificVersion>False</SpecificVersion>
-      <HintPath>..\..\..\packages\Microsoft.Database.Isam.1.9.4\lib\net40\Esent.Isam.dll</HintPath>
-      <Private>True</Private>
-    </Reference>
     <Reference Include="Microsoft.Diagnostics.Tracing.EventSource, Version=1.1.28.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a, processorArchitecture=MSIL">
       <SpecificVersion>False</SpecificVersion>
-      <HintPath>..\..\..\packages\Microsoft.Diagnostics.Tracing.EventSource.Redist.1.1.28\lib\net40\Microsoft.Diagnostics.Tracing.EventSource.dll</HintPath>
+      <HintPath>..\..\..\packages\Microsoft.Diagnostics.Tracing.EventSource.Redist.1.1.28\lib\net46\Microsoft.Diagnostics.Tracing.EventSource.dll</HintPath>
       <Private>True</Private>
     </Reference>
     <Reference Include="Newtonsoft.Json, Version=7.0.0.0, Culture=neutral, PublicKeyToken=30ad4fe6b2a6aeed, processorArchitecture=MSIL">
@@ -65,6 +51,9 @@
     </Reference>
     <Reference Include="nunitlite, Version=3.10.0.0, Culture=neutral, PublicKeyToken=2638cd05610744eb, processorArchitecture=MSIL">
       <HintPath>..\..\..\packages\NUnitLite.3.10.0-dev-05190\lib\net45\nunitlite.dll</HintPath>
+    </Reference>
+    <Reference Include="ProjectedFSLib.Managed, Version=10.0.0.0, Culture=neutral, PublicKeyToken=31bf3856ad364e35, processorArchitecture=AMD64">
+      <HintPath>$(PackagesDir)\$(ProjFSPackage)\lib\x64\ProjectedFSLib.Managed.dll</HintPath>
     </Reference>
     <Reference Include="System" />
     <Reference Include="System.Core" />
@@ -116,6 +105,7 @@
     <Compile Include="Mock\Git\MockGitRepo.cs" />
     <Compile Include="Mock\Git\MockGVFSGitObjects.cs" />
     <Compile Include="Mock\Common\MockPhysicalGitObjects.cs" />
+    <Compile Include="Mock\GvFlt\BlobSize\MockBlobSizesDatabase.cs" />
     <Compile Include="Mock\GVFS.GvFlt\DotGit\MockGitIndexProjection.cs" />
     <Compile Include="Mock\GVFS.GvFlt\MockReliableBackgroundOperations.cs" />
     <Compile Include="Mock\MockCacheServerInfo.cs" />
@@ -149,10 +139,6 @@
     <ProjectReference Include="..\GVFS.Common\GVFS.Common.csproj">
       <Project>{374bf1e5-0b2d-4d4a-bd5e-4212299def09}</Project>
       <Name>GVFS.Common</Name>
-    </ProjectReference>
-    <ProjectReference Include="..\GVFS.GvFltWrapper\GvLib.vcxproj">
-      <Project>{fb0831ae-9997-401b-b31f-3a065fdbeb20}</Project>
-      <Name>GvLib.Managed</Name>
     </ProjectReference>
     <ProjectReference Include="..\GVFS.GVFlt\GVFS.GVFlt.csproj">
       <Project>{1118b427-7063-422f-83b9-5023c8ec5a7a}</Project>

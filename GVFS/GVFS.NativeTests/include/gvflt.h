@@ -1,7 +1,4 @@
 // gvflt.h
-//
-// Contains a subset of the contents of:
-// sdktools\CoreBuild\GVFlt\gvflt.h
 
 #pragma once
 
@@ -9,7 +6,7 @@
 #define GV_FLAG_DIRTY                     0x00000002
 #define GV_FLAG_FULLY_POPULATED           0x00000004
 #define GV_FLAG_RENAMED                   0x00000008
-#define GV_FLAG_VIRTUALIZATION_ROOT       0x00000010
+#define PRJ_FLAG_VIRTUALIZATION_ROOT      0x00000010
 #define GV_FLAG_FULL_DATA                 0x00000020
 #define GV_FLAG_PLACEHOLDER_AUTHORITATIVE 0x00000100
 
@@ -24,7 +21,7 @@
 
 typedef struct _GVFLT_PLACEHOLDER_VERSION_INFO {
 
-    UCHAR                               EpochID[GVFLT_PLACEHOLDER_ID_LENGTH];
+    UCHAR                               ProviderID[GVFLT_PLACEHOLDER_ID_LENGTH];
 
     UCHAR                               ContentID[GVFLT_PLACEHOLDER_ID_LENGTH];
 

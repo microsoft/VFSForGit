@@ -101,8 +101,9 @@ namespace GVFS.UnitTests.Mock.Common
             return new MockTracer();
         }
 
-        public void Stop(EventMetadata metadata)
+        public TimeSpan Stop(EventMetadata metadata)
         {
+            return TimeSpan.Zero;
         }
 
         public void Dispose()

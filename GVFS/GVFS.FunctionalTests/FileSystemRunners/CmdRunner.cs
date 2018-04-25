@@ -67,14 +67,14 @@ namespace GVFS.FunctionalTests.FileSystemRunners
                 return false;
             }
 
-            string output = this.RunProcess(string.Format("/C if exist {0} (echo {1}) else (echo {2})", path, ShellRunner.SuccessOutput, ShellRunner.FailureOutput)).Trim();  
+            string output = this.RunProcess(string.Format("/C if exist \"{0}\" (echo {1}) else (echo {2})", path, ShellRunner.SuccessOutput, ShellRunner.FailureOutput)).Trim();  
                   
             return output.Equals(ShellRunner.SuccessOutput, StringComparison.InvariantCulture);
         }
 
         public override string MoveFile(string sourcePath, string targetPath)
         {
-            return this.RunProcess(string.Format("/C move {0} {1}", sourcePath, targetPath));
+            return this.RunProcess(string.Format("/C move \"{0}\" \"{1}\"", sourcePath, targetPath));
         }
 
         public override void MoveFileShouldFail(string sourcePath, string targetPath)
@@ -90,22 +90,22 @@ namespace GVFS.FunctionalTests.FileSystemRunners
 
         public override string ReplaceFile(string sourcePath, string targetPath)
         {
-            return this.RunProcess(string.Format("/C move /Y {0} {1}", sourcePath, targetPath));
+            return this.RunProcess(string.Format("/C move /Y \"{0}\" \"{1}\"", sourcePath, targetPath));
         }
 
         public override string DeleteFile(string path)
         {
-            return this.RunProcess(string.Format("/C del {0}", path));
+            return this.RunProcess(string.Format("/C del \"{0}\"", path));
         }
 
         public override string ReadAllText(string path)
         {
-            return this.RunProcess(string.Format("/C type {0}", path));
+            return this.RunProcess(string.Format("/C type \"{0}\"", path));
         }
 
         public override void CreateEmptyFile(string path)
         {
-            this.RunProcess(string.Format("/C type NUL > {0}", path));
+            this.RunProcess(string.Format("/C type NUL > \"{0}\"", path));
         }
 
         public override void AppendAllText(string path, string contents)
@@ -149,17 +149,27 @@ namespace GVFS.FunctionalTests.FileSystemRunners
 
         public override void CreateDirectory(string path)
         {
-            this.RunProcess(string.Format("/C mkdir {0}", path));
+            this.RunProcess(string.Format("/C mkdir \"{0}\"", path));
         }
 
         public override string DeleteDirectory(string path)
         {
-            return this.RunProcess(string.Format("/C rmdir /q /s {0}", path));
+            return this.RunProcess(string.Format("/C rmdir /q /s \"{0}\"", path));
+        }
+
+        public override string EnumerateDirectory(string path)
+        {
+            return this.RunProcess(string.Format("/C dir \"{0}\"", path));
         }
 
         public override void MoveDirectory(string sourcePath, string targetPath)
         {
             this.MoveFile(sourcePath, targetPath);
+        }
+
+        public override void RenameDirectory(string workingDirectory, string source, string target)
+        {
+            this.RunProcess(string.Format("/C ren \"{0}\" \"{1}\"", source, target), workingDirectory);
         }
 
         public override void MoveDirectory_RequestShouldNotBeSupported(string sourcePath, string targetPath)

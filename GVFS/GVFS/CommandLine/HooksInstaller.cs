@@ -110,7 +110,7 @@ namespace GVFS.CommandLine
 
             if (!TryAction(() => CreateHookCommandConfig(enlistment, hookName, commandHookPath), out errorMessage))
             {
-                errorMessage = "Failed to create " + commandHookPath + GVFSConstants.DotGit.Hooks.ConfigExtension + "\n" + errorMessage;
+                errorMessage = "Failed to create " + commandHookPath + GVFSConstants.GitConfig.HooksExtension + "\n" + errorMessage;
                 return false;
             }
 
@@ -140,11 +140,11 @@ namespace GVFS.CommandLine
 
         private static void CreateHookCommandConfig(GVFSEnlistment enlistment, string hookName, string commandHookPath)
         {
-            string targetPath = commandHookPath + GVFSConstants.DotGit.Hooks.ConfigExtension;
+            string targetPath = commandHookPath + GVFSConstants.GitConfig.HooksExtension;
 
             try
             {
-                string configSetting = GVFSConstants.DotGit.Hooks.ConfigNamePrefix + hookName;
+                string configSetting = GVFSConstants.GitConfig.HooksPrefix + hookName;
                 string mergedHooks = MergeHooks(enlistment, configSetting, hookName);
 
                 if (File.Exists(targetPath))

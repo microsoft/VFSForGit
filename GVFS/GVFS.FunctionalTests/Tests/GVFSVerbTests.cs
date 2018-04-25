@@ -8,11 +8,8 @@ namespace GVFS.FunctionalTests.Tests
     [TestFixture]
     public class GVFSVerbTests
     {
-        private string pathToGVFS;
-
         public GVFSVerbTests()
         {
-            this.pathToGVFS = Path.Combine(TestContext.CurrentContext.TestDirectory, Properties.Settings.Default.PathToGVFS);
         }
 
         private enum ExpectedReturnCode
@@ -37,7 +34,7 @@ namespace GVFS.FunctionalTests.Tests
 
         private void CallGVFS(string args, ExpectedReturnCode expectedErrorCode)
         {
-            ProcessStartInfo processInfo = new ProcessStartInfo(this.pathToGVFS);
+            ProcessStartInfo processInfo = new ProcessStartInfo(GVFSTestConfig.PathToGVFS);
             processInfo.Arguments = args;
             processInfo.WindowStyle = ProcessWindowStyle.Hidden;
             processInfo.UseShellExecute = false;

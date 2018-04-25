@@ -1,12 +1,11 @@
-﻿using GVFS.FunctionalTests.Category;
-using GVFS.FunctionalTests.Tools;
+﻿using GVFS.FunctionalTests.Tools;
 using GVFS.Tests.Should;
 using NUnit.Framework;
 
 namespace GVFS.FunctionalTests.Tests.GitCommands
 {
     [TestFixture]
-    [Category(CategoryConstants.GitCommands)]
+    [Category(Categories.GitCommands)]
     public class MergeConflictTests : GitRepoTests
     {
         public MergeConflictTests() : base(enlistmentPerTest: true)

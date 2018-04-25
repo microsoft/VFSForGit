@@ -8,6 +8,7 @@ using System.IO;
 namespace GVFS.FunctionalTests.Tests.EnlistmentPerTestCase
 {
     [TestFixture]
+    [Category(Categories.FullSuiteOnly)]
     public class PersistedWorkingDirectoryTests : TestsWithEnlistmentPerTestCase
     {
         public void MountMatchesRemount()

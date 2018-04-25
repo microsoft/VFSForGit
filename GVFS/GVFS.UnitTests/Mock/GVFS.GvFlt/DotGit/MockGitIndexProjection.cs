@@ -1,5 +1,6 @@
 ﻿using GVFS.Common;
 using GVFS.GVFlt;
+using GVFS.GVFlt.BlobSize;
 using GVFS.GVFlt.DotGit;
 using System;
 using System.Collections.Generic;
@@ -140,7 +141,10 @@ namespace GVFS.UnitTests.Mock.GVFS.GvFlt.DotGit
             return false;
         }
 
-        public override IEnumerable<GVFltFileInfo> GetProjectedItems(string folderPath, CancellationToken cancellationToken)
+        public override IEnumerable<GVFltFileInfo> GetProjectedItems(
+            CancellationToken cancellationToken,
+            BlobSizes.BlobSizesConnection blobSizesConnection, 
+            string folderPath)
         {
             this.waitForGetProjectedItems.Set();
 
@@ -171,7 +175,12 @@ namespace GVFS.UnitTests.Mock.GVFS.GvFlt.DotGit
             return false;
         }
 
-        public override GVFltFileInfo GetProjectedGVFltFileInfoAndSha(CancellationToken cancellationToken, string virtualPath, out string parentFolderPath, out string sha)
+        public override GVFltFileInfo GetProjectedGVFltFileInfoAndSha(
+            CancellationToken cancellationToken, 
+            BlobSizes.BlobSizesConnection blobSizesConnection, 
+            string virtualPath, 
+            out string parentFolderPath, 
+            out string sha)
         {
             this.waitForGetProjectedFileInfo.Set();
 

@@ -218,9 +218,10 @@ namespace GVFS.CommandLine
                             "gvfs unmount", 
                             currentProcess.Id, 
                             ProcessHelper.IsAdminElevated(),
-                            currentProcess,
-                            enlistmentRoot,
-                            out result))
+                            checkAvailabilityOnly: false,
+                            parentProcess: currentProcess,
+                            gvfsEnlistmentRoot: enlistmentRoot,
+                            result: out result))
                     {
                         this.ReportErrorAndExit("Unable to acquire the lock prior to unmount. " + result);
                     }

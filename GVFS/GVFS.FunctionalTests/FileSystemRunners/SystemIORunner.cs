@@ -2,6 +2,7 @@
 using System;
 using System.Diagnostics;
 using System.IO;
+using System.Runtime.InteropServices;
 using System.Threading;
 
 namespace GVFS.FunctionalTests.FileSystemRunners
@@ -104,6 +105,11 @@ namespace GVFS.FunctionalTests.FileSystemRunners
             Directory.Move(sourcePath, targetPath);
         }
 
+        public override void RenameDirectory(string workingDirectory, string source, string target)
+        {
+            MoveFileEx(Path.Combine(workingDirectory, source), Path.Combine(workingDirectory, target), 0);
+        }
+
         public override void MoveDirectory_RequestShouldNotBeSupported(string sourcePath, string targetPath)
         {
             if (Debugger.IsAttached)
@@ -149,6 +155,11 @@ namespace GVFS.FunctionalTests.FileSystemRunners
             return string.Empty;
         }
 
+        public override string EnumerateDirectory(string path)
+        {
+            return string.Join(Environment.NewLine, Directory.GetFileSystemEntries(path));
+        }
+
         public override void DeleteDirectory_DirectoryShouldNotBeFound(string path)
         {
             this.ShouldFail<IOException>(() => { this.DeleteDirectory(path); });
@@ -163,6 +174,9 @@ namespace GVFS.FunctionalTests.FileSystemRunners
         {
             this.ShouldFail<IOException>(() => { this.ReadAllText(path); });
         }
+
+        [DllImport("kernel32", SetLastError = true)]
+        private static extern bool MoveFileEx(string existingFileName, string newFileName, int flags);
 
         private static void RetryOnException(Action action)
         {

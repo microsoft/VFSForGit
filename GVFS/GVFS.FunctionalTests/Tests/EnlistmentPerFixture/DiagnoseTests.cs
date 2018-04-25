@@ -8,6 +8,7 @@ using System.Linq;
 namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
 {
     [TestFixture]
+    [Category(Categories.FullSuiteOnly)]
     public class DiagnoseTests : TestsWithEnlistmentPerFixture
     {
         private FileSystemRunner fileSystem;

@@ -1,5 +1,5 @@
 ﻿using GVFS.Common;
-using GvLib;
+using ProjFS;
 using System;
 using System.Collections.Generic;
 using System.Threading;
@@ -22,10 +22,10 @@ namespace GVFS.UnitTests.Mock.GvFlt
             this.unblockCreateWriteBuffer = new ManualResetEvent(true);
             this.waitForCreateWriteBuffer = new ManualResetEvent(true);
 
-            this.WriteFileReturnStatus = NtStatus.Success;
+            this.WriteFileReturnResult = HResult.Ok;
         }
 
-        public NtStatus CompletionStatus { get; set; }
+        public HResult CompletionResult { get; set; }
 
         public ConcurrentHashSet<string> CreatedPlaceholders { get; private set; }
 
@@ -39,8 +39,8 @@ namespace GVFS.UnitTests.Mock.GvFlt
         public NotifyFileSupersededOrOverwrittenEvent OnNotifyFileSupersededOrOverwritten { get; set; }
         public NotifyFileHandleClosedNoModificationEvent OnNotifyFileHandleClosedNoModification { get; set; }
         public NotifyFileHandleClosedFileModifiedOrDeletedEvent OnNotifyFileHandleClosedFileModifiedOrDeleted { get; set; }
+        public NotifyFilePreConvertToFullEvent OnNotifyFilePreConvertToFull { get; set; }
         public NotifyFileRenamedEvent OnNotifyFileRenamed { get; set; }
-        public NotifyFirstWriteEvent OnNotifyFirstWrite { get; set; }
         public NotifyHardlinkCreatedEvent OnNotifyHardlinkCreated { get; set; }
         public NotifyPreDeleteEvent OnNotifyPreDelete { get; set; }
         public NotifyPreRenameEvent OnNotifyPreRename { get; set; }
@@ -48,7 +48,7 @@ namespace GVFS.UnitTests.Mock.GvFlt
         public QueryFileNameEvent OnQueryFileName { get; set; }
         public StartDirectoryEnumerationEvent OnStartDirectoryEnumeration { get; set; }
 
-        public NtStatus WriteFileReturnStatus { get; set; }
+        public HResult WriteFileReturnResult { get; set; }
 
         public HResult StartVirtualizationInstance(
             string virtualizationRootPath, 
@@ -90,22 +90,27 @@ namespace GVFS.UnitTests.Mock.GvFlt
             return HResult.Ok;
         }
 
-        public NtStatus ClearNegativePathCache(ref uint totalEntryNumber)
+        public HResult ClearNegativePathCache(ref uint totalEntryNumber)
         {
             throw new NotImplementedException();
         }
 
-        public NtStatus DeleteFile(string relativePath, UpdateType updateFlags, ref UpdateFailureCause failureReason)
+        public HResult DeleteFile(string relativePath, UpdateType updateFlags, ref UpdateFailureCause failureReason)
         {
             throw new NotImplementedException();
         }
 
-        public NtStatus UpdatePlaceholderIfNeeded(string relativePath, DateTime creationTime, DateTime lastAccessTime, DateTime lastWriteTime, DateTime changeTime, uint fileAttributes, long endOfFile, byte[] contentId, byte[] epochId, UpdateType updateFlags, ref UpdateFailureCause failureReason)
+        public HResult UpdatePlaceholderIfNeeded(string relativePath, DateTime creationTime, DateTime lastAccessTime, DateTime lastWriteTime, DateTime changeTime, uint fileAttributes, long endOfFile, byte[] contentId, byte[] epochId, UpdateType updateFlags, ref UpdateFailureCause failureReason)
         {
             throw new NotImplementedException();
         }
 
-        public NtStatus CreatePlaceholderAsHardlink(string destinationFileName, string hardLinkTarget)
+        public HResult CreatePlaceholderAsHardlink(string destinationFileName, string hardLinkTarget)
+        {
+            throw new NotImplementedException();
+        }
+
+        public HResult ConvertDirectoryToPlaceholder(string targetDirectoryPath, byte[] contentId, byte[] providerId)
         {
             throw new NotImplementedException();
         }
@@ -118,12 +123,12 @@ namespace GVFS.UnitTests.Mock.GvFlt
             return new WriteBuffer(desiredBufferSize, 1);
         }
 
-        public NtStatus WriteFile(Guid streamGuid, WriteBuffer buffer, ulong byteOffset, uint length)
+        public HResult WriteFile(Guid streamGuid, WriteBuffer buffer, ulong byteOffset, uint length)
         {
-            return this.WriteFileReturnStatus;
+            return this.WriteFileReturnResult;
         }
 
-        public NtStatus WritePlaceholderInformation(
+        public HResult WritePlaceholderInformation(
             string relativePath, 
             DateTime creationTime, 
             DateTime lastAccessTime, 
@@ -137,19 +142,19 @@ namespace GVFS.UnitTests.Mock.GvFlt
         {
             this.CreatedPlaceholders.Add(relativePath);
             this.placeholderCreated.Set();
-            return NtStatus.Success;
+            return HResult.Ok;
         }
 
-        public void CompleteCommand(int commandId, NtStatus completionStatus)
+        public void CompleteCommand(int commandId, HResult completionResult)
         {
-            this.CompletionStatus = completionStatus;
+            this.CompletionResult = completionResult;
             this.commandCompleted.Set();
         }
 
-        public NtStatus WaitForCompletionStatus()
+        public HResult WaitForCompletionStatus()
         {
             this.commandCompleted.WaitOne();
-            return this.CompletionStatus;
+            return this.CompletionResult;
         }
 
         public void WaitForPlaceholderCreate()

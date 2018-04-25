@@ -184,6 +184,16 @@ namespace GVFS.UnitTests.Mock.FileSystem
         {            
         }
 
+        public override void MoveFile(string sourcePath, string targetPath)
+        {
+            throw new NotImplementedException();
+        }
+
+        public override string[] GetFiles(string directoryPath, string mask)
+        {
+            throw new NotImplementedException();
+        }
+
         private Stream CreateAndOpenFileStream(string path)
         {
             MockFile file = this.RootDirectory.CreateFile(path);

@@ -7,6 +7,7 @@ namespace GVFS.FunctionalTests.Tests.MultiEnlistmentTests
 {
     [TestFixture]
     [NonParallelizable]
+    [Category(Categories.FullSuiteOnly)]
     public class ServiceVerbTests : TestsWithMultiEnlistment
     {
         private static readonly string[] EmptyRepoList = new string[] { };
@@ -28,12 +29,12 @@ namespace GVFS.FunctionalTests.Tests.MultiEnlistmentTests
             string[] repoRootList = new string[] { enlistment1.EnlistmentRoot, enlistment2.EnlistmentRoot };
 
             GVFSProcess gvfsProcess1 = new GVFSProcess(
-                Path.Combine(TestContext.CurrentContext.TestDirectory, Properties.Settings.Default.PathToGVFS),
+                GVFSTestConfig.PathToGVFS,
                 enlistment1.EnlistmentRoot,
                 enlistment1.LocalCacheRoot);
 
             GVFSProcess gvfsProcess2 = new GVFSProcess(
-                Path.Combine(TestContext.CurrentContext.TestDirectory, Properties.Settings.Default.PathToGVFS),
+                GVFSTestConfig.PathToGVFS,
                 enlistment2.EnlistmentRoot,
                 enlistment2.LocalCacheRoot);
 
@@ -63,7 +64,7 @@ namespace GVFS.FunctionalTests.Tests.MultiEnlistmentTests
             string[] repoRootList = new string[] { enlistment1.EnlistmentRoot };
 
             GVFSProcess gvfsProcess1 = new GVFSProcess(
-                Path.Combine(TestContext.CurrentContext.TestDirectory, Properties.Settings.Default.PathToGVFS),
+                GVFSTestConfig.PathToGVFS,
                 enlistment1.EnlistmentRoot,
                 enlistment1.LocalCacheRoot);
 
@@ -87,7 +88,7 @@ namespace GVFS.FunctionalTests.Tests.MultiEnlistmentTests
         private void RunServiceCommandAndCheckOutput(string argument, string[] expectedRepoRoots, string[] unexpectedRepoRoots = null)
         {
             GVFSProcess gvfsProcess = new GVFSProcess(
-                Path.Combine(TestContext.CurrentContext.TestDirectory, Properties.Settings.Default.PathToGVFS), 
+                GVFSTestConfig.PathToGVFS, 
                 enlistmentRoot: null, 
                 localCacheRoot: null);
 

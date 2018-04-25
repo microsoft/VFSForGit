@@ -8,6 +8,7 @@ using System.IO;
 namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
 {
     [TestFixture]
+    [Category(Categories.FullSuiteOnly)]
     public class PrefetchVerbWithoutSharedCacheTests : TestsWithEnlistmentPerFixture
     {
         private const string PrefetchPackPrefix = "prefetch";
@@ -47,6 +48,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
             // Verify prefetch pack(s) are in packs folder and have matching idx file
             string[] prefetchPacks = this.ReadPrefetchPackFileNames();            
             this.AllPrefetchPacksShouldHaveIdx(prefetchPacks);
+            this.PackDirShouldContainMidx(this.Enlistment.GetPackRoot(this.fileSystem));
 
             // Verify tempPacks is empty
             this.TempPackRoot.ShouldBeADirectory(this.fileSystem).WithNoItems();
@@ -73,6 +75,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
             string[] newPrefetchPacks = this.ReadPrefetchPackFileNames();
             newPrefetchPacks.ShouldContain(prefetchPacks, (item, expectedValue) => { return string.Equals(item, expectedValue); });
             this.AllPrefetchPacksShouldHaveIdx(newPrefetchPacks);
+            this.PackDirShouldContainMidx(this.Enlistment.GetPackRoot(this.fileSystem));
             this.TempPackRoot.ShouldBeADirectory(this.fileSystem).WithNoItems();
         }
 
@@ -97,6 +100,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
             string[] newPrefetchPacks = this.ReadPrefetchPackFileNames();
             newPrefetchPacks.ShouldContain(prefetchPacks, (item, expectedValue) => { return string.Equals(item, expectedValue); });
             this.AllPrefetchPacksShouldHaveIdx(newPrefetchPacks);
+            this.PackDirShouldContainMidx(this.Enlistment.GetPackRoot(this.fileSystem));
             this.TempPackRoot.ShouldBeADirectory(this.fileSystem).WithNoItems();
         }
 
@@ -125,6 +129,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
 
             string[] newPrefetchPacks = this.ReadPrefetchPackFileNames();
             this.AllPrefetchPacksShouldHaveIdx(newPrefetchPacks);
+            this.PackDirShouldContainMidx(this.Enlistment.GetPackRoot(this.fileSystem));
             this.TempPackRoot.ShouldBeADirectory(this.fileSystem).WithNoItems();
         }
 
@@ -155,6 +160,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
             string[] newPrefetchPacks = this.ReadPrefetchPackFileNames();
             newPrefetchPacks.ShouldContain(prefetchPacks, (item, expectedValue) => { return string.Equals(item, expectedValue); });
             this.AllPrefetchPacksShouldHaveIdx(newPrefetchPacks);
+            this.PackDirShouldContainMidx(this.Enlistment.GetPackRoot(this.fileSystem));
             this.TempPackRoot.ShouldBeADirectory(this.fileSystem).WithNoItems();
         }
 
@@ -186,6 +192,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
             string[] newPrefetchPacks = this.ReadPrefetchPackFileNames();
             newPrefetchPacks.ShouldNotContain(prefetchPacks, (item, expectedValue) => { return string.Equals(item, expectedValue); });
             this.AllPrefetchPacksShouldHaveIdx(newPrefetchPacks);
+            this.PackDirShouldContainMidx(this.Enlistment.GetPackRoot(this.fileSystem));
             this.TempPackRoot.ShouldBeADirectory(this.fileSystem).WithNoItems();
         }
 
@@ -221,6 +228,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
             string[] newPrefetchPacks = this.ReadPrefetchPackFileNames();
             newPrefetchPacks.ShouldNotContain(prefetchPacks, (item, expectedValue) => { return string.Equals(item, expectedValue); });
             this.AllPrefetchPacksShouldHaveIdx(newPrefetchPacks);
+            this.PackDirShouldContainMidx(this.Enlistment.GetPackRoot(this.fileSystem));
             this.TempPackRoot.ShouldBeADirectory(this.fileSystem).WithNoItems();
         }
 
@@ -277,6 +285,15 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
             {
                 this.PackShouldHaveIdxFile(prefetchPack);
             }
+        }
+
+        private void PackDirShouldContainMidx(string packDir)
+        {
+            string midxHead = packDir + "/midx-head";
+            this.fileSystem.FileExists(midxHead).ShouldBeTrue();
+            string midxHash = this.fileSystem.ReadAllText(midxHead).Substring(0, 40);
+            string midxFile = packDir + "/midx-" + midxHash + ".midx";
+            this.fileSystem.FileExists(midxFile).ShouldBeTrue();
         }
 
         private string[] ReadPrefetchPackFileNames()

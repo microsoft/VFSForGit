@@ -1,5 +1,6 @@
 ﻿using GVFS.FunctionalTests.FileSystemRunners;
 using GVFS.FunctionalTests.Should;
+using GVFS.FunctionalTests.Tests.EnlistmentPerTestCase;
 using GVFS.FunctionalTests.Tools;
 using GVFS.Tests.Should;
 using NUnit.Framework;
@@ -13,6 +14,7 @@ using System.Threading.Tasks;
 namespace GVFS.FunctionalTests.Tests.MultiEnlistmentTests
 {
     [TestFixture]
+    [Category(Categories.FullSuiteOnly)]
     public class SharedCacheTests : TestsWithMultiEnlistment
     {
         private const string WellKnownFile = "Readme.md";
@@ -38,12 +40,6 @@ namespace GVFS.FunctionalTests.Tests.MultiEnlistmentTests
             this.localCachePath = Path.Combine(this.localCacheParentPath, ".customGVFSCache");
         }
 
-        [TearDown]
-        public void DeleteCache()
-        {
-            CmdRunner.DeleteDirectoryWithRetry(this.localCacheParentPath);
-        }
-
         [TestCase]
         public void SecondCloneDoesNotDownloadAdditionalObjects()
         {
@@ -62,6 +58,124 @@ namespace GVFS.FunctionalTests.Tests.MultiEnlistmentTests
             enlistment2.LocalCacheRoot.ShouldEqual(enlistment1.LocalCacheRoot, "Sanity: Local cache roots are expected to match.");
             Directory.EnumerateFiles(enlistment2.LocalCacheRoot, "*", SearchOption.AllDirectories)
                 .ShouldMatchInOrder(allObjects);
+        }
+
+        [TestCase]
+        public void RepairFixesCorruptBlobSizesDatabase()
+        {
+            GVFSFunctionalTestEnlistment enlistment = this.CloneAndMountEnlistment();
+            enlistment.UnmountGVFS();
+
+            // Repair on a healthy enlistment should succeed
+            enlistment.Repair();
+
+            string blobSizesRoot = GVFSHelpers.GetPersistedBlobSizesRoot(enlistment.DotGVFSRoot).ShouldNotBeNull();
+            string blobSizesDbPath = Path.Combine(blobSizesRoot, "BlobSizes.sql");
+            blobSizesDbPath.ShouldBeAFile(this.fileSystem);
+            this.fileSystem.WriteAllText(blobSizesDbPath, "0000");
+
+            enlistment.TryMountGVFS().ShouldEqual(false, "GVFS shouldn't mount when blob size db is corrupt");
+            enlistment.Repair();
+            enlistment.MountGVFS();
+        }
+
+        [TestCase]
+        public void MountUpgradesLocalSizesToSharedCache()
+        {
+            GVFSFunctionalTestEnlistment enlistment = this.CloneAndMountEnlistment();
+            enlistment.UnmountGVFS();
+
+            string localCacheRoot = GVFSHelpers.GetPersistedLocalCacheRoot(enlistment.DotGVFSRoot);
+            string gitObjectsRoot = GVFSHelpers.GetPersistedGitObjectsRoot(enlistment.DotGVFSRoot);
+
+            // Delete the existing repo metadata
+            string versionJsonPath = Path.Combine(enlistment.DotGVFSRoot, GVFSHelpers.RepoMetadataName);
+            versionJsonPath.ShouldBeAFile(this.fileSystem);
+            this.fileSystem.DeleteFile(versionJsonPath);
+
+            // "13.0" was the last version before blob sizes were moved out of Esent
+            string metadataPath = Path.Combine(enlistment.DotGVFSRoot, GVFSHelpers.RepoMetadataName);
+            this.fileSystem.CreateEmptyFile(metadataPath);
+            GVFSHelpers.SaveDiskLayoutVersion(enlistment.DotGVFSRoot, "13", "0");
+            GVFSHelpers.SaveLocalCacheRoot(enlistment.DotGVFSRoot, localCacheRoot);
+            GVFSHelpers.SaveGitObjectsRoot(enlistment.DotGVFSRoot, gitObjectsRoot);
+
+            // Create a legacy PersistedDictionary sizes database
+            List<KeyValuePair<string, long>> entries = new List<KeyValuePair<string, long>>()
+            {
+                new KeyValuePair<string, long>(new string('0', 40), 1),
+                new KeyValuePair<string, long>(new string('1', 40), 2),
+                new KeyValuePair<string, long>(new string('2', 40), 4),
+                new KeyValuePair<string, long>(new string('3', 40), 8),
+            };
+
+            GVFSHelpers.CreateEsentBlobSizesDatabase(enlistment.DotGVFSRoot, entries);
+
+            enlistment.MountGVFS();
+
+            string majorVersion;
+            string minorVersion;
+            GVFSHelpers.GetPersistedDiskLayoutVersion(enlistment.DotGVFSRoot, out majorVersion, out minorVersion);
+
+            majorVersion
+                .ShouldBeAnInt("Disk layout version should always be an int")
+                .ShouldEqual(DiskLayoutUpgradeTests.CurrentDiskLayoutMajorVersion, "Disk layout version should be upgraded to the latest");
+
+            minorVersion
+                .ShouldBeAnInt("Disk layout version should always be an int")
+                .ShouldEqual(DiskLayoutUpgradeTests.CurrentDiskLayoutMinorVersion, "Disk layout version should be upgraded to the latest");
+
+            string newBlobSizesRoot = Path.Combine(Path.GetDirectoryName(gitObjectsRoot), DiskLayoutUpgradeTests.BlobSizesCacheName);
+            GVFSHelpers.GetPersistedBlobSizesRoot(enlistment.DotGVFSRoot)
+                .ShouldEqual(newBlobSizesRoot);
+
+            string blobSizesDbPath = Path.Combine(newBlobSizesRoot, DiskLayoutUpgradeTests.BlobSizesDBFileName);
+            newBlobSizesRoot.ShouldBeADirectory(this.fileSystem);
+            blobSizesDbPath.ShouldBeAFile(this.fileSystem);
+
+            foreach (KeyValuePair<string, long> entry in entries)
+            {
+                GVFSHelpers.SQLiteBlobSizesDatabaseHasEntry(blobSizesDbPath, entry.Key, entry.Value);
+            }
+
+            // Upgrade a second repo, and make sure all sizes from both upgrades are in the shared database
+
+            GVFSFunctionalTestEnlistment enlistment2 = this.CloneAndMountEnlistment();
+            enlistment2.UnmountGVFS();
+
+            // Delete the existing repo metadata
+            versionJsonPath = Path.Combine(enlistment2.DotGVFSRoot, GVFSHelpers.RepoMetadataName);
+            versionJsonPath.ShouldBeAFile(this.fileSystem);
+            this.fileSystem.DeleteFile(versionJsonPath);
+
+            // "13.0" was the last version before blob sizes were moved out of Esent
+            metadataPath = Path.Combine(enlistment2.DotGVFSRoot, GVFSHelpers.RepoMetadataName);
+            this.fileSystem.CreateEmptyFile(metadataPath);
+            GVFSHelpers.SaveDiskLayoutVersion(enlistment2.DotGVFSRoot, "13", "0");
+            GVFSHelpers.SaveLocalCacheRoot(enlistment2.DotGVFSRoot, localCacheRoot);
+            GVFSHelpers.SaveGitObjectsRoot(enlistment2.DotGVFSRoot, gitObjectsRoot);
+
+            // Create a legacy PersistedDictionary sizes database
+            List<KeyValuePair<string, long>> additionalEntries = new List<KeyValuePair<string, long>>()
+            {
+                new KeyValuePair<string, long>(new string('4', 40), 16),
+                new KeyValuePair<string, long>(new string('5', 40), 32),
+                new KeyValuePair<string, long>(new string('6', 40), 64),
+            };
+
+            GVFSHelpers.CreateEsentBlobSizesDatabase(enlistment2.DotGVFSRoot, additionalEntries);
+
+            enlistment2.MountGVFS();
+
+            foreach (KeyValuePair<string, long> entry in entries)
+            {
+                GVFSHelpers.SQLiteBlobSizesDatabaseHasEntry(blobSizesDbPath, entry.Key, entry.Value);
+            }
+
+            foreach (KeyValuePair<string, long> entry in additionalEntries)
+            {
+                GVFSHelpers.SQLiteBlobSizesDatabaseHasEntry(blobSizesDbPath, entry.Key, entry.Value);
+            }
         }
 
         [TestCase]
@@ -109,14 +223,20 @@ namespace GVFS.FunctionalTests.Tests.MultiEnlistmentTests
         }
 
         [TestCase]
-        public void DeleteCacheBeforeMount()
+        public void DeleteObjectsCacheAndCacheMappingBeforeMount()
         {
             GVFSFunctionalTestEnlistment enlistment1 = this.CloneAndMountEnlistment();
             GVFSFunctionalTestEnlistment enlistment2 = this.CloneAndMountEnlistment();
 
             enlistment1.UnmountGVFS();
 
-            CmdRunner.DeleteDirectoryWithRetry(this.localCachePath);
+            string objectsRoot = GVFSHelpers.GetPersistedGitObjectsRoot(enlistment1.DotGVFSRoot).ShouldNotBeNull();
+            objectsRoot.ShouldBeADirectory(this.fileSystem);
+            CmdRunner.DeleteDirectoryWithRetry(objectsRoot);
+
+            string metadataPath = Path.Combine(this.localCachePath, "mapping.dat");
+            metadataPath.ShouldBeAFile(this.fileSystem);
+            this.fileSystem.DeleteFile(metadataPath);
 
             enlistment1.MountGVFS();
 
@@ -139,6 +259,9 @@ namespace GVFS.FunctionalTests.Tests.MultiEnlistmentTests
         {
             GVFSFunctionalTestEnlistment enlistment1 = this.CloneAndMountEnlistment();
 
+            string objectsRoot = GVFSHelpers.GetPersistedGitObjectsRoot(enlistment1.DotGVFSRoot).ShouldNotBeNull();
+            objectsRoot.ShouldBeADirectory(this.fileSystem);
+
             Task task1 = Task.Run(() =>
             {
                 this.HydrateEntireRepo(enlistment1);
@@ -148,7 +271,8 @@ namespace GVFS.FunctionalTests.Tests.MultiEnlistmentTests
             {
                 try
                 {
-                    CmdRunner.DeleteDirectoryWithRetry(this.localCachePath);
+                    // Delete objectsRoot rather than this.localCachePath as the blob sizes database cannot be deleted while GVFS is mounted
+                    CmdRunner.DeleteDirectoryWithRetry(objectsRoot);
                     Thread.Sleep(100);
                 }
                 catch (IOException)
@@ -237,6 +361,13 @@ namespace GVFS.FunctionalTests.Tests.MultiEnlistmentTests
             newObjectsRoot.ShouldBeADirectory(this.fileSystem);
 
             this.AlternatesFileShouldHaveGitObjectsRoot(enlistment);            
+        }
+
+        // Override OnTearDownEnlistmentsDeleted rathern than using [TearDown] as the enlistments need to be unmounted before
+        // localCacheParentPath can be deleted (as the SQLite blob sizes database cannot be deleted while GVFS is mounted) 
+        protected override void OnTearDownEnlistmentsDeleted()
+        {
+            CmdRunner.DeleteDirectoryWithRetry(this.localCacheParentPath);
         }
 
         private GVFSFunctionalTestEnlistment CloneAndMountEnlistment(string branch = null)

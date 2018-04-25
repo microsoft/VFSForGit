@@ -1,5 +1,4 @@
-﻿using GVFS.FunctionalTests.Category;
-using GVFS.FunctionalTests.FileSystemRunners;
+﻿using GVFS.FunctionalTests.FileSystemRunners;
 using GVFS.FunctionalTests.Properties;
 using GVFS.FunctionalTests.Should;
 using GVFS.FunctionalTests.Tools;
@@ -15,7 +14,8 @@ using System.Text.RegularExpressions;
 namespace GVFS.FunctionalTests.Tests
 {
     [TestFixture]
-    [Category(CategoryConstants.FastFetch)]
+    [Category(Categories.FastFetch)]
+    [Category(Categories.FullSuiteOnly)]
     public class FastFetchTests
     {
         private readonly string fastFetchRepoRoot = Settings.Default.FastFetchRoot;
@@ -74,7 +74,7 @@ namespace GVFS.FunctionalTests.Tests
             this.CurrentBranchShouldEqual(Settings.Default.Commitish);
 
             this.fastFetchRepoRoot.ShouldBeADirectory(FileSystemRunner.DefaultRunner)
-                .WithDeepStructure(FileSystemRunner.DefaultRunner, this.fastFetchControlRoot, skipEmptyDirectories: false);
+                .WithDeepStructure(FileSystemRunner.DefaultRunner, this.fastFetchControlRoot);
         }
 
         [TestCase]
@@ -108,7 +108,7 @@ namespace GVFS.FunctionalTests.Tests
             this.CurrentBranchShouldEqual(Settings.Default.Commitish);
 
             this.fastFetchRepoRoot.ShouldBeADirectory(FileSystemRunner.DefaultRunner)
-                .WithDeepStructure(FileSystemRunner.DefaultRunner, this.fastFetchControlRoot, skipEmptyDirectories: false);
+                .WithDeepStructure(FileSystemRunner.DefaultRunner, this.fastFetchControlRoot);
         }
 
         [TestCase]
@@ -135,7 +135,7 @@ namespace GVFS.FunctionalTests.Tests
             this.CurrentBranchShouldEqual(Settings.Default.Commitish);
             
             this.fastFetchRepoRoot.ShouldBeADirectory(FileSystemRunner.DefaultRunner)
-                .WithDeepStructure(FileSystemRunner.DefaultRunner, this.fastFetchControlRoot, skipEmptyDirectories: false);
+                .WithDeepStructure(FileSystemRunner.DefaultRunner, this.fastFetchControlRoot);
         }
 
         public void CanUpdateIndex(int indexVersion, bool indexSigningOff)
@@ -214,7 +214,7 @@ namespace GVFS.FunctionalTests.Tests
             this.CurrentBranchShouldEqual(Settings.Default.Commitish);
             
             this.fastFetchRepoRoot.ShouldBeADirectory(FileSystemRunner.DefaultRunner)
-                .WithDeepStructure(FileSystemRunner.DefaultRunner, this.fastFetchControlRoot, skipEmptyDirectories: false);
+                .WithDeepStructure(FileSystemRunner.DefaultRunner, this.fastFetchControlRoot);
         }
 
         [TestCase]
@@ -228,7 +228,7 @@ namespace GVFS.FunctionalTests.Tests
 
             this.CurrentBranchShouldEqual(Settings.Default.Commitish);
             this.fastFetchRepoRoot.ShouldBeADirectory(FileSystemRunner.DefaultRunner)
-                .WithDeepStructure(FileSystemRunner.DefaultRunner, this.fastFetchControlRoot, skipEmptyDirectories: false);
+                .WithDeepStructure(FileSystemRunner.DefaultRunner, this.fastFetchControlRoot);
         }
 
         [TestCase]
@@ -243,7 +243,7 @@ namespace GVFS.FunctionalTests.Tests
             try
             {
                 this.fastFetchRepoRoot.ShouldBeADirectory(FileSystemRunner.DefaultRunner)
-                    .WithDeepStructure(FileSystemRunner.DefaultRunner, this.fastFetchControlRoot, skipEmptyDirectories: false, ignoreCase: true);
+                    .WithDeepStructure(FileSystemRunner.DefaultRunner, this.fastFetchControlRoot, ignoreCase: true);
             }
             finally
             {
@@ -400,7 +400,7 @@ namespace GVFS.FunctionalTests.Tests
         {
             args = args + " --verbose";
 
-            string fastfetch = Path.Combine(TestContext.CurrentContext.TestDirectory, "fastfetch.exe");
+            string fastfetch = GVFSTestConfig.TestGVFSOnPath ? "fastfetch.exe" : Path.Combine(TestContext.CurrentContext.TestDirectory, "fastfetch.exe");
             if (!File.Exists(fastfetch))
             {
                 fastfetch = "fastfetch.exe";

@@ -65,5 +65,15 @@ namespace GVFS.UnitTests.Mock.FileSystem
         public override void SetAttributes(string path, FileAttributes fileAttributes)
         {
         }
+
+        public override void MoveFile(string sourcePath, string targetPath)
+        {
+            throw new NotImplementedException();
+        }
+
+        public override string[] GetFiles(string directoryPath, string mask)
+        {
+            throw new NotImplementedException();
+        }
     }
 }

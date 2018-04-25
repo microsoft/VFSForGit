@@ -41,14 +41,14 @@ namespace FastFetch.Jobs
             while (this.availablePacks.TryTake(out request, Timeout.Infinite))
             {
                 EventMetadata metadata = new EventMetadata();
-                metadata.Add("PackId", request.DownloadRequest.PackId);
+                metadata.Add("RequestId", request.DownloadRequest.RequestId);
                 using (ITracer activity = this.tracer.StartActivity(IndexPackAreaPath, EventLevel.Informational, Keywords.Telemetry, metadata))
                 {
                     GitProcess.Result result = this.gitObjects.IndexTempPackFile(request.TempPackFile);
                     if (result.HasErrors)
                     {
                         EventMetadata errorMetadata = new EventMetadata();
-                        errorMetadata.Add("PackId", request.DownloadRequest.PackId);
+                        errorMetadata.Add("RequestId", request.DownloadRequest.RequestId);
                         activity.RelatedError(errorMetadata, result.Errors);
                         this.HasFailures = true;
                     }

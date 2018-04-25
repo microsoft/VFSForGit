@@ -1,11 +1,14 @@
-﻿using System;
+﻿using ProjFS;
+using System;
 using System.Collections.Generic;
 
 namespace GVFS.GVFlt
 {
     public class GVFltActiveEnumeration : IDisposable
     {
+        private static FileNamePatternMatcher doesPatternMatch = null;
         private readonly IEnumerable<GVFltFileInfo> fileInfos;
+
         private IEnumerator<GVFltFileInfo> fileInfoEnumerator;
         private bool disposed = false;
         private string filterString = null;
@@ -16,6 +19,8 @@ namespace GVFS.GVFlt
             this.ResetEnumerator();
             this.MoveNext();
         }
+
+        public delegate bool FileNamePatternMatcher(string name, string pattern);
 
         /// <summary>
         /// true if Current refers to an element in the enumeration, false if Current is past the end of the collection
@@ -28,6 +33,15 @@ namespace GVFS.GVFlt
         public GVFltFileInfo Current
         {
             get { return this.fileInfoEnumerator.Current; }
+        }
+
+        /// <summary>
+        /// Sets the pattern matching delegate that will be used for file name comparisons
+        /// </summary>
+        /// <param name="patternMatcher">FileNamePatternMatcher to be used by GVFltActiveEnumeration</param>
+        public static void SetPatternMatcher(FileNamePatternMatcher patternMatcher)
+        {
+            doesPatternMatch = patternMatcher;
         }
 
         /// <summary>
@@ -112,16 +126,6 @@ namespace GVFS.GVFlt
             }
         }
 
-        private static bool FileNameMatchesFilter(string name, string filter)
-        {
-            if (string.IsNullOrEmpty(filter))
-            {
-                return true;
-            }
-
-            return PatternMatcher.StrictMatchPattern(filter, name);
-        }
-
         private void SaveFilter(string filter)
         {
             if (string.IsNullOrEmpty(filter))
@@ -140,7 +144,7 @@ namespace GVFS.GVFlt
 
         private bool IsCurrentHidden()
         {
-            return !FileNameMatchesFilter(this.Current.Name, this.GetFilterString());
+            return !doesPatternMatch(this.Current.Name, this.GetFilterString());
         }
 
         private void ResetEnumerator()

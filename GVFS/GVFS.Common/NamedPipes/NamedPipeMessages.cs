@@ -44,7 +44,7 @@ namespace GVFS.Common.NamedPipes
                 public string CacheServer { get; set; }
                 public int BackgroundOperationCount { get; set; }
                 public string LockStatus { get; set; }
-                public int DiskLayoutVersion { get; set; }
+                public string DiskLayoutVersion { get; set; }
 
                 public static Response FromJson(string json)
                 {
@@ -180,15 +180,15 @@ namespace GVFS.Common.NamedPipes
             }
         }
 
-        public class AttachGvFltRequest
+        public class EnableAndAttachProjFSRequest
         {
-            public const string Header = nameof(AttachGvFltRequest);
+            public const string Header = nameof(EnableAndAttachProjFSRequest);
 
             public string EnlistmentRoot { get; set; }
 
-            public static AttachGvFltRequest FromMessage(Message message)
+            public static EnableAndAttachProjFSRequest FromMessage(Message message)
             {
-                return JsonConvert.DeserializeObject<AttachGvFltRequest>(message.Body);
+                return JsonConvert.DeserializeObject<EnableAndAttachProjFSRequest>(message.Body);
             }
 
             public Message ToMessage()
@@ -196,7 +196,7 @@ namespace GVFS.Common.NamedPipes
                 return new Message(Header, JsonConvert.SerializeObject(this));
             }
 
-            public class Response : BaseResponse<AttachGvFltRequest>
+            public class Response : BaseResponse<EnableAndAttachProjFSRequest>
             {
                 public static Response FromMessage(Message message)
                 {

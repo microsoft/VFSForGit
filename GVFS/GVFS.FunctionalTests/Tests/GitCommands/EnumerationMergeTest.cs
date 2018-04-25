@@ -1,10 +1,9 @@
-﻿using GVFS.FunctionalTests.Category;
-using NUnit.Framework;
+﻿using NUnit.Framework;
 
 namespace GVFS.FunctionalTests.Tests.GitCommands
 {
     [TestFixture]
-    [Category(CategoryConstants.GitCommands)]
+    [Category(Categories.GitCommands)]
     public class EnumerationMergeTest : GitRepoTests
     {
         // Commit that found GvFlt Bug 12258777: Entries are sometimes skipped during 

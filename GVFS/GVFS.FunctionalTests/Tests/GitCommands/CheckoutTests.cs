@@ -1,5 +1,4 @@
-﻿using GVFS.FunctionalTests.Category;
-using GVFS.FunctionalTests.Should;
+﻿using GVFS.FunctionalTests.Should;
 using GVFS.FunctionalTests.Tools;
 using GVFS.Tests.Should;
 using Microsoft.Win32.SafeHandles;
@@ -13,7 +12,7 @@ using System.Threading.Tasks;
 namespace GVFS.FunctionalTests.Tests.GitCommands
 {
     [TestFixture]
-    [Category(CategoryConstants.GitCommands)]
+    [Category(Categories.GitCommands)]
     public class CheckoutTests : GitRepoTests
     {
         public CheckoutTests() : base(enlistmentPerTest: true)
@@ -226,11 +225,11 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
 
             this.ValidateGitCommand("checkout " + GitRepoTests.ConflictTargetBranch);
             this.Enlistment.RepoRoot.ShouldBeADirectory(this.FileSystem)
-                .WithDeepStructure(this.FileSystem, this.ControlGitRepo.RootPath, skipEmptyDirectories: true, compareContent: true);
+                .WithDeepStructure(this.FileSystem, this.ControlGitRepo.RootPath, compareContent: true);
 
             this.ValidateGitCommand("checkout " + GitRepoTests.ConflictSourceBranch);
             this.Enlistment.RepoRoot.ShouldBeADirectory(this.FileSystem)
-                .WithDeepStructure(this.FileSystem, this.ControlGitRepo.RootPath, skipEmptyDirectories: true, compareContent: true);
+                .WithDeepStructure(this.FileSystem, this.ControlGitRepo.RootPath, compareContent: true);
 
             // Verify sparse-checkout contents
             string sparseCheckoutFile = Path.Combine(this.Enlistment.RepoRoot, TestConstants.DotGit.Info.SparseCheckout);
@@ -238,7 +237,7 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
         }
 
         [TestCase]
-        public void DeleteEmptyFolderPlaceholderAndCheckoutBranchThatHasFolder()
+        public void CheckoutBranchThatHasFolderShouldGetDeleted()
         {
             // this.ControlGitRepo.Commitish should not have the folder Test_ConflictTests\AddedFiles
             string testFolder = @"Test_ConflictTests\AddedFiles";
@@ -253,11 +252,9 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
             this.ValidateGitCommand("checkout " + this.ControlGitRepo.Commitish);
             this.ShouldNotExistOnDisk(testFile);
 
-            // Test_ConflictTests\AddedFiles will only be on disk in the GVFS enlistment, delete it there
             string virtualFolder = Path.Combine(this.Enlistment.RepoRoot, testFolder);
             string controlFolder = Path.Combine(this.ControlGitRepo.RootPath, testFolder);
             controlFolder.ShouldNotExistOnDisk(this.FileSystem);
-            this.FileSystem.DeleteDirectory(virtualFolder);
             virtualFolder.ShouldNotExistOnDisk(this.FileSystem);
 
             // Move back to GitRepoTests.ConflictSourceBranch where testFolder and testFile are present
@@ -266,7 +263,7 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
         }
 
         [TestCase]
-        public void DeleteEmptyFolderPlaceholderAndCheckoutBranchThatDoesNotHaveFolder()
+        public void CheckoutBranchThatDoesNotHaveFolderShouldNotHaveFolder()
         {
             // this.ControlGitRepo.Commitish should not have the folder Test_ConflictTests\AddedFiles
             string testFolder = @"Test_ConflictTests\AddedFiles";
@@ -282,11 +279,9 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
 
             this.ValidateGitCommand("checkout -b tests/functional/DeleteEmptyFolderPlaceholderAndCheckoutBranchThatDoesNotHaveFolder" + this.ControlGitRepo.Commitish);
 
-            // Test_ConflictTests\AddedFiles will only be on disk in the GVFS enlistment, delete it there
             string virtualFolder = Path.Combine(this.Enlistment.RepoRoot, testFolder);
             string controlFolder = Path.Combine(this.ControlGitRepo.RootPath, testFolder);
             controlFolder.ShouldNotExistOnDisk(this.FileSystem);
-            this.FileSystem.DeleteDirectory(virtualFolder);
             virtualFolder.ShouldNotExistOnDisk(this.FileSystem);
 
             this.ValidateGitCommand("checkout " + this.ControlGitRepo.Commitish);
@@ -692,6 +687,187 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
             this.ValidateGitCommand("checkout " + this.ControlGitRepo.Commitish);
         }
 
+        [TestCase]
+        public void DeleteFolderAndChangeBranchToFolderWithDifferentCase()
+        {
+            // 692765 - Recursive sparse-checkout entries for folders should be case insensitive when
+            // changing branches
+
+            string folderName = "GVFlt_MultiThreadTest";
+
+            // Confirm that no other test has caused "GVFlt_MultiThreadTest" to be added to the sparse-checkout
+            string sparseFile = Path.Combine(this.Enlistment.RepoRoot, TestConstants.DotGit.Info.SparseCheckout);
+            sparseFile.ShouldBeAFile(this.FileSystem).WithContents().ShouldNotContain(ignoreCase: true, unexpectedSubstrings: folderName);
+
+            this.FolderShouldHaveCaseMatchingName(folderName, "GVFlt_MultiThreadTest");
+            this.DeleteFolder(folderName);
+
+            // b5fd7d23706a18cff3e2b8225588d479f7e51138 is the commit prior to deleting GVFLT_MultiThreadTest 
+            // and re-adding it as as GVFlt_MultiThreadTest
+            this.ValidateGitCommand("checkout b5fd7d23706a18cff3e2b8225588d479f7e51138");
+            this.FolderShouldHaveCaseMatchingName(folderName, "GVFLT_MultiThreadTest");
+        }
+
+        [TestCase]
+        public void SuccessfullyChecksOutDirectoryToFileToDirectory()
+        {
+            // This test switches between two branches and verifies specific transitions occured
+            this.ControlGitRepo.Fetch("FunctionalTests/20171103_DirectoryFileTransitionsPart1");
+            this.ControlGitRepo.Fetch("FunctionalTests/20171103_DirectoryFileTransitionsPart2");
+            this.ValidateGitCommand("checkout FunctionalTests/20171103_DirectoryFileTransitionsPart1");
+
+            // Delta of interest - Check initial state
+            // renamed:    foo.cpp\foo.cpp -> foo.cpp
+            //   where the top level "foo.cpp" is a folder with a file, then becomes just a file
+            //   note that folder\file names picked illustrate a real example
+            this.FolderShouldExistAndHaveFile("foo.cpp", "foo.cpp");
+
+            // Delta of interest - Check initial state
+            // renamed:    a\a <-> b && b <-> a
+            //   where a\a contains "file contents one"
+            //   and b contains "file contents two"
+            //   This tests two types of renames crossing into each other
+            this.FileShouldHaveContents("a\\a", "file contents one");
+            this.FileShouldHaveContents("b", "file contents two");
+
+            // Delta of interest - Check initial state
+            // renamed:    c\c <-> d\c && d\d <-> c\d
+            //   where c\c contains "file contents c"
+            //   and d\d contains "file contents d"
+            //   This tests two types of renames crossing into each other
+            this.FileShouldHaveContents("c\\c", "file contents c");
+            this.FileShouldHaveContents("d\\d", "file contents d");
+
+            // Now switch to second branch, part2 and verify transitions
+            this.ValidateGitCommand("checkout FunctionalTests/20171103_DirectoryFileTransitionsPart2");
+
+            // Delta of interest - Verify change
+            // renamed:    foo.cpp\foo.cpp -> foo.cpp
+            this.FolderShouldExistAndHaveFile(string.Empty, "foo.cpp");
+
+            // Delta of interest - Verify change
+            // renamed:    a\a <-> b && b <-> a
+            this.FileShouldHaveContents("a", "file contents two");
+            this.FileShouldHaveContents("b", "file contents one");
+
+            // Delta of interest - Verify change
+            // renamed:    c\c <-> d\c && d\d <-> c\d
+            this.FileShouldHaveContents("c\\d", "file contents d");
+            this.FileShouldHaveContents("d\\c", "file contents c");
+            this.ShouldNotExistOnDisk("c\\c");
+            this.ShouldNotExistOnDisk("d\\d");
+
+            // And back again
+            this.ValidateGitCommand("checkout FunctionalTests/20171103_DirectoryFileTransitionsPart1");
+
+            // Delta of interest - Final validation
+            // renamed:    foo.cpp\foo.cpp -> foo.cpp
+            this.FolderShouldExistAndHaveFile("foo.cpp", "foo.cpp");
+
+            // Delta of interest - Final validation
+            // renamed:    a\a <-> b && b <-> a
+            this.FileShouldHaveContents("a\\a", "file contents one");
+            this.FileShouldHaveContents("b", "file contents two");
+
+            // Delta of interest - Final validation
+            // renamed:    c\c <-> d\c && d\d <-> c\d
+            this.FileShouldHaveContents("c\\c", "file contents c");
+            this.FileShouldHaveContents("d\\d", "file contents d");
+            this.ShouldNotExistOnDisk("c\\d");
+            this.ShouldNotExistOnDisk("d\\c");
+        }
+
+        [TestCase]
+        public void DeleteFileThenCheckout()
+        {
+            this.FolderShouldExistAndHaveFile("GitCommandsTests\\DeleteFileTests\\1", "#test");
+            this.DeleteFile("GitCommandsTests\\DeleteFileTests\\1\\#test");
+            this.FolderShouldExistAndBeEmpty("GitCommandsTests\\DeleteFileTests\\1");
+
+            // Commit 14cf226119766146b1fa5c5aa4cd0896d05f6b63 is before
+            // the files in GitCommandsTests\DeleteFileTests were added
+            this.ValidateGitCommand("checkout 14cf226119766146b1fa5c5aa4cd0896d05f6b63");
+
+            this.ShouldNotExistOnDisk("GitCommandsTests\\DeleteFileTests\\1");
+            this.ShouldNotExistOnDisk("GitCommandsTests\\DeleteFileTests");
+        }
+
+        [TestCase]
+        public void CheckoutEditCheckoutWithoutFolderThenCheckoutWithMultipleFiles()
+        {
+            // Edit the file to get the entry in the sparse-checkout file
+            this.EditFile("DeleteFileWithNameAheadOfDotAndSwitchCommits\\1", "Changing the content of one file");
+            this.RunGitCommand("reset --hard -q HEAD");
+
+            // This commit should remove the DeleteFileWithNameAheadOfDotAndSwitchCommits folder
+            this.ValidateGitCommand("checkout b4d932658def04a97da873fd6adab70014b8a523");
+
+            this.ShouldNotExistOnDisk("DeleteFileWithNameAheadOfDotAndSwitchCommits");
+        }
+
+        [TestCase]
+        public void CreateAFolderThenCheckoutBranchWithFolder()
+        {
+            this.FolderShouldExistAndHaveFile("DeleteFileWithNameAheadOfDotAndSwitchCommits", "1");
+
+            // This commit should remove the DeleteFileWithNameAheadOfDotAndSwitchCommits folder
+            this.ValidateGitCommand("checkout b4d932658def04a97da873fd6adab70014b8a523");
+            this.ShouldNotExistOnDisk("DeleteFileWithNameAheadOfDotAndSwitchCommits");
+            this.CreateFolder("DeleteFileWithNameAheadOfDotAndSwitchCommits");
+            this.ValidateGitCommand("checkout " + this.ControlGitRepo.Commitish);
+            this.FolderShouldExistAndHaveFile("DeleteFileWithNameAheadOfDotAndSwitchCommits", "1");
+        }
+
+        [TestCase]
+        public void CheckoutBranchWithDirectoryNameSameAsFile()
+        {
+            this.SetupForFileDirectoryTest();
+            this.ValidateFileDirectoryTest("checkout");
+        }
+
+        [TestCase]
+        public void CheckoutBranchWithDirectoryNameSameAsFileEnumerate()
+        {
+            this.RunFileDirectoryEnumerateTest("checkout");
+        }
+
+        [TestCase]
+        public void CheckoutBranchWithDirectoryNameSameAsFileWithRead()
+        {
+            this.RunFileDirectoryReadTest("checkout");
+        }
+
+        [TestCase]
+        public void CheckoutBranchWithDirectoryNameSameAsFileWithWrite()
+        {
+            this.RunFileDirectoryWriteTest("checkout");
+        }
+
+        [TestCase]
+        public void CheckoutBranchDirectoryWithOneFile()
+        {
+            this.SetupForFileDirectoryTest(commandBranch: GitRepoTests.DirectoryWithDifferentFileAfterBranch);
+            this.ValidateFileDirectoryTest("checkout", commandBranch: GitRepoTests.DirectoryWithDifferentFileAfterBranch);
+        }
+
+        [TestCase]
+        public void CheckoutBranchDirectoryWithOneFileEnumerate()
+        {
+            this.RunFileDirectoryEnumerateTest("checkout", commandBranch: GitRepoTests.DirectoryWithDifferentFileAfterBranch);
+        }
+
+        [TestCase]
+        public void CheckoutBranchDirectoryWithOneFileRead()
+        {
+            this.RunFileDirectoryReadTest("checkout", commandBranch: GitRepoTests.DirectoryWithDifferentFileAfterBranch);
+        }
+
+        [TestCase]
+        public void CheckoutBranchDirectoryWithOneFileWrite()
+        {
+            this.RunFileDirectoryWriteTest("checkout", commandBranch: GitRepoTests.DirectoryWithDifferentFileAfterBranch);
+        }
+        
         [DllImport("kernel32.dll", SetLastError = true, CharSet = CharSet.Unicode)]
         private static extern SafeFileHandle CreateFile(
             [In] string fileName,

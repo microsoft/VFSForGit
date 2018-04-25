@@ -5,6 +5,7 @@
         Success = 0,       
         ParsingError = 1,
         RebootRequired = 2,
-        GenericError = 3
+        GenericError = 3,
+        FilterError = 4
     }
 }

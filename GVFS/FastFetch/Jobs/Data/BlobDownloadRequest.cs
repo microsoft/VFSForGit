@@ -10,7 +10,7 @@ namespace FastFetch.Jobs.Data
         public BlobDownloadRequest(IReadOnlyList<string> objectIds)
         {
             this.ObjectIds = objectIds;
-            this.PackId = Interlocked.Increment(ref requestCounter);
+            this.RequestId = Interlocked.Increment(ref requestCounter);
         }
 
         public static int TotalRequests
@@ -23,6 +23,6 @@ namespace FastFetch.Jobs.Data
 
         public IReadOnlyList<string> ObjectIds { get; }
 
-        public int PackId { get; }
+        public int RequestId { get; }
     }
 }

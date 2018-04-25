@@ -7,9 +7,6 @@ namespace GVFS.Common.Http
 {
     public class CacheServerResolver
     {
-        private const string CacheServerConfigName = "gvfs.cache-server";
-        private const string DeprecatedCacheEndpointGitConfigSuffix = ".cache-server-url";
-
         private ITracer tracer;
         private Enlistment enlistment;
 
@@ -35,7 +32,7 @@ namespace GVFS.Common.Http
 
             // TODO 1057500: Remove support for encoded-repo-url cache config setting
             return
-                GetValueFromConfig(git, CacheServerConfigName, localOnly: true)
+                GetValueFromConfig(git, GVFSConstants.GitConfig.CacheServer, localOnly: true)
                 ?? GetValueFromConfig(git, GetDeprecatedCacheConfigSettingName(enlistment), localOnly: false)
                 ?? enlistment.RepoUrl;
         }
@@ -126,7 +123,7 @@ namespace GVFS.Common.Http
         public bool TrySaveUrlToLocalConfig(CacheServerInfo cache, out string error)
         {
             GitProcess git = this.enlistment.CreateGitProcess();
-            GitProcess.Result result = git.SetInLocalConfig(CacheServerConfigName, cache.Url, replaceAll: true);
+            GitProcess.Result result = git.SetInLocalConfig(GVFSConstants.GitConfig.CacheServer, cache.Url, replaceAll: true);
 
             error = result.Errors;
             return !result.HasErrors;
@@ -159,7 +156,7 @@ namespace GVFS.Common.Http
                 .Replace("http://", string.Empty)
                 .Replace('/', '.');
 
-            return GVFSConstants.GitConfig.GVFSPrefix + sectionUrl + DeprecatedCacheEndpointGitConfigSuffix;
+            return GVFSConstants.GitConfig.GVFSPrefix + sectionUrl + GVFSConstants.GitConfig.DeprecatedCacheEndpointSuffix;
         }
 
         private CacheServerInfo CreateNone()

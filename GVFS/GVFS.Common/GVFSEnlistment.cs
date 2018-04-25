@@ -1,12 +1,7 @@
-using GVFS.Common.FileSystem;
-using GVFS.Common.Git;
 using GVFS.Common.NamedPipes;
 using Newtonsoft.Json;
 using System;
-using System.Collections.Generic;
 using System.IO;
-using System.Linq;
-using System.Security;
 using System.Security.AccessControl;
 using System.Security.Principal;
 using System.Threading;
@@ -15,9 +10,15 @@ namespace GVFS.Common
 {
     public partial class GVFSEnlistment : Enlistment
     {
+        public const string BlobSizesCacheName = "blobSizes";
+
         private const string GitObjectCacheName = "gitObjects";
         private const string InvalidRepoUrl = "invalid://repoUrl";
-        
+
+        private string gitVersion;
+        private string gvfsVersion;
+        private string gvfsHooksVersion;
+
         // New enlistment
         public GVFSEnlistment(string enlistmentRoot, string repoUrl, string gitBinPath, string gvfsHooksRoot)
             : base(
@@ -31,10 +32,11 @@ namespace GVFS.Common
             this.NamedPipeName = Paths.GetNamedPipeName(this.EnlistmentRoot);
             this.DotGVFSRoot = Path.Combine(this.EnlistmentRoot, GVFSConstants.DotGVFS.Root);
             this.GVFSLogsRoot = Path.Combine(this.EnlistmentRoot, GVFSConstants.DotGVFS.LogPath);
+            this.LocalObjectsRoot = Path.Combine(this.WorkingDirectoryRoot, GVFSConstants.DotGit.Objects.Root);
         }
-        
+
         // Existing, configured enlistment
-        public GVFSEnlistment(string enlistmentRoot, string gitBinPath, string gvfsHooksRoot)
+        private GVFSEnlistment(string enlistmentRoot, string gitBinPath, string gvfsHooksRoot)
             : this(
                   enlistmentRoot,
                   null,
@@ -42,7 +44,7 @@ namespace GVFS.Common
                   gvfsHooksRoot)
         {
         }
-        
+
         public string NamedPipeName { get; }
 
         public string DotGVFSRoot { get; }
@@ -51,8 +53,27 @@ namespace GVFS.Common
 
         public string LocalCacheRoot { get; private set; }
 
+        public string BlobSizesRoot { get; private set; }
+
         public override string GitObjectsRoot { get; protected set; }
+        public override string LocalObjectsRoot { get; protected set; }
         public override string GitPackRoot { get; protected set; }
+
+        // These version properties are only used in logging during clone and mount to track version numbers
+        public string GitVersion
+        {
+            get { return this.gitVersion; }
+        }
+
+        public string GVFSVersion
+        {
+            get { return this.gvfsVersion; }
+        }
+
+        public string GVFSHooksVersion
+        {
+            get { return this.gvfsHooksVersion; }
+        }
         
         public static GVFSEnlistment CreateWithoutRepoUrlFromDirectory(string directory, string gitBinRoot, string gvfsHooksRoot)
         {
@@ -139,16 +160,35 @@ namespace GVFS.Common
             }
         }
 
-        public void InitializeLocalCacheAndObjectsPathsFromKey(string localCacheRoot, string localCacheKey)
+        public void SetGitVersion(string gitVersion)
         {
-            this.InitializeLocalCacheAndObjectPaths(localCacheRoot, Path.Combine(localCacheRoot, localCacheKey, GitObjectCacheName));
+            this.SetOnce(gitVersion, ref this.gitVersion);
         }
 
-        public void InitializeLocalCacheAndObjectPaths(string localCacheRoot, string gitObjectsRoot)
+        public void SetGVFSVersion(string gvfsVersion)
+        {
+            this.SetOnce(gvfsVersion, ref this.gvfsVersion);
+        }
+
+        public void SetGVFSHooksVersion(string gvfsHooksVersion)
+        {
+            this.SetOnce(gvfsHooksVersion, ref this.gvfsHooksVersion);
+        }
+
+        public void InitializeCachePathsFromKey(string localCacheRoot, string localCacheKey)
+        {
+            this.InitializeCachePaths(
+                localCacheRoot, 
+                Path.Combine(localCacheRoot, localCacheKey, GitObjectCacheName),
+                Path.Combine(localCacheRoot, localCacheKey, BlobSizesCacheName));
+        }
+
+        public void InitializeCachePaths(string localCacheRoot, string gitObjectsRoot, string blobSizesRoot)
         {
             this.LocalCacheRoot = localCacheRoot;
             this.GitObjectsRoot = gitObjectsRoot;
             this.GitPackRoot = Path.Combine(this.GitObjectsRoot, GVFSConstants.DotGit.Objects.Pack.Name);
+            this.BlobSizesRoot = blobSizesRoot;
         }
 
         public bool TryCreateEnlistmentFolders()
@@ -191,7 +231,17 @@ namespace GVFS.Common
 
             return true;
         }
-        
+
+        private void SetOnce<T>(T value, ref T valueToSet)
+        {
+            if (valueToSet != null)
+            {
+                throw new InvalidOperationException("Value already set.");
+            }
+
+            valueToSet = value;
+        }
+
         /// <summary>
         /// Creates a hidden directory @ the given path.
         /// If directory already exists, hides it.

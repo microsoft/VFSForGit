@@ -1,12 +1,11 @@
-﻿using GVFS.FunctionalTests.Category;
-using GVFS.FunctionalTests.Tools;
+﻿using GVFS.FunctionalTests.Tools;
 using NUnit.Framework;
 using System.IO;
 
 namespace GVFS.FunctionalTests.Tests.GitCommands
 {
     [TestFixture]
-    [Category(CategoryConstants.GitCommands)]
+    [Category(Categories.GitCommands)]
     public class UpdateIndexTests : GitRepoTests
     {
         public UpdateIndexTests() : base(enlistmentPerTest: true)

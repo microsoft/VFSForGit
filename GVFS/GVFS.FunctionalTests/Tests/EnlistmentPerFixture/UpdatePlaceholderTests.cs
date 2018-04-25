@@ -1,5 +1,4 @@
-﻿using GVFS.FunctionalTests.Category;
-using GVFS.FunctionalTests.FileSystemRunners;
+﻿using GVFS.FunctionalTests.FileSystemRunners;
 using GVFS.FunctionalTests.Should;
 using GVFS.FunctionalTests.Tools;
 using GVFS.Tests.Should;
@@ -13,7 +12,7 @@ using System.IO;
 namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
 {
     [TestFixture]
-    [Category(CategoryConstants.GitCommands)]
+    [Category(Categories.GitCommands)]
     public class UpdatePlaceholderTests : TestsWithEnlistmentPerFixture
     {
         private const string TestParentFolderName = "Test_EPF_UpdatePlaceholderTests";
@@ -292,7 +291,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
 
                 ProcessResult checkoutResult = GitProcess.InvokeProcess(this.Enlistment.RepoRoot, "checkout " + OldCommitId);
                 checkoutResult.Errors.ShouldContain(
-                    "HEAD is now at " + OldCommitId + @"... Add test files for update UpdatePlaceholder tests",
+                    "HEAD is now at " + OldCommitId,
                     "GVFS was unable to delete the following files. To recover, close all handles to the files and run these commands:",
                     "git clean -f " + TestParentFolderName + "/LockToPreventUpdateAndDelete/" + testFileDelete1Name,
                     "git clean -f " + TestParentFolderName + "/LockToPreventUpdateAndDelete/" + testFileDelete2Name,
@@ -385,7 +384,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
 
                     ProcessResult checkoutResult = GitProcess.InvokeProcess(this.Enlistment.RepoRoot, "checkout " + OldCommitId);
                     checkoutResult.Errors.ShouldContain(
-                        "HEAD is now at " + OldCommitId + @"... Add test files for update UpdatePlaceholder tests",
+                        "HEAD is now at " + OldCommitId,
                         "GVFS was unable to update the following files. To recover, close all handles to the files and run these commands:",
                         "git checkout -- Test_EPF_UpdatePlaceholderTests/LockToPreventUpdateAndDelete/test4.txt");
 

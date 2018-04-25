@@ -30,7 +30,6 @@ namespace GVFS.UnitTests.Common
 
             new GitCommandLineParser("git add").IsVerb(GitCommandLineParser.Verbs.AddOrStage).ShouldEqual(true);
             new GitCommandLineParser("git checkout").IsVerb(GitCommandLineParser.Verbs.Checkout).ShouldEqual(true);
-            new GitCommandLineParser("git clean").IsVerb(GitCommandLineParser.Verbs.Clean).ShouldEqual(true);
             new GitCommandLineParser("git commit").IsVerb(GitCommandLineParser.Verbs.Commit).ShouldEqual(true);
             new GitCommandLineParser("git mv").IsVerb(GitCommandLineParser.Verbs.Move).ShouldEqual(true);
             new GitCommandLineParser("git reset").IsVerb(GitCommandLineParser.Verbs.Reset).ShouldEqual(true);
@@ -62,20 +61,6 @@ namespace GVFS.UnitTests.Common
 
             new GitCommandLineParser("git checkout").IsResetSoftOrMixed().ShouldEqual(false);
             new GitCommandLineParser("git status").IsResetSoftOrMixed().ShouldEqual(false);
-        }
-
-        [TestCase]
-        public void IsResetHardTests()
-        {
-            new GitCommandLineParser("gits reset --hard").IsResetHard().ShouldEqual(false);
-
-            new GitCommandLineParser("git reset --hard").IsResetHard().ShouldEqual(true);
-
-            new GitCommandLineParser("git reset --soft").IsResetHard().ShouldEqual(false);
-            new GitCommandLineParser("git reset --mixed").IsResetHard().ShouldEqual(false);
-
-            new GitCommandLineParser("git checkout").IsResetHard().ShouldEqual(false);
-            new GitCommandLineParser("git status").IsResetHard().ShouldEqual(false);
         }
 
         [TestCase]

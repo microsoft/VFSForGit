@@ -1,16 +1,11 @@
-﻿using GVFS.FunctionalTests.Category;
-using GVFS.FunctionalTests.Should;
+﻿using GVFS.FunctionalTests.Should;
 using GVFS.FunctionalTests.Tools;
-using GVFS.Tests.Should;
 using NUnit.Framework;
-using System;
-using System.IO;
-using System.Runtime.CompilerServices;
 
 namespace GVFS.FunctionalTests.Tests.GitCommands
 {
     [TestFixture]
-    [Category(CategoryConstants.GitCommands)]
+    [Category(Categories.GitCommands)]
     public class DeleteEmptyFolderTests : GitRepoTests
     {
         public DeleteEmptyFolderTests() : base(enlistmentPerTest: true)
@@ -18,25 +13,23 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
         }
 
         [TestCase]
-        [Ignore("Disabled until checkout cleans up now empty folders.")]
         public void VerifyResetHardDeletesEmptyFolders()
         {
             this.SetupFolderDeleteTest();
 
             this.RunGitCommand("reset --hard HEAD");
             this.Enlistment.RepoRoot.ShouldBeADirectory(this.FileSystem)
-                .WithDeepStructure(this.FileSystem, this.ControlGitRepo.RootPath, skipEmptyDirectories: false);
+                .WithDeepStructure(this.FileSystem, this.ControlGitRepo.RootPath);
         }
 
         [TestCase]
-        [Ignore("Disabled until checkout cleans up now empty folders.")]
         public void VerifyCleanDeletesEmptyFolders()
         {
             this.SetupFolderDeleteTest();
 
             this.RunGitCommand("clean -fd");
             this.Enlistment.RepoRoot.ShouldBeADirectory(this.FileSystem)
-                .WithDeepStructure(this.FileSystem, this.ControlGitRepo.RootPath, skipEmptyDirectories: false);
+                .WithDeepStructure(this.FileSystem, this.ControlGitRepo.RootPath);
         }
 
         private void SetupFolderDeleteTest()

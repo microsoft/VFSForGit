@@ -4,6 +4,19 @@ namespace GVFS.FunctionalTests.Tools
 {
     public static class ProcessHelper
     {
+        public static ProcessResult Run(string fileName, string arguments)
+        {
+            ProcessStartInfo startInfo = new ProcessStartInfo();
+            startInfo.UseShellExecute = false;
+            startInfo.RedirectStandardOutput = true;
+            startInfo.RedirectStandardError = true;
+            startInfo.CreateNoWindow = true;
+            startInfo.FileName = fileName;
+            startInfo.Arguments = arguments;
+
+            return Run(startInfo);
+        }
+
         public static ProcessResult Run(ProcessStartInfo processInfo, string errorMsgDelimeter = "\r\n", object executionLock = null)
         {
             using (Process executingProcess = new Process())

@@ -54,6 +54,11 @@ namespace GVFS.Common.Http
         /// </summary>
         public string RetryableReadToEnd()
         {
+            if (this.Stream == null)
+            {
+                throw new RetryableException("Stream is null (this could be a result of network flakiness), retrying.");
+            }
+
             using (StreamReader contentStreamReader = new StreamReader(this.Stream))
             {
                 try

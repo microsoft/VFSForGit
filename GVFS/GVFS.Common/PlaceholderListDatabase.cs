@@ -141,7 +141,7 @@ namespace GVFS.Common
 
         private IEnumerable<string> GenerateDataLines(IEnumerable<PlaceholderData> updatedPlaceholders)
         {
-            HashSet<string> keys = new HashSet<string>();
+            HashSet<string> keys = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
             this.EstimatedCount = 0;
             foreach (PlaceholderData updated in updatedPlaceholders)
@@ -226,6 +226,11 @@ namespace GVFS.Common
 
             public string Path { get; }
             public string Sha { get; }
+
+            public bool IsFolder
+            {
+                get { return this.Sha == GVFSConstants.AllZeroSha; }
+            }
         }
 
         private class PlaceholderDataEntry

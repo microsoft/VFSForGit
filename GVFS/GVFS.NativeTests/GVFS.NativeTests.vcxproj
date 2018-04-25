@@ -17,6 +17,7 @@
     <WindowsTargetPlatformVersion>10.0.10240.0</WindowsTargetPlatformVersion>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
+  <Import Project="$(SolutionDir)\GVFS\GVFS.Build\ProjFS.props" />
   <Import Project="$(SolutionDir)\GVFS\GVFS.Build\GVFS.props" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'" Label="Configuration">
     <ConfigurationType>DynamicLibrary</ConfigurationType>
@@ -36,9 +37,6 @@
   </ImportGroup>
   <ImportGroup Label="Shared">
   </ImportGroup>
-  <ImportGroup Label="PropertySheets">
-    <Import Project="..\GVFS.GvFltWrapper\GvFlt.props" />
-  </ImportGroup>  
   <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
     <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
   </ImportGroup>
@@ -65,8 +63,8 @@
     <Link>
       <SubSystem>Windows</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
-      <AdditionalDependencies>gvlib.lib;fltlib.lib;Shlwapi.lib;%(AdditionalDependencies)</AdditionalDependencies>
-      <AdditionalLibraryDirectories>C:\Program Files (x86)\Windows Kits\10\Lib\10.0.10240.0\ucrt\x64;$(PackagesDir)\$(GvFltPackage)\lib</AdditionalLibraryDirectories>
+      <AdditionalDependencies>ProjectedFSLib.lib;fltlib.lib;Shlwapi.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalLibraryDirectories>C:\Program Files (x86)\Windows Kits\10\Lib\10.0.10240.0\ucrt\x64;$(PackagesDir)\$(ProjFSPackage)\lib</AdditionalLibraryDirectories>
     </Link>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
@@ -86,8 +84,8 @@
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
       <OptimizeReferences>true</OptimizeReferences>
       <GenerateDebugInformation>true</GenerateDebugInformation>
-      <AdditionalDependencies>gvlib.lib;fltlib.lib;Shlwapi.lib;%(AdditionalDependencies)</AdditionalDependencies>
-      <AdditionalLibraryDirectories>C:\Program Files (x86)\Windows Kits\10\Lib\10.0.10240.0\ucrt\x64;$(PackagesDir)\$(GvFltPackage)\lib</AdditionalLibraryDirectories>
+      <AdditionalDependencies>ProjectedFSLib.lib;fltlib.lib;Shlwapi.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalLibraryDirectories>C:\Program Files (x86)\Windows Kits\10\Lib\10.0.10240.0\ucrt\x64;$(PackagesDir)\$(ProjFSPackage)\lib</AdditionalLibraryDirectories>
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
@@ -96,7 +94,7 @@
   <ItemGroup>
     <ClInclude Include="FileUtils.h" />
     <ClInclude Include="include\gvflt.h" />
-    <ClInclude Include="include\gvlib_internal.h" />
+    <ClInclude Include="include\prjlib_internal.h" />
     <ClInclude Include="include\NtFunctions.h" />
     <ClInclude Include="include\TestHelpers.h" />
     <ClInclude Include="include\SafeHandle.h" />

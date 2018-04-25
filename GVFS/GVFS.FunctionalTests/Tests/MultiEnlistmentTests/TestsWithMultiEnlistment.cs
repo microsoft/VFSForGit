@@ -17,14 +17,21 @@ namespace GVFS.FunctionalTests.Tests.MultiEnlistmentTests
                 enlistment.UnmountAndDeleteAll();
             }
 
+            this.OnTearDownEnlistmentsDeleted();
+
             this.enlistmentsToDelete.Clear();
+        }
+
+        /// <summary>
+        /// Can be overridden for custom [TearDown] steps that occur after the test enlistements have been unmounted and deleted
+        /// </summary>
+        protected virtual void OnTearDownEnlistmentsDeleted()
+        {
         }
 
         protected GVFSFunctionalTestEnlistment CreateNewEnlistment(string localCacheRoot = null, string branch = null)
         {
-            string pathToGvfs = Path.Combine(TestContext.CurrentContext.TestDirectory, Properties.Settings.Default.PathToGVFS);
-
-            GVFSFunctionalTestEnlistment output = GVFSFunctionalTestEnlistment.CloneAndMount(pathToGvfs, branch, localCacheRoot);
+            GVFSFunctionalTestEnlistment output = GVFSFunctionalTestEnlistment.CloneAndMount(GVFSTestConfig.PathToGVFS, branch, localCacheRoot);
             this.enlistmentsToDelete.Add(output);
             return output;
         }

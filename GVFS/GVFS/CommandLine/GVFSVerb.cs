@@ -3,6 +3,7 @@ using GVFS.Common;
 using GVFS.Common.FileSystem;
 using GVFS.Common.Git;
 using GVFS.Common.Http;
+using GVFS.Common.NamedPipes;
 using GVFS.Common.Tracing;
 using Microsoft.Diagnostics.Tracing;
 using System;
@@ -18,11 +19,14 @@ namespace GVFS.CommandLine
     {
         protected const string StartServiceInstructions = "Run 'sc start GVFS.Service' from an elevated command prompt to ensure it is running.";
 
-        public GVFSVerb()
+        private readonly bool validateOriginURL;
+
+        public GVFSVerb(bool validateOrigin = true)
         {
             this.Output = Console.Out;
             this.ReturnCode = ReturnCode.Success;
             this.ServiceName = GVFSConstants.Service.ServiceName;
+            this.validateOriginURL = validateOrigin;
 
             this.Unattended = GVFSEnlistment.IsUnattended(tracer: null);
 
@@ -54,17 +58,21 @@ namespace GVFS.CommandLine
 
         protected abstract string VerbName { get; }
 
-        public static bool TrySetGitConfigSettings(Enlistment enlistment)
+        public static bool TrySetRequiredGitConfigSettings(Enlistment enlistment)
         {
             string expectedHooksPath = Path.Combine(enlistment.WorkingDirectoryRoot, GVFSConstants.DotGit.Hooks.Root);
             expectedHooksPath = expectedHooksPath.Replace('\\', '/');
 
-            Dictionary<string, string> expectedConfigSettings = new Dictionary<string, string>
+            // These settings are required for normal GVFS functionality.
+            // They will override any existing local configuration values.
+            Dictionary<string, string> requiredSettings = new Dictionary<string, string>
             {
                 { "am.keepcr", "true" },
                 { "core.autocrlf", "false" },
+                { "core.commitGraph", "true" },
                 { "core.fscache", "true" },
                 { "core.gvfs", "true" },
+                { "core.midx", "true" },
                 { "core.preloadIndex", "true" },
                 { "core.safecrlf", "false" },
                 { "core.sparseCheckout", "true" },
@@ -84,26 +92,27 @@ namespace GVFS.CommandLine
                 { "receive.autogc", "false" },
             };
 
-            GitProcess git = new GitProcess(enlistment);
-
-            Dictionary<string, GitConfigSetting> actualConfigSettings;
-            if (!git.TryGetAllLocalConfig(out actualConfigSettings))
+            if (!TrySetConfig(enlistment, requiredSettings, isRequired: true))
             {
                 return false;
             }
 
-            foreach (string key in expectedConfigSettings.Keys)
+            return true;
+        }
+
+        public static bool TrySetOptionalGitConfigSettings(Enlistment enlistment)
+        {
+            // These settings are optional, because they impact performance but not functionality of GVFS.
+            // These settings should only be set by the clone or repair verbs, so that they do not
+            // overwrite the values set by the user in their local config.
+            Dictionary<string, string> optionalSettings = new Dictionary<string, string>
             {
-                GitConfigSetting actualSetting;
-                if (!actualConfigSettings.TryGetValue(key, out actualSetting) ||
-                    !actualSetting.HasValue(expectedConfigSettings[key]))
-                {
-                    GitProcess.Result setConfigResult = git.SetInLocalConfig(key, expectedConfigSettings[key]);
-                    if (setConfigResult.HasErrors)
-                    {
-                        return false;
-                    }
-                }
+                { "status.aheadbehind", "false" },
+            };
+
+            if (!TrySetConfig(enlistment, optionalSettings, isRequired: false))
+            {
+                return false;
             }
 
             return true;
@@ -191,15 +200,6 @@ namespace GVFS.CommandLine
             this.ReportErrorAndExit(tracer, ReturnCode.GenericError, error, args);
         }
 
-        protected void CheckGVFltHealthy()
-        {
-            string error;
-            if (!GvFltFilter.IsHealthy(out error, tracer: null))
-            {
-                this.ReportErrorAndExit(tracer: null, error: error);
-            }
-        }
-
         protected RetryConfig GetRetryConfig(ITracer tracer, GVFSEnlistment enlistment, TimeSpan? timeoutOverride = null)
         {
             RetryConfig retryConfig;
@@ -239,8 +239,10 @@ namespace GVFS.CommandLine
 
         protected void ValidateClientVersions(ITracer tracer, GVFSEnlistment enlistment, GVFSConfig gvfsConfig, bool showWarnings)
         {
-            this.CheckGitVersion(tracer, enlistment);
-            this.GetGVFSHooksPathAndCheckVersion(tracer);
+            this.CheckGitVersion(tracer, enlistment, out string gitVersion);
+            enlistment.SetGitVersion(gitVersion);
+            this.GetGVFSHooksPathAndCheckVersion(tracer, out string hooksVersion);
+            enlistment.SetGVFSHooksVersion(hooksVersion);
             this.CheckVolumeSupportsDeleteNotifications(tracer, enlistment);
 
             string errorMessage = null;
@@ -284,7 +286,7 @@ namespace GVFS.CommandLine
             return true;
         }
 
-        protected string GetGVFSHooksPathAndCheckVersion(ITracer tracer)
+        protected string GetGVFSHooksPathAndCheckVersion(ITracer tracer, out string version)
         {
             string hooksPath = ProcessHelper.WhereDirectory(GVFSConstants.GVFSHooksExecutableName);
             if (hooksPath == null)
@@ -299,6 +301,7 @@ namespace GVFS.CommandLine
                 this.ReportErrorAndExit(tracer, "GVFS.Hooks version ({0}) does not match GVFS version ({1}).", hooksFileVersionInfo.ProductVersion, gvfsVersion);
             }
 
+            version = hooksFileVersionInfo.ProductVersion.ToString();
             return hooksPath;
         }
 
@@ -419,6 +422,95 @@ You can specify a URL, a name of a configured cache server, or the special names
             return true;
         }
 
+        /// <summary>
+        /// Request that PrjFlt be enabled and attached to the volume of the enlistment root
+        /// </summary>
+        /// <param name="enlistmentRoot">Enlistment root.  If string.Empty, PrjFlt will be enabled but not attached to any volumes</param>
+        /// <param name="errorMessage">Error meesage (in the case of failure)</param>
+        /// <returns>True is successful and false otherwise</returns>
+        protected bool TryEnableAndAttachGvFltThroughService(string enlistmentRoot, out string errorMessage)
+        {
+            errorMessage = string.Empty;
+
+            NamedPipeMessages.EnableAndAttachProjFSRequest request = new NamedPipeMessages.EnableAndAttachProjFSRequest();
+            request.EnlistmentRoot = enlistmentRoot;
+
+            using (NamedPipeClient client = new NamedPipeClient(this.ServicePipeName))
+            {
+                if (!client.Connect())
+                {
+                    errorMessage = "GVFS.Service is not responding. " + GVFSVerb.StartServiceInstructions;
+                    return false;
+                }
+
+                try
+                {
+                    client.SendRequest(request.ToMessage());
+                    NamedPipeMessages.Message response = client.ReadResponse();
+                    if (response.Header == NamedPipeMessages.EnableAndAttachProjFSRequest.Response.Header)
+                    {
+                        NamedPipeMessages.EnableAndAttachProjFSRequest.Response message = NamedPipeMessages.EnableAndAttachProjFSRequest.Response.FromMessage(response);
+
+                        if (!string.IsNullOrEmpty(message.ErrorMessage))
+                        {
+                            errorMessage = message.ErrorMessage;
+                            return false;
+                        }
+
+                        if (message.State != NamedPipeMessages.CompletionState.Success)
+                        {
+                            errorMessage = $"Failed to attach {ProjFSFilter.ServiceName} to volume.";
+                            return false;
+                        }
+                        else
+                        {
+                            return true;
+                        }
+                    }
+                    else
+                    {
+                        errorMessage = string.Format("GVFS.Service responded with unexpected message: {0}", response);
+                        return false;
+                    }
+                }
+                catch (BrokenPipeException e)
+                {
+                    errorMessage = "Unable to communicate with GVFS.Service: " + e.ToString();
+                    return false;
+                }
+            }
+        }
+
+        private static bool TrySetConfig(Enlistment enlistment, Dictionary<string, string> configSettings, bool isRequired)
+        {
+            GitProcess git = new GitProcess(enlistment);
+
+            Dictionary<string, GitConfigSetting> existingConfigSettings;
+
+            // If the settings are required, then only check local config settings, because we don't want to depend on
+            // global settings that can then change independent of this repo.
+            if (!git.TryGetAllConfig(localOnly: isRequired, configSettings: out existingConfigSettings))
+            {
+                return false;
+            }
+
+            foreach (KeyValuePair<string, string> setting in configSettings)
+            {
+                GitConfigSetting existingSetting;
+                if (!existingConfigSettings.TryGetValue(setting.Key, out existingSetting) ||
+                    (isRequired && !existingSetting.HasValue(setting.Value)))
+                {
+                    GitProcess.Result setConfigResult = git.SetInLocalConfig(setting.Key, setting.Value);
+                    if (setConfigResult.HasErrors)
+                    {
+                        return false;
+                    }
+                }
+            }
+
+            return true;
+        }
+
         private string GetAlternatesPath(GVFSEnlistment enlistment)
         {
             return Path.Combine(enlistment.WorkingDirectoryRoot, GVFSConstants.DotGit.Objects.Info.Alternates);
@@ -452,7 +544,7 @@ You can specify a URL, a name of a configured cache server, or the special names
             }
         }
 
-        private void CheckGitVersion(ITracer tracer, Enlistment enlistment)
+        private void CheckGitVersion(ITracer tracer, GVFSEnlistment enlistment, out string version)
         {
             GitProcess.Result versionResult = GitProcess.Version(enlistment);
             if (versionResult.HasErrors)
@@ -461,7 +553,7 @@ You can specify a URL, a name of a configured cache server, or the special names
             }
 
             GitVersion gitVersion;
-            string version = versionResult.Output;
+            version = versionResult.Output;
             if (version.StartsWith("git version "))
             {
                 version = version.Substring(12);
@@ -532,6 +624,7 @@ You can specify a URL, a name of a configured cache server, or the special names
                                 { "SupportedVersionRange", versionRange },
                             });
 
+                        enlistment.SetGVFSVersion(currentVersion.ToString());
                         return true;
                     }
                 }
@@ -546,6 +639,10 @@ You can specify a URL, a name of a configured cache server, or the special names
 
         public abstract class ForExistingEnlistment : GVFSVerb
         {
+            public ForExistingEnlistment(bool validateOrigin = true) : base(validateOrigin)
+            {
+            }
+
             [Value(
                 0,
                 Required = false,
@@ -553,7 +650,7 @@ You can specify a URL, a name of a configured cache server, or the special names
                 MetaName = "Enlistment Root Path",
                 HelpText = "Full or relative path to the GVFS enlistment root")]
             public override string EnlistmentRootPath { get; set; }
-
+            
             public sealed override void Execute()
             {
                 this.ValidatePathParameter(this.EnlistmentRootPath);
@@ -582,7 +679,7 @@ You can specify a URL, a name of a configured cache server, or the special names
                     this.ReportErrorAndExit(tracer, "Failed to initialize repo metadata: " + error);
                 }
 
-                this.InitializeLocalCacheAndObjectsPathsFromRepoMetadata(tracer, enlistment);
+                this.InitializeCachePathsFromRepoMetadata(tracer, enlistment);
 
                 // Note: Repos cloned with a version of GVFS that predates the local cache will not have a local cache configured
                 if (!string.IsNullOrWhiteSpace(enlistment.LocalCacheRoot))
@@ -593,7 +690,7 @@ You can specify a URL, a name of a configured cache server, or the special names
                 RepoMetadata.Shutdown();
             }
 
-            private void InitializeLocalCacheAndObjectsPathsFromRepoMetadata(
+            private void InitializeCachePathsFromRepoMetadata(
                 ITracer tracer,
                 GVFSEnlistment enlistment)
             {
@@ -615,7 +712,20 @@ You can specify a URL, a name of a configured cache server, or the special names
                     this.ReportErrorAndExit(tracer, "Failed to determine local cache path from repo metadata: " + error);
                 }
 
-                enlistment.InitializeLocalCacheAndObjectPaths(localCacheRoot, gitObjectsRoot);
+                // Note: localCacheRoot is allowed to be empty, this can occur when upgrading from disk layout version 11 to 12
+
+                string blobSizesRoot;
+                if (!RepoMetadata.Instance.TryGetBlobSizesRoot(out blobSizesRoot, out error))
+                {
+                    this.ReportErrorAndExit(tracer, "Failed to determine blob sizes root from repo metadata: " + error);
+                }
+
+                if (string.IsNullOrWhiteSpace(blobSizesRoot))
+                {
+                    this.ReportErrorAndExit(tracer, "Invalid blob sizes root (empty or whitespace)");
+                }
+
+                enlistment.InitializeCachePaths(localCacheRoot, gitObjectsRoot, blobSizesRoot);
             }
 
             private void EnsureLocalCacheIsHealthy(
@@ -643,6 +753,9 @@ You can specify a URL, a name of a configured cache server, or the special names
                     }
                 }
 
+                // Validate that the GitObjectsRoot directory is on disk, and that the GVFS repo is configured to use it.
+                // If the directory is missing (and cannot be found in the mapping file) a new key for the repo will be added
+                // to the mapping file and used for BOTH the GitObjectsRoot and BlobSizesRoot
                 PhysicalFileSystem fileSystem = new PhysicalFileSystem();
                 if (Directory.Exists(enlistment.GitObjectsRoot))
                 {
@@ -737,10 +850,10 @@ You can specify a URL, a name of a configured cache server, or the special names
                     metadata.Add("localCacheRoot", enlistment.LocalCacheRoot);
                     metadata.Add("localCacheKey", localCacheKey);
                     metadata.Add(TracingConstants.MessageKey.InfoMessage, "Initializing and persisting updated paths");
-                    tracer.RelatedEvent(EventLevel.Informational, "GVFSVerb_InitializeLocalCacheAndObjectsPaths", metadata);
-                    enlistment.InitializeLocalCacheAndObjectsPathsFromKey(enlistment.LocalCacheRoot, localCacheKey);
+                    tracer.RelatedEvent(EventLevel.Informational, "GVFSVerb_EnsureLocalCacheIsHealthy_InitializePathsFromKey", metadata);
+                    enlistment.InitializeCachePathsFromKey(enlistment.LocalCacheRoot, localCacheKey);
 
-                    tracer.RelatedInfo($"{nameof(this.EnsureLocalCacheIsHealthy)}: Creating GitObjectsRoot ({enlistment.GitObjectsRoot}) and GitPackRoot ({enlistment.GitPackRoot})");
+                    tracer.RelatedInfo($"{nameof(this.EnsureLocalCacheIsHealthy)}: Creating GitObjectsRoot ({enlistment.GitObjectsRoot}), GitPackRoot ({enlistment.GitPackRoot}), and BlobSizesRoot ({enlistment.BlobSizesRoot})");
                     try
                     {
                         Directory.CreateDirectory(enlistment.GitObjectsRoot);
@@ -753,9 +866,10 @@ You can specify a URL, a name of a configured cache server, or the special names
                         exceptionMetadata.Add("enlistment.LocalCacheRoot", enlistment.LocalCacheRoot);
                         exceptionMetadata.Add("enlistment.GitObjectsRoot", enlistment.GitObjectsRoot);
                         exceptionMetadata.Add("enlistment.GitPackRoot", enlistment.GitPackRoot);
-                        tracer.RelatedError(exceptionMetadata, $"{nameof(this.InitializeLocalCacheAndObjectsPaths)}: Exception while trying to create objects and pack folders");
+                        exceptionMetadata.Add("enlistment.BlobSizesRoot", enlistment.BlobSizesRoot);
+                        tracer.RelatedError(exceptionMetadata, $"{nameof(this.InitializeLocalCacheAndObjectsPaths)}: Exception while trying to create objects, pack, and sizes folders");
 
-                        this.ReportErrorAndExit(tracer, "Failed to create objects and pack folders");
+                        this.ReportErrorAndExit(tracer, "Failed to create objects, pack, and sizes folders");
                     }
 
                     tracer.RelatedInfo($"{nameof(this.EnsureLocalCacheIsHealthy)}: Creating new alternates file");
@@ -766,6 +880,30 @@ You can specify a URL, a name of a configured cache server, or the special names
 
                     tracer.RelatedInfo($"{nameof(this.EnsureLocalCacheIsHealthy)}: Saving git objects root ({enlistment.GitObjectsRoot}) in repo metadata");
                     RepoMetadata.Instance.SetGitObjectsRoot(enlistment.GitObjectsRoot);
+
+                    tracer.RelatedInfo($"{nameof(this.EnsureLocalCacheIsHealthy)}: Saving blob sizes root ({enlistment.BlobSizesRoot}) in repo metadata");
+                    RepoMetadata.Instance.SetBlobSizesRoot(enlistment.BlobSizesRoot);
+                }
+
+                // Validate that the BlobSizesRoot folder is on disk.
+                // Note that if a user performed an action that resulted in the entire .gvfscache being deleted, the code above
+                // for validating GitObjectsRoot will have already taken care of generating a new key and setting a new enlistment.BlobSizesRoot path
+                if (!Directory.Exists(enlistment.BlobSizesRoot))
+                {
+                    tracer.RelatedInfo($"{nameof(this.EnsureLocalCacheIsHealthy)}: BlobSizesRoot ({enlistment.BlobSizesRoot}) not found, re-creating");
+                    try
+                    {
+                        Directory.CreateDirectory(enlistment.BlobSizesRoot);
+                    }
+                    catch (Exception e)
+                    {
+                        EventMetadata exceptionMetadata = new EventMetadata();
+                        exceptionMetadata.Add("Exception", e.ToString());
+                        exceptionMetadata.Add("enlistment.BlobSizesRoot", enlistment.BlobSizesRoot);
+                        tracer.RelatedError(exceptionMetadata, $"{nameof(this.InitializeLocalCacheAndObjectsPaths)}: Exception while trying to create blob sizes folder");
+
+                        this.ReportErrorAndExit(tracer, "Failed to create blob sizes folder");
+                    }
                 }
             }
 
@@ -782,11 +920,19 @@ You can specify a URL, a name of a configured cache server, or the special names
                 {
                     this.ReportErrorAndExit("Could not find " + GVFSConstants.GVFSHooksExecutableName);
                 }
-
+                 
                 GVFSEnlistment enlistment = null;
                 try
                 {
-                    enlistment = GVFSEnlistment.CreateFromDirectory(enlistmentRootPath, gitBinPath, hooksPath);
+                    if (this.validateOriginURL)
+                    {
+                        enlistment = GVFSEnlistment.CreateFromDirectory(enlistmentRootPath, gitBinPath, hooksPath);
+                    }
+                    else
+                    {
+                        enlistment = GVFSEnlistment.CreateWithoutRepoUrlFromDirectory(enlistmentRootPath, gitBinPath, hooksPath);
+                    }
+                    
                     if (enlistment == null)
                     {
                         this.ReportErrorAndExit(

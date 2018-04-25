@@ -6,7 +6,7 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
-using System.Security;
+using System.Threading;
 
 namespace GVFS.Hooks
 {
@@ -24,7 +24,7 @@ namespace GVFS.Hooks
         private static string enlistmentRoot;
         private static string enlistmentPipename;
 
-        private delegate void LockRequestDelegate(bool unattended, string fullcommand, int pid, Process parentProcess, NamedPipeClient pipeClient);
+        private delegate void LockRequestDelegate(bool unattended, string[] args, int pid, Process parentProcess, NamedPipeClient pipeClient);
 
         public static void Main(string[] args)
         {
@@ -56,7 +56,13 @@ namespace GVFS.Hooks
                         break;
 
                     case PostCommandHook:
-                        RunLockRequest(args, unattended, ReleaseGVFSLock);
+                        // Do not release the lock if this request was only run to see if it could acquire the GVFSLock,
+                        // but did not actually acquire it.
+                        if (!CheckGVFSLockAvailabilityOnly(args))
+                        {
+                            RunLockRequest(args, unattended, ReleaseGVFSLock);
+                        }
+
                         break;
 
                     default:
@@ -190,7 +196,6 @@ namespace GVFS.Hooks
                             ExitWithError("The repo does not appear to be mounted. Use 'gvfs status' to check.");
                         }
 
-                        string fullCommand = "git " + string.Join(" ", args.Skip(1).Where(arg => !arg.StartsWith(GitPidArg)));
                         int pid = GetParentPid(args);
 
                         Process parentProcess = null;
@@ -200,7 +205,7 @@ namespace GVFS.Hooks
                             ExitWithError("GVFS.Hooks: Unable to find parent git.exe process " + "(PID: " + pid + ").");
                         }
 
-                        requestToRun(unattended, fullCommand, pid, parentProcess, pipeClient);
+                        requestToRun(unattended, args, pid, parentProcess, pipeClient);
                     }
                 }
             }
@@ -211,6 +216,11 @@ namespace GVFS.Hooks
                     "Ensure that GVFS is running.",
                     exc.ToString());
             }
+        }
+
+        private static string GenerateFullCommand(string[] args)
+        {
+            return "git " + string.Join(" ", args.Skip(1).Where(arg => !arg.StartsWith(GitPidArg)));
         }
 
         private static int GetParentPid(string[] args)
@@ -233,16 +243,20 @@ namespace GVFS.Hooks
             return Program.InvalidProcessId;
         }
 
-        private static void AcquireGVFSLockForProcess(bool unattended, string fullCommand, int pid, Process parentProcess, NamedPipeClient pipeClient)
+        private static void AcquireGVFSLockForProcess(bool unattended, string[] args, int pid, Process parentProcess, NamedPipeClient pipeClient)
         {
             string result;
+            bool checkGvfsLockAvailabilitOnly = CheckGVFSLockAvailabilityOnly(args);
+            string fullCommand = GenerateFullCommand(args);
+
             if (!GVFSLock.TryAcquireGVFSLockForProcess(
                     unattended,
-                    pipeClient, 
-                    fullCommand, 
-                    pid, 
+                    pipeClient,
+                    fullCommand,
+                    pid,
                     ProcessHelper.IsAdminElevated(),
-                    parentProcess, 
+                    checkGvfsLockAvailabilitOnly,
+                    parentProcess,
                     null, // gvfsEnlistmentRoot
                     out result))
             {
@@ -250,8 +264,10 @@ namespace GVFS.Hooks
             }
         }
 
-        private static void ReleaseGVFSLock(bool unattended, string fullCommand, int pid, Process parentProcess, NamedPipeClient pipeClient)
+        private static void ReleaseGVFSLock(bool unattended, string[] args, int pid, Process parentProcess, NamedPipeClient pipeClient)
         {
+            string fullCommand = GenerateFullCommand(args);
+
             GVFSLock.ReleaseGVFSLock(
                 unattended,
                 pipeClient,
@@ -292,6 +308,27 @@ namespace GVFS.Hooks
                 gvfsEnlistmentRoot: null,
                 waitingMessage: "Waiting for GVFS to parse index and update placeholder files", 
                 spinnerDelay: PostCommandSpinnerDelayMs);
+        }
+
+        private static bool CheckGVFSLockAvailabilityOnly(string[] args)
+        {
+            try
+            {
+                // Don't acquire the GVFS lock if the git command is not acquiring locks.
+                // This enables tools to run status commands without to the index and
+                // blocking other commands from running. The git argument
+                // "--no-optional-locks" results in a 'negative'
+                // value GIT_OPTIONAL_LOCKS environment variable.
+                return GetGitCommand(args).Equals("status", StringComparison.OrdinalIgnoreCase) &&
+                    (args.Any(arg => arg.Equals("--no-lock-index", StringComparison.OrdinalIgnoreCase)) ||
+                    IsGitEnvVarDisabled("GIT_OPTIONAL_LOCKS"));
+            }
+            catch (Exception e)
+            {
+                ExitWithError("Failed to determine if GVFS should aquire GVFS lock: " + e.ToString());
+            }
+
+            return false;
         }
 
         private static string BuildUpdatePlaceholderFailureMessage(List<string> fileList, string failedOperation, string recoveryCommand)
@@ -390,22 +427,6 @@ namespace GVFS.Hooks
             if (gitCommand == "reset" && args.Contains("--soft"))
             {
                 return false;
-            }
-
-            try
-            {
-                // Don't acquire the lock if we've been explicitly asked not to. This enables tools, such as the VS Git
-                // integration, to provide a "best effort" status without writing to the index. We assume that any such
-                // tools will be constantly polling in the background, so missing a file once isn't a problem.
-                // The git argument "--no-optional-locks" results in a 'negative' value GIT_OPTIONAL_LOCKS environment variable.
-                if (gitCommand == "status" && (args.Contains("--no-lock-index") || IsGitEnvVarDisabled("GIT_OPTIONAL_LOCKS")))
-                {
-                    return false;
-                }
-            }
-            catch (Exception e)
-            {
-                ExitWithError("Failed to check if GVFS should lock: " + e.ToString());
             }
 
             if (!KnownGitCommands.Contains(gitCommand) &&

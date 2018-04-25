@@ -14,8 +14,6 @@ namespace GVFS.Common
 
         private const string EtwArea = nameof(RetryConfig);
 
-        private const string MaxRetriesConfig = "max-retries";
-        private const string TimeoutSecondsConfig = "timeout-seconds";
         private const int MinRetries = 0;
         
         private static readonly TimeSpan DefaultTimeout = TimeSpan.FromSeconds(DefaultTimeoutSeconds);
@@ -106,7 +104,7 @@ namespace GVFS.Common
         {
             return TryGetFromGitConfig(
                 git,
-                GVFSConstants.GitConfig.GVFSPrefix + MaxRetriesConfig,
+                GVFSConstants.GitConfig.MaxRetriesConfig,
                 DefaultMaxRetries,
                 MinRetries,
                 out attempts,
@@ -119,7 +117,7 @@ namespace GVFS.Common
             int timeoutSeconds;
             if (!TryGetFromGitConfig(
                 git, 
-                GVFSConstants.GitConfig.GVFSPrefix + TimeoutSecondsConfig, 
+                GVFSConstants.GitConfig.TimeoutSecondsConfig, 
                 DefaultTimeoutSeconds, 
                 0, 
                 out timeoutSeconds, 

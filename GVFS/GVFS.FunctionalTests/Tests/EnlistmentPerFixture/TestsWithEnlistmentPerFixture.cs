@@ -22,14 +22,13 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
         [OneTimeSetUp]
         public virtual void CreateEnlistment()
         {
-            string pathToGvfs = Path.Combine(TestContext.CurrentContext.TestDirectory, Properties.Settings.Default.PathToGVFS);
             if (this.forcePerRepoObjectCache)
             {
-                this.Enlistment = GVFSFunctionalTestEnlistment.CloneAndMountWithPerRepoCache(pathToGvfs);
+                this.Enlistment = GVFSFunctionalTestEnlistment.CloneAndMountWithPerRepoCache(GVFSTestConfig.PathToGVFS);
             }
             else
             {
-                this.Enlistment = GVFSFunctionalTestEnlistment.CloneAndMount(pathToGvfs);
+                this.Enlistment = GVFSFunctionalTestEnlistment.CloneAndMount(GVFSTestConfig.PathToGVFS);
             }
         }
 

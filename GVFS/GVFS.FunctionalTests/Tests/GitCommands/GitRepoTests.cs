@@ -4,6 +4,7 @@ using GVFS.FunctionalTests.Tools;
 using GVFS.Tests.Should;
 using NUnit.Framework;
 using NUnit.Framework.Interfaces;
+using System;
 using System.IO;
 using System.Linq;
 
@@ -15,6 +16,9 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
         protected const string ConflictSourceBranch = "FunctionalTests/20170206_Conflict_Source";
         protected const string ConflictTargetBranch = "FunctionalTests/20170206_Conflict_Target";
         protected const string NoConflictSourceBranch = "FunctionalTests/20170209_NoConflict_Source";
+        protected const string DirectoryWithFileBeforeBranch = "FunctionalTests/20171025_DirectoryWithFileBefore";
+        protected const string DirectoryWithFileAfterBranch = "FunctionalTests/20171025_DirectoryWithFileAfter";
+        protected const string DirectoryWithDifferentFileAfterBranch = "FunctionalTests/20171025_DirectoryWithDifferentFile";
 
         private bool enlistmentPerTest;
 
@@ -69,7 +73,7 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
 
             this.CheckHeadCommitTree();
             this.Enlistment.RepoRoot.ShouldBeADirectory(this.FileSystem)
-                .WithDeepStructure(this.FileSystem, this.ControlGitRepo.RootPath, skipEmptyDirectories: true);
+                .WithDeepStructure(this.FileSystem, this.ControlGitRepo.RootPath);
             this.ValidateGitCommand("status");
         }
 
@@ -85,7 +89,7 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
             {
                 this.CheckHeadCommitTree();
                 this.Enlistment.RepoRoot.ShouldBeADirectory(this.FileSystem)
-                    .WithDeepStructure(this.FileSystem, this.ControlGitRepo.RootPath, skipEmptyDirectories: true, ignoreCase: ignoreCase);
+                    .WithDeepStructure(this.FileSystem, this.ControlGitRepo.RootPath, ignoreCase: ignoreCase);
 
                 this.RunGitCommand("reset --hard -q HEAD");
                 this.RunGitCommand("clean -d -f -x");
@@ -93,7 +97,7 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
 
                 this.CheckHeadCommitTree();
                 this.Enlistment.RepoRoot.ShouldBeADirectory(this.FileSystem)
-                    .WithDeepStructure(this.FileSystem, this.ControlGitRepo.RootPath, skipEmptyDirectories: true, ignoreCase: ignoreCase);
+                    .WithDeepStructure(this.FileSystem, this.ControlGitRepo.RootPath, ignoreCase: ignoreCase);
             }
             finally
             {
@@ -111,8 +115,7 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
 
         protected void CreateEnlistment(string commitish = null)
         {
-            string pathToGvfs = Path.Combine(TestContext.CurrentContext.TestDirectory, Properties.Settings.Default.PathToGVFS);
-            this.Enlistment = GVFSFunctionalTestEnlistment.CloneAndMount(pathToGvfs, commitish: commitish);
+            this.Enlistment = GVFSFunctionalTestEnlistment.CloneAndMount(GVFSTestConfig.PathToGVFS, commitish: commitish);
             GitProcess.Invoke(this.Enlistment.RepoRoot, "config advice.statusUoption false");
             this.ControlGitRepo = ControlGitRepo.Create(commitish);
             this.ControlGitRepo.Initialize();
@@ -344,6 +347,45 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
             string controlFile = Path.Combine(this.ControlGitRepo.RootPath, filePath);
             this.FileSystem.WriteAllText(virtualFile, newContent);
             this.FileSystem.WriteAllText(controlFile, newContent);
+        }
+
+        protected void SetupForFileDirectoryTest(string commandBranch = DirectoryWithFileAfterBranch)
+        {
+            this.ControlGitRepo.Fetch(DirectoryWithFileBeforeBranch);
+            this.ControlGitRepo.Fetch(commandBranch);
+            this.ValidateGitCommand($"checkout {DirectoryWithFileBeforeBranch}");
+        }
+
+        protected void ValidateFileDirectoryTest(string command, string commandBranch = DirectoryWithFileAfterBranch)
+        {
+            this.EditFile("Readme.md", "Change file");
+            this.ValidateGitCommand("add --all");
+            this.RunGitCommand("commit -m \"Some change\"");
+            this.ValidateGitCommand($"{command} {commandBranch}");
+        }
+
+        protected void RunFileDirectoryEnumerateTest(string command, string commandBranch = DirectoryWithFileAfterBranch)
+        {
+            this.SetupForFileDirectoryTest(commandBranch);
+
+            // file.txt is a folder with a file named file.txt to test checking out branches
+            // that have folders with the same name as files
+            this.FileSystem.EnumerateDirectory(this.Enlistment.GetVirtualPathTo("file.txt"));
+            this.ValidateFileDirectoryTest(command, commandBranch);
+        }
+
+        protected void RunFileDirectoryReadTest(string command, string commandBranch = DirectoryWithFileAfterBranch)
+        {
+            this.SetupForFileDirectoryTest(commandBranch);
+            this.FileContentsShouldMatch("file.txt\\file.txt");
+            this.ValidateFileDirectoryTest(command, commandBranch);
+        }
+
+        protected void RunFileDirectoryWriteTest(string command, string commandBranch = DirectoryWithFileAfterBranch)
+        {
+            this.SetupForFileDirectoryTest(commandBranch);
+            this.EditFile("file.txt\\file.txt", "Change file");
+            this.ValidateFileDirectoryTest(command, commandBranch);
         }
 
         protected void ReadConflictTargetFiles()

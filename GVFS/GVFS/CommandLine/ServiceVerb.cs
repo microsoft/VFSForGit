@@ -1,6 +1,6 @@
 ﻿using CommandLine;
 using GVFS.Common;
-using GVFS.Common.Git;
+using GVFS.Common.FileSystem;
 using GVFS.Common.NamedPipes;
 using System;
 using System.Collections.Generic;
@@ -77,6 +77,14 @@ namespace GVFS.CommandLine
             }
             else if (this.MountAll)
             {
+                // Always ask the service to ensure that PrjFlt is enabled.  This will ensure that the GVFS installer properly waits for
+                // GVFS.Service to finish enabling PrjFlt's AutoLogger
+                string error;
+                if (!this.TryEnableAndAttachGvFltThroughService(string.Empty, out error))
+                {
+                    this.ReportErrorAndExit(tracer: null, exitCode: ReturnCode.FilterError, error: $"Failed to enable PrjFlt: {error}");
+                }
+
                 List<string> failedRepoRoots = new List<string>();
 
                 foreach (string repoRoot in repoList)

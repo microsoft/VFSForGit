@@ -14,11 +14,12 @@ namespace GVFS.Common
             string fullCommand,
             int pid,
             bool isElevated,
+            bool checkAvailabilityOnly,
             Process parentProcess,
             string gvfsEnlistmentRoot,
             out string result)
         {
-            NamedPipeMessages.LockRequest request = new NamedPipeMessages.LockRequest(pid, isElevated, fullCommand);
+            NamedPipeMessages.LockRequest request = new NamedPipeMessages.LockRequest(pid, isElevated, checkAvailabilityOnly, fullCommand);
 
             NamedPipeMessages.Message requestMessage = request.CreateMessage(NamedPipeMessages.AcquireLock.AcquireRequest);
             pipeClient.SendRequest(requestMessage);
@@ -29,8 +30,10 @@ namespace GVFS.Common
             switch (response.Result)
             {
                 case NamedPipeMessages.AcquireLock.AcceptResult:
-                    result = null;
-                    return true;
+                    return CheckAcceptResponse(response, checkAvailabilityOnly, out result);
+
+                case NamedPipeMessages.AcquireLock.AvailableResult:
+                    return CheckAcceptResponse(response, checkAvailabilityOnly, out result);
 
                 case NamedPipeMessages.AcquireLock.MountNotReadyResult:
                     result = "GVFS has not finished initializing, please wait a few seconds and try again.";
@@ -64,7 +67,10 @@ namespace GVFS.Common
                         switch (response.Result)
                         {
                             case NamedPipeMessages.AcquireLock.AcceptResult:
-                                return true;
+                                return CheckAcceptResponse(response, checkAvailabilityOnly, out _);
+
+                            case NamedPipeMessages.AcquireLock.AvailableResult:
+                                return CheckAcceptResponse(response, checkAvailabilityOnly, out _);
 
                             case NamedPipeMessages.AcquireLock.UnmountInProgressResult:
                                 return false;
@@ -105,7 +111,7 @@ namespace GVFS.Common
             string waitingMessage = "",
             int spinnerDelay = 0)
         {
-            NamedPipeMessages.LockRequest request = new NamedPipeMessages.LockRequest(pid, isElevated, fullCommand);
+            NamedPipeMessages.LockRequest request = new NamedPipeMessages.LockRequest(pid, isElevated, checkAvailabilityOnly: false, parsedCommand: fullCommand);
 
             NamedPipeMessages.Message requestMessage = request.CreateMessage(NamedPipeMessages.ReleaseLock.Request);
 
@@ -133,6 +139,40 @@ namespace GVFS.Common
                     showSpinner: true,
                     gvfsLogEnlistmentRoot: gvfsEnlistmentRoot,
                     initialDelayMs: spinnerDelay);
+            }
+        }
+
+        private static bool CheckAcceptResponse(NamedPipeMessages.AcquireLock.Response response, bool checkAvailabilityOnly, out string message)
+        {
+            switch (response.Result)
+            {
+                case NamedPipeMessages.AcquireLock.AcceptResult:
+                    if (!checkAvailabilityOnly)
+                    {
+                        message = null;
+                        return true;
+                    }
+                    else
+                    {
+                        message = "Error when acquiring the lock. Unexpected response: " + response.CreateMessage();
+                        return false;
+                    }
+
+                case NamedPipeMessages.AcquireLock.AvailableResult:
+                    if (checkAvailabilityOnly)
+                    {
+                        message = null;
+                        return true;
+                    }
+                    else
+                    {
+                        message = "Error when acquiring the lock. Unexpected response: " + response.CreateMessage();
+                        return false;
+                    }
+
+                default:
+                    message = "Error when acquiring the lock. Not an Accept result: " + response.CreateMessage();
+                    return false;
             }
         }
     }

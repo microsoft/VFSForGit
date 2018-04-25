@@ -1,5 +1,4 @@
-﻿using GVFS.FunctionalTests.Category;
-using GVFS.FunctionalTests.FileSystemRunners;
+﻿using GVFS.FunctionalTests.FileSystemRunners;
 using GVFS.FunctionalTests.Should;
 using GVFS.FunctionalTests.Tools;
 using GVFS.Tests.Should;
@@ -11,7 +10,7 @@ using System.Linq;
 namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
 {
     [TestFixture]
-    [Category(CategoryConstants.GitCommands)]
+    [Category(Categories.GitCommands)]
     public class GitCorruptObjectTests : TestsWithEnlistmentPerFixture
     {
         private FileSystemRunner fileSystem;

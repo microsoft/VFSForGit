@@ -3,12 +3,11 @@ using GVFS.Common.FileSystem;
 using GVFS.Common.Git;
 using GVFS.Common.NamedPipes;
 using GVFS.Common.Tracing;
+using GVFS.GVFlt.BlobSize;
 using GVFS.GVFlt.DotGit;
-using GvLib;
-using Microsoft.Database.Isam.Config;
 using Microsoft.Diagnostics.Tracing;
-using Microsoft.Isam.Esent.Collections.Generic;
 using Newtonsoft.Json;
+using ProjFS;
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
@@ -47,7 +46,7 @@ namespace GVFS.GVFlt
         private SparseCheckout sparseCheckout;
         private GitIndexProjection gitIndexProjection;
         private AlwaysExcludeFile alwaysExcludeFile;
-        private PersistentDictionary<string, long> blobSizes;
+        private BlobSizes blobSizes;
 
         private ReliableBackgroundOperations background;
         private GVFSContext context;
@@ -62,12 +61,7 @@ namespace GVFS.GVFlt
                   context, 
                   gitObjects, 
                   repoMetadata,
-                  new PersistentDictionary<string, long>(
-                      Path.Combine(context.Enlistment.DotGVFSRoot, GVFSConstants.DotGVFS.BlobSizesName),
-                      new DatabaseConfig()
-                      {
-                          CacheSizeMax = 500 * 1024 * 1024, // 500 MB
-                      }),
+                  new BlobSizes(context.Enlistment.BlobSizesRoot, context.FileSystem, context.Tracer),
                   gvflt: null, 
                   gitIndexProjection: null,
                   reliableBackgroundOperations: null)
@@ -78,7 +72,7 @@ namespace GVFS.GVFlt
             GVFSContext context, 
             GVFSGitObjects gitObjects, 
             RepoMetadata repoMetadata,
-            PersistentDictionary<string, long> blobSizes,
+            BlobSizes blobSizes,
             IVirtualizationInstance gvflt, 
             GitIndexProjection gitIndexProjection,
             ReliableBackgroundOperations reliableBackgroundOperations)
@@ -94,6 +88,7 @@ namespace GVFS.GVFlt
             this.alwaysExcludeFile = new AlwaysExcludeFile(this.context, Path.Combine(this.context.Enlistment.WorkingDirectoryRoot, GVFSConstants.DotGit.Info.AlwaysExcludePath));
 
             this.blobSizes = blobSizes;
+            this.blobSizes.Initialize();
 
             this.gvfsGitObjects = gitObjects;            
 
@@ -157,16 +152,6 @@ namespace GVFS.GVFlt
             return true;
         }
 
-        public static bool DoesPathAllowDelete(string virtualPath)
-        {
-            if (virtualPath.Equals(GVFSConstants.DotGit.Index, StringComparison.OrdinalIgnoreCase))
-            {
-                return false;
-            }
-
-            return true;
-        }
-
         public static string GetShaFromContentId(byte[] contentId)
         {
             return Encoding.Unicode.GetString(contentId, 0, GVFSConstants.ShaStringLength * sizeof(char));
@@ -182,9 +167,22 @@ namespace GVFS.GVFlt
             return Encoding.Unicode.GetBytes(sha);
         }
 
-        public static byte[] GetEpochId()
+        /// <summary>
+        /// GVFS uses the first byte of the providerId field of placeholders to version
+        /// the data that it stores in the contentId (and providerId) fields of the placeholder
+        /// </summary>
+        /// <returns></returns>
+        public static byte[] GetPlaceholderVersionId()
         {
             return new byte[] { PlaceholderVersion };
+        }
+
+        /// <remarks>
+        /// Public for unit testing
+        /// </remarks>
+        public static bool InternalFileNameMatchesFilter(string name, string filter)
+        {
+            return PatternMatcher.StrictMatchPattern(filter, name);
         }
 
         public NamedPipeMessages.ReleaseLock.Response TryReleaseExternalLock(int pid)
@@ -230,6 +228,8 @@ namespace GVFS.GVFlt
         {
             error = string.Empty;
 
+            this.InitializeEnumerationPatternMatcher();            
+
             this.sparseCheckout.LoadOrCreate();
             this.alwaysExcludeFile.LoadOrCreate();
 
@@ -239,8 +239,7 @@ namespace GVFS.GVFlt
             this.gvflt.OnGetDirectoryEnumeration = this.GVFltGetDirectoryEnumerationHandler;
             this.gvflt.OnQueryFileName = this.GVFltQueryFileNameHandler;
             this.gvflt.OnGetPlaceholderInformation = this.GVFltGetPlaceholderInformationHandler;
-            this.gvflt.OnGetFileStream = this.GVFltGetFileStreamHandler;
-            this.gvflt.OnNotifyFirstWrite = this.GVFltNotifyFirstWriteHandler;
+            this.gvflt.OnGetFileStream = this.GVFltGetFileStreamHandler;            
 
             this.gvflt.OnNotifyFileOpened = null;
             this.gvflt.OnNotifyNewFileCreated = this.GVFltNotifyNewFileCreatedHandler;
@@ -252,6 +251,7 @@ namespace GVFS.GVFlt
             this.gvflt.OnNotifyHardlinkCreated = null;
             this.gvflt.OnNotifyFileHandleClosedNoModification = null;
             this.gvflt.OnNotifyFileHandleClosedFileModifiedOrDeleted = this.GVFltNotifyFileHandleClosedFileModifiedOrDeletedHandler;
+            this.gvflt.OnNotifyFilePreConvertToFull = this.GVFltNotifyFilePreConvertToFullHandler;
 
             this.gvflt.OnCancelCommand = this.GVFltCancelCommandHandler;
 
@@ -301,10 +301,7 @@ namespace GVFS.GVFlt
                 this.context.Tracer.RelatedEvent(EventLevel.Informational, "BytesPerSectorAndAlignment", metadata);
             }
 
-            using (ITracer activity = this.context.Tracer.StartActivity("InitialProjectionParse", EventLevel.Informational))
-            {
-                this.gitIndexProjection.Initialize(this.background);
-            }
+            this.gitIndexProjection.Initialize(this.background);
 
             this.gvfltIsStarted = true;
             this.background.Start();
@@ -325,6 +322,7 @@ namespace GVFS.GVFlt
 
                 this.background.Shutdown();
                 this.gitIndexProjection.Shutdown();
+                this.blobSizes.Shutdown();
 
                 if (this.gvfltIsStarted)
                 {
@@ -362,6 +360,7 @@ namespace GVFS.GVFlt
 
             metadata.Add("SparseCheckoutCount", this.sparseCheckout.EntryCount);
             metadata.Add("PlaceholderCount", this.gitIndexProjection.EstimatedPlaceholderCount);
+            metadata.Add(nameof(RepoMetadata.Instance.EnlistmentId), RepoMetadata.Instance.EnlistmentId);
 
             return metadata;
         }
@@ -423,6 +422,38 @@ namespace GVFS.GVFlt
                 destination.Write(buffer, 0, read);
                 numBytes -= read;
             }
+        }
+
+        private static bool ProjFSPatternMatchingWorks()
+        {
+            const char DOSQm = '>';
+            if (Utils.IsFileNameMatch("Test", "Test" + DOSQm))
+            {
+                // The installed version of ProjFS has been fixed to handle the special DOS characters
+                return true;
+            }
+
+            return false;
+        }
+
+        private void InitializeEnumerationPatternMatcher()
+        {
+            bool projFSPatternMatchingWorks = ProjFSPatternMatchingWorks();
+
+            if (projFSPatternMatchingWorks)
+            {
+                GVFltActiveEnumeration.SetPatternMatcher(Utils.IsFileNameMatch);
+            }
+            else
+            {
+                GVFltActiveEnumeration.SetPatternMatcher(InternalFileNameMatchesFilter);
+            }
+
+            this.context.Tracer.RelatedEvent(
+                EventLevel.Informational,
+                nameof(this.InitializeEnumerationPatternMatcher),
+                new EventMetadata() { { nameof(projFSPatternMatchingWorks), projFSPatternMatchingWorks } },
+                Keywords.Telemetry);
         }
 
         private void OnIndexFileChange()
@@ -491,7 +522,7 @@ namespace GVFS.GVFlt
             return this.activeCommands.TryAdd(commandId, cancellationSource);
         }
 
-        private bool TryCompleteCommand(int commandId, NtStatus result)
+        private bool TryCompleteCommand(int commandId, HResult result)
         {
             CancellationTokenSource cancellationSource;
             if (this.activeCommands.TryRemove(commandId, out cancellationSource))
@@ -506,7 +537,7 @@ namespace GVFS.GVFlt
         // TODO: Need GvFlt 13150199 to be fixed so that GVFS doesn't leak memory if the enumeration
         // cancelled.  Currently GVFltEndDirectoryEnumerationHandler must be called to remove the
         // GVFltActiveEnumeration from this.activeEnumerations
-        private NtStatus GVFltStartDirectoryEnumerationHandler(int commandId, Guid enumerationId, string virtualPath)
+        private HResult GVFltStartDirectoryEnumerationHandler(int commandId, Guid enumerationId, string virtualPath)
         {
             try
             {
@@ -518,7 +549,7 @@ namespace GVFS.GVFlt
                     metadata.Add(TracingConstants.MessageKey.InfoMessage, nameof(this.GVFltStartDirectoryEnumerationHandler) + ": Failed to start enumeration, mount has not yet completed");
                     this.context.Tracer.RelatedEvent(EventLevel.Informational, "StartDirectoryEnum_MountNotComplete", metadata);
 
-                    return NtStatus.DeviceNotReady;
+                    return (HResult)HResultExtensions.HResultFromNtStatus.DeviceNotReady;
                 }
 
                 IEnumerable<GVFltFileInfo> projectedItems;
@@ -532,10 +563,10 @@ namespace GVFS.GVFlt
                             nameof(this.GVFltStartDirectoryEnumerationHandler) + ": Failed to add enumeration ID to active collection");
 
                         activeEnumeration.Dispose();
-                        return NtStatus.InvalidParameter;
+                        return HResult.InternalError;
                     }
 
-                    return NtStatus.Success;
+                    return HResult.Ok;
                 }
 
                 CancellationTokenSource cancellationSource;
@@ -547,8 +578,9 @@ namespace GVFS.GVFlt
                 }
 
                 FileOrNetworkRequest startDirectoryEnumerationHandler = new FileOrNetworkRequest(
-                    () => this.GVFltStartDirectoryEnumerationAsyncHandler(
+                    (blobSizesConnection) => this.GVFltStartDirectoryEnumerationAsyncHandler(
                         cancellationSource.Token,
+                        blobSizesConnection,
                         commandId,
                         enumerationId,
                         virtualPath),
@@ -569,7 +601,7 @@ namespace GVFS.GVFlt
 
                     cancellationSource.Dispose();
 
-                    return NtStatus.DeviceNotReady;
+                    return (HResult)HResultExtensions.HResultFromNtStatus.DeviceNotReady;
                 }
             }
             catch (Exception e)
@@ -579,11 +611,12 @@ namespace GVFS.GVFlt
                 this.LogUnhandledExceptionAndExit(nameof(this.GVFltStartDirectoryEnumerationHandler), metadata);
             }
 
-            return NtStatus.Pending;
+            return HResult.Pending;
         }
 
-        private void GVFltStartDirectoryEnumerationAsyncHandler(
+        private void GVFltStartDirectoryEnumerationAsyncHandler(            
             CancellationToken cancellationToken,
+            BlobSizes.BlobSizesConnection blobSizesConnection,
             int commandId,
             Guid enumerationId, 
             string virtualPath)
@@ -593,10 +626,10 @@ namespace GVFS.GVFlt
                 return;
             }
 
-            NtStatus result;
+            HResult result;
             try
             {
-                GVFltActiveEnumeration activeEnumeration = new GVFltActiveEnumeration(this.gitIndexProjection.GetProjectedItems(virtualPath, cancellationToken));
+                GVFltActiveEnumeration activeEnumeration = new GVFltActiveEnumeration(this.gitIndexProjection.GetProjectedItems(cancellationToken, blobSizesConnection, virtualPath));
 
                 if (!this.activeEnumerations.TryAdd(enumerationId, activeEnumeration))
                 {
@@ -605,11 +638,11 @@ namespace GVFS.GVFlt
                         nameof(this.GVFltStartDirectoryEnumerationAsyncHandler) + ": Failed to add enumeration ID to active collection");
 
                     activeEnumeration.Dispose();
-                    result = NtStatus.InvalidParameter;
+                    result = HResult.InternalError;
                 }
                 else
                 {
-                    result = NtStatus.Success;
+                    result = HResult.Ok;
                 }
             }
             catch (OperationCanceledException)
@@ -625,16 +658,16 @@ namespace GVFS.GVFlt
             }
             catch (GitIndexProjection.SizesUnavailableException e)
             {
-                result = NtStatus.FileNotAvailable;
+                result = (HResult)HResultExtensions.HResultFromNtStatus.FileNotAvailable;
 
                 EventMetadata metadata = this.CreateEventMetadata(enumerationId, virtualPath, e);
                 metadata.Add("commandId", commandId);
-                metadata.Add("result", result.ToString("X") + "(" + result.ToString("G") + ")");
+                metadata.Add(nameof(result), result.ToString("X") + "(" + result.ToString("G") + ")");
                 this.context.Tracer.RelatedError(metadata, nameof(this.GVFltStartDirectoryEnumerationAsyncHandler) + ": caught GitIndexProjection.SizesUnavailableException");
             }
             catch (Exception e)
             {
-                result = NtStatus.InternalError;
+                result = HResult.InternalError;
 
                 EventMetadata metadata = this.CreateEventMetadata(enumerationId, virtualPath, e);
                 metadata.Add("commandId", commandId);
@@ -649,7 +682,7 @@ namespace GVFS.GVFlt
                 metadata.Add(TracingConstants.MessageKey.InfoMessage, "GVFltStartDirectoryEnumerationAsyncHandler: TryCompleteCommand returned false, command already canceled");
                 metadata.Add("commandId", commandId);
                 metadata.Add("enumerationId", enumerationId);
-                metadata.Add("result", result.ToString("X") + "(" + result.ToString("G") + ")");
+                metadata.Add(nameof(result), result.ToString("X") + "(" + result.ToString("G") + ")");
 
                 GVFltActiveEnumeration activeEnumeration;
                 bool activeEnumerationsUpdated = this.activeEnumerations.TryRemove(enumerationId, out activeEnumeration);
@@ -663,7 +696,7 @@ namespace GVFS.GVFlt
             }
         }
 
-        private NtStatus GVFltEndDirectoryEnumerationHandler(Guid enumerationId)
+        private HResult GVFltEndDirectoryEnumerationHandler(Guid enumerationId)
         {
             try
             {
@@ -679,7 +712,7 @@ namespace GVFS.GVFlt
                         nameof(this.GVFltEndDirectoryEnumerationHandler) + ": Failed to remove enumeration ID from active collection", 
                         Keywords.Telemetry);
 
-                    return NtStatus.InvalidParameter;
+                    return HResult.InternalError;
                 }                
             }
             catch (Exception e)
@@ -689,14 +722,14 @@ namespace GVFS.GVFlt
                     this.CreateEventMetadata(enumerationId, virtualPath: null, exception: e));
             }
 
-            return NtStatus.Success;
+            return HResult.Ok;
         }
 
-        private NtStatus GVFltGetDirectoryEnumerationHandler(
+        private HResult GVFltGetDirectoryEnumerationHandler(
             Guid enumerationId,
             string filterFileName,
             bool restartScan,
-            DirectoryEnumerationResult result)
+            DirectoryEnumerationResults results)
         {
             try
             {
@@ -708,57 +741,63 @@ namespace GVFS.GVFlt
                     metadata.Add("restartScan", restartScan);
                     this.context.Tracer.RelatedError(metadata, nameof(this.GVFltGetDirectoryEnumerationHandler) + ": Failed to find active enumeration ID");
 
-                    return NtStatus.InternalError;
+                    return HResult.InternalError;
                 }
 
-                bool initialRequest;
                 if (restartScan)
                 {
                     activeEnumeration.RestartEnumeration(filterFileName);
-                    initialRequest = true;
                 }
                 else
                 {
-                    initialRequest = activeEnumeration.TrySaveFilterString(filterFileName);
+                    activeEnumeration.TrySaveFilterString(filterFileName);
                 }
 
-                if (activeEnumeration.IsCurrentValid)
+                bool entryAdded = false;
+
+                HResult result = HResult.Ok;
+                while (activeEnumeration.IsCurrentValid)
                 {
                     GVFltFileInfo fileInfo = activeEnumeration.Current;
                     FileProperties properties = this.GetLogsHeadFileProperties();
 
-                    result.ChangeTime = properties.LastWriteTimeUTC;
-                    result.CreationTime = properties.CreationTimeUTC;
-                    result.LastAccessTime = properties.LastAccessTimeUTC;
-                    result.LastWriteTime = properties.LastWriteTimeUTC;
+                    result = results.Add(
+                        fileName: fileInfo.Name,
+                        fileSize: (ulong)(fileInfo.IsFolder ? 0 : fileInfo.Size),
+                        isDirectory: fileInfo.IsFolder,
+                        fileAttributes: fileInfo.IsFolder ? (uint)NativeMethods.FileAttributes.FILE_ATTRIBUTE_DIRECTORY : (uint)NativeMethods.FileAttributes.FILE_ATTRIBUTE_ARCHIVE,
+                        creationTime: properties.CreationTimeUTC,
+                        lastAccessTime: properties.LastAccessTimeUTC,
+                        lastWriteTime: properties.LastWriteTimeUTC,
+                        changeTime: properties.LastWriteTimeUTC);
 
-                    if (fileInfo.IsFolder)
+                    if (result == HResult.Ok)
                     {
-                        result.EndOfFile = 0;
-                        result.FileAttributes = (uint)NativeMethods.FileAttributes.FILE_ATTRIBUTE_DIRECTORY;
-                    }
-                    else
-                    {
-                        result.EndOfFile = fileInfo.Size;
-                        result.FileAttributes = (uint)NativeMethods.FileAttributes.FILE_ATTRIBUTE_ARCHIVE;
-                    }
-
-                    if (result.TrySetFileName(fileInfo.Name))
-                    {
-                        // Only advance the enumeration if the file name fit in the DirectoryEnumerationResult
+                        entryAdded = true;
                         activeEnumeration.MoveNext();
-                        return NtStatus.Success;
+                    }
+                    else if (result == HResult.InsufficientBuffer)
+                    {
+                        if (entryAdded)
+                        {
+                            result = HResult.Ok;
+                        }
+
+                        break;
                     }
                     else
                     {
-                        // Return StatusBufferOverflow to indicate that the file name had to be truncated
-                        return NtStatus.BufferOverflow;
+                        EventMetadata metadata = this.CreateEventMetadata(enumerationId);
+                        metadata.Add(nameof(result), result);
+                        this.context.Tracer.RelatedWarning(
+                            metadata,
+                            nameof(this.GVFltGetDirectoryEnumerationHandler) + " unexpected statusCode when adding results to enumeration buffer");
+
+                        break;
                     }
                 }
 
-                // TODO 636568: Confirm return code values/behavior with GVFlt team
-                NtStatus statusCode = (initialRequest && PathUtil.IsEnumerationFilterSet(filterFileName)) ? NtStatus.NoSuchFile : NtStatus.NoMoreFiles;
-                return statusCode;
+                return result;
             }
             catch (Win32Exception e)
             {
@@ -766,7 +805,7 @@ namespace GVFS.GVFlt
                     this.CreateEventMetadata(enumerationId, virtualPath: null, exception: e), 
                     nameof(this.GVFltGetDirectoryEnumerationHandler) + " caught Win32Exception");
 
-                return Utils.Win32ErrorToNtStatus(e.NativeErrorCode);
+                return HResultExtensions.HResultFromWin32(e.NativeErrorCode);
             }
             catch (Exception e)
             {
@@ -774,7 +813,7 @@ namespace GVFS.GVFlt
                     nameof(this.GVFltGetDirectoryEnumerationHandler),
                     this.CreateEventMetadata(enumerationId, virtualPath: null, exception: e));
 
-                return NtStatus.InternalError;
+                return HResult.InternalError;
             }
         }
 
@@ -783,13 +822,13 @@ namespace GVFS.GVFlt
         /// can avoid calling Start\Get\End enumeration to check if GVFS is still projecting a file.  This method uses the same
         /// rules for deciding what is projected as the enumeration callbacks.
         /// </summary>
-        private NtStatus GVFltQueryFileNameHandler(string virtualPath)
+        private HResult GVFltQueryFileNameHandler(string virtualPath)
         {
             try
             {
                 if (PathUtil.IsPathInsideDotGit(virtualPath))
                 {
-                    return NtStatus.ObjectNameNotFound;
+                    return HResult.FileNotFound;
                 }
 
                 virtualPath = PathUtil.RemoveTrailingSlashIfPresent(virtualPath);
@@ -799,14 +838,14 @@ namespace GVFS.GVFlt
                     EventMetadata metadata = this.CreateEventMetadata(virtualPath);
                     metadata.Add(TracingConstants.MessageKey.InfoMessage, "GVFltQueryFileNameHandler: Mount has not yet completed");
                     this.context.Tracer.RelatedEvent(EventLevel.Informational, "QueryFileName_MountNotComplete", metadata);
-                    return NtStatus.DeviceNotReady;
+                    return (HResult)HResultExtensions.HResultFromNtStatus.DeviceNotReady;
                 }
 
                 bool isFolder;
                 string fileName;
                 if (!this.gitIndexProjection.IsPathProjected(virtualPath, out fileName, out isFolder))
                 {
-                    return NtStatus.ObjectNameNotFound;
+                    return HResult.FileNotFound;
                 }
             }
             catch (Exception e)
@@ -814,10 +853,10 @@ namespace GVFS.GVFlt
                 this.LogUnhandledExceptionAndExit(nameof(this.GVFltQueryFileNameHandler), this.CreateEventMetadata(virtualPath, e));
             }
 
-            return NtStatus.Success;
+            return HResult.Ok;
         }
 
-        private NtStatus GVFltGetPlaceholderInformationHandler(
+        private HResult GVFltGetPlaceholderInformationHandler(
             int commandId,
             string virtualPath,
             uint desiredAccess,
@@ -844,14 +883,14 @@ namespace GVFS.GVFlt
                     metadata.Add(TracingConstants.MessageKey.InfoMessage, "GVFltGetPlaceholderInformationHandler: Mount has not yet completed");
                     this.context.Tracer.RelatedEvent(EventLevel.Informational, "GetPlaceHolder_MountNotComplete", metadata);
 
-                    return NtStatus.DeviceNotReady;
+                    return (HResult)HResultExtensions.HResultFromNtStatus.DeviceNotReady;
                 }
 
                 bool isFolder;
                 string fileName;
                 if (!this.gitIndexProjection.IsPathProjected(virtualPath, out fileName, out isFolder))
                 {
-                    return NtStatus.ObjectNameNotFound;
+                    return HResult.FileNotFound;
                 }
 
                 if (!isFolder &&
@@ -873,7 +912,7 @@ namespace GVFS.GVFlt
 
                     // Another process is modifying the working directory so we cannot modify it
                     // until they are done.
-                    return NtStatus.ObjectNameNotFound;
+                    return HResult.FileNotFound;
                 }
 
                 CancellationTokenSource cancellationSource;
@@ -891,8 +930,9 @@ namespace GVFS.GVFlt
                 }
 
                 FileOrNetworkRequest getPlaceholderInformationHandler = new FileOrNetworkRequest(
-                    () => this.GVFltGetPlaceholderInformationAsyncHandler(
+                    (blobSizesConnection) => this.GVFltGetPlaceholderInformationAsyncHandler(
                         cancellationSource.Token,
+                        blobSizesConnection,
                         commandId,
                         virtualPath,
                         desiredAccess,
@@ -924,7 +964,7 @@ namespace GVFS.GVFlt
 
                     cancellationSource.Dispose();
 
-                    return NtStatus.DeviceNotReady;
+                    return (HResult)HResultExtensions.HResultFromNtStatus.DeviceNotReady;
                 }
             }
             catch (Exception e)
@@ -940,11 +980,12 @@ namespace GVFS.GVFlt
                 this.LogUnhandledExceptionAndExit(nameof(this.GVFltGetPlaceholderInformationHandler), metadata);
             }
 
-            return NtStatus.Pending;
+            return HResult.Pending;
         }
 
         private void GVFltGetPlaceholderInformationAsyncHandler(
             CancellationToken cancellationToken,
+            BlobSizes.BlobSizesConnection blobSizesConnection,
             int commandId,
             string virtualPath,
             uint desiredAccess,
@@ -959,7 +1000,7 @@ namespace GVFS.GVFlt
                 return;
             }
 
-            NtStatus result = NtStatus.Success;
+            HResult result = HResult.Ok;
 
             try
             {
@@ -968,10 +1009,10 @@ namespace GVFS.GVFlt
                 string parentFolderPath;
                 try
                 {                    
-                    fileInfo = this.gitIndexProjection.GetProjectedGVFltFileInfoAndSha(cancellationToken, virtualPath, out parentFolderPath, out sha);
+                    fileInfo = this.gitIndexProjection.GetProjectedGVFltFileInfoAndSha(cancellationToken, blobSizesConnection, virtualPath, out parentFolderPath, out sha);
                     if (fileInfo == null)
                     {
-                        this.TryCompleteCommand(commandId, NtStatus.ObjectNameNotFound);
+                        this.TryCompleteCommand(commandId, HResult.FileNotFound);
                         return;
                     }
                 }
@@ -1012,9 +1053,9 @@ namespace GVFS.GVFlt
                     endOfFile: fileInfo.Size,
                     directory: fileInfo.IsFolder,
                     contentId: ConvertShaToContentId(sha),
-                    epochId: GVFltCallbacks.GetEpochId());
+                    providerId: GetPlaceholderVersionId());
 
-                if (result != NtStatus.Success)
+                if (result != HResult.Ok)
                 {
                     EventMetadata metadata = this.CreateEventMetadata(virtualPath);
                     metadata.Add("gitCaseVirtualPath", gitCaseVirtualPath);
@@ -1026,12 +1067,16 @@ namespace GVFS.GVFlt
                     metadata.Add("triggeringProcessImageFileName", triggeringProcessImageFileName);
                     metadata.Add("FileName", fileInfo.Name);
                     metadata.Add("IsFolder", fileInfo.IsFolder);
-                    metadata.Add("NtStatus", result.ToString("X") + "(" + result.ToString("G") + ")");
+                    metadata.Add(nameof(result), result.ToString("X") + "(" + result.ToString("G") + ")");
                     this.context.Tracer.RelatedError(metadata, nameof(this.GVFltGetPlaceholderInformationAsyncHandler) + ": GvWritePlaceholderInformation failed");
                 }
                 else
                 {
-                    if (!fileInfo.IsFolder)
+                    if (fileInfo.IsFolder)
+                    {
+                        this.gitIndexProjection.OnPlaceholderFolderCreated(gitCaseVirtualPath);
+                    }
+                    else
                     {
                         this.gitIndexProjection.OnPlaceholderFileCreated(gitCaseVirtualPath, sha);
 
@@ -1047,7 +1092,7 @@ namespace GVFS.GVFlt
             }
             catch (GitIndexProjection.SizesUnavailableException e)
             {
-                result = NtStatus.FileNotAvailable;
+                result = (HResult)HResultExtensions.HResultFromNtStatus.FileNotAvailable;
 
                 EventMetadata metadata = this.CreateEventMetadata(virtualPath, e);
                 metadata.Add("commandId", commandId);
@@ -1057,12 +1102,12 @@ namespace GVFS.GVFlt
                 metadata.Add("createOptions", createOptions);
                 metadata.Add("triggeringProcessId", triggeringProcessId);
                 metadata.Add("triggeringProcessImageFileName", triggeringProcessImageFileName);
-                metadata.Add("result", result.ToString("X") + "(" + result.ToString("G") + ")");
+                metadata.Add(nameof(result), result.ToString("X") + "(" + result.ToString("G") + ")");
                 this.context.Tracer.RelatedError(metadata, nameof(this.GVFltGetPlaceholderInformationAsyncHandler) + ": caught GitIndexProjection.SizesUnavailableException");
             }
             catch (Win32Exception e)
             {
-                result = Utils.Win32ErrorToNtStatus(e.NativeErrorCode);
+                result = HResultExtensions.HResultFromWin32(e.NativeErrorCode);
 
                 EventMetadata metadata = this.CreateEventMetadata(virtualPath, e);
                 metadata.Add("commandId", commandId);
@@ -1072,7 +1117,8 @@ namespace GVFS.GVFlt
                 metadata.Add("createOptions", createOptions);
                 metadata.Add("triggeringProcessId", triggeringProcessId);
                 metadata.Add("triggeringProcessImageFileName", triggeringProcessImageFileName);
-                metadata.Add("result", result.ToString("X") + "(" + result.ToString("G") + ")");
+                metadata.Add(nameof(result), result.ToString("X") + "(" + result.ToString("G") + ")");
+                metadata.Add("NativeErrorCode", e.NativeErrorCode.ToString("X") + "(" + e.NativeErrorCode.ToString("G") + ")");
                 this.context.Tracer.RelatedWarning(metadata, nameof(this.GVFltGetPlaceholderInformationAsyncHandler) + ": caught Win32Exception");
             }
             catch (Exception e)
@@ -1091,7 +1137,7 @@ namespace GVFS.GVFlt
             this.TryCompleteCommand(commandId, result);
         }
 
-        private NtStatus GVFltGetFileStreamHandler(
+        private HResult GVFltGetFileStreamHandler(
             int commandId,
             string virtualPath,
             long byteOffset,
@@ -1107,13 +1153,13 @@ namespace GVFS.GVFlt
                 if (contentId == null)
                 {
                     this.context.Tracer.RelatedError("GVFltGetFileStreamHandler called with null contentId, path: " + virtualPath);
-                    return NtStatus.InternalError;
+                    return HResult.InternalError;
                 }
 
                 if (epochId == null)
                 {
                     this.context.Tracer.RelatedError("GVFltGetFileStreamHandler called with null epochId, path: " + virtualPath);
-                    return NtStatus.InternalError;
+                    return HResult.InternalError;
                 }
 
                 string sha = GetShaFromContentId(contentId);
@@ -1136,21 +1182,21 @@ namespace GVFS.GVFlt
                     metadata.Add(TracingConstants.MessageKey.InfoMessage, "GVFltGetFileStreamHandler failed, mount has not yet completed");
                     activity.RelatedEvent(EventLevel.Informational, "GetFileStream_MountNotComplete", metadata);
                     activity.Dispose();
-                    return NtStatus.DeviceNotReady;
+                    return (HResult)HResultExtensions.HResultFromNtStatus.DeviceNotReady;
                 }
 
                 if (byteOffset != 0)
                 {
                     activity.RelatedError(metadata, "Invalid Parameter: byteOffset must be 0");
                     activity.Dispose();
-                    return NtStatus.InvalidParameter;
+                    return HResult.InternalError;
                 }
 
                 if (placeholderVersion != PlaceholderVersion)
                 {
                     activity.RelatedError(metadata, nameof(this.GVFltGetFileStreamHandler) + ": Unexpected placeholder version");
                     activity.Dispose();
-                    return NtStatus.InternalError;
+                    return HResult.InternalError;
                 }
 
                 CancellationTokenSource cancellationSource;
@@ -1161,7 +1207,7 @@ namespace GVFS.GVFlt
                 }
 
                 FileOrNetworkRequest getFileStreamHandler = new FileOrNetworkRequest(
-                    () => this.GVFltGetFileStreamHandlerAsyncHandler(
+                    (blobSizesConnection) => this.GVFltGetFileStreamHandlerAsyncHandler(
                         cancellationSource.Token,
                         commandId,
                         length,
@@ -1190,7 +1236,7 @@ namespace GVFS.GVFlt
                     activity.Dispose();
                     cancellationSource.Dispose();
 
-                    return NtStatus.DeviceNotReady;
+                    return (HResult)HResultExtensions.HResultFromNtStatus.DeviceNotReady;
                 }
             }
             catch (Exception e)
@@ -1206,7 +1252,7 @@ namespace GVFS.GVFlt
                 this.LogUnhandledExceptionAndExit(nameof(this.GVFltGetFileStreamHandler), metadata);
             }
 
-            return NtStatus.Pending;
+            return HResult.Pending;
         }
 
         private void GVFltGetFileStreamHandlerAsyncHandler(
@@ -1236,7 +1282,7 @@ namespace GVFS.GVFlt
                             requestMetadata.Add("blobLength", blobLength);
                             activity.RelatedError(requestMetadata, "Actual file length (blobLength) does not match requested length");
 
-                            throw new GetFileStreamException(NtStatus.InvalidParameter);
+                            throw new GetFileStreamException(HResult.InternalError);
                         }
 
                         byte[] buffer = new byte[Math.Min(MaxBlobStreamBufferSize, blobLength)];
@@ -1260,24 +1306,24 @@ namespace GVFS.GVFlt
                                     requestMetadata.Add("Exception", e.ToString());
                                     activity.RelatedError(requestMetadata, "IOException while copying to unmanaged buffer.");
 
-                                    throw new GetFileStreamException("IOException while copying to unmanaged buffer: " + e.Message, NtStatus.FileNotAvailable);
+                                    throw new GetFileStreamException("IOException while copying to unmanaged buffer: " + e.Message, (HResult)HResultExtensions.HResultFromNtStatus.FileNotAvailable);
                                 }
 
                                 long writeOffset = length - remainingData;
 
-                                NtStatus writeResult = this.gvflt.WriteFile(streamGuid, targetBuffer, (ulong)writeOffset, bytesToCopy);
+                                HResult writeResult = this.gvflt.WriteFile(streamGuid, targetBuffer, (ulong)writeOffset, bytesToCopy);
                                 remainingData -= bytesToCopy;
 
-                                if (writeResult != NtStatus.Success)
+                                if (writeResult != HResult.Ok)
                                 {
                                     switch (writeResult)
                                     {
-                                        case NtStatus.FileClosed:
+                                        case (HResult)HResultExtensions.HResultFromNtStatus.FileClosed:
                                             // StatusFileClosed is expected, and occurs when an application closes a file handle before OnGetFileStream
                                             // is complete
                                             break;
 
-                                        case NtStatus.ObjectNameNotFound:
+                                        case HResult.FileNotFound:
                                             // GvWriteFile may return STATUS_OBJECT_NAME_NOT_FOUND if the stream guid provided is not valid (doesn’t exist in the stream table).
                                             // For each file expansion, GVFlt creates a new get stream session with a new stream guid, the session starts at the beginning of the 
                                             // file expansion, and ends after the GetFileStream command returns or times out.
@@ -1307,7 +1353,7 @@ namespace GVFS.GVFlt
                 {
                     activity.RelatedError(requestMetadata, "TryCopyBlobContentStream failed");
 
-                    this.TryCompleteCommand(commandId, NtStatus.FileNotAvailable);
+                    this.TryCompleteCommand(commandId, (HResult)HResultExtensions.HResultFromNtStatus.FileNotAvailable);
                     return;
                 }
             }
@@ -1323,7 +1369,7 @@ namespace GVFS.GVFlt
             }
             catch (GetFileStreamException e)
             {
-                this.TryCompleteCommand(commandId, e.ErrorCode);
+                this.TryCompleteCommand(commandId, (HResult)e.HResult);
                 return;
             }
             catch (Exception e)
@@ -1331,44 +1377,11 @@ namespace GVFS.GVFlt
                 requestMetadata.Add("Exception", e.ToString());
                 activity.RelatedError(requestMetadata, "TryCopyBlobContentStream failed");
 
-                this.TryCompleteCommand(commandId, NtStatus.FileNotAvailable);
+                this.TryCompleteCommand(commandId, (HResult)HResultExtensions.HResultFromNtStatus.FileNotAvailable);
                 return;
             }
 
-            this.TryCompleteCommand(commandId, NtStatus.Success);
-        }
-
-        private NtStatus GVFltNotifyFirstWriteHandler(string virtualPath)
-        {
-            try
-            {
-                virtualPath = PathUtil.RemoveTrailingSlashIfPresent(virtualPath);
-
-                if (!this.isMountComplete)
-                {
-                    EventMetadata metadata = this.CreateEventMetadata(virtualPath);
-                    metadata.Add(TracingConstants.MessageKey.InfoMessage, nameof(this.GVFltNotifyFirstWriteHandler) + ": Mount has not yet completed");
-                    this.context.Tracer.RelatedEvent(EventLevel.Informational, "NotifyFirstWrite_MountNotComplete", metadata);
-                    return NtStatus.DeviceNotReady;
-                }
-
-                if (!string.Equals(virtualPath, string.Empty))
-                {
-                    bool isFolder;
-                    string fileName;
-                    bool isPathProjected = this.gitIndexProjection.IsPathProjected(virtualPath, out fileName, out isFolder);
-                    if (isPathProjected && !isFolder)
-                    {
-                        this.background.Enqueue(BackgroundGitUpdate.OnFileFirstWrite(virtualPath));
-                    }
-                }
-            }
-            catch (Exception e)
-            {
-                this.LogUnhandledExceptionAndExit(nameof(this.GVFltNotifyFirstWriteHandler), this.CreateEventMetadata(virtualPath, e));
-            }
-
-            return NtStatus.Success;
+            this.TryCompleteCommand(commandId, HResult.Ok);
         }
 
         private void GVFltNotifyNewFileCreatedHandler(
@@ -1386,7 +1399,31 @@ namespace GVFS.GVFlt
                 {
                     if (isDirectory)
                     {
-                        this.background.Enqueue(BackgroundGitUpdate.OnFolderCreated(virtualPath));
+                        GitCommandLineParser gitCommand = new GitCommandLineParser(this.context.Repository.GVFSLock.GetLockedGitCommand());
+                        if (gitCommand.IsValidGitCommand)
+                        {
+                            string directoryPath = Path.Combine(this.context.Enlistment.WorkingDirectoryRoot, virtualPath);
+                            HResult hr = this.gvflt.ConvertDirectoryToPlaceholder(directoryPath, ConvertShaToContentId(GVFSConstants.AllZeroSha), GetPlaceholderVersionId());
+                            if (hr == HResult.Ok)
+                            {
+                                this.gitIndexProjection.OnPlaceholderFolderCreated(virtualPath);
+                            }
+                            else
+                            {
+                                EventMetadata metadata = this.CreateEventMetadata(virtualPath);
+                                metadata.Add("isDirectory", isDirectory);
+                                metadata.Add("desiredAccess", desiredAccess);
+                                metadata.Add("shareMode", shareMode);
+                                metadata.Add("createDisposition", createDisposition);
+                                metadata.Add("createOptions", createOptions);
+                                metadata.Add("HResult", hr.ToString());
+                                this.context.Tracer.RelatedError(metadata, nameof(this.GVFltNotifyNewFileCreatedHandler) + "_" + nameof(this.gvflt.ConvertDirectoryToPlaceholder) + " error");
+                            }
+                        }
+                        else
+                        {
+                            this.background.Enqueue(BackgroundGitUpdate.OnFolderCreated(virtualPath));
+                        }
                     }
                     else
                     {
@@ -1413,7 +1450,7 @@ namespace GVFS.GVFlt
             uint shareMode,
             uint createDisposition,
             uint createOptions,
-            IoStatusBlockValue iostatusBlock,
+            IoStatusInformation iostatusBlock,
             ref NotificationType notificationMask)
         {
             try
@@ -1422,7 +1459,7 @@ namespace GVFS.GVFlt
                 {
                     switch (iostatusBlock)
                     {
-                        case IoStatusBlockValue.FileOverwritten:
+                        case IoStatusInformation.FileOverwritten:
                             if (!isDirectory)
                             {
                                 this.background.Enqueue(BackgroundGitUpdate.OnFileOverwritten(virtualPath));
@@ -1430,7 +1467,7 @@ namespace GVFS.GVFlt
 
                             break;
 
-                        case IoStatusBlockValue.FileSuperseded:
+                        case IoStatusInformation.FileSuperseded:
                             if (!isDirectory)
                             {
                                 this.background.Enqueue(BackgroundGitUpdate.OnFileSuperseded(virtualPath));
@@ -1456,7 +1493,7 @@ namespace GVFS.GVFlt
             }
         }
 
-        private NtStatus GvFltNotifyPreRenameHandler(string relativePath, string destinationPath)
+        private HResult GvFltNotifyPreRenameHandler(string relativePath, string destinationPath)
         {
             try
             {
@@ -1470,7 +1507,7 @@ namespace GVFS.GVFlt
                         metadata.Add(TracingConstants.MessageKey.WarningMessage, "Blocked index rename outside the lock");
                         this.context.Tracer.RelatedEvent(EventLevel.Warning, "GvFltNotifyPreRenameHandler", metadata);
 
-                        return NtStatus.AccessDenied;
+                        return HResult.AccessDenied;
                     }
                 }
             }
@@ -1481,52 +1518,13 @@ namespace GVFS.GVFlt
                 this.LogUnhandledExceptionAndExit(nameof(this.GvFltNotifyPreRenameHandler), metadata);
             }
 
-            return NtStatus.Success;
+            return HResult.Ok;
         }
 
-        private NtStatus GVFltNotifyPreDeleteHandler(string virtualPath, bool isDirectory)
+        private HResult GVFltNotifyPreDeleteHandler(string virtualPath, bool isDirectory)
         {
-            try
-            {
-                if (PathUtil.IsPathInsideDotGit(virtualPath))
-                {
-                    virtualPath = PathUtil.RemoveTrailingSlashIfPresent(virtualPath);
-                    if (!DoesPathAllowDelete(virtualPath))
-                    {
-                        return NtStatus.AccessDenied;
-                    }
-                }
-                else if (isDirectory)
-                {
-                    // Block directory deletes during git commands for directories not in the sparse-checkout 
-                    // git-clean and git-reset --hard are excluded from this restriction.
-                    if (!this.sparseCheckout.HasEntry(virtualPath, isFolder: true) &&
-                        !this.CanDeleteDirectory())
-                    {
-                        // Respond with something that Git expects, StatusAccessDenied will lock up Git. 
-                        // The directory is not exactly not-empty but it’s potentially not-empty 
-                        // within the timeline of the current git command which is the reason for us blocking the delete.
-                        return NtStatus.DirectoryNotEmpty;
-                    }
-                }
-            }
-            catch (Exception e)
-            {
-                EventMetadata metadata = this.CreateEventMetadata(virtualPath, e);
-                metadata.Add("isDirectory", isDirectory);
-                this.LogUnhandledExceptionAndExit(nameof(this.GVFltNotifyPreDeleteHandler), metadata);
-            }
-
-            return NtStatus.Success;
-        }
-
-        private bool CanDeleteDirectory()
-        {
-            GitCommandLineParser gitCommand = new GitCommandLineParser(this.context.Repository.GVFSLock.GetLockedGitCommand());
-            return 
-                !gitCommand.IsValidGitCommand ||
-                gitCommand.IsVerb(GitCommandLineParser.Verbs.Clean) ||
-                gitCommand.IsResetHard();
+            // Only the path to the index should be registered for this handler
+            return HResult.AccessDenied;
         }
 
         private void GVFltNotifyFileRenamedHandler(
@@ -1597,7 +1595,35 @@ namespace GVFS.GVFlt
                 metadata.Add("isFileDeleted", isFileDeleted);
                 this.LogUnhandledExceptionAndExit(nameof(this.GVFltNotifyFileHandleClosedFileModifiedOrDeletedHandler), metadata);
             }
-        }        
+        }
+
+        private HResult GVFltNotifyFilePreConvertToFullHandler(string virtualPath)
+        {
+            try
+            {
+                if (!this.isMountComplete)
+                {
+                    EventMetadata metadata = this.CreateEventMetadata(virtualPath);
+                    metadata.Add(TracingConstants.MessageKey.InfoMessage, nameof(this.GVFltNotifyFilePreConvertToFullHandler) + ": Mount has not yet completed");
+                    this.context.Tracer.RelatedEvent(EventLevel.Informational, $"{nameof(this.GVFltNotifyFilePreConvertToFullHandler)}_MountNotComplete", metadata);
+                    return (HResult)HResultExtensions.HResultFromNtStatus.DeviceNotReady;
+                }
+
+                bool isFolder;
+                string fileName;
+                bool isPathProjected = this.gitIndexProjection.IsPathProjected(virtualPath, out fileName, out isFolder);
+                if (isPathProjected)
+                {
+                    this.background.Enqueue(BackgroundGitUpdate.OnFileConvertedToFull(virtualPath));
+                }
+            }
+            catch (Exception e)
+            {
+                this.LogUnhandledExceptionAndExit(nameof(this.GVFltNotifyFilePreConvertToFullHandler), this.CreateEventMetadata(virtualPath, e));
+            }
+
+            return HResult.Ok;
+        }
 
         private void GVFltCancelCommandHandler(int commandId)
         {
@@ -1670,7 +1696,7 @@ namespace GVFS.GVFlt
 
                     if (result == CallbackResult.Success)
                     {
-                        result = this.alwaysExcludeFile.AddEntriesForFile(gitUpdate.VirtualPath);
+                        result = this.alwaysExcludeFile.AddEntriesForPath(gitUpdate.VirtualPath);
                     }
 
                     break;
@@ -1684,7 +1710,7 @@ namespace GVFS.GVFlt
                         result = this.AddFileToSparseCheckoutAndClearSkipWorktreeBit(gitUpdate.OldVirtualPath);
                         if (result == CallbackResult.Success)
                         {
-                            result = this.alwaysExcludeFile.RemoveEntriesForFiles(new List<string> { gitUpdate.OldVirtualPath });
+                            result = this.alwaysExcludeFile.RemoveEntriesForFile(gitUpdate.OldVirtualPath);
                         }
                     }
 
@@ -1696,7 +1722,7 @@ namespace GVFS.GVFlt
                         result = this.AddFileToSparseCheckoutAndClearSkipWorktreeBit(gitUpdate.VirtualPath);
                         if (result == CallbackResult.Success)
                         {
-                            result = this.alwaysExcludeFile.AddEntriesForFile(gitUpdate.VirtualPath);
+                            result = this.alwaysExcludeFile.AddEntriesForPath(gitUpdate.VirtualPath);
                         }
                     }
 
@@ -1707,14 +1733,14 @@ namespace GVFS.GVFlt
                     result = this.AddFileToSparseCheckoutAndClearSkipWorktreeBit(gitUpdate.VirtualPath);
                     if (result == CallbackResult.Success)
                     {
-                        result = this.alwaysExcludeFile.RemoveEntriesForFiles(new List<string> { gitUpdate.VirtualPath });
+                        result = this.alwaysExcludeFile.RemoveEntriesForFile(gitUpdate.VirtualPath);
                     }
 
                     break;
 
                 case BackgroundGitUpdate.OperationType.OnFileOverwritten:
                 case BackgroundGitUpdate.OperationType.OnFileSuperseded:
-                case BackgroundGitUpdate.OperationType.OnFileFirstWrite:
+                case BackgroundGitUpdate.OperationType.OnFileConvertedToFull:
                 case BackgroundGitUpdate.OperationType.OnFailedPlaceholderUpdate:
                     metadata.Add("virtualPath", gitUpdate.VirtualPath);
                     result = this.AddFileToSparseCheckoutAndClearSkipWorktreeBit(gitUpdate.VirtualPath);
@@ -1723,6 +1749,11 @@ namespace GVFS.GVFlt
                 case BackgroundGitUpdate.OperationType.OnFolderCreated:
                     metadata.Add("virtualPath", gitUpdate.VirtualPath);
                     result = this.sparseCheckout.AddFolderEntry(gitUpdate.VirtualPath);
+                    if (result == CallbackResult.Success)
+                    {
+                        result = this.alwaysExcludeFile.AddEntriesForPath(gitUpdate.VirtualPath);
+                    }
+
                     break;
 
                 case BackgroundGitUpdate.OperationType.OnFolderRenamed:
@@ -1739,7 +1770,6 @@ namespace GVFS.GVFlt
                         result = this.sparseCheckout.AddFolderEntry(gitUpdate.VirtualPath);
                         if (result == CallbackResult.Success)
                         {
-                            List<string> virtualPathsToRemove = new List<string> { };
                             Queue<string> relativeFolderPaths = new Queue<string>();
                             relativeFolderPaths.Enqueue(gitUpdate.VirtualPath);
 
@@ -1761,8 +1791,11 @@ namespace GVFS.GVFlt
                                             else
                                             {
                                                 string oldItemVirtualPath = gitUpdate.OldVirtualPath + itemVirtualPath.Substring(gitUpdate.VirtualPath.Length);
-                                                virtualPathsToRemove.Add(oldItemVirtualPath);
-                                                result = this.alwaysExcludeFile.AddEntriesForFile(itemVirtualPath);
+                                                result = this.alwaysExcludeFile.RemoveEntriesForFile(oldItemVirtualPath);
+                                                if (result == CallbackResult.Success)
+                                                {
+                                                    result = this.alwaysExcludeFile.AddEntriesForPath(itemVirtualPath);
+                                                }
                                             }
                                         }
                                     }
@@ -1792,11 +1825,6 @@ namespace GVFS.GVFlt
                                 {
                                     break;
                                 }
-                            }
-
-                            if (result == CallbackResult.Success)
-                            {
-                                result = this.alwaysExcludeFile.RemoveEntriesForFiles(virtualPathsToRemove);
                             }
                         }
                     }
@@ -1830,7 +1858,7 @@ namespace GVFS.GVFlt
                 metadata.Add("Area", "ExecuteBackgroundOperation");
                 metadata.Add("Operation", gitUpdate.Operation.ToString());
                 metadata.Add(TracingConstants.MessageKey.WarningMessage, "Background operation failed");
-                metadata.Add("result", result.ToString());
+                metadata.Add(nameof(result), result.ToString());
                 this.context.Tracer.RelatedEvent(EventLevel.Warning, "FailedBackgroundOperation", metadata);
             }
 
@@ -1955,28 +1983,39 @@ namespace GVFS.GVFlt
 
         private void ExecuteFileOrNetworkRequest()
         {
-            FileOrNetworkRequest request;
-            while (this.fileAndNetworkRequests.TryTake(out request, Timeout.Infinite))
+            try
             {
-                try
+                using (BlobSizes.BlobSizesConnection blobSizesConnection = this.blobSizes.CreateConnection())
                 {
-                    request.Work();
-                }
-                catch (Exception e)
-                {
-                    EventMetadata metadata = this.CreateEventMetadata(virtualPath: null, exception: e);
-                    this.LogUnhandledExceptionAndExit($"{nameof(this.ExecuteFileOrNetworkRequest)}_Work", metadata);
-                }
+                    FileOrNetworkRequest request;
+                    while (this.fileAndNetworkRequests.TryTake(out request, Timeout.Infinite))
+                    {
+                        try
+                        {
+                            request.Work(blobSizesConnection);
+                        }
+                        catch (Exception e)
+                        {
+                            EventMetadata metadata = this.CreateEventMetadata(virtualPath: null, exception: e);
+                            this.LogUnhandledExceptionAndExit($"{nameof(this.ExecuteFileOrNetworkRequest)}_Work", metadata);
+                        }
 
-                try
-                {
-                    request.Cleanup();
+                        try
+                        {
+                            request.Cleanup();
+                        }
+                        catch (Exception e)
+                        {
+                            EventMetadata metadata = this.CreateEventMetadata(virtualPath: null, exception: e);
+                            this.LogUnhandledExceptionAndExit($"{nameof(this.ExecuteFileOrNetworkRequest)}_Cleanup", metadata);
+                        }
+                    }
                 }
-                catch (Exception e)
-                {
-                    EventMetadata metadata = this.CreateEventMetadata(virtualPath: null, exception: e);
-                    this.LogUnhandledExceptionAndExit($"{nameof(this.ExecuteFileOrNetworkRequest)}_Cleanup", metadata);
-                }
+            }
+            catch (Exception e)
+            {
+                EventMetadata metadata = this.CreateEventMetadata(virtualPath: null, exception: e);
+                this.LogUnhandledExceptionAndExit($"{nameof(this.ExecuteFileOrNetworkRequest)}", metadata);
             }
         }
 
@@ -1999,7 +2038,7 @@ namespace GVFS.GVFlt
                 OnFileDeleted,
                 OnFileOverwritten,
                 OnFileSuperseded,
-                OnFileFirstWrite,
+                OnFileConvertedToFull,
                 OnFailedPlaceholderDelete,
                 OnFailedPlaceholderUpdate,
                 OnFolderCreated,
@@ -2040,9 +2079,9 @@ namespace GVFS.GVFlt
                 return new BackgroundGitUpdate(OperationType.OnFileSuperseded, virtualPath, oldVirtualPath: null);
             }
 
-            public static BackgroundGitUpdate OnFileFirstWrite(string virtualPath)
+            public static BackgroundGitUpdate OnFileConvertedToFull(string virtualPath)
             {
-                return new BackgroundGitUpdate(OperationType.OnFileFirstWrite, virtualPath, oldVirtualPath: null);
+                return new BackgroundGitUpdate(OperationType.OnFileConvertedToFull, virtualPath, oldVirtualPath: null);
             }
 
             public static BackgroundGitUpdate OnFailedPlaceholderDelete(string virtualPath)
@@ -2108,18 +2147,16 @@ namespace GVFS.GVFlt
 
         private class GetFileStreamException : Exception
         {
-            public GetFileStreamException(NtStatus errorCode)
+            public GetFileStreamException(HResult errorCode)
                 : this("GetFileStreamException exception, error: " + errorCode.ToString(), errorCode)
             {                
             }
 
-            public GetFileStreamException(string message, NtStatus errorCode)
+            public GetFileStreamException(string message, HResult result)
                 : base(message)
             {
-                this.ErrorCode = errorCode;
+                this.HResult = (int)result;
             }
-
-            public NtStatus ErrorCode { get; private set; }
         }
 
         private class Notifications
@@ -2138,11 +2175,11 @@ namespace GVFS.GVFlt
                 NotificationType.NewFileCreated |
                 NotificationType.FileSupersededOrOverwritten |
                 NotificationType.FileRenamed |
-                NotificationType.FileHandleClosedFileDeleted;
+                NotificationType.FileHandleClosedFileDeleted |
+                NotificationType.FilePreConvertToFull;
 
             public const NotificationType FoldersInWorkingFolder =
                 NotificationType.NewFileCreated |
-                NotificationType.PreDelete |
                 NotificationType.FileRenamed |
                 NotificationType.FileHandleClosedFileDeleted;
         }
@@ -2158,13 +2195,13 @@ namespace GVFS.GVFlt
             /// </summary>
             /// <param name="work">Action that requires file and\or network access</param>
             /// <param name="cleanup">Cleanup action to take after performing work</param>
-            public FileOrNetworkRequest(Action work, Action cleanup)
+            public FileOrNetworkRequest(Action<BlobSizes.BlobSizesConnection> work, Action cleanup)
             {
                 this.Work = work;
                 this.Cleanup = cleanup;
             }
 
-            public Action Work { get; }
+            public Action<BlobSizes.BlobSizesConnection> Work { get; }
             public Action Cleanup { get; }
         }
     }

@@ -5,7 +5,7 @@ namespace GVFS.Common
 {
     public static partial class Paths
     {
-        public static bool TryGetPathRoot(string path, out string pathRoot, out string errorMessage)
+        public static bool TryGetFinalPathRoot(string path, out string pathRoot, out string errorMessage)
         {
             pathRoot = null;
             errorMessage = null;

@@ -7,6 +7,7 @@ namespace GVFS.Common.Http
     {
         private const string ObjectsEndpointSuffix = "/gvfs/objects";
         private const string PrefetchEndpointSuffix = "/gvfs/prefetch";
+        private const string SizesEndpointSuffix = "/gvfs/sizes";
 
         [JsonConstructor]
         public CacheServerInfo(string url, string name, bool globalDefault = false)
@@ -19,6 +20,7 @@ namespace GVFS.Common.Http
             {
                 this.ObjectsEndpointUrl = this.Url + ObjectsEndpointSuffix;
                 this.PrefetchEndpointUrl = this.Url + PrefetchEndpointSuffix;
+                this.SizesEndpointUrl = this.Url + SizesEndpointSuffix;
             }
         }
 
@@ -28,6 +30,7 @@ namespace GVFS.Common.Http
 
         public string ObjectsEndpointUrl { get; }
         public string PrefetchEndpointUrl { get; }
+        public string SizesEndpointUrl { get; }
 
         public bool HasValidUrl()
         {

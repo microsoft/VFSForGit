@@ -47,7 +47,7 @@ namespace GVFS.Common.Git
         {
             const bool PreferLooseObjects = false;
             IEnumerable<string> objectIds = new[] { commitSha };
-            
+
             RetryWrapper<GitObjectsHttpRequestor.GitObjectTaskResult>.InvocationResult output = this.GitObjectRequestor.TryDownloadObjects(
                 objectIds,
                 onSuccess: (tryCount, response) => this.TrySavePackOrLooseObject(objectIds, PreferLooseObjects, response),
@@ -93,7 +93,7 @@ namespace GVFS.Common.Git
             }
         }
 
-        public bool TryDownloadPrefetchPacks(long latestTimestamp)
+        public bool TryDownloadPrefetchPacks(long latestTimestamp, out List<string> packIndexes)
         {
             EventMetadata metadata = CreateEventMetadata();
             metadata.Add("latestTimestamp", latestTimestamp);
@@ -103,9 +103,10 @@ namespace GVFS.Common.Git
                 long bytesDownloaded = 0;
 
                 long requestId = HttpRequestor.GetNewRequestId();
+                List<string> innerPackIndexes = null;
                 RetryWrapper<GitObjectsHttpRequestor.GitObjectTaskResult>.InvocationResult result = this.GitObjectRequestor.TrySendProtocolRequest(
                     requestId: requestId,
-                    onSuccess: (tryCount, response) => this.DeserializePrefetchPacks(response, ref latestTimestamp, ref bytesDownloaded),
+                    onSuccess: (tryCount, response) => this.DeserializePrefetchPacks(response, ref latestTimestamp, ref bytesDownloaded, ref innerPackIndexes),
                     onFailure: RetryWrapper<GitObjectsHttpRequestor.GitObjectTaskResult>.StandardErrorHandler(activity, requestId, "TryDownloadPrefetchPacks"),
                     method: HttpMethod.Get,
                     endPointGenerator: () => new Uri(
@@ -116,7 +117,9 @@ namespace GVFS.Common.Git
                     requestBodyGenerator: () => null,
                     cancellationToken: CancellationToken.None,
                     acceptType: new MediaTypeWithQualityHeaderValue(GVFSConstants.MediaTypes.PrefetchPackFilesAndIndexesMediaType));
-                
+
+                packIndexes = innerPackIndexes;
+
                 if (!result.Succeeded)
                 {
                     if (result.Result != null && result.Result.HttpStatusCodeResult == HttpStatusCode.NotFound)
@@ -145,6 +148,43 @@ namespace GVFS.Common.Git
                     });
 
                 return result.Succeeded;
+            }
+        }
+
+        public bool TryWriteMultiPackIndex(ITracer tracer, GVFSEnlistment enlistment, PhysicalFileSystem fileSystem)
+        {
+            using (ITracer activity = tracer.StartActivity(nameof(this.TryWriteMultiPackIndex), EventLevel.Informational, Keywords.Telemetry, metadata: null))
+            {
+                GitProcess process = new GitProcess(enlistment, fileSystem);
+                GitProcess.Result result = process.WriteMultiPackIndex(enlistment.GitPackRoot);
+
+                if (!result.HasErrors)
+                {
+                    string midxHash = result.Output.Trim();
+                    activity.RelatedInfo("Updated midx-head to hash {0}", midxHash);
+
+                    string expectedMidxHead = Path.Combine(enlistment.GitPackRoot, "midx-" + midxHash + ".midx");
+                    string[] midxFiles = fileSystem.GetFiles(enlistment.GitPackRoot, "midx-*.midx");
+
+                    foreach (string midxFile in midxFiles)
+                    {
+                        if (!midxFile.Equals(expectedMidxHead, StringComparison.OrdinalIgnoreCase) && !fileSystem.TryDeleteFile(midxFile))
+                        {
+                            activity.RelatedWarning("Failed to delete MIDX file {0}", midxFile);
+                        }
+                    }
+                }
+                else
+                {
+                    EventMetadata errorMetadata = new EventMetadata();
+                    errorMetadata.Add("Operation", nameof(this.TryWriteMultiPackIndex));
+                    errorMetadata.Add("packDir", enlistment.GitPackRoot);
+                    errorMetadata.Add("Errors", result.Errors);
+                    errorMetadata.Add("Output", result.Output.Length > 1024 ? result.Output.Substring(1024) : result.Output);
+                    activity.RelatedError(errorMetadata, result.Errors, Keywords.Telemetry);
+                }
+
+                return !result.HasErrors;
             }
         }
 
@@ -280,7 +320,7 @@ namespace GVFS.Common.Git
             Exception moveFileException = null;
             try
             {
-                // We're indexing a pack file that was saved to a temp file name, and so it must be renamed 
+                // We're indexing a pack file that was saved to a temp file name, and so it must be renamed
                 // to its final name before indexing ('git index-pack' requires that the pack file name end with .pack)
                 this.fileSystem.MoveFile(tempPackPath, packfilePath);
             }
@@ -322,7 +362,7 @@ namespace GVFS.Common.Git
 
             Exception indexPackException = null;
             try
-            {               
+            {
                 GitProcess.Result result = new GitProcess(this.Enlistment).IndexPack(packfilePath, tempIdxPath);
                 if (result.HasErrors)
                 {
@@ -335,7 +375,7 @@ namespace GVFS.Common.Git
                     }
                 }
                 else
-                {                    
+                {
                     if (this.Enlistment.FlushFileBuffersForPacks)
                     {
                         Exception exception;
@@ -379,8 +419,8 @@ namespace GVFS.Common.Git
             this.Tracer.RelatedWarning(failureMetadata, $"{nameof(this.IndexPackFile): Exception caught while trying to index pack file}");
 
             return new GitProcess.Result(
-                string.Empty, 
-                indexPackException != null ? indexPackException.Message : "Failed to index pack file", 
+                string.Empty,
+                indexPackException != null ? indexPackException.Message : "Failed to index pack file",
                 GitProcess.Result.GenericFailureCode);
         }
 
@@ -405,8 +445,8 @@ namespace GVFS.Common.Git
             }
 
             return new string[0];
-        }        
-        
+        }
+
         private static string GetRandomPackName(string packRoot)
         {
             string packName = "pack-" + Guid.NewGuid().ToString("N") + ".pack";
@@ -434,7 +474,7 @@ namespace GVFS.Common.Git
             try
             {
                 this.fileSystem.MoveAndOverwriteFile(packTempPath, finalPackPath);
-                this.fileSystem.MoveAndOverwriteFile(idxTempPath, finalIdxPath);                
+                this.fileSystem.MoveAndOverwriteFile(idxTempPath, finalIdxPath);
             }
             catch (Win32Exception e)
             {
@@ -475,7 +515,7 @@ namespace GVFS.Common.Git
             if (readOnly)
             {
                 if (!this.TrySetAttributes(path, originalAttributes & ~FileAttributes.ReadOnly, out exception))
-                { 
+                {
                     error = "Failed to clear read-only attribute, skipping flush";
                     return false;
                 }
@@ -533,7 +573,7 @@ namespace GVFS.Common.Git
             exception = null;
 
             try
-            {                
+            {
                 this.fileSystem.SetAttributes(path, attributes);
                 return true;
             }
@@ -576,10 +616,16 @@ namespace GVFS.Common.Git
         /// Uses a <see cref="PrefetchPacksDeserializer"/> to read the packs from the stream.
         /// </summary>
         private RetryWrapper<GitObjectsHttpRequestor.GitObjectTaskResult>.CallbackResult DeserializePrefetchPacks(
-           GitEndPointResponseData response, 
+           GitEndPointResponseData response,
            ref long latestTimestamp,
-           ref long bytesDownloaded)
+           ref long bytesDownloaded,
+           ref List<string> packIndexes)
         {
+            if (packIndexes == null)
+            {
+                packIndexes = new List<string>();
+            }
+
             using (ITracer activity = this.Tracer.StartActivity("DeserializePrefetchPacks", EventLevel.Informational))
             {
                 PrefetchPacksDeserializer deserializer = new PrefetchPacksDeserializer(response.Stream);
@@ -662,25 +708,30 @@ namespace GVFS.Common.Git
                                 {
                                     packFlushTask.Wait();
                                 }
-                            }                            
+                            }
 
                             // Move whatever has been successfully downloaded so far
                             Exception moveException;
-                            this.TryFlushAndMoveTempPacks(tempPacks, ref latestTimestamp, out moveException);                           
+                            this.TryFlushAndMoveTempPacks(tempPacks, ref latestTimestamp, out moveException);
 
                             // The download stream will not be in a good state if the index download fails.
                             // So we have to restart the prefetch
                             return new RetryWrapper<GitObjectsHttpRequestor.GitObjectTaskResult>.CallbackResult(null, true);
                         }
                     }
-                    
-                    bytesDownloaded += indexLength;                    
+
+                    bytesDownloaded += indexLength;
                 }
 
                 Exception exception = null;
                 if (!this.TryFlushAndMoveTempPacks(tempPacks, ref latestTimestamp, out exception))
                 {
                     return new RetryWrapper<GitObjectsHttpRequestor.GitObjectTaskResult>.CallbackResult(exception, true);
+                }
+
+                foreach (TempPrefetchPackAndIdx tempPack in tempPacks)
+                {
+                    packIndexes.Add(tempPack.IdxName);
                 }
 
                 return new RetryWrapper<GitObjectsHttpRequestor.GitObjectTaskResult>.CallbackResult(
@@ -758,7 +809,7 @@ namespace GVFS.Common.Git
         {
             Exception e;
             if (!this.fileSystem.TryDeleteFile(fullPath, exception: out e))
-            { 
+            {
                 EventMetadata info = CreateEventMetadata(e);
                 info.Add("file", fullPath);
                 activity.RelatedWarning(info, "Failed to cleanup temp file");
@@ -790,7 +841,7 @@ namespace GVFS.Common.Git
 
                     try
                     {
-                        this.fileSystem.MoveFile(toWrite.TempFile, toWrite.ActualFile);                        
+                        this.fileSystem.MoveFile(toWrite.TempFile, toWrite.ActualFile);
                     }
                     catch (IOException ex)
                     {
@@ -910,10 +961,10 @@ namespace GVFS.Common.Git
         {
             public TempPrefetchPackAndIdx(
                 long timestamp,
-                string packName, 
-                string packFullPath, 
+                string packName,
+                string packFullPath,
                 Task packFlushTask,
-                string idxName, 
+                string idxName,
                 string idxFullPath,
                 Task idxFlushTask)
             {

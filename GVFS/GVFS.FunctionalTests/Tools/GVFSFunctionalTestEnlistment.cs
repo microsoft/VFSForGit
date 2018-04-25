@@ -94,9 +94,21 @@ namespace GVFS.FunctionalTests.Tools
             return CloneAndMount(pathToGvfs, enlistmentRoot, commitish, localCacheRoot);
         }
 
+        public static GVFSFunctionalTestEnlistment CloneAndMountEnlistmentWithSpacesInPath(string pathToGvfs, string commitish = null)
+        {
+            string enlistmentRoot = GVFSFunctionalTestEnlistment.GetUniqueEnlistmentRootWithSpaces();
+            string localCache = GVFSFunctionalTestEnlistment.GetRepoSpecificLocalCacheRoot(enlistmentRoot);
+            return CloneAndMount(pathToGvfs, enlistmentRoot, commitish, localCache);
+        }
+
         public static string GetUniqueEnlistmentRoot()
         {
             return Path.Combine(Properties.Settings.Default.EnlistmentRoot, Guid.NewGuid().ToString("N"));
+        }
+
+        public static string GetUniqueEnlistmentRootWithSpaces()
+        {
+            return Path.Combine(Properties.Settings.Default.EnlistmentRoot, "test path " + Guid.NewGuid().ToString("N"));
         }
 
         public string GetObjectRoot(FileSystemRunner fileSystem)

@@ -9,7 +9,7 @@
     <AppDesignerFolder>Properties</AppDesignerFolder>
     <RootNamespace>GVFS.Common</RootNamespace>
     <AssemblyName>GVFS.Common</AssemblyName>
-    <TargetFrameworkVersion>v4.5.2</TargetFrameworkVersion>
+    <TargetFrameworkVersion>v4.6.1</TargetFrameworkVersion>
     <FileAlignment>512</FileAlignment>
     <NuGetPackageImportStamp>
     </NuGetPackageImportStamp>
@@ -37,7 +37,7 @@
   <ItemGroup>
     <Reference Include="Microsoft.Diagnostics.Tracing.EventSource, Version=1.1.28.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a, processorArchitecture=MSIL">
       <SpecificVersion>False</SpecificVersion>
-      <HintPath>..\..\..\packages\Microsoft.Diagnostics.Tracing.EventSource.Redist.1.1.28\lib\net40\Microsoft.Diagnostics.Tracing.EventSource.dll</HintPath>
+      <HintPath>..\..\..\packages\Microsoft.Diagnostics.Tracing.EventSource.Redist.1.1.28\lib\net46\Microsoft.Diagnostics.Tracing.EventSource.dll</HintPath>
       <Private>True</Private>
     </Reference>
     <Reference Include="Newtonsoft.Json, Version=7.0.0.0, Culture=neutral, PublicKeyToken=30ad4fe6b2a6aeed, processorArchitecture=MSIL">
@@ -66,11 +66,12 @@
     <Compile Include="FileBasedCollectionException.cs" />
     <Compile Include="FileSystem\PhysicalFileSystemExtensions.cs" />
     <Compile Include="FileSystem\FlushToDiskFileStream.cs" />
+    <Compile Include="Git\Sha1Id.cs" />
     <Compile Include="LocalCacheResolver.cs" />
     <Compile Include="Http\CacheServerResolver.cs" />
     <Compile Include="Paths.Shared.cs" />
     <Compile Include="PlaceholderListDatabase.cs" />
-    <Compile Include="FileSystem\GvFltFilter.cs" />
+    <Compile Include="FileSystem\ProjFSFilter.cs" />
     <Compile Include="GVFSEnlistment.Shared.cs" />
     <Compile Include="NetworkStreams\BatchedLooseObjectDeserializer.cs" />
     <Compile Include="NetworkStreams\RestrictedStream.cs" />

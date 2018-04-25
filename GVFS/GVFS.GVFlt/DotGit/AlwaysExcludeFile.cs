@@ -78,12 +78,12 @@ namespace GVFS.GVFlt.DotGit
             return CallbackResult.Success;
         }
 
-        public CallbackResult AddEntriesForFile(string virtualPath)
+        public CallbackResult AddEntriesForPath(string virtualPath)
         {
             string entry = virtualPath.Replace(GVFSConstants.PathSeparator, GVFSConstants.GitPathSeparator);
             entry = "!" + GVFSConstants.GitPathSeparatorString + entry;
 
-            CallbackResult result = this.AddFolderEntriesForFile(entry);
+            CallbackResult result = this.AddParentFolderEntries(entry);
             if (result != CallbackResult.Success)
             {
                 return result;
@@ -110,27 +110,24 @@ namespace GVFS.GVFlt.DotGit
             return CallbackResult.Success;
         }
 
-        public CallbackResult RemoveEntriesForFiles(List<string> virtualPaths)
+        public CallbackResult RemoveEntriesForFile(string virtualPath)
         {
-            foreach (string virtualPath in virtualPaths)
+            string entry = virtualPath.Replace(GVFSConstants.PathSeparator, GVFSConstants.GitPathSeparator);
+            entry = "!" + GVFSConstants.GitPathSeparatorString + entry;
+
+            this.entriesToRemove.Add(entry);
+
+            // We must add the folder path to this file so that git clean removes the folders if they are empty.
+            CallbackResult result = this.AddParentFolderEntries(entry);
+            if (result != CallbackResult.Success)
             {
-                string entry = virtualPath.Replace(GVFSConstants.PathSeparator, GVFSConstants.GitPathSeparator);
-                entry = "!" + GVFSConstants.GitPathSeparatorString + entry;
-
-                this.entriesToRemove.Add(entry);
-
-                // We must add the folder path to this file so that git clean removes the folders if they are empty.
-                CallbackResult result = this.AddFolderEntriesForFile(entry);
-                if (result != CallbackResult.Success)
-                {
-                    return result;
-                }
+                return result;
             }
 
             return CallbackResult.Success;
         }
 
-        private CallbackResult AddFolderEntriesForFile(string fileEntry)
+        private CallbackResult AddParentFolderEntries(string fileEntry)
         {
             try
             {

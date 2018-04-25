@@ -170,6 +170,26 @@ namespace GVFS.Common
             return value as string;
         }
 
+        public static bool TrySetDwordInRegistry(RegistryHive registryHive, string key, string valueName, uint value)
+        {
+            RegistryKey localKey = RegistryKey.OpenBaseKey(registryHive, RegistryView.Registry64);
+            RegistryKey localKeySub = localKey.OpenSubKey(key, writable: true);
+
+            if (localKeySub == null)
+            {
+                localKey = RegistryKey.OpenBaseKey(registryHive, RegistryView.Registry32);
+                localKeySub = localKey.OpenSubKey(key, writable: true);
+            }
+
+            if (localKeySub == null)
+            {
+                return false;
+            }
+
+            localKeySub.SetValue(valueName, value, RegistryValueKind.DWord);
+            return true;
+        }
+
         private static object GetValueFromRegistry(RegistryHive registryHive, string key, string valueName, RegistryView view)
         {
             RegistryKey localKey = RegistryKey.OpenBaseKey(registryHive, view);

@@ -8,7 +8,7 @@
     <AppDesignerFolder>Properties</AppDesignerFolder>
     <RootNamespace>GVFS.PreBuild</RootNamespace>
     <AssemblyName>GVFS.PreBuild</AssemblyName>
-    <TargetFrameworkVersion>v4.5.2</TargetFrameworkVersion>
+    <TargetFrameworkVersion>v4.6.1</TargetFrameworkVersion>
     <FileAlignment>512</FileAlignment>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)' == 'Debug|x64'">
@@ -32,10 +32,14 @@
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
   </PropertyGroup>
   <ItemGroup>
+    <Compile Include="GenerateApplicationManifests.cs" />
     <Compile Include="GenerateVersionInfo.cs" />
   </ItemGroup>
   <ItemGroup>
     <None Include="GVFS.props">
+      <SubType>Designer</SubType>
+    </None>
+    <None Include="ProjFS.props">
       <SubType>Designer</SubType>
     </None>
   </ItemGroup>
@@ -51,6 +55,15 @@
       <Code Type="Class" Source="GenerateVersionInfo.cs" />
     </Task>
   </UsingTask>
+  <UsingTask TaskName="GenerateApplicationManifests" TaskFactory="CodeTaskFactory" AssemblyFile="$(MSBuildToolsPath)\Microsoft.Build.Tasks.v12.0.dll">
+    <ParameterGroup>
+      <Version ParameterType="System.String" Required="true" />
+      <BuildOutputPath ParameterType="System.String" Required="true" />
+    </ParameterGroup>
+    <Task>
+      <Code Type="Class" Source="GenerateApplicationManifests.cs" />
+    </Task>
+  </UsingTask>
   <Target Name="Build">
     <CallTarget Targets="GenerateAll" />
   </Target>
@@ -58,10 +71,11 @@
     <CallTarget Targets="GenerateAll" />
   </Target>
   <Target Name="Clean">
-    <RemoveDir Directories="$(BuildOutputPath)\GVFS.Build" />
-    <Delete Files="$(BuildOutputPath)\CommonAssemblyVersion.cs;$(BuildOutputPath)\CommonVersionHeader.h" />
+    <RemoveDir Directories="$(BuildOutputDir)\$(MSBuildProjectName)" />
+    <Delete Files="$(BuildOutputDir)\CommonAssemblyVersion.cs;$(BuildOutputDir)\CommonVersionHeader.h" />
   </Target>
   <Target Name="GenerateAll">
     <GenerateVersionInfo Version="$(GVFSVersion)" BuildOutputPath="$(BuildOutputDir)" />
+    <GenerateApplicationManifests Version="$(GVFSVersion)" BuildOutputPath="$(BuildOutputDir)" />
   </Target>
 </Project>

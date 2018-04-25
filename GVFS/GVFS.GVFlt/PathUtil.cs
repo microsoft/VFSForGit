@@ -17,15 +17,5 @@ namespace GVFS.GVFlt
         {
             return path.TrimEnd('\\');
         }
-
-        public static bool IsEnumerationFilterSet(string filter)
-        {
-            if (string.IsNullOrWhiteSpace(filter) || filter == "*")
-            {
-                return false;
-            }
-
-            return true;
-        }
     }
 }

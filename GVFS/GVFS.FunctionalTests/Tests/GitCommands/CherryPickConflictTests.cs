@@ -1,10 +1,9 @@
-﻿using GVFS.FunctionalTests.Category;
-using NUnit.Framework;
+﻿using NUnit.Framework;
 
 namespace GVFS.FunctionalTests.Tests.GitCommands
 {
     [TestFixture]
-    [Category(CategoryConstants.GitCommands)]
+    [Category(Categories.GitCommands)]
     public class CherryPickConflictTests : GitRepoTests
     {
         public CherryPickConflictTests() : base(enlistmentPerTest: true)

@@ -209,3 +209,108 @@ bool GVFlt_EnumFolderSmallBuffer(const char* virtualRootPath)
 
     return true;
 }
+
+
+bool GVFlt_EnumTestNoMoreNoSuchReturnCodes(const char* virtualRootPath)
+{
+    std::string fileName1 = "fileInPackage1.txt";
+    std::string fileName2 = "fileInPackage2.txt";
+    std::string fileName3 = "fileInPackage3.txt";
+    std::string folderPath = virtualRootPath + TEST_ROOT_FOLDER + std::string("\\GVFlt_EnumTestNoMoreNoSuchReturnCodes");
+
+    try
+    {
+        VERIFY_ARE_EQUAL(TRUE, DeleteFile((folderPath + std::string("\\") + fileName1).c_str()));
+        VERIFY_ARE_EQUAL(TRUE, DeleteFile((folderPath + std::string("\\") + fileName2).c_str()));
+        VERIFY_ARE_EQUAL(TRUE, DeleteFile((folderPath + std::string("\\") + fileName3).c_str()));
+
+        std::shared_ptr<void> enumHandle = OpenForRead(folderPath);
+
+        UCHAR buffer[512];
+        BOOLEAN restartScan = TRUE;
+        IO_STATUS_BLOCK ioStatus;
+        UNICODE_STRING fileSpec;
+        RtlInitUnicodeString(&fileSpec, L"fileInPack*");
+        NTSTATUS initialStatus = NtQueryDirectoryFile(enumHandle.get(),
+            nullptr,
+            nullptr,
+            nullptr,
+            &ioStatus,
+            buffer,
+            ARRAYSIZE(buffer),
+            FileFullDirectoryInformation,
+            FALSE,
+            &fileSpec,
+            restartScan);
+
+        // Check expected status code for the first query on a given handle for a non-existent name.
+        VERIFY_ARE_EQUAL(STATUS_NO_SUCH_FILE, initialStatus);
+
+        // Do another query on the handle for the non-existent names.  Leave SL_RESTART_SCAN set.
+        NTSTATUS repeatStatus = NtQueryDirectoryFile(enumHandle.get(),
+            nullptr,
+            nullptr,
+            nullptr,
+            &ioStatus,
+            buffer,
+            ARRAYSIZE(buffer),
+            FileFullDirectoryInformation,
+            FALSE,
+            &fileSpec,
+            restartScan);
+
+        // Check expected status code for a repeat query on a given handle for a non-existent name.
+        VERIFY_ARE_EQUAL(STATUS_NO_MORE_FILES, repeatStatus);
+
+        // Once more, this time without SL_RESTART_SCAN.
+        restartScan = false;
+        NTSTATUS finalStatus = NtQueryDirectoryFile(enumHandle.get(),
+            nullptr,
+            nullptr,
+            nullptr,
+            &ioStatus,
+            buffer,
+            ARRAYSIZE(buffer),
+            FileFullDirectoryInformation,
+            false,
+            &fileSpec,
+            restartScan);
+
+        // Check expected status code for a repeat query on a given handle for a non-existent name.
+        VERIFY_ARE_EQUAL(STATUS_NO_MORE_FILES, finalStatus);
+    }
+    catch (TestException&)
+    {
+        return false;
+    }
+
+    return true;
+}
+
+bool GVFlt_EnumTestQueryDirectoryFileRestartScanProjectedFile(const char* virtualRootPath)
+{
+    std::string folderPath = virtualRootPath + TEST_ROOT_FOLDER + std::string("\\GVFlt_EnumTestQueryDirectoryFileRestartScanResetsFilter");
+
+    try
+    {
+        std::shared_ptr<void> enumHandle = OpenForRead(folderPath);
+
+        std::vector<std::wstring> expectedResults = { L".", L"..", L"fileInPackage1.txt", L"fileInPackage2.txt", L"fileInPackage3.txt" };
+        VerifyEnumerationMatches(enumHandle.get(), expectedResults);
+
+        // Query again, resetting the scan to the start.
+        VerifyEnumerationMatches(enumHandle.get(), expectedResults);
+
+        // Query again, using a filter
+        UNICODE_STRING fileSpec;
+        RtlInitUnicodeString(&fileSpec, L"fileInPackage2.txt");
+        expectedResults = { L"fileInPackage2.txt", };
+        VerifyEnumerationMatches(enumHandle.get(), &fileSpec, expectedResults);
+    }
+    catch (TestException&)
+    {
+        return false;
+    }
+
+    return true;
+}

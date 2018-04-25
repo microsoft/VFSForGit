@@ -1,15 +1,34 @@
 ﻿using GVFS.GVFlt;
 using GVFS.Tests.Should;
 using NUnit.Framework;
+using ProjFS;
 using System;
 using System.Collections.Generic;
 using System.Linq;
 
 namespace GVFS.UnitTests.GVFlt
 {
-    [TestFixture]
+    [TestFixtureSource(TestRunners)]
     public class GVFltActiveEnumerationTests
     {
+        public const string TestRunners = "Runners";
+
+        private static object[] patternMatchers =
+        {
+            new object[] { new PatternMatcherWrapper(Utils.IsFileNameMatch) },
+            new object[] { new PatternMatcherWrapper(GVFltCallbacks.InternalFileNameMatchesFilter) },
+        };
+
+        public GVFltActiveEnumerationTests(PatternMatcherWrapper wrapper)
+        {
+            GVFltActiveEnumeration.SetPatternMatcher(wrapper.Matcher);
+        }
+
+        public static object[] Runners
+        {
+            get { return patternMatchers; }
+        }
+
         [TestCase]
         public void EnumerationHandlesEmptyList()
         {
@@ -100,8 +119,14 @@ namespace GVFS.UnitTests.GVFlt
 
             using (GVFltActiveEnumeration activeEnumeration = new GVFltActiveEnumeration(entries))
             {
-                activeEnumeration.TrySaveFilterString("*.*").ShouldEqual(true);
-                this.ValidateActiveEnumeratorReturnsAllEntries(activeEnumeration, entries);
+                string filter = "*.*";
+                activeEnumeration.TrySaveFilterString(filter).ShouldEqual(true);
+
+                // "*.*" should only match when there is a . in the name
+                activeEnumeration.IsCurrentValid.ShouldEqual(false);
+                activeEnumeration.MoveNext().ShouldEqual(false);
+                activeEnumeration.RestartEnumeration(filter);
+                activeEnumeration.IsCurrentValid.ShouldEqual(false);
             }
         }
 
@@ -195,10 +220,13 @@ namespace GVFS.UnitTests.GVFlt
         {
             List<GVFltFileInfo> entries = new List<GVFltFileInfo>()
             {
+                new GVFltFileInfo(".txt", size: 0, isFolder:false),
                 new GVFltFileInfo("a", size: 0, isFolder:false),
                 new GVFltFileInfo("B", size: 0, isFolder:true),
                 new GVFltFileInfo("c", size: 0, isFolder:false),
+                new GVFltFileInfo("D.", size: 0, isFolder:false),
                 new GVFltFileInfo("D.txt", size: 0, isFolder:false),
+                new GVFltFileInfo("E..log", size: 0, isFolder:false),
                 new GVFltFileInfo("E.txt", size: 0, isFolder:false),
                 new GVFltFileInfo("E.bat", size: 0, isFolder:false),
             };
@@ -206,8 +234,15 @@ namespace GVFS.UnitTests.GVFlt
             using (GVFltActiveEnumeration activeEnumeration = new GVFltActiveEnumeration(entries))
             {
                 activeEnumeration.IsCurrentValid.ShouldEqual(true);
-                activeEnumeration.TrySaveFilterString("*.*").ShouldEqual(true);
+                activeEnumeration.TrySaveFilterString("*").ShouldEqual(true);
                 this.ValidateActiveEnumeratorReturnsAllEntries(activeEnumeration, entries);
+            }
+
+            using (GVFltActiveEnumeration activeEnumeration = new GVFltActiveEnumeration(entries))
+            {
+                activeEnumeration.IsCurrentValid.ShouldEqual(true);
+                activeEnumeration.TrySaveFilterString("*.*").ShouldEqual(true);
+                this.ValidateActiveEnumeratorReturnsAllEntries(activeEnumeration, entries.Where(entry => entry.Name.Contains(".")));
             }
 
             using (GVFltActiveEnumeration activeEnumeration = new GVFltActiveEnumeration(entries))
@@ -247,7 +282,7 @@ namespace GVFS.UnitTests.GVFlt
             {
                 activeEnumeration.IsCurrentValid.ShouldEqual(true);
                 activeEnumeration.TrySaveFilterString(">.txt").ShouldEqual(true);
-                this.ValidateActiveEnumeratorReturnsAllEntries(activeEnumeration, entries.Where(entry => entry.Name.Length == 5 && entry.Name.EndsWith(".txt", System.StringComparison.OrdinalIgnoreCase)));
+                this.ValidateActiveEnumeratorReturnsAllEntries(activeEnumeration, entries.Where(entry => entry.Name.Length <= 5 && entry.Name.EndsWith(".txt", System.StringComparison.OrdinalIgnoreCase)));
             }
 
             using (GVFltActiveEnumeration activeEnumeration = new GVFltActiveEnumeration(entries))
@@ -431,6 +466,16 @@ namespace GVFS.UnitTests.GVFlt
 
             // attempts to move beyond the end of the list should fail
             activeEnumeration.MoveNext().ShouldEqual(false);
+        }
+
+        public class PatternMatcherWrapper
+        {
+            public PatternMatcherWrapper(GVFltActiveEnumeration.FileNamePatternMatcher matcher)
+            {
+                this.Matcher = matcher;
+            }
+
+            public GVFltActiveEnumeration.FileNamePatternMatcher Matcher { get; }
         }
     }
 }

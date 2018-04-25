@@ -28,11 +28,18 @@ namespace GVFS.Common
         public const string ExecutableExtension = ".exe";
         public const string GitIsNotInstalledError = "Could not find git.exe.  Ensure that Git is installed.";
 
-        public static readonly GitVersion MinimumGitVersion = new GitVersion(2, 15, 1, "gvfs", 1, 0);
+        public static readonly GitVersion MinimumGitVersion = new GitVersion(2, 17, 0, "gvfs", 1, 0);
 
         public static class GitConfig
         {
             public const string GVFSPrefix = "gvfs.";
+            public const string MaxRetriesConfig = GVFSPrefix + "max-retries";
+            public const string TimeoutSecondsConfig = GVFSPrefix + "timeout-seconds";
+            public const string EnlistmentId = GVFSPrefix + "enlistment-id";
+            public const string CacheServer = GVFSPrefix + "cache-server";
+            public const string DeprecatedCacheEndpointSuffix = ".cache-server-url";
+            public const string HooksPrefix = GitConfig.GVFSPrefix + "clone.default-";
+            public const string HooksExtension = ".hooks";
         }
 
         public static class Service
@@ -86,8 +93,6 @@ namespace GVFS.Common
             public static readonly string LogPath = Path.Combine(DotGVFS.Root, "logs");
             public static readonly string CorruptObjectsPath = Path.Combine(DotGVFS.Root, CorruptObjectsName);
 
-            public static readonly string BlobSizesName = "BlobSizes";
-
             public static class Databases
             {
                 public const string Name = "databases";
@@ -128,8 +133,6 @@ namespace GVFS.Common
 
             public static class Hooks
             {
-                public const string ConfigExtension = ".hooks";
-                public const string ConfigNamePrefix = "gvfs.clone.default-";
                 public const string LoaderExecutable = "GitHooksLoader.exe";
                 public const string PreCommandHookName = "pre-command";
                 public const string PostCommandHookName = "post-command";

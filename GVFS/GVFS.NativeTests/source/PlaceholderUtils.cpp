@@ -15,7 +15,7 @@ bool PlaceHolderHasVersionInfo(const char* virtualPath, int version, const WCHAR
         std::string path(virtualPath);
         std::shared_ptr<GV_REPARSE_INFO> reparseInfo = GetReparseInfo(path);
 
-        SHOULD_EQUAL(reparseInfo->versionInfo.EpochID[0], static_cast<UCHAR>(version));
+        SHOULD_EQUAL(reparseInfo->versionInfo.ProviderID[0], static_cast<UCHAR>(version));
 
         SHOULD_EQUAL(_wcsnicmp(sha, static_cast<WCHAR*>(static_cast<void*>(reparseInfo->versionInfo.ContentID)), GVFLT_PLACEHOLDER_ID_LENGTH), 0);
     }

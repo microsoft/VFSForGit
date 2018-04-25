@@ -38,7 +38,7 @@ namespace GVFS.Common
             else
             {
                 string pathRoot;
-                if (!Paths.TryGetPathRoot(enlistment.EnlistmentRoot, out pathRoot, out errorMessage))
+                if (!Paths.TryGetFinalPathRoot(enlistment.EnlistmentRoot, out pathRoot, out errorMessage))
                 {
                     return false;
                 }

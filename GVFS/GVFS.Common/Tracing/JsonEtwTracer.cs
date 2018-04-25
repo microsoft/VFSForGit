@@ -153,11 +153,11 @@ namespace GVFS.Common.Tracing
             this.RelatedError(string.Format(format, args));
         }
 
-        public void Stop(EventMetadata metadata)
+        public TimeSpan Stop(EventMetadata metadata)
         {
             if (this.stopped)
             {
-                return;
+                return TimeSpan.Zero;
             }
 
             this.duration.Stop();
@@ -167,6 +167,8 @@ namespace GVFS.Common.Tracing
             metadata.Add("DurationMs", this.duration.ElapsedMilliseconds);
 
             this.WriteEvent(this.activityName, this.startStopLevel, this.startStopKeywords, metadata, EventOpcode.Stop);
+
+            return this.duration.Elapsed;
         }
 
         public ITracer StartActivity(string childActivityName, EventLevel startStopLevel)

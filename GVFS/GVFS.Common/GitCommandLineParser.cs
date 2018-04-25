@@ -36,12 +36,11 @@ namespace GVFS.Common
             Other       = 1 << 0,
             AddOrStage  = 1 << 1,
             Checkout    = 1 << 2,
-            Clean       = 1 << 3,
-            Commit      = 1 << 4,
-            Move        = 1 << 5,
-            Reset       = 1 << 6,
-            Status      = 1 << 8,
-            UpdateIndex = 1 << 9,
+            Commit      = 1 << 3,
+            Move        = 1 << 4,
+            Reset       = 1 << 5,
+            Status      = 1 << 6,
+            UpdateIndex = 1 << 7,
         }
 
         public bool IsValidGitCommand
@@ -56,11 +55,6 @@ namespace GVFS.Common
                 !this.HasArgument("--hard") &&
                 !this.HasArgument("--keep") &&
                 !this.HasArgument("--merge");
-        }
-
-        public bool IsResetHard()
-        {
-            return this.IsVerb(Verbs.Reset) && this.HasArgument("--hard");
         }
 
         /// <summary>
@@ -117,7 +111,6 @@ namespace GVFS.Common
             {
                 case "add": return Verbs.AddOrStage;
                 case "checkout": return Verbs.Checkout;
-                case "clean": return Verbs.Clean;
                 case "commit": return Verbs.Commit;
                 case "mv": return Verbs.Move;
                 case "reset": return Verbs.Reset;

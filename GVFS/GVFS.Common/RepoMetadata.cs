@@ -1,5 +1,6 @@
 using GVFS.Common.FileSystem;
 using GVFS.Common.Tracing;
+using Microsoft.Diagnostics.Tracing;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -9,12 +10,29 @@ namespace GVFS.Common
     public class RepoMetadata
     {
         private FileBasedDictionary<string, string> repoMetadata;
+        private ITracer tracer;
         
-        private RepoMetadata()
+        private RepoMetadata(ITracer tracer)
         {
+            this.tracer = tracer;
         }
 
         public static RepoMetadata Instance { get; private set; }
+
+        public string EnlistmentId
+        {
+            get
+            {
+                string value;
+                if (!this.repoMetadata.TryGetValue(Keys.EnlistmentId, out value))
+                {
+                    value = CreateNewEnlistmentId(this.tracer);
+                    this.repoMetadata.SetValueAndFlush(Keys.EnlistmentId, value);
+                }
+
+                return value;
+            }
+        }
 
         public string DataFilePath
         {
@@ -37,7 +55,7 @@ namespace GVFS.Common
             }
             else
             {
-                Instance = new RepoMetadata();
+                Instance = new RepoMetadata(tracer);
                 if (!FileBasedDictionary<string, string>.TryCreate(   
                     tracer,
                     dictionaryPath,
@@ -67,28 +85,41 @@ namespace GVFS.Common
             }
         }
 
-        public int GetCurrentDiskLayoutVersion()
+        public string GetCurrentDiskLayoutVersion()
         {
-            return DiskLayoutVersion.CurrentDiskLayoutVersion;
+            return string.Format(
+                "{0}.{1}",
+                DiskLayoutVersion.CurrentMajorVersion,
+                DiskLayoutVersion.CurrentMinorVersion);
         }
         
-        public bool TryGetOnDiskLayoutVersion(out int version, out string error)
+        public bool TryGetOnDiskLayoutVersion(out int majorVersion, out int minorVersion, out string error)
         {
-            version = -1;
+            majorVersion = 0;
+            minorVersion = 0;
 
             try
             {
                 string value;
-                if (!this.repoMetadata.TryGetValue(Keys.DiskLayoutVersion, out value))
+                if (!this.repoMetadata.TryGetValue(Keys.DiskLayoutMajorVersion, out value))
                 {
-                    error = DiskLayoutVersion.MissingVersionError;
+                    error = "Enlistment disk layout version not found, check if a breaking change has been made to GVFS since cloning this enlistment.";
                     return false;
                 }
 
-                if (!int.TryParse(value, out version))
+                if (!int.TryParse(value, out majorVersion))
                 {
                     error = "Failed to parse persisted disk layout version number: " + value;
                     return false;
+                }
+
+                // The minor version is optional, e.g. it could be missing during an upgrade
+                if (this.repoMetadata.TryGetValue(Keys.DiskLayoutMinorVersion, out value))
+                {
+                    if (!int.TryParse(value, out minorVersion))
+                    {
+                        minorVersion = 0;
+                    }
                 }
             }
             catch (FileBasedCollectionException ex)
@@ -101,14 +132,17 @@ namespace GVFS.Common
             return true;
         }
 
-        public void SaveCloneMetadata(string gitObjectsRoot, string localCacheRoot)
+        public void SaveCloneMetadata(ITracer tracer, GVFSEnlistment enlistment)
         {
             this.repoMetadata.SetValuesAndFlush(
                 new[]
                 {
-                    new KeyValuePair<string, string>(Keys.DiskLayoutVersion, DiskLayoutVersion.CurrentDiskLayoutVersion.ToString()),
-                    new KeyValuePair<string, string>(Keys.GitObjectsRoot, gitObjectsRoot),
-                    new KeyValuePair<string, string>(Keys.LocalCacheRoot, localCacheRoot)
+                    new KeyValuePair<string, string>(Keys.DiskLayoutMajorVersion, DiskLayoutVersion.CurrentMajorVersion.ToString()),
+                    new KeyValuePair<string, string>(Keys.DiskLayoutMinorVersion, DiskLayoutVersion.CurrentMinorVersion.ToString()),
+                    new KeyValuePair<string, string>(Keys.GitObjectsRoot, enlistment.GitObjectsRoot),
+                    new KeyValuePair<string, string>(Keys.LocalCacheRoot, enlistment.LocalCacheRoot),
+                    new KeyValuePair<string, string>(Keys.BlobSizesRoot, enlistment.BlobSizesRoot),
+                    new KeyValuePair<string, string>(Keys.EnlistmentId, CreateNewEnlistmentId(tracer)),
                 });
         }
 
@@ -196,9 +230,45 @@ namespace GVFS.Common
             this.repoMetadata.SetValueAndFlush(Keys.LocalCacheRoot, localCacheRoot);
         }
 
+        public bool TryGetBlobSizesRoot(out string blobSizesRoot, out string error)
+        {
+            blobSizesRoot = null;
+
+            try
+            {
+                if (!this.repoMetadata.TryGetValue(Keys.BlobSizesRoot, out blobSizesRoot))
+                {
+                    error = "Blob sizes root not found";
+                    return false;
+                }
+            }
+            catch (FileBasedCollectionException ex)
+            {
+                error = ex.Message;
+                return false;
+            }
+
+            error = null;
+            return true;
+        }
+
+        public void SetBlobSizesRoot(string blobSizesRoot)
+        {
+            this.repoMetadata.SetValueAndFlush(Keys.BlobSizesRoot, blobSizesRoot);
+        }
+
         public void SetEntry(string keyName, string valueName)
         {
             this.repoMetadata.SetValueAndFlush(keyName, valueName);
+        }
+
+        private static string CreateNewEnlistmentId(ITracer tracer)
+        {
+            string enlistmentId = Guid.NewGuid().ToString("N");
+            EventMetadata metadata = new EventMetadata();
+            metadata.Add(nameof(enlistmentId), enlistmentId);
+            tracer.RelatedEvent(EventLevel.Informational, nameof(CreateNewEnlistmentId), metadata);
+            return enlistmentId;
         }
 
         private void SetInvalid(string keyName, bool invalid)
@@ -228,30 +298,29 @@ namespace GVFS.Common
         {
             public const string ProjectionInvalid = "ProjectionInvalid";
             public const string PlaceholdersInvalid = "PlaceholdersInvalid";
-            public const string DiskLayoutVersion = "DiskLayoutVersion";
+            public const string DiskLayoutMajorVersion = "DiskLayoutVersion";
+            public const string DiskLayoutMinorVersion = "DiskLayoutMinorVersion";
             public const string PlaceholdersNeedUpdate = "PlaceholdersNeedUpdate";
             public const string GitObjectsRoot = "GitObjectsRoot";
             public const string LocalCacheRoot = "LocalCacheRoot";
+            public const string BlobSizesRoot = "BlobSizesRoot";
+            public const string EnlistmentId = "EnlistmentId"; 
         }
 
         public static class DiskLayoutVersion
         {
-            // The current disk layout version.  This number should be bumped whenever a disk format change is made
-            // that would impact and older GVFS's ability to mount the repo
-            public const int CurrentDiskLayoutVersion = 12;
+            // The major version should be bumped whenever there is an on-disk format change that requires a one-way upgrade.
+            // Increasing this version will make older versions of GVFS unable to mount a repo that has been mounted by a newer
+            // version of GVFS.
+            public const int CurrentMajorVersion = 14;
 
-            public const string MissingVersionError = "Enlistment disk layout version not found, check if a breaking change has been made to GVFS since cloning this enlistment.";
+            // The minor version should be bumped whenever there is an upgrade that can be safely ignored by older versions of GVFS.
+            // For example, this allows an upgrade step that sets a default value for some new config setting.
+            public const int CurrentMinorVersion = 0;
 
-            // MaxDiskLayoutVersion ensures that olders versions of GVFS will not try to mount newer enlistments (if the 
-            // disk layout of the newer GVFS is incompatible).
-            // GVFS will only mount if the disk layout version of the repo is <= MaxDiskLayoutVersion
-            public const int MaxDiskLayoutVersion = CurrentDiskLayoutVersion;
-
-            // MinDiskLayoutVersion ensures that GVFS will not attempt to mount an older repo if there has been a breaking format
-            // change since that enlistment was cloned.
-            //     - GVFS will only mount if the disk layout version of the repo is >= MinDiskLayoutVersion
-            //     - Bump this version number only when a breaking change is being made (i.e. upgrade is not supported)
-            public const int MinDiskLayoutVersion = 7;
+            // This is the last time GVFS made a breaking change that required a reclone. This should not
+            // be incremented ever again as all format changes should now be supported with an upgrade step.
+            public const int MinimumSupportedMajorVersion = 7;
         }
     }
 }

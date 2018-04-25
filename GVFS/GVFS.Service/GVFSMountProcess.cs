@@ -23,21 +23,18 @@ namespace GVFS.Service
 
         public bool Mount(string repoRoot)
         {
-            string error;
-            if (!GvFltFilter.IsHealthy(out error, this.tracer))
+            if (!ProjFSFilter.IsServiceRunning(this.tracer))
             {
-                return false;
-            }
-
-            string unusedMessage;
-            if (!GvFltFilter.TryAttach(this.tracer, repoRoot, out unusedMessage))
-            {
-                return false;
+                string error;
+                if (!EnableAndAttachProjFSHandler.TryEnablePrjFlt(this.tracer, out error))
+                {
+                    this.tracer.RelatedError($"{nameof(this.Mount)}: Unable to start the GVFS.exe process: {error}");
+                }
             }
 
             if (!this.CallGVFSMount(repoRoot))
             {
-                this.tracer.RelatedError("Unable to start the GVFS.exe process.");
+                this.tracer.RelatedError($"{nameof(this.Mount)}: Unable to start the GVFS.exe process.");
                 return false;
             }
 

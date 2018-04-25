@@ -4,7 +4,6 @@ using GVFS.Common.FileSystem;
 using GVFS.Common.Git;
 using GVFS.Common.Http;
 using GVFS.Common.Tracing;
-using Microsoft.Isam.Esent.Collections.Generic;
 using Microsoft.Win32;
 using System;
 using System.Collections.Generic;
@@ -20,17 +19,21 @@ namespace GVFS.CommandLine
         private const string DiagnoseVerbName = "diagnose";
 
         private const string System32LogFilesRoot = @"%SystemRoot%\System32\LogFiles";
-        private const string GVFltLogFolderName = "GvFlt";
+        private const string FilterLogFolderName = ProjFSFilter.ServiceName;
 
         private const string WindowsVersionRegistryKey = "SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion";
         private const string BuildLabRegistryValue = "BuildLab";
         private const string BuildLabExRegistryValue = "BuildLabEx";
 
-        // From "Autologger" section of gvflt.inf
-        private const string GvFltLoggerGuid = "5f6d2558-5c94-48f9-add0-65bc678aa091";
-        private const string GvFltLoggerSessionName = "Microsoft-Windows-Git-Filter-Log";
+        // From "Autologger" section of prjflt.inf
+        private const string FilterLoggerGuid = "ee4206ff-4a4d-452f-be56-6bd0ed272b44";
+        private const string FilterLoggerSessionName = "Microsoft-Windows-ProjFS-Filter-Log";
 
         private TextWriter diagnosticLogFileWriter;
+
+        public DiagnoseVerb() : base(false)
+        {
+        }
 
         protected override string VerbName
         {
@@ -60,14 +63,16 @@ namespace GVFS.CommandLine
                 this.WriteMessage(GitProcess.GetInstalledGitBinPath());
                 this.WriteMessage(string.Empty);
                 this.WriteMessage("Enlistment root: " + enlistment.EnlistmentRoot);
-                this.WriteMessage("Repo URL: " + enlistment.RepoUrl);
                 this.WriteMessage("Cache Server: " + CacheServerResolver.GetUrlFromConfig(enlistment));
 
                 string localCacheRoot;
                 string gitObjectsRoot;
                 this.GetLocalCachePaths(enlistment, out localCacheRoot, out gitObjectsRoot);
-                this.WriteMessage("Local Cache: " + (!string.IsNullOrWhiteSpace(localCacheRoot) ? localCacheRoot : gitObjectsRoot));
+                string actualLocalCacheRoot = !string.IsNullOrWhiteSpace(localCacheRoot) ? localCacheRoot : gitObjectsRoot;
+                this.WriteMessage("Local Cache: " + actualLocalCacheRoot);
                 this.WriteMessage(string.Empty);
+
+                this.PrintDiskSpaceInfo(actualLocalCacheRoot, this.EnlistmentRootPath);
 
                 this.RecordWindowsVersionInformation();
 
@@ -84,10 +89,13 @@ namespace GVFS.CommandLine
                         // .gvfs
                         this.CopyAllFiles(enlistment.EnlistmentRoot, archiveFolderPath, GVFSConstants.DotGVFS.Root, copySubFolders: false);
 
-                        // gvflt
-                        this.FlushGvFltLogBuffers();
+                        // filter
+                        this.FlushFilterLogBuffers();
                         string system32LogFilesPath = Environment.ExpandEnvironmentVariables(System32LogFilesRoot);
-                        this.CopyAllFiles(system32LogFilesPath, archiveFolderPath, GVFltLogFolderName, copySubFolders: false);
+
+                        // This copy sometimes fails because the OS has an exclusive lock on the etl files. The error is not actionable
+                        // for the user so we don't write the error message to stdout, just to our own log file.
+                        this.CopyAllFiles(system32LogFilesPath, archiveFolderPath, FilterLogFolderName, copySubFolders: false, hideErrorsFromStdout: true);
 
                         // .git
                         this.CopyAllFiles(enlistment.WorkingDirectoryRoot, archiveFolderPath, GVFSConstants.DotGit.Root, copySubFolders: false);
@@ -100,7 +108,6 @@ namespace GVFS.CommandLine
                         this.LogLooseObjectCount(enlistment.WorkingDirectoryRoot, Path.Combine(archiveFolderPath, GVFSConstants.DotGit.Objects.Root), GVFSConstants.DotGit.Objects.Root, "objects-local.txt");
 
                         // databases
-                        this.CopyEsentDatabase<string, long>(enlistment.DotGVFSRoot, Path.Combine(archiveFolderPath, GVFSConstants.DotGVFS.Root), GVFSConstants.DotGVFS.BlobSizesName);
                         this.CopyAllFiles(enlistment.DotGVFSRoot, Path.Combine(archiveFolderPath, GVFSConstants.DotGVFS.Root), GVFSConstants.DotGVFS.Databases.Name, copySubFolders: false);
 
                         // local cache
@@ -145,11 +152,15 @@ namespace GVFS.CommandLine
             this.Output.WriteLine(zipFilePath);
         }
 
-        private void WriteMessage(string message)
+        private void WriteMessage(string message, bool skipStdout = false)
         {
             message = message.TrimEnd('\r', '\n');
 
-            this.Output.WriteLine(message);
+            if (!skipStdout)
+            {
+                this.Output.WriteLine(message);
+            }
+
             this.diagnosticLogFileWriter.WriteLine(message);
         }
 
@@ -170,7 +181,7 @@ namespace GVFS.CommandLine
             }
         }
 
-        private void CopyAllFiles(string sourceRoot, string targetRoot, string folderName, bool copySubFolders)
+        private void CopyAllFiles(string sourceRoot, string targetRoot, string folderName, bool copySubFolders, bool hideErrorsFromStdout = false)
         {
             string sourceFolder = Path.Combine(sourceRoot, folderName);
             string targetFolder = Path.Combine(targetRoot, folderName);
@@ -182,16 +193,18 @@ namespace GVFS.CommandLine
                     return;
                 }
 
-                this.RecursiveFileCopyImpl(sourceFolder, targetFolder, copySubFolders);
+                this.RecursiveFileCopyImpl(sourceFolder, targetFolder, copySubFolders, hideErrorsFromStdout);
             }
             catch (Exception e)
             {
-                this.WriteMessage(string.Format(
-                    "Failed to copy folder {0} in {1} with exception {2}. copySubFolders: {3}",
-                    folderName,
-                    sourceRoot,
-                    e,
-                    copySubFolders));
+                this.WriteMessage(
+                    string.Format(
+                        "Failed to copy folder {0} in {1} with exception {2}. copySubFolders: {3}",
+                        folderName,
+                        sourceRoot,
+                        e,
+                        copySubFolders),
+                    hideErrorsFromStdout);
             }
         }
 
@@ -355,7 +368,7 @@ namespace GVFS.CommandLine
             }
         }
 
-        private void RecursiveFileCopyImpl(string sourcePath, string targetPath, bool copySubFolders)
+        private void RecursiveFileCopyImpl(string sourcePath, string targetPath, bool copySubFolders, bool hideErrorsFromStdout)
         {
             if (!Directory.Exists(targetPath))
             {
@@ -377,11 +390,13 @@ namespace GVFS.CommandLine
                 }
                 catch (Exception e)
                 {
-                    this.WriteMessage(string.Format(
-                        "Failed to copy '{0}' in {1} with exception {2}",
-                        fileName,
-                        sourcePath,
-                        e));
+                    this.WriteMessage(
+                        string.Format(
+                            "Failed to copy '{0}' in {1} with exception {2}",
+                            fileName,
+                            sourcePath,
+                            e),
+                        hideErrorsFromStdout);
                 }
             }
 
@@ -393,15 +408,17 @@ namespace GVFS.CommandLine
                     string targetFolderPath = Path.Combine(targetPath, subdir.Name);
                     try
                     {
-                        this.RecursiveFileCopyImpl(subdir.FullName, targetFolderPath, copySubFolders);
+                        this.RecursiveFileCopyImpl(subdir.FullName, targetFolderPath, copySubFolders, hideErrorsFromStdout);
                     }
                     catch (Exception e)
                     {
-                        this.WriteMessage(string.Format(
-                            "Failed to copy subfolder '{0}' to '{1}' with exception {2}",
-                            subdir.FullName,
-                            targetFolderPath,
-                            e));
+                        this.WriteMessage(
+                            string.Format(
+                                "Failed to copy subfolder '{0}' to '{1}' with exception {2}",
+                                subdir.FullName,
+                                targetFolderPath,
+                                e),
+                            hideErrorsFromStdout);
                     }
                 }
             }
@@ -439,60 +456,92 @@ namespace GVFS.CommandLine
             }
         }
 
-        private void CopyEsentDatabase<TKey, TValue>(string sourceFolder, string targetFolder, string databaseName)
-            where TKey : IComparable<TKey>
-        {
-            try
-            {
-                if (!Directory.Exists(targetFolder))
-                {
-                    Directory.CreateDirectory(targetFolder);
-                }
-
-                using (FileStream outputFile = new FileStream(Path.Combine(targetFolder, databaseName + ".txt"), FileMode.CreateNew))
-                using (StreamWriter writer = new StreamWriter(outputFile))
-                {
-                    using (PersistentDictionary<TKey, TValue> dictionary = new PersistentDictionary<TKey, TValue>(
-                        Path.Combine(sourceFolder, databaseName)))
-                    {
-                        foreach (TKey key in dictionary.Keys)
-                        {
-                            writer.Write(key);
-                            writer.Write(" = ");
-                            writer.WriteLine(dictionary[key].ToString());
-                        }
-                    }
-                }
-            }
-            catch (Exception e)
-            {
-                this.WriteMessage(string.Format(
-                    "Failed to copy database {0} with exception {1}",
-                    databaseName,
-                    e));
-            }
-
-            // Also copy the database files themselves, in case we failed to read the entries above
-            this.CopyAllFiles(sourceFolder, targetFolder, databaseName, copySubFolders: false);
-        }
-
-        private void FlushGvFltLogBuffers()
+        private void FlushFilterLogBuffers()
         {
             try
             {
                 string logfileName;
-                uint result = NativeMethods.FlushTraceLogger(GvFltLoggerSessionName, GvFltLoggerGuid, out logfileName);
+                uint result = NativeMethods.FlushTraceLogger(FilterLoggerSessionName, FilterLoggerGuid, out logfileName);
                 if (result != 0)
                 {
-                    this.WriteMessage(string.Format(
-                        "Failed to flush GvFlt log buffers {0}",
-                        result));
+                    this.WriteMessage($"Failed to flush {ProjFSFilter.ServiceName} log buffers {result}");
                 }
             }
             catch (Exception e)
             {
-                this.WriteMessage(string.Format("Failed to flush GvFlt log buffers, exception: {0}", e));
+                this.WriteMessage($"Failed to flush {ProjFSFilter.ServiceName} log buffers, exception: {e.ToString()}");
             }
+        }
+
+        private void PrintDiskSpaceInfo(string localCacheRoot, string enlistmentRoot)
+        {
+            try
+            {
+                string enlistmentFinalPathRoot;
+                string localCacheFinalPathRoot;
+                string enlistmentErrorMessage;
+                string localCacheErrorMessage;
+
+                bool enlistmentSuccess = Paths.TryGetFinalPathRoot(enlistmentRoot, out enlistmentFinalPathRoot, out enlistmentErrorMessage);
+                bool localCacheSuccess = Paths.TryGetFinalPathRoot(localCacheRoot, out localCacheFinalPathRoot, out localCacheErrorMessage);
+
+                if (!enlistmentSuccess || !localCacheSuccess)
+                {
+                    this.WriteMessage("Failed to acquire disk space information:");
+                    if (!string.IsNullOrEmpty(enlistmentErrorMessage))
+                    {
+                        this.WriteMessage(enlistmentErrorMessage);
+                    }
+
+                    if (!string.IsNullOrEmpty(localCacheErrorMessage))
+                    {
+                        this.WriteMessage(localCacheErrorMessage);
+                    }
+
+                    this.WriteMessage(string.Empty);
+                    return;
+                }
+
+                DriveInfo enlistmentDrive = new DriveInfo(enlistmentFinalPathRoot);
+                string enlistmentDriveDiskSpace = this.FormatByteCount(enlistmentDrive.AvailableFreeSpace);
+
+                if (string.Equals(enlistmentFinalPathRoot, localCacheFinalPathRoot, StringComparison.OrdinalIgnoreCase))
+                {
+                    this.WriteMessage("Available space on " + enlistmentDrive.Name + " drive(enlistment and local cache): " + enlistmentDriveDiskSpace);
+                }
+                else
+                {
+                    this.WriteMessage("Available space on " + enlistmentDrive.Name + " drive(enlistment): " + enlistmentDriveDiskSpace);
+
+                    DriveInfo cacheDrive = new DriveInfo(localCacheRoot);
+                    string cacheDriveDiskSpace = this.FormatByteCount(cacheDrive.AvailableFreeSpace);
+                    this.WriteMessage("Available space on " + cacheDrive.Name + " drive(local cache): " + cacheDriveDiskSpace);
+                }
+
+                this.WriteMessage(string.Empty);
+            }
+            catch (Exception e)
+            {
+                this.WriteMessage("Failed to acquire disk space information, exception: " + e.ToString());
+                this.WriteMessage(string.Empty);
+            }
+        }
+
+        private string FormatByteCount(double byteCount)
+        {
+            const int Divisor = 1024;
+            const string ByteCountFormat = "0.00";
+            string[] unitStrings = { " B", " KB", " MB", " GB", " TB" };
+
+            int unitIndex = 0;
+
+            while (byteCount >= Divisor && unitIndex < unitStrings.Length - 1)
+            {
+                unitIndex++;
+                byteCount = byteCount / Divisor;
+            }
+
+            return byteCount.ToString(ByteCountFormat) + unitStrings[unitIndex];
         }
     }
 }

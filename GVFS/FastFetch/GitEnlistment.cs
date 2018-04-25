@@ -16,10 +16,13 @@ namespace FastFetch
                   flushFileBuffersForPacks: false)
         {
             this.GitObjectsRoot = Path.Combine(repoRoot, GVFSConstants.DotGit.Objects.Root);
+            this.LocalObjectsRoot = this.GitObjectsRoot;
             this.GitPackRoot = Path.Combine(this.GitObjectsRoot, GVFSConstants.DotGit.Objects.Pack.Name);
         }
 
         public override string GitObjectsRoot { get; protected set; }
+
+        public override string LocalObjectsRoot { get; protected set; }
 
         public override string GitPackRoot { get; protected set; }
 

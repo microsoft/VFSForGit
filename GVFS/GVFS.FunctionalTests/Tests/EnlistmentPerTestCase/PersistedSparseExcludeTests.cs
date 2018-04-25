@@ -35,7 +35,9 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerTestCase
             "!/GVFS/GVFS.Mount/MountVerb2.cs",
             "!/Scripts/",
             "!/TestFileFromDotGit.txt",
-            "!/PersistedSparseExcludeTests_outsideRepo.txt"
+            "!/PersistedSparseExcludeTests_outsideRepo.txt",
+            "!/PersistedSparseExcludeTests_NewFolder",
+            "!/PersistedSparseExcludeTests_NewFolderForRename",
         };
         private static string[] expectedSparseFileContents = new string[] 
         {

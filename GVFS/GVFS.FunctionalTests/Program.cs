@@ -20,6 +20,12 @@ namespace GVFS.FunctionalTests
                 GVFSTestConfig.NoSharedCache = true;
             }
 
+            if (runner.HasCustomArg("--test-gvfs-on-path"))
+            {
+                Console.WriteLine("Running tests against GVFS on path");
+                GVFSTestConfig.TestGVFSOnPath = true;
+            }
+
             GVFSTestConfig.LocalCacheRoot = runner.GetCustomArgWithParam("--shared-gvfs-cache-root");
 
             if (runner.HasCustomArg("--full-suite"))
@@ -27,16 +33,24 @@ namespace GVFS.FunctionalTests
                 Console.WriteLine("Running the full suite of tests");
                 GVFSTestConfig.UseAllRunners = true;
             }
+            else
+            {
+                runner.ExcludeCategory(Categories.FullSuiteOnly);
+            }
 
             GVFSTestConfig.RepoToClone =
                 runner.GetCustomArgWithParam("--repo-to-clone")
                 ?? Properties.Settings.Default.RepoToClone;
-            
-            string servicePath = Path.Combine(TestContext.CurrentContext.TestDirectory, Properties.Settings.Default.PathToGVFSService);
+
+            string servicePath = 
+                GVFSTestConfig.TestGVFSOnPath ? 
+                Properties.Settings.Default.PathToGVFSService : 
+                Path.Combine(TestContext.CurrentContext.TestDirectory, Properties.Settings.Default.PathToGVFSService);
+
             GVFSServiceProcess.InstallService(servicePath);
             try
             {
-                Environment.ExitCode = runner.RunTests(Properties.Settings.Default.TestRepeatCount);
+                Environment.ExitCode = runner.RunTests();
             }
             finally
             {
@@ -54,6 +68,8 @@ namespace GVFS.FunctionalTests
 
                 GVFSServiceProcess.UninstallService();
             }
+
+            PrintTestCaseStats.PrintRunTimeStats();
 
             if (Debugger.IsAttached)
             {

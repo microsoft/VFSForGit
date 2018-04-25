@@ -5,10 +5,7 @@ using System.IO;
 namespace GVFS.Common
 {
     public abstract class Enlistment
-    {
-        private const string DeprecatedObjectsEndpointGitConfigName = "gvfs.objects-endpoint";
-        private const string CacheEndpointGitConfigSuffix = ".cache-server-url";
-        
+    {       
         protected Enlistment(
             string enlistmentRoot,
             string workingDirectoryRoot,
@@ -56,6 +53,7 @@ namespace GVFS.Common
         public string WorkingDirectoryRoot { get; }
         public string DotGitRoot { get; private set; }
         public abstract string GitObjectsRoot { get; protected set; }
+        public abstract string LocalObjectsRoot { get; protected set; }
         public abstract string GitPackRoot { get; protected set; }
         public string RepoUrl { get; }
         public bool FlushFileBuffersForPacks { get; }

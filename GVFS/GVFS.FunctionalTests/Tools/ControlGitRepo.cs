@@ -14,7 +14,7 @@ namespace GVFS.FunctionalTests.Tools
             }
             else
             {
-                GitProcess.Invoke(CachePath, "fetch origin");
+                GitProcess.Invoke(CachePath, "fetch origin +refs/*:refs/*");
             }
         }
 
@@ -51,6 +51,7 @@ namespace GVFS.FunctionalTests.Tools
             GitProcess.Invoke(this.RootPath, "config merge.stat false");
             GitProcess.Invoke(this.RootPath, "config advice.statusUoption false");
             GitProcess.Invoke(this.RootPath, "config core.abbrev 40");
+            GitProcess.Invoke(this.RootPath, "config status.aheadbehind false");
             GitProcess.Invoke(this.RootPath, "config user.name \"Functional Test User\"");
             GitProcess.Invoke(this.RootPath, "config user.email \"functional@test.com\"");
             GitProcess.Invoke(this.RootPath, "remote add origin " + CachePath);

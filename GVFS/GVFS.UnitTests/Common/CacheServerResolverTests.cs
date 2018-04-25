@@ -4,6 +4,7 @@ using GVFS.Common.Http;
 using GVFS.Tests.Should;
 using GVFS.UnitTests.Mock.Common;
 using GVFS.UnitTests.Mock.Git;
+using Newtonsoft.Json;
 using NUnit.Framework;
 
 namespace GVFS.UnitTests.Common
@@ -155,6 +156,35 @@ namespace GVFS.UnitTests.Common
             error.ShouldNotBeNull();
         }
 
+        [TestCase]
+        public void CanParseAndResolveDefaultWhenServerAdvertisesNullListOfCacheServers()
+        {
+            MockEnlistment enlistment = this.CreateEnlistment();
+            CacheServerResolver resolver = this.CreateResolver(enlistment);
+
+            CacheServerInfo resolvedCacheServer;
+            string error;
+            resolver.TryResolveUrlFromRemote(CacheServerInfo.ReservedNames.Default, this.CreateDefaultDeserializedGVFSConfig(), out resolvedCacheServer, out error)
+                .ShouldEqual(true);
+
+            this.ValidateIsNone(enlistment, resolvedCacheServer);
+        }
+
+        [TestCase]
+        public void CanParseAndResolveOtherWhenServerAdvertisesNullListOfCacheServers()
+        {
+            MockEnlistment enlistment = this.CreateEnlistment();
+            CacheServerResolver resolver = this.CreateResolver(enlistment);
+
+            CacheServerInfo resolvedCacheServer;
+            string error;
+            resolver.TryResolveUrlFromRemote(CacheServerInfo.ReservedNames.None, this.CreateDefaultDeserializedGVFSConfig(), out resolvedCacheServer, out error)
+                .ShouldEqual(false, "Should not succeed in resolving the name 'None'");
+
+            resolvedCacheServer.ShouldEqual(null);
+            error.ShouldNotBeNull();
+        }
+
         private void ValidateIsNone(Enlistment enlistment, CacheServerInfo cacheServer)
         {
             cacheServer.Url.ShouldEqual(enlistment.RepoUrl);
@@ -183,6 +213,11 @@ namespace GVFS.UnitTests.Common
                     new CacheServerInfo(CacheServerUrl, CacheServerName, globalDefault: true),
                 }
             };
+        }
+
+        private GVFSConfig CreateDefaultDeserializedGVFSConfig()
+        {
+            return JsonConvert.DeserializeObject<GVFSConfig>("{}");
         }
 
         private CacheServerResolver CreateResolver(MockEnlistment enlistment = null)

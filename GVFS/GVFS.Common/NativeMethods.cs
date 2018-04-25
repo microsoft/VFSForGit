@@ -107,12 +107,12 @@ namespace GVFS.Common
         public static SafeFileHandle LockDirectory(string path)
         {
             SafeFileHandle result = CreateFile(
-                path, 
-                FileAccess.GENERIC_READ, 
-                FileShare.Read, 
-                IntPtr.Zero, 
-                FileMode.Open, 
-                FileAttributes.FILE_FLAG_BACKUP_SEMANTICS | FileAttributes.FILE_FLAG_OPEN_REPARSE_POINT, 
+                path,
+                FileAccess.GENERIC_READ,
+                FileShare.Read,
+                IntPtr.Zero,
+                FileMode.Open,
+                FileAttributes.FILE_FLAG_BACKUP_SEMANTICS | FileAttributes.FILE_FLAG_OPEN_REPARSE_POINT,
                 IntPtr.Zero);
             if (result.IsInvalid)
             {
@@ -235,6 +235,27 @@ namespace GVFS.Common
             }
         }
 
+        /// <summary>
+        /// Get the build number of the OS
+        /// </summary>
+        /// <returns>Build number</returns>
+        /// <remarks>
+        /// For this method to work correctly, the calling application must have a manifest file
+        /// that indicates the application supports Windows 10.
+        /// See https://msdn.microsoft.com/en-us/library/windows/desktop/ms724451(v=vs.85).aspx for details
+        /// </remarks>
+        public static uint GetWindowsBuildNumber()
+        {
+            OSVersionInfo versionInfo = new OSVersionInfo();
+            versionInfo.OSVersionInfoSize = (uint)Marshal.SizeOf(versionInfo);
+            if (!GetVersionEx(ref versionInfo))
+            {
+                ThrowLastWin32Exception();
+            }
+
+            return versionInfo.BuildNumber;
+        }
+
         private static void ThrowLastWin32Exception()
         {
             throw new Win32Exception(Marshal.GetLastWin32Error());
@@ -259,8 +280,8 @@ namespace GVFS.Common
         [DllImport("kernel32.dll", SetLastError = true, CharSet = CharSet.Unicode)]
         private static extern int GetFinalPathNameByHandle(
             SafeFileHandle hFile,
-            [Out] StringBuilder lpszFilePath, 
-            int cchFilePath, 
+            [Out] StringBuilder lpszFilePath,
+            int cchFilePath,
             int dwFlags);
 
         [DllImport("kernel32.dll", SetLastError = true)]
@@ -283,6 +304,9 @@ namespace GVFS.Common
             [In] string sessionName,
             [In, Out] ref EventTraceProperties properties,
             [In] uint controlCode);
+
+        [DllImport("kernel32.dll", CharSet = CharSet.Unicode)]
+        private static extern bool GetVersionEx([In, Out] ref OSVersionInfo versionInfo);
 
         [StructLayout(LayoutKind.Sequential)]
         private struct WNodeHeader
@@ -325,6 +349,19 @@ namespace GVFS.Common
 
             [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 1024)]
             public string LogFileName;
+        }
+
+        [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
+        private struct OSVersionInfo
+        {
+            public uint OSVersionInfoSize;
+            public uint MajorVersion;
+            public uint MinorVersion;
+            public uint BuildNumber;
+            public uint PlatformId;
+
+            [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 128)]
+            public string CSDVersion;
         }
     }
 }

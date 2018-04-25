@@ -1,5 +1,4 @@
-﻿using GVFS.FunctionalTests.Category;
-using GVFS.FunctionalTests.FileSystemRunners;
+﻿using GVFS.FunctionalTests.FileSystemRunners;
 using GVFS.FunctionalTests.Should;
 using GVFS.FunctionalTests.Tools;
 using GVFS.Tests.Should;
@@ -394,7 +393,7 @@ BOOL APIENTRY DllMain( HMODULE hModule,
         }
 
         [TestCase, Order(13)]
-        [Category(CategoryConstants.GitCommands)]
+        [Category(Categories.GitCommands)]
         public void FolderContentsProjectedAfterFolderCreateAndCheckout()
         {
             string folderName = "GVFlt_MultiThreadTest";
@@ -420,7 +419,7 @@ BOOL APIENTRY DllMain( HMODULE hModule,
         }
 
         [TestCase, Order(14)]
-        [Category(CategoryConstants.GitCommands)]
+        [Category(Categories.GitCommands)]
         public void FolderContentsCorrectAfterCreateNewFolderRenameAndCheckoutCommitWithSameFolder()
         {
             // 1ca414ced40f64bf94fc6c7f885974708bc600be is the commit prior to adding Test_EPF_MoveRenameFileTests

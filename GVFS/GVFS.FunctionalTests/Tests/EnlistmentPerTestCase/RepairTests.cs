@@ -7,6 +7,7 @@ using System.Linq;
 namespace GVFS.FunctionalTests.Tests.EnlistmentPerTestCase
 {
     [TestFixture]
+    [Category(Categories.FullSuiteOnly)]
     public class RepairTests : TestsWithEnlistmentPerTestCase
     {
         [TestCase]
@@ -33,22 +34,6 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerTestCase
             File.WriteAllText(headFilePath, "ref: refs");
 
             this.Enlistment.TryMountGVFS().ShouldEqual(false, "GVFS shouldn't mount when HEAD is corrupt");
-
-            this.Enlistment.Repair();
-
-            this.Enlistment.MountGVFS();
-        }
-
-        [TestCase]
-        public void FixesCorruptBlobSizesDatabase()
-        {
-            this.Enlistment.UnmountGVFS();
-            
-            // Most other files in an ESENT folder can be corrupted without blocking GVFS mount. ESENT just recreates them.
-            string blobSizesDbPath = Path.Combine(this.Enlistment.DotGVFSRoot, "BlobSizes", "PersistentDictionary.edb");
-            File.WriteAllText(blobSizesDbPath, "0000");
-
-            this.Enlistment.TryMountGVFS().ShouldEqual(false, "GVFS shouldn't mount when blob size db is corrupt");
 
             this.Enlistment.Repair();
 

@@ -5,6 +5,7 @@ using NUnit.Framework;
 namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
 {
     [TestFixture]
+    [Category(Categories.FullSuiteOnly)]
     public class CacheServerTests : TestsWithEnlistmentPerFixture
     {
         private const string CustomUrl = "https://myCache";

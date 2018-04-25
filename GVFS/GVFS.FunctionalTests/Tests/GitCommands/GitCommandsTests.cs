@@ -1,5 +1,4 @@
-﻿using GVFS.FunctionalTests.Category;
-using GVFS.FunctionalTests.Should;
+﻿using GVFS.FunctionalTests.Should;
 using GVFS.FunctionalTests.Tools;
 using GVFS.Tests.Should;
 using NUnit.Framework;
@@ -10,7 +9,7 @@ using System.Runtime.CompilerServices;
 namespace GVFS.FunctionalTests.Tests.GitCommands
 {
     [TestFixture]
-    [Category(CategoryConstants.GitCommands)]
+    [Category(Categories.GitCommands)]
     public class GitCommandsTests : GitRepoTests
     {
         private const string EncodingFileFolder = "FilenameEncoding";
@@ -493,27 +492,6 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
         }
 
         [TestCase]
-        public void DeleteFolderAndChangeBranchToFolderWithDifferentCase()
-        {
-            // 692765 - Recursive sparse-checkout entries for folders should be case insensitive when
-            // changing branches
-
-            string folderName = "GVFlt_MultiThreadTest";
-
-            // Confirm that no other test has caused "GVFlt_MultiThreadTest" to be added to the sparse-checkout
-            string sparseFile = Path.Combine(this.Enlistment.RepoRoot, TestConstants.DotGit.Info.SparseCheckout);
-            sparseFile.ShouldBeAFile(this.FileSystem).WithContents().ShouldNotContain(ignoreCase: true, unexpectedSubstrings: folderName);
-
-            this.FolderShouldHaveCaseMatchingName(folderName, "GVFlt_MultiThreadTest");
-            this.DeleteFolder(folderName);
-
-            // b5fd7d23706a18cff3e2b8225588d479f7e51138 is the commit prior to deleting GVFLT_MultiThreadTest 
-            // and re-adding it as as GVFlt_MultiThreadTest
-            this.ValidateGitCommand("checkout b5fd7d23706a18cff3e2b8225588d479f7e51138");
-            this.FolderShouldHaveCaseMatchingName(folderName, "GVFLT_MultiThreadTest");
-        }
-
-        [TestCase]
         public void EditFileSwitchBranchTest()
         {
             this.SwitchBranch(fileSystemAction: this.EditFile);
@@ -566,7 +544,7 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
             this.RunGitCommand("commit -m \"Delete file for AddFileCommitThenDeleteAndCommit\"");
             this.ValidateGitCommand("checkout tests/functional/AddFileCommitThenDeleteAndCommit_before");
             this.Enlistment.RepoRoot.ShouldBeADirectory(this.FileSystem)
-               .WithDeepStructure(this.FileSystem, this.ControlGitRepo.RootPath, skipEmptyDirectories: true);
+               .WithDeepStructure(this.FileSystem, this.ControlGitRepo.RootPath);
             this.ValidateGitCommand("checkout tests/functional/AddFileCommitThenDeleteAndCommit_after");
         }
 
@@ -1069,7 +1047,7 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
             this.RunGitCommand("commit -m \"Change for {0}\"", branch);
             this.ValidateGitCommand("checkout " + this.ControlGitRepo.Commitish);
             this.Enlistment.RepoRoot.ShouldBeADirectory(this.FileSystem)
-                .WithDeepStructure(this.FileSystem, this.ControlGitRepo.RootPath, skipEmptyDirectories: true);
+                .WithDeepStructure(this.FileSystem, this.ControlGitRepo.RootPath);
 
             this.ValidateGitCommand("checkout {0}", branch);
         }

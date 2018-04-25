@@ -100,7 +100,6 @@ namespace GVFS.CommandLine
             }
 
             this.CheckNTFSVolume();
-            this.CheckGVFltHealthy();
             this.CheckNotInsideExistingRepo();
             this.BlockEmptyCacheServerUrl(this.CacheServerUrl);
 
@@ -194,7 +193,7 @@ namespace GVFS.CommandLine
                 {
                     if (!this.NoPrefetch)
                     {
-                        this.Execute<PrefetchVerb>(
+                        ReturnCode result = this.Execute<PrefetchVerb>(
                             this.EnlistmentRootPath,
                             verb =>
                             {
@@ -203,6 +202,12 @@ namespace GVFS.CommandLine
                                 verb.ResolvedCacheServer = cacheServer;
                                 verb.GVFSConfig = gvfsConfig;
                             });
+
+                        if (result != ReturnCode.Success)
+                        {
+                            this.Output.WriteLine("\r\nError during prefetch @ {0}", this.EnlistmentRootPath);
+                            exitCode = (int)result;
+                        }
                     }
 
                     if (this.NoMount)
@@ -280,7 +285,7 @@ namespace GVFS.CommandLine
                 return new Result(GVFSConstants.GitIsNotInstalledError);
             }
             
-            string hooksPath = this.GetGVFSHooksPathAndCheckVersion(tracer: null);
+            string hooksPath = this.GetGVFSHooksPathAndCheckVersion(tracer: null, version: out _);
 
             enlistment = new GVFSEnlistment(
                 this.EnlistmentRootPath,
@@ -351,11 +356,9 @@ namespace GVFS.CommandLine
                         return new Result(localCacheError);
                     }
 
-                    if (!Directory.Exists(enlistment.GitObjectsRoot))
-                    {
-                        Directory.CreateDirectory(enlistment.GitObjectsRoot);
-                        Directory.CreateDirectory(enlistment.GitPackRoot);
-                    }
+                    Directory.CreateDirectory(enlistment.GitObjectsRoot);
+                    Directory.CreateDirectory(enlistment.GitPackRoot);
+                    Directory.CreateDirectory(enlistment.BlobSizesRoot);
 
                     return this.CreateClone(tracer, enlistment, objectRequestor, refs, this.Branch);
                 }
@@ -399,7 +402,7 @@ namespace GVFS.CommandLine
         {
             string pathRoot;
             string errorMessage;
-            if (Paths.TryGetPathRoot(this.EnlistmentRootPath, out pathRoot, out errorMessage))
+            if (Paths.TryGetFinalPathRoot(this.EnlistmentRootPath, out pathRoot, out errorMessage))
             {
                 DriveInfo rootDriveInfo = DriveInfo.GetDrives().FirstOrDefault(x => x.Name == pathRoot);
                 if (rootDriveInfo == null)
@@ -458,7 +461,7 @@ namespace GVFS.CommandLine
             metadata.Add(TracingConstants.MessageKey.InfoMessage, "Initializing cache paths");
             tracer.RelatedEvent(EventLevel.Informational, "CloneVerb_TryDetermineLocalCacheAndInitializePaths", metadata);
 
-            enlistment.InitializeLocalCacheAndObjectsPathsFromKey(localCacheRoot, localCacheKey);
+            enlistment.InitializeCachePathsFromKey(localCacheRoot, localCacheKey);
 
             return true;
         }
@@ -497,7 +500,8 @@ namespace GVFS.CommandLine
                 return new Result(errorMessage);
             }
 
-            if (!GVFSVerb.TrySetGitConfigSettings(enlistment))
+            if (!GVFSVerb.TrySetRequiredGitConfigSettings(enlistment) ||
+                !GVFSVerb.TrySetOptionalGitConfigSettings(enlistment))
             {
                 return new Result("Unable to configure git repo");
             }
@@ -575,7 +579,18 @@ namespace GVFS.CommandLine
 
             try
             {
-                RepoMetadata.Instance.SaveCloneMetadata(enlistment.GitObjectsRoot, enlistment.LocalCacheRoot);
+                RepoMetadata.Instance.SaveCloneMetadata(tracer, enlistment);
+                EventMetadata metadata = new EventMetadata();
+                metadata.Add(nameof(RepoMetadata.Instance.EnlistmentId), RepoMetadata.Instance.EnlistmentId);
+                metadata.Add("Enlistment", enlistment);
+                tracer.RelatedEvent(EventLevel.Informational, "EnlistmentInfo", metadata, Keywords.Telemetry);
+
+                GitProcess.Result configResult = git.SetInLocalConfig(GVFSConstants.GitConfig.EnlistmentId, RepoMetadata.Instance.EnlistmentId, replaceAll: true);
+                if (configResult.HasErrors)
+                {
+                    string error = "Could not update config with enlistment id, error: " + configResult.Errors;
+                    tracer.RelatedWarning(error);
+                }
             }
             catch (Exception e)
             {

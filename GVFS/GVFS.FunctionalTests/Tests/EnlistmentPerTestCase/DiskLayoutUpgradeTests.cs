@@ -3,15 +3,26 @@ using GVFS.FunctionalTests.Should;
 using GVFS.FunctionalTests.Tools;
 using GVFS.Tests.Should;
 using NUnit.Framework;
+using System;
+using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 
 namespace GVFS.FunctionalTests.Tests.EnlistmentPerTestCase
 {
     [TestFixture]
+    [Category(Categories.FullSuiteOnly)]
     public class DiskLayoutUpgradeTests : TestsWithEnlistmentPerTestCase
     {
-        private const int CurrentDiskLayoutVersion = 12;
-        private FileSystemRunner fileSystem = new SystemIORunner();
+        public const int CurrentDiskLayoutMajorVersion = 14;
+        public const int CurrentDiskLayoutMinorVersion = 0;
+
+        public const string BlobSizesCacheName = "blobSizes";
+        public const string BlobSizesDBFileName = "BlobSizes.sql";
+
+        private const string DatabasesFolderName = "databases";
+
+        private FileSystemRunner fileSystem = new SystemIORunner();        
 
         [TestCase]
         public void MountUpgradesFromVersion7()
@@ -36,7 +47,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerTestCase
             string flatBackgroundPath = Path.Combine(this.Enlistment.DotGVFSRoot, GVFSHelpers.BackgroundOpsFile);
             flatBackgroundPath.ShouldBeAFile(this.fileSystem);
             this.fileSystem.DeleteFile(flatBackgroundPath);
-            
+
             // Delete the existing placeholder data
             string flatPlaceholdersPath = Path.Combine(this.Enlistment.DotGVFSRoot, GVFSHelpers.PlaceholderListFile);
             flatPlaceholdersPath.ShouldBeAFile(this.fileSystem);
@@ -46,12 +57,10 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerTestCase
             GVFSHelpers.CreateEsentPlaceholderDatabase(this.Enlistment.DotGVFSRoot);
 
             // Nine is the last version with ESENT BackgroundOps and Placeholders DBs
-            GVFSHelpers.SaveDiskLayoutVersion(this.Enlistment.DotGVFSRoot, "9");
+            GVFSHelpers.SaveDiskLayoutVersion(this.Enlistment.DotGVFSRoot, "9", "0");
             this.Enlistment.MountGVFS();
 
-            GVFSHelpers.GetPersistedDiskLayoutVersion(this.Enlistment.DotGVFSRoot)
-                .ShouldBeAnInt("Disk layout version should always be an int")
-                .ShouldEqual(CurrentDiskLayoutVersion);
+            this.ValidatePersistedVersionMatchesCurrentVersion();
 
             flatBackgroundPath.ShouldBeAFile(this.fileSystem);
             flatPlaceholdersPath.ShouldBeAFile(this.fileSystem);
@@ -62,13 +71,11 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerTestCase
         {
             this.Enlistment.UnmountGVFS();
 
-            GVFSHelpers.SaveDiskLayoutVersion(this.Enlistment.DotGVFSRoot, "10");
+            GVFSHelpers.SaveDiskLayoutVersion(this.Enlistment.DotGVFSRoot, "10", "0");
 
             this.Enlistment.MountGVFS();
 
-            GVFSHelpers.GetPersistedDiskLayoutVersion(this.Enlistment.DotGVFSRoot)
-                .ShouldBeAnInt("Disk layout version should always be an int")
-                .ShouldEqual(CurrentDiskLayoutVersion);
+            this.ValidatePersistedVersionMatchesCurrentVersion();
         }
 
         [TestCase]
@@ -86,7 +93,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerTestCase
             esentDatabasePath.ShouldBeADirectory(this.fileSystem);
 
             this.Enlistment.TryMountGVFS().ShouldEqual(false, "Should not be able to upgrade from version 6");
-            
+
             esentDatabasePath.ShouldBeADirectory(this.fileSystem);
         }
 
@@ -103,7 +110,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerTestCase
             // "11" was the last version before the introduction of a volume wide GVFS cache
             string metadataPath = Path.Combine(this.Enlistment.DotGVFSRoot, GVFSHelpers.RepoMetadataName);
             this.fileSystem.CreateEmptyFile(metadataPath);
-            GVFSHelpers.SaveDiskLayoutVersion(this.Enlistment.DotGVFSRoot, "11");
+            GVFSHelpers.SaveDiskLayoutVersion(this.Enlistment.DotGVFSRoot, "11", "0");
 
             // Create the legacy cache location: <root>\.gvfs\gitObjectCache
             string legacyGitObjectsCachePath = Path.Combine(this.Enlistment.DotGVFSRoot, "gitObjectCache");
@@ -111,15 +118,175 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerTestCase
 
             this.Enlistment.MountGVFS();
 
-            GVFSHelpers.GetPersistedDiskLayoutVersion(this.Enlistment.DotGVFSRoot)
-                .ShouldBeAnInt("Disk layout version should always be an int")
-                .ShouldEqual(CurrentDiskLayoutVersion, "Disk layout version should be upgraded to the latest");
+            this.ValidatePersistedVersionMatchesCurrentVersion();
 
             GVFSHelpers.GetPersistedLocalCacheRoot(this.Enlistment.DotGVFSRoot)
                 .ShouldEqual(string.Empty, "LocalCacheRoot should be an empty string when upgrading from a version prior to 12");
 
             GVFSHelpers.GetPersistedGitObjectsRoot(this.Enlistment.DotGVFSRoot)
                 .ShouldEqual(legacyGitObjectsCachePath);
+        }
+
+        [TestCase]
+        public void MountSucceedsIfMinorVersionHasAdvancedButNotMajorVersion()
+        {
+            // Advance the minor version, mount should still work
+            this.Enlistment.UnmountGVFS();
+            GVFSHelpers.SaveDiskLayoutVersion(
+                this.Enlistment.DotGVFSRoot,
+                CurrentDiskLayoutMajorVersion.ToString(),
+                (CurrentDiskLayoutMinorVersion + 1).ToString());
+            this.Enlistment.TryMountGVFS().ShouldBeTrue("Mount should succeed because only the minor version advanced");
+
+            // Advance the major version, mount should fail
+            this.Enlistment.UnmountGVFS();
+            GVFSHelpers.SaveDiskLayoutVersion(
+                this.Enlistment.DotGVFSRoot,
+                (CurrentDiskLayoutMajorVersion + 1).ToString(),
+                CurrentDiskLayoutMinorVersion.ToString());
+            this.Enlistment.TryMountGVFS().ShouldBeFalse("Mount should fail because the major version has advanced");
+        }
+
+        [TestCase]
+        public void MountWritesFolderPlaceholdersToPlaceholderDatabase()
+        {
+            // Create some placeholder data
+            this.fileSystem.ReadAllText(Path.Combine(this.Enlistment.RepoRoot, "Readme.md"));
+            this.fileSystem.ReadAllText(Path.Combine(this.Enlistment.RepoRoot, "Scripts\\RunUnitTests.bat"));
+            this.fileSystem.ReadAllText(Path.Combine(this.Enlistment.RepoRoot, "GVFS\\GVFS.Common\\Git\\GitRefs.cs"));
+
+            // Create a full folder
+            this.fileSystem.CreateDirectory(Path.Combine(this.Enlistment.RepoRoot, "GVFS\\FullFolder"));
+            this.fileSystem.WriteAllText(Path.Combine(this.Enlistment.RepoRoot, "GVFS\\FullFolder\\test.txt"), "Test contents");
+
+            // Create a tombstone
+            this.fileSystem.DeleteDirectory(Path.Combine(this.Enlistment.RepoRoot, "GVFS\\GVFS.Tests\\Properties"));
+
+            string junctionTarget = Path.Combine(this.Enlistment.EnlistmentRoot, "DirJunction");
+            string symlinkTarget = Path.Combine(this.Enlistment.EnlistmentRoot, "DirSymlink");
+            Directory.CreateDirectory(junctionTarget);
+            Directory.CreateDirectory(symlinkTarget);
+
+            string junctionLink = Path.Combine(this.Enlistment.RepoRoot, "DirJunction");
+            string symlink = Path.Combine(this.Enlistment.RepoRoot, "DirLink");
+            ProcessHelper.Run("CMD.exe", "/C mklink /J " + junctionLink + " " + junctionTarget);
+            ProcessHelper.Run("CMD.exe", "/C mklink /D " + symlink + " " + symlinkTarget);
+
+            this.Enlistment.UnmountGVFS();
+
+            // Delete the existing folder placeholder data
+            string placeholderDatabasePath = Path.Combine(this.Enlistment.DotGVFSRoot, GVFSHelpers.PlaceholderListFile);
+            string[] lines = this.GetPlaceholderDatabaseLinesBeforeUpgrade(placeholderDatabasePath);
+
+            // Placeholder database file should only have file placeholders
+            this.fileSystem.WriteAllText(placeholderDatabasePath, string.Join(Environment.NewLine, lines.Where(x => !x.EndsWith(TestConstants.AllZeroSha))) + Environment.NewLine);
+
+            GVFSHelpers.SaveDiskLayoutVersion(this.Enlistment.DotGVFSRoot, "12", "1");
+
+            this.Enlistment.MountGVFS();
+            this.Enlistment.UnmountGVFS();
+
+            // Validate the folder placeholders are in the placeholder database now
+            this.GetPlaceholderDatabaseLinesAfterUpgrade(placeholderDatabasePath);
+        }
+
+        [TestCase]
+        public void MountUpgradesPreSharedCacheLocalSizes()
+        {
+            this.Enlistment.UnmountGVFS();
+
+            // Delete the existing repo metadata
+            string versionJsonPath = Path.Combine(this.Enlistment.DotGVFSRoot, GVFSHelpers.RepoMetadataName);
+            versionJsonPath.ShouldBeAFile(this.fileSystem);
+            this.fileSystem.DeleteFile(versionJsonPath);
+
+            // "11" was the last version before the introduction of a volume wide GVFS cache
+            string metadataPath = Path.Combine(this.Enlistment.DotGVFSRoot, GVFSHelpers.RepoMetadataName);
+            this.fileSystem.CreateEmptyFile(metadataPath);
+            GVFSHelpers.SaveDiskLayoutVersion(this.Enlistment.DotGVFSRoot, "11", "0");
+
+            // Create the legacy cache location: <root>\.gvfs\gitObjectCache
+            string legacyGitObjectsCachePath = Path.Combine(this.Enlistment.DotGVFSRoot, "gitObjectCache");
+            this.fileSystem.CreateDirectory(legacyGitObjectsCachePath);
+
+            // Create a legacy PersistedDictionary sizes database
+            List<KeyValuePair<string, long>> entries = new List<KeyValuePair<string, long>>()
+            {
+                new KeyValuePair<string, long>(new string('0', 40), 1),
+                new KeyValuePair<string, long>(new string('1', 40), 2),
+                new KeyValuePair<string, long>(new string('2', 40), 4),
+                new KeyValuePair<string, long>(new string('3', 40), 8),
+            };
+
+            GVFSHelpers.CreateEsentBlobSizesDatabase(this.Enlistment.DotGVFSRoot, entries);
+
+            this.Enlistment.MountGVFS();
+
+            string majorVersion;
+            string minorVersion;
+            GVFSHelpers.GetPersistedDiskLayoutVersion(this.Enlistment.DotGVFSRoot, out majorVersion, out minorVersion);
+
+            majorVersion
+                .ShouldBeAnInt("Disk layout version should always be an int")
+                .ShouldEqual(CurrentDiskLayoutMajorVersion, "Disk layout version should be upgraded to the latest");
+
+            minorVersion
+                .ShouldBeAnInt("Disk layout version should always be an int")
+                .ShouldEqual(CurrentDiskLayoutMinorVersion, "Disk layout version should be upgraded to the latest");
+
+            GVFSHelpers.GetPersistedLocalCacheRoot(this.Enlistment.DotGVFSRoot)
+                .ShouldEqual(string.Empty, "LocalCacheRoot should be an empty string when upgrading from a version prior to 12");
+
+            GVFSHelpers.GetPersistedGitObjectsRoot(this.Enlistment.DotGVFSRoot)
+                .ShouldEqual(legacyGitObjectsCachePath);
+
+            string newBlobSizesRoot = Path.Combine(this.Enlistment.DotGVFSRoot, DatabasesFolderName, BlobSizesCacheName);
+            GVFSHelpers.GetPersistedBlobSizesRoot(this.Enlistment.DotGVFSRoot)
+                .ShouldEqual(newBlobSizesRoot);
+
+            string blobSizesDbPath = Path.Combine(newBlobSizesRoot, BlobSizesDBFileName);
+            newBlobSizesRoot.ShouldBeADirectory(this.fileSystem);
+            blobSizesDbPath.ShouldBeAFile(this.fileSystem);
+
+            foreach (KeyValuePair<string, long> entry in entries)
+            {
+                GVFSHelpers.SQLiteBlobSizesDatabaseHasEntry(blobSizesDbPath, entry.Key, entry.Value);
+            }
+        }
+
+        private string[] GetPlaceholderDatabaseLinesBeforeUpgrade(string placeholderDatabasePath)
+        {
+            placeholderDatabasePath.ShouldBeAFile(this.fileSystem);
+            string[] lines = this.fileSystem.ReadAllText(placeholderDatabasePath).Split(new char[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries);
+            lines.Length.ShouldEqual(11);
+            lines.ShouldContain(x => x.Contains("Readme.md"));
+            lines.ShouldContain(x => x.Contains("Scripts\\RunUnitTests.bat"));
+            lines.ShouldContain(x => x.Contains("GVFS\\GVFS.Common\\Git\\GitRefs.cs"));
+            lines.ShouldContain(x => x.Contains("A GVFS\\GVFS.Tests\\Properties\\AssemblyInfo.cs"));
+            lines.ShouldContain(x => x == "D GVFS\\GVFS.Tests\\Properties\\AssemblyInfo.cs");
+            lines.ShouldContain(x => x == "A Scripts\0" + TestConstants.AllZeroSha);
+            lines.ShouldContain(x => x == "A GVFS\0" + TestConstants.AllZeroSha);
+            lines.ShouldContain(x => x == "A GVFS\\GVFS.Common\0" + TestConstants.AllZeroSha);
+            lines.ShouldContain(x => x == "A GVFS\\GVFS.Common\\Git\0" + TestConstants.AllZeroSha);
+            lines.ShouldContain(x => x == "A GVFS\\GVFS.Tests\0" + TestConstants.AllZeroSha);
+            lines.ShouldContain(x => x == "A GVFS\\GVFS.Tests\\Properties\0" + TestConstants.AllZeroSha);
+            return lines;
+        }
+
+        private string[] GetPlaceholderDatabaseLinesAfterUpgrade(string placeholderDatabasePath)
+        {
+            placeholderDatabasePath.ShouldBeAFile(this.fileSystem);
+            string[] lines = this.fileSystem.ReadAllText(placeholderDatabasePath).Split(new char[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries);
+            lines.Length.ShouldEqual(8);
+            lines.ShouldContain(x => x.Contains("Readme.md"));
+            lines.ShouldContain(x => x.Contains("Scripts\\RunUnitTests.bat"));
+            lines.ShouldContain(x => x.Contains("GVFS\\GVFS.Common\\Git\\GitRefs.cs"));
+            lines.ShouldContain(x => x == "A Scripts\0" + TestConstants.AllZeroSha);
+            lines.ShouldContain(x => x == "A GVFS\0" + TestConstants.AllZeroSha);
+            lines.ShouldContain(x => x == "A GVFS\\GVFS.Common\0" + TestConstants.AllZeroSha);
+            lines.ShouldContain(x => x == "A GVFS\\GVFS.Common\\Git\0" + TestConstants.AllZeroSha);
+            lines.ShouldContain(x => x == "A GVFS\\GVFS.Tests\0" + TestConstants.AllZeroSha);
+            return lines;
         }
 
         private void RunEsentRepoMetadataUpgradeTest(string sourceVersion)
@@ -140,9 +307,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerTestCase
             esentDatabasePath.ShouldNotExistOnDisk(this.fileSystem);
             versionJsonPath.ShouldBeAFile(this.fileSystem);
 
-            GVFSHelpers.GetPersistedDiskLayoutVersion(this.Enlistment.DotGVFSRoot)
-                .ShouldBeAnInt("Disk layout version should always be an int")
-                .ShouldEqual(CurrentDiskLayoutVersion, "Disk layout version should be upgraded to the latest");
+            this.ValidatePersistedVersionMatchesCurrentVersion();
 
             GVFSHelpers.GetPersistedLocalCacheRoot(this.Enlistment.DotGVFSRoot)
                 .ShouldEqual(string.Empty, "LocalCacheRoot should be an empty string when upgrading from a version prior to 12");
@@ -155,5 +320,20 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerTestCase
                 .ShouldNotBeNull("GitObjectsRoot should not be null")
                 .ShouldEqual(Path.Combine(this.Enlistment.RepoRoot, @".git\objects"));
         }
+
+        private void ValidatePersistedVersionMatchesCurrentVersion()
+        {
+            string majorVersion;
+            string minorVersion;
+            GVFSHelpers.GetPersistedDiskLayoutVersion(this.Enlistment.DotGVFSRoot, out majorVersion, out minorVersion);
+
+            majorVersion
+                .ShouldBeAnInt("Disk layout version should always be an int")
+                .ShouldEqual(CurrentDiskLayoutMajorVersion, "Disk layout version should be upgraded to the latest");
+
+            minorVersion
+                .ShouldBeAnInt("Disk layout version should always be an int")
+                .ShouldEqual(CurrentDiskLayoutMinorVersion, "Disk layout version should be upgraded to the latest");
+        }        
     }
 }

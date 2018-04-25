@@ -8,6 +8,9 @@ namespace GVFS.GVFlt
     //
     // - Changed ANSI_DOS_STAR to '<' and ANSI_DOS_QM to '>' (these are the correct values, see ntifs.h)
     // - Added code so that method is consistently case insensitive
+    // - Updated method to return true when expression is null or empty
+    // - Remove special casing of *.* wildcard expression
+
     public static class PatternMatcher
     {
         /// <devdoc>
@@ -135,16 +138,21 @@ namespace GVFS.GVFlt
             //  defined by the regular expression.
             //
 
-            if (name == null || name.Length == 0 || expression == null || expression.Length == 0)
+            if (name == null || name.Length == 0)
             {
                 return false;
             }
 
+            if (expression == null || expression.Length == 0)
+            {
+                return true;
+            }
+
             //
-            //  Special case by far the most common wild card search of * or *.*
+            //  Special case by far the most common wild card search of *
             //
 
-            if (expression.Equals("*") || expression.Equals("*.*"))
+            if (expression.Equals("*"))
             {
                 return true;
             }

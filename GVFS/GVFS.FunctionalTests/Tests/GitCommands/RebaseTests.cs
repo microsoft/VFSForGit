@@ -1,11 +1,8 @@
-﻿using GVFS.FunctionalTests.Category;
-using NUnit.Framework;
+﻿using NUnit.Framework;
 
 namespace GVFS.FunctionalTests.Tests.GitCommands
 {
     [TestFixture]
-    [Category(CategoryConstants.GitCommands)]
-    [Ignore("Folder with case rename is not working for these tests")]
     public class RebaseTests : GitRepoTests
     {
         public RebaseTests() : base(enlistmentPerTest: true)
@@ -13,6 +10,7 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
         }
 
         [TestCase]
+        [Ignore("This is producing different output because git is not checking out files in the rebase.  The virtual file system changes should address this issue.")]
         public void RebaseSmallNoConflicts()
         {
             // 5d299512450f4029d7a1fe8d67e833b84247d393 is the tip of FunctionalTests/RebaseTestsSource_20170130
@@ -47,6 +45,7 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
         }
 
         [TestCase]
+        [Ignore("This is producing different output because git is not checking out files in the rebase.  The virtual file system changes should address this issue.")]
         public void RebaseEditThenDelete()
         {
             // 23a238b04497da2449fd730966c06f84b6326c3a is the tip of FunctionalTests/RebaseTestsSource_20170208
@@ -61,6 +60,56 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
 
             this.ValidateGitCommand("checkout {0}", sourceCommit);
             this.ValidateGitCommand("rebase {0}", targetCommit);
+        }
+
+        [TestCase]
+        public void RebaseWithDirectoryNameSameAsFile()
+        {
+            this.SetupForFileDirectoryTest();
+            this.ValidateFileDirectoryTest("rebase");
+        }
+
+        [TestCase]
+        public void RebaseWithDirectoryNameSameAsFileEnumerate()
+        {
+            this.RunFileDirectoryEnumerateTest("rebase");
+        }
+
+        [TestCase]
+        public void RebaseWithDirectoryNameSameAsFileWithRead()
+        {
+            this.RunFileDirectoryReadTest("rebase");
+        }
+
+        [TestCase]
+        public void RebaseWithDirectoryNameSameAsFileWithWrite()
+        {
+            this.RunFileDirectoryWriteTest("rebase");
+        }
+
+        [TestCase]
+        public void RebaseDirectoryWithOneFile()
+        {
+            this.SetupForFileDirectoryTest(commandBranch: GitRepoTests.DirectoryWithDifferentFileAfterBranch);
+            this.ValidateFileDirectoryTest("rebase", commandBranch: GitRepoTests.DirectoryWithDifferentFileAfterBranch);
+        }
+
+        [TestCase]
+        public void RebaseDirectoryWithOneFileEnumerate()
+        {
+            this.RunFileDirectoryEnumerateTest("rebase", commandBranch: GitRepoTests.DirectoryWithDifferentFileAfterBranch);
+        }
+
+        [TestCase]
+        public void RebaseDirectoryWithOneFileRead()
+        {
+            this.RunFileDirectoryReadTest("rebase", commandBranch: GitRepoTests.DirectoryWithDifferentFileAfterBranch);
+        }
+
+        [TestCase]
+        public void RebaseDirectoryWithOneFileWrite()
+        {
+            this.RunFileDirectoryWriteTest("rebase", commandBranch: GitRepoTests.DirectoryWithDifferentFileAfterBranch);
         }
     }
 }

@@ -1,9 +1,7 @@
 ﻿<?xml version="1.0" encoding="utf-8"?>
 <Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <PropertyGroup Label="Parameters">
-    <GVFSVersion>1.0.18026.1</GVFSVersion>
-    <G4WPackageVersion>2.4882590</G4WPackageVersion>
-    <BuildInstaller>true</BuildInstaller>
+    <GVFSVersion>1.0.18115.1</GVFSVersion>
   </PropertyGroup>
   <PropertyGroup Label="DefaultSettings">
     <Configuration Condition=" '$(Configuration)' == '' ">Debug</Configuration>

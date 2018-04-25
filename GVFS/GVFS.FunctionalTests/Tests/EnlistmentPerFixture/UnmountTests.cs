@@ -9,6 +9,7 @@ using System.Threading;
 namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
 {
     [TestFixture]
+    [Category(Categories.FullSuiteOnly)]
     public class UnmountTests : TestsWithEnlistmentPerFixture
     {
         private FileSystemRunner fileSystem;
@@ -22,7 +23,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
         public void SetupTest()
         {
             GVFSProcess gvfsProcess = new GVFSProcess(
-                Path.Combine(TestContext.CurrentContext.TestDirectory, Properties.Settings.Default.PathToGVFS),
+                GVFSTestConfig.PathToGVFS,
                 this.Enlistment.EnlistmentRoot,
                 Path.Combine(this.Enlistment.EnlistmentRoot, ".gvfs"));
 
@@ -64,11 +65,10 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
 
         private Process StartUnmount(string extraParams = "")
         {
-            string pathToGVFS = Path.Combine(TestContext.CurrentContext.TestDirectory, Properties.Settings.Default.PathToGVFS);
             string enlistmentRoot = this.Enlistment.EnlistmentRoot;
 
             // TODO: 865304 Use app.config instead of --internal* arguments
-            ProcessStartInfo processInfo = new ProcessStartInfo(pathToGVFS);
+            ProcessStartInfo processInfo = new ProcessStartInfo(GVFSTestConfig.PathToGVFS);
             processInfo.Arguments = "unmount " + extraParams + " --internal_use_only_service_name " + GVFSServiceProcess.TestServiceName;
             processInfo.WindowStyle = ProcessWindowStyle.Hidden;
             processInfo.WorkingDirectory = enlistmentRoot;

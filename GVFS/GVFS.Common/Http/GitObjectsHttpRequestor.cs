@@ -18,7 +18,9 @@ namespace GVFS.Common.Http
             = new MediaTypeWithQualityHeaderValue(GVFSConstants.MediaTypes.CustomLooseObjectsMediaType);
         
         private Enlistment enlistment;
-        
+
+        private DateTime nextCacheServerAttemptTime = DateTime.Now;
+
         public GitObjectsHttpRequestor(ITracer tracer, Enlistment enlistment, CacheServerInfo cacheServer, RetryConfig retryConfig)
             : base(tracer, retryConfig, enlistment.Authentication)
         {
@@ -33,7 +35,8 @@ namespace GVFS.Common.Http
             long requestId = HttpRequestor.GetNewRequestId();
 
             string objectIdsJson = ToJsonList(objectIds);
-            Uri gvfsEndpoint = new Uri(this.enlistment.RepoUrl + GVFSConstants.Endpoints.GVFSSizes);
+            Uri cacheServerEndpoint = new Uri(this.CacheServer.SizesEndpointUrl);
+            Uri originEndpoint = new Uri(this.enlistment.RepoUrl + GVFSConstants.Endpoints.GVFSSizes);
 
             EventMetadata metadata = new EventMetadata();
             metadata.Add("RequestId", requestId);
@@ -55,8 +58,24 @@ namespace GVFS.Common.Http
             RetryWrapper<List<GitObjectSize>>.InvocationResult requestTask = retrier.Invoke(
                 tryCount =>
                 {
+                    Uri gvfsEndpoint;
+                    if (nextCacheServerAttemptTime < DateTime.Now)
+                    {
+                        gvfsEndpoint = cacheServerEndpoint;
+                    }
+                    else
+                    {
+                        gvfsEndpoint = originEndpoint;
+                    }
+
                     using (GitEndPointResponseData response = this.SendRequest(requestId, gvfsEndpoint, HttpMethod.Post, objectIdsJson, cancellationToken))
                     {
+                        if (response.StatusCode == HttpStatusCode.NotFound)
+                        {
+                            nextCacheServerAttemptTime = nextCacheServerAttemptTime.AddMinutes(15);
+                            return new RetryWrapper<List<GitObjectSize>>.CallbackResult(response.Error, true);
+                        }
+
                         if (response.HasErrors)
                         {
                             return new RetryWrapper<List<GitObjectSize>>.CallbackResult(response.Error, response.ShouldRetry);

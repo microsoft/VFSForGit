@@ -1,12 +1,11 @@
-﻿using GVFS.FunctionalTests.Category;
-using GVFS.FunctionalTests.Tools;
+﻿using GVFS.FunctionalTests.Tools;
 using NUnit.Framework;
 using System.Threading;
 
 namespace GVFS.FunctionalTests.Tests.GitCommands
 {
     [TestFixture]
-    [Category(CategoryConstants.GitCommands)]
+    [Category(Categories.GitCommands)]
     public class AddStageTests : GitRepoTests
     {
         public AddStageTests() : base(enlistmentPerTest: false)

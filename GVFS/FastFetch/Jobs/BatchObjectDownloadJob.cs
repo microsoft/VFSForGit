@@ -78,7 +78,7 @@ namespace FastFetch.Jobs
                 Interlocked.Increment(ref this.activeDownloadCount);
 
                 EventMetadata metadata = new EventMetadata();
-                metadata.Add("PackId", request.PackId);
+                metadata.Add("RequestId", request.RequestId);
                 metadata.Add("ActiveDownloads", this.activeDownloadCount);
                 metadata.Add("NumberOfObjects", request.ObjectIds.Count);
 
@@ -90,7 +90,7 @@ namespace FastFetch.Jobs
                         RetryWrapper<GitObjectsHttpRequestor.GitObjectTaskResult>.InvocationResult result = this.objectRequestor.TryDownloadObjects(
                                 () => request.ObjectIds.Except(successfulDownloads),
                                 onSuccess: (tryCount, response) => this.WriteObjectOrPack(request, tryCount, response, successfulDownloads),
-                                onFailure: RetryWrapper<GitObjectsHttpRequestor.GitObjectTaskResult>.StandardErrorHandler(activity, request.PackId, DownloadAreaPath),
+                                onFailure: RetryWrapper<GitObjectsHttpRequestor.GitObjectTaskResult>.StandardErrorHandler(activity, request.RequestId, DownloadAreaPath),
                                 preferBatchedLooseObjects: true);
 
                         if (!result.Succeeded)
