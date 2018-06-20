@@ -33,4 +33,29 @@ enum PrjFSServiceUserClientType
     UserClientType_Log,
 };
 
+enum PrjFS_PerfCounter : int32_t
+{
+    // Note: ensure that any changes to this list are reflected in the PerfCounterNames array of strings
+    
+    
+    Probe_Count,
+    
+    Probe_None = -1
+};
+
+struct PerfTracingProbe
+{
+    _Atomic uint64_t numSamples1;
+    _Atomic uint64_t numSamples2;
+    // Units: Mach absolute time (squared for sumSquares)
+    // Sum of measured sample intervals
+    _Atomic uint64_t sum;
+    // Smallest encountered interval
+    _Atomic uint64_t min;
+    // Largest encountered interval
+    _Atomic uint64_t max;
+    // Sum-of-squares of measured time intervals (for stddev)
+    _Atomic __uint128_t sumSquares;
+};
+
 #endif /* PrjFSCommon_h */

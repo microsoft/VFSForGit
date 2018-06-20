@@ -2,6 +2,14 @@
 
 #include <stdint.h>
 
+// External method selectors for log user clients
+enum PrjFSLogUserClientSelector
+{
+    LogSelector_Invalid = 0,
+    
+    LogSelector_FetchProfilingData,
+};
+
 enum PrjFSLogUserClientMemoryType
 {
     LogMemoryType_Invalid = 0,

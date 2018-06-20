@@ -15,6 +15,7 @@
 		4AC1D7C12091FA0400786861 /* PrjFSProviderUserClient.hpp in Headers */ = {isa = PBXBuildFile; fileRef = 4AC1D7BF2091FA0400786861 /* PrjFSProviderUserClient.hpp */; };
 		4AC1D7C52091FBFC00786861 /* PrjFSLogUserClient.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 4AC1D7C32091FBFC00786861 /* PrjFSLogUserClient.cpp */; };
 		4AC1D7C62091FBFC00786861 /* PrjFSLogUserClient.hpp in Headers */ = {isa = PBXBuildFile; fileRef = 4AC1D7C42091FBFC00786861 /* PrjFSLogUserClient.hpp */; };
+		4AE187A821203A890026AC68 /* PerformanceTracing.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 4AE187A721203A890026AC68 /* PerformanceTracing.cpp */; };
 		C6BDD366208BC60400CB7E58 /* VirtualizationRoots.hpp in Headers */ = {isa = PBXBuildFile; fileRef = C6BDD364208BC60400CB7E58 /* VirtualizationRoots.hpp */; };
 		C6BDD367208BC60400CB7E58 /* VirtualizationRoots.cpp in Sources */ = {isa = PBXBuildFile; fileRef = C6BDD365208BC60400CB7E58 /* VirtualizationRoots.cpp */; };
 		C6BDD36A208BC99100CB7E58 /* Locks.hpp in Headers */ = {isa = PBXBuildFile; fileRef = C6BDD368208BC99100CB7E58 /* Locks.hpp */; };
@@ -38,6 +39,7 @@
 		4A9D139C208F675500376182 /* PrjFSService.hpp */ = {isa = PBXFileReference; fileEncoding = 4; indentWidth = 4; lastKnownFileType = sourcecode.cpp.h; path = PrjFSService.hpp; sourceTree = "<group>"; tabWidth = 4; usesTabs = 0; };
 		4AA0BA9920A4500600F33D1C /* vnode.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = vnode.h; sourceTree = "<group>"; };
 		4ABB733020B85DA500DC0D17 /* mount.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = mount.h; sourceTree = "<group>"; };
+		4ABB734320B867E000DC0D17 /* PerformanceTracing.hpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.h; path = PerformanceTracing.hpp; sourceTree = "<group>"; };
 		4ABB734520BED11500DC0D17 /* PrjFSLogClientShared.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = PrjFSLogClientShared.h; sourceTree = "<group>"; };
 		4ABB734C20C1A65B00DC0D17 /* PrjFSProviderClientShared.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = PrjFSProviderClientShared.h; sourceTree = "<group>"; };
 		4AC1D7BE2091FA0400786861 /* PrjFSProviderUserClient.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = PrjFSProviderUserClient.cpp; sourceTree = "<group>"; };
@@ -45,6 +47,7 @@
 		4AC1D7C22091FA2300786861 /* PrjFSClasses.hpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.h; path = PrjFSClasses.hpp; sourceTree = "<group>"; };
 		4AC1D7C32091FBFC00786861 /* PrjFSLogUserClient.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = PrjFSLogUserClient.cpp; sourceTree = "<group>"; };
 		4AC1D7C42091FBFC00786861 /* PrjFSLogUserClient.hpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.h; path = PrjFSLogUserClient.hpp; sourceTree = "<group>"; };
+		4AE187A721203A890026AC68 /* PerformanceTracing.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = PerformanceTracing.cpp; sourceTree = "<group>"; };
 		C6BDD364208BC60400CB7E58 /* VirtualizationRoots.hpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.h; path = VirtualizationRoots.hpp; sourceTree = "<group>"; };
 		C6BDD365208BC60400CB7E58 /* VirtualizationRoots.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = VirtualizationRoots.cpp; sourceTree = "<group>"; };
 		C6BDD368208BC99100CB7E58 /* Locks.hpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.h; path = Locks.hpp; sourceTree = "<group>"; };
@@ -124,6 +127,8 @@
 				C6C780CB207FD02400E7E054 /* KextLog.hpp */,
 				C6C780CC207FD02400E7E054 /* KextLog.cpp */,
 				C6C780B5207FC67200E7E054 /* Info.plist */,
+				4ABB734320B867E000DC0D17 /* PerformanceTracing.hpp */,
+				4AE187A721203A890026AC68 /* PerformanceTracing.cpp */,
 				C6E9E116208BBB62004A5725 /* KauthHandler.hpp */,
 				C6E9E117208BBB62004A5725 /* KauthHandler.cpp */,
 				C6BDD364208BC60400CB7E58 /* VirtualizationRoots.hpp */,
@@ -253,6 +258,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				C6BDD36B208BC99100CB7E58 /* Locks.cpp in Sources */,
+				4AE187A821203A890026AC68 /* PerformanceTracing.cpp in Sources */,
 				C6BDD367208BC60400CB7E58 /* VirtualizationRoots.cpp in Sources */,
 				C6BDD374208C033200CB7E58 /* Memory.cpp in Sources */,
 				4AC1D7C52091FBFC00786861 /* PrjFSLogUserClient.cpp in Sources */,
