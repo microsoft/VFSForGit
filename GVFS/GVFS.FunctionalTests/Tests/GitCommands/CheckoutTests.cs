@@ -170,13 +170,12 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
             this.ValidateGitCommand("checkout 170b13ce1990c53944403a70e93c257061598ae0");
             this.FileContentsShouldMatch(@"Test_ConflictTests\ModifiedFiles\" + fileName);
 
-            // A read should not add the file to the sparse-checkout
-            string sparseFile = Path.Combine(this.Enlistment.RepoRoot, TestConstants.DotGit.Info.SparseCheckout);
-            sparseFile.ShouldBeAFile(this.FileSystem).WithContents().ShouldNotContain(ignoreCase: true, unexpectedSubstrings: fileName);
+            // A read should not add the file to the modified paths
+            GVFSHelpers.ModifiedPathsShouldNotContain(this.FileSystem, this.Enlistment.DotGVFSRoot, fileName);
 
             this.ValidateGitCommand("checkout FunctionalTests/20170206_Conflict_Source");
             this.FileContentsShouldMatch(@"Test_ConflictTests\ModifiedFiles\" + fileName);
-            sparseFile.ShouldBeAFile(this.FileSystem).WithContents().ShouldNotContain(ignoreCase: true, unexpectedSubstrings: fileName);
+            GVFSHelpers.ModifiedPathsShouldNotContain(this.FileSystem, this.Enlistment.DotGVFSRoot, fileName);
         }
 
         [TestCase]
@@ -191,13 +190,12 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
             this.ValidateGitCommand("checkout 170b13ce1990c53944403a70e93c257061598ae0");
             this.FileContentsShouldMatch(filePath);
 
-            // A read should not add the file to the sparse-checkout
-            string sparseFile = Path.Combine(this.Enlistment.RepoRoot, TestConstants.DotGit.Info.SparseCheckout);
-            sparseFile.ShouldBeAFile(this.FileSystem).WithContents().ShouldNotContain(ignoreCase: true, unexpectedSubstrings: fileName);
+            // A read should not add the file to the modified paths
+            GVFSHelpers.ModifiedPathsShouldNotContain(this.FileSystem, this.Enlistment.DotGVFSRoot, fileName);
 
             this.ValidateGitCommand("checkout FunctionalTests/20170206_Conflict_Source");
             this.ShouldNotExistOnDisk(filePath);
-            sparseFile.ShouldBeAFile(this.FileSystem).WithContents().ShouldNotContain(ignoreCase: true, unexpectedSubstrings: fileName);
+            GVFSHelpers.ModifiedPathsShouldNotContain(this.FileSystem, this.Enlistment.DotGVFSRoot, fileName);
         }
 
         [TestCase]
@@ -212,9 +210,8 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
             this.ValidateGitCommand("checkout " + GitRepoTests.ConflictSourceBranch);
             this.FilesShouldMatchCheckoutOfSourceBranch();
 
-            // Verify sparse-checkout contents
-            string sparseCheckoutFile = Path.Combine(this.Enlistment.RepoRoot, TestConstants.DotGit.Info.SparseCheckout);
-            sparseCheckoutFile.ShouldBeAFile(this.FileSystem).WithContents().ShouldEqual("/.gitattributes\n");
+            // Verify modified paths contents
+            GVFSHelpers.ModifiedPathsContentsShouldEqual(this.FileSystem, this.Enlistment.DotGVFSRoot, "A .gitattributes" + Environment.NewLine);
         }
 
         [TestCase]
@@ -231,9 +228,8 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
             this.Enlistment.RepoRoot.ShouldBeADirectory(this.FileSystem)
                 .WithDeepStructure(this.FileSystem, this.ControlGitRepo.RootPath, compareContent: true);
 
-            // Verify sparse-checkout contents
-            string sparseCheckoutFile = Path.Combine(this.Enlistment.RepoRoot, TestConstants.DotGit.Info.SparseCheckout);
-            sparseCheckoutFile.ShouldBeAFile(this.FileSystem).WithContents().ShouldEqual("/.gitattributes\n");
+            // Verify modified paths contents
+            GVFSHelpers.ModifiedPathsContentsShouldEqual(this.FileSystem, this.Enlistment.DotGVFSRoot, "A .gitattributes" + Environment.NewLine);
         }
 
         [TestCase]
@@ -318,8 +314,7 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
             this.FileContentsShouldMatch(editFilePath);
             this.Enlistment.GetVirtualPathTo(readFilePath).ShouldBeAFile(this.FileSystem).WithContents().ShouldNotEqual(originalReadFileContents);
 
-            string sparseCheckoutFile = Path.Combine(this.Enlistment.RepoRoot, TestConstants.DotGit.Info.SparseCheckout);
-            sparseCheckoutFile.ShouldBeAFile(this.FileSystem).WithContents().ShouldNotContain(ignoreCase: true, unexpectedSubstrings: Path.GetFileName(readFilePath));
+            GVFSHelpers.ModifiedPathsShouldNotContain(this.FileSystem, this.Enlistment.DotGVFSRoot, Path.GetFileName(readFilePath));
         }
 
         [TestCase]
@@ -407,7 +402,7 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
             this.ShouldNotExistOnDisk(@"Test_ConflictTests\AddedFiles\AddedByBothSameContent.txt");
             this.ShouldNotExistOnDisk(@"Test_ConflictTests\AddedFiles\AddedBySource.txt");
 
-            // Check a second time to exercise the GvFlt negative cache
+            // Check a second time to exercise the ProjFS negative cache
             this.ShouldNotExistOnDisk(@"Test_ConflictTests\AddedFiles\AddedByBothDifferentContent.txt");
             this.ShouldNotExistOnDisk(@"Test_ConflictTests\AddedFiles\AddedByBothSameContent.txt");
             this.ShouldNotExistOnDisk(@"Test_ConflictTests\AddedFiles\AddedBySource.txt");
@@ -428,7 +423,7 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
             this.ShouldNotExistOnDisk(@"Test_ConflictTests\AddedFiles\AddedByBothSameContent.txt");
             this.ShouldNotExistOnDisk(@"Test_ConflictTests\AddedFiles\AddedBySource.txt");
 
-            // Check a second time to exercise the GvFlt negative cache
+            // Check a second time to exercise the ProjFS negative cache
             this.ShouldNotExistOnDisk(@"Test_ConflictTests\AddedFiles\AddedByBothDifferentContent.txt");
             this.ShouldNotExistOnDisk(@"Test_ConflictTests\AddedFiles\AddedByBothSameContent.txt");
             this.ShouldNotExistOnDisk(@"Test_ConflictTests\AddedFiles\AddedBySource.txt");
@@ -488,6 +483,11 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
         {
             this.ControlGitRepo.Fetch(GitRepoTests.ConflictSourceBranch);
             this.ControlGitRepo.Fetch(GitRepoTests.ConflictTargetBranch);
+
+            this.Enlistment.UnmountGVFS();
+            string gitIndexPath = Path.Combine(this.Enlistment.RepoRoot, ".git", "index");
+            CopyIndexAndRename(gitIndexPath);
+            this.Enlistment.MountGVFS();
 
             ManualResetEventSlim testReady = new ManualResetEventSlim(initialState: false);
             ManualResetEventSlim fileLocked = new ManualResetEventSlim(initialState: false);
@@ -690,14 +690,13 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
         [TestCase]
         public void DeleteFolderAndChangeBranchToFolderWithDifferentCase()
         {
-            // 692765 - Recursive sparse-checkout entries for folders should be case insensitive when
+            // 692765 - Recursive modified paths entries for folders should be case insensitive when
             // changing branches
 
             string folderName = "GVFlt_MultiThreadTest";
 
-            // Confirm that no other test has caused "GVFlt_MultiThreadTest" to be added to the sparse-checkout
-            string sparseFile = Path.Combine(this.Enlistment.RepoRoot, TestConstants.DotGit.Info.SparseCheckout);
-            sparseFile.ShouldBeAFile(this.FileSystem).WithContents().ShouldNotContain(ignoreCase: true, unexpectedSubstrings: folderName);
+            // Confirm that no other test has caused "GVFlt_MultiThreadTest" to be added to the modified paths database
+            GVFSHelpers.ModifiedPathsShouldNotContain(this.FileSystem, this.Enlistment.DotGVFSRoot, folderName);
 
             this.FolderShouldHaveCaseMatchingName(folderName, "GVFlt_MultiThreadTest");
             this.DeleteFolder(folderName);
@@ -867,7 +866,20 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
         {
             this.RunFileDirectoryWriteTest("checkout", commandBranch: GitRepoTests.DirectoryWithDifferentFileAfterBranch);
         }
-        
+
+        private static void CopyIndexAndRename(string indexPath)
+        {
+            string tempIndexPath = indexPath + ".lock";
+            using (FileStream currentIndexStream = new FileStream(indexPath, FileMode.Open, FileAccess.Read, FileShare.Read))
+            using (FileStream tempIndexStream = new FileStream(tempIndexPath, FileMode.CreateNew, FileAccess.ReadWrite, FileShare.ReadWrite))
+            {
+                currentIndexStream.CopyTo(tempIndexStream);
+            }
+
+            File.Delete(indexPath);
+            File.Move(tempIndexPath, indexPath);
+        }
+
         [DllImport("kernel32.dll", SetLastError = true, CharSet = CharSet.Unicode)]
         private static extern SafeFileHandle CreateFile(
             [In] string fileName,

@@ -36,7 +36,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
         [TestCase]
         public void UnmountWaitsForLock()
         {
-            ManualResetEventSlim lockHolder = GitHelpers.AcquireGVFSLock(this.Enlistment);
+            ManualResetEventSlim lockHolder = GitHelpers.AcquireGVFSLock(this.Enlistment, out _);
 
             using (Process unmountingProcess = this.StartUnmount())
             {
@@ -52,7 +52,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
         [TestCase]
         public void UnmountSkipLock()
         {
-            ManualResetEventSlim lockHolder = GitHelpers.AcquireGVFSLock(this.Enlistment);
+            ManualResetEventSlim lockHolder = GitHelpers.AcquireGVFSLock(this.Enlistment, out _, Timeout.Infinite, true);
 
             using (Process unmountingProcess = this.StartUnmount("--skip-wait-for-lock"))
             {

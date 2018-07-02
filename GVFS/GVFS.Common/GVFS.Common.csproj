@@ -1,181 +1,29 @@
-﻿<?xml version="1.0" encoding="utf-8"?>
-<Project ToolsVersion="14.0" DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
-  <Import Project="..\LibGit2Sharp.NativeBinaries.props" Condition="Exists('..\LibGit2Sharp.NativeBinaries.props')" />
-  <Import Project="$(MSBuildExtensionsPath)\$(MSBuildToolsVersion)\Microsoft.Common.props" Condition="Exists('$(MSBuildExtensionsPath)\$(MSBuildToolsVersion)\Microsoft.Common.props')" />
-  <Import Project="$(SolutionDir)\GVFS\GVFS.Build\GVFS.props" />
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <Import Project="..\LibGit2Sharp.NativeBinaries.props" />
+  <Import Project="..\GVFS.Build\GVFS.cs.props" />
+
   <PropertyGroup>
-    <ProjectGuid>{374BF1E5-0B2D-4D4A-BD5E-4212299DEF09}</ProjectGuid>
-    <OutputType>Library</OutputType>
-    <AppDesignerFolder>Properties</AppDesignerFolder>
-    <RootNamespace>GVFS.Common</RootNamespace>
-    <AssemblyName>GVFS.Common</AssemblyName>
-    <TargetFrameworkVersion>v4.6.1</TargetFrameworkVersion>
-    <FileAlignment>512</FileAlignment>
-    <NuGetPackageImportStamp>
-    </NuGetPackageImportStamp>
-  </PropertyGroup>
-  <PropertyGroup Condition="'$(Configuration)|$(Platform)' == 'Debug|x64'">
-    <DebugSymbols>true</DebugSymbols>
-    <DefineConstants>DEBUG;TRACE</DefineConstants>
-    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
-    <DebugType>full</DebugType>
-    <PlatformTarget>x64</PlatformTarget>
-    <ErrorReport>prompt</ErrorReport>
-    <CodeAnalysisRuleSet>MinimumRecommendedRules.ruleset</CodeAnalysisRuleSet>
+    <TargetFrameworks>netcoreapp2.0;netstandard2.0</TargetFrameworks>
+    <Platforms>x64</Platforms>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
   </PropertyGroup>
-  <PropertyGroup Condition="'$(Configuration)|$(Platform)' == 'Release|x64'">
-    <DefineConstants>TRACE</DefineConstants>
-    <Optimize>true</Optimize>
-    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
-    <DebugType>pdbonly</DebugType>
-    <PlatformTarget>x64</PlatformTarget>
-    <ErrorReport>prompt</ErrorReport>
-    <CodeAnalysisRuleSet>MinimumRecommendedRules.ruleset</CodeAnalysisRuleSet>
-    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
+    <Version>$(GVFSVersion)</Version>
   </PropertyGroup>
-  <ItemGroup>
-    <Reference Include="Microsoft.Diagnostics.Tracing.EventSource, Version=1.1.28.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a, processorArchitecture=MSIL">
-      <SpecificVersion>False</SpecificVersion>
-      <HintPath>..\..\..\packages\Microsoft.Diagnostics.Tracing.EventSource.Redist.1.1.28\lib\net46\Microsoft.Diagnostics.Tracing.EventSource.dll</HintPath>
-      <Private>True</Private>
-    </Reference>
-    <Reference Include="Newtonsoft.Json, Version=7.0.0.0, Culture=neutral, PublicKeyToken=30ad4fe6b2a6aeed, processorArchitecture=MSIL">
-      <SpecificVersion>False</SpecificVersion>
-      <HintPath>..\..\..\packages\Newtonsoft.Json.7.0.1\lib\net45\Newtonsoft.Json.dll</HintPath>
-      <Private>True</Private>
-    </Reference>
-    <Reference Include="System" />
-    <Reference Include="System.Core" />
-    <Reference Include="System.Management" />
-    <Reference Include="System.Runtime.Caching" />
-    <Reference Include="System.ServiceProcess" />
-    <Reference Include="System.Web" />
-    <Reference Include="System.Xml.Linq" />
-    <Reference Include="System.Data.DataSetExtensions" />
-    <Reference Include="Microsoft.CSharp" />
-    <Reference Include="System.Data" />
-    <Reference Include="System.Net.Http" />
-    <Reference Include="System.Xml" />
-  </ItemGroup>
-  <ItemGroup>
-    <Compile Include="$(BuildOutputDir)\CommonAssemblyVersion.cs">
-      <Link>CommonAssemblyVersion.cs</Link>
-    </Compile>
-    <Compile Include="FileBasedCollection.cs" />
-    <Compile Include="FileBasedCollectionException.cs" />
-    <Compile Include="FileSystem\PhysicalFileSystemExtensions.cs" />
-    <Compile Include="FileSystem\FlushToDiskFileStream.cs" />
-    <Compile Include="Git\Sha1Id.cs" />
-    <Compile Include="LocalCacheResolver.cs" />
-    <Compile Include="Http\CacheServerResolver.cs" />
-    <Compile Include="Paths.Shared.cs" />
-    <Compile Include="PlaceholderListDatabase.cs" />
-    <Compile Include="FileSystem\ProjFSFilter.cs" />
-    <Compile Include="GVFSEnlistment.Shared.cs" />
-    <Compile Include="NetworkStreams\BatchedLooseObjectDeserializer.cs" />
-    <Compile Include="NetworkStreams\RestrictedStream.cs" />
-    <Compile Include="ConsoleHelper.cs" />
-    <Compile Include="FileBasedDictionary.cs" />
-    <Compile Include="Http\CacheServerInfo.cs" />
-    <Compile Include="GitCommandLineParser.cs" />
-    <Compile Include="Git\GitAuthentication.cs" />
-    <Compile Include="Git\GitConfigHelper.cs" />
-    <Compile Include="Git\GitConfigSetting.cs" />
-    <Compile Include="Git\GitOid.cs" />
-    <Compile Include="Git\GitPathConverter.cs" />
-    <Compile Include="Git\LibGit2Repo.cs" />
-    <Compile Include="Git\RefLogEntry.cs" />
-    <Compile Include="GVFSConfig.cs" />
-    <Compile Include="Git\GitObjectContentType.cs" />
-    <Compile Include="Paths.cs" />
-    <Compile Include="GVFSLock.Shared.cs" />
-    <Compile Include="Http\GitEndPointResponseData.cs" />
-    <Compile Include="Http\ConfigHttpRequestor.cs" />
-    <Compile Include="Http\GitObjectsHttpException.cs" />
-    <Compile Include="RetryConfig.cs" />
-    <Compile Include="Http\HttpRequestor.cs" />
-    <Compile Include="GVFSLock.cs" />
-    <Compile Include="HeartbeatThread.cs" />
-    <Compile Include="IHeartBeatMetadataProvider.cs" />
-    <Compile Include="InvalidRepoException.cs" />
-    <Compile Include="NamedPipes\AllowAllLocksNamedPipeServer.cs" />
-    <Compile Include="NamedPipes\LockNamedPipeMessages.cs" />
-    <Compile Include="NamedPipes\PipeNameLengthException.cs" />
-    <Compile Include="RepoMetadata.cs" />
-    <Compile Include="NetworkStreams\PrefetchPacksDeserializer.cs" />
-    <Compile Include="RetryableException.cs" />
-    <Compile Include="RetryBackoff.cs" />
-    <Compile Include="ReturnCode.cs" />
-    <Compile Include="StreamUtil.cs" />
-    <Compile Include="ConcurrentHashSet.cs" />
-    <Compile Include="FileBasedLock.cs" />
-    <Compile Include="LibGit2RepoPool.cs" />
-    <Compile Include="Git\DiffTreeResult.cs" />
-    <Compile Include="Git\GitProcess.cs" />
-    <Compile Include="Git\GitRefs.cs" />
-    <Compile Include="Git\GitVersion.cs" />
-    <Compile Include="NamedPipes\BrokenPipeException.cs" />
-    <Compile Include="NamedPipes\NamedPipeClient.cs" />
-    <Compile Include="NamedPipes\NamedPipeMessages.cs" />
-    <Compile Include="NamedPipes\NamedPipeServer.cs" />
-    <Compile Include="ProcessHelper.cs" />
-    <Compile Include="GVFSConstants.cs" />
-    <Compile Include="GVFSContext.cs" />
-    <Compile Include="GVFSEnlistment.cs" />
-    <Compile Include="Http\GitObjectsHttpRequestor.cs" />
-    <Compile Include="Enlistment.cs" />
-    <Compile Include="Git\GitObjects.cs" />
-    <Compile Include="NativeMethods.cs" />
-    <Compile Include="FileSystem\DirectoryItemInfo.cs" />
-    <Compile Include="FileSystem\FileProperties.cs" />
-    <Compile Include="FileSystem\PhysicalFileSystem.cs" />
-    <Compile Include="Git\GVFSGitObjects.cs" />
-    <Compile Include="Git\GitRepo.cs" />
-    <Compile Include="ProcessResult.cs" />
-    <Compile Include="Properties\AssemblyInfo.cs" />
-    <Compile Include="RetryWrapper.cs" />
-    <Compile Include="SHA1Util.cs" />
-    <Compile Include="Tracing\DiagnosticConsoleEventListener.cs" />
-    <Compile Include="Tracing\PrettyConsoleEventListener.cs" />
-    <Compile Include="Tracing\EventMetadata.cs" />
-    <Compile Include="Tracing\InProcEventListener.cs" />
-    <Compile Include="Tracing\ITracer.cs" />
-    <Compile Include="Tracing\JsonEtwTracer.cs" />
-    <Compile Include="Tracing\Keywords.cs" />
-    <Compile Include="Tracing\LogFileEventListener.cs" />
-    <Compile Include="Tracing\TracingConstants.cs" />
-  </ItemGroup>
-  <ItemGroup>
-    <None Include="packages.config" />
-  </ItemGroup>
-  <ItemGroup />
-  <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
-  <Target Name="EnsureNuGetPackageBuildImports" BeforeTargets="PrepareForBuild">
-    <PropertyGroup>
-      <ErrorText>This project references NuGet package(s) that are missing on this computer. Use NuGet Package Restore to download them.  For more information, see http://go.microsoft.com/fwlink/?LinkID=322105. The missing file is {0}.</ErrorText>
-    </PropertyGroup>
-    <Error Condition="!Exists('..\..\..\packages\StyleCop.Error.MSBuild.1.0.0\build\StyleCop.Error.MSBuild.Targets')" Text="$([System.String]::Format('$(ErrorText)', '..\..\..\packages\StyleCop.Error.MSBuild.1.0.0\build\StyleCop.Error.MSBuild.Targets'))" />
-    <Error Condition="!Exists('..\..\..\packages\Microsoft.Diagnostics.Tracing.EventRegister.1.1.28\build\Microsoft.Diagnostics.Tracing.EventRegister.targets')" Text="$([System.String]::Format('$(ErrorText)', '..\..\..\packages\Microsoft.Diagnostics.Tracing.EventRegister.1.1.28\build\Microsoft.Diagnostics.Tracing.EventRegister.targets'))" />
-    <Error Condition="!Exists('..\..\..\packages\StyleCop.MSBuild.4.7.54.0\build\StyleCop.MSBuild.Targets')" Text="$([System.String]::Format('$(ErrorText)', '..\..\..\packages\StyleCop.MSBuild.4.7.54.0\build\StyleCop.MSBuild.Targets'))" />
-    <Error Condition="!Exists('..\LibGit2Sharp.NativeBinaries.props')" Text="$([System.String]::Format('$(ErrorText)', '..\LibGit2Sharp.NativeBinaries.props'))" />
-  </Target>
-  <Import Project="..\..\..\packages\StyleCop.Error.MSBuild.1.0.0\build\StyleCop.Error.MSBuild.Targets" Condition="Exists('..\..\..\packages\StyleCop.Error.MSBuild.1.0.0\build\StyleCop.Error.MSBuild.Targets')" />
-  <Import Project="..\..\..\packages\Microsoft.Diagnostics.Tracing.EventRegister.1.1.28\build\Microsoft.Diagnostics.Tracing.EventRegister.targets" Condition="Exists('..\..\..\packages\Microsoft.Diagnostics.Tracing.EventRegister.1.1.28\build\Microsoft.Diagnostics.Tracing.EventRegister.targets')" />
-  <PropertyGroup>
-    <PostBuildEvent>
-    </PostBuildEvent>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
+    <Version>$(GVFSVersion)</Version>
   </PropertyGroup>
-  <PropertyGroup>
-    <PreBuildEvent>
-    </PreBuildEvent>
-  </PropertyGroup>
-  <Import Project="..\..\..\packages\StyleCop.MSBuild.4.7.54.0\build\StyleCop.MSBuild.Targets" Condition="Exists('..\..\..\packages\StyleCop.MSBuild.4.7.54.0\build\StyleCop.MSBuild.Targets')" />
-  <!-- To modify your build process, add your task inside one of the targets below and uncomment it. 
-       Other similar extension points exist, see Microsoft.Common.targets.
-  <Target Name="BeforeBuild">
-  </Target>
-  <Target Name="AfterBuild">
-  </Target>
-  -->
+
+  <ItemGroup>
+    <Compile Include="..\..\..\BuildOutput\GVFS.Build\GVFSConstants.GitVersion.cs" Link="GVFSConstants.GitVersion.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="LibGit2Sharp.NativeBinaries" Version="1.0.165" />
+    <PackageReference Include="Newtonsoft.Json" Version="11.0.2" />
+    <PackageReference Include="StyleCop.Error.MSBuild" Version="1.0.0" Condition="'$(OS)' == 'Windows_NT'" />
+    <PackageReference Include="StyleCop.MSBuild" Version="5.0.0" Condition="'$(OS)' == 'Windows_NT'" />
+    <PackageReference Include="System.Security.Cryptography.Algorithms" Version="4.3.0" />
+  </ItemGroup>
 </Project>

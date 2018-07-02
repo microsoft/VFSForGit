@@ -64,7 +64,7 @@ namespace GVFS.UnitTests.Mock.FileSystem
 
         public void AddOrOverwriteFile(MockFile file, string path)
         {
-            string parentPath = path.Substring(0, path.LastIndexOf(GVFSConstants.PathSeparator));
+            string parentPath = path.Substring(0, path.LastIndexOf(Path.DirectorySeparatorChar));
             MockDirectory parentDirectory = this.FindDirectory(parentPath);
 
             if (parentDirectory == null)
@@ -84,7 +84,7 @@ namespace GVFS.UnitTests.Mock.FileSystem
 
         public void AddFile(MockFile file, string path)
         {
-            string parentPath = path.Substring(0, path.LastIndexOf(GVFSConstants.PathSeparator));
+            string parentPath = path.Substring(0, path.LastIndexOf(Path.DirectorySeparatorChar));
             MockDirectory parentDirectory = this.FindDirectory(parentPath);
 
             if (parentDirectory == null)
@@ -150,7 +150,7 @@ namespace GVFS.UnitTests.Mock.FileSystem
 
         public MockFile CreateFile(string path, string contents, bool createDirectories = false)
         {
-            string parentPath = path.Substring(0, path.LastIndexOf(GVFSConstants.PathSeparator));
+            string parentPath = path.Substring(0, path.LastIndexOf(Path.DirectorySeparatorChar));
             MockDirectory parentDirectory = this.FindDirectory(parentPath);
             if (createDirectories)
             {
@@ -172,7 +172,7 @@ namespace GVFS.UnitTests.Mock.FileSystem
 
         public MockDirectory CreateDirectory(string path)
         {
-            int lastSlashIdx = path.LastIndexOf(GVFSConstants.PathSeparator);
+            int lastSlashIdx = path.LastIndexOf(Path.DirectorySeparatorChar);
             string parentPath = path.Substring(0, lastSlashIdx);
             MockDirectory parentDirectory = this.FindDirectory(parentPath);
             if (parentDirectory == null)
@@ -222,7 +222,7 @@ namespace GVFS.UnitTests.Mock.FileSystem
             MockDirectory sourceDirectoryParent;
             this.TryGetDirectoryAndParent(sourcePath, out sourceDirectory, out sourceDirectoryParent).ShouldEqual(true);
             
-            int endPathIndex = targetPath.LastIndexOf(GVFSConstants.PathSeparator);
+            int endPathIndex = targetPath.LastIndexOf(Path.DirectorySeparatorChar);
             string targetDirectoryPath = targetPath.Substring(0, endPathIndex);
 
             MockDirectory targetDirectory = this.FindDirectory(targetDirectoryPath);
@@ -273,7 +273,7 @@ namespace GVFS.UnitTests.Mock.FileSystem
             }
             else
             {
-                string parentPath = path.Substring(0, path.LastIndexOf(GVFSConstants.PathSeparator));
+                string parentPath = path.Substring(0, path.LastIndexOf(Path.DirectorySeparatorChar));
                 parentDirectory = this.FindDirectory(parentPath);
                 if (parentDirectory != null)
                 {

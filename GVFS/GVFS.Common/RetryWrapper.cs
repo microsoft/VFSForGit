@@ -1,11 +1,9 @@
 ﻿using GVFS.Common.Tracing;
-using Microsoft.Diagnostics.Tracing;
 using System;
 using System.IO;
 using System.Net.Http;
 using System.Threading;
 using System.Threading.Tasks;
-using System.Web;
 
 namespace GVFS.Common
 {
@@ -123,7 +121,6 @@ namespace GVFS.Common
         private bool IsHandlableException(Exception e)
         {
             return
-                e is HttpException ||
                 e is HttpRequestException ||
                 e is IOException ||
                 e is RetryableException;

@@ -33,7 +33,6 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
         }
 
         [TestCase]
-        [Ignore("939998 - git checkout --orphan after git reset --mixed does not report deleted files on GVFS ")]
         public void ResetMixedAndCheckoutOrphanBranch()
         {
             this.ValidateGitCommand("checkout " + GitRepoTests.ConflictTargetBranch);

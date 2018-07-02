@@ -15,7 +15,6 @@ namespace GVFS.Common
             int pid,
             bool isElevated,
             bool checkAvailabilityOnly,
-            Process parentProcess,
             string gvfsEnlistmentRoot,
             out string result)
         {
@@ -105,7 +104,6 @@ namespace GVFS.Common
             string fullCommand,
             int pid,
             bool isElevated,
-            Process parentProcess,
             Action<NamedPipeMessages.ReleaseLock.Response> responseHandler,
             string gvfsEnlistmentRoot,
             string waitingMessage = "",

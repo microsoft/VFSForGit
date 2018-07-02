@@ -1,8 +1,6 @@
 ﻿using GVFS.Common.FileSystem;
 using GVFS.Common.Tracing;
-using Microsoft.Diagnostics.Tracing;
 using System;
-using System.Diagnostics;
 using System.IO;
 using System.IO.Compression;
 using System.Linq;

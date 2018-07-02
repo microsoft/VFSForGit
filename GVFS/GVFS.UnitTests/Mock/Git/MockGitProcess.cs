@@ -1,8 +1,6 @@
-﻿using GVFS.Common.FileSystem;
-using GVFS.Common.Git;
+﻿using GVFS.Common.Git;
 using GVFS.Tests.Should;
 using GVFS.UnitTests.Mock.Common;
-using GVFS.UnitTests.Mock.FileSystem;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -13,8 +11,8 @@ namespace GVFS.UnitTests.Mock.Git
     {
         private Dictionary<string, Func<Result>> expectedCommands = new Dictionary<string, Func<Result>>();
 
-        public MockGitProcess(PhysicalFileSystem fileSystem = null) 
-            : base(new MockEnlistment(), fileSystem ?? new ConfigurableFileSystem())
+        public MockGitProcess() 
+            : base(new MockEnlistment())
         {
         }
 

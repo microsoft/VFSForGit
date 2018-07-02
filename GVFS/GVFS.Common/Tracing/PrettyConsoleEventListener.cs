@@ -1,5 +1,4 @@
 ﻿using System;
-using Microsoft.Diagnostics.Tracing;
 using Newtonsoft.Json;
 
 namespace GVFS.Common.Tracing

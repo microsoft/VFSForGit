@@ -2,14 +2,13 @@
 using System;
 using System.IO;
 using System.IO.Pipes;
-using System.Security.AccessControl;
-using System.Security.Principal;
 using System.Threading;
 
 namespace GVFS.Common.NamedPipes
 {
     public class NamedPipeServer : IDisposable
     {
+        // TODO(Mac) the limit is much shorter on macOS
         // Tests show that 250 is the max supported pipe name length
         private const int MaxPipeNameLength = 250;
 
@@ -77,24 +76,8 @@ namespace GVFS.Common.NamedPipes
                     throw new InvalidOperationException("There is already a pipe listening for a connection");
                 }
 
-                PipeSecurity security = new PipeSecurity();
-                security.AddAccessRule(new PipeAccessRule(new SecurityIdentifier(WellKnownSidType.BuiltinUsersSid, null), PipeAccessRights.ReadWrite | PipeAccessRights.CreateNewInstance, AccessControlType.Allow));
-                security.AddAccessRule(new PipeAccessRule(new SecurityIdentifier(WellKnownSidType.CreatorOwnerSid, null), PipeAccessRights.FullControl, AccessControlType.Allow));
-                security.AddAccessRule(new PipeAccessRule(new SecurityIdentifier(WellKnownSidType.LocalSystemSid, null), PipeAccessRights.FullControl, AccessControlType.Allow));
-
-                NamedPipeServerStream pipe = new NamedPipeServerStream(
-                    this.pipeName,
-                    PipeDirection.InOut,
-                    NamedPipeServerStream.MaxAllowedServerInstances,
-                    PipeTransmissionMode.Byte,
-                    PipeOptions.WriteThrough | PipeOptions.Asynchronous,
-                    0, // default inBufferSize
-                    0, // default outBufferSize
-                    security,
-                    HandleInheritability.None);
-
-                this.listeningPipe = pipe;
-                pipe.BeginWaitForConnection(this.OnNewConnection, pipe);
+                this.listeningPipe = GVFSPlatform.Instance.CreatePipeByName(this.pipeName);
+                this.listeningPipe.BeginWaitForConnection(this.OnNewConnection, this.listeningPipe);
             }
             catch (Exception e)
             {
@@ -104,6 +87,22 @@ namespace GVFS.Common.NamedPipes
 
         private void OnNewConnection(IAsyncResult ar)
         {
+            this.OnNewConnection(ar, createNewThreadIfSynchronous: true);
+        }
+
+        private void OnNewConnection(IAsyncResult ar, bool createNewThreadIfSynchronous)
+        {
+            if (createNewThreadIfSynchronous &&
+               ar.CompletedSynchronously)
+            {
+                // if this callback got called synchronously, we must not do any blocking IO on this thread
+                // or we will block the original caller. Moving to a new thread so that it will be safe
+                // to call a blocking Read on the NamedPipeServerStream
+
+                new Thread(() => this.OnNewConnection(ar, createNewThreadIfSynchronous: false)).Start();
+                return;
+            }
+
             this.listeningPipe = null;
             bool connectionBroken = false;
 
@@ -122,7 +121,7 @@ namespace GVFS.Common.NamedPipes
                     metadata.Add("Area", "NamedPipeServer");
                     metadata.Add("Exception", e.ToString());
                     metadata.Add(TracingConstants.MessageKey.WarningMessage, "OnNewConnection: Connection broken");
-                    this.tracer.RelatedEvent(Microsoft.Diagnostics.Tracing.EventLevel.Warning, "OnNewConnectionn_EndWaitForConnection_IOException", metadata);
+                    this.tracer.RelatedEvent(EventLevel.Warning, "OnNewConnectionn_EndWaitForConnection_IOException", metadata);
                 }
                 catch (ObjectDisposedException)
                 {

@@ -9,43 +9,31 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerTestCase
 {
     [TestFixture]
     [Category(Categories.FullSuiteOnly)]
+    [Category(Categories.Mac.M1)]
     public class PersistedWorkingDirectoryTests : TestsWithEnlistmentPerTestCase
     {
-        public void MountMatchesRemount()
-        {
-            List<string> fileEntriesBefore = new List<string>(Directory.EnumerateFileSystemEntries(this.Enlistment.RepoRoot));
-
-            this.Enlistment.UnmountGVFS();
-            this.Enlistment.MountGVFS();
-
-            List<string> fileEntriesAfter = new List<string>(Directory.EnumerateFileSystemEntries(this.Enlistment.RepoRoot));
-
-            fileEntriesBefore.Count.ShouldEqual(fileEntriesAfter.Count);
-            fileEntriesBefore.ShouldContain(fileEntriesAfter, (item, expectedValue) => { return string.Equals(item, expectedValue); });
-        }
-
         [TestCaseSource(typeof(FileSystemRunner), FileSystemRunner.TestRunners)]
         public void PersistedDirectoryLazyLoad(FileSystemRunner fileSystem)
         {
-            const string EnumerateDirectoryName = "GVFS\\GVFS";
+            string enumerateDirectoryName = Path.Combine("GVFS", "GVFS");
 
             string[] subFolders = new string[]
             {
-                Path.Combine(EnumerateDirectoryName, "Properties"),
-                Path.Combine(EnumerateDirectoryName, "CommandLine")
+                Path.Combine(enumerateDirectoryName, "Properties"),
+                Path.Combine(enumerateDirectoryName, "CommandLine")
             };
 
             string[] subFiles = new string[]
             {
-                Path.Combine(EnumerateDirectoryName, "App.config"),
-                Path.Combine(EnumerateDirectoryName, "GitVirtualFileSystem.ico"),
-                Path.Combine(EnumerateDirectoryName, "GVFS.csproj"),
-                Path.Combine(EnumerateDirectoryName, "packages.config"),
-                Path.Combine(EnumerateDirectoryName, "Program.cs"),
-                Path.Combine(EnumerateDirectoryName, "Setup.iss")
+                Path.Combine(enumerateDirectoryName, "App.config"),
+                Path.Combine(enumerateDirectoryName, "GitVirtualFileSystem.ico"),
+                Path.Combine(enumerateDirectoryName, "GVFS.csproj"),
+                Path.Combine(enumerateDirectoryName, "packages.config"),
+                Path.Combine(enumerateDirectoryName, "Program.cs"),
+                Path.Combine(enumerateDirectoryName, "Setup.iss")
             };
 
-            string enumerateDirectoryPath = this.Enlistment.GetVirtualPathTo(EnumerateDirectoryName);
+            string enumerateDirectoryPath = this.Enlistment.GetVirtualPathTo(enumerateDirectoryName);
             fileSystem.DirectoryExists(enumerateDirectoryPath).ShouldEqual(true);
             
             foreach (string folder in subFolders)
@@ -90,7 +78,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerTestCase
             fileSystem.DeleteFile(deleteFilepath);
 
             // Delete Folder Setup
-            string deleteFolderName = "GVFS\\GVFS";
+            string deleteFolderName = Path.Combine("GVFS", "GVFS");
             string deleteFolderPath = this.Enlistment.GetVirtualPathTo(deleteFolderName);
             fileSystem.DeleteDirectory(deleteFolderPath);
 
@@ -135,7 +123,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerTestCase
 
             // NestedLoadAndWriteAfterMount Setup
             // Write a file to GVFS to ensure it has a physical folder
-            string childFileToAdd = "GVFS\\ChildFileToAdd.txt";
+            string childFileToAdd = Path.Combine("GVFS", "ChildFileToAdd.txt");
             string childFileToAddContent = "This is new child file in the GVFS folder.";
             string childFileToAddPath = this.Enlistment.GetVirtualPathTo(childFileToAdd);
             fileSystem.WriteAllText(childFileToAddPath, childFileToAddContent);              
@@ -173,7 +161,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerTestCase
 
             // NestedLoadAndWriteAfterMount Validation
             childFileToAddPath.ShouldBeAFile(fileSystem).WithContents().ShouldEqual(childFileToAddContent);
-            string childFolder = "GVFS\\GVFS.FunctionalTests";
+            string childFolder = Path.Combine("GVFS", "GVFS.FunctionalTests");
             string childFolderPath = this.Enlistment.GetVirtualPathTo(childFolder);
             childFolderPath.ShouldBeADirectory(fileSystem);
             string postMountChildFile = "PostMountChildFile.txt";

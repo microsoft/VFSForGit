@@ -1,10 +1,10 @@
-using GVFS.FunctionalTests.Tests;
+﻿using GVFS.FunctionalTests.Tests;
 using GVFS.FunctionalTests.Tools;
 using GVFS.Tests;
-using NUnit.Framework;
 using System;
 using System.Diagnostics;
 using System.IO;
+using System.Runtime.InteropServices;
 
 namespace GVFS.FunctionalTests
 {
@@ -12,8 +12,9 @@ namespace GVFS.FunctionalTests
     {
         public static void Main(string[] args)
         {
+            Properties.Settings.Default.Initialize();
             NUnitRunner runner = new NUnitRunner(args);
-            
+
             if (runner.HasCustomArg("--no-shared-gvfs-cache"))
             {
                 Console.WriteLine("Running without a shared git object cache");
@@ -26,33 +27,78 @@ namespace GVFS.FunctionalTests
                 GVFSTestConfig.TestGVFSOnPath = true;
             }
 
+            if (runner.HasCustomArg("--replace-inbox-projfs"))
+            {
+                Console.WriteLine("Tests will replace inbox ProjFS");
+                GVFSTestConfig.ReplaceInboxProjFS = true;
+            }
+
             GVFSTestConfig.LocalCacheRoot = runner.GetCustomArgWithParam("--shared-gvfs-cache-root");
 
             if (runner.HasCustomArg("--full-suite"))
             {
                 Console.WriteLine("Running the full suite of tests");
-                GVFSTestConfig.UseAllRunners = true;
+
+                if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+                {
+                    GVFSTestConfig.FileSystemRunners = FileSystemRunners.FileSystemRunner.AllWindowsRunners;
+                }
+                else if (RuntimeInformation.IsOSPlatform(OSPlatform.OSX))
+                {
+                    GVFSTestConfig.FileSystemRunners = FileSystemRunners.FileSystemRunner.AllMacRunners;
+                }
             }
             else
             {
                 runner.ExcludeCategory(Categories.FullSuiteOnly);
+                GVFSTestConfig.FileSystemRunners = FileSystemRunners.FileSystemRunner.DefaultRunners;
+            }
+
+            if (runner.HasCustomArg("--windows-only"))
+            {
+                runner.IncludeCategory(Categories.Windows);
+            }
+
+            if (runner.HasCustomArg("--mac-only"))
+            {
+                runner.IncludeCategory(Categories.Mac.M1);
+                runner.ExcludeCategory(Categories.Mac.M2);
+                runner.ExcludeCategory(Categories.Mac.M3);
+                runner.ExcludeCategory(Categories.Mac.M4);
+                runner.ExcludeCategory(Categories.Windows);
             }
 
             GVFSTestConfig.RepoToClone =
                 runner.GetCustomArgWithParam("--repo-to-clone")
                 ?? Properties.Settings.Default.RepoToClone;
+            
+            RunBeforeAnyTests();
+            Environment.ExitCode = runner.RunTests();
+            RunAfterAllTests();
 
-            string servicePath = 
-                GVFSTestConfig.TestGVFSOnPath ? 
-                Properties.Settings.Default.PathToGVFSService : 
-                Path.Combine(TestContext.CurrentContext.TestDirectory, Properties.Settings.Default.PathToGVFSService);
-
-            GVFSServiceProcess.InstallService(servicePath);
-            try
+            if (Debugger.IsAttached)
             {
-                Environment.ExitCode = runner.RunTests();
+                Console.WriteLine("Tests completed. Press Enter to exit.");
+                Console.ReadLine();
             }
-            finally
+        }
+
+        private static void RunBeforeAnyTests()
+        {
+            if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+            {
+                if (GVFSTestConfig.ReplaceInboxProjFS)
+                {
+                    ProjFSFilterInstaller.ReplaceInboxProjFS();
+                }
+
+                GVFSServiceProcess.InstallService();
+            }
+        }
+
+        private static void RunAfterAllTests()
+        {
+            if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
             {
                 string serviceLogFolder = Path.Combine(
                     Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData),
@@ -70,12 +116,6 @@ namespace GVFS.FunctionalTests
             }
 
             PrintTestCaseStats.PrintRunTimeStats();
-
-            if (Debugger.IsAttached)
-            {
-                Console.WriteLine("Tests completed. Press Enter to exit.");
-                Console.ReadLine();
-            }
         }
     }
 }

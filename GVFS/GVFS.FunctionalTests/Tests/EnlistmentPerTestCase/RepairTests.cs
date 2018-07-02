@@ -1,8 +1,10 @@
 ﻿using GVFS.FunctionalTests.Tools;
 using GVFS.Tests.Should;
 using NUnit.Framework;
+using System;
 using System.IO;
 using System.Linq;
+using System.Text;
 
 namespace GVFS.FunctionalTests.Tests.EnlistmentPerTestCase
 {
@@ -61,7 +63,13 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerTestCase
             this.Enlistment.UnmountGVFS();
 
             string gitIndexPath = Path.Combine(this.Enlistment.RepoRoot, ".git", "index");
-            File.WriteAllText(gitIndexPath, "BAD_INDEX");
+            this.CreateCorruptIndexAndRename(
+                gitIndexPath,
+                (current, temp) =>
+                {
+                    byte[] badData = Encoding.ASCII.GetBytes("BAD_INDEX");
+                    temp.Write(badData, 0, badData.Length);
+                });
 
             string output;
             this.Enlistment.TryMountGVFS(out output).ShouldEqual(false, "GVFS shouldn't mount when index is corrupt");
@@ -80,8 +88,12 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerTestCase
             string gitIndexPath = Path.Combine(this.Enlistment.RepoRoot, ".git", "index");
 
             // Set the contents of the index file to gitIndexPath NULL
-            FileInfo indexFileInfo = new FileInfo(gitIndexPath);
-            File.WriteAllBytes(gitIndexPath, Enumerable.Repeat<byte>(0, (int)indexFileInfo.Length).ToArray());
+            this.CreateCorruptIndexAndRename(
+                gitIndexPath,
+                (current, temp) =>
+                {
+                    temp.Write(Enumerable.Repeat<byte>(0, (int)current.Length).ToArray(), 0, (int)current.Length);
+                });
 
             string output;
             this.Enlistment.TryMountGVFS(out output).ShouldEqual(false, "GVFS shouldn't mount when index is corrupt");
@@ -100,12 +112,15 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerTestCase
             string gitIndexPath = Path.Combine(this.Enlistment.RepoRoot, ".git", "index");
 
             // Truncate the contents of the index
-            FileInfo indexFileInfo = new FileInfo(gitIndexPath);
-            using (FileStream indexStream = new FileStream(gitIndexPath, FileMode.Open))
-            {
-                // 20 will truncate the file in the middle of the first entry in the index
-                indexStream.SetLength(20);
-            }
+            this.CreateCorruptIndexAndRename(
+                gitIndexPath,
+                (current, temp) =>
+                {
+                    // 20 will truncate the file in the middle of the first entry in the index
+                    byte[] currentStartOfIndex = new byte[20];
+                    current.Read(currentStartOfIndex, 0, currentStartOfIndex.Length);
+                    temp.Write(currentStartOfIndex, 0, currentStartOfIndex.Length);
+                });
 
             string output;
             this.Enlistment.TryMountGVFS(out output).ShouldEqual(false, "GVFS shouldn't mount when index is corrupt");
@@ -132,6 +147,19 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerTestCase
             result.ExitCode.ShouldEqual(0, result.Errors);
             
             this.Enlistment.MountGVFS();
+        }
+
+        private void CreateCorruptIndexAndRename(string indexPath, Action<FileStream, FileStream> corruptionAction)
+        {
+            string tempIndexPath = indexPath + ".lock";
+            using (FileStream currentIndexStream = new FileStream(indexPath, FileMode.Open, FileAccess.Read, FileShare.Read))
+            using (FileStream tempIndexStream = new FileStream(tempIndexPath, FileMode.CreateNew, FileAccess.ReadWrite, FileShare.ReadWrite))
+            {
+                corruptionAction(currentIndexStream, tempIndexStream);
+            }
+
+            File.Delete(indexPath);
+            File.Move(tempIndexPath, indexPath);
         }
     }
 }

@@ -26,27 +26,20 @@ namespace GVFS.Common
             this.enlistment = enlistment;
         }
 
-        public static bool TryGetDefaultLocalCacheRoot(GVFSEnlistment enlistment, out string localCacheRoot, out string errorMessage)
+        public static string GetDefaultLocalCacheRoot(GVFSEnlistment enlistment)
         {
-            localCacheRoot = null;
-            errorMessage = string.Empty;
-
+            string localCacheRoot;
             if (GVFSEnlistment.IsUnattended(tracer: null))
             {
                 localCacheRoot = Path.Combine(enlistment.DotGVFSRoot, DefaultGVFSCacheFolderName);
             }
             else
             {
-                string pathRoot;
-                if (!Paths.TryGetFinalPathRoot(enlistment.EnlistmentRoot, out pathRoot, out errorMessage))
-                {
-                    return false;
-                }
-
+                string pathRoot = Path.GetPathRoot(enlistment.EnlistmentRoot);
                 localCacheRoot = Path.Combine(pathRoot, DefaultGVFSCacheFolderName);
             }
 
-            return true;
+            return localCacheRoot;
         }
 
         public bool TryGetLocalCacheKeyFromLocalConfigOrRemoteCacheServers(
@@ -75,8 +68,7 @@ namespace GVFS.Common
                     this.fileSystem, 
                     tracer, 
                     lockPath, 
-                    this.enlistment.EnlistmentRoot, 
-                    cleanupStaleLock: false, 
+                    this.enlistment.EnlistmentRoot,
                     overwriteExistingLock: true))
                 {
                     if (!this.TryAcquireLockWithRetries(tracer, mappingLock))
@@ -114,7 +106,7 @@ namespace GVFS.Common
                                 metadata.Add("this.enlistment.RepoUrl", this.enlistment.RepoUrl);
                                 metadata.Add("currentCacheServer", currentCacheServer.ToString());
                                 metadata.Add(TracingConstants.MessageKey.InfoMessage, nameof(this.TryGetLocalCacheKeyFromLocalConfigOrRemoteCacheServers) + ": Found existing local cache key");
-                                tracer.RelatedEvent(Microsoft.Diagnostics.Tracing.EventLevel.Informational, "LocalCacheResolver_ExistingKey", metadata);
+                                tracer.RelatedEvent(EventLevel.Informational, "LocalCacheResolver_ExistingKey", metadata);
 
                                 return true;
                             }
@@ -129,7 +121,7 @@ namespace GVFS.Common
                                 {
                                     metadata.Add("localCacheKey", localCacheKey);
                                     metadata.Add(TracingConstants.MessageKey.InfoMessage, nameof(this.TryGetLocalCacheKeyFromLocalConfigOrRemoteCacheServers) + ": Generated new local cache key");
-                                    tracer.RelatedEvent(Microsoft.Diagnostics.Tracing.EventLevel.Informational, "LocalCacheResolver_NewKey", metadata);
+                                    tracer.RelatedEvent(EventLevel.Informational, "LocalCacheResolver_NewKey", metadata);
                                     return true;
                                 }
 
@@ -220,7 +212,7 @@ namespace GVFS.Common
                     metadata.Add("localCacheKey", localCacheKey);
                     metadata.Add("this.enlistment.RepoUrl", this.enlistment.RepoUrl);
                     metadata.Add(TracingConstants.MessageKey.InfoMessage, nameof(this.TryGetLocalCacheKeyFromRemoteCacheServers) + ": Found an existing a local key by cross referencing");
-                    tracer.RelatedEvent(Microsoft.Diagnostics.Tracing.EventLevel.Informational, "LocalCacheResolver_ExistingKeyFromCrossReferencing", metadata);
+                    tracer.RelatedEvent(EventLevel.Informational, "LocalCacheResolver_ExistingKeyFromCrossReferencing", metadata);
                 }
                 else
                 {
@@ -231,7 +223,7 @@ namespace GVFS.Common
                     metadata.Add("localCacheKey", localCacheKey);
                     metadata.Add("this.enlistment.RepoUrl", this.enlistment.RepoUrl);
                     metadata.Add(TracingConstants.MessageKey.InfoMessage, nameof(this.TryGetLocalCacheKeyFromRemoteCacheServers) + ": Generated a new local key after cross referencing");
-                    tracer.RelatedEvent(Microsoft.Diagnostics.Tracing.EventLevel.Informational, "LocalCacheResolver_NewKeyAfterCrossReferencing", metadata);
+                    tracer.RelatedEvent(EventLevel.Informational, "LocalCacheResolver_NewKeyAfterCrossReferencing", metadata);
                 }
 
                 List<KeyValuePair<string, string>> mappingFileUpdates = new List<KeyValuePair<string, string>>();

@@ -1,6 +1,5 @@
 ﻿using GVFS.Common.Git;
 using GVFS.Common.Tracing;
-using Microsoft.Diagnostics.Tracing;
 using Newtonsoft.Json;
 using System;
 using System.Collections.Generic;
@@ -59,7 +58,7 @@ namespace GVFS.Common.Http
                 tryCount =>
                 {
                     Uri gvfsEndpoint;
-                    if (nextCacheServerAttemptTime < DateTime.Now)
+                    if (this.nextCacheServerAttemptTime < DateTime.Now)
                     {
                         gvfsEndpoint = cacheServerEndpoint;
                     }
@@ -72,7 +71,7 @@ namespace GVFS.Common.Http
                     {
                         if (response.StatusCode == HttpStatusCode.NotFound)
                         {
-                            nextCacheServerAttemptTime = nextCacheServerAttemptTime.AddMinutes(15);
+                            this.nextCacheServerAttemptTime = DateTime.Now.AddDays(1);
                             return new RetryWrapper<List<GitObjectSize>>.CallbackResult(response.Error, true);
                         }
 

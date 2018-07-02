@@ -6,6 +6,8 @@ namespace GVFS.Common.Git
     [StructLayout(LayoutKind.Explicit, Size = ShaBufferLength, Pack = 1)]
     public struct Sha1Id
     {
+        public static readonly Sha1Id None = new Sha1Id();
+
         private const int ShaBufferLength = (2 * sizeof(ulong)) + sizeof(uint);
         private const int ShaStringLength = 2 * ShaBufferLength;
 
@@ -40,6 +42,24 @@ namespace GVFS.Common.Git
             this.shaBytes1Through8 = ShaSubStringToULong(sha.Substring(0, 16));
             this.shaBytes9Through16 = ShaSubStringToULong(sha.Substring(16, 16));
             this.shaBytes17Through20 = ShaSubStringToUInt(sha.Substring(32, 8));
+        }
+
+        public static bool TryParse(string sha, out Sha1Id sha1, out string error)
+        {
+            error = null;
+
+            try
+            {
+                sha1 = new Sha1Id(sha);
+                return true;
+            }
+            catch (Exception e)
+            {
+                error = e.Message;
+            }
+
+            sha1 = new Sha1Id(0, 0, 0);
+            return false;
         }
 
         public static void ShaBufferToParts(

@@ -1,7 +1,8 @@
-﻿using GVFS.Common.FileSystem;
+﻿using GVFS.Common;
+using GVFS.Common.FileSystem;
 using GVFS.Common.NamedPipes;
 using GVFS.Common.Tracing;
-using Microsoft.Diagnostics.Tracing;
+using GVFS.Platform.Windows;
 
 namespace GVFS.Service.Handlers
 {
@@ -28,8 +29,8 @@ namespace GVFS.Service.Handlers
         public static bool TryEnablePrjFlt(ITracer tracer, out string error)
         {
             error = null;
-            EventMetadata prjFltHealthMetdata = new EventMetadata();
-            prjFltHealthMetdata.Add("Area", EtwArea);
+            EventMetadata prjFltHealthMetadata = new EventMetadata();
+            prjFltHealthMetadata.Add("Area", EtwArea);
 
             PhysicalFileSystem fileSystem = new PhysicalFileSystem();
 
@@ -41,17 +42,20 @@ namespace GVFS.Service.Handlers
                 bool isRunning = ProjFSFilter.IsServiceRunningAndInstalled(tracer, fileSystem, out isServiceInstalled, out isDriverFileInstalled, out isNativeLibInstalled);
                 bool isInstalled = isServiceInstalled && isDriverFileInstalled && isNativeLibInstalled;
 
-                prjFltHealthMetdata.Add($"Initial_{nameof(isRunning)}", isRunning);
-                prjFltHealthMetdata.Add($"Initial_{nameof(isServiceInstalled)}", isServiceInstalled);
-                prjFltHealthMetdata.Add($"Initial_{nameof(isDriverFileInstalled)}", isDriverFileInstalled);
-                prjFltHealthMetdata.Add($"Initial_{nameof(isNativeLibInstalled)}", isNativeLibInstalled);
-                prjFltHealthMetdata.Add($"Initial_{nameof(isInstalled)}", isInstalled);
+                prjFltHealthMetadata.Add($"Initial_{nameof(isRunning)}", isRunning);
+                prjFltHealthMetadata.Add($"Initial_{nameof(isServiceInstalled)}", isServiceInstalled);
+                prjFltHealthMetadata.Add($"Initial_{nameof(isDriverFileInstalled)}", isDriverFileInstalled);
+                prjFltHealthMetadata.Add($"Initial_{nameof(isNativeLibInstalled)}", isNativeLibInstalled);
+                prjFltHealthMetadata.Add($"Initial_{nameof(isInstalled)}", isInstalled);
 
                 if (!isRunning)
                 {
                     if (!isInstalled)
                     {
-                        if (ProjFSFilter.TryEnableOrInstallDriver(tracer, fileSystem))
+                        uint windowsBuildNumber;
+                        bool isInboxProjFSFinalAPI;
+                        bool isProjFSFeatureAvailable;
+                        if (ProjFSFilter.TryEnableOrInstallDriver(tracer, fileSystem, out windowsBuildNumber, out isInboxProjFSFinalAPI, out isProjFSFeatureAvailable))
                         {
                             isInstalled = true;
                         }
@@ -60,6 +64,10 @@ namespace GVFS.Service.Handlers
                             error = "Failed to install (or enable) PrjFlt";
                             tracer.RelatedError($"{nameof(TryEnablePrjFlt)}: {error}");
                         }
+
+                        prjFltHealthMetadata.Add(nameof(windowsBuildNumber), windowsBuildNumber);
+                        prjFltHealthMetadata.Add(nameof(isInboxProjFSFinalAPI), isInboxProjFSFinalAPI);
+                        prjFltHealthMetadata.Add(nameof(isProjFSFeatureAvailable), isProjFSFeatureAvailable);
                     }
 
                     if (isInstalled)
@@ -75,23 +83,17 @@ namespace GVFS.Service.Handlers
                         }
                     }
                 }
-                else if (!isNativeLibInstalled)
-                {
-                    tracer.RelatedWarning($"{nameof(TryEnablePrjFlt)}: prjflt service is running, but native library is not installed");
 
-                    if (ProjFSFilter.TryInstallNativeLib(tracer, fileSystem))
-                    {
-                        isInstalled = true;
-                    }
-                    else
-                    {
-                        error = "Failed to install native ProjFs library";
-                        tracer.RelatedError($"{nameof(TryEnablePrjFlt)}: {error}");
-                    }
+                isNativeLibInstalled = ProjFSFilter.IsNativeLibInstalled(tracer, new PhysicalFileSystem());
+                if (!isNativeLibInstalled)
+                {
+                    string missingNativeLibMessage = "Native library is not installed";
+                    error = string.IsNullOrEmpty(error) ? missingNativeLibMessage : $"{error}. {missingNativeLibMessage}";
+                    tracer.RelatedError($"{nameof(TryEnablePrjFlt)}: {missingNativeLibMessage}");
                 }
 
                 bool isAutoLoggerEnabled = ProjFSFilter.IsAutoLoggerEnabled(tracer);
-                prjFltHealthMetdata.Add("InitiallyAutoLoggerEnabled", isAutoLoggerEnabled);
+                prjFltHealthMetadata.Add($"Initial_{nameof(isAutoLoggerEnabled)}", isAutoLoggerEnabled);
 
                 if (!isAutoLoggerEnabled)
                 {
@@ -105,10 +107,11 @@ namespace GVFS.Service.Handlers
                     }
                 }
 
-                prjFltHealthMetdata.Add(nameof(isInstalled), isInstalled);
-                prjFltHealthMetdata.Add(nameof(isRunning), isRunning);
-                prjFltHealthMetdata.Add(nameof(isAutoLoggerEnabled), isAutoLoggerEnabled);
-                tracer.RelatedEvent(EventLevel.Informational, $"{nameof(TryEnablePrjFlt)}_Summary", prjFltHealthMetdata, Keywords.Telemetry);
+                prjFltHealthMetadata.Add(nameof(isInstalled), isInstalled);
+                prjFltHealthMetadata.Add(nameof(isRunning), isRunning);
+                prjFltHealthMetadata.Add(nameof(isAutoLoggerEnabled), isAutoLoggerEnabled);
+                prjFltHealthMetadata.Add(nameof(isNativeLibInstalled), isNativeLibInstalled);
+                tracer.RelatedEvent(EventLevel.Informational, $"{nameof(TryEnablePrjFlt)}_Summary", prjFltHealthMetadata, Keywords.Telemetry);
 
                 return isInstalled && isRunning;
             }

@@ -1,7 +1,5 @@
 ﻿using GVFS.Common;
-using GVFS.Common.Git;
 using GVFS.Tests.Should;
-using GVFS.UnitTests.Mock.Common;
 using NUnit.Framework;
 using System;
 using System.Threading;

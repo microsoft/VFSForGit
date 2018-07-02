@@ -13,8 +13,10 @@ namespace GVFS.FunctionalTests.Tools
         public const string TestServiceName = "Test.GVFS.Service";
         private const string ServiceNameArgument = "--servicename=" + TestServiceName;
 
-        public static void InstallService(string pathToService)
+        public static void InstallService()
         {
+            Console.WriteLine("Installing " + TestServiceName);
+
             UninstallService();
 
             // Wait for delete to complete. If the services control panel is open, this will never complete.
@@ -24,6 +26,11 @@ namespace GVFS.FunctionalTests.Tools
             }
 
             // Install service
+            string pathToService = GetPathToService();
+            Console.WriteLine("Using service executable: " + pathToService);
+
+            File.Exists(pathToService).ShouldBeTrue($"{pathToService} does not exist");
+
             string createServiceArguments = string.Format(
                 "{0} binPath= \"{1}\"",
                 TestServiceName,
@@ -52,6 +59,9 @@ namespace GVFS.FunctionalTests.Tools
 
         public static void StartService()
         {
+            ServiceController testService = ServiceController.GetServices().SingleOrDefault(service => service.ServiceName == TestServiceName);
+            testService.ShouldNotBeNull($"{TestServiceName} does not exist as a service");
+            
             using (ServiceController controller = new ServiceController(TestServiceName))
             {
                 controller.Start(new[] { ServiceNameArgument });
@@ -91,6 +101,29 @@ namespace GVFS.FunctionalTests.Tools
             processInfo.Arguments = command + " " + parameters;
 
             return ProcessHelper.Run(processInfo);
+        }
+
+        private static string GetPathToService()
+        {
+            if (GVFSTestConfig.TestGVFSOnPath)
+            {
+                ProcessResult result = ProcessHelper.Run("where", Properties.Settings.Default.PathToGVFSService);
+                result.ExitCode.ShouldEqual(0, $"{nameof(GetPathToService)}: where returned {result.ExitCode} when looking for {Properties.Settings.Default.PathToGVFSService}");
+
+                string firstPath =
+                    string.IsNullOrWhiteSpace(result.Output)
+                    ? null
+                    : result.Output.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries).FirstOrDefault();
+
+                firstPath.ShouldNotBeNull($"{nameof(GetPathToService)}: Failed to find {Properties.Settings.Default.PathToGVFSService}");
+                return firstPath;
+            }
+            else
+            {
+                return Path.Combine(
+                    Properties.Settings.Default.CurrentDirectory, 
+                    Properties.Settings.Default.PathToGVFSService);
+            }
         }
     }
 }

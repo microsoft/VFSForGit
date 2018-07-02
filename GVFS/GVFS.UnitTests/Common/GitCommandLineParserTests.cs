@@ -1,8 +1,6 @@
 ﻿using GVFS.Common;
 using GVFS.Tests.Should;
 using NUnit.Framework;
-using System;
-using System.Linq;
 
 namespace GVFS.UnitTests.Common
 {

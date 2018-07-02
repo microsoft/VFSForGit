@@ -3,7 +3,7 @@
 #include "Should.h"
 #include "prjlib_internal.h"
 
-// Map GVFlt testing macros to GVFS testing macros
+// Map ProjFS testing macros to GVFS testing macros
 #define VERIFY_ARE_EQUAL SHOULD_EQUAL
 #define VERIFY_ARE_NOT_EQUAL SHOULD_NOT_EQUAL
 #define VERIFY_FAIL FAIL_TEST
@@ -457,9 +457,9 @@ inline NTSTATUS ReadEAInfo(const std::string& path, PFILE_FULL_EA_INFORMATION ea
 
     IO_STATUS_BLOCK IoStatusBlock;
     
-    // In the GVFlt tests, Index of 0 is used, however, per the EA comments
+    // In the ProjFS tests, Index of 0 is used, however, per the EA comments
     // "If the index value is zero, there are no Eas to return"  Confirmed index of 1
-    // properly reads EAs created using ea.exe test tool provided by GVFlt
+    // properly reads EAs created using ea.exe test tool provided by ProjFS
     ULONG Index = 1;
     FILE_EA_INFORMATION eaInfo = { 0 };
 

@@ -11,120 +11,16 @@
 
 #include "stdafx.h"
 #include "packet.h"
+#include "common.h"
 
 #define MAX_PACKET_LENGTH 512
 #define SHA1_LENGTH 40
 #define MESSAGE_LENGTH (4 + SHA1_LENGTH + 1)
 
-enum ReturnCode
+enum ReadObjectHookErrorReturnCode
 {
-    Success = 0,
-    InvalidArgCount = 1,
-    GetCurrentDirectoryFailure = 2,
-    NotInGVFSEnlistment = 3,
-    PipeConnectError = 4,
-    PipeConnectTimeout = 5,
-    InvalidSHA = 6,
-    PipeWriteFailed = 7,
-    PipeReadFailed = 8,
-	FailureToDownload = 9,
-	ErrorReadObjectProtocol = 10
+	ErrorReadObjectProtocol = ReturnCode::LastError + 1,
 };
-
-inline std::wstring GetGVFSPipeName(const char *appName)
-{
-	// The pipe name is build using the path of the GVFS enlistment root.
-	// Start in the current directory and walk up the directory tree
-	// until we find a folder that contains the ".gvfs" folder
-
-	const size_t dotGVFSRelativePathLength = sizeof(L"\\.gvfs") / sizeof(wchar_t);
-
-	// TODO 640838: Support paths longer than MAX_PATH
-	wchar_t enlistmentRoot[MAX_PATH];
-	DWORD currentDirResult = GetCurrentDirectoryW(MAX_PATH - dotGVFSRelativePathLength, enlistmentRoot);
-	if (currentDirResult == 0 || currentDirResult > MAX_PATH - dotGVFSRelativePathLength)
-	{
-		die(ReturnCode::GetCurrentDirectoryFailure, "GetCurrentDirectory failed (%d)\n", GetLastError());
-	}
-
-	size_t enlistmentRootLength = wcslen(enlistmentRoot);
-	if ('\\' != enlistmentRoot[enlistmentRootLength - 1])
-	{
-		wcscat_s(enlistmentRoot, L"\\");
-		enlistmentRootLength++;
-	}
-
-	// Walk up enlistmentRoot looking for a folder named .gvfs
-	wchar_t* lastslash = enlistmentRoot + enlistmentRootLength - 1;
-	WIN32_FIND_DATAW findFileData;
-	HANDLE dotGVFSHandle;
-	while (1)
-	{
-		wcscat_s(lastslash, MAX_PATH - (lastslash - enlistmentRoot), L".gvfs");
-		dotGVFSHandle = FindFirstFileW(enlistmentRoot, &findFileData);
-		if (dotGVFSHandle != INVALID_HANDLE_VALUE)
-		{
-			FindClose(dotGVFSHandle);
-			if (findFileData.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY)
-			{
-				break;
-			}
-		}
-
-		lastslash--;
-		while ((enlistmentRoot != lastslash) && (*lastslash != '\\'))
-		{
-			lastslash--;
-		}
-
-		if (enlistmentRoot == lastslash)
-		{
-			die(ReturnCode::NotInGVFSEnlistment, "%s must be run from inside a GVFS enlistment\n", appName);
-		}
-
-		*(lastslash + 1) = 0;
-	};
-
-	*(lastslash) = 0;
-
-	std::wstring namedPipe(CharUpperW(enlistmentRoot));
-	std::replace(namedPipe.begin(), namedPipe.end(), L':', L'_');
-	return L"\\\\.\\pipe\\GVFS_" + namedPipe;
-}
-
-inline HANDLE CreatePipeToGVFS(const std::wstring& pipeName)
-{
-	HANDLE pipeHandle;
-	while (1)
-	{
-		pipeHandle = CreateFileW(
-			pipeName.c_str(), // pipe name 
-			GENERIC_READ |     // read and write access 
-			GENERIC_WRITE,
-			0,                 // no sharing 
-			NULL,              // default security attributes
-			OPEN_EXISTING,     // opens existing pipe 
-			0,                 // default attributes 
-			NULL);             // no template file 
-
-		if (pipeHandle != INVALID_HANDLE_VALUE)
-		{
-			break;
-		}
-
-		if (GetLastError() != ERROR_PIPE_BUSY)
-		{
-			die(ReturnCode::PipeConnectError, "Could not open pipe: %ls, Error: %d\n", pipeName.c_str(), GetLastError());
-		}
-
-		if (!WaitNamedPipeW(pipeName.c_str(), 3000))
-		{
-			die(ReturnCode::PipeConnectTimeout, "Could not open pipe: %ls, Timed out.", pipeName.c_str());
-		}
-	}
-
-	return pipeHandle;
-}
 
 int DownloadSHA(HANDLE pipeHandle, const char *sha1)
 {
@@ -187,18 +83,18 @@ int main(int, char *argv[])
 	packet_txt_read(packet_buffer, sizeof(packet_buffer));
 	if (strcmp(packet_buffer, "git-read-object-client"))
 	{
-		die(ReturnCode::ErrorReadObjectProtocol, "Bad welcome message\n");
+		die(ReadObjectHookErrorReturnCode::ErrorReadObjectProtocol, "Bad welcome message\n");
 	}
 
 	packet_txt_read(packet_buffer, sizeof(packet_buffer));
 	if (strcmp(packet_buffer, "version=1"))
 	{
-		die(ReturnCode::ErrorReadObjectProtocol, "Bad version\n");
+		die(ReadObjectHookErrorReturnCode::ErrorReadObjectProtocol, "Bad version\n");
 	}
 
 	if (packet_txt_read(packet_buffer, sizeof(packet_buffer)))
 	{
-		die(ReturnCode::ErrorReadObjectProtocol, "Bad version end\n");
+		die(ReadObjectHookErrorReturnCode::ErrorReadObjectProtocol, "Bad version end\n");
 	}
 
 	packet_txt_write("git-read-object-server");
@@ -208,12 +104,12 @@ int main(int, char *argv[])
 	packet_txt_read(packet_buffer, sizeof(packet_buffer));
 	if (strcmp(packet_buffer, "capability=get"))
 	{
-		die(ReturnCode::ErrorReadObjectProtocol, "Bad capability\n");
+		die(ReadObjectHookErrorReturnCode::ErrorReadObjectProtocol, "Bad capability\n");
 	}
 
 	if (packet_txt_read(packet_buffer, sizeof(packet_buffer)))
 	{
-		die(ReturnCode::ErrorReadObjectProtocol, "Bad capability end\n");
+		die(ReadObjectHookErrorReturnCode::ErrorReadObjectProtocol, "Bad capability end\n");
 	}
 
 	packet_txt_write("capability=get");
@@ -228,18 +124,18 @@ int main(int, char *argv[])
 		packet_txt_read(packet_buffer, sizeof(packet_buffer));
 		if (strcmp(packet_buffer, "command=get"))
 		{
-			die(ReturnCode::ErrorReadObjectProtocol, "Bad command\n");
+			die(ReadObjectHookErrorReturnCode::ErrorReadObjectProtocol, "Bad command\n");
 		}
 
 		len = packet_txt_read(packet_buffer, sizeof(packet_buffer));
 		if ((len != SHA1_LENGTH + 5) || strncmp(packet_buffer, "sha1=", 5))
 		{
-			die(ReturnCode::ErrorReadObjectProtocol, "Bad sha1 in get command\n");
+			die(ReadObjectHookErrorReturnCode::ErrorReadObjectProtocol, "Bad sha1 in get command\n");
 		}
 
 		if (packet_txt_read(packet_buffer, sizeof(packet_buffer)))
 		{
-			die(ReturnCode::ErrorReadObjectProtocol, "Bad command end\n");
+			die(ReadObjectHookErrorReturnCode::ErrorReadObjectProtocol, "Bad command end\n");
 		}
 
 		err = DownloadSHA(pipeHandle, packet_buffer + 5);

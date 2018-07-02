@@ -1,12 +1,9 @@
 ﻿using CommandLine;
 using GVFS.CommandLine;
 using GVFS.Common;
+using GVFS.PlatformLoader;
 using System;
 using System.Linq;
-
-// This is to keep the reference to GVFS.Mount
-// so that the exe will end up in the output directory of GVFS
-using GVFS.Mount;
 
 namespace GVFS
 {
@@ -14,6 +11,8 @@ namespace GVFS
     {
         public static void Main(string[] args)
         {
+            GVFSPlatformLoader.Initialize();
+
             Type[] verbTypes = new Type[]
             {
                 typeof(CacheServerVerb),
@@ -69,9 +68,9 @@ namespace GVFS
                         {
                             // For all other verbs, they don't care if the enlistment root is explicitly
                             // specified or implied to be the current directory
-                            if (string.IsNullOrEmpty(verb.EnlistmentRootPath))
+                            if (string.IsNullOrEmpty(verb.EnlistmentRootPathParameter))
                             {
-                                verb.EnlistmentRootPath = Environment.CurrentDirectory;
+                                verb.EnlistmentRootPathParameter = Environment.CurrentDirectory;
                             }
 
                             verb.Execute();

@@ -48,7 +48,7 @@ namespace GVFS.UnitTests.Common
             FileBasedDictionary<string, string> dut = CreateFileBasedDictionary(fs, string.Empty);
             dut.SetValueAndFlush(TestKey, TestValue);
 
-            fs.ExpectedFiles[MockEntryFileName].ReadAsString().ShouldEqual(TestEntry);
+            this.FileBasedDictionaryFileSystemShouldContain(fs, new[] { TestEntry });
         }
 
         [TestCase]
@@ -62,8 +62,7 @@ namespace GVFS.UnitTests.Common
                     new KeyValuePair<string, string>(TestKey, TestValue),
                     new KeyValuePair<string, string>(TestKey2, TestValue2),
                 });
-
-            fs.ExpectedFiles[MockEntryFileName].ReadAsString().ShouldEqual(TestEntry + TestEntry2);
+            this.FileBasedDictionaryFileSystemShouldContain(fs, new[] { TestEntry, TestEntry2 });
         }
 
         [TestCase]
@@ -83,8 +82,7 @@ namespace GVFS.UnitTests.Common
                     new KeyValuePair<string, string>(TestKey, UpdatedTestValue),
                     new KeyValuePair<string, string>(TestKey2, TestValue2),
                 });
-
-            fs.ExpectedFiles[MockEntryFileName].ReadAsString().ShouldEqual(UpdatedTestEntry + TestEntry2);
+            this.FileBasedDictionaryFileSystemShouldContain(fs, new[] { UpdatedTestEntry, TestEntry2 });
         }
 
         [TestCase]
@@ -99,7 +97,7 @@ namespace GVFS.UnitTests.Common
                     new KeyValuePair<string, string>(TestKey, TestValue),
                     new KeyValuePair<string, string>(TestKey2, TestValue2),
                 });
-            fs.ExpectedFiles[MockEntryFileName].ReadAsString().ShouldEqual(TestEntry + TestEntry2);
+            this.FileBasedDictionaryFileSystemShouldContain(fs, new[] { TestEntry, TestEntry2 });
 
             dut.SetValuesAndFlush(
                 new[]
@@ -107,8 +105,7 @@ namespace GVFS.UnitTests.Common
                     new KeyValuePair<string, string>(TestKey, UpdatedTestValue),
                     new KeyValuePair<string, string>(TestKey2, UpdatedTestValue2),
                 });
-
-            fs.ExpectedFiles[MockEntryFileName].ReadAsString().ShouldEqual(UpdatedTestEntry + UpdatedTestEntry2);
+            this.FileBasedDictionaryFileSystemShouldContain(fs, new[] { UpdatedTestEntry, UpdatedTestEntry2 });
         }
 
         [TestCase]
@@ -123,7 +120,7 @@ namespace GVFS.UnitTests.Common
                     new KeyValuePair<string, string>(TestKey, TestValue),
                     new KeyValuePair<string, string>(TestKey, UpdatedTestValue),
                 });
-            fs.ExpectedFiles[MockEntryFileName].ReadAsString().ShouldEqual(UpdatedTestEntry);
+            this.FileBasedDictionaryFileSystemShouldContain(fs, new[] { UpdatedTestEntry });
         }
 
         [TestCase]
@@ -133,7 +130,7 @@ namespace GVFS.UnitTests.Common
             FileBasedDictionary<string, string> dut = CreateFileBasedDictionary(fs, TestEntry);
             dut.SetValueAndFlush(TestKey, UpdatedTestValue);
 
-            fs.ExpectedFiles[MockEntryFileName].ReadAsString().ShouldEqual(UpdatedTestEntry);
+            this.FileBasedDictionaryFileSystemShouldContain(fs, new[] { UpdatedTestEntry });
         }
 
         [TestCase]
@@ -150,7 +147,7 @@ namespace GVFS.UnitTests.Common
             FileBasedDictionary<string, string> dut = CreateFileBasedDictionary(fs, string.Empty);
             dut.SetValueAndFlush(TestKey, TestValue);
 
-            fs.ExpectedFiles[MockEntryFileName].ReadAsString().ShouldEqual(TestEntry);
+            this.FileBasedDictionaryFileSystemShouldContain(fs, new[] { TestEntry });
         }
 
         [TestCase]
@@ -166,7 +163,7 @@ namespace GVFS.UnitTests.Common
             FileBasedDictionary<string, string> dut = CreateFileBasedDictionary(fs, string.Empty);
             dut.SetValueAndFlush(TestKey, TestValue);
 
-            fs.ExpectedFiles[MockEntryFileName].ReadAsString().ShouldEqual(TestEntry);
+            this.FileBasedDictionaryFileSystemShouldContain(fs, new[] { TestEntry });
         }
 
         [TestCase]
@@ -183,7 +180,7 @@ namespace GVFS.UnitTests.Common
             FileBasedDictionary<string, string> dut = CreateFileBasedDictionary(fs, string.Empty);
             dut.SetValueAndFlush(TestKey, TestValue);
 
-            fs.ExpectedFiles[MockEntryFileName].ReadAsString().ShouldEqual(TestEntry);
+            this.FileBasedDictionaryFileSystemShouldContain(fs, new[] { TestEntry });
         }
 
         [TestCase]
@@ -200,7 +197,7 @@ namespace GVFS.UnitTests.Common
             FileBasedDictionary<string, string> dut = CreateFileBasedDictionary(fs, string.Empty);
             dut.SetValueAndFlush(TestKey, TestValue);
 
-            fs.ExpectedFiles[MockEntryFileName].ReadAsString().ShouldEqual(TestEntry);
+            this.FileBasedDictionaryFileSystemShouldContain(fs, new[] { TestEntry });
         }
 
         [TestCase]
@@ -212,7 +209,7 @@ namespace GVFS.UnitTests.Common
             FileBasedDictionary<string, string> dut = CreateFileBasedDictionary(fs, string.Empty);
             dut.SetValueAndFlush(TestKey, TestValue);
 
-            fs.ExpectedFiles[MockEntryFileName].ReadAsString().ShouldEqual(TestEntry);
+            this.FileBasedDictionaryFileSystemShouldContain(fs, new[] { TestEntry });
         }
 
         [TestCase]
@@ -252,6 +249,26 @@ namespace GVFS.UnitTests.Common
             fs.ExpectedOpenFileStreams.Remove(MockEntryFileName);
 
             return dut;
+        }
+
+        private void FileBasedDictionaryFileSystemShouldContain(
+            FileBasedDictionaryFileSystem fs, 
+            IList<string> expectedEntries)
+        {
+            string delimiter = "\r\n";
+            string fileContents = fs.ExpectedFiles[MockEntryFileName].ReadAsString();
+            fileContents.Substring(fileContents.Length - delimiter.Length).ShouldEqual(delimiter);
+
+            // Remove the trailing delimiter
+            fileContents = fileContents.Substring(0, fileContents.Length - delimiter.Length);
+
+            string[] fileLines = fileContents.Split(new[] { delimiter }, StringSplitOptions.None);
+            fileLines.Length.ShouldEqual(expectedEntries.Count);
+
+            foreach (string expectedEntry in expectedEntries)
+            {
+                fileLines.ShouldContain(line => line.Equals(expectedEntry.Substring(0, expectedEntry.Length - delimiter.Length)));
+            }
         }
 
         private class FileBasedDictionaryFileSystem : ConfigurableFileSystem

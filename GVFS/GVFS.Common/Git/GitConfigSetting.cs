@@ -4,7 +4,8 @@ namespace GVFS.Common.Git
 {
     public class GitConfigSetting
     {
-        public const string VirtualizeObjectsGitConfigName = "core.virtualizeobjects";
+        public const string CoreVirtualizeObjectsName = "core.virtualizeobjects";
+        public const string CoreVirtualFileSystemName = "core.virtualfilesystem";
 
         public GitConfigSetting(string name, params string[] values)
         {

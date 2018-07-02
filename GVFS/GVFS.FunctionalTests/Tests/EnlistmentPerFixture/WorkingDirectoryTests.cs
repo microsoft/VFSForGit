@@ -401,9 +401,8 @@ BOOL APIENTRY DllMain( HMODULE hModule,
             // 575d597cf09b2cd1c0ddb4db21ce96979010bbcb did not have the folder GVFlt_MultiThreadTest
             GitProcess.InvokeProcess(this.Enlistment.RepoRoot, "checkout 575d597cf09b2cd1c0ddb4db21ce96979010bbcb");
 
-            // Confirm that no other test has created GVFlt_MultiThreadTest or put it in the sparse-checkout
-            string sparseFile = this.Enlistment.GetVirtualPathTo(TestConstants.DotGit.Info.SparseCheckout);
-            sparseFile.ShouldBeAFile(this.fileSystem).WithContents().ShouldNotContain(ignoreCase: true, unexpectedSubstrings: folderName);
+            // Confirm that no other test has created GVFlt_MultiThreadTest or put it in the modified files
+            GVFSHelpers.ModifiedPathsShouldNotContain(this.fileSystem, this.Enlistment.DotGVFSRoot, folderName);
 
             string virtualFolderPath = this.Enlistment.GetVirtualPathTo(folderName);
             virtualFolderPath.ShouldNotExistOnDisk(this.fileSystem);
@@ -425,12 +424,11 @@ BOOL APIENTRY DllMain( HMODULE hModule,
             // 1ca414ced40f64bf94fc6c7f885974708bc600be is the commit prior to adding Test_EPF_MoveRenameFileTests
             GitProcess.InvokeProcess(this.Enlistment.RepoRoot, "checkout 1ca414ced40f64bf94fc6c7f885974708bc600be");
 
-            // Confirm that no other test has created this folder or put it in the sparse-checkout
+            // Confirm that no other test has created this folder or put it in the modified files
             string folderName = "Test_EPF_MoveRenameFileTests";
             string folder = this.Enlistment.GetVirtualPathTo(folderName);
             folder.ShouldNotExistOnDisk(this.fileSystem);
-            string sparseFile = this.Enlistment.GetVirtualPathTo(TestConstants.DotGit.Info.SparseCheckout);
-            sparseFile.ShouldBeAFile(this.fileSystem).WithContents().ShouldNotContain(ignoreCase: true, unexpectedSubstrings: folderName);
+            GVFSHelpers.ModifiedPathsShouldNotContain(this.fileSystem, this.Enlistment.DotGVFSRoot, folderName);
 
             // Confirm sparse-checkout picks up renamed folder
             string newFolder = this.Enlistment.GetVirtualPathTo("newFolder");
@@ -438,7 +436,7 @@ BOOL APIENTRY DllMain( HMODULE hModule,
             this.fileSystem.MoveDirectory(newFolder, folder);
 
             this.Enlistment.WaitForBackgroundOperations().ShouldEqual(true, "Background operations failed to complete.");
-            sparseFile.ShouldBeAFile(this.fileSystem).WithContents().ShouldContain(folderName);
+            GVFSHelpers.ModifiedPathsShouldContain(this.fileSystem, this.Enlistment.DotGVFSRoot, folderName);
 
             // Switch back to this.ControlGitRepo.Commitish and confirm that folder contents are correct
             GitProcess.InvokeProcess(this.Enlistment.RepoRoot, "checkout " + Properties.Settings.Default.Commitish);

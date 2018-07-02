@@ -1,7 +1,4 @@
-﻿using Microsoft.Diagnostics.Tracing;
-using System;
-
-namespace GVFS.Common.Tracing
+﻿namespace GVFS.Common.Tracing
 {
     public static class TracingConstants
     {

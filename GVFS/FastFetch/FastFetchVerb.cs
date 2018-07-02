@@ -2,8 +2,8 @@
 using GVFS.Common;
 using GVFS.Common.Git;
 using GVFS.Common.Http;
+using GVFS.Common.Prefetch;
 using GVFS.Common.Tracing;
-using Microsoft.Diagnostics.Tracing;
 using System;
 
 namespace FastFetch
@@ -144,7 +144,7 @@ namespace FastFetch
         {
             // CmdParser doesn't strip quotes, and Path.Combine will throw
             this.GitBinPath = this.GitBinPath.Replace("\"", string.Empty);
-            if (!GitProcess.GitExists(this.GitBinPath))
+            if (!GVFSPlatform.Instance.GitInstallation.GitExists(this.GitBinPath))
             {
                 Console.WriteLine(
                     "Could not find git.exe {0}",
@@ -163,7 +163,7 @@ namespace FastFetch
             this.IndexThreadCount = this.IndexThreadCount > 0 ? this.IndexThreadCount : Environment.ProcessorCount;
             this.CheckoutThreadCount = this.CheckoutThreadCount > 0 ? this.CheckoutThreadCount : Environment.ProcessorCount;
 
-            this.GitBinPath = !string.IsNullOrWhiteSpace(this.GitBinPath) ? this.GitBinPath : GitProcess.GetInstalledGitBinPath();
+            this.GitBinPath = !string.IsNullOrWhiteSpace(this.GitBinPath) ? this.GitBinPath : GVFSPlatform.Instance.GitInstallation.GetInstalledGitBinPath();
 
             GitEnlistment enlistment = GitEnlistment.CreateFromCurrentDirectory(this.GitBinPath);
             if (enlistment == null)
@@ -191,7 +191,7 @@ namespace FastFetch
                 Console.WriteLine("The ParentActivityId provided (" + this.ParentActivityId + ") is not a valid GUID.");
             }
 
-            using (JsonEtwTracer tracer = new JsonEtwTracer("Microsoft.Git.FastFetch", parentActivityId, "FastFetch", useCriticalTelemetryFlag: false))
+            using (JsonTracer tracer = new JsonTracer("Microsoft.Git.FastFetch", parentActivityId, "FastFetch", disableTelemetry: true))
             {
                 if (this.Verbose)
                 {
@@ -218,9 +218,9 @@ namespace FastFetch
                     });
                 
                 RetryConfig retryConfig = new RetryConfig(this.MaxAttempts, TimeSpan.FromMinutes(RetryConfig.FetchAndCloneTimeoutMinutes));
-                FetchHelper fetchHelper = this.GetFetchHelper(tracer, enlistment, cacheServer, retryConfig);
+                PrefetchHelper fetchHelper = this.GetFetchHelper(tracer, enlistment, cacheServer, retryConfig);
                 string error;
-                if (!FetchHelper.TryLoadFolderList(enlistment, this.FolderList, this.FolderListFile, fetchHelper.FolderList, out error))
+                if (!PrefetchHelper.TryLoadFolderList(enlistment, this.FolderList, this.FolderListFile, fetchHelper.FolderList, out error))
                 {
                     tracer.RelatedError(error);
                     Console.WriteLine(error);
@@ -237,10 +237,10 @@ namespace FastFetch
                             try
                             {
                                 bool isBranch = this.Commit == null;
-                                fetchHelper.FastFetch(commitish, isBranch);
+                                fetchHelper.Prefetch(commitish, isBranch);
                                 return !fetchHelper.HasFailures;
                             }
-                            catch (FetchHelper.FetchException e)
+                            catch (PrefetchHelper.FetchException e)
                             {
                                 tracer.RelatedError(e.Message);
                                 return false;
@@ -303,7 +303,7 @@ namespace FastFetch
             return enlistment.RepoUrl;
         }
 
-        private FetchHelper GetFetchHelper(ITracer tracer, Enlistment enlistment, CacheServerInfo cacheServer, RetryConfig retryConfig)
+        private PrefetchHelper GetFetchHelper(ITracer tracer, Enlistment enlistment, CacheServerInfo cacheServer, RetryConfig retryConfig)
         {
             GitObjectsHttpRequestor objectRequestor = new GitObjectsHttpRequestor(tracer, enlistment, cacheServer, retryConfig);
 
@@ -322,7 +322,7 @@ namespace FastFetch
             }
             else
             {
-                return new FetchHelper(
+                return new PrefetchHelper(
                     tracer,
                     enlistment,
                     objectRequestor,

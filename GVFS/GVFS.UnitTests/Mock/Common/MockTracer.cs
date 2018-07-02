@@ -1,5 +1,4 @@
 ﻿using GVFS.Common.Tracing;
-using Microsoft.Diagnostics.Tracing;
 using Newtonsoft.Json;
 using System;
 using System.Collections.Generic;

@@ -1,11 +1,8 @@
-﻿using FastFetch.Git;
-using GVFS.Common;
-using GVFS.Common.FileSystem;
+﻿using GVFS.Common;
+using GVFS.Common.Prefetch.Git;
 using GVFS.Common.Tracing;
-using GVFS.GVFlt.DotGit;
 using System.Collections.Generic;
 using System.IO;
-using System.Linq;
 
 namespace GVFS.RepairJobs
 {
@@ -50,22 +47,8 @@ namespace GVFS.RepairJobs
                 }
             }
 
-            HashSet<string> sparseCheckoutFiles = null;
-            if (File.Exists(this.sparseCheckoutPath))
-            {
-                GVFSContext context = new GVFSContext(
-                    this.Tracer,
-                    new PhysicalFileSystem(),
-                    repository: null,
-                    enlistment: this.Enlistment);
-
-                SparseCheckout sparseCheckout = new SparseCheckout(context, this.sparseCheckoutPath);
-                sparseCheckout.LoadOrCreate();
-                sparseCheckoutFiles = new HashSet<string>(sparseCheckout.Entries.Select(line => line.TrimStart('/')));
-            }
-
             GitIndexGenerator indexGen = new GitIndexGenerator(this.Tracer, this.Enlistment, shouldHashIndex: false);
-            indexGen.CreateFromHeadTree(indexVersion: 4, sparseCheckoutEntries: sparseCheckoutFiles);
+            indexGen.CreateFromHeadTree(indexVersion: 4);
 
             if (indexGen.HasFailures || this.TryParseIndex(this.indexPath, messages) != IssueType.None)
             {

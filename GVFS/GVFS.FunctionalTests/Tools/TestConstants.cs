@@ -18,9 +18,20 @@ namespace GVFS.FunctionalTests.Tools
 
             public static class Info
             {
-                public static readonly string Root = Path.Combine(DotGit.Root, "info");
-                public static readonly string SparseCheckout = Path.Combine(Root, "sparse-checkout");
+                public const string Name = "info";
+                public const string AlwaysExcludeName = "always_exclude";
+                public const string SparseCheckoutName = "sparse-checkout";
+
+                public static readonly string Root = Path.Combine(DotGit.Root, Info.Name);
+                public static readonly string SparseCheckoutPath = Path.Combine(Info.Root, Info.SparseCheckoutName);
+                public static readonly string AlwaysExcludePath = Path.Combine(Info.Root, AlwaysExcludeName);
             }
+        }
+
+        public static class Databases
+        {
+            public const string Root = "databases";
+            public static readonly string ModifiedPaths = Path.Combine(Root, "ModifiedPaths.dat");
         }
     }
 }

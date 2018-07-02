@@ -6,16 +6,17 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Runtime.InteropServices;
 using System.Threading;
 
 namespace GVFS.FunctionalTests.Tools
 {
     public class GVFSFunctionalTestEnlistment
     {
-        private const string ZeroBackgroundOperations = "Background operations: 0\r\n";
         private const string LockHeldByGit = "GVFS Lock: Held by {0}";
         private const int SleepMSWaitingForStatusCheck = 100;
         private const int DefaultMaxWaitMSForStatusCheck = 5000;
+        private static readonly string ZeroBackgroundOperations = "Background operations: 0" + Environment.NewLine;
 
         private GVFSProcess gvfsProcess;
         
@@ -103,12 +104,12 @@ namespace GVFS.FunctionalTests.Tools
 
         public static string GetUniqueEnlistmentRoot()
         {
-            return Path.Combine(Properties.Settings.Default.EnlistmentRoot, Guid.NewGuid().ToString("N"));
+            return Path.Combine(Properties.Settings.Default.EnlistmentRoot, Guid.NewGuid().ToString("N").Substring(0, 20));
         }
 
         public static string GetUniqueEnlistmentRootWithSpaces()
         {
-            return Path.Combine(Properties.Settings.Default.EnlistmentRoot, "test path " + Guid.NewGuid().ToString("N"));
+            return Path.Combine(Properties.Settings.Default.EnlistmentRoot, "test " + Guid.NewGuid().ToString("N").Substring(0, 15));
         }
 
         public string GetObjectRoot(FileSystemRunner fileSystem)
@@ -129,8 +130,15 @@ namespace GVFS.FunctionalTests.Tools
         {
             TestResultsHelper.OutputGVFSLogs(this);
 
-            // Use cmd.exe to delete the enlistment as it properly handles tombstones and reparse points
-            CmdRunner.DeleteDirectoryWithRetry(this.EnlistmentRoot);
+            if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+            {
+                // Use cmd.exe to delete the enlistment as it properly handles tombstones and reparse points
+                CmdRunner.DeleteDirectoryWithRetry(this.EnlistmentRoot);
+            }
+            else
+            {
+                // TODO(Mac): BashRunner.DeleteDirectory(this.EnlistmentRoot);
+            }
         }
 
         public void CloneAndMount()
@@ -212,9 +220,9 @@ namespace GVFS.FunctionalTests.Tools
             this.DeleteEnlistment();
         }
 
-        public string GetVirtualPathTo(string pathInRepo)
+        public string GetVirtualPathTo(params string[] pathInRepo)
         {
-            return Path.Combine(this.RepoRoot, pathInRepo);
+            return Path.Combine(this.RepoRoot, Path.Combine(pathInRepo));
         }
 
         public string GetObjectPathTo(string objectHash)

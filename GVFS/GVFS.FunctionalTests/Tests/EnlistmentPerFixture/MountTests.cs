@@ -13,12 +13,12 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
 {
     [TestFixture]
     [Category(Categories.FullSuiteOnly)]
+    [Category(Categories.Mac.M1)]
     public class MountTests : TestsWithEnlistmentPerFixture
     {
         private const int GVFSGenericError = 3;
         private const uint GenericRead = 2147483648;
         private const uint FileFlagBackupSemantics = 3355443;
-        private const string IndexLockPath = ".git\\index.lock";
 
         private FileSystemRunner fileSystem;
 
@@ -40,11 +40,12 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
         }
 
         [TestCase]
+        [Category(Categories.Mac.M2)]
         public void MountCopiesMissingReadObjectHook()
         {
             this.Enlistment.UnmountGVFS();
 
-            string readObjectPath = this.Enlistment.GetVirtualPathTo(@".git\hooks\read-object.exe");
+            string readObjectPath = this.Enlistment.GetVirtualPathTo(".git", "hooks", "read-object.exe");
             readObjectPath.ShouldBeAFile(this.fileSystem);
             this.fileSystem.DeleteFile(readObjectPath);
             readObjectPath.ShouldNotExistOnDisk(this.fileSystem);
@@ -63,7 +64,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
                 .ShouldBeTrue();
 
             this.Enlistment.MountGVFS();
-            string expectedHooksPath = Path.Combine(this.Enlistment.RepoRoot, ".git\\hooks");
+            string expectedHooksPath = Path.Combine(this.Enlistment.RepoRoot, ".git", "hooks");
             expectedHooksPath = expectedHooksPath.Replace("\\", "/");
 
             GitProcess.Invoke(
@@ -73,21 +74,15 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
         }
 
         [TestCase]
-        public void MountCleansStaleIndexLock()
+        public void MountChangesMountId()
         {
-            this.MountCleansIndexLock(lockFileContents: "GVFS");
-        }
-
-        [TestCase]
-        public void MountCleansEmptyIndexLock()
-        {
-            this.MountCleansIndexLock(lockFileContents: string.Empty);
-        }
-
-        [TestCase]
-        public void MountCleansUnknownIndexLock()
-        {
-            this.MountCleansIndexLock(lockFileContents: "Bogus lock file contents");
+            string mountId = GitProcess.Invoke(this.Enlistment.RepoRoot, "config gvfs.mount-id")
+                .Trim('\n');
+            this.Enlistment.UnmountGVFS();
+            this.Enlistment.MountGVFS();
+            GitProcess.Invoke(this.Enlistment.RepoRoot, "config gvfs.mount-id")
+                .Trim('\n')
+                .ShouldNotEqual(mountId, "gvfs.mount-id should change on every mount");
         }
 
         [TestCase]
@@ -264,9 +259,10 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
             this.Enlistment.MountGVFS();
         }
 
-        // Ported from GVFlt's BugRegressionTest
+        // Ported from ProjFS's BugRegressionTest
         [TestCase]
-        public void GVFlt_CMDHangNoneActiveInstance()
+        [Category(Categories.Windows)]
+        public void ProjFS_CMDHangNoneActiveInstance()
         {
             this.Enlistment.UnmountGVFS();
 
@@ -283,27 +279,8 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
                 handle.IsInvalid.ShouldEqual(true);
                 lastError.ShouldNotEqual(0); // 0 == ERROR_SUCCESS
             }
-        }
-
-        private void MountCleansIndexLock(string lockFileContents)
-        {
-            this.Enlistment.UnmountGVFS();
-
-            string indexLockVirtualPath = this.Enlistment.GetVirtualPathTo(IndexLockPath);
-            indexLockVirtualPath.ShouldNotExistOnDisk(this.fileSystem);
-
-            if (string.IsNullOrEmpty(lockFileContents))
-            {
-                this.fileSystem.CreateEmptyFile(indexLockVirtualPath);
-            }
-            else
-            {
-                this.fileSystem.AppendAllText(indexLockVirtualPath, lockFileContents);
-            }
 
             this.Enlistment.MountGVFS();
-            this.Enlistment.WaitForBackgroundOperations().ShouldEqual(true, "Background operations failed to complete.");
-            indexLockVirtualPath.ShouldNotExistOnDisk(this.fileSystem);
         }
 
         private void MountShouldFail(int expectedExitCode, string expectedErrorMessage, string mountWorkingDirectory = null)

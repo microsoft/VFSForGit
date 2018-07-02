@@ -16,7 +16,7 @@ namespace GVFS.CommandLine
             Default = "",
             MetaName = "Enlistment Root Path",
             HelpText = "Full or relative path to the GVFS enlistment root")]
-        public override string EnlistmentRootPath { get; set; }
+        public override string EnlistmentRootPathParameter { get; set; }
 
         [Option(
             "type",
@@ -31,16 +31,17 @@ namespace GVFS.CommandLine
 
         public override void Execute()
         {
-            this.ValidatePathParameter(this.EnlistmentRootPath);
+            this.ValidatePathParameter(this.EnlistmentRootPathParameter);
 
             this.Output.WriteLine("Most recent log files:");
 
-            string enlistmentRoot = Paths.GetGVFSEnlistmentRoot(this.EnlistmentRootPath);
-            if (enlistmentRoot == null)
-            {
+            string errorMessage;
+            string enlistmentRoot;
+            if (!GVFSPlatform.Instance.TryGetGVFSEnlistmentRoot(this.EnlistmentRootPathParameter, out enlistmentRoot, out errorMessage))
+            { 
                 this.ReportErrorAndExit(
                     "Error: '{0}' is not a valid GVFS enlistment",
-                    this.EnlistmentRootPath);
+                    this.EnlistmentRootPathParameter);
             }
 
             string gvfsLogsRoot = Path.Combine(

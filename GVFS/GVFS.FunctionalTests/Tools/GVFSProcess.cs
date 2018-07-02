@@ -1,5 +1,7 @@
 ﻿using GVFS.Tests.Should;
+using System;
 using System.Diagnostics;
+using System.Runtime.InteropServices;
 
 namespace GVFS.FunctionalTests.Tools
 {
@@ -76,12 +78,15 @@ namespace GVFS.FunctionalTests.Tools
 
         public void Unmount()
         {
-            string unmountArgs = string.Join(
-                " ",
-                "unmount \"" + this.enlistmentRoot + "\"",
-                "--internal_use_only_service_name " + GVFSServiceProcess.TestServiceName);
-            string result = this.CallGVFS(unmountArgs);
-            this.IsEnlistmentMounted().ShouldEqual(false, "GVFS did not unmount: " + result);
+            if (this.IsEnlistmentMounted())
+            {
+                string unmountArgs = string.Join(
+                    " ",
+                    "unmount \"" + this.enlistmentRoot + "\"",
+                    "--internal_use_only_service_name " + GVFSServiceProcess.TestServiceName);
+                string result = this.CallGVFS(unmountArgs, failOnError: true);
+                this.IsEnlistmentMounted().ShouldEqual(false, "GVFS did not unmount: " + result);
+            }
         }
 
         public bool IsEnlistmentMounted()
@@ -101,8 +106,10 @@ namespace GVFS.FunctionalTests.Tools
 
         private string CallGVFS(string args, bool failOnError = false)
         {
-            ProcessStartInfo processInfo = new ProcessStartInfo(this.pathToGVFS);
+            ProcessStartInfo processInfo = null;
+            processInfo = new ProcessStartInfo(this.pathToGVFS);
             processInfo.Arguments = args;
+
             processInfo.WindowStyle = ProcessWindowStyle.Hidden;
             processInfo.UseShellExecute = false;
             processInfo.RedirectStandardOutput = true;

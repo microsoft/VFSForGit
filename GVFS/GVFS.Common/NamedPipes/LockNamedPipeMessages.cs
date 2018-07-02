@@ -283,33 +283,47 @@ namespace GVFS.Common.NamedPipes
             {
                 if (!string.IsNullOrEmpty(body))
                 {
+                    // This mesage is stored using the MessageSeperator delimitor for performance reasons
                     string[] dataParts = body.Split(MessageSeparator);
                     int pid;
                     bool isElevated = false;
                     bool checkAvailabilityOnly = false;
                     string parsedCommand = null;
 
-                    if (dataParts.Length != 4)
+                    if (dataParts.Length < 5)
                     {
-                        throw new InvalidOperationException("Invalid lock message. Expected 4 parts, got: {0}" + dataParts.Length);
+                        throw new InvalidOperationException(string.Format("Invalid lock message. Expected at least 5 parts, got: {0} from message: '{1}'", dataParts.Length, body));
                     }
 
                     if (!int.TryParse(dataParts[0], out pid))
                     {
-                        throw new InvalidOperationException("Invalid lock message. Expected PID, got: " + dataParts[0]);
+                        throw new InvalidOperationException(string.Format("Invalid lock message. Expected PID, got: {0} from message: '{1}'", dataParts[0], body));
                     }
 
                     if (!bool.TryParse(dataParts[1], out isElevated))
                     {
-                        throw new InvalidOperationException("Invalid lock message. Expected bool for isElevated, got: " + dataParts[1]);
+                        throw new InvalidOperationException(string.Format("Invalid lock message. Expected bool for isElevated, got: {0} from message: '{1}'", dataParts[1], body));
                     }
 
                     if (!bool.TryParse(dataParts[2], out checkAvailabilityOnly))
                     {
-                        throw new InvalidOperationException("Invalid lock message. Expected bool for checkAvailabilityOnly, got: " + dataParts[2]);
+                        throw new InvalidOperationException(string.Format("Invalid lock message. Expected bool for checkAvailabilityOnly, got: {0} from message: '{1}'", dataParts[2], body));
                     }
 
-                    parsedCommand = dataParts[3];
+                    if (!int.TryParse(dataParts[3], out int parsedCommandLength))
+                    {
+                        throw new InvalidOperationException(string.Format("Invalid lock message. Expected command length, got: {0} from message: '{1}'", dataParts[3], body));
+                    }
+
+                    // ParsedCommandLength should be the length of the string at the end of the message
+                    // Add the length of the previous parts, plus delimiters
+                    int startingSpot = dataParts[0].Length + dataParts[1].Length + dataParts[2].Length + dataParts[3].Length + 4;
+                    if ((startingSpot + parsedCommandLength) != body.Length)
+                    {
+                        throw new InvalidOperationException(string.Format("Invalid lock message. The parsedCommand is an unexpected length, got: {0} from message: '{1}'", parsedCommandLength, body));
+                    }
+
+                    parsedCommand = body.Substring(startingSpot, parsedCommandLength);
 
                     return new LockData(pid, isElevated, checkAvailabilityOnly, parsedCommand);
                 }
@@ -319,7 +333,7 @@ namespace GVFS.Common.NamedPipes
 
             internal string ToMessage()
             {
-                return string.Join(MessageSeparator.ToString(), this.PID, this.IsElevated, this.CheckAvailabilityOnly, this.ParsedCommand);
+                return string.Join(MessageSeparator.ToString(), this.PID, this.IsElevated, this.CheckAvailabilityOnly, this.ParsedCommand.Length, this.ParsedCommand);
             }
         }
 

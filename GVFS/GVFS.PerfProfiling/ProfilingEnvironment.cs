@@ -3,7 +3,8 @@ using GVFS.Common.FileSystem;
 using GVFS.Common.Git;
 using GVFS.Common.Http;
 using GVFS.Common.Tracing;
-using GVFS.GVFlt;
+using GVFS.Platform.Windows;
+using GVFS.Virtualization;
 
 namespace GVFS.PerfProfiling
 {
@@ -13,16 +14,17 @@ namespace GVFS.PerfProfiling
         {
             this.Enlistment = this.CreateEnlistment(enlistmentRootPath);
             this.Context = this.CreateContext();
-            this.GVFltCallbacks = this.CreateGVFltCallbacks();
+            this.FileSystemCallbacks = this.CreateFileSystemCallbacks();
         }
 
         public GVFSEnlistment Enlistment { get; private set; }
         public GVFSContext Context { get; private set; }
-        public GVFltCallbacks GVFltCallbacks { get; private set; }
+        public FileSystemCallbacks FileSystemCallbacks { get; private set; }
 
         private GVFSEnlistment CreateEnlistment(string enlistmentRootPath)
         {
-            string gitBinPath = GitProcess.GetInstalledGitBinPath();
+            GVFSPlatform.Register(new WindowsPlatform());
+            string gitBinPath = GVFSPlatform.Instance.GitInstallation.GetInstalledGitBinPath();
             string hooksPath = ProcessHelper.WhereDirectory(GVFSConstants.GVFSHooksExecutableName);
 
             return GVFSEnlistment.CreateFromDirectory(enlistmentRootPath, gitBinPath, hooksPath);
@@ -30,7 +32,7 @@ namespace GVFS.PerfProfiling
 
         private GVFSContext CreateContext()
         {
-            ITracer tracer = new JsonEtwTracer(GVFSConstants.GVFSEtwProviderName, "GVFS.PerfProfiling", useCriticalTelemetryFlag: false);
+            ITracer tracer = new JsonTracer(GVFSConstants.GVFSEtwProviderName, "GVFS.PerfProfiling", disableTelemetry: true);
 
             PhysicalFileSystem fileSystem = new PhysicalFileSystem();
             GitRepo gitRepo = new GitRepo(
@@ -40,7 +42,7 @@ namespace GVFS.PerfProfiling
             return new GVFSContext(tracer, fileSystem, gitRepo, this.Enlistment);
         }
 
-        private GVFltCallbacks CreateGVFltCallbacks()
+        private FileSystemCallbacks CreateFileSystemCallbacks()
         {
             string error;
             if (!RepoMetadata.TryInitialize(this.Context.Tracer, this.Enlistment.DotGVFSRoot, out error))
@@ -76,7 +78,7 @@ namespace GVFS.PerfProfiling
                 new RetryConfig());
 
             GVFSGitObjects gitObjects = new GVFSGitObjects(this.Context, objectRequestor);
-            return new GVFltCallbacks(this.Context, gitObjects, RepoMetadata.Instance);
+            return new FileSystemCallbacks(this.Context, gitObjects, RepoMetadata.Instance, fileSystemVirtualizer: null);
         }
     }
 }

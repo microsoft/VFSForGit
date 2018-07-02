@@ -3,7 +3,6 @@ using GVFS.Common.FileSystem;
 using GVFS.Common.NamedPipes;
 using GVFS.Common.Tracing;
 using GVFS.Service.Handlers;
-using Microsoft.Diagnostics.Tracing;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -231,7 +230,28 @@ namespace GVFS.Service
                             try
                             {
                                 RepoRegistration registration = RepoRegistration.FromJson(entry);
-                                allRepos[registration.EnlistmentRoot] = registration;
+
+                                string errorMessage;
+                                string normalizedEnlistmentRootPath = registration.EnlistmentRoot;
+                                if (GVFSPlatform.Instance.FileSystem.TryGetNormalizedPath(registration.EnlistmentRoot, out normalizedEnlistmentRootPath, out errorMessage))
+                                {
+                                    if (!normalizedEnlistmentRootPath.Equals(registration.EnlistmentRoot, StringComparison.OrdinalIgnoreCase))
+                                    {
+                                        EventMetadata metadata = new EventMetadata();
+                                        metadata.Add("registration.EnlistmentRoot", registration.EnlistmentRoot);
+                                        metadata.Add(nameof(normalizedEnlistmentRootPath), normalizedEnlistmentRootPath);
+                                        metadata.Add(TracingConstants.MessageKey.InfoMessage, $"{nameof(ReadRegistry)}: Mapping registered enlistment root to final path");
+                                        this.tracer.RelatedEvent(EventLevel.Informational, $"{nameof(ReadRegistry)}_NormalizedPathMapping", metadata);
+                                    }
+                                }                                    
+                                else
+                                {
+                                    EventMetadata metadata = new EventMetadata();
+                                    metadata.Add("registration.EnlistmentRoot", registration.EnlistmentRoot);
+                                    this.tracer.RelatedWarning(metadata, $"{nameof(ReadRegistry)}: Failed to get normalized path name for registed enlistment root");
+                                }
+
+                                allRepos[normalizedEnlistmentRootPath] = registration;
                             }
                             catch (Exception e)
                             {

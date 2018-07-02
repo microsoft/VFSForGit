@@ -1,6 +1,6 @@
 using GVFS.Common.NamedPipes;
 using GVFS.Common.Tracing;
-using Microsoft.Diagnostics.Tracing;
+using System;
 using System.Diagnostics;
 using System.Threading;
 
@@ -9,11 +9,8 @@ namespace GVFS.Common
     public partial class GVFSLock
     {
         private readonly object acquisitionLock = new object();
-
         private readonly ITracer tracer;
-
-        private bool isLockedByGVFS;
-        private NamedPipeMessages.LockData externalLockHolder;
+        private readonly LockHolder currentLockHolder = new LockHolder();
 
         public GVFSLock(ITracer tracer)
         {
@@ -30,25 +27,25 @@ namespace GVFS.Common
         /// <summary>
         /// Allows external callers (non-GVFS) to acquire the lock.
         /// </summary>
-        /// <param name="requester">The data for the external acquisition request.</param>
-        /// <param name="holder">The current holder of the lock if the acquisition fails.</param>
+        /// <param name="requestor">The data for the external acquisition request.</param>
+        /// <param name="existingExternalHolder">The current holder of the lock if the acquisition fails.</param>
         /// <returns>True if the lock was acquired, false otherwise.</returns>
-        public bool TryAcquireLock(
-            NamedPipeMessages.LockData requester,
-            out NamedPipeMessages.LockData holder)
+        public bool TryAcquireLockForExternalRequestor(
+            NamedPipeMessages.LockData requestor,
+            out NamedPipeMessages.LockData existingExternalHolder)
         {
             EventMetadata metadata = new EventMetadata();
             EventLevel eventLevel = EventLevel.Verbose;
-            metadata.Add("LockRequest", requester.ToString());
-            metadata.Add("IsElevated", requester.IsElevated);
+            metadata.Add("LockRequest", requestor.ToString());
+            metadata.Add("IsElevated", requestor.IsElevated);
 
-            holder = null;
+            existingExternalHolder = null;
 
             try
             {
                 lock (this.acquisitionLock)
                 {
-                    if (this.isLockedByGVFS)
+                    if (this.currentLockHolder.IsGVFS)
                     {
                         metadata.Add("CurrentLockHolder", "GVFS");
                         metadata.Add("Result", "Denied");
@@ -56,19 +53,19 @@ namespace GVFS.Common
                         return false;
                     }
 
-                    if (!this.IsLockAvailable(checkExternalHolderOnly: true))
+                    existingExternalHolder = this.GetExternalHolder();
+                    if (existingExternalHolder != null)
                     {
-                        metadata.Add("CurrentLockHolder", this.externalLockHolder.ToString());
+                        metadata.Add("CurrentLockHolder", existingExternalHolder.ToString());
                         metadata.Add("Result", "Denied");
 
-                        holder = this.externalLockHolder;
                         return false;
                     }
-                    
+
                     metadata.Add("Result", "Accepted");
                     eventLevel = EventLevel.Informational;
 
-                    this.externalLockHolder = requester;
+                    this.currentLockHolder.AcquireForExternalRequestor(requestor);
                     this.Stats = new ActiveGitCommandStats();
 
                     return true;
@@ -84,26 +81,27 @@ namespace GVFS.Common
         /// Allow GVFS to acquire the lock.
         /// </summary>
         /// <returns>True if GVFS was able to acquire the lock or if it already held it. False othwerwise.</returns>
-        public bool TryAcquireLock()
+        public bool TryAcquireLockForGVFS()
         {
             EventMetadata metadata = new EventMetadata();
             try
             {
                 lock (this.acquisitionLock)
                 {
-                    if (this.isLockedByGVFS)
+                    if (this.currentLockHolder.IsGVFS)
                     {
                         return true;
                     }
 
-                    if (!this.IsLockAvailable(checkExternalHolderOnly: true))
+                    NamedPipeMessages.LockData existingExternalHolder = this.GetExternalHolder();
+                    if (existingExternalHolder != null)
                     {
-                        metadata.Add("CurrentLockHolder", this.externalLockHolder.ToString());
+                        metadata.Add("CurrentLockHolder", existingExternalHolder.ToString());
                         metadata.Add("Result", "Denied");
                         return false;
                     }
 
-                    this.isLockedByGVFS = true;
+                    this.currentLockHolder.AcquireForGVFS();
                     metadata.Add("Result", "Accepted");
                     return true;
                 }
@@ -114,69 +112,48 @@ namespace GVFS.Common
             }
         }
 
-        /// <summary>
-        /// Allow GVFS to release the lock if it holds it.
-        /// </summary>
-        /// <remarks>
-        /// This should only be invoked by GVFS and not external callers. 
-        /// Release by external callers is implicit on process termination.
-        /// </remarks>
-        public void ReleaseLock()
-        {
-            this.tracer.RelatedEvent(EventLevel.Verbose, "ReleaseLock", new EventMetadata());
-            this.isLockedByGVFS = false;
-        }
-
-        public bool ReleaseExternalLock(int pid)
-        {
-            return this.ReleaseExternalLock(pid, nameof(this.ReleaseExternalLock));
-        }
-
-        public bool IsLockAvailable(bool checkExternalHolderOnly = false)
+        public void ReleaseLockHeldByGVFS()
         {
             lock (this.acquisitionLock)
             {
-                if (!checkExternalHolderOnly &&
-                    this.isLockedByGVFS)
+                if (!this.currentLockHolder.IsGVFS)
                 {
-                    return false;
+                    throw new InvalidOperationException("Cannot release lock that is not held by GVFS");
                 }
 
-                if (this.externalLockHolder == null)
-                {
-                    return true;
-                }
-
-                Process process = null;
-                try
-                {
-                    int pid = this.externalLockHolder.PID;
-                    if (ProcessHelper.TryGetProcess(pid, out process))
-                    {
-                        return false;
-                    }
-
-                    this.ReleaseLockForTerminatedProcess(pid);
-                    return true;
-                }
-                finally
-                {
-                    if (process != null)
-                    {
-                        process.Dispose();
-                    }
-                }
+                this.tracer.RelatedEvent(EventLevel.Verbose, nameof(this.ReleaseLockHeldByGVFS), new EventMetadata());
+                this.currentLockHolder.Release();
             }
         }
 
-        public NamedPipeMessages.LockData GetExternalLockHolder()
+        public bool ReleaseLockHeldByExternalProcess(int pid)
         {
-            return this.externalLockHolder;
+            return this.ReleaseExternalLock(pid, nameof(this.ReleaseLockHeldByExternalProcess));
+        }
+
+        public NamedPipeMessages.LockData GetExternalHolder()
+        {
+            NamedPipeMessages.LockData externalHolder;
+            this.IsLockAvailable(checkExternalHolderOnly: true, existingExternalHolder: out externalHolder);
+
+            return externalHolder;
+        }
+
+        public bool IsLockAvailableForExternalRequestor(out NamedPipeMessages.LockData existingExternalHolder)
+        {
+            return this.IsLockAvailable(checkExternalHolderOnly: false, existingExternalHolder: out existingExternalHolder);
         }
 
         public string GetLockedGitCommand()
         {
-            NamedPipeMessages.LockData currentHolder = this.externalLockHolder;
+            // In this code path, we don't care if the process terminated without releasing the lock. The calling code
+            // is asking us about this lock so that it can determine if git was the cause of certain IO events. Even
+            // if the git process has terminated, the answer to that question does not change.
+
+            bool externalHolderTerminatedWithoutReleasingLock;
+            NamedPipeMessages.LockData currentHolder = this.currentLockHolder.GetExternalHolder(
+                out externalHolderTerminatedWithoutReleasingLock);
+
             if (currentHolder != null)
             {
                 return currentHolder.ParsedCommand;
@@ -187,18 +164,46 @@ namespace GVFS.Common
 
         public string GetStatus()
         {
-            if (this.isLockedByGVFS)
+            lock (this.acquisitionLock)
             {
-                return "Held by GVFS.";
-            }
+                if (this.currentLockHolder.IsGVFS)
+                {
+                    return "Held by GVFS.";
+                }
 
-            NamedPipeMessages.LockData currentHolder = this.externalLockHolder;
-            if (currentHolder != null)
-            {
-                return string.Format("Held by {0} (PID:{1})", currentHolder.ParsedCommand, currentHolder.PID);
+                NamedPipeMessages.LockData externalHolder = this.GetExternalHolder();
+                if (externalHolder != null)
+                {
+                    return string.Format("Held by {0} (PID:{1})", externalHolder.ParsedCommand, externalHolder.PID);
+                }
             }
 
             return "Free";
+        }
+
+        private bool IsLockAvailable(bool checkExternalHolderOnly, out NamedPipeMessages.LockData existingExternalHolder)
+        {
+            lock (this.acquisitionLock)
+            {
+                if (!checkExternalHolderOnly &&
+                    this.currentLockHolder.IsGVFS)
+                {
+                    existingExternalHolder = null;
+                    return false;
+                }
+
+                bool externalHolderTerminatedWithoutReleasingLock;
+                existingExternalHolder = this.currentLockHolder.GetExternalHolder(
+                    out externalHolderTerminatedWithoutReleasingLock);
+
+                if (externalHolderTerminatedWithoutReleasingLock)
+                {
+                    this.ReleaseLockForTerminatedProcess(existingExternalHolder.PID);
+                    existingExternalHolder = null;
+                }
+
+                return existingExternalHolder == null;
+            }
         }
 
         private bool ReleaseExternalLock(int pid, string eventName)
@@ -209,30 +214,35 @@ namespace GVFS.Common
 
                 try
                 {
-                    if (this.isLockedByGVFS)
+                    if (this.currentLockHolder.IsGVFS)
                     {
                         metadata.Add("IsLockedByGVFS", "true");
                         return false;
                     }
 
-                    if (this.externalLockHolder == null)
+                    // We don't care if the process has already terminated. We're just trying to record the info for the last holder.
+                    bool externalHolderTerminatedWithoutReleasingLock;
+                    NamedPipeMessages.LockData previousExternalHolder = this.currentLockHolder.GetExternalHolder(
+                        out externalHolderTerminatedWithoutReleasingLock);
+
+                    if (previousExternalHolder == null)
                     {
                         metadata.Add("Result", "Failed (no current holder, requested PID=" + pid + ")");
                         return false;
                     }
 
-                    metadata.Add("CurrentLockHolder", this.externalLockHolder.ToString());
-                    metadata.Add("IsElevated", this.externalLockHolder.IsElevated);
+                    metadata.Add("CurrentLockHolder", previousExternalHolder.ToString());
+                    metadata.Add("IsElevated", previousExternalHolder.IsElevated);
                     metadata.Add(nameof(RepoMetadata.Instance.EnlistmentId), RepoMetadata.Instance.EnlistmentId);
 
-                    if (this.externalLockHolder.PID != pid)
+                    if (previousExternalHolder.PID != pid)
                     {
                         metadata.Add("pid", pid);
                         metadata.Add("Result", "Failed (wrong PID)");
                         return false;
                     }
 
-                    this.externalLockHolder = null;
+                    this.currentLockHolder.Release();
                     metadata.Add("Result", "Released");
                     this.Stats.AddStatsToTelemetry(metadata);
 
@@ -324,6 +334,72 @@ namespace GVFS.Common
 
                 metadata.Add("SizeQueries", this.numSizeQueries);
                 metadata.Add("SizeQueryTimeMS", this.sizeQueryTimeMs);
+            }
+        }
+
+        /// <summary>
+        /// This class manages the state of which process currently owns the GVFS lock. This code is complicated because
+        /// the lock can be held by us or by an external process, and because the external process that holds the lock
+        /// can terminate without releasing the lock. If that happens, we implicitly release the lock the next time we
+        /// check to see who is holding it.
+        /// 
+        /// The goal of this class is to make it impossible for the rest of GVFSLock to read the external holder without being
+        /// aware of the fact that it could have terminated.
+        /// 
+        /// This class assumes that the caller is handling all synchronization.
+        /// </summary>
+        private class LockHolder
+        {
+            private NamedPipeMessages.LockData externalLockHolder;
+
+            public bool IsFree
+            {
+                get { return !this.IsGVFS && this.externalLockHolder == null; }
+            }
+
+            public bool IsGVFS
+            {
+                get; private set;
+            }
+
+            public void AcquireForGVFS()
+            {
+                if (this.externalLockHolder != null)
+                {
+                    throw new InvalidOperationException("Cannot acquire for GVFS because there is an external holder");
+                }
+
+                this.IsGVFS = true;
+            }
+
+            public void AcquireForExternalRequestor(NamedPipeMessages.LockData externalLockHolder)
+            {
+                if (this.IsGVFS ||
+                    this.externalLockHolder != null)
+                {
+                    throw new InvalidOperationException("Cannot acquire a lock that is already held");
+                }
+
+                this.externalLockHolder = externalLockHolder;
+            }
+
+            public void Release()
+            {
+                this.IsGVFS = false;
+                this.externalLockHolder = null;
+            }
+
+            public NamedPipeMessages.LockData GetExternalHolder(out bool externalHolderTerminatedWithoutReleasingLock)
+            {
+                externalHolderTerminatedWithoutReleasingLock = false;
+
+                if (this.externalLockHolder != null)
+                {
+                    int pid = this.externalLockHolder.PID;
+                    externalHolderTerminatedWithoutReleasingLock = !ProcessHelper.IsProcessActive(pid);
+                }
+
+                return this.externalLockHolder;
             }
         }
     }

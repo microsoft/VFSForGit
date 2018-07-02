@@ -1,6 +1,5 @@
 ﻿using GVFS.FunctionalTests.Tools;
 using NUnit.Framework;
-using System.IO;
 
 namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
 {

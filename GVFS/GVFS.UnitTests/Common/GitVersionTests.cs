@@ -62,6 +62,7 @@ namespace GVFS.UnitTests.Common
             GitVersion version2 = new GitVersion(1, 2, 3, "test1", 4, 1);
 
             version1.IsLessThan(version2).ShouldEqual(false);
+            version1.IsEqualTo(version2).ShouldEqual(false);
         }
 
         [TestCase]
@@ -71,6 +72,7 @@ namespace GVFS.UnitTests.Common
             GitVersion version2 = new GitVersion(1, 2, 3, "test", 4, 1);
 
             version1.IsLessThan(version2).ShouldEqual(false);
+            version1.IsEqualTo(version2).ShouldEqual(true);
         }
 
         [TestCase]
@@ -80,6 +82,7 @@ namespace GVFS.UnitTests.Common
             GitVersion version2 = new GitVersion(1, 2, 3, "test", 4, 1);
 
             version1.IsLessThan(version2).ShouldEqual(true);
+            version1.IsEqualTo(version2).ShouldEqual(false);
         }
 
         [TestCase]
@@ -89,6 +92,7 @@ namespace GVFS.UnitTests.Common
             GitVersion version2 = new GitVersion(1, 2, 3, "test", 4, 1);
 
             version1.IsLessThan(version2).ShouldEqual(false);
+            version1.IsEqualTo(version2).ShouldEqual(false);
         }
 
         [TestCase]
@@ -98,6 +102,7 @@ namespace GVFS.UnitTests.Common
             GitVersion version2 = new GitVersion(1, 2, 3, "test", 4, 1);
 
             version1.IsLessThan(version2).ShouldEqual(true);
+            version1.IsEqualTo(version2).ShouldEqual(false);
         }
 
         [TestCase]
@@ -107,6 +112,7 @@ namespace GVFS.UnitTests.Common
             GitVersion version2 = new GitVersion(1, 2, 3, "test", 4, 1);
 
             version1.IsLessThan(version2).ShouldEqual(false);
+            version1.IsEqualTo(version2).ShouldEqual(false);
         }
 
         [TestCase]
@@ -116,6 +122,7 @@ namespace GVFS.UnitTests.Common
             GitVersion version2 = new GitVersion(1, 2, 3, "test", 4, 1);
 
             version1.IsLessThan(version2).ShouldEqual(true);
+            version1.IsEqualTo(version2).ShouldEqual(false);
         }
 
         [TestCase]
@@ -125,6 +132,7 @@ namespace GVFS.UnitTests.Common
             GitVersion version2 = new GitVersion(1, 2, 3, "test", 4, 1);
 
             version1.IsLessThan(version2).ShouldEqual(false);
+            version1.IsEqualTo(version2).ShouldEqual(false);
         }
 
         [TestCase]
@@ -134,6 +142,7 @@ namespace GVFS.UnitTests.Common
             GitVersion version2 = new GitVersion(1, 2, 3, "test", 4, 1);
 
             version1.IsLessThan(version2).ShouldEqual(true);
+            version1.IsEqualTo(version2).ShouldEqual(false);
         }
 
         [TestCase]
@@ -143,6 +152,7 @@ namespace GVFS.UnitTests.Common
             GitVersion version2 = new GitVersion(1, 2, 3, "test", 4, 1);
 
             version1.IsLessThan(version2).ShouldEqual(false);
+            version1.IsEqualTo(version2).ShouldEqual(false);
         }
 
         [TestCase]
@@ -152,6 +162,7 @@ namespace GVFS.UnitTests.Common
             GitVersion version2 = new GitVersion(1, 2, 3, "test", 4, 2);
 
             version1.IsLessThan(version2).ShouldEqual(true);
+            version1.IsEqualTo(version2).ShouldEqual(false);
         }
 
         [TestCase]
@@ -161,6 +172,7 @@ namespace GVFS.UnitTests.Common
             GitVersion version2 = new GitVersion(1, 2, 3, "test", 4, 1);
 
             version1.IsLessThan(version2).ShouldEqual(false);
+            version1.IsEqualTo(version2).ShouldEqual(false);
         }
 
         [TestCase]

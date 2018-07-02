@@ -1,7 +1,7 @@
 ﻿using GVFS.Common;
 using GVFS.Common.FileSystem;
 using GVFS.Common.Tracing;
-using GVFS.GVFlt;
+using GVFS.Virtualization.Background;
 using System.Collections.Generic;
 using System.IO;
 
@@ -14,7 +14,7 @@ namespace GVFS.RepairJobs
         public BackgroundOperationDatabaseRepairJob(ITracer tracer, TextWriter output, GVFSEnlistment enlistment)
             : base(tracer, output, enlistment)
         {
-            this.dataPath = Path.Combine(this.Enlistment.DotGVFSRoot, GVFSConstants.DotGVFS.Databases.BackgroundGitOperations);
+            this.dataPath = Path.Combine(this.Enlistment.DotGVFSRoot, GVFSConstants.DotGVFS.Databases.BackgroundFileSystemTasks);
         }
 
         public override string Name
@@ -25,8 +25,8 @@ namespace GVFS.RepairJobs
         public override IssueType HasIssue(List<string> messages)
         {
             string error;
-            BackgroundGitUpdateQueue instance;
-            if (!BackgroundGitUpdateQueue.TryCreate(
+            FileSystemTaskQueue instance;
+            if (!FileSystemTaskQueue.TryCreate(
                 this.Tracer,
                 this.dataPath,
                 new PhysicalFileSystem(),

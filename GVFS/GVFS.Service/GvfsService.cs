@@ -3,9 +3,7 @@ using GVFS.Common.FileSystem;
 using GVFS.Common.NamedPipes;
 using GVFS.Common.Tracing;
 using GVFS.Service.Handlers;
-using Microsoft.Diagnostics.Tracing;
 using System;
-using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Runtime.Serialization;
@@ -19,14 +17,14 @@ namespace GVFS.Service
         private const string ServiceNameArgPrefix = "--servicename=";
         private const string EtwArea = nameof(GVFSService);
 
-        private JsonEtwTracer tracer;
+        private JsonTracer tracer;
         private Thread serviceThread;
         private ManualResetEvent serviceStopped;
         private string serviceName;
         private string serviceDataLocation;
         private RepoRegistry repoRegistry;
 
-        public GVFSService(JsonEtwTracer tracer)
+        public GVFSService(JsonTracer tracer)
         {
             this.tracer = tracer;
             this.serviceName = GVFSConstants.Service.ServiceName;

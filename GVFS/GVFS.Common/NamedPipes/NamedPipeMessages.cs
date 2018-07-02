@@ -1,9 +1,5 @@
-﻿using GVFS.Common.Tracing;
-using Microsoft.Diagnostics.Tracing;
-using Newtonsoft.Json;
-using System;
+﻿using Newtonsoft.Json;
 using System.Collections.Generic;
-using System.Runtime.Serialization;
 
 namespace GVFS.Common.NamedPipes
 {
@@ -17,6 +13,7 @@ namespace GVFS.Common.NamedPipes
     public static partial class NamedPipeMessages
     {
         public const string UnknownGVFSState = "UnknownGVFSState";
+        public const string MountNotReadyResult = "MountNotReady";
 
         private const string ResponseSuffix = "Response";
 
@@ -68,13 +65,46 @@ namespace GVFS.Common.NamedPipes
             public const string MountFailed = "MountFailed";
         }
 
+        public static class ModifiedPaths
+        {
+            public const string ListRequest = "MPL";
+            public const string InvalidVersion = "InvalidVersion";
+            public const string SuccessResult = "S";
+
+            public class Request
+            {
+                public Request(Message message)
+                {
+                    this.Version = message.Body;
+                }
+
+                public string Version { get; }
+            }
+
+            public class Response
+            {
+                public Response(string result, string data = "")
+                {
+                    this.Result = result;
+                    this.Data = data;
+                }
+
+                public string Result { get; }
+                public string Data { get; }
+
+                public Message CreateMessage()
+                {
+                    return new Message(this.Result, this.Data);
+                }
+            }
+        }
+
         public static class DownloadObject
         {
             public const string DownloadRequest = "DLO";
             public const string SuccessResult = "S";
             public const string DownloadFailed = "F";
             public const string InvalidSHAResult = "InvalidSHA";
-            public const string MountNotReadyResult = "MountNotReady";
 
             public class Request
             {
@@ -88,6 +118,53 @@ namespace GVFS.Common.NamedPipes
                 public Message CreateMessage()
                 {
                     return new Message(DownloadRequest, this.RequestSha);
+                }
+            }
+
+            public class Response
+            {
+                public Response(string result)
+                {
+                    this.Result = result;
+                }
+
+                public string Result { get; }
+
+                public Message CreateMessage()
+                {
+                    return new Message(this.Result, null);
+                }
+            }
+        }
+
+        public static class RunPostFetchJob
+        {
+            public const string PostFetchJob = "PostFetch";
+            public const string QueuedResult = "Queued";
+            public const string MountNotReadyResult = "MountNotReady";
+
+            public class Request
+            {
+                public Request(List<string> packIndexes)
+                {
+                    this.PackIndexList = JsonConvert.SerializeObject(packIndexes);
+                }
+
+                public Request(Message message)
+                {
+                    this.PackIndexList = message.Body;
+                }
+
+                /// <summary>
+                /// The PackIndexList data is a JSON-formatted list of strings,
+                /// where each string is the name of an IDX file in the shared
+                /// object cache.
+                /// </summary>
+                public string PackIndexList { get; set; }
+
+                public Message CreateMessage()
+                {
+                    return new Message(PostFetchJob, this.PackIndexList);
                 }
             }
 

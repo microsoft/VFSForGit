@@ -61,7 +61,7 @@ namespace GVFS.RepairJobs
 
             string username;
             string password;
-            if (!git.TryGetCredentials(this.Tracer, out username, out password))
+            if (!git.TryGetCredentials(this.Tracer, this.Enlistment.RepoUrl, out username, out password))
             {
                 messages.Add("Authentication failed. Run 'gvfs log' for more info.");
                 messages.Add(".git\\config is valid and remote 'origin' is set, but may have a typo:");

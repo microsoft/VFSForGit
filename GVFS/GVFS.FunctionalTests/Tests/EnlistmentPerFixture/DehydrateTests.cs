@@ -1,7 +1,9 @@
 ﻿using GVFS.FunctionalTests.FileSystemRunners;
+using GVFS.FunctionalTests.Should;
 using GVFS.FunctionalTests.Tools;
 using GVFS.Tests.Should;
 using NUnit.Framework;
+using System;
 using System.Diagnostics;
 using System.IO;
 
@@ -48,6 +50,31 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
             this.Enlistment.UnmountGVFS();
             CmdRunner.DeleteDirectoryWithRetry(this.Enlistment.GetObjectRoot(this.fileSystem));
             this.DehydrateShouldSucceed("The repo was successfully dehydrated and remounted", confirm: true, noStatus: true);
+        }
+
+        [TestCase]
+        public void DehydrateShouldBackupFiles()
+        {
+            this.DehydrateShouldSucceed("The repo was successfully dehydrated and remounted", confirm: true, noStatus: false);
+            string backupFolder = Path.Combine(this.Enlistment.EnlistmentRoot, "dehydrate_backup");
+            backupFolder.ShouldBeADirectory(this.fileSystem);
+            string[] backupFolderItems = this.fileSystem.EnumerateDirectory(backupFolder).Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries);
+            backupFolderItems.Length.ShouldEqual(1);
+            this.DirectoryShouldContain(backupFolderItems[0], ".git", ".gvfs", "src");
+
+            // .git folder items
+            string gitFolder = Path.Combine(backupFolderItems[0], ".git");
+            this.DirectoryShouldContain(gitFolder, "index", "info");
+
+            string gitInfoFolder = Path.Combine(gitFolder, "info");
+            this.DirectoryShouldContain(gitInfoFolder, "sparse-checkout");
+
+            // .gvfs folder items
+            string gvfsFolder = Path.Combine(backupFolderItems[0], ".gvfs");
+            this.DirectoryShouldContain(gvfsFolder, "databases", "GVFS_projection");
+
+            string gvfsDatabasesFolder = Path.Combine(gvfsFolder, "databases");
+            this.DirectoryShouldContain(gvfsDatabasesFolder, "BackgroundGitOperations.dat", "ModifiedPaths.dat", "PlaceholderList.dat");
         }
 
         [TestCase]
@@ -125,6 +152,16 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
             GVFSHelpers.SaveDiskLayoutVersion(this.Enlistment.DotGVFSRoot, majorVersionNum.ToString(), minorVersionNum.ToString());
 
             this.Enlistment.MountGVFS();
+        }
+
+        private void DirectoryShouldContain(string directory, params string[] fileOrFolders)
+        {
+            string[] folderItems = this.fileSystem.EnumerateDirectory(directory).Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries);
+            folderItems.Length.ShouldEqual(fileOrFolders.Length);
+            for (int i = 0; i < fileOrFolders.Length; i++)
+            {
+                Path.GetFileName(folderItems[i]).ShouldEqual(fileOrFolders[i]);
+            }
         }
 
         private void DehydrateShouldSucceed(string expectedOutput, bool confirm, bool noStatus)

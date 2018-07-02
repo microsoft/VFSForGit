@@ -35,7 +35,7 @@ namespace GVFS.CommandLine
             HelpText = "Prints a list of all mounted repos")]
         public bool List { get; set; }
 
-        public override string EnlistmentRootPath
+        public override string EnlistmentRootPathParameter
         {
             get { throw new InvalidOperationException(); }
             set { throw new InvalidOperationException(); }
@@ -80,7 +80,7 @@ namespace GVFS.CommandLine
                 // Always ask the service to ensure that PrjFlt is enabled.  This will ensure that the GVFS installer properly waits for
                 // GVFS.Service to finish enabling PrjFlt's AutoLogger
                 string error;
-                if (!this.TryEnableAndAttachGvFltThroughService(string.Empty, out error))
+                if (!this.TryEnableAndAttachPrjFltThroughService(string.Empty, out error))
                 {
                     this.ReportErrorAndExit(tracer: null, exitCode: ReturnCode.FilterError, error: $"Failed to enable PrjFlt: {error}");
                 }

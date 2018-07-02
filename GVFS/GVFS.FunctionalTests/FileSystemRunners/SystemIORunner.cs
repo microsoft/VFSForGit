@@ -60,7 +60,7 @@ namespace GVFS.FunctionalTests.FileSystemRunners
 
         public override void DeleteFile_AccessShouldBeDenied(string path)
         {
-            this.ShouldFail<UnauthorizedAccessException>(() => { this.DeleteFile(path); });
+            this.ShouldFail<Exception>(() => { this.DeleteFile(path); });
         }
 
         public override string ReadAllText(string path)

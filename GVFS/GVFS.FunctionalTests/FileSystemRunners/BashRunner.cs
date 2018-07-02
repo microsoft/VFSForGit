@@ -170,7 +170,7 @@ namespace GVFS.FunctionalTests.FileSystemRunners
 
         public override void MoveDirectory_TargetShouldBeInvalid(string sourcePath, string targetPath)
         {
-            this.MoveFile(sourcePath, targetPath).ShouldContain(invalidMovePathMessages);
+            this.MoveFile(sourcePath, targetPath).ShouldContainOneOf(invalidMovePathMessages);
         }
 
         public override void CreateDirectory(string path)

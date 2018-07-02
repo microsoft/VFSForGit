@@ -13,6 +13,9 @@
       <UniqueIdentifier>{67DA6AB6-F800-4c08-8B7A-83BB121AAD01}</UniqueIdentifier>
       <Extensions>rc;ico;cur;bmp;dlg;rc2;rct;bin;rgs;gif;jpg;jpeg;jpe;resx;tiff;tif;png;wav;mfcribbon-ms</Extensions>
     </Filter>
+    <Filter Include="Shared Header Files">
+      <UniqueIdentifier>{c3243239-d853-4df9-bdbb-9a4efa72a827}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="stdafx.h">
@@ -26,6 +29,9 @@
     </ClInclude>
     <ClInclude Include="packet.h">
       <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\GVFS.NativeHooks.Common\common.h">
+      <Filter>Shared Header Files</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

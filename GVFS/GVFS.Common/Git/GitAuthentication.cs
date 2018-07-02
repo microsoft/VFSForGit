@@ -14,15 +14,12 @@ namespace GVFS.Common.Git
         private string cachedAuthString;
 
         private GitProcess git;
+        private string repoUrl;
 
-        public GitAuthentication(Enlistment enlistment)
-            : this(new GitProcess(enlistment))
-        {
-        }
-
-        public GitAuthentication(GitProcess git)
+        public GitAuthentication(GitProcess git, string repoUrl)
         {
             this.git = git;
+            this.repoUrl = repoUrl;
         }
 
         public bool IsBackingOff
@@ -60,7 +57,7 @@ namespace GVFS.Common.Git
                     // Wipe the username and password so we can try recovering if applicable.
                     this.cachedAuthString = null;
 
-                    this.git.RevokeCredential();
+                    this.git.RevokeCredential(this.repoUrl);
                     this.UpdateBackoff();
                 }
             }
@@ -91,7 +88,7 @@ namespace GVFS.Common.Git
                             return false;
                         }
 
-                        if (!this.git.TryGetCredentials(tracer, out gitUsername, out gitPassword))
+                        if (!this.git.TryGetCredentials(tracer, this.repoUrl, out gitUsername, out gitPassword))
                         {
                             gitAuthString = null;
                             errorMessage = "Authentication failed.";

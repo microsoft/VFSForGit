@@ -1,9 +1,7 @@
 ﻿using CommandLine;
 using GVFS.Common;
-using GVFS.Common.Git;
 using GVFS.Common.Http;
 using GVFS.Common.Tracing;
-using Microsoft.Diagnostics.Tracing;
 using System;
 using System.IO;
 
@@ -53,7 +51,7 @@ namespace GVFS.Mount
                 Required = true,
                 MetaName = "Enlistment Root Path",
                 HelpText = "Full or relative path to the GVFS enlistment root")]
-        public string EnlistmentRootPath { get; set; }
+        public string EnlistmentRootPathParameter { get; set; }
         
         public void InitializeDefaultParameterValues()
         {
@@ -63,13 +61,13 @@ namespace GVFS.Mount
 
         public void Execute()
         {
-            GVFSEnlistment enlistment = this.CreateEnlistment(this.EnlistmentRootPath);
+            GVFSEnlistment enlistment = this.CreateEnlistment(this.EnlistmentRootPathParameter);
 
             EventLevel verbosity;
             Keywords keywords;
             this.ParseEnumArgs(out verbosity, out keywords);
 
-            JsonEtwTracer tracer = this.CreateTracer(enlistment, verbosity, keywords);
+            JsonTracer tracer = this.CreateTracer(enlistment, verbosity, keywords);
             
             CacheServerInfo cacheServer = CacheServerResolver.GetCacheServerFromConfig(enlistment);
 
@@ -79,7 +77,8 @@ namespace GVFS.Mount
                 cacheServer.Url,
                 new EventMetadata
                 {
-                    { "IsElevated", ProcessHelper.IsAdminElevated() },
+                    { "IsElevated", GVFSPlatform.Instance.IsElevated() },
+                    { nameof(this.EnlistmentRootPathParameter), this.EnlistmentRootPathParameter },
                 });
 
             AppDomain.CurrentDomain.UnhandledException += (object sender, UnhandledExceptionEventArgs e) =>
@@ -116,9 +115,9 @@ namespace GVFS.Mount
             tracer.RelatedError(metadata, "UnhandledGVFSExceptionHandler caught unhandled exception");
         }
 
-        private JsonEtwTracer CreateTracer(GVFSEnlistment enlistment, EventLevel verbosity, Keywords keywords)
+        private JsonTracer CreateTracer(GVFSEnlistment enlistment, EventLevel verbosity, Keywords keywords)
         {
-            JsonEtwTracer tracer = new JsonEtwTracer(GVFSConstants.GVFSEtwProviderName, "GVFSMount");
+            JsonTracer tracer = new JsonTracer(GVFSConstants.GVFSEtwProviderName, "GVFSMount");
             tracer.AddLogFileEventListener(
                 GVFSEnlistment.GetNewGVFSLogFileName(enlistment.GVFSLogsRoot, GVFSConstants.LogFileTypes.MountProcess),
                 verbosity,
@@ -146,7 +145,7 @@ namespace GVFS.Mount
 
         private GVFSEnlistment CreateEnlistment(string enlistmentRootPath)
         {
-            string gitBinPath = GitProcess.GetInstalledGitBinPath();
+            string gitBinPath = GVFSPlatform.Instance.GitInstallation.GetInstalledGitBinPath();
             if (string.IsNullOrWhiteSpace(gitBinPath))
             {
                 this.ReportErrorAndExit("Error: " + GVFSConstants.GitIsNotInstalledError);

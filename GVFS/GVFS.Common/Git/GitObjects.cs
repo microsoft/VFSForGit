@@ -2,7 +2,6 @@
 using GVFS.Common.Http;
 using GVFS.Common.NetworkStreams;
 using GVFS.Common.Tracing;
-using Microsoft.Diagnostics.Tracing;
 using System;
 using System.Collections.Generic;
 using System.ComponentModel;
@@ -155,7 +154,7 @@ namespace GVFS.Common.Git
         {
             using (ITracer activity = tracer.StartActivity(nameof(this.TryWriteMultiPackIndex), EventLevel.Informational, Keywords.Telemetry, metadata: null))
             {
-                GitProcess process = new GitProcess(enlistment, fileSystem);
+                GitProcess process = new GitProcess(enlistment);
                 GitProcess.Result result = process.WriteMultiPackIndex(enlistment.GitPackRoot);
 
                 if (!result.HasErrors)
@@ -164,7 +163,11 @@ namespace GVFS.Common.Git
                     activity.RelatedInfo("Updated midx-head to hash {0}", midxHash);
 
                     string expectedMidxHead = Path.Combine(enlistment.GitPackRoot, "midx-" + midxHash + ".midx");
-                    string[] midxFiles = fileSystem.GetFiles(enlistment.GitPackRoot, "midx-*.midx");
+
+                    List<string> midxFiles = new List<string>();
+
+                    midxFiles.AddRange(fileSystem.GetFiles(enlistment.GitPackRoot, "midx-*.midx"));
+                    midxFiles.AddRange(fileSystem.GetFiles(enlistment.GitPackRoot, "tmp_midx_*"));
 
                     foreach (string midxFile in midxFiles)
                     {
@@ -524,7 +527,7 @@ namespace GVFS.Common.Git
             bool flushedBuffers = false;
             try
             {
-                NativeMethods.FlushFileBuffers(path);
+                GVFSPlatform.Instance.FileSystem.FlushFileBuffers(path);
                 flushedBuffers = true;
             }
             catch (Win32Exception e)

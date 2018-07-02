@@ -24,6 +24,12 @@ namespace GVFS.Common.NamedPipes
                     connection.TrySendResponse(NamedPipeMessages.ReleaseLock.SuccessResult);
                     break;
 
+                case NamedPipeMessages.ModifiedPaths.ListRequest:
+                    string gitAttributes = GVFSConstants.SpecialGitFiles.GitAttributes + "\0";
+                    NamedPipeMessages.ModifiedPaths.Response listResponse = new NamedPipeMessages.ModifiedPaths.Response(NamedPipeMessages.ModifiedPaths.SuccessResult, gitAttributes);
+                    connection.TrySendResponse(listResponse.CreateMessage());
+                    break;
+
                 default:
                     connection.TrySendResponse(NamedPipeMessages.UnknownRequest);
 

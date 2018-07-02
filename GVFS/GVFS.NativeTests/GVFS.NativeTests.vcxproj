@@ -1,4 +1,4 @@
-﻿<?xml version="1.0" encoding="utf-8"?>
+<?xml version="1.0" encoding="utf-8"?>
 <Project DefaultTargets="Build" ToolsVersion="14.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup Label="ProjectConfigurations">
     <ProjectConfiguration Include="Debug|x64">
@@ -18,7 +18,7 @@
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
   <Import Project="$(SolutionDir)\GVFS\GVFS.Build\ProjFS.props" />
-  <Import Project="$(SolutionDir)\GVFS\GVFS.Build\GVFS.props" />
+  <Import Project="$(SolutionDir)\GVFS\GVFS.Build\GVFS.cpp.props" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'" Label="Configuration">
     <ConfigurationType>DynamicLibrary</ConfigurationType>
     <UseDebugLibraries>true</UseDebugLibraries>
@@ -93,7 +93,7 @@
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="FileUtils.h" />
-    <ClInclude Include="include\gvflt.h" />
+    <ClInclude Include="include\prjlibp.h" />
     <ClInclude Include="include\prjlib_internal.h" />
     <ClInclude Include="include\NtFunctions.h" />
     <ClInclude Include="include\TestHelpers.h" />
@@ -105,17 +105,17 @@
     <ClInclude Include="include\TestException.h" />
     <ClInclude Include="include\TestVerifiers.h" />
     <ClInclude Include="interface\TrailingSlashTests.h" />
-    <ClInclude Include="interface\GVFlt_BugRegressionTest.h" />
-    <ClInclude Include="interface\GVFlt_DeleteFileTest.h" />
-    <ClInclude Include="interface\GVFlt_DeleteFolderTest.h" />
-    <ClInclude Include="interface\GVFlt_DirEnumTest.h" />
-    <ClInclude Include="interface\GVFlt_FileAttributeTest.h" />
-    <ClInclude Include="interface\GVFlt_FileEATest.h" />
-    <ClInclude Include="interface\GVFlt_FileOperationTest.h" />
-    <ClInclude Include="interface\GVFlt_MoveFileTest.h" />
-    <ClInclude Include="interface\GVFlt_MoveFolderTest.h" />
-    <ClInclude Include="interface\GVFlt_MultiThreadsTest.h" />
-    <ClInclude Include="interface\GVFlt_SetLinkTest.h" />
+    <ClInclude Include="interface\ProjFS_BugRegressionTest.h" />
+    <ClInclude Include="interface\ProjFS_DeleteFileTest.h" />
+    <ClInclude Include="interface\ProjFS_DeleteFolderTest.h" />
+    <ClInclude Include="interface\ProjFS_DirEnumTest.h" />
+    <ClInclude Include="interface\ProjFS_FileAttributeTest.h" />
+    <ClInclude Include="interface\ProjFS_FileEATest.h" />
+    <ClInclude Include="interface\ProjFS_FileOperationTest.h" />
+    <ClInclude Include="interface\ProjFS_MoveFileTest.h" />
+    <ClInclude Include="interface\ProjFS_MoveFolderTest.h" />
+    <ClInclude Include="interface\ProjFS_MultiThreadsTest.h" />
+    <ClInclude Include="interface\ProjFS_SetLinkTest.h" />
     <ClInclude Include="interface\NtQueryDirectoryFileTests.h" />
     <ClInclude Include="interface\PlaceholderUtils.h" />
     <ClInclude Include="interface\ReadAndWriteTests.h" />
@@ -132,17 +132,17 @@
     </ClCompile>
     <ClCompile Include="source\NtFunctions.cpp" />
     <ClCompile Include="source\TrailingSlashTests.cpp" />
-    <ClCompile Include="source\GVFlt_BugRegressionTest.cpp" />
-    <ClCompile Include="source\GVFlt_DeleteFileTest.cpp" />
-    <ClCompile Include="source\GVFlt_DeleteFolderTest.cpp" />
-    <ClCompile Include="source\GVFlt_DirEnumTest.cpp" />
-    <ClCompile Include="source\GVFlt_FileAttributeTest.cpp" />
-    <ClCompile Include="source\GVFlt_FileEATest.cpp" />
-    <ClCompile Include="source\GVFlt_FileOperationTest.cpp" />
-    <ClCompile Include="source\GVFlt_MoveFileTest.cpp" />
-    <ClCompile Include="source\GVFlt_MoveFolderTest.cpp" />
-    <ClCompile Include="source\GVFlt_MultiThreadTest.cpp" />
-    <ClCompile Include="source\GVFlt_SetLinkTest.cpp" />
+    <ClCompile Include="source\ProjFS_BugRegressionTest.cpp" />
+    <ClCompile Include="source\ProjFS_DeleteFileTest.cpp" />
+    <ClCompile Include="source\ProjFS_DeleteFolderTest.cpp" />
+    <ClCompile Include="source\ProjFS_DirEnumTest.cpp" />
+    <ClCompile Include="source\ProjFS_FileAttributeTest.cpp" />
+    <ClCompile Include="source\ProjFS_FileEATest.cpp" />
+    <ClCompile Include="source\ProjFS_FileOperationTest.cpp" />
+    <ClCompile Include="source\ProjFS_MoveFileTest.cpp" />
+    <ClCompile Include="source\ProjFS_MoveFolderTest.cpp" />
+    <ClCompile Include="source\ProjFS_MultiThreadTest.cpp" />
+    <ClCompile Include="source\ProjFS_SetLinkTest.cpp" />
     <ClCompile Include="source\NtQueryDirectoryFileTests.cpp" />
     <ClCompile Include="source\PlaceholderUtils.cpp" />
     <ClCompile Include="source\ReadAndWriteTests.cpp" />

@@ -1,7 +1,6 @@
 ﻿using GVFS.Common;
 using GVFS.Common.Git;
 using GVFS.Common.Tracing;
-using Microsoft.Diagnostics.Tracing;
 using System;
 using System.Collections.Generic;
 using System.IO;

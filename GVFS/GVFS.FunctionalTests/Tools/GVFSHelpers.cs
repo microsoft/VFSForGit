@@ -1,6 +1,7 @@
-﻿using GVFS.Tests.Should;
+﻿using GVFS.FunctionalTests.FileSystemRunners;
+using GVFS.FunctionalTests.Should;
+using GVFS.Tests.Should;
 using Microsoft.Data.Sqlite;
-using Microsoft.Isam.Esent.Collections.Generic;
 using Newtonsoft.Json;
 using NUnit.Framework;
 using System.Collections.Generic;
@@ -11,14 +12,9 @@ namespace GVFS.FunctionalTests.Tools
 {
     public static class GVFSHelpers
     {
-        public const string EsentRepoMetadataFolder = "RepoMetadata";
-        public const string EsentBackgroundOpsFolder = "BackgroundGitUpdates";
-        public const string EsentBlobSizesFolder = "BlobSizes";
-        public const string EsentPlaceholderFolder = "PlaceholderList";
-
-        public const string BackgroundOpsFile = "databases\\BackgroundGitOperations.dat";
-        public const string PlaceholderListFile = "databases\\PlaceholderList.dat";
-        public const string RepoMetadataName = "databases\\RepoMetadata.dat";
+        public static readonly string BackgroundOpsFile = Path.Combine("databases", "BackgroundGitOperations.dat");
+        public static readonly string PlaceholderListFile = Path.Combine("databases", "PlaceholderList.dat");
+        public static readonly string RepoMetadataName = Path.Combine("databases", "RepoMetadata.dat");
 
         private const string DiskLayoutMajorVersionKey = "DiskLayoutVersion";
         private const string DiskLayoutMinorVersionKey = "DiskLayoutMinorVersion";
@@ -63,54 +59,6 @@ namespace GVFS.FunctionalTests.Tools
             return GetPersistedValue(dotGVFSRoot, BlobSizesRootKey);
         }
 
-        public static void SaveDiskLayoutVersionAsEsentDatabase(string dotGVFSRoot, string majorVersion)
-        {
-            string metadataPath = Path.Combine(dotGVFSRoot, EsentRepoMetadataFolder);
-            using (PersistentDictionary<string, string> repoMetadata = new PersistentDictionary<string, string>(metadataPath))
-            {
-                repoMetadata[DiskLayoutMajorVersionKey] = majorVersion;
-                repoMetadata.Flush();
-            }
-        }
-
-        public static void CreateEsentPlaceholderDatabase(string dotGVFSRoot)
-        {
-            string metadataPath = Path.Combine(dotGVFSRoot, EsentPlaceholderFolder);
-            using (PersistentDictionary<string, string> placeholders = new PersistentDictionary<string, string>(metadataPath))
-            {
-                placeholders["mock:\\path"] = new string('0', 40);
-                placeholders.Flush();
-            }
-        }
-
-        public static void CreateEsentBackgroundOpsDatabase(string dotGVFSRoot)
-        {
-            // Copies an ESENT DB with a single entry:
-            // Operation=6 (OnFirstWrite) Path=.gitattributes VirtualPath=.gitattributes Id=1
-            string testDataPath = GetTestDataPath(EsentBackgroundOpsFolder);
-            string metadataPath = Path.Combine(dotGVFSRoot, EsentBackgroundOpsFolder);
-            Directory.CreateDirectory(metadataPath);
-            foreach (string filepath in Directory.EnumerateFiles(testDataPath))
-            {
-                string filename = Path.GetFileName(filepath);
-                File.Copy(filepath, Path.Combine(metadataPath, filename));
-            }
-        }
-
-        public static void CreateEsentBlobSizesDatabase(string dotGVFSRoot, List<KeyValuePair<string, long>> entries)
-        {
-            string metadataPath = Path.Combine(dotGVFSRoot, EsentBlobSizesFolder);
-            using (PersistentDictionary<string, long> blobSizes = new PersistentDictionary<string, long>(metadataPath))
-            {
-                foreach (KeyValuePair<string, long> entry in entries)
-                {
-                    blobSizes[entry.Key] = entry.Value;
-                }
-
-                blobSizes.Flush();
-            }
-        }
-
         public static void SQLiteBlobSizesDatabaseHasEntry(string blobSizesDbPath, string blobSha, long blobSize)
         {
             string connectionString = $"data source={blobSizesDbPath}";
@@ -132,6 +80,37 @@ namespace GVFS.FunctionalTests.Tools
                     }
                 }
             }
+        }
+
+        public static string ReadAllTextFromWriteLockedFile(string filename)
+        {
+            // File.ReadAllText and others attempt to open for read and FileShare.None, which always fail on 
+            // the placeholder db and other files that open for write and only share read access
+            using (StreamReader reader = new StreamReader(File.Open(filename, FileMode.Open, FileAccess.Read, FileShare.ReadWrite)))
+            {
+                return reader.ReadToEnd();
+            }
+        }
+
+        public static void ModifiedPathsContentsShouldEqual(FileSystemRunner fileSystem, string dotGVFSRoot, string contents)
+        {
+            string modifiedPathsDatabase = Path.Combine(dotGVFSRoot, TestConstants.Databases.ModifiedPaths);
+            modifiedPathsDatabase.ShouldBeAFile(fileSystem);
+            GVFSHelpers.ReadAllTextFromWriteLockedFile(modifiedPathsDatabase).ShouldEqual(contents);
+        }
+
+        public static void ModifiedPathsShouldContain(FileSystemRunner fileSystem, string dotGVFSRoot, params string[] gitPaths)
+        {
+            string modifiedPathsDatabase = Path.Combine(dotGVFSRoot, TestConstants.Databases.ModifiedPaths);
+            modifiedPathsDatabase.ShouldBeAFile(fileSystem);
+            GVFSHelpers.ReadAllTextFromWriteLockedFile(modifiedPathsDatabase).ShouldContain(gitPaths);
+        }
+
+        public static void ModifiedPathsShouldNotContain(FileSystemRunner fileSystem, string dotGVFSRoot, params string[] gitPaths)
+        {
+            string modifiedPathsDatabase = Path.Combine(dotGVFSRoot, TestConstants.Databases.ModifiedPaths);
+            modifiedPathsDatabase.ShouldBeAFile(fileSystem);
+            GVFSHelpers.ReadAllTextFromWriteLockedFile(modifiedPathsDatabase).ShouldNotContain(ignoreCase: true, unexpectedSubstrings: gitPaths);
         }
 
         private static byte[] StringToShaBytes(string sha)
@@ -220,12 +199,6 @@ namespace GVFS.FunctionalTests.Tools
             }
 
             File.WriteAllText(metadataPath, newRepoMetadataContents);
-        }
-
-        private static string GetTestDataPath(string fileName)
-        {
-            string workingDirectory = Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location);
-            return Path.Combine(workingDirectory, "TestData", fileName);
         }
     }
 }

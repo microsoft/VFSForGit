@@ -1,9 +1,6 @@
-﻿using GVFS.Common;
-using GVFS.Common.Git;
-using GVFS.Common.Tracing;
+﻿using GVFS.Common.Git;
 using GVFS.Tests.Should;
 using GVFS.UnitTests.Mock.Common;
-using GVFS.UnitTests.Mock.FileSystem;
 using GVFS.UnitTests.Mock.Git;
 using NUnit.Framework;
 
@@ -18,7 +15,7 @@ namespace GVFS.UnitTests.Git
             MockTracer tracer = new MockTracer();
             MockGitProcess gitProcess = this.GetGitProcess();
 
-            GitAuthentication dut = new GitAuthentication(gitProcess);
+            GitAuthentication dut = new GitAuthentication(gitProcess, "mock://repoUrl");
 
             string authString;
             string error;
@@ -42,7 +39,7 @@ namespace GVFS.UnitTests.Git
             MockTracer tracer = new MockTracer();
             MockGitProcess gitProcess = this.GetGitProcess();
 
-            GitAuthentication dut = new GitAuthentication(gitProcess);
+            GitAuthentication dut = new GitAuthentication(gitProcess, "mock://repoUrl");
 
             string authString;
             string error;
@@ -63,7 +60,7 @@ namespace GVFS.UnitTests.Git
             MockTracer tracer = new MockTracer();
             MockGitProcess gitProcess = this.GetGitProcess();
 
-            GitAuthentication dut = new GitAuthentication(gitProcess);
+            GitAuthentication dut = new GitAuthentication(gitProcess, "mock://repoUrl");
 
             string authString;
             string error;
@@ -87,7 +84,7 @@ namespace GVFS.UnitTests.Git
             MockTracer tracer = new MockTracer();
             MockGitProcess gitProcess = this.GetGitProcess();
 
-            GitAuthentication dut = new GitAuthentication(gitProcess);
+            GitAuthentication dut = new GitAuthentication(gitProcess, "mock://repoUrl");
 
             string authString;
             string error;
@@ -111,7 +108,7 @@ namespace GVFS.UnitTests.Git
             MockTracer tracer = new MockTracer();
             MockGitProcess gitProcess = this.GetGitProcess();
 
-            GitAuthentication dut = new GitAuthentication(gitProcess);
+            GitAuthentication dut = new GitAuthentication(gitProcess, "mock://repoUrl");
             
             string authString;
             string error;
@@ -135,7 +132,7 @@ namespace GVFS.UnitTests.Git
             MockTracer tracer = new MockTracer();
             MockGitProcess gitProcess = this.GetGitProcess();
 
-            GitAuthentication dut = new GitAuthentication(gitProcess);
+            GitAuthentication dut = new GitAuthentication(gitProcess, "mock://repoUrl");
 
             string thread1Auth;
             string thread2Auth;
@@ -164,7 +161,7 @@ namespace GVFS.UnitTests.Git
             MockTracer tracer = new MockTracer();
             MockGitProcess gitProcess = this.GetGitProcess();
 
-            GitAuthentication dut = new GitAuthentication(gitProcess);
+            GitAuthentication dut = new GitAuthentication(gitProcess, "mock://repoUrl");
 
             string thread1Auth;
             string thread2Auth;
@@ -191,7 +188,7 @@ namespace GVFS.UnitTests.Git
 
         private MockGitProcess GetGitProcess()
         {
-            MockGitProcess gitProcess = new MockGitProcess(new ConfigurableFileSystem());
+            MockGitProcess gitProcess = new MockGitProcess();
             gitProcess.SetExpectedCommandResult("config gvfs.FunctionalTests.UserName", () => new GitProcess.Result(string.Empty, string.Empty, GitProcess.Result.GenericFailureCode));
             gitProcess.SetExpectedCommandResult("config gvfs.FunctionalTests.Password", () => new GitProcess.Result(string.Empty, string.Empty, GitProcess.Result.GenericFailureCode));
 

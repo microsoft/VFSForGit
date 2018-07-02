@@ -6,8 +6,7 @@ using GVFS.Common.Http;
 using GVFS.Common.NamedPipes;
 using GVFS.Common.Tracing;
 using GVFS.DiskLayoutUpgrades;
-using GVFS.GVFlt.DotGit;
-using Microsoft.Diagnostics.Tracing;
+using GVFS.Virtualization.Projection;
 using System;
 using System.IO;
 using System.Security.Principal;
@@ -35,14 +34,6 @@ namespace GVFS.CommandLine
             HelpText = "A CSV list of logging filter keywords. Accepts: Any, Network")]
         public string KeywordsCsv { get; set; }
 
-        [Option(
-            'd',
-            GVFSConstants.VerbParameters.Mount.DebugWindow,
-            Default = false,
-            Required = false,
-            HelpText = "Show the debug window.  By default, all output is written to a log file and no debug window is shown.")]
-        public bool ShowDebugWindow { get; set; }
-
         public bool SkipMountedCheck { get; set; }
         public bool SkipVersionCheck { get; set; }
         public CacheServerInfo ResolvedCacheServer { get; set; }
@@ -61,10 +52,11 @@ namespace GVFS.CommandLine
 
         protected override void PreCreateEnlistment()
         {
-            string enlistmentRoot = Paths.GetGVFSEnlistmentRoot(this.EnlistmentRootPath);
-            if (enlistmentRoot == null)
+            string errorMessage;
+            string enlistmentRoot;
+            if (!GVFSPlatform.Instance.TryGetGVFSEnlistmentRoot(this.EnlistmentRootPathParameter, out enlistmentRoot, out errorMessage))
             {
-                this.ReportErrorAndExit("Error: '{0}' is not a valid GVFS enlistment", this.EnlistmentRootPath);
+                this.ReportErrorAndExit("Error: '{0}' is not a valid GVFS enlistment", this.EnlistmentRootPathParameter);
             }
 
             if (!this.SkipMountedCheck)
@@ -93,14 +85,21 @@ namespace GVFS.CommandLine
         protected override void Execute(GVFSEnlistment enlistment)
         {
             string errorMessage = null;
-            if (!HooksInstaller.InstallHooks(enlistment, out errorMessage))
-            {
-                this.ReportErrorAndExit("Error installing hooks: " + errorMessage);
-            }
-
             string mountExeLocation = null;
-            using (JsonEtwTracer tracer = new JsonEtwTracer(GVFSConstants.GVFSEtwProviderName, "PreMount"))
+            using (JsonTracer tracer = new JsonTracer(GVFSConstants.GVFSEtwProviderName, "PreMount"))
             {
+                PhysicalFileSystem fileSystem = new PhysicalFileSystem();
+                GitRepo gitRepo = new GitRepo(tracer, enlistment, fileSystem);
+                GVFSContext context = new GVFSContext(tracer, fileSystem, gitRepo, enlistment);
+
+                if (!GVFSPlatform.Instance.IsUnderConstruction)
+                {
+                    if (!HooksInstaller.InstallHooks(context, out errorMessage))
+                    {
+                        this.ReportErrorAndExit("Error installing hooks: " + errorMessage);
+                    }
+                }
+
                 CacheServerInfo cacheServer = this.ResolvedCacheServer ?? CacheServerResolver.GetCacheServerFromConfig(enlistment);
 
                 tracer.AddLogFileEventListener(
@@ -114,20 +113,18 @@ namespace GVFS.CommandLine
                     new EventMetadata
                     {
                         { "Unattended", this.Unattended },
-                        { "IsElevated", ProcessHelper.IsAdminElevated() },
+                        { "IsElevated", GVFSPlatform.Instance.IsElevated() },
+                        { "NamedPipeName", enlistment.NamedPipeName },
+                        { nameof(this.EnlistmentRootPathParameter), this.EnlistmentRootPathParameter },
                     });
 
-                // TODO 1050199: Once the service is an optional component, GVFS should only attempt to attach
-                // the filter via the service if the service is present\enabled
-                if (!ProjFSFilter.IsServiceRunning(tracer) || 
-                    !ProjFSFilter.IsNativeLibInstalled(tracer, new PhysicalFileSystem()) ||
-                    !ProjFSFilter.TryAttach(tracer, enlistment.EnlistmentRoot, out errorMessage))
+                if (!GVFSPlatform.Instance.KernelDriver.IsReady(tracer, enlistment.EnlistmentRoot, out errorMessage))
                 {
                     tracer.RelatedInfo($"{nameof(MountVerb)}.{nameof(this.Execute)}: Enabling and attaching ProjFS through service");
 
                     if (!this.ShowStatusWhileRunning(
-                        () => { return this.TryEnableAndAttachGvFltThroughService(enlistment.EnlistmentRoot, out errorMessage); },
-                        $"Attaching {ProjFSFilter.ServiceName} to volume"))
+                        () => { return this.TryEnableAndAttachPrjFltThroughService(enlistment.EnlistmentRoot, out errorMessage); },
+                        $"Attaching ProjFS to volume"))
                     {
                         this.ReportErrorAndExit(tracer, ReturnCode.FilterError, errorMessage);
                     }
@@ -182,18 +179,8 @@ namespace GVFS.CommandLine
 
                     try
                     {
-                        EventMetadata metadata = new EventMetadata();
-                        metadata.Add(nameof(RepoMetadata.Instance.EnlistmentId), RepoMetadata.Instance.EnlistmentId);
-                        metadata.Add("Enlistment", enlistment);
-                        tracer.RelatedEvent(EventLevel.Informational, "EnlistmentInfo", metadata, Keywords.Telemetry);
-
-                        GitProcess git = new GitProcess(enlistment, new PhysicalFileSystem());
-                        GitProcess.Result configResult = git.SetInLocalConfig(GVFSConstants.GitConfig.EnlistmentId, RepoMetadata.Instance.EnlistmentId, replaceAll: true);
-                        if (configResult.HasErrors)
-                        {
-                            error = "Could not update config with enlistment id, error: " + configResult.Errors;
-                            tracer.RelatedWarning(error);
-                        }
+                        GitProcess git = new GitProcess(enlistment);
+                        this.LogEnlistmentInfoAndSetConfigValues(tracer, git, enlistment);
                     }
                     finally
                     {
@@ -209,7 +196,8 @@ namespace GVFS.CommandLine
                 this.ReportErrorAndExit(errorMessage);
             }
 
-            if (!this.Unattended)
+            if (!this.Unattended &&
+                GVFSPlatform.Instance.SupportsGVFSService)
             {
                 if (!this.ShowStatusWhileRunning(
                     () => { return this.RegisterMount(enlistment, out errorMessage); },
@@ -231,11 +219,14 @@ namespace GVFS.CommandLine
             Keywords keywords;
             this.ParseEnumArgs(out verbosity, out keywords);
 
-            mountExeLocation = Path.Combine(ProcessHelper.GetCurrentProcessLocation(), GVFSConstants.MountExecutableName);
-            if (!File.Exists(mountExeLocation))
+            if (!GVFSPlatform.Instance.IsUnderConstruction)
             {
-                errorMessage = "Could not find GVFS.Mount.exe. You may need to reinstall GVFS.";
-                return false;
+                mountExeLocation = Path.Combine(ProcessHelper.GetCurrentProcessLocation(), GVFSConstants.MountExecutableName);
+                if (!File.Exists(mountExeLocation))
+                {
+                    errorMessage = "Could not find GVFS.Mount.exe. You may need to reinstall GVFS.";
+                    return false;
+                }
             }
 
             GitProcess git = new GitProcess(enlistment);
@@ -260,7 +251,7 @@ namespace GVFS.CommandLine
             }
 
             return true;
-        }        
+        }
 
         private bool TryMount(GVFSEnlistment enlistment, string mountExeLocation, out string errorMessage)
         {
@@ -271,32 +262,39 @@ namespace GVFS.CommandLine
             }
 
             const string ParamPrefix = "--";
-            ProcessHelper.StartBackgroundProcess(
+            if (GVFSPlatform.Instance.IsUnderConstruction)
+            {
+                mountExeLocation = Path.Combine(ProcessHelper.GetCurrentProcessLocation(), "gvfs.mount");
+            }
+
+            GVFSPlatform.Instance.StartBackgroundProcess(
                 mountExeLocation,
-                string.Join(
-                    " ",
-                    "\"" + enlistment.EnlistmentRoot + "\"",
+                new[]
+                {
+                    enlistment.EnlistmentRoot,
                     ParamPrefix + GVFSConstants.VerbParameters.Mount.Verbosity,
                     this.Verbosity,
                     ParamPrefix + GVFSConstants.VerbParameters.Mount.Keywords,
-                    this.KeywordsCsv,
-                    this.ShowDebugWindow ? ParamPrefix + GVFSConstants.VerbParameters.Mount.DebugWindow : string.Empty),
-                createWindow: this.ShowDebugWindow);
+                    this.KeywordsCsv
+                });
+
+            if (GVFSPlatform.Instance.IsUnderConstruction)
+            {
+                // TODO(Mac): figure out the timing issue here on connecting to the pipe
+                System.Threading.Thread.Sleep(TimeSpan.FromSeconds(1));
+            }
 
             return GVFSEnlistment.WaitUntilMounted(enlistment.EnlistmentRoot, this.Unattended, out errorMessage);
         }
 
         private bool RegisterMount(GVFSEnlistment enlistment, out string errorMessage)
-        {
+        {   
             errorMessage = string.Empty;
 
             NamedPipeMessages.RegisterRepoRequest request = new NamedPipeMessages.RegisterRepoRequest();
             request.EnlistmentRoot = enlistment.EnlistmentRoot;
 
-            WindowsIdentity identity = WindowsIdentity.GetCurrent();
-            WindowsPrincipal principal = new WindowsPrincipal(identity);
-
-            request.OwnerSID = identity.User.Value;
+            request.OwnerSID = GVFSPlatform.Instance.GetCurrentUser();
 
             using (NamedPipeClient client = new NamedPipeClient(this.ServicePipeName))
             {

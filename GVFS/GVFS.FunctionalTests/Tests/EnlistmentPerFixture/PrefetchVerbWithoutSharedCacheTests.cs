@@ -1,9 +1,11 @@
 ﻿using GVFS.FunctionalTests.FileSystemRunners;
 using GVFS.FunctionalTests.Should;
+using GVFS.FunctionalTests.Tools;
 using GVFS.Tests.Should;
 using NUnit.Framework;
 using System;
 using System.IO;
+using System.Threading;
 
 namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
 {
@@ -44,11 +46,11 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
         public void PrefetchCommitsToEmptyCache()
         {
             this.Enlistment.Prefetch("--commits");
+            this.PostFetchJobShouldComplete();
 
             // Verify prefetch pack(s) are in packs folder and have matching idx file
-            string[] prefetchPacks = this.ReadPrefetchPackFileNames();            
+            string[] prefetchPacks = this.ReadPrefetchPackFileNames();
             this.AllPrefetchPacksShouldHaveIdx(prefetchPacks);
-            this.PackDirShouldContainMidx(this.Enlistment.GetPackRoot(this.fileSystem));
 
             // Verify tempPacks is empty
             this.TempPackRoot.ShouldBeADirectory(this.fileSystem).WithNoItems();
@@ -68,6 +70,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
 
             // Prefetch should rebuild the missing idx
             this.Enlistment.Prefetch("--commits");
+            this.PostFetchJobShouldComplete();
 
             idxPath.ShouldBeAFile(this.fileSystem);
 
@@ -75,7 +78,6 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
             string[] newPrefetchPacks = this.ReadPrefetchPackFileNames();
             newPrefetchPacks.ShouldContain(prefetchPacks, (item, expectedValue) => { return string.Equals(item, expectedValue); });
             this.AllPrefetchPacksShouldHaveIdx(newPrefetchPacks);
-            this.PackDirShouldContainMidx(this.Enlistment.GetPackRoot(this.fileSystem));
             this.TempPackRoot.ShouldBeADirectory(this.fileSystem).WithNoItems();
         }
 
@@ -93,6 +95,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
 
             // Prefetch should delete the bad pack
             this.Enlistment.Prefetch("--commits");
+            this.PostFetchJobShouldComplete();
 
             badPackPath.ShouldNotExistOnDisk(this.fileSystem);
 
@@ -100,7 +103,6 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
             string[] newPrefetchPacks = this.ReadPrefetchPackFileNames();
             newPrefetchPacks.ShouldContain(prefetchPacks, (item, expectedValue) => { return string.Equals(item, expectedValue); });
             this.AllPrefetchPacksShouldHaveIdx(newPrefetchPacks);
-            this.PackDirShouldContainMidx(this.Enlistment.GetPackRoot(this.fileSystem));
             this.TempPackRoot.ShouldBeADirectory(this.fileSystem).WithNoItems();
         }
 
@@ -118,6 +120,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
 
             // Prefetch should delete the bad pack and all packs after it
             this.Enlistment.Prefetch("--commits");
+            this.PostFetchJobShouldComplete();
 
             badPackPath.ShouldNotExistOnDisk(this.fileSystem);
             foreach (string packPath in prefetchPacks)
@@ -129,7 +132,6 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
 
             string[] newPrefetchPacks = this.ReadPrefetchPackFileNames();
             this.AllPrefetchPacksShouldHaveIdx(newPrefetchPacks);
-            this.PackDirShouldContainMidx(this.Enlistment.GetPackRoot(this.fileSystem));
             this.TempPackRoot.ShouldBeADirectory(this.fileSystem).WithNoItems();
         }
 
@@ -154,13 +156,13 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
 
             // After handle is closed prefetch should succeed
             this.Enlistment.Prefetch("--commits");
+            this.PostFetchJobShouldComplete();
 
             badPackPath.ShouldNotExistOnDisk(this.fileSystem);
 
             string[] newPrefetchPacks = this.ReadPrefetchPackFileNames();
             newPrefetchPacks.ShouldContain(prefetchPacks, (item, expectedValue) => { return string.Equals(item, expectedValue); });
             this.AllPrefetchPacksShouldHaveIdx(newPrefetchPacks);
-            this.PackDirShouldContainMidx(this.Enlistment.GetPackRoot(this.fileSystem));
             this.TempPackRoot.ShouldBeADirectory(this.fileSystem).WithNoItems();
         }
 
@@ -185,6 +187,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
 
             // After handle is closed prefetch should succeed
             this.Enlistment.Prefetch("--commits");
+            this.PostFetchJobShouldComplete();
 
             // The bad pack and all packs newer than it should not be on disk
             badPackPath.ShouldNotExistOnDisk(this.fileSystem);
@@ -192,7 +195,6 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
             string[] newPrefetchPacks = this.ReadPrefetchPackFileNames();
             newPrefetchPacks.ShouldNotContain(prefetchPacks, (item, expectedValue) => { return string.Equals(item, expectedValue); });
             this.AllPrefetchPacksShouldHaveIdx(newPrefetchPacks);
-            this.PackDirShouldContainMidx(this.Enlistment.GetPackRoot(this.fileSystem));
             this.TempPackRoot.ShouldBeADirectory(this.fileSystem).WithNoItems();
         }
 
@@ -220,6 +222,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
 
             // After handle is closed prefetch should succeed
             this.Enlistment.Prefetch("--commits");
+            this.PostFetchJobShouldComplete();
 
             // The bad pack and all packs newer than it should not be on disk
             badPackPath.ShouldNotExistOnDisk(this.fileSystem);
@@ -228,7 +231,6 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
             string[] newPrefetchPacks = this.ReadPrefetchPackFileNames();
             newPrefetchPacks.ShouldNotContain(prefetchPacks, (item, expectedValue) => { return string.Equals(item, expectedValue); });
             this.AllPrefetchPacksShouldHaveIdx(newPrefetchPacks);
-            this.PackDirShouldContainMidx(this.Enlistment.GetPackRoot(this.fileSystem));
             this.TempPackRoot.ShouldBeADirectory(this.fileSystem).WithNoItems();
         }
 
@@ -261,6 +263,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
             otherFilePath.ShouldBeAFile(this.fileSystem).WithContents(otherFileContents);
 
             this.Enlistment.Prefetch("--commits");
+            this.PostFetchJobShouldComplete();
 
             // Validate stale prefetch packs are cleaned up
             Directory.GetFiles(this.TempPackRoot, $"{PrefetchPackPrefix}*.pack").ShouldBeEmpty("There should be no .pack files in the tempPack folder");
@@ -269,6 +272,27 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
 
             // Validate other files are not impacted
             otherFilePath.ShouldBeAFile(this.fileSystem).WithContents(otherFileContents);
+        }
+
+        [TestCase, Order(9)]
+        public void PostFetchJobCleansMidxFiles()
+        {
+            string packDir = Path.Combine(this.Enlistment.GetObjectRoot(this.fileSystem), "pack");
+            string staleMidxFile = Path.Combine(packDir, "midx-FAKE.midx");
+            string tmpMidxFile = Path.Combine(packDir, "tmp_midx_halted");
+
+            // Reset the pack directory so the prefetch definitely triggers MIDX computation
+            this.fileSystem.DeleteDirectory(packDir);
+            this.fileSystem.CreateDirectory(packDir);
+
+            this.fileSystem.CreateEmptyFile(staleMidxFile);
+            this.fileSystem.CreateEmptyFile(tmpMidxFile);
+
+            this.Enlistment.Prefetch("--commits");
+            this.PostFetchJobShouldComplete();
+
+            this.fileSystem.FileExists(staleMidxFile).ShouldBeFalse();
+            this.fileSystem.FileExists(tmpMidxFile).ShouldBeFalse();
         }
 
         private void PackShouldHaveIdxFile(string pathPath)
@@ -285,15 +309,6 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
             {
                 this.PackShouldHaveIdxFile(prefetchPack);
             }
-        }
-
-        private void PackDirShouldContainMidx(string packDir)
-        {
-            string midxHead = packDir + "/midx-head";
-            this.fileSystem.FileExists(midxHead).ShouldBeTrue();
-            string midxHash = this.fileSystem.ReadAllText(midxHead).Substring(0, 40);
-            string midxFile = packDir + "/midx-" + midxHash + ".midx";
-            this.fileSystem.FileExists(midxFile).ShouldBeTrue();
         }
 
         private string[] ReadPrefetchPackFileNames()
@@ -318,7 +333,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
         {
             prefetchPacks.Length.ShouldBeAtLeast(1, "prefetchPacks should have at least one item");
 
-            long mostRecentPackTimestamp = -1;            
+            long mostRecentPackTimestamp = -1;
             foreach (string prefetchPack in prefetchPacks)
             {
                 long timestamp = this.GetTimestamp(prefetchPack);
@@ -348,6 +363,25 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
 
             oldestPackTimestamp.ShouldBeAtMost(long.MaxValue - 1, "Failed to find the oldest pack");
             return oldestPackTimestamp;
+        }
+
+        private void PostFetchJobShouldComplete()
+        {
+            string objectDir = this.Enlistment.GetObjectRoot(this.fileSystem);
+            string postFetchLock = Path.Combine(objectDir, "post-fetch.lock");
+
+            while (this.fileSystem.FileExists(postFetchLock))
+            {
+                Thread.Sleep(500);
+            }
+
+            ProcessResult midxResult = GitProcess.InvokeProcess(this.Enlistment.RepoRoot, "midx --read --pack-dir=\"" + objectDir + "/pack\"");
+            midxResult.ExitCode.ShouldEqual(0);
+            midxResult.Output.ShouldContain("4d494458"); // Header from midx file.
+
+            ProcessResult graphResult = GitProcess.InvokeProcess(this.Enlistment.RepoRoot, "commit-graph read --object-dir=\"" + objectDir + "\"");
+            graphResult.ExitCode.ShouldEqual(0);
+            graphResult.Output.ShouldContain("43475048"); // Header from commit-graph file.
         }
     }
 }

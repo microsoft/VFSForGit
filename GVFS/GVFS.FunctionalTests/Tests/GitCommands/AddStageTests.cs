@@ -43,7 +43,7 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
         private void CommandAllowsPlaceholderCreation(string command, string fileToRead)
         {
             this.EditFile("Readme.md", $"Some new content for {command}.");
-            ManualResetEventSlim resetEvent = GitHelpers.RunGitCommandWithWaitAndStdIn(this.Enlistment, resetTimeout: 3000, command: $"{command} -p", stdinToQuit: "q");
+            ManualResetEventSlim resetEvent = GitHelpers.RunGitCommandWithWaitAndStdIn(this.Enlistment, resetTimeout: 3000, command: $"{command} -p", stdinToQuit: "q", processId: out _);
             this.FileContentsShouldMatch(fileToRead);
             this.ValidateGitCommand("--no-optional-locks status");
             resetEvent.Wait();

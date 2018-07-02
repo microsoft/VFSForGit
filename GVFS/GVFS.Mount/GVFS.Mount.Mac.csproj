@@ -1,0 +1,35 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <Import Project="..\GVFS.Build\GVFS.cs.props" />
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <AssemblyName>gvfs.mount</AssemblyName>
+    <TargetFramework>netcoreapp2.0</TargetFramework>
+    <Platforms>x64</Platforms>
+    <RunTimeIdentifiers>osx-x64</RunTimeIdentifiers>
+    <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
+    <Version>$(GVFSVersion)</Version>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
+    <Version>$(GVFSVersion)</Version>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Compile Include="..\GVFS.PlatformLoader\PlatformLoader.Mac.cs">
+      <Link>PlatformLoader.Mac.cs</Link>
+    </Compile>
+  </ItemGroup>
+  
+  <ItemGroup>
+    <ProjectReference Include="..\GVFS.Platform.Mac\GVFS.Platform.Mac.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="CommandLineParser" Version="2.1.1-beta" />
+    <PackageReference Include="StyleCop.Error.MSBuild" Version="1.0.0" Condition="'$(OS)' == 'Windows_NT'" />
+    <PackageReference Include="StyleCop.MSBuild" Version="5.0.0" Condition="'$(OS)' == 'Windows_NT'" />
+  </ItemGroup>
+
+</Project>

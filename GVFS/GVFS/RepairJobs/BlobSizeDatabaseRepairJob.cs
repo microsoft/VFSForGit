@@ -1,7 +1,7 @@
 ﻿using GVFS.Common;
 using GVFS.Common.FileSystem;
 using GVFS.Common.Tracing;
-using GVFS.GVFlt.BlobSize;
+using GVFS.Virtualization.BlobSize;
 using System.Collections.Generic;
 using System.IO;
 

@@ -1,11 +1,11 @@
 ﻿using CommandLine;
-using FastFetch;
 using GVFS.Common;
 using GVFS.Common.FileSystem;
 using GVFS.Common.Git;
 using GVFS.Common.Http;
+using GVFS.Common.NamedPipes;
+using GVFS.Common.Prefetch;
 using GVFS.Common.Tracing;
-using Microsoft.Diagnostics.Tracing;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -83,7 +83,7 @@ namespace GVFS.CommandLine
 
         protected override void Execute(GVFSEnlistment enlistment)
         {
-            using (JsonEtwTracer tracer = new JsonEtwTracer(GVFSConstants.GVFSEtwProviderName, "Prefetch"))
+            using (JsonTracer tracer = new JsonTracer(GVFSConstants.GVFSEtwProviderName, "Prefetch"))
             {
                 if (this.Verbose)
                 {
@@ -165,7 +165,6 @@ namespace GVFS.CommandLine
                             tracer,
                             Path.Combine(enlistment.GitPackRoot, PrefetchCommitsAndTreesLock),
                             enlistment.EnlistmentRoot,
-                            cleanupStaleLock: false,
                             overwriteExistingLock: true))
                         {
                             this.WaitUntilLockIsAcquired(tracer, prefetchLock);
@@ -240,18 +239,64 @@ namespace GVFS.CommandLine
             GitRepo repo = new GitRepo(tracer, enlistment, fileSystem);
             GVFSContext context = new GVFSContext(tracer, fileSystem, repo, enlistment);
             GitObjects gitObjects = new GVFSGitObjects(context, objectRequestor);
+            List<string> packIndexes = null;
             if (this.Verbose)
             {
-                success = this.TryPrefetchCommitsAndTrees(tracer, enlistment, fileSystem, gitObjects, out error);
+                success = this.TryPrefetchCommitsAndTrees(tracer, enlistment, fileSystem, gitObjects, out error, out packIndexes);
             }
             else
             {
                 success = this.ShowStatusWhileRunning(
-                    () => this.TryPrefetchCommitsAndTrees(tracer, enlistment, fileSystem, gitObjects, out error),
+                    () => this.TryPrefetchCommitsAndTrees(tracer, enlistment, fileSystem, gitObjects, out error, out packIndexes),
                     "Fetching commits and trees " + this.GetCacheServerDisplay(cacheServer));
             }
 
-            if (!success)
+            if (success)
+            {
+                if (packIndexes.Count == 0)
+                {
+                    return;
+                }
+
+                // We make a best-effort request to run MIDX and commit-graph writes
+                using (NamedPipeClient pipeClient = new NamedPipeClient(enlistment.NamedPipeName))
+                {
+                    if (!pipeClient.Connect())
+                    {
+                        tracer.RelatedWarning(
+                            metadata: null,
+                            message: "Failed to connect to GVFS. Skipping post-fetch job request.",
+                            keywords: Keywords.Telemetry);
+                        return;
+                    }
+
+                    NamedPipeMessages.RunPostFetchJob.Request request = new NamedPipeMessages.RunPostFetchJob.Request(packIndexes);
+                    if (pipeClient.TrySendRequest(request.CreateMessage()))
+                    {
+                        NamedPipeMessages.Message response;
+
+                        if (pipeClient.TryReadResponse(out response))
+                        {
+                            tracer.RelatedInfo("Requested post-fetch job with resonse '{0}'", response.Header);
+                        }
+                        else
+                        {
+                            tracer.RelatedWarning(
+                                metadata: null,
+                                message: "Requested post-fetch job failed to respond",
+                                keywords: Keywords.Telemetry);
+                        }
+                    }
+                    else
+                    {
+                        tracer.RelatedWarning(
+                            metadata: null,
+                            message: "Message to named pipe failed to send, skipping post-fetch job request.",
+                            keywords: Keywords.Telemetry);
+                    }
+                }
+            }
+            else
             {
                 this.ReportErrorAndExit(tracer, "Prefetching commits and trees failed: " + error);
             }
@@ -259,7 +304,7 @@ namespace GVFS.CommandLine
 
         private void PrefetchBlobs(ITracer tracer, GVFSEnlistment enlistment, GitObjectsHttpRequestor blobRequestor, CacheServerInfo cacheServer)
         {
-            FetchHelper fetchHelper = new FetchHelper(
+            PrefetchHelper fetchHelper = new PrefetchHelper(
                 tracer,
                 enlistment,
                 blobRequestor,
@@ -269,12 +314,12 @@ namespace GVFS.CommandLine
                 IndexThreadCount);
 
             string error;
-            if (!FetchHelper.TryLoadFolderList(enlistment, this.Folders, this.FoldersListFile, fetchHelper.FolderList, out error))
+            if (!PrefetchHelper.TryLoadFolderList(enlistment, this.Folders, this.FoldersListFile, fetchHelper.FolderList, out error))
             {
                 this.ReportErrorAndExit(tracer, error);
             }
 
-            if (!FetchHelper.TryLoadFileList(enlistment, this.Files, fetchHelper.FileList, out error))
+            if (!PrefetchHelper.TryLoadFileList(enlistment, this.Files, fetchHelper.FileList, out error))
             {
                 this.ReportErrorAndExit(tracer, error);
             }
@@ -313,7 +358,7 @@ namespace GVFS.CommandLine
                 {
                     try
                     {
-                        fetchHelper.FastFetchWithStats(
+                        fetchHelper.PrefetchWithStats(
                             headCommitId.Trim(),
                             isBranch: false,
                             readFilesAfterDownload: this.HydrateFiles,
@@ -322,7 +367,7 @@ namespace GVFS.CommandLine
                             readFileCount: out readFileCount);
                         return !fetchHelper.HasFailures;
                     }
-                    catch (FetchHelper.FetchException e)
+                    catch (PrefetchHelper.FetchException e)
                     {
                         tracer.RelatedError(e.Message);
                         return false;
@@ -363,7 +408,7 @@ namespace GVFS.CommandLine
         private bool CheckIsMounted(bool verbose)
         {
             Func<bool> checkMount = () => this.Execute<StatusVerb>(
-                    this.EnlistmentRootPath,
+                    this.EnlistmentRootPathParameter,
                     verb => verb.Output = new StreamWriter(new MemoryStream())) == ReturnCode.Success;
 
             if (verbose)
@@ -381,24 +426,24 @@ namespace GVFS.CommandLine
             }
         }
 
-        private bool TryPrefetchCommitsAndTrees(ITracer tracer, GVFSEnlistment enlistment, PhysicalFileSystem fileSystem, GitObjects gitObjects, out string error)
+        private bool TryPrefetchCommitsAndTrees(
+            ITracer tracer,
+            GVFSEnlistment enlistment,
+            PhysicalFileSystem fileSystem,
+            GitObjects gitObjects,
+            out string error,
+            out List<string> packIndexes)
         {
             long maxGoodTimeStamp;
             if (!this.TryGetMaxGoodPrefetchTimestamp(tracer, enlistment, fileSystem, gitObjects, out maxGoodTimeStamp, out error))
             {
+                packIndexes = null;
                 return false;
             }
 
-            List<string> packIndexes;
             if (!gitObjects.TryDownloadPrefetchPacks(maxGoodTimeStamp, out packIndexes))
             {
                 error = "Failed to download prefetch packs";
-                return false;
-            }
-
-            if (!gitObjects.TryWriteMultiPackIndex(tracer, enlistment, fileSystem))
-            {
-                error = "Failed to generate midx for new packfiles";
                 return false;
             }
 

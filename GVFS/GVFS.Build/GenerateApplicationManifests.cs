@@ -10,31 +10,29 @@ namespace GVFS.PreBuild
         public string Version { get; set; }
 
         [Required]
-        public string BuildOutputPath { get; set; }
+        public string ApplicationName { get; set; }
+
+        [Required]
+        public string ManifestPath { get; set; }
 
         public override bool Execute()
         {
-            this.Log.LogMessage(MessageImportance.High, "Creating application manifest files");
+            this.Log.LogMessage(MessageImportance.High, "Creating application manifest file for {0}", ApplicationName);
 
-            if (!Directory.Exists(this.BuildOutputPath))
+            string manifestDirectory = Path.GetDirectoryName(this.ManifestPath);
+            if (!Directory.Exists(manifestDirectory))
             {
-                Directory.CreateDirectory(this.BuildOutputPath);
+                Directory.CreateDirectory(manifestDirectory);
             }
 
-            string[] applicationNames =
-            {
-                "GVFS.FunctionalTests",
-                "GVFS.Service",
-            };
-
-            foreach (string applicationName in applicationNames)
-            {
-                File.WriteAllText(
-                    Path.Combine(this.BuildOutputPath, applicationName + ".exe.manifest"),
-                    string.Format(
+            // Any application that calls GetVersionEx must have an application manifest in order to get an accurate response.
+            // See https://msdn.microsoft.com/en-us/library/windows/desktop/ms724451(v=vs.85).aspx for details
+            File.WriteAllText(
+                this.ManifestPath,
+                string.Format(
 @"<?xml version=""1.0"" encoding=""utf-8""?>
 <assembly manifestVersion=""1.0"" xmlns=""urn:schemas-microsoft-com:asm.v1"">
-  <assemblyIdentity version=""{0}"" name=""Microsoft.GVFS.{1}""/>
+  <assemblyIdentity version=""{0}"" name=""{1}""/>
   <compatibility xmlns=""urn:schemas-microsoft-com:compatibility.v1"">
     <application>
       <!-- Windows 10 -->
@@ -43,9 +41,8 @@ namespace GVFS.PreBuild
   </compatibility>
 </assembly>
 ",
-                        this.Version,
-                        applicationName));
-            }
+                    this.Version,
+                    this.ApplicationName));
 
             return true;
         }

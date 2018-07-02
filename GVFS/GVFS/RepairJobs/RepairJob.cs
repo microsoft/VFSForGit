@@ -1,8 +1,7 @@
 ﻿using GVFS.Common;
 using GVFS.Common.FileSystem;
 using GVFS.Common.Tracing;
-using GVFS.GVFlt.DotGit;
-using Microsoft.Diagnostics.Tracing;
+using GVFS.Virtualization.Projection;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -117,9 +116,9 @@ namespace GVFS.RepairJobs
                 gitObjects: null,
                 blobSizes: null,
                 repoMetadata: null,
-                gvflt: null,
+                fileSystemVirtualizer: null,
                 placeholderList: null,
-                sparseCheckout: null))
+                modifiedPaths: null))
             {
                 try
                 {

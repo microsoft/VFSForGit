@@ -3,6 +3,7 @@ using GVFS.FunctionalTests.Should;
 using GVFS.FunctionalTests.Tools;
 using GVFS.Tests.Should;
 using NUnit.Framework;
+using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -25,16 +26,13 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
         public void CreateFileTest()
         {
             string fileName = "file1.txt";
-            string alwaysExcludeFileContentsBeforeChange = "*";
-            string alwaysExcludeFileContentsAfterChange = "*\n!/" + fileName + "\n";
-            string alwaysExcludeFileVirtualPath = this.Enlistment.GetVirtualPathTo(GitHelpers.AlwaysExcludeFilePath);
-            alwaysExcludeFileVirtualPath.ShouldBeAFile(this.fileSystem).WithContents().ShouldContain(alwaysExcludeFileContentsBeforeChange);
+            GVFSHelpers.ModifiedPathsShouldNotContain(this.fileSystem, this.Enlistment.DotGVFSRoot, fileName);
             this.fileSystem.WriteAllText(this.Enlistment.GetVirtualPathTo(fileName), "Some content here");
 
             this.Enlistment.WaitForBackgroundOperations().ShouldEqual(true, "Background operations failed to complete.");
 
             this.Enlistment.GetVirtualPathTo(fileName).ShouldBeAFile(this.fileSystem).WithContents("Some content here");
-            alwaysExcludeFileVirtualPath.ShouldBeAFile(this.fileSystem).WithContents().ShouldContain(alwaysExcludeFileContentsAfterChange);
+            GVFSHelpers.ModifiedPathsShouldContain(this.fileSystem, this.Enlistment.DotGVFSRoot, fileName + Environment.NewLine);
         }
 
         [TestCase, Order(2)]
@@ -43,22 +41,18 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
             string folderName = "folder2";
             string fileName = "file2.txt";
             string filePath = folderName + "\\" + fileName;
-            string[] expectedAlwaysExcludeEntries =
-            {
-                "*",
-                "!/" + folderName + "/",
-                "!/" + folderName + "/" + fileName
-            };
 
             this.Enlistment.GetVirtualPathTo(filePath).ShouldNotExistOnDisk(this.fileSystem);
+            GVFSHelpers.ModifiedPathsShouldNotContain(this.fileSystem, this.Enlistment.DotGVFSRoot, filePath);
+
             this.fileSystem.CreateDirectory(this.Enlistment.GetVirtualPathTo(folderName));
             this.fileSystem.CreateEmptyFile(this.Enlistment.GetVirtualPathTo(filePath));
             this.Enlistment.GetVirtualPathTo(filePath).ShouldBeAFile(this.fileSystem);
 
             this.Enlistment.WaitForBackgroundOperations().ShouldEqual(true, "Background operations failed to complete.");
 
-            string alwaysExcludeFileVirtualPath = this.Enlistment.GetVirtualPathTo(GitHelpers.AlwaysExcludeFilePath);
-            alwaysExcludeFileVirtualPath.ShouldBeAFile(this.fileSystem).WithContents().ShouldContain(expectedAlwaysExcludeEntries);
+            GVFSHelpers.ModifiedPathsShouldContain(this.fileSystem, this.Enlistment.DotGVFSRoot, folderName + "/" + Environment.NewLine);
+            GVFSHelpers.ModifiedPathsShouldContain(this.fileSystem, this.Enlistment.DotGVFSRoot, folderName + "/" + fileName + Environment.NewLine);
         }
 
         [TestCase, Order(3)]
@@ -66,14 +60,10 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
         {
             string folderName = "folder3a";
             string renamedFolderName = "folder3b";
-            string[] expectedAlwaysExcludeEntries =
+            string[] expectedModifiedEntries =
             {
-                "*",
-            };
-            string[] expectedMissingAlwaysExcludeEntries =
-            {
-                "!/" + folderName + "/",
-                "!/" + renamedFolderName + "/",
+                folderName + "/" + Environment.NewLine,
+                renamedFolderName + "/" + Environment.NewLine,
             };
 
             this.Enlistment.GetVirtualPathTo(folderName).ShouldNotExistOnDisk(this.fileSystem);
@@ -82,9 +72,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
 
             this.Enlistment.WaitForBackgroundOperations().ShouldEqual(true, "Background operations failed to complete.");
 
-            string alwaysExcludeFileVirtualPath = this.Enlistment.GetVirtualPathTo(GitHelpers.AlwaysExcludeFilePath);
-            alwaysExcludeFileVirtualPath.ShouldBeAFile(this.fileSystem).WithContents().ShouldContain(expectedAlwaysExcludeEntries);
-            alwaysExcludeFileVirtualPath.ShouldBeAFile(this.fileSystem).WithContents().ShouldNotContain(true, expectedMissingAlwaysExcludeEntries);
+            GVFSHelpers.ModifiedPathsShouldContain(this.fileSystem, this.Enlistment.DotGVFSRoot, expectedModifiedEntries);
         }
 
         [TestCase, Order(4)]
@@ -93,20 +81,14 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
             string folderName = "folder4a";
             string renamedFolderName = "folder4b";
             string[] fileNames = { "a", "b", "c" };
-            string[] expectedAlwaysExcludeEntries =
+            string[] expectedModifiedEntries =
             {
-                "*",
-                "!/" + folderName + "/",
-                "!/" + renamedFolderName + "/",
-                "!/" + renamedFolderName + "/" + fileNames[0],
-                "!/" + renamedFolderName + "/" + fileNames[1],
-                "!/" + renamedFolderName + "/" + fileNames[2]
-            };
-            string[] expectedMissingAlwaysExcludeEntries =
-            {
-                "!/" + folderName + "/" + fileNames[0],
-                "!/" + folderName + "/" + fileNames[1],
-                "!/" + folderName + "/" + fileNames[2]
+                renamedFolderName + "/" + fileNames[0] + Environment.NewLine,
+                renamedFolderName + "/" + fileNames[1] + Environment.NewLine,
+                renamedFolderName + "/" + fileNames[2] + Environment.NewLine,
+                folderName + "/" + fileNames[0] + Environment.NewLine,
+                folderName + "/" + fileNames[1] + Environment.NewLine,
+                folderName + "/" + fileNames[2] + Environment.NewLine,
             };
 
             this.Enlistment.GetVirtualPathTo(folderName).ShouldNotExistOnDisk(this.fileSystem);
@@ -122,32 +104,28 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
 
             this.Enlistment.WaitForBackgroundOperations().ShouldEqual(true, "Background operations failed to complete.");
 
-            string alwaysExcludeFileVirtualPath = this.Enlistment.GetVirtualPathTo(GitHelpers.AlwaysExcludeFilePath);
-            alwaysExcludeFileVirtualPath.ShouldBeAFile(this.fileSystem).WithContents().ShouldContain(expectedAlwaysExcludeEntries);
-            alwaysExcludeFileVirtualPath.ShouldBeAFile(this.fileSystem).WithContents().ShouldNotContain(true, expectedMissingAlwaysExcludeEntries);
+            GVFSHelpers.ModifiedPathsShouldContain(this.fileSystem, this.Enlistment.DotGVFSRoot, expectedModifiedEntries);
         }
 
         [TestCase, Order(5)]
         public void CaseOnlyRenameOfNewFolderKeepsExcludeEntries()
         {
-            string[] expectedAlwaysExcludeEntries =
+            string[] expectedModifiedPathsEntries =
             {
-                "*",
-                "!/Folder/",
-                "!/Folder/testfile",
+                "Folder/",
+                "Folder/testfile",
             };
 
             this.fileSystem.CreateDirectory(Path.Combine(this.Enlistment.RepoRoot, "Folder"));
             this.fileSystem.CreateEmptyFile(Path.Combine(this.Enlistment.RepoRoot, "Folder", "testfile"));
             this.Enlistment.WaitForBackgroundOperations().ShouldEqual(true, "Background operations failed to complete.");
 
-            string alwaysExcludeFileVirtualPath = this.Enlistment.GetVirtualPathTo(GitHelpers.AlwaysExcludeFilePath);
-            alwaysExcludeFileVirtualPath.ShouldBeAFile(this.fileSystem).WithContents().ShouldContain(expectedAlwaysExcludeEntries);
+            GVFSHelpers.ModifiedPathsShouldContain(this.fileSystem, this.Enlistment.DotGVFSRoot, expectedModifiedPathsEntries);
 
             this.fileSystem.RenameDirectory(this.Enlistment.RepoRoot, "Folder", "folder");
             this.Enlistment.WaitForBackgroundOperations().ShouldEqual(true, "Background operations failed to complete.");
 
-            alwaysExcludeFileVirtualPath.ShouldBeAFile(this.fileSystem).WithContents().ShouldContain(expectedAlwaysExcludeEntries);
+            GVFSHelpers.ModifiedPathsShouldContain(this.fileSystem, this.Enlistment.DotGVFSRoot, expectedModifiedPathsEntries);
         }
 
         [TestCase, Order(6)]
@@ -174,9 +152,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
             afterUpdateResult.Output.StartsWith("S ").ShouldEqual(true);
             afterUpdateResult.Output.ShouldContain("ctime: 0:0", "mtime: 0:0", "size: 0\t");
 
-            // Verify sparse-checkout contents
-            string sparseCheckoutFile = Path.Combine(this.Enlistment.RepoRoot, TestConstants.DotGit.Info.SparseCheckout);
-            sparseCheckoutFile.ShouldBeAFile(this.fileSystem).WithContents().ShouldNotContain(ignoreCase: true, unexpectedSubstrings: gitFileToCheck);
+            GVFSHelpers.ModifiedPathsShouldNotContain(this.fileSystem, this.Enlistment.DotGVFSRoot, gitFileToCheck + Environment.NewLine);
         }
 
         [TestCase, Order(7)]
@@ -187,7 +163,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
             string gitFileToTest = fileToTest.Replace('\\', '/');
             this.VerifyWorktreeBit(gitFileToTest, LsFilesStatus.SkipWorktree);
 
-            ManualResetEventSlim resetEvent = GitHelpers.AcquireGVFSLock(this.Enlistment);
+            ManualResetEventSlim resetEvent = GitHelpers.AcquireGVFSLock(this.Enlistment, out _);
 
             this.fileSystem.WriteAllText(fileToCreate, "Anything can go here");
             this.fileSystem.FileExists(fileToCreate).ShouldEqual(true);
@@ -195,75 +171,68 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
 
             this.Enlistment.WaitForBackgroundOperations().ShouldEqual(true, "Background operations did not complete.");
 
-            string sparseCheckoutFile = Path.Combine(this.Enlistment.RepoRoot, TestConstants.DotGit.Info.SparseCheckout);
-            sparseCheckoutFile.ShouldBeAFile(this.fileSystem).WithContents().ShouldContain(gitFileToTest);
+            GVFSHelpers.ModifiedPathsShouldContain(this.fileSystem, this.Enlistment.DotGVFSRoot, gitFileToTest + Environment.NewLine);
             this.VerifyWorktreeBit(gitFileToTest, LsFilesStatus.Cached);
         }
 
         [TestCase, Order(8)]
         public void RenamedFileAddedToSparseCheckoutAndSkipWorktreeBitCleared()
         {
-            string fileToRenameSparseCheckoutEntry = "/Test_EPF_MoveRenameFileTests/ChangeUnhydratedFileName/Program.cs";
-            string fileToRenameTargetSparseCheckoutEntry = "/Test_EPF_MoveRenameFileTests/ChangeUnhydratedFileName/Program2.cs";
+            string fileToRenameEntry = "Test_EPF_MoveRenameFileTests/ChangeUnhydratedFileName/Program.cs";
+            string fileToRenameTargetEntry = "Test_EPF_MoveRenameFileTests/ChangeUnhydratedFileName/Program2.cs";
             string fileToRenameRelativePath = "Test_EPF_MoveRenameFileTests\\ChangeUnhydratedFileName\\Program.cs";
             string fileToRenameTargetRelativePath = "Test_EPF_MoveRenameFileTests\\ChangeUnhydratedFileName\\Program2.cs";
-            this.VerifyWorktreeBit(fileToRenameSparseCheckoutEntry.TrimStart(new char[] { '/' }), LsFilesStatus.SkipWorktree);
+            this.VerifyWorktreeBit(fileToRenameEntry, LsFilesStatus.SkipWorktree);
 
             this.fileSystem.MoveFile(
                 this.Enlistment.GetVirtualPathTo(fileToRenameRelativePath), 
                 this.Enlistment.GetVirtualPathTo(fileToRenameTargetRelativePath));
             this.Enlistment.WaitForBackgroundOperations().ShouldEqual(true, "Background operations failed to complete.");
 
-            // Verify sparse-checkout contents
-            string sparseCheckoutFile = Path.Combine(this.Enlistment.RepoRoot, TestConstants.DotGit.Info.SparseCheckout);
-            sparseCheckoutFile.ShouldBeAFile(this.fileSystem).WithContents().ShouldContain(fileToRenameSparseCheckoutEntry);
-            sparseCheckoutFile.ShouldBeAFile(this.fileSystem).WithContents().ShouldContain(fileToRenameTargetSparseCheckoutEntry);
+            GVFSHelpers.ModifiedPathsShouldContain(this.fileSystem, this.Enlistment.DotGVFSRoot, fileToRenameEntry + Environment.NewLine);
+            GVFSHelpers.ModifiedPathsShouldContain(this.fileSystem, this.Enlistment.DotGVFSRoot, fileToRenameTargetEntry + Environment.NewLine);
 
             // Verify skip-worktree cleared
-            this.VerifyWorktreeBit(fileToRenameSparseCheckoutEntry.TrimStart(new char[] { '/' }), LsFilesStatus.Cached);
+            this.VerifyWorktreeBit(fileToRenameEntry, LsFilesStatus.Cached);
         }
 
         [TestCase, Order(9)]
         public void RenamedFileAndOverwrittenTargetAddedToSparseCheckoutAndSkipWorktreeBitCleared()
         {
-            string fileToRenameSparseCheckoutEntry = "/Test_EPF_MoveRenameFileTests_2/MoveUnhydratedFileToOverwriteUnhydratedFileAndWrite/RunUnitTests.bat";
-            string fileToRenameTargetSparseCheckoutEntry = "/Test_EPF_MoveRenameFileTests_2/MoveUnhydratedFileToOverwriteUnhydratedFileAndWrite/RunFunctionalTests.bat";
+            string fileToRenameEntry = "Test_EPF_MoveRenameFileTests_2/MoveUnhydratedFileToOverwriteUnhydratedFileAndWrite/RunUnitTests.bat";
+            string fileToRenameTargetEntry = "Test_EPF_MoveRenameFileTests_2/MoveUnhydratedFileToOverwriteUnhydratedFileAndWrite/RunFunctionalTests.bat";
             string fileToRenameRelativePath = "Test_EPF_MoveRenameFileTests_2\\MoveUnhydratedFileToOverwriteUnhydratedFileAndWrite\\RunUnitTests.bat";
             string fileToRenameTargetRelativePath = "Test_EPF_MoveRenameFileTests_2\\MoveUnhydratedFileToOverwriteUnhydratedFileAndWrite\\RunFunctionalTests.bat";
-            this.VerifyWorktreeBit(fileToRenameSparseCheckoutEntry.TrimStart(new char[] { '/' }), LsFilesStatus.SkipWorktree);
-            this.VerifyWorktreeBit(fileToRenameTargetSparseCheckoutEntry.TrimStart(new char[] { '/' }), LsFilesStatus.SkipWorktree);
+            this.VerifyWorktreeBit(fileToRenameEntry, LsFilesStatus.SkipWorktree);
+            this.VerifyWorktreeBit(fileToRenameTargetEntry, LsFilesStatus.SkipWorktree);
 
             this.fileSystem.ReplaceFile(
                 this.Enlistment.GetVirtualPathTo(fileToRenameRelativePath),
                 this.Enlistment.GetVirtualPathTo(fileToRenameTargetRelativePath));
             this.Enlistment.WaitForBackgroundOperations().ShouldEqual(true, "Background operations failed to complete.");
 
-            // Verify sparse-checkout contents
-            string sparseCheckoutFile = Path.Combine(this.Enlistment.RepoRoot, TestConstants.DotGit.Info.SparseCheckout);
-            sparseCheckoutFile.ShouldBeAFile(this.fileSystem).WithContents().ShouldContain(fileToRenameSparseCheckoutEntry);
-            sparseCheckoutFile.ShouldBeAFile(this.fileSystem).WithContents().ShouldContain(fileToRenameTargetSparseCheckoutEntry);
+            GVFSHelpers.ModifiedPathsShouldContain(this.fileSystem, this.Enlistment.DotGVFSRoot, fileToRenameEntry + Environment.NewLine);
+            GVFSHelpers.ModifiedPathsShouldContain(this.fileSystem, this.Enlistment.DotGVFSRoot, fileToRenameTargetEntry + Environment.NewLine);
 
             // Verify skip-worktree cleared
-            this.VerifyWorktreeBit(fileToRenameSparseCheckoutEntry.TrimStart(new char[] { '/' }), LsFilesStatus.Cached);
-            this.VerifyWorktreeBit(fileToRenameTargetSparseCheckoutEntry.TrimStart(new char[] { '/' }), LsFilesStatus.Cached);
+            this.VerifyWorktreeBit(fileToRenameEntry, LsFilesStatus.Cached);
+            this.VerifyWorktreeBit(fileToRenameTargetEntry, LsFilesStatus.Cached);
         }
 
         [TestCase, Order(10)]
         public void DeletedFileAddedToSparseCheckoutAndSkipWorktreeBitCleared()
         {
-            string fileToDeleteSparseCheckoutEntry = "/GVFlt_DeleteFileTest/GVFlt_DeleteFullFileWithoutFileContext_DeleteOnClose/a.txt";
+            string fileToDeleteEntry = "GVFlt_DeleteFileTest/GVFlt_DeleteFullFileWithoutFileContext_DeleteOnClose/a.txt";
             string fileToDeleteRelativePath = "GVFlt_DeleteFileTest\\GVFlt_DeleteFullFileWithoutFileContext_DeleteOnClose\\a.txt";
-            this.VerifyWorktreeBit(fileToDeleteSparseCheckoutEntry.TrimStart(new char[] { '/' }), LsFilesStatus.SkipWorktree);
+            this.VerifyWorktreeBit(fileToDeleteEntry, LsFilesStatus.SkipWorktree);
 
             this.fileSystem.DeleteFile(this.Enlistment.GetVirtualPathTo(fileToDeleteRelativePath));
             this.Enlistment.WaitForBackgroundOperations().ShouldEqual(true, "Background operations failed to complete.");
 
-            // Verify sparse-checkout contents
-            string sparseCheckoutFile = Path.Combine(this.Enlistment.RepoRoot, TestConstants.DotGit.Info.SparseCheckout);
-            sparseCheckoutFile.ShouldBeAFile(this.fileSystem).WithContents().ShouldContain(fileToDeleteSparseCheckoutEntry);
+            GVFSHelpers.ModifiedPathsShouldContain(this.fileSystem, this.Enlistment.DotGVFSRoot, fileToDeleteEntry + Environment.NewLine);
 
             // Verify skip-worktree cleared
-            this.VerifyWorktreeBit(fileToDeleteSparseCheckoutEntry.TrimStart(new char[] { '/' }), LsFilesStatus.Cached);
+            this.VerifyWorktreeBit(fileToDeleteEntry, LsFilesStatus.Cached);
         }
 
         [TestCase, Order(11)]
@@ -272,60 +241,56 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
             string folderToDelete = "Scripts";
             string[] filesToDelete = new string[]
             {
-                "/Scripts/CreateCommonAssemblyVersion.bat",
-                "/Scripts/CreateCommonCliAssemblyVersion.bat",
-                "/Scripts/CreateCommonVersionHeader.bat",
-                "/Scripts/RunFunctionalTests.bat",
-                "/Scripts/RunUnitTests.bat"
+                "Scripts/CreateCommonAssemblyVersion.bat",
+                "Scripts/CreateCommonCliAssemblyVersion.bat",
+                "Scripts/CreateCommonVersionHeader.bat",
+                "Scripts/RunFunctionalTests.bat",
+                "Scripts/RunUnitTests.bat"
             };
 
             // Verify skip-worktree initial set for all files
             foreach (string file in filesToDelete)
             {
-                this.VerifyWorktreeBit(file.TrimStart(new char[] { '/' }), LsFilesStatus.SkipWorktree);
+                this.VerifyWorktreeBit(file, LsFilesStatus.SkipWorktree);
             }
 
             this.fileSystem.DeleteDirectory(this.Enlistment.GetVirtualPathTo(folderToDelete));
             this.Enlistment.WaitForBackgroundOperations().ShouldEqual(true, "Background operations failed to complete.");
 
-            // Verify sparse-checkout contents
-            string sparseCheckoutFile = Path.Combine(this.Enlistment.RepoRoot, TestConstants.DotGit.Info.SparseCheckout);
-            sparseCheckoutFile.ShouldBeAFile(this.fileSystem).WithContents().ShouldContain('/' + folderToDelete + '/');
-            sparseCheckoutFile.ShouldBeAFile(this.fileSystem).WithContents().ShouldContain(filesToDelete);
+            GVFSHelpers.ModifiedPathsShouldContain(this.fileSystem, this.Enlistment.DotGVFSRoot, folderToDelete + "/");
+            GVFSHelpers.ModifiedPathsShouldContain(this.fileSystem, this.Enlistment.DotGVFSRoot, filesToDelete);
 
             // Verify skip-worktree cleared
             foreach (string file in filesToDelete)
             {
-                this.VerifyWorktreeBit(file.TrimStart(new char[] { '/' }), LsFilesStatus.Cached);
+                this.VerifyWorktreeBit(file, LsFilesStatus.Cached);
             }
         }
 
         [TestCase, Order(12)]
         public void FileRenamedOutOfRepoAddedToSparseCheckoutAndSkipWorktreeBitCleared()
         {
-            string fileToRenameSparseCheckoutEntry = "/GVFlt_MoveFileTest/PartialToOutside/from/lessInFrom.txt";
+            string fileToRenameEntry = "GVFlt_MoveFileTest/PartialToOutside/from/lessInFrom.txt";
             string fileToRenameVirtualPath = this.Enlistment.GetVirtualPathTo("GVFlt_MoveFileTest\\PartialToOutside\\from\\lessInFrom.txt");
-            this.VerifyWorktreeBit(fileToRenameSparseCheckoutEntry.TrimStart(new char[] { '/' }), LsFilesStatus.SkipWorktree);
+            this.VerifyWorktreeBit(fileToRenameEntry, LsFilesStatus.SkipWorktree);
 
             string fileOutsideRepoPath = Path.Combine(this.Enlistment.EnlistmentRoot, "FileRenamedOutOfRepoAddedToSparseCheckoutAndSkipWorktreeBitCleared.txt");
             this.fileSystem.MoveFile(fileToRenameVirtualPath, fileOutsideRepoPath);
 
             this.Enlistment.WaitForBackgroundOperations().ShouldEqual(true, "Background operations failed to complete.");
 
-            // Verify sparse-checkout contents
-            string sparseCheckoutFile = Path.Combine(this.Enlistment.RepoRoot, TestConstants.DotGit.Info.SparseCheckout);
-            sparseCheckoutFile.ShouldBeAFile(this.fileSystem).WithContents().ShouldContain(fileToRenameSparseCheckoutEntry);
+            GVFSHelpers.ModifiedPathsShouldContain(this.fileSystem, this.Enlistment.DotGVFSRoot, fileToRenameEntry + Environment.NewLine);
 
             // Verify skip-worktree cleared
-            this.VerifyWorktreeBit(fileToRenameSparseCheckoutEntry.TrimStart(new char[] { '/' }), LsFilesStatus.Cached);
+            this.VerifyWorktreeBit(fileToRenameEntry, LsFilesStatus.Cached);
         }
 
         [TestCase, Order(13)]
         public void OverwrittenFileAddedToSparseCheckoutAndSkipWorktreeBitCleared()
         {
-            string fileToOverwriteSparseCheckoutEntry = "/Test_EPF_WorkingDirectoryTests/1/2/3/4/ReadDeepProjectedFile.cpp";
+            string fileToOverwriteEntry = "Test_EPF_WorkingDirectoryTests/1/2/3/4/ReadDeepProjectedFile.cpp";
             string fileToOverwriteVirtualPath = this.Enlistment.GetVirtualPathTo("Test_EPF_WorkingDirectoryTests\\1\\2\\3\\4\\ReadDeepProjectedFile.cpp");
-            this.VerifyWorktreeBit(fileToOverwriteSparseCheckoutEntry.TrimStart(new char[] { '/' }), LsFilesStatus.SkipWorktree);
+            this.VerifyWorktreeBit(fileToOverwriteEntry, LsFilesStatus.SkipWorktree);
 
             string testContents = "Test contents for FileRenamedOutOfRepoWillBeAddedToSparseCheckoutAndHaveSkipWorktreeBitCleared";
 
@@ -334,32 +299,28 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
 
             fileToOverwriteVirtualPath.ShouldBeAFile(this.fileSystem).WithContents(testContents);
 
-            // Verify sparse-checkout contents
-            string sparseCheckoutFile = Path.Combine(this.Enlistment.RepoRoot, TestConstants.DotGit.Info.SparseCheckout);
-            sparseCheckoutFile.ShouldBeAFile(this.fileSystem).WithContents().ShouldContain(fileToOverwriteSparseCheckoutEntry);
+            GVFSHelpers.ModifiedPathsShouldContain(this.fileSystem, this.Enlistment.DotGVFSRoot, fileToOverwriteEntry + Environment.NewLine);
 
             // Verify skip-worktree cleared
-            this.VerifyWorktreeBit(fileToOverwriteSparseCheckoutEntry.TrimStart(new char[] { '/' }), LsFilesStatus.Cached);
+            this.VerifyWorktreeBit(fileToOverwriteEntry, LsFilesStatus.Cached);
         }
 
         [TestCase, Order(14)]
         public void SupersededFileAddedToSparseCheckoutAndSkipWorktreeBitCleared()
         {
-            string fileToSupersedeSparseCheckoutEntry = "/GVFlt_FileOperationTest/WriteAndVerify.txt";
+            string fileToSupersedeEntry = "GVFlt_FileOperationTest/WriteAndVerify.txt";
             string fileToSupersedePath = this.Enlistment.GetVirtualPathTo("GVFlt_FileOperationTest\\WriteAndVerify.txt");
-            this.VerifyWorktreeBit(fileToSupersedeSparseCheckoutEntry.TrimStart(new char[] { '/' }), LsFilesStatus.SkipWorktree);
+            this.VerifyWorktreeBit(fileToSupersedeEntry, LsFilesStatus.SkipWorktree);
 
             string newContent = "SupersededFileWillBeAddedToSparseCheckoutAndHaveSkipWorktreeBitCleared test new contents";
 
             SupersedeFile(fileToSupersedePath, newContent).ShouldEqual(true);
             this.Enlistment.WaitForBackgroundOperations().ShouldEqual(true, "Background operations failed to complete.");
 
-            // Verify sparse-checkout contents
-            string sparseCheckoutFile = Path.Combine(this.Enlistment.RepoRoot, TestConstants.DotGit.Info.SparseCheckout);
-            sparseCheckoutFile.ShouldBeAFile(this.fileSystem).WithContents().ShouldContain(fileToSupersedeSparseCheckoutEntry);
+            GVFSHelpers.ModifiedPathsShouldContain(this.fileSystem, this.Enlistment.DotGVFSRoot, fileToSupersedeEntry + Environment.NewLine);
 
             // Verify skip-worktree cleared
-            this.VerifyWorktreeBit(fileToSupersedeSparseCheckoutEntry.TrimStart(new char[] { '/' }), LsFilesStatus.Cached);
+            this.VerifyWorktreeBit(fileToSupersedeEntry, LsFilesStatus.Cached);
 
             // Verify new content written
             fileToSupersedePath.ShouldBeAFile(this.fileSystem).WithContents(newContent);

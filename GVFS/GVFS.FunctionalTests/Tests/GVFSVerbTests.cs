@@ -6,6 +6,7 @@ using System.IO;
 namespace GVFS.FunctionalTests.Tests
 {
     [TestFixture]
+    [Category(Categories.Mac.M1)]
     public class GVFSVerbTests
     {
         public GVFSVerbTests()

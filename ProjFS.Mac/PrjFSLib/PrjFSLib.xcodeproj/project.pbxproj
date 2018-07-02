@@ -1,0 +1,417 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 48;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		4A440DDE2093AD3300AADA76 /* IOKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 4A440DDD2093AD3300AADA76 /* IOKit.framework */; };
+		4A8A1BEE20A0D5940024BC10 /* CoreFoundation.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 4A8A1BED20A0D5940024BC10 /* CoreFoundation.framework */; };
+		C6C780D120816BDC00E7E054 /* PrjFSLib.h in Headers */ = {isa = PBXBuildFile; fileRef = C6C780CF20816BDC00E7E054 /* PrjFSLib.h */; };
+		C6C780D220816BDC00E7E054 /* PrjFSLib.cpp in Sources */ = {isa = PBXBuildFile; fileRef = C6C780D020816BDC00E7E054 /* PrjFSLib.cpp */; };
+		D308478120B4431200F69E92 /* prjfs-log.cpp in Sources */ = {isa = PBXBuildFile; fileRef = D308478020B4431200F69E92 /* prjfs-log.cpp */; };
+		D308478720B4432500F69E92 /* PrjFSUser.hpp in Headers */ = {isa = PBXBuildFile; fileRef = D308478520B4432500F69E92 /* PrjFSUser.hpp */; };
+		D308478820B4432500F69E92 /* PrjFSUser.cpp in Sources */ = {isa = PBXBuildFile; fileRef = D308478620B4432500F69E92 /* PrjFSUser.cpp */; };
+		D308478920B4432500F69E92 /* PrjFSUser.cpp in Sources */ = {isa = PBXBuildFile; fileRef = D308478620B4432500F69E92 /* PrjFSUser.cpp */; };
+		D308478A20B4433B00F69E92 /* CoreFoundation.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 4A8A1BED20A0D5940024BC10 /* CoreFoundation.framework */; };
+		D308478B20B443A300F69E92 /* IOKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 4A440DDD2093AD3300AADA76 /* IOKit.framework */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXCopyFilesBuildPhase section */
+		D308477C20B4431200F69E92 /* CopyFiles */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = /usr/share/man/man1/;
+			dstSubfolderSpec = 0;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 1;
+		};
+/* End PBXCopyFilesBuildPhase section */
+
+/* Begin PBXFileReference section */
+		4A440DDD2093AD3300AADA76 /* IOKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = IOKit.framework; path = System/Library/Frameworks/IOKit.framework; sourceTree = SDKROOT; };
+		4A8A1BED20A0D5940024BC10 /* CoreFoundation.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = CoreFoundation.framework; path = System/Library/Frameworks/CoreFoundation.framework; sourceTree = SDKROOT; };
+		C6C780C4207FC6AB00E7E054 /* libPrjFSLib.dylib */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.dylib"; includeInIndex = 0; path = libPrjFSLib.dylib; sourceTree = BUILT_PRODUCTS_DIR; };
+		C6C780CF20816BDC00E7E054 /* PrjFSLib.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = PrjFSLib.h; sourceTree = "<group>"; };
+		C6C780D020816BDC00E7E054 /* PrjFSLib.cpp */ = {isa = PBXFileReference; indentWidth = 4; lastKnownFileType = sourcecode.cpp.cpp; path = PrjFSLib.cpp; sourceTree = "<group>"; tabWidth = 4; usesTabs = 0; };
+		D308477E20B4431200F69E92 /* prjfs-log */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.executable"; includeInIndex = 0; path = "prjfs-log"; sourceTree = BUILT_PRODUCTS_DIR; };
+		D308478020B4431200F69E92 /* prjfs-log.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = "prjfs-log.cpp"; sourceTree = "<group>"; };
+		D308478520B4432500F69E92 /* PrjFSUser.hpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.h; path = PrjFSUser.hpp; sourceTree = "<group>"; };
+		D308478620B4432500F69E92 /* PrjFSUser.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = PrjFSUser.cpp; sourceTree = "<group>"; };
+/* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		C6C780C1207FC6AB00E7E054 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				4A8A1BEE20A0D5940024BC10 /* CoreFoundation.framework in Frameworks */,
+				4A440DDE2093AD3300AADA76 /* IOKit.framework in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		D308477B20B4431200F69E92 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				D308478B20B443A300F69E92 /* IOKit.framework in Frameworks */,
+				D308478A20B4433B00F69E92 /* CoreFoundation.framework in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		4A440DDC2093AD3300AADA76 /* Frameworks */ = {
+			isa = PBXGroup;
+			children = (
+				4A8A1BED20A0D5940024BC10 /* CoreFoundation.framework */,
+				4A440DDD2093AD3300AADA76 /* IOKit.framework */,
+			);
+			name = Frameworks;
+			sourceTree = "<group>";
+		};
+		C6C780BB207FC6AB00E7E054 = {
+			isa = PBXGroup;
+			children = (
+				D308478520B4432500F69E92 /* PrjFSUser.hpp */,
+				D308478620B4432500F69E92 /* PrjFSUser.cpp */,
+				C6C780CF20816BDC00E7E054 /* PrjFSLib.h */,
+				C6C780D020816BDC00E7E054 /* PrjFSLib.cpp */,
+				D308477F20B4431200F69E92 /* prjfs-log */,
+				C6C780C5207FC6AB00E7E054 /* Products */,
+				4A440DDC2093AD3300AADA76 /* Frameworks */,
+			);
+			indentWidth = 4;
+			sourceTree = "<group>";
+			tabWidth = 4;
+			usesTabs = 0;
+		};
+		C6C780C5207FC6AB00E7E054 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				C6C780C4207FC6AB00E7E054 /* libPrjFSLib.dylib */,
+				D308477E20B4431200F69E92 /* prjfs-log */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		D308477F20B4431200F69E92 /* prjfs-log */ = {
+			isa = PBXGroup;
+			children = (
+				D308478020B4431200F69E92 /* prjfs-log.cpp */,
+			);
+			path = "prjfs-log";
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXHeadersBuildPhase section */
+		C6C780C2207FC6AB00E7E054 /* Headers */ = {
+			isa = PBXHeadersBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				C6C780D120816BDC00E7E054 /* PrjFSLib.h in Headers */,
+				D308478720B4432500F69E92 /* PrjFSUser.hpp in Headers */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXHeadersBuildPhase section */
+
+/* Begin PBXNativeTarget section */
+		C6C780C3207FC6AB00E7E054 /* PrjFSLib */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = C6C780C8207FC6AB00E7E054 /* Build configuration list for PBXNativeTarget "PrjFSLib" */;
+			buildPhases = (
+				C6C780C0207FC6AB00E7E054 /* Sources */,
+				C6C780C1207FC6AB00E7E054 /* Frameworks */,
+				C6C780C2207FC6AB00E7E054 /* Headers */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = PrjFSLib;
+			productName = PrjFSLib;
+			productReference = C6C780C4207FC6AB00E7E054 /* libPrjFSLib.dylib */;
+			productType = "com.apple.product-type.library.dynamic";
+		};
+		D308477D20B4431200F69E92 /* prjfs-log */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = D308478420B4431200F69E92 /* Build configuration list for PBXNativeTarget "prjfs-log" */;
+			buildPhases = (
+				D308477A20B4431200F69E92 /* Sources */,
+				D308477B20B4431200F69E92 /* Frameworks */,
+				D308477C20B4431200F69E92 /* CopyFiles */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = "prjfs-log";
+			productName = "prjfs-log";
+			productReference = D308477E20B4431200F69E92 /* prjfs-log */;
+			productType = "com.apple.product-type.tool";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		C6C780BC207FC6AB00E7E054 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				LastUpgradeCheck = 0930;
+				ORGANIZATIONNAME = GVFS;
+				TargetAttributes = {
+					C6C780C3207FC6AB00E7E054 = {
+						CreatedOnToolsVersion = 9.3;
+					};
+					D308477D20B4431200F69E92 = {
+						CreatedOnToolsVersion = 8.2;
+						ProvisioningStyle = Automatic;
+					};
+				};
+			};
+			buildConfigurationList = C6C780BF207FC6AB00E7E054 /* Build configuration list for PBXProject "PrjFSLib" */;
+			compatibilityVersion = "Xcode 8.0";
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				en,
+			);
+			mainGroup = C6C780BB207FC6AB00E7E054;
+			productRefGroup = C6C780C5207FC6AB00E7E054 /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				C6C780C3207FC6AB00E7E054 /* PrjFSLib */,
+				D308477D20B4431200F69E92 /* prjfs-log */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXSourcesBuildPhase section */
+		C6C780C0207FC6AB00E7E054 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				D308478820B4432500F69E92 /* PrjFSUser.cpp in Sources */,
+				C6C780D220816BDC00E7E054 /* PrjFSLib.cpp in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		D308477A20B4431200F69E92 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				D308478920B4432500F69E92 /* PrjFSUser.cpp in Sources */,
+				D308478120B4431200F69E92 /* prjfs-log.cpp in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin XCBuildConfiguration section */
+		C6C780C6207FC6AB00E7E054 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				CODE_SIGN_IDENTITY = "Mac Developer";
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"DEBUG=1",
+					"$(inherited)",
+				);
+				GCC_TREAT_IMPLICIT_FUNCTION_DECLARATIONS_AS_ERRORS = YES;
+				GCC_TREAT_WARNINGS_AS_ERRORS = YES;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_MISSING_PROTOTYPES = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				MACOSX_DEPLOYMENT_TARGET = 10.13;
+				MTL_ENABLE_DEBUG_INFO = YES;
+				ONLY_ACTIVE_ARCH = YES;
+				SDKROOT = macosx;
+				SYMROOT = "$(SRCROOT)/../../../BuildOutput/ProjFS.Mac/Native";
+				USER_HEADER_SEARCH_PATHS = "$(SRCROOT)/../";
+			};
+			name = Debug;
+		};
+		C6C780C7207FC6AB00E7E054 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				CODE_SIGN_IDENTITY = "Mac Developer";
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_TREAT_IMPLICIT_FUNCTION_DECLARATIONS_AS_ERRORS = YES;
+				GCC_TREAT_WARNINGS_AS_ERRORS = YES;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_MISSING_PROTOTYPES = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				MACOSX_DEPLOYMENT_TARGET = 10.13;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				SDKROOT = macosx;
+				SYMROOT = "$(SRCROOT)/../../../BuildOutput/ProjFS.Mac/Native";
+				USER_HEADER_SEARCH_PATHS = "$(SRCROOT)/../";
+			};
+			name = Release;
+		};
+		C6C780C9207FC6AB00E7E054 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				DEVELOPMENT_TEAM = UBF8T346G9;
+				DYLIB_COMPATIBILITY_VERSION = 1;
+				DYLIB_CURRENT_VERSION = 1;
+				EXECUTABLE_PREFIX = lib;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SKIP_INSTALL = YES;
+			};
+			name = Debug;
+		};
+		C6C780CA207FC6AB00E7E054 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				DEVELOPMENT_TEAM = UBF8T346G9;
+				DYLIB_COMPATIBILITY_VERSION = 1;
+				DYLIB_CURRENT_VERSION = 1;
+				EXECUTABLE_PREFIX = lib;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SKIP_INSTALL = YES;
+			};
+			name = Release;
+		};
+		D308478220B4431200F69E92 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++0x";
+				CODE_SIGN_IDENTITY = "-";
+				GCC_C_LANGUAGE_STANDARD = gnu99;
+				MACOSX_DEPLOYMENT_TARGET = 10.11;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+			};
+			name = Debug;
+		};
+		D308478320B4431200F69E92 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++0x";
+				CODE_SIGN_IDENTITY = "-";
+				GCC_C_LANGUAGE_STANDARD = gnu99;
+				MACOSX_DEPLOYMENT_TARGET = 10.11;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		C6C780BF207FC6AB00E7E054 /* Build configuration list for PBXProject "PrjFSLib" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				C6C780C6207FC6AB00E7E054 /* Debug */,
+				C6C780C7207FC6AB00E7E054 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		C6C780C8207FC6AB00E7E054 /* Build configuration list for PBXNativeTarget "PrjFSLib" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				C6C780C9207FC6AB00E7E054 /* Debug */,
+				C6C780CA207FC6AB00E7E054 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		D308478420B4431200F69E92 /* Build configuration list for PBXNativeTarget "prjfs-log" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				D308478220B4431200F69E92 /* Debug */,
+				D308478320B4431200F69E92 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+/* End XCConfigurationList section */
+	};
+	rootObject = C6C780BC207FC6AB00E7E054 /* Project object */;
+}

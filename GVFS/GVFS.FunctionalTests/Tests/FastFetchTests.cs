@@ -101,6 +101,33 @@ namespace GVFS.FunctionalTests.Tests
         }
 
         [TestCase]
+        public void FastFetchFolderWithOnlyOneFile()
+        {
+            this.RunFastFetch("--checkout --folders \"GVFS\\GVFS\\Properties\" -b " + Settings.Default.Commitish);
+
+            this.CurrentBranchShouldEqual(Settings.Default.Commitish);
+
+            this.fastFetchRepoRoot.ShouldBeADirectory(FileSystemRunner.DefaultRunner);
+            List<string> dirs = Directory.EnumerateFileSystemEntries(this.fastFetchRepoRoot).ToList();
+            dirs.SequenceEqual(new[]
+            {
+                Path.Combine(this.fastFetchRepoRoot, ".git"),
+                Path.Combine(this.fastFetchRepoRoot, "GVFS"),
+                Path.Combine(this.fastFetchRepoRoot, "GVFS.sln")
+            });
+
+            dirs = Directory.EnumerateFileSystemEntries(Path.Combine(this.fastFetchRepoRoot, "GVFS"), "*", SearchOption.AllDirectories).ToList();
+            dirs.SequenceEqual(new[]
+            {
+                Path.Combine(this.fastFetchRepoRoot, "GVFS", "GVFS"),
+                Path.Combine(this.fastFetchRepoRoot, "GVFS", "GVFS", "Properties"),
+                Path.Combine(this.fastFetchRepoRoot, "GVFS", "GVFS", "Properties", "AssemblyInfo.cs"),
+            });
+
+            this.AllFetchedFilePathsShouldPassCheck(path => path.StartsWith("GVFS", StringComparison.OrdinalIgnoreCase));
+        }
+
+        [TestCase]
         public void CanFetchAndCheckoutBranchIntoEmptyGitRepo()
         {
             this.RunFastFetch("--checkout -b " + Settings.Default.Commitish);
@@ -400,7 +427,7 @@ namespace GVFS.FunctionalTests.Tests
         {
             args = args + " --verbose";
 
-            string fastfetch = GVFSTestConfig.TestGVFSOnPath ? "fastfetch.exe" : Path.Combine(TestContext.CurrentContext.TestDirectory, "fastfetch.exe");
+            string fastfetch = Path.Combine(Settings.Default.CurrentDirectory, "fastfetch.exe");
             if (!File.Exists(fastfetch))
             {
                 fastfetch = "fastfetch.exe";

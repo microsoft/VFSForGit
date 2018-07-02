@@ -1,285 +1,51 @@
-﻿<?xml version="1.0" encoding="utf-8"?>
-<Project ToolsVersion="14.0" DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
-  <Import Project="..\..\..\packages\NUnit.3.10.0-dev-05190\build\NUnit.props" Condition="Exists('..\..\..\packages\NUnit.3.10.0-dev-05190\build\NUnit.props')" />
-  <Import Project="$(SolutionDir)\GVFS\GVFS.Build\GVFS.props" />
+<Project Sdk="Microsoft.NET.Sdk">
+  <Import Project="..\GVFS.Build\GVFS.cs.props" />
   <PropertyGroup>
-    <ProjectGuid>{0F0A008E-AB12-40EC-A671-37A541B08C7F}</ProjectGuid>
     <OutputType>Exe</OutputType>
-    <AppDesignerFolder>Properties</AppDesignerFolder>
+    <TargetFramework>netcoreapp2.0</TargetFramework>
+    <Platforms>x64</Platforms>
+  </PropertyGroup>
+
+  <PropertyGroup>
     <RootNamespace>GVFS.FunctionalTests</RootNamespace>
     <AssemblyName>GVFS.FunctionalTests</AssemblyName>
-    <TargetFrameworkVersion>v4.6.1</TargetFrameworkVersion>
-    <FileAlignment>512</FileAlignment>
-    <VisualStudioVersion Condition="'$(VisualStudioVersion)' == ''">10.0</VisualStudioVersion>
-    <VSToolsPath Condition="'$(VSToolsPath)' == ''">$(MSBuildExtensionsPath32)\Microsoft\VisualStudio\v$(VisualStudioVersion)</VSToolsPath>
-    <ReferencePath>$(ProgramFiles)\Common Files\microsoft shared\VSTT\$(VisualStudioVersion)\UITestExtensionPackages</ReferencePath>
-    <IsCodedUITest>False</IsCodedUITest>
-    <TestProjectType>UnitTest</TestProjectType>
-    <AutoGenerateBindingRedirects>true</AutoGenerateBindingRedirects>
-    <NuGetPackageImportStamp>
-    </NuGetPackageImportStamp>
   </PropertyGroup>
-  <PropertyGroup Condition="'$(Configuration)|$(Platform)' == 'Debug|x64'">
-    <DebugSymbols>true</DebugSymbols>
-    <DefineConstants>DEBUG;TRACE</DefineConstants>
-    <DebugType>full</DebugType>
-    <PlatformTarget>x64</PlatformTarget>
-    <ErrorReport>prompt</ErrorReport>
-    <CodeAnalysisRuleSet>MinimumRecommendedRules.ruleset</CodeAnalysisRuleSet>
-    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
+    <Version>$(GVFSVersion)</Version>
   </PropertyGroup>
-  <PropertyGroup Condition="'$(Configuration)|$(Platform)' == 'Release|x64'">
-    <DefineConstants>TRACE</DefineConstants>
-    <Optimize>true</Optimize>
-    <DebugType>pdbonly</DebugType>
-    <PlatformTarget>x64</PlatformTarget>
-    <ErrorReport>prompt</ErrorReport>
-    <CodeAnalysisRuleSet>MinimumRecommendedRules.ruleset</CodeAnalysisRuleSet>
-    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
+    <Version>$(GVFSVersion)</Version>
   </PropertyGroup>
-  <PropertyGroup>
-    <StartupObject>GVFS.FunctionalTests.Program</StartupObject>
-  </PropertyGroup>
-  <PropertyGroup>
-    <RunPostBuildEvent>Always</RunPostBuildEvent>
-  </PropertyGroup>
-  <PropertyGroup>
-    <ApplicationManifest>$(BuildOutputDir)\GVFS.FunctionalTests.exe.manifest</ApplicationManifest>
-  </PropertyGroup>
+
   <ItemGroup>
-    <Reference Include="Esent.Collections, Version=1.9.4.0, Culture=neutral, PublicKeyToken=31bf3856ad364e35, processorArchitecture=MSIL">
-      <SpecificVersion>False</SpecificVersion>
-      <HintPath>..\..\..\packages\Microsoft.Database.Collections.Generic.1.9.4\lib\net40\Esent.Collections.dll</HintPath>
-      <Private>True</Private>
-    </Reference>
-    <Reference Include="Esent.Interop, Version=1.9.4.0, Culture=neutral, PublicKeyToken=31bf3856ad364e35, processorArchitecture=MSIL">
-      <SpecificVersion>False</SpecificVersion>
-      <HintPath>..\..\..\packages\ManagedEsent.1.9.4\lib\net40\Esent.Interop.dll</HintPath>
-      <Private>True</Private>
-    </Reference>
-    <Reference Include="Esent.Isam, Version=1.9.4.0, Culture=neutral, PublicKeyToken=31bf3856ad364e35, processorArchitecture=MSIL">
-      <SpecificVersion>False</SpecificVersion>
-      <HintPath>..\..\..\packages\Microsoft.Database.Isam.1.9.4\lib\net40\Esent.Isam.dll</HintPath>
-      <Private>True</Private>
-    </Reference>
-    <Reference Include="Microsoft.Data.Sqlite, Version=2.0.0.0, Culture=neutral, PublicKeyToken=adb9793829ddae60, processorArchitecture=MSIL">
-      <HintPath>..\..\..\packages\Microsoft.Data.Sqlite.Core.2.0.0\lib\netstandard2.0\Microsoft.Data.Sqlite.dll</HintPath>
-    </Reference>
-    <Reference Include="Newtonsoft.Json, Version=7.0.0.0, Culture=neutral, PublicKeyToken=30ad4fe6b2a6aeed, processorArchitecture=MSIL">
-      <SpecificVersion>False</SpecificVersion>
-      <HintPath>..\..\..\packages\Newtonsoft.Json.7.0.1\lib\net45\Newtonsoft.Json.dll</HintPath>
-      <Private>True</Private>
-    </Reference>
-    <Reference Include="nunit.framework, Version=3.10.0.0, Culture=neutral, PublicKeyToken=2638cd05610744eb, processorArchitecture=MSIL">
-      <HintPath>..\..\..\packages\NUnit.3.10.0-dev-05190\lib\net45\nunit.framework.dll</HintPath>
-    </Reference>
-    <Reference Include="nunitlite, Version=3.10.0.0, Culture=neutral, PublicKeyToken=2638cd05610744eb, processorArchitecture=MSIL">
-      <HintPath>..\..\..\packages\NUnitLite.3.10.0-dev-05190\lib\net45\nunitlite.dll</HintPath>
-    </Reference>
-    <Reference Include="SQLitePCLRaw.batteries_green, Version=1.0.0.0, Culture=neutral, PublicKeyToken=a84b7dcfb1391f7f, processorArchitecture=MSIL">
-      <HintPath>..\..\..\packages\SQLitePCLRaw.bundle_green.1.1.7\lib\net45\SQLitePCLRaw.batteries_green.dll</HintPath>
-    </Reference>
-    <Reference Include="SQLitePCLRaw.batteries_v2, Version=1.0.0.0, Culture=neutral, PublicKeyToken=8226ea5df37bcae9, processorArchitecture=MSIL">
-      <HintPath>..\..\..\packages\SQLitePCLRaw.bundle_green.1.1.7\lib\net45\SQLitePCLRaw.batteries_v2.dll</HintPath>
-    </Reference>
-    <Reference Include="SQLitePCLRaw.core, Version=1.0.0.0, Culture=neutral, PublicKeyToken=1488e028ca7ab535, processorArchitecture=MSIL">
-      <HintPath>..\..\..\packages\SQLitePCLRaw.core.1.1.7\lib\net45\SQLitePCLRaw.core.dll</HintPath>
-    </Reference>
-    <Reference Include="SQLitePCLRaw.provider.e_sqlite3, Version=1.0.0.0, Culture=neutral, PublicKeyToken=9c301db686d0bd12, processorArchitecture=MSIL">
-      <HintPath>..\..\..\packages\SQLitePCLRaw.provider.e_sqlite3.net45.1.1.7\lib\net45\SQLitePCLRaw.provider.e_sqlite3.dll</HintPath>
-    </Reference>
-    <Reference Include="System" />
-    <Reference Include="System.Data" />
-    <Reference Include="System.ServiceProcess" />
+    <PackageReference Include="Microsoft.Data.Sqlite" Version="2.0.0" />
+    <PackageReference Include="Newtonsoft.Json" Version="11.0.2" />
+    <PackageReference Include="NUnitLite" Version="3.10.1" />
+    <PackageReference Include="StyleCop.Error.MSBuild" Version="1.0.0" Condition="'$(OS)' == 'Windows_NT'" />
+    <PackageReference Include="StyleCop.MSBuild" Version="5.0.0" Condition="'$(OS)' == 'Windows_NT'" />
+    <PackageReference Include="System.ServiceProcess.ServiceController" Version="4.5.0" />
   </ItemGroup>
-  <Choose>
-    <When Condition="('$(VisualStudioVersion)' == '10.0' or '$(VisualStudioVersion)' == '') and '$(TargetFrameworkVersion)' == 'v3.5'">
-      <ItemGroup>
-        <Reference Include="Microsoft.VisualStudio.QualityTools.UnitTestFramework, Version=10.1.0.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a, processorArchitecture=MSIL" />
-      </ItemGroup>
-    </When>
-    <Otherwise />
-  </Choose>
+
   <ItemGroup>
-    <Compile Include="Categories.cs" />
-    <Compile Include="GVFSTestConfig.cs" />
-    <Compile Include="Program.cs" />
-    <Compile Include="Properties\Settings.Designer.cs">
-      <AutoGen>True</AutoGen>
-      <DesignTimeSharedInput>True</DesignTimeSharedInput>
-      <DependentUpon>Settings.settings</DependentUpon>
-    </Compile>
-    <Compile Include="Tests\EnlistmentPerFixture\CacheServerTests.cs" />
-    <Compile Include="Tests\EnlistmentPerFixture\CloneTests.cs" />
-    <Compile Include="Tests\EnlistmentPerFixture\DehydrateTests.cs" />
-    <Compile Include="Tests\EnlistmentPerFixture\DiagnoseTests.cs" />
-    <Compile Include="Tests\EnlistmentPerFixture\GitCorruptObjectTests.cs" />
-    <Compile Include="Tests\EnlistmentPerFixture\PrefetchVerbWithoutSharedCacheTests.cs" />
-    <Compile Include="Tests\EnlistmentPerFixture\ServiceTests.cs" />
-    <Compile Include="Tests\GitCommands\AddStageTests.cs" />
-    <Compile Include="Tests\GitCommands\DeleteEmptyFolderTests.cs" />
-    <Compile Include="Tests\EnlistmentPerFixture\BasicFileSystemTests.cs" />
-    <Compile Include="Tests\MultiEnlistmentTests\ServiceVerbTests.cs" />
-    <Compile Include="Tests\GitCommands\ResetHardTests.cs" />
-    <Compile Include="Tests\MultiEnlistmentTests\SharedCacheTests.cs" />
-    <Compile Include="Tests\EnlistmentPerTestCase\DiskLayoutUpgradeTests.cs" />
-    <Compile Include="Tests\EnlistmentPerFixture\UnmountTests.cs" />
-    <Compile Include="Tests\EnlistmentPerTestCase\RepairTests.cs" />
-    <Compile Include="Tests\EnlistmentPerFixture\UpdatePlaceholderTests.cs" />
-    <Compile Include="Tests\EnlistmentPerFixture\GVFSLockTests.cs" />
-    <Compile Include="Tests\GitCommands\CheckoutTests.cs" />
-    <Compile Include="Tests\GitCommands\CherryPickConflictTests.cs" />
-    <Compile Include="Tests\GitCommands\EnumerationMergeTest.cs" />
-    <Compile Include="Tests\GitCommands\HashObjectTests.cs" />
-    <Compile Include="Tests\GitCommands\RmTests.cs" />
-    <Compile Include="Tests\GitCommands\UpdateIndexTests.cs" />
-    <Compile Include="Tests\GitCommands\MergeConflictTests.cs" />
-    <Compile Include="Tests\GitCommands\RebaseConflictTests.cs" />
-    <Compile Include="Tests\GitCommands\GitRepoTests.cs" />
-    <Compile Include="Tests\GitCommands\ResetMixedTests.cs" />
-    <Compile Include="Tests\GitCommands\ResetSoftTests.cs" />
-    <Compile Include="Tests\EnlistmentPerFixture\MountTests.cs" />
-    <Compile Include="Tests\EnlistmentPerFixture\GitFilesTests.cs" />
-    <Compile Include="Tests\GitCommands\RebaseTests.cs" />
-    <Compile Include="Tests\EnlistmentPerFixture\PrefetchVerbTests.cs" />
-    <Compile Include="Tests\EnlistmentPerTestCase\CaseOnlyFolderRenameTests.cs" />
-    <Compile Include="Tests\EnlistmentPerFixture\MoveRenameFileTests.cs" />
-    <Compile Include="Tests\EnlistmentPerFixture\MoveRenameFileTests_2.cs" />
-    <Compile Include="Tests\EnlistmentPerTestCase\PersistedSparseExcludeTests.cs" />
-    <Compile Include="Tests\EnlistmentPerTestCase\PersistedWorkingDirectoryTests.cs" />
-    <Compile Include="Tests\EnlistmentPerFixture\MoveRenameFolderTests.cs" />
-    <Compile Include="Tests\EnlistmentPerTestCase\TestsWithEnlistmentPerTestCase.cs" />
-    <Compile Include="Tests\EnlistmentPerFixture\TestsWithEnlistmentPerFixture.cs" />
-    <Compile Include="Tests\GitCommands\GitCommandsTests.cs" />
-    <Compile Include="Tests\FastFetchTests.cs" />
-    <Compile Include="Tests\GitCommands\UpdateRefTests.cs" />
-    <Compile Include="Tests\GVFSVerbTests.cs" />
-    <Compile Include="Tests\MultiEnlistmentTests\TestsWithMultiEnlistment.cs" />
-    <Compile Include="Tests\TestResultsHelper.cs" />
-    <Compile Include="Tests\EnlistmentPerFixture\GitMoveRenameTests.cs" />
-    <Compile Include="Tests\EnlistmentPerFixture\MultithreadedReadWriteTests.cs" />
-    <Compile Include="Tests\EnlistmentPerFixture\GitReadAndGitLockTests.cs" />
-    <Compile Include="Tests\EnlistmentPerFixture\WorkingDirectoryTests.cs" />
-    <Compile Include="Tests\PrintTestCaseStats.cs" />
-    <Compile Include="FileSystemRunners\BashRunner.cs" />
-    <Compile Include="FileSystemRunners\PowerShellRunner.cs" />
-    <Compile Include="FileSystemRunners\CmdRunner.cs" />
-    <Compile Include="FileSystemRunners\FileSystemRunner.cs" />
-    <Compile Include="Tools\GitHelpers.cs" />
-    <Compile Include="Tools\GitProcess.cs" />
-    <Compile Include="Tools\GVFSFunctionalTestEnlistment.cs" />
-    <Compile Include="Tools\GVFSHelpers.cs" />
-    <Compile Include="Tools\GVFSServiceProcess.cs" />
-    <Compile Include="Tools\NativeMethods.cs" />
-    <Compile Include="Tools\ProcessHelper.cs" />
-    <Compile Include="Tools\ProcessResult.cs" />
-    <Compile Include="Tools\TestConstants.cs" />
-    <Compile Include="Tools\GVFSProcess.cs" />
-    <Compile Include="Properties\AssemblyInfo.cs" />
-    <Compile Include="Should\FileSystemShouldExtensions.cs" />
-    <Compile Include="FileSystemRunners\ShellRunner.cs" />
-    <Compile Include="FileSystemRunners\SystemIORunner.cs" />
-    <Compile Include="Tools\ControlGitRepo.cs" />
+    <ProjectReference Include="..\GVFS.Tests\GVFS.Tests.csproj" />
   </ItemGroup>
+
   <ItemGroup>
-    <None Include="App.config">
-      <SubType>Designer</SubType>
-    </None>
-    <None Include="$(BuildOutputDir)\GVFS.FunctionalTests.exe.manifest">
-      <Link>GVFS.FunctionalTests.exe.manifest</Link>
-    </None>
-    <None Include="packages.config">
-      <SubType>Designer</SubType>
-    </None>
-    <None Include="Properties\Settings.settings">
-      <Generator>SettingsSingleFileGenerator</Generator>
-      <LastGenOutput>Settings.Designer.cs</LastGenOutput>
-    </None>
-    <None Include="TestData\BackgroundGitUpdates\epc.chk">
-      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
-    </None>
-    <None Include="TestData\BackgroundGitUpdates\epc.log">
-      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
-    </None>
-    <None Include="TestData\BackgroundGitUpdates\epcres00001.jrs">
-      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
-    </None>
-    <None Include="TestData\BackgroundGitUpdates\epcres00002.jrs">
-      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
-    </None>
-    <None Include="TestData\BackgroundGitUpdates\epctmp.log">
-      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
-    </None>
-    <None Include="TestData\BackgroundGitUpdates\PersistentDictionary.edb">
-      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
-    </None>
-    <None Include="TestData\BackgroundGitUpdates\PersistentDictionary.jfm">
-      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
-    </None>
+    <WindowsBuildOutputs Include="$(BuildOutputDir)\GVFS.Windows\bin\$(Platform)\$(Configuration)\**\*.*" />
+    <WindowsBuildOutputs Include="$(BuildOutputDir)\GVFS.Windows\bin\$(Platform)\$(Configuration)\$(Platform)\**\*.*" />
+    <WindowsBuildOutputs Include="$(BuildOutputDir)\GVFS.Service\bin\$(Platform)\$(Configuration)\**\*.*" />
+    <WindowsBuildOutputs Include="$(BuildOutputDir)\GVFS.Mount.Windows\bin\$(Platform)\$(Configuration)\**\*.*" />
+    <WindowsBuildOutputs Include="$(BuildOutputDir)\FastFetch\bin\$(Platform)\$(Configuration)\**\*.*" />
+    <WindowsBuildOutputs Include="$(BuildOutputDir)\GVFS.NativeTests\bin\$(Platform)\$(Configuration)\**\*.*" />
+    <WindowsBuildOutputs Include="$(BuildOutputDir)\GVFS.Hooks\bin\$(Platform)\$(Configuration)\**\*.*" />
+    <WindowsBuildOutputs Include="$(BuildOutputDir)\GVFS.FunctionalTests.LockHolder\bin\$(Platform)\$(Configuration)\**\*.*" />
   </ItemGroup>
-  <ItemGroup>
-    <Service Include="{82A7F48D-3B50-4B1E-B82E-3ADA8210C358}" />
-  </ItemGroup>
-  <ItemGroup>
-    <ProjectReference Include="..\GVFS.Tests\GVFS.Tests.csproj">
-      <Project>{72701BC3-5DA9-4C7A-BF10-9E98C9FC8EAC}</Project>
-      <Name>GVFS.Tests</Name>
-    </ProjectReference>
-  </ItemGroup>
-  <Choose>
-    <When Condition="'$(VisualStudioVersion)' == '10.0' And '$(IsCodedUITest)' == 'True'">
-      <ItemGroup>
-        <Reference Include="Microsoft.VisualStudio.QualityTools.CodedUITestFramework, Version=10.0.0.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a, processorArchitecture=MSIL">
-          <Private>False</Private>
-        </Reference>
-        <Reference Include="Microsoft.VisualStudio.TestTools.UITest.Common, Version=10.0.0.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a, processorArchitecture=MSIL">
-          <Private>False</Private>
-        </Reference>
-        <Reference Include="Microsoft.VisualStudio.TestTools.UITest.Extension, Version=10.0.0.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a, processorArchitecture=MSIL">
-          <Private>False</Private>
-        </Reference>
-        <Reference Include="Microsoft.VisualStudio.TestTools.UITesting, Version=10.0.0.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a, processorArchitecture=MSIL">
-          <Private>False</Private>
-        </Reference>
-      </ItemGroup>
-    </When>
-  </Choose>
-  <Import Project="$(VSToolsPath)\TeamTest\Microsoft.TestTools.targets" Condition="Exists('$(VSToolsPath)\TeamTest\Microsoft.TestTools.targets')" />
-  <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
-  <Target Name="EnsureNuGetPackageBuildImports" BeforeTargets="PrepareForBuild">
-    <PropertyGroup>
-      <ErrorText>This project references NuGet package(s) that are missing on this computer. Use NuGet Package Restore to download them.  For more information, see http://go.microsoft.com/fwlink/?LinkID=322105. The missing file is {0}.</ErrorText>
-    </PropertyGroup>
-    <Error Condition="!Exists('..\..\..\packages\StyleCop.MSBuild.4.7.54.0\build\StyleCop.MSBuild.Targets')" Text="$([System.String]::Format('$(ErrorText)', '..\..\..\packages\StyleCop.MSBuild.4.7.54.0\build\StyleCop.MSBuild.Targets'))" />
-    <Error Condition="!Exists('..\..\..\packages\StyleCop.Error.MSBuild.1.0.0\build\StyleCop.Error.MSBuild.Targets')" Text="$([System.String]::Format('$(ErrorText)', '..\..\..\packages\StyleCop.Error.MSBuild.1.0.0\build\StyleCop.Error.MSBuild.Targets'))" />
-    <Error Condition="!Exists('..\..\..\packages\NUnit.3.10.0-dev-05190\build\NUnit.props')" Text="$([System.String]::Format('$(ErrorText)', '..\..\..\packages\NUnit.3.10.0-dev-05190\build\NUnit.props'))" />
-    <Error Condition="!Exists('..\..\..\packages\SQLitePCLRaw.lib.e_sqlite3.linux.1.1.7\build\net35\SQLitePCLRaw.lib.e_sqlite3.linux.targets')" Text="$([System.String]::Format('$(ErrorText)', '..\..\..\packages\SQLitePCLRaw.lib.e_sqlite3.linux.1.1.7\build\net35\SQLitePCLRaw.lib.e_sqlite3.linux.targets'))" />
-    <Error Condition="!Exists('..\..\..\packages\SQLitePCLRaw.lib.e_sqlite3.osx.1.1.7\build\net35\SQLitePCLRaw.lib.e_sqlite3.osx.targets')" Text="$([System.String]::Format('$(ErrorText)', '..\..\..\packages\SQLitePCLRaw.lib.e_sqlite3.osx.1.1.7\build\net35\SQLitePCLRaw.lib.e_sqlite3.osx.targets'))" />
-    <Error Condition="!Exists('..\..\..\packages\SQLitePCLRaw.lib.e_sqlite3.v110_xp.1.1.7\build\net35\SQLitePCLRaw.lib.e_sqlite3.v110_xp.targets')" Text="$([System.String]::Format('$(ErrorText)', '..\..\..\packages\SQLitePCLRaw.lib.e_sqlite3.v110_xp.1.1.7\build\net35\SQLitePCLRaw.lib.e_sqlite3.v110_xp.targets'))" />
+
+  <Target Name="CopyWindowsTestDependencies" AfterTargets="PostBuildEvent" Condition="'$(OS)' == 'Windows_NT'">
+    <Copy SourceFiles="@(WindowsBuildOutputs)" DestinationFolder="$(TargetDir)\%(RecursiveDir)" SkipUnchangedFiles="true" OverwriteReadOnlyFiles="true" />
+
+    <!-- If there is an inbox version of the ProjFS dll, we must use that one to guarantee compat with the sys, so delete whatever is in our TargetDir -->
+    <Delete Files="$(TargetDir)\ProjectedFSLib.dll" Condition="Exists('c:\Windows\System32\ProjectedFSLib.dll')" />
   </Target>
-  <Import Project="..\..\..\packages\StyleCop.MSBuild.4.7.54.0\build\StyleCop.MSBuild.Targets" Condition="Exists('..\..\..\packages\StyleCop.MSBuild.4.7.54.0\build\StyleCop.MSBuild.Targets')" />
-  <Import Project="..\..\..\packages\StyleCop.Error.MSBuild.1.0.0\build\StyleCop.Error.MSBuild.Targets" Condition="Exists('..\..\..\packages\StyleCop.Error.MSBuild.1.0.0\build\StyleCop.Error.MSBuild.Targets')" />
-  <PropertyGroup>
-    <PostBuildEvent>xcopy /Y $(BuildOutputDir)\GVFS\bin\$(Platform)\$(Configuration)\* $(TargetDir)
-xcopy /Y $(BuildOutputDir)\GVFS\bin\$(Platform)\$(Configuration)\$(Platform)\* $(TargetDir)
-xcopy /Y $(BuildOutputDir)\GVFS.Service\bin\$(Platform)\$(Configuration)\* $(TargetDir)
-xcopy /Y $(BuildOutputDir)\GVFS.Mount\bin\$(Platform)\$(Configuration)\* $(TargetDir)
-xcopy /Y $(BuildOutputDir)\FastFetch\bin\$(Platform)\$(Configuration)\* $(TargetDir)
-xcopy /Y $(BuildOutputDir)\GVFS.NativeTests\bin\$(Platform)\$(Configuration)\* $(TargetDir)
-xcopy /Y $(BuildOutputDir)\GVFS.Hooks\bin\$(Platform)\$(Configuration)\* $(TargetDir)</PostBuildEvent>
-  </PropertyGroup>
-  <PropertyGroup>
-    <PreBuildEvent>
-    </PreBuildEvent>
-  </PropertyGroup>
-  <Import Project="..\..\..\packages\SQLitePCLRaw.lib.e_sqlite3.linux.1.1.7\build\net35\SQLitePCLRaw.lib.e_sqlite3.linux.targets" Condition="Exists('..\..\..\packages\SQLitePCLRaw.lib.e_sqlite3.linux.1.1.7\build\net35\SQLitePCLRaw.lib.e_sqlite3.linux.targets')" />
-  <Import Project="..\..\..\packages\SQLitePCLRaw.lib.e_sqlite3.osx.1.1.7\build\net35\SQLitePCLRaw.lib.e_sqlite3.osx.targets" Condition="Exists('..\..\..\packages\SQLitePCLRaw.lib.e_sqlite3.osx.1.1.7\build\net35\SQLitePCLRaw.lib.e_sqlite3.osx.targets')" />
-  <Import Project="..\..\..\packages\SQLitePCLRaw.lib.e_sqlite3.v110_xp.1.1.7\build\net35\SQLitePCLRaw.lib.e_sqlite3.v110_xp.targets" Condition="Exists('..\..\..\packages\SQLitePCLRaw.lib.e_sqlite3.v110_xp.1.1.7\build\net35\SQLitePCLRaw.lib.e_sqlite3.v110_xp.targets')" />
-  <!-- To modify your build process, add your task inside one of the targets below and uncomment it. 
-       Other similar extension points exist, see Microsoft.Common.targets.
-  <Target Name="BeforeBuild">
-  </Target>
-  <Target Name="AfterBuild">
-  </Target>
-  -->
+  
 </Project>

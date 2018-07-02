@@ -127,11 +127,6 @@ namespace GVFS.UnitTests.Mock.FileSystem
             this.RootDirectory.DeleteDirectory(path);
         }
 
-        public override SafeFileHandle LockDirectory(string path)
-        {
-            return new SafeFileHandle(IntPtr.Zero, false);
-        }
-
         public override IEnumerable<DirectoryItemInfo> ItemsInDirectory(string path)
         {
             MockDirectory directory = this.RootDirectory.FindDirectory(path);

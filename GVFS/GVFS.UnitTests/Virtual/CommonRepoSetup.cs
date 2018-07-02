@@ -14,7 +14,7 @@ namespace GVFS.UnitTests.Virtual
         {
             MockTracer tracer = new MockTracer();
 
-            string enlistmentRoot = @"mock:\GVFS\UnitTests\Repo";
+            string enlistmentRoot = Path.Combine("mock:", "GVFS", "UnitTests", "Repo");
             GVFSEnlistment enlistment = new GVFSEnlistment(enlistmentRoot, "fake://repoUrl", "fake://gitBinPath", null);
             enlistment.InitializeCachePathsFromKey("fake:\\gvfsSharedCache", "fakeCacheKey");
 
@@ -28,11 +28,11 @@ namespace GVFS.UnitTests.Virtual
                     new MockDirectory(this.GitParentPath, folders: null, files: null),
                 },
                 null);
-            enlistmentDirectory.CreateFile(Path.Combine(this.GitParentPath, ".git\\config"), ".git config Contents", createDirectories: true);
-            enlistmentDirectory.CreateFile(Path.Combine(this.GitParentPath, ".git\\HEAD"), ".git HEAD Contents", createDirectories: true);
-            enlistmentDirectory.CreateFile(Path.Combine(this.GitParentPath, ".git\\logs\\HEAD"), "HEAD Contents", createDirectories: true);
-            enlistmentDirectory.CreateFile(Path.Combine(this.GitParentPath, ".git\\info\\always_exclude"), "always_exclude Contents", createDirectories: true);
-            enlistmentDirectory.CreateDirectory(Path.Combine(this.GitParentPath, ".git\\objects\\pack"));
+            enlistmentDirectory.CreateFile(Path.Combine(this.GitParentPath, ".git", "config"), ".git config Contents", createDirectories: true);
+            enlistmentDirectory.CreateFile(Path.Combine(this.GitParentPath, ".git", "HEAD"), ".git HEAD Contents", createDirectories: true);
+            enlistmentDirectory.CreateFile(Path.Combine(this.GitParentPath, ".git", "logs", "HEAD"), "HEAD Contents", createDirectories: true);
+            enlistmentDirectory.CreateFile(Path.Combine(this.GitParentPath, ".git", "info", "always_exclude"), "always_exclude Contents", createDirectories: true);
+            enlistmentDirectory.CreateDirectory(Path.Combine(this.GitParentPath, ".git", "objects", "pack"));
 
             MockFileSystem fileSystem = new MockFileSystem(enlistmentDirectory);
             this.Repository = new MockGitRepo(

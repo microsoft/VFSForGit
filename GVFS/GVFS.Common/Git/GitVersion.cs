@@ -89,6 +89,16 @@ namespace GVFS.Common.Git
             return true;
         }
 
+        public bool IsEqualTo(GitVersion other)
+        {
+            if (this.Platform != other.Platform)
+            {
+                return false;
+            }
+
+            return this.CompareVersionNumbers(other) == 0;
+        }
+
         public bool IsLessThan(GitVersion other)
         {
             return this.CompareVersionNumbers(other) < 0;

@@ -460,10 +460,9 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
             string newBranchName = "tests/functional/MoveFileFromInsideRepoToOutsideRepoAndCommit";
             this.ValidateGitCommand("checkout -b " + newBranchName);
 
-            // Confirm that no other test has caused "Protocol.md" to be added to the sparse-checkout
+            // Confirm that no other test has caused "Protocol.md" to be added to the modified paths
             string fileName = "Protocol.md";
-            string sparseFile = Path.Combine(this.Enlistment.RepoRoot, TestConstants.DotGit.Info.SparseCheckout);
-            sparseFile.ShouldBeAFile(this.FileSystem).WithContents().ShouldNotContain(ignoreCase: true, unexpectedSubstrings: fileName);
+            GVFSHelpers.ModifiedPathsShouldNotContain(this.FileSystem, this.Enlistment.DotGVFSRoot, fileName);
 
             string controlTargetFolder = "MoveFileFromInsideRepoToOutsideRepoAndCommit_ControlTarget";
             string gvfsTargetFolder = "MoveFileFromInsideRepoToOutsideRepoAndCommit_GVFSTarget";
@@ -956,9 +955,8 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
             string expectedContents = controlFile.ShouldBeAFile(this.FileSystem).WithContents();
             contents.ShouldEqual(expectedContents);
 
-            // Confirm that the entry is not in the the sparse-checkout
-            string sparseCheckoutFile = Path.Combine(this.Enlistment.RepoRoot, TestConstants.DotGit.Info.SparseCheckout);
-            sparseCheckoutFile.ShouldBeAFile(this.FileSystem).WithContents().ShouldNotContain(ignoreCase: true, unexpectedSubstrings: EncodingFilename);
+            // Confirm that the entry is not in the the modified paths database
+            GVFSHelpers.ModifiedPathsShouldNotContain(this.FileSystem, this.Enlistment.DotGVFSRoot, EncodingFilename);
             this.ValidateGitCommand("status");
 
             this.AppendAllText(virtualFile, ContentWhenEditingFile);
@@ -966,8 +964,8 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
 
             this.ValidateGitCommand("status");
 
-            // Confirm that the entry was added to the sparse-checkout
-            sparseCheckoutFile.ShouldBeAFile(this.FileSystem).WithContents().ShouldContain(EncodingFilename);
+            // Confirm that the entry was added to the modified paths database
+            GVFSHelpers.ModifiedPathsShouldContain(this.FileSystem, this.Enlistment.DotGVFSRoot, EncodingFilename);
         }
 
         [TestCase]

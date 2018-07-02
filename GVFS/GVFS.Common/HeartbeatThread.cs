@@ -1,5 +1,4 @@
 ﻿using GVFS.Common.Tracing;
-using Microsoft.Diagnostics.Tracing;
 using System;
 using System.Threading;
 

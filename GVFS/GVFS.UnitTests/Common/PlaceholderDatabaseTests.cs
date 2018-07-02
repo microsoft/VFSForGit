@@ -1,11 +1,9 @@
 ﻿using GVFS.Common;
-using GVFS.Common.FileSystem;
 using GVFS.Tests.Should;
 using GVFS.UnitTests.Mock;
 using GVFS.UnitTests.Mock.FileSystem;
 using NUnit.Framework;
 using System.Collections.Generic;
-using System.IO;
 
 namespace GVFS.UnitTests.Common
 {

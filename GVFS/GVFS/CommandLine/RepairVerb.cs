@@ -1,11 +1,9 @@
 ﻿using CommandLine;
 using GVFS.Common;
-using GVFS.Common.Git;
 using GVFS.Common.NamedPipes;
 using GVFS.Common.Tracing;
 using GVFS.DiskLayoutUpgrades;
 using GVFS.RepairJobs;
-using Microsoft.Diagnostics.Tracing;
 using System.Collections.Generic;
 
 namespace GVFS.CommandLine
@@ -21,7 +19,7 @@ namespace GVFS.CommandLine
             Default = "",
             MetaName = "Enlistment Root Path",
             HelpText = "Full or relative path to the GVFS enlistment root")]
-        public override string EnlistmentRootPath { get; set; }
+        public override string EnlistmentRootPathParameter { get; set; }
         
         [Option(
             "confirm",
@@ -37,13 +35,13 @@ namespace GVFS.CommandLine
 
         public override void Execute()
         {
-            this.ValidatePathParameter(this.EnlistmentRootPath);
+            this.ValidatePathParameter(this.EnlistmentRootPathParameter);
 
-            string hooksPath = this.GetGVFSHooksPathAndCheckVersion(tracer: null, version: out _);
+            string hooksPath = this.GetGVFSHooksPathAndCheckVersion(tracer: null, hooksVersion: out _);
 
             GVFSEnlistment enlistment = GVFSEnlistment.CreateWithoutRepoUrlFromDirectory(
-                this.EnlistmentRootPath,
-                GitProcess.GetInstalledGitBinPath(),
+                this.EnlistmentRootPathParameter,
+                GVFSPlatform.Instance.GitInstallation.GetInstalledGitBinPath(),
                 hooksPath);
 
             if (enlistment == null)
@@ -96,7 +94,7 @@ To actually execute any necessary repair(s), run 'gvfs repair --confirm'
 
             this.Output.WriteLine();
 
-            using (JsonEtwTracer tracer = new JsonEtwTracer(GVFSConstants.GVFSEtwProviderName, "RepairVerb"))
+            using (JsonTracer tracer = new JsonTracer(GVFSConstants.GVFSEtwProviderName, "RepairVerb"))
             {
                 tracer.AddLogFileEventListener(
                     GVFSEnlistment.GetNewGVFSLogFileName(enlistment.GVFSLogsRoot, GVFSConstants.LogFileTypes.Repair),
@@ -109,7 +107,9 @@ To actually execute any necessary repair(s), run 'gvfs repair --confirm'
                     new EventMetadata
                     {
                         { "Confirmed", this.Confirmed },
-                        { "IsElevated", ProcessHelper.IsAdminElevated() },
+                        { "IsElevated", GVFSPlatform.Instance.IsElevated() },
+                        { "NamedPipename", enlistment.NamedPipeName },
+                        { nameof(this.EnlistmentRootPathParameter), this.EnlistmentRootPathParameter },
                     });
 
                 List<RepairJob> jobs = new List<RepairJob>();

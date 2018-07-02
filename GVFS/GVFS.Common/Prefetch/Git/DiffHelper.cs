@@ -1,0 +1,421 @@
+﻿using GVFS.Common;
+using GVFS.Common.Git;
+using GVFS.Common.Tracing;
+using System;
+using System.Collections.Concurrent;
+using System.Collections.Generic;
+using System.IO;
+using System.Linq;
+
+namespace GVFS.Common.Prefetch.Git
+{
+    public class DiffHelper
+    {
+        private const string AreaPath = nameof(DiffHelper);
+
+        private ITracer tracer;
+        private List<string> fileList;
+        private List<string> folderList;
+        private HashSet<string> filesAdded = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        private HashSet<DiffTreeResult> stagedDirectoryOperations = new HashSet<DiffTreeResult>(new DiffTreeByNameComparer());
+        private HashSet<string> stagedFileDeletes = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        private Enlistment enlistment;
+        private GitProcess git;
+
+        public DiffHelper(ITracer tracer, Enlistment enlistment, IEnumerable<string> fileList, IEnumerable<string> folderList)
+            : this(tracer, enlistment, new GitProcess(enlistment), fileList, folderList)
+        {
+        }
+
+        public DiffHelper(ITracer tracer, Enlistment enlistment, GitProcess git, IEnumerable<string> fileList, IEnumerable<string> folderList)
+        {
+            this.tracer = tracer;
+            this.fileList = new List<string>(fileList);
+            this.folderList = new List<string>(folderList);
+            this.enlistment = enlistment;
+            this.git = git;
+
+            this.DirectoryOperations = new ConcurrentQueue<DiffTreeResult>();
+            this.FileDeleteOperations = new ConcurrentQueue<string>();
+            this.FileAddOperations = new ConcurrentDictionary<string, HashSet<string>>(StringComparer.OrdinalIgnoreCase);
+            this.RequiredBlobs = new BlockingCollection<string>();
+        }
+
+        public bool HasFailures { get; private set; }
+
+        public ConcurrentQueue<DiffTreeResult> DirectoryOperations { get; }
+
+        public ConcurrentQueue<string> FileDeleteOperations { get; }
+
+        /// <summary>
+        /// Mapping from available sha to filenames where blob should be written
+        /// </summary>
+        public ConcurrentDictionary<string, HashSet<string>> FileAddOperations { get; }
+
+        /// <summary>
+        /// Blobs required to perform a checkout of the destination
+        /// </summary>
+        public BlockingCollection<string> RequiredBlobs { get; }
+
+        public int TotalDirectoryOperations
+        {
+            get { return this.stagedDirectoryOperations.Count; }
+        }
+
+        public int TotalFileDeletes
+        {
+            get { return this.stagedFileDeletes.Count; }
+        }
+
+        /// <summary>
+        /// Returns true if the whole tree was updated
+        /// </summary>
+        public bool UpdatedWholeTree { get; internal set; } = false;
+
+        public void PerformDiff(string targetCommitSha)
+        {
+            string targetTreeSha;
+            string headTreeSha;
+            using (PrefetchLibGit2Repo repo = new PrefetchLibGit2Repo(this.tracer, this.enlistment.WorkingDirectoryRoot))
+            {
+                targetTreeSha = repo.GetTreeSha(targetCommitSha);
+                headTreeSha = repo.GetTreeSha("HEAD");
+            }
+
+            this.PerformDiff(headTreeSha, targetTreeSha);
+        }
+
+        public void PerformDiff(string sourceTreeSha, string targetTreeSha)
+        {
+            EventMetadata metadata = new EventMetadata();
+            metadata.Add("TargetTreeSha", targetTreeSha);
+            metadata.Add("HeadTreeSha", sourceTreeSha);
+            using (ITracer activity = this.tracer.StartActivity("PerformDiff", EventLevel.Informational, Keywords.Telemetry, metadata))
+            {
+                metadata = new EventMetadata();
+                if (sourceTreeSha == null)
+                {
+                    this.UpdatedWholeTree = true;
+
+                    // Nothing is checked out (fresh git init), so we must search the entire tree.
+                    GitProcess.Result result = this.git.LsTree(
+                        targetTreeSha,
+                        line => this.EnqueueOperationsFromLsTreeLine(activity, line),
+                        recursive: true,
+                        showAllTrees: true);
+
+                    if (result.HasErrors)
+                    {
+                        this.HasFailures = true;
+                        metadata.Add("Errors", result.Errors);
+                        metadata.Add("Output", result.Output.Length > 1024 ? result.Output.Substring(1024) : result.Output);
+                    }
+
+                    metadata.Add("Operation", "LsTree");
+                }
+                else
+                {
+                    // Diff head and target, determine what needs to be done.
+                    GitProcess.Result result = this.git.DiffTree(
+                        sourceTreeSha,
+                        targetTreeSha,
+                        line => this.EnqueueOperationsFromDiffTreeLine(this.tracer, this.enlistment.WorkingDirectoryRoot, line));
+                    
+                    if (result.HasErrors)
+                    {
+                        this.HasFailures = true;
+                        metadata.Add("Errors", result.Errors);
+                        metadata.Add("Output", result.Output.Length > 1024 ? result.Output.Substring(1024) : result.Output);
+                    }
+
+                    metadata.Add("Operation", "DiffTree");
+                }
+
+                this.FlushStagedQueues();
+
+                metadata.Add("Success", !this.HasFailures);
+                metadata.Add("DirectoryOperationsCount", this.TotalDirectoryOperations);
+                metadata.Add("FileDeleteOperationsCount", this.TotalFileDeletes);
+                metadata.Add("RequiredBlobsCount", this.RequiredBlobs.Count);
+                activity.Stop(metadata);
+            }
+        }
+
+        public void ParseDiffFile(string filename, string repoRoot)
+        {
+            using (ITracer activity = this.tracer.StartActivity("PerformDiff", EventLevel.Informational))
+            {
+                using (StreamReader file = new StreamReader(File.OpenRead(filename)))
+                {
+                    while (!file.EndOfStream)
+                    {
+                        this.EnqueueOperationsFromDiffTreeLine(activity, repoRoot, file.ReadLine());
+                    }
+                }
+
+                this.FlushStagedQueues();
+            }
+        }
+
+        private void FlushStagedQueues()
+        {
+            List<string> deletedPaths = new List<string>();
+            foreach (DiffTreeResult result in this.stagedDirectoryOperations)
+            {
+                // Don't enqueue deletes that will be handled by recursively deleting their parent.
+                // Git traverses diffs in pre-order, so we are guaranteed to ignore child deletes here.
+                // Append trailing slash terminator to avoid matches with directory prefixes (Eg. \GVFS and \GVFS.Common)
+                if (result.Operation == DiffTreeResult.Operations.Delete)
+                {
+                    if (deletedPaths.Any(path => result.TargetPath.StartsWith(path, StringComparison.OrdinalIgnoreCase)))
+                    {
+                        continue;
+                    }
+
+                    deletedPaths.Add(result.TargetPath);
+                }
+
+                this.DirectoryOperations.Enqueue(result);
+            }
+
+            foreach (string filePath in this.stagedFileDeletes)
+            {
+                string pathWithSlash = filePath;
+                if (deletedPaths.Any(path => pathWithSlash.StartsWith(path, StringComparison.OrdinalIgnoreCase)))
+                {
+                    continue;
+                }
+
+                deletedPaths.Add(pathWithSlash);
+
+                this.FileDeleteOperations.Enqueue(filePath);
+            }
+
+            this.RequiredBlobs.CompleteAdding();
+        }
+
+        private void EnqueueOperationsFromLsTreeLine(ITracer activity, string line)
+        {
+            DiffTreeResult result = DiffTreeResult.ParseFromLsTreeLine(line, this.enlistment.WorkingDirectoryRoot);
+            if (result == null)
+            {
+                this.tracer.RelatedError("Unrecognized ls-tree line: {0}", line);
+            }
+
+            if (!this.ShouldIncludeResult(result))
+            {
+                return;
+            }
+
+            if (result.TargetIsDirectory)
+            {
+                if (!this.stagedDirectoryOperations.Add(result))
+                {
+                    EventMetadata metadata = new EventMetadata();
+                    metadata.Add(nameof(result.TargetPath), result.TargetPath);
+                    metadata.Add(TracingConstants.MessageKey.WarningMessage, "File exists in tree with two different cases. Taking the last one.");
+                    this.tracer.RelatedEvent(EventLevel.Warning, "CaseConflict", metadata);
+
+                    // Since we match only on filename, re-adding is the easiest way to update the set.
+                    this.stagedDirectoryOperations.Remove(result);
+                    this.stagedDirectoryOperations.Add(result);
+                }
+            }
+            else
+            {
+                this.EnqueueFileAddOperation(activity, result);
+            }
+        }
+
+        private void EnqueueOperationsFromDiffTreeLine(ITracer activity, string repoRoot, string line)
+        {
+            if (!line.StartsWith(":"))
+            {
+                // Diff-tree starts with metadata we can ignore.
+                // Real diff lines always start with a colon
+                return;
+            }
+
+            DiffTreeResult result = DiffTreeResult.ParseFromDiffTreeLine(line, repoRoot);
+            if (!this.ShouldIncludeResult(result))
+            {
+                return;
+            }
+
+            if (result.Operation == DiffTreeResult.Operations.Unknown ||
+                result.Operation == DiffTreeResult.Operations.Unmerged ||
+                result.Operation == DiffTreeResult.Operations.CopyEdit ||
+                result.Operation == DiffTreeResult.Operations.RenameEdit)
+            {
+                EventMetadata metadata = new EventMetadata();
+                metadata.Add(nameof(result.TargetPath), result.TargetPath);
+                metadata.Add(nameof(line), line);
+                activity.RelatedError(metadata, "Unexpected diff operation: " + result.Operation);
+                this.HasFailures = true;
+                return;
+            }
+
+            // Separate and enqueue all directory operations first.
+            if (result.SourceIsDirectory || result.TargetIsDirectory)
+            {
+                switch (result.Operation)
+                {
+                    case DiffTreeResult.Operations.Delete:
+                        if (!this.stagedDirectoryOperations.Add(result))
+                        {
+                            EventMetadata metadata = new EventMetadata();
+                            metadata.Add(nameof(result.TargetPath), result.TargetPath);
+                            metadata.Add(TracingConstants.MessageKey.WarningMessage, "A case change was attempted. It will not be reflected in the working directory.");
+                            activity.RelatedEvent(EventLevel.Warning, "CaseConflict", metadata);
+                        }
+
+                        break;
+                    case DiffTreeResult.Operations.Add:
+                    case DiffTreeResult.Operations.Modify:
+                        if (!this.stagedDirectoryOperations.Add(result))
+                        {
+                            EventMetadata metadata = new EventMetadata();
+                            metadata.Add(nameof(result.TargetPath), result.TargetPath);
+                            metadata.Add(TracingConstants.MessageKey.WarningMessage, "A case change was attempted. It will not be reflected in the working directory.");
+                            activity.RelatedEvent(EventLevel.Warning, "CaseConflict", metadata);
+
+                            // Replace the delete with the add to make sure we don't delete a folder from under ourselves
+                            this.stagedDirectoryOperations.Remove(result);
+                            this.stagedDirectoryOperations.Add(result);
+                        }
+
+                        break;
+                    default:
+                        activity.RelatedError("Unexpected diff operation from line: {0}", line);
+                        break;
+                }
+            }
+            else
+            {
+                switch (result.Operation)
+                {
+                    case DiffTreeResult.Operations.Delete:
+                        this.EnqueueFileDeleteOperation(activity, result.TargetPath);
+
+                        break;
+                    case DiffTreeResult.Operations.Modify:
+                    case DiffTreeResult.Operations.Add:
+                        this.EnqueueFileAddOperation(activity, result);
+                        break;
+                    default:
+                        activity.RelatedError("Unexpected diff operation from line: {0}", line);
+                        break;
+                }
+            }
+        }
+
+        private bool ShouldIncludeResult(DiffTreeResult blobAdd)
+        {
+            if (blobAdd.TargetPath == null)
+            {
+                return true;
+            }
+
+            if (this.fileList.Count == 0 && this.folderList.Count == 0)
+            {
+                return true;
+            }
+
+            if (this.fileList.Any(path =>
+                    path.StartsWith("*")
+                    ? blobAdd.TargetPath.EndsWith(path.Substring(1), StringComparison.OrdinalIgnoreCase)
+                    : blobAdd.TargetPath.Equals(path, StringComparison.OrdinalIgnoreCase)))
+            {
+                return true;
+            }
+
+            if (this.folderList.Any(path => blobAdd.TargetPath.StartsWith(path, StringComparison.OrdinalIgnoreCase)))
+            {
+                return true;
+            }
+
+            return false;
+        }
+
+        private void EnqueueFileDeleteOperation(ITracer activity, string targetPath)
+        {
+            if (this.filesAdded.Contains(targetPath))
+            {
+                EventMetadata metadata = new EventMetadata();
+                metadata.Add(nameof(targetPath), targetPath);
+                metadata.Add(TracingConstants.MessageKey.WarningMessage, "A case change was attempted. It will not be reflected in the working directory.");
+                activity.RelatedEvent(EventLevel.Warning, "CaseConflict", metadata);
+
+                return;
+            }
+
+            this.stagedFileDeletes.Add(targetPath);
+        }
+
+        /// <remarks>
+        /// This is not used in a multithreaded method, it doesn't need to be thread-safe
+        /// </remarks>
+        private void EnqueueFileAddOperation(ITracer activity, DiffTreeResult operation)
+        {
+            // Each filepath should be case-insensitive unique. If there are duplicates, only the last parsed one should remain.
+            if (!this.filesAdded.Add(operation.TargetPath))
+            {
+                foreach (KeyValuePair<string, HashSet<string>> kvp in this.FileAddOperations)
+                {
+                    if (kvp.Value.Remove(operation.TargetPath))
+                    {
+                        break;
+                    }
+                }
+            }
+
+            if (this.stagedFileDeletes.Remove(operation.TargetPath))
+            {
+                EventMetadata metadata = new EventMetadata();
+                metadata.Add(nameof(operation.TargetPath), operation.TargetPath);
+                metadata.Add(TracingConstants.MessageKey.WarningMessage, "A case change was attempted. It will not be reflected in the working directory.");
+                activity.RelatedEvent(EventLevel.Warning, "CaseConflict", metadata);
+            }
+
+            this.FileAddOperations.AddOrUpdate(
+                operation.TargetSha,
+                new HashSet<string>(StringComparer.OrdinalIgnoreCase) { operation.TargetPath },
+                (key, oldValue) =>
+                {
+                    oldValue.Add(operation.TargetPath);
+                    return oldValue;
+                });
+
+            this.RequiredBlobs.Add(operation.TargetSha);
+        }
+
+        private class DiffTreeByNameComparer : IEqualityComparer<DiffTreeResult>
+        {
+            public bool Equals(DiffTreeResult x, DiffTreeResult y)
+            {
+                if (x.TargetPath != null)
+                {
+                    if (y.TargetPath != null)
+                    {
+                        return x.TargetPath.Equals(y.TargetPath, StringComparison.OrdinalIgnoreCase);
+                    }
+
+                    return false;
+                }
+                else
+                {
+                    // both null means they're equal
+                    return y.TargetPath == null;
+                }
+            }
+
+            public int GetHashCode(DiffTreeResult obj)
+            {
+                return obj.TargetPath != null ?
+                    StringComparer.OrdinalIgnoreCase.GetHashCode(obj.TargetPath) : 0;
+            }
+        }
+    }
+}

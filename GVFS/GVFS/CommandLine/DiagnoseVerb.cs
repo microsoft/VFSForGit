@@ -17,17 +17,7 @@ namespace GVFS.CommandLine
     public class DiagnoseVerb : GVFSVerb.ForExistingEnlistment
     {
         private const string DiagnoseVerbName = "diagnose";
-
         private const string System32LogFilesRoot = @"%SystemRoot%\System32\LogFiles";
-        private const string FilterLogFolderName = ProjFSFilter.ServiceName;
-
-        private const string WindowsVersionRegistryKey = "SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion";
-        private const string BuildLabRegistryValue = "BuildLab";
-        private const string BuildLabExRegistryValue = "BuildLabEx";
-
-        // From "Autologger" section of prjflt.inf
-        private const string FilterLoggerGuid = "ee4206ff-4a4d-452f-be56-6bd0ed272b44";
-        private const string FilterLoggerSessionName = "Microsoft-Windows-ProjFS-Filter-Log";
 
         private TextWriter diagnosticLogFileWriter;
 
@@ -60,7 +50,7 @@ namespace GVFS.CommandLine
                 this.WriteMessage(string.Empty);
                 this.WriteMessage("gvfs version " + ProcessHelper.GetCurrentProcessVersion());
                 this.WriteMessage(GitProcess.Version(enlistment).Output);
-                this.WriteMessage(GitProcess.GetInstalledGitBinPath());
+                this.WriteMessage(GVFSPlatform.Instance.GitInstallation.GetInstalledGitBinPath());
                 this.WriteMessage(string.Empty);
                 this.WriteMessage("Enlistment root: " + enlistment.EnlistmentRoot);
                 this.WriteMessage("Cache Server: " + CacheServerResolver.GetUrlFromConfig(enlistment));
@@ -72,9 +62,9 @@ namespace GVFS.CommandLine
                 this.WriteMessage("Local Cache: " + actualLocalCacheRoot);
                 this.WriteMessage(string.Empty);
 
-                this.PrintDiskSpaceInfo(actualLocalCacheRoot, this.EnlistmentRootPath);
+                this.PrintDiskSpaceInfo(actualLocalCacheRoot, this.EnlistmentRootPathParameter);
 
-                this.RecordWindowsVersionInformation();
+                this.RecordVersionInformation();
 
                 this.ShowStatusWhileRunning(
                     () =>
@@ -95,7 +85,7 @@ namespace GVFS.CommandLine
 
                         // This copy sometimes fails because the OS has an exclusive lock on the etl files. The error is not actionable
                         // for the user so we don't write the error message to stdout, just to our own log file.
-                        this.CopyAllFiles(system32LogFilesPath, archiveFolderPath, FilterLogFolderName, copySubFolders: false, hideErrorsFromStdout: true);
+                        this.CopyAllFiles(system32LogFilesPath, archiveFolderPath, GVFSPlatform.Instance.KernelDriver.DriverLogFolderName, copySubFolders: false, hideErrorsFromStdout: true);
 
                         // .git
                         this.CopyAllFiles(enlistment.WorkingDirectoryRoot, archiveFolderPath, GVFSConstants.DotGit.Root, copySubFolders: false);
@@ -164,21 +154,10 @@ namespace GVFS.CommandLine
             this.diagnosticLogFileWriter.WriteLine(message);
         }
 
-        private void RecordWindowsVersionInformation()
+        private void RecordVersionInformation()
         {
-            try
-            {
-                string buildLabVersion = ProcessHelper.GetStringFromRegistry(RegistryHive.LocalMachine, WindowsVersionRegistryKey, BuildLabRegistryValue);
-                this.diagnosticLogFileWriter.WriteLine($"Windows BuildLab version {buildLabVersion}");
-
-                string buildLabExVersion = ProcessHelper.GetStringFromRegistry(RegistryHive.LocalMachine, WindowsVersionRegistryKey, BuildLabExRegistryValue);
-                this.diagnosticLogFileWriter.WriteLine($"Windows BuildLabEx version {buildLabExVersion}");
-                this.diagnosticLogFileWriter.WriteLine(string.Empty);
-            }
-            catch (Exception e)
-            {
-                this.WriteMessage($"Failed to record Windows version information. Exception: {e}");
-            }
+            string information = GVFSPlatform.Instance.GetOSVersionInformation();
+            this.diagnosticLogFileWriter.WriteLine(information);
         }
 
         private void CopyAllFiles(string sourceRoot, string targetRoot, string folderName, bool copySubFolders, bool hideErrorsFromStdout = false)
@@ -215,7 +194,7 @@ namespace GVFS.CommandLine
 
             try
             {
-                using (ITracer tracer = new JsonEtwTracer(GVFSConstants.GVFSEtwProviderName, "DiagnoseVerb"))
+                using (ITracer tracer = new JsonTracer(GVFSConstants.GVFSEtwProviderName, "DiagnoseVerb"))
                 {
                     string error;
                     if (RepoMetadata.TryInitialize(tracer, Path.Combine(enlistment.EnlistmentRoot, GVFSConstants.DotGVFS.Root), out error))
@@ -433,7 +412,7 @@ namespace GVFS.CommandLine
                 using (StreamWriter writer = new StreamWriter(file))
                 {
                     return this.Execute<TVerb>(
-                        this.EnlistmentRootPath,
+                        this.EnlistmentRootPathParameter,
                         verb =>
                         {
                             if (configureVerb != null)
@@ -458,32 +437,21 @@ namespace GVFS.CommandLine
 
         private void FlushFilterLogBuffers()
         {
-            try
-            {
-                string logfileName;
-                uint result = NativeMethods.FlushTraceLogger(FilterLoggerSessionName, FilterLoggerGuid, out logfileName);
-                if (result != 0)
-                {
-                    this.WriteMessage($"Failed to flush {ProjFSFilter.ServiceName} log buffers {result}");
-                }
-            }
-            catch (Exception e)
-            {
-                this.WriteMessage($"Failed to flush {ProjFSFilter.ServiceName} log buffers, exception: {e.ToString()}");
-            }
+            string errors = GVFSPlatform.Instance.KernelDriver.FlushDriverLogs();
+            this.diagnosticLogFileWriter.WriteLine(errors);
         }
 
-        private void PrintDiskSpaceInfo(string localCacheRoot, string enlistmentRoot)
+        private void PrintDiskSpaceInfo(string localCacheRoot, string enlistmentRootParameter)
         {
             try
             {
-                string enlistmentFinalPathRoot;
-                string localCacheFinalPathRoot;
+                string enlistmentNormalizedPathRoot;
+                string localCacheNormalizedPathRoot;
                 string enlistmentErrorMessage;
                 string localCacheErrorMessage;
 
-                bool enlistmentSuccess = Paths.TryGetFinalPathRoot(enlistmentRoot, out enlistmentFinalPathRoot, out enlistmentErrorMessage);
-                bool localCacheSuccess = Paths.TryGetFinalPathRoot(localCacheRoot, out localCacheFinalPathRoot, out localCacheErrorMessage);
+                bool enlistmentSuccess = GVFSPlatform.Instance.TryGetNormalizedPathRoot(enlistmentRootParameter, out enlistmentNormalizedPathRoot, out enlistmentErrorMessage);
+                bool localCacheSuccess = GVFSPlatform.Instance.TryGetNormalizedPathRoot(localCacheRoot, out localCacheNormalizedPathRoot, out localCacheErrorMessage);
 
                 if (!enlistmentSuccess || !localCacheSuccess)
                 {
@@ -502,10 +470,10 @@ namespace GVFS.CommandLine
                     return;
                 }
 
-                DriveInfo enlistmentDrive = new DriveInfo(enlistmentFinalPathRoot);
+                DriveInfo enlistmentDrive = new DriveInfo(enlistmentNormalizedPathRoot);
                 string enlistmentDriveDiskSpace = this.FormatByteCount(enlistmentDrive.AvailableFreeSpace);
 
-                if (string.Equals(enlistmentFinalPathRoot, localCacheFinalPathRoot, StringComparison.OrdinalIgnoreCase))
+                if (string.Equals(enlistmentNormalizedPathRoot, localCacheNormalizedPathRoot, StringComparison.OrdinalIgnoreCase))
                 {
                     this.WriteMessage("Available space on " + enlistmentDrive.Name + " drive(enlistment and local cache): " + enlistmentDriveDiskSpace);
                 }

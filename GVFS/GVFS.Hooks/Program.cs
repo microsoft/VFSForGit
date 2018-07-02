@@ -1,12 +1,13 @@
 ﻿using GVFS.Common;
 using GVFS.Common.Git;
 using GVFS.Common.NamedPipes;
+using GVFS.Platform.Windows;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
-using System.Threading;
+using System.Security.Principal;
 
 namespace GVFS.Hooks
 {
@@ -24,7 +25,7 @@ namespace GVFS.Hooks
         private static string enlistmentRoot;
         private static string enlistmentPipename;
 
-        private delegate void LockRequestDelegate(bool unattended, string[] args, int pid, Process parentProcess, NamedPipeClient pipeClient);
+        private delegate void LockRequestDelegate(bool unattended, string[] args, int pid, NamedPipeClient pipeClient);
 
         public static void Main(string[] args)
         {
@@ -37,8 +38,14 @@ namespace GVFS.Hooks
 
                 bool unattended = GVFSEnlistment.IsUnattended(tracer: null);
 
-                enlistmentRoot = Paths.GetGVFSEnlistmentRoot(Environment.CurrentDirectory);
-                if (string.IsNullOrEmpty(enlistmentRoot))
+                string errorMessage;
+                string normalizedCurrentDirectory;
+                if (!WindowsFileSystem.TryGetNormalizedPathImplementation(Environment.CurrentDirectory, out normalizedCurrentDirectory, out errorMessage))
+                {
+                    ExitWithError($"Failed to determine final path for current directory {Environment.CurrentDirectory}. Error: {errorMessage}");
+                }
+
+                if (!WindowsPlatform.TryGetGVFSEnlistmentRootImplementation(Environment.CurrentDirectory, out enlistmentRoot, out errorMessage))
                 {
                     // Nothing to hook when being run outside of a GVFS repo.
                     // This is also the path when run with --git-dir outside of a GVFS directory, see Story #949665
@@ -197,15 +204,13 @@ namespace GVFS.Hooks
                         }
 
                         int pid = GetParentPid(args);
-
-                        Process parentProcess = null;
                         if (pid == Program.InvalidProcessId ||
-                            !ProcessHelper.TryGetProcess(pid, out parentProcess))
+                            !ProcessHelper.IsProcessActive(pid))
                         {
                             ExitWithError("GVFS.Hooks: Unable to find parent git.exe process " + "(PID: " + pid + ").");
                         }
 
-                        requestToRun(unattended, args, pid, parentProcess, pipeClient);
+                        requestToRun(unattended, args, pid, pipeClient);
                     }
                 }
             }
@@ -243,7 +248,7 @@ namespace GVFS.Hooks
             return Program.InvalidProcessId;
         }
 
-        private static void AcquireGVFSLockForProcess(bool unattended, string[] args, int pid, Process parentProcess, NamedPipeClient pipeClient)
+        private static void AcquireGVFSLockForProcess(bool unattended, string[] args, int pid, NamedPipeClient pipeClient)
         {
             string result;
             bool checkGvfsLockAvailabilitOnly = CheckGVFSLockAvailabilityOnly(args);
@@ -254,9 +259,8 @@ namespace GVFS.Hooks
                     pipeClient,
                     fullCommand,
                     pid,
-                    ProcessHelper.IsAdminElevated(),
+                    WindowsPlatform.IsElevatedImplementation(),
                     checkGvfsLockAvailabilitOnly,
-                    parentProcess,
                     null, // gvfsEnlistmentRoot
                     out result))
             {
@@ -264,7 +268,7 @@ namespace GVFS.Hooks
             }
         }
 
-        private static void ReleaseGVFSLock(bool unattended, string[] args, int pid, Process parentProcess, NamedPipeClient pipeClient)
+        private static void ReleaseGVFSLock(bool unattended, string[] args, int pid, NamedPipeClient pipeClient)
         {
             string fullCommand = GenerateFullCommand(args);
 
@@ -273,8 +277,7 @@ namespace GVFS.Hooks
                 pipeClient,
                 fullCommand,
                 pid,
-                ProcessHelper.IsAdminElevated(),
-                parentProcess,
+                WindowsPlatform.IsElevatedImplementation(),
                 response =>
                 {
                     if (response == null || response.ResponseData == null)
@@ -393,6 +396,7 @@ namespace GVFS.Hooks
                 case "branch":
                 case "cat-file":
                 case "check-attr":
+                case "commit-graph":
                 case "config":
                 case "credential":
                 case "diff":
@@ -403,11 +407,13 @@ namespace GVFS.Hooks
                 case "fetch":
                 case "for-each-ref":
                 case "help":
+                case "hash-object":
                 case "index-pack":
                 case "log":
                 case "ls-files":
                 case "ls-tree":
                 case "merge-base":
+                case "midx":
                 case "name-rev":
                 case "push":
                 case "remote":

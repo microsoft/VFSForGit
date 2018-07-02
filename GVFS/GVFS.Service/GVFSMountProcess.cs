@@ -1,7 +1,6 @@
 ﻿using GVFS.Common;
-using GVFS.Common.FileSystem;
-using GVFS.Common.Git;
 using GVFS.Common.Tracing;
+using GVFS.Platform.Windows;
 using GVFS.Service.Handlers;
 using System;
 

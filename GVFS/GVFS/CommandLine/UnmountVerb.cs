@@ -16,7 +16,7 @@ namespace GVFS.CommandLine
             Default = "",
             MetaName = "Enlistment Root Path",
             HelpText = "Full or relative path to the GVFS enlistment root")]
-        public override string EnlistmentRootPath { get; set; }
+        public override string EnlistmentRootPathParameter { get; set; }
 
         [Option(
             GVFSConstants.VerbParameters.Unmount.SkipLock,
@@ -34,14 +34,20 @@ namespace GVFS.CommandLine
 
         public override void Execute()
         {
-            this.ValidatePathParameter(this.EnlistmentRootPath);
+            if (GVFSPlatform.Instance.IsUnderConstruction)
+            {
+                this.SkipLock = true;
+            }
+            
+            this.ValidatePathParameter(this.EnlistmentRootPathParameter);
 
-            string root = Paths.GetGVFSEnlistmentRoot(this.EnlistmentRootPath);
-            if (root == null)
+            string errorMessage;
+            string root;
+            if (!GVFSPlatform.Instance.TryGetGVFSEnlistmentRoot(this.EnlistmentRootPathParameter, out root, out errorMessage))
             {
                 this.ReportErrorAndExit(
-                    "Error: '{0}' is not a valid GVFS enlistment",
-                    this.EnlistmentRootPath);
+                   "Error: '{0}' is not a valid GVFS enlistment",
+                   this.EnlistmentRootPathParameter);
             }
 
             if (!this.SkipLock)
@@ -49,7 +55,6 @@ namespace GVFS.CommandLine
                 this.AcquireLock(root);
             }
 
-            string errorMessage = null;
             if (!this.ShowStatusWhileRunning(
                 () => { return this.Unmount(root, out errorMessage); },
                 "Unmounting"))
@@ -57,7 +62,9 @@ namespace GVFS.CommandLine
                 this.ReportErrorAndExit(errorMessage);
             }
 
-            if (!this.Unattended && !this.SkipUnregister)
+            if (!this.Unattended && 
+                !this.SkipUnregister &&
+                GVFSPlatform.Instance.SupportsGVFSService)
             {
                 if (!this.ShowStatusWhileRunning(
                     () => { return this.UnregisterRepo(root, out errorMessage); },
@@ -217,9 +224,8 @@ namespace GVFS.CommandLine
                             pipeClient, 
                             "gvfs unmount", 
                             currentProcess.Id, 
-                            ProcessHelper.IsAdminElevated(),
+                            GVFSPlatform.Instance.IsElevated(),
                             checkAvailabilityOnly: false,
-                            parentProcess: currentProcess,
                             gvfsEnlistmentRoot: enlistmentRoot,
                             result: out result))
                     {

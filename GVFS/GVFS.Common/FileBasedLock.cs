@@ -1,6 +1,5 @@
 ﻿using GVFS.Common.FileSystem;
 using GVFS.Common.Tracing;
-using Microsoft.Diagnostics.Tracing;
 using System;
 using System.ComponentModel;
 using System.IO;
@@ -21,7 +20,7 @@ namespace GVFS.Common
         private readonly PhysicalFileSystem fileSystem;
         private readonly string lockPath;
         private ITracer tracer;
-        private FileStream deleteOnCloseStream;
+        private Stream deleteOnCloseStream;
         private bool overwriteExistingLock;
 
         /// <summary>
@@ -29,9 +28,6 @@ namespace GVFS.Common
         /// </summary>
         /// <param name="lockPath">Path to lock file</param>
         /// <param name="signature">Text to write in lock file</param>
-        /// <param name="cleanupStaleLock">
-        /// If true, FileBasedLock constructor will delete the file at lockPath (if one exists on disk)
-        /// </param>
         /// <param name="overwriteExistingLock">
         /// If true, FileBasedLock will attempt to overwrite an existing lock file (if one exists on disk) when
         /// acquiring the lock file.
@@ -42,11 +38,10 @@ namespace GVFS.Common
         /// coordination between multiple GVFS processes.
         /// </remarks>
         public FileBasedLock(
-            PhysicalFileSystem fileSystem, 
-            ITracer tracer, 
-            string lockPath, 
-            string signature, 
-            bool cleanupStaleLock,
+            PhysicalFileSystem fileSystem,
+            ITracer tracer,
+            string lockPath,
+            string signature,
             bool overwriteExistingLock)
         {
             this.fileSystem = fileSystem;
@@ -54,11 +49,6 @@ namespace GVFS.Common
             this.lockPath = lockPath;
             this.Signature = signature;
             this.overwriteExistingLock = overwriteExistingLock;
-
-            if (cleanupStaleLock)
-            {
-                this.CleanupStaleLock();
-            }
         }
 
         public string Signature { get; private set; }
@@ -74,7 +64,9 @@ namespace GVFS.Common
                         return true;
                     }
 
-                    this.deleteOnCloseStream = (FileStream)this.fileSystem.OpenFileStream(
+                    this.fileSystem.CreateDirectory(Path.GetDirectoryName(this.lockPath));
+
+                    this.deleteOnCloseStream = this.fileSystem.OpenFileStream(
                         this.lockPath,
                         this.overwriteExistingLock ? FileMode.Create : FileMode.CreateNew,
                         FileAccess.ReadWrite,
@@ -217,43 +209,6 @@ namespace GVFS.Common
         private bool LockFileExists()
         {
             return this.fileSystem.FileExists(this.lockPath);
-        }
-
-        private void CleanupStaleLock()
-        {
-            if (!this.LockFileExists())
-            {
-                return;
-            }
-
-            long length = InvalidFileLength;
-            try
-            {
-                FileProperties existingLockProperties = this.fileSystem.GetFileProperties(this.lockPath);
-                length = existingLockProperties.Length;
-            }
-            catch (Exception e)
-            {
-                EventMetadata metadata = this.CreateLockMetadata();
-                metadata.Add("Exception", "Exception while getting lock file length: " + e.ToString());
-                this.tracer.RelatedEvent(EventLevel.Warning, "CleanupEmptyLock", metadata);
-            }
-
-            if (length == 0)
-            {
-                EventMetadata metadata = this.CreateLockMetadata();
-                metadata.Add(TracingConstants.MessageKey.WarningMessage, "Deleting empty lock file: " + this.lockPath);
-                this.tracer.RelatedEvent(EventLevel.Warning, "CleanupEmptyLock", metadata);
-            }
-            else 
-            {
-                EventMetadata metadata = this.CreateLockMetadata();
-                metadata.Add("Length", length == InvalidFileLength ? "Invalid" : length.ToString());
-                metadata.Add(TracingConstants.MessageKey.InfoMessage, "Deleting stale lock file: " + this.lockPath);
-                this.tracer.RelatedEvent(EventLevel.Informational, "CleanupExistingLock", metadata);
-            }
-
-            this.fileSystem.DeleteFile(this.lockPath);
         }
 
         private void WriteSignatureAndMessage(StreamWriter writer, string message)

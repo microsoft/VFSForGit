@@ -40,7 +40,7 @@ namespace GVFS.CommandLine
 
             RetryConfig retryConfig = new RetryConfig(RetryConfig.DefaultMaxRetries, TimeSpan.FromMinutes(RetryConfig.FetchAndCloneTimeoutMinutes));
 
-            using (ITracer tracer = new JsonEtwTracer(GVFSConstants.GVFSEtwProviderName, "CacheVerb"))
+            using (ITracer tracer = new JsonTracer(GVFSConstants.GVFSEtwProviderName, "CacheVerb"))
             {
                 GVFSConfig gvfsConfig = this.QueryGVFSConfig(tracer, enlistment, retryConfig);
 

@@ -1,7 +1,7 @@
-﻿<?xml version="1.0" encoding="utf-8"?>
+<?xml version="1.0" encoding="utf-8"?>
 <Project ToolsVersion="14.0" DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <Import Project="$(MSBuildExtensionsPath)\$(MSBuildToolsVersion)\Microsoft.Common.props" Condition="Exists('$(MSBuildExtensionsPath)\$(MSBuildToolsVersion)\Microsoft.Common.props')" />
-  <Import Project="$(SolutionDir)\GVFS\GVFS.Build\GVFS.props" />
+  <Import Project="$(SolutionDir)\GVFS\GVFS.Build\GVFS.cs.props" />
   <PropertyGroup>
     <ProjectGuid>{C5D3CA26-562F-4CA4-A378-B93E97A730E3}</ProjectGuid>
     <OutputType>Exe</OutputType>
@@ -75,6 +75,14 @@
     <ProjectReference Include="..\GVFS.GVFlt\GVFS.GVFlt.csproj">
       <Project>{1118b427-7063-422f-83b9-5023c8ec5a7a}</Project>
       <Name>GVFS.GVFlt</Name>
+    </ProjectReference>
+    <ProjectReference Include="..\GVFS.Platform.Windows\GVFS.Platform.Windows.csproj">
+      <Project>{4ce404e7-d3fc-471c-993c-64615861ea63}</Project>
+      <Name>GVFS.Platform.Windows</Name>
+    </ProjectReference>
+    <ProjectReference Include="..\GVFS.Virtualization\GVFS.Virtualization.csproj">
+      <Project>{f468b05a-95e5-46bc-8c67-b80a78527b7d}</Project>
+      <Name>GVFS.Virtualization</Name>
     </ProjectReference>
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />

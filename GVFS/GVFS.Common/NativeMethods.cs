@@ -1,83 +1,20 @@
 ﻿using Microsoft.Win32.SafeHandles;
 using System;
-using System.ComponentModel;
 using System.IO;
 using System.Runtime.InteropServices;
 using System.Text;
 
 namespace GVFS.Common
 {
-    public static class NativeMethods
+    public static partial class NativeMethods
     {
         private const uint EVENT_TRACE_CONTROL_FLUSH = 3;
 
-        public enum FileAttributes : uint
-        {
-            FILE_ATTRIBUTE_READONLY            = 1,
-            FILE_ATTRIBUTE_HIDDEN              = 2,
-            FILE_ATTRIBUTE_SYSTEM              = 4,
-            FILE_ATTRIBUTE_DIRECTORY           = 16,
-            FILE_ATTRIBUTE_ARCHIVE             = 32,
-            FILE_ATTRIBUTE_DEVICE              = 64,
-            FILE_ATTRIBUTE_NORMAL              = 128,
-            FILE_ATTRIBUTE_TEMPORARY           = 256,
-            FILE_ATTRIBUTE_SPARSEFILE          = 512,
-            FILE_ATTRIBUTE_REPARSEPOINT        = 1024,
-            FILE_ATTRIBUTE_COMPRESSED          = 2048,
-            FILE_ATTRIBUTE_OFFLINE             = 4096,
-            FILE_ATTRIBUTE_NOT_CONTENT_INDEXED = 8192,
-            FILE_ATTRIBUTE_ENCRYPTED           = 16384,
-            FILE_FLAG_FIRST_PIPE_INSTANCE      = 524288,
-            FILE_FLAG_OPEN_NO_RECALL           = 1048576,
-            FILE_FLAG_OPEN_REPARSE_POINT       = 2097152,
-            FILE_FLAG_POSIX_SEMANTICS          = 16777216,
-            FILE_FLAG_BACKUP_SEMANTICS         = 33554432,
-            FILE_FLAG_DELETE_ON_CLOSE          = 67108864,
-            FILE_FLAG_SEQUENTIAL_SCAN          = 134217728,
-            FILE_FLAG_RANDOM_ACCESS            = 268435456,
-            FILE_FLAG_NO_BUFFERING             = 536870912,
-            FILE_FLAG_OVERLAPPED               = 1073741824,
-            FILE_FLAG_WRITE_THROUGH            = 2147483648
-        }
+        private const uint IO_REPARSE_TAG_MOUNT_POINT = 0xA0000003;
+        private const uint IO_REPARSE_TAG_SYMLINK = 0xA000000C;
+        private const uint FSCTL_GET_REPARSE_POINT = 0x000900a8;
 
-        public enum FileAccess : uint
-        {
-            FILE_READ_DATA            = 1,
-            FILE_LIST_DIRECTORY       = 1,
-            FILE_WRITE_DATA           = 2,
-            FILE_ADD_FILE             = 2,
-            FILE_APPEND_DATA          = 4,
-            FILE_ADD_SUBDIRECTORY     = 4,
-            FILE_CREATE_PIPE_INSTANCE = 4,
-            FILE_READ_EA              = 8,
-            FILE_WRITE_EA             = 16,
-            FILE_EXECUTE              = 32,
-            FILE_TRAVERSE             = 32,
-            FILE_DELETE_CHILD         = 64,
-            FILE_READ_ATTRIBUTES      = 128,
-            FILE_WRITE_ATTRIBUTES     = 256,
-            SPECIFIC_RIGHTS_ALL       = 65535,
-            DELETE                    = 65536,
-            READ_CONTROL              = 131072,
-            STANDARD_RIGHTS_READ      = 131072,
-            STANDARD_RIGHTS_WRITE     = 131072,
-            STANDARD_RIGHTS_EXECUTE   = 131072,
-            WRITE_DAC                 = 262144,
-            WRITE_OWNER               = 524288,
-            STANDARD_RIGHTS_REQUIRED  = 983040,
-            SYNCHRONIZE               = 1048576,
-            FILE_GENERIC_READ         = 1179785,
-            FILE_GENERIC_EXECUTE      = 1179808,
-            FILE_GENERIC_WRITE        = 1179926,
-            STANDARD_RIGHTS_ALL       = 2031616,
-            FILE_ALL_ACCESS           = 2032127,
-            ACCESS_SYSTEM_SECURITY    = 16777216,
-            MAXIMUM_ALLOWED           = 33554432,
-            GENERIC_ALL               = 268435456,
-            GENERIC_EXECUTE           = 536870912,
-            GENERIC_WRITE             = 1073741824,
-            GENERIC_READ              = 2147483648
-        }
+        private const int ReparseDataPathBufferLength = 1000;
 
         [Flags]
         public enum MoveFileFlags : uint
@@ -96,32 +33,6 @@ namespace GVFS.Common
             FILE_RETURNS_CLEANUP_RESULT_INFO = 0x00000200
         }
 
-        /// <summary>
-        /// Lock specified directory, so it can't be deleted or renamed by any other process
-        /// The trick is to open a handle on the directory (FILE_FLAG_BACKUP_SEMANTICS | FILE_FLAG_OPEN_REPARSE_POINT) 
-        /// and keep it. If it is a junction the second option is required, and if it is a standard directory it is ignored.
-        /// Caller must call Close() or Dispose() on the returned safe handle to release the lock
-        /// </summary>
-        /// <param name="path">Path to existing directory junction</param>
-        /// <returns>SafeFileHandle</returns>
-        public static SafeFileHandle LockDirectory(string path)
-        {
-            SafeFileHandle result = CreateFile(
-                path,
-                FileAccess.GENERIC_READ,
-                FileShare.Read,
-                IntPtr.Zero,
-                FileMode.Open,
-                FileAttributes.FILE_FLAG_BACKUP_SEMANTICS | FileAttributes.FILE_FLAG_OPEN_REPARSE_POINT,
-                IntPtr.Zero);
-            if (result.IsInvalid)
-            {
-                ThrowLastWin32Exception();
-            }
-
-            return result;
-        }
-
         public static void FlushFileBuffers(string path)
         {
             using (SafeFileHandle fileHandle = CreateFile(
@@ -135,12 +46,12 @@ namespace GVFS.Common
             {
                 if (fileHandle.IsInvalid)
                 {
-                    ThrowLastWin32Exception();
+                    ThrowLastWin32Exception($"Invalid handle for '{path}'");
                 }
 
                 if (!FlushFileBuffers(fileHandle))
                 {
-                    ThrowLastWin32Exception();
+                    ThrowLastWin32Exception($"Failed to flush buffers for '{path}'");
                 }
             }
         }
@@ -161,7 +72,7 @@ namespace GVFS.Common
                 null,
                 0))
             {
-                ThrowLastWin32Exception();
+                ThrowLastWin32Exception($"Failed to get volume information for '{volumeRoot}'");
             }
 
             return (fileSystemFlags & (uint)flags) == (uint)flags;
@@ -183,55 +94,15 @@ namespace GVFS.Common
         {
             if (!MoveFileEx(existingFileName, newFileName, (uint)flags))
             {
-                ThrowLastWin32Exception();
+                ThrowLastWin32Exception($"Failed to move '{existingFileName}' to '{newFileName}'");
             }
         }
 
-        public static string GetFinalPathName(string path)
+        public static void CreateHardLink(string newFileName, string existingFileName)
         {
-            // Using FILE_FLAG_BACKUP_SEMANTICS as it works with file as well as folder path
-            // According to MSDN, https://msdn.microsoft.com/en-us/library/windows/desktop/aa363858(v=vs.85).aspx,
-            // we must set this flag to obtain a handle to a directory
-            using (SafeFileHandle fileHandle = CreateFile(
-                path,
-                FileAccess.FILE_READ_ATTRIBUTES,
-                FileShare.ReadWrite,
-                IntPtr.Zero,
-                FileMode.Open,
-                FileAttributes.FILE_FLAG_BACKUP_SEMANTICS,
-                IntPtr.Zero))
+            if (!CreateHardLink(newFileName, existingFileName, IntPtr.Zero))
             {
-                if (fileHandle.IsInvalid)
-                {
-                    ThrowLastWin32Exception();
-                }
-
-                int finalPathSize = GetFinalPathNameByHandle(fileHandle, null, 0, 0);
-                StringBuilder finalPath = new StringBuilder(finalPathSize + 1);
-
-                // GetFinalPathNameByHandle buffer size should not include a NULL termination character
-                finalPathSize = GetFinalPathNameByHandle(fileHandle, finalPath, finalPathSize, 0);
-                if (finalPathSize == 0)
-                {
-                    ThrowLastWin32Exception();
-                }
-
-                string pathString = finalPath.ToString();
-
-                // The remarks section of GetFinalPathNameByHandle mentions the return being prefixed with "\\?\" or "\\?\UNC\"
-                // More information the prefixes is here http://msdn.microsoft.com/en-us/library/aa365247(v=VS.85).aspx
-                const string PathPrefix = @"\\?\";
-                const string UncPrefix = @"\\?\UNC\";
-                if (pathString.StartsWith(UncPrefix, StringComparison.Ordinal))
-                {
-                    pathString = @"\\" + pathString.Substring(UncPrefix.Length);
-                }
-                else if (pathString.StartsWith(PathPrefix, StringComparison.Ordinal))
-                {
-                    pathString = pathString.Substring(PathPrefix.Length);
-                }
-
-                return pathString;
+                ThrowLastWin32Exception($"Failed to create hard link from '{newFileName}' to '{existingFileName}'");
             }
         }
 
@@ -250,26 +121,39 @@ namespace GVFS.Common
             versionInfo.OSVersionInfoSize = (uint)Marshal.SizeOf(versionInfo);
             if (!GetVersionEx(ref versionInfo))
             {
-                ThrowLastWin32Exception();
+                ThrowLastWin32Exception($"Failed to get OS version info");
             }
 
             return versionInfo.BuildNumber;
         }
 
-        private static void ThrowLastWin32Exception()
+        public static bool IsSymlink(string path)
         {
-            throw new Win32Exception(Marshal.GetLastWin32Error());
-        }
+            using (SafeFileHandle output = CreateFile(
+                path,
+                FileAccess.FILE_READ_ATTRIBUTES,
+                FileShare.Read,
+                IntPtr.Zero,
+                FileMode.Open,
+                FileAttributes.FILE_FLAG_BACKUP_SEMANTICS | FileAttributes.FILE_FLAG_OPEN_REPARSE_POINT,
+                IntPtr.Zero))
+            {
+                if (output.IsInvalid)
+                {
+                    ThrowLastWin32Exception($"Invalid handle for '{path}' as symlink");
+                }
 
-        [DllImport("kernel32.dll", SetLastError = true, CharSet = CharSet.Unicode)]
-        private static extern SafeFileHandle CreateFile(
-            [In] string lpFileName,
-            [MarshalAs(UnmanagedType.U4)] FileAccess dwDesiredAccess,
-            FileShare dwShareMode,
-            [In] IntPtr lpSecurityAttributes,
-            [MarshalAs(UnmanagedType.U4)]FileMode dwCreationDisposition,
-            [MarshalAs(UnmanagedType.U4)]FileAttributes dwFlagsAndAttributes,
-            [In] IntPtr hTemplateFile);
+                REPARSE_DATA_BUFFER reparseData = new REPARSE_DATA_BUFFER();
+                reparseData.ReparseDataLength = (4 * sizeof(ushort)) + ReparseDataPathBufferLength;
+                uint bytesReturned;
+                if (!DeviceIoControl(output, FSCTL_GET_REPARSE_POINT, IntPtr.Zero, 0, out reparseData, (uint)Marshal.SizeOf(reparseData), out bytesReturned, IntPtr.Zero))
+                {
+                    ThrowLastWin32Exception($"Failed to place reparse point for '{path}'");
+                }
+
+                return reparseData.ReparseTag == IO_REPARSE_TAG_SYMLINK || reparseData.ReparseTag == IO_REPARSE_TAG_MOUNT_POINT;
+            }
+        }
 
         [DllImport("kernel32.dll", SetLastError = true, CharSet = CharSet.Unicode)]
         private static extern bool MoveFileEx(
@@ -278,11 +162,10 @@ namespace GVFS.Common
             uint flags);
 
         [DllImport("kernel32.dll", SetLastError = true, CharSet = CharSet.Unicode)]
-        private static extern int GetFinalPathNameByHandle(
-            SafeFileHandle hFile,
-            [Out] StringBuilder lpszFilePath,
-            int cchFilePath,
-            int dwFlags);
+        private static extern bool CreateHardLink(
+            string newFileName,
+            string existingFileName,
+            IntPtr securityAttributes);
 
         [DllImport("kernel32.dll", SetLastError = true)]
         private static extern bool FlushFileBuffers(SafeFileHandle hFile);
@@ -307,6 +190,32 @@ namespace GVFS.Common
 
         [DllImport("kernel32.dll", CharSet = CharSet.Unicode)]
         private static extern bool GetVersionEx([In, Out] ref OSVersionInfo versionInfo);
+
+        // For use with FSCTL_GET_REPARSE_POINT
+        [DllImport("Kernel32.dll", SetLastError = true, CharSet = CharSet.Unicode)]
+        private static extern bool DeviceIoControl(
+            SafeFileHandle hDevice,
+            uint IoControlCode,
+            [In] IntPtr InBuffer,
+            uint nInBufferSize,
+            [Out] out REPARSE_DATA_BUFFER OutBuffer,
+            uint nOutBufferSize,
+            out uint pBytesReturned,
+            [In] IntPtr Overlapped);
+
+        [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
+        private struct REPARSE_DATA_BUFFER
+        {
+            public uint ReparseTag;
+            public ushort ReparseDataLength;
+            public ushort Reserved;
+            public ushort SubstituteNameOffset;
+            public ushort SubstituteNameLength;
+            public ushort PrintNameOffset;
+            public ushort PrintNameLength;
+            [MarshalAs(UnmanagedType.ByValArray, SizeConst = ReparseDataPathBufferLength)]
+            public byte[] PathBuffer;
+        }
 
         [StructLayout(LayoutKind.Sequential)]
         private struct WNodeHeader

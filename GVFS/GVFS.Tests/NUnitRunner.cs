@@ -9,12 +9,12 @@ namespace GVFS.Tests
     public class NUnitRunner
     {
         private List<string> args;
-        private List<string> excludedCategories;
+        private List<string> filters;
 
         public NUnitRunner(string[] args)
         {
             this.args = new List<string>(args);
-            this.excludedCategories = new List<string>();
+            this.filters = new List<string>();
         }
 
         public string GetCustomArgWithParam(string arg)
@@ -37,14 +37,20 @@ namespace GVFS.Tests
 
         public void ExcludeCategory(string category)
         {
-            this.excludedCategories.Add("cat!=" + category);
+            this.filters.Add("cat!=" + category);
+        }
+
+        public void IncludeCategory(string category)
+        {
+            this.filters.Add("cat==" + category);
         }
 
         public int RunTests()
         {
-            if (this.excludedCategories.Count > 0)
+            if (this.filters.Count > 0)
             {
-                this.args.Add("--where=" + string.Join("&&", this.excludedCategories));
+                this.args.Add("--where");
+                this.args.Add(string.Join("&&", this.filters));
             }
 
             DateTime now = DateTime.Now;

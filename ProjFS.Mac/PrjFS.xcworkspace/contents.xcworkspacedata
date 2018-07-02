@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Workspace
+   version = "1.0">
+   <FileRef
+      location = "group:PrjFSKext/PrjFSKext.xcodeproj">
+   </FileRef>
+   <FileRef
+      location = "group:PrjFSLib/PrjFSLib.xcodeproj">
+   </FileRef>
+</Workspace>

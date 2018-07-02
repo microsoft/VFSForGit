@@ -1,5 +1,4 @@
-﻿using NUnit.Framework;
-using System.IO;
+﻿using System.IO;
 
 namespace GVFS.FunctionalTests
 {
@@ -11,18 +10,20 @@ namespace GVFS.FunctionalTests
 
         public static string LocalCacheRoot { get; set; }
         
-        public static bool UseAllRunners { get; set; }
+        public static object[] FileSystemRunners { get; set; }
 
         public static bool TestGVFSOnPath { get; set; }
+
+        public static bool ReplaceInboxProjFS { get; set; }
 
         public static string PathToGVFS
         {
             get
             {
-                return 
+                return
                     TestGVFSOnPath ? 
                     Properties.Settings.Default.PathToGVFS : 
-                    Path.Combine(TestContext.CurrentContext.TestDirectory, Properties.Settings.Default.PathToGVFS);
+                    Path.Combine(Properties.Settings.Default.CurrentDirectory, Properties.Settings.Default.PathToGVFS);
             }
         }
     }

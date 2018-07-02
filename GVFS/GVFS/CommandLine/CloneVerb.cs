@@ -1,12 +1,10 @@
-﻿using CommandLine;
+using CommandLine;
 using GVFS.Common;
 using GVFS.Common.FileSystem;
 using GVFS.Common.Git;
 using GVFS.Common.Http;
 using GVFS.Common.NamedPipes;
 using GVFS.Common.Tracing;
-using GVFS.GVFlt;
-using Microsoft.Diagnostics.Tracing;
 using System;
 using System.IO;
 using System.Linq;
@@ -32,7 +30,7 @@ namespace GVFS.CommandLine
             Default = "",
             MetaName = "Enlistment Root Path",
             HelpText = "Full or relative path to the GVFS enlistment root")]
-        public override string EnlistmentRootPath { get; set; }
+        public override string EnlistmentRootPathParameter { get; set; }
 
         [Option(
             "cache-server-url",
@@ -84,23 +82,35 @@ namespace GVFS.CommandLine
         {
             int exitCode = 0;
 
-            this.ValidatePathParameter(this.EnlistmentRootPath);
+            // TODO(Mac): limit the length of the enlistment root based on the length constraints imposed by named pipes
+
+            this.ValidatePathParameter(this.EnlistmentRootPathParameter);
             this.ValidatePathParameter(this.LocalCacheRoot);
 
-            this.EnlistmentRootPath = this.GetCloneRoot();
+            string fullEnlistmentRootPathParameter; 
+            string normalizedEnlistmentRootPath = this.GetCloneRoot(out fullEnlistmentRootPathParameter);
 
             if (!string.IsNullOrWhiteSpace(this.LocalCacheRoot))
             {
-                if (Path.GetFullPath(this.LocalCacheRoot).StartsWith(
-                    Path.Combine(this.EnlistmentRootPath, GVFSConstants.WorkingDirectoryRootName),
+                string fullLocalCacheRootPath = Path.GetFullPath(this.LocalCacheRoot);
+
+                string errorMessage;
+                string normalizedLocalCacheRootPath;
+                if (!GVFSPlatform.Instance.FileSystem.TryGetNormalizedPath(fullLocalCacheRootPath, out normalizedLocalCacheRootPath, out errorMessage))
+                {
+                    this.ReportErrorAndExit($"Failed to determine normalized path for '--local-cache-path' path {fullLocalCacheRootPath}: {errorMessage}");
+                }
+
+                if (normalizedLocalCacheRootPath.StartsWith(
+                    Path.Combine(normalizedEnlistmentRootPath, GVFSConstants.WorkingDirectoryRootName),
                     StringComparison.OrdinalIgnoreCase))
                 {
                     this.ReportErrorAndExit("'--local-cache-path' cannot be inside the src folder");
                 }
             }
 
-            this.CheckNTFSVolume();
-            this.CheckNotInsideExistingRepo();
+            this.CheckKernelDriverSupported(normalizedEnlistmentRootPath);
+            this.CheckNotInsideExistingRepo(normalizedEnlistmentRootPath);
             this.BlockEmptyCacheServerUrl(this.CacheServerUrl);
 
             try
@@ -111,9 +121,9 @@ namespace GVFS.CommandLine
                 CacheServerInfo cacheServer = null;
                 GVFSConfig gvfsConfig = null;
 
-                using (JsonEtwTracer tracer = new JsonEtwTracer(GVFSConstants.GVFSEtwProviderName, "GVFSClone"))
+                using (JsonTracer tracer = new JsonTracer(GVFSConstants.GVFSEtwProviderName, "GVFSClone"))
                 {
-                    cloneResult = this.TryCreateEnlistment(out enlistment);
+                    cloneResult = this.TryCreateEnlistment(fullEnlistmentRootPathParameter, normalizedEnlistmentRootPath, out enlistment);
                     if (cloneResult.Success)
                     {
                         tracer.AddLogFileEventListener(
@@ -132,20 +142,19 @@ namespace GVFS.CommandLine
                                 { "NoMount", this.NoMount },
                                 { "NoPrefetch", this.NoPrefetch },
                                 { "Unattended", this.Unattended },
-                                { "IsElevated", ProcessHelper.IsAdminElevated() },
+                                { "IsElevated", GVFSPlatform.Instance.IsElevated() },
+                                { "NamedPipeName", enlistment.NamedPipeName },
+                                { nameof(this.EnlistmentRootPathParameter), this.EnlistmentRootPathParameter },
+                                { nameof(fullEnlistmentRootPathParameter), fullEnlistmentRootPathParameter },
                             });
                         
                         CacheServerResolver cacheServerResolver = new CacheServerResolver(tracer, enlistment);
                         cacheServer = cacheServerResolver.ParseUrlOrFriendlyName(this.CacheServerUrl);
 
-                        string error;
                         string resolvedLocalCacheRoot;
                         if (string.IsNullOrWhiteSpace(this.LocalCacheRoot))
                         {
-                            if (!LocalCacheResolver.TryGetDefaultLocalCacheRoot(enlistment, out resolvedLocalCacheRoot, out error))
-                            {
-                                this.ReportErrorAndExit(tracer, "Cannot clone, error determining local cache path: " + error);
-                            }
+                            resolvedLocalCacheRoot = LocalCacheResolver.GetDefaultLocalCacheRoot(enlistment);
                         }
                         else
                         {
@@ -162,7 +171,8 @@ namespace GVFS.CommandLine
                         string authErrorMessage = null;
                         if (!this.ShowStatusWhileRunning(
                             () => enlistment.Authentication.TryRefreshCredentials(tracer, out authErrorMessage),
-                            "Authenticating"))
+                            "Authenticating",
+                            normalizedEnlistmentRootPath))
                         {
                             this.ReportErrorAndExit(tracer, "Cannot clone because authentication failed");
                         }
@@ -172,7 +182,10 @@ namespace GVFS.CommandLine
 
                         cacheServer = this.ResolveCacheServer(tracer, cacheServer, cacheServerResolver, gvfsConfig);
 
-                        this.ValidateClientVersions(tracer, enlistment, gvfsConfig, showWarnings: true);                        
+                        if (!GVFSPlatform.Instance.IsUnderConstruction)
+                        {
+                            this.ValidateClientVersions(tracer, enlistment, gvfsConfig, showWarnings: true);
+                        }
                        
                         this.ShowStatusWhileRunning(
                             () =>
@@ -180,7 +193,8 @@ namespace GVFS.CommandLine
                                 cloneResult = this.TryClone(tracer, enlistment, cacheServer, retryConfig, gvfsConfig, resolvedLocalCacheRoot);
                                 return cloneResult.Success;
                             },
-                            "Cloning");
+                            "Cloning",
+                            normalizedEnlistmentRootPath);
                     }
 
                     if (!cloneResult.Success)
@@ -194,7 +208,7 @@ namespace GVFS.CommandLine
                     if (!this.NoPrefetch)
                     {
                         ReturnCode result = this.Execute<PrefetchVerb>(
-                            this.EnlistmentRootPath,
+                            fullEnlistmentRootPathParameter,
                             verb =>
                             {
                                 verb.Commits = true;
@@ -205,7 +219,7 @@ namespace GVFS.CommandLine
 
                         if (result != ReturnCode.Success)
                         {
-                            this.Output.WriteLine("\r\nError during prefetch @ {0}", this.EnlistmentRootPath);
+                            this.Output.WriteLine("\r\nError during prefetch @ {0}", fullEnlistmentRootPathParameter);
                             exitCode = (int)result;
                         }
                     }
@@ -218,7 +232,7 @@ namespace GVFS.CommandLine
                     else
                     {
                         this.Execute<MountVerb>(
-                            this.EnlistmentRootPath,
+                            fullEnlistmentRootPathParameter,
                             verb =>
                             {
                                 verb.SkipMountedCheck = true;
@@ -230,14 +244,14 @@ namespace GVFS.CommandLine
                 }
                 else
                 {
-                    this.Output.WriteLine("\r\nCannot clone @ {0}", this.EnlistmentRootPath);
+                    this.Output.WriteLine("\r\nCannot clone @ {0}", fullEnlistmentRootPathParameter);
                     this.Output.WriteLine("Error: {0}", cloneResult.ErrorMessage);
                     exitCode = (int)ReturnCode.GenericError;
                 }
             }
             catch (AggregateException e)
             {
-                this.Output.WriteLine("Cannot clone @ {0}:", this.EnlistmentRootPath);
+                this.Output.WriteLine("Cannot clone @ {0}:", fullEnlistmentRootPathParameter);
                 foreach (Exception ex in e.Flatten().InnerExceptions)
                 {
                     this.Output.WriteLine("Exception: {0}", ex.ToString());
@@ -251,7 +265,7 @@ namespace GVFS.CommandLine
             }
             catch (Exception e)
             {
-                this.ReportErrorAndExit("Cannot clone @ {0}: {1}", this.EnlistmentRootPath, e.ToString());
+                this.ReportErrorAndExit("Cannot clone @ {0}: {1}", fullEnlistmentRootPathParameter, e.ToString());
             }
 
             Environment.Exit(exitCode);
@@ -268,27 +282,35 @@ namespace GVFS.CommandLine
             return true;
         }
 
-        private Result TryCreateEnlistment(out GVFSEnlistment enlistment)
+        private Result TryCreateEnlistment(
+            string fullEnlistmentRootPathParameter,
+            string normalizedEnlistementRootPath, 
+            out GVFSEnlistment enlistment)
         {
             enlistment = null;
 
             // Check that EnlistmentRootPath is empty before creating a tracer and LogFileEventListener as 
             // LogFileEventListener will create a file in EnlistmentRootPath
-            if (Directory.Exists(this.EnlistmentRootPath) && Directory.EnumerateFileSystemEntries(this.EnlistmentRootPath).Any())
+            if (Directory.Exists(normalizedEnlistementRootPath) && Directory.EnumerateFileSystemEntries(normalizedEnlistementRootPath).Any())
             {
-                return new Result("Clone directory '" + this.EnlistmentRootPath + "' exists and is not empty");
+                if (fullEnlistmentRootPathParameter.Equals(normalizedEnlistementRootPath, StringComparison.OrdinalIgnoreCase))
+                {
+                    return new Result($"Clone directory '{fullEnlistmentRootPathParameter}' exists and is not empty");
+                }
+
+                return new Result($"Clone directory '{fullEnlistmentRootPathParameter}' ['{normalizedEnlistementRootPath}'] exists and is not empty");
             }
 
-            string gitBinPath = GitProcess.GetInstalledGitBinPath();
+            string gitBinPath = GVFSPlatform.Instance.GitInstallation.GetInstalledGitBinPath();
             if (string.IsNullOrWhiteSpace(gitBinPath))
             {
                 return new Result(GVFSConstants.GitIsNotInstalledError);
             }
             
-            string hooksPath = this.GetGVFSHooksPathAndCheckVersion(tracer: null, version: out _);
+            string hooksPath = this.GetGVFSHooksPathAndCheckVersion(tracer: null, hooksVersion: out _);
 
             enlistment = new GVFSEnlistment(
-                this.EnlistmentRootPath,
+                normalizedEnlistementRootPath,
                 this.RepositoryURL,
                 gitBinPath,
                 hooksPath);
@@ -297,7 +319,7 @@ namespace GVFS.CommandLine
         }
         
         private Result TryClone(
-            JsonEtwTracer tracer, 
+            JsonTracer tracer, 
             GVFSEnlistment enlistment, 
             CacheServerInfo cacheServer, 
             RetryConfig retryConfig, 
@@ -379,17 +401,29 @@ namespace GVFS.CommandLine
             }
         }
 
-        private string GetCloneRoot()
+        private string GetCloneRoot(out string fullEnlistmentRootPathParameter)
         {
+            fullEnlistmentRootPathParameter = null;
+
             try
             {
                 string repoName = this.RepositoryURL.Substring(this.RepositoryURL.LastIndexOf('/') + 1);
-                string cloneRoot =
-                    string.IsNullOrWhiteSpace(this.EnlistmentRootPath)
+                fullEnlistmentRootPathParameter =
+                    string.IsNullOrWhiteSpace(this.EnlistmentRootPathParameter)
                     ? Path.Combine(Environment.CurrentDirectory, repoName)
-                    : this.EnlistmentRootPath;
+                    : this.EnlistmentRootPathParameter;
 
-                return Path.GetFullPath(cloneRoot);
+                fullEnlistmentRootPathParameter = Path.GetFullPath(fullEnlistmentRootPathParameter);
+
+                string errorMessage;
+                string enlistmentRootPath;
+                if (!GVFSPlatform.Instance.FileSystem.TryGetNormalizedPath(fullEnlistmentRootPathParameter, out enlistmentRootPath, out errorMessage))
+                {
+                    this.ReportErrorAndExit("Unable to determine normalized path of clone root: " + errorMessage);
+                    return null;
+                }
+
+                return enlistmentRootPath;
             }
             catch (IOException e)
             {
@@ -398,35 +432,28 @@ namespace GVFS.CommandLine
             }
         }
 
-        private void CheckNTFSVolume()
+        private void CheckKernelDriverSupported(string normalizedEnlistmentRootPath)
         {
-            string pathRoot;
-            string errorMessage;
-            if (Paths.TryGetFinalPathRoot(this.EnlistmentRootPath, out pathRoot, out errorMessage))
+            string warning;
+            string error;
+            if (!GVFSPlatform.Instance.KernelDriver.IsSupported(normalizedEnlistmentRootPath, out warning, out error))
             {
-                DriveInfo rootDriveInfo = DriveInfo.GetDrives().FirstOrDefault(x => x.Name == pathRoot);
-                if (rootDriveInfo == null)
-                {
-                    this.Output.WriteLine();
-                    this.Output.WriteLine($"WARNING: Unable to ensure that '{this.EnlistmentRootPath}' is an NTFS volume.");
-                }
-                else if (!string.Equals(rootDriveInfo.DriveFormat, "NTFS", StringComparison.OrdinalIgnoreCase))
-                {
-                    this.ReportErrorAndExit("Error: Currently only NTFS volumes are supported.  Please clone into an NTFS volume.");
-                }
+                this.ReportErrorAndExit($"Error: {error}");
             }
-            else
+            else if (!string.IsNullOrEmpty(warning))
             {
-                this.ReportErrorAndExit("Error: Unable to determine drive format. Must clone into a NTFS volume: " + errorMessage);
+                this.Output.WriteLine();
+                this.Output.WriteLine($"WARNING: {warning}");
             }
         }
 
-        private void CheckNotInsideExistingRepo()
+        private void CheckNotInsideExistingRepo(string normalizedEnlistmentRootPath)
         {
-            string enlistmentRoot = Paths.GetGVFSEnlistmentRoot(this.EnlistmentRootPath);
-            if (enlistmentRoot != null)
-            {
-                this.ReportErrorAndExit("Error: You can't clone inside an existing GVFS repo ({0})", enlistmentRoot);
+            string errorMessage;
+            string existingEnlistmentRoot;
+            if (GVFSPlatform.Instance.TryGetGVFSEnlistmentRoot(normalizedEnlistmentRootPath, out existingEnlistmentRoot, out errorMessage))
+            { 
+                this.ReportErrorAndExit("Error: You can't clone inside an existing GVFS repo ({0})", existingEnlistmentRoot);
             }
         }
 
@@ -487,7 +514,8 @@ namespace GVFS.CommandLine
             }
             
             GitRepo gitRepo = new GitRepo(tracer, enlistment, fileSystem);
-            GVFSGitObjects gitObjects = new GVFSGitObjects(new GVFSContext(tracer, fileSystem, gitRepo, enlistment), objectRequestor);
+            GVFSContext context = new GVFSContext(tracer, fileSystem, gitRepo, enlistment);
+            GVFSGitObjects gitObjects = new GVFSGitObjects(context, objectRequestor);
 
             if (!this.TryDownloadCommit(
                 refs.GetTipCommitId(branch),
@@ -535,6 +563,16 @@ namespace GVFS.CommandLine
 
             this.CreateGitScript(enlistment);
 
+            if (!GVFSPlatform.Instance.IsUnderConstruction)
+            {
+                string installHooksError;
+                if (!HooksInstaller.InstallHooks(context, out installHooksError))
+                {
+                    tracer.RelatedError(installHooksError);
+                    return new Result(installHooksError);
+                }
+            }
+
             GitProcess.Result forceCheckoutResult = git.ForceCheckout(branch);
             if (forceCheckoutResult.HasErrors)
             {
@@ -556,21 +594,6 @@ namespace GVFS.CommandLine
                 }
             }
 
-            GitProcess.Result updateIndexresult = git.UpdateIndexVersion4();
-            if (updateIndexresult.HasErrors)
-            {
-                string error = "Could not update index, error: " + updateIndexresult.Errors;
-                tracer.RelatedError(error);
-                return new Result(error);
-            }
-
-            string installHooksError;
-            if (!HooksInstaller.InstallHooks(enlistment, out installHooksError))
-            {
-                tracer.RelatedError(installHooksError);
-                return new Result(installHooksError);
-            }
-
             if (!RepoMetadata.TryInitialize(tracer, enlistment.DotGVFSRoot, out errorMessage))
             {
                 tracer.RelatedError(errorMessage);
@@ -580,17 +603,7 @@ namespace GVFS.CommandLine
             try
             {
                 RepoMetadata.Instance.SaveCloneMetadata(tracer, enlistment);
-                EventMetadata metadata = new EventMetadata();
-                metadata.Add(nameof(RepoMetadata.Instance.EnlistmentId), RepoMetadata.Instance.EnlistmentId);
-                metadata.Add("Enlistment", enlistment);
-                tracer.RelatedEvent(EventLevel.Informational, "EnlistmentInfo", metadata, Keywords.Telemetry);
-
-                GitProcess.Result configResult = git.SetInLocalConfig(GVFSConstants.GitConfig.EnlistmentId, RepoMetadata.Instance.EnlistmentId, replaceAll: true);
-                if (configResult.HasErrors)
-                {
-                    string error = "Could not update config with enlistment id, error: " + configResult.Errors;
-                    tracer.RelatedWarning(error);
-                }
+                this.LogEnlistmentInfoAndSetConfigValues(tracer, git, enlistment);
             }
             catch (Exception e)
             {
@@ -603,11 +616,11 @@ namespace GVFS.CommandLine
             }
 
             // Prepare the working directory folder for GVFS last to ensure that gvfs mount will fail if gvfs clone has failed
-            string prepGVFltError;
-            if (!GVFltCallbacks.TryPrepareFolderForGVFltCallbacks(enlistment.WorkingDirectoryRoot, out prepGVFltError))
+            string prepFileSystemError;
+            if (!GVFSPlatform.Instance.KernelDriver.TryPrepareFolderForCallbacks(enlistment.WorkingDirectoryRoot, out prepFileSystemError))
             {
-                tracer.RelatedError(prepGVFltError);
-                return new Result(prepGVFltError);
+                tracer.RelatedError(prepFileSystemError);
+                return new Result(prepFileSystemError);
             }
 
             return new Result(true);

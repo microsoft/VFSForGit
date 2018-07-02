@@ -31,11 +31,10 @@ namespace GVFS.Common
         private readonly string tempFilePath;
 
         private Stream dataFileHandle;
-        private ITracer tracer;
 
         protected FileBasedCollection(ITracer tracer, PhysicalFileSystem fileSystem, string dataFilePath, bool collectionAppendsDirectlyToFile)
         {
-            this.tracer = tracer;
+            this.Tracer = tracer;
             this.fileSystem = fileSystem;
             this.DataFilePath = dataFilePath;
             this.tempFilePath = this.DataFilePath + ".tmp";
@@ -48,11 +47,25 @@ namespace GVFS.Common
 
         public string DataFilePath { get; }
 
+        protected ITracer Tracer { get; }
+
         public void Dispose()
         {
             lock (this.fileLock)
             {
                 this.CloseDataFile();
+            }
+        }
+
+        public void ForceFlush()
+        {
+            if (this.dataFileHandle != null)
+            {
+                FileStream fs = this.dataFileHandle as FileStream;
+                if (fs != null)
+                {
+                    fs.Flush(flushToDisk: true);
+                }
             }
         }
 
@@ -79,11 +92,11 @@ namespace GVFS.Common
                             tmpFileCreated = this.TryWriteTempFile(getDataLines, out lastException);
                             if (!tmpFileCreated)
                             {
-                                if (this.tracer != null && tmpFileCreateAttempts % IoFailureLoggingThreshold == 0)
+                                if (this.Tracer != null && tmpFileCreateAttempts % IoFailureLoggingThreshold == 0)
                                 {                                    
                                     EventMetadata metadata = CreateEventMetadata(lastException);
                                     metadata.Add("tmpFileCreateAttempts", tmpFileCreateAttempts);
-                                    this.tracer.RelatedWarning(metadata, nameof(this.WriteAndReplaceDataFile) + ": Failed to create tmp file ... retrying");
+                                    this.Tracer.RelatedWarning(metadata, nameof(this.WriteAndReplaceDataFile) + ": Failed to create tmp file ... retrying");
                                 }
 
                                 ++tmpFileCreateAttempts;
@@ -102,11 +115,11 @@ namespace GVFS.Common
                                 }
                                 else
                                 {
-                                    if (this.tracer != null)
+                                    if (this.Tracer != null)
                                     {
                                         EventMetadata metadata = CreateEventMetadata();
                                         metadata.Add("tmpFileMoveAttempts", tmpFileMoveAttempts);
-                                        this.tracer.RelatedWarning(metadata, nameof(this.WriteAndReplaceDataFile) + ": tmp file is missing. Recreating tmp file.");
+                                        this.Tracer.RelatedWarning(metadata, nameof(this.WriteAndReplaceDataFile) + ": tmp file is missing. Recreating tmp file.");
                                     }
 
                                     tmpFileCreated = false;
@@ -114,11 +127,11 @@ namespace GVFS.Common
                             }
                             catch (Win32Exception e)
                             {
-                                if (this.tracer != null && tmpFileMoveAttempts % IoFailureLoggingThreshold == 0)
+                                if (this.Tracer != null && tmpFileMoveAttempts % IoFailureLoggingThreshold == 0)
                                 {                                    
                                     EventMetadata metadata = CreateEventMetadata(e);
                                     metadata.Add("tmpFileMoveAttempts", tmpFileMoveAttempts);
-                                    this.tracer.RelatedWarning(metadata, nameof(this.WriteAndReplaceDataFile) + ": Failed to overwrite data file ... retrying");
+                                    this.Tracer.RelatedWarning(metadata, nameof(this.WriteAndReplaceDataFile) + ": Failed to overwrite data file ... retrying");
                                 }
 
                                 ++tmpFileMoveAttempts;
@@ -350,11 +363,11 @@ namespace GVFS.Common
 
                 if (retryUntilSuccess)
                 {
-                    if (this.tracer != null && attempts % IoFailureLoggingThreshold == 0)
+                    if (this.Tracer != null && attempts % IoFailureLoggingThreshold == 0)
                     {
                         EventMetadata metadata = CreateEventMetadata(lastException);
                         metadata.Add("attempts", attempts);
-                        this.tracer.RelatedWarning(metadata, nameof(this.OpenOrCreateDataFile) + ": Failed to open data file stream ... retrying");
+                        this.Tracer.RelatedWarning(metadata, nameof(this.OpenOrCreateDataFile) + ": Failed to open data file stream ... retrying");
                     }
 
                     ++attempts;

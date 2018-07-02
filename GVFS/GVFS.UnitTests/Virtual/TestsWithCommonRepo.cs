@@ -1,4 +1,6 @@
-﻿using NUnit.Framework;
+﻿using GVFS.Common;
+using GVFS.UnitTests.Mock.Common;
+using NUnit.Framework;
 
 namespace GVFS.UnitTests.Virtual
 {
@@ -11,6 +13,13 @@ namespace GVFS.UnitTests.Virtual
         public virtual void TestSetup()
         {
             this.Repo = new CommonRepoSetup();
+
+            string error;
+            RepoMetadata.TryInitialize(
+                new MockTracer(), 
+                this.Repo.Context.FileSystem,
+                this.Repo.Context.Enlistment.DotGVFSRoot, 
+                out error);
         }
 
         [TearDown]
@@ -20,6 +29,8 @@ namespace GVFS.UnitTests.Virtual
             {
                 this.Repo.Dispose();
             }
+
+            RepoMetadata.Shutdown();
         }
     }
 }

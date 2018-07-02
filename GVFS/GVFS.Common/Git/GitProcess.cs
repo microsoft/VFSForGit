@@ -1,6 +1,5 @@
 using GVFS.Common.FileSystem;
 using GVFS.Common.Tracing;
-using Microsoft.Diagnostics.Tracing;
 using Microsoft.Win32;
 using System;
 using System.Collections.Generic;
@@ -14,17 +13,14 @@ namespace GVFS.Common.Git
 {
     public class GitProcess
     {
-        private const string GitProcessName = "git.exe";
-        private const string GitBinRelativePath = "cmd\\git.exe";
-        private const string GitInstallationRegistryKey = "SOFTWARE\\GitForWindows";
-        private const string GitInstallationRegistryInstallPathValue = "InstallPath";
-
         private static readonly Encoding UTF8NoBOM = new UTF8Encoding(false);
 
         private object executionLock = new object();
 
-        private Enlistment enlistment;
-        private PhysicalFileSystem fileSystem;
+        private string gitBinPath;
+        private string workingDirectoryRoot;
+        private string dotGitRoot;
+        private string gvfsHooksRoot;
 
         static GitProcess()
         {
@@ -36,45 +32,26 @@ namespace GVFS.Common.Git
             }
         }
 
-        public GitProcess(Enlistment enlistment, PhysicalFileSystem filesystem = null)
+        public GitProcess(Enlistment enlistment)
+            : this(enlistment.GitBinPath, enlistment.WorkingDirectoryRoot, enlistment.GVFSHooksRoot)
         {
-            if (enlistment == null)
-            {
-                throw new ArgumentNullException(nameof(enlistment));
-            }
-
-            if (string.IsNullOrWhiteSpace(enlistment.GitBinPath))
-            {
-                throw new ArgumentException(nameof(enlistment.GitBinPath));
-            }
-
-            this.enlistment = enlistment;
-            this.fileSystem = filesystem ?? new PhysicalFileSystem();
         }
 
-        public static bool GitExists(string gitBinPath)
+        public GitProcess(string gitBinPath, string workingDirectoryRoot, string gvfsHooksRoot)
         {
-            if (!string.IsNullOrWhiteSpace(gitBinPath))
+            if (string.IsNullOrWhiteSpace(gitBinPath))
             {
-                return File.Exists(gitBinPath);
+                throw new ArgumentException(nameof(gitBinPath));
             }
 
-            return ProcessHelper.WhereDirectory(GitProcessName) != null;
-        }
+            this.gitBinPath = gitBinPath;
+            this.workingDirectoryRoot = workingDirectoryRoot;
+            this.gvfsHooksRoot = gvfsHooksRoot;
 
-        public static string GetInstalledGitBinPath()
-        {
-            string gitBinPath = ProcessHelper.GetStringFromRegistry(RegistryHive.LocalMachine, GitInstallationRegistryKey, GitInstallationRegistryInstallPathValue);
-            if (!string.IsNullOrWhiteSpace(gitBinPath))
+            if (this.workingDirectoryRoot != null)
             {
-                gitBinPath = Path.Combine(gitBinPath, GitBinRelativePath);
-                if (File.Exists(gitBinPath))
-                {
-                    return gitBinPath;
-                }
+                this.dotGitRoot = Path.Combine(this.workingDirectoryRoot, GVFSConstants.DotGit.Root);
             }
-
-            return null;
         }
 
         public static Result Init(Enlistment enlistment)
@@ -87,16 +64,27 @@ namespace GVFS.Common.Git
             return new GitProcess(enlistment).InvokeGitOutsideEnlistment("--version");
         }
 
-        public virtual void RevokeCredential()
+        public static Result GetFromGlobalConfig(string gitBinPath, string settingName)
+        {
+            return new GitProcess(gitBinPath, workingDirectoryRoot: null, gvfsHooksRoot: null).InvokeGitOutsideEnlistment("config --global " + settingName);
+        }
+
+        public static Result GetFromSystemConfig(string gitBinPath, string settingName)
+        {
+            return new GitProcess(gitBinPath, workingDirectoryRoot: null, gvfsHooksRoot: null).InvokeGitOutsideEnlistment("config --system " + settingName);
+        }
+
+        public virtual void RevokeCredential(string repoUrl)
         {
             this.InvokeGitOutsideEnlistment(
                 "credential reject",
-                stdin => stdin.Write("url=" + this.enlistment.RepoUrl + "\n\n"),
+                stdin => stdin.Write("url=" + repoUrl + "\n\n"),
                 null);
         }
 
         public virtual bool TryGetCredentials(
             ITracer tracer,
+            string repoUrl,
             out string username,
             out string password)
         {
@@ -107,7 +95,7 @@ namespace GVFS.Common.Git
             {
                 Result gitCredentialOutput = this.InvokeGitAgainstDotGitFolder(
                     "credential fill",
-                    stdin => stdin.Write("url=" + this.enlistment.RepoUrl + "\n\n"),
+                    stdin => stdin.Write("url=" + repoUrl + "\n\n"),
                     parseStdOutLine: null);
 
                 if (gitCredentialOutput.HasErrors)
@@ -199,13 +187,14 @@ namespace GVFS.Common.Git
         /// otherwise it will run it from outside the enlistment.
         /// </param>
         /// <returns>The value found for the setting.</returns>
-        public virtual Result GetFromConfig(string settingName, bool forceOutsideEnlistment = false)
+        public virtual Result GetFromConfig(string settingName, bool forceOutsideEnlistment = false, PhysicalFileSystem fileSystem = null)
         {
             string command = string.Format("config {0}", settingName);
+            fileSystem = fileSystem ?? new PhysicalFileSystem();
 
             // This method is called at clone time, so the physical repo may not exist yet.
             return
-                this.fileSystem.DirectoryExists(this.enlistment.WorkingDirectoryRoot) && !forceOutsideEnlistment
+                fileSystem.DirectoryExists(this.workingDirectoryRoot) && !forceOutsideEnlistment
                     ? this.InvokeGitAgainstDotGitFolder(command)
                     : this.InvokeGitOutsideEnlistment(command);
         }
@@ -225,12 +214,12 @@ namespace GVFS.Common.Git
         /// </param>
         /// <param value>The value found for the config setting.</param>
         /// <returns>True if the config call was successful, false otherwise.</returns>
-        public bool TryGetFromConfig(string settingName, bool forceOutsideEnlistment, out string value)
+        public bool TryGetFromConfig(string settingName, bool forceOutsideEnlistment, out string value, PhysicalFileSystem fileSystem = null)
         {
             value = null;
             try
             {
-                Result result = this.GetFromConfig(settingName, forceOutsideEnlistment: forceOutsideEnlistment);
+                Result result = this.GetFromConfig(settingName, forceOutsideEnlistment, fileSystem);
                 if (!result.HasErrors)
                 {
                     value = result.Output;
@@ -267,11 +256,6 @@ namespace GVFS.Common.Git
         public Result Status(bool allowObjectDownloads)
         {
             return this.InvokeGitInWorkingDirectoryRoot("status", useReadObjectHook: allowObjectDownloads);
-        }
-
-        public Result UpdateIndexVersion4()
-        {
-            return this.InvokeGitAgainstDotGitFolder("update-index --index-version 4");
         }
 
         public Result UnpackObjects(Stream packFileStream)
@@ -378,7 +362,7 @@ namespace GVFS.Common.Git
 
         public Process GetGitProcess(string command, string workingDirectory, string dotGitDirectory, bool useReadObjectHook, bool redirectStandardError)
         {
-            ProcessStartInfo processInfo = new ProcessStartInfo(this.enlistment.GitBinPath);
+            ProcessStartInfo processInfo = new ProcessStartInfo(this.gitBinPath);
             processInfo.WorkingDirectory = workingDirectory;
             processInfo.UseShellExecute = false;
             processInfo.RedirectStandardInput = true;
@@ -404,12 +388,12 @@ namespace GVFS.Common.Git
             processInfo.EnvironmentVariables["PATH"] =
                 string.Join(
                     ";",
-                    this.enlistment.GitBinPath,
-                    this.enlistment.GVFSHooksRoot ?? string.Empty);
+                    this.gitBinPath,
+                    this.gvfsHooksRoot ?? string.Empty);
 
             if (!useReadObjectHook)
             {
-                command = "-c " + GitConfigSetting.VirtualizeObjectsGitConfigName + "=false " + command;
+                command = "-c " + GitConfigSetting.CoreVirtualizeObjectsName + "=false " + command;
             }
 
             if (!string.IsNullOrEmpty(dotGitDirectory))
@@ -549,7 +533,7 @@ namespace GVFS.Common.Git
         {
             return this.InvokeGitImpl(
                 command,
-                workingDirectory: this.enlistment.WorkingDirectoryRoot,
+                workingDirectory: this.workingDirectoryRoot,
                 dotGitDirectory: null,
                 useReadObjectHook: useReadObjectHook,
                 writeStdIn: writeStdIn,
@@ -577,7 +561,7 @@ namespace GVFS.Common.Git
             return this.InvokeGitImpl(
                 command,
                 workingDirectory: Environment.SystemDirectory,
-                dotGitDirectory: this.enlistment.DotGitRoot,
+                dotGitDirectory: this.dotGitRoot,
                 useReadObjectHook: false,
                 writeStdIn: writeStdIn,
                 parseStdOutLine: parseStdOutLine,

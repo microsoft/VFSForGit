@@ -1,25 +1,29 @@
-﻿using Microsoft.Win32;
+﻿using Microsoft.Win32.SafeHandles;
 using System;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Reflection;
-using System.Security.Principal;
 
 namespace GVFS.Common
 {
     public static class ProcessHelper
     {
-        public static bool TryGetProcess(int processId, out Process process)
+        private const int StillActive = 259; /* from Win32 STILL_ACTIVE */
+
+        public static bool IsProcessActive(int processId)
         {
-            try
+            using (SafeFileHandle process = NativeMethods.OpenProcess(NativeMethods.ProcessAccessFlags.QueryLimitedInformation, false, processId))
             {
-                process = Process.GetProcessById(processId);
-                return true;
-            }
-            catch (ArgumentException)
-            {
-                process = null;
+                if (!process.IsInvalid)
+                {
+                    uint exitCode;
+                    if (NativeMethods.GetExitCodeProcess(process, out exitCode) && exitCode == StillActive)
+                    {
+                        return true;
+                    }
+                }
+
                 return false;
             }
         }
@@ -36,25 +40,6 @@ namespace GVFS.Common
             processInfo.Arguments = args;
 
             return Run(processInfo);
-        }
-
-        public static void StartBackgroundProcess(string programName, string args, bool createWindow)
-        {
-            ProcessStartInfo processInfo = new ProcessStartInfo(programName, args);
-            
-            if (createWindow)
-            {
-                processInfo.WindowStyle = ProcessWindowStyle.Minimized;
-            }
-            else
-            {
-                processInfo.WindowStyle = ProcessWindowStyle.Hidden;
-            }
-
-            Process executingProcess = new Process();
-            executingProcess.StartInfo = processInfo;
-
-            executingProcess.Start();
         }
 
         public static string GetCurrentProcessLocation()
@@ -83,14 +68,6 @@ namespace GVFS.Common
             return fileVersionInfo.ProductVersion;
         }
         
-        public static bool IsAdminElevated()
-        {
-            using (WindowsIdentity id = WindowsIdentity.GetCurrent())
-            {
-                return new WindowsPrincipal(id).IsInRole(WindowsBuiltInRole.Administrator);
-            }
-        }
-
         public static string WhereDirectory(string processName)
         {
             ProcessResult result = ProcessHelper.Run("where", processName);
@@ -151,52 +128,6 @@ namespace GVFS.Common
 
                 return new ProcessResult(output.ToString(), errors.ToString(), executingProcess.ExitCode);
             }
-        }
-
-        public static object GetValueFromRegistry(RegistryHive registryHive, string key, string valueName)
-        {
-            object value = GetValueFromRegistry(registryHive, key, valueName, RegistryView.Registry64);
-            if (value == null)
-            {
-                value = GetValueFromRegistry(registryHive, key, valueName, RegistryView.Registry32);
-            }
-
-            return value;
-        }
-
-        public static string GetStringFromRegistry(RegistryHive registryHive, string key, string valueName)
-        {
-            object value = GetValueFromRegistry(registryHive, key, valueName);
-            return value as string;
-        }
-
-        public static bool TrySetDwordInRegistry(RegistryHive registryHive, string key, string valueName, uint value)
-        {
-            RegistryKey localKey = RegistryKey.OpenBaseKey(registryHive, RegistryView.Registry64);
-            RegistryKey localKeySub = localKey.OpenSubKey(key, writable: true);
-
-            if (localKeySub == null)
-            {
-                localKey = RegistryKey.OpenBaseKey(registryHive, RegistryView.Registry32);
-                localKeySub = localKey.OpenSubKey(key, writable: true);
-            }
-
-            if (localKeySub == null)
-            {
-                return false;
-            }
-
-            localKeySub.SetValue(valueName, value, RegistryValueKind.DWord);
-            return true;
-        }
-
-        private static object GetValueFromRegistry(RegistryHive registryHive, string key, string valueName, RegistryView view)
-        {
-            RegistryKey localKey = RegistryKey.OpenBaseKey(registryHive, view);
-            RegistryKey localKeySub = localKey.OpenSubKey(key);
-
-            object value = localKeySub == null ? null : localKeySub.GetValue(valueName);
-            return value;
         }
 
         private static string StartProcess(Process executingProcess)

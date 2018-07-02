@@ -1,5 +1,4 @@
-﻿using Microsoft.Diagnostics.Tracing;
-using System;
+﻿using System;
 using System.Text;
 
 namespace GVFS.Common.Tracing

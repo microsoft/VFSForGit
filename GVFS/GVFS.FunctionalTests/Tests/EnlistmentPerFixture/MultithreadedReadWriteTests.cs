@@ -11,13 +11,14 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
 {
     // TODO 469238: Elaborate on these tests?
     [TestFixture]
+    [Category(Categories.Mac.M1)]
     public class MultithreadedReadWriteTests : TestsWithEnlistmentPerFixture
     {
         [TestCase]
         public void CanReadUnhydratedFileInParallelWithoutTearing()
         {
             FileSystemRunner fileSystem = FileSystemRunner.DefaultRunner;
-            string fileName = @"GVFS\GVFS.FunctionalTests\Tests\LongRunningEnlistment\WorkingDirectoryTests.cs";
+            string fileName = Path.Combine("GVFS", "GVFS.FunctionalTests", "Tests", "LongRunningEnlistment", "WorkingDirectoryTests.cs");
             string virtualPath = this.Enlistment.GetVirtualPathTo(fileName);
             virtualPath.ShouldBeAFile(fileSystem);
 

@@ -26,13 +26,14 @@ namespace GVFS.Common
             this.GVFSHooksRoot = gvfsHooksRoot;
             this.FlushFileBuffersForPacks = flushFileBuffersForPacks;
 
+            GitProcess gitProcess = new GitProcess(this);
             if (repoUrl != null)
             {
                 this.RepoUrl = repoUrl;
             }
             else
             {
-                GitProcess.Result originResult = new GitProcess(this).GetOriginUrl();
+                GitProcess.Result originResult = gitProcess.GetOriginUrl();
                 if (originResult.HasErrors)
                 {
                     if (originResult.Errors.Length == 0)
@@ -46,7 +47,7 @@ namespace GVFS.Common
                 this.RepoUrl = originResult.Output.Trim();
             }
             
-            this.Authentication = new GitAuthentication(this);
+            this.Authentication = new GitAuthentication(gitProcess, this.RepoUrl);
         }
 
         public string EnlistmentRoot { get; }

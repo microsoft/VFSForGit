@@ -17,7 +17,7 @@
     <WindowsTargetPlatformVersion>10.0.10240.0</WindowsTargetPlatformVersion>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
-  <Import Project="$(SolutionDir)\GVFS\GVFS.Build\GVFS.props" />
+  <Import Project="$(SolutionDir)\GVFS\GVFS.Build\GVFS.cpp.props" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'" Label="Configuration">
     <ConfigurationType>Application</ConfigurationType>
     <UseDebugLibraries>true</UseDebugLibraries>
@@ -65,7 +65,7 @@
       <AdditionalLibraryDirectories>C:\Program Files (x86)\Windows Kits\10\Lib\10.0.10240.0\ucrt\x64;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
     </Link>
     <BuildLog>
-      <Path>$(BuildOuputDir)\$(ProjectName)\intermediate\$(Platform)\$(Configuration)\$(MSBuildProjectName).log</Path>
+      <Path>$(BuildOutputDir)\$(ProjectName)\intermediate\$(Platform)\$(Configuration)\$(MSBuildProjectName).log</Path>
     </BuildLog>
     <ResourceCompile>
       <AdditionalIncludeDirectories>$(BuildOutputDir)</AdditionalIncludeDirectories>

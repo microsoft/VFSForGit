@@ -12,17 +12,19 @@ namespace GVFS.PreBuild
         [Required]
         public string BuildOutputPath { get; set; }
 
+        [Required]
+        public string AssemblyVersion { get; set; }
+
+        [Required]
+        public string VersionHeader { get; set; }
+
         public override bool Execute()
         {
             this.Log.LogMessage(MessageImportance.High, "Creating version files");
 
-            if (!Directory.Exists(this.BuildOutputPath))
-            {
-                Directory.CreateDirectory(this.BuildOutputPath);
-            }
-
+            EnsureParentDirectoryExistsFor(this.AssemblyVersion);
             File.WriteAllText(
-                Path.Combine(this.BuildOutputPath, "CommonAssemblyVersion.cs"),
+                this.AssemblyVersion,
                 string.Format(
 @"using System.Reflection; 
 
@@ -32,8 +34,9 @@ namespace GVFS.PreBuild
                 this.Version));
 
             string commaDelimetedVersion = this.Version.Replace('.', ',');
+            EnsureParentDirectoryExistsFor(this.VersionHeader);
             File.WriteAllText(
-                Path.Combine(this.BuildOutputPath, "CommonVersionHeader.h"),
+                this.VersionHeader,
                 string.Format(
 @"
 #define GVFS_FILE_VERSION {0}
@@ -45,6 +48,16 @@ namespace GVFS.PreBuild
                     this.Version));
 
             return true;
+        }
+
+        private void EnsureParentDirectoryExistsFor(string filename)
+        {
+            string directory = Path.GetDirectoryName(filename);
+            if (!Directory.Exists(directory))
+            {
+                Directory.CreateDirectory(directory);
+            }
+
         }
     }
 }

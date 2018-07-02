@@ -60,7 +60,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
 
             this.GitCleanFile(TestParentFolderName + "/LockToPreventDelete/" + testFile1Name);
             this.GitStatusShouldBeClean(OldCommitId);
-            this.SparseCheckoutShouldContain(TestParentFolderName + "/LockToPreventDelete/" + testFile1Name);
+            GVFSHelpers.ModifiedPathsShouldContain(this.fileSystem, this.Enlistment.DotGVFSRoot, TestParentFolderName + "/LockToPreventDelete/" + testFile1Name);
             testFile1Path.ShouldNotExistOnDisk(this.fileSystem);
 
             this.GitCheckoutCommitId(NewFilesAndChangesCommitId);
@@ -119,9 +119,9 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
 
             this.GitStatusShouldBeClean(OldCommitId);
 
-            this.SparseCheckoutShouldContain(TestParentFolderName + "/LockToPreventDelete/" + testFile2Name);
-            this.SparseCheckoutShouldContain(TestParentFolderName + "/LockToPreventDelete/" + testFile3Name);
-            this.SparseCheckoutShouldContain(TestParentFolderName + "/LockToPreventDelete/" + testFile4Name);
+            GVFSHelpers.ModifiedPathsShouldContain(this.fileSystem, this.Enlistment.DotGVFSRoot, TestParentFolderName + "/LockToPreventDelete/" + testFile2Name);
+            GVFSHelpers.ModifiedPathsShouldContain(this.fileSystem, this.Enlistment.DotGVFSRoot, TestParentFolderName + "/LockToPreventDelete/" + testFile3Name);
+            GVFSHelpers.ModifiedPathsShouldContain(this.fileSystem, this.Enlistment.DotGVFSRoot, TestParentFolderName + "/LockToPreventDelete/" + testFile4Name);
 
             testFile2Path.ShouldNotExistOnDisk(this.fileSystem);
             testFile3Path.ShouldNotExistOnDisk(this.fileSystem);
@@ -163,7 +163,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
 
             this.GitCheckoutToDiscardChanges(TestParentFolderName + "/LockToPreventUpdate/" + testFile1Name);
             this.GitStatusShouldBeClean(OldCommitId);
-            this.SparseCheckoutShouldContain(TestParentFolderName + "/LockToPreventUpdate/" + testFile1Name);
+            GVFSHelpers.ModifiedPathsShouldContain(this.fileSystem, this.Enlistment.DotGVFSRoot, TestParentFolderName + "/LockToPreventUpdate/" + testFile1Name);
             testFile1Path.ShouldBeAFile(this.fileSystem).WithContents(testFile1OldContents);
 
             this.GitCheckoutCommitId(NewFilesAndChangesCommitId);
@@ -225,9 +225,9 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
             this.GitCheckoutToDiscardChanges(TestParentFolderName + "/LockToPreventUpdate/" + testFile4Name);
 
             this.GitStatusShouldBeClean(OldCommitId);
-            this.SparseCheckoutShouldContain(TestParentFolderName + "/LockToPreventUpdate/" + testFile2Name);
-            this.SparseCheckoutShouldContain(TestParentFolderName + "/LockToPreventUpdate/" + testFile3Name);
-            this.SparseCheckoutShouldContain(TestParentFolderName + "/LockToPreventUpdate/" + testFile4Name);
+            GVFSHelpers.ModifiedPathsShouldContain(this.fileSystem, this.Enlistment.DotGVFSRoot, TestParentFolderName + "/LockToPreventUpdate/" + testFile2Name);
+            GVFSHelpers.ModifiedPathsShouldContain(this.fileSystem, this.Enlistment.DotGVFSRoot, TestParentFolderName + "/LockToPreventUpdate/" + testFile3Name);
+            GVFSHelpers.ModifiedPathsShouldContain(this.fileSystem, this.Enlistment.DotGVFSRoot, TestParentFolderName + "/LockToPreventUpdate/" + testFile4Name);
             testFile2Path.ShouldBeAFile(this.fileSystem).WithContents(testFile2OldContents);
             testFile3Path.ShouldBeAFile(this.fileSystem).WithContents(testFile3OldContents);
             testFile4Path.ShouldBeAFile(this.fileSystem).WithContents(testFile4OldContents);
@@ -321,12 +321,12 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
 
             this.GitStatusShouldBeClean(OldCommitId);
 
-            this.SparseCheckoutShouldContain(TestParentFolderName + "/LockToPreventUpdateAndDelete/" + testFileUpdate1Name);
-            this.SparseCheckoutShouldContain(TestParentFolderName + "/LockToPreventUpdateAndDelete/" + testFileUpdate2Name);
-            this.SparseCheckoutShouldContain(TestParentFolderName + "/LockToPreventUpdateAndDelete/" + testFileUpdate3Name);
-            this.SparseCheckoutShouldContain(TestParentFolderName + "/LockToPreventUpdateAndDelete/" + testFileDelete1Name);
-            this.SparseCheckoutShouldContain(TestParentFolderName + "/LockToPreventUpdateAndDelete/" + testFileDelete2Name);
-            this.SparseCheckoutShouldContain(TestParentFolderName + "/LockToPreventUpdateAndDelete/" + testFileDelete3Name);
+            GVFSHelpers.ModifiedPathsShouldContain(this.fileSystem, this.Enlistment.DotGVFSRoot, TestParentFolderName + "/LockToPreventUpdateAndDelete/" + testFileUpdate1Name);
+            GVFSHelpers.ModifiedPathsShouldContain(this.fileSystem, this.Enlistment.DotGVFSRoot, TestParentFolderName + "/LockToPreventUpdateAndDelete/" + testFileUpdate2Name);
+            GVFSHelpers.ModifiedPathsShouldContain(this.fileSystem, this.Enlistment.DotGVFSRoot, TestParentFolderName + "/LockToPreventUpdateAndDelete/" + testFileUpdate3Name);
+            GVFSHelpers.ModifiedPathsShouldContain(this.fileSystem, this.Enlistment.DotGVFSRoot, TestParentFolderName + "/LockToPreventUpdateAndDelete/" + testFileDelete1Name);
+            GVFSHelpers.ModifiedPathsShouldContain(this.fileSystem, this.Enlistment.DotGVFSRoot, TestParentFolderName + "/LockToPreventUpdateAndDelete/" + testFileDelete2Name);
+            GVFSHelpers.ModifiedPathsShouldContain(this.fileSystem, this.Enlistment.DotGVFSRoot, TestParentFolderName + "/LockToPreventUpdateAndDelete/" + testFileDelete3Name);
 
             testFileUpdate1Path.ShouldBeAFile(this.fileSystem).WithContents(testFileUpdate1OldContents);
             testFileUpdate2Path.ShouldBeAFile(this.fileSystem).WithContents(testFileUpdate2OldContents);
@@ -399,7 +399,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
                 this.GitCheckoutToDiscardChanges(TestParentFolderName + "/LockToPreventUpdateAndDelete/" + testFileUpdate4Name);
                 this.GitStatusShouldBeClean(OldCommitId);
 
-                this.SparseCheckoutShouldContain(TestParentFolderName + "/LockToPreventUpdateAndDelete/" + testFileUpdate4Name);
+                GVFSHelpers.ModifiedPathsShouldContain(this.fileSystem, this.Enlistment.DotGVFSRoot, TestParentFolderName + "/LockToPreventUpdateAndDelete/" + testFileUpdate4Name);
             }
 
             testFileUpdate4Path.ShouldBeAFile(this.fileSystem).WithContents(testFileUpdate4OldContents);
@@ -438,9 +438,9 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
             testFile2Path.ShouldNotExistOnDisk(this.fileSystem);
             testFile3Path.ShouldNotExistOnDisk(this.fileSystem);
 
-            this.SparseCheckoutShouldNotContain(TestParentFolderName + "/FileProjectedAfterPlaceholderDeleteFileAndCheckout/" + testFile1Name);
-            this.SparseCheckoutShouldNotContain(TestParentFolderName + "/FileProjectedAfterPlaceholderDeleteFileAndCheckout/" + testFile2Name);
-            this.SparseCheckoutShouldNotContain(TestParentFolderName + "/FileProjectedAfterPlaceholderDeleteFileAndCheckout/" + testFile3Name);
+            GVFSHelpers.ModifiedPathsShouldNotContain(this.fileSystem, this.Enlistment.DotGVFSRoot, TestParentFolderName + "/FileProjectedAfterPlaceholderDeleteFileAndCheckout/" + testFile1Name);
+            GVFSHelpers.ModifiedPathsShouldNotContain(this.fileSystem, this.Enlistment.DotGVFSRoot, TestParentFolderName + "/FileProjectedAfterPlaceholderDeleteFileAndCheckout/" + testFile2Name);
+            GVFSHelpers.ModifiedPathsShouldNotContain(this.fileSystem, this.Enlistment.DotGVFSRoot, TestParentFolderName + "/FileProjectedAfterPlaceholderDeleteFileAndCheckout/" + testFile3Name);
 
             this.GitCheckoutCommitId(NewFilesAndChangesCommitId);
             this.GitStatusShouldBeClean(NewFilesAndChangesCommitId);
@@ -523,32 +523,22 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
             string testFile = Path.Combine(this.Enlistment.RepoRoot, "FullFilesDontAffectThePlaceholderDatabase");
 
             string placeholderDatabase = Path.Combine(this.Enlistment.DotGVFSRoot, "databases", "PlaceholderList.dat");
-            string placeholdersBefore = this.ReadAllTextFromWriteLockedFile(placeholderDatabase);
+            string placeholdersBefore = GVFSHelpers.ReadAllTextFromWriteLockedFile(placeholderDatabase);
             
             this.fileSystem.CreateEmptyFile(testFile);
 
             this.Enlistment.WaitForBackgroundOperations().ShouldEqual(true, "Background operations failed to complete.");
-            this.ReadAllTextFromWriteLockedFile(placeholderDatabase).ShouldEqual(placeholdersBefore);
+            GVFSHelpers.ReadAllTextFromWriteLockedFile(placeholderDatabase).ShouldEqual(placeholdersBefore);
 
             this.fileSystem.DeleteFile(testFile);
 
             this.Enlistment.WaitForBackgroundOperations().ShouldEqual(true, "Background operations failed to complete.");
-            this.ReadAllTextFromWriteLockedFile(placeholderDatabase).ShouldEqual(placeholdersBefore);
+            GVFSHelpers.ReadAllTextFromWriteLockedFile(placeholderDatabase).ShouldEqual(placeholdersBefore);
         }
 
         private ProcessResult InvokeGitAgainstGVFSRepo(string command)
         {
             return GitHelpers.InvokeGitAgainstGVFSRepo(this.Enlistment.RepoRoot, command);
-        }
-
-        private string ReadAllTextFromWriteLockedFile(string filename)
-        {
-            // File.ReadAllText and others attempt to open for read and FileShare.None, which always fail on 
-            // the placeholder db and other files that open for write and only share read access
-            using (StreamReader reader = new StreamReader(File.Open(filename, FileMode.Open, FileAccess.Read, FileShare.ReadWrite)))
-            {
-                return reader.ReadToEnd();
-            }
         }
 
         private void GitStatusShouldBeClean(string commitId)
@@ -576,18 +566,6 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
         private void GitCheckoutCommitId(string commitId)
         {
             this.InvokeGitAgainstGVFSRepo("checkout " + commitId).Errors.ShouldContain("HEAD is now at " + commitId);
-        }
-
-        private void SparseCheckoutShouldContain(string gitPath)
-        {
-            string sparseCheckoutFile = Path.Combine(this.Enlistment.RepoRoot, TestConstants.DotGit.Info.SparseCheckout);
-            sparseCheckoutFile.ShouldBeAFile(this.fileSystem).WithContents().ShouldContain(gitPath);
-        }
-
-        private void SparseCheckoutShouldNotContain(string gitPath)
-        {
-            string sparseCheckoutFile = Path.Combine(this.Enlistment.RepoRoot, TestConstants.DotGit.Info.SparseCheckout);
-            sparseCheckoutFile.ShouldBeAFile(this.fileSystem).WithContents().ShouldNotContain(ignoreCase: true, unexpectedSubstrings: gitPath);
         }
 
         private SafeFileHandle CreateFile(string path, FileShare shareMode)

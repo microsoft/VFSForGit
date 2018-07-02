@@ -1,12 +1,11 @@
 // prjlib_internal.h
 //
-// Function declarations for internal functions in prjlib (used in the GVFlt tests)
+// Function declarations for internal functions in prjlib (used in the ProjFS tests)
 // that are not intended to be used by user applications (e.g. GVFS) built on GVFlt
-//
 
 #pragma once
 
-#include "gvflt.h"
+#include "prjlibp.h"
 
 #ifdef __cplusplus
 extern "C" {

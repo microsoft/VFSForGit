@@ -4,13 +4,8 @@ using System.Linq;
 
 namespace GVFS.Common
 {
-    public static partial class Paths
+    public static class Paths
     {
-        public static string GetGVFSEnlistmentRoot(string directory)
-        {
-            return GetRoot(directory, GVFSConstants.DotGVFS.Root);
-        }
-
         public static string GetGitEnlistmentRoot(string directory)
         {
             return GetRoot(directory, GVFSConstants.DotGit.Root);
@@ -18,7 +13,7 @@ namespace GVFS.Common
 
         public static string GetNamedPipeName(string enlistmentRoot)
         {
-            return "GVFS_" + enlistmentRoot.ToUpper().Replace(':', '_');
+            return "GVFS_" + enlistmentRoot.ToUpper().Replace(':', '_').Replace('/', '_');
         }
 
         public static string GetServiceDataRoot(string serviceName)
@@ -34,9 +29,9 @@ namespace GVFS.Common
             return Path.Combine(GetServiceDataRoot(serviceName), "Logs");
         }
 
-        private static string GetRoot(string startingDirectory, string rootName)
+        public static string GetRoot(string startingDirectory, string rootName)
         {
-            startingDirectory = startingDirectory.TrimEnd(GVFSConstants.PathSeparator);
+            startingDirectory = startingDirectory.TrimEnd(Path.DirectorySeparatorChar);
             DirectoryInfo dirInfo;
 
             try

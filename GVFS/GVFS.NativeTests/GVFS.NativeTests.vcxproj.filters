@@ -43,47 +43,11 @@
     <ClInclude Include="interface\NtQueryDirectoryFileTests.h">
       <Filter>interface</Filter>
     </ClInclude>
-    <ClInclude Include="interface\GVFlt_DirEnumTest.h">
-      <Filter>interface</Filter>
-    </ClInclude>
     <ClInclude Include="include\TestHelpers.h">
       <Filter>include</Filter>
     </ClInclude>
-    <ClInclude Include="interface\GVFlt_DeleteFileTest.h">
-      <Filter>interface</Filter>
-    </ClInclude>
     <ClInclude Include="include\TestVerifiers.h">
       <Filter>include</Filter>
-    </ClInclude>
-    <ClInclude Include="include\gvflt.h">
-      <Filter>include</Filter>
-    </ClInclude>
-    <ClInclude Include="interface\GVFlt_DeleteFolderTest.h">
-      <Filter>interface</Filter>
-    </ClInclude>
-    <ClInclude Include="interface\GVFlt_FileAttributeTest.h">
-      <Filter>interface</Filter>
-    </ClInclude>
-    <ClInclude Include="interface\GVFlt_FileEATest.h">
-      <Filter>interface</Filter>
-    </ClInclude>
-    <ClInclude Include="interface\GVFlt_BugRegressionTest.h">
-      <Filter>interface</Filter>
-    </ClInclude>
-    <ClInclude Include="interface\GVFlt_FileOperationTest.h">
-      <Filter>interface</Filter>
-    </ClInclude>
-    <ClInclude Include="interface\GVFlt_MoveFileTest.h">
-      <Filter>interface</Filter>
-    </ClInclude>
-    <ClInclude Include="interface\GVFlt_MoveFolderTest.h">
-      <Filter>interface</Filter>
-    </ClInclude>
-    <ClInclude Include="interface\GVFlt_MultiThreadsTest.h">
-      <Filter>interface</Filter>
-    </ClInclude>
-    <ClInclude Include="interface\GVFlt_SetLinkTest.h">
-      <Filter>interface</Filter>
     </ClInclude>
     <ClInclude Include="interface\PlaceholderUtils.h">
       <Filter>interface</Filter>
@@ -100,6 +64,42 @@
     <ClInclude Include="include\prjlib_internal.h">
       <Filter>include</Filter>
     </ClInclude>
+    <ClInclude Include="interface\ProjFS_BugRegressionTest.h">
+      <Filter>interface</Filter>
+    </ClInclude>
+    <ClInclude Include="interface\ProjFS_DeleteFileTest.h">
+      <Filter>interface</Filter>
+    </ClInclude>
+    <ClInclude Include="interface\ProjFS_DeleteFolderTest.h">
+      <Filter>interface</Filter>
+    </ClInclude>
+    <ClInclude Include="interface\ProjFS_DirEnumTest.h">
+      <Filter>interface</Filter>
+    </ClInclude>
+    <ClInclude Include="interface\ProjFS_FileAttributeTest.h">
+      <Filter>interface</Filter>
+    </ClInclude>
+    <ClInclude Include="interface\ProjFS_FileEATest.h">
+      <Filter>interface</Filter>
+    </ClInclude>
+    <ClInclude Include="interface\ProjFS_FileOperationTest.h">
+      <Filter>interface</Filter>
+    </ClInclude>
+    <ClInclude Include="interface\ProjFS_MoveFileTest.h">
+      <Filter>interface</Filter>
+    </ClInclude>
+    <ClInclude Include="interface\ProjFS_MoveFolderTest.h">
+      <Filter>interface</Filter>
+    </ClInclude>
+    <ClInclude Include="interface\ProjFS_MultiThreadsTest.h">
+      <Filter>interface</Filter>
+    </ClInclude>
+    <ClInclude Include="interface\ProjFS_SetLinkTest.h">
+      <Filter>interface</Filter>
+    </ClInclude>
+    <ClInclude Include="include\prjlibp.h">
+      <Filter>include</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="source\dllmain.cpp">
@@ -114,39 +114,6 @@
     <ClCompile Include="source\NtQueryDirectoryFileTests.cpp">
       <Filter>source</Filter>
     </ClCompile>
-    <ClCompile Include="source\GVFlt_DirEnumTest.cpp">
-      <Filter>source</Filter>
-    </ClCompile>
-    <ClCompile Include="source\GVFlt_DeleteFileTest.cpp">
-      <Filter>source</Filter>
-    </ClCompile>
-    <ClCompile Include="source\GVFlt_DeleteFolderTest.cpp">
-      <Filter>source</Filter>
-    </ClCompile>
-    <ClCompile Include="source\GVFlt_FileAttributeTest.cpp">
-      <Filter>source</Filter>
-    </ClCompile>
-    <ClCompile Include="source\GVFlt_FileEATest.cpp">
-      <Filter>source</Filter>
-    </ClCompile>
-    <ClCompile Include="source\GVFlt_BugRegressionTest.cpp">
-      <Filter>source</Filter>
-    </ClCompile>
-    <ClCompile Include="source\GVFlt_FileOperationTest.cpp">
-      <Filter>source</Filter>
-    </ClCompile>
-    <ClCompile Include="source\GVFlt_MoveFileTest.cpp">
-      <Filter>source</Filter>
-    </ClCompile>
-    <ClCompile Include="source\GVFlt_MoveFolderTest.cpp">
-      <Filter>source</Filter>
-    </ClCompile>
-    <ClCompile Include="source\GVFlt_MultiThreadTest.cpp">
-      <Filter>source</Filter>
-    </ClCompile>
-    <ClCompile Include="source\GVFlt_SetLinkTest.cpp">
-      <Filter>source</Filter>
-    </ClCompile>
     <ClCompile Include="source\PlaceholderUtils.cpp">
       <Filter>source</Filter>
     </ClCompile>
@@ -157,6 +124,39 @@
       <Filter>source</Filter>
     </ClCompile>
     <ClCompile Include="FileUtils.cpp">
+      <Filter>source</Filter>
+    </ClCompile>
+    <ClCompile Include="source\ProjFS_BugRegressionTest.cpp">
+      <Filter>source</Filter>
+    </ClCompile>
+    <ClCompile Include="source\ProjFS_DeleteFileTest.cpp">
+      <Filter>source</Filter>
+    </ClCompile>
+    <ClCompile Include="source\ProjFS_DeleteFolderTest.cpp">
+      <Filter>source</Filter>
+    </ClCompile>
+    <ClCompile Include="source\ProjFS_DirEnumTest.cpp">
+      <Filter>source</Filter>
+    </ClCompile>
+    <ClCompile Include="source\ProjFS_FileAttributeTest.cpp">
+      <Filter>source</Filter>
+    </ClCompile>
+    <ClCompile Include="source\ProjFS_FileEATest.cpp">
+      <Filter>source</Filter>
+    </ClCompile>
+    <ClCompile Include="source\ProjFS_FileOperationTest.cpp">
+      <Filter>source</Filter>
+    </ClCompile>
+    <ClCompile Include="source\ProjFS_MoveFileTest.cpp">
+      <Filter>source</Filter>
+    </ClCompile>
+    <ClCompile Include="source\ProjFS_MoveFolderTest.cpp">
+      <Filter>source</Filter>
+    </ClCompile>
+    <ClCompile Include="source\ProjFS_MultiThreadTest.cpp">
+      <Filter>source</Filter>
+    </ClCompile>
+    <ClCompile Include="source\ProjFS_SetLinkTest.cpp">
       <Filter>source</Filter>
     </ClCompile>
   </ItemGroup>

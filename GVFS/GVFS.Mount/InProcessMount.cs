@@ -1,18 +1,17 @@
-﻿using GVFS.Common;
+using GVFS.Common;
 using GVFS.Common.FileSystem;
 using GVFS.Common.Git;
 using GVFS.Common.Http;
 using GVFS.Common.NamedPipes;
 using GVFS.Common.Tracing;
-using GVFS.GVFlt;
-using Microsoft.Diagnostics.Tracing;
-using Microsoft.Win32;
-using Microsoft.Win32.SafeHandles;
+using GVFS.PlatformLoader;
+using GVFS.Virtualization;
+using GVFS.Virtualization.FileSystem;
+using Newtonsoft.Json;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
-using System.Reflection;
 using System.Threading;
 
 namespace GVFS.Mount
@@ -22,10 +21,11 @@ namespace GVFS.Mount
         // Tests show that 250 is the max supported pipe name length
         private const int MaxPipeNameLength = 250;
         private const int MutexMaxWaitTimeMS = 500;
+        private const string ModifiedPathsVersion = "1";
 
         private readonly bool showDebugWindow;
 
-        private GVFltCallbacks gvfltCallbacks;
+        private FileSystemCallbacks fileSystemCallbacks;
         private GVFSEnlistment enlistment;
         private ITracer tracer;
 
@@ -39,8 +39,6 @@ namespace GVFS.Mount
         private HeartbeatThread heartbeat;
         private ManualResetEvent unmountEvent;
 
-        private List<SafeFileHandle> folderLockHandles;
-        
         public InProcessMount(ITracer tracer, GVFSEnlistment enlistment, CacheServerInfo cacheServer, RetryConfig retryConfig, bool showDebugWindow)
         {
             this.tracer = tracer;
@@ -105,6 +103,11 @@ namespace GVFS.Mount
 
             using (NamedPipeServer pipeServer = this.StartNamedPipe())
             {
+                this.tracer.RelatedEvent(
+                    EventLevel.Informational,
+                    $"{nameof(this.Mount)}_StartedNamedPipe",
+                    new EventMetadata { { "NamedPipeName", this.enlistment.NamedPipeName } });
+
                 this.context = this.CreateContext();
 
                 if (this.context.Unattended)
@@ -113,8 +116,17 @@ namespace GVFS.Mount
                 }
 
                 this.ValidateMountPoints();
-                this.UpdateHooks();
-                this.SetVisualStudioRegistryKey();
+
+                if (!GVFSPlatform.Instance.IsUnderConstruction)
+                {
+                    string errorMessage;
+                    if (!HooksInstaller.TryUpdateHooks(this.context, out errorMessage))
+                    {
+                        this.FailMountAndExit(errorMessage);
+                    }
+                }
+
+                GVFSPlatform.Instance.ConfigureVisualStudio(this.enlistment.GitBinPath, this.tracer);
 
                 this.MountAndStartWorkingDirectoryCallbacks(this.cacheServer);
 
@@ -164,86 +176,6 @@ namespace GVFS.Mount
             }
         }
 
-        private void UpdateHooks()
-        {
-            bool copyReadObjectHook = false;
-            string enlistmentReadObjectHookPath = Path.Combine(this.enlistment.WorkingDirectoryRoot, GVFSConstants.DotGit.Hooks.ReadObjectPath + ".exe");
-            string installedReadObjectHookPath = Path.Combine(Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location), GVFSConstants.GVFSReadObjectHookExecutableName);
-
-            if (!File.Exists(installedReadObjectHookPath))
-            {
-                this.FailMountAndExit(GVFSConstants.GVFSReadObjectHookExecutableName + " cannot be found at {0}", installedReadObjectHookPath);
-            }
-
-            if (!File.Exists(enlistmentReadObjectHookPath))
-            {
-                copyReadObjectHook = true;
-
-                EventMetadata metadata = new EventMetadata();
-                metadata.Add("Area", "Mount");
-                metadata.Add("enlistmentReadObjectHookPath", enlistmentReadObjectHookPath);
-                metadata.Add("installedReadObjectHookPath", installedReadObjectHookPath);
-                metadata.Add(TracingConstants.MessageKey.WarningMessage, GVFSConstants.DotGit.Hooks.ReadObjectName + " not found in enlistment, copying from installation folder");
-                this.tracer.RelatedEvent(EventLevel.Warning, "ReadObjectMissingFromEnlistment", metadata);
-            }
-            else
-            {
-                try
-                {
-                    FileVersionInfo enlistmentVersion = FileVersionInfo.GetVersionInfo(enlistmentReadObjectHookPath);
-                    FileVersionInfo installedVersion = FileVersionInfo.GetVersionInfo(installedReadObjectHookPath);
-                    copyReadObjectHook = enlistmentVersion.FileVersion != installedVersion.FileVersion;
-                }
-                catch (Exception e)
-                {
-                    EventMetadata metadata = new EventMetadata();
-                    metadata.Add("Area", "Mount");
-                    metadata.Add("enlistmentReadObjectHookPath", enlistmentReadObjectHookPath);
-                    metadata.Add("installedReadObjectHookPath", installedReadObjectHookPath);
-                    metadata.Add("Exception", e.ToString());
-                    this.tracer.RelatedError(metadata, "Failed to compare " + GVFSConstants.DotGit.Hooks.ReadObjectName + " version");
-                    this.FailMountAndExit("Error comparing " + GVFSConstants.DotGit.Hooks.ReadObjectName + " versions. " + ConsoleHelper.GetGVFSLogMessage(this.enlistment.EnlistmentRoot));
-                }
-            }
-
-            if (copyReadObjectHook)
-            {
-                try
-                {
-                    File.Copy(installedReadObjectHookPath, enlistmentReadObjectHookPath, overwrite: true);
-                }
-                catch (Exception e)
-                {
-                    EventMetadata metadata = new EventMetadata();
-                    metadata.Add("Area", "Mount");
-                    metadata.Add("enlistmentReadObjectHookPath", enlistmentReadObjectHookPath);
-                    metadata.Add("installedReadObjectHookPath", installedReadObjectHookPath);
-                    metadata.Add("Exception", e.ToString());
-                    this.tracer.RelatedError(metadata, "Failed to copy " + GVFSConstants.DotGit.Hooks.ReadObjectName + " to enlistment");
-                    this.FailMountAndExit("Error copying " + GVFSConstants.DotGit.Hooks.ReadObjectName + " to enlistment. " + ConsoleHelper.GetGVFSLogMessage(this.enlistment.EnlistmentRoot));
-                }
-            }
-        }
-
-        private void SetVisualStudioRegistryKey()
-        {
-            const string GitBinPathEnd = "\\cmd\\git.exe";
-            const string GitVSRegistryKeyName = "HKEY_CURRENT_USER\\Software\\Microsoft\\VSCommon\\15.0\\TeamFoundation\\GitSourceControl";
-            const string GitVSRegistryValueName = "GitPath";
-
-            if (!this.enlistment.GitBinPath.EndsWith(GitBinPathEnd))
-            {
-                this.tracer.RelatedWarning(
-                    "Unable to configure Visual Studio’s GitSourceControl regkey because invalid git.exe path found: " + this.enlistment.GitBinPath, 
-                    Keywords.Telemetry);
-
-                return;
-            }
-
-            string regKeyValue = this.enlistment.GitBinPath.Substring(0, this.enlistment.GitBinPath.Length - GitBinPathEnd.Length);
-            Registry.SetValue(GitVSRegistryKeyName, GitVSRegistryValueName, regKeyValue);
-        }
-
         private NamedPipeServer StartNamedPipe()
         {
             try
@@ -268,12 +200,12 @@ namespace GVFS.Mount
                 Console.ReadLine();
             }
 
-            if (this.gvfltCallbacks != null)
+            if (this.fileSystemCallbacks != null)
             {
-                this.gvfltCallbacks.Dispose();
-                this.gvfltCallbacks = null;
+                this.fileSystemCallbacks.Dispose();
+                this.fileSystemCallbacks = null;
             }
-            
+
             Environment.Exit((int)ReturnCode.GenericError);
         }
 
@@ -316,6 +248,14 @@ namespace GVFS.Mount
                     this.HandleDownloadObjectRequest(message, connection);
                     break;
 
+                case NamedPipeMessages.ModifiedPaths.ListRequest:
+                    this.HandleModifiedPathsListRequest(message, connection);
+                    break;
+
+                case NamedPipeMessages.RunPostFetchJob.PostFetchJob:
+                    this.HandlePostFetchJobRequest(message, connection);
+                    break;
+
                 default:
                     EventMetadata metadata = new EventMetadata();
                     metadata.Add("Area", "Mount");
@@ -333,11 +273,7 @@ namespace GVFS.Mount
 
             NamedPipeMessages.LockRequest request = new NamedPipeMessages.LockRequest(messageBody);
             NamedPipeMessages.LockData requester = request.RequestData;
-            if (request == null)
-            {
-                response = new NamedPipeMessages.AcquireLock.Response(NamedPipeMessages.UnknownRequest, requester);
-            }
-            else if (this.currentState == MountState.Unmounting)
+            if (this.currentState == MountState.Unmounting)
             {
                 response = new NamedPipeMessages.AcquireLock.Response(NamedPipeMessages.AcquireLock.UnmountInProgressResult);
 
@@ -353,19 +289,16 @@ namespace GVFS.Mount
             else
             {
                 bool lockAcquired = false;
-                bool lockAvailable = false;
 
-                NamedPipeMessages.LockData externalHolder = this.context.Repository.GVFSLock.GetExternalLockHolder();
+                NamedPipeMessages.LockData existingExternalHolder = null;
+                bool lockAvailable = this.context.Repository.GVFSLock.IsLockAvailableForExternalRequestor(out existingExternalHolder);
 
-                string denyMessage = null;
-                if (externalHolder == null &&
-                    this.gvfltCallbacks.IsReadyForExternalAcquireLockRequests(requester, out denyMessage))
+                string denyGVFSMessage = null;
+                if (!requester.CheckAvailabilityOnly)
                 {
-                    lockAvailable = this.context.Repository.GVFSLock.IsLockAvailable();
-
-                    if (!requester.CheckAvailabilityOnly)
+                    if (this.fileSystemCallbacks.IsReadyForExternalAcquireLockRequests(requester, out denyGVFSMessage))
                     {
-                        lockAcquired = this.context.Repository.GVFSLock.TryAcquireLock(requester, out externalHolder);
+                        lockAcquired = this.context.Repository.GVFSLock.TryAcquireLockForExternalRequestor(requester, out existingExternalHolder);
                     }
                 }
 
@@ -377,13 +310,13 @@ namespace GVFS.Mount
                 {
                     response = new NamedPipeMessages.AcquireLock.Response(NamedPipeMessages.AcquireLock.AcceptResult);
                 }
-                else if (externalHolder == null)
+                else if (existingExternalHolder == null)
                 {
-                    response = new NamedPipeMessages.AcquireLock.Response(NamedPipeMessages.AcquireLock.DenyGVFSResult, responseData: null, denyGVFSMessage: denyMessage);
+                    response = new NamedPipeMessages.AcquireLock.Response(NamedPipeMessages.AcquireLock.DenyGVFSResult, responseData: null, denyGVFSMessage: denyGVFSMessage);
                 }
                 else
                 {
-                    response = new NamedPipeMessages.AcquireLock.Response(NamedPipeMessages.AcquireLock.DenyGitResult, externalHolder);
+                    response = new NamedPipeMessages.AcquireLock.Response(NamedPipeMessages.AcquireLock.DenyGitResult, existingExternalHolder);
                 }
             }
 
@@ -393,7 +326,43 @@ namespace GVFS.Mount
         private void HandleReleaseLockRequest(string messageBody, NamedPipeServer.Connection connection)
         {
             NamedPipeMessages.LockRequest request = new NamedPipeMessages.LockRequest(messageBody);
-            NamedPipeMessages.ReleaseLock.Response response = this.gvfltCallbacks.TryReleaseExternalLock(request.RequestData.PID);
+
+            if (request.RequestData == null)
+            {
+                this.tracer.RelatedError($"{nameof(HandleReleaseLockRequest)} received invalid lock request with body '{messageBody}'");
+                this.UnmountAndStopWorkingDirectoryCallbacks();
+                Environment.Exit((int)ReturnCode.NullRequestData);
+            }
+
+            NamedPipeMessages.ReleaseLock.Response response = this.fileSystemCallbacks.TryReleaseExternalLock(request.RequestData.PID);
+            connection.TrySendResponse(response.CreateMessage());
+        }
+
+        private void HandleModifiedPathsListRequest(NamedPipeMessages.Message message, NamedPipeServer.Connection connection)
+        {
+            NamedPipeMessages.ModifiedPaths.Response response;
+            NamedPipeMessages.ModifiedPaths.Request request = new NamedPipeMessages.ModifiedPaths.Request(message);
+            if (request == null)
+            {
+                response = new NamedPipeMessages.ModifiedPaths.Response(NamedPipeMessages.UnknownRequest);
+            }
+            else if (this.currentState != MountState.Ready)
+            {
+                response = new NamedPipeMessages.ModifiedPaths.Response(NamedPipeMessages.MountNotReadyResult);
+            }
+            else
+            {
+                if (request.Version != ModifiedPathsVersion)
+                {
+                    response = new NamedPipeMessages.ModifiedPaths.Response(NamedPipeMessages.ModifiedPaths.InvalidVersion);
+                }
+                else
+                {
+                    string data = string.Join("\0", this.fileSystemCallbacks.GetAllModifiedPaths()) + "\0";
+                    response = new NamedPipeMessages.ModifiedPaths.Response(NamedPipeMessages.ModifiedPaths.SuccessResult, data);
+                }
+            }
+
             connection.TrySendResponse(response.CreateMessage());
         }
 
@@ -403,13 +372,9 @@ namespace GVFS.Mount
 
             NamedPipeMessages.DownloadObject.Request request = new NamedPipeMessages.DownloadObject.Request(message);
             string objectSha = request.RequestSha;
-            if (request == null)
+            if (this.currentState != MountState.Ready)
             {
-                response = new NamedPipeMessages.DownloadObject.Response(NamedPipeMessages.UnknownRequest);
-            }
-            else if (this.currentState != MountState.Ready)
-            {
-                response = new NamedPipeMessages.DownloadObject.Response(NamedPipeMessages.DownloadObject.MountNotReadyResult);
+                response = new NamedPipeMessages.DownloadObject.Response(NamedPipeMessages.MountNotReadyResult);
             }
             else
             {
@@ -438,6 +403,28 @@ namespace GVFS.Mount
             connection.TrySendResponse(response.CreateMessage());
         }
 
+        private void HandlePostFetchJobRequest(NamedPipeMessages.Message message, NamedPipeServer.Connection connection)
+        {
+            NamedPipeMessages.RunPostFetchJob.Request request = new NamedPipeMessages.RunPostFetchJob.Request(message);
+
+            this.tracer.RelatedInfo("Received post-fetch job request with body {0}", message.Body);
+
+            NamedPipeMessages.RunPostFetchJob.Response response;
+            if (this.currentState == MountState.Ready)
+            {
+                List<string> packIndexes = JsonConvert.DeserializeObject<List<string>>(message.Body);
+                this.fileSystemCallbacks.LaunchPostFetchJob(packIndexes);
+
+                response = new NamedPipeMessages.RunPostFetchJob.Response(NamedPipeMessages.RunPostFetchJob.QueuedResult);
+            }
+            else
+            {
+                response = new NamedPipeMessages.RunPostFetchJob.Response(NamedPipeMessages.RunPostFetchJob.MountNotReadyResult);
+            }
+
+            connection.TrySendResponse(response.CreateMessage());
+        }
+
         private void HandleGetStatusRequest(NamedPipeServer.Connection connection)
         {
             NamedPipeMessages.GetStatus.Response response = new NamedPipeMessages.GetStatus.Response();
@@ -456,7 +443,7 @@ namespace GVFS.Mount
 
                 case MountState.Ready:
                     response.MountStatus = NamedPipeMessages.GetStatus.Ready;
-                    response.BackgroundOperationCount = this.gvfltCallbacks.GetBackgroundOperationCount();
+                    response.BackgroundOperationCount = this.fileSystemCallbacks.BackgroundOperationCount;
                     break;
 
                 case MountState.Unmounting:
@@ -509,20 +496,6 @@ namespace GVFS.Mount
             }
         }
 
-        private void AcquireFolderLocks()
-        {
-            this.folderLockHandles = new List<SafeFileHandle>();
-            this.folderLockHandles.Add(this.context.FileSystem.LockDirectory(this.context.Enlistment.DotGVFSRoot));
-        }
-
-        private void ReleaseFolderLocks()
-        {
-            foreach (SafeFileHandle folderHandle in this.folderLockHandles)
-            {
-                folderHandle.Dispose();
-            }
-        }
-
         private void MountAndStartWorkingDirectoryCallbacks(CacheServerInfo cache)
         {
             string error;
@@ -530,10 +503,11 @@ namespace GVFS.Mount
             {
                 this.FailMountAndExit("Failed to obtain git credentials: " + error);
             }
-            
+
             GitObjectsHttpRequestor objectRequestor = new GitObjectsHttpRequestor(this.context.Tracer, this.context.Enlistment, cache, this.retryConfig);
             this.gitObjects = new GVFSGitObjects(this.context, objectRequestor);
-            this.gvfltCallbacks = this.CreateOrReportAndExit(() => new GVFltCallbacks(this.context, this.gitObjects, RepoMetadata.Instance), "Failed to create src folder callbacks");
+            FileSystemVirtualizer virtualizer = this.CreateOrReportAndExit(() => GVFSPlatformLoader.CreateFileSystemVirtualizer(this.context, this.gitObjects), "Failed to create src folder virtualizer");
+            this.fileSystemCallbacks = this.CreateOrReportAndExit(() => new FileSystemCallbacks(this.context, this.gitObjects, RepoMetadata.Instance, virtualizer), "Failed to create src folder callback listener");
 
             int majorVersion;
             int minorVersion;
@@ -552,7 +526,7 @@ namespace GVFS.Mount
 
             try
             {
-                if (!this.gvfltCallbacks.TryStart(out error))
+                if (!this.fileSystemCallbacks.TryStart(out error))
                 {
                     this.FailMountAndExit("Error: {0}. \r\nPlease confirm that gvfs clone completed without error.", error);
                 }
@@ -562,27 +536,23 @@ namespace GVFS.Mount
                 this.FailMountAndExit("Failed to initialize src folder callbacks. {0}", e.ToString());
             }
 
-            this.AcquireFolderLocks();
-
-            this.heartbeat = new HeartbeatThread(this.tracer, this.gvfltCallbacks);
+            this.heartbeat = new HeartbeatThread(this.tracer, this.fileSystemCallbacks);
             this.heartbeat.Start();
         }
 
         private void UnmountAndStopWorkingDirectoryCallbacks()
         {
-            this.ReleaseFolderLocks();
-
             if (this.heartbeat != null)
             {
                 this.heartbeat.Stop();
                 this.heartbeat = null;
             }
 
-            if (this.gvfltCallbacks != null)
+            if (this.fileSystemCallbacks != null)
             {
-                this.gvfltCallbacks.Stop();
-                this.gvfltCallbacks.Dispose();
-                this.gvfltCallbacks = null;
+                this.fileSystemCallbacks.Stop();
+                this.fileSystemCallbacks.Dispose();
+                this.fileSystemCallbacks = null;
             }
         }
     }

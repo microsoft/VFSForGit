@@ -6,11 +6,10 @@ using GVFS.Common.Http;
 using GVFS.Common.NamedPipes;
 using GVFS.Common.Tracing;
 using GVFS.DiskLayoutUpgrades;
-using GVFS.GVFlt;
-using GVFS.GVFlt.DotGit;
-using Microsoft.Diagnostics.Tracing;
+using GVFS.Virtualization.Projection;
 using System;
 using System.IO;
+using System.Linq;
 using System.Text;
 
 namespace GVFS.CommandLine
@@ -41,7 +40,7 @@ namespace GVFS.CommandLine
 
         protected override void Execute(GVFSEnlistment enlistment)
         {
-            using (JsonEtwTracer tracer = new JsonEtwTracer(GVFSConstants.GVFSEtwProviderName, "Dehydrate"))
+            using (JsonTracer tracer = new JsonTracer(GVFSConstants.GVFSEtwProviderName, "Dehydrate"))
             {
                 tracer.AddLogFileEventListener(
                     GVFSEnlistment.GetNewGVFSLogFileName(enlistment.GVFSLogsRoot, GVFSConstants.LogFileTypes.Dehydrate),
@@ -55,6 +54,8 @@ namespace GVFS.CommandLine
                     {
                         { "Confirmed", this.Confirmed },
                         { "NoStatus", this.NoStatus },
+                        { "NamedPipeName", enlistment.NamedPipeName },
+                        { nameof(this.EnlistmentRootPathParameter), this.EnlistmentRootPathParameter },
                     });
 
                 if (!this.Confirmed)
@@ -73,7 +74,8 @@ you want to keep. If you choose not to, you can still find your uncommitted chan
 in the backup folder, but it will be harder to find them because 'git status' 
 will not work in the backup.
 
-To actually execute the dehydrate, run 'gvfs dehydrate --confirm'
+To actually execute the dehydrate, run 'gvfs dehydrate --confirm' from the parent 
+of your enlistment's src folder.
 ");
 
                     return;
@@ -220,7 +222,7 @@ To actually execute the dehydrate, run 'gvfs dehydrate --confirm'
         private void PrepareSrcFolder(ITracer tracer, GVFSEnlistment enlistment)
         {
             string error;
-            if (!GVFltCallbacks.TryPrepareFolderForGVFltCallbacks(enlistment.WorkingDirectoryRoot, out error))
+            if (!GVFSPlatform.Instance.KernelDriver.TryPrepareFolderForCallbacks(enlistment.WorkingDirectoryRoot, out error))
             {
                 this.ReportErrorAndExit(tracer, "Failed to recreate the virtualization root: " + error);
             }
@@ -302,20 +304,8 @@ To actually execute the dehydrate, run 'gvfs dehydrate --confirm'
                     }
 
                     // ... backup the .gvfs hydration-related data structures...
-                    if (!this.TryIO(
-                            tracer,
-                            () => File.Move(
-                                Path.Combine(enlistment.DotGVFSRoot, GVFSConstants.DotGVFS.Databases.BackgroundGitOperations), 
-                                Path.Combine(backupGvfs, GVFSConstants.DotGVFS.Databases.BackgroundGitOperations)),
-                            "Backup the BackgroundGitUpdates database",
-                            out errorMessage) ||
-                        !this.TryIO(
-                            tracer,
-                            () => File.Move(
-                                Path.Combine(enlistment.DotGVFSRoot, GVFSConstants.DotGVFS.Databases.PlaceholderList), 
-                                Path.Combine(backupGvfs, GVFSConstants.DotGVFS.Databases.PlaceholderList)),
-                            "Backup the PlaceholderList database",
-                            out errorMessage))
+                    string databasesFolder = Path.Combine(enlistment.DotGVFSRoot, GVFSConstants.DotGVFS.Databases.Name);
+                    if (!TryBackupFilesInFolder(tracer, databasesFolder, backupDatabases, searchPattern: "*", filenamesToSkip: "RepoMetadata.dat"))
                     {
                         return false;
                     }
@@ -340,18 +330,9 @@ To actually execute the dehydrate, run 'gvfs dehydrate --confirm'
                     }
 
                     // ... backup all .git\*.lock files
-                    foreach (string lockFile in Directory.GetFiles(enlistment.DotGitRoot, "*.lock"))
+                    if (!TryBackupFilesInFolder(tracer, enlistment.DotGitRoot, backupGit, searchPattern: "*.lock"))
                     {
-                        if (!this.TryIO(
-                            tracer,
-                            () => File.Move(
-                                lockFile,
-                                lockFile.Replace(enlistment.DotGitRoot, backupGit)),
-                            "Backup " + lockFile.Replace(enlistment.DotGitRoot, string.Empty).Trim('\\'),
-                            out errorMessage))
-                        {
-                            return false;
-                        }
+                        return false;
                     }
 
                     return true;
@@ -362,6 +343,28 @@ To actually execute the dehydrate, run 'gvfs dehydrate --confirm'
                 this.WriteMessage(tracer, "ERROR: " + errorMessage);
 
                 return false;
+            }
+
+            return true;
+        }
+
+        private bool TryBackupFilesInFolder(ITracer tracer, string folderPath, string backupPath, string searchPattern, params string[] filenamesToSkip)
+        {
+            string errorMessage;
+            foreach (string file in Directory.GetFiles(folderPath, searchPattern))
+            {
+                string fileName = Path.GetFileName(file);
+                if (!filenamesToSkip.Any(x => x.Equals(fileName, StringComparison.OrdinalIgnoreCase)))
+                {
+                    if (!this.TryIO(
+                        tracer,
+                        () => File.Move(file, file.Replace(folderPath, backupPath)),
+                        $"Backing up {Path.GetFileName(file)}",
+                        out errorMessage))
+                    {
+                        return false;
+                    }
+                }
             }
 
             return true;
@@ -457,7 +460,7 @@ To actually execute the dehydrate, run 'gvfs dehydrate --confirm'
                 StringBuilder commandOutput = new StringBuilder();
                 using (StringWriter writer = new StringWriter(commandOutput))
                 {
-                    returnCode = this.Execute<TVerb>(this.EnlistmentRootPath, verb => verb.Output = writer);
+                    returnCode = this.Execute<TVerb>(this.EnlistmentRootPathParameter, verb => verb.Output = writer);
                 }
 
                 tracer.RelatedEvent(

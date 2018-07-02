@@ -1,6 +1,5 @@
 using GVFS.Common.FileSystem;
 using GVFS.Common.Tracing;
-using Microsoft.Diagnostics.Tracing;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -41,6 +40,11 @@ namespace GVFS.Common
 
         public static bool TryInitialize(ITracer tracer, string dotGVFSPath, out string error)
         {
+            return TryInitialize(tracer, new PhysicalFileSystem(), dotGVFSPath, out error);
+        }
+
+        public static bool TryInitialize(ITracer tracer, PhysicalFileSystem fileSystem, string dotGVFSPath, out string error)
+        {
             string dictionaryPath = Path.Combine(dotGVFSPath, GVFSConstants.DotGVFS.Databases.RepoMetadata);
             if (Instance != null)
             {
@@ -59,7 +63,7 @@ namespace GVFS.Common
                 if (!FileBasedDictionary<string, string>.TryCreate(   
                     tracer,
                     dictionaryPath,
-                    new PhysicalFileSystem(),
+                    fileSystem,
                     out Instance.repoMetadata,
                     out error))
                 {
@@ -312,7 +316,7 @@ namespace GVFS.Common
             // The major version should be bumped whenever there is an on-disk format change that requires a one-way upgrade.
             // Increasing this version will make older versions of GVFS unable to mount a repo that has been mounted by a newer
             // version of GVFS.
-            public const int CurrentMajorVersion = 14;
+            public const int CurrentMajorVersion = 15;
 
             // The minor version should be bumped whenever there is an upgrade that can be safely ignored by older versions of GVFS.
             // For example, this allows an upgrade step that sets a default value for some new config setting.

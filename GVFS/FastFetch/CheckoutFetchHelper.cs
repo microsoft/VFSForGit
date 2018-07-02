@@ -1,10 +1,10 @@
-﻿using FastFetch.Git;
-using FastFetch.Jobs;
-using GVFS.Common;
+﻿using GVFS.Common;
 using GVFS.Common.Git;
 using GVFS.Common.Http;
+using GVFS.Common.Prefetch;
+using GVFS.Common.Prefetch.Git;
+using GVFS.Common.Prefetch.Jobs;
 using GVFS.Common.Tracing;
-using Microsoft.Diagnostics.Tracing;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -12,7 +12,7 @@ using System.Linq;
 
 namespace FastFetch
 {
-    public class CheckoutFetchHelper : FetchHelper
+    public class CheckoutFetchHelper : PrefetchHelper
     {
         private readonly bool allowIndexMetadataUpdateFromWorkingTree;
         private readonly int checkoutThreadCount;
@@ -33,7 +33,7 @@ namespace FastFetch
         }
 
         /// <param name="branchOrCommit">A specific branch to filter for, or null for all branches returned from info/refs</param>
-        public override void FastFetch(string branchOrCommit, bool isBranch)
+        public override void Prefetch(string branchOrCommit, bool isBranch)
         {
             if (string.IsNullOrWhiteSpace(branchOrCommit))
             {

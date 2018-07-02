@@ -16,11 +16,6 @@ namespace GVFS.Common.NamedPipes
             this.pipeName = pipeName;
         }
 
-        public static string GetPipeNameFromPath(string path)
-        {
-            return Paths.GetNamedPipeName(path);
-        }
-
         public bool Connect(int timeoutMilliseconds = 3000)
         {
             if (this.clientStream != null)
@@ -103,6 +98,20 @@ namespace GVFS.Common.NamedPipes
         public NamedPipeMessages.Message ReadResponse()
         {
             return NamedPipeMessages.Message.FromString(this.ReadRawResponse());
+        }
+
+        public bool TryReadResponse(out NamedPipeMessages.Message message)
+        {
+            try
+            {
+                message = NamedPipeMessages.Message.FromString(this.ReadRawResponse());
+                return true;
+            }
+            catch (BrokenPipeException)
+            {
+                message = null;
+                return false;
+            }
         }
 
         public void Dispose()

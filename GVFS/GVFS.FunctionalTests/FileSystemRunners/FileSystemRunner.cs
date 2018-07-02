@@ -9,30 +9,33 @@ namespace GVFS.FunctionalTests.FileSystemRunners
         /// </summary>
         public const string TestRunners = "Runners";
 
-        private static FileSystemRunner defaultRunner = new CmdRunner();
+        private static FileSystemRunner defaultRunner = new SystemIORunner();
 
-        /// <summary>
-        /// Runners to use when the debugger is not attached
-        /// </summary>
-        private static object[] allRunners =
-        {
-            new object[] { new SystemIORunner() },
-            new object[] { new CmdRunner() },
-            new object[] { new PowerShellRunner() },
-            new object[] { new BashRunner() },
-        };
+        public static object[] AllWindowsRunners { get; } = 
+            new[]
+            {
+                new object[] { new SystemIORunner() },
+                new object[] { new CmdRunner() },
+                new object[] { new PowerShellRunner() },
+                new object[] { new BashRunner() },
+            };
 
-        /// <summary>
-        /// Runners to use when the debugger is attached
-        /// </summary>
-        private static object[] debugRunners =
-        {
-            new object[] { defaultRunner }
-        };
+        public static object[] AllMacRunners { get; } = 
+            new[]
+            {
+                new object[] { new SystemIORunner() },
+                new object[] { new BashRunner() },
+            };
+
+        public static object[] DefaultRunners { get; } =
+            new[]
+            {
+                new object[] { defaultRunner }
+            };
         
         public static object[] Runners
         {
-            get { return GVFSTestConfig.UseAllRunners ? allRunners : debugRunners; }
+            get { return GVFSTestConfig.FileSystemRunners; }
         }
 
         /// <summary>
