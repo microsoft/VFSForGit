@@ -90,13 +90,13 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
         [TestCase]
         public void CheckoutNewBranchFromStartingPointTest()
         {
-            // In commit 575d597cf09b2cd1c0ddb4db21ce96979010bbcb the CheckoutNewBranchFromStartingPointTest files were not present
-            this.ValidateGitCommand("checkout 575d597cf09b2cd1c0ddb4db21ce96979010bbcb");
+            // In commit 8df701986dea0a5e78b742d2eaf9348825b14d35 the CheckoutNewBranchFromStartingPointTest files were not present
+            this.ValidateGitCommand("checkout 8df701986dea0a5e78b742d2eaf9348825b14d35");
             this.ShouldNotExistOnDisk("GitCommandsTests\\CheckoutNewBranchFromStartingPointTest\\test1.txt");
             this.ShouldNotExistOnDisk("GitCommandsTests\\CheckoutNewBranchFromStartingPointTest\\test2.txt");
 
-            // In commit 27cc59d3e9a996f1fdc1230c8a80553b316a1d00 the CheckoutNewBranchFromStartingPointTest files were present
-            this.ValidateGitCommand("checkout -b tests/functional/CheckoutNewBranchFromStartingPointTest 27cc59d3e9a996f1fdc1230c8a80553b316a1d00");
+            // In commit cd5c55fea4d58252bb38058dd3818da75aff6685 the CheckoutNewBranchFromStartingPointTest files were present
+            this.ValidateGitCommand("checkout -b tests/functional/CheckoutNewBranchFromStartingPointTest cd5c55fea4d58252bb38058dd3818da75aff6685");
             this.FileShouldHaveContents("GitCommandsTests\\CheckoutNewBranchFromStartingPointTest\\test1.txt", "TestFile1 \r\n");
             this.FileShouldHaveContents("GitCommandsTests\\CheckoutNewBranchFromStartingPointTest\\test2.txt", "TestFile2 \r\n");
 
@@ -106,13 +106,13 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
         [TestCase]
         public void CheckoutOrhpanBranchFromStartingPointTest()
         {
-            // In commit 27cc59d3e9a996f1fdc1230c8a80553b316a1d00 the CheckoutOrhpanBranchFromStartingPointTest files were not present
-            this.ValidateGitCommand("checkout 575d597cf09b2cd1c0ddb4db21ce96979010bbcb");
+            // In commit 8df701986dea0a5e78b742d2eaf9348825b14d35 the CheckoutOrhpanBranchFromStartingPointTest files were not present
+            this.ValidateGitCommand("checkout 8df701986dea0a5e78b742d2eaf9348825b14d35");
             this.ShouldNotExistOnDisk("GitCommandsTests\\CheckoutOrhpanBranchFromStartingPointTest\\test1.txt");
             this.ShouldNotExistOnDisk("GitCommandsTests\\CheckoutOrhpanBranchFromStartingPointTest\\test2.txt");
 
-            // In commit eff45342f895742b7d0a812f49611334e0b5b785 the CheckoutOrhpanBranchFromStartingPointTest files were present
-            this.ValidateGitCommand("checkout --orphan tests/functional/CheckoutOrhpanBranchFromStartingPointTest eff45342f895742b7d0a812f49611334e0b5b785");
+            // In commit 15a9676c9192448820bd243807f6dab1bac66680 the CheckoutOrhpanBranchFromStartingPointTest files were present
+            this.ValidateGitCommand("checkout --orphan tests/functional/CheckoutOrhpanBranchFromStartingPointTest 15a9676c9192448820bd243807f6dab1bac66680");
             this.FileShouldHaveContents("GitCommandsTests\\CheckoutOrhpanBranchFromStartingPointTest\\test1.txt", "TestFile1 \r\n");
             this.FileShouldHaveContents("GitCommandsTests\\CheckoutOrhpanBranchFromStartingPointTest\\test2.txt", "TestFile2 \r\n");
 
@@ -127,9 +127,9 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
             string dotGitFilePath = @".git\" + filename;
             string targetPath = @"Test_ConflictTests\AddedFiles\" + filename;
 
-            // In commit 27cc59d3e9a996f1fdc1230c8a80553b316a1d00 Test_ConflictTests\AddedFiles\AddedBySource.txt does not exist
+            // In commit db95d631e379d366d26d899523f8136a77441914 Test_ConflictTests\AddedFiles\AddedBySource.txt does not exist
             this.ControlGitRepo.Fetch(GitRepoTests.ConflictSourceBranch);
-            this.ValidateGitCommand("checkout 170b13ce1990c53944403a70e93c257061598ae0");
+            this.ValidateGitCommand("checkout db95d631e379d366d26d899523f8136a77441914");
 
             string newBranchName = "tests/functional/MoveFileFromDotGitFolderToWorkingDirectoryAndAddAndCheckout";
             this.ValidateGitCommand("checkout -b " + newBranchName);
@@ -146,8 +146,8 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
             this.ValidateGitCommand("add .");
             this.RunGitCommand("commit -m \"Change for MoveFileFromDotGitFolderToWorkingDirectoryAndAddAndCheckout\"");
 
-            // In commit f2546f8e9ce7d7b1e3a0835932f0d6a6145665b1 Test_ConflictTests\AddedFiles\AddedBySource.txt was added
-            this.ValidateGitCommand("checkout f2546f8e9ce7d7b1e3a0835932f0d6a6145665b1");
+            // In commit 51d15f7584e81d59d44c1511ce17d7c493903390 Test_ConflictTests\AddedFiles\AddedBySource.txt was added
+            this.ValidateGitCommand("checkout 51d15f7584e81d59d44c1511ce17d7c493903390");
             this.FileContentsShouldMatch(targetPath);
         }
 
@@ -166,8 +166,8 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
 
             string fileName = "SameChange.txt";
 
-            // In commit 170b13ce1990c53944403a70e93c257061598ae0 the initial files for the FunctionalTests/20170206_Conflict_Source branch were created
-            this.ValidateGitCommand("checkout 170b13ce1990c53944403a70e93c257061598ae0");
+            // In commit db95d631e379d366d26d899523f8136a77441914 the initial files for the FunctionalTests/20170206_Conflict_Source branch were created
+            this.ValidateGitCommand("checkout db95d631e379d366d26d899523f8136a77441914");
             this.FileContentsShouldMatch(@"Test_ConflictTests\ModifiedFiles\" + fileName);
 
             // A read should not add the file to the modified paths
@@ -186,8 +186,8 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
             string fileName = "DeleteInSource.txt";
             string filePath = @"Test_ConflictTests\DeletedFiles\" + fileName;
 
-            // In commit 170b13ce1990c53944403a70e93c257061598ae0 the initial files for the FunctionalTests/20170206_Conflict_Source branch were created
-            this.ValidateGitCommand("checkout 170b13ce1990c53944403a70e93c257061598ae0");
+            // In commit db95d631e379d366d26d899523f8136a77441914 the initial files for the FunctionalTests/20170206_Conflict_Source branch were created
+            this.ValidateGitCommand("checkout db95d631e379d366d26d899523f8136a77441914");
             this.FileContentsShouldMatch(filePath);
 
             // A read should not add the file to the modified paths
@@ -350,12 +350,12 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
         [TestCase]
         public void ModifyAndCheckoutFirstOfSeveralFilesWhoseNamesAppearBeforeDot()
         {
-            // Commit 14cf226119766146b1fa5c5aa4cd0896d05f6b63 has the files (a).txt and (z).txt 
+            // Commit cb2d05febf64e3b0df50bd8d3fe8f05c0e2caa47 has the files (a).txt and (z).txt 
             // in the DeleteFileWithNameAheadOfDotAndSwitchCommits folder
             string originalContent = "Test contents for (a).txt";
             string newContent = "content to append";
 
-            this.ValidateGitCommand("checkout 14cf226119766146b1fa5c5aa4cd0896d05f6b63");
+            this.ValidateGitCommand("checkout cb2d05febf64e3b0df50bd8d3fe8f05c0e2caa47");
             this.EditFile("DeleteFileWithNameAheadOfDotAndSwitchCommits\\(a).txt", newContent);
             this.FileShouldHaveContents("DeleteFileWithNameAheadOfDotAndSwitchCommits\\(a).txt", originalContent + newContent);
             this.ValidateGitCommand("status");
@@ -369,18 +369,18 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
         {
             this.ControlGitRepo.Fetch(GitRepoTests.ConflictSourceBranch);
 
-            // Commit 170b13ce1990c53944403a70e93c257061598ae0 was prior to the additional of these 
-            // three files in commit f2546f8e9ce7d7b1e3a0835932f0d6a6145665b1:
+            // Commit db95d631e379d366d26d899523f8136a77441914 was prior to the additional of these 
+            // three files in commit 51d15f7584e81d59d44c1511ce17d7c493903390:
             //    Test_ConflictTests/AddedFiles/AddedByBothDifferentContent.txt
             //    Test_ConflictTests/AddedFiles/AddedByBothSameContent.txt
             //    Test_ConflictTests/AddedFiles/AddedBySource.txt            
-            this.ValidateGitCommand("checkout 170b13ce1990c53944403a70e93c257061598ae0");
-            this.ValidateGitCommand("reset --mixed f2546f8e9ce7d7b1e3a0835932f0d6a6145665b1");
+            this.ValidateGitCommand("checkout db95d631e379d366d26d899523f8136a77441914");
+            this.ValidateGitCommand("reset --mixed 51d15f7584e81d59d44c1511ce17d7c493903390");
 
             // Use RunGitCommand rather than ValidateGitCommand as G4W optimizations for "checkout -b" mean that the
             // command will not report modified and deleted files
             this.RunGitCommand("checkout -b tests/functional/ResetMixedToCommitWithNewFileThenCheckoutNewBranchAndCheckoutCommitWithNewFile");
-            this.ValidateGitCommand("checkout f2546f8e9ce7d7b1e3a0835932f0d6a6145665b1");
+            this.ValidateGitCommand("checkout 51d15f7584e81d59d44c1511ce17d7c493903390");
         }
 
         // ReadFileAfterTryingToReadFileAtCommitWhereFileDoesNotExist is meant to exercise the NegativePathCache and its
@@ -390,12 +390,12 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
         {
             this.ControlGitRepo.Fetch(GitRepoTests.ConflictSourceBranch);
 
-            // Commit 170b13ce1990c53944403a70e93c257061598ae0 was prior to the additional of these
-            // three files in commit f2546f8e9ce7d7b1e3a0835932f0d6a6145665b1:
+            // Commit db95d631e379d366d26d899523f8136a77441914 was prior to the additional of these
+            // three files in commit 51d15f7584e81d59d44c1511ce17d7c493903390:
             //    Test_ConflictTests/AddedFiles/AddedByBothDifferentContent.txt
             //    Test_ConflictTests/AddedFiles/AddedByBothSameContent.txt
             //    Test_ConflictTests/AddedFiles/AddedBySource.txt            
-            this.ValidateGitCommand("checkout 170b13ce1990c53944403a70e93c257061598ae0");
+            this.ValidateGitCommand("checkout db95d631e379d366d26d899523f8136a77441914");
 
             // Files should not exist
             this.ShouldNotExistOnDisk(@"Test_ConflictTests\AddedFiles\AddedByBothDifferentContent.txt");
@@ -408,7 +408,7 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
             this.ShouldNotExistOnDisk(@"Test_ConflictTests\AddedFiles\AddedBySource.txt");
 
             // Switch to commit where files should exist
-            this.ValidateGitCommand("checkout f2546f8e9ce7d7b1e3a0835932f0d6a6145665b1");
+            this.ValidateGitCommand("checkout 51d15f7584e81d59d44c1511ce17d7c493903390");
 
             // Confirm files exist
             this.FileContentsShouldMatch(@"Test_ConflictTests\AddedFiles\AddedByBothDifferentContent.txt");
@@ -416,7 +416,7 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
             this.FileContentsShouldMatch(@"Test_ConflictTests\AddedFiles\AddedBySource.txt");
 
             // Switch to commit where files should not exist
-            this.ValidateGitCommand("checkout 170b13ce1990c53944403a70e93c257061598ae0");
+            this.ValidateGitCommand("checkout db95d631e379d366d26d899523f8136a77441914");
 
             // Verify files do not not exist
             this.ShouldNotExistOnDisk(@"Test_ConflictTests\AddedFiles\AddedByBothDifferentContent.txt");
@@ -654,16 +654,16 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
         {
             this.ControlGitRepo.Fetch("FunctionalTests/20171219_MultipleFileEdits");
 
-            this.ValidateGitCommand("checkout 2cea00f61ad600e03c35bfb8db73e4cd5827552f");
+            this.ValidateGitCommand("checkout c0ca0f00063cdc969954fa9cb92dd4abe5e095e0");
             this.ValidateGitCommand("checkout -b tests/functional/ResetMixedTwice");
 
-            // Between the original commit 2cea00f61ad600e03c35bfb8db73e4cd5827552f and the second reset
-            // 437910d00a04aba7672fb011f72bc2acd92ec043, several files are changed, but none are added or
-            // removed.  The middle commit 0782e6e03604316a37049a6aaea5368ff582a727 includes a variety
+            // Between the original commit c0ca0f00063cdc969954fa9cb92dd4abe5e095e0 and the second reset
+            // 3ed4178bcb85085c06a24a76d2989f2364a64589, several files are changed, but none are added or
+            // removed.  The middle commit 2af5f08d010eade3c73a582711a36f0def10d6bc includes a variety
             // of changes including a renamed folder and new and removed files.  The final checkout is
             // expected to error on changed files only.
-            this.ValidateGitCommand("reset --mixed 0782e6e03604316a37049a6aaea5368ff582a727");
-            this.ValidateGitCommand("reset --mixed 437910d00a04aba7672fb011f72bc2acd92ec043");
+            this.ValidateGitCommand("reset --mixed 2af5f08d010eade3c73a582711a36f0def10d6bc");
+            this.ValidateGitCommand("reset --mixed 3ed4178bcb85085c06a24a76d2989f2364a64589");
 
             this.ValidateGitCommand("checkout " + this.ControlGitRepo.Commitish);
         }
@@ -673,16 +673,16 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
         {
             this.ControlGitRepo.Fetch("FunctionalTests/20180102_MultipleFileDeletes");
 
-            this.ValidateGitCommand("checkout d0ffd18c85e2f7aea967d9ea0287ab2677df2067");
+            this.ValidateGitCommand("checkout dee2cd6645752137e4e4eb311319bb95f533c2f1");
             this.ValidateGitCommand("checkout -b tests/functional/ResetMixedTwice");
 
-            // Between the original commit d0ffd18c85e2f7aea967d9ea0287ab2677df2067 and the second reset
-            // da8aaf4cd4d13677b2a71d04d4f3c7290a8ea0da, several files are removed, but none are changed.
-            // The middle commit 95de01c9d5fb413b65d8ba097ed5aecf35477515 includes a variety of changes
+            // Between the original commit dee2cd6645752137e4e4eb311319bb95f533c2f1 and the second reset
+            // 4275906774e9cc37a6875448cd3fcdc5b3ea2be3, several files are removed, but none are changed.
+            // The middle commit c272d4846f2250edfb35fcac60b4b66bb17478fa includes a variety of changes
             // including a renamed folder as well as new, removed and changed files.  The final checkout
             // is expected to error on untracked (new) files only.
-            this.ValidateGitCommand("reset --mixed 95de01c9d5fb413b65d8ba097ed5aecf35477515");
-            this.ValidateGitCommand("reset --mixed da8aaf4cd4d13677b2a71d04d4f3c7290a8ea0da");
+            this.ValidateGitCommand("reset --mixed c272d4846f2250edfb35fcac60b4b66bb17478fa");
+            this.ValidateGitCommand("reset --mixed 4275906774e9cc37a6875448cd3fcdc5b3ea2be3");
 
             this.ValidateGitCommand("checkout " + this.ControlGitRepo.Commitish);
         }
@@ -701,9 +701,9 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
             this.FolderShouldHaveCaseMatchingName(folderName, "GVFlt_MultiThreadTest");
             this.DeleteFolder(folderName);
 
-            // b5fd7d23706a18cff3e2b8225588d479f7e51138 is the commit prior to deleting GVFLT_MultiThreadTest 
+            // 4141dc6023b853740795db41a06b278ebdee0192 is the commit prior to deleting GVFLT_MultiThreadTest 
             // and re-adding it as as GVFlt_MultiThreadTest
-            this.ValidateGitCommand("checkout b5fd7d23706a18cff3e2b8225588d479f7e51138");
+            this.ValidateGitCommand("checkout 4141dc6023b853740795db41a06b278ebdee0192");
             this.FolderShouldHaveCaseMatchingName(folderName, "GVFLT_MultiThreadTest");
         }
 
@@ -783,9 +783,9 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
             this.DeleteFile("GitCommandsTests\\DeleteFileTests\\1\\#test");
             this.FolderShouldExistAndBeEmpty("GitCommandsTests\\DeleteFileTests\\1");
 
-            // Commit 14cf226119766146b1fa5c5aa4cd0896d05f6b63 is before
+            // Commit cb2d05febf64e3b0df50bd8d3fe8f05c0e2caa47 is before
             // the files in GitCommandsTests\DeleteFileTests were added
-            this.ValidateGitCommand("checkout 14cf226119766146b1fa5c5aa4cd0896d05f6b63");
+            this.ValidateGitCommand("checkout cb2d05febf64e3b0df50bd8d3fe8f05c0e2caa47");
 
             this.ShouldNotExistOnDisk("GitCommandsTests\\DeleteFileTests\\1");
             this.ShouldNotExistOnDisk("GitCommandsTests\\DeleteFileTests");
@@ -799,7 +799,7 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
             this.RunGitCommand("reset --hard -q HEAD");
 
             // This commit should remove the DeleteFileWithNameAheadOfDotAndSwitchCommits folder
-            this.ValidateGitCommand("checkout b4d932658def04a97da873fd6adab70014b8a523");
+            this.ValidateGitCommand("checkout 9ba05ac6706d3952995d0a54703fc724ddde57cc");
 
             this.ShouldNotExistOnDisk("DeleteFileWithNameAheadOfDotAndSwitchCommits");
         }
@@ -810,7 +810,7 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
             this.FolderShouldExistAndHaveFile("DeleteFileWithNameAheadOfDotAndSwitchCommits", "1");
 
             // This commit should remove the DeleteFileWithNameAheadOfDotAndSwitchCommits folder
-            this.ValidateGitCommand("checkout b4d932658def04a97da873fd6adab70014b8a523");
+            this.ValidateGitCommand("checkout 9ba05ac6706d3952995d0a54703fc724ddde57cc");
             this.ShouldNotExistOnDisk("DeleteFileWithNameAheadOfDotAndSwitchCommits");
             this.CreateFolder("DeleteFileWithNameAheadOfDotAndSwitchCommits");
             this.ValidateGitCommand("checkout " + this.ControlGitRepo.Commitish);

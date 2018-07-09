@@ -16,8 +16,8 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
     public class UpdatePlaceholderTests : TestsWithEnlistmentPerFixture
     {
         private const string TestParentFolderName = "Test_EPF_UpdatePlaceholderTests";
-        private const string OldCommitId = "7bb7945e4767b43174c7468828b0eaf39bd2f110";
-        private const string NewFilesAndChangesCommitId = "b4d932658def04a97da873fd6adab70014b8a523";
+        private const string OldCommitId = "5d7a7d4db1734fb468a4094469ec58d26301b59d";
+        private const string NewFilesAndChangesCommitId = "fec239ea12de1eda6ae5329d4f345784d5b61ff9";
         private FileSystemRunner fileSystem;
 
         public UpdatePlaceholderTests()

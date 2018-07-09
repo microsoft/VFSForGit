@@ -204,8 +204,8 @@ namespace GVFS.FunctionalTests.Tests
         {
             // Specific commits taken from branch  FunctionalTests/20170206_Conflict_Source
             // These commits have adds, edits and removals
-            const string BaseCommit = "170b13ce1990c53944403a70e93c257061598ae0";
-            const string UpdateCommit = "f2546f8e9ce7d7b1e3a0835932f0d6a6145665b1";
+            const string BaseCommit = "db95d631e379d366d26d899523f8136a77441914";
+            const string UpdateCommit = "51d15f7584e81d59d44c1511ce17d7c493903390";
 
             GitProcess.Invoke(this.fastFetchRepoRoot, "config --local --add core.gvfs 1");
 
@@ -262,10 +262,10 @@ namespace GVFS.FunctionalTests.Tests
         public void SuccessfullyChecksOutCaseChanges()
         {
             // The delta between these two is the same as the UnitTest "caseChange.txt" data file.
-            this.RunFastFetch("--checkout -c b5fd7d23706a18cff3e2b8225588d479f7e51138");
-            this.RunFastFetch("--checkout -c fd4ae4312eb504fd40e78d2d4cf349004967a8b4");
+            this.RunFastFetch("--checkout -c b3ddcf43b997cba3fbf9d2341b297e22bf48601a");
+            this.RunFastFetch("--checkout -c e637c874f6a914ae83cd5668bcdd07293fef961d");
             
-            GitProcess.Invoke(this.fastFetchControlRoot, "checkout fd4ae4312eb504fd40e78d2d4cf349004967a8b4");
+            GitProcess.Invoke(this.fastFetchControlRoot, "checkout e637c874f6a914ae83cd5668bcdd07293fef961d");
 
             try
             {
