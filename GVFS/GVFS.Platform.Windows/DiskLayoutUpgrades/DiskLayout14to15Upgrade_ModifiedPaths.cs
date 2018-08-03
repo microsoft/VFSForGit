@@ -28,25 +28,45 @@ namespace GVFS.Platform.Windows.DiskLayoutUpgrades
                 }
 
                 string sparseCheckoutPath = Path.Combine(enlistmentRoot, GVFSConstants.WorkingDirectoryRootName, GVFSConstants.DotGit.Info.SparseCheckoutPath);
-                IEnumerable<string> sparseCheckoutLines = fileSystem.ReadAllText(sparseCheckoutPath).Split(new string[] { "\r", "\n" }, StringSplitOptions.RemoveEmptyEntries);
                 bool isRetryable;
-                foreach (string entry in sparseCheckoutLines)
+                using (FileStream fs = File.OpenRead(sparseCheckoutPath))
+                using (StreamReader reader = new StreamReader(fs))
                 {
-                    bool isFolder = entry.EndsWith(GVFSConstants.GitPathSeparatorString);
-                    if (!modifiedPaths.TryAdd(entry.Trim(GVFSConstants.GitPathSeparator), isFolder, out isRetryable))
+                    string entry = reader.ReadLine();
+                    while (entry != null)
                     {
-                        tracer.RelatedError("Unable to add to the modified paths database.");
-                        return false;
+                        entry = entry.Trim();
+                        if (!string.IsNullOrWhiteSpace(entry))
+                        {
+                            bool isFolder = entry.EndsWith(GVFSConstants.GitPathSeparatorString);
+                            if (!modifiedPaths.TryAdd(entry.Trim(GVFSConstants.GitPathSeparator), isFolder, out isRetryable))
+                            {
+                                tracer.RelatedError("Unable to add to the modified paths database.");
+                                return false;
+                            }
+                        }
+
+                        entry = reader.ReadLine();
                     }
                 }
 
                 string alwaysExcludePath = Path.Combine(enlistmentRoot, GVFSConstants.WorkingDirectoryRootName, GVFSConstants.DotGit.Info.AlwaysExcludePath);
                 if (fileSystem.FileExists(alwaysExcludePath))
                 {
-                    string[] alwaysExcludeLines = fileSystem.ReadAllText(alwaysExcludePath).Split(new string[] { "\r", "\n" }, StringSplitOptions.RemoveEmptyEntries);
-                    for (int i = alwaysExcludeLines.Length - 1; i >= 0; i--)
+                    string alwaysExcludeData = fileSystem.ReadAllText(alwaysExcludePath);
+
+                    char[] carriageReturnOrLineFeed = new[] { '\r', '\n' };
+                    int endPosition = alwaysExcludeData.Length;
+                    while (endPosition > 0)
                     {
-                        string entry = alwaysExcludeLines[i];
+                        int startPosition = alwaysExcludeData.LastIndexOfAny(carriageReturnOrLineFeed, endPosition - 1);
+                        if (startPosition < 0)
+                        {
+                            startPosition = 0;
+                        }
+
+                        string entry = alwaysExcludeData.Substring(startPosition, endPosition - startPosition).Trim();
+
                         if (entry.EndsWith("*"))
                         {
                             // This is the first entry using the old format and we don't want to process old entries
@@ -55,16 +75,23 @@ namespace GVFS.Platform.Windows.DiskLayoutUpgrades
                             break;
                         }
 
-                        entry = entry.TrimStart('!');
-                        bool isFolder = entry.EndsWith(GVFSConstants.GitPathSeparatorString);
-                        if (!isFolder)
+                        // Substring will not return a null and the Trim will get rid of all the whitespace
+                        // if there is a length it will be a valid path that we need to process
+                        if (entry.Length > 0)
                         {
-                            if (!modifiedPaths.TryAdd(entry.Trim(GVFSConstants.GitPathSeparator), isFolder, out isRetryable))
+                            entry = entry.TrimStart('!');
+                            bool isFolder = entry.EndsWith(GVFSConstants.GitPathSeparatorString);
+                            if (!isFolder)
                             {
-                                tracer.RelatedError("Unable to add to the modified paths database.");
-                                return false;
+                                if (!modifiedPaths.TryAdd(entry.Trim(GVFSConstants.GitPathSeparator), isFolder, out isRetryable))
+                                {
+                                    tracer.RelatedError("Unable to add to the modified paths database.");
+                                    return false;
+                                }
                             }
                         }
+
+                        endPosition = startPosition;
                     }
                 }
 

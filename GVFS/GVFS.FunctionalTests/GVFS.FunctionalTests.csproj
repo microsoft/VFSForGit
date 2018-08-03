@@ -2,7 +2,7 @@
   <Import Project="..\GVFS.Build\GVFS.cs.props" />
   <PropertyGroup>
     <OutputType>Exe</OutputType>
-    <TargetFramework>netcoreapp2.0</TargetFramework>
+    <TargetFramework>netcoreapp2.1</TargetFramework>
     <Platforms>x64</Platforms>
   </PropertyGroup>
 
@@ -37,7 +37,7 @@
     <WindowsBuildOutputs Include="$(BuildOutputDir)\GVFS.Mount.Windows\bin\$(Platform)\$(Configuration)\**\*.*" />
     <WindowsBuildOutputs Include="$(BuildOutputDir)\FastFetch\bin\$(Platform)\$(Configuration)\**\*.*" />
     <WindowsBuildOutputs Include="$(BuildOutputDir)\GVFS.NativeTests\bin\$(Platform)\$(Configuration)\**\*.*" />
-    <WindowsBuildOutputs Include="$(BuildOutputDir)\GVFS.Hooks\bin\$(Platform)\$(Configuration)\**\*.*" />
+    <WindowsBuildOutputs Include="$(BuildOutputDir)\GVFS.Hooks.Windows\bin\$(Platform)\$(Configuration)\**\*.*" />
     <WindowsBuildOutputs Include="$(BuildOutputDir)\GVFS.FunctionalTests.LockHolder\bin\$(Platform)\$(Configuration)\**\*.*" />
   </ItemGroup>
 

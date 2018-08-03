@@ -83,6 +83,9 @@
     <Compile Include="..\GVFS.Common\NamedPipes\NamedPipeClient.cs">
       <Link>Common\NamedPipes\NamedPipeClient.cs</Link>
     </Compile>
+    <Compile Include="..\GVFS.Common\NamedPipes\NamedPipeStreamWriterExtensions.cs">
+      <Link>Common\NamedPipes\NamedPipeStreamWriterExtensions.cs</Link>
+    </Compile>
     <Compile Include="..\GVFS.Common\NativeMethods.Shared.cs">
       <Link>Common\NativeMethods.Shared.cs</Link>
     </Compile>
@@ -116,6 +119,7 @@
     <Compile Include="..\GVFS.Platform.Windows\WindowsPlatform.Shared.cs">
       <Link>Windows\WindowsPlatform.Shared.cs</Link>
     </Compile>
+    <Compile Include="HooksPlatform\GVFSHooksPlatform.Windows.cs" />
     <Compile Include="KnownGitCommands.cs" />
     <Compile Include="Program.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />

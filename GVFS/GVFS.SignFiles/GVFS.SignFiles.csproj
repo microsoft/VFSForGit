@@ -37,18 +37,16 @@
     <FilesToSign Include="
       $(BuildOutputDir)\GitHooksLoader\bin\$(Platform)\$(Configuration)\GitHooksLoader.exe;
       $(BuildOutputDir)\FastFetch\bin\$(Platform)\$(Configuration)\FastFetch.exe;
-      $(BuildOutputDir)\GVFS.Common\bin\$(Platform)\$(Configuration)\netcoreapp2.0\GVFS.Common.dll;
       $(BuildOutputDir)\GVFS.Common\bin\$(Platform)\$(Configuration)\netstandard2.0\GVFS.Common.dll;
       $(BuildOutputDir)\GVFS.GVFlt\bin\$(Platform)\$(Configuration)\GVFS.GVFlt.dll;
-      $(BuildOutputDir)\GVFS.Hooks\bin\$(Platform)\$(Configuration)\GVFS.Hooks.exe;
+      $(BuildOutputDir)\GVFS.Hooks.Windows\bin\$(Platform)\$(Configuration)\GVFS.Hooks.exe;
       $(BuildOutputDir)\GVFS.Mount.Windows\bin\$(Platform)\$(Configuration)\GVFS.Mount.exe;
       $(BuildOutputDir)\GVFS.Platform.Windows\bin\$(Platform)\$(Configuration)\GVFS.Platform.Windows.dll;
-      $(BuildOutputDir)\GVFS.ReadObjectHook\bin\$(Platform)\$(Configuration)\GVFS.ReadObjectHook.exe;
+      $(BuildOutputDir)\GVFS.ReadObjectHook.Windows\bin\$(Platform)\$(Configuration)\GVFS.ReadObjectHook.exe;
       $(BuildOutputDir)\GVFS.Service\bin\$(Platform)\$(Configuration)\GVFS.Service.exe;
       $(BuildOutputDir)\GVFS.Service.UI\bin\$(Platform)\$(Configuration)\GVFS.Service.UI.exe;
-      $(BuildOutputDir)\GVFS.Virtualization\bin\$(Platform)\$(Configuration)\netcoreapp2.0\GVFS.Virtualization.dll;
       $(BuildOutputDir)\GVFS.Virtualization\bin\$(Platform)\$(Configuration)\netstandard2.0\GVFS.Virtualization.dll;
-      $(BuildOutputDir)\GVFS.VirtualFileSystemHook\bin\$(Platform)\$(Configuration)\GVFS.VirtualFileSystemHook.exe;
+      $(BuildOutputDir)\GVFS.VirtualFileSystemHook.Windows\bin\$(Platform)\$(Configuration)\GVFS.VirtualFileSystemHook.exe;
       $(BuildOutputDir)\GVFS.Windows\bin\$(Platform)\$(Configuration)\GVFS.exe;">
       <Authenticode>Microsoft</Authenticode>
       <InProject>false</InProject>

@@ -1,6 +1,6 @@
 ﻿using GVFS.Tests.Should;
+using GVFS.UnitTests.Mock.Common;
 using NUnit.Framework;
-using System;
 using System.Text;
 using static GVFS.Virtualization.Projection.GitIndexProjection;
 
@@ -9,7 +9,21 @@ namespace GVFS.UnitTests.Virtualization.Git
     [TestFixture]
     public class LazyUTF8StringTests
     {
+        private const int DefaultIndexEntryCount = 10;
+
         private unsafe delegate void RunUsingPointer(byte* buffer);
+
+        [OneTimeSetUp]
+        public void Setup()
+        {
+            LazyUTF8String.InitializePools(new MockTracer(), DefaultIndexEntryCount);
+        }
+
+        [SetUp]
+        public void TestSetup()
+        {
+            LazyUTF8String.ResetPool(new MockTracer(), DefaultIndexEntryCount);
+        }
 
         [TestCase]
         public unsafe void GetString()
@@ -209,7 +223,7 @@ namespace GVFS.UnitTests.Virtualization.Git
         [TestCase]
         public unsafe void ShrinkPool_DecreasesPoolSize()
         {
-            LazyUTF8String.ResetPool();
+            LazyUTF8String.ResetPool(new MockTracer(), DefaultIndexEntryCount);
             string fileAndFolderNames = "folderSDKfile.txtDKfolders";
             UseASCIIBytePointer(
                 fileAndFolderNames,
@@ -225,7 +239,7 @@ namespace GVFS.UnitTests.Virtualization.Git
         [TestCase]
         public unsafe void ExpandAfterShrinkPool_AllocatesDefault()
         {
-            LazyUTF8String.ResetPool();
+            LazyUTF8String.ResetPool(new MockTracer(), DefaultIndexEntryCount);
             string fileAndFolderNames = "folderSDKfile.txtDKfolders";
             UseASCIIBytePointer(
                 fileAndFolderNames,
@@ -252,7 +266,7 @@ namespace GVFS.UnitTests.Virtualization.Git
         [TestCase]
         public unsafe void PoolSizeIncreasesAfterShrinking()
         {
-            LazyUTF8String.ResetPool();
+            LazyUTF8String.ResetPool(new MockTracer(), DefaultIndexEntryCount);
             string fileAndFolderNames = "folderSDKfile.txtDKfolders";
             UseASCIIBytePointer(
                 fileAndFolderNames,
@@ -268,7 +282,7 @@ namespace GVFS.UnitTests.Virtualization.Git
                     LazyUTF8String.FromByteArray(bufferPtr + 17, 2);
                     LazyUTF8String.FromByteArray(bufferPtr, 6);
 
-                    CheckPoolSizes(expectedBytePoolSize: 6 + initialBytePoolSize, expectedStringPoolSize: 2 + initialStringPoolSize);
+                    CheckPoolSizes(expectedBytePoolSize: initialBytePoolSize, expectedStringPoolSize: initialStringPoolSize);
                 });
         }
 

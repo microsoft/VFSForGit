@@ -1,4 +1,5 @@
 ﻿using GVFS.FunctionalTests.FileSystemRunners;
+using GVFS.FunctionalTests.Properties;
 using GVFS.FunctionalTests.Should;
 using GVFS.FunctionalTests.Tools;
 using GVFS.Tests.Should;
@@ -45,7 +46,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
         {
             this.Enlistment.UnmountGVFS();
 
-            string readObjectPath = this.Enlistment.GetVirtualPathTo(".git", "hooks", "read-object.exe");
+            string readObjectPath = this.Enlistment.GetVirtualPathTo(".git", "hooks", "read-object" + Settings.Default.BinaryFileNameExtension);
             readObjectPath.ShouldBeAFile(this.fileSystem);
             this.fileSystem.DeleteFile(readObjectPath);
             readObjectPath.ShouldNotExistOnDisk(this.fileSystem);

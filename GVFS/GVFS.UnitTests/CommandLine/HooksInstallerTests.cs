@@ -19,7 +19,10 @@ namespace GVFS.UnitTests.CommandLine
         public void MergeHooksDataThrowsOnFoundGVFSHooks()
         {
             Assert.Throws<HooksInstaller.HooksConfigurationException>(
-                () => HooksInstaller.MergeHooksData(new string[] { "first", "gvfs.hooks.exe" }, Filename, GVFSConstants.DotGit.Hooks.PreCommandHookName));
+                () => HooksInstaller.MergeHooksData(
+                    new string[] { "first", GVFSPlatform.Instance.Constants.GVFSHooksExecutableName }, 
+                    Filename, 
+                    GVFSConstants.DotGit.Hooks.PreCommandHookName));
         }
 
         [TestCase]
@@ -30,7 +33,7 @@ namespace GVFS.UnitTests.CommandLine
                 .Split(new char[] { '\n', '\r' }, StringSplitOptions.RemoveEmptyEntries)
                 .Where(line => !line.StartsWith("#"));
 
-            resultLines.Single().ShouldEqual(GVFSConstants.GVFSHooksExecutableName);
+            resultLines.Single().ShouldEqual(GVFSPlatform.Instance.Constants.GVFSHooksExecutableName);
         }
 
         [TestCase]
@@ -44,7 +47,7 @@ namespace GVFS.UnitTests.CommandLine
             resultLines.Count().ShouldEqual(3);
             resultLines.ElementAt(0).ShouldEqual("first");
             resultLines.ElementAt(1).ShouldEqual("second");
-            resultLines.ElementAt(2).ShouldEqual(GVFSConstants.GVFSHooksExecutableName);
+            resultLines.ElementAt(2).ShouldEqual(GVFSPlatform.Instance.Constants.GVFSHooksExecutableName);
         }
 
         [TestCase]
@@ -56,7 +59,7 @@ namespace GVFS.UnitTests.CommandLine
                 .Where(line => !line.StartsWith("#"));
 
             resultLines.Count().ShouldEqual(3);
-            resultLines.ElementAt(0).ShouldEqual(GVFSConstants.GVFSHooksExecutableName);
+            resultLines.ElementAt(0).ShouldEqual(GVFSPlatform.Instance.Constants.GVFSHooksExecutableName);
             resultLines.ElementAt(1).ShouldEqual("first");
             resultLines.ElementAt(2).ShouldEqual("second");
         }
@@ -72,7 +75,7 @@ namespace GVFS.UnitTests.CommandLine
             resultLines.Count().ShouldEqual(3);
             resultLines.ElementAt(0).ShouldEqual("first");
             resultLines.ElementAt(1).ShouldEqual("second");
-            resultLines.ElementAt(2).ShouldEqual(GVFSConstants.GVFSHooksExecutableName);
+            resultLines.ElementAt(2).ShouldEqual(GVFSPlatform.Instance.Constants.GVFSHooksExecutableName);
         }
     }
 }

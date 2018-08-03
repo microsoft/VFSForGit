@@ -29,7 +29,7 @@ namespace GVFS.Common
                   gvfsHooksRoot,
                   flushFileBuffersForPacks: true)
         {
-            this.NamedPipeName = Paths.GetNamedPipeName(this.EnlistmentRoot);
+            this.NamedPipeName = GVFSPlatform.Instance.GetNamedPipeName(this.EnlistmentRoot);
             this.DotGVFSRoot = Path.Combine(this.EnlistmentRoot, GVFSConstants.DotGVFS.Root);
             this.GVFSLogsRoot = Path.Combine(this.EnlistmentRoot, GVFSConstants.DotGVFS.LogPath);
             this.LocalObjectsRoot = Path.Combine(this.WorkingDirectoryRoot, GVFSConstants.DotGit.Objects.Root);
@@ -119,7 +119,7 @@ namespace GVFS.Common
         public static bool WaitUntilMounted(string enlistmentRoot, bool unattended, out string errorMessage)
         {
             errorMessage = null;
-            using (NamedPipeClient pipeClient = new NamedPipeClient(Paths.GetNamedPipeName(enlistmentRoot)))
+            using (NamedPipeClient pipeClient = new NamedPipeClient(GVFSPlatform.Instance.GetNamedPipeName(enlistmentRoot)))
             {
                 int timeout = unattended ? 300000 : 60000;
                 if (!pipeClient.Connect(timeout))

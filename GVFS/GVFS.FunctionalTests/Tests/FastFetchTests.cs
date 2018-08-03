@@ -45,13 +45,13 @@ namespace GVFS.FunctionalTests.Tests
         [TearDown]
         public void TearDownTests()
         {
-            CmdRunner.DeleteDirectoryWithRetry(this.fastFetchRepoRoot);
+            CmdRunner.DeleteDirectoryWithUnlimitedRetries(this.fastFetchRepoRoot);
         }
 
         [OneTimeTearDown]
         public void DeleteControlRepo()
         {
-            CmdRunner.DeleteDirectoryWithRetry(this.fastFetchControlRoot);
+            CmdRunner.DeleteDirectoryWithUnlimitedRetries(this.fastFetchControlRoot);
         }
         
         [TestCase]

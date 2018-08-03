@@ -31,6 +31,7 @@ If you'd like to build your own VFS for Git Windows installer:
     * C++/CLI support
     * VC++ 2015.3 v140 toolset
     * Windows 10 SDK (10.0.10240.0)
+* Install the .NET Core 2.1 SDK (https://www.microsoft.com/net/download/dotnet-core/2.1)
 * Create a folder to clone into, e.g. `C:\Repos\VFSForGit`
 * Clone this repo into the `src` subfolder, e.g. `C:\Repos\VFSForGit\src`
 * Run `\src\Scripts\BuildGVFSForWindows.bat`

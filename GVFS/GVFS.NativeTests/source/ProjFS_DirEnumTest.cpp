@@ -260,7 +260,7 @@ bool ProjFS_EnumTestNoMoreNoSuchReturnCodes(const char* virtualRootPath)
             restartScan);
 
         // Check expected status code for a repeat query on a given handle for a non-existent name.
-        VERIFY_ARE_EQUAL(STATUS_NO_SUCH_FILE, repeatStatus);
+        VERIFY_ARE_EQUAL(STATUS_NO_MORE_FILES, repeatStatus);
 
         // Once more, this time without SL_RESTART_SCAN.
         restartScan = false;

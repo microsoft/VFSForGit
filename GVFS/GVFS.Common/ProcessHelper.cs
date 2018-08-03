@@ -9,25 +9,6 @@ namespace GVFS.Common
 {
     public static class ProcessHelper
     {
-        private const int StillActive = 259; /* from Win32 STILL_ACTIVE */
-
-        public static bool IsProcessActive(int processId)
-        {
-            using (SafeFileHandle process = NativeMethods.OpenProcess(NativeMethods.ProcessAccessFlags.QueryLimitedInformation, false, processId))
-            {
-                if (!process.IsInvalid)
-                {
-                    uint exitCode;
-                    if (NativeMethods.GetExitCodeProcess(process, out exitCode) && exitCode == StillActive)
-                    {
-                        return true;
-                    }
-                }
-
-                return false;
-            }
-        }
-
         public static ProcessResult Run(string programName, string args, bool redirectOutput = true)
         {
             ProcessStartInfo processInfo = new ProcessStartInfo(programName);

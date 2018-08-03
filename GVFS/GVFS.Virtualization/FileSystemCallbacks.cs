@@ -488,10 +488,17 @@ namespace GVFS.Virtualization
             {
                 this.context.Tracer.RelatedInfo("Aborting post-fetch job due to ThreadAbortException");
             }
+            catch (IOException e)
+            {
+                this.context.Tracer.RelatedWarning(
+                    metadata: this.CreateEventMetadata(null, e),
+                    message: PostFetchTelemetryKey + ": IOException while running post-fetch job: " + e.Message,
+                    keywords: Keywords.Telemetry);
+            }
             catch (Exception e)
             {
                 this.context.Tracer.RelatedError(
-                    metadata: null,
+                    metadata: this.CreateEventMetadata(null, e),
                     message: PostFetchTelemetryKey + ": Exception while running post-fetch job: " + e.Message,
                     keywords: Keywords.Telemetry);
                 Environment.Exit((int)ReturnCode.GenericError);

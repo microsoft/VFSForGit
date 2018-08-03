@@ -70,7 +70,7 @@ namespace GVFS.Common.Git
             return output.Succeeded && output.Result.Success;
         }
 
-        public void DeleteStaleTempPrefetchPackAndIdxs()
+        public virtual void DeleteStaleTempPrefetchPackAndIdxs()
         {
             string[] staleTempPacks = this.ReadPackFileNames(Path.Combine(this.Enlistment.GitPackRoot, GitObjects.TempPackFolder), GVFSConstants.PrefetchPackPrefix);
             foreach (string stalePackPath in staleTempPacks)
@@ -92,7 +92,7 @@ namespace GVFS.Common.Git
             }
         }
 
-        public bool TryDownloadPrefetchPacks(long latestTimestamp, out List<string> packIndexes)
+        public virtual bool TryDownloadPrefetchPacks(long latestTimestamp, out List<string> packIndexes)
         {
             EventMetadata metadata = CreateEventMetadata();
             metadata.Add("latestTimestamp", latestTimestamp);

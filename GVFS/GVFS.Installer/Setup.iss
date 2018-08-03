@@ -7,13 +7,13 @@
 #define VCRuntimeDir PackagesDir + "\GVFS.VCRuntime.0.1.0-build\lib\x64"
 #define GVFSDir BuildOutputDir + "\GVFS.Windows\bin\" + PlatformAndConfiguration
 #define GVFSCommonDir BuildOutputDir + "\GVFS.Common\bin\" + PlatformAndConfiguration + "\netstandard2.0"
-#define HooksDir BuildOutputDir + "\GVFS.Hooks\bin\" + PlatformAndConfiguration
+#define HooksDir BuildOutputDir + "\GVFS.Hooks.Windows\bin\" + PlatformAndConfiguration
 #define HooksLoaderDir BuildOutputDir + "\GitHooksLoader\bin\" + PlatformAndConfiguration
 #define ServiceDir BuildOutputDir + "\GVFS.Service\bin\" + PlatformAndConfiguration
 #define ServiceUIDir BuildOutputDir + "\GVFS.Service.UI\bin\" + PlatformAndConfiguration
 #define GVFSMountDir BuildOutputDir + "\GVFS.Mount.Windows\bin\" + PlatformAndConfiguration
-#define ReadObjectDir BuildOutputDir + "\GVFS.ReadObjectHook\bin\" + PlatformAndConfiguration
-#define VirtualFileSystemDir BuildOutputDir + "\GVFS.VirtualFileSystemHook\bin\" + PlatformAndConfiguration
+#define ReadObjectDir BuildOutputDir + "\GVFS.ReadObjectHook.Windows\bin\" + PlatformAndConfiguration
+#define VirtualFileSystemDir BuildOutputDir + "\GVFS.VirtualFileSystemHook.Windows\bin\" + PlatformAndConfiguration
 
 #define MyAppName "GVFS"
 #define MyAppInstallerVersion GetFileVersion(GVFSDir + "\GVFS.exe")

@@ -60,7 +60,7 @@ namespace GVFS.CommandLine
         public static bool TrySetRequiredGitConfigSettings(Enlistment enlistment)
         {
             string expectedHooksPath = Path.Combine(enlistment.WorkingDirectoryRoot, GVFSConstants.DotGit.Hooks.Root);
-            expectedHooksPath = expectedHooksPath.Replace('\\', '/');
+            expectedHooksPath = Paths.ConvertPathToGitFormat(expectedHooksPath);
 
             // These settings are required for normal GVFS functionality.
             // They will override any existing local configuration values.
@@ -81,8 +81,8 @@ namespace GVFS.CommandLine
                 { "core.bare", "false" },
                 { "core.logallrefupdates", "true" },
                 { GitConfigSetting.CoreVirtualizeObjectsName, "true" },
+                { GitConfigSetting.CoreVirtualFileSystemName, Paths.ConvertPathToGitFormat(GVFSConstants.DotGit.Hooks.VirtualFileSystemPath) },
                 { "core.hookspath", expectedHooksPath },
-                { GitConfigSetting.CoreVirtualFileSystemName, GVFSConstants.DotGit.Hooks.VirtualFileSystemPath.Replace(Path.DirectorySeparatorChar, GVFSConstants.GitPathSeparator) },
                 { "credential.validate", "false" },
                 { "diff.autoRefreshIndex", "false" },
                 { "gc.auto", "0" },
@@ -991,10 +991,10 @@ You can specify a URL, a name of a configured cache server, or the special names
                 }                
                 else
                 {
-                    hooksPath = ProcessHelper.WhereDirectory(GVFSConstants.GVFSHooksExecutableName);
+                    hooksPath = ProcessHelper.WhereDirectory(GVFSPlatform.Instance.Constants.GVFSHooksExecutableName);
                     if (hooksPath == null)
                     {
-                        this.ReportErrorAndExit("Could not find " + GVFSConstants.GVFSHooksExecutableName);
+                        this.ReportErrorAndExit("Could not find " + GVFSPlatform.Instance.Constants.GVFSHooksExecutableName);
                     }
                 }             
                 

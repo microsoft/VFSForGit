@@ -3,6 +3,7 @@ using GVFS.CommandLine;
 using GVFS.Common;
 using GVFS.PlatformLoader;
 using System;
+using System.IO;
 using System.Linq;
 
 namespace GVFS
@@ -28,6 +29,21 @@ namespace GVFS
                 typeof(UnmountVerb),
             };
 
+            int consoleWidth = 80;
+
+            // Running in a headless environment can result in a Console with a
+            // WindowWidth of 0, which causes issues with CommandLineParser
+            try
+            {
+                if (Console.WindowWidth > 0)
+                {
+                    consoleWidth = Console.WindowWidth;
+                }
+            }
+            catch (IOException)
+            {
+            }
+
             try
             {
                 new Parser(
@@ -37,6 +53,7 @@ namespace GVFS
                         settings.EnableDashDash = true;
                         settings.IgnoreUnknownArguments = false;
                         settings.HelpWriter = Console.Error;
+                        settings.MaximumDisplayWidth = consoleWidth;
                     })
                     .ParseArguments(args, verbTypes)
                     .WithNotParsed(

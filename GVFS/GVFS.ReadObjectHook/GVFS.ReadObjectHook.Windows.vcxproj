@@ -15,6 +15,8 @@
     <Keyword>Win32Proj</Keyword>
     <RootNamespace>readobject</RootNamespace>
     <WindowsTargetPlatformVersion>10.0.10240.0</WindowsTargetPlatformVersion>
+    <ProjectName>GVFS.ReadObjectHook.Windows</ProjectName>
+    <TargetName>GVFS.ReadObjectHook</TargetName>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
   <Import Project="$(SolutionDir)\GVFS\GVFS.Build\GVFS.cpp.props" />
@@ -109,6 +111,7 @@
     <ClInclude Include="targetver.h" />
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="..\GVFS.NativeHooks.Common\common.windows.cpp" />
     <ClCompile Include="main.cpp" />
     <ClCompile Include="packet.cpp" />
     <ClCompile Include="stdafx.cpp">

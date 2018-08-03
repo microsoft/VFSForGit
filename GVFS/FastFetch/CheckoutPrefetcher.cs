@@ -12,12 +12,12 @@ using System.Linq;
 
 namespace FastFetch
 {
-    public class CheckoutFetchHelper : PrefetchHelper
+    public class CheckoutPrefetcher : BlobPrefetcher
     {
         private readonly bool allowIndexMetadataUpdateFromWorkingTree;
         private readonly int checkoutThreadCount;
 
-        public CheckoutFetchHelper(
+        public CheckoutPrefetcher(
             ITracer tracer,
             Enlistment enlistment,
             GitObjectsHttpRequestor objectRequestor,
@@ -64,7 +64,7 @@ namespace FastFetch
             this.DownloadMissingCommit(commitToFetch, this.GitObjects);
 
             // Configure pipeline
-            // Checkout uses DiffHelper when running checkout.Start(), which we use instead of LsTreeHelper like in FetchHelper.cs
+            // Checkout uses DiffHelper when running checkout.Start(), which we use instead of LsTreeHelper
             // Checkout diff output => FindMissingBlobs => BatchDownload => IndexPack => Checkout available blobs
             CheckoutJob checkout = new CheckoutJob(this.checkoutThreadCount, this.FolderList, commitToFetch, this.Tracer, this.Enlistment);
             FindMissingBlobsJob blobFinder = new FindMissingBlobsJob(this.SearchThreadCount, checkout.RequiredBlobs, checkout.AvailableBlobShas, this.Tracer, this.Enlistment);

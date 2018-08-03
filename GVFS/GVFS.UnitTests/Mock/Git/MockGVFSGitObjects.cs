@@ -2,6 +2,7 @@
 using GVFS.Common.Git;
 using GVFS.Common.Http;
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Threading;
 
@@ -52,6 +53,26 @@ namespace GVFS.UnitTests.Mock.Git
                 new MemoryStream(new byte[this.FileLength]), 
                 this.FileLength);
 
+            return true;
+        }
+
+        public override string[] ReadPackFileNames(string packFolderPath, string prefixFilter = "")
+        {
+            return Array.Empty<string>();
+        }
+
+        public override GitProcess.Result IndexPackFile(string packfilePath)
+        {
+            return new GitProcess.Result("mocked", null, 0);
+        }
+
+        public override void DeleteStaleTempPrefetchPackAndIdxs()
+        {
+        }
+
+        public override bool TryDownloadPrefetchPacks(long latestTimestamp, out List<string> packIndexes)
+        {
+            packIndexes = new List<string>();
             return true;
         }
     }

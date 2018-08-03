@@ -18,52 +18,50 @@ int main(int argc, char *argv[])
         die(VirtualFileSystemErrorReturnCode::ErrorVirtualFileSystemProtocol, "Bad version");
     }
 
-    // set the mode to binary so we don't get CRLF translation
-    _setmode(_fileno(stdin), _O_BINARY);
-    _setmode(_fileno(stdout), _O_BINARY);
+    DisableCRLFTranslationOnStdPipes();
 
-    std::wstring pipeName(GetGVFSPipeName(argv[0]));
-    HANDLE pipeHandle = CreatePipeToGVFS(pipeName);
+    PATH_STRING pipeName(GetGVFSPipeName(argv[0]));
+    PIPE_HANDLE pipeHandle = CreatePipeToGVFS(pipeName);
 
     // Construct projection request message
-    DWORD bytesWritten;
-    DWORD messageLength = 6;
-    BOOL success = WriteFile(
-        pipeHandle,             // pipe handle 
-        "MPL|1\n",              // message 
-        messageLength,          // message length 
-        &bytesWritten,          // bytes written 
-        NULL);                  // not overlapped 
+    unsigned long bytesWritten;
+    unsigned long messageLength = 6;
+    int error = 0;
+    bool success = WriteToPipe(
+        pipeHandle,
+        "MPL|1\n",
+        messageLength,
+        &bytesWritten,
+        &error);
 
     if (!success || bytesWritten != messageLength)
     {
-        die(ReturnCode::PipeWriteFailed, "Failed to write to pipe (%d)\n", GetLastError());
+        die(ReturnCode::PipeWriteFailed, "Failed to write to pipe (%d)\n", error);
     }
 
     char message[1024];
-    DWORD bytesRead;
-    DWORD lastError;
-    BOOL finishedReading = false;
-    BOOL firstRead = true;
+    unsigned long bytesRead;
+    int lastError;
+    bool finishedReading = false;
+    bool firstRead = true;
     do
     {
         char *pMessage = &message[0];
 
-        // Read from the pipe. 
-        success = ReadFile(
-            pipeHandle,         // pipe handle 
-            message,            // buffer to receive reply 
-            sizeof(message),    // size of buffer 
-            &bytesRead,         // number of bytes read 
-            NULL);              // not overlapped 
+        success = ReadFromPipe(
+            pipeHandle,
+            message,
+            sizeof(message),
+            &bytesRead,
+            &lastError);
 
-        lastError = GetLastError();
-        if (!success && lastError != ERROR_MORE_DATA)
+        if (!success)
         {
             break;
         }
-
+        
         messageLength = bytesRead;
+
         if (firstRead)
         {
             firstRead = false;
@@ -76,14 +74,7 @@ int main(int argc, char *argv[])
             messageLength -= 2;
         }
 
-        // minus 2 to remove the CRLF at the end
         if (*(pMessage + messageLength - 1) == '\n')
-        {
-            finishedReading = true;
-            messageLength -= 1;
-        }
-
-        if (*(pMessage + messageLength - 1) == '\r')
         {
             finishedReading = true;
             messageLength -= 1;
@@ -91,11 +82,11 @@ int main(int argc, char *argv[])
 
         fwrite(pMessage, 1, messageLength, stdout);
 
-    } while (success && !finishedReading);  // repeat loop if ERROR_MORE_DATA 
+    } while (success && !finishedReading);
 
     if (!success)
     {
-        die(ReturnCode::PipeReadFailed, "Read response from pipe failed (%d)\n", GetLastError());
+        die(ReturnCode::PipeReadFailed, "Read response from pipe failed (%d)\n", lastError);
     }
 
     return 0;

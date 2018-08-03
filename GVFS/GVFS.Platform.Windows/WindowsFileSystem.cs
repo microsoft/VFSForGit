@@ -25,6 +25,10 @@ namespace GVFS.Platform.Windows
             NativeMethods.CreateHardLink(newFileName, existingFileName);
         }
 
+        public void ChangeMode(string path, int mode)
+        {
+        }
+
         public bool TryGetNormalizedPath(string path, out string normalizedPath, out string errorMessage)
         {
             return WindowsFileSystem.TryGetNormalizedPathImplementation(path, out normalizedPath, out errorMessage);

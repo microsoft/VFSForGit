@@ -264,6 +264,7 @@ namespace GVFS.FunctionalTests.Windows.Tests
             }
         }
 
+        [TestCase]
         public void MountCreatesModifiedPathsDatabase()
         {
             this.Enlistment.UnmountGVFS();

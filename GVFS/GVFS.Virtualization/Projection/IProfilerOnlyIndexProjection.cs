@@ -1,4 +1,6 @@
-﻿namespace GVFS.Virtualization.Projection
+﻿using GVFS.Common.Tracing;
+
+namespace GVFS.Virtualization.Projection
 {
     /// <summary>
     /// Interface used for performace profiling GitIndexProjection.  This interface
@@ -8,6 +10,6 @@
     public interface IProfilerOnlyIndexProjection
     {
         void ForceRebuildProjection();
-        void ForceAddMissingModifiedPaths();
+        void ForceAddMissingModifiedPaths(ITracer tracer);
     }
 }

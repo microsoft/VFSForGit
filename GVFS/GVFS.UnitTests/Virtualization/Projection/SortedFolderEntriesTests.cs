@@ -1,4 +1,5 @@
 ﻿using GVFS.Tests.Should;
+using GVFS.UnitTests.Mock.Common;
 using NUnit.Framework;
 using System;
 using System.Collections.Generic;
@@ -10,6 +11,7 @@ namespace GVFS.UnitTests.Virtualization.Git
     [TestFixture]
     public class SortedFolderEntriesTests
     {
+        private const int DefaultIndexEntryCount = 100;
         private static string[] defaultFiles = new string[]
         {
             "_test",
@@ -31,6 +33,20 @@ namespace GVFS.UnitTests.Virtualization.Git
             "(1f)",
             "folder",
         };
+
+        [OneTimeSetUp]
+        public void Setup()
+        {
+            LazyUTF8String.InitializePools(new MockTracer(), DefaultIndexEntryCount);
+            SortedFolderEntries.InitializePools(new MockTracer(), DefaultIndexEntryCount);
+        }
+
+        [SetUp]
+        public void TestSetup()
+        {
+            LazyUTF8String.ResetPool(new MockTracer(), DefaultIndexEntryCount);
+            SortedFolderEntries.ResetPool(new MockTracer(), DefaultIndexEntryCount);
+        }
 
         [TestCase]
         public void EmptyFolderEntries_NotFound()

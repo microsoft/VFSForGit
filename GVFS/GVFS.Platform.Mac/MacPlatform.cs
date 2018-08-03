@@ -4,12 +4,18 @@ using GVFS.Common.Git;
 using GVFS.Common.Tracing;
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.IO.Pipes;
 
 namespace GVFS.Platform.Mac
 {
-    public class MacPlatform : GVFSPlatform
+    public partial class MacPlatform : GVFSPlatform
     {
+        public MacPlatform()
+            : base(executableExtension: string.Empty)
+        {
+        }
+
         public override IKernelDriver KernelDriver { get; } = new ProjFSKext();
         public override IGitInstallation GitInstallation { get; } = new MacGitInstallation();
         public override IDiskLayoutUpgradeData DiskLayoutUpgrade { get; } = new MacDiskLayoutUpgradeData();
@@ -29,6 +35,25 @@ namespace GVFS.Platform.Mac
             hooksVersion = ProcessHelper.GetCurrentProcessVersion();
             error = null;
             return true;
+        }
+
+        public override bool TryInstallGitCommandHooks(GVFSContext context, string executingDirectory, string hookName, string commandHookPath, out string errorMessage)
+        {
+            errorMessage = null;
+
+            string gvfsHooksPath = Path.Combine(executingDirectory, GVFSPlatform.Instance.Constants.GVFSHooksExecutableName);
+
+            File.WriteAllText(
+                commandHookPath,
+                $"#!/bin/sh\n{gvfsHooksPath} {hookName} \"$@\"");
+            GVFSPlatform.Instance.FileSystem.ChangeMode(commandHookPath, Convert.ToInt32("755", 8));
+
+            return true;
+        }
+
+        public override bool IsProcessActive(int processId)
+        {
+            return MacPlatform.IsProcessActiveImplementation(processId);
         }
 
         public override void StartBackgroundProcess(string programName, string[] args)
@@ -77,38 +102,24 @@ namespace GVFS.Platform.Mac
         {
         }
 
+        public override string GetNamedPipeName(string enlistmentRoot)
+        {
+            return MacPlatform.GetNamedPipeNameImplementation(enlistmentRoot);
+        }
+
         public override bool IsConsoleOutputRedirectedToFile()
         {
-            // TODO(Mac): Implement proper check
-            return false;
+            return MacPlatform.IsConsoleOutputRedirectedToFileImplementation();
         }
 
         public override bool IsElevated()
         {
-            // TODO(Mac): Implement proper check
-            return false;
+            return MacPlatform.IsElevatedImplementation();
         }
 
         public override bool TryGetGVFSEnlistmentRoot(string directory, out string enlistmentRoot, out string errorMessage)
         {
-            // TODO(Mac): Merge this code with the implementation in WindowsPlatform
-
-            enlistmentRoot = null;
-
-            string finalDirectory;
-            if (!this.FileSystem.TryGetNormalizedPath(directory, out finalDirectory, out errorMessage))
-            {
-                return false;
-            }
-
-            enlistmentRoot = Paths.GetRoot(finalDirectory, GVFSConstants.DotGVFS.Root);
-            if (enlistmentRoot == null)
-            {
-                errorMessage = $"Failed to find the root directory for {GVFSConstants.DotGVFS.Root} in {finalDirectory}";
-                return false;
-            }
-
-            return true;
+            return MacPlatform.TryGetGVFSEnlistmentRootImplementation(directory, out enlistmentRoot, out errorMessage);
         }
     }
 }

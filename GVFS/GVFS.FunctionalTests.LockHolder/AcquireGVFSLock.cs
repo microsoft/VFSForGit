@@ -33,7 +33,7 @@ namespace GVFS.FunctionalTests.LockHolder
                 throw new Exception("Unable to get GVFS Enlistment root: " + errorMessage);
             }
 
-            string enlistmentPipename = Paths.GetNamedPipeName(enlistmentRoot);
+            string enlistmentPipename = GVFSPlatform.Instance.GetNamedPipeName(enlistmentRoot);
 
             AcquireLock(enlistmentPipename);
 
@@ -63,6 +63,7 @@ namespace GVFS.FunctionalTests.LockHolder
                     fullCommand: AcquireGVFSLockVerb.fullCommand,
                     pid: pid,
                     isElevated: false,
+                    isConsoleOutputRedirectedToFile: false,
                     checkAvailabilityOnly: false,
                     gvfsEnlistmentRoot: null,
                     result: out result))

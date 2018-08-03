@@ -3,6 +3,7 @@ using GVFS.Common.FileSystem;
 using GVFS.Common.Git;
 using GVFS.Common.Http;
 using GVFS.Common.NamedPipes;
+using GVFS.Common.Prefetch;
 using GVFS.Common.Tracing;
 using GVFS.PlatformLoader;
 using GVFS.Virtualization;
@@ -28,6 +29,7 @@ namespace GVFS.Mount
         private FileSystemCallbacks fileSystemCallbacks;
         private GVFSEnlistment enlistment;
         private ITracer tracer;
+        private BackgroundPrefetcher prefetcher;
 
         private CacheServerInfo cacheServer;
         private RetryConfig retryConfig;
@@ -117,13 +119,10 @@ namespace GVFS.Mount
 
                 this.ValidateMountPoints();
 
-                if (!GVFSPlatform.Instance.IsUnderConstruction)
+                string errorMessage;
+                if (!HooksInstaller.TryUpdateHooks(this.context, out errorMessage))
                 {
-                    string errorMessage;
-                    if (!HooksInstaller.TryUpdateHooks(this.context, out errorMessage))
-                    {
-                        this.FailMountAndExit(errorMessage);
-                    }
+                    this.FailMountAndExit(errorMessage);
                 }
 
                 GVFSPlatform.Instance.ConfigureVisualStudio(this.enlistment.GitBinPath, this.tracer);
@@ -509,6 +508,11 @@ namespace GVFS.Mount
             FileSystemVirtualizer virtualizer = this.CreateOrReportAndExit(() => GVFSPlatformLoader.CreateFileSystemVirtualizer(this.context, this.gitObjects), "Failed to create src folder virtualizer");
             this.fileSystemCallbacks = this.CreateOrReportAndExit(() => new FileSystemCallbacks(this.context, this.gitObjects, RepoMetadata.Instance, virtualizer), "Failed to create src folder callback listener");
 
+            if (!this.context.Unattended)
+            {
+                this.prefetcher = this.CreateOrReportAndExit(() => new BackgroundPrefetcher(this.tracer, this.enlistment, this.context.FileSystem, this.gitObjects), "Failed to start background prefetcher");
+            }
+
             int majorVersion;
             int minorVersion;
             if (!RepoMetadata.Instance.TryGetOnDiskLayoutVersion(out majorVersion, out minorVersion, out error))
@@ -542,6 +546,12 @@ namespace GVFS.Mount
 
         private void UnmountAndStopWorkingDirectoryCallbacks()
         {
+            if (this.prefetcher != null)
+            {
+                this.prefetcher.Dispose();
+                this.prefetcher = null;
+            }
+
             if (this.heartbeat != null)
             {
                 this.heartbeat.Stop();

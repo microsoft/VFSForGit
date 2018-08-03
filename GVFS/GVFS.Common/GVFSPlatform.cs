@@ -10,6 +10,11 @@ namespace GVFS.Common
 {
     public abstract class GVFSPlatform
     {
+        public GVFSPlatform(string executableExtension)
+        {
+            this.Constants = new GVFSPlatformConstants(executableExtension);
+        }
+
         public static GVFSPlatform Instance { get; private set; }
 
         public abstract IKernelDriver KernelDriver { get; }
@@ -18,6 +23,8 @@ namespace GVFS.Common
         public abstract IPlatformFileSystem FileSystem { get; }
         public virtual bool IsUnderConstruction { get; } = false;
         public virtual bool SupportsGVFSService { get; } = true;
+        public GVFSPlatformConstants Constants { get; }
+
         public static void Register(GVFSPlatform platform)
         {
             if (GVFSPlatform.Instance != null)
@@ -29,13 +36,19 @@ namespace GVFS.Common
         }
 
         public abstract void StartBackgroundProcess(string programName, string[] args);
+        public abstract bool IsProcessActive(int processId);
+
+        public abstract string GetNamedPipeName(string enlistmentRoot);
         public abstract NamedPipeServerStream CreatePipeByName(string pipeName);
+
         public abstract string GetOSVersionInformation();
         public abstract void InitializeEnlistmentACLs(string enlistmentPath);
         public abstract bool IsElevated();
         public abstract string GetCurrentUser();
         public abstract void ConfigureVisualStudio(string gitBinPath, ITracer tracer);
-        public abstract bool TryGetGVFSHooksPathAndVersion(out string hooksPaths, out string hooksVersion, out string error);        
+
+        public abstract bool TryGetGVFSHooksPathAndVersion(out string hooksPaths, out string hooksVersion, out string error);
+        public abstract bool TryInstallGitCommandHooks(GVFSContext context, string executingDirectory, string hookName, string commandHookPath, out string errorMessage);
 
         public abstract InProcEventListener CreateTelemetryListenerIfEnabled(string providerName);
 
@@ -57,6 +70,40 @@ namespace GVFS.Common
 
             pathRoot = Path.GetPathRoot(normalizedPath);
             return true;
+        }
+
+        public class GVFSPlatformConstants
+        {
+            public GVFSPlatformConstants(string executableExtension)
+            {
+                this.ExecutableExtension = executableExtension;
+            }
+
+            public string ExecutableExtension { get; }
+            public string GVFSExecutableName
+            {
+                get { return "GVFS" + this.ExecutableExtension; }
+            }
+
+            public string GVFSHooksExecutableName
+            {
+                get { return "GVFS.Hooks" + this.ExecutableExtension; }
+            }
+
+            public string GVFSReadObjectHookExecutableName
+            {
+                get { return "GVFS.ReadObjectHook" + this.ExecutableExtension; }
+            }
+
+            public string GVFSVirtualFileSystemHookExecutableName
+            {
+                get { return "GVFS.VirtualFileSystemHook" + this.ExecutableExtension; }
+            }
+
+            public string MountExecutableName
+            {
+                get { return "GVFS.Mount" + this.ExecutableExtension; }
+            }
         }
     }
 }

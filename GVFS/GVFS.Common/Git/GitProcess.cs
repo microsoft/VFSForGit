@@ -13,7 +13,10 @@ namespace GVFS.Common.Git
 {
     public class GitProcess
     {
+        private const int HResultEHANDLE = -2147024890; // 0x80070006 E_HANDLE
+
         private static readonly Encoding UTF8NoBOM = new UTF8Encoding(false);
+        private static bool failedToSetEncoding = false;
 
         private object executionLock = new object();
 
@@ -28,7 +31,22 @@ namespace GVFS.Common.Git
             // We need to use the BOM-less encoding because Git doesn't understand it
             if (Console.InputEncoding.CodePage == UTF8NoBOM.CodePage)
             {
-                Console.InputEncoding = UTF8NoBOM;
+                try
+                {
+                    Console.InputEncoding = UTF8NoBOM;
+                }
+                catch (IOException ex) when (ex.HResult == HResultEHANDLE)
+                {
+                    // If the standard input for a console is redirected / not available,
+                    // then we might not be able to set the InputEncoding here.
+                    // In practice, this can happen if we attempt to run a GitProcess from within a Service,
+                    // such as GVFS.Service.
+                    // Record that we failed to set the encoding, but do not quite the process.
+                    // This means that git commands that use stdin will not work, but
+                    // for our scenarios, we do not expect these calls at this this time.
+                    // We will check and fail if we attempt to write to stdin in in a git call below.
+                    GitProcess.failedToSetEncoding = true;
+                }
             }
         }
 
@@ -417,6 +435,11 @@ namespace GVFS.Common.Git
             Action<string> parseStdOutLine,
             int timeoutMs)
         {
+            if (failedToSetEncoding && writeStdIn != null)
+            {
+                return new Result(string.Empty, "Attempting to use to stdin, but the process does not have the right input encodings set.", Result.GenericFailureCode);
+            }
+
             try
             {
                 // From https://msdn.microsoft.com/en-us/library/system.diagnostics.process.standardoutput.aspx

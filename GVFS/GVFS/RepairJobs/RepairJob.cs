@@ -122,7 +122,7 @@ namespace GVFS.RepairJobs
             {
                 try
                 {
-                    index.BuildProjectionFromPath(path);
+                    index.BuildProjectionFromPath(this.Tracer, path);
                 }
                 catch (Exception ex)
                 {

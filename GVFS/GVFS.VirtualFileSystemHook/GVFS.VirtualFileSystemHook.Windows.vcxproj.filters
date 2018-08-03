@@ -14,7 +14,10 @@
       <Extensions>rc;ico;cur;bmp;dlg;rc2;rct;bin;rgs;gif;jpg;jpeg;jpe;resx;tiff;tif;png;wav;mfcribbon-ms</Extensions>
     </Filter>
     <Filter Include="Shared Header Files">
-      <UniqueIdentifier>{c3243239-d853-4df9-bdbb-9a4efa72a827}</UniqueIdentifier>
+      <UniqueIdentifier>{dc184179-b81b-462c-bc71-f6735e699448}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Shared Source Files">
+      <UniqueIdentifier>{19cb5377-2e7a-49d0-b976-a200efb400f4}</UniqueIdentifier>
     </Filter>
   </ItemGroup>
   <ItemGroup>
@@ -25,9 +28,6 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="resource.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="packet.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="..\GVFS.NativeHooks.Common\common.h">
@@ -41,8 +41,8 @@
     <ClCompile Include="main.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="packet.cpp">
-      <Filter>Source Files</Filter>
+    <ClCompile Include="..\GVFS.NativeHooks.Common\common.windows.cpp">
+      <Filter>Shared Source Files</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>

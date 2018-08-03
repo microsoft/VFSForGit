@@ -25,7 +25,7 @@ namespace GVFS.PerfProfiling
         {
             GVFSPlatform.Register(new WindowsPlatform());
             string gitBinPath = GVFSPlatform.Instance.GitInstallation.GetInstalledGitBinPath();
-            string hooksPath = ProcessHelper.WhereDirectory(GVFSConstants.GVFSHooksExecutableName);
+            string hooksPath = ProcessHelper.WhereDirectory(GVFSPlatform.Instance.Constants.GVFSHooksExecutableName);
 
             return GVFSEnlistment.CreateFromDirectory(enlistmentRootPath, gitBinPath, hooksPath);
         }

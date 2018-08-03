@@ -6,6 +6,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
 {
     [TestFixture]
     [Category(Categories.FullSuiteOnly)]
+    [Category(Categories.Mac.M2)]
     public class CacheServerTests : TestsWithEnlistmentPerFixture
     {
         private const string CustomUrl = "https://myCache";

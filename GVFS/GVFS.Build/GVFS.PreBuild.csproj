@@ -40,19 +40,19 @@
     <Compile Include="GenerateVersionInfo.cs" />
   </ItemGroup>
   <ItemGroup>
-    <None Include="GVFS.props">
+    <BuildProps Include="GVFS.props">
       <SubType>Designer</SubType>
-    </None>
-    <None Include="GVFS.cs.props">
+    </BuildProps>
+    <BuildProps Include="GVFS.cs.props">
       <SubType>Designer</SubType>
-    </None>
-    <None Include="GVFS.cpp.props">
+    </BuildProps>
+    <BuildProps Include="GVFS.cpp.props">
       <SubType>Designer</SubType>
-    </None>
-    <None Include="packages.config" />
-    <None Include="ProjFS.props">
+    </BuildProps>
+    <GeneratedPackageConfig Include="packages.config" />
+    <BuildProps Include="ProjFS.props">
       <SubType>Designer</SubType>
-    </None>
+    </BuildProps>
   </ItemGroup>
 
   <Target Name="GetTargetFrameworkProperties" />
@@ -129,7 +129,6 @@
 
   <PropertyGroup>
     <GVFSSetupPath>$(BuildOutputDir)\GVFS.Installer\bin\x64\$(Configuration)\SetupGVFS.$(GVFSVersion).exe</GVFSSetupPath>
-    <GitPackagesConfigPath>$(MSBuildThisFileDirectory)packages.config</GitPackagesConfigPath>
     <OutDir>$(BuildOutputDir)\GVFS.Build\</OutDir>
     <GitVersionConstantsPath>$(OutDir)GVFSConstants.GitVersion.cs</GitVersionConstantsPath>
     <G4WInstallBatPath>$(OutDir)InstallG4W.bat</G4WInstallBatPath>
@@ -160,13 +159,13 @@
   </ItemGroup>
 
   <Target Name="GVFSPreBuild"
-          Inputs="$(MSBuildThisFileFullPath);$(MSBuildProjectFullPath);$(MSBuildThisFileDirectory)GenerateG4WNugetReference.cs"
-          Outputs="$(GitPackagesConfigPath)">
+          Inputs="$(MSBuildThisFileFullPath);$(MSBuildProjectFullPath);$(MSBuildThisFileDirectory)GenerateG4WNugetReference.cs;@(BuildProps)"
+          Outputs="@(GeneratedPackageConfig)">
     <GenerateG4WNugetReference GitPackageVersion="$(GitPackageVersion)" Condition="'$(OS)' == 'Windows_NT'" />
   </Target>
 
   <Target Name="GVFSPackageRestore"
-          Inputs="$(MSBuildThisFileFullPath);$(MSBuildProjectFullPath);$(GitPackagesConfigPath)"
+          Inputs="$(MSBuildThisFileFullPath);$(MSBuildProjectFullPath);@(GeneratedPackageConfig)"
           Outputs="$(RestoreTimestampPath)"
           DependsOnTargets="GVFSPreBuild"
           Condition="'$(OS)' == 'Windows_NT'">
@@ -177,7 +176,7 @@
 
   <Target Name="GenerateInstallScripts" 
           DependsOnTargets="GVFSPackageRestore;$(GenerateInstallScriptsDependsOn)"
-          Inputs="$(RestoreTimestampPath);$(GitPackagesConfigPath);$(MSBuildThisFileFullPath);$(MSBuildProjectFullPath);$(MSBuildThisFileDirectory)GenerateGitVersionConstants.cs;$(MSBuildThisFileDirectory)GenerateInstallScripts.cs;$(MSBuildThisFileDirectory)GenerateGVFSInstallersNuspec.cs"
+          Inputs="$(RestoreTimestampPath);@(GeneratedPackageConfig);$(MSBuildThisFileFullPath);$(MSBuildProjectFullPath);$(MSBuildThisFileDirectory)GenerateGitVersionConstants.cs;$(MSBuildThisFileDirectory)GenerateInstallScripts.cs;$(MSBuildThisFileDirectory)GenerateGVFSInstallersNuspec.cs"
           Outputs="$(GitVersionConstantsPath);$(G4WInstallBatPath);$(GVFSInstallBatPath);$(GVFSInstallerNuspecPath)"
           Condition="'$(OS)' == 'Windows_NT'">
     <GenerateGitVersionConstants GitPackageVersion="$(GitPackageVersion)" PackagesPath="$(PackagesDir)" OutputFile="$(GitVersionConstantsPath)">
@@ -189,7 +188,7 @@
 
   <Target Name="GenerateShared"
           DependsOnTargets="GenerateInstallScripts;$(GenerateSharedDependsOn)"
-          Inputs="$(RestoreTimestampPath);$(GitPackagesConfigPath);$(MSBuildThisFileFullPath);$(MSBuildProjectFullPath);$(MSBuildThisFileDirectory)GenerateVersionInfo.cs;$(MSBuildThisFileDirectory)GenerateApplicationManifests.cs"
+          Inputs="$(RestoreTimestampPath);@(GeneratedPackageConfig);$(MSBuildThisFileFullPath);$(MSBuildProjectFullPath);$(MSBuildThisFileDirectory)GenerateVersionInfo.cs;$(MSBuildThisFileDirectory)GenerateApplicationManifests.cs"
           Outputs="$(AssemblyVersionPath);$(VersionHeaderPath);@(ApplicationNeedsManifest->'%(OutputFile)')">
     <GenerateVersionInfo Version="$(GVFSVersion)" AssemblyVersion="$(AssemblyVersionPath)" VersionHeader="$(VersionHeaderPath)" />
     <GenerateApplicationManifests Version="$(GVFSVersion)" ApplicationName="@(ApplicationNeedsManifest)" ManifestPath="@(ApplicationNeedsManifest->'%(OutputFile)')" />  

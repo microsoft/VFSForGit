@@ -79,7 +79,7 @@ namespace GVFS.CommandLine
         {
             errorMessage = string.Empty;
 
-            string pipeName = Paths.GetNamedPipeName(enlistmentRoot);
+            string pipeName = GVFSPlatform.Instance.GetNamedPipeName(enlistmentRoot);
             string rawGetStatusResponse = string.Empty;
 
             try
@@ -206,7 +206,7 @@ namespace GVFS.CommandLine
 
         private void AcquireLock(string enlistmentRoot)
         {
-            string pipeName = Paths.GetNamedPipeName(enlistmentRoot);
+            string pipeName = GVFSPlatform.Instance.GetNamedPipeName(enlistmentRoot);
             using (NamedPipeClient pipeClient = new NamedPipeClient(pipeName))
             {
                 try
@@ -225,6 +225,7 @@ namespace GVFS.CommandLine
                             "gvfs unmount", 
                             currentProcess.Id, 
                             GVFSPlatform.Instance.IsElevated(),
+                            isConsoleOutputRedirectedToFile: GVFSPlatform.Instance.IsConsoleOutputRedirectedToFile(),
                             checkAvailabilityOnly: false,
                             gvfsEnlistmentRoot: enlistmentRoot,
                             result: out result))

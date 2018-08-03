@@ -1,4 +1,5 @@
-﻿using System;
+﻿using GVFS.Common.Tracing;
+using System;
 
 namespace GVFS.Virtualization.Projection
 {
@@ -17,16 +18,17 @@ namespace GVFS.Virtualization.Projection
             private int allocationSize;
             private T[] pool;
             private int freeIndex;
-            private bool isWarmingUp = true;
             private Func<T> objectCreator;
+            private ITracer tracer;
 
-            public ObjectPool(int allocationSize, Func<T> objectCreator)
+            public ObjectPool(ITracer tracer, int allocationSize, Func<T> objectCreator)
             {
                 if (allocationSize <= 0)
                 {
                     throw new ArgumentOutOfRangeException(nameof(allocationSize), "Must be greater than zero");
                 }
 
+                this.tracer = tracer;
                 this.objectCreator = objectCreator;
                 this.allocationSize = allocationSize;
                 this.pool = new T[0];
@@ -66,21 +68,31 @@ namespace GVFS.Virtualization.Projection
                 this.freeIndex = 0;
             }
 
-            public bool Shrink()
+            public void Shrink()
             {
-                bool didShrink = false;
-
-                // Keep 10% extra objects so we don't have to expand on the very next GetNew() call
-                // and make sure that the shrink will reclaim at least 10% of the objects
-                int shrinkToSize = Convert.ToInt32(this.freeIndex * 1.1);
-                if (this.pool.Length * 0.9 > shrinkToSize)
+                using (ITracer tracer = this.tracer.StartActivity("ShrinkPool", EventLevel.Informational))
                 {
-                    this.ResizePool(shrinkToSize);
-                    didShrink = true;
-                }
+                    EventMetadata metadata = new EventMetadata();
+                    metadata.Add("Area", EtwArea);
+                    metadata.Add("PoolType", typeof(T).Name);
+                    metadata.Add("CurrentSize", this.pool.Length);
 
-                this.isWarmingUp = false;
-                return didShrink;
+                    bool didShrink = false;
+
+                    // Keep extra objects so we don't have to expand on the very next GetNew() call
+                    // and make sure that the shrink will reclaim at least a percentage of the objects
+                    int shrinkToSize = Convert.ToInt32(this.freeIndex * PoolAllocationMultipliers.ShrinkExtraObjects);
+                    if (this.pool.Length * PoolAllocationMultipliers.ShrinkMinPoolSize > shrinkToSize)
+                    {
+                        this.ResizePool(shrinkToSize);
+                        didShrink = true;
+                    }
+
+                    metadata.Add(nameof(didShrink), didShrink);
+                    metadata.Add(nameof(shrinkToSize), shrinkToSize);
+
+                    tracer.Stop(metadata);
+                }
             }
 
             public virtual void UnpinPool()
@@ -89,18 +101,44 @@ namespace GVFS.Virtualization.Projection
 
             protected void ExpandPool()
             {
-                int previousSize = this.pool.Length;
-                if (this.isWarmingUp)
+                using (ITracer tracer = this.tracer.StartActivity("ExpandPool", EventLevel.Informational))
                 {
-                    this.ResizePool((2 * previousSize) + this.allocationSize);
-                }
-                else
-                {
-                    int newObjects = Math.Max(this.allocationSize, Convert.ToInt32(previousSize * 0.1));
-                    this.ResizePool(previousSize + newObjects);
-                }
+                    EventMetadata metadata = new EventMetadata();
+                    metadata.Add("Area", EtwArea);
+                    metadata.Add("PoolType", typeof(T).Name);
 
-                this.AllocateObjects(previousSize);
+                    int previousSize = this.pool.Length;
+
+                    // The values for shrinking and expanding are currently set to prevent the pool from shrinking after expanding
+                    // 
+                    // Example using
+                    // ExpandPoolNewObjects = 0.15
+                    // ShrinkExtraObjects = 1.1
+                    // ShrinkMinPoolSize = 0.9
+                    //
+                    // Pool at 1000 will get expanded to 1150 and if only one new object is used the free index will be 1001
+                    //
+                    // The shrink code will check
+                    // 1001 * 1.1 = 1101 - shrinkToSize
+                    // 1150 * 0.9 = 1035 - shrink threshold
+                    // 1035 > 1101 - do not shrink the pool
+                    int newObjects = Convert.ToInt32(previousSize * PoolAllocationMultipliers.ExpandPoolNewObjects);
+
+                    // If the previous size of the pool was a lot smaller than what was first allocated and
+                    // set as the allocation size, just expand back up to the originally set allocation size
+                    if (previousSize * (1 + PoolAllocationMultipliers.ExpandPoolNewObjects) < this.allocationSize)
+                    {
+                        newObjects = this.allocationSize - previousSize;
+                    }
+
+                    this.ResizePool(previousSize + newObjects);
+
+                    this.AllocateObjects(previousSize);
+
+                    metadata.Add("PreviousSize", previousSize);
+                    metadata.Add("NewSize", this.pool.Length);
+                    tracer.Stop(metadata);
+                }
             }
 
             protected virtual void PinPool()

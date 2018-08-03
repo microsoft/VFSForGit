@@ -18,12 +18,6 @@ namespace GVFS.Common
         public const string WorkingDirectoryRootName = "src";
         public const string UnattendedEnvironmentVariable = "GVFS_UNATTENDED";
 
-        public const string GVFSExecutableName = "GVFS.exe";
-        public const string GVFSHooksExecutableName = "GVFS.Hooks.exe";
-        public const string GVFSReadObjectHookExecutableName = "GVFS.ReadObjectHook.exe";
-        public const string GVFSVirtualFileSystemHookExecutableName = "GVFS.VirtualFileSystemHook.exe";
-        public const string MountExecutableName = "GVFS.Mount.exe";
-        public const string ExecutableExtension = ".exe";
         public const string GitIsNotInstalledError = "Could not find git.exe.  Ensure that Git is installed.";
 
         public static class GitConfig

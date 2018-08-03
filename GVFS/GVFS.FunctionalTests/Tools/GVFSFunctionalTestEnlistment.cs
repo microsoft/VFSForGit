@@ -133,11 +133,12 @@ namespace GVFS.FunctionalTests.Tools
             if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
             {
                 // Use cmd.exe to delete the enlistment as it properly handles tombstones and reparse points
-                CmdRunner.DeleteDirectoryWithRetry(this.EnlistmentRoot);
+                CmdRunner.DeleteDirectoryWithUnlimitedRetries(this.EnlistmentRoot);
             }
             else
             {
-                // TODO(Mac): BashRunner.DeleteDirectory(this.EnlistmentRoot);
+                // TODO(Mac): Figure out why the call to DeleteDirectoryWithRetry is not returning
+                // BashRunner.DeleteDirectoryWithRetry(this.EnlistmentRoot);
             }
         }
 

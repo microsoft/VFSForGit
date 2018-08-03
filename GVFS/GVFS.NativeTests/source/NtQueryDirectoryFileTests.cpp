@@ -75,7 +75,7 @@ bool QueryDirectoryFileRestartScanResetsFilter(const char* folderPath)
             &nonExistentFileFilter,   // FileName
             TRUE);                    // RestartScan
 
-        SHOULD_EQUAL(status, STATUS_NO_SUCH_FILE);
+        SHOULD_EQUAL(status, STATUS_NO_MORE_FILES);
     }
     catch (TestException&)
     {

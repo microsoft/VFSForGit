@@ -13,7 +13,7 @@ using System.Threading;
 
 namespace GVFS.Common.Prefetch
 {
-    public class PrefetchHelper
+    public class BlobPrefetcher
     {
         protected const string RefsHeadsGitPath = "refs/heads/";
 
@@ -29,10 +29,10 @@ namespace GVFS.Common.Prefetch
 
         protected readonly bool SkipConfigUpdate;
 
-        private const string AreaPath = nameof(PrefetchHelper);
+        private const string AreaPath = nameof(BlobPrefetcher);
         private static string pathSeparatorString = Path.DirectorySeparatorChar.ToString();
 
-        public PrefetchHelper(
+        public BlobPrefetcher(
             ITracer tracer,
             Enlistment enlistment,
             GitObjectsHttpRequestor objectRequestor,
@@ -67,7 +67,7 @@ namespace GVFS.Common.Prefetch
         {
             folderListOutput.AddRange(
                 foldersInput.Split(new[] { ';' }, StringSplitOptions.RemoveEmptyEntries)
-                .Select(path => PrefetchHelper.ToAbsolutePath(enlistment, path, isFolder: true)));
+                .Select(path => BlobPrefetcher.ToAbsolutePath(enlistment, path, isFolder: true)));
 
             if (!string.IsNullOrWhiteSpace(folderListFile))
             {
@@ -77,7 +77,7 @@ namespace GVFS.Common.Prefetch
                         .Select(line => line.Trim())
                         .Where(line => !string.IsNullOrEmpty(line))
                         .Where(line => !line.StartsWith(GVFSConstants.GitCommentSign.ToString()))
-                        .Select(path => PrefetchHelper.ToAbsolutePath(enlistment, path, isFolder: true));
+                        .Select(path => BlobPrefetcher.ToAbsolutePath(enlistment, path, isFolder: true));
 
                     folderListOutput.AddRange(allLines);
                 }
@@ -107,7 +107,7 @@ namespace GVFS.Common.Prefetch
         {
             fileListOutput.AddRange(
                 filesInput.Split(new[] { ';' }, StringSplitOptions.RemoveEmptyEntries)
-                .Select(path => PrefetchHelper.ToAbsolutePath(enlistment, path, isFolder: false)));
+                .Select(path => BlobPrefetcher.ToAbsolutePath(enlistment, path, isFolder: false)));
 
             foreach (string file in fileListOutput)
             {

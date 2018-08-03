@@ -12,12 +12,6 @@ namespace GVFS.Common.FileSystem
 {
     public static class HooksInstaller
     {
-        private const string HooksConfigContentTemplate =
-@"########################################################################
-#   Automatically generated file, do not modify.
-#   See {0} config setting
-########################################################################
-{1}";
         private static readonly string ExecutingDirectory;
 
         static HooksInstaller()
@@ -29,23 +23,23 @@ namespace GVFS.Common.FileSystem
         {
             IEnumerable<string> valuableHooksLines = defaultHooksLines.Where(line => !string.IsNullOrEmpty(line.Trim()));
 
-            if (valuableHooksLines.Contains(GVFSConstants.GVFSHooksExecutableName, StringComparer.OrdinalIgnoreCase))
+            if (valuableHooksLines.Contains(GVFSPlatform.Instance.Constants.GVFSHooksExecutableName, StringComparer.OrdinalIgnoreCase))
             {
                 throw new HooksConfigurationException(
-                    "GVFS.Hooks.exe should not be specified in the configuration for "
+                    $"{GVFSPlatform.Instance.Constants.GVFSHooksExecutableName} should not be specified in the configuration for "
                     + GVFSConstants.DotGit.Hooks.PostCommandHookName + " hooks (" + filename + ").");
             }
             else if (!valuableHooksLines.Any())
             {
-                return GVFSConstants.GVFSHooksExecutableName;
+                return GVFSPlatform.Instance.Constants.GVFSHooksExecutableName;
             }
             else if (hookName.Equals(GVFSConstants.DotGit.Hooks.PostCommandHookName))
             {
-                return string.Join("\n", new string[] { GVFSConstants.GVFSHooksExecutableName }.Concat(valuableHooksLines));
+                return string.Join("\n", new string[] { GVFSPlatform.Instance.Constants.GVFSHooksExecutableName }.Concat(valuableHooksLines));
             }
             else
             {
-                return string.Join("\n", valuableHooksLines.Concat(new string[] { GVFSConstants.GVFSHooksExecutableName }));
+                return string.Join("\n", valuableHooksLines.Concat(new string[] { GVFSPlatform.Instance.Constants.GVFSHooksExecutableName }));
             }
         }
 
@@ -54,30 +48,30 @@ namespace GVFS.Common.FileSystem
             error = string.Empty;
             try
             {
-                string installedReadObjectHookPath = Path.Combine(ExecutingDirectory, GVFSConstants.GVFSReadObjectHookExecutableName);
-                string targetReadObjectHookPath = Path.Combine(context.Enlistment.WorkingDirectoryRoot, GVFSConstants.DotGit.Hooks.ReadObjectPath + GVFSConstants.ExecutableExtension);
-                if (!TryAction(() => CopyHook(context, installedReadObjectHookPath, targetReadObjectHookPath), out error))
+                string installedReadObjectHookPath = Path.Combine(ExecutingDirectory, GVFSPlatform.Instance.Constants.GVFSReadObjectHookExecutableName);
+                string targetReadObjectHookPath = Path.Combine(context.Enlistment.WorkingDirectoryRoot, GVFSConstants.DotGit.Hooks.ReadObjectPath + GVFSPlatform.Instance.Constants.ExecutableExtension);
+                if (!TryHooksInstallationAction(() => CopyHook(context, installedReadObjectHookPath, targetReadObjectHookPath), out error))
                 {
                     error = "Failed to copy " + installedReadObjectHookPath + "\n" + error;
                     return false;
                 }
 
-                string installedVirtualFileSystemHookPath = Path.Combine(ExecutingDirectory, GVFSConstants.GVFSVirtualFileSystemHookExecutableName);
-                string targetVirtualFileSystemHookPath = Path.Combine(context.Enlistment.WorkingDirectoryRoot, GVFSConstants.DotGit.Hooks.VirtualFileSystemPath + GVFSConstants.ExecutableExtension);
-                if (!TryAction(() => CopyHook(context, installedVirtualFileSystemHookPath, targetVirtualFileSystemHookPath), out error))
+                string installedVirtualFileSystemHookPath = Path.Combine(ExecutingDirectory, GVFSPlatform.Instance.Constants.GVFSVirtualFileSystemHookExecutableName);
+                string targetVirtualFileSystemHookPath = Path.Combine(context.Enlistment.WorkingDirectoryRoot, GVFSConstants.DotGit.Hooks.VirtualFileSystemPath + GVFSPlatform.Instance.Constants.ExecutableExtension);
+                if (!TryHooksInstallationAction(() => CopyHook(context, installedVirtualFileSystemHookPath, targetVirtualFileSystemHookPath), out error))
                 {
                     error = "Failed to copy " + installedVirtualFileSystemHookPath + "\n" + error;
                     return false;
                 }
 
                 string precommandHookPath = Path.Combine(context.Enlistment.WorkingDirectoryRoot, GVFSConstants.DotGit.Hooks.PreCommandPath);
-                if (!TryInstallGitCommandHooks(context, GVFSConstants.DotGit.Hooks.PreCommandHookName, precommandHookPath, out error))
+                if (!GVFSPlatform.Instance.TryInstallGitCommandHooks(context, ExecutingDirectory, GVFSConstants.DotGit.Hooks.PreCommandHookName, precommandHookPath, out error))
                 {
                     return false;
                 }
 
                 string postcommandHookPath = Path.Combine(context.Enlistment.WorkingDirectoryRoot, GVFSConstants.DotGit.Hooks.PostCommandPath);
-                if (!TryInstallGitCommandHooks(context, GVFSConstants.DotGit.Hooks.PostCommandHookName, postcommandHookPath, out error))
+                if (!GVFSPlatform.Instance.TryInstallGitCommandHooks(context, ExecutingDirectory, GVFSConstants.DotGit.Hooks.PostCommandHookName, postcommandHookPath, out error))
                 {
                     return false;
                 }
@@ -97,7 +91,7 @@ namespace GVFS.Common.FileSystem
                 context,
                 GVFSConstants.DotGit.Hooks.ReadObjectName,
                 GVFSConstants.DotGit.Hooks.ReadObjectPath,
-                GVFSConstants.GVFSReadObjectHookExecutableName,
+                GVFSPlatform.Instance.Constants.GVFSReadObjectHookExecutableName,
                 out errorMessage))
             {
                 return false;
@@ -107,7 +101,7 @@ namespace GVFS.Common.FileSystem
                 context,
                 GVFSConstants.DotGit.Hooks.VirtualFileSystemName,
                 GVFSConstants.DotGit.Hooks.VirtualFileSystemPath,
-                GVFSConstants.GVFSVirtualFileSystemHookExecutableName,
+                GVFSPlatform.Instance.Constants.GVFSVirtualFileSystemHookExecutableName,
                 out errorMessage))
             {
                 return false;
@@ -116,7 +110,24 @@ namespace GVFS.Common.FileSystem
             return true;
         }
 
-        private static bool TryAction(Action action, out string errorMessage)
+        public static void CopyHook(GVFSContext context, string sourcePath, string destinationPath)
+        {
+            Exception ex;
+            if (!context.FileSystem.TryCopyToTempFileAndRename(sourcePath, destinationPath, out ex))
+            {
+                throw new RetryableException($"Error installing {sourcePath} to {destinationPath}", ex);
+            }
+        }
+
+        /// <summary>
+        /// Try to perform the specified action.  The action will be retried (with backoff) up to 3 times.
+        /// </summary>
+        /// <param name="action">Action to perform</param>
+        /// <param name="errorMessage">Error message</param>
+        /// <returns>True if the action succeeded and false otherwise</returns>
+        /// <remarks>This method is optimized for the hooks installation process and should not be used
+        /// as a generic retry mechanism.  See RetryWrapper for a general purpose retry mechanism</remarks>
+        public static bool TryHooksInstallationAction(Action action, out string errorMessage)
         {
             int retriesLeft = 3;
             int retryWaitMillis = 500; // Will grow exponentially on each retry attempt
@@ -157,7 +168,7 @@ namespace GVFS.Common.FileSystem
             out string errorMessage)
         {
             bool copyHook = false;
-            string enlistmentHookPath = Path.Combine(context.Enlistment.WorkingDirectoryRoot, hookPath + GVFSConstants.ExecutableExtension);
+            string enlistmentHookPath = Path.Combine(context.Enlistment.WorkingDirectoryRoot, hookPath + GVFSPlatform.Instance.Constants.ExecutableExtension);
             string installedHookPath = Path.Combine(ExecutingDirectory, hookExecutableName);
 
             if (!context.FileSystem.FileExists(installedHookPath))
@@ -219,74 +230,6 @@ namespace GVFS.Common.FileSystem
 
             errorMessage = null;
             return true;
-        }
-
-        private static bool TryInstallGitCommandHooks(GVFSContext context, string hookName, string commandHookPath, out string errorMessage)
-        {
-            // The GitHooksLoader requires the following setup to invoke a hook:
-            //      Copy GithooksLoader.exe to hook-name.exe
-            //      Create a text file named hook-name.hooks that lists the applications to execute for the hook, one application per line
-
-            string gitHooksloaderPath = Path.Combine(ExecutingDirectory, GVFSConstants.DotGit.Hooks.LoaderExecutable);
-            if (!TryAction(() => CopyHook(context, gitHooksloaderPath, commandHookPath + GVFSConstants.ExecutableExtension), out errorMessage))
-            {
-                errorMessage = "Failed to copy " + GVFSConstants.DotGit.Hooks.LoaderExecutable + " to " + commandHookPath + GVFSConstants.ExecutableExtension + "\n" + errorMessage;
-                return false;
-            }
-
-            if (!TryAction(() => CreateHookCommandConfig(context, hookName, commandHookPath), out errorMessage))
-            {
-                errorMessage = "Failed to create " + commandHookPath + GVFSConstants.GitConfig.HooksExtension + "\n" + errorMessage;
-                return false;
-            }
-
-            return true;
-        }
-
-        private static void CopyHook(GVFSContext context, string sourcePath, string destinationPath)
-        {
-            Exception ex;
-            if (!context.FileSystem.TryCopyToTempFileAndRename(sourcePath, destinationPath, out ex))
-            {
-                throw new RetryableException($"Error installing {sourcePath} to {destinationPath}", ex);
-            }
-        }
-
-        private static void CreateHookCommandConfig(GVFSContext context, string hookName, string commandHookPath)
-        {
-            string targetPath = commandHookPath + GVFSConstants.GitConfig.HooksExtension;
-
-            try
-            {
-                string configSetting = GVFSConstants.GitConfig.HooksPrefix + hookName;
-                string mergedHooks = MergeHooks(context, configSetting, hookName);
-
-                string contents = string.Format(HooksConfigContentTemplate, configSetting, mergedHooks);
-                Exception ex;
-                if (!context.FileSystem.TryWriteTempFileAndRename(targetPath, contents, out ex))
-                {
-                    throw new RetryableException("Error installing " + targetPath, ex);
-                }
-            }
-            catch (IOException io)
-            {
-                throw new RetryableException("Error installing " + targetPath, io);
-            }
-        }
-
-        private static string MergeHooks(GVFSContext context, string configSettingName, string hookName)
-        {
-            GitProcess configProcess = new GitProcess(context.Enlistment);
-            string filename;
-            string[] defaultHooksLines = { };
-
-            if (configProcess.TryGetFromConfig(configSettingName, forceOutsideEnlistment: true, value: out filename))
-            {
-                filename = filename.Trim(' ', '\n');
-                defaultHooksLines = File.ReadAllLines(filename);
-            }
-
-            return MergeHooksData(defaultHooksLines, filename, hookName);
         }
 
         public class HooksConfigurationException : Exception

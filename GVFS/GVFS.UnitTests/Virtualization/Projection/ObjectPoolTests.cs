@@ -1,17 +1,19 @@
 ﻿using GVFS.Tests.Should;
+using GVFS.UnitTests.Mock.Common;
 using GVFS.Virtualization.Projection;
 using NUnit.Framework;
+using System;
 
 namespace GVFS.UnitTests.Virtualization
 {
     [TestFixture]
     public class ObjectPoolTests
     {
-        private const int DefaultObjectsToUse = 23;
-        private const int DefaultShrinkSize = DefaultObjectsToUse + (DefaultObjectsToUse / 10);
-        private const int PoolSizeAfterUsingDefault = (2 * AllocationSize) + AllocationSize;
-        private const int PoolSizeAfterExpandingAfterShrinking = DefaultShrinkSize + (AllocationSize * 3);
-        private const int AllocationSize = 10;
+        private const int DefaultObjectsToUse = 101;
+        private const int AllocationSize = 100;
+        private static readonly int PoolSizeAfterUsingDefault = Convert.ToInt32(AllocationSize * 1.15);
+        private static readonly int DefaultShrinkSize = PoolSizeAfterUsingDefault;
+        private static readonly int PoolSizeAfterExpandingAfterShrinking = Convert.ToInt32(AllocationSize * 1.15 * 1.15);
 
         [TestCase]
         public void TestGettingObjects()
@@ -20,24 +22,19 @@ namespace GVFS.UnitTests.Virtualization
         }
 
         [TestCase]
-        public void ShrinkKeepsPoolSizePlusPercent()
+        public void ShrinkKeepsUsedObjectsPlusPercent()
         {
-            GitIndexProjection.ObjectPool<object> pool = CreateExpandedPool();
+            GitIndexProjection.ObjectPool<object> pool = new GitIndexProjection.ObjectPool<object>(new MockTracer(), AllocationSize, objectCreator: () => new object());
+            UseObjectsInPool(pool, 20);
+            pool.Size.ShouldEqual(AllocationSize);
             pool.Shrink();
-            pool.Size.ShouldEqual(DefaultShrinkSize);
-            UseObjectsInPool(pool, DefaultObjectsToUse);
-            pool.Size.ShouldEqual(PoolSizeAfterExpandingAfterShrinking);
-            pool.FreeAll();
-            UseObjectsInPool(pool, DefaultObjectsToUse);
-            pool.Size.ShouldEqual(PoolSizeAfterExpandingAfterShrinking);
-            pool.Shrink();
-            pool.Size.ShouldEqual(DefaultShrinkSize);
+            pool.Size.ShouldEqual(Convert.ToInt32(20 * 1.1));
         }
 
         [TestCase]
         public void FreeToZeroAllocatesMinimumSizeNextGet()
         {
-            GitIndexProjection.ObjectPool<object> pool = new GitIndexProjection.ObjectPool<object>(AllocationSize, objectCreator: () => new object());
+            GitIndexProjection.ObjectPool<object> pool = new GitIndexProjection.ObjectPool<object>(new MockTracer(), AllocationSize, objectCreator: () => new object());
             pool.FreeAll();
             pool.Shrink();
             pool.Size.ShouldEqual(0);
@@ -49,12 +46,10 @@ namespace GVFS.UnitTests.Virtualization
         public void FreeKeepsPoolSize()
         {
             GitIndexProjection.ObjectPool<object> pool = CreateExpandedPool();
-            pool.Shrink();
-            pool.Size.ShouldEqual(DefaultShrinkSize);
             pool.FreeAll();
             pool.Size.ShouldEqual(DefaultShrinkSize);
             UseObjectsInPool(pool, DefaultObjectsToUse);
-            UseObjectsInPool(pool, DefaultObjectsToUse);
+            UseObjectsInPool(pool, 15);
             pool.Size.ShouldEqual(PoolSizeAfterExpandingAfterShrinking);
             pool.FreeAll();
             pool.Size.ShouldEqual(PoolSizeAfterExpandingAfterShrinking);
@@ -62,7 +57,7 @@ namespace GVFS.UnitTests.Virtualization
 
         private static GitIndexProjection.ObjectPool<object> CreateExpandedPool()
         {
-            GitIndexProjection.ObjectPool<object> pool = new GitIndexProjection.ObjectPool<object>(AllocationSize, objectCreator: () => new object());
+            GitIndexProjection.ObjectPool<object> pool = new GitIndexProjection.ObjectPool<object>(new MockTracer(), AllocationSize, objectCreator: () => new object());
             UseObjectsInPool(pool, DefaultObjectsToUse);
             pool.Size.ShouldEqual(PoolSizeAfterUsingDefault);
             return pool;

@@ -2,7 +2,9 @@
 using GVFS.Tests.Should;
 using NUnit.Framework;
 using System;
+using System.Diagnostics;
 using System.IO;
+using System.Threading;
 
 namespace GVFS.FunctionalTests.FileSystemRunners
 {
@@ -50,6 +52,31 @@ namespace GVFS.FunctionalTests.FileSystemRunners
             get
             {
                 return this.pathToBash;
+            }
+        }
+
+        public static void DeleteDirectoryWithUnlimitedRetries(string path)
+        {
+            BashRunner runner = new BashRunner();
+            bool pathExists = Directory.Exists(path);
+            int retryCount = 0;
+            while (pathExists)
+            {
+                string output = runner.DeleteDirectory(path);
+                pathExists = Directory.Exists(path);
+                if (pathExists)
+                {
+                    ++retryCount;
+                    Thread.Sleep(500);
+                    if (retryCount > 10)
+                    {
+                        retryCount = 0;
+                        if (Debugger.IsAttached)
+                        {
+                            Debugger.Break();
+                        }
+                    }
+                }
             }
         }
 
