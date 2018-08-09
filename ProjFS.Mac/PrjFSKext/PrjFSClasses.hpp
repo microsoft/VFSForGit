@@ -7,3 +7,5 @@ class PrjFSService;
 class PrjFSProviderUserClient;
 #define PrjFSLogUserClient      org_vfsforgit_PrjFSLogUserClient
 class PrjFSLogUserClient;
+#define PrjFSSharedDataQueue io_gvfs_PrjSsharedDataQueue
+class PrjFSSharedDataQueue;

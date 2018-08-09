@@ -82,6 +82,8 @@
 		4A8C13A521F23F0200002878 /* KauthHandler.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 4391F89321E42AC40008103C /* KauthHandler.cpp */; };
 		4A8C13A621F2418400002878 /* libPrjFSKextTestable.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 4A8C13A021F23EE800002878 /* libPrjFSKextTestable.a */; };
 		D9C087F222384670009C1110 /* MemoryTests.mm in Sources */ = {isa = PBXBuildFile; fileRef = D9C087F122384670009C1110 /* MemoryTests.mm */; };
+		F50D3B3C227A18B800CE4A4C /* PrjFSSharedDataQueue.hpp in Headers */ = {isa = PBXBuildFile; fileRef = F50D3B3A227A18B800CE4A4C /* PrjFSSharedDataQueue.hpp */; };
+		F50D3B3D227A18B800CE4A4C /* PrjFSSharedDataQueue.cpp in Sources */ = {isa = PBXBuildFile; fileRef = F50D3B3B227A18B800CE4A4C /* PrjFSSharedDataQueue.cpp */; };
 		F554202D224BB6E5008BAE95 /* ProviderMessagingMock.cpp in Sources */ = {isa = PBXBuildFile; fileRef = F554202C224BB6E5008BAE95 /* ProviderMessagingMock.cpp */; };
 		F5554F422239883B00B31D19 /* MockProc.cpp in Sources */ = {isa = PBXBuildFile; fileRef = F5554F412239883B00B31D19 /* MockProc.cpp */; };
 		F5E39C7A21F1118D006D65C2 /* KauthHandlerTests.mm in Sources */ = {isa = PBXBuildFile; fileRef = F5E39C7921F1118D006D65C2 /* KauthHandlerTests.mm */; };
@@ -215,6 +217,8 @@
 		4A8C13A021F23EE800002878 /* libPrjFSKextTestable.a */ = {isa = PBXFileReference; explicitFileType = archive.ar; includeInIndex = 0; path = libPrjFSKextTestable.a; sourceTree = BUILT_PRODUCTS_DIR; };
 		4A8C13AA21F268FE00002878 /* PrjFSKextTests.exp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.exports; path = PrjFSKextTests.exp; sourceTree = "<group>"; };
 		D9C087F122384670009C1110 /* MemoryTests.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = MemoryTests.mm; sourceTree = "<group>"; };
+		F50D3B3A227A18B800CE4A4C /* PrjFSSharedDataQueue.hpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.h; path = PrjFSSharedDataQueue.hpp; sourceTree = "<group>"; };
+		F50D3B3B227A18B800CE4A4C /* PrjFSSharedDataQueue.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = PrjFSSharedDataQueue.cpp; sourceTree = "<group>"; };
 		F554202C224BB6E5008BAE95 /* ProviderMessagingMock.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = ProviderMessagingMock.cpp; sourceTree = "<group>"; };
 		F5554F402239881800B31D19 /* MockProc.hpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.h; path = MockProc.hpp; sourceTree = "<group>"; };
 		F5554F412239883B00B31D19 /* MockProc.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = MockProc.cpp; sourceTree = "<group>"; };
@@ -320,6 +324,8 @@
 		4391F88D21E42AA70008103C /* PrjFSKext */ = {
 			isa = PBXGroup;
 			children = (
+				F50D3B3B227A18B800CE4A4C /* PrjFSSharedDataQueue.cpp */,
+				F50D3B3A227A18B800CE4A4C /* PrjFSSharedDataQueue.hpp */,
 				4391F88F21E42AC40008103C /* Info.plist */,
 				4391F89321E42AC40008103C /* KauthHandler.cpp */,
 				4391F8A421E42AC50008103C /* KauthHandler.hpp */,
@@ -434,6 +440,7 @@
 				4A558DBC22357AB000AFDE07 /* ProviderMessaging.hpp in Headers */,
 				4391F8B321E42AC50008103C /* PrjFSService.hpp in Headers */,
 				4391F8B721E42AC50008103C /* PrjFSClasses.hpp in Headers */,
+				F50D3B3C227A18B800CE4A4C /* PrjFSSharedDataQueue.hpp in Headers */,
 				264758CC21FA709B0095B9F8 /* VnodeCacheTestable.hpp in Headers */,
 				264758CA21EFBA8B0095B9F8 /* VnodeCache.hpp in Headers */,
 				4391F8BC21E42AC50008103C /* VnodeUtilities.hpp in Headers */,
@@ -677,6 +684,7 @@
 				4391F8AB21E42AC50008103C /* KextLog.cpp in Sources */,
 				264758C921EFBA8B0095B9F8 /* VnodeCache.cpp in Sources */,
 				4391F8B421E42AC50008103C /* PrjFSService.cpp in Sources */,
+				F50D3B3D227A18B800CE4A4C /* PrjFSSharedDataQueue.cpp in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
