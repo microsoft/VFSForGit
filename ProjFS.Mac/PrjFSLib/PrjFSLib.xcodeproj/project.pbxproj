@@ -9,6 +9,8 @@
 /* Begin PBXBuildFile section */
 		4A440DDE2093AD3300AADA76 /* IOKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 4A440DDD2093AD3300AADA76 /* IOKit.framework */; };
 		4A8A1BEE20A0D5940024BC10 /* CoreFoundation.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 4A8A1BED20A0D5940024BC10 /* CoreFoundation.framework */; };
+		4AE434AF211C955700E1AACF /* IODataQueueClient.c in Sources */ = {isa = PBXBuildFile; fileRef = 4AE434AD211C955700E1AACF /* IODataQueueClient.c */; };
+		4AE434B0211C955700E1AACF /* IODataQueueClient.c in Sources */ = {isa = PBXBuildFile; fileRef = 4AE434AD211C955700E1AACF /* IODataQueueClient.c */; };
 		C6C780D120816BDC00E7E054 /* PrjFSLib.h in Headers */ = {isa = PBXBuildFile; fileRef = C6C780CF20816BDC00E7E054 /* PrjFSLib.h */; };
 		C6C780D220816BDC00E7E054 /* PrjFSLib.cpp in Sources */ = {isa = PBXBuildFile; fileRef = C6C780D020816BDC00E7E054 /* PrjFSLib.cpp */; };
 		D308478120B4431200F69E92 /* prjfs-log.cpp in Sources */ = {isa = PBXBuildFile; fileRef = D308478020B4431200F69E92 /* prjfs-log.cpp */; };
@@ -34,6 +36,7 @@
 /* Begin PBXFileReference section */
 		4A440DDD2093AD3300AADA76 /* IOKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = IOKit.framework; path = System/Library/Frameworks/IOKit.framework; sourceTree = SDKROOT; };
 		4A8A1BED20A0D5940024BC10 /* CoreFoundation.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = CoreFoundation.framework; path = System/Library/Frameworks/CoreFoundation.framework; sourceTree = SDKROOT; };
+		4AE434AD211C955700E1AACF /* IODataQueueClient.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; path = IODataQueueClient.c; sourceTree = "<group>"; };
 		C6C780C4207FC6AB00E7E054 /* libPrjFSLib.dylib */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.dylib"; includeInIndex = 0; path = libPrjFSLib.dylib; sourceTree = BUILT_PRODUCTS_DIR; };
 		C6C780CF20816BDC00E7E054 /* PrjFSLib.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = PrjFSLib.h; sourceTree = "<group>"; };
 		C6C780D020816BDC00E7E054 /* PrjFSLib.cpp */ = {isa = PBXFileReference; indentWidth = 4; lastKnownFileType = sourcecode.cpp.cpp; path = PrjFSLib.cpp; sourceTree = "<group>"; tabWidth = 4; usesTabs = 0; };
@@ -77,6 +80,7 @@
 		C6C780BB207FC6AB00E7E054 = {
 			isa = PBXGroup;
 			children = (
+				4AE434AD211C955700E1AACF /* IODataQueueClient.c */,
 				D308478520B4432500F69E92 /* PrjFSUser.hpp */,
 				D308478620B4432500F69E92 /* PrjFSUser.cpp */,
 				C6C780CF20816BDC00E7E054 /* PrjFSLib.h */,
@@ -197,6 +201,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				4AE434AF211C955700E1AACF /* IODataQueueClient.c in Sources */,
 				D308478820B4432500F69E92 /* PrjFSUser.cpp in Sources */,
 				C6C780D220816BDC00E7E054 /* PrjFSLib.cpp in Sources */,
 			);
@@ -206,6 +211,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				4AE434B0211C955700E1AACF /* IODataQueueClient.c in Sources */,
 				D308478920B4432500F69E92 /* PrjFSUser.cpp in Sources */,
 				D308478120B4431200F69E92 /* prjfs-log.cpp in Sources */,
 			);
