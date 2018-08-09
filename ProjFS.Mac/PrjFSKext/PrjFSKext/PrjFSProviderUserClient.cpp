@@ -1,11 +1,11 @@
 #include "PrjFSProviderUserClient.hpp"
 #include "PrjFSCommon.h"
+#include "PrjFSSharedDataQueue.hpp"
 #include "../public/PrjFSProviderClientShared.h"
 #include "Message.h"
 #include "KauthHandler.hpp"
 #include "VirtualizationRoots.hpp"
 
-#include <IOKit/IOSharedDataQueue.h>
 #include <sys/proc.h>
 
 OSDefineMetaClassAndStructors(PrjFSProviderUserClient, IOUserClient);
@@ -51,8 +51,8 @@ bool PrjFSProviderUserClient::initWithTask(
         goto CleanupAndFail;
     }
     
-    this->dataQueue = IOSharedDataQueue::withCapacity(ProviderMessageQueueCapacityBytes);
-    if (nullptr == this->dataQueue)
+    this->dataQueue = new PrjFSSharedDataQueue();
+    if (nullptr == this->dataQueue || !this->dataQueue->initWithCapacity(ProviderMessageQueueCapacityBytes))
     {
         goto CleanupAndFail;
     }

@@ -2,7 +2,7 @@
 #include "PrjFSLogClientShared.h"
 #include "KextLog.hpp"
 #include "PrjFSCommon.h"
-#include <IOKit/IOSharedDataQueue.h>
+#include "PrjFSSharedDataQueue.hpp"
 
 
 OSDefineMetaClassAndStructors(PrjFSLogUserClient, IOUserClient);
@@ -27,8 +27,8 @@ bool PrjFSLogUserClient::initWithTask(
         return false;
     }
     
-    this->dataQueue = IOSharedDataQueue::withCapacity(LogMessageQueueCapacityBytes);
-    if (nullptr == this->dataQueue)
+    this->dataQueue = new PrjFSSharedDataQueue();
+    if (nullptr == this->dataQueue || !this->dataQueue->initWithCapacity(LogMessageQueueCapacityBytes))
     {
         this->cleanUp();
         return false;

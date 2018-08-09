@@ -15,6 +15,8 @@
 		4AC1D7C12091FA0400786861 /* PrjFSProviderUserClient.hpp in Headers */ = {isa = PBXBuildFile; fileRef = 4AC1D7BF2091FA0400786861 /* PrjFSProviderUserClient.hpp */; };
 		4AC1D7C52091FBFC00786861 /* PrjFSLogUserClient.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 4AC1D7C32091FBFC00786861 /* PrjFSLogUserClient.cpp */; };
 		4AC1D7C62091FBFC00786861 /* PrjFSLogUserClient.hpp in Headers */ = {isa = PBXBuildFile; fileRef = 4AC1D7C42091FBFC00786861 /* PrjFSLogUserClient.hpp */; };
+		4AE434B4211C9CC200E1AACF /* PrjFSSharedDataQueue.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 4AE434B2211C9CC200E1AACF /* PrjFSSharedDataQueue.cpp */; };
+		4AE434B5211C9CC200E1AACF /* PrjFSSharedDataQueue.hpp in Headers */ = {isa = PBXBuildFile; fileRef = 4AE434B3211C9CC200E1AACF /* PrjFSSharedDataQueue.hpp */; };
 		C6BDD366208BC60400CB7E58 /* VirtualizationRoots.hpp in Headers */ = {isa = PBXBuildFile; fileRef = C6BDD364208BC60400CB7E58 /* VirtualizationRoots.hpp */; };
 		C6BDD367208BC60400CB7E58 /* VirtualizationRoots.cpp in Sources */ = {isa = PBXBuildFile; fileRef = C6BDD365208BC60400CB7E58 /* VirtualizationRoots.cpp */; };
 		C6BDD36A208BC99100CB7E58 /* Locks.hpp in Headers */ = {isa = PBXBuildFile; fileRef = C6BDD368208BC99100CB7E58 /* Locks.hpp */; };
@@ -44,6 +46,8 @@
 		4AC1D7C22091FA2300786861 /* PrjFSClasses.hpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.h; path = PrjFSClasses.hpp; sourceTree = "<group>"; };
 		4AC1D7C32091FBFC00786861 /* PrjFSLogUserClient.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = PrjFSLogUserClient.cpp; sourceTree = "<group>"; };
 		4AC1D7C42091FBFC00786861 /* PrjFSLogUserClient.hpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.h; path = PrjFSLogUserClient.hpp; sourceTree = "<group>"; };
+		4AE434B2211C9CC200E1AACF /* PrjFSSharedDataQueue.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = PrjFSSharedDataQueue.cpp; sourceTree = "<group>"; };
+		4AE434B3211C9CC200E1AACF /* PrjFSSharedDataQueue.hpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.h; path = PrjFSSharedDataQueue.hpp; sourceTree = "<group>"; };
 		C6BDD364208BC60400CB7E58 /* VirtualizationRoots.hpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.h; path = VirtualizationRoots.hpp; sourceTree = "<group>"; };
 		C6BDD365208BC60400CB7E58 /* VirtualizationRoots.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = VirtualizationRoots.cpp; sourceTree = "<group>"; };
 		C6BDD368208BC99100CB7E58 /* Locks.hpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.h; path = Locks.hpp; sourceTree = "<group>"; };
@@ -138,6 +142,8 @@
 				4AC1D7BE2091FA0400786861 /* PrjFSProviderUserClient.cpp */,
 				4AC1D7C42091FBFC00786861 /* PrjFSLogUserClient.hpp */,
 				4AC1D7C32091FBFC00786861 /* PrjFSLogUserClient.cpp */,
+				4AE434B3211C9CC200E1AACF /* PrjFSSharedDataQueue.hpp */,
+				4AE434B2211C9CC200E1AACF /* PrjFSSharedDataQueue.cpp */,
 				4A63CB0C20AB009000157B95 /* VnodeUtilities.hpp */,
 				4A63CB0B20AB009000157B95 /* VnodeUtilities.cpp */,
 			);
@@ -160,6 +166,7 @@
 				4AC1D7C62091FBFC00786861 /* PrjFSLogUserClient.hpp in Headers */,
 				4AC1D7C12091FA0400786861 /* PrjFSProviderUserClient.hpp in Headers */,
 				4A63CB0E20AB009000157B95 /* VnodeUtilities.hpp in Headers */,
+				4AE434B5211C9CC200E1AACF /* PrjFSSharedDataQueue.hpp in Headers */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -258,6 +265,7 @@
 				4A9D139D208F675500376182 /* PrjFSService.cpp in Sources */,
 				C6E9E119208BBB62004A5725 /* KauthHandler.cpp in Sources */,
 				4A63CB0D20AB009000157B95 /* VnodeUtilities.cpp in Sources */,
+				4AE434B4211C9CC200E1AACF /* PrjFSSharedDataQueue.cpp in Sources */,
 				C6C780B4207FC67200E7E054 /* PrjFSKext.cpp in Sources */,
 				C6BDD37D208C5E5600CB7E58 /* Message_Kernel.cpp in Sources */,
 				4AC1D7C02091FA0400786861 /* PrjFSProviderUserClient.cpp in Sources */,
