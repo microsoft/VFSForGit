@@ -219,7 +219,7 @@ namespace GVFS.CommandLine
             {
                 success = this.ShowStatusWhileRunning(
                     () => CommitPrefetcher.TryPrefetchCommitsAndTrees(tracer, enlistment, fileSystem, gitObjects, out error),
-                    "Fetching commits and trees " + this.GetCacheServerDisplay(cacheServer));
+                    "Fetching commits and trees " + this.GetCacheServerDisplay(cacheServer, enlistment.RepoUrl));
             }
 
             if (!success)
@@ -310,7 +310,7 @@ namespace GVFS.CommandLine
                     this.HydrateFiles
                     ? "Fetching blobs and hydrating files "
                     : "Fetching blobs ";
-                this.ShowStatusWhileRunning(doPrefetch, message + this.GetCacheServerDisplay(cacheServer));
+                this.ShowStatusWhileRunning(doPrefetch, message + this.GetCacheServerDisplay(cacheServer, enlistment.RepoUrl));
             }
 
             if (blobPrefetcher.HasFailures)
@@ -352,9 +352,9 @@ namespace GVFS.CommandLine
             }
         }
 
-        private string GetCacheServerDisplay(CacheServerInfo cacheServer)
+        private string GetCacheServerDisplay(CacheServerInfo cacheServer, string repoUrl)
         {
-            if (cacheServer.Name != null && !cacheServer.Name.Equals(CacheServerInfo.ReservedNames.None))
+            if (!cacheServer.IsNone(repoUrl))
             {
                 return "from cache server";
             }

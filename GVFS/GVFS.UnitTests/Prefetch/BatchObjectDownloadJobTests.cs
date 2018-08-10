@@ -50,7 +50,7 @@ namespace GVFS.UnitTests.Prefetch
 
             BlockingCollection<string> output = new BlockingCollection<string>();
             MockTracer tracer = new MockTracer();
-            MockEnlistment enlistment = new MockEnlistment();
+            MockGVFSEnlistment enlistment = new MockGVFSEnlistment();
             MockBatchHttpGitObjects httpObjects = new MockBatchHttpGitObjects(tracer, enlistment, objectResolver);
 
             BatchObjectDownloadJob dut = new BatchObjectDownloadJob(

@@ -158,7 +158,7 @@ namespace GVFS.Virtualization.FileSystem
                 fileName.Equals(GVFSConstants.SpecialGitFiles.GitIgnore, StringComparison.OrdinalIgnoreCase);
         }
 
-        protected void OnDotGitFileChanged(string relativePath)
+        protected void OnDotGitFileOrFolderChanged(string relativePath)
         {
             if (relativePath.Equals(GVFSConstants.DotGit.Index, StringComparison.OrdinalIgnoreCase))
             {
@@ -167,6 +167,26 @@ namespace GVFS.Virtualization.FileSystem
             else if (relativePath.Equals(GVFSConstants.DotGit.Logs.Head, StringComparison.OrdinalIgnoreCase))
             {
                 this.FileSystemCallbacks.OnLogsHeadChange();
+            }
+            else if (IsPathHeadOrLocalBranch(relativePath))
+            {
+                this.FileSystemCallbacks.OnHeadOrRefChanged();
+            }
+            else if (relativePath.Equals(GVFSConstants.DotGit.Info.ExcludePath, StringComparison.OrdinalIgnoreCase))
+            {
+                this.FileSystemCallbacks.OnExcludeFileChanged();
+            }
+        }
+
+        protected void OnDotGitFileOrFolderDeleted(string relativePath)
+        {
+            if (IsPathHeadOrLocalBranch(relativePath))
+            {
+                this.FileSystemCallbacks.OnHeadOrRefChanged();
+            }
+            else if (relativePath.Equals(GVFSConstants.DotGit.Info.ExcludePath, StringComparison.OrdinalIgnoreCase))
+            {
+                this.FileSystemCallbacks.OnExcludeFileChanged();
             }
         }
 
@@ -222,6 +242,18 @@ namespace GVFS.Virtualization.FileSystem
         {
             this.Context.Tracer.RelatedError(metadata, methodName + " caught unhandled exception, exiting process");
             Environment.Exit(1);
+        }
+
+        private static bool IsPathHeadOrLocalBranch(string relativePath)
+        {
+            if (!relativePath.EndsWith(GVFSConstants.DotGit.LockExtension, StringComparison.OrdinalIgnoreCase) &&
+                (relativePath.Equals(GVFSConstants.DotGit.Head, StringComparison.OrdinalIgnoreCase) ||
+                relativePath.StartsWith(GVFSConstants.DotGit.Refs.Heads.RootFolder, StringComparison.OrdinalIgnoreCase)))
+            {
+                return true;
+            }
+
+            return false;
         }
 
         private void ExecuteFileOrNetworkRequest()

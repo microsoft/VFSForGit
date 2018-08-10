@@ -1,4 +1,4 @@
-using GVFS.Common;
+﻿using GVFS.Common;
 using GVFS.Common.FileSystem;
 using GVFS.Common.Git;
 using GVFS.Common.Http;
@@ -33,6 +33,7 @@ namespace GVFS.Mount
 
         private CacheServerInfo cacheServer;
         private RetryConfig retryConfig;
+        private GitStatusCacheConfig gitStatusCacheConfig;
 
         private GVFSContext context;
         private GVFSGitObjects gitObjects;
@@ -41,10 +42,11 @@ namespace GVFS.Mount
         private HeartbeatThread heartbeat;
         private ManualResetEvent unmountEvent;
 
-        public InProcessMount(ITracer tracer, GVFSEnlistment enlistment, CacheServerInfo cacheServer, RetryConfig retryConfig, bool showDebugWindow)
+        public InProcessMount(ITracer tracer, GVFSEnlistment enlistment, CacheServerInfo cacheServer, RetryConfig retryConfig, GitStatusCacheConfig gitStatusCacheConfig, bool showDebugWindow)
         {
             this.tracer = tracer;
             this.retryConfig = retryConfig;
+            this.gitStatusCacheConfig = gitStatusCacheConfig;
             this.cacheServer = cacheServer;
             this.enlistment = enlistment;
             this.showDebugWindow = showDebugWindow;
@@ -290,18 +292,17 @@ namespace GVFS.Mount
                 bool lockAcquired = false;
 
                 NamedPipeMessages.LockData existingExternalHolder = null;
-                bool lockAvailable = this.context.Repository.GVFSLock.IsLockAvailableForExternalRequestor(out existingExternalHolder);
-
                 string denyGVFSMessage = null;
-                if (!requester.CheckAvailabilityOnly)
+
+                bool lockAvailable = this.context.Repository.GVFSLock.IsLockAvailableForExternalRequestor(out existingExternalHolder);
+                bool isReadyForExternalLockRequests = this.fileSystemCallbacks.IsReadyForExternalAcquireLockRequests(requester, out denyGVFSMessage);
+
+                if (!requester.CheckAvailabilityOnly && isReadyForExternalLockRequests)
                 {
-                    if (this.fileSystemCallbacks.IsReadyForExternalAcquireLockRequests(requester, out denyGVFSMessage))
-                    {
-                        lockAcquired = this.context.Repository.GVFSLock.TryAcquireLockForExternalRequestor(requester, out existingExternalHolder);
-                    }
+                    lockAcquired = this.context.Repository.GVFSLock.TryAcquireLockForExternalRequestor(requester, out existingExternalHolder);
                 }
 
-                if (lockAvailable && requester.CheckAvailabilityOnly)
+                if (requester.CheckAvailabilityOnly && lockAvailable && isReadyForExternalLockRequests)
                 {
                     response = new NamedPipeMessages.AcquireLock.Response(NamedPipeMessages.AcquireLock.AvailableResult);
                 }
@@ -506,7 +507,14 @@ namespace GVFS.Mount
             GitObjectsHttpRequestor objectRequestor = new GitObjectsHttpRequestor(this.context.Tracer, this.context.Enlistment, cache, this.retryConfig);
             this.gitObjects = new GVFSGitObjects(this.context, objectRequestor);
             FileSystemVirtualizer virtualizer = this.CreateOrReportAndExit(() => GVFSPlatformLoader.CreateFileSystemVirtualizer(this.context, this.gitObjects), "Failed to create src folder virtualizer");
-            this.fileSystemCallbacks = this.CreateOrReportAndExit(() => new FileSystemCallbacks(this.context, this.gitObjects, RepoMetadata.Instance, virtualizer), "Failed to create src folder callback listener");
+
+            GitStatusCache gitStatusCache = (!this.context.Unattended && GVFSPlatform.Instance.IsGitStatusCacheSupported()) ? new GitStatusCache(this.context, this.gitStatusCacheConfig) : null;
+            if (gitStatusCache != null)
+            {
+                this.tracer.RelatedInfo("Git status cache enabled. Backoff time: {0}ms", this.gitStatusCacheConfig.BackoffTime.TotalMilliseconds);
+            }
+
+            this.fileSystemCallbacks = this.CreateOrReportAndExit(() => new FileSystemCallbacks(this.context, this.gitObjects, RepoMetadata.Instance, virtualizer, gitStatusCache), "Failed to create src folder callback listener");
 
             if (!this.context.Unattended)
             {

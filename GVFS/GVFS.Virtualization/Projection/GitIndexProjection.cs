@@ -325,7 +325,7 @@ namespace GVFS.Virtualization.Projection
             this.placeholderList.AddAndFlush(virtualPath, sha);
         }
 
-        public virtual bool TryGetProjectedItemsFromMemory(string folderPath, out IEnumerable<ProjectedFileInfo> projectedItems)
+        public virtual bool TryGetProjectedItemsFromMemory(string folderPath, out List<ProjectedFileInfo> projectedItems)
         {
             projectedItems = null;
 
@@ -376,7 +376,7 @@ namespace GVFS.Virtualization.Projection
             }
         }
 
-        public virtual IEnumerable<ProjectedFileInfo> GetProjectedItems(
+        public virtual List<ProjectedFileInfo> GetProjectedItems(
             CancellationToken cancellationToken,
             BlobSizes.BlobSizesConnection blobSizesConnection, 
             string folderPath)
@@ -460,7 +460,7 @@ namespace GVFS.Virtualization.Projection
             return null;
         }
 
-        public FileSystemTaskResult OpenIndexForRead()
+        public virtual FileSystemTaskResult OpenIndexForRead()
         {
             if (!File.Exists(this.indexPath))
             {

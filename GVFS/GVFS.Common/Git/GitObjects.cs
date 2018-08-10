@@ -450,6 +450,11 @@ namespace GVFS.Common.Git
             return new string[0];
         }
 
+        public virtual bool IsUsingCacheServer()
+        {
+            return !this.GitObjectRequestor.CacheServer.IsNone(this.Enlistment.RepoUrl);
+        }
+
         private static string GetRandomPackName(string packRoot)
         {
             string packName = "pack-" + Guid.NewGuid().ToString("N") + ".pack";

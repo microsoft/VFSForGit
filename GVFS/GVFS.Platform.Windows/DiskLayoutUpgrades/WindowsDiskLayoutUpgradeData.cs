@@ -26,6 +26,7 @@ namespace GVFS.Platform.Windows.DiskLayoutUpgrades
                     new DiskLayout12to13Upgrade_FolderPlaceholder(),
                     new DiskLayout13to14Upgrade_BlobSizes(),
                     new DiskLayout14to15Upgrade_ModifiedPaths(),
+                    new DiskLayout15to16Upgrade_GitStatusCache(),
                 };
             }
         }

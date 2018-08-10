@@ -83,5 +83,18 @@ namespace GVFS.UnitTests.Common
             new GitCommandLineParser("git checkout HEAD --").IsCheckoutWithFilePaths().ShouldEqual(false);
             new GitCommandLineParser("git checkout HEAD -- ").IsCheckoutWithFilePaths().ShouldEqual(false);
         }
+
+        [TestCase]
+        public void IsSerializedStatusTests()
+        {
+            new GitCommandLineParser("git status --serialized=some/file").IsSerializedStatus().ShouldEqual(true);
+            new GitCommandLineParser("git status --serialized").IsSerializedStatus().ShouldEqual(true);
+
+            new GitCommandLineParser("git checkout branch -- file").IsSerializedStatus().ShouldEqual(false);
+            new GitCommandLineParser("git status").IsSerializedStatus().ShouldEqual(false);
+            new GitCommandLineParser("git checkout --serialized").IsSerializedStatus().ShouldEqual(false);
+            new GitCommandLineParser("git checkout --serialized=some/file").IsSerializedStatus().ShouldEqual(false);
+            new GitCommandLineParser("gits status --serialized=some/file").IsSerializedStatus().ShouldEqual(false);
+        }
     }
 }

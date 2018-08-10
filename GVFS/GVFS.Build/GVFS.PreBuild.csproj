@@ -20,7 +20,6 @@
     <CodeAnalysisRuleSet>MinimumRecommendedRules.ruleset</CodeAnalysisRuleSet>
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
-    <RegisterForComInterop>true</RegisterForComInterop>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)' == 'Release|x64'">
     <DefineConstants>TRACE</DefineConstants>
@@ -59,6 +58,19 @@
   <Target Name="GetNativeManifest" />
   <Target Name="GetCopyToOutputDirectoryItems" />
   <Target Name="Publish" />
+
+  <!-- The following targets are defined here so that we can build
+       this project without emitting an assembly. -->
+  <Target Name="BuiltProjectOutputGroup" />
+  <Target Name="BuiltProjectOutputGroupDependencies" />
+  <Target Name="DebugSymbolsProjectOutputGroup" />
+  <Target Name="DebugSymbolsProjectOutputGroupDependencies" />
+  <Target Name="DocumentationProjectOutputGroup" />
+  <Target Name="DocumentationProjectOutputGroupDependencies" />
+  <Target Name="SatelliteDllsProjectOutputGroup" />
+  <Target Name="SatelliteDllsProjectOutputGroupDependencies" />
+  <Target Name="SGenFilesOutputGroup" />
+  <Target Name="SGenFilesOutputGroupDependencies" />
 
   <UsingTask TaskName="GenerateG4WNugetReference" TaskFactory="CodeTaskFactory" AssemblyFile="$(MSBuildToolsPath)\Microsoft.Build.Tasks.v12.0.dll">
     <ParameterGroup>

@@ -78,7 +78,7 @@ namespace GVFS.PerfProfiling
                 new RetryConfig());
 
             GVFSGitObjects gitObjects = new GVFSGitObjects(this.Context, objectRequestor);
-            return new FileSystemCallbacks(this.Context, gitObjects, RepoMetadata.Instance, fileSystemVirtualizer: null);
+            return new FileSystemCallbacks(this.Context, gitObjects, RepoMetadata.Instance, fileSystemVirtualizer: null, gitStatusCache : null);
         }
     }
 }

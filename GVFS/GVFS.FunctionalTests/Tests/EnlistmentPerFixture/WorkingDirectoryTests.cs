@@ -407,8 +407,8 @@ BOOL APIENTRY DllMain( HMODULE hModule,
         {
             string folderName = "GVFlt_MultiThreadTest";
 
-            // 575d597cf09b2cd1c0ddb4db21ce96979010bbcb did not have the folder GVFlt_MultiThreadTest
-            GitProcess.InvokeProcess(this.Enlistment.RepoRoot, "checkout 575d597cf09b2cd1c0ddb4db21ce96979010bbcb");
+            // 54ea499de78eafb4dfd30b90e0bd4bcec26c4349 did not have the folder GVFlt_MultiThreadTest
+            GitProcess.InvokeProcess(this.Enlistment.RepoRoot, "checkout 54ea499de78eafb4dfd30b90e0bd4bcec26c4349");
 
             // Confirm that no other test has created GVFlt_MultiThreadTest or put it in the modified files
             GVFSHelpers.ModifiedPathsShouldNotContain(this.fileSystem, this.Enlistment.DotGVFSRoot, folderName);
@@ -417,10 +417,10 @@ BOOL APIENTRY DllMain( HMODULE hModule,
             virtualFolderPath.ShouldNotExistOnDisk(this.fileSystem);
             this.fileSystem.CreateDirectory(virtualFolderPath);
 
-            // b5fd7d23706a18cff3e2b8225588d479f7e51138 was the commit prior to deleting GVFLT_MultiThreadTest
+            // b3ddcf43b997cba3fbf9d2341b297e22bf48601a was the commit prior to deleting GVFLT_MultiThreadTest
             // 692765: Note that test also validates case insensitivity as GVFlt_MultiThreadTest is named GVFLT_MultiThreadTest
             //         in this commit
-            GitProcess.InvokeProcess(this.Enlistment.RepoRoot, "checkout b5fd7d23706a18cff3e2b8225588d479f7e51138");
+            GitProcess.InvokeProcess(this.Enlistment.RepoRoot, "checkout b3ddcf43b997cba3fbf9d2341b297e22bf48601a");
 
             this.Enlistment.GetVirtualPathTo(folderName + "\\OpenForReadsSameTime\\test").ShouldBeAFile(this.fileSystem).WithContents("123 \r\n");
             this.Enlistment.GetVirtualPathTo(folderName + "\\OpenForWritesSameTime\\test").ShouldBeAFile(this.fileSystem).WithContents("123 \r\n");
@@ -431,8 +431,8 @@ BOOL APIENTRY DllMain( HMODULE hModule,
         [Category(Categories.Mac.M3)]
         public void FolderContentsCorrectAfterCreateNewFolderRenameAndCheckoutCommitWithSameFolder()
         {
-            // 1ca414ced40f64bf94fc6c7f885974708bc600be is the commit prior to adding Test_EPF_MoveRenameFileTests
-            GitProcess.InvokeProcess(this.Enlistment.RepoRoot, "checkout 1ca414ced40f64bf94fc6c7f885974708bc600be");
+            // 3a55d3b760c87642424e834228a3408796501e7c is the commit prior to adding Test_EPF_MoveRenameFileTests
+            GitProcess.InvokeProcess(this.Enlistment.RepoRoot, "checkout 3a55d3b760c87642424e834228a3408796501e7c");
 
             // Confirm that no other test has created this folder or put it in the modified files
             string folderName = "Test_EPF_MoveRenameFileTests";
@@ -457,7 +457,9 @@ BOOL APIENTRY DllMain( HMODULE hModule,
             (folder + @"\MoveUnhydratedFileToDotGitFolder\Program.cs").ShouldBeAFile(this.fileSystem).WithContents(MoveRenameFileTests.TestFileContents);
         }
 
+        // TODO(Mac) This test is technically part of M2, but we need further investigation of why this test fails on build agents, but not on dev machines.
         [TestCase, Order(15)]
+        [Category(Categories.Mac.M3)]
         public void FilterNonUTF8FileName()
         {
             string encodingFilename = "ريلٌأكتوبرûمارسأغسطسºٰٰۂْٗ۵ريلٌأك.txt";
@@ -592,7 +594,8 @@ BOOL APIENTRY DllMain( HMODULE hModule,
             }
 
             folderEntries.Count().ShouldEqual(1);
-            folderEntries.ShouldContain(file => file.Name.Equals(expectedEntryName));
+            FileSystemInfo singleEntry = folderEntries.First();
+            singleEntry.Name.ShouldEqual(expectedEntryName, $"Actual name: {singleEntry.Name} does not equal expected name {expectedEntryName}");
         }
 
         private void EnumerateAndReadShouldNotChangeEnumerationOrder(string folderRelativePath)

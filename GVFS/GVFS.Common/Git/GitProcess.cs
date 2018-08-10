@@ -271,9 +271,20 @@ namespace GVFS.Common.Git
             return this.InvokeGitInWorkingDirectoryRoot("checkout -f " + target, useReadObjectHook: false);
         }
 
-        public Result Status(bool allowObjectDownloads)
+        public Result Status(bool allowObjectDownloads, bool useStatusCache)
         {
-            return this.InvokeGitInWorkingDirectoryRoot("status", useReadObjectHook: allowObjectDownloads);
+            string command = useStatusCache ? "status" : "status --no-deserialize";
+            return this.InvokeGitInWorkingDirectoryRoot(command, useReadObjectHook: allowObjectDownloads);
+        }
+
+        public Result SerializeStatus(bool allowObjectDownloads, string serializePath)
+        {
+            // specify ignored=matching and --untracked-files=complete
+            // so the status cache can answer status commands run by Visual Studio
+            // or tools with similar requirements.
+            return this.InvokeGitInWorkingDirectoryRoot(
+                string.Format("--no-optional-locks status \"--serialize={0}\" --ignored=matching --untracked-files=complete", serializePath),
+                useReadObjectHook: allowObjectDownloads);
         }
 
         public Result UnpackObjects(Stream packFileStream)

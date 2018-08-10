@@ -97,6 +97,17 @@ namespace GVFS.FunctionalTests
                 }
 
                 GVFSServiceProcess.InstallService();
+
+                string statusCacheVersionTokenPath = Path.Combine(
+                    Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData, Environment.SpecialFolderOption.Create),
+                    "GVFS",
+                    "GVFS.Service",
+                    "EnableGitStatusCacheToken.dat");
+
+                if (!File.Exists(statusCacheVersionTokenPath))
+                {
+                    File.WriteAllText(statusCacheVersionTokenPath, string.Empty);
+                }
             }
         }
 

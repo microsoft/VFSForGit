@@ -4,7 +4,7 @@
 ; General documentation on how to use InnoSetup scripts: http://www.jrsoftware.org/ishelp/index.php
 
 #define PrjFltDir PackagesDir + "\" + ProjFSPackage + "\filter" 
-#define VCRuntimeDir PackagesDir + "\GVFS.VCRuntime.0.1.0-build\lib\x64"
+#define VCRuntimeDir PackagesDir + "\GVFS.VCRuntime.0.2.0-build\lib\x64"
 #define GVFSDir BuildOutputDir + "\GVFS.Windows\bin\" + PlatformAndConfiguration
 #define GVFSCommonDir BuildOutputDir + "\GVFS.Common\bin\" + PlatformAndConfiguration + "\netstandard2.0"
 #define HooksDir BuildOutputDir + "\GVFS.Hooks.Windows\bin\" + PlatformAndConfiguration
@@ -63,6 +63,10 @@ Name: "full"; Description: "Full installation"; Flags: iscustom;
 
 [Components]
 
+[InstallDelete]
+; Delete old dependencies from VS 2015 VC redistributables
+Type: files; Name: "{app}\ucrtbase.dll"
+
 [Files]
 ; PrjFlt Filter Files
 DestDir: "{app}\Filter"; Flags: ignoreversion; Source:"{#PrjFltDir}\PrjFlt.sys"
@@ -97,9 +101,10 @@ DestDir: "{app}"; Flags: ignoreversion; Source:"{#ReadObjectDir}\GVFS.ReadObject
 DestDir: "{app}"; Flags: ignoreversion; Source:"{#VirtualFileSystemDir}\GVFS.VirtualFileSystemHook.pdb"
 DestDir: "{app}"; Flags: ignoreversion; Source:"{#VirtualFileSystemDir}\GVFS.VirtualFileSystemHook.exe"
 
-; Cpp Dependancies
-DestDir: "{app}"; Flags: ignoreversion; Source:"{#VCRuntimeDir}\ucrtbase.dll"
+; Cpp Dependencies
 DestDir: "{app}"; Flags: ignoreversion; Source:"{#VCRuntimeDir}\msvcp140.dll"
+DestDir: "{app}"; Flags: ignoreversion; Source:"{#VCRuntimeDir}\msvcp140_1.dll"
+DestDir: "{app}"; Flags: ignoreversion; Source:"{#VCRuntimeDir}\msvcp140_2.dll"
 DestDir: "{app}"; Flags: ignoreversion; Source:"{#VCRuntimeDir}\vcruntime140.dll"
 
 ; GVFS PDB's
@@ -278,6 +283,18 @@ begin
     end;
 end;
 
+procedure WriteGitStatusCacheAvailableFile();
+var
+  TokenFilePath: string;
+begin
+  TokenFilePath := ExpandConstant('{app}\GitStatusCacheAvailable');
+  if not FileExists(TokenFilePath) then
+    begin
+      Log('WritingGitStatusCacheAvailableFile: Writing file ' + TokenFilePath);
+      SaveStringToFile(TokenFilePath, '', False);
+    end
+end;
+
 procedure InstallGVFSService();
 var
   ResultCode: integer;
@@ -302,6 +319,7 @@ begin
           end;
       end;
 
+    WriteGitStatusCacheAvailableFile();
   finally
     WizardForm.StatusLabel.Caption := StatusText;
     WizardForm.ProgressGauge.Style := npbstNormal;

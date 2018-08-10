@@ -20,7 +20,7 @@ namespace GVFS.UnitTests.Prefetch
         {
             using (ITracer tracer = CreateTracer())
             {
-                MockEnlistment enlistment = new MockEnlistment();
+                MockGVFSEnlistment enlistment = new MockGVFSEnlistment();
                 MockHttpGitObjects httpGitObjects = new MockHttpGitObjects(tracer, enlistment);
                 MockPhysicalGitObjects gitObjects = new MockPhysicalGitObjects(tracer, null, enlistment, httpGitObjects);
 
@@ -45,7 +45,7 @@ namespace GVFS.UnitTests.Prefetch
         {
             using (ITracer tracer = CreateTracer())
             {
-                MockEnlistment enlistment = new MockEnlistment();
+                MockGVFSEnlistment enlistment = new MockGVFSEnlistment();
                 MockHttpGitObjects httpGitObjects = new MockHttpGitObjects(tracer, enlistment);
                 httpGitObjects.AddBlobContent(FakeSha, FakeShaContents);
                 MockPhysicalGitObjects gitObjects = new MockPhysicalGitObjects(tracer, null, enlistment, httpGitObjects);
@@ -73,7 +73,7 @@ namespace GVFS.UnitTests.Prefetch
         {
             using (ITracer tracer = CreateTracer())
             {
-                MockEnlistment enlistment = new MockEnlistment();
+                MockGVFSEnlistment enlistment = new MockGVFSEnlistment();
                 MockPhysicalGitObjects gitObjects = new MockPhysicalGitObjects(tracer, null, enlistment, null);
 
                 BlockingCollection<IndexPackRequest> input = new BlockingCollection<IndexPackRequest>();

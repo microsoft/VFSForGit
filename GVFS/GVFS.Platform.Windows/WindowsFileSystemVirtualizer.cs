@@ -174,6 +174,9 @@ namespace GVFS.Platform.Windows
                 new NotificationMapping(NotificationType.None, GVFSConstants.DotGit.Root),
                 new NotificationMapping(Notifications.IndexFile, GVFSConstants.DotGit.Index),
                 new NotificationMapping(Notifications.LogsHeadFile, GVFSConstants.DotGit.Logs.Head),
+                new NotificationMapping(Notifications.ExcludeAndHeadFile, GVFSConstants.DotGit.Info.ExcludePath),
+                new NotificationMapping(Notifications.ExcludeAndHeadFile, GVFSConstants.DotGit.Head),
+                new NotificationMapping(Notifications.FilesAndFoldersInRefsHeads, GVFSConstants.DotGit.Refs.Heads.Root),
             };
 
             // We currently use twice as many threads as connections to allow for 
@@ -277,7 +280,7 @@ namespace GVFS.Platform.Windows
                     return (HResult)HResultExtensions.HResultFromNtStatus.DeviceNotReady;
                 }
 
-                IEnumerable<ProjectedFileInfo> projectedItems;
+                List<ProjectedFileInfo> projectedItems;
                 if (this.FileSystemCallbacks.GitIndexProjection.TryGetProjectedItemsFromMemory(virtualPath, out projectedItems))
                 {
                     ActiveEnumeration activeEnumeration = new ActiveEnumeration(projectedItems);
@@ -287,7 +290,6 @@ namespace GVFS.Platform.Windows
                             this.CreateEventMetadata(enumerationId, virtualPath), 
                             nameof(this.StartDirectoryEnumerationHandler) + ": Failed to add enumeration ID to active collection");
 
-                        activeEnumeration.Dispose();
                         return HResult.InternalError;
                     }
 
@@ -357,7 +359,6 @@ namespace GVFS.Platform.Windows
                         this.CreateEventMetadata(enumerationId, virtualPath), 
                         nameof(this.StartDirectoryEnumerationAsyncHandler) + ": Failed to add enumeration ID to active collection");
 
-                    activeEnumeration.Dispose();
                     result = HResult.InternalError;
                 }
                 else
@@ -406,11 +407,6 @@ namespace GVFS.Platform.Windows
 
                 ActiveEnumeration activeEnumeration;
                 bool activeEnumerationsUpdated = this.activeEnumerations.TryRemove(enumerationId, out activeEnumeration);
-                if (activeEnumerationsUpdated)
-                {
-                    activeEnumeration.Dispose();
-                }
-
                 metadata.Add("activeEnumerationsUpdated", activeEnumerationsUpdated);                
                 this.Context.Tracer.RelatedEvent(EventLevel.Informational, $"{nameof(this.StartDirectoryEnumerationAsyncHandler)}_CommandAlreadyCanceled", metadata);                
             }
@@ -421,11 +417,7 @@ namespace GVFS.Platform.Windows
             try
             {
                 ActiveEnumeration activeEnumeration;
-                if (this.activeEnumerations.TryRemove(enumerationId, out activeEnumeration))
-                {
-                    activeEnumeration.Dispose();
-                }
-                else
+                if (!this.activeEnumerations.TryRemove(enumerationId, out activeEnumeration))
                 {
                     this.Context.Tracer.RelatedWarning(
                         this.CreateEventMetadata(enumerationId), 
@@ -1238,7 +1230,7 @@ namespace GVFS.Platform.Windows
 
                 if (dstPathInDotGit)
                 {
-                    this.OnDotGitFileChanged(destinationPath);
+                    this.OnDotGitFileOrFolderChanged(destinationPath);
                 }
 
                 if (!(srcPathInDotGit && dstPathInDotGit))
@@ -1272,25 +1264,41 @@ namespace GVFS.Platform.Windows
             {
                 bool pathInsideDotGit = FileSystemCallbacks.IsPathInsideDotGit(virtualPath);
 
-                if (isFileModified && pathInsideDotGit)
+                if (isFileModified)
                 {
-                    // TODO 876861: See if ProjFS can provide process ID\name in this callback
-                    this.OnDotGitFileChanged(virtualPath);
-                }
-                else if (isFileDeleted && !pathInsideDotGit)
-                {
-                    if (isDirectory)
+                    if (pathInsideDotGit)
                     {
-                        // Don't want to add folders to the modified list if git is the one deleting the directory
-                        GitCommandLineParser gitCommand = new GitCommandLineParser(this.Context.Repository.GVFSLock.GetLockedGitCommand());
-                        if (!gitCommand.IsValidGitCommand)
-                        {
-                            this.FileSystemCallbacks.OnFolderDeleted(virtualPath);
-                        }
+                        // TODO 876861: See if ProjFS can provide process ID\name in this callback
+                        this.OnDotGitFileOrFolderChanged(virtualPath);
                     }
                     else
                     {
-                        this.FileSystemCallbacks.OnFileDeleted(virtualPath);
+                        this.FileSystemCallbacks.InvalidateGitStatusCache();
+                    }
+                }
+                else if (isFileDeleted)
+                {
+                    if (pathInsideDotGit)
+                    {
+                        this.OnDotGitFileOrFolderDeleted(virtualPath);
+                    }
+                    else
+                    {
+                        if (isDirectory)
+                        {
+                            // Don't want to add folders to the modified list if git is the one deleting the directory
+                            GitCommandLineParser gitCommand = new GitCommandLineParser(this.Context.Repository.GVFSLock.GetLockedGitCommand());
+                            if (!gitCommand.IsValidGitCommand)
+                            {
+                                this.FileSystemCallbacks.OnFolderDeleted(virtualPath);
+                            }
+                        }
+                        else
+                        {
+                            this.FileSystemCallbacks.OnFileDeleted(virtualPath);
+                        }
+
+                        this.FileSystemCallbacks.InvalidateGitStatusCache();
                     }
                 }
             }
@@ -1376,7 +1384,7 @@ namespace GVFS.Platform.Windows
         {
             public GetFileStreamException(HResult errorCode)
                 : this("GetFileStreamException exception, error: " + errorCode.ToString(), errorCode)
-            {                
+            {
             }
 
             public GetFileStreamException(string message, HResult result)
@@ -1398,17 +1406,28 @@ namespace GVFS.Platform.Windows
                 NotificationType.FileRenamed | 
                 NotificationType.FileHandleClosedFileModified;
 
+            public const NotificationType ExcludeAndHeadFile =
+                NotificationType.FileRenamed |
+                NotificationType.FileHandleClosedFileDeleted |
+                NotificationType.FileHandleClosedFileModified;
+
+            public const NotificationType FilesAndFoldersInRefsHeads =
+                NotificationType.FileRenamed |
+                NotificationType.FileHandleClosedFileDeleted |
+                NotificationType.FileHandleClosedFileModified;
+
             public const NotificationType FilesInWorkingFolder =
                 NotificationType.NewFileCreated |
                 NotificationType.FileSupersededOrOverwritten |
                 NotificationType.FileRenamed |
                 NotificationType.FileHandleClosedFileDeleted |
-                NotificationType.FilePreConvertToFull;
+                NotificationType.FilePreConvertToFull |
+                NotificationType.FileHandleClosedFileModified;
 
             public const NotificationType FoldersInWorkingFolder =
                 NotificationType.NewFileCreated |
                 NotificationType.FileRenamed |
                 NotificationType.FileHandleClosedFileDeleted;
-        }       
+        }
     }
 }

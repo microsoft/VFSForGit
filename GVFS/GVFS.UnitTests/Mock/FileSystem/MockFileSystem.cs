@@ -13,9 +13,26 @@ namespace GVFS.UnitTests.Mock.FileSystem
         public MockFileSystem(MockDirectory rootDirectory)
         {
             this.RootDirectory = rootDirectory;
+            this.DeleteNonExistentFileThrowsException = true;
         }
 
         public MockDirectory RootDirectory { get; private set; }
+
+        public bool DeleteFileThrowsException { get; set; }
+
+        /// <summary>
+        /// Allow FileMoves without checking the input arguments.
+        /// This is to support tests that just want to allow arbitrary
+        /// MoveFile calls to succeed.
+        /// </summary>
+        public bool AllowMoveFile { get; set; }
+
+        /// <summary>
+        /// Normal behavior C# File.Delete(..) is to not throw if the file to
+        /// be deleted does not exist. However, existing behavior of this mock
+        /// is to throw. This flag allows consumers to control this behavior.
+        /// </summary>
+        public bool DeleteNonExistentFileThrowsException { get; set; }
 
         public override bool FileExists(string path)
         {
@@ -29,7 +46,18 @@ namespace GVFS.UnitTests.Mock.FileSystem
 
         public override void DeleteFile(string path)
         {
+            if (this.DeleteFileThrowsException)
+            {
+                throw new IOException("Exception when deleting file");
+            }
+
             MockFile file = this.RootDirectory.FindFile(path);
+
+            if (file == null && !this.DeleteNonExistentFileThrowsException)
+            {
+                return;
+            }
+
             file.ShouldNotBeNull();
 
             this.RootDirectory.RemoveFile(path);
@@ -42,12 +70,17 @@ namespace GVFS.UnitTests.Mock.FileSystem
                 throw new ArgumentNullException();
             }
 
+            if (this.AllowMoveFile)
+            {
+                return;
+            }
+
             MockFile sourceFile = this.RootDirectory.FindFile(sourcePath);
             MockFile destinationFile = this.RootDirectory.FindFile(destinationPath);
             if (sourceFile == null)
             {
                 throw new FileNotFoundException();
-            }           
+            }
 
             if (destinationFile != null)
             {
@@ -181,7 +214,14 @@ namespace GVFS.UnitTests.Mock.FileSystem
 
         public override void MoveFile(string sourcePath, string targetPath)
         {
-            throw new NotImplementedException();
+            if (this.AllowMoveFile)
+            {
+                return;
+            }
+            else
+            {
+                throw new NotImplementedException();
+            }
         }
 
         public override string[] GetFiles(string directoryPath, string mask)

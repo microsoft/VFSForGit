@@ -37,7 +37,7 @@ namespace GVFS.FunctionalTests.Tools
                 {
                     // eg C:\Repos\GVFSFunctionalTests\.gvfsCache
                     // Ensures the general cache is not cleaned up between test runs
-                    localCacheRoot = Path.Combine(Properties.Settings.Default.EnlistmentRoot, "..", ".gvfsCache");                    
+                    localCacheRoot = Path.Combine(Properties.Settings.Default.EnlistmentRoot, "..", ".gvfsCache");
                 }
             }
 
@@ -152,6 +152,18 @@ namespace GVFS.FunctionalTests.Tools
             GitProcess.Invoke(this.RepoRoot, "config core.abbrev 40");
             GitProcess.Invoke(this.RepoRoot, "config user.name \"Functional Test User\"");
             GitProcess.Invoke(this.RepoRoot, "config user.email \"functional@test.com\"");
+
+            // If this repository has a .gitignore file in the root directory, force it to be
+            // hydrated. This is because if the GitStatusCache feature is enabled, it will run
+            // a "git status" command asynchronously, which will hydrate the .gitignore file
+            // as it reads the ignore rules. Hydrate this file here so that it is consistently
+            // hydrated and there are no race conditions depending on when / if it is hydrated
+            // as part of an asynchronous status scan to rebuild the GitStatusCache.
+            string rootGitIgnorePath = Path.Combine(this.RepoRoot, ".gitignore");
+            if (File.Exists(rootGitIgnorePath))
+            {
+                File.ReadAllBytes(rootGitIgnorePath);
+            }
         }
 
         public void MountGVFS()

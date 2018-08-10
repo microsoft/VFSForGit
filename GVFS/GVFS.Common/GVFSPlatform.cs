@@ -57,6 +57,8 @@ namespace GVFS.Common
         public abstract bool IsConsoleOutputRedirectedToFile();
         public abstract bool TryGetGVFSEnlistmentRoot(string directory, out string enlistmentRoot, out string errorMessage);
 
+        public abstract bool IsGitStatusCacheSupported();
+
         public bool TryGetNormalizedPathRoot(string path, out string pathRoot, out string errorMessage)
         {
             pathRoot = null;

@@ -60,11 +60,11 @@ namespace MirrorProvider.Windows
             // what is on disk, and it assumes that both lists are already sorted.
             ActiveEnumeration activeEnumeration = new ActiveEnumeration(
                 this.GetChildItems(relativePath)
-                .OrderBy(file => file.Name, StringComparer.OrdinalIgnoreCase));
+                .OrderBy(file => file.Name, StringComparer.OrdinalIgnoreCase)
+                .ToList());
 
             if (!this.activeEnumerations.TryAdd(enumerationId, activeEnumeration))
             {
-                activeEnumeration.Dispose();
                 return HResult.InternalError;
             }
 
@@ -76,11 +76,7 @@ namespace MirrorProvider.Windows
             Console.WriteLine($"EndDirectioryEnumeration: {enumerationId}");
 
             ActiveEnumeration activeEnumeration;
-            if (this.activeEnumerations.TryRemove(enumerationId, out activeEnumeration))
-            {
-                activeEnumeration.Dispose();
-            }
-            else
+            if (!this.activeEnumerations.TryRemove(enumerationId, out activeEnumeration))
             {
                 return HResult.InternalError;
             }

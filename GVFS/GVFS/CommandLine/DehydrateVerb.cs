@@ -151,7 +151,7 @@ of your enlistment's src folder.
                         isMounted = true;
 
                         GitProcess git = new GitProcess(enlistment);
-                        statusResult = git.Status(allowObjectDownloads: false);
+                        statusResult = git.Status(allowObjectDownloads: false, useStatusCache: false);
                         if (statusResult.HasErrors)
                         {
                             return false;

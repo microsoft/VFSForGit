@@ -57,6 +57,12 @@ namespace GVFS.Common
                 !this.HasArgument("--merge");
         }
 
+        public bool IsSerializedStatus()
+        {
+            return this.IsVerb(Verbs.Status) &&
+                this.HasArgumentPrefix("--serialize");
+        }
+
         /// <summary>
         /// This method currently just makes a best effort to detect file paths. Only use this method for optional optimizations
         /// related to file paths. Do NOT use this method if you require a reliable answer.
@@ -124,6 +130,11 @@ namespace GVFS.Common
         private bool HasArgument(string argument)
         {
             return this.HasAnyArgument(arg => arg == argument);
+        }
+
+        private bool HasArgumentPrefix(string argument)
+        {
+            return this.HasAnyArgument(arg => arg.StartsWith(argument, StringComparison.Ordinal));
         }
 
         private bool HasArgumentAtIndex(string argument, int argumentIndex)

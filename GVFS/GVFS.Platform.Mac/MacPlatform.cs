@@ -121,5 +121,11 @@ namespace GVFS.Platform.Mac
         {
             return MacPlatform.TryGetGVFSEnlistmentRootImplementation(directory, out enlistmentRoot, out errorMessage);
         }
+
+        public override bool IsGitStatusCacheSupported()
+        {
+            // TODO(Mac): support git status cache
+            return false;
+        }
     }
 }

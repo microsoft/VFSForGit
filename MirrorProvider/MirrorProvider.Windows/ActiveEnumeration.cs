@@ -1,19 +1,17 @@
 ﻿using ProjFS;
-using System;
 using System.Collections.Generic;
 
 namespace MirrorProvider.Windows
 {
-    public class ActiveEnumeration : IDisposable
+    public class ActiveEnumeration
     {
-        private readonly IEnumerable<ProjectedFileInfo> fileInfos;
-
-        private IEnumerator<ProjectedFileInfo> fileInfoEnumerator;
+        // Use our own enumerator to avoid having to dispose anything
+        private ProjectedFileInfoEnumerator fileInfoEnumerator;
         private string filterString = null;
 
-        public ActiveEnumeration(IEnumerable<ProjectedFileInfo> fileInfos)
+        public ActiveEnumeration(List<ProjectedFileInfo> fileInfos)
         {
-            this.fileInfos = fileInfos;
+            this.fileInfoEnumerator = new ProjectedFileInfoEnumerator(fileInfos);
             this.ResetEnumerator();
             this.MoveNext();
         }
@@ -94,15 +92,6 @@ namespace MirrorProvider.Windows
             return this.filterString;
         }
 
-        public void Dispose()
-        {
-            if (this.fileInfoEnumerator != null)
-            {
-                this.fileInfoEnumerator.Dispose();
-                this.fileInfoEnumerator = null;
-            }
-        }
-
         private void SaveFilter(string filter)
         {
             if (string.IsNullOrEmpty(filter))
@@ -126,7 +115,43 @@ namespace MirrorProvider.Windows
 
         private void ResetEnumerator()
         {
-            this.fileInfoEnumerator = this.fileInfos.GetEnumerator();
+            this.fileInfoEnumerator.Reset();
+        }
+
+        private class ProjectedFileInfoEnumerator
+        {
+            private List<ProjectedFileInfo> list;
+            private int index;
+
+            public ProjectedFileInfoEnumerator(List<ProjectedFileInfo> projectedFileInfos)
+            {
+                this.list = projectedFileInfos;
+                this.Reset();
+            }
+
+            public ProjectedFileInfo Current { get; private set; }
+
+            // Combination of the logic in List<T>.Enumerator MoveNext() and MoveNextRare()
+            // https://github.com/dotnet/corefx/blob/b492409b4a1952cda4b078f800499d382e1765fc/src/Common/src/CoreLib/System/Collections/Generic/List.cs#L1137
+            public bool MoveNext()
+            {
+                if (this.index < this.list.Count)
+                {
+                    this.Current = this.list[this.index];
+                    this.index++;
+                    return true;
+                }
+
+                this.index = this.list.Count + 1;
+                this.Current = null;
+                return false;
+            }
+
+            public void Reset()
+            {
+                this.index = 0;
+                this.Current = null;
+            }
         }
     }
 }

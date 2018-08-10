@@ -42,6 +42,8 @@ namespace GVFS.Service
 
                 using (NamedPipeServer pipeServer = NamedPipeServer.StartNewServer(pipeName, this.tracer, this.HandleRequest))
                 {
+                    this.CheckEnableGitStatusCacheTokenFile();
+
                     using (ITracer activity = this.tracer.StartActivity("EnsurePrjFltHealthy", EventLevel.Informational))
                     {
                         string error;
@@ -271,6 +273,65 @@ namespace GVFS.Service
                         break;
                 }
             }
+        }
+
+        /// <summary>
+        /// To work around a behavior in ProjFS where notification masks on files that have been opened in virtualization instance are not invalidated
+        /// when the virtualization instance is restarted, GVFS waits until after there has been a reboot before enabling the GitStatusCache.
+        /// GVFS.Service signals that there has been a reboot since installing a version of GVFS that supports the GitStatusCache via 
+        /// the existence of the file "EnableGitStatusCacheToken.dat" in {CommonApplicationData}\GVFS\GVFS.Service
+        /// (i.e. ProgramData\GVFS\GVFS.Service\EnableGitStatusCacheToken.dat on Windows).
+        /// </summary>
+        private void CheckEnableGitStatusCacheTokenFile()
+        {
+            try
+            {
+                string statusCacheVersionTokenPath = Path.Combine(Paths.GetServiceDataRoot(GVFSConstants.Service.ServiceName), GVFSConstants.GitStatusCache.EnableGitStatusCacheTokenFile);
+
+                if (!File.Exists(statusCacheVersionTokenPath))
+                {
+                    DateTime lastRebootTime = NativeMethods.GetLastRebootTime();
+
+                    // When a version of GVFS that supports the GitStatusCache is installed, it will create
+                    // the following file. By checking the time the file was created, we know when that
+                    // version of GVFS was installed.
+                    string fileToCheck = Path.Combine(Configuration.AssemblyPath, "GitStatusCacheAvailable");
+                    if (File.Exists(fileToCheck))
+                    {
+                        DateTime installTime = File.GetCreationTime(fileToCheck);
+                        if (lastRebootTime > installTime)
+                        {
+                            File.WriteAllText(statusCacheVersionTokenPath, string.Empty);
+                        }
+                    }
+                    else
+                    {
+                        this.tracer.RelatedError($"Unable to determine GVFS installation time: {fileToCheck} does not exist.");
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                // Do not crash the service if there is an error here. Service is still healthy, but we
+                // might not create file indicating that it is OK to use GitStatusCache.
+                this.tracer.RelatedError($"{nameof(CheckEnableGitStatusCacheTokenFile)}: Unable to determine GVFS installation time or write EnableGitStatusCacheToken file due to exception. Exception: {ex.ToString()}");
+            }
+        }
+
+        private bool TryGetGVFSInstallTime(out DateTime installTime)
+        {
+            installTime = DateTime.Now;
+
+            // Get the time of a file that was created by the GVFS installer (for a version of GVFS that supports the
+            // GitStatusCache). The expected path is written by the installer.
+            string fileToCheck = Path.Combine(Configuration.AssemblyPath, "GitStatusCacheAvailable");
+            if (File.Exists(fileToCheck))
+            {
+                installTime = File.GetCreationTime(fileToCheck);
+                return true;
+            }
+
+            return false;
         }
 
         private void LogExceptionAndExit(Exception e, string method)

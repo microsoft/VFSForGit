@@ -99,5 +99,10 @@ namespace GVFS.UnitTests.Mock.Common
         {
             throw new NotSupportedException();
         }
+
+        public override bool IsGitStatusCacheSupported()
+        {
+            return true;
+        }
     }
 }
