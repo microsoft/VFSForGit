@@ -25,6 +25,7 @@
  */
 
 #include <IOKit/IODataQueueShared.h>
+#pragma clang diagnostic ignored "-Wdeprecated-declarations"
 
 IOReturn
 IODataQueueDequeue(IODataQueueMemory *dataQueue, void *data, uint32_t *dataSize)
