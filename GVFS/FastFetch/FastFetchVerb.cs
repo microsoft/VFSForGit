@@ -139,7 +139,7 @@ namespace FastFetch
             "force",
             Required = false,
             Default = false,
-            HelpText = "Force FastFetch to download content as if the current repo was at commit id 0 (Had just been initialized).")]
+            HelpText = "Force FastFetch to download content as if the current repository was just initialized.")]
         public bool Force { get; set; }
 
         public void Execute()
