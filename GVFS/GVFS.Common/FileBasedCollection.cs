@@ -390,6 +390,7 @@ namespace GVFS.Common
                 throw new InvalidOperationException(nameof(this.WriteToDisk) + " requires that collectionAppendsDirectlyToFile be true");
             }
 
+            // TODO(Mac): Decide if we want to stick with \r\n on all platforms, move them all to \n, or use a mix
             byte[] bytes = Encoding.UTF8.GetBytes(value + "\r\n");
             lock (this.fileLock)
             {

@@ -2,7 +2,7 @@
 
 namespace GVFS.Common.NamedPipes
 {
-    public static class NamedPipeStreamWriterExtensions
+    public static class StreamWriterExtensions
     {
         public const int Foo = 0;
 

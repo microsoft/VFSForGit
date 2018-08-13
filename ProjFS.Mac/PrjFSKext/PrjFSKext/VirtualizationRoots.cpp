@@ -80,6 +80,7 @@ VirtualizationRoot* VirtualizationRoots_FindForVnode(vnode_t vnode)
     {
         vnode_put(vnode);
     }
+    
     return root;
 }
 

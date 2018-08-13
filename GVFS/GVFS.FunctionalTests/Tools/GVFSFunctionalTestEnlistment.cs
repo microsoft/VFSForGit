@@ -2,6 +2,7 @@
 using GVFS.FunctionalTests.Should;
 using GVFS.FunctionalTests.Tests;
 using GVFS.Tests.Should;
+using NUnit.Framework;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -233,9 +234,30 @@ namespace GVFS.FunctionalTests.Tools
             this.DeleteEnlistment();
         }
 
-        public string GetVirtualPathTo(params string[] pathInRepo)
+        public string GetVirtualPathTo(string path)
         {
-            return Path.Combine(this.RepoRoot, Path.Combine(pathInRepo));
+            string cleanedPath;
+            switch (Path.DirectorySeparatorChar)
+            {
+                case '/':
+                    cleanedPath = path.Replace('\\', Path.DirectorySeparatorChar);
+                    break;
+
+                case '\\':
+                    cleanedPath = path.Replace('/', Path.DirectorySeparatorChar);
+                    break;
+
+                default:
+                    Assert.Fail($"Unrecognized Path.DirectorySeparatorChar: '{Path.DirectorySeparatorChar}'");
+                    return string.Empty;
+            }
+
+            return Path.Combine(this.RepoRoot, cleanedPath);
+        }
+
+        public string GetVirtualPathTo(params string[] pathParts)
+        {
+            return Path.Combine(this.RepoRoot, Path.Combine(pathParts));
         }
 
         public string GetObjectPathTo(string objectHash)

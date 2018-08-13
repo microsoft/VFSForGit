@@ -16,6 +16,8 @@ typedef enum
     MessageType_KtoU_EnumerateDirectory,
     MessageType_KtoU_HydrateFile,
     
+    MessageType_KtoU_NotifyFileModified,
+    
     // Responses
     MessageType_Response_Success,
     MessageType_Response_Fail,
