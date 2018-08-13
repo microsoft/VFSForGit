@@ -29,7 +29,7 @@ namespace PrjFSLib.Mac
             {
                 OnEnumerateDirectory = this.OnEnumerateDirectory,
                 OnGetFileStream = this.OnGetFileStream,
-                OnNotifyOperation = (this.preventGCOnNotifyOperationDelegate = new NotifyOperationCallback(this.OnNotifyOperation)),
+                OnNotifyOperation = this.preventGCOnNotifyOperationDelegate = new NotifyOperationCallback(this.OnNotifyOperation),
             };
 
             return Interop.PrjFSLib.StartVirtualizationInstance(
