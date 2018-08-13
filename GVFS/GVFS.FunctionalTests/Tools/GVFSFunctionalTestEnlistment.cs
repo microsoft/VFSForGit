@@ -2,7 +2,6 @@
 using GVFS.FunctionalTests.Should;
 using GVFS.FunctionalTests.Tests;
 using GVFS.Tests.Should;
-using NUnit.Framework;
 using System;
 using System.Collections.Generic;
 using System.IO;
