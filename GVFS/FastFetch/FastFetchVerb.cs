@@ -135,6 +135,13 @@ namespace FastFetch
             HelpText = "The GUID of the caller - used for telemetry purposes.")]
         public string ParentActivityId { get; set; }
 
+        [Option(
+            "force",
+            Required = false,
+            Default = false,
+            HelpText = "Force FastFetch to download content as if the current repo was at commit id 0 (Had just been initialized).")]
+        public bool Force { get; set; }
+
         public void Execute()
         {
             Environment.ExitCode = this.ExecuteWithExitCode();
@@ -237,7 +244,7 @@ namespace FastFetch
                             try
                             {
                                 bool isBranch = this.Commit == null;
-                                prefetcher.Prefetch(commitish, isBranch);
+                                prefetcher.Prefetch(commitish, isBranch, force: this.Force);
                                 return !prefetcher.HasFailures;
                             }
                             catch (BlobPrefetcher.FetchException e)

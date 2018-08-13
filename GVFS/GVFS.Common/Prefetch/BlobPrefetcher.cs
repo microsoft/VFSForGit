@@ -162,13 +162,13 @@ namespace GVFS.Common.Prefetch
         }
 
         /// <param name="branchOrCommit">A specific branch to filter for, or null for all branches returned from info/refs</param>
-        public virtual void Prefetch(string branchOrCommit, bool isBranch)
+        public virtual void Prefetch(string branchOrCommit, bool isBranch, bool force = false)
         {
             int matchedBlobCount;
             int downloadedBlobCount;
             int readFileCount;
             
-            this.PrefetchWithStats(branchOrCommit, isBranch, false, out matchedBlobCount, out downloadedBlobCount, out readFileCount);
+            this.PrefetchWithStats(branchOrCommit, isBranch, false, out matchedBlobCount, out downloadedBlobCount, out readFileCount, force: force);
         }
 
         public void PrefetchWithStats(
@@ -177,7 +177,8 @@ namespace GVFS.Common.Prefetch
             bool readFilesAfterDownload,
             out int matchedBlobCount,
             out int downloadedBlobCount,
-            out int readFileCount)
+            out int readFileCount,
+            bool force = false)
         {
             matchedBlobCount = 0;
             downloadedBlobCount = 0;
@@ -217,9 +218,9 @@ namespace GVFS.Common.Prefetch
 
             string previousCommit = null;
 
-            // Use the shallow file to find a recent commit to diff against to try and reduce the number of SHAs to check
-            DiffHelper blobEnumerator = new DiffHelper(this.Tracer, this.Enlistment, this.FileList, this.FolderList);
-            if (File.Exists(shallowFile))
+            // Use the shallow file to find a recent commit to diff against to try and reduce the number of SHAs to check.
+            // Unless force flag has been given, in which case treat as if it's a fresh repo.
+            if (!force && File.Exists(shallowFile))
             {
                 previousCommit = File.ReadAllLines(shallowFile).Where(line => !string.IsNullOrWhiteSpace(line)).LastOrDefault();
                 if (string.IsNullOrWhiteSpace(previousCommit))
@@ -229,6 +230,8 @@ namespace GVFS.Common.Prefetch
                     return;
                 }
             }
+
+            DiffHelper blobEnumerator = new DiffHelper(this.Tracer, this.Enlistment, this.FileList, this.FolderList);
 
             ThreadStart performDiff = () =>
             {
