@@ -300,7 +300,6 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
 
             fileToOverwriteVirtualPath.ShouldBeAFile(this.fileSystem).WithContents(testContents);
 
-            // TODO(Mac): Switch from "\r\n" to Environment.NewLine or "\n" depending on how FileBasedCollection is updated
             GVFSHelpers.ModifiedPathsShouldContain(this.fileSystem, this.Enlistment.DotGVFSRoot, fileToOverwriteEntry + "\r\n");
 
             // Verify skip-worktree cleared
