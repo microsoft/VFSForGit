@@ -7,14 +7,10 @@ namespace PrjFSLib.Mac
     {
         public const int PlaceholderIdLength = Interop.PrjFSLib.PlaceholderIdLength;
 
-        // PrjFSLib delegate - We must hold a reference to prevent garbage collection
-        private readonly NotifyOperationCallback notifyOperationCallback;
+        // We must hold a reference to the delegate to prevent garbage collection
+        private NotifyOperationCallback preventGCOnNotifyOperationDelegate;
 
-        public VirtualizationInstance()
-        {
-            this.notifyOperationCallback = this.OnNotifyOperation;
-        }
-
+        // References held to these delegates via class properties
         public virtual EnumerateDirectoryCallback OnEnumerateDirectory { get; set; }
         public virtual GetFileStreamCallback OnGetFileStream { get; set; }
 
@@ -33,10 +29,7 @@ namespace PrjFSLib.Mac
             {
                 OnEnumerateDirectory = this.OnEnumerateDirectory,
                 OnGetFileStream = this.OnGetFileStream,
-
-                // Note: We must use this.notifyOperationCallback and not this.OnNotifyOperation
-                // to ensure we don't create a temporary delegate that will be garbage collected
-                OnNotifyOperation = this.notifyOperationCallback,
+                OnNotifyOperation = (this.preventGCOnNotifyOperationDelegate = new NotifyOperationCallback(this.OnNotifyOperation)),
             };
 
             return Interop.PrjFSLib.StartVirtualizationInstance(

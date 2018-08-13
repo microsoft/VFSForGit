@@ -236,23 +236,9 @@ namespace GVFS.FunctionalTests.Tools
 
         public string GetVirtualPathTo(string path)
         {
-            string cleanedPath;
-            switch (Path.DirectorySeparatorChar)
-            {
-                case '/':
-                    cleanedPath = path.Replace('\\', Path.DirectorySeparatorChar);
-                    break;
-
-                case '\\':
-                    cleanedPath = path.Replace('/', Path.DirectorySeparatorChar);
-                    break;
-
-                default:
-                    Assert.Fail($"Unrecognized Path.DirectorySeparatorChar: '{Path.DirectorySeparatorChar}'");
-                    return string.Empty;
-            }
-
-            return Path.Combine(this.RepoRoot, cleanedPath);
+            // Replace '/' with Path.DirectorySeparatorChar to ensure that any
+            // Git paths are converted to system paths
+            return Path.Combine(this.RepoRoot, path.Replace('/', Path.DirectorySeparatorChar));
         }
 
         public string GetVirtualPathTo(params string[] pathParts)
