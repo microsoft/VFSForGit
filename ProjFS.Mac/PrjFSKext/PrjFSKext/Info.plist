@@ -19,7 +19,7 @@
 	<key>CFBundleVersion</key>
 	<string>1</string>
 	<key>NSHumanReadableCopyright</key>
-	<string>Copyright © 2018 Microsoft. All rights reserved.</string>
+	<string>Copyright © Microsoft</string>
 	<key>IOKitPersonalities</key>
 	<dict>
 		<key>PrjFS</key>

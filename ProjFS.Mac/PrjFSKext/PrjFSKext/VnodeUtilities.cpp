@@ -1,11 +1,3 @@
-//
-//  VnodeUtilities.cpp
-//  PrjFSKext
-//
-//  Created by Phil Dennis-Jordan on 15/05/18.
-//  Copyright © 2018 GVFS. All rights reserved.
-//
-
 #include "VnodeUtilities.hpp"
 #include "kernel-header-wrappers/vnode.h"
 #include "kernel-header-wrappers/mount.h"
