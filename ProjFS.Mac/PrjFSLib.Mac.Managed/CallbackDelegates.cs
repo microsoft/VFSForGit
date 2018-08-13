@@ -13,16 +13,26 @@ namespace PrjFSLib.Mac
     public delegate Result GetFileStreamCallback(
         ulong commandId,
         string relativePath,
-
         [MarshalAs(UnmanagedType.LPArray, SizeConst = Interop.PrjFSLib.PlaceholderIdLength)]
         byte[] providerId,
-
         [MarshalAs(UnmanagedType.LPArray, SizeConst = Interop.PrjFSLib.PlaceholderIdLength)]
         byte[] contentId,
-       
         int triggeringProcessId,
         string triggeringProcessName,
         IntPtr fileHandle);
+
+    public delegate Result NotifyOperationCallback(
+        ulong commandId,
+        string relativePath,
+        [MarshalAs(UnmanagedType.LPArray, SizeConst = Interop.PrjFSLib.PlaceholderIdLength)]
+        byte[] providerId,
+        [MarshalAs(UnmanagedType.LPArray, SizeConst = Interop.PrjFSLib.PlaceholderIdLength)]
+        byte[] contentId,
+        int triggeringProcessId,
+        string triggeringProcessName,
+        bool isDirectory,
+        NotificationType notificationType,
+        string destinationRelativePath);
 
     // Pre-event notifications
     public delegate Result NotifyPreDeleteEvent(

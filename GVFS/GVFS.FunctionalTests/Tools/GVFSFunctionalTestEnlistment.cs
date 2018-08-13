@@ -233,9 +233,16 @@ namespace GVFS.FunctionalTests.Tools
             this.DeleteEnlistment();
         }
 
-        public string GetVirtualPathTo(params string[] pathInRepo)
+        public string GetVirtualPathTo(string path)
         {
-            return Path.Combine(this.RepoRoot, Path.Combine(pathInRepo));
+            // Replace '/' with Path.DirectorySeparatorChar to ensure that any
+            // Git paths are converted to system paths
+            return Path.Combine(this.RepoRoot, path.Replace('/', Path.DirectorySeparatorChar));
+        }
+
+        public string GetVirtualPathTo(params string[] pathParts)
+        {
+            return Path.Combine(this.RepoRoot, Path.Combine(pathParts));
         }
 
         public string GetObjectPathTo(string objectHash)

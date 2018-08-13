@@ -34,14 +34,21 @@ namespace MirrorProvider.Windows
 
             this.virtualizationInstance.OnGetPlaceholderInformation = this.GetPlaceholderInformation;
             this.virtualizationInstance.OnGetFileStream = this.GetFileStream;
+            this.virtualizationInstance.OnNotifyFileHandleClosedFileModifiedOrDeleted = this.OnFileModifiedOrDeleted;
 
             uint threadCount = (uint)Environment.ProcessorCount * 2;
+
+            NotificationMapping[] notificationMappings = new NotificationMapping[]
+            {
+                new NotificationMapping(NotificationType.FileHandleClosedFileModified, string.Empty),
+            };
+
             HResult result = this.virtualizationInstance.StartVirtualizationInstance(
                 enlistment.SrcRoot,
                 poolThreadCount: threadCount,
                 concurrentThreadCount: threadCount,
                 enableNegativePathCache: false,
-                notificationMappings: new NotificationMapping[] { });
+                notificationMappings: notificationMappings);
 
             if (result == HResult.Ok)
             {
@@ -274,6 +281,15 @@ namespace MirrorProvider.Windows
             }
 
             return HResult.Ok;
+        }
+
+        private void OnFileModifiedOrDeleted(string relativePath, bool isDirectory, bool isFileModified, bool isFileDeleted)
+        {
+            // To keep WindowsFileSystemVirtualizer in sync with MacFileSystemVirtualizer we're only registering for 
+            // NotificationType.FileHandleClosedFileModified and so this method will only be called for modifications.  
+            // Once MacFileSystemVirtualizer supports delete notifications we'll register for
+            // NotificationType.FileHandleClosedFileDeleted and this method will be called for both modifications and deletions.
+            Console.WriteLine($"OnFileModifiedOrDeleted: `{relativePath}`, isDirectory: {isDirectory}, isModfied: {isFileDeleted}, isDeleted: {isFileDeleted}");
         }
 
         // TODO: Add this to the ProjFS API

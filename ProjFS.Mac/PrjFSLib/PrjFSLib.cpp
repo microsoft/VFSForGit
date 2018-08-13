@@ -51,6 +51,7 @@ static errno_t RegisterVirtualizationRootPath(const char* path);
 static void HandleKernelRequest(Message requestSpec, void* messageMemory);
 static PrjFS_Result HandleEnumerateDirectoryRequest(const MessageHeader* request, const char* path);
 static PrjFS_Result HandleHydrateFileRequest(const MessageHeader* request, const char* path);
+static PrjFS_Result HandleFileModifiedNotification(const MessageHeader* request, const char* path);
 
 static Message ParseMessageMemory(const void* messageMemory, uint32_t size);
 
@@ -91,14 +92,10 @@ PrjFS_Result PrjFS_StartVirtualizationInstance(
     
     if (nullptr == virtualizationRootFullPath ||
         nullptr == callbacks.EnumerateDirectory ||
-        nullptr == callbacks.GetFileStream)
+        nullptr == callbacks.GetFileStream ||
+        nullptr == callbacks.NotifyOperation)
     {
         return PrjFS_Result_EInvalidArgs;
-    }
-    
-    if (nullptr != callbacks.NotifyOperation)
-    {
-        return PrjFS_Result_ENotSupported;
     }
     
     if (!s_virtualizationRootFullPath.empty())
@@ -415,6 +412,12 @@ static void HandleKernelRequest(Message request, void* messageMemory)
             result = HandleHydrateFileRequest(requestHeader, request.path);
             break;
         }
+            
+        case MessageType_KtoU_NotifyFileModified:
+        {
+            result = HandleFileModifiedNotification(requestHeader, request.path);
+            break;
+        }
     }
     
     // async callbacks are not yet implemented
@@ -449,10 +452,14 @@ static void HandleKernelRequest(Message request, void* messageMemory)
 static PrjFS_Result HandleEnumerateDirectoryRequest(const MessageHeader* request, const char* path)
 {
 #ifdef DEBUG
-    std::cout << "PrjFSLib.HandleKernelRequest: MessageType_KtoU_EnumerateDirectory" << std::endl;
+    std::cout << "PrjFSLib.HandleEnumerateDirectoryRequest: " << path << std::endl;
 #endif
     
-    PrjFS_Result callbackResult = s_callbacks.EnumerateDirectory(0, path, request->pid, request->procname);
+    PrjFS_Result callbackResult = s_callbacks.EnumerateDirectory(
+        0 /* commandId */,
+        path,
+        request->pid,
+        request->procname);
     
     if (PrjFS_Result_Success == callbackResult)
     {
@@ -473,7 +480,7 @@ static PrjFS_Result HandleEnumerateDirectoryRequest(const MessageHeader* request
 static PrjFS_Result HandleHydrateFileRequest(const MessageHeader* request, const char* path)
 {
 #ifdef DEBUG
-    std::cout << "PrjFSLib.HandleKernelRequest: MessageType_KtoU_HydrateFile" << std::endl;
+    std::cout << "PrjFSLib.HandleHydrateFileRequest: " << path << std::endl;
 #endif
     
     char fullPath[PrjFSMaxPath];
@@ -504,7 +511,14 @@ static PrjFS_Result HandleHydrateFileRequest(const MessageHeader* request, const
         return PrjFS_Result_EIOError;
     }
     
-    PrjFS_Result callbackResult = s_callbacks.GetFileStream(0, path, xattrData.providerId, xattrData.contentId, request->pid, request->procname, &fileHandle);
+    PrjFS_Result callbackResult = s_callbacks.GetFileStream(
+        0 /* comandId */,
+        path,
+        xattrData.providerId,
+        xattrData.contentId,
+        request->pid,
+        request->procname,
+        &fileHandle);
     
     // TODO: once we support async callbacks, we'll need to save off the fileHandle if the result is Pending
     
@@ -531,6 +545,35 @@ static PrjFS_Result HandleHydrateFileRequest(const MessageHeader* request, const
     }
     
     return callbackResult;
+}
+
+static PrjFS_Result HandleFileModifiedNotification(const MessageHeader* request, const char* path)
+{
+#ifdef DEBUG
+    std::cout << "PrjFSLib.HandleFileModifiedNotification: " << path << std::endl;
+#endif
+    
+    char fullPath[PrjFSMaxPath];
+    CombinePaths(s_virtualizationRootFullPath.c_str(), path, fullPath);
+    
+    PrjFSFileXAttrData xattrData = {};
+    if (!GetXAttr(fullPath, PrjFSFileXAttrName, sizeof(PrjFSFileXAttrData), &xattrData))
+    {
+        return PrjFS_Result_EIOError;
+    }
+    
+    s_callbacks.NotifyOperation(
+        0 /* commandId */,
+        path,
+        xattrData.providerId,
+        xattrData.contentId,
+        request->pid,
+        request->procname,
+        false /* isDirectory */,
+        PrjFS_NotificationType_FileModified,
+        nullptr /* destinationRelativePath */);
+    
+    return PrjFS_Result_Success;
 }
 
 static bool InitializeEmptyPlaceholder(const char* fullPath)

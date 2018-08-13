@@ -7,6 +7,6 @@ namespace PrjFSLib.Mac.Interop
     {
         public EnumerateDirectoryCallback OnEnumerateDirectory;
         public GetFileStreamCallback OnGetFileStream;
-        public NotifyPreDeleteEvent OnNotifyPreDelete;
+        public NotifyOperationCallback OnNotifyOperation;
     }
 }

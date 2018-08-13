@@ -99,6 +99,7 @@ namespace GVFS.Platform.Mac
             // Callbacks
             this.virtualizationInstance.OnEnumerateDirectory = this.OnEnumerateDirectory;
             this.virtualizationInstance.OnGetFileStream = this.OnGetFileStream;
+            this.virtualizationInstance.OnFileModified = this.OnFileModified;
 
             uint threadCount = (uint)Environment.ProcessorCount * 2;
 
@@ -238,6 +239,41 @@ namespace GVFS.Platform.Mac
             }
 
             return Result.EIOError;
+        }
+
+        private void OnFileModified(string relativePath)
+        {
+            try
+            {
+                if (!this.FileSystemCallbacks.IsMounted)
+                {
+                    EventMetadata metadata = this.CreateEventMetadata(relativePath);
+                    metadata.Add(TracingConstants.MessageKey.InfoMessage, nameof(this.OnFileModified) + ": Mount has not yet completed");
+                    this.Context.Tracer.RelatedEvent(EventLevel.Informational, $"{nameof(this.OnFileModified)}_MountNotComplete", metadata);
+                    return;
+                }
+
+                if (Virtualization.FileSystemCallbacks.IsPathInsideDotGit(relativePath))
+                {
+                    this.OnDotGitFileOrFolderChanged(relativePath);
+                }
+                else
+                {
+                    // TODO(Mac): As a temporary work around (until we have a ConvertToFull type notification) treat every modification
+                    // as the first write to the file
+                    bool isFolder;
+                    string fileName;
+                    bool isPathProjected = this.FileSystemCallbacks.GitIndexProjection.IsPathProjected(relativePath, out fileName, out isFolder);
+                    if (isPathProjected)
+                    {                        
+                        this.FileSystemCallbacks.OnFileConvertedToFull(relativePath);
+                    }
+                }
+            }
+            catch (Exception e)
+            {
+                this.LogUnhandledExceptionAndExit(nameof(this.OnFileModified), this.CreateEventMetadata(relativePath, e));
+            }
         }
 
         private Result OnEnumerateDirectory(

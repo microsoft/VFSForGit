@@ -60,11 +60,9 @@ BOOL APIENTRY DllMain( HMODULE hModule,
         }
 
         [TestCase, Order(2)]
-        [Category(Categories.Mac.M3)]
         public void StreamAccessReadWriteMemoryMappedProjectedFile()
         {
-            string filename = @"Test_EPF_WorkingDirectoryTests\StreamAccessReadWriteMemoryMappedProjectedFile.cs";
-            string fileVirtualPath = this.Enlistment.GetVirtualPathTo(filename);
+            string fileVirtualPath = this.Enlistment.GetVirtualPathTo("Test_EPF_WorkingDirectoryTests", "StreamAccessReadWriteMemoryMappedProjectedFile.cs");
             string contents = fileVirtualPath.ShouldBeAFile(this.fileSystem).WithContents();
             StringBuilder contentsBuilder = new StringBuilder(contents);
 
@@ -124,11 +122,9 @@ BOOL APIENTRY DllMain( HMODULE hModule,
         }
 
         [TestCase, Order(3)]
-        [Category(Categories.Mac.M3)]
         public void RandomAccessReadWriteMemoryMappedProjectedFile()
         {
-            string filename = @"Test_EPF_WorkingDirectoryTests\RandomAccessReadWriteMemoryMappedProjectedFile.cs";
-            string fileVirtualPath = this.Enlistment.GetVirtualPathTo(filename);
+            string fileVirtualPath = this.Enlistment.GetVirtualPathTo("Test_EPF_WorkingDirectoryTests", "RandomAccessReadWriteMemoryMappedProjectedFile.cs");
 
             string contents = fileVirtualPath.ShouldBeAFile(this.fileSystem).WithContents();
             StringBuilder contentsBuilder = new StringBuilder(contents);
@@ -185,11 +181,9 @@ BOOL APIENTRY DllMain( HMODULE hModule,
         }
 
         [TestCase, Order(4)]
-        [Category(Categories.Mac.M3)]
         public void StreamAndRandomAccessReadWriteMemoryMappedProjectedFile()
         {
-            string filename = @"Test_EPF_WorkingDirectoryTests\StreamAndRandomAccessReadWriteMemoryMappedProjectedFile.cs";
-            string fileVirtualPath = this.Enlistment.GetVirtualPathTo(filename);
+            string fileVirtualPath = this.Enlistment.GetVirtualPathTo("Test_EPF_WorkingDirectoryTests", "StreamAndRandomAccessReadWriteMemoryMappedProjectedFile.cs");
 
             StringBuilder contentsBuilder = new StringBuilder();
 
@@ -353,11 +347,9 @@ BOOL APIENTRY DllMain( HMODULE hModule,
         }
 
         [TestCase, Order(9)]
-        [Category(Categories.Mac.M3)]
         public void WriteToHydratedFileAfterRemount()
         {
-            string fileName = "Test_EPF_WorkingDirectoryTests\\WriteToHydratedFileAfterRemount.cpp";
-            string virtualFilePath = this.Enlistment.GetVirtualPathTo(fileName);
+            string virtualFilePath = this.Enlistment.GetVirtualPathTo("Test_EPF_WorkingDirectoryTests", "WriteToHydratedFileAfterRemount.cpp");
             string fileContents = virtualFilePath.ShouldBeAFile(this.fileSystem).WithContents();
 
             // Remount

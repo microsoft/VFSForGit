@@ -129,10 +129,11 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
         }
 
         [TestCase, Order(6)]
+        [Category(Categories.Mac.M2)]
         public void ReadingFileDoesNotUpdateIndexOrSparseCheckout()
         {
             string gitFileToCheck = "GVFS/GVFS.FunctionalTests/Category/CategoryConstants.cs";
-            string virtualFile = Path.Combine(this.Enlistment.RepoRoot, gitFileToCheck.Replace('/', '\\'));
+            string virtualFile = this.Enlistment.GetVirtualPathTo(gitFileToCheck);
             ProcessResult initialResult = GitProcess.InvokeProcess(this.Enlistment.RepoRoot, "ls-files --debug -svmodc " + gitFileToCheck);
             initialResult.ShouldNotBeNull();
             initialResult.Output.ShouldNotBeNull();
@@ -158,9 +159,8 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
         [TestCase, Order(7)]
         public void ModifiedFileWillGetSkipworktreeBitCleared()
         {
-            string fileToTest = "GVFS\\GVFS.Common\\RetryWrapper.cs";
-            string fileToCreate = Path.Combine(this.Enlistment.RepoRoot, fileToTest);
-            string gitFileToTest = fileToTest.Replace('\\', '/');
+            string gitFileToTest = "GVFS/GVFS.Common/RetryWrapper.cs";
+            string fileToCreate = this.Enlistment.GetVirtualPathTo(gitFileToTest);
             this.VerifyWorktreeBit(gitFileToTest, LsFilesStatus.SkipWorktree);
 
             ManualResetEventSlim resetEvent = GitHelpers.AcquireGVFSLock(this.Enlistment, out _);
@@ -286,10 +286,11 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
         }
 
         [TestCase, Order(13)]
+        [Category(Categories.Mac.M2)]
         public void OverwrittenFileAddedToSparseCheckoutAndSkipWorktreeBitCleared()
         {
             string fileToOverwriteEntry = "Test_EPF_WorkingDirectoryTests/1/2/3/4/ReadDeepProjectedFile.cpp";
-            string fileToOverwriteVirtualPath = this.Enlistment.GetVirtualPathTo("Test_EPF_WorkingDirectoryTests\\1\\2\\3\\4\\ReadDeepProjectedFile.cpp");
+            string fileToOverwriteVirtualPath = this.Enlistment.GetVirtualPathTo(fileToOverwriteEntry);
             this.VerifyWorktreeBit(fileToOverwriteEntry, LsFilesStatus.SkipWorktree);
 
             string testContents = "Test contents for FileRenamedOutOfRepoWillBeAddedToSparseCheckoutAndHaveSkipWorktreeBitCleared";
@@ -299,7 +300,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
 
             fileToOverwriteVirtualPath.ShouldBeAFile(this.fileSystem).WithContents(testContents);
 
-            GVFSHelpers.ModifiedPathsShouldContain(this.fileSystem, this.Enlistment.DotGVFSRoot, fileToOverwriteEntry + Environment.NewLine);
+            GVFSHelpers.ModifiedPathsShouldContain(this.fileSystem, this.Enlistment.DotGVFSRoot, fileToOverwriteEntry + "\r\n");
 
             // Verify skip-worktree cleared
             this.VerifyWorktreeBit(fileToOverwriteEntry, LsFilesStatus.Cached);

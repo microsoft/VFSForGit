@@ -23,6 +23,15 @@ static int HandleVnodeOperation(
     uintptr_t       arg2,
     uintptr_t       arg3);
 
+static int HandleFileOpOperation(
+    kauth_cred_t    credential,
+    void*           idata,
+    kauth_action_t  action,
+    uintptr_t       arg0,
+    uintptr_t       arg1,
+    uintptr_t       arg2,
+    uintptr_t       arg3);
+
 static int GetPid(vfs_context_t context);
 
 static uint32_t ReadVNodeFileFlags(vnode_t vn, vfs_context_t context);
@@ -46,6 +55,20 @@ static bool TrySendRequestAndWaitForResponse(
 static void AbortAllOutstandingEvents();
 static bool ShouldIgnoreVnodeType(vtype vnodeType, vnode_t vnode);
 
+static bool ShouldHandleEvent(
+    // In params:
+    vfs_context_t context,
+    const vnode_t vnode,
+    kauth_action_t action,
+
+    // Out params:
+    VirtualizationRoot** root,
+    vtype* vnodeType,
+    uint32_t* vnodeFileFlags,
+    int* pid,
+    char procname[MAXCOMLEN + 1],
+    int* kauthResult);
+
 
 // Structs
 typedef struct OutstandingMessage
@@ -60,6 +83,7 @@ typedef struct OutstandingMessage
 
 // State
 static kauth_listener_t s_vnodeListener = nullptr;
+static kauth_listener_t s_fileopListener = nullptr;
 
 static LIST_HEAD(OutstandingMessage_Head, OutstandingMessage) s_outstandingMessages = LIST_HEAD_INITIALIZER(OutstandingMessage_Head);
 static Mutex s_outstandingMessagesMutex = {};
@@ -98,6 +122,12 @@ kern_return_t KauthHandler_Init()
         goto CleanupAndFail;
     }
     
+    s_fileopListener = kauth_listen_scope(KAUTH_SCOPE_FILEOP, HandleFileOpOperation, nullptr);
+    if (nullptr == s_fileopListener)
+    {
+        goto CleanupAndFail;
+    }
+    
     return KERN_SUCCESS;
     
 CleanupAndFail:
@@ -114,6 +144,16 @@ kern_return_t KauthHandler_Cleanup()
     {
         kauth_unlisten_scope(s_vnodeListener);
         s_vnodeListener = nullptr;
+    }
+    else
+    {
+        result = KERN_FAILURE;
+    }
+    
+    if (nullptr != s_fileopListener)
+    {
+        kauth_unlisten_scope(s_fileopListener);
+        s_fileopListener = nullptr;
     }
     else
     {
@@ -140,6 +180,37 @@ kern_return_t KauthHandler_Cleanup()
     return result;
 }
 
+void KauthHandler_HandleKernelMessageResponse(uint64_t messageId, MessageType responseType)
+{
+    switch (responseType)
+    {
+        case MessageType_Response_Success:
+        case MessageType_Response_Fail:
+        {
+            Mutex_Acquire(s_outstandingMessagesMutex);
+            {
+                OutstandingMessage* outstandingMessage;
+                LIST_FOREACH(outstandingMessage, &s_outstandingMessages, _list_privates)
+                {
+                    if (outstandingMessage->request.messageId == messageId)
+                    {
+                        // Save the response for the blocked thread.
+                        outstandingMessage->response = responseType;
+                        outstandingMessage->receivedResponse = true;
+                        
+                        wakeup(outstandingMessage);
+                        
+                        break;
+                    }
+                }
+            }
+            Mutex_Release(s_outstandingMessagesMutex);
+        }
+    }
+    
+    return;
+}
+
 // Private functions
 static int HandleVnodeOperation(
     kauth_cred_t    credential,
@@ -151,131 +222,31 @@ static int HandleVnodeOperation(
     uintptr_t       arg3)
 {
     atomic_fetch_add(&s_numActiveKauthEvents, 1);
-
-    int kauthResult = KAUTH_RESULT_DEFER;
-    
-    int pid;
-    vtype vnodeType;
-    char procname[MAXCOMLEN + 1];
-    VirtualizationRoot* root = nullptr;
-    int16_t rootIndex;
-    uint32_t currentVnodeFileFlags;
     
     vfs_context_t context = reinterpret_cast<vfs_context_t>(arg0);
     vnode_t currentVnode =  reinterpret_cast<vnode_t>(arg1);
     // arg2 is the (vnode_t) parent vnode
     int* kauthError =       reinterpret_cast<int*>(arg3);
-    
-    if (!VirtualizationRoot_VnodeIsOnAllowedFilesystem(currentVnode))
-    {
-        kauthResult = KAUTH_RESULT_DEFER;
-        goto CleanupAndReturn;
-    }
-    
-    vnodeType = vnode_vtype(currentVnode);
-    if (ShouldIgnoreVnodeType(vnodeType, currentVnode))
-    {
-        kauthResult = KAUTH_RESULT_DEFER;
-        goto CleanupAndReturn;
-    }
-    
-    pid = GetPid(context);
-    
-    currentVnodeFileFlags = ReadVNodeFileFlags(currentVnode, context);
-    if (!FileFlagsBitIsSet(currentVnodeFileFlags, FileFlags_IsInVirtualizationRoot))
-    {
-        // This vnode is not part of ANY virtualization root, so exit now before doing any more work.
-        // This gives us a cheap way to avoid adding overhead to IO outside of a virtualization root.
-        
-        kauthResult = KAUTH_RESULT_DEFER;
-        goto CleanupAndReturn;
-    }
-    
-    proc_name(pid, procname, sizeof(procname));
-    
-    if (FileFlagsBitIsSet(currentVnodeFileFlags, FileFlags_IsEmpty))
-    {
-        // This vnode is not yet hydrated, so do not allow a file system crawler to force hydration.
-        // Once a vnode is hydrated, it's fine to allow crawlers to access those contents.
-        
-        if (IsFileSystemCrawler(procname))
-        {
-            // We must DENY file system crawlers rather than DEFER.
-            // If we allow the crawler's access to succeed without hydrating, the kauth result will be cached and we won't
-            // get called again, so we lose the opportunity to hydrate the file/directory and it will appear as though
-            // it is missing its contents.
 
-            kauthResult = KAUTH_RESULT_DENY;
-            goto CleanupAndReturn;
-        }
-    }
-    
-    root = VirtualizationRoots_FindForVnode(currentVnode);
-    rootIndex = nullptr == root ? -1 : root->index;
-    
-    if (nullptr == root)
-    {
-        KextLog_FileNote(currentVnode, "No virtualization root found for file with set flag.");
+    VirtualizationRoot* root = nullptr;
+    vtype vnodeType;
+    uint32_t currentVnodeFileFlags;
+    int pid;
+    char procname[MAXCOMLEN + 1];
 
-        kauthResult = KAUTH_RESULT_DEFER;
-        goto CleanupAndReturn;
-    }
-    else if (nullptr == root->providerUserClient)
+    int kauthResult = KAUTH_RESULT_DEFER;
+
+    if (!ShouldHandleEvent(
+            context,
+            currentVnode,
+            action,
+            &root,
+            &vnodeType,
+            &currentVnodeFileFlags,
+            &pid,
+            procname,
+            &kauthResult))
     {
-        if (rootIndex >= 0)
-        {
-            bool vnodeIsDir = (vnodeType == VDIR);
-            // File/directory is within an offline virtualization root (no provider)
-            // Allow read-only access to hydrated files, deny any writes except
-            // deletions, and prevent most read accesses to empty files.
-            // Empty directories need to be read/searched in order for them to
-            // be deleted by rm -r
-            if (ActionBitsNotSet(action, KAUTH_VNODE_ACCESS)
-                && ActionBitIsSet(
-                    action,
-                    KAUTH_VNODE_WRITE_ATTRIBUTES |
-                    KAUTH_VNODE_WRITE_EXTATTRIBUTES |
-                    KAUTH_VNODE_WRITE_DATA |
-                    KAUTH_VNODE_APPEND_DATA |
-                    KAUTH_VNODE_WRITE_SECURITY |
-                    KAUTH_VNODE_LINKTARGET))
-            {
-                KextLog_FileNote(currentVnode, "HandleVnodeOperation - write action 0x%x by process %u (%s) DENIED  on %s with offline provider.", action, pid, procname, vnodeIsDir ? "directory" : "file");
-                kauthResult = KAUTH_RESULT_DENY;
-                goto CleanupAndReturn;
-            }
-            
-            if (FileFlagsBitIsSet(currentVnodeFileFlags, FileFlags_IsEmpty))
-            {
-                // Empty files/directories with offline provider may only be queried or deleted
-                if (ActionBitIsSet(action, (KAUTH_VNODE_ACCESS | KAUTH_VNODE_DELETE_CHILD | KAUTH_VNODE_DELETE | KAUTH_VNODE_READ_EXTATTRIBUTES)))
-                {
-                    kauthResult = KAUTH_RESULT_DEFER;
-                    goto CleanupAndReturn;
-                }
-                
-                // Empty directories may additionally have their attributes and security read, and contents listed/searched (otherwise rm -r doesn't work)
-                if (vnodeIsDir && ActionBitIsSet(action, (KAUTH_VNODE_READ_ATTRIBUTES | KAUTH_VNODE_READ_SECURITY | KAUTH_VNODE_LIST_DIRECTORY | KAUTH_VNODE_SEARCH)))
-                {
-                    kauthResult = KAUTH_RESULT_DEFER;
-                    goto CleanupAndReturn;
-                }
-                
-                // Disallow any other operations on empty placeholders
-                KextLog_FileNote(currentVnode, "HandleVnodeOperation - action 0x%x by process %u (%s) DENIED on empty %s with offline provider.", action, pid, procname, vnodeIsDir ? "directory" : "file");
-                kauthResult = KAUTH_RESULT_DENY;
-                goto CleanupAndReturn;
-            }
-        }
-        
-        kauthResult = KAUTH_RESULT_DEFER;
-        goto CleanupAndReturn;
-    }
-    
-    // If the calling process is the provider, we must exit right away to avoid deadlocks
-    if (pid == root->providerPid)
-    {
-        kauthResult = KAUTH_RESULT_DEFER;
         goto CleanupAndReturn;
     }
     
@@ -339,36 +310,233 @@ CleanupAndReturn:
     return kauthResult;
 }
 
-void KauthHandler_HandleKernelMessageResponse(uint64_t messageId, MessageType responseType)
+static int HandleFileOpOperation(
+    kauth_cred_t    credential,
+    void*           idata,
+    kauth_action_t  action,
+    uintptr_t       arg0,
+    uintptr_t       arg1,
+    uintptr_t       arg2,
+    uintptr_t       arg3)
 {
-    switch (responseType)
+    atomic_fetch_add(&s_numActiveKauthEvents, 1);
+    
+    // Note: a fileop listener MUST NOT return an error, or it will result in a kernel panic.
+    // Fileop events are informational only.
+    int kauthError;
+    int kauthResult;
+    
+    vfs_context_t context = vfs_context_create(NULL);
+
+    if (KAUTH_FILEOP_CLOSE == action)
     {
-        case MessageType_Response_Success:
-        case MessageType_Response_Fail:
+        vnode_t currentVnode = reinterpret_cast<vnode_t>(arg0);
+        // arg1 is the (const char *) path
+        int closeFlags = static_cast<int>(arg2);
+        
+        VirtualizationRoot* root = nullptr;
+        vtype vnodeType;
+        uint32_t currentVnodeFileFlags;
+        int pid;
+        char procname[MAXCOMLEN + 1];
+        
+        if (!ShouldHandleEvent(
+                context,
+                currentVnode,
+                action,
+                &root,
+                &vnodeType,
+                &currentVnodeFileFlags,
+                &pid,
+                procname,
+                &kauthResult))
         {
-            Mutex_Acquire(s_outstandingMessagesMutex);
+            goto CleanupAndReturn;
+        }
+        
+        if (KAUTH_FILEOP_CLOSE_MODIFIED == closeFlags)
+        {
+            if (!TrySendRequestAndWaitForResponse(
+                    root,
+                    MessageType_KtoU_NotifyFileModified,
+                    currentVnode,
+                    pid,
+                    procname,
+                    &kauthResult,
+                    &kauthError))
             {
-                OutstandingMessage* outstandingMessage;
-                LIST_FOREACH(outstandingMessage, &s_outstandingMessages, _list_privates)
-                {
-                    if (outstandingMessage->request.messageId == messageId)
-                    {
-                        // Save the response for the blocked thread.
-                        outstandingMessage->response = responseType;
-                        outstandingMessage->receivedResponse = true;
-                        
-                        wakeup(outstandingMessage);
-                        
-                        break;
-                    }
-                }
+                goto CleanupAndReturn;
             }
-            Mutex_Release(s_outstandingMessagesMutex);
-            
         }
     }
     
-    return;
+CleanupAndReturn:
+    vfs_context_rele(context);
+    atomic_fetch_sub(&s_numActiveKauthEvents, 1);
+    
+    // We must always return DEFER from a fileop listener. The kernel does not allow any other
+    // result and will panic if we return anything else.
+    return KAUTH_RESULT_DEFER;
+}
+
+static bool ShouldHandleEvent(
+    // In params:
+    vfs_context_t context,
+    const vnode_t vnode,
+    kauth_action_t action,
+
+    // Out params:
+    VirtualizationRoot** root,
+    vtype* vnodeType,
+    uint32_t* vnodeFileFlags,
+    int* pid,
+    char procname[MAXCOMLEN + 1],
+    int* kauthResult)
+{
+    *kauthResult = KAUTH_RESULT_DEFER;
+    
+    if (!VirtualizationRoot_VnodeIsOnAllowedFilesystem(vnode))
+    {
+        *kauthResult = KAUTH_RESULT_DEFER;
+        return false;
+    }
+    
+    *vnodeType = vnode_vtype(vnode);
+    if (ShouldIgnoreVnodeType(*vnodeType, vnode))
+    {
+        *kauthResult = KAUTH_RESULT_DEFER;
+        return false;
+    }
+    
+    *vnodeFileFlags = ReadVNodeFileFlags(vnode, context);
+    if (!FileFlagsBitIsSet(*vnodeFileFlags, FileFlags_IsInVirtualizationRoot))
+    {
+        // This vnode is not part of ANY virtualization root, so exit now before doing any more work.
+        // This gives us a cheap way to avoid adding overhead to IO outside of a virtualization root.
+        
+        *kauthResult = KAUTH_RESULT_DEFER;
+        return false;
+    }
+    
+    *pid = GetPid(context);
+    proc_name(*pid, procname, MAXCOMLEN + 1);
+    
+    if (FileFlagsBitIsSet(*vnodeFileFlags, FileFlags_IsEmpty))
+    {
+        // This vnode is not yet hydrated, so do not allow a file system crawler to force hydration.
+        // Once a vnode is hydrated, it's fine to allow crawlers to access those contents.
+        
+        if (IsFileSystemCrawler(procname))
+        {
+            // We must DENY file system crawlers rather than DEFER.
+            // If we allow the crawler's access to succeed without hydrating, the kauth result will be cached and we won't
+            // get called again, so we lose the opportunity to hydrate the file/directory and it will appear as though
+            // it is missing its contents.
+            
+            *kauthResult = KAUTH_RESULT_DENY;
+            return false;
+        }
+    }
+    
+    *root = VirtualizationRoots_FindForVnode(vnode);
+    int16_t rootIndex = nullptr == *root ? -1 : (*root)->index;
+    
+    if (nullptr == *root)
+    {
+        KextLog_FileNote(vnode, "No virtualization root found for file with set flag.");
+        
+        *kauthResult = KAUTH_RESULT_DEFER;
+        return false;
+    }
+    else if (nullptr == (*root)->providerUserClient)
+    {
+        // There is no registered provider for this root
+        
+        // TODO(Mac): why do we need to check rootIndex > 0 here?
+        // If root was null, we would have already exited. And if not null, it can't be < 0.
+        if (rootIndex >= 0)
+        {
+            bool vnodeIsDir = (*vnodeType == VDIR);
+            
+            // File/directory is within an offline virtualization root (no provider)
+            // Allow read-only access to hydrated files, deny any writes except
+            // deletions, and prevent most read accesses to empty files.
+            // Empty directories need to be read/searched in order for them to
+            // be deleted by rm -r
+            if (ActionBitsNotSet(action, KAUTH_VNODE_ACCESS) &&
+                ActionBitIsSet(
+                    action,
+                    KAUTH_VNODE_WRITE_ATTRIBUTES |
+                    KAUTH_VNODE_WRITE_EXTATTRIBUTES |
+                    KAUTH_VNODE_WRITE_DATA |
+                    KAUTH_VNODE_APPEND_DATA |
+                    KAUTH_VNODE_WRITE_SECURITY |
+                    KAUTH_VNODE_LINKTARGET))
+            {
+                KextLog_FileNote(
+                    vnode,
+                    "ShouldHandleEvent - write action 0x%x by process %u (%s) DENIED on %s with offline provider.",
+                    action,
+                    *pid,
+                    procname,
+                    vnodeIsDir ? "directory" : "file");
+                
+                *kauthResult = KAUTH_RESULT_DENY;
+                return false;
+            }
+            
+            if (FileFlagsBitIsSet(*vnodeFileFlags, FileFlags_IsEmpty))
+            {
+                // Empty files/directories with offline provider may only be queried or deleted
+                if (ActionBitIsSet(
+                        action,
+                        KAUTH_VNODE_ACCESS |
+                        KAUTH_VNODE_DELETE_CHILD |
+                        KAUTH_VNODE_DELETE |
+                        KAUTH_VNODE_READ_EXTATTRIBUTES))
+                {
+                    *kauthResult = KAUTH_RESULT_DEFER;
+                    return false;
+                }
+                
+                // Empty directories may additionally have their attributes and security read, and contents listed/searched (otherwise rm -r doesn't work)
+                if (vnodeIsDir &&
+                    ActionBitIsSet(
+                        action,
+                        KAUTH_VNODE_READ_ATTRIBUTES |
+                        KAUTH_VNODE_READ_SECURITY |
+                        KAUTH_VNODE_LIST_DIRECTORY |
+                        KAUTH_VNODE_SEARCH))
+                {
+                    *kauthResult = KAUTH_RESULT_DEFER;
+                    return false;
+                }
+                
+                // Disallow any other operations on empty placeholders
+                KextLog_FileNote(
+                    vnode,
+                    "ShouldHandleEvent - action 0x%x by process %u (%s) DENIED on empty %s with offline provider.",
+                    action,
+                    *pid,
+                    procname,
+                    vnodeIsDir ? "directory" : "file");
+                *kauthResult = KAUTH_RESULT_DENY;
+                return false;
+            }
+        }
+        
+        *kauthResult = KAUTH_RESULT_DEFER;
+        return false;
+    }
+    
+    // If the calling process is the provider, we must exit right away to avoid deadlocks
+    if (*pid == (*root)->providerPid)
+    {
+        *kauthResult = KAUTH_RESULT_DEFER;
+        return false;
+    }
+    
+    return true;
 }
 
 static bool TrySendRequestAndWaitForResponse(
@@ -413,6 +581,8 @@ static bool TrySendRequestAndWaitForResponse(
     }
     Mutex_Release(s_outstandingMessagesMutex);
     
+    // TODO(Mac): Should we pass in the root directly, rather than root->index?
+    //            The index seems more like a private implementation detail.
     if (!isShuttingDown && 0 != ActiveProvider_SendMessage(root->index, messageSpec))
     {
         // TODO: appropriately handle unresponsive providers

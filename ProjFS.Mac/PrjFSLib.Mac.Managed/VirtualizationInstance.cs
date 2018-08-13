@@ -6,9 +6,20 @@ namespace PrjFSLib.Mac
     public class VirtualizationInstance
     {
         public const int PlaceholderIdLength = Interop.PrjFSLib.PlaceholderIdLength;
-        
+
+        // We must hold a reference to the delegate to prevent garbage collection
+        private NotifyOperationCallback preventGCOnNotifyOperationDelegate;
+
+        // References held to these delegates via class properties
         public virtual EnumerateDirectoryCallback OnEnumerateDirectory { get; set; }
         public virtual GetFileStreamCallback OnGetFileStream { get; set; }
+
+        public virtual NotifyFileModified OnFileModified { get; set; }
+
+        public static Result ConvertDirectoryToVirtualizationRoot(string fullPath)
+        {
+            return Interop.PrjFSLib.ConvertDirectoryToVirtualizationRoot(fullPath);
+        }
 
         public virtual Result StartVirtualizationInstance(
             string virtualizationRootFullPath,
@@ -18,8 +29,9 @@ namespace PrjFSLib.Mac
             {
                 OnEnumerateDirectory = this.OnEnumerateDirectory,
                 OnGetFileStream = this.OnGetFileStream,
+                OnNotifyOperation = this.preventGCOnNotifyOperationDelegate = new NotifyOperationCallback(this.OnNotifyOperation),
             };
-            
+
             return Interop.PrjFSLib.StartVirtualizationInstance(
                 virtualizationRootFullPath,
                 callbacks,
@@ -69,7 +81,7 @@ namespace PrjFSLib.Mac
             byte[] providerId,
             byte[] contentId,
             ulong fileSize,
-            UInt16 fileMode)
+            ushort fileMode)
         {
             if (providerId.Length != Interop.PrjFSLib.PlaceholderIdLength ||
                 contentId.Length != Interop.PrjFSLib.PlaceholderIdLength)
@@ -109,9 +121,25 @@ namespace PrjFSLib.Mac
             throw new NotImplementedException();
         }
 
-        public static Result ConvertDirectoryToVirtualizationRoot(string fullPath)
+        private Result OnNotifyOperation(
+            ulong commandId,
+            string relativePath,
+            byte[] providerId,
+            byte[] contentId,
+            int triggeringProcessId,
+            string triggeringProcessName,
+            bool isDirectory,
+            NotificationType notificationType,
+            string destinationRelativePath)
         {
-            return Interop.PrjFSLib.ConvertDirectoryToVirtualizationRoot(fullPath);
+            switch (notificationType)
+            {
+                case NotificationType.FileModified:
+                    this.OnFileModified(relativePath);
+                    return Result.Success;
+            }
+
+            return Result.ENotYetImplemented;
         }
     }
 }

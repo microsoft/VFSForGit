@@ -192,6 +192,7 @@ namespace GVFS.Virtualization
             this.stopping = true;
             lock (this.postFetchJobLock)
             {
+                // TODO(Mac): System.PlatformNotSupportedException: Thread abort is not supported on this platform
                 this.postFetchJobThread?.Abort();
             }
 

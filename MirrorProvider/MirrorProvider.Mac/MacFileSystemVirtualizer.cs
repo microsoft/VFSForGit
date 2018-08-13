@@ -20,6 +20,7 @@ namespace MirrorProvider.Mac
         {
             this.virtualizationInstance.OnEnumerateDirectory = this.OnEnumerateDirectory;
             this.virtualizationInstance.OnGetFileStream = this.OnGetFileStream;
+            this.virtualizationInstance.OnFileModified = this.OnFileModified;
 
             Result result = this.virtualizationInstance.StartVirtualizationInstance(
                 enlistment.SrcRoot,
@@ -144,6 +145,11 @@ namespace MirrorProvider.Mac
             }
 
             return Result.Success;
+        }
+
+        private void OnFileModified(string relativePath)
+        {
+            Console.WriteLine("OnFileModified: " + relativePath);
         }
 
         private static byte[] ToVersionIdByteArray(byte version)
