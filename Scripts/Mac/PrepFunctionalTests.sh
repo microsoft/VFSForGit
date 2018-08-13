@@ -7,6 +7,10 @@ GVFSPROPS=$SCRIPTDIR/../../GVFS/GVFS.Build/GVFS.props
 GITVERSION="$(cat $GVFSPROPS | grep GitPackageVersion | grep -Eo '[0-9.]{1,}')"
 ROOTDIR=$SCRIPTDIR/../../..
 GITDIR=$ROOTDIR/packages/gitformac.gvfs.installer/$GITVERSION/tools
+if [[ ! -d $GITDIR ]]; then
+    echo "GVFS-aware Git package not found. Run BuildGVFSForMac.sh and try again"
+    exit 1
+fi
 hdiutil attach $GITDIR/*.dmg || exit 1
 GITPKG="$(find /Volumes/Git* -type f -name *.pkg)" || exit 1
 sudo installer -pkg "$GITPKG" -target / || exit 1
