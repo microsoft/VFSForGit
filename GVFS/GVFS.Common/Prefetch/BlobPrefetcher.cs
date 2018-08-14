@@ -218,7 +218,6 @@ namespace GVFS.Common.Prefetch
             string previousCommit = null;
 
             // Use the shallow file to find a recent commit to diff against to try and reduce the number of SHAs to check.
-            // Unless force flag has been given, in which case treat as if it's a fresh repo.
             if (File.Exists(shallowFile))
             {
                 previousCommit = File.ReadAllLines(shallowFile).Where(line => !string.IsNullOrWhiteSpace(line)).LastOrDefault();

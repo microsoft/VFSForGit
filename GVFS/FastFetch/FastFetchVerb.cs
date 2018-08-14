@@ -58,9 +58,9 @@ namespace FastFetch
             "force-checkout",
             Required = false,
             Default = false,
-            HelpText = "Force FastFetch to fetch and checkout content as if the current repo had just been initialized." +
+            HelpText = "Force FastFetch to checkout content as if the current repo had just been initialized." +
                        "This allows you to include more folders from the repo that were not originally checked out." +
-                       "Can only be used with --checkout")]
+                       "Can only be used with the --checkout option.")]
         public bool ForceCheckout { get; set; }
 
         [Option(
