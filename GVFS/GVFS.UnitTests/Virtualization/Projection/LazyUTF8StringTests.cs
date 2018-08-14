@@ -303,8 +303,12 @@ namespace GVFS.UnitTests.Virtualization.Git
         public void MinimumPoolSize()
         {
             LazyUTF8String.ResetPool(new MockTracer(), 0);
+
             LazyUTF8String.FreePool();
+            LazyUTF8String.BytePoolSize().ShouldBeAtLeast(1);
+
             LazyUTF8String.InitializePools(new MockTracer(), 0);
+            LazyUTF8String.BytePoolSize().ShouldBeAtLeast(1);
         }
 
         private static void CheckPoolSizes(int expectedBytePoolSize, int expectedStringPoolSize)

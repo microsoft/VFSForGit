@@ -128,8 +128,14 @@ namespace GVFS.UnitTests.Virtualization.Git
         public void SmallEntries()
         {
             SortedFolderEntries.FreePool();
+
             SortedFolderEntries.InitializePools(new MockTracer(), indexEntryCount: 0);
+            SortedFolderEntries.FilePoolSize().ShouldBeAtLeast(1);
+            SortedFolderEntries.FolderPoolSize().ShouldBeAtLeast(1);
+
             SortedFolderEntries.ResetPool(new MockTracer(), indexEntryCount: 0);
+            SortedFolderEntries.FilePoolSize().ShouldBeAtLeast(1);
+            SortedFolderEntries.FolderPoolSize().ShouldBeAtLeast(1);
         }
 
         private static int CaseInsensitiveStringCompare(string x, string y)
