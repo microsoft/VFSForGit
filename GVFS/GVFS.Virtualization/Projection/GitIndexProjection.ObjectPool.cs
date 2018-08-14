@@ -15,6 +15,7 @@ namespace GVFS.Virtualization.Projection
         /// <typeparam name="T">The type of object to be stored in the array pool</typeparam>
         internal class ObjectPool<T>
         {
+            private const int MinPoolSize = 100;
             private int allocationSize;
             private T[] pool;
             private int freeIndex;
@@ -23,9 +24,9 @@ namespace GVFS.Virtualization.Projection
 
             public ObjectPool(ITracer tracer, int allocationSize, Func<T> objectCreator)
             {
-                if (allocationSize <= 0)
+                if (allocationSize < MinPoolSize)
                 {
-                    throw new ArgumentOutOfRangeException(nameof(allocationSize), "Must be greater than zero");
+                    allocationSize = MinPoolSize;
                 }
 
                 this.tracer = tracer;

@@ -124,6 +124,14 @@ namespace GVFS.UnitTests.Virtualization.Git
             sfe.Count.ShouldEqual(0);
         }
 
+        [TestCase]
+        public void SmallEntries()
+        {
+            SortedFolderEntries.FreePool();
+            SortedFolderEntries.InitializePools(new MockTracer(), indexEntryCount: 0);
+            SortedFolderEntries.ResetPool(new MockTracer(), indexEntryCount: 0);
+        }
+
         private static int CaseInsensitiveStringCompare(string x, string y)
         {
             return string.Compare(x, y, StringComparison.OrdinalIgnoreCase);

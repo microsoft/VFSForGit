@@ -299,6 +299,14 @@ namespace GVFS.UnitTests.Virtualization.Git
                 });
         }
 
+        [TestCase]
+        public void MinimumPoolSize()
+        {
+            LazyUTF8String.ResetPool(new MockTracer(), 0);
+            LazyUTF8String.FreePool();
+            LazyUTF8String.InitializePools(new MockTracer(), 0);
+        }
+
         private static void CheckPoolSizes(int expectedBytePoolSize, int expectedStringPoolSize)
         {
             LazyUTF8String.BytePoolSize().ShouldEqual(expectedBytePoolSize, $"{nameof(LazyUTF8String.BytePoolSize)} should be {expectedBytePoolSize}");
