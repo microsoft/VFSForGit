@@ -14,8 +14,9 @@ namespace FastFetch
 {
     public class CheckoutPrefetcher : BlobPrefetcher
     {
-        private readonly bool allowIndexMetadataUpdateFromWorkingTree;
         private readonly int checkoutThreadCount;
+        private readonly bool allowIndexMetadataUpdateFromWorkingTree;
+        private readonly bool forceCheckout;
 
         public CheckoutPrefetcher(
             ITracer tracer,
@@ -26,14 +27,16 @@ namespace FastFetch
             int downloadThreadCount,
             int indexThreadCount,
             int checkoutThreadCount,
-            bool allowIndexMetadataUpdateFromWorkingTree) : base(tracer, enlistment, objectRequestor, chunkSize, searchThreadCount, downloadThreadCount, indexThreadCount)
+            bool allowIndexMetadataUpdateFromWorkingTree,
+            bool forceCheckout) : base(tracer, enlistment, objectRequestor, chunkSize, searchThreadCount, downloadThreadCount, indexThreadCount)
         {
             this.checkoutThreadCount = checkoutThreadCount;
             this.allowIndexMetadataUpdateFromWorkingTree = allowIndexMetadataUpdateFromWorkingTree;
+            this.forceCheckout = forceCheckout;
         }
 
         /// <param name="branchOrCommit">A specific branch to filter for, or null for all branches returned from info/refs</param>
-        public override void Prefetch(string branchOrCommit, bool isBranch, bool force = false)
+        public override void Prefetch(string branchOrCommit, bool isBranch)
         {
             if (string.IsNullOrWhiteSpace(branchOrCommit))
             {
@@ -66,7 +69,7 @@ namespace FastFetch
             // Configure pipeline
             // Checkout uses DiffHelper when running checkout.Start(), which we use instead of LsTreeHelper
             // Checkout diff output => FindMissingBlobs => BatchDownload => IndexPack => Checkout available blobs
-            CheckoutJob checkout = new CheckoutJob(this.checkoutThreadCount, this.FolderList, commitToFetch, this.Tracer, this.Enlistment, force: force);
+            CheckoutJob checkout = new CheckoutJob(this.checkoutThreadCount, this.FolderList, commitToFetch, this.Tracer, this.Enlistment, this.forceCheckout);
             FindMissingBlobsJob blobFinder = new FindMissingBlobsJob(this.SearchThreadCount, checkout.RequiredBlobs, checkout.AvailableBlobShas, this.Tracer, this.Enlistment);
             BatchObjectDownloadJob downloader = new BatchObjectDownloadJob(this.DownloadThreadCount, this.ChunkSize, blobFinder.MissingBlobs, checkout.AvailableBlobShas, this.Tracer, this.Enlistment, this.ObjectRequestor, this.GitObjects);
             IndexPackJob packIndexer = new IndexPackJob(this.IndexThreadCount, downloader.AvailablePacks, checkout.AvailableBlobShas, this.Tracer, this.GitObjects);

@@ -55,6 +55,15 @@ namespace FastFetch
         public bool Checkout { get; set; }
 
         [Option(
+            "force-checkout",
+            Required = false,
+            Default = false,
+            HelpText = "Force FastFetch to fetch and checkout content as if the current repo had just been initialized." +
+                       "This allows you to include more folders from the repo that were not originally checked out." +
+                       "Can only be used with --checkout")]
+        public bool ForceCheckout { get; set; }
+
+        [Option(
             "search-thread-count",
             Required = false,
             Default = 0,
@@ -135,13 +144,6 @@ namespace FastFetch
             HelpText = "The GUID of the caller - used for telemetry purposes.")]
         public string ParentActivityId { get; set; }
 
-        [Option(
-            "force",
-            Required = false,
-            Default = false,
-            HelpText = "Force FastFetch to download content as if the current repository was just initialized.")]
-        public bool Force { get; set; }
-
         public void Execute()
         {
             Environment.ExitCode = this.ExecuteWithExitCode();
@@ -162,6 +164,12 @@ namespace FastFetch
             if (this.Commit != null && this.Branch != null)
             {
                 Console.WriteLine("Cannot specify both a commit sha and a branch name.");
+                return ExitFailure;
+            }
+
+            if (this.ForceCheckout && !this.Checkout)
+            {
+                Console.WriteLine("Cannot use --force-checkout option without --checkout option.");
                 return ExitFailure;
             }
             
@@ -244,7 +252,7 @@ namespace FastFetch
                             try
                             {
                                 bool isBranch = this.Commit == null;
-                                prefetcher.Prefetch(commitish, isBranch, force: this.Force);
+                                prefetcher.Prefetch(commitish, isBranch);
                                 return !prefetcher.HasFailures;
                             }
                             catch (BlobPrefetcher.FetchException e)
@@ -325,7 +333,8 @@ namespace FastFetch
                     this.DownloadThreadCount,
                     this.IndexThreadCount,
                     this.CheckoutThreadCount,
-                    this.AllowIndexMetadataUpdateFromWorkingTree);
+                    this.AllowIndexMetadataUpdateFromWorkingTree,
+                    this.ForceCheckout);
             }
             else
             {

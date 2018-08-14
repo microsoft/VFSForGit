@@ -162,13 +162,13 @@ namespace GVFS.Common.Prefetch
         }
 
         /// <param name="branchOrCommit">A specific branch to filter for, or null for all branches returned from info/refs</param>
-        public virtual void Prefetch(string branchOrCommit, bool isBranch, bool force = false)
+        public virtual void Prefetch(string branchOrCommit, bool isBranch)
         {
             int matchedBlobCount;
             int downloadedBlobCount;
             int readFileCount;
             
-            this.PrefetchWithStats(branchOrCommit, isBranch, false, out matchedBlobCount, out downloadedBlobCount, out readFileCount, force: force);
+            this.PrefetchWithStats(branchOrCommit, isBranch, false, out matchedBlobCount, out downloadedBlobCount, out readFileCount);
         }
 
         public void PrefetchWithStats(
@@ -177,8 +177,7 @@ namespace GVFS.Common.Prefetch
             bool readFilesAfterDownload,
             out int matchedBlobCount,
             out int downloadedBlobCount,
-            out int readFileCount,
-            bool force = false)
+            out int readFileCount)
         {
             matchedBlobCount = 0;
             downloadedBlobCount = 0;
@@ -220,7 +219,7 @@ namespace GVFS.Common.Prefetch
 
             // Use the shallow file to find a recent commit to diff against to try and reduce the number of SHAs to check.
             // Unless force flag has been given, in which case treat as if it's a fresh repo.
-            if (!force && File.Exists(shallowFile))
+            if (File.Exists(shallowFile))
             {
                 previousCommit = File.ReadAllLines(shallowFile).Where(line => !string.IsNullOrWhiteSpace(line)).LastOrDefault();
                 if (string.IsNullOrWhiteSpace(previousCommit))

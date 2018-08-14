@@ -101,7 +101,7 @@ namespace GVFS.FunctionalTests.Tests
         }
 
         [TestCase]
-        public void CanFetchAndCheckoutMultipleTimesUsingForceFlag()
+        public void CanFetchAndCheckoutMultipleTimesUsingForceCheckoutFlag()
         {
             this.RunFastFetch($"--checkout --folders \"/GVFS\" -b {Settings.Default.Commitish}");
 
@@ -122,7 +122,7 @@ namespace GVFS.FunctionalTests.Tests
             this.AllFetchedFilePathsShouldPassCheck(path => path.StartsWith("GVFS", StringComparison.OrdinalIgnoreCase));
 
             // Run a second time in the same repo on the same branch with more folders. 
-            this.RunFastFetch($"--checkout --folders \"/GVFS;/Scripts\" -b {Settings.Default.Commitish} --force");
+            this.RunFastFetch($"--checkout --folders \"/GVFS;/Scripts\" -b {Settings.Default.Commitish} --force-checkout");
             dirs = Directory.EnumerateFileSystemEntries(this.fastFetchRepoRoot).ToList();
             dirs.SequenceEqual(new[]
             {
@@ -137,23 +137,15 @@ namespace GVFS.FunctionalTests.Tests
         }
 
         [TestCase]
-        public void CanFetchWithoutCheckoutMultipleTimesUsingForceFlagAndThenCheckout()
+        public void ForceCheckoutRequiresCheckout()
         {
-            this.RunFastFetch($"--folders \"/GVFS\" -b {Settings.Default.Commitish}");
-
-            this.GetRefTreeSha("remotes/origin/" + Settings.Default.Commitish).ShouldNotBeNull();
+            this.RunFastFetch($"--checkout --folders \"/Scripts\" -b {Settings.Default.Commitish}");
 
             // Run a second time in the same repo on the same branch with more folders. 
-            this.RunFastFetch($"--folders \"/GVFS;/Scripts\" -b {Settings.Default.Commitish} --force");
-            
-            this.RunFastFetch($"--checkout -b {Settings.Default.Commitish}");
-            Directory.EnumerateFileSystemEntries(Path.Combine(this.fastFetchRepoRoot, "GVFS"), "*", SearchOption.AllDirectories)
-                .Count()
-                .ShouldEqual(345);
+            string result = this.RunFastFetch($"--force-checkout --folders \"/GVFS;/Scripts\" -b {Settings.Default.Commitish}");
 
-            Directory.EnumerateFileSystemEntries(Path.Combine(this.fastFetchRepoRoot, "Scripts"), "*", SearchOption.AllDirectories)
-                .Count()
-                .ShouldEqual(5);
+            string[] expectedResults = new string[] { "Cannot use --force-checkout option without --checkout option." };
+            result.ShouldContain(expectedResults);
         }
 
         [TestCase]
