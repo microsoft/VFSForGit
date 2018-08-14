@@ -5,7 +5,6 @@
 #include <CoreFoundation/CoreFoundation.h>
 #include <IOKit/IOKitLib.h>
 #include <mach/mach_time.h>
-#include <sys/time.h>
 
 static const char* KextLogLevelAsString(KextLog_Level level);
 
@@ -49,12 +48,8 @@ int main(int argc, const char * argv[])
                 memcpy(&message, entry->data, sizeof(KextLog_MessageHeader));
                 const char* messageType = KextLogLevelAsString(message.level);
                 int logStringLength = messageSize - sizeof(KextLog_MessageHeader) - 1;
-
-                struct timeval tp;
-                gettimeofday(&tp, NULL);
-                long int timestamp = tp.tv_sec * 1000 + tp.tv_usec / 1000;
                 
-                printf("(%d: %ld) %s: %.*s\n", lineCount, timestamp, messageType, logStringLength, entry->data + sizeof(KextLog_MessageHeader));
+                printf("(%d: %llu) %s: %.*s\n", lineCount, message.machAbsoluteTimestamp, messageType, logStringLength, entry->data + sizeof(KextLog_MessageHeader));
                 lineCount++;
             }
             
