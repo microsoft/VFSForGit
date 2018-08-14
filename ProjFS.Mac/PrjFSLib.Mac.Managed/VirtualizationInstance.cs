@@ -17,6 +17,7 @@ namespace PrjFSLib.Mac
         public virtual NotifyFileModified OnFileModified { get; set; }
         public virtual NotifyPreDeleteEvent OnPreDelete { get; set; }
         public virtual NotifyNewFileCreatedEvent OnNewFileCreated { get; set; }
+        public virtual NotifyFileRenamedEvent OnFileRenamed { get; set; }
 
         public static Result ConvertDirectoryToVirtualizationRoot(string fullPath)
         {
@@ -131,8 +132,7 @@ namespace PrjFSLib.Mac
             int triggeringProcessId,
             string triggeringProcessName,
             bool isDirectory,
-            NotificationType notificationType,
-            string destinationRelativePath)
+            NotificationType notificationType)
         {
             switch (notificationType)
             {
@@ -145,6 +145,10 @@ namespace PrjFSLib.Mac
 
                 case NotificationType.NewFileCreated:
                     this.OnNewFileCreated(relativePath, isDirectory);
+                    return Result.Success;
+
+                case NotificationType.FileRenamed:
+                    this.OnFileRenamed(relativePath, isDirectory);
                     return Result.Success;
             }
 

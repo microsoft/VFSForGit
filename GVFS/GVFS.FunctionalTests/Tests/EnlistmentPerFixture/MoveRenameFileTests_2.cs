@@ -8,7 +8,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
     // TODO 452590 - Combine all of the MoveRenameTests into a single fixture, and have each use different
     // well known files
     [TestFixtureSource(typeof(FileSystemRunner), FileSystemRunner.TestRunners)]
-    [Category(Categories.Mac.M2TODO)]
+    [Category(Categories.Mac.M2)]
     public class MoveRenameFileTests_2 : TestsWithEnlistmentPerFixture
     {
         private const string TestFileFolder = "Test_EPF_MoveRenameFileTests_2";
@@ -44,8 +44,8 @@ IF ""%1""=="""" (SET ""Configuration=Debug"") ELSE (SET ""Configuration=%1"")
             // Assume there will always be a GVFS folder when running tests
             string testFolderName = "GVFS";
 
-            string oldTestFileVirtualPath = this.Enlistment.GetVirtualPathTo(TestFileFolder + "\\" + testFileName);
-            string newTestFileVirtualPath = this.Enlistment.GetVirtualPathTo(testFolderName + "\\" + testFileName);
+            string oldTestFileVirtualPath = this.Enlistment.GetVirtualPathTo(TestFileFolder, testFileName);
+            string newTestFileVirtualPath = this.Enlistment.GetVirtualPathTo(testFolderName, testFileName);
 
             this.fileSystem.MoveFile(oldTestFileVirtualPath, newTestFileVirtualPath);
             oldTestFileVirtualPath.ShouldNotExistOnDisk(this.fileSystem);
@@ -72,8 +72,8 @@ IF ""%1""=="""" (SET ""Configuration=Debug"") ELSE (SET ""Configuration=%1"")
 
             string newTestFileVirtualPath = Path.Combine(this.Enlistment.GetVirtualPathTo(testFolderName), testFolderName);
 
-            this.fileSystem.MoveFile(this.Enlistment.GetVirtualPathTo(TestFileFolder + "\\" + testFileName), newTestFileVirtualPath);
-            this.Enlistment.GetVirtualPathTo(TestFileFolder + "\\" + testFileName).ShouldNotExistOnDisk(this.fileSystem);
+            this.fileSystem.MoveFile(this.Enlistment.GetVirtualPathTo(TestFileFolder, testFileName), newTestFileVirtualPath);
+            this.Enlistment.GetVirtualPathTo(TestFileFolder, testFileName).ShouldNotExistOnDisk(this.fileSystem);
             newTestFileVirtualPath.ShouldBeAFile(this.fileSystem).WithContents(testFileContents);
 
             // Writing after the move should succeed
@@ -92,8 +92,8 @@ IF ""%1""=="""" (SET ""Configuration=Debug"") ELSE (SET ""Configuration=%1"")
         [TestCase, Order(3)]
         public void MoveUnhydratedFileToOverwriteUnhydratedFileAndWrite()
         {
-            string targetFilename = TestFileFolder + "\\MoveUnhydratedFileToOverwriteUnhydratedFileAndWrite\\RunFunctionalTests.bat";
-            string sourceFilename = TestFileFolder + "\\MoveUnhydratedFileToOverwriteUnhydratedFileAndWrite\\RunUnitTests.bat";
+            string targetFilename = Path.Combine(TestFileFolder, "MoveUnhydratedFileToOverwriteUnhydratedFileAndWrite", "RunFunctionalTests.bat");
+            string sourceFilename = Path.Combine(TestFileFolder, "MoveUnhydratedFileToOverwriteUnhydratedFileAndWrite", "RunUnitTests.bat");
             string sourceFileContents = RunUnitTestsContents;
 
             // Overwriting one unhydrated file with another should create a file at the target
@@ -130,7 +130,11 @@ IF ""%1""=="""" (SET ""Configuration=Debug"") ELSE (SET ""Configuration=%1"")
             string targetFilename = "TargetFile.txt";
             string targetFileContents = "The Target";
 
-            string sourceFilename = TestFileFolder + "\\MoveUnhydratedFileToOverwriteFullFileAndWrite\\MoveUnhydratedFileToOverwriteFullFileAndWrite.txt";
+            string sourceFilename = Path.Combine(
+                TestFileFolder, 
+                "MoveUnhydratedFileToOverwriteFullFileAndWrite", 
+                "MoveUnhydratedFileToOverwriteFullFileAndWrite.txt");
+            
             string sourceFileContents =
 @"<?xml version=""1.0"" encoding=""utf-8""?>
 <packages>

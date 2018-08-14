@@ -102,6 +102,7 @@ namespace GVFS.Platform.Mac
             this.virtualizationInstance.OnFileModified = this.OnFileModified;
             this.virtualizationInstance.OnPreDelete = this.OnPreDelete;
             this.virtualizationInstance.OnNewFileCreated = this.OnNewFileCreated;
+            this.virtualizationInstance.OnFileRenamed = this.OnFileRenamed;
 
             uint threadCount = (uint)Environment.ProcessorCount * 2;
 
@@ -346,6 +347,16 @@ namespace GVFS.Platform.Mac
                 metadata.Add("isDirectory", isDirectory);
                 this.LogUnhandledExceptionAndExit(nameof(this.OnNewFileCreated), metadata);
             }
+        }
+        
+        private void OnFileRenamed(string relativeDestinationPath, bool isDirectory)
+        {
+            // relativeSourcePath is handled in the OnPreDelete callback that's triggered
+            // prior to OnFileRenamed
+            this.OnFileRenamed(
+                relativeSourcePath: string.Empty, 
+                relativeDestinationPath: relativeDestinationPath, 
+                isDirectory: isDirectory);
         }
 
         private Result OnEnumerateDirectory(

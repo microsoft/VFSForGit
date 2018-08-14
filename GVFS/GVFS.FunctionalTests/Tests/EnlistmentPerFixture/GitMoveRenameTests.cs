@@ -6,6 +6,7 @@ using NUnit.Framework;
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Runtime.InteropServices;
 
 namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
 {
@@ -19,6 +20,15 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
         public GitMoveRenameTests(FileSystemRunner fileSystem)
         {
             this.fileSystem = fileSystem;
+        }
+
+        public static void IgnoreSystemIOMoveOnMac(FileSystemRunner runner)
+        {
+            if (runner is SystemIORunner &&
+                RuntimeInformation.IsOSPlatform(OSPlatform.OSX))
+            {
+                Assert.Ignore("TODO(Mac): SystemIORunner rename tests require hardlink notifications");
+            }
         }
 
         [TestCase, Order(1)]
@@ -37,6 +47,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
             string filename = "new.cs";
             string filePath = this.Enlistment.GetVirtualPathTo(filename);
 
+            filePath.ShouldNotExistOnDisk(this.fileSystem);
             this.fileSystem.WriteAllText(filePath, this.testFileContents);
 
             filePath.ShouldBeAFile(this.fileSystem).WithContents(this.testFileContents);
@@ -52,14 +63,14 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
         }
 
         [TestCase, Order(3)]
-        [Category(Categories.Mac.M2TODO)]
         public void GitStatusAfterFileNameCaseChange()
         {
             string oldFilename = "new.cs";
             this.EnsureTestFileExists(oldFilename);
 
             string newFilename = "New.cs";
-            this.fileSystem.MoveFile(this.Enlistment.GetVirtualPathTo(oldFilename), this.Enlistment.GetVirtualPathTo(newFilename));
+            string newFilePath = this.Enlistment.GetVirtualPathTo(newFilename);
+            this.fileSystem.MoveFile(this.Enlistment.GetVirtualPathTo(oldFilename), newFilePath);
 
             GitHelpers.CheckGitCommandAgainstGVFSRepo(
                 this.Enlistment.RepoRoot,
@@ -67,17 +78,21 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
                 "On branch " + Properties.Settings.Default.Commitish,
                 "Untracked files:",
                 newFilename);
+
+            this.fileSystem.DeleteFile(newFilePath);
         }
 
         [TestCase, Order(4)]
-        [Category(Categories.Mac.M2TODO)]
         public void GitStatusAfterFileRename()
         {
+            IgnoreSystemIOMoveOnMac(this.fileSystem);
+
             string oldFilename = "New.cs";
-            this.Enlistment.GetVirtualPathTo(oldFilename).ShouldBeAFile(this.fileSystem);
+            this.EnsureTestFileExists(oldFilename);
 
             string newFilename = "test.cs";
-            this.fileSystem.MoveFile(this.Enlistment.GetVirtualPathTo(oldFilename), this.Enlistment.GetVirtualPathTo(newFilename));
+            string newFilePath = this.Enlistment.GetVirtualPathTo(newFilename);
+            this.fileSystem.MoveFile(this.Enlistment.GetVirtualPathTo(oldFilename), newFilePath);
 
             GitHelpers.CheckGitCommandAgainstGVFSRepo(
                 this.Enlistment.RepoRoot,
@@ -178,9 +193,10 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
         }
 
         [TestCase, Order(9)]
-        [Category(Categories.Mac.M2TODO)]
         public void GitStatusAfterRenameFileIntoRepo()
         {
+            IgnoreSystemIOMoveOnMac(this.fileSystem);
+
             string filename = "GitStatusAfterRenameFileIntoRepo.cs";
 
             // Create the test file in this.Enlistment.EnlistmentRoot as it's outside of src 
@@ -190,7 +206,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
             this.fileSystem.WriteAllText(filePath, this.testFileContents);
             filePath.ShouldBeAFile(this.fileSystem).WithContents(this.testFileContents);
 
-            string renamedFileName = "GVFlt_MoveFileTest\\GitStatusAfterRenameFileIntoRepo.cs";
+            string renamedFileName = Path.Combine("GVFlt_MoveFileTest", "GitStatusAfterRenameFileIntoRepo.cs");
             this.fileSystem.MoveFile(filePath, this.Enlistment.GetVirtualPathTo(renamedFileName));
             this.Enlistment.GetVirtualPathTo(filePath).ShouldNotExistOnDisk(this.fileSystem);
 
@@ -219,7 +235,6 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
         }
 
         [TestCase, Order(11)]
-        [Category(Categories.Mac.M2TODO)]
         public void GitStatusAfterRenameFolderIntoRepo()
         {
             string folderName = "GitStatusAfterRenameFolderIntoRepo";

@@ -187,18 +187,17 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
         }
 
         [TestCase, Order(8)]
-        [Category(Categories.Mac.M2TODO)]
-        public void RenamedFileAddedToSparseCheckoutAndSkipWorktreeBitCleared()
+        public void RenamedFileAddedToModifiedPathsFile()
         {
+            GitMoveRenameTests.IgnoreSystemIOMoveOnMac(this.fileSystem);
+
             string fileToRenameEntry = "Test_EPF_MoveRenameFileTests/ChangeUnhydratedFileName/Program.cs";
             string fileToRenameTargetEntry = "Test_EPF_MoveRenameFileTests/ChangeUnhydratedFileName/Program2.cs";
-            string fileToRenameRelativePath = "Test_EPF_MoveRenameFileTests\\ChangeUnhydratedFileName\\Program.cs";
-            string fileToRenameTargetRelativePath = "Test_EPF_MoveRenameFileTests\\ChangeUnhydratedFileName\\Program2.cs";
             this.VerifyWorktreeBit(fileToRenameEntry, LsFilesStatus.SkipWorktree);
 
             this.fileSystem.MoveFile(
-                this.Enlistment.GetVirtualPathTo(fileToRenameRelativePath), 
-                this.Enlistment.GetVirtualPathTo(fileToRenameTargetRelativePath));
+                this.Enlistment.GetVirtualPathTo(fileToRenameEntry), 
+                this.Enlistment.GetVirtualPathTo(fileToRenameTargetEntry));
             this.Enlistment.WaitForBackgroundOperations().ShouldEqual(true, "Background operations failed to complete.");
 
             GVFSHelpers.ModifiedPathsShouldContain(this.fileSystem, this.Enlistment.DotGVFSRoot, fileToRenameEntry);
@@ -209,19 +208,16 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
         }
 
         [TestCase, Order(9)]
-        [Category(Categories.Mac.M2TODO)]
-        public void RenamedFileAndOverwrittenTargetAddedToSparseCheckoutAndSkipWorktreeBitCleared()
+        public void RenamedFileAndOverwrittenTargetAddedToModifiedPathsFile()
         {
             string fileToRenameEntry = "Test_EPF_MoveRenameFileTests_2/MoveUnhydratedFileToOverwriteUnhydratedFileAndWrite/RunUnitTests.bat";
             string fileToRenameTargetEntry = "Test_EPF_MoveRenameFileTests_2/MoveUnhydratedFileToOverwriteUnhydratedFileAndWrite/RunFunctionalTests.bat";
-            string fileToRenameRelativePath = "Test_EPF_MoveRenameFileTests_2\\MoveUnhydratedFileToOverwriteUnhydratedFileAndWrite\\RunUnitTests.bat";
-            string fileToRenameTargetRelativePath = "Test_EPF_MoveRenameFileTests_2\\MoveUnhydratedFileToOverwriteUnhydratedFileAndWrite\\RunFunctionalTests.bat";
             this.VerifyWorktreeBit(fileToRenameEntry, LsFilesStatus.SkipWorktree);
             this.VerifyWorktreeBit(fileToRenameTargetEntry, LsFilesStatus.SkipWorktree);
 
             this.fileSystem.ReplaceFile(
-                this.Enlistment.GetVirtualPathTo(fileToRenameRelativePath),
-                this.Enlistment.GetVirtualPathTo(fileToRenameTargetRelativePath));
+                this.Enlistment.GetVirtualPathTo(fileToRenameEntry),
+                this.Enlistment.GetVirtualPathTo(fileToRenameTargetEntry));
             this.Enlistment.WaitForBackgroundOperations().ShouldEqual(true, "Background operations failed to complete.");
 
             GVFSHelpers.ModifiedPathsShouldContain(this.fileSystem, this.Enlistment.DotGVFSRoot, fileToRenameEntry);

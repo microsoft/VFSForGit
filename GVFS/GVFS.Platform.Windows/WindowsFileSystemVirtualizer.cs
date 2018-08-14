@@ -1223,35 +1223,7 @@ namespace GVFS.Platform.Windows
             bool isDirectory,
             ref NotificationType notificationMask)
         {
-            try
-            {
-                bool srcPathInDotGit = FileSystemCallbacks.IsPathInsideDotGit(virtualPath);
-                bool dstPathInDotGit = FileSystemCallbacks.IsPathInsideDotGit(destinationPath);
-
-                if (dstPathInDotGit)
-                {
-                    this.OnDotGitFileOrFolderChanged(destinationPath);
-                }
-
-                if (!(srcPathInDotGit && dstPathInDotGit))
-                {
-                    if (isDirectory)
-                    {
-                        this.FileSystemCallbacks.OnFolderRenamed(virtualPath, destinationPath);
-                    }
-                    else
-                    {
-                        this.FileSystemCallbacks.OnFileRenamed(virtualPath, destinationPath);
-                    }
-                }
-            }
-            catch (Exception e)
-            {
-                EventMetadata metadata = this.CreateEventMetadata(virtualPath, e);
-                metadata.Add("destinationPath", destinationPath);
-                metadata.Add("isDirectory", isDirectory);
-                this.LogUnhandledExceptionAndExit(nameof(this.NotifyFileRenamedHandler), metadata);
-            }
+            this.OnFileRenamed(virtualPath, destinationPath, isDirectory);
         }
 
         private void NotifyFileHandleClosedFileModifiedOrDeletedHandler(

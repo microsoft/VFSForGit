@@ -432,21 +432,12 @@ static void HandleKernelRequest(Message request, void* messageMemory)
         }
         
         case MessageType_KtoU_NotifyFilePreDelete:
-        {
-            result = HandleFileNotification(
-                requestHeader,
-                request.path,
-                false,  // isDirectory
-                PrjFS_NotificationType_PreDelete);
-            break;
-        }
-        
         case MessageType_KtoU_NotifyDirectoryPreDelete:
         {
             result = HandleFileNotification(
                 requestHeader,
                 request.path,
-                true,  // isDirectory
+                requestHeader->messageType == MessageType_KtoU_NotifyDirectoryPreDelete,  // isDirectory
                 PrjFS_NotificationType_PreDelete);
             break;
         }
@@ -455,8 +446,6 @@ static void HandleKernelRequest(Message request, void* messageMemory)
         {
             char fullPath[PrjFSMaxPath];
             CombinePaths(s_virtualizationRootFullPath.c_str(), request.path, fullPath);
-			
-            // TODO(Mac): Handle SetBitInFileFlags failures
             SetBitInFileFlags(fullPath, FileFlags_IsInVirtualizationRoot, true);
         
             result = HandleFileNotification(
@@ -464,6 +453,23 @@ static void HandleKernelRequest(Message request, void* messageMemory)
                 request.path,
                 false,  // isDirectory
                 PrjFS_NotificationType_NewFileCreated);
+            break;
+        }
+        
+        case MessageType_KtoU_NotifyFileRenamed:
+        case MessageType_KtoU_NotifyDirectoryRenamed:
+        {
+            char fullPath[PrjFSMaxPath];
+            CombinePaths(s_virtualizationRootFullPath.c_str(), request.path, fullPath);
+			
+            // TODO(Mac): Handle SetBitInFileFlags failures
+            SetBitInFileFlags(fullPath, FileFlags_IsInVirtualizationRoot, true);
+
+            result = HandleFileNotification(
+                requestHeader,
+                request.path,
+                requestHeader->messageType == MessageType_KtoU_NotifyDirectoryRenamed,  // isDirectory
+                PrjFS_NotificationType_FileRenamed);
             break;
         }
     }

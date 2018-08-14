@@ -208,6 +208,39 @@ namespace GVFS.Virtualization.FileSystem
 
             this.FileSystemCallbacks.InvalidateGitStatusCache();
         }
+        
+        protected void OnFileRenamed(string relativeSourcePath, string relativeDestinationPath, bool isDirectory)
+        {
+            try
+            {
+                bool srcPathInDotGit = FileSystemCallbacks.IsPathInsideDotGit(relativeSourcePath);
+                bool dstPathInDotGit = FileSystemCallbacks.IsPathInsideDotGit(relativeDestinationPath);
+
+                if (dstPathInDotGit)
+                {
+                    this.OnDotGitFileOrFolderChanged(relativeDestinationPath);
+                }
+
+                if (!(srcPathInDotGit && dstPathInDotGit))
+                {
+                    if (isDirectory)
+                    {
+                        this.FileSystemCallbacks.OnFolderRenamed(relativeSourcePath, relativeDestinationPath);
+                    }
+                    else
+                    {
+                        this.FileSystemCallbacks.OnFileRenamed(relativeSourcePath, relativeDestinationPath);
+                    }
+                }
+            }
+            catch (Exception e)
+            {
+                EventMetadata metadata = this.CreateEventMetadata(relativeSourcePath, e);
+                metadata.Add("destinationPath", relativeDestinationPath);
+                metadata.Add("isDirectory", isDirectory);
+                this.LogUnhandledExceptionAndExit(nameof(this.OnFileRenamed), metadata);
+            }
+        }
 
         protected EventMetadata CreateEventMetadata(
             Guid enumerationId,

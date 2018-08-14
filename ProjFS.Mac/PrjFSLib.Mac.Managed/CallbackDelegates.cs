@@ -31,8 +31,7 @@ namespace PrjFSLib.Mac
         int triggeringProcessId,
         string triggeringProcessName,
         bool isDirectory,
-        NotificationType notificationType,
-        string destinationRelativePath);
+        NotificationType notificationType);
 
     // Pre-event notifications
     public delegate Result NotifyPreDeleteEvent(
@@ -51,7 +50,6 @@ namespace PrjFSLib.Mac
         bool isDirectory);
 
     public delegate void NotifyFileRenamedEvent(
-        string relativeSourcePath,
         string relativeDestinationPath,
         bool isDirectory);
 

@@ -226,6 +226,8 @@ void KauthHandler_HandleKernelMessageResponse(uint64_t messageId, MessageType re
         case MessageType_KtoU_NotifyFilePreDelete:
         case MessageType_KtoU_NotifyDirectoryPreDelete:
         case MessageType_KtoU_NotifyFileCreated:
+        case MessageType_KtoU_NotifyFileRenamed:
+        case MessageType_KtoU_NotifyDirectoryRenamed:
             KextLog_Error("KauthHandler_HandleKernelMessageResponse: Unexpected responseType: %d", responseType);
             break;
     }
@@ -376,8 +378,61 @@ static int HandleFileOpOperation(
     atomic_fetch_add(&s_numActiveKauthEvents, 1);
     
     vfs_context_t context = vfs_context_create(NULL);
+    vnode_t currentVnodeFromPath = NULLVP;
 
-    if (KAUTH_FILEOP_CLOSE == action)
+    if (KAUTH_FILEOP_RENAME == action)
+    {
+        // arg0 is the (const char *) fromPath
+        const char* toPath = (const char*)arg1;
+        
+        // TODO(Mac): Improve error handling
+        errno_t toErr = vnode_lookup(toPath, 0 /* flags */, &currentVnodeFromPath, context);
+        if (0 != toErr)
+        {
+            goto CleanupAndReturn;
+        }
+        
+        vtype vnodeType = vnode_vtype(currentVnodeFromPath);
+        if (ShouldIgnoreVnodeType(vnodeType, currentVnodeFromPath))
+        {
+            goto CleanupAndReturn;
+        }
+        
+        if (!HasAncestorFlaggedAsInRoot(currentVnodeFromPath, context))
+        {
+            goto CleanupAndReturn;
+        }
+        
+        VirtualizationRoot* root = nullptr;
+        int pid;
+        if (!ShouldHandleFileOpEvent(
+                context,
+                currentVnodeFromPath,
+                action,
+                &root,
+                &pid))
+        {
+            goto CleanupAndReturn;
+        }
+        
+        char procname[MAXCOMLEN + 1];
+        proc_name(pid, procname, MAXCOMLEN + 1);
+
+        int kauthResult;
+        int kauthError;
+        if (!TrySendRequestAndWaitForResponse(
+            root,
+            vnode_isdir(currentVnodeFromPath) ? MessageType_KtoU_NotifyDirectoryRenamed : MessageType_KtoU_NotifyFileRenamed,
+            currentVnodeFromPath,
+            pid,
+            procname,
+            &kauthResult,
+            &kauthError))
+        {
+            goto CleanupAndReturn;
+        }
+    }
+    else if (KAUTH_FILEOP_CLOSE == action)
     {
         vnode_t currentVnode = reinterpret_cast<vnode_t>(arg0);
         // arg1 is the (const char *) path
@@ -449,7 +504,12 @@ static int HandleFileOpOperation(
         }
     }
     
-CleanupAndReturn:
+CleanupAndReturn:    
+    if (NULLVP != currentVnodeFromPath)
+    {
+        vnode_put(currentVnodeFromPath);
+    }
+    
     vfs_context_rele(context);
     atomic_fetch_sub(&s_numActiveKauthEvents, 1);
     
@@ -472,6 +532,7 @@ static bool ShouldHandleVnodeOpEvent(
     char procname[MAXCOMLEN + 1],
     int* kauthResult)
 {
+    *root = nullptr;
     *kauthResult = KAUTH_RESULT_DEFER;
     
     if (!VirtualizationRoot_VnodeIsOnAllowedFilesystem(vnode))
