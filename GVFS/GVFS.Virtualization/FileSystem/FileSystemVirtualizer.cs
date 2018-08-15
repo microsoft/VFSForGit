@@ -190,6 +190,25 @@ namespace GVFS.Virtualization.FileSystem
             }
         }
 
+        protected void OnWorkingDirectoryFileOrFolderDeleted(string relativePath, bool isDirectory)
+        {
+            if (isDirectory)
+            {
+                // Don't want to add folders to the modified list if git is the one deleting the directory
+                GitCommandLineParser gitCommand = new GitCommandLineParser(this.Context.Repository.GVFSLock.GetLockedGitCommand());
+                if (!gitCommand.IsValidGitCommand)
+                {
+                    this.FileSystemCallbacks.OnFolderDeleted(relativePath);
+                }
+            }
+            else
+            {
+                this.FileSystemCallbacks.OnFileDeleted(relativePath);
+            }
+
+            this.FileSystemCallbacks.InvalidateGitStatusCache();
+        }
+
         protected EventMetadata CreateEventMetadata(
             Guid enumerationId,
             string relativePath = null,

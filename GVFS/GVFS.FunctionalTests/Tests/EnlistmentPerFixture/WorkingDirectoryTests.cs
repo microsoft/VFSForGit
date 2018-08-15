@@ -274,7 +274,6 @@ BOOL APIENTRY DllMain( HMODULE hModule,
         }
 
         [TestCase, Order(5)]
-        [Category(Categories.Mac.M3)]
         public void MoveProjectedFileToInvalidFolder()
         {
             string targetFolderName = "test_folder";
@@ -449,9 +448,9 @@ BOOL APIENTRY DllMain( HMODULE hModule,
             (folder + @"\MoveUnhydratedFileToDotGitFolder\Program.cs").ShouldBeAFile(this.fileSystem).WithContents(MoveRenameFileTests.TestFileContents);
         }
 
-        // TODO(Mac) This test is technically part of M2, but we need further investigation of why this test fails on build agents, but not on dev machines.
+        // TODO(Mac) This *should* be working already, we need further investigation of why this test fails on build agents, but not on dev machines.
         [TestCase, Order(15)]
-        [Category(Categories.Mac.M3)]
+        [Category(Categories.Mac.M2TODO)]
         public void FilterNonUTF8FileName()
         {
             string encodingFilename = "ريلٌأكتوبرûمارسأغسطسºٰٰۂْٗ۵ريلٌأك.txt";
@@ -498,8 +497,8 @@ BOOL APIENTRY DllMain( HMODULE hModule,
             (badObject as FileInfo).ShouldNotBeNull().Length.ShouldEqual(objectFileInfo.Length);
         }
 
+        // TODO(Mac): Figure out why git for Mac is not requesting a redownload of the truncated object
         [TestCase, Order(17)]
-        //// TODO(Mac): Figure out why git for Mac is not requesting a redownload of the truncated object
         [Category(Categories.Mac.M3)]
         public void TruncatedObjectRedownloaded()
         {

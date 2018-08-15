@@ -6,6 +6,7 @@ using System.IO;
 namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
 {
     [TestFixtureSource(typeof(FileSystemRunner), FileSystemRunner.TestRunners)]
+    [Category(Categories.Mac.M2TODO)]
     public class MoveRenameFolderTests : TestsWithEnlistmentPerFixture
     {       
         private const string TestFileContents =
@@ -118,6 +119,7 @@ BOOL APIENTRY DllMain( HMODULE hModule,
         }
 
         [TestCase]
+        [Category(Categories.Mac.M2)]
         public void MoveFullFolderToFullFolderInDotGitFolder()
         {
             string fileContents = "Test contents for MoveFullFolderToFullFolderInDotGitFolder";
@@ -132,7 +134,7 @@ BOOL APIENTRY DllMain( HMODULE hModule,
             oldFilePath.ShouldBeAFile(this.fileSystem).WithContents(fileContents);
 
             string newFolderName = "NewMoveFullFolderToFullFolderInDotGitFolder";
-            string newFolderPath = this.Enlistment.GetVirtualPathTo(".git\\" + newFolderName);
+            string newFolderPath = this.Enlistment.GetVirtualPathTo(".git", newFolderName);
             newFolderPath.ShouldNotExistOnDisk(this.fileSystem);
             this.fileSystem.CreateDirectory(newFolderPath);
             newFolderPath.ShouldBeADirectory(this.fileSystem);

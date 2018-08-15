@@ -4,6 +4,7 @@ using NUnit.Framework;
 using System;
 using System.Diagnostics;
 using System.IO;
+using System.Runtime.InteropServices;
 using System.Threading;
 
 namespace GVFS.FunctionalTests.FileSystemRunners
@@ -31,6 +32,11 @@ namespace GVFS.FunctionalTests.FileSystemRunners
         private static string[] permissionDeniedMessage = new string[]
         {
             "Permission denied"
+        };
+
+        private static string[] resourceUnavailableMessage = new string[]
+        {
+            "Resource temporarily unavailable",
         };
 
         private readonly string pathToBash;
@@ -233,7 +239,14 @@ namespace GVFS.FunctionalTests.FileSystemRunners
 
         public override void DeleteFile_AccessShouldBeDenied(string path)
         {
-            this.DeleteFile(path).ShouldContain(permissionDeniedMessage);
+            if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+            {
+                this.DeleteFile(path).ShouldContain(permissionDeniedMessage);
+            }
+            else
+            {
+                this.DeleteFile(path).ShouldContain(resourceUnavailableMessage);
+            }
         }
 
         public override void ReadAllText_FileShouldNotBeFound(string path)
