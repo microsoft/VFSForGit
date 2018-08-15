@@ -34,7 +34,7 @@ fi
 
 $SCRIPTDIR/DownloadGVFSGit.sh || exit 1
 GVFSPROPS=$SRCDIR/GVFS/GVFS.Build/GVFS.props
-GITVERSION="$(cat $GVFSPROPS | grep GitPackageVersion | grep -Eo '[0-9.]{1,}')"
+GITVERSION="$(cat $GVFSPROPS | grep GitPackageVersion | grep -Eo '[0-9.]+(-\w+)?')"
 GITPATH="$(find $PACKAGES/gitformac.gvfs.installer/$GITVERSION -type f -name *.dmg)" || exit 1
 # Now that we have a path containing the version number, generate GVFSConstants.GitVersion.cs
 $SCRIPTDIR/GenerateGitVersionConstants.sh "$GITPATH" $BUILDDIR || exit 1
