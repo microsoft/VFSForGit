@@ -55,7 +55,7 @@ static bool TrySendRequestAndWaitForResponse(
 static void AbortAllOutstandingEvents();
 static bool ShouldIgnoreVnodeType(vtype vnodeType, vnode_t vnode);
 
-static bool ShouldHandleEvent(
+static bool ShouldHandleVnodeOpEvent(
     // In params:
     vfs_context_t context,
     const vnode_t vnode,
@@ -69,6 +69,15 @@ static bool ShouldHandleEvent(
     char procname[MAXCOMLEN + 1],
     int* kauthResult);
 
+static bool ShouldHandleFileOpEvent(
+    // In params:
+    vfs_context_t context,
+    const vnode_t vnode,
+    kauth_action_t action,
+
+    // Out params:
+    VirtualizationRoot** root,
+    int* pid);
 
 // Structs
 typedef struct OutstandingMessage
@@ -236,7 +245,7 @@ static int HandleVnodeOperation(
 
     int kauthResult = KAUTH_RESULT_DEFER;
 
-    if (!ShouldHandleEvent(
+    if (!ShouldHandleVnodeOpEvent(
             context,
             currentVnode,
             action,
@@ -310,6 +319,8 @@ CleanupAndReturn:
     return kauthResult;
 }
 
+// Note: a fileop listener MUST NOT return an error, or it will result in a kernel panic.
+// Fileop events are informational only.
 static int HandleFileOpOperation(
     kauth_cred_t    credential,
     void*           idata,
@@ -321,11 +332,6 @@ static int HandleFileOpOperation(
 {
     atomic_fetch_add(&s_numActiveKauthEvents, 1);
     
-    // Note: a fileop listener MUST NOT return an error, or it will result in a kernel panic.
-    // Fileop events are informational only.
-    int kauthError;
-    int kauthResult;
-    
     vfs_context_t context = vfs_context_create(NULL);
 
     if (KAUTH_FILEOP_CLOSE == action)
@@ -334,28 +340,25 @@ static int HandleFileOpOperation(
         // arg1 is the (const char *) path
         int closeFlags = static_cast<int>(arg2);
         
-        VirtualizationRoot* root = nullptr;
-        vtype vnodeType;
-        uint32_t currentVnodeFileFlags;
-        int pid;
-        char procname[MAXCOMLEN + 1];
-        
-        if (!ShouldHandleEvent(
-                context,
-                currentVnode,
-                action,
-                &root,
-                &vnodeType,
-                &currentVnodeFileFlags,
-                &pid,
-                procname,
-                &kauthResult))
-        {
-            goto CleanupAndReturn;
-        }
-        
         if (KAUTH_FILEOP_CLOSE_MODIFIED == closeFlags)
         {
+            VirtualizationRoot* root = nullptr;
+            int pid;
+            if (!ShouldHandleFileOpEvent(
+                    context,
+                    currentVnode,
+                    action,
+                    &root,
+                    &pid))
+            {
+                goto CleanupAndReturn;
+            }
+            
+            char procname[MAXCOMLEN + 1];
+            proc_name(pid, procname, MAXCOMLEN + 1);
+        
+            int kauthResult;
+            int kauthError;
             if (!TrySendRequestAndWaitForResponse(
                     root,
                     MessageType_KtoU_NotifyFileModified,
@@ -379,7 +382,7 @@ CleanupAndReturn:
     return KAUTH_RESULT_DEFER;
 }
 
-static bool ShouldHandleEvent(
+static bool ShouldHandleVnodeOpEvent(
     // In params:
     vfs_context_t context,
     const vnode_t vnode,
@@ -533,6 +536,56 @@ static bool ShouldHandleEvent(
     if (*pid == (*root)->providerPid)
     {
         *kauthResult = KAUTH_RESULT_DEFER;
+        return false;
+    }
+    
+    return true;
+}
+
+static bool ShouldHandleFileOpEvent(
+    // In params:
+    vfs_context_t context,
+    const vnode_t vnode,
+    kauth_action_t action,
+
+    // Out params:
+    VirtualizationRoot** root,
+    int* pid)
+{
+    vtype vnodeType = vnode_vtype(vnode);
+    if (ShouldIgnoreVnodeType(vnodeType, vnode))
+    {
+        return false;
+    }
+    
+    // TODO(Mac): We will still want to handle renames into a root, and those vnodes would
+    // not yet have the FileFlags_IsInVirtualizationRoot set
+    uint32_t vnodeFileFlags = ReadVNodeFileFlags(vnode, context);
+    if (!FileFlagsBitIsSet(vnodeFileFlags, FileFlags_IsInVirtualizationRoot))
+    {
+        // This vnode is not part of ANY virtualization root, so exit now before doing any more work.
+        // This gives us a cheap way to avoid adding overhead to IO outside of a virtualization root.      
+        return false;
+    }
+    
+    *root = VirtualizationRoots_FindForVnode(vnode);
+    int16_t rootIndex = nullptr == *root ? -1 : (*root)->index;
+    
+    if (nullptr == *root)
+    {
+        KextLog_FileNote(vnode, "ShouldHandleFileOpEvent(%d): No virtualization root found for file with set flag.", action);
+        return false;
+    }
+    else if (nullptr == (*root)->providerUserClient)
+    {
+        // There is no registered provider for this root
+        return false;
+    }
+    
+    // If the calling process is the provider, we must exit right away to avoid deadlocks
+    *pid = GetPid(context);
+    if (*pid == (*root)->providerPid)
+    {
         return false;
     }
     
