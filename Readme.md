@@ -1,5 +1,17 @@
 # VFS for Git
 
+## Windows
+
+|Branch|Unit Tests|Functional Tests|
+|:--:|:--:|:--:|
+|**master**|[![Build status](https://gvfs.visualstudio.com/ci/_apis/build/status/CI%20-%20Windows%20-%20master?branchName=master)](https://gvfs.visualstudio.com/ci/_build/latest?definitionId=7)|[![Build status](https://gvfs.visualstudio.com/ci/_apis/build/status/CI%20-%20Windows%20-%20Full%20Functional%20Tests?branchName=master)](https://gvfs.visualstudio.com/ci/_build/latest?definitionId=6)|
+
+
+## Mac
+|Branch|Unit Tests|Functional Tests|
+|:--:|:--:|:--:|
+|**master**|[![Build status](https://gvfs.visualstudio.com/ci/_apis/build/status/CI%20-%20Mac%20-%20master?branchName=master)](https://gvfs.visualstudio.com/ci/_build/latest?definitionId=15)||
+
 ## What is VFS for Git?
 
 VFS stands for Virtual File System. VFS for Git virtualizes the file system beneath your git repo so that git and all tools
