@@ -6,6 +6,8 @@ enum VirtualFileSystemErrorReturnCode
 	ErrorVirtualFileSystemProtocol = ReturnCode::LastError + 1,
 };
 
+const int PIPE_BUFFER_SIZE = 1024;
+
 int main(int argc, char *argv[])
 {
     if (argc != 2)
@@ -39,7 +41,10 @@ int main(int argc, char *argv[])
         die(ReturnCode::PipeWriteFailed, "Failed to write to pipe (%d)\n", error);
     }
 
-    char message[1024];
+    // Allow for 1 extra character in case we need to
+    // null terminate the message, and the message
+    // is PIPE_BUFFER_SIZE chars long.
+    char message[PIPE_BUFFER_SIZE + 1];
     unsigned long bytesRead;
     int lastError;
     bool finishedReading = false;
@@ -51,7 +56,7 @@ int main(int argc, char *argv[])
         success = ReadFromPipe(
             pipeHandle,
             message,
-            sizeof(message),
+            PIPE_BUFFER_SIZE,
             &bytesRead,
             &lastError);
 
@@ -59,7 +64,7 @@ int main(int argc, char *argv[])
         {
             break;
         }
-        
+
         messageLength = bytesRead;
 
         if (firstRead)
@@ -67,6 +72,7 @@ int main(int argc, char *argv[])
             firstRead = false;
             if (message[0] != 'S')
             {
+                message[bytesRead] = 0;
                 die(ReturnCode::PipeReadFailed, "Read response from pipe failed (%s)\n", message);
             }
 
