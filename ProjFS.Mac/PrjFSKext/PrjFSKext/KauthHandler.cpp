@@ -569,8 +569,6 @@ static bool ShouldHandleFileOpEvent(
     }
     
     *root = VirtualizationRoots_FindForVnode(vnode);
-    int16_t rootIndex = nullptr == *root ? -1 : (*root)->index;
-    
     if (nullptr == *root)
     {
         KextLog_FileNote(vnode, "ShouldHandleFileOpEvent(%d): No virtualization root found for file with set flag.", action);
