@@ -124,7 +124,6 @@ namespace GVFS.FunctionalTests.Tools
 
             this.LocalCacheRoot.ShouldBeADirectory(fileSystem).WithFiles().ShouldNotContain(f => !allowedFileNames.Contains(f.Name)); 
                                                                                             
-
             DirectoryInfo[] directories = this.LocalCacheRoot.ShouldBeADirectory(fileSystem).WithDirectories().ToArray();
             directories.Length.ShouldEqual(
                 1, 
