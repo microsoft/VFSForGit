@@ -114,21 +114,22 @@ namespace GVFS.FunctionalTests.Tools
 
         public string GetObjectRoot(FileSystemRunner fileSystem)
         {
-            IEnumerable<FileSystemInfo> localCacheRootItems = this.LocalCacheRoot.ShouldBeADirectory(fileSystem).WithItems();
+            Path.Combine(this.LocalCacheRoot, "mapping.dat").ShouldBeAFile(fileSystem);
 
-            FileInfo[] files = localCacheRootItems.Where(info => info is FileInfo).Cast<FileInfo>().ToArray();
-            files.Where(f => string.Equals(f.Name, "mapping.dat", StringComparison.OrdinalIgnoreCase))
-                 .Count()
-                 .ShouldEqual(1, "Local cache root should contain a single 'mapping.dat' file, actual files: " + string.Join<FileInfo>(",", files));
-            
-            IEnumerable<FileInfo> unexpectedFiles = files.Where(
-                f => !string.Equals(f.Name, "mapping.dat", StringComparison.OrdinalIgnoreCase) && 
-                !string.Equals(f.Name, "mapping.dat.lock", StringComparison.OrdinalIgnoreCase));
-            
-            unexpectedFiles.Any().ShouldBeFalse("Local cache root contains unexpected files: " + string.Join(",", unexpectedFiles));
+            HashSet<string> allowedFileNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+            { 
+                "mapping.dat", 
+                "mapping.dat.lock" // mapping.dat.lock can be present, but doesn't have to be present
+            };
 
-            DirectoryInfo[] directories = localCacheRootItems.Where(info => info is DirectoryInfo).Cast<DirectoryInfo>().ToArray();
-            directories.Length.ShouldEqual(1, this.LocalCacheRoot + " is expected to have only one folder. Actual: " + directories.Count());
+            this.LocalCacheRoot.ShouldBeADirectory(fileSystem).WithFiles().ShouldNotContain(f => !allowedFileNames.Contains(f.Name)); 
+                                                                                            
+
+            DirectoryInfo[] directories = this.LocalCacheRoot.ShouldBeADirectory(fileSystem).WithDirectories().ToArray();
+            directories.Length.ShouldEqual(
+                1, 
+                this.LocalCacheRoot + " is expected to have only one folder. Actual folders: " + string.Join<DirectoryInfo>(",", directories));
+            
             return Path.Combine(directories[0].FullName, "gitObjects");
         }
 
