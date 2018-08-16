@@ -115,7 +115,18 @@ namespace GVFS.FunctionalTests.Tools
         public string GetObjectRoot(FileSystemRunner fileSystem)
         {
             IEnumerable<FileSystemInfo> localCacheRootItems = this.LocalCacheRoot.ShouldBeADirectory(fileSystem).WithItems();
-            localCacheRootItems.Count().ShouldEqual(2, "Expected local cache root to contain 2 items. Actual items: " + string.Join(",", localCacheRootItems));
+
+            FileInfo[] files = localCacheRootItems.Where(info => info is FileInfo).Cast<FileInfo>().ToArray();
+            files.Where(f => string.Equals(f.Name, "mapping.dat", StringComparison.OrdinalIgnoreCase))
+                 .Count()
+                 .ShouldEqual(1, "Local cache root should contain a single 'mapping.dat' file, actual files: " + string.Join<FileInfo>(",", files));
+            
+            IEnumerable<FileInfo> unexpectedFiles = files.Where(
+                f => !string.Equals(f.Name, "mapping.dat", StringComparison.OrdinalIgnoreCase) && 
+                !string.Equals(f.Name, "mapping.dat.lock", StringComparison.OrdinalIgnoreCase));
+            
+            unexpectedFiles.Any().ShouldBeFalse("Local cache root contains unexpected files: " + string.Join(",", unexpectedFiles));
+
             DirectoryInfo[] directories = localCacheRootItems.Where(info => info is DirectoryInfo).Cast<DirectoryInfo>().ToArray();
             directories.Length.ShouldEqual(1, this.LocalCacheRoot + " is expected to have only one folder. Actual: " + directories.Count());
             return Path.Combine(directories[0].FullName, "gitObjects");
