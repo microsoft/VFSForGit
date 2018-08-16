@@ -3,8 +3,7 @@
 SCRIPTDIR=$(dirname ${BASH_SOURCE[0]})
 
 # Install GVFS-aware Git (that was downloaded by the build script)
-GVFSPROPS=$SCRIPTDIR/../../GVFS/GVFS.Build/GVFS.props
-GITVERSION="$(cat $GVFSPROPS | grep GitPackageVersion | grep -Eo '[0-9.]+(-\w+)?')"
+GITVERSION="$($SCRIPTDIR/GetGitVersionNumber.sh)"
 ROOTDIR=$SCRIPTDIR/../../..
 GITDIR=$ROOTDIR/packages/gitformac.gvfs.installer/$GITVERSION/tools
 if [[ ! -d $GITDIR ]]; then
