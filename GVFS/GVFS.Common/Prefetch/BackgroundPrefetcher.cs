@@ -29,14 +29,14 @@ namespace GVFS.Common.Prefetch
 
             this.prefetchJobThread = null;
 
-            if (gitObjects.IsUsingCacheServer())
+            if (gitObjects.IsUsingCacheServer() && !GVFSEnlistment.IsUnattended(tracer))
             {
                 this.prefetchJobTimer = new Timer((state) => this.LaunchPrefetchJobIfIdle(), null, this.timerPeriod, this.timerPeriod);
                 this.tracer.RelatedInfo(nameof(BackgroundPrefetcher) + ": starting background prefetch timer");
             }
             else
             {
-                this.tracer.RelatedInfo(nameof(BackgroundPrefetcher) + ": no configured cache server, not starting background prefetch timer");
+                this.tracer.RelatedInfo(nameof(BackgroundPrefetcher) + ": no configured cache server or enlistment is unattended, not starting background prefetch timer");
             }
         }
 
