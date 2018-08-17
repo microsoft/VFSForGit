@@ -391,7 +391,7 @@ static Message ParseMessageMemory(const void* messageMemory, uint32_t size)
         abort();
     }
             
-    const char* path = nullptr;
+    const char* path = "";
     if (header->pathSizeBytes > 0)
     {
         path = static_cast<const char*>(messageMemory) + sizeof(*header);
@@ -587,7 +587,8 @@ static PrjFS_Result HandleFileNotification(
 {
 #ifdef DEBUG
     std::cout << "PrjFSLib.HandleFileNotification: " << path
-              << " notificationType: " << NotificationTypeToString(notificationType) << std::endl;
+              << " notificationType: " << NotificationTypeToString(notificationType)
+              << " isDirectory: " << isDirectory << std::endl;
 #endif
     
     char fullPath[PrjFSMaxPath];

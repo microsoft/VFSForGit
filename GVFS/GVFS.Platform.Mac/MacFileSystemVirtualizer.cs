@@ -292,19 +292,6 @@ namespace GVFS.Platform.Mac
                     return Result.EIOError;
                 }
 
-                if (relativePath.Equals(GVFSConstants.DotGit.Index, StringComparison.OrdinalIgnoreCase))
-                {
-                    string lockedGitCommand = this.Context.Repository.GVFSLock.GetLockedGitCommand();
-                    if (string.IsNullOrEmpty(lockedGitCommand))
-                    {
-                        EventMetadata metadata = this.CreateEventMetadata(relativePath);
-                        metadata.Add(TracingConstants.MessageKey.WarningMessage, "Blocked index delete outside the lock");
-                        this.Context.Tracer.RelatedEvent(EventLevel.Warning, $"{nameof(this.OnPreDelete)}_BlockedIndexDelete", metadata);
-
-                        return Result.EAccessDenied;
-                    }
-                }
-
                 bool pathInsideDotGit = Virtualization.FileSystemCallbacks.IsPathInsideDotGit(relativePath);
                 if (pathInsideDotGit)
                 {

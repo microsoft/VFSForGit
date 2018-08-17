@@ -35,7 +35,6 @@ static int HandleFileOpOperation(
 static int GetPid(vfs_context_t context);
 
 static uint32_t ReadVNodeFileFlags(vnode_t vn, vfs_context_t context);
-static bool HasParentInVirtualizationRoot(vnode_t vnode,  vfs_context_t context);
 static bool FileFlagsBitIsSet(uint32_t fileFlags, uint32_t bit);
 static bool ActionBitIsSet(kauth_action_t action, kauth_action_t mask);
 static bool ActionBitsNotSet(kauth_action_t action, kauth_action_t mask);
@@ -326,24 +325,6 @@ static int HandleVnodeOperation(
             {
                 goto CleanupAndReturn;
             }
-            
-            // This delete could be part of a rename, and so we must hydrate the file now to
-            // ensure it's hydrated post-rename
-            if (kauthResult == KAUTH_RESULT_DEFER &&
-                FileFlagsBitIsSet(currentVnodeFileFlags, FileFlags_IsEmpty))
-            {
-                if (!TrySendRequestAndWaitForResponse(
-                        root,
-                        MessageType_KtoU_HydrateFile,
-                        currentVnode,
-                        pid,
-                        procname,
-                        &kauthResult,
-                        kauthError))
-                {
-                    goto CleanupAndReturn;
-                }
-            }
         }
         else if (ActionBitIsSet(
                 action,
@@ -470,21 +451,13 @@ static bool ShouldHandleVnodeOpEvent(
     }
     
     *vnodeFileFlags = ReadVNodeFileFlags(vnode, context);
-    bool filedFlaggedAsInVirtualizationRoot = FileFlagsBitIsSet(*vnodeFileFlags, FileFlags_IsInVirtualizationRoot);
-    if (!filedFlaggedAsInVirtualizationRoot)
+    if (!FileFlagsBitIsSet(*vnodeFileFlags, FileFlags_IsInVirtualizationRoot))
     {
-        // TODO(Mac): Determine the overhead of making this check for all actions and
-        // vnodes.  If it's too high, this check can be further reduced to the scenarios
-        // that VFSForGit care about.
-        if (!HasParentInVirtualizationRoot(vnode, context))
-        {
-            // This vnode is not part of ANY virtualization root (and none of its ancestors
-            // are either), so exit now before doing any more work.  This gives us a cheap
-            // way to avoid adding overhead to IO outside of a virtualization root.
-            
-            *kauthResult = KAUTH_RESULT_DEFER;
-            return false;
-        }
+        // This vnode is not part of ANY virtualization root, so exit now before doing any more work.
+        // This gives us a cheap way to avoid adding overhead to IO outside of a virtualization root.
+        
+        *kauthResult = KAUTH_RESULT_DEFER;
+        return false;
     }
     
     *pid = GetPid(context);
@@ -523,12 +496,7 @@ static bool ShouldHandleVnodeOpEvent(
         
         // TODO(Mac): why do we need to check rootIndex > 0 here?
         // If root was null, we would have already exited. And if not null, it can't be < 0.
-        //
-        // TODO(Mac): Double check that rules are properly enforced when filedFlaggedAsInVirtualizationRoot
-        // is false.  These checks are currently skipped when filedFlaggedAsInVirtualizationRoot is false to
-        // allow providers to create new files inside of their root before starting the virtualization
-        // instance
-        if (filedFlaggedAsInVirtualizationRoot && rootIndex >= 0)
+        if (rootIndex >= 0)
         {
             bool vnodeIsDir = (*vnodeType == VDIR);
             
@@ -809,34 +777,6 @@ static uint32_t ReadVNodeFileFlags(vnode_t vn, vfs_context_t context)
     assert(0 == err);
     assert(VATTR_IS_SUPPORTED(&attributes, va_flags));
     return attributes.va_flags;
-}
-
-static bool HasParentInVirtualizationRoot(vnode_t vnode, vfs_context_t context)
-{
-    vnode_get(vnode);
-    
-    bool inRoot = false;
-    // Search up the tree until we hit a folder know to be inside a virtualization root
-    // or THE root of the file system
-    while (NULLVP != vnode && !vnode_isvroot(vnode))
-    {
-        uint32_t vnodeFileFlags = ReadVNodeFileFlags(vnode, context);
-        if (FileFlagsBitIsSet(vnodeFileFlags, FileFlags_IsInVirtualizationRoot))
-        {
-            inRoot = true;
-            break;
-        }
-        vnode_t parent = vnode_getparent(vnode);
-        vnode_put(vnode);
-        vnode = parent;
-    }
-    
-    if (NULLVP != vnode)
-    {
-        vnode_put(vnode);
-    }
-    
-    return inRoot;
 }
 
 static bool FileFlagsBitIsSet(uint32_t fileFlags, uint32_t bit)
