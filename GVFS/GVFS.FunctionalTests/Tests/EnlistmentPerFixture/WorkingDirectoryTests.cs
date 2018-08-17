@@ -437,7 +437,7 @@ BOOL APIENTRY DllMain( HMODULE hModule,
             this.fileSystem.MoveDirectory(newFolder, folder);
 
             this.Enlistment.WaitForBackgroundOperations().ShouldEqual(true, "Background operations failed to complete.");
-            GVFSHelpers.ModifiedPathsShouldContain(this.fileSystem, this.Enlistment.DotGVFSRoot, folderName);
+            GVFSHelpers.ModifiedPathsShouldContain(this.fileSystem, this.Enlistment.DotGVFSRoot, folderName + "/");
 
             // Switch back to this.ControlGitRepo.Commitish and confirm that folder contents are correct
             GitProcess.InvokeProcess(this.Enlistment.RepoRoot, "checkout " + Properties.Settings.Default.Commitish);

@@ -66,8 +66,8 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
             string renamedFolderName = "folder3b";
             string[] expectedModifiedEntries =
             {
-                folderName + "/" + Environment.NewLine,
-                renamedFolderName + "/" + Environment.NewLine,
+                folderName + "/",
+                renamedFolderName + "/",
             };
 
             this.Enlistment.GetVirtualPathTo(folderName).ShouldNotExistOnDisk(this.fileSystem);
