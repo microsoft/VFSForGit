@@ -142,7 +142,7 @@ namespace GVFS.FunctionalTests.Tests
             this.RunFastFetch($"--checkout --folders \"/Scripts\" -b {Settings.Default.Commitish}");
 
             // Run a second time in the same repo on the same branch with more folders. 
-            string result = this.RunFastFetch($"--force-checkout --folders \"/GVFS;/Scripts\" -b {Settings.Default.Commitish}");
+            string result = this.RunFastFetch($"--force-checkout --folders \"/GVFS;/Scripts\" -b {Settings.Default.Commitish}", expectError: true);
 
             string[] expectedResults = new string[] { "Cannot use --force-checkout option without --checkout option." };
             result.ShouldContain(expectedResults);
@@ -471,7 +471,7 @@ namespace GVFS.FunctionalTests.Tests
             return headTreeSha;
         }
 
-        private string RunFastFetch(string args)
+        private string RunFastFetch(string args, bool expectError = false)
         {
             args = args + " --verbose";
 
@@ -491,9 +491,12 @@ namespace GVFS.FunctionalTests.Tests
             processInfo.RedirectStandardError = true;
             
             ProcessResult result = ProcessHelper.Run(processInfo);
-            result.Output.Contains("Error").ShouldEqual(false, result.Output);
-            result.Errors.ShouldBeEmpty(result.Errors);
-            result.ExitCode.ShouldEqual(0);
+            result.Output.Contains("Error").ShouldEqual(expectError, result.Output);
+            if (!expectError)
+            {
+                result.Errors.ShouldBeEmpty(result.Errors);
+                result.ExitCode.ShouldEqual(0);
+            }
             return result.Output;
         }
         
