@@ -173,6 +173,22 @@ namespace GVFS.FunctionalTests.Should
                 return this.WithItems("*");
             }
 
+            public IEnumerable<FileInfo> WithFiles()
+            {
+                IEnumerable<FileSystemInfo> items = this.WithItems();
+                IEnumerable<FileInfo> files = items.Where(info => info is FileInfo).Cast<FileInfo>();
+                files.Any().ShouldEqual(true, this.Path + " does not have any files. Contents: " + string.Join(",", items));
+                return files;
+            }
+
+            public IEnumerable<DirectoryInfo> WithDirectories()
+            {
+                IEnumerable<FileSystemInfo> items = this.WithItems();
+                IEnumerable<DirectoryInfo> directories = items.Where(info => info is DirectoryInfo).Cast<DirectoryInfo>();
+                directories.Any().ShouldEqual(true, this.Path + " does not have any directories. Contents: " + string.Join(",", items));
+                return directories;
+            }
+
             public IEnumerable<FileSystemInfo> WithItems(string searchPattern)
             {
                 DirectoryInfo directory = new DirectoryInfo(this.Path);

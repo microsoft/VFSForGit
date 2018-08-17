@@ -217,8 +217,7 @@ namespace GVFS.Common.Prefetch
 
             string previousCommit = null;
 
-            // Use the shallow file to find a recent commit to diff against to try and reduce the number of SHAs to check
-            DiffHelper blobEnumerator = new DiffHelper(this.Tracer, this.Enlistment, this.FileList, this.FolderList);
+            // Use the shallow file to find a recent commit to diff against to try and reduce the number of SHAs to check.
             if (File.Exists(shallowFile))
             {
                 previousCommit = File.ReadAllLines(shallowFile).Where(line => !string.IsNullOrWhiteSpace(line)).LastOrDefault();
@@ -229,6 +228,8 @@ namespace GVFS.Common.Prefetch
                     return;
                 }
             }
+
+            DiffHelper blobEnumerator = new DiffHelper(this.Tracer, this.Enlistment, this.FileList, this.FolderList);
 
             ThreadStart performDiff = () =>
             {
