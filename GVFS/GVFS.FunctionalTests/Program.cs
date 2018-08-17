@@ -67,6 +67,7 @@ namespace GVFS.FunctionalTests
             {
                 includeCategories.Add(Categories.Mac.M1);
                 includeCategories.Add(Categories.Mac.M2);
+                excludeCategories.Add(Categories.Mac.M2TODO);
                 excludeCategories.Add(Categories.Mac.M3);
                 excludeCategories.Add(Categories.Mac.M4);
                 excludeCategories.Add(Categories.Windows);

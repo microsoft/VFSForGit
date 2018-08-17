@@ -22,6 +22,8 @@
 #include "PrjFSKext/public/Message.h"
 #include "PrjFSUser.hpp"
 
+#define STRINGIFY(s) #s
+
 using std::endl; using std::cerr;
 using std::unordered_map; using std::set; using std::string;
 using std::mutex;
@@ -51,11 +53,17 @@ static errno_t RegisterVirtualizationRootPath(const char* path);
 static void HandleKernelRequest(Message requestSpec, void* messageMemory);
 static PrjFS_Result HandleEnumerateDirectoryRequest(const MessageHeader* request, const char* path);
 static PrjFS_Result HandleHydrateFileRequest(const MessageHeader* request, const char* path);
-static PrjFS_Result HandleFileModifiedNotification(const MessageHeader* request, const char* path);
+static PrjFS_Result HandleFileNotification(
+    const MessageHeader* request,
+    const char* path,
+    bool isDirectory,
+    PrjFS_NotificationType notificationType);
 
 static Message ParseMessageMemory(const void* messageMemory, uint32_t size);
 
 static void ClearMachNotification(mach_port_t port);
+
+static const char* NotificationTypeToString(PrjFS_NotificationType notificationType);
 
 // State
 static io_connect_t s_kernelServiceConnection = IO_OBJECT_NULL;
@@ -383,7 +391,7 @@ static Message ParseMessageMemory(const void* messageMemory, uint32_t size)
         abort();
     }
             
-    const char* path = nullptr;
+    const char* path = "";
     if (header->pathSizeBytes > 0)
     {
         path = static_cast<const char*>(messageMemory) + sizeof(*header);
@@ -415,7 +423,31 @@ static void HandleKernelRequest(Message request, void* messageMemory)
             
         case MessageType_KtoU_NotifyFileModified:
         {
-            result = HandleFileModifiedNotification(requestHeader, request.path);
+            result = HandleFileNotification(
+                requestHeader,
+                request.path,
+                false,  // isDirectory
+                PrjFS_NotificationType_FileModified);
+            break;
+        }
+        
+        case MessageType_KtoU_NotifyFilePreDelete:
+        {
+            result = HandleFileNotification(
+                requestHeader,
+                request.path,
+                false,  // isDirectory
+                PrjFS_NotificationType_PreDelete);
+            break;
+        }
+        
+        case MessageType_KtoU_NotifyDirectoryPreDelete:
+        {
+            result = HandleFileNotification(
+                requestHeader,
+                request.path,
+                true,  // isDirectory
+                PrjFS_NotificationType_PreDelete);
             break;
         }
     }
@@ -547,33 +579,34 @@ static PrjFS_Result HandleHydrateFileRequest(const MessageHeader* request, const
     return callbackResult;
 }
 
-static PrjFS_Result HandleFileModifiedNotification(const MessageHeader* request, const char* path)
+static PrjFS_Result HandleFileNotification(
+    const MessageHeader* request,
+    const char* path,
+    bool isDirectory,
+    PrjFS_NotificationType notificationType)
 {
 #ifdef DEBUG
-    std::cout << "PrjFSLib.HandleFileModifiedNotification: " << path << std::endl;
+    std::cout << "PrjFSLib.HandleFileNotification: " << path
+              << " notificationType: " << NotificationTypeToString(notificationType)
+              << " isDirectory: " << isDirectory << std::endl;
 #endif
     
     char fullPath[PrjFSMaxPath];
     CombinePaths(s_virtualizationRootFullPath.c_str(), path, fullPath);
     
     PrjFSFileXAttrData xattrData = {};
-    if (!GetXAttr(fullPath, PrjFSFileXAttrName, sizeof(PrjFSFileXAttrData), &xattrData))
-    {
-        return PrjFS_Result_EIOError;
-    }
-    
-    s_callbacks.NotifyOperation(
+    GetXAttr(fullPath, PrjFSFileXAttrName, sizeof(PrjFSFileXAttrData), &xattrData);
+
+    return s_callbacks.NotifyOperation(
         0 /* commandId */,
         path,
         xattrData.providerId,
         xattrData.contentId,
         request->pid,
         request->procname,
-        false /* isDirectory */,
-        PrjFS_NotificationType_FileModified,
+        isDirectory,
+        notificationType,
         nullptr /* destinationRelativePath */);
-    
-    return PrjFS_Result_Success;
 }
 
 static bool InitializeEmptyPlaceholder(const char* fullPath)
@@ -711,4 +744,31 @@ static void ClearMachNotification(mach_port_t port)
         mach_msg_trailer_t	trailer;
     } msg;
     mach_msg(&msg.msgHdr, MACH_RCV_MSG | MACH_RCV_TIMEOUT, 0, sizeof(msg), port, 0, MACH_PORT_NULL);
+}
+
+static const char* NotificationTypeToString(PrjFS_NotificationType notificationType)
+{
+    switch(notificationType)
+    {
+        case PrjFS_NotificationType_Invalid:
+            return STRINGIFY(PrjFS_NotificationType_Invalid);
+
+        case PrjFS_NotificationType_None:
+            return STRINGIFY(PrjFS_NotificationType_None);
+        case PrjFS_NotificationType_NewFileCreated:
+            return STRINGIFY(PrjFS_NotificationType_NewFileCreated);
+        case PrjFS_NotificationType_PreDelete:
+            return STRINGIFY(PrjFS_NotificationType_PreDelete);
+        case PrjFS_NotificationType_FileRenamed:
+            return STRINGIFY(PrjFS_NotificationType_FileRenamed);
+        case PrjFS_NotificationType_PreConvertToFull:
+            return STRINGIFY(PrjFS_NotificationType_PreConvertToFull);
+            
+        case PrjFS_NotificationType_PreModify:
+            return STRINGIFY(PrjFS_NotificationType_PreModify);
+        case PrjFS_NotificationType_FileModified:
+            return STRINGIFY(PrjFS_NotificationType_FileModified);
+        case PrjFS_NotificationType_FileDeleted:
+            return STRINGIFY(PrjFS_NotificationType_FileDeleted);
+    }
 }

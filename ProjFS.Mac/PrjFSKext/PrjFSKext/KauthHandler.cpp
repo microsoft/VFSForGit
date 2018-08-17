@@ -215,6 +215,18 @@ void KauthHandler_HandleKernelMessageResponse(uint64_t messageId, MessageType re
             }
             Mutex_Release(s_outstandingMessagesMutex);
         }
+        
+        // The follow are not valid responses to kernel messages
+        case MessageType_Invalid:
+        case MessageType_UtoK_StartVirtualizationInstance:
+        case MessageType_UtoK_StopVirtualizationInstance:
+        case MessageType_KtoU_EnumerateDirectory:
+        case MessageType_KtoU_HydrateFile:
+        case MessageType_KtoU_NotifyFileModified:
+        case MessageType_KtoU_NotifyFilePreDelete:
+        case MessageType_KtoU_NotifyDirectoryPreDelete:
+            KextLog_Error("KauthHandler_HandleKernelMessageResponse: Unexpected responseType: %d", responseType);
+            break;
     }
     
     return;
@@ -284,9 +296,39 @@ static int HandleVnodeOperation(
                 }
             }
         }
+        
+        if (ActionBitIsSet(action, KAUTH_VNODE_DELETE))
+        {
+            if (!TrySendRequestAndWaitForResponse(
+                    root,
+                    MessageType_KtoU_NotifyDirectoryPreDelete,
+                    currentVnode,
+                    pid,
+                    procname,
+                    &kauthResult,
+                    kauthError))
+            {
+                goto CleanupAndReturn;
+            }
+        }
     }
     else
     {
+        if (ActionBitIsSet(action, KAUTH_VNODE_DELETE))
+        {
+            if (!TrySendRequestAndWaitForResponse(
+                    root,
+                    MessageType_KtoU_NotifyFilePreDelete,
+                    currentVnode,
+                    pid,
+                    procname,
+                    &kauthResult,
+                    kauthError))
+            {
+                goto CleanupAndReturn;
+            }
+        }
+        
         if (ActionBitIsSet(
                 action,
                 KAUTH_VNODE_READ_ATTRIBUTES |

@@ -15,6 +15,7 @@ namespace PrjFSLib.Mac
         public virtual GetFileStreamCallback OnGetFileStream { get; set; }
 
         public virtual NotifyFileModified OnFileModified { get; set; }
+        public virtual NotifyPreDeleteEvent OnPreDelete { get; set; }
 
         public static Result ConvertDirectoryToVirtualizationRoot(string fullPath)
         {
@@ -134,6 +135,9 @@ namespace PrjFSLib.Mac
         {
             switch (notificationType)
             {
+                case NotificationType.PreDelete:
+                    return this.OnPreDelete(relativePath, isDirectory);
+
                 case NotificationType.FileModified:
                     this.OnFileModified(relativePath);
                     return Result.Success;

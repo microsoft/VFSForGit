@@ -21,6 +21,7 @@ namespace MirrorProvider.Mac
             this.virtualizationInstance.OnEnumerateDirectory = this.OnEnumerateDirectory;
             this.virtualizationInstance.OnGetFileStream = this.OnGetFileStream;
             this.virtualizationInstance.OnFileModified = this.OnFileModified;
+            this.virtualizationInstance.OnPreDelete = this.OnPreDelete;
 
             Result result = this.virtualizationInstance.StartVirtualizationInstance(
                 enlistment.SrcRoot,
@@ -61,7 +62,7 @@ namespace MirrorProvider.Mac
 
                         if (result != Result.Success)
                         {
-                            Console.WriteLine("WritePlaceholderDirectory failed: " + result);
+                            Console.WriteLine($"WritePlaceholderDirectory failed: {result}");
                             return result;
                         }
                     }
@@ -81,7 +82,7 @@ namespace MirrorProvider.Mac
                             fileMode: fileMode);
                         if (result != Result.Success)
                         {
-                            Console.WriteLine("WritePlaceholderFile failed: " + result);
+                            Console.WriteLine($"WritePlaceholderFile failed: {result}");
                             return result;
                         }
                     }
@@ -89,7 +90,7 @@ namespace MirrorProvider.Mac
             }
             catch (IOException e)
             {
-                Console.WriteLine("IOException in OnEnumerateDirectory: " + e.Message);
+                Console.WriteLine($"IOException in OnEnumerateDirectory: {e.Message}");
                 return Result.EIOError;
             }
 
@@ -126,7 +127,7 @@ namespace MirrorProvider.Mac
                             (uint)bytesToCopy);
                         if (result != Result.Success)
                         {
-                            Console.WriteLine("WriteFileContents failed: " + result);
+                        Console.WriteLine($"WriteFileContents failed: {result}");
                             return false;
                         }
 
@@ -140,7 +141,7 @@ namespace MirrorProvider.Mac
             }
             catch (IOException e)
             {
-                Console.WriteLine("IOException in OnGetFileStream: " + e.Message);
+                Console.WriteLine($"IOException in OnGetFileStream: {e.Message}");
                 return Result.EIOError;
             }
 
@@ -149,7 +150,13 @@ namespace MirrorProvider.Mac
 
         private void OnFileModified(string relativePath)
         {
-            Console.WriteLine("OnFileModified: " + relativePath);
+            Console.WriteLine($"OnFileModified: {relativePath}");
+        }
+
+        private Result OnPreDelete(string relativePath, bool isDirectory)
+        {
+            Console.WriteLine($"OnPreDelete (isDirectory: {isDirectory}): {relativePath}");
+            return Result.Success;
         }
 
         private static byte[] ToVersionIdByteArray(byte version)

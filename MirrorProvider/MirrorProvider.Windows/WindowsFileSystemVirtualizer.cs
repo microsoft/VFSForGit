@@ -34,13 +34,14 @@ namespace MirrorProvider.Windows
 
             this.virtualizationInstance.OnGetPlaceholderInformation = this.GetPlaceholderInformation;
             this.virtualizationInstance.OnGetFileStream = this.GetFileStream;
+            this.virtualizationInstance.OnNotifyPreDelete = this.OnPreDelete;
             this.virtualizationInstance.OnNotifyFileHandleClosedFileModifiedOrDeleted = this.OnFileModifiedOrDeleted;
 
             uint threadCount = (uint)Environment.ProcessorCount * 2;
 
             NotificationMapping[] notificationMappings = new NotificationMapping[]
             {
-                new NotificationMapping(NotificationType.FileHandleClosedFileModified, string.Empty),
+                new NotificationMapping(NotificationType.PreDelete | NotificationType.FileHandleClosedFileModified, string.Empty),
             };
 
             HResult result = this.virtualizationInstance.StartVirtualizationInstance(
@@ -280,6 +281,12 @@ namespace MirrorProvider.Windows
                 return HResult.InternalError;
             }
 
+            return HResult.Ok;
+        }
+
+        private HResult OnPreDelete(string relativePath, bool isDirectory)
+        {
+            Console.WriteLine($"OnPreDelete (isDirectory: {isDirectory}): {relativePath}");
             return HResult.Ok;
         }
 

@@ -100,6 +100,7 @@ namespace GVFS.Platform.Mac
             this.virtualizationInstance.OnEnumerateDirectory = this.OnEnumerateDirectory;
             this.virtualizationInstance.OnGetFileStream = this.OnGetFileStream;
             this.virtualizationInstance.OnFileModified = this.OnFileModified;
+            this.virtualizationInstance.OnPreDelete = this.OnPreDelete;
 
             uint threadCount = (uint)Environment.ProcessorCount * 2;
 
@@ -165,7 +166,7 @@ namespace GVFS.Platform.Mac
                     activity.RelatedEvent(EventLevel.Informational, $"{nameof(this.OnGetFileStream)}_MountNotComplete", metadata);
                     activity.Dispose();
 
-                    // TODO: Is this the correct Result to return?
+                    // TODO(Mac): Is this the correct Result to return?
                     return Result.EIOError;
                 }
 
@@ -174,7 +175,7 @@ namespace GVFS.Platform.Mac
                     activity.RelatedError(metadata, nameof(this.OnGetFileStream) + ": Unexpected placeholder version");
                     activity.Dispose();
 
-                    // TODO: Is this the correct Result to return?
+                    // TODO(Mac): Is this the correct Result to return?
                     return Result.EIOError;
                 }
 
@@ -274,6 +275,41 @@ namespace GVFS.Platform.Mac
             {
                 this.LogUnhandledExceptionAndExit(nameof(this.OnFileModified), this.CreateEventMetadata(relativePath, e));
             }
+        }
+
+        private Result OnPreDelete(string relativePath, bool isDirectory)
+        {
+            try
+            {
+                if (!this.FileSystemCallbacks.IsMounted)
+                {
+                    EventMetadata metadata = this.CreateEventMetadata(relativePath);
+                    metadata.Add(nameof(isDirectory), isDirectory);
+                    metadata.Add(TracingConstants.MessageKey.InfoMessage, $"{nameof(this.OnPreDelete)} failed, mount has not yet completed");
+                    this.Context.Tracer.RelatedEvent(EventLevel.Informational, $"{nameof(this.OnPreDelete)}_MountNotComplete", metadata);
+
+                    // TODO(Mac): Is this the correct Result to return?
+                    return Result.EIOError;
+                }
+
+                bool pathInsideDotGit = Virtualization.FileSystemCallbacks.IsPathInsideDotGit(relativePath);
+                if (pathInsideDotGit)
+                {
+                    this.OnDotGitFileOrFolderDeleted(relativePath);
+                }
+                else
+                {
+                    this.OnWorkingDirectoryFileOrFolderDeleted(relativePath, isDirectory);
+                }
+            }
+            catch (Exception e)
+            {
+                EventMetadata metadata = this.CreateEventMetadata(relativePath, e);
+                metadata.Add("isDirectory", isDirectory);
+                this.LogUnhandledExceptionAndExit(nameof(this.OnPreDelete), metadata);
+            }
+
+            return Result.Success;
         }
 
         private Result OnEnumerateDirectory(

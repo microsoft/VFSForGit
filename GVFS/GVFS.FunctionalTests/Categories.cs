@@ -12,6 +12,7 @@
         {
             public const string M1 = "M1_CloneAndMount";
             public const string M2 = "M2_StaticViewGitCommands";
+            public const string M2TODO = "M2_StaticViewGitCommandsStillTODO";
             public const string M3 = "M3_AllGitCommands";
             public const string M4 = "M4_All";
         }
