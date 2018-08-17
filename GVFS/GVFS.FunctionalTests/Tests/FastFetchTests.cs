@@ -492,7 +492,12 @@ namespace GVFS.FunctionalTests.Tests
             
             ProcessResult result = ProcessHelper.Run(processInfo);
             result.Output.Contains("Error").ShouldEqual(expectError, result.Output);
-            if (!expectError)
+            if (expectError)
+            {
+                Assert.IsTrue(result.Errors.Length > 0);
+                result.ExitCode.ShouldBeAtLeast(1, $"Exit code should be a failure (> 0) but was {result.ExitCode}");
+            }
+            else
             {
                 result.Errors.ShouldBeEmpty(result.Errors);
                 result.ExitCode.ShouldEqual(0);
