@@ -35,9 +35,10 @@ static int HandleFileOpOperation(
 static int GetPid(vfs_context_t context);
 
 static uint32_t ReadVNodeFileFlags(vnode_t vn, vfs_context_t context);
-static bool FileFlagsBitIsSet(uint32_t fileFlags, uint32_t bit);
-static bool ActionBitIsSet(kauth_action_t action, kauth_action_t mask);
-static bool ActionBitsNotSet(kauth_action_t action, kauth_action_t mask);
+static inline bool HasAncestorFlaggedAsInRoot(vnode_t vnode, vfs_context_t context);
+static inline bool FileFlagsBitIsSet(uint32_t fileFlags, uint32_t bit);
+static inline bool FileIsFlaggedAsInRoot(vnode_t vnode, vfs_context_t context);
+static inline bool ActionBitIsSet(kauth_action_t action, kauth_action_t mask);
 
 static bool IsFileSystemCrawler(char* procname);
 
@@ -225,6 +226,7 @@ void KauthHandler_HandleKernelMessageResponse(uint64_t messageId, MessageType re
         case MessageType_KtoU_NotifyFileModified:
         case MessageType_KtoU_NotifyFilePreDelete:
         case MessageType_KtoU_NotifyDirectoryPreDelete:
+        case MessageType_KtoU_NotifyFileCreated:
             KextLog_Error("KauthHandler_HandleKernelMessageResponse: Unexpected responseType: %d", responseType);
             break;
     }
@@ -382,28 +384,66 @@ static int HandleFileOpOperation(
         // arg1 is the (const char *) path
         int closeFlags = static_cast<int>(arg2);
         
-        if (KAUTH_FILEOP_CLOSE_MODIFIED == closeFlags)
+        vtype vnodeType = vnode_vtype(currentVnode);
+        if (ShouldIgnoreVnodeType(vnodeType, currentVnode))
         {
-            VirtualizationRoot* root = nullptr;
-            int pid;
-            if (!ShouldHandleFileOpEvent(
-                    context,
-                    currentVnode,
-                    action,
-                    &root,
-                    &pid))
-            {
-                goto CleanupAndReturn;
-            }
-            
-            char procname[MAXCOMLEN + 1];
-            proc_name(pid, procname, MAXCOMLEN + 1);
+            goto CleanupAndReturn;
+        }
         
+        if (vnode_isdir(currentVnode))
+        {
+            goto CleanupAndReturn;
+        }
+
+        bool fileFlaggedInRoot = FileIsFlaggedAsInRoot(currentVnode, context);
+        if (fileFlaggedInRoot && KAUTH_FILEOP_CLOSE_MODIFIED != closeFlags)
+        {
+            goto CleanupAndReturn;
+        }
+		
+        if (!fileFlaggedInRoot && !HasAncestorFlaggedAsInRoot(currentVnode, context))
+        {
+            goto CleanupAndReturn;
+        }
+            
+        VirtualizationRoot* root = nullptr;
+        int pid;
+        if (!ShouldHandleFileOpEvent(
+                context,
+                currentVnode,
+                action,
+                &root,
+                &pid))
+        {
+            goto CleanupAndReturn;
+        }
+        
+        char procname[MAXCOMLEN + 1];
+        proc_name(pid, procname, MAXCOMLEN + 1);
+        
+        if (fileFlaggedInRoot)
+        {
             int kauthResult;
             int kauthError;
             if (!TrySendRequestAndWaitForResponse(
                     root,
                     MessageType_KtoU_NotifyFileModified,
+                    currentVnode,
+                    pid,
+                    procname,
+                    &kauthResult,
+                    &kauthError))
+            {
+                goto CleanupAndReturn;
+            }
+        }
+        else
+        {
+            int kauthResult;
+            int kauthError;
+            if (!TrySendRequestAndWaitForResponse(
+                    root,
+                    MessageType_KtoU_NotifyFileCreated,
                     currentVnode,
                     pid,
                     procname,
@@ -484,7 +524,6 @@ static bool ShouldHandleVnodeOpEvent(
     }
     
     *root = VirtualizationRoots_FindForVnode(vnode);
-    int16_t rootIndex = nullptr == *root ? -1 : (*root)->index;
     
     if (nullptr == *root)
     {
@@ -497,78 +536,8 @@ static bool ShouldHandleVnodeOpEvent(
     {
         // There is no registered provider for this root
         
-        // TODO(Mac): why do we need to check rootIndex > 0 here?
-        // If root was null, we would have already exited. And if not null, it can't be < 0.
-        if (rootIndex >= 0)
-        {
-            bool vnodeIsDir = (*vnodeType == VDIR);
-            
-            // File/directory is within an offline virtualization root (no provider)
-            // Allow read-only access to hydrated files, deny any writes except
-            // deletions, and prevent most read accesses to empty files.
-            // Empty directories need to be read/searched in order for them to
-            // be deleted by rm -r
-            if (ActionBitsNotSet(action, KAUTH_VNODE_ACCESS) &&
-                ActionBitIsSet(
-                    action,
-                    KAUTH_VNODE_WRITE_ATTRIBUTES |
-                    KAUTH_VNODE_WRITE_EXTATTRIBUTES |
-                    KAUTH_VNODE_WRITE_DATA |
-                    KAUTH_VNODE_APPEND_DATA |
-                    KAUTH_VNODE_WRITE_SECURITY |
-                    KAUTH_VNODE_LINKTARGET))
-            {
-                KextLog_FileNote(
-                    vnode,
-                    "ShouldHandleEvent - write action 0x%x by process %u (%s) DENIED on %s with offline provider.",
-                    action,
-                    *pid,
-                    procname,
-                    vnodeIsDir ? "directory" : "file");
-                
-                *kauthResult = KAUTH_RESULT_DENY;
-                return false;
-            }
-            
-            if (FileFlagsBitIsSet(*vnodeFileFlags, FileFlags_IsEmpty))
-            {
-                // Empty files/directories with offline provider may only be queried or deleted
-                if (ActionBitIsSet(
-                        action,
-                        KAUTH_VNODE_ACCESS |
-                        KAUTH_VNODE_DELETE_CHILD |
-                        KAUTH_VNODE_DELETE |
-                        KAUTH_VNODE_READ_EXTATTRIBUTES))
-                {
-                    *kauthResult = KAUTH_RESULT_DEFER;
-                    return false;
-                }
-                
-                // Empty directories may additionally have their attributes and security read, and contents listed/searched (otherwise rm -r doesn't work)
-                if (vnodeIsDir &&
-                    ActionBitIsSet(
-                        action,
-                        KAUTH_VNODE_READ_ATTRIBUTES |
-                        KAUTH_VNODE_READ_SECURITY |
-                        KAUTH_VNODE_LIST_DIRECTORY |
-                        KAUTH_VNODE_SEARCH))
-                {
-                    *kauthResult = KAUTH_RESULT_DEFER;
-                    return false;
-                }
-                
-                // Disallow any other operations on empty placeholders
-                KextLog_FileNote(
-                    vnode,
-                    "ShouldHandleEvent - action 0x%x by process %u (%s) DENIED on empty %s with offline provider.",
-                    action,
-                    *pid,
-                    procname,
-                    vnodeIsDir ? "directory" : "file");
-                *kauthResult = KAUTH_RESULT_DENY;
-                return false;
-            }
-        }
+        // TODO(Mac): Protect files in the worktree from modification (and prevent
+        // the creation of new files) when the provider is offline
         
         *kauthResult = KAUTH_RESULT_DEFER;
         return false;
@@ -594,22 +563,6 @@ static bool ShouldHandleFileOpEvent(
     VirtualizationRoot** root,
     int* pid)
 {
-    vtype vnodeType = vnode_vtype(vnode);
-    if (ShouldIgnoreVnodeType(vnodeType, vnode))
-    {
-        return false;
-    }
-    
-    // TODO(Mac): We will still want to handle renames into a root, and those vnodes would
-    // not yet have the FileFlags_IsInVirtualizationRoot set
-    uint32_t vnodeFileFlags = ReadVNodeFileFlags(vnode, context);
-    if (!FileFlagsBitIsSet(vnodeFileFlags, FileFlags_IsInVirtualizationRoot))
-    {
-        // This vnode is not part of ANY virtualization root, so exit now before doing any more work.
-        // This gives us a cheap way to avoid adding overhead to IO outside of a virtualization root.      
-        return false;
-    }
-    
     *root = VirtualizationRoots_FindForVnode(vnode);
     if (nullptr == *root)
     {
@@ -782,20 +735,49 @@ static uint32_t ReadVNodeFileFlags(vnode_t vn, vfs_context_t context)
     return attributes.va_flags;
 }
 
-static bool FileFlagsBitIsSet(uint32_t fileFlags, uint32_t bit)
+static bool HasAncestorFlaggedAsInRoot(vnode_t vnode, vfs_context_t context)
+{
+    vnode_get(vnode);
+    
+    bool inRoot = false;
+	
+    // Search up the tree until we hit a folder know to be inside a virtualization root
+    // or the root of the file system
+    while (NULLVP != vnode && !vnode_isvroot(vnode))
+    {
+        uint32_t vnodeFileFlags = ReadVNodeFileFlags(vnode, context);
+        if (FileFlagsBitIsSet(vnodeFileFlags, FileFlags_IsInVirtualizationRoot))
+        {
+            inRoot = true;
+            break;
+        }
+        vnode_t parent = vnode_getparent(vnode);
+        vnode_put(vnode);
+        vnode = parent;
+    }
+    
+    if (NULLVP != vnode)
+    {
+        vnode_put(vnode);
+    }
+    
+    return inRoot;
+}
+
+static inline bool FileFlagsBitIsSet(uint32_t fileFlags, uint32_t bit)
 {
     // Note: if multiple bits are set in 'bit', this will return true if ANY are set in fileFlags
     return 0 != (fileFlags & bit);
 }
 
-static bool ActionBitIsSet(kauth_action_t action, kauth_action_t mask)
+static inline bool FileIsFlaggedAsInRoot(vnode_t vnode, vfs_context_t context)
+{
+    uint32_t vnodeFileFlags = ReadVNodeFileFlags(vnode, context);
+    return FileFlagsBitIsSet(vnodeFileFlags, FileFlags_IsInVirtualizationRoot);
+}
+static inline bool ActionBitIsSet(kauth_action_t action, kauth_action_t mask)
 {
     return action & mask;
-}
-
-static bool ActionBitsNotSet(kauth_action_t action, kauth_action_t mask)
-{
-    return 0 == (action & mask);
 }
 
 static bool IsFileSystemCrawler(char* procname)

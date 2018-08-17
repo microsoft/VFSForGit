@@ -24,17 +24,21 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
         }
 
         [TestCase, Order(1)]
-        [Category(Categories.Mac.M2TODO)]
         public void CreateFileTest()
         {
             string fileName = "file1.txt";
             GVFSHelpers.ModifiedPathsShouldNotContain(this.fileSystem, this.Enlistment.DotGVFSRoot, fileName);
             this.fileSystem.WriteAllText(this.Enlistment.GetVirtualPathTo(fileName), "Some content here");
-
             this.Enlistment.WaitForBackgroundOperations().ShouldEqual(true, "Background operations failed to complete.");
-
-            this.Enlistment.GetVirtualPathTo(fileName).ShouldBeAFile(this.fileSystem).WithContents("Some content here");
             GVFSHelpers.ModifiedPathsShouldContain(this.fileSystem, this.Enlistment.DotGVFSRoot, fileName);
+            this.Enlistment.GetVirtualPathTo(fileName).ShouldBeAFile(this.fileSystem).WithContents("Some content here");
+
+            string emptyFileName = "file1empty.txt";
+            GVFSHelpers.ModifiedPathsShouldNotContain(this.fileSystem, this.Enlistment.DotGVFSRoot, emptyFileName);
+            this.fileSystem.CreateEmptyFile(this.Enlistment.GetVirtualPathTo(emptyFileName));
+            this.Enlistment.WaitForBackgroundOperations().ShouldEqual(true, "Background operations failed to complete.");
+            GVFSHelpers.ModifiedPathsShouldContain(this.fileSystem, this.Enlistment.DotGVFSRoot, emptyFileName);
+            this.Enlistment.GetVirtualPathTo(fileName).ShouldBeAFile(this.fileSystem);
         }
 
         [TestCase, Order(2)]
