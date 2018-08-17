@@ -497,6 +497,7 @@ namespace GVFS.FunctionalTests.Tests
                 result.Errors.ShouldBeEmpty(result.Errors);
                 result.ExitCode.ShouldEqual(0);
             }
+
             return result.Output;
         }
         
