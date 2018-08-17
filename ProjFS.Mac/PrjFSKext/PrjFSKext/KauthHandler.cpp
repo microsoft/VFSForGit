@@ -296,7 +296,8 @@ static int HandleVnodeOperation(
                 }
             }
         }
-        else if (ActionBitIsSet(action, KAUTH_VNODE_DELETE))
+        
+        if (ActionBitIsSet(action, KAUTH_VNODE_DELETE))
         {
             if (!TrySendRequestAndWaitForResponse(
                     root,
@@ -327,7 +328,8 @@ static int HandleVnodeOperation(
                 goto CleanupAndReturn;
             }
         }
-        else if (ActionBitIsSet(
+        
+        if (ActionBitIsSet(
                 action,
                 KAUTH_VNODE_READ_ATTRIBUTES |
                 KAUTH_VNODE_WRITE_ATTRIBUTES |
