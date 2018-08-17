@@ -58,7 +58,14 @@ int main(int argc, const char * argv[])
                 uint64_t timeOffsetNS = nanosecondsFromAbsoluteTime(message.machAbsoluteTimestamp - machStartTime);
                 uint64_t timeOffsetMS = timeOffsetNS / NSEC_PER_MSEC;
                 
-                printf("(%d: %5llu.%03llu) %s: %.*s\n", lineCount, timeOffsetMS / 1000u, timeOffsetMS % 1000u, messageType, logStringLength, entry->data + sizeof(KextLog_MessageHeader));
+                printf(
+                    "(%d: %5llu.%03llu) %s: %.*s\n",
+                    lineCount,
+                    timeOffsetMS / 1000u,
+                    timeOffsetMS % 1000u,
+                    messageType,
+                    logStringLength,
+                    entry->data + sizeof(KextLog_MessageHeader));
                 lineCount++;
             }
             

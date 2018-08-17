@@ -33,6 +33,7 @@ static int HandleFileOpOperation(
     uintptr_t       arg3);
 
 static int GetPid(vfs_context_t context);
+static uid_t GetUid(vfs_context_t context);
 
 static uint32_t ReadVNodeFileFlags(vnode_t vn, vfs_context_t context);
 static inline bool FileFlagsBitIsSet(uint32_t fileFlags, uint32_t bit);
@@ -66,6 +67,7 @@ static bool ShouldHandleVnodeOpEvent(
     vtype* vnodeType,
     uint32_t* vnodeFileFlags,
     int* pid,
+    uid_t* uid,
     char procname[MAXCOMLEN + 1],
     int* kauthResult);
 
@@ -258,6 +260,7 @@ static int HandleVnodeOperation(
     vtype vnodeType;
     uint32_t currentVnodeFileFlags;
     int pid;
+    uid_t uid;
     char procname[MAXCOMLEN + 1];
 
     int kauthResult = KAUTH_RESULT_DEFER;
@@ -270,6 +273,7 @@ static int HandleVnodeOperation(
             &vnodeType,
             &currentVnodeFileFlags,
             &pid,
+            &uid,
             procname,
             &kauthResult))
     {
@@ -288,6 +292,7 @@ static int HandleVnodeOperation(
         {
             if (FileFlagsBitIsSet(currentVnodeFileFlags, FileFlags_IsEmpty))
             {
+                KextLog_VnodeOp(currentVnode, vnodeType, procname, uid, action, "Started enumerating directory");
                 if (!TrySendRequestAndWaitForResponse(
                         root,
                         MessageType_KtoU_EnumerateDirectory,
@@ -299,6 +304,7 @@ static int HandleVnodeOperation(
                 {
                     goto CleanupAndReturn;
                 }
+                KextLog_VnodeOp(currentVnode, vnodeType, procname, uid, action, "Finished enumerating directory");
             }
         }
         
@@ -347,6 +353,7 @@ static int HandleVnodeOperation(
         {
             if (FileFlagsBitIsSet(currentVnodeFileFlags, FileFlags_IsEmpty))
             {
+                KextLog_VnodeOp(currentVnode, vnodeType, procname, uid, action, "Started hydrating file");
                 if (!TrySendRequestAndWaitForResponse(
                         root,
                         MessageType_KtoU_HydrateFile,
@@ -358,6 +365,7 @@ static int HandleVnodeOperation(
                 {
                     goto CleanupAndReturn;
                 }
+                KextLog_VnodeOp(currentVnode, vnodeType, procname, uid, action, "Finished hydrating file");
             }
         }
     }
@@ -527,6 +535,7 @@ static bool ShouldHandleVnodeOpEvent(
     vtype* vnodeType,
     uint32_t* vnodeFileFlags,
     int* pid,
+    uid_t* uid,
     char procname[MAXCOMLEN + 1],
     int* kauthResult)
 {
@@ -558,7 +567,8 @@ static bool ShouldHandleVnodeOpEvent(
     
     *pid = GetPid(context);
     proc_name(*pid, procname, MAXCOMLEN + 1);
-    
+    *uid = GetUid(context);
+
     if (FileFlagsBitIsSet(*vnodeFileFlags, FileFlags_IsEmpty))
     {
         // This vnode is not yet hydrated, so do not allow a file system crawler to force hydration.
@@ -570,6 +580,8 @@ static bool ShouldHandleVnodeOpEvent(
             // If we allow the crawler's access to succeed without hydrating, the kauth result will be cached and we won't
             // get called again, so we lose the opportunity to hydrate the file/directory and it will appear as though
             // it is missing its contents.
+            
+            KextLog_VnodeOp(vnode, *vnodeType, procname, *uid, action, "DENYing crawler");
             
             *kauthResult = KAUTH_RESULT_DENY;
             return false;
@@ -599,9 +611,20 @@ static bool ShouldHandleVnodeOpEvent(
     // If the calling process is the provider, we must exit right away to avoid deadlocks
     if (*pid == (*root)->providerPid)
     {
+        if (FileFlagsBitIsSet(*vnodeFileFlags, FileFlags_IsEmpty))
+        {
+            KextLog_VnodeOp(vnode, *vnodeType, procname, *uid, action, "(PROVIDER IS ABOUT TO POISON THE CACHE) Provider initiated action");
+        }
+        else
+        {
+            KextLog_VnodeOp(vnode, *vnodeType, procname, *uid, action, "Provider initiated action");
+        }
+        
         *kauthResult = KAUTH_RESULT_DEFER;
         return false;
     }
+    
+    KextLog_VnodeOp(vnode, *vnodeType, procname, *uid, action, "Application initiated action");
     
     return true;
 }
@@ -773,6 +796,11 @@ static int GetPid(vfs_context_t context)
 {
     proc_t callingProcess = vfs_context_proc(context);
     return proc_pid(callingProcess);
+}
+
+static uid_t GetUid(vfs_context_t context)
+{
+    return kauth_cred_getuid(vfs_context_ucred(context));
 }
 
 static errno_t GetVNodeAttributes(vnode_t vn, vfs_context_t context, struct vnode_attr* attrs)

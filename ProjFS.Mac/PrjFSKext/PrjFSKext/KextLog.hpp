@@ -24,14 +24,17 @@ void KextLog_Printf(KextLog_Level loglevel, const char* fmt, ...)  __printflike(
 // be the last % format code in the format string, but the vnode is the first
 // argument following the format string. An unfortunate implementation detail!
 struct vnode;
-extern "C" int vn_getpath(struct vnode *vp, char *pathbuf, int *len);
+extern "C" int vn_getpath(struct vnode* vp, char* pathbuf, int* len);
+extern "C" uint32_t vnode_vid(struct vnode* vp);
 template <typename... args>
     void KextLogFile_Printf(KextLog_Level loglevel, struct vnode* vnode, const char* fmt, args... a)
     {
         char vnodePath[PrjFSMaxPath] = "";
         int vnodePathLength = PrjFSMaxPath;
         vn_getpath(vnode, vnodePath, &vnodePathLength);
-        KextLog_Printf(loglevel, fmt, a..., vnodePath);
+        int vid = vnode_vid(vnode);
+        
+        KextLog_Printf(loglevel, fmt, a..., vnodePath, vid);
     }
 
 // The dummy _os_log_verify_format_str() expression here is for using its
@@ -40,16 +43,17 @@ template <typename... args>
 // The %s at the end of the format string for the vnode path is implicit.
 #define KextLog_FileError(vnode, format, ...) ({ _os_log_verify_format_str(format, ##__VA_ARGS__); KextLogFile_Printf(KEXTLOG_ERROR, vnode, format " (vnode path: '%s')", ##__VA_ARGS__); })
 #define KextLog_FileInfo(vnode, format, ...)  ({ _os_log_verify_format_str(format, ##__VA_ARGS__); KextLogFile_Printf(KEXTLOG_INFO, vnode, format " (vnode path: '%s')", ##__VA_ARGS__); })
-#define KextLog_FileNote(vnode, format, ...)  ({ _os_log_verify_format_str(format, ##__VA_ARGS__); KextLogFile_Printf(KEXTLOG_NOTE, vnode, format " (vnode path: '%s')", ##__VA_ARGS__); })
+#define KextLog_FileNote(vnode, format, ...)  ({ _os_log_verify_format_str(format, ##__VA_ARGS__); KextLogFile_Printf(KEXTLOG_NOTE, vnode, format " (vnode path: '%s', vid: %d)", ##__VA_ARGS__); })
 
-#define KextLog_VnodeOp(vnode, vnodeType, procname, action, message) \
+#define KextLog_VnodeOp(vnode, vnodeType, procname, uid, action, message) \
     do { \
         if (VDIR == vnodeType) \
         { \
             KextLog_FileNote( \
                 vnode, \
-                message ". Proc name: %s. Directory vnode action: %s%s%s%s%s%s%s%s%s%s%s%s%s \n    ", \
+                message ". Proc: %s. Uid: %d. Directory vnode action: %s%s%s%s%s%s%s%s%s%s%s%s%s \n    ", \
                 procname, \
+                uid, \
                 (action & KAUTH_VNODE_LIST_DIRECTORY)       ? " \n    KAUTH_VNODE_LIST_DIRECTORY" : "", \
                 (action & KAUTH_VNODE_ADD_FILE)             ? " \n    KAUTH_VNODE_ADD_FILE" : "", \
                 (action & KAUTH_VNODE_SEARCH)               ? " \n    KAUTH_VNODE_SEARCH" : "", \
@@ -68,8 +72,9 @@ template <typename... args>
         { \
             KextLog_FileNote( \
                 vnode, \
-                message ". Proc name: %s. File vnode action: %s%s%s%s%s%s%s%s%s%s%s%s \n    ", \
+                message ". Proc: %s. Uid: %d. File vnode action: %s%s%s%s%s%s%s%s%s%s%s%s \n    ", \
                 procname, \
+                uid, \
                 (action & KAUTH_VNODE_READ_DATA)            ? " \n    KAUTH_VNODE_READ_DATA" : "", \
                 (action & KAUTH_VNODE_WRITE_DATA)           ? " \n    KAUTH_VNODE_WRITE_DATA" : "", \
                 (action & KAUTH_VNODE_EXECUTE)              ? " \n    KAUTH_VNODE_EXECUTE" : "", \

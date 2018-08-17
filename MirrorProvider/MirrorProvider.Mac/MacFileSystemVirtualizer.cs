@@ -1,6 +1,7 @@
 ﻿using PrjFSLib.Mac;
 using System;
 using System.IO;
+using System.Threading;
 
 namespace MirrorProvider.Mac
 {
@@ -88,6 +89,11 @@ namespace MirrorProvider.Mac
                             Console.WriteLine($"WritePlaceholderFile failed: {result}");
                             return result;
                         }
+                    }
+
+                    if (relativePath == "A")
+                    {
+                        Thread.Sleep(TimeSpan.FromHours(1));
                     }
                 }
             }
