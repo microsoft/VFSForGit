@@ -494,7 +494,7 @@ namespace GVFS.FunctionalTests.Tests
             result.Output.Contains("Error").ShouldEqual(expectError, result.Output);
             if (expectError)
             {
-                Assert.IsTrue(result.Errors.Length > 0);
+                result.Errors.Length.ShouldBeAtLeast(1, "Expected at lest 1 error");
                 result.ExitCode.ShouldBeAtLeast(1, $"Exit code should be a failure (> 0) but was {result.ExitCode}");
             }
             else
