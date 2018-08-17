@@ -48,51 +48,12 @@ namespace GVFS.Common.Prefetch
                 }
             }
 
-            if (packIndexes == null || packIndexes.Count == 0)
+            if (packIndexes?.Count > 0)
             {
-                return true;
+                TrySchedulePostFetchJob(tracer, enlistment.NamedPipeName, packIndexes);
             }
 
-            // We make a best-effort request to run MIDX and commit-graph writes
-            using (NamedPipeClient pipeClient = new NamedPipeClient(enlistment.NamedPipeName))
-            {
-                if (!pipeClient.Connect())
-                {
-                    tracer.RelatedWarning(
-                        metadata: null,
-                        message: "Failed to connect to GVFS. Skipping post-fetch job request.",
-                        keywords: Keywords.Telemetry);
-                    return true;
-                }
-
-                NamedPipeMessages.RunPostFetchJob.Request request = new NamedPipeMessages.RunPostFetchJob.Request(packIndexes);
-                if (pipeClient.TrySendRequest(request.CreateMessage()))
-                {
-                    NamedPipeMessages.Message response;
-
-                    if (pipeClient.TryReadResponse(out response))
-                    {
-                        tracer.RelatedInfo("Requested post-fetch job with resonse '{0}'", response.Header);
-                        return true;
-                    }
-                    else
-                    {
-                        tracer.RelatedWarning(
-                            metadata: null,
-                            message: "Requested post-fetch job failed to respond",
-                            keywords: Keywords.Telemetry);
-                    }
-                }
-                else
-                {
-                    tracer.RelatedWarning(
-                        metadata: null,
-                        message: "Message to named pipe failed to send, skipping post-fetch job request.",
-                        keywords: Keywords.Telemetry);
-                }
-            }
-
-            return false;
+            return true;
         }
 
         public static bool TryGetMaxGoodPrefetchTimestamp(
@@ -185,6 +146,50 @@ namespace GVFS.Common.Prefetch
 
             error = null;
             return true;
+        }
+
+        private static bool TrySchedulePostFetchJob(ITracer tracer, string namedPipeName, List<string> packIndexes)
+        {
+            // We make a best-effort request to run MIDX and commit-graph writes
+            using (NamedPipeClient pipeClient = new NamedPipeClient(namedPipeName))
+            {
+                if (!pipeClient.Connect())
+                {
+                    tracer.RelatedWarning(
+                        metadata: null,
+                        message: "Failed to connect to GVFS. Skipping post-fetch job request.",
+                        keywords: Keywords.Telemetry);
+                    return false;
+                }
+
+                NamedPipeMessages.RunPostFetchJob.Request request = new NamedPipeMessages.RunPostFetchJob.Request(packIndexes);
+                if (pipeClient.TrySendRequest(request.CreateMessage()))
+                {
+                    NamedPipeMessages.Message response;
+
+                    if (pipeClient.TryReadResponse(out response))
+                    {
+                        tracer.RelatedInfo("Requested post-fetch job with resonse '{0}'", response.Header);
+                        return true;
+                    }
+                    else
+                    {
+                        tracer.RelatedWarning(
+                            metadata: null,
+                            message: "Requested post-fetch job failed to respond",
+                            keywords: Keywords.Telemetry);
+                    }
+                }
+                else
+                {
+                    tracer.RelatedWarning(
+                        metadata: null,
+                        message: "Message to named pipe failed to send, skipping post-fetch job request.",
+                        keywords: Keywords.Telemetry);
+                }
+            }
+
+            return false;
         }
 
         private static long? GetTimestamp(string packName)
