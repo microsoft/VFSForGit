@@ -23,6 +23,6 @@ echo 1 > $TESTDIR/Source/A/1.txt
 echo 2 > $TESTDIR/Source/A/B/2.txt 
 
 dotnet $BUILDDIR/MirrorProvider.Mac.dll clone $TESTDIR/Source $TESTDIR/Target
-dotnet $BUILDDIR/MirrorProvider.Mac.dll mount $TESTDIR/Target
+sudo dotnet $BUILDDIR/MirrorProvider.Mac.dll mount $TESTDIR/Target
 
 $SRCDIR/ProjFS.Mac/Scripts/UnloadPrjFSKext.sh

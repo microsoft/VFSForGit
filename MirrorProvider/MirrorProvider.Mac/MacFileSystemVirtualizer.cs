@@ -76,7 +76,7 @@ namespace MirrorProvider.Mac
                         // having to p/invoke to determine if the original file is exectuable or not.
                         // A real provider will have to get this information from its data source. For example, GVFS gets this info 
                         // out of the git index along with all the other info for projecting files.
-                        UInt16 fileMode = Convert.ToUInt16("755", 8);
+                        UInt16 fileMode = Convert.ToUInt16("775", 8);
 
                         Result result = this.virtualizationInstance.WritePlaceholderFile(
                             Path.Combine(relativePath, child.Name),

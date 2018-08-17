@@ -14,6 +14,9 @@
 #include <mach/mach_port.h>
 #include <CoreFoundation/CFNumber.h>
 
+#include <pwd.h>
+#include <grp.h>
+
 #include "stdlib.h"
 
 #include "PrjFSLib.h"
@@ -36,6 +39,18 @@ struct _PrjFS_FileHandle
 };
 
 // Function prototypes
+static void CreatePlaceholderDirectoryAsMountUser(
+    _In_    const char*                             relativePath,
+    _Out_   PrjFS_Result*                           result);
+
+static void CreatePlaceholderFileAsMountUser(
+    _In_    const char*                             relativePath,
+    _In_    unsigned char                           providerId[PrjFS_PlaceholderIdLength],
+    _In_    unsigned char                           contentId[PrjFS_PlaceholderIdLength],
+    _In_    unsigned long                           fileSize,
+    _In_    uint16_t                                fileMode,
+    _Out_   PrjFS_Result*                           result);
+
 static bool SetBitInFileFlags(const char* path, uint32_t bit, bool value);
 static bool IsBitSetInFileFlags(const char* path, uint32_t bit);
 
@@ -233,6 +248,12 @@ PrjFS_Result PrjFS_ConvertDirectoryToVirtualizationRoot(
     {
         return PrjFS_Result_EVirtualizationRootAlreadyExists;
     }
+    
+    if (chmod(virtualizationRootFullPath, 0775))
+    {
+        std::cout << "chmod(" << virtualizationRootFullPath << ", 0775) failed. errno: " << errno << std::endl;
+        return PrjFS_Result_EIOError;
+    }
 
     PrjFSVirtualizationRootXAttrData rootXattrData = {};
     if (!InitializeEmptyPlaceholder(
@@ -244,6 +265,37 @@ PrjFS_Result PrjFS_ConvertDirectoryToVirtualizationRoot(
     }
     
     return PrjFS_Result_Success;
+}
+
+void CreatePlaceholderDirectoryAsMountUser(const char* relativePath, PrjFS_Result* result)
+{
+    struct passwd* mountUser = getpwnam("gvfsmountuser");
+    struct group* adminGroup = getgrnam("admin");
+    
+    if (pthread_setugid_np(mountUser->pw_uid, adminGroup->gr_gid))
+    {
+        std::cout << "ERROR: Failed to setuid(" << mountUser->pw_uid << ") errno: " << errno << std::endl;
+    }
+    
+    char fullPath[PrjFSMaxPath];
+    CombinePaths(s_virtualizationRootFullPath.c_str(), relativePath, fullPath);
+
+    if (mkdir(fullPath, 0777))
+    {
+        std::cout << "mkdir failed. errno: " << errno << std::endl;
+        goto CleanupAndReturn;
+    }
+    
+    if (!InitializeEmptyPlaceholder(fullPath))
+    {
+        goto CleanupAndReturn;
+    }
+    
+    *result = PrjFS_Result_Success;
+    
+CleanupAndReturn:
+    // TODO: cleanup the directory on disk if needed
+    return;
 }
 
 PrjFS_Result PrjFS_WritePlaceholderDirectory(
@@ -258,24 +310,83 @@ PrjFS_Result PrjFS_WritePlaceholderDirectory(
         return PrjFS_Result_EInvalidArgs;
     }
     
+    PrjFS_Result result = PrjFS_Result_EIOError;
+
+    std::thread requestHandlerThread(CreatePlaceholderDirectoryAsMountUser, relativePath, &result);
+    requestHandlerThread.join();
+    
+    return result;
+}
+
+void CreatePlaceholderFileAsMountUser(
+    _In_    const char*                             relativePath,
+    _In_    unsigned char                           providerId[PrjFS_PlaceholderIdLength],
+    _In_    unsigned char                           contentId[PrjFS_PlaceholderIdLength],
+    _In_    unsigned long                           fileSize,
+    _In_    uint16_t                                fileMode,
+    _Out_   PrjFS_Result*                           result)
+{
+    *result = PrjFS_Result_EIOError;
+    
+    struct passwd* mountUser = getpwnam("gvfsmountuser");
+    struct group* adminGroup = getgrnam("admin");
+    
+    if (pthread_setugid_np(mountUser->pw_uid, adminGroup->gr_gid))
+    {
+        std::cout << "ERROR: Failed to setuid(" << mountUser->pw_uid << ") errno: " << errno << std::endl;
+    }
+
+    PrjFSFileXAttrData fileXattrData = {};
+    
     char fullPath[PrjFSMaxPath];
     CombinePaths(s_virtualizationRootFullPath.c_str(), relativePath, fullPath);
+    
+    // Mode "wbx" means
+    //  - Create an empty file if none exists
+    //  - Fail if a file already exists at this path
+    FILE* file = fopen(fullPath, "wbx");
+    if (nullptr == file)
+    {
+        goto CleanupAndReturn;
+    }
+    
+    // Expand the file to the desired size
+    if (ftruncate(fileno(file), fileSize))
+    {
+        goto CleanupAndReturn;
+    }
+    
+    fclose(file);
+    file = nullptr;
+    
+    memcpy(fileXattrData.providerId, providerId, PrjFS_PlaceholderIdLength);
+    memcpy(fileXattrData.contentId, contentId, PrjFS_PlaceholderIdLength);
+    
+    if (!InitializeEmptyPlaceholder(
+            fullPath,
+            &fileXattrData,
+            PrjFSFileXAttrName))
+    {
+        goto CleanupAndReturn;
+    }
+    
+    // TODO(Mac): Only call chmod if fileMode is different than the default file mode
+    if (chmod(fullPath, fileMode))
+    {
+        goto CleanupAndReturn;
+    }
 
-    if (mkdir(fullPath, 0777))
+    *result = PrjFS_Result_Success;
+    
+CleanupAndReturn:
+    if (nullptr != file)
     {
-        goto CleanupAndFail;
+        // TODO: we now have a partially created placeholder file. Should we delete it?
+        // A better pattern would likely be to create the file in a tmp location, fully initialize its state, then move it into the requested path
+        
+        fclose(file);
+        file = nullptr;
     }
-    
-    if (!InitializeEmptyPlaceholder(fullPath))
-    {
-        goto CleanupAndFail;
-    }
-    
-    return PrjFS_Result_Success;
-    
-CleanupAndFail:
-    // TODO: cleanup the directory on disk if needed
-    return PrjFS_Result_EIOError;
 }
 
 PrjFS_Result PrjFS_WritePlaceholderFile(
@@ -291,8 +402,7 @@ PrjFS_Result PrjFS_WritePlaceholderFile(
         << relativePath << ", " 
         << (int)providerId[0] << ", "
         << (int)contentId[0] << ", "
-        << fileSize << ", "
-        << std::oct << fileMode << std::dec << ")" << std::endl;
+        << fileSize << ")" << std::endl;
 #endif
     
     if (nullptr == relativePath)
@@ -300,59 +410,18 @@ PrjFS_Result PrjFS_WritePlaceholderFile(
         return PrjFS_Result_EInvalidArgs;
     }
     
-    PrjFSFileXAttrData fileXattrData = {};
+    PrjFS_Result result;
+    std::thread requestHandlerThread(
+        CreatePlaceholderFileAsMountUser,
+        relativePath,
+        providerId,
+        contentId,
+        fileSize,
+        fileMode,
+        &result);
+    requestHandlerThread.join();
     
-    char fullPath[PrjFSMaxPath];
-    CombinePaths(s_virtualizationRootFullPath.c_str(), relativePath, fullPath);
-    
-    // Mode "wbx" means
-    //  - Create an empty file if none exists
-    //  - Fail if a file already exists at this path
-    FILE* file = fopen(fullPath, "wbx");
-    if (nullptr == file)
-    {
-        goto CleanupAndFail;
-    }
-    
-    // Expand the file to the desired size
-    if (ftruncate(fileno(file), fileSize))
-    {
-        goto CleanupAndFail;
-    }
-    
-    fclose(file);
-    file = nullptr;
-    
-    memcpy(fileXattrData.providerId, providerId, PrjFS_PlaceholderIdLength);
-    memcpy(fileXattrData.contentId, contentId, PrjFS_PlaceholderIdLength);
-    
-    if (!InitializeEmptyPlaceholder(
-            fullPath,
-            &fileXattrData,
-            PrjFSFileXAttrName))
-    {
-        goto CleanupAndFail;
-    }
-    
-    // TODO(Mac): Only call chmod if fileMode is different than the default file mode
-    if (chmod(fullPath, fileMode))
-    {
-        goto CleanupAndFail;
-    }
-
-    return PrjFS_Result_Success;
-    
-CleanupAndFail:
-    if (nullptr != file)
-    {
-        // TODO: we now have a partially created placeholder file. Should we delete it?
-        // A better pattern would likely be to create the file in a tmp location, fully initialize its state, then move it into the requested path
-        
-        fclose(file);
-        file = nullptr;
-    }
-    
-    return PrjFS_Result_EIOError;
+    return result;
 }
 
 PrjFS_Result PrjFS_UpdatePlaceholderFileIfNeeded(
