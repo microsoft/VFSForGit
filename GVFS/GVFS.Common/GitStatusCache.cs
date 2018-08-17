@@ -354,6 +354,7 @@ namespace GVFS.Common
                 this.cacheState = CacheState.Rebuilding;
 
                 GitProcess git = this.context.Enlistment.CreateGitProcess();
+                git.TraceOutputPath = this.context.Enlistment.GVFSLogsRoot;
                 statusResult = git.SerializeStatus(
                     allowObjectDownloads: true,
                     serializePath: tmpStatusFilePath);

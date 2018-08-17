@@ -72,6 +72,8 @@ namespace GVFS.Common.Git
             }
         }
 
+        public string TraceOutputPath { get; set; }
+
         public static Result Init(Enlistment enlistment)
         {
             return new GitProcess(enlistment).InvokeGitOutsideEnlistment("init \"" + enlistment.WorkingDirectoryRoot + "\"");
@@ -403,13 +405,20 @@ namespace GVFS.Common.Git
             processInfo.StandardOutputEncoding = UTF8NoBOM;
             processInfo.StandardErrorEncoding = UTF8NoBOM;
 
-            // Removing trace variables that might change git output and break parsing
-            // List of environment variables: https://git-scm.com/book/gr/v2/Git-Internals-Environment-Variables
-            foreach (string key in processInfo.EnvironmentVariables.Keys.Cast<string>()
-                .Where(x => x.StartsWith("GIT_TRACE", StringComparison.OrdinalIgnoreCase))
-                .ToList())
+            if (string.IsNullOrEmpty(this.TraceOutputPath))
             {
-                processInfo.EnvironmentVariables.Remove(key);
+                // Removing trace variables that might change git output and break parsing
+                // List of environment variables: https://git-scm.com/book/gr/v2/Git-Internals-Environment-Variables
+                foreach (string key in processInfo.EnvironmentVariables.Keys.Cast<string>()
+                    .Where(x => x.StartsWith("GIT_TRACE", StringComparison.OrdinalIgnoreCase))
+                    .ToList())
+                {
+                    processInfo.EnvironmentVariables.Remove(key);
+                }
+            }
+            else
+            {
+                processInfo.Environment["GIT_TRACE"] = Path.Combine(this.TraceOutputPath, "git_trace.txt");
             }
 
             processInfo.EnvironmentVariables["GIT_TERMINAL_PROMPT"] = "0";
