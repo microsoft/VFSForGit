@@ -41,8 +41,7 @@ namespace MirrorProvider.Windows
 
             NotificationMapping[] notificationMappings = new NotificationMapping[]
             {
-                new NotificationMapping(NotificationType.PreDelete, string.Empty),
-                new NotificationMapping(NotificationType.FileHandleClosedFileModified, string.Empty),
+                new NotificationMapping(NotificationType.PreDelete | NotificationType.FileHandleClosedFileModified, string.Empty),
             };
 
             HResult result = this.virtualizationInstance.StartVirtualizationInstance(
