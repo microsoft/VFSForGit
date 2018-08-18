@@ -7,9 +7,15 @@
 #include <mach/mach_time.h>
 
 static const char* KextLogLevelAsString(KextLog_Level level);
+static uint64_t nanosecondsFromAbsoluteTime(uint64_t machAbsoluteTime);
+
+static mach_timebase_info_data_t s_machTimebase;
 
 int main(int argc, const char * argv[])
 {
+    mach_timebase_info(&s_machTimebase);
+    const uint64_t machStartTime = mach_absolute_time();
+
     io_connect_t connection = PrjFSService_ConnectToDriver(UserClientType_Log);
     if (connection == IO_OBJECT_NULL)
     {
@@ -49,7 +55,10 @@ int main(int argc, const char * argv[])
                 const char* messageType = KextLogLevelAsString(message.level);
                 int logStringLength = messageSize - sizeof(KextLog_MessageHeader) - 1;
                 
-                printf("(%d: %llu) %s: %.*s\n", lineCount, message.machAbsoluteTimestamp, messageType, logStringLength, entry->data + sizeof(KextLog_MessageHeader));
+                uint64_t timeOffsetNS = nanosecondsFromAbsoluteTime(message.machAbsoluteTimestamp - machStartTime);
+                uint64_t timeOffsetMS = timeOffsetNS / NSEC_PER_MSEC;
+                
+                printf("(%d: %5llu.%03llu) %s: %.*s\n", lineCount, timeOffsetMS / 1000u, timeOffsetMS % 1000u, messageType, logStringLength, entry->data + sizeof(KextLog_MessageHeader));
                 lineCount++;
             }
             
@@ -75,4 +84,9 @@ static const char* KextLogLevelAsString(KextLog_Level level)
     default:
         return "Unknown";
     }
+}
+
+static uint64_t nanosecondsFromAbsoluteTime(uint64_t machAbsoluteTime)
+{
+    return static_cast<__uint128_t>(machAbsoluteTime) * s_machTimebase.numer / s_machTimebase.denom;
 }
