@@ -287,27 +287,36 @@ namespace GVFS.Service
             try
             {
                 string statusCacheVersionTokenPath = Path.Combine(Paths.GetServiceDataRoot(GVFSConstants.Service.ServiceName), GVFSConstants.GitStatusCache.EnableGitStatusCacheTokenFile);
-
-                if (!File.Exists(statusCacheVersionTokenPath))
+                if (File.Exists(statusCacheVersionTokenPath))
                 {
-                    DateTime lastRebootTime = NativeMethods.GetLastRebootTime();
+                    this.tracer.RelatedInfo($"CheckEnableGitStatusCache: EnableGitStatusCacheToken file already exists at {statusCacheVersionTokenPath}.");
+                    return;
+                }
 
-                    // When a version of GVFS that supports the GitStatusCache is installed, it will create
-                    // the following file. By checking the time the file was created, we know when that
-                    // version of GVFS was installed.
-                    string fileToCheck = Path.Combine(Configuration.AssemblyPath, "GitStatusCacheAvailable");
-                    if (File.Exists(fileToCheck))
+                DateTime lastRebootTime = NativeMethods.GetLastRebootTime();
+
+                // GitStatusCache was included with GVFS on disk version 16. The 1st time GVFS that is at or above on disk version
+                // is installed, it will write out a file indicating that the installation is "OnDiskVersion16Capable".
+                // We can query the properties of this file to get the installation time, and compare this with the last reboot time for
+                // this machine.
+                string fileToCheck = Path.Combine(Configuration.AssemblyPath, GVFSConstants.InstallationCapabilityFiles.OnDiskVersion16CapableInstallation);
+
+                if (File.Exists(fileToCheck))
+                {
+                    DateTime installTime = File.GetCreationTime(fileToCheck);
+                    if (lastRebootTime > installTime)
                     {
-                        DateTime installTime = File.GetCreationTime(fileToCheck);
-                        if (lastRebootTime > installTime)
-                        {
-                            File.WriteAllText(statusCacheVersionTokenPath, string.Empty);
-                        }
+                        this.tracer.RelatedInfo($"CheckEnableGitStatusCache: Writing out EnableGitStatusCacheToken file. GVFS installation time: {installTime}, last Reboot time: {lastRebootTime}.");
+                        File.WriteAllText(statusCacheVersionTokenPath, string.Empty);
                     }
                     else
                     {
-                        this.tracer.RelatedError($"Unable to determine GVFS installation time: {fileToCheck} does not exist.");
+                        this.tracer.RelatedInfo($"CheckEnableGitStatusCache: Not writing EnableGitStatusCacheToken file - machine has not been rebooted since OnDiskVersion16Capable installation. GVFS installation time: {installTime}, last reboot time: {lastRebootTime}");
                     }
+                }
+                else
+                {
+                    this.tracer.RelatedError($"Unable to determine GVFS installation time: {fileToCheck} does not exist.");
                 }
             }
             catch (Exception ex)
@@ -316,22 +325,6 @@ namespace GVFS.Service
                 // might not create file indicating that it is OK to use GitStatusCache.
                 this.tracer.RelatedError($"{nameof(CheckEnableGitStatusCacheTokenFile)}: Unable to determine GVFS installation time or write EnableGitStatusCacheToken file due to exception. Exception: {ex.ToString()}");
             }
-        }
-
-        private bool TryGetGVFSInstallTime(out DateTime installTime)
-        {
-            installTime = DateTime.Now;
-
-            // Get the time of a file that was created by the GVFS installer (for a version of GVFS that supports the
-            // GitStatusCache). The expected path is written by the installer.
-            string fileToCheck = Path.Combine(Configuration.AssemblyPath, "GitStatusCacheAvailable");
-            if (File.Exists(fileToCheck))
-            {
-                installTime = File.GetCreationTime(fileToCheck);
-                return true;
-            }
-
-            return false;
         }
 
         private void LogExceptionAndExit(Exception e, string method)
