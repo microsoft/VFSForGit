@@ -1,5 +1,6 @@
 #include <iostream>
 #include <cassert>
+#include <libgen.h>
 #include <stddef.h>
 #include <sys/ioctl.h>
 #include <sys/stat.h>
@@ -258,15 +259,28 @@ PrjFS_Result PrjFS_WritePlaceholderDirectory(
         return PrjFS_Result_EInvalidArgs;
     }
     
+    char tempPath[PrjFSMaxPath];
+    char intermediatePath[PrjFSMaxPath];
     char fullPath[PrjFSMaxPath];
+    char* baseName;
+    char baseNameBuffer[MAXPATHLEN];
+    
+    baseName = basename_r(relativePath, baseNameBuffer);
+    CombinePaths(s_virtualizationRootFullPath.c_str(), "../.temp", tempPath);
+    CombinePaths(tempPath, baseName, intermediatePath);
     CombinePaths(s_virtualizationRootFullPath.c_str(), relativePath, fullPath);
-
-    if (mkdir(fullPath, 0777))
+    
+    if (mkdir(intermediatePath, 0777))
     {
         goto CleanupAndFail;
     }
     
-    if (!InitializeEmptyPlaceholder(fullPath))
+    if (!InitializeEmptyPlaceholder(intermediatePath))
+    {
+        goto CleanupAndFail;
+    }
+    
+    if (rename(intermediatePath, fullPath))
     {
         goto CleanupAndFail;
     }
@@ -302,13 +316,22 @@ PrjFS_Result PrjFS_WritePlaceholderFile(
     
     PrjFSFileXAttrData fileXattrData = {};
     
-    char fullPath[PrjFSMaxPath];
-    CombinePaths(s_virtualizationRootFullPath.c_str(), relativePath, fullPath);
+    char tempPath[PrjFSMaxPath];
+    char intermediatePath[PrjFSMaxPath];
+    char finalPath[PrjFSMaxPath];
+    char* baseName;
+    char baseNameBuffer[MAXPATHLEN];
+    
+    baseName = basename_r(relativePath, baseNameBuffer);
+    CombinePaths(s_virtualizationRootFullPath.c_str(), "../.temp", tempPath);
+    CombinePaths(tempPath, baseName, intermediatePath);
+    CombinePaths(s_virtualizationRootFullPath.c_str(), relativePath, finalPath);
+    
     
     // Mode "wbx" means
     //  - Create an empty file if none exists
     //  - Fail if a file already exists at this path
-    FILE* file = fopen(fullPath, "wbx");
+    FILE* file = fopen(intermediatePath, "wbx");
     if (nullptr == file)
     {
         goto CleanupAndFail;
@@ -327,19 +350,32 @@ PrjFS_Result PrjFS_WritePlaceholderFile(
     memcpy(fileXattrData.contentId, contentId, PrjFS_PlaceholderIdLength);
     
     if (!InitializeEmptyPlaceholder(
-            fullPath,
-            &fileXattrData,
-            PrjFSFileXAttrName))
+                                    intermediatePath,
+                                    &fileXattrData,
+                                    PrjFSFileXAttrName))
     {
         goto CleanupAndFail;
     }
     
     // TODO(Mac): Only call chmod if fileMode is different than the default file mode
-    if (chmod(fullPath, fileMode))
+    if (chmod(intermediatePath, fileMode))
     {
         goto CleanupAndFail;
     }
-
+    
+#ifdef DEBUG
+    std::cout
+    << "PrjFS_WritePlaceholderFile - Preparing to rename("
+    << intermediatePath << " ->"
+    << finalPath << ", "
+")" << std::endl;
+#endif
+    
+    if (rename(intermediatePath, finalPath))
+    {
+        goto CleanupAndFail;
+    }
+    
     return PrjFS_Result_Success;
     
 CleanupAndFail:

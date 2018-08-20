@@ -8,6 +8,7 @@ namespace MirrorProvider
         {
             this.EnlistmentRoot = root;
             this.DotMirrorRoot = Path.Combine(root, ".mirror");
+            this.TempRoot = Path.Combine(root, ".temp");
             this.SrcRoot = Path.Combine(root, "src");
 
             this.ConfigFile = Path.Combine(this.DotMirrorRoot, "config");
@@ -17,7 +18,7 @@ namespace MirrorProvider
         public string EnlistmentRoot { get; private set; }
         public string DotMirrorRoot { get; private set; }
         public string SrcRoot { get; private set; }
-
+        public string TempRoot { get; private set; }
         public string ConfigFile { get; private set; }
 
         public string MirrorRoot { get; private set; }
@@ -31,7 +32,8 @@ namespace MirrorProvider
                 Directory.CreateDirectory(enlistment.EnlistmentRoot);
                 Directory.CreateDirectory(enlistment.DotMirrorRoot);
                 Directory.CreateDirectory(enlistment.SrcRoot);
-
+                Directory.CreateDirectory(enlistment.TempRoot);
+                
                 File.WriteAllText(enlistment.ConfigFile, mirrorRoot);
                 return enlistment;
             }
