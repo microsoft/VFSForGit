@@ -141,11 +141,8 @@ namespace GVFS.FunctionalTests.Tests
         {
             this.RunFastFetch($"--checkout --folders \"/Scripts\" -b {Settings.Default.Commitish}");
 
-            // Run a second time in the same repo on the same branch with more folders. 
+            // Run a second time in the same repo on the same branch with more folders but expect an error.
             string result = this.RunFastFetch($"--force-checkout --folders \"/GVFS;/Scripts\" -b {Settings.Default.Commitish}", expectError: true);
-
-            string[] expectedResults = new string[] { "Cannot use --force-checkout option without --checkout option." };
-            result.ShouldContain(expectedResults);
         }
 
         [TestCase]
