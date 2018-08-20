@@ -280,9 +280,15 @@ void CreatePlaceholderDirectoryAsMountUser(const char* relativePath, PrjFS_Resul
     char fullPath[PrjFSMaxPath];
     CombinePaths(s_virtualizationRootFullPath.c_str(), relativePath, fullPath);
 
-    if (mkdir(fullPath, 0777))
+    if (mkdir(fullPath, 0775))
     {
         std::cout << "mkdir failed. errno: " << errno << std::endl;
+        goto CleanupAndReturn;
+    }
+    
+    if (chmod(fullPath, 0775))
+    {
+        std::cout << "chmod(" << fullPath << ") failed. errno: " << errno << std::endl;
         goto CleanupAndReturn;
     }
     
