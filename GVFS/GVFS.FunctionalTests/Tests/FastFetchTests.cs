@@ -142,7 +142,10 @@ namespace GVFS.FunctionalTests.Tests
             this.RunFastFetch($"--checkout --folders \"/Scripts\" -b {Settings.Default.Commitish}");
 
             // Run a second time in the same repo on the same branch with more folders but expect an error.
-            string result = this.RunFastFetch($"--force-checkout --folders \"/GVFS;/Scripts\" -b {Settings.Default.Commitish}", expectError: true);
+            ProcessResult result = this.RunFastFetch($"--force-checkout --folders \"/GVFS;/Scripts\" -b {Settings.Default.Commitish}");
+
+            string[] expectedResults = new string[] { "Cannot use --force-checkout option without --checkout option." };
+            result.Output.ShouldContain(expectedResults);
         }
 
         [TestCase]
@@ -230,8 +233,8 @@ namespace GVFS.FunctionalTests.Tests
 
             // Reset the index and use fastfetch to update the index. Compare against 'git status' baseline.
             GitProcess.Invoke(this.fastFetchRepoRoot, $"-c index.version= {indexVersion} read-tree HEAD");
-            string fastfetchoutput = this.RunFastFetch("--checkout --Allow-index-metadata-update-from-working-tree");
-            Trace.WriteLine(fastfetchoutput); // Written to log file for manual investigation
+            ProcessResult fastFetchResult = this.RunFastFetch("--checkout --Allow-index-metadata-update-from-working-tree");
+            Trace.WriteLine(fastFetchResult.Output); // Written to log file for manual investigation
             string lsfilesAfterUpdate = GitProcess.Invoke(this.fastFetchRepoRoot, "ls-files --debug");
             lsfilesAfterUpdate.ShouldEqual(lsfilesAfterStatus, "git status and fastfetch didn't result in the same index");
 
@@ -258,7 +261,7 @@ namespace GVFS.FunctionalTests.Tests
             string status = GitProcess.Invoke(this.fastFetchRepoRoot, "status --porcelain");
             status.ShouldBeEmpty("Status shows unexpected files changed");
 
-            string output = this.RunFastFetch($"--checkout -c {UpdateCommit}");
+            this.RunFastFetch($"--checkout -c {UpdateCommit}");
             status = GitProcess.Invoke(this.fastFetchRepoRoot, "status --porcelain");
             status.ShouldBeEmpty("Status shows unexpected files changed");
 
@@ -295,8 +298,8 @@ namespace GVFS.FunctionalTests.Tests
             this.RunFastFetch("--checkout -b " + Settings.Default.Commitish);
             this.CurrentBranchShouldEqual(Settings.Default.Commitish);
             
-            this.RunFastFetch(" -b " + Settings.Default.Commitish).ShouldContain("\"TotalMissingObjects\":0");
-            this.RunFastFetch("--checkout -b " + Settings.Default.Commitish).ShouldContain("\"RequiredBlobsCount\":0");
+            this.RunFastFetch(" -b " + Settings.Default.Commitish).Output.ShouldContain("\"TotalMissingObjects\":0");
+            this.RunFastFetch("--checkout -b " + Settings.Default.Commitish).Output.ShouldContain("\"RequiredBlobsCount\":0");
 
             this.CurrentBranchShouldEqual(Settings.Default.Commitish);
             this.fastFetchRepoRoot.ShouldBeADirectory(FileSystemRunner.DefaultRunner)
@@ -468,7 +471,7 @@ namespace GVFS.FunctionalTests.Tests
             return headTreeSha;
         }
 
-        private string RunFastFetch(string args, bool expectError = false)
+        private ProcessResult RunFastFetch(string args)
         {
             args = args + " --verbose";
 
@@ -488,19 +491,8 @@ namespace GVFS.FunctionalTests.Tests
             processInfo.RedirectStandardError = true;
             
             ProcessResult result = ProcessHelper.Run(processInfo);
-            result.Output.Contains("Error").ShouldEqual(expectError, result.Output);
-            if (expectError)
-            {
-                result.Errors.Length.ShouldBeAtLeast(1, "Expected at lest 1 error");
-                result.ExitCode.ShouldBeAtLeast(1, $"Exit code should be a failure (> 0) but was {result.ExitCode}");
-            }
-            else
-            {
-                result.Errors.ShouldBeEmpty(result.Errors);
-                result.ExitCode.ShouldEqual(0);
-            }
 
-            return result.Output;
+            return result;
         }
         
         private string GetShaFromLsLine(string line)
