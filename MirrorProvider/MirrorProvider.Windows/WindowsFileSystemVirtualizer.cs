@@ -37,6 +37,7 @@ namespace MirrorProvider.Windows
             this.virtualizationInstance.OnNotifyPreDelete = this.OnPreDelete;
             this.virtualizationInstance.OnNotifyNewFileCreated = this.OnNewFileCreated;
             this.virtualizationInstance.OnNotifyFileHandleClosedFileModifiedOrDeleted = this.OnFileModifiedOrDeleted;
+            this.virtualizationInstance.OnNotifyFileRenamed = this.OnFileRenamed;
 
             uint threadCount = (uint)Environment.ProcessorCount * 2;
 
@@ -44,7 +45,8 @@ namespace MirrorProvider.Windows
             {
                 new NotificationMapping(
                     NotificationType.NewFileCreated |
-                    NotificationType.PreDelete | 
+                    NotificationType.PreDelete |
+                    NotificationType.FileRenamed |
                     NotificationType.FileHandleClosedFileModified, 
                     string.Empty),
             };
@@ -314,6 +316,15 @@ namespace MirrorProvider.Windows
             // Once MacFileSystemVirtualizer supports delete notifications we'll register for
             // NotificationType.FileHandleClosedFileDeleted and this method will be called for both modifications and deletions.
             Console.WriteLine($"OnFileModifiedOrDeleted: `{relativePath}`, isDirectory: {isDirectory}, isModfied: {isFileDeleted}, isDeleted: {isFileDeleted}");
+        }
+
+        private void OnFileRenamed(
+            string relativePath,
+            string relativeDestinationPath,
+            bool isDirectory,
+            ref NotificationType notificationMask)
+        {
+            Console.WriteLine($"OnFileRenamed (isDirectory: {isDirectory}), relativePath: {relativePath}, relativeDestinationPath: {relativeDestinationPath}");
         }
 
         // TODO: Add this to the ProjFS API
