@@ -283,15 +283,15 @@ begin
     end;
 end;
 
-procedure WriteGitStatusCacheAvailableFile();
+procedure WriteOnDiskVersion16CapableFile();
 var
-  TokenFilePath: string;
+  FilePath: string;
 begin
-  TokenFilePath := ExpandConstant('{app}\GitStatusCacheAvailable');
-  if not FileExists(TokenFilePath) then
+  FilePath := ExpandConstant('{app}\OnDiskVersion16CapableInstallation.dat');
+  if not FileExists(FilePath) then
     begin
-      Log('WritingGitStatusCacheAvailableFile: Writing file ' + TokenFilePath);
-      SaveStringToFile(TokenFilePath, '', False);
+      Log('WriteOnDiskVersion16CapableFile: Writing file ' + FilePath);
+      SaveStringToFile(FilePath, '', False);
     end
 end;
 
@@ -319,7 +319,7 @@ begin
           end;
       end;
 
-    WriteGitStatusCacheAvailableFile();
+    WriteOnDiskVersion16CapableFile();
   finally
     WizardForm.StatusLabel.Caption := StatusText;
     WizardForm.ProgressGauge.Style := npbstNormal;
