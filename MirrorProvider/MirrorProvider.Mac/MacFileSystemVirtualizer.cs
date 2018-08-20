@@ -22,6 +22,7 @@ namespace MirrorProvider.Mac
             this.virtualizationInstance.OnGetFileStream = this.OnGetFileStream;
             this.virtualizationInstance.OnFileModified = this.OnFileModified;
             this.virtualizationInstance.OnPreDelete = this.OnPreDelete;
+            this.virtualizationInstance.OnNewFileCreated = this.OnNewFileCreated;
 
             Result result = this.virtualizationInstance.StartVirtualizationInstance(
                 enlistment.SrcRoot,
@@ -157,6 +158,11 @@ namespace MirrorProvider.Mac
         {
             Console.WriteLine($"OnPreDelete (isDirectory: {isDirectory}): {relativePath}");
             return Result.Success;
+        }
+
+        private void OnNewFileCreated(string relativePath, bool isDirectory)
+        {
+            Console.WriteLine($"OnNewFileCreated (isDirectory: {isDirectory}): {relativePath}");
         }
 
         private static byte[] ToVersionIdByteArray(byte version)
