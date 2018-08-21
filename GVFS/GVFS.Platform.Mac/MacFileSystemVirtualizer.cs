@@ -362,24 +362,9 @@ namespace GVFS.Platform.Mac
 
         private void OnHardLinkCreated(string relativeNewLinkPath)
         {
-            try
-            {
-                bool pathInDotGit = Virtualization.FileSystemCallbacks.IsPathInsideDotGit(relativeNewLinkPath);
-
-                if (pathInDotGit)
-                {
-                    this.OnDotGitFileOrFolderChanged(relativeNewLinkPath);
-                }
-                else
-                {
-                    this.FileSystemCallbacks.OnFileHardLinkCreated(relativeNewLinkPath);
-                }
-            }
-            catch (Exception e)
-            {
-                EventMetadata metadata = this.CreateEventMetadata(relativeNewLinkPath, e);
-                this.LogUnhandledExceptionAndExit(nameof(this.OnHardLinkCreated), metadata);
-            }
+            this.OnHardLinkCreated(
+                relativeTargetPath: string.Empty, 
+                relativeNewLinkPath: relativeNewLinkPath);
         }
 
         private Result OnEnumerateDirectory(

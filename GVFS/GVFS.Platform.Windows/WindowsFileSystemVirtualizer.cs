@@ -159,7 +159,7 @@ namespace GVFS.Platform.Windows
             this.virtualizationInstance.OnNotifyPreRename = this.NotifyPreRenameHandler;
             this.virtualizationInstance.OnNotifyPreSetHardlink = null;
             this.virtualizationInstance.OnNotifyFileRenamed = this.NotifyFileRenamedHandler;
-            this.virtualizationInstance.OnNotifyHardlinkCreated = null;
+            this.virtualizationInstance.OnNotifyHardlinkCreated = this.NotifyHardlinkCreated;
             this.virtualizationInstance.OnNotifyFileHandleClosedNoModification = null;
             this.virtualizationInstance.OnNotifyFileHandleClosedFileModifiedOrDeleted = this.NotifyFileHandleClosedFileModifiedOrDeletedHandler;
             this.virtualizationInstance.OnNotifyFilePreConvertToFull = this.NotifyFilePreConvertToFullHandler;
@@ -1224,6 +1224,13 @@ namespace GVFS.Platform.Windows
             ref NotificationType notificationMask)
         {
             this.OnFileRenamed(virtualPath, destinationPath, isDirectory);
+        }
+
+        private void NotifyHardlinkCreated(
+            string relativePath,
+            string destinationPath)
+        {
+            this.OnHardLinkCreated(relativePath, destinationPath);
         }
 
         private void NotifyFileHandleClosedFileModifiedOrDeletedHandler(

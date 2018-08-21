@@ -242,6 +242,29 @@ namespace GVFS.Virtualization.FileSystem
             }
         }
 
+        protected void OnHardLinkCreated(string relativeTargetPath, string relativeNewLinkPath)
+        {
+            try
+            {
+                bool pathInDotGit = FileSystemCallbacks.IsPathInsideDotGit(relativeNewLinkPath);
+
+                if (pathInDotGit)
+                {
+                    this.OnDotGitFileOrFolderChanged(relativeNewLinkPath);
+                }
+                else
+                {
+                    this.FileSystemCallbacks.OnFileHardLinkCreated(relativeNewLinkPath);
+                }
+            }
+            catch (Exception e)
+            {
+                EventMetadata metadata = this.CreateEventMetadata(relativeNewLinkPath, e);
+                metadata.Add(nameof(relativeTargetPath), relativeTargetPath);
+                this.LogUnhandledExceptionAndExit(nameof(this.OnHardLinkCreated), metadata);
+            }
+        }
+
         protected EventMetadata CreateEventMetadata(
             Guid enumerationId,
             string relativePath = null,
