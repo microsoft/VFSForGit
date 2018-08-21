@@ -277,6 +277,12 @@ namespace GVFS.UnitTests.Virtualization
 
                 this.CallbackSchedulesBackgroundTask(
                     backgroundTaskRunner,
+                    (path) => fileSystemCallbacks.OnFileHardLinkCreated(path),
+                    "OnFileHardLinkCreated.txt",
+                    FileSystemTask.OperationType.OnFileHardLinkCreated);
+
+                this.CallbackSchedulesBackgroundTask(
+                    backgroundTaskRunner,
                     (path) => fileSystemCallbacks.OnFileSuperseded(path),
                     "OnFileSuperseded.txt",
                     FileSystemTask.OperationType.OnFileSuperseded);

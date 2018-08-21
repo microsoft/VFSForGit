@@ -189,8 +189,6 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
         [TestCase, Order(8)]
         public void RenamedFileAddedToModifiedPathsFile()
         {
-            GitMoveRenameTests.IgnoreSystemIOMoveOnMac(this.fileSystem);
-
             string fileToRenameEntry = "Test_EPF_MoveRenameFileTests/ChangeUnhydratedFileName/Program.cs";
             string fileToRenameTargetEntry = "Test_EPF_MoveRenameFileTests/ChangeUnhydratedFileName/Program2.cs";
             this.VerifyWorktreeBit(fileToRenameEntry, LsFilesStatus.SkipWorktree);

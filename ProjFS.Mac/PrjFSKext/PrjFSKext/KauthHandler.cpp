@@ -228,6 +228,7 @@ void KauthHandler_HandleKernelMessageResponse(uint64_t messageId, MessageType re
         case MessageType_KtoU_NotifyFileCreated:
         case MessageType_KtoU_NotifyFileRenamed:
         case MessageType_KtoU_NotifyDirectoryRenamed:
+        case MessageType_KtoU_NotifyFileHardLinkCreated:
             KextLog_Error("KauthHandler_HandleKernelMessageResponse: Unexpected responseType: %d", responseType);
             break;
     }
@@ -380,13 +381,14 @@ static int HandleFileOpOperation(
     vfs_context_t context = vfs_context_create(NULL);
     vnode_t currentVnodeFromPath = NULLVP;
 
-    if (KAUTH_FILEOP_RENAME == action)
+    if (KAUTH_FILEOP_RENAME == action ||
+        KAUTH_FILEOP_LINK == action)
     {
-        // arg0 is the (const char *) fromPath
-        const char* toPath = (const char*)arg1;
+        // arg0 is the (const char *) fromPath (or the file being linked to)
+        const char* newPath = (const char*)arg1;
         
         // TODO(Mac): Improve error handling
-        errno_t toErr = vnode_lookup(toPath, 0 /* flags */, &currentVnodeFromPath, context);
+        errno_t toErr = vnode_lookup(newPath, 0 /* flags */, &currentVnodeFromPath, context);
         if (0 != toErr)
         {
             goto CleanupAndReturn;
@@ -418,11 +420,21 @@ static int HandleFileOpOperation(
         char procname[MAXCOMLEN + 1];
         proc_name(pid, procname, MAXCOMLEN + 1);
 
+        MessageType messageType;
+        if (KAUTH_FILEOP_RENAME == action)
+        {
+            messageType = vnode_isdir(currentVnodeFromPath) ? MessageType_KtoU_NotifyDirectoryRenamed : MessageType_KtoU_NotifyFileRenamed;
+        }
+        else
+        {
+            messageType = MessageType_KtoU_NotifyFileHardLinkCreated;
+        }
+
         int kauthResult;
         int kauthError;
         if (!TrySendRequestAndWaitForResponse(
             root,
-            vnode_isdir(currentVnodeFromPath) ? MessageType_KtoU_NotifyDirectoryRenamed : MessageType_KtoU_NotifyFileRenamed,
+            messageType,
             currentVnodeFromPath,
             pid,
             procname,

@@ -22,15 +22,6 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
             this.fileSystem = fileSystem;
         }
 
-        public static void IgnoreSystemIOMoveOnMac(FileSystemRunner runner)
-        {
-            if (runner is SystemIORunner &&
-                RuntimeInformation.IsOSPlatform(OSPlatform.OSX))
-            {
-                Assert.Ignore("TODO(Mac): SystemIORunner rename tests require hardlink notifications");
-            }
-        }
-
         [TestCase, Order(1)]
         public void GitStatus()
         {
@@ -85,8 +76,6 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
         [TestCase, Order(4)]
         public void GitStatusAfterFileRename()
         {
-            IgnoreSystemIOMoveOnMac(this.fileSystem);
-
             string oldFilename = "New.cs";
             this.EnsureTestFileExists(oldFilename);
 
@@ -195,8 +184,6 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
         [TestCase, Order(9)]
         public void GitStatusAfterRenameFileIntoRepo()
         {
-            IgnoreSystemIOMoveOnMac(this.fileSystem);
-
             string filename = "GitStatusAfterRenameFileIntoRepo.cs";
 
             // Create the test file in this.Enlistment.EnlistmentRoot as it's outside of src 
