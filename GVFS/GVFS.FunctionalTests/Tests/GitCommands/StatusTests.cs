@@ -98,6 +98,8 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
 
         private void RepositoryIgnoreTestSetup()
         {
+            this.WaitForUpToDateStatusCache();
+
             string statusCachePath = Path.Combine(this.Enlistment.DotGVFSRoot, "GitStatusCache", "GitStatusCache.dat");
             File.Delete(statusCachePath);
 
@@ -108,6 +110,18 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
 
             // Verify that status from the status cache includes the "test.ign" entry
             this.ValidateGitCommand("status");
+        }
+
+        /// <summary>
+        /// Wait for an up-to-date status cache file to exist on disk.
+        /// </summary>
+        private void WaitForUpToDateStatusCache()
+        {
+            // Run "git status" for the side effect that it will delete any stale status cache file.
+            this.ValidateGitCommand("status");
+
+            // Wait for a new status cache to be generated.
+            this.WaitForStatusCacheToBeGenerated(waitForNewFile: false);
         }
 
         private void WaitForStatusCacheToBeGenerated(bool waitForNewFile = true)
