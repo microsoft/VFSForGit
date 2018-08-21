@@ -192,6 +192,11 @@ namespace GVFS.Common
             }
         }
 
+        public static class InstallationCapabilityFiles
+        {
+            public const string OnDiskVersion16CapableInstallation = "OnDiskVersion16CapableInstallation.dat";
+        }
+
         public static class VerbParameters
         {
             public static class Mount
