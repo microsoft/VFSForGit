@@ -159,33 +159,26 @@ namespace GVFS.Hooks
             if (File.Exists(Path.Combine(srcRoot, GVFSConstants.DotGit.MergeHead)) ||
                 File.Exists(Path.Combine(srcRoot, GVFSConstants.DotGit.RevertHead)))
             {
-                // If no-renames and no-breaks are specified, avoid reading config.
-                if (!args.Contains("--no-renames") || !args.Contains("--no-breaks"))
+                // If no-renames is specified, avoid reading config.
+                if (!args.Contains("--no-renames"))
                 {
+                    // To behave properly, this needs to check for the status.renames setting the same
+                    // way that git does including global and local config files, setting inheritance from
+                    // diff.renames, etc.  This is probably best accomplished by calling "git config --get status.renames"
+                    // to ensure we are getting the correct value and then checking for "true" (rather than
+                    // just existance like below).
                     Dictionary<string, GitConfigSetting> statusConfig = GitConfigHelper.GetSettings(
                         File.ReadAllLines(Path.Combine(srcRoot, GVFSConstants.DotGit.Config)),
-                        "status");
+                        "test");
 
-                    if (!IsRunningWithParamOrSetting(args, statusConfig, "--no-renames", "renames") ||
-                        !IsRunningWithParamOrSetting(args, statusConfig, "--no-breaks", "breaks"))
+                    if (!statusConfig.ContainsKey("renames"))
                     {
                         ExitWithError(
                             "git status requires rename detection to be disabled during a merge or revert conflict.",
-                            "Run 'git status --no-renames --no-breaks'");
+                            "Run 'git status --no-renames'");
                     }
                 }
             }
-        }
-
-        private static bool IsRunningWithParamOrSetting(
-            string[] args, 
-            Dictionary<string, GitConfigSetting> configSettings, 
-            string expectedArg, 
-            string expectedSetting)
-        {
-            return 
-                args.Contains(expectedArg) ||
-                configSettings.ContainsKey(expectedSetting);
         }
 
         private static void RunLockRequest(string[] args, bool unattended, LockRequestDelegate requestToRun)

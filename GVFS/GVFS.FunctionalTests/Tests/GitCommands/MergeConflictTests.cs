@@ -84,7 +84,7 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
         public void MergeConflictEnsureStatusFailsDueToConfig()
         {
             // This is compared against the message emitted by GVFS.Hooks\Program.cs
-            string expectedErrorMessagePart = "--no-renames --no-breaks";
+            string expectedErrorMessagePart = "--no-renames";
 
             this.ValidateGitCommand("checkout " + GitRepoTests.ConflictTargetBranch);
             this.RunGitCommand("merge " + GitRepoTests.ConflictSourceBranch, checkStatus: false);
@@ -95,25 +95,8 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
             ProcessResult result2 = GitHelpers.InvokeGitAgainstGVFSRepo(this.Enlistment.RepoRoot, "status --no-renames");
             result2.Errors.Contains(expectedErrorMessagePart);
 
-            ProcessResult result3 = GitHelpers.InvokeGitAgainstGVFSRepo(this.Enlistment.RepoRoot, "status --no-breaks");
-            result3.Errors.Contains(expectedErrorMessagePart);
-
-            // only renames in config
-            GitHelpers.InvokeGitAgainstGVFSRepo(this.Enlistment.RepoRoot, "config --local status.renames false");
-            GitHelpers.InvokeGitAgainstGVFSRepo(this.Enlistment.RepoRoot, "status --no-breaks").Errors.ShouldBeEmpty();
-            ProcessResult result4 = GitHelpers.InvokeGitAgainstGVFSRepo(this.Enlistment.RepoRoot, "status");
-            result4.Errors.Contains(expectedErrorMessagePart);
-
-            // only breaks in config
-            GitHelpers.InvokeGitAgainstGVFSRepo(this.Enlistment.RepoRoot, "config --local --unset status.renames");
-            GitHelpers.InvokeGitAgainstGVFSRepo(this.Enlistment.RepoRoot, "config --local status.breaks false");
-            GitHelpers.InvokeGitAgainstGVFSRepo(this.Enlistment.RepoRoot, "status --no-renames").Errors.ShouldBeEmpty();
-            ProcessResult result5 = GitHelpers.InvokeGitAgainstGVFSRepo(this.Enlistment.RepoRoot, "status");
-            result5.Errors.Contains(expectedErrorMessagePart);
-
             // Complete setup to ensure teardown succeeds
-            GitHelpers.InvokeGitAgainstGVFSRepo(this.Enlistment.RepoRoot, "config --local status.renames false");
-            GitHelpers.InvokeGitAgainstGVFSRepo(this.Enlistment.RepoRoot, "config --local status.breaks false");
+            GitHelpers.InvokeGitAgainstGVFSRepo(this.Enlistment.RepoRoot, "config --local test.renames false");
         }
 
         protected override void CreateEnlistment()
@@ -127,8 +110,10 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
 
         private void SetupRenameDetectionAvoidanceInConfig()
         {
-            this.ValidateGitCommand("config --local status.renames false");
-            this.ValidateGitCommand("config --local status.breaks false");
+            // Tell the pre-command hook that it shouldn't check for "--no-renames" when runing "git status"
+            // as the control repo won't do that.  When the pre-command hook has been updated to properly
+            // check for "status.renames" we can set that value here instead.
+            this.ValidateGitCommand("config --local test.renames false");
         }
     }
 }
