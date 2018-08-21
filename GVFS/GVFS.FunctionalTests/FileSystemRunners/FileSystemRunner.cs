@@ -46,6 +46,8 @@ namespace GVFS.FunctionalTests.FileSystemRunners
             get { return defaultRunner; }
         }
 
+        public abstract bool SupportsHardlinkCreation { get; }
+
         // File methods
         public abstract bool FileExists(string path);       
         public abstract string MoveFile(string sourcePath, string targetPath);
@@ -68,6 +70,8 @@ namespace GVFS.FunctionalTests.FileSystemRunners
         public abstract void ReadAllText_FileShouldNotBeFound(string path);
 
         public abstract void CreateEmptyFile(string path);
+
+        public abstract void CreateHardLink(string targetPath, string newLinkPath);
 
         /// <summary>
         /// Write the specified contents to the specified file.  By calling this method the caller is

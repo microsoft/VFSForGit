@@ -9,6 +9,11 @@ namespace GVFS.FunctionalTests.FileSystemRunners
 {
     public class SystemIORunner : FileSystemRunner
     {
+        public override bool SupportsHardlinkCreation
+        {
+            get { return false; }
+        }
+
         public override bool FileExists(string path)
         {
             return File.Exists(path);
@@ -73,6 +78,11 @@ namespace GVFS.FunctionalTests.FileSystemRunners
             using (FileStream fs = File.Create(path))
             {
             }
+        }
+
+        public override void CreateHardLink(string targetPath, string newLinkPath)
+        {
+            Assert.Fail($"{nameof(SystemIORunner)} does not support {nameof(this.CreateHardLink)}");
         }
 
         public override void WriteAllText(string path, string contents)

@@ -32,12 +32,30 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
         }
 
         [TestCase, Order(3)]
+        [Category(Categories.Mac.M2)]
+        public void AddAndStageHardLinksTest()
+        {
+            if (!this.FileSystem.SupportsHardlinkCreation)
+            {
+                return;
+            }
+
+            this.CreateHardLink("Readme.md", "ReadmeLink.md");
+            this.ValidateGitCommand("add ReadmeLink.md");
+            this.RunGitCommand("commit -m \"Created ReadmeLink.md\"");
+
+            this.CreateHardLink("AuthoringTests.md", "AuthoringTestsLink.md");
+            this.ValidateGitCommand("stage AuthoringTestsLink.md");
+            this.RunGitCommand("commit -m \"Created AuthoringTestsLink.md\"");
+        }
+
+        [TestCase, Order(4)]
         public void AddAllowsPlaceholderCreation()
         {
             this.CommandAllowsPlaceholderCreation("add", @"GVFS\GVFS\Program.cs");
         }
 
-        [TestCase, Order(4)]
+        [TestCase, Order(5)]
         public void StageAllowsPlaceholderCreation()
         {
             this.CommandAllowsPlaceholderCreation("stage", @"GVFS\GVFS\App.config");

@@ -47,6 +47,11 @@ namespace GVFS.FunctionalTests.FileSystemRunners
             }
         }
 
+        public override bool SupportsHardlinkCreation
+        {
+            get { return true; }
+        }
+
         protected override string FileName
         {
             get
@@ -156,6 +161,14 @@ namespace GVFS.FunctionalTests.FileSystemRunners
             string bashPath = this.ConvertWinPathToBashPath(path);
 
             this.RunProcess(string.Format("-c \"touch {0}\"", bashPath));
+        }
+
+        public override void CreateHardLink(string existingPath, string newLinkPath)
+        {
+            string existingFileBashPath = this.ConvertWinPathToBashPath(existingPath);
+            string newLinkBashPath = this.ConvertWinPathToBashPath(existingPath);
+
+            this.RunProcess(string.Format("-c \"ln {0} {1}\"", existingFileBashPath, newLinkBashPath));
         }
 
         public override void WriteAllText(string path, string contents)

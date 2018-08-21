@@ -215,6 +215,16 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
             this.FileSystem.AppendAllText(controlFile, content);
         }
 
+        protected void CreateHardLink(string targetPath, string newLinkPath)
+        {
+            string virtualTargetFile = Path.Combine(this.Enlistment.RepoRoot, targetPath);
+            string controlTargetFile = Path.Combine(this.ControlGitRepo.RootPath, targetPath);
+            string virtualNewLinkFile = Path.Combine(this.Enlistment.RepoRoot, newLinkPath);
+            string controlNewLinkFile = Path.Combine(this.ControlGitRepo.RootPath, newLinkPath);
+            this.FileSystem.CreateHardLink(virtualTargetFile, virtualNewLinkFile);
+            this.FileSystem.CreateHardLink(controlTargetFile, controlNewLinkFile);
+        }
+
         protected void SetFileAsReadOnly(string filePath)
         {
             string virtualFile = Path.Combine(this.Enlistment.RepoRoot, filePath);
