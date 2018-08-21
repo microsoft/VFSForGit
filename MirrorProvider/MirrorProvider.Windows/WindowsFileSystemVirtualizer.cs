@@ -38,6 +38,7 @@ namespace MirrorProvider.Windows
             this.virtualizationInstance.OnNotifyNewFileCreated = this.OnNewFileCreated;
             this.virtualizationInstance.OnNotifyFileHandleClosedFileModifiedOrDeleted = this.OnFileModifiedOrDeleted;
             this.virtualizationInstance.OnNotifyFileRenamed = this.OnFileRenamed;
+            this.virtualizationInstance.OnNotifyHardlinkCreated = this.OnHardlinkCreated;
 
             uint threadCount = (uint)Environment.ProcessorCount * 2;
 
@@ -47,6 +48,7 @@ namespace MirrorProvider.Windows
                     NotificationType.NewFileCreated |
                     NotificationType.PreDelete |
                     NotificationType.FileRenamed |
+                    NotificationType.HardlinkCreated |
                     NotificationType.FileHandleClosedFileModified, 
                     string.Empty),
             };
@@ -325,6 +327,13 @@ namespace MirrorProvider.Windows
             ref NotificationType notificationMask)
         {
             Console.WriteLine($"OnFileRenamed (isDirectory: {isDirectory}), relativePath: {relativePath}, relativeDestinationPath: {relativeDestinationPath}");
+        }
+
+        private void OnHardlinkCreated(
+            string relativePath,
+            string relativeDestinationPath)
+        {
+            Console.WriteLine($"OnHardlinkCreated, relativePath: {relativePath}, relativeDestinationPath: {relativeDestinationPath}");
         }
 
         // TODO: Add this to the ProjFS API
