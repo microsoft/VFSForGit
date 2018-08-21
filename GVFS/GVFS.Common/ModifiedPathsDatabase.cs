@@ -75,36 +75,97 @@ namespace GVFS.Common
                 }
                 catch (IOException e)
                 {
-                    if (this.Tracer != null)
-                    {
-                        EventMetadata metadata = new EventMetadata();
-                        metadata.Add("Area", "ModifiedPathsDatabase");
-                        metadata.Add(nameof(entry), entry);
-                        metadata.Add(nameof(isFolder), isFolder);
-                        metadata.Add("Exception", e.ToString());
-                        this.Tracer.RelatedWarning(metadata, $"IOException caught while processing {nameof(this.TryAdd)}");
-                    }
-
+                    this.TraceWarning(isFolder, entry, e, nameof(this.TryAdd));
                     return false;
                 }
                 catch (Exception e)
                 {
-                    if (this.Tracer != null)
-                    {
-                        EventMetadata metadata = new EventMetadata();
-                        metadata.Add("Area", "ModifiedPathsDatabase");
-                        metadata.Add(nameof(entry), entry);
-                        metadata.Add(nameof(isFolder), isFolder);
-                        metadata.Add("Exception", e.ToString());
-                        this.Tracer.RelatedError(metadata, $"Exception caught while processing {nameof(this.TryAdd)}");
-                    }
-
+                    this.TraceError(isFolder, entry, e, nameof(this.TryAdd));
                     isRetryable = false;
                     return false;
                 }
+
+                return true;
             }
 
             return true;
+        }
+
+        public bool TryRemove(string path, bool isFolder, out bool isRetryable)
+        {
+            isRetryable = true;
+            string entry = this.NormalizeEntryString(path, isFolder);
+            if (this.modifiedPaths.Contains(entry))
+            {
+                isRetryable = true;
+                try
+                {
+                    this.WriteRemoveEntry(entry, () => this.modifiedPaths.TryRemove(entry));
+                }
+                catch (IOException e)
+                {
+                    this.TraceWarning(isFolder, entry, e, nameof(this.TryRemove));
+                    return false;
+                }
+                catch (Exception e)
+                {
+                    this.TraceError(isFolder, entry, e, nameof(this.TryRemove));
+                    isRetryable = false;
+                    return false;
+                }
+
+                return true;
+            }
+
+            return true;
+        }
+
+        public void WriteAllEntriesAndFlush()
+        {
+            try
+            {
+                this.WriteAndReplaceDataFile(this.GenerateDataLines);
+            }
+            catch (Exception e)
+            {
+                throw new FileBasedCollectionException(e);
+            }
+        }
+
+        private static EventMetadata CreateEventMetadata(bool isFolder, string entry, Exception e)
+        {
+            EventMetadata metadata = new EventMetadata();
+            metadata.Add("Area", "ModifiedPathsDatabase");
+            metadata.Add(nameof(entry), entry);
+            metadata.Add(nameof(isFolder), isFolder);
+            metadata.Add("Exception", e.ToString());
+            return metadata;
+        }
+
+        private IEnumerable<string> GenerateDataLines()
+        {
+            foreach (string entry in this.modifiedPaths)
+            {
+                yield return this.FormatAddLine(entry);
+            }
+        }
+
+        private void TraceWarning(bool isFolder, string entry, Exception e, string method)
+        {
+            if (this.Tracer != null)
+            {
+                EventMetadata metadata = CreateEventMetadata(isFolder, entry, e);
+                this.Tracer.RelatedWarning(metadata, $"{e.GetType().Name} caught while processing {method}");
+            }
+        }
+
+        private void TraceError(bool isFolder, string entry, Exception e, string method)
+        {
+            if (this.Tracer != null)
+            {
+                EventMetadata metadata = CreateEventMetadata(isFolder, entry, e);
+                this.Tracer.RelatedError(metadata, $"{e.GetType().Name} caught while processing {method}");
+            }
         }
 
         private bool TryParseAddLine(string line, out string key, out string value, out string error)
