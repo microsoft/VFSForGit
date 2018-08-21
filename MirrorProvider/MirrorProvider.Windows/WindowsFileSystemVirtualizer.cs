@@ -35,13 +35,18 @@ namespace MirrorProvider.Windows
             this.virtualizationInstance.OnGetPlaceholderInformation = this.GetPlaceholderInformation;
             this.virtualizationInstance.OnGetFileStream = this.GetFileStream;
             this.virtualizationInstance.OnNotifyPreDelete = this.OnPreDelete;
+            this.virtualizationInstance.OnNotifyNewFileCreated = this.OnNewFileCreated;
             this.virtualizationInstance.OnNotifyFileHandleClosedFileModifiedOrDeleted = this.OnFileModifiedOrDeleted;
 
             uint threadCount = (uint)Environment.ProcessorCount * 2;
 
             NotificationMapping[] notificationMappings = new NotificationMapping[]
             {
-                new NotificationMapping(NotificationType.PreDelete | NotificationType.FileHandleClosedFileModified, string.Empty),
+                new NotificationMapping(
+                    NotificationType.NewFileCreated |
+                    NotificationType.PreDelete | 
+                    NotificationType.FileHandleClosedFileModified, 
+                    string.Empty),
             };
 
             HResult result = this.virtualizationInstance.StartVirtualizationInstance(
@@ -288,6 +293,18 @@ namespace MirrorProvider.Windows
         {
             Console.WriteLine($"OnPreDelete (isDirectory: {isDirectory}): {relativePath}");
             return HResult.Ok;
+        }
+
+        private void OnNewFileCreated(
+            string relativePath,
+            bool isDirectory,
+            uint desiredAccess,
+            uint shareMode,
+            uint createDisposition,
+            uint createOptions,
+            ref NotificationType notificationMask)
+        {
+            Console.WriteLine($"OnNewFileCreated (isDirectory: {isDirectory}): {relativePath}");
         }
 
         private void OnFileModifiedOrDeleted(string relativePath, bool isDirectory, bool isFileModified, bool isFileDeleted)

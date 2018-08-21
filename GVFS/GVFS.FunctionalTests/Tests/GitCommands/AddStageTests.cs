@@ -6,6 +6,7 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
 {
     [TestFixture]
     [Category(Categories.GitCommands)]
+    [Category(Categories.Mac.M3)]
     public class AddStageTests : GitRepoTests
     {
         public AddStageTests() : base(enlistmentPerTest: false)

@@ -101,6 +101,7 @@ namespace GVFS.Platform.Mac
             this.virtualizationInstance.OnGetFileStream = this.OnGetFileStream;
             this.virtualizationInstance.OnFileModified = this.OnFileModified;
             this.virtualizationInstance.OnPreDelete = this.OnPreDelete;
+            this.virtualizationInstance.OnNewFileCreated = this.OnNewFileCreated;
 
             uint threadCount = (uint)Environment.ProcessorCount * 2;
 
@@ -310,6 +311,41 @@ namespace GVFS.Platform.Mac
             }
 
             return Result.Success;
+        }
+
+        private void OnNewFileCreated(string relativePath, bool isDirectory)
+        {
+            try
+            {
+                if (!Virtualization.FileSystemCallbacks.IsPathInsideDotGit(relativePath))
+                {
+                    if (isDirectory)
+                    {
+                        GitCommandLineParser gitCommand = new GitCommandLineParser(this.Context.Repository.GVFSLock.GetLockedGitCommand());
+                        if (gitCommand.IsValidGitCommand)
+                        {
+                            // TODO(Mac): Ensure that when git creates a folder all files\folders within that folder are written to disk
+                            EventMetadata metadata = this.CreateEventMetadata(relativePath);
+                            metadata.Add("isDirectory", isDirectory);
+                            this.Context.Tracer.RelatedWarning(metadata, $"{nameof(this.OnNewFileCreated)}: Git created a folder, currently an unsupported scenario on Mac");
+                        }
+                        else
+                        {
+                            this.FileSystemCallbacks.OnFolderCreated(relativePath);
+                        }
+                    }
+                    else
+                    {
+                        this.FileSystemCallbacks.OnFileCreated(relativePath);
+                    }
+                }
+            }
+            catch (Exception e)
+            {
+                EventMetadata metadata = this.CreateEventMetadata(relativePath, e);
+                metadata.Add("isDirectory", isDirectory);
+                this.LogUnhandledExceptionAndExit(nameof(this.OnNewFileCreated), metadata);
+            }
         }
 
         private Result OnEnumerateDirectory(

@@ -450,6 +450,22 @@ static void HandleKernelRequest(Message request, void* messageMemory)
                 PrjFS_NotificationType_PreDelete);
             break;
         }
+        
+        case MessageType_KtoU_NotifyFileCreated:
+        {
+            char fullPath[PrjFSMaxPath];
+            CombinePaths(s_virtualizationRootFullPath.c_str(), request.path, fullPath);
+			
+            // TODO(Mac): Handle SetBitInFileFlags failures
+            SetBitInFileFlags(fullPath, FileFlags_IsInVirtualizationRoot, true);
+        
+            result = HandleFileNotification(
+                requestHeader,
+                request.path,
+                false,  // isDirectory
+                PrjFS_NotificationType_NewFileCreated);
+            break;
+        }
     }
     
     // async callbacks are not yet implemented
