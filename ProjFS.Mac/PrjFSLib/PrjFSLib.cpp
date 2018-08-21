@@ -455,6 +455,8 @@ static void HandleKernelRequest(Message request, void* messageMemory)
         {
             char fullPath[PrjFSMaxPath];
             CombinePaths(s_virtualizationRootFullPath.c_str(), request.path, fullPath);
+			
+			// TODO(Mac): Handle SetBitInFileFlags failures
             SetBitInFileFlags(fullPath, FileFlags_IsInVirtualizationRoot, true);
         
             result = HandleFileNotification(

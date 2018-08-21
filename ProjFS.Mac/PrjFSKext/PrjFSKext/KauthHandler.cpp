@@ -35,7 +35,6 @@ static int HandleFileOpOperation(
 static int GetPid(vfs_context_t context);
 
 static uint32_t ReadVNodeFileFlags(vnode_t vn, vfs_context_t context);
-static inline bool HasAncestorFlaggedAsInRoot(vnode_t vnode, vfs_context_t context);
 static inline bool FileFlagsBitIsSet(uint32_t fileFlags, uint32_t bit);
 static inline bool FileIsFlaggedAsInRoot(vnode_t vnode, vfs_context_t context);
 static inline bool ActionBitIsSet(kauth_action_t action, kauth_action_t mask);
@@ -400,11 +399,6 @@ static int HandleFileOpOperation(
         {
             goto CleanupAndReturn;
         }
-		
-        if (!fileFlaggedInRoot && !HasAncestorFlaggedAsInRoot(currentVnode, context))
-        {
-            goto CleanupAndReturn;
-        }
             
         VirtualizationRoot* root = nullptr;
         int pid;
@@ -566,7 +560,6 @@ static bool ShouldHandleFileOpEvent(
     *root = VirtualizationRoots_FindForVnode(vnode);
     if (nullptr == *root)
     {
-        KextLog_FileNote(vnode, "ShouldHandleFileOpEvent(%d): No virtualization root found for file with set flag.", action);
         return false;
     }
     else if (nullptr == (*root)->providerUserClient)
@@ -733,35 +726,6 @@ static uint32_t ReadVNodeFileFlags(vnode_t vn, vfs_context_t context)
     assert(0 == err);
     assert(VATTR_IS_SUPPORTED(&attributes, va_flags));
     return attributes.va_flags;
-}
-
-static bool HasAncestorFlaggedAsInRoot(vnode_t vnode, vfs_context_t context)
-{
-    vnode_get(vnode);
-    
-    bool inRoot = false;
-	
-    // Search up the tree until we hit a folder know to be inside a virtualization root
-    // or the root of the file system
-    while (NULLVP != vnode && !vnode_isvroot(vnode))
-    {
-        uint32_t vnodeFileFlags = ReadVNodeFileFlags(vnode, context);
-        if (FileFlagsBitIsSet(vnodeFileFlags, FileFlags_IsInVirtualizationRoot))
-        {
-            inRoot = true;
-            break;
-        }
-        vnode_t parent = vnode_getparent(vnode);
-        vnode_put(vnode);
-        vnode = parent;
-    }
-    
-    if (NULLVP != vnode)
-    {
-        vnode_put(vnode);
-    }
-    
-    return inRoot;
 }
 
 static inline bool FileFlagsBitIsSet(uint32_t fileFlags, uint32_t bit)
