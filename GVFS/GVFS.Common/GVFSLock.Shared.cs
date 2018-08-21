@@ -81,13 +81,14 @@ namespace GVFS.Common
                     }
                 };
 
+            bool isSuccessfulLockResult;
             if (unattended)
             {
-                waitForLock();
+                isSuccessfulLockResult = waitForLock();
             }
             else
             {
-                ConsoleHelper.ShowStatusWhileRunning(
+                isSuccessfulLockResult = ConsoleHelper.ShowStatusWhileRunning(
                     waitForLock,
                     message,
                     output: Console.Out,
@@ -96,7 +97,7 @@ namespace GVFS.Common
             }
 
             result = null;
-            return true;
+            return isSuccessfulLockResult;
         }
 
         public static void ReleaseGVFSLock(

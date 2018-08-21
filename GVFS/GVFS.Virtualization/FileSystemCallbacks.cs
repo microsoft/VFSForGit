@@ -195,8 +195,11 @@ namespace GVFS.Virtualization
                 this.postFetchJobThread?.Abort();
             }
 
-            this.fileSystemVirtualizer.PrepareToStop();
+            // Shutdown the GitStatusCache before other
+            // components that it depends on.
             this.gitStatusCache.Shutdown();
+
+            this.fileSystemVirtualizer.PrepareToStop();
             this.backgroundFileSystemTaskRunner.Shutdown();
             this.GitIndexProjection.Shutdown();
             this.BlobSizes.Shutdown();
