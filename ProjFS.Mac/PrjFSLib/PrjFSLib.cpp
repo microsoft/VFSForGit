@@ -44,6 +44,8 @@ template<typename TPlaceholder> static bool InitializeEmptyPlaceholder(const cha
 static bool AddXAttr(const char* path, const char* name, const void* value, size_t size);
 static bool GetXAttr(const char* path, const char* name, size_t size, _Out_ void* value);
 
+static PrjFS_NotificationType KUMessageTypeToNotificationType(MessageType kuNotificationType);
+
 static bool IsVirtualizationRoot(const char* path);
 static void CombinePaths(const char* root, const char* relative, char (&combined)[PrjFSMaxPath]);
 
@@ -422,15 +424,6 @@ static void HandleKernelRequest(Message request, void* messageMemory)
         }
             
         case MessageType_KtoU_NotifyFileModified:
-        {
-            result = HandleFileNotification(
-                requestHeader,
-                request.path,
-                false,  // isDirectory
-                PrjFS_NotificationType_FileModified);
-            break;
-        }
-        
         case MessageType_KtoU_NotifyFilePreDelete:
         case MessageType_KtoU_NotifyDirectoryPreDelete:
         {
@@ -438,24 +431,11 @@ static void HandleKernelRequest(Message request, void* messageMemory)
                 requestHeader,
                 request.path,
                 requestHeader->messageType == MessageType_KtoU_NotifyDirectoryPreDelete,  // isDirectory
-                PrjFS_NotificationType_PreDelete);
+                KUMessageTypeToNotificationType(static_cast<MessageType>(requestHeader->messageType)));
             break;
         }
         
         case MessageType_KtoU_NotifyFileCreated:
-        {
-            char fullPath[PrjFSMaxPath];
-            CombinePaths(s_virtualizationRootFullPath.c_str(), request.path, fullPath);
-            SetBitInFileFlags(fullPath, FileFlags_IsInVirtualizationRoot, true);
-        
-            result = HandleFileNotification(
-                requestHeader,
-                request.path,
-                false,  // isDirectory
-                PrjFS_NotificationType_NewFileCreated);
-            break;
-        }
-        
         case MessageType_KtoU_NotifyFileRenamed:
         case MessageType_KtoU_NotifyDirectoryRenamed:
         case MessageType_KtoU_NotifyFileHardLinkCreated:
@@ -467,21 +447,11 @@ static void HandleKernelRequest(Message request, void* messageMemory)
             SetBitInFileFlags(fullPath, FileFlags_IsInVirtualizationRoot, true);
 
             bool isDirectory = requestHeader->messageType == MessageType_KtoU_NotifyDirectoryRenamed;
-            PrjFS_NotificationType notificationType;
-            if (requestHeader->messageType == MessageType_KtoU_NotifyFileHardLinkCreated)
-            {
-                notificationType = PrjFS_NotificationType_HardLinkCreated;
-            }
-            else
-            {
-                notificationType = PrjFS_NotificationType_FileRenamed;
-            }
-            
             result = HandleFileNotification(
                 requestHeader,
                 request.path,
                 isDirectory,
-                notificationType);
+                KUMessageTypeToNotificationType(static_cast<MessageType>(requestHeader->messageType)));
             break;
         }
     }
@@ -742,6 +712,39 @@ static bool GetXAttr(const char* path, const char* name, size_t size, _Out_ void
     }
     
     return false;
+}
+
+static inline PrjFS_NotificationType KUMessageTypeToNotificationType(MessageType kuNotificationType)
+{
+    switch(kuNotificationType)
+    {
+        case MessageType_KtoU_NotifyFileModified:
+            return PrjFS_NotificationType_FileModified;
+        
+        case MessageType_KtoU_NotifyFilePreDelete:
+        case MessageType_KtoU_NotifyDirectoryPreDelete:
+            return PrjFS_NotificationType_PreDelete;
+            
+        case MessageType_KtoU_NotifyFileCreated:
+            return PrjFS_NotificationType_NewFileCreated;
+            
+        case MessageType_KtoU_NotifyFileRenamed:
+        case MessageType_KtoU_NotifyDirectoryRenamed:
+            return PrjFS_NotificationType_FileRenamed;
+            
+        case MessageType_KtoU_NotifyFileHardLinkCreated:
+            return PrjFS_NotificationType_HardLinkCreated;
+        
+        // Non-notification types
+        case MessageType_Invalid:
+        case MessageType_UtoK_StartVirtualizationInstance:
+        case MessageType_UtoK_StopVirtualizationInstance:
+        case MessageType_KtoU_EnumerateDirectory:
+        case MessageType_KtoU_HydrateFile:
+        case MessageType_Response_Success:
+        case MessageType_Response_Fail:
+            return PrjFS_NotificationType_Invalid;
+    }
 }
 
 static errno_t SendKernelMessageResponse(uint64_t messageId, MessageType responseType)

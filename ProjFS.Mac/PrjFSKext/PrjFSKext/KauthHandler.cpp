@@ -35,9 +35,9 @@ static int HandleFileOpOperation(
 static int GetPid(vfs_context_t context);
 
 static uint32_t ReadVNodeFileFlags(vnode_t vn, vfs_context_t context);
-static inline bool FileFlagsBitIsSet(uint32_t fileFlags, uint32_t bit);
-static inline bool FileIsFlaggedAsInRoot(vnode_t vnode, vfs_context_t context);
-static inline bool ActionBitIsSet(kauth_action_t action, kauth_action_t mask);
+static bool FileFlagsBitIsSet(uint32_t fileFlags, uint32_t bit);
+static bool FileIsFlaggedAsInRoot(vnode_t vnode, vfs_context_t context);
+static bool ActionBitIsSet(kauth_action_t action, kauth_action_t mask);
 
 static bool IsFileSystemCrawler(char* procname);
 
@@ -394,17 +394,6 @@ static int HandleFileOpOperation(
             goto CleanupAndReturn;
         }
         
-        vtype vnodeType = vnode_vtype(currentVnodeFromPath);
-        if (ShouldIgnoreVnodeType(vnodeType, currentVnodeFromPath))
-        {
-            goto CleanupAndReturn;
-        }
-        
-        if (!HasAncestorFlaggedAsInRoot(currentVnodeFromPath, context))
-        {
-            goto CleanupAndReturn;
-        }
-        
         VirtualizationRoot* root = nullptr;
         int pid;
         if (!ShouldHandleFileOpEvent(
@@ -449,12 +438,6 @@ static int HandleFileOpOperation(
         vnode_t currentVnode = reinterpret_cast<vnode_t>(arg0);
         // arg1 is the (const char *) path
         int closeFlags = static_cast<int>(arg2);
-        
-        vtype vnodeType = vnode_vtype(currentVnode);
-        if (ShouldIgnoreVnodeType(vnodeType, currentVnode))
-        {
-            goto CleanupAndReturn;
-        }
         
         if (vnode_isdir(currentVnode))
         {
@@ -630,6 +613,12 @@ static bool ShouldHandleFileOpEvent(
     VirtualizationRoot** root,
     int* pid)
 {
+    vtype vnodeType = vnode_vtype(vnode);
+    if (ShouldIgnoreVnodeType(vnodeType, vnode))
+    {
+        return false;
+    }
+
     *root = VirtualizationRoots_FindForVnode(vnode);
     if (nullptr == *root)
     {
