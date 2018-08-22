@@ -1,4 +1,4 @@
-﻿using GVFS.Common.FileSystem;
+using GVFS.Common.FileSystem;
 using GVFS.Common.Tracing;
 using System;
 using System.ComponentModel;
@@ -52,6 +52,25 @@ namespace GVFS.Common
         }
 
         public string Signature { get; private set; }
+
+        public bool IsFree()
+        {
+            lock (this.deleteOnCloseStreamLock)
+            {
+                if (this.IsOpen())
+                {
+                    return false;
+                }
+            }
+
+            if (this.TryAcquireLockAndDeleteOnClose())
+            {
+                this.TryReleaseLock();
+                return true;
+            }
+
+            return false;
+        }
 
         public bool TryAcquireLockAndDeleteOnClose()
         {

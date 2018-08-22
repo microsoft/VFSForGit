@@ -74,6 +74,7 @@
     <Compile Include="..\GVFS.Common\ProcessResult.cs">
       <Link>Common\ProcessResult.cs</Link>
     </Compile>
+    <Compile Include="..\GVFS.Common\ProductUpgrader.Shared.cs" Link="Common\ProductUpgrader.Shared.cs" />
     <Compile Include="..\GVFS.Common\Tracing\EventLevel.cs">
       <Link>Common\Tracing\EventLevel.cs</Link>
     </Compile>

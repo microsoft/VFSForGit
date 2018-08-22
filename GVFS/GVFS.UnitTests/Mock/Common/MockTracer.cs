@@ -1,4 +1,4 @@
-﻿using GVFS.Common.Tracing;
+using GVFS.Common.Tracing;
 using Newtonsoft.Json;
 using System;
 using System.Collections.Generic;
@@ -15,12 +15,14 @@ namespace GVFS.UnitTests.Mock.Common
             this.waitEvent = new AutoResetEvent(false);
             this.RelatedInfoEvents = new List<string>();
             this.RelatedWarningEvents = new List<string>();
+            this.RelatedErrorEvents = new List<string>();
         }
 
         public string WaitRelatedEventName { get; set; }
 
         public List<string> RelatedInfoEvents { get; }
         public List<string> RelatedWarningEvents { get; }
+        public List<string> RelatedErrorEvents { get; }
 
         public void WaitForRelatedEvent()
         {
@@ -71,18 +73,23 @@ namespace GVFS.UnitTests.Mock.Common
         
         public void RelatedError(EventMetadata metadata, string message)
         {
+            metadata[TracingConstants.MessageKey.ErrorMessage] = message;
+            this.RelatedErrorEvents.Add(JsonConvert.SerializeObject(metadata));
         }
 
         public void RelatedError(EventMetadata metadata, string message, Keywords keyword)
         {
+            this.RelatedError(metadata, message);
         }
 
         public void RelatedError(string message)
         {
+            this.RelatedErrorEvents.Add(message);
         }
 
         public void RelatedError(string format, params object[] args)
         {
+            this.RelatedErrorEvents.Add(string.Format(format, args));
         }
 
         public ITracer StartActivity(string activityName, EventLevel level)
