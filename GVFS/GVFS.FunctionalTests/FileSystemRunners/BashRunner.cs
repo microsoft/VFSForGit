@@ -166,7 +166,7 @@ namespace GVFS.FunctionalTests.FileSystemRunners
         public override void CreateHardLink(string existingPath, string newLinkPath)
         {
             string existingFileBashPath = this.ConvertWinPathToBashPath(existingPath);
-            string newLinkBashPath = this.ConvertWinPathToBashPath(existingPath);
+            string newLinkBashPath = this.ConvertWinPathToBashPath(newLinkPath);
 
             this.RunProcess(string.Format("-c \"ln {0} {1}\"", existingFileBashPath, newLinkBashPath));
         }

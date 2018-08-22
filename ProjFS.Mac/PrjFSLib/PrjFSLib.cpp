@@ -44,7 +44,7 @@ template<typename TPlaceholder> static bool InitializeEmptyPlaceholder(const cha
 static bool AddXAttr(const char* path, const char* name, const void* value, size_t size);
 static bool GetXAttr(const char* path, const char* name, size_t size, _Out_ void* value);
 
-static PrjFS_NotificationType KUMessageTypeToNotificationType(MessageType kuNotificationType);
+static inline PrjFS_NotificationType KUMessageTypeToNotificationType(MessageType kuNotificationType);
 
 static bool IsVirtualizationRoot(const char* path);
 static void CombinePaths(const char* root, const char* relative, char (&combined)[PrjFSMaxPath]);

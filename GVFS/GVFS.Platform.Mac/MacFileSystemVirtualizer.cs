@@ -352,8 +352,9 @@ namespace GVFS.Platform.Mac
         
         private void OnFileRenamed(string relativeDestinationPath, bool isDirectory)
         {
-            // relativeSourcePath is handled in the OnPreDelete callback that's triggered
-            // prior to OnFileRenamed
+            // ProjFS for Mac *could* be updated to provide us with relativeSourcePath as well,
+            // but because VFSForGit doesn't need the source path on Mac for correct behavior
+            // the relativeSourcePath is left out of the notification to keep the kext simple
             this.OnFileRenamed(
                 relativeSourcePath: string.Empty, 
                 relativeDestinationPath: relativeDestinationPath, 
@@ -363,7 +364,7 @@ namespace GVFS.Platform.Mac
         private void OnHardLinkCreated(string relativeNewLinkPath)
         {
             this.OnHardLinkCreated(
-                relativeTargetPath: string.Empty, 
+                relativeExistingFilePath: string.Empty, 
                 relativeNewLinkPath: relativeNewLinkPath);
         }
 

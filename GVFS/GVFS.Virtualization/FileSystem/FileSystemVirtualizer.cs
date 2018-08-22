@@ -242,7 +242,7 @@ namespace GVFS.Virtualization.FileSystem
             }
         }
 
-        protected void OnHardLinkCreated(string relativeTargetPath, string relativeNewLinkPath)
+        protected void OnHardLinkCreated(string relativeExistingFilePath, string relativeNewLinkPath)
         {
             try
             {
@@ -260,7 +260,7 @@ namespace GVFS.Virtualization.FileSystem
             catch (Exception e)
             {
                 EventMetadata metadata = this.CreateEventMetadata(relativeNewLinkPath, e);
-                metadata.Add(nameof(relativeTargetPath), relativeTargetPath);
+                metadata.Add(nameof(relativeExistingFilePath), relativeExistingFilePath);
                 this.LogUnhandledExceptionAndExit(nameof(this.OnHardLinkCreated), metadata);
             }
         }

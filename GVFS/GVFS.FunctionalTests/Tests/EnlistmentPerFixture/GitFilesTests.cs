@@ -3,7 +3,6 @@ using GVFS.FunctionalTests.Should;
 using GVFS.FunctionalTests.Tools;
 using GVFS.Tests.Should;
 using NUnit.Framework;
-using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -12,7 +11,7 @@ using System.Threading;
 
 namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
 {
-    [TestFixtureSource(typeof(GitFilesTestsRunners), GitFilesTestsRunners.TestRunners)]
+    [TestFixtureSource(typeof(FileSystemRunner), FileSystemRunner.TestRunners)]
     [Category(Categories.Mac.M2)]
     public class GitFilesTests : TestsWithEnlistmentPerFixture
     {
@@ -49,21 +48,21 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
                 return;
             }
 
-            string targetFileName = "hardLinkTarget.txt";
-            string targetFilePath = this.Enlistment.GetVirtualPathTo(targetFileName);
-            GVFSHelpers.ModifiedPathsShouldNotContain(this.fileSystem, this.Enlistment.DotGVFSRoot, targetFileName);
-            this.fileSystem.WriteAllText(targetFilePath, "Some content here");
+            string existingFileName = "fileToLinkTo.txt";
+            string existingFilePath = this.Enlistment.GetVirtualPathTo(existingFileName);
+            GVFSHelpers.ModifiedPathsShouldNotContain(this.fileSystem, this.Enlistment.DotGVFSRoot, existingFileName);
+            this.fileSystem.WriteAllText(existingFilePath, "Some content here");
             this.Enlistment.WaitForBackgroundOperations().ShouldEqual(true, "Background operations failed to complete.");
-            GVFSHelpers.ModifiedPathsShouldContain(this.fileSystem, this.Enlistment.DotGVFSRoot, targetFileName);
-            targetFilePath.ShouldBeAFile(this.fileSystem).WithContents("Some content here");
+            GVFSHelpers.ModifiedPathsShouldContain(this.fileSystem, this.Enlistment.DotGVFSRoot, existingFileName);
+            existingFilePath.ShouldBeAFile(this.fileSystem).WithContents("Some content here");
 
-            string linkFileName = "hardLink.txt";
-            string linkFilePath = this.Enlistment.GetVirtualPathTo(linkFileName);
-            GVFSHelpers.ModifiedPathsShouldNotContain(this.fileSystem, this.Enlistment.DotGVFSRoot, linkFileName);
-            this.fileSystem.CreateHardLink(targetFilePath, linkFilePath);
+            string newLinkFileName = "newHardLink.txt";
+            string newLinkFilePath = this.Enlistment.GetVirtualPathTo(newLinkFileName);
+            GVFSHelpers.ModifiedPathsShouldNotContain(this.fileSystem, this.Enlistment.DotGVFSRoot, newLinkFileName);
+            this.fileSystem.CreateHardLink(existingFilePath, newLinkFilePath);
             this.Enlistment.WaitForBackgroundOperations().ShouldEqual(true, "Background operations failed to complete.");
-            GVFSHelpers.ModifiedPathsShouldContain(this.fileSystem, this.Enlistment.DotGVFSRoot, linkFileName);
-            linkFilePath.ShouldBeAFile(this.fileSystem).WithContents("Some content here");
+            GVFSHelpers.ModifiedPathsShouldContain(this.fileSystem, this.Enlistment.DotGVFSRoot, newLinkFileName);
+            newLinkFilePath.ShouldBeAFile(this.fileSystem).WithContents("Some content here");
         }
 
         [TestCase, Order(3)]
@@ -375,30 +374,6 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
         {
             public const char Cached = 'H';
             public const char SkipWorktree = 'S';
-        }
-
-        private class GitFilesTestsRunners
-        {
-            public const string TestRunners = "Runners";
-
-            public static object[] Runners
-            {
-                get
-                {
-                    // Don't use the BashRunner for GitFilesTests as the BashRunner always strips off the last trailing newline (\n)
-                    // and we expect there to be a trailing new line
-                    List<object[]> runners = new List<object[]>();
-                    foreach (object[] runner in FileSystemRunner.Runners.ToList())
-                    {
-                        if (!(runner.ToList().First() is BashRunner))
-                        {
-                            runners.Add(new object[] { runner.ToList().First() });
-                        }
-                    }
-
-                    return runners.ToArray();
-                }
-            }
         }
     }
 }

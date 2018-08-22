@@ -35,9 +35,9 @@ static int HandleFileOpOperation(
 static int GetPid(vfs_context_t context);
 
 static uint32_t ReadVNodeFileFlags(vnode_t vn, vfs_context_t context);
-static bool FileFlagsBitIsSet(uint32_t fileFlags, uint32_t bit);
-static bool FileIsFlaggedAsInRoot(vnode_t vnode, vfs_context_t context);
-static bool ActionBitIsSet(kauth_action_t action, kauth_action_t mask);
+static inline bool FileFlagsBitIsSet(uint32_t fileFlags, uint32_t bit);
+static inline bool FileIsFlaggedAsInRoot(vnode_t vnode, vfs_context_t context);
+static inline bool ActionBitIsSet(kauth_action_t action, kauth_action_t mask);
 
 static bool IsFileSystemCrawler(char* procname);
 
@@ -341,7 +341,8 @@ static int HandleVnodeOperation(
                 KAUTH_VNODE_WRITE_EXTATTRIBUTES |
                 KAUTH_VNODE_READ_DATA |
                 KAUTH_VNODE_WRITE_DATA |
-                KAUTH_VNODE_EXECUTE))
+                KAUTH_VNODE_EXECUTE |
+                KAUTH_VNODE_DELETE)) // Hydrate on delete to ensure files are hydrated before rename operations
         {
             if (FileFlagsBitIsSet(currentVnodeFileFlags, FileFlags_IsEmpty))
             {
@@ -387,7 +388,8 @@ static int HandleFileOpOperation(
         // arg0 is the (const char *) fromPath (or the file being linked to)
         const char* newPath = (const char*)arg1;
         
-        // TODO(Mac): Improve error handling
+        // TODO(Mac): We need to handle failures to lookup the vnode.  If we fail to lookup the vnode
+        // it's possible that we'll miss notifications
         errno_t toErr = vnode_lookup(newPath, 0 /* flags */, &currentVnodeFromPath, context);
         if (0 != toErr)
         {
@@ -422,13 +424,13 @@ static int HandleFileOpOperation(
         int kauthResult;
         int kauthError;
         if (!TrySendRequestAndWaitForResponse(
-            root,
-            messageType,
-            currentVnodeFromPath,
-            pid,
-            procname,
-            &kauthResult,
-            &kauthError))
+                root,
+                messageType,
+                currentVnodeFromPath,
+                pid,
+                procname,
+                &kauthResult,
+                &kauthError))
         {
             goto CleanupAndReturn;
         }

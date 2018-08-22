@@ -1227,10 +1227,10 @@ namespace GVFS.Platform.Windows
         }
 
         private void NotifyHardlinkCreated(
-            string relativePath,
-            string destinationPath)
+            string relativeExistingFilePath,
+            string relativeNewLinkPath)
         {
-            this.OnHardLinkCreated(relativePath, destinationPath);
+            this.OnHardLinkCreated(relativeExistingFilePath, relativeNewLinkPath);
         }
 
         private void NotifyFileHandleClosedFileModifiedOrDeletedHandler(

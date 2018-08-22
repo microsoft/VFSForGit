@@ -1,4 +1,5 @@
-﻿using System;
+﻿using NUnit.Framework;
+using System;
 
 namespace GVFS.FunctionalTests.FileSystemRunners
 {
@@ -46,7 +47,10 @@ namespace GVFS.FunctionalTests.FileSystemRunners
             get { return defaultRunner; }
         }
 
-        public abstract bool SupportsHardlinkCreation { get; }
+        public virtual bool SupportsHardlinkCreation 
+        { 
+            get { return false; } 
+        }
 
         // File methods
         public abstract bool FileExists(string path);       
@@ -71,7 +75,10 @@ namespace GVFS.FunctionalTests.FileSystemRunners
 
         public abstract void CreateEmptyFile(string path);
 
-        public abstract void CreateHardLink(string targetPath, string newLinkPath);
+        public virtual void CreateHardLink(string targetPath, string newLinkPath)
+        {
+            Assert.Fail($"This runner does not support {nameof(this.CreateHardLink)}");
+        }
 
         /// <summary>
         /// Write the specified contents to the specified file.  By calling this method the caller is

@@ -321,19 +321,19 @@ namespace MirrorProvider.Windows
         }
 
         private void OnFileRenamed(
-            string relativePath,
+            string relativeSourcePath,
             string relativeDestinationPath,
             bool isDirectory,
             ref NotificationType notificationMask)
         {
-            Console.WriteLine($"OnFileRenamed (isDirectory: {isDirectory}), relativePath: {relativePath}, relativeDestinationPath: {relativeDestinationPath}");
+            Console.WriteLine($"OnFileRenamed (isDirectory: {isDirectory}), relativeSourcePath: {relativeSourcePath}, relativeDestinationPath: {relativeDestinationPath}");
         }
 
         private void OnHardlinkCreated(
-            string relativePath,
-            string relativeDestinationPath)
+            string relativeExistingFilePath,
+            string relativeNewLinkFilePath)
         {
-            Console.WriteLine($"OnHardlinkCreated, relativePath: {relativePath}, relativeDestinationPath: {relativeDestinationPath}");
+            Console.WriteLine($"OnHardlinkCreated, relativeExistingFilePath: {relativeExistingFilePath}, relativeNewLinkFilePath: {relativeNewLinkFilePath}");
         }
 
         // TODO: Add this to the ProjFS API
