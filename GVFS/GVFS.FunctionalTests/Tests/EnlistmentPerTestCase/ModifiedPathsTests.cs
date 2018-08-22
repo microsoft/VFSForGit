@@ -3,7 +3,9 @@ using GVFS.FunctionalTests.Should;
 using GVFS.FunctionalTests.Tools;
 using GVFS.Tests.Should;
 using NUnit.Framework;
+using System;
 using System.IO;
+using System.Linq;
 
 namespace GVFS.FunctionalTests.Tests.EnlistmentPerTestCase
 {
@@ -23,26 +25,64 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerTestCase
         private static readonly string FileToCreateOutsideRepo = $"{nameof(ModifiedPathsTests)}_outsideRepo.txt";
         private static readonly string FolderToCreateOutsideRepo = $"{nameof(ModifiedPathsTests)}_outsideFolder";
         private static readonly string FolderToDelete = "Scripts";
-        private static readonly string ExpectedModifiedFilesContentsAfterRemount = 
-$@"A .gitattributes
-A {GVFSHelpers.ConvertPathToGitFormat(FileToAdd)}
-A {GVFSHelpers.ConvertPathToGitFormat(FileToUpdate)}
-A {FileToDelete}
-A {GVFSHelpers.ConvertPathToGitFormat(FileToRename)}
-A {GVFSHelpers.ConvertPathToGitFormat(RenameFileTarget)}
-A {FolderToCreate}/
-A {FolderToRename}/
-A {RenameFolderTarget}/
-A {RenameNewDotGitFileTarget}
-A {FileToCreateOutsideRepo}
-A {FolderToCreateOutsideRepo}/
-A {FolderToDelete}/CreateCommonAssemblyVersion.bat
-A {FolderToDelete}/CreateCommonCliAssemblyVersion.bat
-A {FolderToDelete}/CreateCommonVersionHeader.bat
-A {FolderToDelete}/RunFunctionalTests.bat
-A {FolderToDelete}/RunUnitTests.bat
-A {FolderToDelete}/
-";
+        private static readonly string[] ExpectedModifiedFilesContentsAfterRemount =
+            {
+                $"A .gitattributes",
+                $"A {GVFSHelpers.ConvertPathToGitFormat(FileToAdd)}",
+                $"A {GVFSHelpers.ConvertPathToGitFormat(FileToUpdate)}",
+                $"A {FileToDelete}",
+                $"A {GVFSHelpers.ConvertPathToGitFormat(FileToRename)}",
+                $"A {GVFSHelpers.ConvertPathToGitFormat(RenameFileTarget)}",
+                $"A {FolderToCreate}/",
+                $"A {FolderToRename}/",
+                $"A {RenameFolderTarget}/",
+                $"A {RenameNewDotGitFileTarget}",
+                $"A {FileToCreateOutsideRepo}",
+                $"A {FolderToCreateOutsideRepo}/",
+                $"A {FolderToDelete}/CreateCommonAssemblyVersion.bat",
+                $"A {FolderToDelete}/CreateCommonCliAssemblyVersion.bat",
+                $"A {FolderToDelete}/CreateCommonVersionHeader.bat",
+                $"A {FolderToDelete}/RunFunctionalTests.bat",
+                $"A {FolderToDelete}/RunUnitTests.bat",
+                $"A {FolderToDelete}/",
+            };
+
+        [TestCaseSource(typeof(FileSystemRunner), FileSystemRunner.TestRunners)]
+        public void DeletedTempFileIsRemovedFromModifiedFiles(FileSystemRunner fileSystem)
+        {
+            string tempFile = this.CreateFile(fileSystem, "temp.txt");
+            fileSystem.DeleteFile(tempFile);
+            tempFile.ShouldNotExistOnDisk(fileSystem);
+
+            this.Enlistment.UnmountGVFS();
+            this.ValidateModifiedPathsDoNotContain(fileSystem, "temp.txt");
+        }
+
+        [TestCaseSource(typeof(FileSystemRunner), FileSystemRunner.TestRunners)]
+        public void DeletedTempFolderIsRemovedFromModifiedFiles(FileSystemRunner fileSystem)
+        {
+            string tempFolder = this.CreateDirectory(fileSystem, "Temp");
+            fileSystem.DeleteDirectory(tempFolder);
+            tempFolder.ShouldNotExistOnDisk(fileSystem);
+
+            this.Enlistment.UnmountGVFS();
+            this.ValidateModifiedPathsDoNotContain(fileSystem, "Temp/");
+        }
+
+        [TestCaseSource(typeof(FileSystemRunner), FileSystemRunner.TestRunners)]
+        public void DeletedTempFolderDeletesFilesFromModifiedFiles(FileSystemRunner fileSystem)
+        {
+            string tempFolder = this.CreateDirectory(fileSystem, "Temp");
+            string tempFile1 = this.CreateFile(fileSystem, Path.Combine("Temp", "temp1.txt"));
+            string tempFile2 = this.CreateFile(fileSystem, Path.Combine("Temp", "temp2.txt"));
+            fileSystem.DeleteDirectory(tempFolder);
+            tempFolder.ShouldNotExistOnDisk(fileSystem);
+            tempFile1.ShouldNotExistOnDisk(fileSystem);
+            tempFile2.ShouldNotExistOnDisk(fileSystem);
+
+            this.Enlistment.UnmountGVFS();
+            this.ValidateModifiedPathsDoNotContain(fileSystem, "Temp/", "Temp/temp1.txt", "Temp/temp2.txt");
+        }
 
         [Category(Categories.MacTODO.M2)]
         [TestCaseSource(typeof(FileSystemRunner), FileSystemRunner.TestRunners)]
@@ -114,7 +154,8 @@ A {FolderToDelete}/
             modifiedPathsDatabase.ShouldBeAFile(fileSystem);
             using (StreamReader reader = new StreamReader(File.Open(modifiedPathsDatabase, FileMode.Open, FileAccess.Read, FileShare.ReadWrite)))
             {
-                reader.ReadToEnd().ShouldEqual(ExpectedModifiedFilesContentsAfterRemount);
+                reader.ReadToEnd().Split(new char[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries).OrderBy(x => x)
+                    .ShouldMatchInOrder(ExpectedModifiedFilesContentsAfterRemount.OrderBy(x => x));
             }
         }
 
@@ -159,6 +200,28 @@ A LinkToFileOutsideSrc.txt
             {
                 reader.ReadToEnd().ShouldEqual(ExpectedModifiedFilesContentsAfterHardlinks);
             }
+        }
+
+        private string CreateDirectory(FileSystemRunner fileSystem, string relativePath)
+        {
+            string tempFolder = this.Enlistment.GetVirtualPathTo(relativePath);
+            fileSystem.CreateDirectory(tempFolder);
+            tempFolder.ShouldBeADirectory(fileSystem);
+            return tempFolder;
+        }
+
+        private string CreateFile(FileSystemRunner fileSystem, string relativePath)
+        {
+            string tempFile = this.Enlistment.GetVirtualPathTo(relativePath);
+            fileSystem.WriteAllText(tempFile, $"Contents for the {relativePath} file");
+            tempFile.ShouldBeAFile(fileSystem);
+            return tempFile;
+        }
+
+        private void ValidateModifiedPathsDoNotContain(FileSystemRunner fileSystem, params string[] paths)
+        {
+            GVFSHelpers.ModifiedPathsShouldNotContain(fileSystem, this.Enlistment.DotGVFSRoot, paths.Select(x => $"A {x}" + Environment.NewLine).ToArray());
+            GVFSHelpers.ModifiedPathsShouldNotContain(fileSystem, this.Enlistment.DotGVFSRoot, paths.Select(x => $"D {x}" + Environment.NewLine).ToArray());
         }
     }
 }
