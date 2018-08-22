@@ -1365,19 +1365,23 @@ namespace GVFS.Platform.Windows
                 NotificationType.PreRename |
                 NotificationType.PreDelete |
                 NotificationType.FileRenamed |
+                NotificationType.HardlinkCreated |
                 NotificationType.FileHandleClosedFileModified;
 
             public const NotificationType LogsHeadFile = 
-                NotificationType.FileRenamed | 
+                NotificationType.FileRenamed |
+                NotificationType.HardlinkCreated |
                 NotificationType.FileHandleClosedFileModified;
 
             public const NotificationType ExcludeAndHeadFile =
                 NotificationType.FileRenamed |
+                NotificationType.HardlinkCreated |
                 NotificationType.FileHandleClosedFileDeleted |
                 NotificationType.FileHandleClosedFileModified;
 
             public const NotificationType FilesAndFoldersInRefsHeads =
                 NotificationType.FileRenamed |
+                NotificationType.HardlinkCreated |
                 NotificationType.FileHandleClosedFileDeleted |
                 NotificationType.FileHandleClosedFileModified;
 
@@ -1385,6 +1389,7 @@ namespace GVFS.Platform.Windows
                 NotificationType.NewFileCreated |
                 NotificationType.FileSupersededOrOverwritten |
                 NotificationType.FileRenamed |
+                NotificationType.HardlinkCreated |
                 NotificationType.FileHandleClosedFileDeleted |
                 NotificationType.FilePreConvertToFull |
                 NotificationType.FileHandleClosedFileModified;
