@@ -35,7 +35,7 @@ namespace GVFS.FunctionalTests.FileSystemRunners
             }
         }
 
-        public static void DeleteDirectoryWithRetry(string path)
+        public static void DeleteDirectoryWithUnlimitedRetries(string path)
         {
             CmdRunner runner = new CmdRunner();
             bool pathExists = Directory.Exists(path);

@@ -563,14 +563,11 @@ namespace GVFS.CommandLine
 
             this.CreateGitScript(enlistment);
 
-            if (!GVFSPlatform.Instance.IsUnderConstruction)
+            string installHooksError;
+            if (!HooksInstaller.InstallHooks(context, out installHooksError))
             {
-                string installHooksError;
-                if (!HooksInstaller.InstallHooks(context, out installHooksError))
-                {
-                    tracer.RelatedError(installHooksError);
-                    return new Result(installHooksError);
-                }
+                tracer.RelatedError(installHooksError);
+                return new Result(installHooksError);
             }
 
             GitProcess.Result forceCheckoutResult = git.ForceCheckout(branch);

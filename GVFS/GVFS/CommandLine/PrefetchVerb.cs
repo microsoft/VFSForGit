@@ -3,14 +3,10 @@ using GVFS.Common;
 using GVFS.Common.FileSystem;
 using GVFS.Common.Git;
 using GVFS.Common.Http;
-using GVFS.Common.NamedPipes;
 using GVFS.Common.Prefetch;
 using GVFS.Common.Tracing;
 using System;
-using System.Collections.Generic;
 using System.IO;
-using System.Linq;
-using System.Threading;
 
 namespace GVFS.CommandLine
 {
@@ -159,17 +155,7 @@ namespace GVFS.CommandLine
                             this.ReportErrorAndExit(tracer, "You can only specify --hydrate with --files or --folders");
                         }
 
-                        PhysicalFileSystem fileSystem = new PhysicalFileSystem();
-                        using (FileBasedLock prefetchLock = new FileBasedLock(
-                            fileSystem,
-                            tracer,
-                            Path.Combine(enlistment.GitPackRoot, PrefetchCommitsAndTreesLock),
-                            enlistment.EnlistmentRoot,
-                            overwriteExistingLock: true))
-                        {
-                            this.WaitUntilLockIsAcquired(tracer, prefetchLock);
-                            this.PrefetchCommits(tracer, enlistment, objectRequestor, cacheServer);
-                        }
+                        this.PrefetchCommits(tracer, enlistment, objectRequestor, cacheServer);
                     }
                     else
                     {
@@ -216,21 +202,6 @@ namespace GVFS.CommandLine
             }
         }
 
-        private void WaitUntilLockIsAcquired(ITracer tracer, FileBasedLock fileBasedLock)
-        {
-            int attempt = 0;
-            while (!fileBasedLock.TryAcquireLockAndDeleteOnClose())
-            {
-                Thread.Sleep(LockWaitTimeMs);
-                ++attempt;
-                if (attempt == WaitingOnLockLogThreshold)
-                {
-                    attempt = 0;
-                    tracer.RelatedInfo("WaitUntilLockIsAcquired: Waiting to acquire prefetch lock");
-                }
-            }
-        }
-
         private void PrefetchCommits(ITracer tracer, GVFSEnlistment enlistment, GitObjectsHttpRequestor objectRequestor, CacheServerInfo cacheServer)
         {
             bool success;
@@ -239,64 +210,19 @@ namespace GVFS.CommandLine
             GitRepo repo = new GitRepo(tracer, enlistment, fileSystem);
             GVFSContext context = new GVFSContext(tracer, fileSystem, repo, enlistment);
             GitObjects gitObjects = new GVFSGitObjects(context, objectRequestor);
-            List<string> packIndexes = null;
+
             if (this.Verbose)
             {
-                success = this.TryPrefetchCommitsAndTrees(tracer, enlistment, fileSystem, gitObjects, out error, out packIndexes);
+                success = CommitPrefetcher.TryPrefetchCommitsAndTrees(tracer, enlistment, fileSystem, gitObjects, out error);
             }
             else
             {
                 success = this.ShowStatusWhileRunning(
-                    () => this.TryPrefetchCommitsAndTrees(tracer, enlistment, fileSystem, gitObjects, out error, out packIndexes),
-                    "Fetching commits and trees " + this.GetCacheServerDisplay(cacheServer));
+                    () => CommitPrefetcher.TryPrefetchCommitsAndTrees(tracer, enlistment, fileSystem, gitObjects, out error),
+                    "Fetching commits and trees " + this.GetCacheServerDisplay(cacheServer, enlistment.RepoUrl));
             }
 
-            if (success)
-            {
-                if (packIndexes.Count == 0)
-                {
-                    return;
-                }
-
-                // We make a best-effort request to run MIDX and commit-graph writes
-                using (NamedPipeClient pipeClient = new NamedPipeClient(enlistment.NamedPipeName))
-                {
-                    if (!pipeClient.Connect())
-                    {
-                        tracer.RelatedWarning(
-                            metadata: null,
-                            message: "Failed to connect to GVFS. Skipping post-fetch job request.",
-                            keywords: Keywords.Telemetry);
-                        return;
-                    }
-
-                    NamedPipeMessages.RunPostFetchJob.Request request = new NamedPipeMessages.RunPostFetchJob.Request(packIndexes);
-                    if (pipeClient.TrySendRequest(request.CreateMessage()))
-                    {
-                        NamedPipeMessages.Message response;
-
-                        if (pipeClient.TryReadResponse(out response))
-                        {
-                            tracer.RelatedInfo("Requested post-fetch job with resonse '{0}'", response.Header);
-                        }
-                        else
-                        {
-                            tracer.RelatedWarning(
-                                metadata: null,
-                                message: "Requested post-fetch job failed to respond",
-                                keywords: Keywords.Telemetry);
-                        }
-                    }
-                    else
-                    {
-                        tracer.RelatedWarning(
-                            metadata: null,
-                            message: "Message to named pipe failed to send, skipping post-fetch job request.",
-                            keywords: Keywords.Telemetry);
-                    }
-                }
-            }
-            else
+            if (!success)
             {
                 this.ReportErrorAndExit(tracer, "Prefetching commits and trees failed: " + error);
             }
@@ -304,7 +230,7 @@ namespace GVFS.CommandLine
 
         private void PrefetchBlobs(ITracer tracer, GVFSEnlistment enlistment, GitObjectsHttpRequestor blobRequestor, CacheServerInfo cacheServer)
         {
-            PrefetchHelper fetchHelper = new PrefetchHelper(
+            BlobPrefetcher blobPrefetcher = new BlobPrefetcher(
                 tracer,
                 enlistment,
                 blobRequestor,
@@ -314,18 +240,18 @@ namespace GVFS.CommandLine
                 IndexThreadCount);
 
             string error;
-            if (!PrefetchHelper.TryLoadFolderList(enlistment, this.Folders, this.FoldersListFile, fetchHelper.FolderList, out error))
+            if (!BlobPrefetcher.TryLoadFolderList(enlistment, this.Folders, this.FoldersListFile, blobPrefetcher.FolderList, out error))
             {
                 this.ReportErrorAndExit(tracer, error);
             }
 
-            if (!PrefetchHelper.TryLoadFileList(enlistment, this.Files, fetchHelper.FileList, out error))
+            if (!BlobPrefetcher.TryLoadFileList(enlistment, this.Files, blobPrefetcher.FileList, out error))
             {
                 this.ReportErrorAndExit(tracer, error);
             }
 
-            if (fetchHelper.FolderList.Count == 0 &&
-                fetchHelper.FileList.Count == 0)
+            if (blobPrefetcher.FolderList.Count == 0 &&
+                blobPrefetcher.FileList.Count == 0)
             {
                 this.ReportErrorAndExit(tracer, "Did you mean to fetch all blobs? If so, specify `--files *` to confirm.");
             }
@@ -358,16 +284,16 @@ namespace GVFS.CommandLine
                 {
                     try
                     {
-                        fetchHelper.PrefetchWithStats(
+                        blobPrefetcher.PrefetchWithStats(
                             headCommitId.Trim(),
                             isBranch: false,
                             readFilesAfterDownload: this.HydrateFiles,
                             matchedBlobCount: out matchedBlobCount,
                             downloadedBlobCount: out downloadedBlobCount,
                             readFileCount: out readFileCount);
-                        return !fetchHelper.HasFailures;
+                        return !blobPrefetcher.HasFailures;
                     }
-                    catch (PrefetchHelper.FetchException e)
+                    catch (BlobPrefetcher.FetchException e)
                     {
                         tracer.RelatedError(e.Message);
                         return false;
@@ -384,10 +310,10 @@ namespace GVFS.CommandLine
                     this.HydrateFiles
                     ? "Fetching blobs and hydrating files "
                     : "Fetching blobs ";
-                this.ShowStatusWhileRunning(doPrefetch, message + this.GetCacheServerDisplay(cacheServer));
+                this.ShowStatusWhileRunning(doPrefetch, message + this.GetCacheServerDisplay(cacheServer, enlistment.RepoUrl));
             }
 
-            if (fetchHelper.HasFailures)
+            if (blobPrefetcher.HasFailures)
             {
                 Environment.ExitCode = 1;
             }
@@ -426,160 +352,14 @@ namespace GVFS.CommandLine
             }
         }
 
-        private bool TryPrefetchCommitsAndTrees(
-            ITracer tracer,
-            GVFSEnlistment enlistment,
-            PhysicalFileSystem fileSystem,
-            GitObjects gitObjects,
-            out string error,
-            out List<string> packIndexes)
+        private string GetCacheServerDisplay(CacheServerInfo cacheServer, string repoUrl)
         {
-            long maxGoodTimeStamp;
-            if (!this.TryGetMaxGoodPrefetchTimestamp(tracer, enlistment, fileSystem, gitObjects, out maxGoodTimeStamp, out error))
-            {
-                packIndexes = null;
-                return false;
-            }
-
-            if (!gitObjects.TryDownloadPrefetchPacks(maxGoodTimeStamp, out packIndexes))
-            {
-                error = "Failed to download prefetch packs";
-                return false;
-            }
-
-            return true;
-        }
-
-        private bool TryGetMaxGoodPrefetchTimestamp(
-            ITracer tracer,
-            GVFSEnlistment enlistment,
-            PhysicalFileSystem fileSystem,
-            GitObjects gitObjects,
-            out long maxGoodTimestamp,
-            out string error)
-        {
-            gitObjects.DeleteStaleTempPrefetchPackAndIdxs();
-
-            string[] packs = gitObjects.ReadPackFileNames(enlistment.GitPackRoot, GVFSConstants.PrefetchPackPrefix);
-            List<PrefetchPackInfo> orderedPacks = packs
-                .Where(pack => this.GetTimestamp(pack).HasValue)
-                .Select(pack => new PrefetchPackInfo(this.GetTimestamp(pack).Value, pack))
-                .OrderBy(packInfo => packInfo.Timestamp)
-                .ToList();
-
-            maxGoodTimestamp = -1;
-
-            int firstBadPack = -1;
-            for (int i = 0; i < orderedPacks.Count; ++i)
-            {
-                long timestamp = orderedPacks[i].Timestamp;
-                string packPath = orderedPacks[i].Path;
-                string idxPath = Path.ChangeExtension(packPath, ".idx");
-                if (!fileSystem.FileExists(idxPath))
-                {
-                    EventMetadata metadata = new EventMetadata();
-                    metadata.Add("pack", packPath);
-                    metadata.Add("idxPath", idxPath);
-                    metadata.Add("timestamp", timestamp);
-                    GitProcess.Result indexResult = gitObjects.IndexPackFile(packPath);
-                    if (indexResult.HasErrors)
-                    {
-                        firstBadPack = i;
-
-                        metadata.Add("Errors", indexResult.Errors);
-                        tracer.RelatedWarning(metadata, $"{nameof(this.TryPrefetchCommitsAndTrees)}: Found pack file that's missing idx file, and failed to regenerate idx");
-                        break;
-                    }
-                    else
-                    {
-                        maxGoodTimestamp = timestamp;
-
-                        metadata.Add(TracingConstants.MessageKey.InfoMessage, $"{nameof(this.TryPrefetchCommitsAndTrees)}: Found pack file that's missing idx file, and regenerated idx");
-                        tracer.RelatedEvent(EventLevel.Informational, $"{nameof(this.TryPrefetchCommitsAndTrees)}_RebuildIdx", metadata);
-                    }
-                }
-                else
-                {
-                    maxGoodTimestamp = timestamp;
-                }
-            }
-
-            if (firstBadPack != -1)
-            {
-                const int MaxDeleteRetries = 200; // 200 * IoFailureRetryDelayMS (50ms) = 10 seconds
-                const int RetryLoggingThreshold = 40; // 40 * IoFailureRetryDelayMS (50ms) = 2 seconds
-
-                // Delete packs and indexes in reverse order so that if prefetch is killed, subseqeuent prefetch commands will
-                // find the right starting spot.
-                for (int i = orderedPacks.Count - 1; i >= firstBadPack; --i)
-                {
-                    string packPath = orderedPacks[i].Path;
-                    string idxPath = Path.ChangeExtension(packPath, ".idx");
-
-                    EventMetadata metadata = new EventMetadata();
-                    metadata.Add("path", idxPath);
-                    metadata.Add(TracingConstants.MessageKey.InfoMessage, $"{nameof(this.TryPrefetchCommitsAndTrees)} deleting bad idx file");
-                    tracer.RelatedEvent(EventLevel.Informational, $"{nameof(this.TryPrefetchCommitsAndTrees)}_DeleteBadIdx", metadata);
-                    if (!fileSystem.TryWaitForDelete(tracer, idxPath, IoFailureRetryDelayMS, MaxDeleteRetries, RetryLoggingThreshold))
-                    {
-                        error = $"Unable to delete {idxPath}";
-                        return false;
-                    }
-
-                    metadata = new EventMetadata();
-                    metadata.Add("path", packPath);
-                    metadata.Add(TracingConstants.MessageKey.InfoMessage, $"{nameof(this.TryPrefetchCommitsAndTrees)} deleting bad pack file");
-                    tracer.RelatedEvent(EventLevel.Informational, $"{nameof(this.TryPrefetchCommitsAndTrees)}_DeleteBadPack", metadata);
-                    if (!fileSystem.TryWaitForDelete(tracer, packPath, IoFailureRetryDelayMS, MaxDeleteRetries, RetryLoggingThreshold))
-                    {
-                        error = $"Unable to delete {packPath}";
-                        return false;
-                    }
-                }
-            }
-
-            error = null;
-            return true;
-        }
-
-        private long? GetTimestamp(string packName)
-        {
-            string filename = Path.GetFileName(packName);
-            if (!filename.StartsWith(GVFSConstants.PrefetchPackPrefix))
-            {
-                return null;
-            }
-
-            string[] parts = filename.Split('-');
-            long parsed;
-            if (parts.Length > 1 && long.TryParse(parts[1], out parsed))
-            {
-                return parsed;
-            }
-
-            return null;
-        }
-
-        private string GetCacheServerDisplay(CacheServerInfo cacheServer)
-        {
-            if (cacheServer.Name != null && !cacheServer.Name.Equals(CacheServerInfo.ReservedNames.None))
+            if (!cacheServer.IsNone(repoUrl))
             {
                 return "from cache server";
             }
 
             return "from origin (no cache server)";
-        }
-
-        private class PrefetchPackInfo
-        {
-            public PrefetchPackInfo(long timestamp, string path)
-            {
-                this.Timestamp = timestamp;
-                this.Path = path;
-            }
-
-            public long Timestamp { get; }
-            public string Path { get; }
         }
     }
 }

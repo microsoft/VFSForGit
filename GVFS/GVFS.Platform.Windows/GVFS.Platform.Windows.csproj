@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="utf-8"?>
+﻿<?xml version="1.0" encoding="utf-8"?>
 <Project ToolsVersion="14.0" DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <Import Project="$(MSBuildExtensionsPath)\$(MSBuildToolsVersion)\Microsoft.Common.props" Condition="Exists('$(MSBuildExtensionsPath)\$(MSBuildToolsVersion)\Microsoft.Common.props')" />
   <Import Project="$(SolutionDir)\GVFS\GVFS.Build\ProjFS.props" />
@@ -78,6 +78,7 @@
     <Compile Include="DiskLayoutUpgrades\DiskLayout12_0To12_1Upgrade_StatusAheadBehind.cs" />
     <Compile Include="DiskLayoutUpgrades\DiskLayout13to14Upgrade_BlobSizes.cs" />
     <Compile Include="DiskLayoutUpgrades\DiskLayout14to15Upgrade_ModifiedPaths.cs" />
+    <Compile Include="DiskLayoutUpgrades\DiskLayout15to16Upgrade_GitStatusCache.cs" />
     <Compile Include="DiskLayoutUpgrades\DiskLayout7to8Upgrade_NewOperationType.cs" />
     <Compile Include="DiskLayoutUpgrades\DiskLayout8to9Upgrade_RepoMetadataToJson.cs" />
     <Compile Include="DiskLayoutUpgrades\DiskLayout9to10Upgrade_BackgroundAndPlaceholderListToFileBased.cs" />
@@ -92,6 +93,7 @@
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="WindowsFileSystem.Shared.cs" />
     <Compile Include="WindowsFileSystemVirtualizer.cs" />
+    <Compile Include="WindowsGitHooksInstaller.cs" />
     <Compile Include="WindowsGitInstallation.cs" />
     <Compile Include="WindowsPhysicalDiskInfo.cs" />
     <Compile Include="WindowsPlatform.cs" />

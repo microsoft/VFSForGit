@@ -396,7 +396,7 @@ namespace GVFS.Common
                 if (this.externalLockHolder != null)
                 {
                     int pid = this.externalLockHolder.PID;
-                    externalHolderTerminatedWithoutReleasingLock = !ProcessHelper.IsProcessActive(pid);
+                    externalHolderTerminatedWithoutReleasingLock = !GVFSPlatform.Instance.IsProcessActive(pid);
                 }
 
                 return this.externalLockHolder;

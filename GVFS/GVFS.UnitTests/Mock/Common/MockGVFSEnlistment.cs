@@ -4,19 +4,25 @@ using GVFS.UnitTests.Mock.Git;
 
 namespace GVFS.UnitTests.Mock.Common
 {
-    public class MockEnlistment : Enlistment
+    public class MockGVFSEnlistment : GVFSEnlistment
     {
         private MockGitProcess gitProcess;
 
-        public MockEnlistment()
-            : base("mock:\\path", "mock:\\path", "mock://repoUrl", "mock:\\git", null, flushFileBuffersForPacks: false)
+        public MockGVFSEnlistment()
+            : base("mock:\\path", "mock://repoUrl", "mock:\\git", null)
         {
             this.GitObjectsRoot = "mock:\\path\\.git\\objects";
             this.LocalObjectsRoot = this.GitObjectsRoot;
             this.GitPackRoot = "mock:\\path\\.git\\objects\\pack";
         }
 
-        public MockEnlistment(MockGitProcess gitProcess)
+        public MockGVFSEnlistment(string enlistmentRoot, string repoUrl, string gitBinPath, string gvfsHooksRoot, MockGitProcess gitProcess)
+            : base(enlistmentRoot, repoUrl, gitBinPath, gvfsHooksRoot)
+        {
+            this.gitProcess = gitProcess;
+        }
+
+        public MockGVFSEnlistment(MockGitProcess gitProcess)
             : this()
         {
             this.gitProcess = gitProcess;

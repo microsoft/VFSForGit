@@ -218,9 +218,9 @@ namespace FastFetch
                     });
                 
                 RetryConfig retryConfig = new RetryConfig(this.MaxAttempts, TimeSpan.FromMinutes(RetryConfig.FetchAndCloneTimeoutMinutes));
-                PrefetchHelper fetchHelper = this.GetFetchHelper(tracer, enlistment, cacheServer, retryConfig);
+                BlobPrefetcher prefetcher = this.GetFolderPrefetcher(tracer, enlistment, cacheServer, retryConfig);
                 string error;
-                if (!PrefetchHelper.TryLoadFolderList(enlistment, this.FolderList, this.FolderListFile, fetchHelper.FolderList, out error))
+                if (!BlobPrefetcher.TryLoadFolderList(enlistment, this.FolderList, this.FolderListFile, prefetcher.FolderList, out error))
                 {
                     tracer.RelatedError(error);
                     Console.WriteLine(error);
@@ -237,10 +237,10 @@ namespace FastFetch
                             try
                             {
                                 bool isBranch = this.Commit == null;
-                                fetchHelper.Prefetch(commitish, isBranch);
-                                return !fetchHelper.HasFailures;
+                                prefetcher.Prefetch(commitish, isBranch);
+                                return !prefetcher.HasFailures;
                             }
-                            catch (PrefetchHelper.FetchException e)
+                            catch (BlobPrefetcher.FetchException e)
                             {
                                 tracer.RelatedError(e.Message);
                                 return false;
@@ -263,7 +263,7 @@ namespace FastFetch
                         Console.WriteLine("See the full log at " + fastfetchLogFile);
                     }
 
-                    isSuccess &= !fetchHelper.HasFailures;
+                    isSuccess &= !prefetcher.HasFailures;
                 }
                 catch (AggregateException e)
                 {
@@ -303,13 +303,13 @@ namespace FastFetch
             return enlistment.RepoUrl;
         }
 
-        private PrefetchHelper GetFetchHelper(ITracer tracer, Enlistment enlistment, CacheServerInfo cacheServer, RetryConfig retryConfig)
+        private BlobPrefetcher GetFolderPrefetcher(ITracer tracer, Enlistment enlistment, CacheServerInfo cacheServer, RetryConfig retryConfig)
         {
             GitObjectsHttpRequestor objectRequestor = new GitObjectsHttpRequestor(tracer, enlistment, cacheServer, retryConfig);
 
             if (this.Checkout)
             {
-                return new CheckoutFetchHelper(
+                return new CheckoutPrefetcher(
                     tracer,
                     enlistment,
                     objectRequestor,
@@ -322,7 +322,7 @@ namespace FastFetch
             }
             else
             {
-                return new PrefetchHelper(
+                return new BlobPrefetcher(
                     tracer,
                     enlistment,
                     objectRequestor,

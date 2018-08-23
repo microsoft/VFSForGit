@@ -17,7 +17,7 @@ namespace GVFS.FunctionalTests.Windows.Tests
     [Category(Categories.Windows)]
     public class DiskLayoutUpgradeTests : TestsWithEnlistmentPerTestCase
     {
-        public const int CurrentDiskLayoutMajorVersion = 15;
+        public const int CurrentDiskLayoutMajorVersion = 16;
         public const int CurrentDiskLayoutMinorVersion = 0;
 
         public const string BlobSizesCacheName = "blobSizes";
@@ -264,6 +264,7 @@ namespace GVFS.FunctionalTests.Windows.Tests
             }
         }
 
+        [TestCase]
         public void MountCreatesModifiedPathsDatabase()
         {
             this.Enlistment.UnmountGVFS();
@@ -340,11 +341,12 @@ A tools/perllib/MS/Somefile.txt
         {
             placeholderDatabasePath.ShouldBeAFile(this.fileSystem);
             string[] lines = this.fileSystem.ReadAllText(placeholderDatabasePath).Split(new char[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries);
-            lines.Length.ShouldEqual(11);
+            lines.Length.ShouldEqual(12);
             lines.ShouldContain(x => x.Contains("Readme.md"));
             lines.ShouldContain(x => x.Contains("Scripts\\RunUnitTests.bat"));
             lines.ShouldContain(x => x.Contains("GVFS\\GVFS.Common\\Git\\GitRefs.cs"));
             lines.ShouldContain(x => x.Contains("A GVFS\\GVFS.Tests\\Properties\\AssemblyInfo.cs"));
+            lines.ShouldContain(x => x.Contains("A .gitignore"));
             lines.ShouldContain(x => x == "D GVFS\\GVFS.Tests\\Properties\\AssemblyInfo.cs");
             lines.ShouldContain(x => x == "A Scripts\0" + TestConstants.AllZeroSha);
             lines.ShouldContain(x => x == "A GVFS\0" + TestConstants.AllZeroSha);
@@ -359,10 +361,11 @@ A tools/perllib/MS/Somefile.txt
         {
             placeholderDatabasePath.ShouldBeAFile(this.fileSystem);
             string[] lines = this.fileSystem.ReadAllText(placeholderDatabasePath).Split(new char[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries);
-            lines.Length.ShouldEqual(8);
+            lines.Length.ShouldEqual(9);
             lines.ShouldContain(x => x.Contains("Readme.md"));
             lines.ShouldContain(x => x.Contains("Scripts\\RunUnitTests.bat"));
             lines.ShouldContain(x => x.Contains("GVFS\\GVFS.Common\\Git\\GitRefs.cs"));
+            lines.ShouldContain(x => x.Contains("A .gitignore"));
             lines.ShouldContain(x => x == "A Scripts\0" + TestConstants.AllZeroSha);
             lines.ShouldContain(x => x == "A GVFS\0" + TestConstants.AllZeroSha);
             lines.ShouldContain(x => x == "A GVFS\\GVFS.Common\0" + TestConstants.AllZeroSha);

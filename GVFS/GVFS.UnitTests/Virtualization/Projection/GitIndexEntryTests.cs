@@ -1,4 +1,5 @@
 ﻿using GVFS.Tests.Should;
+using GVFS.UnitTests.Mock.Common;
 using NUnit.Framework;
 using System;
 using System.Text;
@@ -9,6 +10,14 @@ namespace GVFS.UnitTests.Virtualization.Git
     [TestFixture]
     public class GitIndexEntryTests
     {
+        private const int DefaultIndexEntryCount = 10;
+
+        [OneTimeSetUp]
+        public void Setup()
+        {
+            LazyUTF8String.InitializePools(new MockTracer(), DefaultIndexEntryCount);
+        }
+
         [TestCase]
         public void TopLevelPath()
         {

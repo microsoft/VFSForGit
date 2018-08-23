@@ -48,7 +48,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
         public void DehydrateShouldSucceedEvenIfObjectCacheIsDeleted()
         {
             this.Enlistment.UnmountGVFS();
-            CmdRunner.DeleteDirectoryWithRetry(this.Enlistment.GetObjectRoot(this.fileSystem));
+            CmdRunner.DeleteDirectoryWithUnlimitedRetries(this.Enlistment.GetObjectRoot(this.fileSystem));
             this.DehydrateShouldSucceed("The repo was successfully dehydrated and remounted", confirm: true, noStatus: true);
         }
 

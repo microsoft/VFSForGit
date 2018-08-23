@@ -60,7 +60,18 @@ namespace GVFS.CommandLine
         public static bool TrySetRequiredGitConfigSettings(Enlistment enlistment)
         {
             string expectedHooksPath = Path.Combine(enlistment.WorkingDirectoryRoot, GVFSConstants.DotGit.Hooks.Root);
-            expectedHooksPath = expectedHooksPath.Replace('\\', '/');
+            expectedHooksPath = Paths.ConvertPathToGitFormat(expectedHooksPath);
+
+            string gitStatusCachePath = null;
+            if (!GVFSEnlistment.IsUnattended(tracer: null) && GVFSPlatform.Instance.IsGitStatusCacheSupported())
+            {
+                gitStatusCachePath = Path.Combine(
+                    enlistment.EnlistmentRoot,
+                    GVFSConstants.DotGVFS.Root,
+                    GVFSConstants.DotGVFS.GitStatusCache.CachePath);
+
+                gitStatusCachePath = Paths.ConvertPathToGitFormat(gitStatusCachePath);
+            }
 
             // These settings are required for normal GVFS functionality.
             // They will override any existing local configuration values.
@@ -81,8 +92,8 @@ namespace GVFS.CommandLine
                 { "core.bare", "false" },
                 { "core.logallrefupdates", "true" },
                 { GitConfigSetting.CoreVirtualizeObjectsName, "true" },
+                { GitConfigSetting.CoreVirtualFileSystemName, Paths.ConvertPathToGitFormat(GVFSConstants.DotGit.Hooks.VirtualFileSystemPath) },
                 { "core.hookspath", expectedHooksPath },
-                { GitConfigSetting.CoreVirtualFileSystemName, GVFSConstants.DotGit.Hooks.VirtualFileSystemPath.Replace(Path.DirectorySeparatorChar, GVFSConstants.GitPathSeparator) },
                 { "credential.validate", "false" },
                 { "diff.autoRefreshIndex", "false" },
                 { "gc.auto", "0" },
@@ -90,6 +101,7 @@ namespace GVFS.CommandLine
                 { "index.version", "4" },
                 { "merge.stat", "false" },
                 { "receive.autogc", "false" },
+                { "status.deserializePath", gitStatusCachePath },
             };
 
             if (!TrySetConfig(enlistment, requiredSettings, isRequired: true))
@@ -545,13 +557,23 @@ You can specify a URL, a name of a configured cache server, or the special names
             foreach (KeyValuePair<string, string> setting in configSettings)
             {
                 GitConfigSetting existingSetting;
-                if (!existingConfigSettings.TryGetValue(setting.Key, out existingSetting) ||
-                    (isRequired && !existingSetting.HasValue(setting.Value)))
+                if (setting.Value != null)
                 {
-                    GitProcess.Result setConfigResult = git.SetInLocalConfig(setting.Key, setting.Value);
-                    if (setConfigResult.HasErrors)
+                    if (!existingConfigSettings.TryGetValue(setting.Key, out existingSetting) ||
+                        (isRequired && !existingSetting.HasValue(setting.Value)))
                     {
-                        return false;
+                        GitProcess.Result setConfigResult = git.SetInLocalConfig(setting.Key, setting.Value);
+                        if (setConfigResult.HasErrors)
+                        {
+                            return false;
+                        }
+                    }
+                }
+                else
+                {
+                    if (existingConfigSettings.TryGetValue(setting.Key, out existingSetting))
+                    {
+                        git.DeleteFromLocalConfig(setting.Key);
                     }
                 }
             }
@@ -991,10 +1013,10 @@ You can specify a URL, a name of a configured cache server, or the special names
                 }                
                 else
                 {
-                    hooksPath = ProcessHelper.WhereDirectory(GVFSConstants.GVFSHooksExecutableName);
+                    hooksPath = ProcessHelper.WhereDirectory(GVFSPlatform.Instance.Constants.GVFSHooksExecutableName);
                     if (hooksPath == null)
                     {
-                        this.ReportErrorAndExit("Could not find " + GVFSConstants.GVFSHooksExecutableName);
+                        this.ReportErrorAndExit("Could not find " + GVFSPlatform.Instance.Constants.GVFSHooksExecutableName);
                     }
                 }             
                 

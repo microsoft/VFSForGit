@@ -1,4 +1,5 @@
 ﻿using GVFS.Common;
+using GVFS.PlatformLoader;
 using GVFS.Virtualization.Projection;
 using System;
 using System.Collections.Generic;
@@ -21,6 +22,7 @@ namespace GVFS.PerfProfiling
 
         static void Main(string[] args)
         {
+            GVFSPlatformLoader.Initialize();
             string enlistmentRootPath = @"M:\OS";
             if (args.Length > 0 && !string.IsNullOrWhiteSpace(args[0]))
             {
@@ -41,9 +43,9 @@ namespace GVFS.PerfProfiling
 
             Dictionary<TestsToRun, Action> allTests = new Dictionary<TestsToRun, Action>
             {
-                { TestsToRun.ValidateIndex, () => GitIndexProjection.ReadIndex(Path.Combine(environment.Enlistment.WorkingDirectoryRoot, GVFSConstants.DotGit.Index)) },
+                { TestsToRun.ValidateIndex, () => GitIndexProjection.ReadIndex(environment.Context.Tracer, Path.Combine(environment.Enlistment.WorkingDirectoryRoot, GVFSConstants.DotGit.Index)) },
                 { TestsToRun.RebuildProjection, () => environment.FileSystemCallbacks.GitIndexProjectionProfiler.ForceRebuildProjection() },
-                { TestsToRun.ValidateModifiedPaths, () => environment.FileSystemCallbacks.GitIndexProjectionProfiler.ForceAddMissingModifiedPaths() },
+                { TestsToRun.ValidateModifiedPaths, () => environment.FileSystemCallbacks.GitIndexProjectionProfiler.ForceAddMissingModifiedPaths(environment.Context.Tracer) },
             };
 
             long before = GetMemoryUsage();

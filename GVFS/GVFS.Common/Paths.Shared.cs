@@ -11,11 +11,6 @@ namespace GVFS.Common
             return GetRoot(directory, GVFSConstants.DotGit.Root);
         }
 
-        public static string GetNamedPipeName(string enlistmentRoot)
-        {
-            return "GVFS_" + enlistmentRoot.ToUpper().Replace(':', '_').Replace('/', '_');
-        }
-
         public static string GetServiceDataRoot(string serviceName)
         {
             return Path.Combine(
@@ -67,6 +62,11 @@ namespace GVFS.Common
             }
 
             return null;
+        }
+
+        public static string ConvertPathToGitFormat(string path)
+        {
+            return path.Replace(Path.DirectorySeparatorChar, GVFSConstants.GitPathSeparator);
         }
     }
 }

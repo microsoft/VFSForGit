@@ -216,7 +216,7 @@ namespace GVFS.Common.NamedPipes
             {
                 try
                 {
-                    this.writer.WriteLine(message);
+                    this.writer.WritePlatformIndependentLine(message);
                     this.writer.Flush();
 
                     return true;

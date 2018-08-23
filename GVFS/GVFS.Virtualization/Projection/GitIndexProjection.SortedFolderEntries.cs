@@ -1,4 +1,5 @@
-﻿using System;
+﻿using GVFS.Common.Tracing;
+using System;
 using System.Collections.Generic;
 
 namespace GVFS.Virtualization.Projection
@@ -11,10 +12,8 @@ namespace GVFS.Virtualization.Projection
         /// </summary>
         internal class SortedFolderEntries
         {
-            private const int PoolAllocationSize = 1000;
-
-            private static ObjectPool<FolderData> folderPool = new ObjectPool<FolderData>(PoolAllocationSize, () => new FolderData());
-            private static ObjectPool<FileData> filePool = new ObjectPool<FileData>(PoolAllocationSize, () => new FileData());
+            private static ObjectPool<FolderData> folderPool;
+            private static ObjectPool<FileData> filePool;
 
             private List<FolderEntryData> sortedEntries;
 
@@ -36,22 +35,52 @@ namespace GVFS.Virtualization.Projection
                 }
             }
 
+            public static void InitializePools(ITracer tracer, uint indexEntryCount)
+            {
+                if (folderPool == null)
+                {
+                    folderPool = new ObjectPool<FolderData>(tracer, Convert.ToInt32(indexEntryCount * PoolAllocationMultipliers.FolderDataPool), () => new FolderData());
+                }
+
+                if (filePool == null)
+                {
+                    filePool = new ObjectPool<FileData>(tracer, Convert.ToInt32(indexEntryCount * PoolAllocationMultipliers.FileDataPool), () => new FileData());
+                }
+            }
+
+            public static void ResetPool(ITracer tracer, uint indexEntryCount)
+            {
+                folderPool = new ObjectPool<FolderData>(tracer, Convert.ToInt32(indexEntryCount * PoolAllocationMultipliers.FolderDataPool), () => new FolderData());
+                filePool = new ObjectPool<FileData>(tracer, Convert.ToInt32(indexEntryCount * PoolAllocationMultipliers.FileDataPool), () => new FileData());
+            }
+
             public static void FreePool()
             {
-                folderPool.FreeAll();
-                filePool.FreeAll();
+                if (folderPool != null)
+                {
+                    folderPool.FreeAll();
+                }
+
+                if (filePool != null)
+                {
+                    filePool.FreeAll();
+                }
             }
 
-            public static bool ShrinkPool()
+            public static void ShrinkPool()
             {
-                bool didShrink = folderPool.Shrink();
-                didShrink = filePool.Shrink() == true ? true : didShrink;
-                return didShrink;
+                folderPool.Shrink();
+                filePool.Shrink();
             }
 
-            public static int PoolSize()
+            public static int FolderPoolSize()
             {
-                return folderPool.Size + filePool.Size;
+                return folderPool.Size;
+            }
+
+            public static int FilePoolSize()
+            {
+                return filePool.Size;
             }
 
             public void Clear()

@@ -15,19 +15,21 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
         private const string EncodingFileFolder = "FilenameEncoding";
         private const string EncodingFilename = "ريلٌأكتوبرûمارسأغسطسºٰٰۂْٗ۵ريلٌأك.txt";
         private const string ContentWhenEditingFile = "// Adding a comment to the file";
-        private const string EditFilePath = @"GVFS\GVFS.Common\GVFSContext.cs";
-        private const string DeleteFilePath = @"GVFS\GVFS\Program.cs";
-        private const string RenameFilePathFrom = @"GVFS\GVFS.Common\Physical\FileSystem\FileProperties.cs";
-        private const string RenameFilePathTo = @"GVFS\GVFS.Common\Physical\FileSystem\FileProperties2.cs";
-        private const string RenameFolderPathFrom = @"GVFS\GVFS.Common\PrefetchPacks";
-        private const string RenameFolderPathTo = @"GVFS\GVFS.Common\PrefetchPacksRenamed";
         private const string UnknownTestName = "Unknown";
 
+        private static readonly string EditFilePath = Path.Combine("GVFS", "GVFS.Common", "GVFSContext.cs");
+        private static readonly string DeleteFilePath = Path.Combine("GVFS", "GVFS", "Program.cs");
+        private static readonly string RenameFilePathFrom = Path.Combine("GVFS", "GVFS.Common", "Physical", "FileSystem", "FileProperties.cs");
+        private static readonly string RenameFilePathTo = Path.Combine("GVFS", "GVFS.Common", "Physical", "FileSystem", "FileProperties2.cs");
+        private static readonly string RenameFolderPathFrom = Path.Combine("GVFS", "GVFS.Common", "PrefetchPacks");
+        private static readonly string RenameFolderPathTo = Path.Combine("GVFS", "GVFS.Common", "PrefetchPacksRenamed");
+       
         public GitCommandsTests() : base(enlistmentPerTest: false)
         {
         }
 
         [TestCase]
+        [Category(Categories.Mac.M2)]
         public void VerifyTestFilesExist()
         {
             // Sanity checks to ensure that the test files we expect to be in our test repo are present
@@ -39,24 +41,28 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
         }
 
         [TestCase]
+        [Category(Categories.Mac.M2)]
         public void StatusTest()
         {
             this.ValidateGitCommand("status");
         }
 
         [TestCase]
+        [Category(Categories.Mac.M2)]
         public void StatusShortTest()
         {
             this.ValidateGitCommand("status -s");
         }
 
         [TestCase]
+        [Category(Categories.Mac.M2)]
         public void BranchTest()
         {
             this.ValidateGitCommand("branch");
         }
 
         [TestCase]
+        [Category(Categories.Mac.M2)]
         public void NewBranchTest()
         {
             this.ValidateGitCommand("branch tests/functional/NewBranchTest");
@@ -64,6 +70,7 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
         }
 
         [TestCase]
+        [Category(Categories.Mac.M2)]
         public void DeleteBranchTest()
         {
             this.ValidateGitCommand("branch tests/functional/DeleteBranchTest");

@@ -1,10 +1,11 @@
 ﻿using GVFS.Common;
 using GVFS.Common.FileSystem;
 using System.IO;
+using System.Runtime.InteropServices;
 
 namespace GVFS.Platform.Mac
 {
-    public class MacFileSystem : IPlatformFileSystem
+    public partial class MacFileSystem : IPlatformFileSystem
     {
         public bool SupportsFileMode { get; } = true;
 
@@ -30,12 +31,17 @@ namespace GVFS.Platform.Mac
             File.Copy(existingFileName, newFileName);
         }
 
+        public void ChangeMode(string path, int mode)
+        {
+           Chmod(path, mode);
+        }
+
         public bool TryGetNormalizedPath(string path, out string normalizedPath, out string errorMessage)
         {
-            // TODO(Mac): Properly determine normalized paths (e.g. across links)
-            errorMessage = null;
-            normalizedPath = path;
-            return true;
+            return MacFileSystem.TryGetNormalizedPathImplementation(path, out normalizedPath, out errorMessage);
         }
+
+        [DllImport("libc", EntryPoint = "chmod", SetLastError = true)]
+        private static extern int Chmod(string pathname, int mode);
     }
 }

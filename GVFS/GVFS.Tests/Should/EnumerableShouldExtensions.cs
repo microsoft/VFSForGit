@@ -48,7 +48,7 @@ namespace GVFS.Tests.Should
         public static void ShouldNotContain<T>(this IEnumerable<T> group, Func<T, bool> predicate)
         {
             T item = group.SingleOrDefault(predicate);
-            item.ShouldEqual(default(T));
+            item.ShouldEqual(default(T), "Unexpected matching entry found in {" + string.Join(",", group) + "}");
         }
 
         public static IEnumerable<T> ShouldNotContain<T>(this IEnumerable<T> group, IEnumerable<T> unexpectedValues, Func<T, T, bool> predicate)

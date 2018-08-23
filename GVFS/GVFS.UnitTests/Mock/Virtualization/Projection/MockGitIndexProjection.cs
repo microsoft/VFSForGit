@@ -84,6 +84,11 @@ namespace GVFS.UnitTests.Mock.Virtualization.Projection
             this.waitForIsPathProjected.WaitOne();
         }
 
+        public override FileSystemTaskResult OpenIndexForRead()
+        {
+            return FileSystemTaskResult.Success;
+        }
+
         public void BlockIsPathProjected(bool willWaitForRequest)
         {
             if (willWaitForRequest)
@@ -141,7 +146,7 @@ namespace GVFS.UnitTests.Mock.Virtualization.Projection
         {
         }
 
-        public override bool TryGetProjectedItemsFromMemory(string folderPath, out IEnumerable<ProjectedFileInfo> projectedItems)
+        public override bool TryGetProjectedItemsFromMemory(string folderPath, out List<ProjectedFileInfo> projectedItems)
         {
             if (this.EnumerationInMemory)
             {
@@ -164,7 +169,7 @@ namespace GVFS.UnitTests.Mock.Virtualization.Projection
             return 0;
         }
 
-        public override IEnumerable<ProjectedFileInfo> GetProjectedItems(
+        public override List<ProjectedFileInfo> GetProjectedItems(
             CancellationToken cancellationToken,
             BlobSizes.BlobSizesConnection blobSizesConnection, 
             string folderPath)

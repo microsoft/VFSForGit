@@ -41,7 +41,10 @@ namespace GVFS.Virtualization
         private object postFetchJobLock;
         private bool stopping;
 
-        public FileSystemCallbacks(GVFSContext context, GVFSGitObjects gitObjects, RepoMetadata repoMetadata, FileSystemVirtualizer fileSystemVirtualizer)
+        private GitStatusCache gitStatusCache;
+        private bool enableGitStatusCache;
+
+        public FileSystemCallbacks(GVFSContext context, GVFSGitObjects gitObjects, RepoMetadata repoMetadata, FileSystemVirtualizer fileSystemVirtualizer, GitStatusCache gitStatusCache)
             : this(
                   context,
                   gitObjects,
@@ -49,7 +52,8 @@ namespace GVFS.Virtualization
                   new BlobSizes(context.Enlistment.BlobSizesRoot, context.FileSystem, context.Tracer),
                   gitIndexProjection: null,
                   backgroundFileSystemTaskRunner: null,
-                  fileSystemVirtualizer: fileSystemVirtualizer)
+                  fileSystemVirtualizer: fileSystemVirtualizer,
+                  gitStatusCache: gitStatusCache)
         {
         }
 
@@ -60,7 +64,8 @@ namespace GVFS.Virtualization
             BlobSizes blobSizes,
             GitIndexProjection gitIndexProjection,
             BackgroundFileSystemTaskRunner backgroundFileSystemTaskRunner,
-            FileSystemVirtualizer fileSystemVirtualizer)
+            FileSystemVirtualizer fileSystemVirtualizer,
+            GitStatusCache gitStatusCache = null)
         {
             this.logsHeadFileProperties = null;
             this.postFetchJobLock = new object();
@@ -105,12 +110,29 @@ namespace GVFS.Virtualization
                 placeholders,
                 this.modifiedPaths);
 
-            this.backgroundFileSystemTaskRunner = backgroundFileSystemTaskRunner ?? new BackgroundFileSystemTaskRunner(
-                this.context,
-                this.PreBackgroundOperation,
-                this.ExecuteBackgroundOperation,
-                this.PostBackgroundOperation,
-                Path.Combine(context.Enlistment.DotGVFSRoot, GVFSConstants.DotGVFS.Databases.BackgroundFileSystemTasks));
+            if (backgroundFileSystemTaskRunner != null)
+            {
+                this.backgroundFileSystemTaskRunner = backgroundFileSystemTaskRunner;
+                this.backgroundFileSystemTaskRunner.SetCallbacks(
+                    this.PreBackgroundOperation,
+                    this.ExecuteBackgroundOperation,
+                    this.PostBackgroundOperation);
+            }
+            else
+            {
+                this.backgroundFileSystemTaskRunner = new BackgroundFileSystemTaskRunner(
+                    this.context,
+                    this.PreBackgroundOperation,
+                    this.ExecuteBackgroundOperation,
+                    this.PostBackgroundOperation,
+                    Path.Combine(context.Enlistment.DotGVFSRoot, GVFSConstants.DotGVFS.Databases.BackgroundFileSystemTasks));
+            }
+
+            this.enableGitStatusCache = gitStatusCache != null;
+
+            // If the status cache is not enabled, create a dummy GitStatusCache that will never be initialized
+            // This lets us from having to add null checks to callsites into GitStatusCache.
+            this.gitStatusCache = gitStatusCache ?? new GitStatusCache(context, TimeSpan.Zero);
 
             this.logsHeadPath = Path.Combine(this.context.Enlistment.WorkingDirectoryRoot, GVFSConstants.DotGit.Logs.Head);
 
@@ -153,6 +175,12 @@ namespace GVFS.Virtualization
             }
 
             this.GitIndexProjection.Initialize(this.backgroundFileSystemTaskRunner);
+
+            if (this.enableGitStatusCache)
+            {
+                this.gitStatusCache.Initialize();
+            }
+
             this.backgroundFileSystemTaskRunner.Start();
 
             this.IsMounted = true;
@@ -166,6 +194,10 @@ namespace GVFS.Virtualization
             {
                 this.postFetchJobThread?.Abort();
             }
+
+            // Shutdown the GitStatusCache before other
+            // components that it depends on.
+            this.gitStatusCache.Shutdown();
 
             this.fileSystemVirtualizer.PrepareToStop();
             this.backgroundFileSystemTaskRunner.Shutdown();
@@ -201,6 +233,12 @@ namespace GVFS.Virtualization
                 this.modifiedPaths = null;
             }
 
+            if (this.gitStatusCache != null)
+            {
+                this.gitStatusCache.Dispose();
+                this.gitStatusCache = null;
+            }
+
             if (this.backgroundFileSystemTaskRunner != null)
             {
                 this.backgroundFileSystemTaskRunner.Dispose();
@@ -224,13 +262,18 @@ namespace GVFS.Virtualization
 
             if (this.BackgroundOperationCount != 0)
             {
-                denyMessage = "Waiting for background operations to complete and for GVFS to release the lock";
+                denyMessage = "Waiting for GVFS to release the lock";
                 return false;
             }
 
             if (!this.GitIndexProjection.IsProjectionParseComplete())
             {
                 denyMessage = "Waiting for GVFS to parse index and update placeholder files";
+                return false;
+            }
+
+            if (!this.gitStatusCache.IsReadyForExternalAcquireLockRequests(requester, out denyMessage))
+            {
                 return false;
             }
 
@@ -270,6 +313,11 @@ namespace GVFS.Virtualization
 
             metadata.Add("ModifiedPathsCount", this.modifiedPaths.Count);
             metadata.Add("PlaceholderCount", this.GitIndexProjection.EstimatedPlaceholderCount);
+            if (this.gitStatusCache.WriteTelemetryandReset(metadata))
+            {
+                eventLevel = EventLevel.Informational;
+            }
+
             metadata.Add(nameof(RepoMetadata.Instance.EnlistmentId), RepoMetadata.Instance.EnlistmentId);
 
             return metadata;
@@ -293,6 +341,7 @@ namespace GVFS.Virtualization
             {
                 // Something wrote to the index without holding the GVFS lock, so we invalidate the projection
                 this.GitIndexProjection.InvalidateProjection();
+                this.InvalidateGitStatusCache();
 
                 // But this isn't something we expect to see, so log a warning
                 EventMetadata metadata = new EventMetadata
@@ -307,10 +356,24 @@ namespace GVFS.Virtualization
             {
                 this.GitIndexProjection.InvalidateModifiedFiles();
                 this.backgroundFileSystemTaskRunner.Enqueue(FileSystemTask.OnIndexWriteWithoutProjectionChange());
+                this.InvalidateGitStatusCache();
             }
             else
             {
                 this.GitIndexProjection.InvalidateProjection();
+                this.InvalidateGitStatusCache();
+            }
+        }
+
+        public void InvalidateGitStatusCache()
+        {
+            this.gitStatusCache.Invalidate();
+
+            // If there are background tasks queued up, then it will be
+            // refreshed after they have been processed.
+            if (this.backgroundFileSystemTaskRunner.Count == 0)
+            {
+                this.gitStatusCache.RefreshAsynchronously();
             }
         }
 
@@ -318,6 +381,20 @@ namespace GVFS.Virtualization
         {
             // Don't open the .git\logs\HEAD file here to check its attributes as we're in a callback for the .git folder
             this.logsHeadFileProperties = null;
+        }
+
+        public void OnHeadOrRefChanged()
+        {
+            this.InvalidateGitStatusCache();
+        }
+
+        /// <summary>
+        /// This method signals that the repository git exclude file
+        /// has been modified (i.e. .git/info/exclude)
+        /// </summary>
+        public void OnExcludeFileChanged()
+        {
+            this.InvalidateGitStatusCache();
         }
 
         public void OnFileCreated(string relativePath)
@@ -488,10 +565,17 @@ namespace GVFS.Virtualization
             {
                 this.context.Tracer.RelatedInfo("Aborting post-fetch job due to ThreadAbortException");
             }
+            catch (IOException e)
+            {
+                this.context.Tracer.RelatedWarning(
+                    metadata: this.CreateEventMetadata(null, e),
+                    message: PostFetchTelemetryKey + ": IOException while running post-fetch job: " + e.Message,
+                    keywords: Keywords.Telemetry);
+            }
             catch (Exception e)
             {
                 this.context.Tracer.RelatedError(
-                    metadata: null,
+                    metadata: this.CreateEventMetadata(null, e),
                     message: PostFetchTelemetryKey + ": Exception while running post-fetch job: " + e.Message,
                     keywords: Keywords.Telemetry);
                 Environment.Exit((int)ReturnCode.GenericError);
@@ -681,6 +765,7 @@ namespace GVFS.Virtualization
                 return isRetryable ? FileSystemTaskResult.RetryableError : FileSystemTaskResult.FatalError;
             }
 
+            this.InvalidateGitStatusCache();
             return FileSystemTaskResult.Success;
         }
 
@@ -708,6 +793,7 @@ namespace GVFS.Virtualization
         private FileSystemTaskResult PostBackgroundOperation()
         {
             this.modifiedPaths.ForceFlush();
+            this.gitStatusCache.RefreshAsynchronously();
             return this.GitIndexProjection.CloseIndex();
         }
 

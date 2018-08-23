@@ -2,6 +2,7 @@
 using GVFS.FunctionalTests.Tools;
 using GVFS.Tests;
 using System;
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Runtime.InteropServices;
@@ -35,6 +36,9 @@ namespace GVFS.FunctionalTests
 
             GVFSTestConfig.LocalCacheRoot = runner.GetCustomArgWithParam("--shared-gvfs-cache-root");
 
+            List<string> includeCategories = new List<string>();
+            List<string> excludeCategories = new List<string>();
+
             if (runner.HasCustomArg("--full-suite"))
             {
                 Console.WriteLine("Running the full suite of tests");
@@ -50,22 +54,22 @@ namespace GVFS.FunctionalTests
             }
             else
             {
-                runner.ExcludeCategory(Categories.FullSuiteOnly);
+                excludeCategories.Add(Categories.FullSuiteOnly);
                 GVFSTestConfig.FileSystemRunners = FileSystemRunners.FileSystemRunner.DefaultRunners;
             }
 
             if (runner.HasCustomArg("--windows-only"))
             {
-                runner.IncludeCategory(Categories.Windows);
+                includeCategories.Add(Categories.Windows);
             }
 
             if (runner.HasCustomArg("--mac-only"))
             {
-                runner.IncludeCategory(Categories.Mac.M1);
-                runner.ExcludeCategory(Categories.Mac.M2);
-                runner.ExcludeCategory(Categories.Mac.M3);
-                runner.ExcludeCategory(Categories.Mac.M4);
-                runner.ExcludeCategory(Categories.Windows);
+                includeCategories.Add(Categories.Mac.M1);
+                includeCategories.Add(Categories.Mac.M2);
+                excludeCategories.Add(Categories.Mac.M3);
+                excludeCategories.Add(Categories.Mac.M4);
+                excludeCategories.Add(Categories.Windows);
             }
 
             GVFSTestConfig.RepoToClone =
@@ -73,7 +77,7 @@ namespace GVFS.FunctionalTests
                 ?? Properties.Settings.Default.RepoToClone;
             
             RunBeforeAnyTests();
-            Environment.ExitCode = runner.RunTests();
+            Environment.ExitCode = runner.RunTests(includeCategories, excludeCategories);
             RunAfterAllTests();
 
             if (Debugger.IsAttached)
@@ -93,6 +97,17 @@ namespace GVFS.FunctionalTests
                 }
 
                 GVFSServiceProcess.InstallService();
+
+                string statusCacheVersionTokenPath = Path.Combine(
+                    Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData, Environment.SpecialFolderOption.Create),
+                    "GVFS",
+                    "GVFS.Service",
+                    "EnableGitStatusCacheToken.dat");
+
+                if (!File.Exists(statusCacheVersionTokenPath))
+                {
+                    File.WriteAllText(statusCacheVersionTokenPath, string.Empty);
+                }
             }
         }
 

@@ -20,7 +20,7 @@ namespace GVFS.FunctionalTests.Tests.MultiEnlistmentTests
 
         // This branch and commit sha should point to the same place.
         private const string WellKnownBranch = "FunctionalTests/20170602";
-        private const string WellKnownCommitSha = "b407df4e21261e2bf022ef7031fabcf21ee0e14d";
+        private const string WellKnownCommitSha = "79dc4233df4d9a7e053662bff95df498f640022e";
 
         private string localCachePath;
         private string localCacheParentPath;
@@ -132,7 +132,7 @@ namespace GVFS.FunctionalTests.Tests.MultiEnlistmentTests
 
             string objectsRoot = GVFSHelpers.GetPersistedGitObjectsRoot(enlistment1.DotGVFSRoot).ShouldNotBeNull();
             objectsRoot.ShouldBeADirectory(this.fileSystem);
-            CmdRunner.DeleteDirectoryWithRetry(objectsRoot);
+            CmdRunner.DeleteDirectoryWithUnlimitedRetries(objectsRoot);
 
             string metadataPath = Path.Combine(this.localCachePath, "mapping.dat");
             metadataPath.ShouldBeAFile(this.fileSystem);
@@ -172,7 +172,7 @@ namespace GVFS.FunctionalTests.Tests.MultiEnlistmentTests
                 try
                 {
                     // Delete objectsRoot rather than this.localCachePath as the blob sizes database cannot be deleted while GVFS is mounted
-                    CmdRunner.DeleteDirectoryWithRetry(objectsRoot);
+                    CmdRunner.DeleteDirectoryWithUnlimitedRetries(objectsRoot);
                     Thread.Sleep(100);
                 }
                 catch (IOException)
@@ -212,7 +212,7 @@ namespace GVFS.FunctionalTests.Tests.MultiEnlistmentTests
             mappingFileContents.Length.ShouldNotEqual(0, "mapping.dat should not be empty");
 
             // Delete the git objects root folder, mount should re-create it and the mapping.dat file should not change
-            CmdRunner.DeleteDirectoryWithRetry(objectsRoot);
+            CmdRunner.DeleteDirectoryWithUnlimitedRetries(objectsRoot);
 
             enlistment.MountGVFS();
 
@@ -239,7 +239,7 @@ namespace GVFS.FunctionalTests.Tests.MultiEnlistmentTests
             mappingFileContents.Length.ShouldNotEqual(0, "mapping.dat should not be empty");
 
             // Delete the local cache folder, mount should re-create it and generate a new mapping file and local cache key
-            CmdRunner.DeleteDirectoryWithRetry(enlistment.LocalCacheRoot);
+            CmdRunner.DeleteDirectoryWithUnlimitedRetries(enlistment.LocalCacheRoot);
 
             enlistment.MountGVFS();
 
@@ -267,7 +267,7 @@ namespace GVFS.FunctionalTests.Tests.MultiEnlistmentTests
         // localCacheParentPath can be deleted (as the SQLite blob sizes database cannot be deleted while GVFS is mounted) 
         protected override void OnTearDownEnlistmentsDeleted()
         {
-            CmdRunner.DeleteDirectoryWithRetry(this.localCacheParentPath);
+            CmdRunner.DeleteDirectoryWithUnlimitedRetries(this.localCacheParentPath);
         }
 
         private GVFSFunctionalTestEnlistment CloneAndMountEnlistment(string branch = null)

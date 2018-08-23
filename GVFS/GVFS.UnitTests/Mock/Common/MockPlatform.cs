@@ -12,6 +12,11 @@ namespace GVFS.UnitTests.Mock.Common
 {
     public class MockPlatform : GVFSPlatform
     {
+        public MockPlatform()
+            : base(executableExtension: ".mockexe")
+        {
+        }
+
         public override IKernelDriver KernelDriver => throw new NotSupportedException();
 
         public override IGitInstallation GitInstallation => throw new NotSupportedException();
@@ -28,6 +33,16 @@ namespace GVFS.UnitTests.Mock.Common
         public override bool TryGetGVFSHooksPathAndVersion(out string hooksPaths, out string hooksVersion, out string error)
         {
             throw new NotSupportedException();
+        }
+
+        public override bool TryInstallGitCommandHooks(GVFSContext context, string executingDirectory, string hookName, string commandHookPath, out string errorMessage)
+        {
+            throw new NotSupportedException();
+        }
+
+        public override string GetNamedPipeName(string enlistmentRoot)
+        {
+            return "GVFS_Mock_PipeName";
         }
 
         public override NamedPipeServerStream CreatePipeByName(string pipeName)
@@ -70,6 +85,11 @@ namespace GVFS.UnitTests.Mock.Common
             throw new NotSupportedException();
         }
 
+        public override bool IsProcessActive(int processId)
+        {
+            throw new NotSupportedException();
+        }
+
         public override bool TryGetGVFSEnlistmentRoot(string directory, out string enlistmentRoot, out string errorMessage)
         {
             throw new NotSupportedException();
@@ -78,6 +98,11 @@ namespace GVFS.UnitTests.Mock.Common
         public override void StartBackgroundProcess(string programName, string[] args)
         {
             throw new NotSupportedException();
+        }
+
+        public override bool IsGitStatusCacheSupported()
+        {
+            return true;
         }
     }
 }

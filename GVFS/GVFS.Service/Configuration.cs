@@ -10,8 +10,8 @@ namespace GVFS.Service
         
         private Configuration()
         {
-            this.GVFSLocation = Path.Combine(AssemblyPath, GVFSConstants.GVFSExecutableName);
-            this.GVFSServiceUILocation = Path.Combine(AssemblyPath, GVFSConstants.Service.UIName + GVFSConstants.ExecutableExtension);
+            this.GVFSLocation = Path.Combine(AssemblyPath, GVFSPlatform.Instance.Constants.GVFSExecutableName);
+            this.GVFSServiceUILocation = Path.Combine(AssemblyPath, GVFSConstants.Service.UIName + GVFSPlatform.Instance.Constants.ExecutableExtension);
         }
 
         public static Configuration Instance

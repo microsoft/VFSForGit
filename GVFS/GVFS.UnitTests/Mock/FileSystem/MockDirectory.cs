@@ -173,6 +173,12 @@ namespace GVFS.UnitTests.Mock.FileSystem
         public MockDirectory CreateDirectory(string path)
         {
             int lastSlashIdx = path.LastIndexOf(Path.DirectorySeparatorChar);
+            
+            if (lastSlashIdx <= 0)
+            {
+                return this;
+            }
+
             string parentPath = path.Substring(0, lastSlashIdx);
             MockDirectory parentDirectory = this.FindDirectory(parentPath);
             if (parentDirectory == null)

@@ -71,8 +71,16 @@ namespace GVFS.Virtualization.Background
             get { return this.backgroundTasks.Count; }
         }
 
+        public virtual void SetCallbacks(
+            Func<FileSystemTaskResult> preCallback,
+            Func<FileSystemTask, FileSystemTaskResult> callback,
+            Func<FileSystemTaskResult> postCallback)
+        {
+            throw new NotSupportedException("This method is only meant for unit tests, and must be implemented by test class if necessary for use in tests");
+        }
+
         public virtual void Start()
-        {            
+        {
             this.backgroundThread = Task.Factory.StartNew((Action)this.ProcessBackgroundTasks, TaskCreationOptions.LongRunning);
             if (this.backgroundTasks.Count > 0)
             {

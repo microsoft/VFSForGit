@@ -15,7 +15,7 @@ namespace GVFS.UnitTests.Mock.FileSystem
             GVFSGitObjects gitObjects,
             RepoMetadata repoMetadata,
             FileSystemVirtualizer fileSystemVirtualizer)
-            : base(context, gitObjects, repoMetadata, fileSystemVirtualizer)
+            : base(context, gitObjects, repoMetadata, fileSystemVirtualizer, null)
         {
         }
 

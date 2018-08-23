@@ -9,12 +9,10 @@ namespace GVFS.Tests
     public class NUnitRunner
     {
         private List<string> args;
-        private List<string> filters;
 
         public NUnitRunner(string[] args)
         {
             this.args = new List<string>(args);
-            this.filters = new List<string>();
         }
 
         public string GetCustomArgWithParam(string arg)
@@ -35,22 +33,13 @@ namespace GVFS.Tests
             return this.args.Remove(arg);
         }
 
-        public void ExcludeCategory(string category)
+        public int RunTests(ICollection<string> includeCategories, ICollection<string> excludeCategories)
         {
-            this.filters.Add("cat!=" + category);
-        }
-
-        public void IncludeCategory(string category)
-        {
-            this.filters.Add("cat==" + category);
-        }
-
-        public int RunTests()
-        {
-            if (this.filters.Count > 0)
+            string filters = GetFiltersArgument(includeCategories, excludeCategories);
+            if (filters.Length > 0)
             {
                 this.args.Add("--where");
-                this.args.Add(string.Join("&&", this.filters));
+                this.args.Add(filters);
             }
 
             DateTime now = DateTime.Now;
@@ -60,6 +49,22 @@ namespace GVFS.Tests
             Console.WriteLine();
 
             return result;
+        }
+
+        private static string GetFiltersArgument(ICollection<string> includeCategories, ICollection<string> excludeCategories)
+        {
+            string filters = string.Empty;
+            if (includeCategories != null && includeCategories.Any())
+            {
+                filters = "(" + string.Join("||", includeCategories.Select(x => $"cat=={x}")) + ")";
+            }
+
+            if (excludeCategories != null && excludeCategories.Any())
+            {
+                filters += (filters.Length > 0 ? "&&" : string.Empty) + string.Join("&&", excludeCategories.Select(x => $"cat!={x}"));
+            }
+
+            return filters;
         }
     }
 }

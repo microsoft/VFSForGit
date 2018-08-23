@@ -155,6 +155,15 @@ namespace GVFS.Common
             }
         }
 
+        public static DateTime GetLastRebootTime()
+        {
+            // GetTickCount64 is a native call and returns the number
+            // of milliseconds since the system was started (and not DateTime.Ticks).
+            // https://msdn.microsoft.com/en-us/library/windows/desktop/ms724411.aspx
+            TimeSpan uptime = TimeSpan.FromMilliseconds(GetTickCount64());
+            return DateTime.Now - uptime;
+        }
+
         [DllImport("kernel32.dll", SetLastError = true, CharSet = CharSet.Unicode)]
         private static extern bool MoveFileEx(
             string existingFileName,
@@ -202,6 +211,9 @@ namespace GVFS.Common
             uint nOutBufferSize,
             out uint pBytesReturned,
             [In] IntPtr Overlapped);
+
+        [DllImport("kernel32.dll")]
+        private static extern ulong GetTickCount64();
 
         [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
         private struct REPARSE_DATA_BUFFER

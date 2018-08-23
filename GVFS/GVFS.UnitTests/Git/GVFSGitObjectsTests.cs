@@ -156,11 +156,11 @@ namespace GVFS.UnitTests.Git
         private class MockHttpGitObjects : GitObjectsHttpRequestor
         {
             public MockHttpGitObjects() 
-                : this(new MockEnlistment())
+                : this(new MockGVFSEnlistment())
             {
             }
 
-            private MockHttpGitObjects(MockEnlistment enlistment)
+            private MockHttpGitObjects(MockGVFSEnlistment enlistment)
                 : base(new MockTracer(), enlistment, new MockCacheServerInfo(), new RetryConfig(maxRetries: 1))
             {
             }

@@ -14,6 +14,7 @@ namespace GVFS.Common
             string fullCommand,
             int pid,
             bool isElevated,
+            bool isConsoleOutputRedirectedToFile,
             bool checkAvailabilityOnly,
             string gvfsEnlistmentRoot,
             out string result)
@@ -80,22 +81,23 @@ namespace GVFS.Common
                     }
                 };
 
+            bool isSuccessfulLockResult;
             if (unattended)
             {
-                waitForLock();
+                isSuccessfulLockResult = waitForLock();
             }
             else
             {
-                ConsoleHelper.ShowStatusWhileRunning(
+                isSuccessfulLockResult = ConsoleHelper.ShowStatusWhileRunning(
                     waitForLock,
                     message,
                     output: Console.Out,
-                    showSpinner: !ConsoleHelper.IsConsoleOutputRedirectedToFile(),
+                    showSpinner: !isConsoleOutputRedirectedToFile,
                     gvfsLogEnlistmentRoot: gvfsEnlistmentRoot);
             }
 
             result = null;
-            return true;
+            return isSuccessfulLockResult;
         }
 
         public static void ReleaseGVFSLock(
@@ -104,6 +106,7 @@ namespace GVFS.Common
             string fullCommand,
             int pid,
             bool isElevated,
+            bool isConsoleOutputRedirectedToFile,
             Action<NamedPipeMessages.ReleaseLock.Response> responseHandler,
             string gvfsEnlistmentRoot,
             string waitingMessage = "",
@@ -124,7 +127,7 @@ namespace GVFS.Common
                     return ConsoleHelper.ActionResult.Success;
                 };
 
-            if (unattended || ConsoleHelper.IsConsoleOutputRedirectedToFile())
+            if (unattended || isConsoleOutputRedirectedToFile)
             {
                 releaseLock();
             }

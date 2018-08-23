@@ -71,7 +71,7 @@ namespace GVFS.Service.Handlers
         {
             WindowsGitInstallation windowsGitInstallation = new WindowsGitInstallation();
             string gitBinPath = windowsGitInstallation.GetInstalledGitBinPath();
-            string hooksPath = ProcessHelper.WhereDirectory(GVFSConstants.GVFSHooksExecutableName);
+            string hooksPath = ProcessHelper.WhereDirectory(GVFSPlatform.Instance.Constants.GVFSHooksExecutableName);
             GVFSEnlistment enlistment = null;
 
             try

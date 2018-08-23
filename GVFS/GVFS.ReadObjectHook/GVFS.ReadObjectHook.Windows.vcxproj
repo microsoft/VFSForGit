@@ -11,24 +11,25 @@
     </ProjectConfiguration>
   </ItemGroup>
   <PropertyGroup Label="Globals">
-    <ProjectGuid>{2D23AB54-541F-4ABC-8DCA-08C199E97ABB}</ProjectGuid>
+    <ProjectGuid>{5A6656D5-81C7-472C-9DC8-32D071CB2258}</ProjectGuid>
     <Keyword>Win32Proj</Keyword>
-    <RootNamespace>GVFSVirtualFileSystemHook</RootNamespace>
+    <RootNamespace>readobject</RootNamespace>
     <WindowsTargetPlatformVersion>10.0.10240.0</WindowsTargetPlatformVersion>
-    <ProjectName>GVFS.VirtualFileSystemHook</ProjectName>
+    <ProjectName>GVFS.ReadObjectHook.Windows</ProjectName>
+    <TargetName>GVFS.ReadObjectHook</TargetName>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
   <Import Project="$(SolutionDir)\GVFS\GVFS.Build\GVFS.cpp.props" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'" Label="Configuration">
     <ConfigurationType>Application</ConfigurationType>
     <UseDebugLibraries>true</UseDebugLibraries>
-    <PlatformToolset>v140</PlatformToolset>
+    <PlatformToolset>v141</PlatformToolset>
     <CharacterSet>MultiByte</CharacterSet>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'" Label="Configuration">
     <ConfigurationType>Application</ConfigurationType>
     <UseDebugLibraries>false</UseDebugLibraries>
-    <PlatformToolset>v140</PlatformToolset>
+    <PlatformToolset>v141</PlatformToolset>
     <WholeProgramOptimization>true</WholeProgramOptimization>
     <CharacterSet>MultiByte</CharacterSet>
   </PropertyGroup>
@@ -104,12 +105,15 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClInclude Include="..\GVFS.NativeHooks.Common\common.h" />
+    <ClInclude Include="packet.h" />
     <ClInclude Include="resource.h" />
     <ClInclude Include="stdafx.h" />
     <ClInclude Include="targetver.h" />
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="..\GVFS.NativeHooks.Common\common.windows.cpp" />
     <ClCompile Include="main.cpp" />
+    <ClCompile Include="packet.cpp" />
     <ClCompile Include="stdafx.cpp">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Create</PrecompiledHeader>
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release|x64'">Create</PrecompiledHeader>

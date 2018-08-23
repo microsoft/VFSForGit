@@ -18,12 +18,6 @@ namespace GVFS.Common
         public const string WorkingDirectoryRootName = "src";
         public const string UnattendedEnvironmentVariable = "GVFS_UNATTENDED";
 
-        public const string GVFSExecutableName = "GVFS.exe";
-        public const string GVFSHooksExecutableName = "GVFS.Hooks.exe";
-        public const string GVFSReadObjectHookExecutableName = "GVFS.ReadObjectHook.exe";
-        public const string GVFSVirtualFileSystemHookExecutableName = "GVFS.VirtualFileSystemHook.exe";
-        public const string MountExecutableName = "GVFS.Mount.exe";
-        public const string ExecutableExtension = ".exe";
         public const string GitIsNotInstalledError = "Could not find git.exe.  Ensure that Git is installed.";
 
         public static class GitConfig
@@ -31,6 +25,7 @@ namespace GVFS.Common
             public const string GVFSPrefix = "gvfs.";
             public const string MaxRetriesConfig = GVFSPrefix + "max-retries";
             public const string TimeoutSecondsConfig = GVFSPrefix + "timeout-seconds";
+            public const string GitStatusCacheBackoffConfig = GVFSPrefix + "status-cache-backoff-seconds";
             public const string MountId = GVFSPrefix + "mount-id";
             public const string EnlistmentId = GVFSPrefix + "enlistment-id";
             public const string CacheServer = GVFSPrefix + "cache-server";
@@ -38,6 +33,11 @@ namespace GVFS.Common
             public const string HooksPrefix = GitConfig.GVFSPrefix + "clone.default-";
             public const string GVFSTelemetryId = GitConfig.GVFSPrefix + "telemetry-id";
             public const string HooksExtension = ".hooks";
+        }
+
+        public static class GitStatusCache
+        {
+            public const string EnableGitStatusCacheTokenFile = "EnableGitStatusCacheToken.dat";
         }
 
         public static class Service
@@ -99,6 +99,12 @@ namespace GVFS.Common
                 public static readonly string PlaceholderList = Path.Combine(Name, "PlaceholderList.dat");
                 public static readonly string ModifiedPaths = Path.Combine(Name, "ModifiedPaths.dat");
                 public static readonly string RepoMetadata = Path.Combine(Name, "RepoMetadata.dat");
+            }
+
+            public static class GitStatusCache
+            {
+                public const string Name = "gitStatusCache";
+                public static readonly string CachePath = Path.Combine(Name, "GitStatusCache.dat");
             }
         }
 
@@ -181,8 +187,14 @@ namespace GVFS.Common
                 public static class Heads
                 {
                     public static readonly string Root = Path.Combine(DotGit.Refs.Root, "heads");
+                    public static readonly string RootFolder = Heads.Root + Path.DirectorySeparatorChar;
                 }
             }
+        }
+
+        public static class InstallationCapabilityFiles
+        {
+            public const string OnDiskVersion16CapableInstallation = "OnDiskVersion16CapableInstallation.dat";
         }
 
         public static class VerbParameters

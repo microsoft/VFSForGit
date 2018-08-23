@@ -1,6 +1,7 @@
 ﻿using GVFS.FunctionalTests.FileSystemRunners;
 using System;
 using System.IO;
+using System.Runtime.InteropServices;
 
 namespace GVFS.FunctionalTests.Tools
 {
@@ -68,7 +69,15 @@ namespace GVFS.FunctionalTests.Tools
 
         public void Delete()
         {
-            CmdRunner.DeleteDirectoryWithRetry(this.RootPath);
+            if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+            {
+                CmdRunner.DeleteDirectoryWithUnlimitedRetries(this.RootPath);
+            }
+            else
+            {
+                // TODO(Mac): See if we can use BashRunner.DeleteDirectoryWithRetry on Windows as well
+                BashRunner.DeleteDirectoryWithUnlimitedRetries(this.RootPath);
+            }
         }
     }
 }

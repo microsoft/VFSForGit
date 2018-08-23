@@ -126,11 +126,11 @@ namespace GVFS.Virtualization.Projection
             }
         }
 
-        public static void ReadIndex(string indexPath)
+        public static void ReadIndex(ITracer tracer, string indexPath)
         {
             using (FileStream indexStream = new FileStream(indexPath, FileMode.Open, FileAccess.ReadWrite, FileShare.Read, IndexFileStreamBufferSize))
             {
-                GitIndexParser.ValidateIndex(indexStream);
+                GitIndexParser.ValidateIndex(tracer, indexStream);
             }
         }
 
@@ -147,20 +147,20 @@ namespace GVFS.Virtualization.Projection
         /// Force the index file to be parsed to add missing paths to the modified paths database.
         /// This method should only be used to measure index parsing performance.
         /// </summary>
-        void IProfilerOnlyIndexProjection.ForceAddMissingModifiedPaths()
+        void IProfilerOnlyIndexProjection.ForceAddMissingModifiedPaths(ITracer tracer)
         {
             using (FileStream indexStream = new FileStream(this.indexPath, FileMode.Open, FileAccess.ReadWrite, FileShare.Read, IndexFileStreamBufferSize))
             {
                 // Not checking the FileSystemTaskResult here because this is only for profiling
-                this.indexParser.AddMissingModifiedFiles(indexStream);
+                this.indexParser.AddMissingModifiedFiles(tracer, indexStream);
             }
         }
 
-        public void BuildProjectionFromPath(string indexPath)
+        public void BuildProjectionFromPath(ITracer tracer, string indexPath)
         {
             using (FileStream indexStream = new FileStream(indexPath, FileMode.Open, FileAccess.ReadWrite, FileShare.Read, IndexFileStreamBufferSize))
             {
-                this.indexParser.RebuildProjection(indexStream);
+                this.indexParser.RebuildProjection(tracer, indexStream);
             }
         }
 
@@ -325,7 +325,7 @@ namespace GVFS.Virtualization.Projection
             this.placeholderList.AddAndFlush(virtualPath, sha);
         }
 
-        public virtual bool TryGetProjectedItemsFromMemory(string folderPath, out IEnumerable<ProjectedFileInfo> projectedItems)
+        public virtual bool TryGetProjectedItemsFromMemory(string folderPath, out List<ProjectedFileInfo> projectedItems)
         {
             projectedItems = null;
 
@@ -376,7 +376,7 @@ namespace GVFS.Virtualization.Projection
             }
         }
 
-        public virtual IEnumerable<ProjectedFileInfo> GetProjectedItems(
+        public virtual List<ProjectedFileInfo> GetProjectedItems(
             CancellationToken cancellationToken,
             BlobSizes.BlobSizesConnection blobSizesConnection, 
             string folderPath)
@@ -460,7 +460,7 @@ namespace GVFS.Virtualization.Projection
             return null;
         }
 
-        public FileSystemTaskResult OpenIndexForRead()
+        public virtual FileSystemTaskResult OpenIndexForRead()
         {
             if (!File.Exists(this.indexPath))
             {
@@ -511,7 +511,7 @@ namespace GVFS.Virtualization.Projection
             {
                 if (this.modifiedFilesInvalid)
                 {
-                    FileSystemTaskResult result = this.indexParser.AddMissingModifiedFiles(this.indexFileStream);
+                    FileSystemTaskResult result = this.indexParser.AddMissingModifiedFiles(this.context.Tracer, this.indexFileStream);
                     if (result == FileSystemTaskResult.Success)
                     {
                         this.modifiedFilesInvalid = false;
@@ -1533,7 +1533,7 @@ namespace GVFS.Virtualization.Projection
                 {
                     try
                     {
-                        this.indexParser.RebuildProjection(indexStream);
+                        this.indexParser.RebuildProjection(tracer, indexStream);
                     }
                     catch (Exception e)
                     {
@@ -1545,18 +1545,12 @@ namespace GVFS.Virtualization.Projection
                     }
                 }
 
-                bool didShrink = SortedFolderEntries.ShrinkPool();
-                didShrink = LazyUTF8String.ShrinkPool() == true ? true : didShrink;
-
-                if (didShrink)
-                {
-                    // Force a garbage collection immediately since the pools were shrunk
-                    // Want to compact but do it in the background if possible 
-                    GC.Collect(generation: 2, mode: GCCollectionMode.Forced, blocking: false, compacting: true);
-                }
+                SortedFolderEntries.ShrinkPool();
+                LazyUTF8String.ShrinkPool();
 
                 EventMetadata poolMetadata = CreateEventMetadata();
-                poolMetadata.Add($"{nameof(SortedFolderEntries)}_{nameof(SortedFolderEntries.PoolSize)}", SortedFolderEntries.PoolSize());
+                poolMetadata.Add($"{nameof(SortedFolderEntries)}_{nameof(SortedFolderEntries.FolderPoolSize)}", SortedFolderEntries.FolderPoolSize());
+                poolMetadata.Add($"{nameof(SortedFolderEntries)}_{nameof(SortedFolderEntries.FilePoolSize)}", SortedFolderEntries.FilePoolSize());
                 poolMetadata.Add($"{nameof(LazyUTF8String)}_{nameof(LazyUTF8String.StringPoolSize)}", LazyUTF8String.StringPoolSize());
                 poolMetadata.Add($"{nameof(LazyUTF8String)}_{nameof(LazyUTF8String.BytePoolSize)}", LazyUTF8String.BytePoolSize());
                 TimeSpan duration = tracer.Stop(poolMetadata);

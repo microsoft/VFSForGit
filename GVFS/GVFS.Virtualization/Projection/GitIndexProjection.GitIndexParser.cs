@@ -1,4 +1,5 @@
 ﻿using GVFS.Common;
+using GVFS.Common.Tracing;
 using GVFS.Virtualization.Background;
 using System;
 using System.IO;
@@ -14,7 +15,6 @@ namespace GVFS.Virtualization.Projection
 
             private const ushort ExtendedBit = 0x4000;
             private const ushort SkipWorktreeBit = 0x4000;
-            private static readonly DateTime UnixEpoch = new DateTime(1970, 1, 1, 0, 0, 0, DateTimeKind.Utc);
 
             private Stream indexStream;
             private byte[] page;
@@ -41,10 +41,10 @@ namespace GVFS.Virtualization.Projection
                 Theirs = 3
             }
 
-            public static void ValidateIndex(Stream indexStream)
+            public static void ValidateIndex(ITracer tracer, Stream indexStream)
             {
                 GitIndexParser indexParser = new GitIndexParser(null);
-                FileSystemTaskResult result = indexParser.ParseIndex(indexStream, ValidateIndexEntry);
+                FileSystemTaskResult result = indexParser.ParseIndex(tracer, indexStream, ValidateIndexEntry);
 
                 if (result != FileSystemTaskResult.Success)
                 {
@@ -53,7 +53,7 @@ namespace GVFS.Virtualization.Projection
                 }
             }
 
-            public void RebuildProjection(Stream indexStream)
+            public void RebuildProjection(ITracer tracer, Stream indexStream)
             {
                 if (this.projection == null)
                 {
@@ -61,7 +61,7 @@ namespace GVFS.Virtualization.Projection
                 }
 
                 this.projection.ClearProjectionCaches();
-                FileSystemTaskResult result = this.ParseIndex(indexStream, this.AddToProjection);
+                FileSystemTaskResult result = this.ParseIndex(tracer, indexStream, this.AddToProjection);
                 if (result != FileSystemTaskResult.Success)
                 {
                     // RebuildProjection should always result in FileSystemTaskResult.Success (or a thrown exception)
@@ -69,14 +69,14 @@ namespace GVFS.Virtualization.Projection
                 }
             }
 
-            public FileSystemTaskResult AddMissingModifiedFiles(Stream indexStream)
+            public FileSystemTaskResult AddMissingModifiedFiles(ITracer tracer, Stream indexStream)
             {
                 if (this.projection == null)
                 {
                     throw new InvalidOperationException($"{nameof(this.projection)} cannot be null when calling {nameof(AddMissingModifiedFiles)}");
                 }
 
-                return this.ParseIndex(indexStream, this.AddToModifiedFiles);
+                return this.ParseIndex(tracer, indexStream, this.AddToModifiedFiles);
             }
 
             private static FileSystemTaskResult ValidateIndexEntry(GitIndexEntry data)
@@ -89,35 +89,10 @@ namespace GVFS.Virtualization.Projection
                 return FileSystemTaskResult.Success;
             }
 
-            private static uint ToUnixNanosecondFraction(DateTime datetime)
-            {
-                if (datetime > UnixEpoch)
-                {
-                    TimeSpan timediff = datetime - UnixEpoch;
-                    double nanoseconds = (timediff.TotalSeconds - Math.Truncate(timediff.TotalSeconds)) * 1000000000;
-                    return Convert.ToUInt32(nanoseconds);
-                }
-                else
-                {
-                    return 0;
-                }
-            }
-
-            private static uint ToUnixEpochSeconds(DateTime datetime)
-            {
-                if (datetime > UnixEpoch)
-                {
-                    return Convert.ToUInt32(Math.Truncate((datetime - UnixEpoch).TotalSeconds));
-                }
-                else
-                {
-                    return 0;
-                }
-            }
-
             private FileSystemTaskResult AddToProjection(GitIndexEntry data)
             {
-                if (data.SkipWorktree || data.MergeState == MergeStage.Yours)
+                // Never want to project the common ancestor even if the skip worktree bit is on
+                if ((data.MergeState != MergeStage.CommonAncestor && data.SkipWorktree) || data.MergeState == MergeStage.Yours)
                 {
                     data.ParsePath();
                     this.projection.AddItemFromIndexEntry(data);
@@ -160,7 +135,7 @@ namespace GVFS.Virtualization.Projection
             /// in TryIndexAction returning a FileSystemTaskResult other than Success.  All other actions result in success (or an exception in the
             /// case of a corrupt index)
             /// </remarks>
-            private FileSystemTaskResult ParseIndex(Stream indexStream, Func<GitIndexEntry, FileSystemTaskResult> entryAction)
+            private FileSystemTaskResult ParseIndex(ITracer tracer, Stream indexStream, Func<GitIndexEntry, FileSystemTaskResult> entryAction)
             {
                 this.indexStream = indexStream;
                 this.indexStream.Position = 0;
@@ -182,6 +157,13 @@ namespace GVFS.Virtualization.Projection
                 }
 
                 uint entryCount = this.ReadFromIndexHeader();
+
+                // Don't want to flood the logs on large indexes so only log every 500ms
+                const int LoggingTicksThreshold = 5000000;
+                long nextLogTicks = DateTime.UtcNow.Ticks + LoggingTicksThreshold;
+
+                SortedFolderEntries.InitializePools(tracer, entryCount);
+                LazyUTF8String.InitializePools(tracer, entryCount);
 
                 this.resuableParsedIndexEntry.ClearLastParent();
                 int previousPathLength = 0;
@@ -239,8 +221,15 @@ namespace GVFS.Virtualization.Projection
                     {
                         return result;
                     }
+
+                    if (DateTime.UtcNow.Ticks > nextLogTicks)
+                    {
+                        tracer.RelatedInfo($"{i}/{entryCount} index entries parsed.");
+                        nextLogTicks = DateTime.UtcNow.Ticks + LoggingTicksThreshold;
+                    }
                 }
 
+                tracer.RelatedInfo($"Finished parsing {entryCount} index entries.");
                 return result;
             }
 

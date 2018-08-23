@@ -61,7 +61,7 @@ namespace GVFS.CommandLine
 
             if (!this.SkipMountedCheck)
             {
-                using (NamedPipeClient pipeClient = new NamedPipeClient(Paths.GetNamedPipeName(enlistmentRoot)))
+                using (NamedPipeClient pipeClient = new NamedPipeClient(GVFSPlatform.Instance.GetNamedPipeName(enlistmentRoot)))
                 {
                     if (pipeClient.Connect(500))
                     {
@@ -85,19 +85,16 @@ namespace GVFS.CommandLine
         protected override void Execute(GVFSEnlistment enlistment)
         {
             string errorMessage = null;
-            string mountExeLocation = null;
+            string mountExecutableLocation = null;
             using (JsonTracer tracer = new JsonTracer(GVFSConstants.GVFSEtwProviderName, "PreMount"))
             {
                 PhysicalFileSystem fileSystem = new PhysicalFileSystem();
                 GitRepo gitRepo = new GitRepo(tracer, enlistment, fileSystem);
                 GVFSContext context = new GVFSContext(tracer, fileSystem, gitRepo, enlistment);
 
-                if (!GVFSPlatform.Instance.IsUnderConstruction)
+                if (!HooksInstaller.InstallHooks(context, out errorMessage))
                 {
-                    if (!HooksInstaller.InstallHooks(context, out errorMessage))
-                    {
-                        this.ReportErrorAndExit("Error installing hooks: " + errorMessage);
-                    }
+                    this.ReportErrorAndExit("Error installing hooks: " + errorMessage);
                 }
 
                 CacheServerInfo cacheServer = this.ResolvedCacheServer ?? CacheServerResolver.GetCacheServerFromConfig(enlistment);
@@ -163,7 +160,7 @@ namespace GVFS.CommandLine
                 this.InitializeLocalCacheAndObjectsPaths(tracer, enlistment, retryConfig, gvfsConfig, cacheServer);
 
                 if (!this.ShowStatusWhileRunning(
-                    () => { return this.PerformPreMountValidation(tracer, enlistment, out mountExeLocation, out errorMessage); },
+                    () => { return this.PerformPreMountValidation(tracer, enlistment, out mountExecutableLocation, out errorMessage); },
                     "Validating repo"))
                 {
                     this.ReportErrorAndExit(tracer, errorMessage);
@@ -190,7 +187,7 @@ namespace GVFS.CommandLine
             }
 
             if (!this.ShowStatusWhileRunning(
-                () => { return this.TryMount(enlistment, mountExeLocation, out errorMessage); },
+                () => { return this.TryMount(enlistment, mountExecutableLocation, out errorMessage); },
                 "Mounting"))
             {
                 this.ReportErrorAndExit(errorMessage);
@@ -208,10 +205,10 @@ namespace GVFS.CommandLine
             }
         }
 
-        private bool PerformPreMountValidation(ITracer tracer, GVFSEnlistment enlistment, out string mountExeLocation, out string errorMessage)
+        private bool PerformPreMountValidation(ITracer tracer, GVFSEnlistment enlistment, out string mountExecutableLocation, out string errorMessage)
         {
             errorMessage = string.Empty;
-            mountExeLocation = string.Empty;
+            mountExecutableLocation = string.Empty;
 
             // We have to parse these parameters here to make sure they are valid before 
             // handing them to the background process which cannot tell the user when they are bad
@@ -219,14 +216,11 @@ namespace GVFS.CommandLine
             Keywords keywords;
             this.ParseEnumArgs(out verbosity, out keywords);
 
-            if (!GVFSPlatform.Instance.IsUnderConstruction)
+            mountExecutableLocation = Path.Combine(ProcessHelper.GetCurrentProcessLocation(), GVFSPlatform.Instance.Constants.MountExecutableName);
+            if (!File.Exists(mountExecutableLocation))
             {
-                mountExeLocation = Path.Combine(ProcessHelper.GetCurrentProcessLocation(), GVFSConstants.MountExecutableName);
-                if (!File.Exists(mountExeLocation))
-                {
-                    errorMessage = "Could not find GVFS.Mount.exe. You may need to reinstall GVFS.";
-                    return false;
-                }
+                errorMessage = $"Could not find {GVFSPlatform.Instance.Constants.MountExecutableName}. You may need to reinstall GVFS.";
+                return false;
             }
 
             GitProcess git = new GitProcess(enlistment);
@@ -238,7 +232,7 @@ namespace GVFS.CommandLine
 
             try
             {
-                GitIndexProjection.ReadIndex(Path.Combine(enlistment.WorkingDirectoryRoot, GVFSConstants.DotGit.Index));
+                GitIndexProjection.ReadIndex(tracer, Path.Combine(enlistment.WorkingDirectoryRoot, GVFSConstants.DotGit.Index));
             }
             catch (Exception e)
             {
@@ -253,7 +247,7 @@ namespace GVFS.CommandLine
             return true;
         }
 
-        private bool TryMount(GVFSEnlistment enlistment, string mountExeLocation, out string errorMessage)
+        private bool TryMount(GVFSEnlistment enlistment, string mountExecutableLocation, out string errorMessage)
         {
             if (!GVFSVerb.TrySetRequiredGitConfigSettings(enlistment))
             {
@@ -264,11 +258,11 @@ namespace GVFS.CommandLine
             const string ParamPrefix = "--";
             if (GVFSPlatform.Instance.IsUnderConstruction)
             {
-                mountExeLocation = Path.Combine(ProcessHelper.GetCurrentProcessLocation(), "gvfs.mount");
+                mountExecutableLocation = Path.Combine(ProcessHelper.GetCurrentProcessLocation(), "gvfs.mount");
             }
 
             GVFSPlatform.Instance.StartBackgroundProcess(
-                mountExeLocation,
+                mountExecutableLocation,
                 new[]
                 {
                     enlistment.EnlistmentRoot,

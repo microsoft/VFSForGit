@@ -34,13 +34,14 @@ namespace GVFS.UnitTests.Windows.Virtualization
         [TestCase]
         public void EnumerationHandlesEmptyList()
         {
-            using (ActiveEnumeration activeEnumeration = new ActiveEnumeration(new List<ProjectedFileInfo>()))
-            {
-                activeEnumeration.IsCurrentValid.ShouldEqual(false);
-                activeEnumeration.MoveNext().ShouldEqual(false);
-                activeEnumeration.RestartEnumeration(string.Empty);
-                activeEnumeration.IsCurrentValid.ShouldEqual(false);
-            }
+            ActiveEnumeration activeEnumeration = CreateActiveEnumeration(new List<ProjectedFileInfo>());
+
+            activeEnumeration.MoveNext().ShouldEqual(false);
+            activeEnumeration.Current.ShouldEqual(null);
+
+            activeEnumeration.RestartEnumeration(string.Empty);
+            activeEnumeration.IsCurrentValid.ShouldEqual(false);
+            activeEnumeration.Current.ShouldEqual(null);
         }
 
         [TestCase]
@@ -51,10 +52,8 @@ namespace GVFS.UnitTests.Windows.Virtualization
                 new ProjectedFileInfo("a", size: 0, isFolder:false, sha: new Sha1Id(1, 1, 1))
             };
 
-            using (ActiveEnumeration activeEnumeration = new ActiveEnumeration(entries))
-            {
-                this.ValidateActiveEnumeratorReturnsAllEntries(activeEnumeration, entries);
-            }
+            ActiveEnumeration activeEnumeration = CreateActiveEnumeration(entries);
+            this.ValidateActiveEnumeratorReturnsAllEntries(activeEnumeration, entries);
         }
 
         [TestCase]
@@ -70,10 +69,8 @@ namespace GVFS.UnitTests.Windows.Virtualization
                 new ProjectedFileInfo("E.bat", size: 0, isFolder:false, sha: new Sha1Id(1, 1, 5)),
             };
 
-            using (ActiveEnumeration activeEnumeration = new ActiveEnumeration(entries))
-            {
-                this.ValidateActiveEnumeratorReturnsAllEntries(activeEnumeration, entries);
-            }
+            ActiveEnumeration activeEnumeration = CreateActiveEnumeration(entries);
+            this.ValidateActiveEnumeratorReturnsAllEntries(activeEnumeration, entries);
         }
 
         [TestCase]
@@ -85,18 +82,14 @@ namespace GVFS.UnitTests.Windows.Virtualization
             };
 
             // Test empty string ("") filter
-            using (ActiveEnumeration activeEnumeration = new ActiveEnumeration(entries))
-            {
-                activeEnumeration.TrySaveFilterString(string.Empty).ShouldEqual(true);
-                this.ValidateActiveEnumeratorReturnsAllEntries(activeEnumeration, entries);
-            }
+            ActiveEnumeration activeEnumeration = CreateActiveEnumeration(entries);
+            activeEnumeration.TrySaveFilterString(string.Empty).ShouldEqual(true);
+            this.ValidateActiveEnumeratorReturnsAllEntries(activeEnumeration, entries);
 
             // Test null filter
-            using (ActiveEnumeration activeEnumeration = new ActiveEnumeration(entries))
-            {
-                activeEnumeration.TrySaveFilterString(null).ShouldEqual(true);
-                this.ValidateActiveEnumeratorReturnsAllEntries(activeEnumeration, entries);
-            }
+            activeEnumeration = CreateActiveEnumeration(entries);
+            activeEnumeration.TrySaveFilterString(null).ShouldEqual(true);
+            this.ValidateActiveEnumeratorReturnsAllEntries(activeEnumeration, entries);
         }
 
         [TestCase]
@@ -107,29 +100,29 @@ namespace GVFS.UnitTests.Windows.Virtualization
                 new ProjectedFileInfo("a", size: 0, isFolder:false, sha: new Sha1Id(1, 1, 1))
             };
 
-            using (ActiveEnumeration activeEnumeration = new ActiveEnumeration(entries))
-            {
-                activeEnumeration.TrySaveFilterString("*").ShouldEqual(true);
-                this.ValidateActiveEnumeratorReturnsAllEntries(activeEnumeration, entries);
-            }
+            ActiveEnumeration activeEnumeration = CreateActiveEnumeration(entries);
+            activeEnumeration.TrySaveFilterString("*").ShouldEqual(true);
+            this.ValidateActiveEnumeratorReturnsAllEntries(activeEnumeration, entries);
 
-            using (ActiveEnumeration activeEnumeration = new ActiveEnumeration(entries))
-            {
-                activeEnumeration.TrySaveFilterString("?").ShouldEqual(true);
-                this.ValidateActiveEnumeratorReturnsAllEntries(activeEnumeration, entries);
-            }
+            activeEnumeration = CreateActiveEnumeration(entries);
+            activeEnumeration.TrySaveFilterString("?").ShouldEqual(true);
+            this.ValidateActiveEnumeratorReturnsAllEntries(activeEnumeration, entries);
 
-            using (ActiveEnumeration activeEnumeration = new ActiveEnumeration(entries))
-            {
-                string filter = "*.*";
-                activeEnumeration.TrySaveFilterString(filter).ShouldEqual(true);
+            activeEnumeration = CreateActiveEnumeration(entries);
+            string filter = "*.*";
+            activeEnumeration.TrySaveFilterString(filter).ShouldEqual(true);
 
-                // "*.*" should only match when there is a . in the name
-                activeEnumeration.IsCurrentValid.ShouldEqual(false);
-                activeEnumeration.MoveNext().ShouldEqual(false);
-                activeEnumeration.RestartEnumeration(filter);
-                activeEnumeration.IsCurrentValid.ShouldEqual(false);
-            }
+            // "*.*" should only match when there is a . in the name
+            activeEnumeration.IsCurrentValid.ShouldEqual(false);
+            activeEnumeration.Current.ShouldEqual(null);
+
+            activeEnumeration.MoveNext().ShouldEqual(false);
+            activeEnumeration.IsCurrentValid.ShouldEqual(false);
+            activeEnumeration.Current.ShouldEqual(null);
+
+            activeEnumeration.RestartEnumeration(filter);
+            activeEnumeration.IsCurrentValid.ShouldEqual(false);
+            activeEnumeration.Current.ShouldEqual(null);
         }
 
         [TestCase]
@@ -140,17 +133,13 @@ namespace GVFS.UnitTests.Windows.Virtualization
                 new ProjectedFileInfo("a", size: 0, isFolder:false, sha: new Sha1Id(1, 1, 1))
             };
 
-            using (ActiveEnumeration activeEnumeration = new ActiveEnumeration(entries))
-            {
-                activeEnumeration.TrySaveFilterString("a").ShouldEqual(true);
-                this.ValidateActiveEnumeratorReturnsAllEntries(activeEnumeration, entries);
-            }
+            ActiveEnumeration activeEnumeration = CreateActiveEnumeration(entries);
+            activeEnumeration.TrySaveFilterString("a").ShouldEqual(true);
+            this.ValidateActiveEnumeratorReturnsAllEntries(activeEnumeration, entries);
 
-            using (ActiveEnumeration activeEnumeration = new ActiveEnumeration(entries))
-            {
-                activeEnumeration.TrySaveFilterString("A").ShouldEqual(true);
-                this.ValidateActiveEnumeratorReturnsAllEntries(activeEnumeration, entries);
-            }
+            activeEnumeration = CreateActiveEnumeration(entries);
+            activeEnumeration.TrySaveFilterString("A").ShouldEqual(true);
+            this.ValidateActiveEnumeratorReturnsAllEntries(activeEnumeration, entries);
         }
 
         [TestCase]
@@ -161,15 +150,19 @@ namespace GVFS.UnitTests.Windows.Virtualization
                 new ProjectedFileInfo("a", size: 0, isFolder:false, sha: new Sha1Id(1, 1, 1))
             };
 
-            using (ActiveEnumeration activeEnumeration = new ActiveEnumeration(entries))
-            {
-                string filter = "b";
-                activeEnumeration.TrySaveFilterString(filter).ShouldEqual(true);
-                activeEnumeration.IsCurrentValid.ShouldEqual(false);
-                activeEnumeration.MoveNext().ShouldEqual(false);
-                activeEnumeration.RestartEnumeration(filter);
-                activeEnumeration.IsCurrentValid.ShouldEqual(false);
-            }
+            ActiveEnumeration activeEnumeration = CreateActiveEnumeration(entries);
+            string filter = "b";
+            activeEnumeration.TrySaveFilterString(filter).ShouldEqual(true);
+            activeEnumeration.IsCurrentValid.ShouldEqual(false);
+            activeEnumeration.Current.ShouldEqual(null);
+
+            activeEnumeration.MoveNext().ShouldEqual(false);
+            activeEnumeration.IsCurrentValid.ShouldEqual(false);
+            activeEnumeration.Current.ShouldEqual(null);
+
+            activeEnumeration.RestartEnumeration(filter);
+            activeEnumeration.IsCurrentValid.ShouldEqual(false);
+            activeEnumeration.Current.ShouldEqual(null);
         }
 
         [TestCase]
@@ -177,14 +170,12 @@ namespace GVFS.UnitTests.Windows.Virtualization
         {
             string filterString = "*.*";
 
-            using (ActiveEnumeration activeEnumeration = new ActiveEnumeration(new List<ProjectedFileInfo>()))
-            {
-                activeEnumeration.TrySaveFilterString(filterString).ShouldEqual(true);
-                activeEnumeration.TrySaveFilterString(null).ShouldEqual(false);
-                activeEnumeration.TrySaveFilterString(string.Empty).ShouldEqual(false);
-                activeEnumeration.TrySaveFilterString("?").ShouldEqual(false);
-                activeEnumeration.GetFilterString().ShouldEqual(filterString);
-            }
+            ActiveEnumeration activeEnumeration = CreateActiveEnumeration(new List<ProjectedFileInfo>());
+            activeEnumeration.TrySaveFilterString(filterString).ShouldEqual(true);
+            activeEnumeration.TrySaveFilterString(null).ShouldEqual(false);
+            activeEnumeration.TrySaveFilterString(string.Empty).ShouldEqual(false);
+            activeEnumeration.TrySaveFilterString("?").ShouldEqual(false);
+            activeEnumeration.GetFilterString().ShouldEqual(filterString);
         }
 
         [TestCase]
@@ -201,20 +192,14 @@ namespace GVFS.UnitTests.Windows.Virtualization
             };
 
             // Test empty string ("") filter
-            using (ActiveEnumeration activeEnumeration = new ActiveEnumeration(entries))
-            {
-                activeEnumeration.IsCurrentValid.ShouldEqual(true);
-                activeEnumeration.TrySaveFilterString(string.Empty).ShouldEqual(true);
-                this.ValidateActiveEnumeratorReturnsAllEntries(activeEnumeration, entries);
-            }
+            ActiveEnumeration activeEnumeration = CreateActiveEnumeration(entries);
+            activeEnumeration.TrySaveFilterString(string.Empty).ShouldEqual(true);
+            this.ValidateActiveEnumeratorReturnsAllEntries(activeEnumeration, entries);
 
             // Test null filter
-            using (ActiveEnumeration activeEnumeration = new ActiveEnumeration(entries))
-            {
-                activeEnumeration.IsCurrentValid.ShouldEqual(true);
-                activeEnumeration.TrySaveFilterString(null).ShouldEqual(true);
-                this.ValidateActiveEnumeratorReturnsAllEntries(activeEnumeration, entries);
-            }
+            activeEnumeration = CreateActiveEnumeration(entries);
+            activeEnumeration.TrySaveFilterString(null).ShouldEqual(true);
+            this.ValidateActiveEnumeratorReturnsAllEntries(activeEnumeration, entries);
         }
 
         [TestCase]
@@ -233,95 +218,59 @@ namespace GVFS.UnitTests.Windows.Virtualization
                 new ProjectedFileInfo("E.bat", size: 0, isFolder:false, sha: new Sha1Id(1, 1, 8)),
             };
 
-            using (ActiveEnumeration activeEnumeration = new ActiveEnumeration(entries))
-            {
-                activeEnumeration.IsCurrentValid.ShouldEqual(true);
-                activeEnumeration.TrySaveFilterString("*").ShouldEqual(true);
-                this.ValidateActiveEnumeratorReturnsAllEntries(activeEnumeration, entries);
-            }
+            ActiveEnumeration activeEnumeration = CreateActiveEnumeration(entries);
+            activeEnumeration.TrySaveFilterString("*").ShouldEqual(true);
+            this.ValidateActiveEnumeratorReturnsAllEntries(activeEnumeration, entries);
 
-            using (ActiveEnumeration activeEnumeration = new ActiveEnumeration(entries))
-            {
-                activeEnumeration.IsCurrentValid.ShouldEqual(true);
-                activeEnumeration.TrySaveFilterString("*.*").ShouldEqual(true);
-                this.ValidateActiveEnumeratorReturnsAllEntries(activeEnumeration, entries.Where(entry => entry.Name.Contains(".")));
-            }
+            activeEnumeration = CreateActiveEnumeration(entries);
+            activeEnumeration.TrySaveFilterString("*.*").ShouldEqual(true);
+            this.ValidateActiveEnumeratorReturnsAllEntries(activeEnumeration, entries.Where(entry => entry.Name.Contains(".")));
 
-            using (ActiveEnumeration activeEnumeration = new ActiveEnumeration(entries))
-            {
-                activeEnumeration.IsCurrentValid.ShouldEqual(true);
-                activeEnumeration.TrySaveFilterString("*.txt").ShouldEqual(true);
-                this.ValidateActiveEnumeratorReturnsAllEntries(activeEnumeration, entries.Where(entry => entry.Name.EndsWith(".txt", System.StringComparison.OrdinalIgnoreCase)));
-            }
+            activeEnumeration = CreateActiveEnumeration(entries);
+            activeEnumeration.TrySaveFilterString("*.txt").ShouldEqual(true);
+            this.ValidateActiveEnumeratorReturnsAllEntries(activeEnumeration, entries.Where(entry => entry.Name.EndsWith(".txt", System.StringComparison.OrdinalIgnoreCase)));
 
             // '<' = DOS_STAR, matches 0 or more characters until encountering and matching
             //                 the final . in the name
-            using (ActiveEnumeration activeEnumeration = new ActiveEnumeration(entries))
-            {
-                activeEnumeration.IsCurrentValid.ShouldEqual(true);
-                activeEnumeration.TrySaveFilterString("<.txt").ShouldEqual(true);
-                this.ValidateActiveEnumeratorReturnsAllEntries(activeEnumeration, entries.Where(entry => entry.Name.EndsWith(".txt", System.StringComparison.OrdinalIgnoreCase)));
-            }
+            activeEnumeration = CreateActiveEnumeration(entries);
+            activeEnumeration.TrySaveFilterString("<.txt").ShouldEqual(true);
+            this.ValidateActiveEnumeratorReturnsAllEntries(activeEnumeration, entries.Where(entry => entry.Name.EndsWith(".txt", System.StringComparison.OrdinalIgnoreCase)));
 
-            using (ActiveEnumeration activeEnumeration = new ActiveEnumeration(entries))
-            {
-                activeEnumeration.IsCurrentValid.ShouldEqual(true);
-                activeEnumeration.TrySaveFilterString("?").ShouldEqual(true);
-                this.ValidateActiveEnumeratorReturnsAllEntries(activeEnumeration, entries.Where(entry => entry.Name.Length == 1));
-            }
+            activeEnumeration = CreateActiveEnumeration(entries);
+            activeEnumeration.TrySaveFilterString("?").ShouldEqual(true);
+            this.ValidateActiveEnumeratorReturnsAllEntries(activeEnumeration, entries.Where(entry => entry.Name.Length == 1));
 
-            using (ActiveEnumeration activeEnumeration = new ActiveEnumeration(entries))
-            {
-                activeEnumeration.IsCurrentValid.ShouldEqual(true);
-                activeEnumeration.TrySaveFilterString("?.txt").ShouldEqual(true);
-                this.ValidateActiveEnumeratorReturnsAllEntries(activeEnumeration, entries.Where(entry => entry.Name.Length == 5 && entry.Name.EndsWith(".txt", System.StringComparison.OrdinalIgnoreCase)));
-            }
+            activeEnumeration = CreateActiveEnumeration(entries);
+            activeEnumeration.TrySaveFilterString("?.txt").ShouldEqual(true);
+            this.ValidateActiveEnumeratorReturnsAllEntries(activeEnumeration, entries.Where(entry => entry.Name.Length == 5 && entry.Name.EndsWith(".txt", System.StringComparison.OrdinalIgnoreCase)));
 
             // '>' = DOS_QM, matches any single character, or upon encountering a period or
             //               end of name string, advances the expression to the end of the
             //               set of contiguous DOS_QMs.
-            using (ActiveEnumeration activeEnumeration = new ActiveEnumeration(entries))
-            {
-                activeEnumeration.IsCurrentValid.ShouldEqual(true);
-                activeEnumeration.TrySaveFilterString(">.txt").ShouldEqual(true);
-                this.ValidateActiveEnumeratorReturnsAllEntries(activeEnumeration, entries.Where(entry => entry.Name.Length <= 5 && entry.Name.EndsWith(".txt", System.StringComparison.OrdinalIgnoreCase)));
-            }
+            activeEnumeration = CreateActiveEnumeration(entries);
+            activeEnumeration.TrySaveFilterString(">.txt").ShouldEqual(true);
+            this.ValidateActiveEnumeratorReturnsAllEntries(activeEnumeration, entries.Where(entry => entry.Name.Length <= 5 && entry.Name.EndsWith(".txt", System.StringComparison.OrdinalIgnoreCase)));
 
-            using (ActiveEnumeration activeEnumeration = new ActiveEnumeration(entries))
-            {
-                activeEnumeration.IsCurrentValid.ShouldEqual(true);
-                activeEnumeration.TrySaveFilterString("E.???").ShouldEqual(true);
-                this.ValidateActiveEnumeratorReturnsAllEntries(activeEnumeration, entries.Where(entry => entry.Name.Length == 5 && entry.Name.StartsWith("E.", System.StringComparison.OrdinalIgnoreCase)));
-            }
+            activeEnumeration = CreateActiveEnumeration(entries);
+            activeEnumeration.TrySaveFilterString("E.???").ShouldEqual(true);
+            this.ValidateActiveEnumeratorReturnsAllEntries(activeEnumeration, entries.Where(entry => entry.Name.Length == 5 && entry.Name.StartsWith("E.", System.StringComparison.OrdinalIgnoreCase)));
 
             // '"' = DOS_DOT, matches either a . or zero characters beyond name string.
-            using (ActiveEnumeration activeEnumeration = new ActiveEnumeration(entries))
-            {
-                activeEnumeration.IsCurrentValid.ShouldEqual(true);
-                activeEnumeration.TrySaveFilterString("E\"*").ShouldEqual(true);
-                this.ValidateActiveEnumeratorReturnsAllEntries(activeEnumeration, entries.Where(entry => entry.Name.StartsWith("E.", System.StringComparison.OrdinalIgnoreCase) || entry.Name.Equals("E", System.StringComparison.OrdinalIgnoreCase)));
-            }
+            activeEnumeration = CreateActiveEnumeration(entries);
+            activeEnumeration.TrySaveFilterString("E\"*").ShouldEqual(true);
+            this.ValidateActiveEnumeratorReturnsAllEntries(activeEnumeration, entries.Where(entry => entry.Name.StartsWith("E.", System.StringComparison.OrdinalIgnoreCase) || entry.Name.Equals("E", System.StringComparison.OrdinalIgnoreCase)));
 
-            using (ActiveEnumeration activeEnumeration = new ActiveEnumeration(entries))
-            {
-                activeEnumeration.IsCurrentValid.ShouldEqual(true);
-                activeEnumeration.TrySaveFilterString("e\"*").ShouldEqual(true);
-                this.ValidateActiveEnumeratorReturnsAllEntries(activeEnumeration, entries.Where(entry => entry.Name.StartsWith("E.", System.StringComparison.OrdinalIgnoreCase) || entry.Name.Equals("E", System.StringComparison.OrdinalIgnoreCase)));
-            }
+            activeEnumeration = CreateActiveEnumeration(entries);
+            activeEnumeration.TrySaveFilterString("e\"*").ShouldEqual(true);
+            this.ValidateActiveEnumeratorReturnsAllEntries(activeEnumeration, entries.Where(entry => entry.Name.StartsWith("E.", System.StringComparison.OrdinalIgnoreCase) || entry.Name.Equals("E", System.StringComparison.OrdinalIgnoreCase)));
 
-            using (ActiveEnumeration activeEnumeration = new ActiveEnumeration(entries))
-            {
-                activeEnumeration.IsCurrentValid.ShouldEqual(true);
-                activeEnumeration.TrySaveFilterString("B\"*").ShouldEqual(true);
-                this.ValidateActiveEnumeratorReturnsAllEntries(activeEnumeration, entries.Where(entry => entry.Name.StartsWith("B.", System.StringComparison.OrdinalIgnoreCase) || entry.Name.Equals("B", System.StringComparison.OrdinalIgnoreCase)));
-            }
+            activeEnumeration = CreateActiveEnumeration(entries);
+            activeEnumeration.TrySaveFilterString("B\"*").ShouldEqual(true);
+            this.ValidateActiveEnumeratorReturnsAllEntries(activeEnumeration, entries.Where(entry => entry.Name.StartsWith("B.", System.StringComparison.OrdinalIgnoreCase) || entry.Name.Equals("B", System.StringComparison.OrdinalIgnoreCase)));
 
-            using (ActiveEnumeration activeEnumeration = new ActiveEnumeration(entries))
-            {
-                activeEnumeration.IsCurrentValid.ShouldEqual(true);
-                activeEnumeration.TrySaveFilterString("e.???").ShouldEqual(true);
-                this.ValidateActiveEnumeratorReturnsAllEntries(activeEnumeration, entries.Where(entry => entry.Name.Length == 5 && entry.Name.StartsWith("E.", System.StringComparison.OrdinalIgnoreCase)));
-            }
+            activeEnumeration = CreateActiveEnumeration(entries);
+            activeEnumeration.TrySaveFilterString("e.???").ShouldEqual(true);
+            this.ValidateActiveEnumeratorReturnsAllEntries(activeEnumeration, entries.Where(entry => entry.Name.Length == 5 && entry.Name.StartsWith("E.", System.StringComparison.OrdinalIgnoreCase)));
         }
 
         [TestCase]
@@ -337,19 +286,13 @@ namespace GVFS.UnitTests.Windows.Virtualization
                 new ProjectedFileInfo("E.bat", size: 0, isFolder:false, sha: new Sha1Id(1, 1, 5)),
             };
 
-            using (ActiveEnumeration activeEnumeration = new ActiveEnumeration(entries))
-            {
-                activeEnumeration.IsCurrentValid.ShouldEqual(true);
-                activeEnumeration.TrySaveFilterString("E.bat").ShouldEqual(true);
-                this.ValidateActiveEnumeratorReturnsAllEntries(activeEnumeration, entries.Where(entry => entry.Name == "E.bat"));
-            }
+            ActiveEnumeration activeEnumeration = CreateActiveEnumeration(entries);
+            activeEnumeration.TrySaveFilterString("E.bat").ShouldEqual(true);
+            this.ValidateActiveEnumeratorReturnsAllEntries(activeEnumeration, entries.Where(entry => entry.Name == "E.bat"));
 
-            using (ActiveEnumeration activeEnumeration = new ActiveEnumeration(entries))
-            {
-                activeEnumeration.IsCurrentValid.ShouldEqual(true);
-                activeEnumeration.TrySaveFilterString("e.bat").ShouldEqual(true);
-                this.ValidateActiveEnumeratorReturnsAllEntries(activeEnumeration, entries.Where(entry => string.Compare(entry.Name, "e.bat", StringComparison.OrdinalIgnoreCase) == 0));
-            }
+            activeEnumeration = CreateActiveEnumeration(entries);
+            activeEnumeration.TrySaveFilterString("e.bat").ShouldEqual(true);
+            this.ValidateActiveEnumeratorReturnsAllEntries(activeEnumeration, entries.Where(entry => string.Compare(entry.Name, "e.bat", StringComparison.OrdinalIgnoreCase) == 0));
         }
 
         [TestCase]
@@ -365,15 +308,13 @@ namespace GVFS.UnitTests.Windows.Virtualization
                 new ProjectedFileInfo("E.bat", size: 0, isFolder:false, sha: new Sha1Id(1, 1, 5)),
             };
 
-            using (ActiveEnumeration activeEnumeration = new ActiveEnumeration(entries))
-            {
-                string filter = "g";
-                activeEnumeration.TrySaveFilterString(filter).ShouldEqual(true);
-                activeEnumeration.IsCurrentValid.ShouldEqual(false);
-                activeEnumeration.MoveNext().ShouldEqual(false);
-                activeEnumeration.RestartEnumeration(filter);
-                activeEnumeration.IsCurrentValid.ShouldEqual(false);
-            }
+            ActiveEnumeration activeEnumeration = CreateActiveEnumeration(entries);
+            string filter = "g";
+            activeEnumeration.TrySaveFilterString(filter).ShouldEqual(true);
+            activeEnumeration.IsCurrentValid.ShouldEqual(false);
+            activeEnumeration.MoveNext().ShouldEqual(false);
+            activeEnumeration.RestartEnumeration(filter);
+            activeEnumeration.IsCurrentValid.ShouldEqual(false);
         }
 
         [TestCase]
@@ -389,14 +330,10 @@ namespace GVFS.UnitTests.Windows.Virtualization
                 new ProjectedFileInfo("E.bat", size: 0, isFolder:false, sha: new Sha1Id(1, 1, 5)),
             };
 
-            using (ActiveEnumeration activeEnumeration = new ActiveEnumeration(entries))
-            {
-                activeEnumeration.IsCurrentValid.ShouldEqual(true);
-                activeEnumeration.Current.ShouldBeSameAs(entries[0]);
-                activeEnumeration.TrySaveFilterString("D.txt").ShouldEqual(true);
-                activeEnumeration.IsCurrentValid.ShouldEqual(true);
-                activeEnumeration.Current.Name.ShouldEqual("D.txt");
-            }
+            ActiveEnumeration activeEnumeration = CreateActiveEnumeration(entries);
+            activeEnumeration.TrySaveFilterString("D.txt").ShouldEqual(true);
+            activeEnumeration.IsCurrentValid.ShouldEqual(true);
+            activeEnumeration.Current.Name.ShouldEqual("D.txt");
         }
 
         [TestCase]
@@ -412,18 +349,14 @@ namespace GVFS.UnitTests.Windows.Virtualization
                 new ProjectedFileInfo("E.bat", size: 0, isFolder:false, sha: new Sha1Id(1, 1, 5)),
             };
 
-            using (ActiveEnumeration activeEnumeration = new ActiveEnumeration(entries))
-            {
-                activeEnumeration.IsCurrentValid.ShouldEqual(true);
-                activeEnumeration.Current.ShouldBeSameAs(entries[0]);
-                activeEnumeration.TrySaveFilterString("D.txt").ShouldEqual(true);
-                activeEnumeration.IsCurrentValid.ShouldEqual(true);
-                activeEnumeration.Current.Name.ShouldEqual("D.txt");
+            ActiveEnumeration activeEnumeration = CreateActiveEnumeration(entries);
+            activeEnumeration.TrySaveFilterString("D.txt").ShouldEqual(true);
+            activeEnumeration.IsCurrentValid.ShouldEqual(true);
+            activeEnumeration.Current.Name.ShouldEqual("D.txt");
 
-                activeEnumeration.RestartEnumeration("c");
-                activeEnumeration.IsCurrentValid.ShouldEqual(true);
-                activeEnumeration.Current.Name.ShouldEqual("c");
-            }
+            activeEnumeration.RestartEnumeration("c");
+            activeEnumeration.IsCurrentValid.ShouldEqual(true);
+            activeEnumeration.Current.Name.ShouldEqual("c");
         }
 
         [TestCase]
@@ -437,18 +370,31 @@ namespace GVFS.UnitTests.Windows.Virtualization
                 new ProjectedFileInfo("E.bat", size: 0, isFolder:false, sha: new Sha1Id(1, 1, 4)),
             };
 
-            using (ActiveEnumeration activeEnumeration = new ActiveEnumeration(entries))
+            ActiveEnumeration activeEnumeration = CreateActiveEnumeration(entries);
+            activeEnumeration.TrySaveFilterString("D.txt").ShouldEqual(true);
+            activeEnumeration.IsCurrentValid.ShouldEqual(true);
+            activeEnumeration.Current.Name.ShouldEqual("D.txt");
+
+            activeEnumeration.RestartEnumeration("c*");
+            activeEnumeration.IsCurrentValid.ShouldEqual(true);
+            activeEnumeration.Current.Name.ShouldEqual("C.TXT");
+        }
+
+        private static ActiveEnumeration CreateActiveEnumeration(List<ProjectedFileInfo> entries)
+        {
+            ActiveEnumeration activeEnumeration = new ActiveEnumeration(entries);
+            if (entries.Count > 0)
             {
                 activeEnumeration.IsCurrentValid.ShouldEqual(true);
                 activeEnumeration.Current.ShouldBeSameAs(entries[0]);
-                activeEnumeration.TrySaveFilterString("D.txt").ShouldEqual(true);
-                activeEnumeration.IsCurrentValid.ShouldEqual(true);
-                activeEnumeration.Current.Name.ShouldEqual("D.txt");
-
-                activeEnumeration.RestartEnumeration("c*");
-                activeEnumeration.IsCurrentValid.ShouldEqual(true);
-                activeEnumeration.Current.Name.ShouldEqual("C.TXT");
             }
+            else
+            {
+                activeEnumeration.IsCurrentValid.ShouldEqual(false);
+                activeEnumeration.Current.ShouldBeNull();
+            }
+
+            return activeEnumeration;
         }
 
         private void ValidateActiveEnumeratorReturnsAllEntries(ActiveEnumeration activeEnumeration, IEnumerable<ProjectedFileInfo> entries)
@@ -465,9 +411,12 @@ namespace GVFS.UnitTests.Windows.Virtualization
 
             // activeEnumeration should no longer be valid after iterating beyond the end of the list
             activeEnumeration.IsCurrentValid.ShouldEqual(false);
+            activeEnumeration.Current.ShouldBeNull();
 
             // attempts to move beyond the end of the list should fail
             activeEnumeration.MoveNext().ShouldEqual(false);
+            activeEnumeration.IsCurrentValid.ShouldEqual(false);
+            activeEnumeration.Current.ShouldBeNull();
         }
 
         public class PatternMatcherWrapper

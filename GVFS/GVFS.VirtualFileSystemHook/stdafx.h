@@ -5,16 +5,14 @@
 
 #pragma once
 
+#ifdef _WIN32
 #include "targetver.h"
 #include <Windows.h>
-#include <stdio.h>
+#endif
+
 #include <string>
-#include <algorithm>
-#include <locale>
-#include <codecvt>
-#include <fcntl.h>
-#include <io.h>
-#include <string.h>
+#include <stdarg.h>
+
 
 
 // TODO: reference additional headers your program requires here

@@ -4,16 +4,16 @@
 ; General documentation on how to use InnoSetup scripts: http://www.jrsoftware.org/ishelp/index.php
 
 #define PrjFltDir PackagesDir + "\" + ProjFSPackage + "\filter" 
-#define VCRuntimeDir PackagesDir + "\GVFS.VCRuntime.0.1.0-build\lib\x64"
+#define VCRuntimeDir PackagesDir + "\GVFS.VCRuntime.0.2.0-build\lib\x64"
 #define GVFSDir BuildOutputDir + "\GVFS.Windows\bin\" + PlatformAndConfiguration
 #define GVFSCommonDir BuildOutputDir + "\GVFS.Common\bin\" + PlatformAndConfiguration + "\netstandard2.0"
-#define HooksDir BuildOutputDir + "\GVFS.Hooks\bin\" + PlatformAndConfiguration
+#define HooksDir BuildOutputDir + "\GVFS.Hooks.Windows\bin\" + PlatformAndConfiguration
 #define HooksLoaderDir BuildOutputDir + "\GitHooksLoader\bin\" + PlatformAndConfiguration
 #define ServiceDir BuildOutputDir + "\GVFS.Service\bin\" + PlatformAndConfiguration
 #define ServiceUIDir BuildOutputDir + "\GVFS.Service.UI\bin\" + PlatformAndConfiguration
 #define GVFSMountDir BuildOutputDir + "\GVFS.Mount.Windows\bin\" + PlatformAndConfiguration
-#define ReadObjectDir BuildOutputDir + "\GVFS.ReadObjectHook\bin\" + PlatformAndConfiguration
-#define VirtualFileSystemDir BuildOutputDir + "\GVFS.VirtualFileSystemHook\bin\" + PlatformAndConfiguration
+#define ReadObjectDir BuildOutputDir + "\GVFS.ReadObjectHook.Windows\bin\" + PlatformAndConfiguration
+#define VirtualFileSystemDir BuildOutputDir + "\GVFS.VirtualFileSystemHook.Windows\bin\" + PlatformAndConfiguration
 
 #define MyAppName "GVFS"
 #define MyAppInstallerVersion GetFileVersion(GVFSDir + "\GVFS.exe")
@@ -63,6 +63,10 @@ Name: "full"; Description: "Full installation"; Flags: iscustom;
 
 [Components]
 
+[InstallDelete]
+; Delete old dependencies from VS 2015 VC redistributables
+Type: files; Name: "{app}\ucrtbase.dll"
+
 [Files]
 ; PrjFlt Filter Files
 DestDir: "{app}\Filter"; Flags: ignoreversion; Source:"{#PrjFltDir}\PrjFlt.sys"
@@ -97,9 +101,10 @@ DestDir: "{app}"; Flags: ignoreversion; Source:"{#ReadObjectDir}\GVFS.ReadObject
 DestDir: "{app}"; Flags: ignoreversion; Source:"{#VirtualFileSystemDir}\GVFS.VirtualFileSystemHook.pdb"
 DestDir: "{app}"; Flags: ignoreversion; Source:"{#VirtualFileSystemDir}\GVFS.VirtualFileSystemHook.exe"
 
-; Cpp Dependancies
-DestDir: "{app}"; Flags: ignoreversion; Source:"{#VCRuntimeDir}\ucrtbase.dll"
+; Cpp Dependencies
 DestDir: "{app}"; Flags: ignoreversion; Source:"{#VCRuntimeDir}\msvcp140.dll"
+DestDir: "{app}"; Flags: ignoreversion; Source:"{#VCRuntimeDir}\msvcp140_1.dll"
+DestDir: "{app}"; Flags: ignoreversion; Source:"{#VCRuntimeDir}\msvcp140_2.dll"
 DestDir: "{app}"; Flags: ignoreversion; Source:"{#VCRuntimeDir}\vcruntime140.dll"
 
 ; GVFS PDB's
@@ -278,6 +283,18 @@ begin
     end;
 end;
 
+procedure WriteOnDiskVersion16CapableFile();
+var
+  FilePath: string;
+begin
+  FilePath := ExpandConstant('{app}\OnDiskVersion16CapableInstallation.dat');
+  if not FileExists(FilePath) then
+    begin
+      Log('WriteOnDiskVersion16CapableFile: Writing file ' + FilePath);
+      SaveStringToFile(FilePath, '', False);
+    end
+end;
+
 procedure InstallGVFSService();
 var
   ResultCode: integer;
@@ -302,6 +319,7 @@ begin
           end;
       end;
 
+    WriteOnDiskVersion16CapableFile();
   finally
     WizardForm.StatusLabel.Caption := StatusText;
     WizardForm.ProgressGauge.Style := npbstNormal;

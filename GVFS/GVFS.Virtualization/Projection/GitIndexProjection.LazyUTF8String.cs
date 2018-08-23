@@ -1,4 +1,5 @@
-﻿using System;
+﻿using GVFS.Common.Tracing;
+using System;
 using System.Runtime.InteropServices;
 using System.Text;
 
@@ -8,11 +9,8 @@ namespace GVFS.Virtualization.Projection
     {
         internal class LazyUTF8String
         {
-            private const int ByteAllocationSize = 32 * 1024;
-            private const int StringAllocationSize = 1000;
-
-            private static ObjectPool<LazyUTF8String> stringPool = new ObjectPool<LazyUTF8String>(StringAllocationSize, objectCreator: () => new LazyUTF8String());
-            private static BytePool bytePool = new BytePool();
+            private static ObjectPool<LazyUTF8String> stringPool;
+            private static BytePool bytePool;
 
             private int startIndex;
             private int length;
@@ -30,21 +28,41 @@ namespace GVFS.Virtualization.Projection
                 this.length = -1;
             }
 
-            public static void ResetPool()
+            public static void InitializePools(ITracer tracer, uint indexEntryCount)
             {
-                stringPool = new ObjectPool<LazyUTF8String>(StringAllocationSize, objectCreator: () => new LazyUTF8String());
+                if (stringPool == null)
+                {
+                    stringPool = new ObjectPool<LazyUTF8String>(tracer, Convert.ToInt32(indexEntryCount * PoolAllocationMultipliers.StringPool), objectCreator: () => new LazyUTF8String());
+                }
+
+                if (bytePool == null)
+                {
+                    bytePool = new BytePool(tracer, indexEntryCount);
+                }
+            }
+
+            public static void ResetPool(ITracer tracer, uint indexEntryCount)
+            {
+                stringPool = new ObjectPool<LazyUTF8String>(tracer, Convert.ToInt32(indexEntryCount * PoolAllocationMultipliers.StringPool), objectCreator: () => new LazyUTF8String());
                 if (bytePool != null)
                 {
                     bytePool.UnpinPool();
                 }
 
-                bytePool = new BytePool();
+                bytePool = new BytePool(tracer, indexEntryCount);
             }
 
             public static void FreePool()
             {
-                bytePool.FreeAll();
-                stringPool.FreeAll();
+                if (bytePool != null)
+                {
+                    bytePool.FreeAll();
+                }
+
+                if (stringPool != null)
+                {
+                    stringPool.FreeAll();
+                }
             }
 
             public static int StringPoolSize()
@@ -57,10 +75,10 @@ namespace GVFS.Virtualization.Projection
                 return bytePool.Size;
             }
 
-            public static bool ShrinkPool()
+            public static void ShrinkPool()
             {
-                bool didShrink = bytePool.Shrink();
-                return stringPool.Shrink() == true ? true : didShrink;
+                bytePool.Shrink();
+                stringPool.Shrink();
             }
 
             public static unsafe LazyUTF8String FromByteArray(byte* bufferPtr, int length)
@@ -201,8 +219,8 @@ namespace GVFS.Virtualization.Projection
             {
                 private GCHandle poolHandle;
 
-                public BytePool()
-                    : base(LazyUTF8String.ByteAllocationSize, null)
+                public BytePool(ITracer tracer, uint indexEntryCount)
+                    : base(tracer, Convert.ToInt32(indexEntryCount * PoolAllocationMultipliers.BytePool), null)
                 {
                 }
 

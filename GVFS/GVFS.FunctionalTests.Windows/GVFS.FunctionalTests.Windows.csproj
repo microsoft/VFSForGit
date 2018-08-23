@@ -188,7 +188,7 @@
       xcopy /Y $(BuildOutputDir)\GVFS.Mount.Windows\bin\$(Platform)\$(Configuration)\* $(TargetDir)
       xcopy /Y $(BuildOutputDir)\FastFetch\bin\$(Platform)\$(Configuration)\* $(TargetDir)
       xcopy /Y $(BuildOutputDir)\GVFS.NativeTests\bin\$(Platform)\$(Configuration)\* $(TargetDir)
-      xcopy /Y $(BuildOutputDir)\GVFS.Hooks\bin\$(Platform)\$(Configuration)\* $(TargetDir)
+      xcopy /Y $(BuildOutputDir)\GVFS.Hooks.Windows\bin\$(Platform)\$(Configuration)\* $(TargetDir)
       xcopy /Y $(BuildOutputDir)\GVFS.FunctionalTests.LockHolder\bin\$(Platform)\$(Configuration)\* $(TargetDir)
 
       REM If there is an inbox version of the ProjFS dll, we must use that one to guarantee compat with the sys, so delete whatever is in our TargetDir

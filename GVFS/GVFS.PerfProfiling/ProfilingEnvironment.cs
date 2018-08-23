@@ -25,7 +25,7 @@ namespace GVFS.PerfProfiling
         {
             GVFSPlatform.Register(new WindowsPlatform());
             string gitBinPath = GVFSPlatform.Instance.GitInstallation.GetInstalledGitBinPath();
-            string hooksPath = ProcessHelper.WhereDirectory(GVFSConstants.GVFSHooksExecutableName);
+            string hooksPath = ProcessHelper.WhereDirectory(GVFSPlatform.Instance.Constants.GVFSHooksExecutableName);
 
             return GVFSEnlistment.CreateFromDirectory(enlistmentRootPath, gitBinPath, hooksPath);
         }
@@ -78,7 +78,7 @@ namespace GVFS.PerfProfiling
                 new RetryConfig());
 
             GVFSGitObjects gitObjects = new GVFSGitObjects(this.Context, objectRequestor);
-            return new FileSystemCallbacks(this.Context, gitObjects, RepoMetadata.Instance, fileSystemVirtualizer: null);
+            return new FileSystemCallbacks(this.Context, gitObjects, RepoMetadata.Instance, fileSystemVirtualizer: null, gitStatusCache : null);
         }
     }
 }

@@ -20,10 +20,11 @@ namespace GVFS.FunctionalTests.Properties
             public static string FastFetchControl { get; set; }
             public static string PathToGit { get; set; }
             public static string PathToGVFSService { get; set; }
+            public static string BinaryFileNameExtension { get; set; }
 
             public static void Initialize()
             {
-                CurrentDirectory = Path.GetFullPath(Path.GetDirectoryName(Environment.CommandLine.Trim('"', ' ')));
+                CurrentDirectory = Path.GetFullPath(Path.GetDirectoryName(Environment.GetCommandLineArgs()[0]));
 
                 RepoToClone = @"https://gvfs.visualstudio.com/ci/_git/ForTests";
                 Commitish = @"FunctionalTests/20180214";
@@ -39,14 +40,17 @@ namespace GVFS.FunctionalTests.Properties
                     FastFetchRoot = @"C:\Repos\GVFSFunctionalTests\FastFetch\Test";
                     FastFetchControl = @"C:\Repos\GVFSFunctionalTests\FastFetch\Control";
                     PathToGVFSService = @"GVFS.Service.exe";
+                    BinaryFileNameExtension = ".exe";
                 }
                 else
                 {
                     string root = "/GVFS.FT";
                     EnlistmentRoot = Path.Combine(root, "test");
+                    ControlGitRepoRoot = Path.Combine(root, "control");
                     PathToGVFS = "gvfs";
                     PathToGit = "/usr/local/bin/git";
                     PathToBash = "/bin/bash";
+                    BinaryFileNameExtension = string.Empty;
                 }
             }
         }

@@ -22,6 +22,11 @@ namespace GVFS.Platform.Windows
         private const string BuildLabRegistryValue = "BuildLab";
         private const string BuildLabExRegistryValue = "BuildLabEx";
 
+        public WindowsPlatform()
+            : base(executableExtension: ".exe")
+        {
+        }
+
         public override IKernelDriver KernelDriver { get; } = new ProjFSFilter();
         public override IGitInstallation GitInstallation { get; } = new WindowsGitInstallation();
         public override IDiskLayoutUpgradeData DiskLayoutUpgrade { get; } = new WindowsDiskLayoutUpgradeData();
@@ -158,6 +163,16 @@ namespace GVFS.Platform.Windows
             return WindowsPlatform.IsElevatedImplementation();
         }
 
+        public override bool IsProcessActive(int processId)
+        {
+            return WindowsPlatform.IsProcessActiveImplementation(processId);
+        }
+
+        public override string GetNamedPipeName(string enlistmentRoot)
+        {
+            return WindowsPlatform.GetNamedPipeNameImplementation(enlistmentRoot);
+        }
+
         public override void ConfigureVisualStudio(string gitBinPath, ITracer tracer)
         {
             const string GitBinPathEnd = "\\cmd\\git.exe";
@@ -181,15 +196,41 @@ namespace GVFS.Platform.Windows
         {
             error = null;
             hooksVersion = null;
-            hooksPath = ProcessHelper.WhereDirectory(GVFSConstants.GVFSHooksExecutableName);
+            hooksPath = ProcessHelper.WhereDirectory(GVFSPlatform.Instance.Constants.GVFSHooksExecutableName);
             if (hooksPath == null)
             {
-                error = "Could not find " + GVFSConstants.GVFSHooksExecutableName;
+                error = "Could not find " + GVFSPlatform.Instance.Constants.GVFSHooksExecutableName;
                 return false;
             }
 
-            FileVersionInfo hooksFileVersionInfo = FileVersionInfo.GetVersionInfo(hooksPath + "\\" + GVFSConstants.GVFSHooksExecutableName);
+            FileVersionInfo hooksFileVersionInfo = FileVersionInfo.GetVersionInfo(Path.Combine(hooksPath, GVFSPlatform.Instance.Constants.GVFSHooksExecutableName));
             hooksVersion = hooksFileVersionInfo.ProductVersion;
+            return true;
+        }
+
+        public override bool TryInstallGitCommandHooks(GVFSContext context, string executingDirectory, string hookName, string commandHookPath, out string errorMessage)
+        {
+            // The GitHooksLoader requires the following setup to invoke a hook:
+            //      Copy GithooksLoader.exe to hook-name.exe
+            //      Create a text file named hook-name.hooks that lists the applications to execute for the hook, one application per line
+
+            string gitHooksloaderPath = Path.Combine(executingDirectory, GVFSConstants.DotGit.Hooks.LoaderExecutable);
+            if (!HooksInstaller.TryHooksInstallationAction(
+                () => HooksInstaller.CopyHook(context, gitHooksloaderPath, commandHookPath + GVFSPlatform.Instance.Constants.ExecutableExtension), 
+                out errorMessage))
+            {
+                errorMessage = "Failed to copy " + GVFSConstants.DotGit.Hooks.LoaderExecutable + " to " + commandHookPath + GVFSPlatform.Instance.Constants.ExecutableExtension + "\n" + errorMessage;
+                return false;
+            }
+
+            if (!HooksInstaller.TryHooksInstallationAction(
+                () => WindowsGitHooksInstaller.CreateHookCommandConfig(context, hookName, commandHookPath), 
+                out errorMessage))
+            {
+                errorMessage = "Failed to create " + commandHookPath + GVFSConstants.GitConfig.HooksExtension + "\n" + errorMessage;
+                return false;
+            }
+
             return true;
         }
 
@@ -204,7 +245,12 @@ namespace GVFS.Platform.Windows
 
         public override bool IsConsoleOutputRedirectedToFile()
         {
-            return ConsoleHelper.IsConsoleOutputRedirectedToFile();
+            return WindowsPlatform.IsConsoleOutputRedirectedToFileImplementation();
+        }
+
+        public override bool IsGitStatusCacheSupported()
+        {
+            return File.Exists(Path.Combine(Paths.GetServiceDataRoot(GVFSConstants.Service.ServiceName), GVFSConstants.GitStatusCache.EnableGitStatusCacheTokenFile));
         }
 
         public override bool TryGetGVFSEnlistmentRoot(string directory, out string enlistmentRoot, out string errorMessage)

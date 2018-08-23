@@ -37,6 +37,12 @@ namespace GVFS.Common.Http
             return Uri.IsWellFormedUriString(this.Url, UriKind.Absolute);
         }
 
+        public bool IsNone(string repoUrl)
+        {
+            return ReservedNames.None.Equals(this.Name, StringComparison.OrdinalIgnoreCase)
+                || this.Url?.StartsWith(repoUrl, StringComparison.OrdinalIgnoreCase) == true;
+        }
+
         public override string ToString()
         {
             if (string.IsNullOrWhiteSpace(this.Name))

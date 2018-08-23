@@ -20,7 +20,6 @@
     <CodeAnalysisRuleSet>MinimumRecommendedRules.ruleset</CodeAnalysisRuleSet>
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
-    <RegisterForComInterop>true</RegisterForComInterop>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)' == 'Release|x64'">
     <DefineConstants>TRACE</DefineConstants>
@@ -40,25 +39,38 @@
     <Compile Include="GenerateVersionInfo.cs" />
   </ItemGroup>
   <ItemGroup>
-    <None Include="GVFS.props">
+    <BuildProps Include="GVFS.props">
       <SubType>Designer</SubType>
-    </None>
-    <None Include="GVFS.cs.props">
+    </BuildProps>
+    <BuildProps Include="GVFS.cs.props">
       <SubType>Designer</SubType>
-    </None>
-    <None Include="GVFS.cpp.props">
+    </BuildProps>
+    <BuildProps Include="GVFS.cpp.props">
       <SubType>Designer</SubType>
-    </None>
-    <None Include="packages.config" />
-    <None Include="ProjFS.props">
+    </BuildProps>
+    <GeneratedPackageConfig Include="packages.config" />
+    <BuildProps Include="ProjFS.props">
       <SubType>Designer</SubType>
-    </None>
+    </BuildProps>
   </ItemGroup>
 
   <Target Name="GetTargetFrameworkProperties" />
   <Target Name="GetNativeManifest" />
   <Target Name="GetCopyToOutputDirectoryItems" />
   <Target Name="Publish" />
+
+  <!-- The following targets are defined here so that we can build
+       this project without emitting an assembly. -->
+  <Target Name="BuiltProjectOutputGroup" />
+  <Target Name="BuiltProjectOutputGroupDependencies" />
+  <Target Name="DebugSymbolsProjectOutputGroup" />
+  <Target Name="DebugSymbolsProjectOutputGroupDependencies" />
+  <Target Name="DocumentationProjectOutputGroup" />
+  <Target Name="DocumentationProjectOutputGroupDependencies" />
+  <Target Name="SatelliteDllsProjectOutputGroup" />
+  <Target Name="SatelliteDllsProjectOutputGroupDependencies" />
+  <Target Name="SGenFilesOutputGroup" />
+  <Target Name="SGenFilesOutputGroupDependencies" />
 
   <UsingTask TaskName="GenerateG4WNugetReference" TaskFactory="CodeTaskFactory" AssemblyFile="$(MSBuildToolsPath)\Microsoft.Build.Tasks.v12.0.dll">
     <ParameterGroup>
@@ -129,7 +141,6 @@
 
   <PropertyGroup>
     <GVFSSetupPath>$(BuildOutputDir)\GVFS.Installer\bin\x64\$(Configuration)\SetupGVFS.$(GVFSVersion).exe</GVFSSetupPath>
-    <GitPackagesConfigPath>$(MSBuildThisFileDirectory)packages.config</GitPackagesConfigPath>
     <OutDir>$(BuildOutputDir)\GVFS.Build\</OutDir>
     <GitVersionConstantsPath>$(OutDir)GVFSConstants.GitVersion.cs</GitVersionConstantsPath>
     <G4WInstallBatPath>$(OutDir)InstallG4W.bat</G4WInstallBatPath>
@@ -160,13 +171,13 @@
   </ItemGroup>
 
   <Target Name="GVFSPreBuild"
-          Inputs="$(MSBuildThisFileFullPath);$(MSBuildProjectFullPath);$(MSBuildThisFileDirectory)GenerateG4WNugetReference.cs"
-          Outputs="$(GitPackagesConfigPath)">
+          Inputs="$(MSBuildThisFileFullPath);$(MSBuildProjectFullPath);$(MSBuildThisFileDirectory)GenerateG4WNugetReference.cs;@(BuildProps)"
+          Outputs="@(GeneratedPackageConfig)">
     <GenerateG4WNugetReference GitPackageVersion="$(GitPackageVersion)" Condition="'$(OS)' == 'Windows_NT'" />
   </Target>
 
   <Target Name="GVFSPackageRestore"
-          Inputs="$(MSBuildThisFileFullPath);$(MSBuildProjectFullPath);$(GitPackagesConfigPath)"
+          Inputs="$(MSBuildThisFileFullPath);$(MSBuildProjectFullPath);@(GeneratedPackageConfig)"
           Outputs="$(RestoreTimestampPath)"
           DependsOnTargets="GVFSPreBuild"
           Condition="'$(OS)' == 'Windows_NT'">
@@ -177,7 +188,7 @@
 
   <Target Name="GenerateInstallScripts" 
           DependsOnTargets="GVFSPackageRestore;$(GenerateInstallScriptsDependsOn)"
-          Inputs="$(RestoreTimestampPath);$(GitPackagesConfigPath);$(MSBuildThisFileFullPath);$(MSBuildProjectFullPath);$(MSBuildThisFileDirectory)GenerateGitVersionConstants.cs;$(MSBuildThisFileDirectory)GenerateInstallScripts.cs;$(MSBuildThisFileDirectory)GenerateGVFSInstallersNuspec.cs"
+          Inputs="$(RestoreTimestampPath);@(GeneratedPackageConfig);$(MSBuildThisFileFullPath);$(MSBuildProjectFullPath);$(MSBuildThisFileDirectory)GenerateGitVersionConstants.cs;$(MSBuildThisFileDirectory)GenerateInstallScripts.cs;$(MSBuildThisFileDirectory)GenerateGVFSInstallersNuspec.cs"
           Outputs="$(GitVersionConstantsPath);$(G4WInstallBatPath);$(GVFSInstallBatPath);$(GVFSInstallerNuspecPath)"
           Condition="'$(OS)' == 'Windows_NT'">
     <GenerateGitVersionConstants GitPackageVersion="$(GitPackageVersion)" PackagesPath="$(PackagesDir)" OutputFile="$(GitVersionConstantsPath)">
@@ -189,7 +200,7 @@
 
   <Target Name="GenerateShared"
           DependsOnTargets="GenerateInstallScripts;$(GenerateSharedDependsOn)"
-          Inputs="$(RestoreTimestampPath);$(GitPackagesConfigPath);$(MSBuildThisFileFullPath);$(MSBuildProjectFullPath);$(MSBuildThisFileDirectory)GenerateVersionInfo.cs;$(MSBuildThisFileDirectory)GenerateApplicationManifests.cs"
+          Inputs="$(RestoreTimestampPath);@(GeneratedPackageConfig);$(MSBuildThisFileFullPath);$(MSBuildProjectFullPath);$(MSBuildThisFileDirectory)GenerateVersionInfo.cs;$(MSBuildThisFileDirectory)GenerateApplicationManifests.cs"
           Outputs="$(AssemblyVersionPath);$(VersionHeaderPath);@(ApplicationNeedsManifest->'%(OutputFile)')">
     <GenerateVersionInfo Version="$(GVFSVersion)" AssemblyVersion="$(AssemblyVersionPath)" VersionHeader="$(VersionHeaderPath)" />
     <GenerateApplicationManifests Version="$(GVFSVersion)" ApplicationName="@(ApplicationNeedsManifest)" ManifestPath="@(ApplicationNeedsManifest->'%(OutputFile)')" />  

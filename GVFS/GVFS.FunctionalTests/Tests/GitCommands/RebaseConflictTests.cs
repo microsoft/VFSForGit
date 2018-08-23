@@ -47,6 +47,14 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
         }
 
         [TestCase]
+        public void RebaseConflict_RemoveDeletedTheirsFile()
+        {
+            this.ValidateGitCommand("checkout " + GitRepoTests.ConflictTargetBranch);
+            this.RunGitCommand("rebase " + GitRepoTests.ConflictSourceBranch);
+            this.ValidateGitCommand("rm Test_ConflictTests/ModifiedFiles/ChangeInSourceDeleteInTarget.txt");
+        }
+
+        [TestCase]
         public void RebaseConflict_AddThenContinue()
         {
             this.ValidateGitCommand("checkout " + GitRepoTests.ConflictTargetBranch);

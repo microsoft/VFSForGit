@@ -1,20 +1,25 @@
-# GVFS
+# VFS for Git
 
-## What is GVFS?
+## What is VFS for Git?
 
-GVFS stands for Git Virtual File System. GVFS virtualizes the file system beneath your git repo so that git and all tools
-see what appears to be a normal repo, but GVFS only downloads objects as they are needed. GVFS also manages the files that git will consider,
+VFS stands for Virtual File System. VFS for Git virtualizes the file system beneath your git repo so that git and all tools
+see what appears to be a normal repo, but VFS for Git only downloads objects as they are needed. VFS for Git also manages the files that git will consider,
 to ensure that git operations like status, checkout, etc., can be as quick as possible because they will only consider the files
 that the user has accessed, not all files in the repo.
 
-## Installing GVFS
+## New name
 
-* GVFS requires Windows 10 Anniversary Update (Windows 10 version 1607) or later
-* Install the latest GVFS and Git for Windows from https://github.com/Microsoft/GVFS/releases
+This project was formerly known as GVFS (Git Virtual File System). It is undergoing a rename to VFS for Git. While the rename is in progress, the code, protocol,
+built executables, and releases may still refer to the old GVFS name. See https://github.com/Microsoft/VFSForGit/projects/4 for the latest status of the rename effort.
 
-## Building GVFS
+## Installing VFS for Git
 
-If you'd like to build your own GVFS installer:
+* VFS for Git requires Windows 10 Anniversary Update (Windows 10 version 1607) or later
+* Run the latest GVFS and Git for Windows installers from https://github.com/Microsoft/VFSForGit/releases
+
+## Building VFS for Git
+
+If you'd like to build your own VFS for Git Windows installer:
 * Install Visual Studio 2017 Community Edition or higher (https://www.visualstudio.com/downloads/). 
   * Include the following workloads:
     * .NET desktop development
@@ -22,22 +27,21 @@ If you'd like to build your own GVFS installer:
     * .NET Core cross-platform development
   * Include the following additional components:
     * .NET Core runtime
-    * .NET Framework 3.5 development tools
     * C++/CLI support
-    * VC++ 2015.3 v140 toolset
     * Windows 10 SDK (10.0.10240.0)
-* Create a folder to clone into, e.g. `C:\Repos\GVFS`
-* Clone this repo into the `src` subfolder, e.g. `C:\Repos\GVFS\src`
+* Install the .NET Core 2.1 SDK (https://www.microsoft.com/net/download/dotnet-core/2.1)
+* Create a folder to clone into, e.g. `C:\Repos\VFSForGit`
+* Clone this repo into the `src` subfolder, e.g. `C:\Repos\VFSForGit\src`
 * Run `\src\Scripts\BuildGVFSForWindows.bat`
 * You can also build in Visual Studio by opening `src\GVFS.sln` (do not upgrade any projects) and building. However, the very first 
 build will fail, and the second and subsequent builds will succeed. This is because the build requires a prebuild code generation step.
 For details, see the build script in the previous step.
 
-The installer can now be found at `C:\Repos\GVFS\BuildOutput\GVFS.Installer\bin\x64\[Debug|Release]\SetupGVFS.<version>.exe`
+The installer can now be found at `C:\Repos\VFSForGit\BuildOutput\GVFS.Installer\bin\x64\[Debug|Release]\SetupGVFS.<version>.exe`
 
-## Trying out GVFS
+## Trying out VFS for Git
 
-* GVFS will work with any git service that supports the GVFS [protocol](Protocol.md). For now, that means you'll need to create a repo in 
+* VFS for Git will work with any git service that supports the GVFS [protocol](Protocol.md). For example, you can create a repo in 
 Visual Studio Team Services (https://www.visualstudio.com/team-services/), and push some contents to it. There are two constraints:
   * Your repo must not enable any clean/smudge filters
   * Your repo must have a `.gitattributes` file in the root that includes the line `* -text`
@@ -48,6 +52,6 @@ Visual Studio Team Services (https://www.visualstudio.com/team-services/), and p
 
 # Licenses
 
-The GVFS source code in this repo is available under the MIT license. See [License.md](License.md).
+The VFS for Git source code in this repo is available under the MIT license. See [License.md](License.md).
 
-GVFS relies on the PrjFlt filter driver, formerly known as the GvFlt filter driver, available as a prerelease NuGet package.
+VFS for Git relies on the PrjFlt filter driver, formerly known as the GvFlt filter driver, available as a prerelease NuGet package.
