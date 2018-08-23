@@ -62,41 +62,21 @@ namespace GVFS.UnitTests.Windows.Upgrader
         }
 
         [TestCase]
-        public void InvalidUpgradeRing()
+        public override void NoneLocalRing()
         {
-            this.ConfigureRunAndVerify(
-                configure: () =>
-                {
-                    this.Upgrader.LocalRingConfig = GVFS.Common.ProductUpgrader.RingType.Invalid;
-                },
-                expectedReturn: ReturnCode.GenericError,
-                expectedOutput: new List<string>
-                {
-                    "Invalid upgrade ring type(Invalid) specified in Git config."
-                },
-                expectedErrors: new List<string>
-                {
-                    "Invalid upgrade ring type(Invalid) specified in Git config."
-                });
+            base.NoneLocalRing();
         }
 
         [TestCase]
-        public void FetchReleaseInfoError()
+        public override void InvalidUpgradeRing()
         {
-            this.ConfigureRunAndVerify(
-                configure: () =>
-                {
-                    this.Upgrader.SetFailOnAction(MockProductUpgrader.ActionType.FetchReleaseInfo);
-                },
-                expectedReturn: ReturnCode.GenericError,
-                expectedOutput: new List<string>
-                {
-                    "Error fetching upgrade release info."
-                },
-                expectedErrors: new List<string>
-                {
-                    "Error fetching upgrade release info."
-                });
+            base.InvalidUpgradeRing();
+        }
+
+        [TestCase]
+        public override void FetchReleaseInfo()
+        {
+            base.FetchReleaseInfo();
 
             this.CallSequenceTracker.VerifyMethodsNotCalled(
                 new List<string>()

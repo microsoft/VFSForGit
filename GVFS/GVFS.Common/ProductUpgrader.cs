@@ -84,10 +84,20 @@ namespace GVFS.Common
         {
             List<Release> releases;
 
-            if (this.TryLoadRingConfig(out errorMessage) && 
-                this.TryFetchReleases(out releases, out errorMessage))
+            newVersion = null;
+            if (!this.TryLoadRingConfig(out errorMessage))
             {
-                newVersion = null;
+                return false;
+            }
+
+            if (this.Ring == RingType.None)
+            {
+                errorMessage = "Upgrade ring set to None. No upgrade check was performed.";
+                return false;
+            }
+
+            if (this.TryFetchReleases(out releases, out errorMessage))
+            {
                 foreach (Release nextRelease in releases)
                 {
                     Version releaseVersion;
@@ -105,7 +115,6 @@ namespace GVFS.Common
                 return true;
             }
 
-            newVersion = null;
             return false;
         }
 
