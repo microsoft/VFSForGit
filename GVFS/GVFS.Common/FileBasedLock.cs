@@ -1,19 +1,19 @@
-﻿using GVFS.Common.FileSystem;
+﻿using GVFS.Common;
+using GVFS.Common.FileSystem;
 using GVFS.Common.Tracing;
 using System;
 using System.ComponentModel;
 using System.IO;
 using System.Text;
 
-namespace GVFS.Common
+namespace GVFS.Platform.Windows
 {
-    public class FileBasedLock : IDisposable
+    public class WindowsFileBasedLock : IFileBasedLock
     {
         private const int HResultErrorSharingViolation = -2147024864; // -2147024864 = 0x80070020 = ERROR_SHARING_VIOLATION
         private const int HResultErrorFileExists = -2147024816; // -2147024816 = 0x80070050 = ERROR_FILE_EXISTS
         private const int DefaultStreamWriterBufferSize = 1024; // Copied from: http://referencesource.microsoft.com/#mscorlib/system/io/streamwriter.cs,5516ce201dc06b5f
-        private const long InvalidFileLength = -1;
-        private const string EtwArea = nameof(FileBasedLock);
+        private const string EtwArea = nameof(WindowsFileBasedLock);
         private static readonly Encoding UTF8NoBOM = new UTF8Encoding(false, true); // Default encoding used by StreamWriter
 
         private readonly object deleteOnCloseStreamLock = new object();
@@ -21,39 +21,30 @@ namespace GVFS.Common
         private readonly string lockPath;
         private ITracer tracer;
         private Stream deleteOnCloseStream;
-        private bool overwriteExistingLock;
+        private string signature;
 
         /// <summary>
         /// FileBasedLock constructor
         /// </summary>
         /// <param name="lockPath">Path to lock file</param>
         /// <param name="signature">Text to write in lock file</param>
-        /// <param name="overwriteExistingLock">
-        /// If true, FileBasedLock will attempt to overwrite an existing lock file (if one exists on disk) when
-        /// acquiring the lock file.
-        /// </param>
         /// <remarks>
         /// GVFS keeps an exclusive write handle open to lock files that it creates with FileBasedLock.  This means that 
-        /// FileBasedLock still ensures exclusivity when "overwriteExistingLock" is true if the lock file is only used for
-        /// coordination between multiple GVFS processes.
+        /// FileBasedLock still ensures exclusivity when the lock file is used only for coordination between multiple GVFS processes.
         /// </remarks>
-        public FileBasedLock(
+        public WindowsFileBasedLock(
             PhysicalFileSystem fileSystem,
             ITracer tracer,
             string lockPath,
-            string signature,
-            bool overwriteExistingLock)
+            string signature)
         {
             this.fileSystem = fileSystem;
             this.tracer = tracer;
             this.lockPath = lockPath;
-            this.Signature = signature;
-            this.overwriteExistingLock = overwriteExistingLock;
+            this.signature = signature;
         }
 
-        public string Signature { get; private set; }
-
-        public bool TryAcquireLockAndDeleteOnClose()
+        public bool TryAcquireLock()
         {
             try
             {
@@ -68,7 +59,7 @@ namespace GVFS.Common
 
                     this.deleteOnCloseStream = this.fileSystem.OpenFileStream(
                         this.lockPath,
-                        this.overwriteExistingLock ? FileMode.Create : FileMode.CreateNew,
+                        FileMode.Create,
                         FileAccess.ReadWrite,
                         FileShare.Read,
                         FileOptions.DeleteOnClose,
@@ -81,7 +72,7 @@ namespace GVFS.Common
                         DefaultStreamWriterBufferSize,
                         leaveOpen: true))
                     {
-                        this.WriteSignatureAndMessage(writer, message: null);
+                        this.WriteSignature(writer);
                     }
 
                     return true;
@@ -90,13 +81,11 @@ namespace GVFS.Common
             catch (IOException e)
             {
                 // HResultErrorFileExists is expected when the lock file exists
-                // HResultErrorSharingViolation is expected when the lock file exists and we're in this.overwriteExistingLock mode, as
-                // another GVFS process has likely acquired the lock file
-                if (e.HResult != HResultErrorFileExists &&
-                    !(this.overwriteExistingLock && e.HResult == HResultErrorSharingViolation))
+                // HResultErrorSharingViolation is expected when the lock file exists andanother GVFS process has acquired the lock file
+                if (e.HResult != HResultErrorFileExists && e.HResult != HResultErrorSharingViolation)
                 {
                     EventMetadata metadata = this.CreateLockMetadata(e);
-                    this.tracer.RelatedWarning(metadata, "TryAcquireLockAndDeleteOnClose: IOException caught while trying to acquire lock");
+                    this.tracer.RelatedWarning(metadata, $"{nameof(this.TryAcquireLock)}: IOException caught while trying to acquire lock");
                 }
 
                 this.DisposeStream();
@@ -105,7 +94,7 @@ namespace GVFS.Common
             catch (UnauthorizedAccessException e)
             {
                 EventMetadata metadata = this.CreateLockMetadata(e);
-                this.tracer.RelatedWarning(metadata, "TryAcquireLockAndDeleteOnClose: UnauthorizedAccessException caught while trying to acquire lock");
+                this.tracer.RelatedWarning(metadata, $"{nameof(this.TryAcquireLock)}: UnauthorizedAccessException caught while trying to acquire lock");
 
                 this.DisposeStream();
                 return false;
@@ -113,7 +102,7 @@ namespace GVFS.Common
             catch (Win32Exception e)
             {
                 EventMetadata metadata = this.CreateLockMetadata(e);
-                this.tracer.RelatedWarning(metadata, "TryAcquireLockAndDeleteOnClose: Win32Exception caught while trying to acquire lock");
+                this.tracer.RelatedWarning(metadata, $"{nameof(this.TryAcquireLock)}: Win32Exception caught while trying to acquire lock");
 
                 this.DisposeStream();
                 return false;
@@ -121,118 +110,34 @@ namespace GVFS.Common
             catch (Exception e)
             {
                 EventMetadata metadata = this.CreateLockMetadata(e);
-                this.tracer.RelatedError(metadata, "TryAcquireLockAndDeleteOnClose: Unhandled exception caught while trying to acquire lock");
+                this.tracer.RelatedError(metadata, $"{nameof(this.TryAcquireLock)}: Unhandled exception caught while trying to acquire lock");
 
                 this.DisposeStream();
                 throw;
             }
         }
 
-        public bool TryReleaseLock()
+        public void Dispose()
         {
-            if (this.DisposeStream())
-            {
-                return true;
-            }
-
-            LockData lockData = this.GetLockDataFromDisk();
-            if (lockData == null || lockData.Signature != this.Signature)
-            {
-                if (lockData == null)
-                {
-                    throw new LockFileDoesNotExistException(this.lockPath);
-                }
-
-                throw new LockSignatureDoesNotMatchException(this.lockPath, this.Signature, lockData.Signature);
-            }
-
-            try
-            {
-                this.fileSystem.DeleteFile(this.lockPath);
-            }
-            catch (IOException e)
-            {
-                EventMetadata metadata = this.CreateLockMetadata(e);
-                this.tracer.RelatedWarning(metadata, "TryReleaseLock: IOException caught while trying to release lock");
-
-                return false;
-            }
-
-            return true;
+            this.DisposeStream();
         }
 
-        public bool IsOpen()
+        private bool IsOpen()
         {
             return this.deleteOnCloseStream != null;
         }
 
-        public void Dispose()
+        private void WriteSignature(StreamWriter writer)
         {
-            this.Dispose(true);
-            GC.SuppressFinalize(this);
-        }
-
-        protected void Dispose(bool disposing)
-        {
-            if (disposing)
-            {
-                this.DisposeStream();
-            }
-        }
-
-        private LockData GetLockDataFromDisk()
-        {
-            if (this.LockFileExists())
-            {
-                string existingSignature;
-                string existingMessage;
-                this.ReadLockFile(out existingSignature, out existingMessage);
-                return new LockData(existingSignature, existingMessage);
-            }
-
-            return null;
-        }
-
-        private void ReadLockFile(out string existingSignature, out string lockerMessage)
-        {
-            using (Stream fs = this.fileSystem.OpenFileStream(this.lockPath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete, callFlushFileBuffers: false))
-            using (StreamReader reader = new StreamReader(fs, UTF8NoBOM))
-            {
-                existingSignature = reader.ReadLine();
-                lockerMessage = reader.ReadLine();
-            }
-
-            existingSignature = existingSignature ?? string.Empty;
-            lockerMessage = lockerMessage ?? string.Empty;
-        }
-
-        private bool LockFileExists()
-        {
-            return this.fileSystem.FileExists(this.lockPath);
-        }
-
-        private void WriteSignatureAndMessage(StreamWriter writer, string message)
-        {
-            writer.WriteLine(this.Signature);
-            if (message != null)
-            {
-                writer.Write(message);
-            }
-        }
-
-        private EventMetadata CreateLockMetadata()
-        {
-            EventMetadata metadata = new EventMetadata();
-            metadata.Add("Area", EtwArea);
-            metadata.Add("LockPath", this.lockPath);
-            metadata.Add("Signature", this.Signature);
-
-            return metadata;
+            writer.WriteLine(this.signature);
         }
 
         private EventMetadata CreateLockMetadata(Exception exception = null)
         {
-            EventMetadata metadata = this.CreateLockMetadata();
+            EventMetadata metadata = new EventMetadata();
+            metadata.Add("Area", EtwArea);
+            metadata.Add("LockPath", this.lockPath);
+            metadata.Add("Signature", this.signature);
             if (exception != null)
             {
                 metadata.Add("Exception", exception.ToString());
@@ -254,47 +159,6 @@ namespace GVFS.Common
             }
 
             return false;
-        }
-
-        public class LockException : Exception
-        {
-            public LockException(string messageFormat, params string[] args)
-                : base(string.Format(messageFormat, args))
-            {
-            }
-        }
-
-        public class LockFileDoesNotExistException : LockException
-        {
-            public LockFileDoesNotExistException(string lockPath)
-                : base("Lock file {0} does not exist", lockPath)
-            {
-            }
-        }
-
-        public class LockSignatureDoesNotMatchException : LockException
-        {
-            public LockSignatureDoesNotMatchException(string lockPath, string expectedSignature, string actualSignature)
-                : base(
-                      "Lock file {0} does not contain expected signature '{1}' (existing signature: '{2}')",
-                      lockPath,
-                      expectedSignature,
-                      actualSignature)
-            {
-            }
-        }
-
-        public class LockData
-        {
-            public LockData(string signature, string message)
-            {
-                this.Signature = signature;
-                this.Message = message;
-            }
-
-            public string Signature { get; }
-
-            public string Message { get; }
         }
     }
 }

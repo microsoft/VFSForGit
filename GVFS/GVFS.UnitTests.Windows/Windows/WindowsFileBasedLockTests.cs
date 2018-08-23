@@ -1,14 +1,15 @@
 ﻿using GVFS.Common;
+using GVFS.Platform.Windows;
 using GVFS.Tests.Should;
 using GVFS.UnitTests.Mock.Common;
 using GVFS.UnitTests.Mock.FileSystem;
 using NUnit.Framework;
 using System.IO;
 
-namespace GVFS.UnitTests.Common
+namespace GVFS.UnitTests.Windows
 {
     [TestFixture]
-    public class FileBasedLockTests
+    public class WindowsFileBasedLockTests
     {
         [TestCase]
         public void CreateLockWhenDirectoryMissing()
@@ -17,9 +18,9 @@ namespace GVFS.UnitTests.Common
             string lockPath = Path.Combine(parentPath, "lock");
             MockTracer tracer = new MockTracer();
             FileBasedLockFileSystem fs = new FileBasedLockFileSystem();
-            FileBasedLock fileBasedLock = new FileBasedLock(fs, tracer, lockPath, "signature", overwriteExistingLock: true);
+            IFileBasedLock fileBasedLock = new WindowsFileBasedLock(fs, tracer, lockPath, "signature");
 
-            fileBasedLock.TryAcquireLockAndDeleteOnClose().ShouldBeTrue();
+            fileBasedLock.TryAcquireLock().ShouldBeTrue();
             fs.CreateDirectoryPath.ShouldNotBeNull();
             fs.CreateDirectoryPath.ShouldEqual(parentPath);
         }

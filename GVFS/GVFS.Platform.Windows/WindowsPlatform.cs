@@ -253,6 +253,15 @@ namespace GVFS.Platform.Windows
             return File.Exists(Path.Combine(Paths.GetServiceDataRoot(GVFSConstants.Service.ServiceName), GVFSConstants.GitStatusCache.EnableGitStatusCacheTokenFile));
         }
 
+        public override IFileBasedLock CreateFileBasedLock(
+            PhysicalFileSystem fileSystem,
+            ITracer tracer,
+            string lockPath,
+            string signature)
+        {
+            return new WindowsFileBasedLock(fileSystem, tracer, lockPath, signature);
+        }
+
         public override bool TryGetGVFSEnlistmentRoot(string directory, out string enlistmentRoot, out string errorMessage)
         {
             return WindowsPlatform.TryGetGVFSEnlistmentRootImplementation(directory, out enlistmentRoot, out errorMessage);

@@ -104,5 +104,10 @@ namespace GVFS.UnitTests.Mock.Common
         {
             return true;
         }
+
+        public override IFileBasedLock CreateFileBasedLock(PhysicalFileSystem fileSystem, ITracer tracer, string lockPath, string signature)
+        {
+            return new MockFileBasedLock();
+        }
     }
 }

@@ -127,5 +127,14 @@ namespace GVFS.Platform.Mac
             // TODO(Mac): support git status cache
             return false;
         }
+
+        public override IFileBasedLock CreateFileBasedLock(
+            PhysicalFileSystem fileSystem,
+            ITracer tracer,
+            string lockPath,
+            string signature)
+        {
+            throw new NotImplementedException();
+        }
     }
 }

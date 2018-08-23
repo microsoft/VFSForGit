@@ -59,6 +59,12 @@ namespace GVFS.Common
 
         public abstract bool IsGitStatusCacheSupported();
 
+        public abstract IFileBasedLock CreateFileBasedLock(
+            PhysicalFileSystem fileSystem,
+            ITracer tracer,
+            string lockPath,
+            string signature);
+
         public bool TryGetNormalizedPathRoot(string path, out string pathRoot, out string errorMessage)
         {
             pathRoot = null;
