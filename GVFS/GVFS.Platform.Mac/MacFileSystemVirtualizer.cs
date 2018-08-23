@@ -102,6 +102,8 @@ namespace GVFS.Platform.Mac
             this.virtualizationInstance.OnFileModified = this.OnFileModified;
             this.virtualizationInstance.OnPreDelete = this.OnPreDelete;
             this.virtualizationInstance.OnNewFileCreated = this.OnNewFileCreated;
+            this.virtualizationInstance.OnFileRenamed = this.OnFileRenamed;
+            this.virtualizationInstance.OnHardLinkCreated = this.OnHardLinkCreated;
 
             uint threadCount = (uint)Environment.ProcessorCount * 2;
 
@@ -346,6 +348,24 @@ namespace GVFS.Platform.Mac
                 metadata.Add("isDirectory", isDirectory);
                 this.LogUnhandledExceptionAndExit(nameof(this.OnNewFileCreated), metadata);
             }
+        }
+        
+        private void OnFileRenamed(string relativeDestinationPath, bool isDirectory)
+        {
+            // ProjFS for Mac *could* be updated to provide us with relativeSourcePath as well,
+            // but because VFSForGit doesn't need the source path on Mac for correct behavior
+            // the relativeSourcePath is left out of the notification to keep the kext simple
+            this.OnFileRenamed(
+                relativeSourcePath: string.Empty, 
+                relativeDestinationPath: relativeDestinationPath, 
+                isDirectory: isDirectory);
+        }
+
+        private void OnHardLinkCreated(string relativeNewLinkPath)
+        {
+            this.OnHardLinkCreated(
+                relativeExistingFilePath: string.Empty, 
+                relativeNewLinkPath: relativeNewLinkPath);
         }
 
         private Result OnEnumerateDirectory(

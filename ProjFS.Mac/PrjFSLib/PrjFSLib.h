@@ -46,6 +46,7 @@ typedef enum
     PrjFS_NotificationType_NewFileCreated           = 0x00000004,
     PrjFS_NotificationType_PreDelete                = 0x00000010,
     PrjFS_NotificationType_FileRenamed              = 0x00000080,
+    PrjFS_NotificationType_HardLinkCreated          = 0x00000100,
     PrjFS_NotificationType_PreConvertToFull         = 0x00001000,
     
     PrjFS_NotificationType_PreModify                = 0x10000001,

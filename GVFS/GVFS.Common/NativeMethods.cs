@@ -98,11 +98,11 @@ namespace GVFS.Common
             }
         }
 
-        public static void CreateHardLink(string newFileName, string existingFileName)
+        public static void CreateHardLink(string newLinkFileName, string existingFileName)
         {
-            if (!CreateHardLink(newFileName, existingFileName, IntPtr.Zero))
+            if (!CreateHardLink(newLinkFileName, existingFileName, IntPtr.Zero))
             {
-                ThrowLastWin32Exception($"Failed to create hard link from '{newFileName}' to '{existingFileName}'");
+                ThrowLastWin32Exception($"Failed to create hard link from '{newLinkFileName}' to '{existingFileName}'");
             }
         }
 
@@ -172,7 +172,7 @@ namespace GVFS.Common
 
         [DllImport("kernel32.dll", SetLastError = true, CharSet = CharSet.Unicode)]
         private static extern bool CreateHardLink(
-            string newFileName,
+            string newLinkFileName,
             string existingFileName,
             IntPtr securityAttributes);
 

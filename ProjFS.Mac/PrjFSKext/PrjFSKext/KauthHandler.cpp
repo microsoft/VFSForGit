@@ -226,6 +226,9 @@ void KauthHandler_HandleKernelMessageResponse(uint64_t messageId, MessageType re
         case MessageType_KtoU_NotifyFilePreDelete:
         case MessageType_KtoU_NotifyDirectoryPreDelete:
         case MessageType_KtoU_NotifyFileCreated:
+        case MessageType_KtoU_NotifyFileRenamed:
+        case MessageType_KtoU_NotifyDirectoryRenamed:
+        case MessageType_KtoU_NotifyFileHardLinkCreated:
             KextLog_Error("KauthHandler_HandleKernelMessageResponse: Unexpected responseType: %d", responseType);
             break;
     }
@@ -338,7 +341,8 @@ static int HandleVnodeOperation(
                 KAUTH_VNODE_WRITE_EXTATTRIBUTES |
                 KAUTH_VNODE_READ_DATA |
                 KAUTH_VNODE_WRITE_DATA |
-                KAUTH_VNODE_EXECUTE))
+                KAUTH_VNODE_EXECUTE |
+                KAUTH_VNODE_DELETE)) // Hydrate on delete to ensure files are hydrated before rename operations
         {
             if (FileFlagsBitIsSet(currentVnodeFileFlags, FileFlags_IsEmpty))
             {
@@ -376,18 +380,66 @@ static int HandleFileOpOperation(
     atomic_fetch_add(&s_numActiveKauthEvents, 1);
     
     vfs_context_t context = vfs_context_create(NULL);
+    vnode_t currentVnodeFromPath = NULLVP;
 
-    if (KAUTH_FILEOP_CLOSE == action)
+    if (KAUTH_FILEOP_RENAME == action ||
+        KAUTH_FILEOP_LINK == action)
+    {
+        // arg0 is the (const char *) fromPath (or the file being linked to)
+        const char* newPath = (const char*)arg1;
+        
+        // TODO(Mac): We need to handle failures to lookup the vnode.  If we fail to lookup the vnode
+        // it's possible that we'll miss notifications
+        errno_t toErr = vnode_lookup(newPath, 0 /* flags */, &currentVnodeFromPath, context);
+        if (0 != toErr)
+        {
+            goto CleanupAndReturn;
+        }
+        
+        VirtualizationRoot* root = nullptr;
+        int pid;
+        if (!ShouldHandleFileOpEvent(
+                context,
+                currentVnodeFromPath,
+                action,
+                &root,
+                &pid))
+        {
+            goto CleanupAndReturn;
+        }
+        
+        char procname[MAXCOMLEN + 1];
+        proc_name(pid, procname, MAXCOMLEN + 1);
+
+        MessageType messageType;
+        if (KAUTH_FILEOP_RENAME == action)
+        {
+            messageType = vnode_isdir(currentVnodeFromPath) ? MessageType_KtoU_NotifyDirectoryRenamed : MessageType_KtoU_NotifyFileRenamed;
+        }
+        else
+        {
+            messageType = MessageType_KtoU_NotifyFileHardLinkCreated;
+        }
+
+        int kauthResult;
+        int kauthError;
+        if (!TrySendRequestAndWaitForResponse(
+                root,
+                messageType,
+                currentVnodeFromPath,
+                pid,
+                procname,
+                &kauthResult,
+                &kauthError))
+        {
+            goto CleanupAndReturn;
+        }
+    }
+    else if (KAUTH_FILEOP_CLOSE == action)
     {
         vnode_t currentVnode = reinterpret_cast<vnode_t>(arg0);
         // arg1 is the (const char *) path
         int closeFlags = static_cast<int>(arg2);
-        
-        vtype vnodeType = vnode_vtype(currentVnode);
-        if (ShouldIgnoreVnodeType(vnodeType, currentVnode))
-        {
-            goto CleanupAndReturn;
-        }
         
         if (vnode_isdir(currentVnode))
         {
@@ -449,7 +501,12 @@ static int HandleFileOpOperation(
         }
     }
     
-CleanupAndReturn:
+CleanupAndReturn:    
+    if (NULLVP != currentVnodeFromPath)
+    {
+        vnode_put(currentVnodeFromPath);
+    }
+    
     vfs_context_rele(context);
     atomic_fetch_sub(&s_numActiveKauthEvents, 1);
     
@@ -472,6 +529,7 @@ static bool ShouldHandleVnodeOpEvent(
     char procname[MAXCOMLEN + 1],
     int* kauthResult)
 {
+    *root = nullptr;
     *kauthResult = KAUTH_RESULT_DEFER;
     
     if (!VirtualizationRoot_VnodeIsOnAllowedFilesystem(vnode))
@@ -557,6 +615,12 @@ static bool ShouldHandleFileOpEvent(
     VirtualizationRoot** root,
     int* pid)
 {
+    vtype vnodeType = vnode_vtype(vnode);
+    if (ShouldIgnoreVnodeType(vnodeType, vnode))
+    {
+        return false;
+    }
+
     *root = VirtualizationRoots_FindForVnode(vnode);
     if (nullptr == *root)
     {

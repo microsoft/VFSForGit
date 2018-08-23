@@ -159,7 +159,7 @@ namespace GVFS.Platform.Windows
             this.virtualizationInstance.OnNotifyPreRename = this.NotifyPreRenameHandler;
             this.virtualizationInstance.OnNotifyPreSetHardlink = null;
             this.virtualizationInstance.OnNotifyFileRenamed = this.NotifyFileRenamedHandler;
-            this.virtualizationInstance.OnNotifyHardlinkCreated = null;
+            this.virtualizationInstance.OnNotifyHardlinkCreated = this.NotifyHardlinkCreated;
             this.virtualizationInstance.OnNotifyFileHandleClosedNoModification = null;
             this.virtualizationInstance.OnNotifyFileHandleClosedFileModifiedOrDeleted = this.NotifyFileHandleClosedFileModifiedOrDeletedHandler;
             this.virtualizationInstance.OnNotifyFilePreConvertToFull = this.NotifyFilePreConvertToFullHandler;
@@ -1223,35 +1223,14 @@ namespace GVFS.Platform.Windows
             bool isDirectory,
             ref NotificationType notificationMask)
         {
-            try
-            {
-                bool srcPathInDotGit = FileSystemCallbacks.IsPathInsideDotGit(virtualPath);
-                bool dstPathInDotGit = FileSystemCallbacks.IsPathInsideDotGit(destinationPath);
+            this.OnFileRenamed(virtualPath, destinationPath, isDirectory);
+        }
 
-                if (dstPathInDotGit)
-                {
-                    this.OnDotGitFileOrFolderChanged(destinationPath);
-                }
-
-                if (!(srcPathInDotGit && dstPathInDotGit))
-                {
-                    if (isDirectory)
-                    {
-                        this.FileSystemCallbacks.OnFolderRenamed(virtualPath, destinationPath);
-                    }
-                    else
-                    {
-                        this.FileSystemCallbacks.OnFileRenamed(virtualPath, destinationPath);
-                    }
-                }
-            }
-            catch (Exception e)
-            {
-                EventMetadata metadata = this.CreateEventMetadata(virtualPath, e);
-                metadata.Add("destinationPath", destinationPath);
-                metadata.Add("isDirectory", isDirectory);
-                this.LogUnhandledExceptionAndExit(nameof(this.NotifyFileRenamedHandler), metadata);
-            }
+        private void NotifyHardlinkCreated(
+            string relativeExistingFilePath,
+            string relativeNewLinkPath)
+        {
+            this.OnHardLinkCreated(relativeExistingFilePath, relativeNewLinkPath);
         }
 
         private void NotifyFileHandleClosedFileModifiedOrDeletedHandler(
@@ -1386,19 +1365,23 @@ namespace GVFS.Platform.Windows
                 NotificationType.PreRename |
                 NotificationType.PreDelete |
                 NotificationType.FileRenamed |
+                NotificationType.HardlinkCreated |
                 NotificationType.FileHandleClosedFileModified;
 
             public const NotificationType LogsHeadFile = 
-                NotificationType.FileRenamed | 
+                NotificationType.FileRenamed |
+                NotificationType.HardlinkCreated |
                 NotificationType.FileHandleClosedFileModified;
 
             public const NotificationType ExcludeAndHeadFile =
                 NotificationType.FileRenamed |
+                NotificationType.HardlinkCreated |
                 NotificationType.FileHandleClosedFileDeleted |
                 NotificationType.FileHandleClosedFileModified;
 
             public const NotificationType FilesAndFoldersInRefsHeads =
                 NotificationType.FileRenamed |
+                NotificationType.HardlinkCreated |
                 NotificationType.FileHandleClosedFileDeleted |
                 NotificationType.FileHandleClosedFileModified;
 
@@ -1406,6 +1389,7 @@ namespace GVFS.Platform.Windows
                 NotificationType.NewFileCreated |
                 NotificationType.FileSupersededOrOverwritten |
                 NotificationType.FileRenamed |
+                NotificationType.HardlinkCreated |
                 NotificationType.FileHandleClosedFileDeleted |
                 NotificationType.FilePreConvertToFull |
                 NotificationType.FileHandleClosedFileModified;
