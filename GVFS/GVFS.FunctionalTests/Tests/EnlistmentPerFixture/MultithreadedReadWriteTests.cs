@@ -41,7 +41,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
                     {
                         readException = e;
                     }
-                } );
+                });
 
                 threads[i].Start();
             }
