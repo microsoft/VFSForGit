@@ -128,13 +128,13 @@ namespace GVFS.Platform.Mac
             return false;
         }
 
-        public override IFileBasedLock CreateFileBasedLock(
+        public override FileBasedLock CreateFileBasedLock(
             PhysicalFileSystem fileSystem,
             ITracer tracer,
             string lockPath,
             string signature)
         {
-            throw new NotImplementedException();
+            return new MacFileBasedLock(fileSystem, tracer, lockPath, signature);
         }
     }
 }

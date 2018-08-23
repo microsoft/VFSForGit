@@ -8,7 +8,7 @@ using System.Text;
 
 namespace GVFS.Platform.Windows
 {
-    public class WindowsFileBasedLock : IFileBasedLock
+    public class WindowsFileBasedLock : FileBasedLock
     {
         private const int HResultErrorSharingViolation = -2147024864; // -2147024864 = 0x80070020 = ERROR_SHARING_VIOLATION
         private const int HResultErrorFileExists = -2147024816; // -2147024816 = 0x80070050 = ERROR_FILE_EXISTS
@@ -17,11 +17,7 @@ namespace GVFS.Platform.Windows
         private static readonly Encoding UTF8NoBOM = new UTF8Encoding(false, true); // Default encoding used by StreamWriter
 
         private readonly object deleteOnCloseStreamLock = new object();
-        private readonly PhysicalFileSystem fileSystem;
-        private readonly string lockPath;
-        private ITracer tracer;
         private Stream deleteOnCloseStream;
-        private string signature;
 
         /// <summary>
         /// FileBasedLock constructor
@@ -37,14 +33,11 @@ namespace GVFS.Platform.Windows
             ITracer tracer,
             string lockPath,
             string signature)
+            : base(fileSystem, tracer, lockPath, signature)
         {
-            this.fileSystem = fileSystem;
-            this.tracer = tracer;
-            this.lockPath = lockPath;
-            this.signature = signature;
         }
 
-        public bool TryAcquireLock()
+        public override bool TryAcquireLock()
         {
             try
             {
@@ -55,10 +48,10 @@ namespace GVFS.Platform.Windows
                         return true;
                     }
 
-                    this.fileSystem.CreateDirectory(Path.GetDirectoryName(this.lockPath));
+                    this.FileSystem.CreateDirectory(Path.GetDirectoryName(this.LockPath));
 
-                    this.deleteOnCloseStream = this.fileSystem.OpenFileStream(
-                        this.lockPath,
+                    this.deleteOnCloseStream = this.FileSystem.OpenFileStream(
+                        this.LockPath,
                         FileMode.Create,
                         FileAccess.ReadWrite,
                         FileShare.Read,
@@ -85,7 +78,7 @@ namespace GVFS.Platform.Windows
                 if (e.HResult != HResultErrorFileExists && e.HResult != HResultErrorSharingViolation)
                 {
                     EventMetadata metadata = this.CreateLockMetadata(e);
-                    this.tracer.RelatedWarning(metadata, $"{nameof(this.TryAcquireLock)}: IOException caught while trying to acquire lock");
+                    this.Tracer.RelatedWarning(metadata, $"{nameof(this.TryAcquireLock)}: IOException caught while trying to acquire lock");
                 }
 
                 this.DisposeStream();
@@ -94,7 +87,7 @@ namespace GVFS.Platform.Windows
             catch (UnauthorizedAccessException e)
             {
                 EventMetadata metadata = this.CreateLockMetadata(e);
-                this.tracer.RelatedWarning(metadata, $"{nameof(this.TryAcquireLock)}: UnauthorizedAccessException caught while trying to acquire lock");
+                this.Tracer.RelatedWarning(metadata, $"{nameof(this.TryAcquireLock)}: UnauthorizedAccessException caught while trying to acquire lock");
 
                 this.DisposeStream();
                 return false;
@@ -102,7 +95,7 @@ namespace GVFS.Platform.Windows
             catch (Win32Exception e)
             {
                 EventMetadata metadata = this.CreateLockMetadata(e);
-                this.tracer.RelatedWarning(metadata, $"{nameof(this.TryAcquireLock)}: Win32Exception caught while trying to acquire lock");
+                this.Tracer.RelatedWarning(metadata, $"{nameof(this.TryAcquireLock)}: Win32Exception caught while trying to acquire lock");
 
                 this.DisposeStream();
                 return false;
@@ -110,14 +103,14 @@ namespace GVFS.Platform.Windows
             catch (Exception e)
             {
                 EventMetadata metadata = this.CreateLockMetadata(e);
-                this.tracer.RelatedError(metadata, $"{nameof(this.TryAcquireLock)}: Unhandled exception caught while trying to acquire lock");
+                this.Tracer.RelatedError(metadata, $"{nameof(this.TryAcquireLock)}: Unhandled exception caught while trying to acquire lock");
 
                 this.DisposeStream();
                 throw;
             }
         }
 
-        public void Dispose()
+        public override void Dispose()
         {
             this.DisposeStream();
         }
@@ -129,15 +122,15 @@ namespace GVFS.Platform.Windows
 
         private void WriteSignature(StreamWriter writer)
         {
-            writer.WriteLine(this.signature);
+            writer.WriteLine(this.Signature);
         }
 
         private EventMetadata CreateLockMetadata(Exception exception = null)
         {
             EventMetadata metadata = new EventMetadata();
             metadata.Add("Area", EtwArea);
-            metadata.Add("LockPath", this.lockPath);
-            metadata.Add("Signature", this.signature);
+            metadata.Add("LockPath", this.LockPath);
+            metadata.Add("Signature", this.Signature);
             if (exception != null)
             {
                 metadata.Add("Exception", exception.ToString());

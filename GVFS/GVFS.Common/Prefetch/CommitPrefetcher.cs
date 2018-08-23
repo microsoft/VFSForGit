@@ -24,7 +24,7 @@ namespace GVFS.Common.Prefetch
             out string error)
         {
             List<string> packIndexes;
-            using (IFileBasedLock prefetchLock = GVFSPlatform.Instance.CreateFileBasedLock(
+            using (FileBasedLock prefetchLock = GVFSPlatform.Instance.CreateFileBasedLock(
                 fileSystem,
                 tracer,
                 Path.Combine(enlistment.GitPackRoot, PrefetchCommitsAndTreesLock),
@@ -209,7 +209,7 @@ namespace GVFS.Common.Prefetch
             return null;
         }
 
-        private static void WaitUntilLockIsAcquired(ITracer tracer, IFileBasedLock fileBasedLock)
+        private static void WaitUntilLockIsAcquired(ITracer tracer, FileBasedLock fileBasedLock)
         {
             int attempt = 0;
             while (!fileBasedLock.TryAcquireLock())

@@ -18,7 +18,7 @@ namespace GVFS.UnitTests.Windows
             string lockPath = Path.Combine(parentPath, "lock");
             MockTracer tracer = new MockTracer();
             FileBasedLockFileSystem fs = new FileBasedLockFileSystem();
-            IFileBasedLock fileBasedLock = new WindowsFileBasedLock(fs, tracer, lockPath, "signature");
+            FileBasedLock fileBasedLock = new WindowsFileBasedLock(fs, tracer, lockPath, "signature");
 
             fileBasedLock.TryAcquireLock().ShouldBeTrue();
             fs.CreateDirectoryPath.ShouldNotBeNull();

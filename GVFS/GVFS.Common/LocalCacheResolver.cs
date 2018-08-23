@@ -64,7 +64,7 @@ namespace GVFS.Common
                 string lockPath = Path.Combine(localCacheRoot, MappingFile + ".lock");
                 this.fileSystem.CreateDirectory(localCacheRoot);
 
-                using (IFileBasedLock mappingLock = GVFSPlatform.Instance.CreateFileBasedLock(
+                using (FileBasedLock mappingLock = GVFSPlatform.Instance.CreateFileBasedLock(
                     this.fileSystem, 
                     tracer, 
                     lockPath, 
@@ -271,7 +271,7 @@ namespace GVFS.Common
             return true;
         }
 
-        private bool TryAcquireLockWithRetries(ITracer tracer, IFileBasedLock mappingLock)
+        private bool TryAcquireLockWithRetries(ITracer tracer, FileBasedLock mappingLock)
         {
             const int NumRetries = 100;
             const int WaitTimeMs = 100;

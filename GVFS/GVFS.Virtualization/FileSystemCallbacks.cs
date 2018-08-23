@@ -524,7 +524,7 @@ namespace GVFS.Virtualization
         {
             try
             {
-                using (IFileBasedLock postFetchFileLock = GVFSPlatform.Instance.CreateFileBasedLock(
+                using (FileBasedLock postFetchFileLock = GVFSPlatform.Instance.CreateFileBasedLock(
                     this.context.FileSystem,
                     this.context.Tracer,
                     Path.Combine(this.context.Enlistment.GitObjectsRoot, PostFetchLock),

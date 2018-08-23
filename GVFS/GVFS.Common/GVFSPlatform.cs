@@ -59,7 +59,7 @@ namespace GVFS.Common
 
         public abstract bool IsGitStatusCacheSupported();
 
-        public abstract IFileBasedLock CreateFileBasedLock(
+        public abstract FileBasedLock CreateFileBasedLock(
             PhysicalFileSystem fileSystem,
             ITracer tracer,
             string lockPath,

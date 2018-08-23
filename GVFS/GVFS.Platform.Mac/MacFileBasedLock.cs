@@ -1,23 +1,24 @@
 ﻿using GVFS.Common;
 using GVFS.Common.FileSystem;
 using GVFS.Common.Tracing;
+using System;
 
-namespace GVFS.UnitTests.Mock.Common
+namespace GVFS.Platform.Mac
 {
-    public class MockFileBasedLock : FileBasedLock
+    public class MacFileBasedLock : FileBasedLock
     {
-        public MockFileBasedLock(
+        public MacFileBasedLock(
             PhysicalFileSystem fileSystem,
             ITracer tracer,
             string lockPath,
             string signature)
-            : base(fileSystem, tracer, lockPath, signature)
+            : base (fileSystem, tracer, lockPath, signature) 
         {
         }
 
         public override bool TryAcquireLock()
         {
-            return true;
+            throw new NotImplementedException();
         }
 
         public override void Dispose()
