@@ -16,15 +16,15 @@ namespace GVFS.Platform.Mac
         private const int LockNb = 4; // #define LOCK_NB   4    /* don't block when locking */
         private const int LockUn = 8; // #define LOCK_UN   8    /* unlock */
 
-        int lockFileDescriptor;
-        bool lockAcquired;
+        private int lockFileDescriptor;
+        private bool lockAcquired;
 
         public MacFileBasedLock(
             PhysicalFileSystem fileSystem,
             ITracer tracer,
             string lockPath,
             string signature)
-            : base (fileSystem, tracer, lockPath, signature) 
+            : base(fileSystem, tracer, lockPath, signature) 
         {
             this.lockFileDescriptor = InvalidFileDescriptor;
         }
