@@ -40,11 +40,11 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
                 return;
             }
 
-            this.CreateHardLink("Readme.md", "ReadmeLink.md");
+            this.CreateHardLink("ReadmeLink.md", "Readme.md");
             this.ValidateGitCommand("add ReadmeLink.md");
             this.RunGitCommand("commit -m \"Created ReadmeLink.md\"");
 
-            this.CreateHardLink("AuthoringTests.md", "AuthoringTestsLink.md");
+            this.CreateHardLink("AuthoringTestsLink.md", "AuthoringTests.md");
             this.ValidateGitCommand("stage AuthoringTestsLink.md");
             this.RunGitCommand("commit -m \"Created AuthoringTestsLink.md\"");
         }

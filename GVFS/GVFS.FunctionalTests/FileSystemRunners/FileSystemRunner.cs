@@ -75,7 +75,7 @@ namespace GVFS.FunctionalTests.FileSystemRunners
 
         public abstract void CreateEmptyFile(string path);
 
-        public virtual void CreateHardLink(string targetPath, string newLinkPath)
+        public virtual void CreateHardLink(string newLinkFilePath, string existingFilePath)
         {
             Assert.Fail($"This runner does not support {nameof(this.CreateHardLink)}");
         }

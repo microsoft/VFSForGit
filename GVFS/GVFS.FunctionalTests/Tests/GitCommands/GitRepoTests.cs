@@ -215,22 +215,21 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
             this.FileSystem.AppendAllText(controlFile, content);
         }
 
-        protected void CreateHardLink(string targetPath, string newLinkPath)
+        protected void CreateHardLink(string newLinkFileName, string existingFileName)
         {
-            string virtualTargetFile = Path.Combine(this.Enlistment.RepoRoot, targetPath);
-            string controlTargetFile = Path.Combine(this.ControlGitRepo.RootPath, targetPath);
-            string virtualNewLinkFile = Path.Combine(this.Enlistment.RepoRoot, newLinkPath);
-            string controlNewLinkFile = Path.Combine(this.ControlGitRepo.RootPath, newLinkPath);
+            string virtualExistingFile = Path.Combine(this.Enlistment.RepoRoot, existingFileName);
+            string controlExistingFile = Path.Combine(this.ControlGitRepo.RootPath, existingFileName);
+            string virtualNewLinkFile = Path.Combine(this.Enlistment.RepoRoot, newLinkFileName);
+            string controlNewLinkFile = Path.Combine(this.ControlGitRepo.RootPath, newLinkFileName);
 
             // GitRepoTests are only run with SystemIORunner (which does not support hardlink
             // creation) so use a BashRunner instead.
-            this.FileSystem.ShouldBeOfType<SystemIORunner>();
             this.FileSystem.SupportsHardlinkCreation.ShouldBeFalse(
-                "FileSystem *does* support hard link creation, CreateHardLink no longer needs to create a BashRunner");
+                "If this.FileSystem.SupportsHardlinkCreation is true, CreateHardLink no longer needs to create a BashRunner");
             FileSystemRunner runner = new BashRunner();
 
-            runner.CreateHardLink(virtualTargetFile, virtualNewLinkFile);
-            runner.CreateHardLink(controlTargetFile, controlNewLinkFile);
+            runner.CreateHardLink(virtualNewLinkFile, virtualExistingFile);
+            runner.CreateHardLink(controlNewLinkFile, controlExistingFile);
         }
 
         protected void SetFileAsReadOnly(string filePath)

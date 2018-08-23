@@ -59,7 +59,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
             string newLinkFileName = "newHardLink.txt";
             string newLinkFilePath = this.Enlistment.GetVirtualPathTo(newLinkFileName);
             GVFSHelpers.ModifiedPathsShouldNotContain(this.fileSystem, this.Enlistment.DotGVFSRoot, newLinkFileName);
-            this.fileSystem.CreateHardLink(existingFilePath, newLinkFilePath);
+            this.fileSystem.CreateHardLink(newLinkFilePath, existingFilePath);
             this.Enlistment.WaitForBackgroundOperations().ShouldEqual(true, "Background operations failed to complete.");
             GVFSHelpers.ModifiedPathsShouldContain(this.fileSystem, this.Enlistment.DotGVFSRoot, newLinkFileName);
             newLinkFilePath.ShouldBeAFile(this.fileSystem).WithContents("Some content here");

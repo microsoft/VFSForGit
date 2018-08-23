@@ -163,10 +163,10 @@ namespace GVFS.FunctionalTests.FileSystemRunners
             this.RunProcess(string.Format("-c \"touch {0}\"", bashPath));
         }
 
-        public override void CreateHardLink(string existingPath, string newLinkPath)
+        public override void CreateHardLink(string newLinkFilePath, string existingFilePath)
         {
-            string existingFileBashPath = this.ConvertWinPathToBashPath(existingPath);
-            string newLinkBashPath = this.ConvertWinPathToBashPath(newLinkPath);
+            string existingFileBashPath = this.ConvertWinPathToBashPath(existingFilePath);
+            string newLinkBashPath = this.ConvertWinPathToBashPath(newLinkFilePath);
 
             this.RunProcess(string.Format("-c \"ln {0} {1}\"", existingFileBashPath, newLinkBashPath));
         }
