@@ -6,11 +6,6 @@ namespace GVFS.Common
 {
     public abstract class FileBasedLock : IDisposable
     {
-        protected readonly PhysicalFileSystem FileSystem;
-        protected readonly string LockPath;
-        protected readonly ITracer Tracer;
-        protected readonly string Signature;
-
         public FileBasedLock(
             PhysicalFileSystem fileSystem,
             ITracer tracer,
@@ -22,6 +17,11 @@ namespace GVFS.Common
             this.LockPath = lockPath;
             this.Signature = signature;
         }
+
+        protected PhysicalFileSystem FileSystem { get; }
+        protected string LockPath { get; }
+        protected ITracer Tracer { get; }
+        protected string Signature { get; }
 
         public abstract bool TryAcquireLock();
 

@@ -9,15 +9,33 @@ namespace GVFS.Platform.Mac
 {
     public class MacFileBasedLock : FileBasedLock
     {
+        private static readonly ushort FileMode644 = Convert.ToUInt16("644", 8);
+
+        // #define O_WRONLY    0x0001      /* open for writing only */
+        private const int OpenWriteOnly = 0x0001; 
+
+        // #define O_CREAT     0x0200      /* create if nonexistant */
+        private const int OpenCreate = 0x0200;    
+
+        // #define EINTR       4       /* Interrupted system call */
+        private const int EIntr = 4; 
+
+        // #define EAGAIN      35      /* Resource temporarily unavailable */
+        // #define EWOULDBLOCK EAGAIN  /* Operation would block */
+        private const int EWouldBlock = 35; 
+
         private const int InvalidFileDescriptor = -1;
 
-        private const int LockSh = 1; // #define LOCK_SH   1    /* shared lock */
-        private const int LockEx = 2; // #define LOCK_EX   2    /* exclusive lock */
-        private const int LockNb = 4; // #define LOCK_NB   4    /* don't block when locking */
-        private const int LockUn = 8; // #define LOCK_UN   8    /* unlock */
+        [Flags]
+        private enum FLockOperations
+        {
+            LockSh = 1, // #define LOCK_SH   1    /* shared lock */
+            LockEx = 2, // #define LOCK_EX   2    /* exclusive lock */
+            LockNb = 4, // #define LOCK_NB   4    /* don't block when locking */
+            LockUn = 8  // #define LOCK_UN   8    /* unlock */
+        }
 
         private int lockFileDescriptor;
-        private bool lockAcquired;
 
         public MacFileBasedLock(
             PhysicalFileSystem fileSystem,
@@ -31,81 +49,99 @@ namespace GVFS.Platform.Mac
 
         public override bool TryAcquireLock()
         {
-            if (this.lockAcquired)
-            {
-                return true;
-            }
-
             if (this.lockFileDescriptor == InvalidFileDescriptor)
             {
-                this.lockFileDescriptor = Creat(this.LockPath, Convert.ToInt32("644", 8));
+                this.lockFileDescriptor = Open(this.LockPath, OpenCreate | OpenWriteOnly, FileMode644);
                 if (this.lockFileDescriptor == InvalidFileDescriptor)
                 {
                     int errno = Marshal.GetLastWin32Error();
-
-                    this.Tracer.RelatedWarning($"Failed to create lock file descriptor for '{this.LockPath}': {errno}"); 
-
+                    EventMetadata metadata = this.CreateEventMetadata(errno);
+                    this.Tracer.RelatedWarning(
+                        metadata,
+                        $"{nameof(MacFileBasedLock)}.{nameof(this.TryAcquireLock)}: Failed to open lock file");
+                    
                     return false;
                 }
             }
 
-            if (Flock(this.lockFileDescriptor, LockEx | LockNb) != 0)
+            if (FLock(this.lockFileDescriptor, (int)(FLockOperations.LockEx | FLockOperations.LockNb)) != 0)
             {
                 int errno = Marshal.GetLastWin32Error();
-
-                // Log error if not EWOULDBLOCK
-                this.Tracer.RelatedInfo($"Failed to acquire lock for '{this.LockPath}': {errno}");
+                if (errno != EIntr && errno != EWouldBlock)
+                {
+                    EventMetadata metadata = this.CreateEventMetadata(errno);
+                    this.Tracer.RelatedWarning(
+                        metadata,
+                        $"{nameof(MacFileBasedLock)}.{nameof(this.TryAcquireLock)}: Unexpected error when locking file");
+                }
 
                 return false;
             }
 
-            byte[] signatureBytes = Encoding.UTF8.GetBytes(this.Signature);
-            long bytesWritten = Write(
-                this.lockFileDescriptor,
-                signatureBytes,
-                Convert.ToUInt64(signatureBytes.Length));
-            
-            if (bytesWritten == -1)
+            if (FTruncate(this.lockFileDescriptor, 0) == 0)
+            {
+                byte[] signatureBytes = Encoding.UTF8.GetBytes(this.Signature);
+                long bytesWritten = Write(
+                    this.lockFileDescriptor,
+                    signatureBytes,
+                    Convert.ToUInt64(signatureBytes.Length));
+
+                if (bytesWritten == -1)
+                {
+                    int errno = Marshal.GetLastWin32Error();
+                    EventMetadata metadata = this.CreateEventMetadata(errno);
+                    this.Tracer.RelatedWarning(
+                        metadata,
+                        $"{nameof(MacFileBasedLock)}.{nameof(this.TryAcquireLock)}: Failed to write signature");
+                }
+            }
+            else
             {
                 int errno = Marshal.GetLastWin32Error();
-
-                this.Tracer.RelatedWarning($"Failed to write signature for '{this.LockPath}': {errno}");
+                EventMetadata metadata = this.CreateEventMetadata(errno);
+                this.Tracer.RelatedWarning(
+                    metadata,
+                    $"{nameof(MacFileBasedLock)}.{nameof(this.TryAcquireLock)}: Failed to truncate lock file");
             }
-
-            this.Tracer.RelatedInfo($"Lock acquired for for '{this.LockPath}'");
 
             return true;
         }
 
         public override void Dispose()
         {
-            if (this.lockAcquired)
-            {
-                if (Flock(this.lockFileDescriptor, LockUn) != 0)
-                {
-                    this.Tracer.RelatedWarning($"Failed to release lock for: '{this.LockPath}'");
-                }
-
-                this.Tracer.RelatedInfo($"Lock released: '{this.LockPath}'");
-
-                this.lockAcquired = false;
-            }
-
             if (this.lockFileDescriptor != InvalidFileDescriptor)
             {
                 if (Close(this.lockFileDescriptor) != 0)
                 {
                     int errno = Marshal.GetLastWin32Error();
-
-                    this.Tracer.RelatedWarning($"Failed to close fd for lock: '{this.LockPath}'");
+                    EventMetadata metadata = this.CreateEventMetadata(errno);
+                    this.Tracer.RelatedWarning(
+                        metadata,
+                        $"{nameof(MacFileBasedLock)}.{nameof(this.Dispose)}: Error when closing lock fd");
                 }
 
                 this.lockFileDescriptor = InvalidFileDescriptor;
             }
         }
 
-        [DllImport("libc", EntryPoint = "creat", SetLastError = true)]
-        private static extern int Creat(string pathname, int mode);
+        private EventMetadata CreateEventMetadata(int errno = 0)
+        {
+            EventMetadata metadata = new EventMetadata();
+            metadata.Add("Area", nameof(MacFileBasedLock));
+            metadata.Add(nameof(this.LockPath), this.LockPath);
+            metadata.Add(nameof(this.Signature), this.Signature);
+            if (errno != 0)
+            {
+                metadata.Add(nameof(errno), errno);
+            }
+            return metadata;
+        }
+
+        [DllImport("libc", EntryPoint = "open", SetLastError = true)]
+        private static extern int Open(string pathname, int flags, ushort mode);
+
+        [DllImport("libc", EntryPoint = "ftruncate", SetLastError = true)]
+        private static extern long FTruncate(int fd, long length);
 
         [DllImport("libc", EntryPoint = "write", SetLastError = true)]
         private static extern long Write(int fd, byte[] buf, ulong count);
@@ -114,6 +150,6 @@ namespace GVFS.Platform.Mac
         private static extern int Close(int fd);
 
         [DllImport("libc", EntryPoint = "flock", SetLastError = true)]
-        private static extern int Flock(int fd, int operation);
+        private static extern int FLock(int fd, int operation);
     }
 }

@@ -129,8 +129,8 @@ namespace GVFS.Platform.Windows
         {
             EventMetadata metadata = new EventMetadata();
             metadata.Add("Area", EtwArea);
-            metadata.Add("LockPath", this.LockPath);
-            metadata.Add("Signature", this.Signature);
+            metadata.Add(nameof(this.LockPath), this.LockPath);
+            metadata.Add(nameof(this.Signature), this.Signature);
             if (exception != null)
             {
                 metadata.Add("Exception", exception.ToString());
