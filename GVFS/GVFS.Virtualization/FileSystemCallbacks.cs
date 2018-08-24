@@ -527,8 +527,7 @@ namespace GVFS.Virtualization
                 using (FileBasedLock postFetchFileLock = GVFSPlatform.Instance.CreateFileBasedLock(
                     this.context.FileSystem,
                     this.context.Tracer,
-                    Path.Combine(this.context.Enlistment.GitObjectsRoot, PostFetchLock),
-                    this.context.Enlistment.EnlistmentRoot))
+                    Path.Combine(this.context.Enlistment.GitObjectsRoot, PostFetchLock)))
                 {
                     if (!postFetchFileLock.TryAcquireLock())
                     {

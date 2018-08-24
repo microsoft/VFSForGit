@@ -27,8 +27,7 @@ namespace GVFS.Common.Prefetch
             using (FileBasedLock prefetchLock = GVFSPlatform.Instance.CreateFileBasedLock(
                 fileSystem,
                 tracer,
-                Path.Combine(enlistment.GitPackRoot, PrefetchCommitsAndTreesLock),
-                enlistment.EnlistmentRoot))
+                Path.Combine(enlistment.GitPackRoot, PrefetchCommitsAndTreesLock)))
             {
                 WaitUntilLockIsAcquired(tracer, prefetchLock);
                 long maxGoodTimeStamp;

@@ -67,8 +67,7 @@ namespace GVFS.Common
                 using (FileBasedLock mappingLock = GVFSPlatform.Instance.CreateFileBasedLock(
                     this.fileSystem, 
                     tracer, 
-                    lockPath, 
-                    this.enlistment.EnlistmentRoot))
+                    lockPath))
                 {
                     if (!this.TryAcquireLockWithRetries(tracer, mappingLock))
                     {

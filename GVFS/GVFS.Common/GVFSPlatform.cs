@@ -62,8 +62,7 @@ namespace GVFS.Common
         public abstract FileBasedLock CreateFileBasedLock(
             PhysicalFileSystem fileSystem,
             ITracer tracer,
-            string lockPath,
-            string signature);
+            string lockPath);
 
         public bool TryGetNormalizedPathRoot(string path, out string pathRoot, out string errorMessage)
         {

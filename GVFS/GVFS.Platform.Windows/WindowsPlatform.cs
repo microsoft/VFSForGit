@@ -256,10 +256,9 @@ namespace GVFS.Platform.Windows
         public override FileBasedLock CreateFileBasedLock(
             PhysicalFileSystem fileSystem,
             ITracer tracer,
-            string lockPath,
-            string signature)
+            string lockPath)
         {
-            return new WindowsFileBasedLock(fileSystem, tracer, lockPath, signature);
+            return new WindowsFileBasedLock(fileSystem, tracer, lockPath);
         }
 
         public override bool TryGetGVFSEnlistmentRoot(string directory, out string enlistmentRoot, out string errorMessage)

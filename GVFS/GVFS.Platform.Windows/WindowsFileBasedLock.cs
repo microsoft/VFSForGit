@@ -31,9 +31,8 @@ namespace GVFS.Platform.Windows
         public WindowsFileBasedLock(
             PhysicalFileSystem fileSystem,
             ITracer tracer,
-            string lockPath,
-            string signature)
-            : base(fileSystem, tracer, lockPath, signature)
+            string lockPath)
+            : base(fileSystem, tracer, lockPath)
         {
         }
 
@@ -43,9 +42,9 @@ namespace GVFS.Platform.Windows
             {
                 lock (this.deleteOnCloseStreamLock)
                 {
-                    if (this.IsOpen())
+                    if (this.deleteOnCloseStream != null)
                     {
-                        return true;
+                        throw new InvalidOperationException("Lock has already been acquired");
                     }
 
                     this.FileSystem.CreateDirectory(Path.GetDirectoryName(this.LockPath));
@@ -57,16 +56,6 @@ namespace GVFS.Platform.Windows
                         FileShare.Read,
                         FileOptions.DeleteOnClose,
                         callFlushFileBuffers: false);
-
-                    // Pass in true for leaveOpen to ensure that lockStream stays open
-                    using (StreamWriter writer = new StreamWriter(
-                        this.deleteOnCloseStream,
-                        UTF8NoBOM,
-                        DefaultStreamWriterBufferSize,
-                        leaveOpen: true))
-                    {
-                        this.WriteSignature(writer);
-                    }
 
                     return true;
                 }
@@ -115,22 +104,11 @@ namespace GVFS.Platform.Windows
             this.DisposeStream();
         }
 
-        private bool IsOpen()
-        {
-            return this.deleteOnCloseStream != null;
-        }
-
-        private void WriteSignature(StreamWriter writer)
-        {
-            writer.WriteLine(this.Signature);
-        }
-
         private EventMetadata CreateLockMetadata(Exception exception = null)
         {
             EventMetadata metadata = new EventMetadata();
             metadata.Add("Area", EtwArea);
             metadata.Add(nameof(this.LockPath), this.LockPath);
-            metadata.Add(nameof(this.Signature), this.Signature);
             if (exception != null)
             {
                 metadata.Add("Exception", exception.ToString());

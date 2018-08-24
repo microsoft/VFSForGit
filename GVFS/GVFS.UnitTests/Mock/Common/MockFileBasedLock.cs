@@ -9,9 +9,8 @@ namespace GVFS.UnitTests.Mock.Common
         public MockFileBasedLock(
             PhysicalFileSystem fileSystem,
             ITracer tracer,
-            string lockPath,
-            string signature)
-            : base(fileSystem, tracer, lockPath, signature)
+            string lockPath)
+            : base(fileSystem, tracer, lockPath)
         {
         }
 

@@ -2,57 +2,36 @@
 using GVFS.Common.FileSystem;
 using GVFS.Common.Tracing;
 using System;
+using System.IO;
 using System.Runtime.InteropServices;
-using System.Text;
 
 namespace GVFS.Platform.Mac
 {
     public class MacFileBasedLock : FileBasedLock
     {
-        // #define O_WRONLY    0x0001      /* open for writing only */
-        private const int OpenWriteOnly = 0x0001; 
-
-        // #define O_CREAT     0x0200      /* create if nonexistant */
-        private const int OpenCreate = 0x0200;    
-
-        // #define EINTR       4       /* Interrupted system call */
-        private const int EIntr = 4; 
-
-        // #define EAGAIN      35      /* Resource temporarily unavailable */
-        // #define EWOULDBLOCK EAGAIN  /* Operation would block */
-        private const int EWouldBlock = 35; 
-
-        private const int InvalidFileDescriptor = -1;
-
-        private static readonly ushort FileMode644 = Convert.ToUInt16("644", 8);
-
         private int lockFileDescriptor;
 
         public MacFileBasedLock(
             PhysicalFileSystem fileSystem,
             ITracer tracer,
-            string lockPath,
-            string signature)
-            : base(fileSystem, tracer, lockPath, signature) 
+            string lockPath)
+            : base(fileSystem, tracer, lockPath) 
         {
-            this.lockFileDescriptor = InvalidFileDescriptor;
-        }
-
-        [Flags]
-        private enum FLockOperations
-        {
-            LockSh = 1, // #define LOCK_SH   1    /* shared lock */
-            LockEx = 2, // #define LOCK_EX   2    /* exclusive lock */
-            LockNb = 4, // #define LOCK_NB   4    /* don't block when locking */
-            LockUn = 8  // #define LOCK_UN   8    /* unlock */
+            this.lockFileDescriptor = NativeMethods.InvalidFileDescriptor;
         }
 
         public override bool TryAcquireLock()
         {
-            if (this.lockFileDescriptor == InvalidFileDescriptor)
+            if (this.lockFileDescriptor == NativeMethods.InvalidFileDescriptor)
             {
-                this.lockFileDescriptor = NativeMethods.Open(this.LockPath, OpenCreate | OpenWriteOnly, FileMode644);
-                if (this.lockFileDescriptor == InvalidFileDescriptor)
+                this.FileSystem.CreateDirectory(Path.GetDirectoryName(this.LockPath));
+
+                this.lockFileDescriptor = NativeMethods.Open(
+                    this.LockPath, 
+                    NativeMethods.OpenCreate | NativeMethods.OpenWriteOnly, 
+                    NativeMethods.FileMode644);
+
+                if (this.lockFileDescriptor == NativeMethods.InvalidFileDescriptor)
                 {
                     int errno = Marshal.GetLastWin32Error();
                     EventMetadata metadata = this.CreateEventMetadata(errno);
@@ -64,10 +43,10 @@ namespace GVFS.Platform.Mac
                 }
             }
 
-            if (NativeMethods.FLock(this.lockFileDescriptor, (int)(FLockOperations.LockEx | FLockOperations.LockNb)) != 0)
+            if (NativeMethods.FLock(this.lockFileDescriptor, NativeMethods.LockEx | NativeMethods.LockNb) != 0)
             {
                 int errno = Marshal.GetLastWin32Error();
-                if (errno != EIntr && errno != EWouldBlock)
+                if (errno != NativeMethods.EIntr && errno != NativeMethods.EWouldBlock)
                 {
                     EventMetadata metadata = this.CreateEventMetadata(errno);
                     this.Tracer.RelatedWarning(
@@ -78,41 +57,21 @@ namespace GVFS.Platform.Mac
                 return false;
             }
 
-            if (NativeMethods.FTruncate(this.lockFileDescriptor, 0) == 0)
-            {
-                byte[] signatureBytes = Encoding.UTF8.GetBytes(this.Signature);
-                long bytesWritten = NativeMethods.Write(
-                    this.lockFileDescriptor,
-                    signatureBytes,
-                    Convert.ToUInt64(signatureBytes.Length));
-
-                if (bytesWritten == -1)
-                {
-                    int errno = Marshal.GetLastWin32Error();
-                    EventMetadata metadata = this.CreateEventMetadata(errno);
-                    this.Tracer.RelatedWarning(
-                        metadata,
-                        $"{nameof(MacFileBasedLock)}.{nameof(this.TryAcquireLock)}: Failed to write signature");
-                }
-            }
-            else
-            {
-                int errno = Marshal.GetLastWin32Error();
-                EventMetadata metadata = this.CreateEventMetadata(errno);
-                this.Tracer.RelatedWarning(
-                    metadata,
-                    $"{nameof(MacFileBasedLock)}.{nameof(this.TryAcquireLock)}: Failed to truncate lock file");
-            }
-
             return true;
         }
 
         public override void Dispose()
         {
-            if (this.lockFileDescriptor != InvalidFileDescriptor)
+            if (this.lockFileDescriptor != NativeMethods.InvalidFileDescriptor)
             {
                 if (NativeMethods.Close(this.lockFileDescriptor) != 0)
                 {
+                    // Failures of close() are logged for diagnostic purposes only.
+                    // It's possible that errors from a previous operation (e.g. write(2))
+                    // are only reported in close().  We should *not* retry the close() if
+                    // it fails since it may cause a re-used file descriptor from another
+                    // thrad to be closed.
+
                     int errno = Marshal.GetLastWin32Error();
                     EventMetadata metadata = this.CreateEventMetadata(errno);
                     this.Tracer.RelatedWarning(
@@ -120,7 +79,7 @@ namespace GVFS.Platform.Mac
                         $"{nameof(MacFileBasedLock)}.{nameof(this.Dispose)}: Error when closing lock fd");
                 }
 
-                this.lockFileDescriptor = InvalidFileDescriptor;
+                this.lockFileDescriptor = NativeMethods.InvalidFileDescriptor;
             }
         }
 
@@ -129,7 +88,6 @@ namespace GVFS.Platform.Mac
             EventMetadata metadata = new EventMetadata();
             metadata.Add("Area", "MacFileBasedLock");
             metadata.Add(nameof(this.LockPath), this.LockPath);
-            metadata.Add(nameof(this.Signature), this.Signature);
             if (errno != 0)
             {
                 metadata.Add(nameof(errno), errno);
@@ -140,14 +98,30 @@ namespace GVFS.Platform.Mac
 
         private static class NativeMethods
         {
+            // #define O_WRONLY    0x0001      /* open for writing only */
+            public const int OpenWriteOnly = 0x0001;
+
+            // #define O_CREAT     0x0200      /* create if nonexistant */
+            public const int OpenCreate = 0x0200;
+
+            // #define EINTR       4       /* Interrupted system call */
+            public const int EIntr = 4;
+
+            // #define EAGAIN      35      /* Resource temporarily unavailable */
+            // #define EWOULDBLOCK EAGAIN  /* Operation would block */
+            public const int EWouldBlock = 35;
+
+            public const int LockSh = 1; // #define LOCK_SH   1    /* shared lock */
+            public const int LockEx = 2; // #define LOCK_EX   2    /* exclusive lock */
+            public const int LockNb = 4; // #define LOCK_NB   4    /* don't block when locking */
+            public const int LockUn = 8; // #define LOCK_UN   8    /* unlock */
+
+            public const int InvalidFileDescriptor = -1;
+
+            public static readonly ushort FileMode644 = Convert.ToUInt16("644", 8);
+
             [DllImport("libc", EntryPoint = "open", SetLastError = true)]
             public static extern int Open(string pathname, int flags, ushort mode);
-
-            [DllImport("libc", EntryPoint = "ftruncate", SetLastError = true)]
-            public static extern long FTruncate(int fd, long length);
-
-            [DllImport("libc", EntryPoint = "write", SetLastError = true)]
-            public static extern long Write(int fd, byte[] buf, ulong count);
 
             [DllImport("libc", EntryPoint = "close", SetLastError = true)]
             public static extern int Close(int fd);
