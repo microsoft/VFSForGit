@@ -15,6 +15,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
     public class MultithreadedReadWriteTests : TestsWithEnlistmentPerFixture
     {
         [TestCase, Order(1)]
+        [Category(Categories.Windows)]
         public void CanReadVirtualFileInParallel()
         {
             // Note: This test MUST go first, or else it needs to ensure that it is reading a unique path compared to the
@@ -30,7 +31,6 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
             Thread[] threads = new Thread[32];
             for (int i = 0; i < threads.Length; ++i)
             {
-                int myIndex = i;
                 threads[i] = new Thread(() =>
                 {
                     try
