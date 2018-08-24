@@ -65,25 +65,35 @@ namespace GVFS.Upgrader
         public void Execute()
         {
             string error = null;
-            try
-            {
-                Version newVersion = null;
-                if (!this.TryRunUpgradeInstall(out newVersion, out error))
-                {
-                    this.ExitCode = ReturnCode.GenericError;
-                }
-            }
-            finally
-            {
-                string cleanUpError = null;
-                if (!this.TryRunCleanUp(out cleanUpError))
-                {
-                    error = string.IsNullOrEmpty(error) ? cleanUpError : error + Environment.NewLine + cleanUpError;
-                    this.ExitCode = ReturnCode.GenericError;
-                }
-            }
+            string finishMessage = null;
 
-            string finishMessage = "Finished upgrade";
+            if (this.upgrader.IsNoneRing())
+            {
+                finishMessage = "Upgrade ring set to None. No upgrade check was performed.";
+            }
+            else
+            {
+                try
+                {
+                    Version newVersion = null;
+                    if (!this.TryRunUpgradeInstall(out newVersion, out error))
+                    {
+                        this.ExitCode = ReturnCode.GenericError;
+                    }
+                }
+                finally
+                {
+                    string cleanUpError = null;
+                    if (!this.TryRunCleanUp(out cleanUpError))
+                    {
+                        error = string.IsNullOrEmpty(error) ? cleanUpError : error + Environment.NewLine + cleanUpError;
+                        this.ExitCode = ReturnCode.GenericError;
+                    }
+                }
+
+                finishMessage = "Finished upgrade";
+            }
+            
             if (this.ExitCode == ReturnCode.GenericError)
             {
                 finishMessage = "Upgrade finished with errors";

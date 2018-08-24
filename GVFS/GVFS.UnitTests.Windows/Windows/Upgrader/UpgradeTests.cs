@@ -37,20 +37,19 @@ namespace GVFS.UnitTests.Windows.Upgrader
 
         public virtual void NoneLocalRing()
         {
-            string errorString = "Upgrade ring set to None. No upgrade check was performed.";
+            string message = "Upgrade ring set to None. No upgrade check was performed.";
             this.ConfigureRunAndVerify(
                 configure: () =>
                 {
                     this.Upgrader.LocalRingConfig = ProductUpgrader.RingType.None;
                 },
-                expectedReturn: ReturnCode.GenericError,
+                expectedReturn: ReturnCode.Success,
                 expectedOutput: new List<string>
                 {
-                    errorString
+                    message
                 },
                 expectedErrors: new List<string>
                 {
-                    errorString
                 });
         }
 
@@ -112,7 +111,7 @@ namespace GVFS.UnitTests.Windows.Upgrader
             {
                 this.Output.AllLines.ShouldContain(
                 expectedOutput,
-                (line, expectedLine) => { return line.Equals(expectedLine, StringComparison.Ordinal); });
+                (line, expectedLine) => { return line.Contains(expectedLine); });
             }
 
             if (expectedErrors != null)

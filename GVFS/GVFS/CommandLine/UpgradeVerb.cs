@@ -76,6 +76,15 @@ namespace GVFS.CommandLine
             string error = null;
             Version newestVersion = null;
             bool isInstallable = false;
+
+            if (this.upgrader.IsNoneRing())
+            {
+                string message = "Upgrade ring set to None. No upgrade check was performed.";
+                this.tracer.RelatedInfo($"{nameof(this.TryRunProductUpgrade)}: {message}");
+                this.ReportInfoToConsole(message);
+                return true;
+            }
+
             if (!this.TryRunUpgradeChecks(out newestVersion, out isInstallable, out error))
             {
                 this.Output.WriteLine($"{error}");

@@ -21,7 +21,7 @@ namespace GVFS.UnitTests.Windows.Upgrader
                 remoteRing: ProductUpgrader.RingType.Fast,
                 remoteVersion: UpgradeTests.NewerThanLocalVersion,
                 localRing: ProductUpgrader.RingType.None,
-                expectedReturn: false,
+                expectedReturn: true,
                 expectedUpgradeVersion: null);
         }
 
@@ -32,7 +32,7 @@ namespace GVFS.UnitTests.Windows.Upgrader
                 remoteRing: ProductUpgrader.RingType.Slow,
                 remoteVersion: UpgradeTests.NewerThanLocalVersion,
                 localRing: ProductUpgrader.RingType.None,
-                expectedReturn: false,
+                expectedReturn: true,
                 expectedUpgradeVersion: null);
         }
 
