@@ -216,6 +216,35 @@ namespace GVFS.Common
             return false;
         }
 
+        public bool TryCleanup(out string error)
+        {
+            bool isError = false;
+            string exceptionInfo = string.Empty;
+            foreach (Asset asset in this.newestRelease.Assets)
+            {
+                Exception exception;
+                if (!this.TryDeleteDownloadedAsset(asset, out exception))
+                {
+                    exceptionInfo += $"Could not delete {asset.LocalPath}. {exception.ToString()}.";
+                    isError = true;
+                }
+            }
+
+            if (isError)
+            {
+                error = exceptionInfo;
+                return false;
+            }
+
+            error = null;
+            return true;
+        }
+
+        protected virtual bool TryDeleteDownloadedAsset(Asset asset, out Exception exception)
+        {
+            return this.fileSystem.TryDeleteFile(asset.LocalPath, out exception);
+        }
+
         protected virtual bool TryLoadRingConfig(out string error)
         {
             string errorAdvisory = "Please run 'git config --system gvfs.upgrade-ring [\"Fast\"|\"Slow\"|\"None\"]' and retry.";

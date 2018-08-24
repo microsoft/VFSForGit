@@ -55,6 +55,8 @@ namespace GVFS.UnitTests.Windows.Upgrader
                     "DownloadAsset_Git",
                     "InstallAsset_Git",
                     "InstallAsset_GVFS",
+                    "DeleteDownloadedAsset_GVFS",
+                    "DeleteDownloadedAsset_Git",
                     "MountAll"
                 });
 
@@ -258,6 +260,44 @@ namespace GVFS.UnitTests.Windows.Upgrader
                 expectedErrors: new List<string>
                 {
                     "GVFS installation failed"
+                });
+        }
+
+        [TestCase]
+        public void GVFSCleanupError()
+        {
+            this.ConfigureRunAndVerify(
+                configure: () =>
+                {
+                    this.Upgrader.SetFailOnAction(MockProductUpgrader.ActionType.GVFSCleanup);
+                },
+                expectedReturn: ReturnCode.GenericError,
+                expectedOutput: new List<string>
+                {
+                    "Error deleting downloaded GVFS installer."
+                },
+                expectedErrors: new List<string>
+                {
+                    "Error deleting downloaded GVFS installer."
+                });
+        }
+
+        [TestCase]
+        public void GitCleanupError()
+        {
+            this.ConfigureRunAndVerify(
+                configure: () =>
+                {
+                    this.Upgrader.SetFailOnAction(MockProductUpgrader.ActionType.GitCleanup);
+                },
+                expectedReturn: ReturnCode.GenericError,
+                expectedOutput: new List<string>
+                {
+                    "Error deleting downloaded Git installer."
+                },
+                expectedErrors: new List<string>
+                {
+                    "Error deleting downloaded Git installer."
                 });
         }
 

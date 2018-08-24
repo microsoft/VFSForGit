@@ -17,6 +17,7 @@ namespace GVFS.Upgrader
         private TextReader input;
         private bool isLocked;
         private bool remount;
+        private bool deleteDownloadedAssets;
         private bool shouldExit;
 
         public UpgradeOrchestrator(
@@ -33,6 +34,7 @@ namespace GVFS.Upgrader
             this.output = output;
             this.input = input;
             this.remount = false;
+            this.deleteDownloadedAssets = false;
             this.isLocked = false;
             this.shouldExit = shouldExit;
             this.ExitCode = ReturnCode.Success;
@@ -55,6 +57,7 @@ namespace GVFS.Upgrader
             this.output = Console.Out;
             this.input = Console.In;
             this.remount = false;
+            this.deleteDownloadedAssets = false;
             this.isLocked = false;
             this.shouldExit = false;
             this.ExitCode = ReturnCode.Success;
@@ -198,28 +201,43 @@ namespace GVFS.Upgrader
         {
             error = null;
 
-            string errorMessage = null;
+            string errorMessage = string.Empty;
             if (!this.LaunchInsideSpinner(
                 () =>
                 {
-                    if (!this.TryReleaseUpgradeLock(out errorMessage))
+                    bool success = true;
+                    string unlockError;
+                    if (!this.TryReleaseUpgradeLock(out unlockError))
                     {
-                        return false;
+                        errorMessage += unlockError + Environment.NewLine;
+                        success = false;
                     }
 
-                    if (this.remount && !this.preRunChecker.TryMountAllGVFSRepos(out errorMessage))
+                    string remountError;
+                    if (this.remount && !this.preRunChecker.TryMountAllGVFSRepos(out remountError))
                     {
                         EventMetadata metadata = new EventMetadata();
                         metadata.Add("Upgrade Step", nameof(this.TryRunCleanUp));
-                        this.tracer.RelatedError(metadata, $"{nameof(this.preRunChecker.TryMountAllGVFSRepos)} failed. {errorMessage}");
-                        return false;
+                        this.tracer.RelatedError(metadata, $"{nameof(this.preRunChecker.TryMountAllGVFSRepos)} failed. {remountError}");
+                        errorMessage += remountError + Environment.NewLine;
+                        success = false;
                     }
 
-                    return true;
+                    string downloadsCleanupError;
+                    if (this.deleteDownloadedAssets && !this.upgrader.TryCleanup(out downloadsCleanupError))
+                    {
+                        EventMetadata metadata = new EventMetadata();
+                        metadata.Add("Upgrade Step", nameof(this.TryRunCleanUp));
+                        this.tracer.RelatedError(metadata, $"{nameof(this.upgrader.TryCleanup)} failed. {downloadsCleanupError}");
+                        errorMessage += downloadsCleanupError + Environment.NewLine;
+                        success = false;
+                    }
+
+                    return success;
                 },
                 "Finishing upgrade"))
             {
-                error = errorMessage;
+                error = errorMessage.TrimEnd(Environment.NewLine.ToCharArray());
                 return false;
             }
 
@@ -321,6 +339,7 @@ namespace GVFS.Upgrader
                 return false;
             }
 
+            this.deleteDownloadedAssets = true;
             this.tracer.RelatedInfo("Successfully downloaded version: " + version.ToString());
 
             return true;
