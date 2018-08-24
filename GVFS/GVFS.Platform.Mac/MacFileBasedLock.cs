@@ -9,8 +9,6 @@ namespace GVFS.Platform.Mac
 {
     public class MacFileBasedLock : FileBasedLock
     {
-        private static readonly ushort FileMode644 = Convert.ToUInt16("644", 8);
-
         // #define O_WRONLY    0x0001      /* open for writing only */
         private const int OpenWriteOnly = 0x0001; 
 
@@ -26,14 +24,7 @@ namespace GVFS.Platform.Mac
 
         private const int InvalidFileDescriptor = -1;
 
-        [Flags]
-        private enum FLockOperations
-        {
-            LockSh = 1, // #define LOCK_SH   1    /* shared lock */
-            LockEx = 2, // #define LOCK_EX   2    /* exclusive lock */
-            LockNb = 4, // #define LOCK_NB   4    /* don't block when locking */
-            LockUn = 8  // #define LOCK_UN   8    /* unlock */
-        }
+        private static readonly ushort FileMode644 = Convert.ToUInt16("644", 8);
 
         private int lockFileDescriptor;
 
@@ -47,11 +38,20 @@ namespace GVFS.Platform.Mac
             this.lockFileDescriptor = InvalidFileDescriptor;
         }
 
+        [Flags]
+        private enum FLockOperations
+        {
+            LockSh = 1, // #define LOCK_SH   1    /* shared lock */
+            LockEx = 2, // #define LOCK_EX   2    /* exclusive lock */
+            LockNb = 4, // #define LOCK_NB   4    /* don't block when locking */
+            LockUn = 8  // #define LOCK_UN   8    /* unlock */
+        }
+
         public override bool TryAcquireLock()
         {
             if (this.lockFileDescriptor == InvalidFileDescriptor)
             {
-                this.lockFileDescriptor = Open(this.LockPath, OpenCreate | OpenWriteOnly, FileMode644);
+                this.lockFileDescriptor = NativeMethods.Open(this.LockPath, OpenCreate | OpenWriteOnly, FileMode644);
                 if (this.lockFileDescriptor == InvalidFileDescriptor)
                 {
                     int errno = Marshal.GetLastWin32Error();
@@ -64,7 +64,7 @@ namespace GVFS.Platform.Mac
                 }
             }
 
-            if (FLock(this.lockFileDescriptor, (int)(FLockOperations.LockEx | FLockOperations.LockNb)) != 0)
+            if (NativeMethods.FLock(this.lockFileDescriptor, (int)(FLockOperations.LockEx | FLockOperations.LockNb)) != 0)
             {
                 int errno = Marshal.GetLastWin32Error();
                 if (errno != EIntr && errno != EWouldBlock)
@@ -78,10 +78,10 @@ namespace GVFS.Platform.Mac
                 return false;
             }
 
-            if (FTruncate(this.lockFileDescriptor, 0) == 0)
+            if (NativeMethods.FTruncate(this.lockFileDescriptor, 0) == 0)
             {
                 byte[] signatureBytes = Encoding.UTF8.GetBytes(this.Signature);
-                long bytesWritten = Write(
+                long bytesWritten = NativeMethods.Write(
                     this.lockFileDescriptor,
                     signatureBytes,
                     Convert.ToUInt64(signatureBytes.Length));
@@ -111,7 +111,7 @@ namespace GVFS.Platform.Mac
         {
             if (this.lockFileDescriptor != InvalidFileDescriptor)
             {
-                if (Close(this.lockFileDescriptor) != 0)
+                if (NativeMethods.Close(this.lockFileDescriptor) != 0)
                 {
                     int errno = Marshal.GetLastWin32Error();
                     EventMetadata metadata = this.CreateEventMetadata(errno);
@@ -127,29 +127,33 @@ namespace GVFS.Platform.Mac
         private EventMetadata CreateEventMetadata(int errno = 0)
         {
             EventMetadata metadata = new EventMetadata();
-            metadata.Add("Area", nameof(MacFileBasedLock));
+            metadata.Add("Area", "MacFileBasedLock");
             metadata.Add(nameof(this.LockPath), this.LockPath);
             metadata.Add(nameof(this.Signature), this.Signature);
             if (errno != 0)
             {
                 metadata.Add(nameof(errno), errno);
             }
+
             return metadata;
         }
 
-        [DllImport("libc", EntryPoint = "open", SetLastError = true)]
-        private static extern int Open(string pathname, int flags, ushort mode);
+        private static class NativeMethods
+        {
+            [DllImport("libc", EntryPoint = "open", SetLastError = true)]
+            public static extern int Open(string pathname, int flags, ushort mode);
 
-        [DllImport("libc", EntryPoint = "ftruncate", SetLastError = true)]
-        private static extern long FTruncate(int fd, long length);
+            [DllImport("libc", EntryPoint = "ftruncate", SetLastError = true)]
+            public static extern long FTruncate(int fd, long length);
 
-        [DllImport("libc", EntryPoint = "write", SetLastError = true)]
-        private static extern long Write(int fd, byte[] buf, ulong count);
+            [DllImport("libc", EntryPoint = "write", SetLastError = true)]
+            public static extern long Write(int fd, byte[] buf, ulong count);
 
-        [DllImport("libc", EntryPoint = "close", SetLastError = true)]
-        private static extern int Close(int fd);
+            [DllImport("libc", EntryPoint = "close", SetLastError = true)]
+            public static extern int Close(int fd);
 
-        [DllImport("libc", EntryPoint = "flock", SetLastError = true)]
-        private static extern int FLock(int fd, int operation);
+            [DllImport("libc", EntryPoint = "flock", SetLastError = true)]
+            public static extern int FLock(int fd, int operation);
+        }
     }
 }
