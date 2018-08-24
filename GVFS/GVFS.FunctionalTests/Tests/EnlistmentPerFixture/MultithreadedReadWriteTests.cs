@@ -1,4 +1,4 @@
-﻿using GVFS.FunctionalTests.FileSystemRunners;
+using GVFS.FunctionalTests.FileSystemRunners;
 using GVFS.FunctionalTests.Should;
 using GVFS.Tests.Should;
 using NUnit.Framework;
@@ -14,8 +14,48 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
     [Category(Categories.Mac.M1)]
     public class MultithreadedReadWriteTests : TestsWithEnlistmentPerFixture
     {
-        [TestCase]
-        public void CanReadUnhydratedFileInParallelWithoutTearing()
+        [TestCase, Order(1)]
+        [Category(Categories.Windows)]
+        public void CanReadVirtualFileInParallel()
+        {
+            // Note: This test MUST go first, or else it needs to ensure that it is reading a unique path compared to the
+            // other tests in this class. That applies to every directory in the path, as well as the leaf file name.
+            // Otherwise, this test loses most of its value because there will be no races occurring on creating the
+            // placeholder directories, enumerating them, and then creating a placeholder file and hydrating it.
+            
+            string fileName = Path.Combine("GVFS", "GVFS.FunctionalTests", "Tests", "LongRunningEnlistment", "GitMoveRenameTests.cs");
+            string virtualPath = this.Enlistment.GetVirtualPathTo(fileName);
+
+            Exception readException = null;
+
+            Thread[] threads = new Thread[32];
+            for (int i = 0; i < threads.Length; ++i)
+            {
+                threads[i] = new Thread(() =>
+                {
+                    try
+                    {
+                        FileSystemRunner.DefaultRunner.ReadAllText(virtualPath).ShouldBeNonEmpty();
+                    }
+                    catch (Exception e)
+                    {
+                        readException = e;
+                    }
+                });
+
+                threads[i].Start();
+            }
+
+            for (int i = 0; i < threads.Length; ++i)
+            {
+                threads[i].Join();
+            }
+
+            readException.ShouldBeNull("At least one of the reads failed");
+        }
+
+        [TestCase, Order(2)]
+        public void CanReadHydratedPlaceholderInParallel()
         {
             FileSystemRunner fileSystem = FileSystemRunner.DefaultRunner;
             string fileName = Path.Combine("GVFS", "GVFS.FunctionalTests", "Tests", "LongRunningEnlistment", "WorkingDirectoryTests.cs");
@@ -72,6 +112,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
         }
 
         [TestCaseSource(typeof(FileSystemRunner), FileSystemRunner.TestRunners)]
+        [Order(3)]
         public void CanReadWriteAFileInParallel(FileSystemRunner fileSystem)
         {
             string fileName = @"CanReadWriteAFileInParallel";
