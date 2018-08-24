@@ -24,12 +24,10 @@ namespace GVFS.Common.Prefetch
             out string error)
         {
             List<string> packIndexes;
-            using (FileBasedLock prefetchLock = new FileBasedLock(
+            using (FileBasedLock prefetchLock = GVFSPlatform.Instance.CreateFileBasedLock(
                 fileSystem,
                 tracer,
-                Path.Combine(enlistment.GitPackRoot, PrefetchCommitsAndTreesLock),
-                enlistment.EnlistmentRoot,
-                overwriteExistingLock: true))
+                Path.Combine(enlistment.GitPackRoot, PrefetchCommitsAndTreesLock)))
             {
                 WaitUntilLockIsAcquired(tracer, prefetchLock);
                 long maxGoodTimeStamp;
@@ -213,7 +211,7 @@ namespace GVFS.Common.Prefetch
         private static void WaitUntilLockIsAcquired(ITracer tracer, FileBasedLock fileBasedLock)
         {
             int attempt = 0;
-            while (!fileBasedLock.TryAcquireLockAndDeleteOnClose())
+            while (!fileBasedLock.TryAcquireLock())
             {
                 Thread.Sleep(LockWaitTimeMs);
                 ++attempt;

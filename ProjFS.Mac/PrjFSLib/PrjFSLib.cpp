@@ -331,6 +331,7 @@ PrjFS_Result PrjFS_WritePlaceholderFile(
         goto CleanupAndFail;
     }
     
+    // TODO(Mac): Only call chmod if fileMode is different than the default file mode
     if (chmod(fullPath, fileMode))
     {
         goto CleanupAndFail;

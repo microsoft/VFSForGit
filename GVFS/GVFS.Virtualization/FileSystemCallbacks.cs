@@ -524,14 +524,12 @@ namespace GVFS.Virtualization
         {
             try
             {
-                using (FileBasedLock postFetchFileLock = new FileBasedLock(
+                using (FileBasedLock postFetchFileLock = GVFSPlatform.Instance.CreateFileBasedLock(
                     this.context.FileSystem,
                     this.context.Tracer,
-                    Path.Combine(this.context.Enlistment.GitObjectsRoot, PostFetchLock),
-                    this.context.Enlistment.EnlistmentRoot,
-                    overwriteExistingLock: true))
+                    Path.Combine(this.context.Enlistment.GitObjectsRoot, PostFetchLock)))
                 {
-                    if (!postFetchFileLock.TryAcquireLockAndDeleteOnClose())
+                    if (!postFetchFileLock.TryAcquireLock())
                     {
                         this.context.Tracer.RelatedInfo(PostFetchTelemetryKey + ": Skipping post-fetch work since another process holds the lock");
                         return;

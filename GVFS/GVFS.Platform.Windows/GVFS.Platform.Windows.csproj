@@ -91,6 +91,7 @@
     </Compile>
     <Compile Include="ProjFSFilter.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
+    <Compile Include="WindowsFileBasedLock.cs" />
     <Compile Include="WindowsFileSystem.Shared.cs" />
     <Compile Include="WindowsFileSystemVirtualizer.cs" />
     <Compile Include="WindowsGitHooksInstaller.cs" />
