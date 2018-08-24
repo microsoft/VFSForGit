@@ -37,6 +37,7 @@ namespace GVFS.Common
         {
             this.installedVersion = new Version(currentVersion);
             this.fileSystem = new PhysicalFileSystem();
+            this.Ring = RingType.Invalid;
 
             string upgradesDirectoryPath = GetUpgradesDirectoryPath();
             this.fileSystem.CreateDirectory(upgradesDirectoryPath);
@@ -63,6 +64,11 @@ namespace GVFS.Common
 
         public RingType Ring { get; protected set; }
 
+        public bool IsNoneRing()
+        {
+            return this.TryLoadRingConfig(out string _) && this.Ring == RingType.None;
+        }
+
         public bool IsGVFSUpgradeRunning()
         {
             return !this.globalUpgradeLock.IsFree();
@@ -84,10 +90,14 @@ namespace GVFS.Common
         {
             List<Release> releases;
 
-            if (this.TryLoadRingConfig(out errorMessage) && 
-                this.TryFetchReleases(out releases, out errorMessage))
+            newVersion = null;
+            if (this.Ring == RingType.Invalid && !this.TryLoadRingConfig(out errorMessage))
             {
-                newVersion = null;
+                return false;
+            }
+            
+            if (this.TryFetchReleases(out releases, out errorMessage))
+            {
                 foreach (Release nextRelease in releases)
                 {
                     Version releaseVersion;
@@ -105,7 +115,6 @@ namespace GVFS.Common
                 return true;
             }
 
-            newVersion = null;
             return false;
         }
 

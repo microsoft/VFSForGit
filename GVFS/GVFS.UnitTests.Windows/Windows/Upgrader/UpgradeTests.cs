@@ -35,6 +35,62 @@ namespace GVFS.UnitTests.Windows.Upgrader
             this.Upgrader.LocalRingConfig = ProductUpgrader.RingType.Slow;
         }
 
+        public virtual void NoneLocalRing()
+        {
+            string message = "Upgrade ring set to None. No upgrade check was performed.";
+            this.ConfigureRunAndVerify(
+                configure: () =>
+                {
+                    this.Upgrader.LocalRingConfig = ProductUpgrader.RingType.None;
+                },
+                expectedReturn: ReturnCode.Success,
+                expectedOutput: new List<string>
+                {
+                    message
+                },
+                expectedErrors: new List<string>
+                {
+                });
+        }
+
+        public virtual void InvalidUpgradeRing()
+        {
+            string errorString = "Invalid upgrade ring type(Invalid) specified in Git config.";
+            this.ConfigureRunAndVerify(
+                configure: () =>
+                {
+                    this.Upgrader.LocalRingConfig = GVFS.Common.ProductUpgrader.RingType.Invalid;
+                },
+                expectedReturn: ReturnCode.GenericError,
+                expectedOutput: new List<string>
+                {
+                    errorString
+                },
+                expectedErrors: new List<string>
+                {
+                    errorString
+                });
+        }
+
+        public virtual void FetchReleaseInfo()
+        {
+            string errorString = "Error fetching upgrade release info.";
+            this.ConfigureRunAndVerify(
+                configure: () =>
+                {
+                    this.Upgrader.SetFailOnAction(MockProductUpgrader.ActionType.FetchReleaseInfo);
+                },
+                expectedReturn: ReturnCode.GenericError,
+                expectedOutput: new List<string>
+                {
+                    errorString
+                },
+                expectedErrors: new List<string>
+                {
+                    errorString
+                });
+        }
+
         protected abstract void RunUpgrade();
 
         protected abstract ReturnCode ExitCode();
@@ -55,7 +111,7 @@ namespace GVFS.UnitTests.Windows.Upgrader
             {
                 this.Output.AllLines.ShouldContain(
                 expectedOutput,
-                (line, expectedLine) => { return line.Equals(expectedLine, StringComparison.Ordinal); });
+                (line, expectedLine) => { return line.Contains(expectedLine); });
             }
 
             if (expectedErrors != null)

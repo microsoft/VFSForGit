@@ -21,6 +21,7 @@ namespace GVFS.UnitTests.Windows.Upgrader
                 remoteRing: ProductUpgrader.RingType.Fast,
                 remoteVersion: UpgradeTests.NewerThanLocalVersion,
                 localRing: ProductUpgrader.RingType.None,
+                expectedReturn: true,
                 expectedUpgradeVersion: null);
         }
 
@@ -31,6 +32,7 @@ namespace GVFS.UnitTests.Windows.Upgrader
                 remoteRing: ProductUpgrader.RingType.Slow,
                 remoteVersion: UpgradeTests.NewerThanLocalVersion,
                 localRing: ProductUpgrader.RingType.None,
+                expectedReturn: true,
                 expectedUpgradeVersion: null);
         }
 
@@ -41,6 +43,7 @@ namespace GVFS.UnitTests.Windows.Upgrader
                 remoteRing: ProductUpgrader.RingType.Fast,
                 remoteVersion: UpgradeTests.NewerThanLocalVersion,
                 localRing: ProductUpgrader.RingType.Slow,
+                expectedReturn: true,
                 expectedUpgradeVersion: null);
         }
 
@@ -51,6 +54,7 @@ namespace GVFS.UnitTests.Windows.Upgrader
                 remoteRing: ProductUpgrader.RingType.Slow,
                 remoteVersion: UpgradeTests.NewerThanLocalVersion,
                 localRing: ProductUpgrader.RingType.Slow,
+                expectedReturn: true,
                 expectedUpgradeVersion: UpgradeTests.NewerThanLocalVersion);
         }
 
@@ -61,6 +65,7 @@ namespace GVFS.UnitTests.Windows.Upgrader
                 remoteRing: ProductUpgrader.RingType.Fast,
                 remoteVersion: UpgradeTests.NewerThanLocalVersion,
                 localRing: ProductUpgrader.RingType.Fast,
+                expectedReturn: true,
                 expectedUpgradeVersion: UpgradeTests.NewerThanLocalVersion);
         }
 
@@ -71,6 +76,7 @@ namespace GVFS.UnitTests.Windows.Upgrader
                 remoteRing: ProductUpgrader.RingType.Slow,
                 remoteVersion: UpgradeTests.NewerThanLocalVersion,
                 localRing:ProductUpgrader.RingType.Fast,
+                expectedReturn: true,
                 expectedUpgradeVersion:UpgradeTests.NewerThanLocalVersion);
         }
 
@@ -87,6 +93,7 @@ namespace GVFS.UnitTests.Windows.Upgrader
             ProductUpgrader.RingType remoteRing,
             string remoteVersion,
             ProductUpgrader.RingType localRing,
+            bool expectedReturn,
             string expectedUpgradeVersion)
         {
             this.Upgrader.LocalRingConfig = localRing;
@@ -96,7 +103,7 @@ namespace GVFS.UnitTests.Windows.Upgrader
 
             Version newVersion;
             string errorMessage;
-            this.Upgrader.TryGetNewerVersion(out newVersion, out errorMessage).ShouldEqual(true);
+            this.Upgrader.TryGetNewerVersion(out newVersion, out errorMessage).ShouldEqual(expectedReturn);
 
             if (string.IsNullOrEmpty(expectedUpgradeVersion))
             {
