@@ -264,7 +264,7 @@ void CreatePlaceholderDirectoryAsMountUser(const char* relativePath, PrjFS_Resul
 
     if (mkdir(fullPath, 0775))
     {
-        std::cout << "mkdir failed. errno: " << errno << std::endl;
+        std::cout << "mkdir(" << fullPath << ") failed. errno: " << errno << std::endl;
         goto CleanupAndReturn;
     }
     
@@ -619,6 +619,7 @@ static PrjFS_Result HandleHydrateFileRequest(const MessageHeader* request, const
     fileHandle.file = fopen(fullPath, "rb+");
     if (nullptr == fileHandle.file)
     {
+        std::cout << "fopen(" << fullPath << ") failed. errno: " << errno << std::endl;
         return PrjFS_Result_EIOError;
     }
     

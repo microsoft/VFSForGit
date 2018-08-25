@@ -103,6 +103,8 @@ static volatile int s_nextMessageId;
 static atomic_int s_numActiveKauthEvents;
 static volatile bool s_isShuttingDown;
 
+static Mutex s_hydrationMutex = {};
+
 // Public functions
 kern_return_t KauthHandler_Init()
 {
@@ -121,7 +123,13 @@ kern_return_t KauthHandler_Init()
     {
         goto CleanupAndFail;
     }
-        
+
+    s_hydrationMutex = Mutex_Alloc();
+    if (!Mutex_IsValid(s_hydrationMutex))
+    {
+        goto CleanupAndFail;
+    }
+    
     if (VirtualizationRoots_Init())
     {
         goto CleanupAndFail;
@@ -175,6 +183,15 @@ kern_return_t KauthHandler_Cleanup()
     AbortAllOutstandingEvents();
 
     if (VirtualizationRoots_Cleanup())
+    {
+        result = KERN_FAILURE;
+    }
+    
+    if (Mutex_IsValid(s_hydrationMutex))
+    {
+        Mutex_FreeMemory(&s_hydrationMutex);
+    }
+    else
     {
         result = KERN_FAILURE;
     }
@@ -290,6 +307,9 @@ static int HandleVnodeOperation(
                 KAUTH_VNODE_READ_ATTRIBUTES |
                 KAUTH_VNODE_READ_EXTATTRIBUTES))
         {
+            Mutex_Acquire(s_hydrationMutex);
+            currentVnodeFileFlags = ReadVNodeFileFlags(currentVnode, context);
+            
             if (FileFlagsBitIsSet(currentVnodeFileFlags, FileFlags_IsEmpty))
             {
                 KextLog_VnodeOp(currentVnode, vnodeType, procname, uid, action, "Started enumerating directory");
@@ -302,10 +322,13 @@ static int HandleVnodeOperation(
                         &kauthResult,
                         kauthError))
                 {
+                    Mutex_Release(s_hydrationMutex);
                     goto CleanupAndReturn;
                 }
                 KextLog_VnodeOp(currentVnode, vnodeType, procname, uid, action, "Finished enumerating directory");
             }
+
+            Mutex_Release(s_hydrationMutex);
         }
         
         if (ActionBitIsSet(action, KAUTH_VNODE_DELETE))
@@ -351,6 +374,9 @@ static int HandleVnodeOperation(
                 KAUTH_VNODE_EXECUTE |
                 KAUTH_VNODE_DELETE)) // Hydrate on delete to ensure files are hydrated before rename operations
         {
+            Mutex_Acquire(s_hydrationMutex);
+            currentVnodeFileFlags = ReadVNodeFileFlags(currentVnode, context);
+            
             if (FileFlagsBitIsSet(currentVnodeFileFlags, FileFlags_IsEmpty))
             {
                 KextLog_VnodeOp(currentVnode, vnodeType, procname, uid, action, "Started hydrating file");
@@ -363,10 +389,13 @@ static int HandleVnodeOperation(
                         &kauthResult,
                         kauthError))
                 {
+                    Mutex_Release(s_hydrationMutex);
                     goto CleanupAndReturn;
                 }
                 KextLog_VnodeOp(currentVnode, vnodeType, procname, uid, action, "Finished hydrating file");
             }
+            
+            Mutex_Release(s_hydrationMutex);
         }
     }
     
