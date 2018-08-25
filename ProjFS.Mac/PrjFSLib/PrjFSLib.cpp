@@ -80,10 +80,6 @@ static Message ParseMessageMemory(const void* messageMemory, uint32_t size);
 
 static void ClearMachNotification(mach_port_t port);
 
-#ifdef DEBUG
-static const char* NotificationTypeToString(PrjFS_NotificationType notificationType);
-#endif
-
 // State
 static io_connect_t s_kernelServiceConnection = IO_OBJECT_NULL;
 static std::string s_virtualizationRootFullPath;
@@ -107,16 +103,6 @@ PrjFS_Result PrjFS_StartVirtualizationInstance(
     _In_    PrjFS_Callbacks                         callbacks,
     _In_    unsigned int                            poolThreadCount)
 {
-#ifdef DEBUG
-    std::cout
-        << "PrjFS_StartVirtualizationInstance("
-        << virtualizationRootFullPath << ", "
-        << callbacks.EnumerateDirectory << ", "
-        << callbacks.GetFileStream << ", "
-        << callbacks.NotifyOperation << ", "
-        << poolThreadCount << ")" << std::endl;
-#endif
-    
     if (nullptr == virtualizationRootFullPath ||
         nullptr == callbacks.EnumerateDirectory ||
         nullptr == callbacks.GetFileStream ||
@@ -231,10 +217,6 @@ PrjFS_Result PrjFS_StartVirtualizationInstance(
 PrjFS_Result PrjFS_ConvertDirectoryToVirtualizationRoot(
     _In_    const char*                             virtualizationRootFullPath)
 {
-#ifdef DEBUG
-    std::cout << "PrjFS_ConvertDirectoryToVirtualizationRoot(" << virtualizationRootFullPath << ")" << std::endl;
-#endif
-    
     if (nullptr == virtualizationRootFullPath)
     {
         return PrjFS_Result_EInvalidArgs;
@@ -307,10 +289,6 @@ CleanupAndReturn:
 PrjFS_Result PrjFS_WritePlaceholderDirectory(
     _In_    const char*                             relativePath)
 {
-#ifdef DEBUG
-    std::cout << "PrjFS_WritePlaceholderDirectory(" << relativePath << ")" << std::endl;
-#endif
-    
     if (nullptr == relativePath)
     {
         return PrjFS_Result_EInvalidArgs;
@@ -402,15 +380,6 @@ PrjFS_Result PrjFS_WritePlaceholderFile(
     _In_    unsigned long                           fileSize,
     _In_    uint16_t                                fileMode)
 {
-#ifdef DEBUG
-    std::cout
-        << "PrjFS_WritePlaceholderFile("
-        << relativePath << ", " 
-        << (int)providerId[0] << ", "
-        << (int)contentId[0] << ", "
-        << fileSize << ")" << std::endl;
-#endif
-    
     if (nullptr == relativePath)
     {
         return PrjFS_Result_EInvalidArgs;
@@ -438,18 +407,7 @@ PrjFS_Result PrjFS_UpdatePlaceholderFileIfNeeded(
     _In_    uint16_t                                fileMode,
     _In_    PrjFS_UpdateType                        updateFlags,
     _Out_   PrjFS_UpdateFailureCause*               failureCause)
-{
-#ifdef DEBUG
-    std::cout
-        << "PrjFS_UpdatePlaceholderFileIfNeeded("
-        << relativePath << ", "
-        << (int)providerId[0] << ", "
-        << (int)contentId[0] << ", "
-        << fileSize << ", "
-        << std::oct << fileMode << std::dec << ", "
-        << std::hex << updateFlags << std::dec << ")" << std::endl;
-#endif
-    
+{    
     // TODO(Mac): Check if the contentId or fileMode have changed before proceeding
     // with the update
     
@@ -466,14 +424,7 @@ PrjFS_Result PrjFS_DeleteFile(
     _In_    const char*                             relativePath,
     _In_    PrjFS_UpdateType                        updateFlags,
     _Out_   PrjFS_UpdateFailureCause*               failureCause)
-{
-#ifdef DEBUG
-    std::cout
-        << "PrjFS_DeleteFile("
-        << relativePath << ", "
-        << std::hex << updateFlags << std::dec << ")" << std::endl;
-#endif
-    
+{    
     // TODO(Mac): Populate failure cause appropriately
     *failureCause = PrjFS_UpdateFailureCause_Invalid;
     
@@ -506,16 +457,6 @@ PrjFS_Result PrjFS_WriteFileContents(
     _In_    const void*                             bytes,
     _In_    unsigned int                            byteCount)
 {
-#ifdef DEBUG
-    std::cout
-        << "PrjFS_WriteFile("
-        << fileHandle->file << ", "
-        << (int)((char*)bytes)[0] << ", "
-        << (int)((char*)bytes)[1] << ", "
-        << (int)((char*)bytes)[2] << ", "
-        << byteCount << ")" << std::endl;
-#endif
-    
     if (nullptr == fileHandle->file ||
         nullptr == bytes)
     {
@@ -531,7 +472,6 @@ PrjFS_Result PrjFS_WriteFileContents(
 }
 
 // Private functions
-
 
 static Message ParseMessageMemory(const void* messageMemory, uint32_t size)
 {
@@ -637,10 +577,6 @@ static void HandleKernelRequest(Message request, void* messageMemory)
 
 static PrjFS_Result HandleEnumerateDirectoryRequest(const MessageHeader* request, const char* path)
 {
-#ifdef DEBUG
-    std::cout << "PrjFSLib.HandleEnumerateDirectoryRequest: " << path << std::endl;
-#endif
-    
     PrjFS_Result callbackResult = s_callbacks.EnumerateDirectory(
         0 /* commandId */,
         path,
@@ -665,10 +601,6 @@ static PrjFS_Result HandleEnumerateDirectoryRequest(const MessageHeader* request
 
 static PrjFS_Result HandleHydrateFileRequest(const MessageHeader* request, const char* path)
 {
-#ifdef DEBUG
-    std::cout << "PrjFSLib.HandleHydrateFileRequest: " << path << std::endl;
-#endif
-    
     char fullPath[PrjFSMaxPath];
     CombinePaths(s_virtualizationRootFullPath.c_str(), path, fullPath);
     
@@ -739,12 +671,6 @@ static PrjFS_Result HandleFileNotification(
     bool isDirectory,
     PrjFS_NotificationType notificationType)
 {
-#ifdef DEBUG
-    std::cout << "PrjFSLib.HandleFileNotification: " << path
-              << " notificationType: " << NotificationTypeToString(notificationType)
-              << " isDirectory: " << isDirectory << std::endl;
-#endif
-    
     char fullPath[PrjFSMaxPath];
     CombinePaths(s_virtualizationRootFullPath.c_str(), path, fullPath);
     
@@ -932,34 +858,3 @@ static void ClearMachNotification(mach_port_t port)
     } msg;
     mach_msg(&msg.msgHdr, MACH_RCV_MSG | MACH_RCV_TIMEOUT, 0, sizeof(msg), port, 0, MACH_PORT_NULL);
 }
-
-#ifdef DEBUG
-static const char* NotificationTypeToString(PrjFS_NotificationType notificationType)
-{
-    switch(notificationType)
-    {
-        case PrjFS_NotificationType_Invalid:
-            return STRINGIFY(PrjFS_NotificationType_Invalid);
-
-        case PrjFS_NotificationType_None:
-            return STRINGIFY(PrjFS_NotificationType_None);
-        case PrjFS_NotificationType_NewFileCreated:
-            return STRINGIFY(PrjFS_NotificationType_NewFileCreated);
-        case PrjFS_NotificationType_PreDelete:
-            return STRINGIFY(PrjFS_NotificationType_PreDelete);
-        case PrjFS_NotificationType_FileRenamed:
-            return STRINGIFY(PrjFS_NotificationType_FileRenamed);
-        case PrjFS_NotificationType_HardLinkCreated:
-            return STRINGIFY(PrjFS_NotificationType_HardLinkCreated);
-        case PrjFS_NotificationType_PreConvertToFull:
-            return STRINGIFY(PrjFS_NotificationType_PreConvertToFull);
-            
-        case PrjFS_NotificationType_PreModify:
-            return STRINGIFY(PrjFS_NotificationType_PreModify);
-        case PrjFS_NotificationType_FileModified:
-            return STRINGIFY(PrjFS_NotificationType_FileModified);
-        case PrjFS_NotificationType_FileDeleted:
-            return STRINGIFY(PrjFS_NotificationType_FileDeleted);
-    }
-}
-#endif

@@ -48,8 +48,6 @@ namespace MirrorProvider.Mac
             int triggeringProcessId,
             string triggeringProcessName)
         {
-            Console.WriteLine($"OnEnumerateDirectory({commandId}, '{relativePath}', {triggeringProcessId}, {triggeringProcessName})");
-
             try
             {
                 if (!this.DirectoryExists(relativePath))
@@ -115,8 +113,6 @@ namespace MirrorProvider.Mac
             string triggeringProcessName,
             IntPtr fileHandle)
         {
-            Console.WriteLine($"OnGetFileStream({commandId}, '{relativePath}', {contentId.Length}/{contentId[0]}:{contentId[1]}, {providerId.Length}/{providerId[0]}:{providerId[1]}, {triggeringProcessId}, {triggeringProcessName}, 0x{fileHandle.ToInt64():X})");
-
             if (!this.FileExists(relativePath))
             {
                 return Result.EFileNotFound;
@@ -159,28 +155,23 @@ namespace MirrorProvider.Mac
 
         private void OnFileModified(string relativePath)
         {
-            Console.WriteLine($"OnFileModified: {relativePath}");
         }
 
         private Result OnPreDelete(string relativePath, bool isDirectory)
         {
-            Console.WriteLine($"OnPreDelete (isDirectory: {isDirectory}): {relativePath}");
             return Result.Success;
         }
 
         private void OnNewFileCreated(string relativePath, bool isDirectory)
         {
-            Console.WriteLine($"OnNewFileCreated (isDirectory: {isDirectory}): {relativePath}");
         }
 
         private void OnFileRenamed(string relativeDestinationPath, bool isDirectory)
         {
-            Console.WriteLine($"OnFileRenamed (isDirectory: {isDirectory}) destination: {relativeDestinationPath}");
         }
 
         private void OnHardLinkCreated(string relativeNewLinkPath)
         {
-            Console.WriteLine($"OnHardLinkCreated: {relativeNewLinkPath}");
         }
 
         private static byte[] ToVersionIdByteArray(byte version)
