@@ -18,7 +18,7 @@ private:
     Mutex dataQueueWriterMutex;
 public:
     pid_t pid;
-    // The root for which this is the provider; -1 prior to registration
+    // The root for which this is the provider; RootIndex_None prior to registration
     int32_t virtualizationRootIndex;
     
     // IOUserClient methods:

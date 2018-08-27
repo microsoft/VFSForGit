@@ -13,6 +13,10 @@ struct VirtualizationRoot
     vnode_t                     rootVNode;
     uint32_t                    rootVNodeVid;
     
+    // Active providers register a temporary staging directory where placeholder
+    // files and directories are prepared, and where events should normally be ignored.
+    vnode_t                     tempDirectoryVNode; // retained if not nullptr (vnode_get)
+    
     // Mount point ID + persistent, on-disk ID for the root directory, so we can
     // identify it if the vnode of an offline root gets recycled.
     fsid_t                      rootFsid;
@@ -22,6 +26,18 @@ struct VirtualizationRoot
     char                        path[PrjFSMaxPath];
 
     int32_t                     index;
+};
+
+// Zero and positive values indicate an index for a valid virtualization
+// root. Other values have special meanings:
+enum VirtualizationRootSpecialIndex : int16_t
+{
+    // Not in a virtualization root.
+    RootIndex_None                       = -1,
+    // Root/non-root state not known. Useful reset value for invalidating cached state.
+    RootIndex_Indeterminate              = -2,
+    // Vnode is not in a virtualization root, but below a provider's registered temp directory
+    RootIndex_ProviderTemporaryDirectory = -3,
 };
 
 kern_return_t VirtualizationRoots_Init(void);
@@ -34,7 +50,13 @@ struct VirtualizationRootResult
     errno_t error;
     int32_t rootIndex;
 };
-VirtualizationRootResult VirtualizationRoot_RegisterProviderForPath(PrjFSProviderUserClient* userClient, pid_t clientPID, const char* virtualizationRootPath);
+
+VirtualizationRootResult VirtualizationRoot_RegisterProviderForPath(
+    PrjFSProviderUserClient* userClient,
+    pid_t clientPID,
+    const char* virtualizationRootPath,
+    const char* providerTemporaryDirectoryPath);
+
 void ActiveProvider_Disconnect(int32_t rootIndex);
 
 struct Message;

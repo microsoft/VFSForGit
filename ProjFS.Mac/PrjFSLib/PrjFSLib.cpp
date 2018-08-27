@@ -51,7 +51,7 @@ static bool IsVirtualizationRoot(const char* path);
 static void CombinePaths(const char* root, const char* relative, char (&combined)[PrjFSMaxPath]);
 
 static errno_t SendKernelMessageResponse(uint64_t messageId, MessageType responseType);
-static errno_t RegisterVirtualizationRootPath(const char* path);
+static errno_t RegisterVirtualizationRootPath(const char* path, const char* tempPath);
 
 static void HandleKernelRequest(Message requestSpec, void* messageMemory);
 static PrjFS_Result HandleEnumerateDirectoryRequest(const MessageHeader* request, const char* path);
@@ -138,10 +138,17 @@ PrjFS_Result PrjFS_StartVirtualizationInstance(
     s_virtualizationRootFullPath = virtualizationRootFullPath;
     s_callbacks = callbacks;
     
-    errno_t error = RegisterVirtualizationRootPath(virtualizationRootFullPath);
+    std::string providerTemporaryPath = virtualizationRootFullPath;
+    size_t last_slash = providerTemporaryPath.find_last_of('/');
+    if (last_slash != std::string::npos)
+    {
+        providerTemporaryPath.resize(last_slash + 1);
+        providerTemporaryPath += ".temp";
+    }
+    errno_t error = RegisterVirtualizationRootPath(virtualizationRootFullPath, providerTemporaryPath.c_str());
     if (error != 0)
     {
-        cerr << "Registering virtualization root failed: " << error << ", " << strerror(error) << endl;
+        cerr << "Registering virtualization root failed: " << error << ", " << strerror(error) << " root path: " << virtualizationRootFullPath << ", temp path " << providerTemporaryPath << endl;
         return PrjFS_Result_EInvalidOperation;
     }
     
@@ -869,18 +876,25 @@ static errno_t SendKernelMessageResponse(uint64_t messageId, MessageType respons
     return callResult == kIOReturnSuccess ? 0 : EBADMSG;
 }
 
-static errno_t RegisterVirtualizationRootPath(const char* path)
+static errno_t RegisterVirtualizationRootPath(const char* path, const char* tempPath)
 {
     uint64_t error = EBADMSG;
     uint32_t output_count = 1;
+    
+    // Pass the two strings to kext in a single buffer, back-to-back.
     size_t pathSize = strlen(path) + 1;
+    size_t tempPathSize = strlen(tempPath) + 1;
+    char methodInputBuffer[pathSize + tempPathSize];
+    memcpy(methodInputBuffer, path, pathSize);
+    memcpy(methodInputBuffer + pathSize, tempPath, tempPathSize);
+    
     IOReturn callResult = IOConnectCallMethod(
-        s_kernelServiceConnection,
-        ProviderSelector_RegisterVirtualizationRootPath,
-        nullptr, 0, // no scalar inputs
-        path, pathSize, // struct input
-        &error, &output_count, // scalar output
-        nullptr, nullptr); // no struct output
+                                              s_kernelServiceConnection,
+                                              ProviderSelector_RegisterVirtualizationRootPath,
+                                              nullptr, 0, // no scalar inputs
+                                              methodInputBuffer, pathSize + tempPathSize, // struct input
+                                              &error, &output_count, // scalar output
+                                              nullptr, nullptr); // no struct output
     assert(callResult == kIOReturnSuccess);
     return static_cast<errno_t>(error);
 }

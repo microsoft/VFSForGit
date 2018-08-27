@@ -597,7 +597,13 @@ static bool ShouldHandleVnodeOpEvent(
     
     *root = VirtualizationRoots_FindForVnode(vnode);
     
-    if (nullptr == *root)
+    // This VNode is in the temp directory, do not act on it.
+    if (RootIndex_ProviderTemporaryDirectory == (*root)->index)
+    {
+        *kauthResult = KAUTH_RESULT_DEFER;
+        return false;
+    }
+    else if (nullptr == *root && (*root)->tempDirectoryVNode)
     {
         KextLog_FileNote(vnode, "No virtualization root found for file with set flag.");
         
@@ -642,7 +648,13 @@ static bool ShouldHandleFileOpEvent(
     }
 
     *root = VirtualizationRoots_FindForVnode(vnode);
-    if (nullptr == *root)
+    
+    // This VNode is in the temp directory, do not act on it.
+    if (RootIndex_ProviderTemporaryDirectory == (*root)->index)
+    {
+        return false;
+    }
+    else if (nullptr == *root)
     {
         return false;
     }
