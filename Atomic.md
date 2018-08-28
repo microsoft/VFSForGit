@@ -11,7 +11,7 @@ level, we go through the following workflow:
 
 -   (If creating a file) Update the mode of the file
 
-This could result in scenarios where a partial placeholder appears in
+This could result in scenarios where a incomplete placeholder appears in
 the virtualization root. The full set of failure modes is documented
 below:
 
@@ -22,14 +22,14 @@ WritePlaceholderDirectory:
     -   The enumeration fails as a directory wasn't created. This should
          be retriable as a second attempt should see the IsEmpty bit on
          the parent folder and call WritePlaceholderDirectory again. No
-         partial placeholders were left in the parent directory.
+         incomplete placeholders were left in the parent directory.
 
 -   We crash between mkdir() and InitializeEmptyPlaceholder
 
-    -   Placeholder folder appears to be not in virtualization root and
-         not empty.
+    -   Placeholder folder does not have flags for virtualization root and
+        empty.
 
-    -   This folder will never be enumerated as the kext will exit when
+    -   This folder will never be expanded as the kext will exit when
          we do not see the InVirtualizationRoot bit
 
 -   One of the SetBitInFileFlags calls fails in
@@ -37,12 +37,12 @@ WritePlaceholderDirectory:
 
     -   Folder is marked as in virtualization root but not empty.
 
-        -   This folder will never be enumerated as the kext will exit
+        -   This folder will never be expanded as the kext will exit
              when we do not see the IsEmpty bit
 
     -   Folder is marked as empty but not in virtualization root
 
-        -   This folder will never be enumerated as the kext will exit
+        -   This folder will never be expanded as the kext will exit
              when we do not see the InVirtualizationRoot bit (we'll
              never reach the IsEmpty test)
 
@@ -52,13 +52,13 @@ WritePlaceholderFile:
 
     -   This should be retriable as a second attempt should see the
          IsEmpty bit on the parent folder and call WritePlaceholderFile
-         again. No partial placeholders were left in the parent
+         again. No incomplete placeholders were left in the parent
          directory.
 
 -   Ftruncate fails to expand the file to the correct size (or is never
      reached because of a crash)
 
-    -   We have a partial placeholder file in the virtualization root
+    -   We have a incomplete placeholder file in the virtualization root
          that cannot be recovered. Future attempts of
          WritePlaceholderFile will fail because fopen(path, "wbx")
          won't let us overwrite the existing file.
@@ -66,11 +66,11 @@ WritePlaceholderFile:
 -   Memcpy'ing the providerID xattr fails (or is never reached because
      of a crash)
 
-    -   We have a partial placeholder file in the virtualization root
+    -   We have a incomplete placeholder file in the virtualization root
         that cannot be recovered. There are no flags set on this file.
 
     -   The MirrorProvider doesn't currently use the providerID for
-         anything (although it should fail if its empty)
+         anything (although it should fail if it's empty)
 
     -   VFSForGit will be unable to parse the placeholder version from
          the providerID, OnGetFileStream will fail so hydrating this
@@ -79,7 +79,7 @@ WritePlaceholderFile:
 -   Memcpy'ing the contentID xattr fails (or is never reached because of
      a crash)
 
-    -   We have a partial placeholder file in the virtualization root
+    -   We have a incomplete placeholder file in the virtualization root
         that cannot be recovered. There are no flags set on this file.
 
 
@@ -91,10 +91,10 @@ WritePlaceholderFile:
 
 -   We crash before reaching InitializeEmptyPlaceholder
 
-    -   Placeholder appears to be not in virtualization root and not
-         empty.
+    -   Placeholder does not have flags for virtualization root and
+        empty.
 
-    -   This file will never be enumerated as the kext will exit when we
+    -   This file will never be expanded as the kext will exit when we
          do not see the InVirtualizationRoot bit
 
 -   One of the SetBitInFileFlags calls fails in
@@ -132,7 +132,7 @@ provider's folder (.gvfs/.mirror), marks them up and then uses rename()
 to move them into the virtualization root.
 
 A sample of this change is implemented here (user mode component only):
-<https://github.com/nickgra/VFSForGit/tree/atomic
+https://github.com/nickgra/VFSForGit/tree/atomic
 
 Currently, the provider registers its virtualization root with the kext
 at clone time. We have code today that will log on files detected
@@ -167,12 +167,12 @@ WritePlaceholderDirectory:
 
     -   Folder is marked as in virtualization root but not empty.
 
-        -   A partial placeholder is in .temp that can be safely
+        -   A incomplete placeholder is in .temp that can be safely
             overwritten/deleted when the enumeration is retried
 
     -   Folder is marked as empty but not in virtualization root
 
-        -   A partial placeholder is in .temp that can be safely
+        -   A incomplete placeholder is in .temp that can be safely
             overwritten/deleted when the enumeration is retried
 
     -   The rename() to copy the completed placeholder from .temp into
@@ -198,13 +198,13 @@ WritePlaceholderFile:
 -   Memcpy'ing the providerID xattr fails (or is never reached because
      of a crash)
 
-    -   We have a partial placeholder file in .temp that will be
+    -   We have a incomplete placeholder file in .temp that will be
         overwritten by a retry.
 
 -   Memcpy'ing the contentID xattr fails (or is never reached because of
      a crash)
 
-    -   We have a partial placeholder file in .temp that will be
+    -   We have a incomplete placeholder file in .temp that will be
         overwritten by a retry.
 
 -   We crash before reaching InitializeEmptyPlaceholder
@@ -217,12 +217,12 @@ WritePlaceholderFile:
 
     -   Folder is marked as in virtualization root but not empty.
 
-        -   A partial placeholder is in .temp that can be safely
+        -   A incomplete placeholder is in .temp that can be safely
             overwritten/deleted when the enumeration is retried
 
     -   Folder is marked as empty but not in virtualization root
 
-        -   A partial placeholder is in .temp that can be safely
+        -   A incomplete placeholder is in .temp that can be safely
             overwritten/deleted when the enumeration is retried
 
 -   Chmod() fails or is never reached due to a crash
@@ -236,6 +236,12 @@ WritePlaceholderFile:
         -   We can retry from this error since nothing ever appeared in
             the virtualization root. The placeholder will be overwritten
             as part of the retry
+
+With this approach, each placeholder file that will be created will be moved in one at a time to their final location rather than moving all placeholders that may be present in a folder at once. 
+
+In a case where we crash (or the machine crashes, or the user kills the mount process) while expanding a placeholder directory, we will be able to recover by replacing all placeholders that are present in that folder and continuing the enumeration. We will not try to short circuit this process and restart the enumeration from where we crashed. Any user content that is present in this directory will not be overwritten by the directory enumeration.
+
+Designs where we moved an entire folder's worth of placeholders were considered, but were tabled in favor of this approach (making any expansion/hydration retriable).
 
 All of the potential holes identified above are filled by this design,
 so I believe this to be our best bet to create placeholders in an atomic
@@ -268,3 +274,5 @@ Miscellanea/Things to Validate
 
 -   All of the notification work will need to be validated under the new
     hydration model to ensure that behavior will not be changed.
+
+-  Do we need to ensure that that flags and xattrs are flushed to disk before renaming the placeholder?
