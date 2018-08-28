@@ -14,7 +14,6 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
 {
     [TestFixture]
     [Category(Categories.FullSuiteOnly)]
-    [Category(Categories.Mac.M1)]
     public class MountTests : TestsWithEnlistmentPerFixture
     {
         private const int GVFSGenericError = 3;
@@ -41,7 +40,6 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
         }
 
         [TestCase]
-        [Category(Categories.Mac.M2)]
         public void MountCopiesMissingReadObjectHook()
         {
             this.Enlistment.UnmountGVFS();
@@ -262,7 +260,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
 
         // Ported from ProjFS's BugRegressionTest
         [TestCase]
-        [Category(Categories.Windows)]
+        [Category(Categories.WindowsOnly)]
         public void ProjFS_CMDHangNoneActiveInstance()
         {
             this.Enlistment.UnmountGVFS();

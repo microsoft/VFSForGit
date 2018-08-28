@@ -29,7 +29,6 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
         }
 
         [TestCase]
-        [Category(Categories.Mac.M2)]
         public void VerifyTestFilesExist()
         {
             // Sanity checks to ensure that the test files we expect to be in our test repo are present
@@ -41,28 +40,24 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
         }
 
         [TestCase]
-        [Category(Categories.Mac.M2)]
         public void StatusTest()
         {
             this.ValidateGitCommand("status");
         }
 
         [TestCase]
-        [Category(Categories.Mac.M2)]
         public void StatusShortTest()
         {
             this.ValidateGitCommand("status -s");
         }
 
         [TestCase]
-        [Category(Categories.Mac.M2)]
         public void BranchTest()
         {
             this.ValidateGitCommand("branch");
         }
 
         [TestCase]
-        [Category(Categories.Mac.M2)]
         public void NewBranchTest()
         {
             this.ValidateGitCommand("branch tests/functional/NewBranchTest");
@@ -70,7 +65,6 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
         }
 
         [TestCase]
-        [Category(Categories.Mac.M2)]
         public void DeleteBranchTest()
         {
             this.ValidateGitCommand("branch tests/functional/DeleteBranchTest");
@@ -88,56 +82,48 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
         }
 
         [TestCase]
-        [Category(Categories.Mac.M2)]
         public void UntrackedFileTest()
         {
             this.BasicCommit(this.CreateFile, addCommand: "add .");
         }
 
         [TestCase]
-        [Category(Categories.Mac.M2)]
         public void UntrackedEmptyFileTest()
         {
             this.BasicCommit(this.CreateEmptyFile, addCommand: "add .");
         }
 
         [TestCase]
-        [Category(Categories.Mac.M2)]
         public void UntrackedFileAddAllTest()
         {
             this.BasicCommit(this.CreateFile, addCommand: "add --all");
         }
 
         [TestCase]
-        [Category(Categories.Mac.M2)]
         public void UntrackedEmptyFileAddAllTest()
         {
             this.BasicCommit(this.CreateEmptyFile, addCommand: "add --all");
         }
 
         [TestCase]
-        [Category(Categories.Mac.M2)]
         public void StageUntrackedFileTest()
         {
             this.BasicCommit(this.CreateFile, addCommand: "stage .");
         }
 
         [TestCase]
-        [Category(Categories.Mac.M2)]
         public void StageUntrackedEmptyFileTest()
         {
             this.BasicCommit(this.CreateEmptyFile, addCommand: "stage .");
         }
 
         [TestCase]
-        [Category(Categories.Mac.M2)]
         public void StageUntrackedFileAddAllTest()
         {
             this.BasicCommit(this.CreateFile, addCommand: "stage --all");
         }
 
         [TestCase]
-        [Category(Categories.Mac.M2)]
         public void StageUntrackedEmptyFileAddAllTest()
         {
             this.BasicCommit(this.CreateEmptyFile, addCommand: "stage --all");
@@ -210,8 +196,8 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
         {
             // 663045 - Confirm that folder can be deleted after deleting file then changing
             // branches
-            string deleteFolderPath = @"GVFlt_DeleteFolderTest\GVFlt_DeletePlaceholderNonEmptyFolder_DeleteOnClose\NonEmptyFolder";
-            string deleteFilePath = deleteFolderPath + @"\bar.txt";
+            string deleteFolderPath = Path.Combine("GVFlt_DeleteFolderTest", "GVFlt_DeletePlaceholderNonEmptyFolder_DeleteOnClose", "NonEmptyFolder");
+            string deleteFilePath = Path.Combine(deleteFolderPath, "bar.txt");
 
             this.CommitChangesSwitchBranchSwitchBack(fileSystemAction: () => this.DeleteFile(deleteFilePath));
             this.DeleteFolder(deleteFolderPath);
@@ -220,54 +206,53 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
         [TestCase]
         public void DeleteFolderSwitchBranchTest()
         {
-            this.SwitchBranch(fileSystemAction: () => this.DeleteFolder(@"GVFlt_DeleteFolderTest\GVFlt_DeleteLocalEmptyFolder_DeleteOnClose"));
+            this.SwitchBranch(fileSystemAction: () => this.DeleteFolder("GVFlt_DeleteFolderTest", "GVFlt_DeleteLocalEmptyFolder_DeleteOnClose"));
         }
 
         [TestCase]
         public void DeleteFolderStageChangesSwitchBranchTest()
         {
-            this.StageChangesSwitchBranch(fileSystemAction: () => this.DeleteFolder(@"GVFlt_DeleteFolderTest\GVFlt_DeleteLocalEmptyFolder_SetDisposition"));
+            this.StageChangesSwitchBranch(fileSystemAction: () => this.DeleteFolder("GVFlt_DeleteFolderTest", "GVFlt_DeleteLocalEmptyFolder_SetDisposition"));
         }
 
         [TestCase]
         public void DeleteFolderCommitChangesSwitchBranchTest()
         {
-            this.CommitChangesSwitchBranch(fileSystemAction: () => this.DeleteFolder(@"GVFlt_DeleteFolderTest\GVFlt_DeleteNonRootVirtualFolder_DeleteOnClose"));
+            this.CommitChangesSwitchBranch(fileSystemAction: () => this.DeleteFolder("GVFlt_DeleteFolderTest", "GVFlt_DeleteNonRootVirtualFolder_DeleteOnClose"));
         }
 
         [TestCase]
         public void DeleteFolderCommitChangesSwitchBranchSwitchBackTest()
         {
-            this.CommitChangesSwitchBranchSwitchBack(fileSystemAction: () => this.DeleteFolder(@"GVFlt_DeleteFolderTest\GVFlt_DeleteNonRootVirtualFolder_SetDisposition"));
+            this.CommitChangesSwitchBranchSwitchBack(fileSystemAction: () => this.DeleteFolder("GVFlt_DeleteFolderTest", "GVFlt_DeleteNonRootVirtualFolder_SetDisposition"));
         }
 
         [TestCase]
-        [Category(Categories.Mac.M2)]
         public void DeleteFilesWithNameAheadOfDot()
         {
             string folder = Path.Combine("GitCommandsTests", "DeleteFileTests", "1");
             this.FolderShouldExistAndHaveFile(folder, "#test");
-            this.DeleteFile(Path.Combine(folder, "#test"));
+            this.DeleteFile(folder, "#test");
             this.FolderShouldExistAndBeEmpty(folder);
 
             folder = Path.Combine("GitCommandsTests", "DeleteFileTests", "2");
             this.FolderShouldExistAndHaveFile(folder, "$test");
-            this.DeleteFile(Path.Combine(folder, "$test"));
+            this.DeleteFile(folder, "$test");
             this.FolderShouldExistAndBeEmpty(folder);
 
             folder = Path.Combine("GitCommandsTests", "DeleteFileTests", "3");
             this.FolderShouldExistAndHaveFile(folder, ")");
-            this.DeleteFile(Path.Combine(folder, ")"));
+            this.DeleteFile(folder, ")");
             this.FolderShouldExistAndBeEmpty(folder);
 
             folder = Path.Combine("GitCommandsTests", "DeleteFileTests", "4");
             this.FolderShouldExistAndHaveFile(folder, "+.test");
-            this.DeleteFile(Path.Combine(folder, "+.test"));
+            this.DeleteFile(folder, "+.test");
             this.FolderShouldExistAndBeEmpty(folder);
 
             folder = Path.Combine("GitCommandsTests", "DeleteFileTests", "5");
             this.FolderShouldExistAndHaveFile(folder, "-.test");
-            this.DeleteFile(Path.Combine(folder, "-.test"));
+            this.DeleteFile(folder, "-.test");
             this.FolderShouldExistAndBeEmpty(folder);
 
             this.ValidateGitCommand("status");
@@ -276,20 +261,30 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
         [TestCase]
         public void RenameFilesWithNameAheadOfDot()
         {
-            this.FolderShouldExistAndHaveFile("GitCommandsTests\\RenameFileTests\\1", "#test");
-            this.MoveFile("GitCommandsTests\\RenameFileTests\\1\\#test", "GitCommandsTests\\RenameFileTests\\1\\#testRenamed");
+            this.FolderShouldExistAndHaveFile("GitCommandsTests", "RenameFileTests", "1", "#test");
+            this.MoveFile(
+                Path.Combine("GitCommandsTests", "RenameFileTests", "1", "#test"), 
+                Path.Combine("GitCommandsTests", "RenameFileTests", "1", "#testRenamed"));
 
-            this.FolderShouldExistAndHaveFile("GitCommandsTests\\RenameFileTests\\2", "$test");
-            this.MoveFile("GitCommandsTests\\RenameFileTests\\2\\$test", "GitCommandsTests\\RenameFileTests\\2\\$testRenamed");
+            this.FolderShouldExistAndHaveFile("GitCommandsTests", "RenameFileTests", "2", "$test");
+            this.MoveFile(
+                Path.Combine("GitCommandsTests", "RenameFileTests", "2", "$test"), 
+                Path.Combine("GitCommandsTests", "RenameFileTests", "2", "$testRenamed"));
 
-            this.FolderShouldExistAndHaveFile("GitCommandsTests\\RenameFileTests\\3", ")");
-            this.MoveFile("GitCommandsTests\\RenameFileTests\\3\\)", "GitCommandsTests\\RenameFileTests\\3\\)Renamed");
+            this.FolderShouldExistAndHaveFile("GitCommandsTests", "RenameFileTests", "3", ")");
+            this.MoveFile(
+                Path.Combine("GitCommandsTests", "RenameFileTests", "3", ")"), 
+                Path.Combine("GitCommandsTests", "RenameFileTests", "3", ")Renamed"));
 
-            this.FolderShouldExistAndHaveFile("GitCommandsTests\\RenameFileTests\\4", "+.test");
-            this.MoveFile("GitCommandsTests\\RenameFileTests\\4\\+.test", "GitCommandsTests\\RenameFileTests\\4\\+.testRenamed");
+            this.FolderShouldExistAndHaveFile("GitCommandsTests", "RenameFileTests", "4", "+.test");
+            this.MoveFile(
+                Path.Combine("GitCommandsTests", "RenameFileTests", "4", "+.test"), 
+                Path.Combine("GitCommandsTests", "RenameFileTests", "4", "+.testRenamed"));
 
-            this.FolderShouldExistAndHaveFile("GitCommandsTests\\RenameFileTests\\5", "-.test");
-            this.MoveFile("GitCommandsTests\\RenameFileTests\\5\\-.test", "GitCommandsTests\\RenameFileTests\\5\\-.testRenamed");
+            this.FolderShouldExistAndHaveFile("GitCommandsTests", "RenameFileTests", "5", "-.test");
+            this.MoveFile(
+                Path.Combine("GitCommandsTests", "RenameFileTests", "5", "-.test"), 
+                Path.Combine("GitCommandsTests", "RenameFileTests", "5", "-.testRenamed"));
 
             this.ValidateGitCommand("status");
         }
@@ -297,10 +292,11 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
         [TestCase]
         public void DeleteFileWithNameAheadOfDotAndSwitchCommits()
         {
-            this.DeleteFile("DeleteFileWithNameAheadOfDotAndSwitchCommits\\(1).txt");
+            string fileRelativePath = Path.Combine("DeleteFileWithNameAheadOfDotAndSwitchCommits", "(1).txt");
+            this.DeleteFile(fileRelativePath);
             this.ValidateGitCommand("status");
             this.ValidateGitCommand("checkout -- DeleteFileWithNameAheadOfDotAndSwitchCommits/(1).txt");
-            this.DeleteFile("DeleteFileWithNameAheadOfDotAndSwitchCommits\\(1).txt");
+            this.DeleteFile(fileRelativePath);
             this.ValidateGitCommand("status");
 
             // 14cf226119766146b1fa5c5aa4cd0896d05f6b63 is the commit prior to creating (1).txt, it has two different files with
@@ -308,21 +304,22 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
             // (a).txt 
             // (z).txt 
             this.ValidateGitCommand("checkout 14cf226119766146b1fa5c5aa4cd0896d05f6b63");
-            this.DeleteFile("DeleteFileWithNameAheadOfDotAndSwitchCommits\\(a).txt");
+            this.DeleteFile("DeleteFileWithNameAheadOfDotAndSwitchCommits", "(a).txt");
             this.ValidateGitCommand("checkout -- DeleteFileWithNameAheadOfDotAndSwitchCommits/(a).txt");
             this.ValidateGitCommand("status");
         }
 
         [TestCase]
+        [Category(Categories.MacTODO.M3)]
         public void AddFileAndCommitOnNewBranchSwitchDeleteFolderAndSwitchBack()
         {
             // 663045 - Confirm that folder can be deleted after adding a file then changing branches
-            string newFileParentFolderPath = @"GVFS\GVFS\CommandLine";
-            string newFilePath = newFileParentFolderPath + @"\testfile.txt";
+            string newFileParentFolderPath = Path.Combine("GVFS", "GVFS", "CommandLine");
+            string newFilePath = Path.Combine(newFileParentFolderPath + "testfile.txt");
             string newFileContents = "test contents";
 
             this.CommitChangesSwitchBranch(
-                fileSystemAction: () => this.CreateFile(newFilePath, newFileContents),
+                fileSystemAction: () => this.CreateFile(newFileContents, newFilePath),
                 test: "AddFileAndCommitOnNewBranchSwitchDeleteFolderAndSwitchBack");
 
             this.ValidateGitCommand("checkout " + this.ControlGitRepo.Commitish);
@@ -332,20 +329,20 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
             this.ValidateGitCommand("checkout tests/functional/AddFileAndCommitOnNewBranchSwitchDeleteFolderAndSwitchBack");
 
             this.FolderShouldExist(newFileParentFolderPath);
-            this.FileShouldHaveContents(newFilePath, newFileContents);
+            this.FileShouldHaveContents(newFileContents, newFilePath);
         }
 
         [TestCase]
         public void OverwriteFileInSubfolderAndCommitOnNewBranchSwitchDeleteFolderAndSwitchBack()
         {
-            string overwrittenFileParentFolderPath = @"GVFlt_DeleteFolderTest\GVFlt_DeletePlaceholderNonEmptyFolder_SetDisposition";
+            string overwrittenFileParentFolderPath = Path.Combine("GVFlt_DeleteFolderTest", "GVFlt_DeletePlaceholderNonEmptyFolder_SetDisposition");
 
             // GVFlt_DeleteFolderTest\GVFlt_DeletePlaceholderNonEmptyFolder_SetDispositiontestfile.txt already exists in the repo as TestFile.txt
-            string fileToOverwritePath = overwrittenFileParentFolderPath + @"\testfile.txt";
+            string fileToOverwritePath = Path.Combine(overwrittenFileParentFolderPath, "testfile.txt");
             string newFileContents = "test contents";
 
             this.CommitChangesSwitchBranch(
-                fileSystemAction: () => this.CreateFile(fileToOverwritePath, newFileContents),
+                fileSystemAction: () => this.CreateFile(newFileContents, fileToOverwritePath),
                 test: "OverwriteFileInSubfolderAndCommitOnNewBranchSwitchDeleteFolderAndSwitchBack");
 
             this.ValidateGitCommand("checkout " + this.ControlGitRepo.Commitish);
@@ -354,10 +351,10 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
             this.ValidateGitCommand("checkout " + this.ControlGitRepo.Commitish);
             this.ValidateGitCommand("checkout tests/functional/OverwriteFileInSubfolderAndCommitOnNewBranchSwitchDeleteFolderAndSwitchBack");
 
-            string subFolderPath = @"GVFlt_DeleteFolderTest\GVFlt_DeletePlaceholderNonEmptyFolder_SetDisposition\NonEmptyFolder";
+            string subFolderPath = Path.Combine("GVFlt_DeleteFolderTest", "GVFlt_DeletePlaceholderNonEmptyFolder_SetDisposition", "NonEmptyFolder");
             this.ShouldNotExistOnDisk(subFolderPath);
             this.FolderShouldExist(overwrittenFileParentFolderPath);
-            this.FileShouldHaveContents(fileToOverwritePath, newFileContents);
+            this.FileShouldHaveContents(newFileContents, fileToOverwritePath);
         }
 
         [TestCase]
@@ -365,13 +362,13 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
         {
             // 663045 - Confirm that grandparent folder can be deleted after adding a (granchild) file
             // then changing branches
-            string newFileParentFolderPath = @"GVFlt_DeleteFolderTest\GVFlt_DeleteVirtualNonEmptyFolder_DeleteOnClose\NonEmptyFolder";
-            string newFileGrandParentFolderPath = @"GVFlt_DeleteFolderTest\GVFlt_DeleteVirtualNonEmptyFolder_DeleteOnClose";
-            string newFilePath = newFileParentFolderPath + @"\testfile.txt";
+            string newFileParentFolderPath = Path.Combine("GVFlt_DeleteFolderTest", "GVFlt_DeleteVirtualNonEmptyFolder_DeleteOnClose", "NonEmptyFolder");
+            string newFileGrandParentFolderPath = Path.Combine("GVFlt_DeleteFolderTest", "GVFlt_DeleteVirtualNonEmptyFolder_DeleteOnClose");
+            string newFilePath = Path.Combine(newFileParentFolderPath, "testfile.txt");
             string newFileContents = "test contents";
 
             this.CommitChangesSwitchBranch(
-                fileSystemAction: () => this.CreateFile(newFilePath, newFileContents),
+                fileSystemAction: () => this.CreateFile(newFileContents, newFilePath),
                 test: "AddFileInSubfolderAndCommitOnNewBranchSwitchDeleteFolderAndSwitchBack");
 
             this.ValidateGitCommand("checkout " + this.ControlGitRepo.Commitish);
@@ -382,7 +379,7 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
 
             this.FolderShouldExist(newFileParentFolderPath);
             this.FolderShouldExist(newFileGrandParentFolderPath);
-            this.FileShouldHaveContents(newFilePath, newFileContents);
+            this.FileShouldHaveContents(newFileContents, newFilePath);
         }
 
         [TestCase]
@@ -541,8 +538,10 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
             this.CommitChangesSwitchBranchSwitchBack(fileSystemAction: this.RenameFile);
         }
 
+        // MacOnly because renames of partial folders are blocked on Windows
         [TestCase]
-        [Ignore("Disabled until moving partial folders is supported")]
+        [Category(Categories.MacOnly)]
+        [Category(Categories.MacTODO.M3)]
         public void MoveFolderCommitChangesSwitchBranchSwitchBackTest()
         {
             this.CommitChangesSwitchBranchSwitchBack(fileSystemAction: this.MoveFolder);
@@ -553,8 +552,8 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
         {
             this.ValidateGitCommand("checkout -b tests/functional/AddFileCommitThenDeleteAndCommit_before");
             this.ValidateGitCommand("checkout -b tests/functional/AddFileCommitThenDeleteAndCommit_after");
-            string filePath = @"GVFS\testfile.txt";
-            this.CreateFile(filePath, "Some new content for the file");
+            string filePath = Path.Combine("GVFS", "testfile.txt");
+            this.CreateFile("Some new content for the file", filePath);
             this.ValidateGitCommand("status");
             this.ValidateGitCommand("add .");
             this.RunGitCommand("commit -m \"Change for AddFileCommitThenDeleteAndCommit\"");
@@ -572,8 +571,8 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
         public void AddFileCommitThenDeleteAndResetSoft()
         {
             this.ValidateGitCommand("checkout -b tests/functional/AddFileCommitThenDeleteAndResetSoft");
-            string filePath = @"GVFS\testfile.txt";
-            this.CreateFile(filePath, "Some new content for the file");
+            string filePath = Path.Combine("GVFS", "testfile.txt");
+            this.CreateFile("Some new content for the file", filePath);
             this.ValidateGitCommand("status");
             this.ValidateGitCommand("add .");
             this.RunGitCommand("commit -m \"Change for AddFileCommitThenDeleteAndCommit\"");
@@ -586,8 +585,8 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
         public void AddFileCommitThenDeleteAndResetMixed()
         {
             this.ValidateGitCommand("checkout -b tests/functional/AddFileCommitThenDeleteAndResetSoft");
-            string filePath = @"GVFS\testfile.txt";
-            this.CreateFile(filePath, "Some new content for the file");
+            string filePath = Path.Combine("GVFS", "testfile.txt");
+            this.CreateFile("Some new content for the file", filePath);
             this.ValidateGitCommand("status");
             this.ValidateGitCommand("add .");
             this.RunGitCommand("commit -m \"Change for AddFileCommitThenDeleteAndCommit\"");
@@ -602,8 +601,8 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
             this.ValidateGitCommand("checkout -b tests/functional/AddFileCommitThenDeleteAndResetSoft");
             string folderPath = "test_folder";
             this.CreateFolder(folderPath);
-            string filePath = folderPath + @"\testfile.txt";
-            this.CreateFile(filePath, "Some new content for the file");
+            string filePath = Path.Combine(folderPath, "testfile.txt");
+            this.CreateFile("Some new content for the file", filePath);
             this.ValidateGitCommand("status");
             this.ValidateGitCommand("add .");
             this.RunGitCommand("commit -m \"Change for AddFileCommitThenDeleteAndCommit\"");
@@ -619,8 +618,8 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
             this.ValidateGitCommand("checkout -b tests/functional/AddFileCommitThenDeleteAndResetSoft");
             string folderPath = "test_folder";
             this.CreateFolder(folderPath);
-            string filePath = folderPath + @"\testfile.txt";
-            this.CreateFile(filePath, "Some new content for the file");
+            string filePath = Path.Combine(folderPath, "testfile.txt");
+            this.CreateFile("Some new content for the file", filePath);
             this.ValidateGitCommand("status");
             this.ValidateGitCommand("add .");
             this.RunGitCommand("commit -m \"Change for AddFileCommitThenDeleteAndCommit\"");
@@ -636,8 +635,8 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
             this.ValidateGitCommand("checkout -b tests/functional/AddFileCommitThenDeleteAndResetSoft");
             string folderPath = "test_folder";
             this.CreateFolder(folderPath);
-            string filePath = folderPath + @"\testfile.txt";
-            this.CreateFile(filePath, "Some new content for the file");
+            string filePath = Path.Combine(folderPath, "testfile.txt");
+            this.CreateFile("Some new content for the file", filePath);
             this.ValidateGitCommand("status");
             this.ValidateGitCommand("add .");
             this.RunGitCommand("commit -m \"Change for AddFileCommitThenDeleteAndCommit\"");
@@ -652,8 +651,8 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
             this.ValidateGitCommand("checkout -b tests/functional/AddFileCommitThenDeleteAndResetSoft");
             string folderPath = "test_folder";
             this.CreateFolder(folderPath);
-            string filePath = folderPath + @"\testfile.txt";
-            this.CreateFile(filePath, "Some new content for the file");
+            string filePath = Path.Combine(folderPath + "testfile.txt");
+            this.CreateFile("Some new content for the file", filePath);
             this.ValidateGitCommand("status");
             this.ValidateGitCommand("add .");
             this.RunGitCommand("commit -m \"Change for AddFileCommitThenDeleteAndCommit\"");
@@ -669,28 +668,28 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
 
             string topMostNewFolder = "AddFoldersAndFilesAndRenameFolder_Test";
             this.CreateFolder(topMostNewFolder);
-            this.CreateFile(topMostNewFolder + @"\top_level_test_file.txt", "test contents");
+            this.CreateFile("test contents", topMostNewFolder, "top_level_test_file.txt");
 
-            string testFolderLevel1 = topMostNewFolder + @"\TestFolderLevel1";
+            string testFolderLevel1 = Path.Combine(topMostNewFolder, "TestFolderLevel1");
             this.CreateFolder(testFolderLevel1);
-            this.CreateFile(testFolderLevel1 + @"\level_1_test_file.txt", "test contents");
+            this.CreateFile("test contents", testFolderLevel1, "level_1_test_file.txt");
 
-            string testFolderLevel2 = testFolderLevel1 + @"\TestFolderLevel2";
+            string testFolderLevel2 = Path.Combine(testFolderLevel1, "TestFolderLevel2");
             this.CreateFolder(testFolderLevel2);
-            this.CreateFile(testFolderLevel2 + @"\level_2_test_file.txt", "test contents");
+            this.CreateFile("test contents", testFolderLevel2, "level_2_test_file.txt");
 
-            string testFolderLevel3 = testFolderLevel2 + @"\TestFolderLevel3";
+            string testFolderLevel3 = Path.Combine(testFolderLevel2, "TestFolderLevel3");
             this.CreateFolder(testFolderLevel3);
-            this.CreateFile(testFolderLevel3 + @"\level_3_test_file.txt", "test contents");
+            this.CreateFile("test contents", testFolderLevel3, "level_3_test_file.txt");
             this.ValidateGitCommand("status");
 
-            this.MoveFolder(testFolderLevel3, testFolderLevel2 + @"\TestFolderLevel3Renamed");
+            this.MoveFolder(testFolderLevel3, Path.Combine(testFolderLevel2, "TestFolderLevel3Renamed"));
             this.ValidateGitCommand("status");
 
-            this.MoveFolder(testFolderLevel2, testFolderLevel1 + @"\TestFolderLevel2Renamed");
+            this.MoveFolder(testFolderLevel2, Path.Combine(testFolderLevel1, "TestFolderLevel2Renamed"));
             this.ValidateGitCommand("status");
 
-            this.MoveFolder(testFolderLevel1, topMostNewFolder + @"\TestFolderLevel1Renamed");
+            this.MoveFolder(testFolderLevel1, Path.Combine(topMostNewFolder, "TestFolderLevel1Renamed"));
             this.ValidateGitCommand("status");
 
             this.MoveFolder(topMostNewFolder, "AddFoldersAndFilesAndRenameFolder_TestRenamed");
@@ -706,11 +705,12 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
             string renamedFolder = "AddFileAfterFolderRename_TestRenamed";
             this.CreateFolder(folder);
             this.MoveFolder(folder, renamedFolder);
-            this.CreateFile(renamedFolder + @"\test_file.txt", "test contents");
+            this.CreateFile("test contents", renamedFolder, "test_file.txt");
             this.ValidateGitCommand("status");
         }
 
         [TestCase]
+        [Category(Categories.MacTODO.M3)]
         public void ResetSoft()
         {
             this.ValidateGitCommand("checkout -b tests/functional/ResetSoft");
@@ -718,6 +718,7 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
         }
 
         [TestCase]
+        [Category(Categories.MacTODO.M3)]
         public void ResetMixed()
         {
             this.ValidateGitCommand("checkout -b tests/functional/ResetMixed");
@@ -725,6 +726,7 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
         }
 
         [TestCase]
+        [Category(Categories.MacTODO.M3)]
         public void ResetMixed2()
         {
             this.ValidateGitCommand("checkout -b tests/functional/ResetMixed2");
@@ -735,11 +737,12 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
         public void ManuallyModifyHead()
         {
             this.ValidateGitCommand("status");
-            this.ReplaceText(TestConstants.DotGit.Head, "f1bce402a7a980a8320f3f235cf8c8fdade4b17a");
+            this.ReplaceText("f1bce402a7a980a8320f3f235cf8c8fdade4b17a", TestConstants.DotGit.Head);
             this.ValidateGitCommand("status");
         }
 
         [TestCase]
+        [Category(Categories.MacTODO.M3)]
         public void ResetSoftTwice()
         {
             this.ValidateGitCommand("checkout -b tests/functional/ResetSoftTwice");
@@ -751,6 +754,7 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
         }
 
         [TestCase]
+        [Category(Categories.MacTODO.M3)]
         public void ResetMixedTwice()
         {
             this.ValidateGitCommand("checkout -b tests/functional/ResetMixedTwice");
@@ -980,8 +984,8 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
             GVFSHelpers.ModifiedPathsShouldNotContain(this.FileSystem, this.Enlistment.DotGVFSRoot, EncodingFilename);
             this.ValidateGitCommand("status");
 
-            this.AppendAllText(virtualFile, ContentWhenEditingFile);
-            this.AppendAllText(controlFile, ContentWhenEditingFile);
+            this.AppendAllText(ContentWhenEditingFile, virtualFile);
+            this.AppendAllText(ContentWhenEditingFile, controlFile);
 
             this.ValidateGitCommand("status");
 
@@ -997,13 +1001,14 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
         }
 
         [TestCase]
+        [Category(Categories.MacTODO.M3)]
         public void RenameOnlyFileInFolder()
         {
             ControlGitRepo.Fetch("FunctionalTests/20170202_RenameTestMergeTarget");
             ControlGitRepo.Fetch("FunctionalTests/20170202_RenameTestMergeSource");
 
             this.ValidateGitCommand("checkout FunctionalTests/20170202_RenameTestMergeTarget");
-            this.FileSystem.ReadAllText(this.Enlistment.GetVirtualPathTo("Test_EPF_GitCommandsTestOnlyFileFolder\\file.txt"));
+            this.FileSystem.ReadAllText(this.Enlistment.GetVirtualPathTo("Test_EPF_GitCommandsTestOnlyFileFolder", "file.txt"));
             this.ValidateGitCommand("merge origin/FunctionalTests/20170202_RenameTestMergeSource");
         }
 
@@ -1073,12 +1078,12 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
 
         private void CreateFile()
         {
-            this.CreateFile(Path.GetRandomFileName() + "tempFile.txt", "Some content here");
+            this.CreateFile("Some content here", Path.GetRandomFileName() + "tempFile.txt");
         }
 
         private void EditFile()
         {
-            this.AppendAllText(GitCommandsTests.EditFilePath, ContentWhenEditingFile);
+            this.AppendAllText(ContentWhenEditingFile, GitCommandsTests.EditFilePath);
         }
 
         private void DeleteFile()

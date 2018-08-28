@@ -13,6 +13,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
 {
     [TestFixture]
     [Category(Categories.GitCommands)]
+    [Category(Categories.MacTODO.M3)]
     public class UpdatePlaceholderTests : TestsWithEnlistmentPerFixture
     {
         private const string TestParentFolderName = "Test_EPF_UpdatePlaceholderTests";

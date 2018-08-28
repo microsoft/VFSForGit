@@ -10,7 +10,6 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
     // TODO 452590 - Combine all of the MoveRenameTests into a single fixture, and have each use different
     // well known files
     [TestFixtureSource(typeof(FileSystemRunner), FileSystemRunner.TestRunners)]
-    [Category(Categories.Mac.M2)]
     public class MoveRenameFileTests : TestsWithEnlistmentPerFixture
     {
         public const string TestFileContents =

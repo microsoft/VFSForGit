@@ -10,9 +10,18 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerTestCase
     [TestFixture]
     public class CaseOnlyFolderRenameTests : TestsWithEnlistmentPerTestCase
     {
-        [TestCaseSource(typeof(FileSystemRunner), FileSystemRunner.TestRunners)]
-        [Ignore("Disabled until moving partial folders is supported")]
-        public void CaseRenameFoldersAndRemountAndReanmeAgain(FileSystemRunner fileSystem)
+        private FileSystemRunner fileSystem;
+
+        public CaseOnlyFolderRenameTests()
+            : base()
+        {
+            this.fileSystem = new BashRunner();
+        }
+
+        // MacOnly because renames of partial folders are blocked on Windows
+        [TestCase]
+        [Category(Categories.MacOnly)]
+        public void CaseRenameFoldersAndRemountAndRenameAgain()
         {
             // Projected folder without a physical folder
             string parentFolderName = "GVFS";
@@ -23,8 +32,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerTestCase
 
             this.Enlistment.GetVirtualPathTo(oldGVFSSubFolderPath).ShouldBeADirectory(fileSystem).WithCaseMatchingName(oldGVFSSubFolderName);
 
-            // Use NativeMethods rather than the runner as it supports case-only rename
-            NativeMethods.MoveFile(this.Enlistment.GetVirtualPathTo(oldGVFSSubFolderPath), this.Enlistment.GetVirtualPathTo(newGVFSSubFolderPath));
+            this.fileSystem.MoveFile(this.Enlistment.GetVirtualPathTo(oldGVFSSubFolderPath), this.Enlistment.GetVirtualPathTo(newGVFSSubFolderPath));
 
             this.Enlistment.GetVirtualPathTo(newGVFSSubFolderPath).ShouldBeADirectory(fileSystem).WithCaseMatchingName(newGVFSSubFolderName);
 
@@ -41,8 +49,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerTestCase
 
             this.Enlistment.GetVirtualPathTo(oldTestsSubFolderPath).ShouldBeADirectory(fileSystem).WithCaseMatchingName(oldTestsSubFolderName);
 
-            // Use NativeMethods rather than the runner as it supports case-only rename
-            NativeMethods.MoveFile(this.Enlistment.GetVirtualPathTo(oldTestsSubFolderPath), this.Enlistment.GetVirtualPathTo(newTestsSubFolderPath));
+            this.fileSystem.MoveFile(this.Enlistment.GetVirtualPathTo(oldTestsSubFolderPath), this.Enlistment.GetVirtualPathTo(newTestsSubFolderPath));
 
             this.Enlistment.GetVirtualPathTo(newTestsSubFolderPath).ShouldBeADirectory(fileSystem).WithCaseMatchingName(newTestsSubFolderName);
 
@@ -57,12 +64,12 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerTestCase
             // Rename each folder again
             string finalGVFSSubFolderName = "gvFS";
             string finalGVFSSubFolderPath = Path.Combine(parentFolderName, finalGVFSSubFolderName);
-            NativeMethods.MoveFile(this.Enlistment.GetVirtualPathTo(newGVFSSubFolderPath), this.Enlistment.GetVirtualPathTo(finalGVFSSubFolderPath));
+            this.fileSystem.MoveFile(this.Enlistment.GetVirtualPathTo(newGVFSSubFolderPath), this.Enlistment.GetVirtualPathTo(finalGVFSSubFolderPath));
             this.Enlistment.GetVirtualPathTo(finalGVFSSubFolderPath).ShouldBeADirectory(fileSystem).WithCaseMatchingName(finalGVFSSubFolderName);
 
             string finalTestsSubFolderName = "gvfs.FunctionalTESTS";
             string finalTestsSubFolderPath = Path.Combine(parentFolderName, finalTestsSubFolderName);
-            NativeMethods.MoveFile(this.Enlistment.GetVirtualPathTo(newTestsSubFolderPath), this.Enlistment.GetVirtualPathTo(finalTestsSubFolderPath));
+            this.fileSystem.MoveFile(this.Enlistment.GetVirtualPathTo(newTestsSubFolderPath), this.Enlistment.GetVirtualPathTo(finalTestsSubFolderPath));
             this.Enlistment.GetVirtualPathTo(finalTestsSubFolderPath).ShouldBeADirectory(fileSystem).WithCaseMatchingName(finalTestsSubFolderName);
             this.Enlistment.GetVirtualPathTo(Path.Combine(finalTestsSubFolderPath, fileToAdd)).ShouldBeAFile(fileSystem).WithContents().ShouldEqual(fileToAddContent);
         }

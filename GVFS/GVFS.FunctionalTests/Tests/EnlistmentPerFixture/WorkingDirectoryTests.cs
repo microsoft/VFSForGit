@@ -14,7 +14,6 @@ using System.Text;
 namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
 {
     [TestFixtureSource(typeof(FileSystemRunner), FileSystemRunner.TestRunners)]
-    [Category(Categories.Mac.M2)]
     public class WorkingDirectoryTests : TestsWithEnlistmentPerFixture
     {
         private const int CurrentPlaceholderVersion = 1;
@@ -393,7 +392,7 @@ BOOL APIENTRY DllMain( HMODULE hModule,
 
         [TestCase, Order(13)]
         [Category(Categories.GitCommands)]
-        [Category(Categories.Mac.M3)]
+        [Category(Categories.MacTODO.M3)]
         public void FolderContentsProjectedAfterFolderCreateAndCheckout()
         {
             string folderName = "GVFlt_MultiThreadTest";
@@ -419,7 +418,7 @@ BOOL APIENTRY DllMain( HMODULE hModule,
 
         [TestCase, Order(14)]
         [Category(Categories.GitCommands)]
-        [Category(Categories.Mac.M3)]
+        [Category(Categories.MacTODO.M3)]
         public void FolderContentsCorrectAfterCreateNewFolderRenameAndCheckoutCommitWithSameFolder()
         {
             // 3a55d3b760c87642424e834228a3408796501e7c is the commit prior to adding Test_EPF_MoveRenameFileTests
@@ -450,7 +449,7 @@ BOOL APIENTRY DllMain( HMODULE hModule,
 
         // TODO(Mac) This *should* be working already, we need further investigation of why this test fails on build agents, but not on dev machines.
         [TestCase, Order(15)]
-        [Category(Categories.Mac.M2TODO)]
+        [Category(Categories.MacTODO.M2)]
         public void FilterNonUTF8FileName()
         {
             string encodingFilename = "ريلٌأكتوبرûمارسأغسطسºٰٰۂْٗ۵ريلٌأك.txt";
@@ -499,7 +498,7 @@ BOOL APIENTRY DllMain( HMODULE hModule,
 
         // TODO(Mac): Figure out why git for Mac is not requesting a redownload of the truncated object
         [TestCase, Order(17)]
-        [Category(Categories.Mac.M3)]
+        [Category(Categories.MacTODO.M3)]
         public void TruncatedObjectRedownloaded()
         {
             GitProcess.InvokeProcess(this.Enlistment.RepoRoot, "checkout " + this.Enlistment.Commitish);

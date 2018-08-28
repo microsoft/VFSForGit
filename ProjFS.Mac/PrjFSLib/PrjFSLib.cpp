@@ -289,7 +289,8 @@ PrjFS_Result PrjFS_WritePlaceholderFile(
         << relativePath << ", " 
         << (int)providerId[0] << ", "
         << (int)contentId[0] << ", "
-        << fileSize << ")" << std::endl;
+        << fileSize << ", "
+        << std::oct << fileMode << std::dec << ")" << std::endl;
 #endif
     
     if (nullptr == relativePath)
@@ -350,6 +351,74 @@ CleanupAndFail:
     }
     
     return PrjFS_Result_EIOError;
+}
+
+PrjFS_Result PrjFS_UpdatePlaceholderFileIfNeeded(
+    _In_    const char*                             relativePath,
+    _In_    unsigned char                           providerId[PrjFS_PlaceholderIdLength],
+    _In_    unsigned char                           contentId[PrjFS_PlaceholderIdLength],
+    _In_    unsigned long                           fileSize,
+    _In_    uint16_t                                fileMode,
+    _In_    PrjFS_UpdateType                        updateFlags,
+    _Out_   PrjFS_UpdateFailureCause*               failureCause)
+{
+#ifdef DEBUG
+    std::cout
+        << "PrjFS_UpdatePlaceholderFileIfNeeded("
+        << relativePath << ", "
+        << (int)providerId[0] << ", "
+        << (int)contentId[0] << ", "
+        << fileSize << ", "
+        << std::oct << fileMode << std::dec << ", "
+        << std::hex << updateFlags << std::dec << ")" << std::endl;
+#endif
+    
+    PrjFS_Result result = PrjFS_DeleteFile(relativePath, updateFlags, failureCause);
+    if (result != PrjFS_Result_Success)
+    {
+       return result;
+    }
+
+    return PrjFS_WritePlaceholderFile(relativePath, providerId, contentId, fileSize, fileMode);
+}
+
+PrjFS_Result PrjFS_DeleteFile(
+    _In_    const char*                             relativePath,
+    _In_    PrjFS_UpdateType                        updateFlags,
+    _Out_   PrjFS_UpdateFailureCause*               failureCause)
+{
+#ifdef DEBUG
+    std::cout
+        << "PrjFS_DeleteFile("
+        << relativePath << ", "
+        << std::hex << updateFlags << std::dec << ")" << std::endl;
+#endif
+    
+    // TODO(Mac): Populate failure cause appropriately
+    *failureCause = PrjFS_UpdateFailureCause_Invalid;
+    
+    if (nullptr == relativePath)
+    {
+        return PrjFS_Result_EInvalidArgs;
+    }
+
+    // TODO(Mac): Unless allowed by updateFlags, ensure file is not full before proceeding
+    
+    char fullPath[PrjFSMaxPath];
+    CombinePaths(s_virtualizationRootFullPath.c_str(), relativePath, fullPath);
+    if (0 != unlink(fullPath))
+    {
+        switch(errno)
+        {
+            case ENOENT:  // A component of fullPath does not exist
+            case ENOTDIR: // A component of fullPath is not a directory
+                return PrjFS_Result_Success;
+            default:
+                return PrjFS_Result_EIOError;
+        }
+    }
+
+    return PrjFS_Result_Success;
 }
 
 PrjFS_Result PrjFS_WriteFileContents(
