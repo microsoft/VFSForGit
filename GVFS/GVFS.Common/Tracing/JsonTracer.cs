@@ -20,13 +20,17 @@ namespace GVFS.Common.Tracing
 
         private EventLevel startStopLevel;
         private Keywords startStopKeywords;
-
         public JsonTracer(string providerName, string activityName, bool disableTelemetry = false)
-            : this(providerName, Guid.Empty, activityName, disableTelemetry)
+            : this(providerName, Guid.Empty, activityName, enlistmentId: null, mountId: null, disableTelemetry: disableTelemetry)
         {
         }
 
-        public JsonTracer(string providerName, Guid providerActivityId, string activityName, bool disableTelemetry = false)
+        public JsonTracer(string providerName, string activityName, string enlistmentId, string mountId, bool disableTelemetry = false)
+            : this(providerName, Guid.Empty, activityName, enlistmentId, mountId, disableTelemetry)
+        {
+        }
+
+        public JsonTracer(string providerName, Guid providerActivityId, string activityName, string enlistmentId, string mountId, bool disableTelemetry = false)
             : this(
                   new List<InProcEventListener>(),
                   providerActivityId,
@@ -36,7 +40,7 @@ namespace GVFS.Common.Tracing
         {
             if (!disableTelemetry)
             {
-                InProcEventListener telemetryListener = GVFSPlatform.Instance.CreateTelemetryListenerIfEnabled(providerName);
+                InProcEventListener telemetryListener = GVFSPlatform.Instance.CreateTelemetryListenerIfEnabled(providerName, enlistmentId, mountId);
                 if (telemetryListener != null)
                 {
                     this.listeners.Add(telemetryListener);
@@ -252,7 +256,6 @@ namespace GVFS.Common.Tracing
         private void WriteEvent(string eventName, EventLevel level, Keywords keywords, EventMetadata metadata, EventOpcode opcode)
         {
             string jsonPayload = metadata != null ? JsonConvert.SerializeObject(metadata) : null;
-
             foreach (InProcEventListener listener in this.listeners)
             {
                 listener.RecordMessage(eventName, this.activityId, this.parentActivityId, level, keywords, opcode, jsonPayload);
