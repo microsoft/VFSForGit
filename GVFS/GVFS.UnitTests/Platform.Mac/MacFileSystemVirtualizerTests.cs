@@ -156,6 +156,7 @@ namespace GVFS.UnitTests.Platform.Mac
                         out failureReason)
                     .ShouldEqual(new FileSystemResult(FSResult.IOError, (int)mockVirtualization.UpdatePlaceholderIfNeededResult));
                 failureReason.ShouldEqual((UpdateFailureReason)mockVirtualization.UpdatePlaceholderIfNeededFailureCause);
+                fileSystemCallbacks.Stop();
             }
         }
 
