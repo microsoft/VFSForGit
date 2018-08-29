@@ -213,7 +213,10 @@ WritePlaceholderFile:
 
 With this approach, each placeholder file that will be created will be moved in one at a time to their final location rather than moving all placeholders that may be present in a directory at once. 
 
-In a case where we crash (or the machine crashes, or the user kills the mount process) while expanding a placeholder directory, we will be able to recover by replacing all placeholders that are present in that directory and continuing the enumeration. We will not try to short circuit this process and restart the enumeration from where we crashed. Any user content that is present in this directory will not be overwritten by the directory enumeration.
+In a case where we crash (or the machine crashes, or the user kills the mount process) while expanding a placeholder directory, we will be able to recover by calling UpdatePlaceholderInformation on files that were enumerated by the previous attempt and creating the rest of the placeholders as expected. 
+
+We need to call UpdatePlaceholderInformation in order to prevent data loss in scenarios where users manage to create files in the partially enumerated directory (if the kext is unmounted, the user can write files into the directory that will look like full files to VFSForGit).
+UpdatePlaceholderInformation currently will add any file to ModifiedPaths (which will make 'git status' begin tracking it, if any changes are present) and will one day be smart enough to only update files that are still placeholders.
 
 Designs where we moved an entire directory's worth of placeholders were considered, but were tabled in favor of this approach (making any expansion/hydration retriable).
 
