@@ -224,12 +224,13 @@ namespace GVFS.Common
                 Exception exception;
                 if (!this.TryDeleteDownloadedAsset(asset, out exception))
                 {
-                    error += $"Could not delete {asset.LocalPath}. {exception.ToString()}.";
+                    error += $"Could not delete {asset.LocalPath}. {exception.ToString()}." + Environment.NewLine;
                 }
             }
 
             if (!string.IsNullOrEmpty(error))
             {
+                error.TrimEnd(Environment.NewLine.ToCharArray());
                 return false;
             }
 
