@@ -310,7 +310,6 @@ namespace GVFS.CommandLine
         private void ReportInfoToConsole(string message, params object[] args)
         {
             this.Output.WriteLine(message, args);
-            this.tracer.RelatedInfo(message, args);
         }
 
         public class ProcessLauncher

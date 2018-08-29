@@ -32,7 +32,9 @@ namespace GVFS.UnitTests.Windows.Mock.Upgrader
             GitDownload = 0x4,
             GVFSDownload = 0x8,
             GitInstall = 0x10,
-            GVFSInstall = 0x20
+            GVFSInstall = 0x20,
+            GVFSCleanup = 0x40,
+            GitCleanup = 0x80,
         }
 
         public RingType LocalRingConfig { get; set; }
@@ -160,6 +162,41 @@ namespace GVFS.UnitTests.Windows.Mock.Upgrader
 
             errorMessage = "Cannot download unknown asset.";
             return false;
+        }
+
+        protected override bool TryDeleteDownloadedAsset(Asset asset, out Exception exception)
+        {
+            if (this.expectedGVFSAssetName.Equals(asset.Name, StringComparison.OrdinalIgnoreCase))
+            {
+                this.SequenceTracker.RecordMethod("DeleteDownloadedAsset_GVFS");
+
+                if (this.failActionTypes.HasFlag(ActionType.GVFSCleanup))
+                {
+                    exception = new Exception("Error deleting downloaded GVFS installer.");
+                    return false;
+                }
+
+                exception = null;
+                return true;
+            }
+            else if (this.expectedGitAssetName.Equals(asset.Name, StringComparison.OrdinalIgnoreCase))
+            {
+                this.SequenceTracker.RecordMethod("DeleteDownloadedAsset_Git");
+
+                if (this.failActionTypes.HasFlag(ActionType.GitCleanup))
+                {
+                    exception = new Exception("Error deleting downloaded Git installer.");
+                    return false;
+                }
+
+                exception = null;
+                return true;
+            }
+            else
+            {
+                exception = new Exception("Unknown asset.");
+                return false;
+            }
         }
 
         protected override bool TryFetchReleases(out List<Release> releases, out string errorMessage)

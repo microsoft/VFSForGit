@@ -17,7 +17,9 @@ namespace GVFS.Common
         private const string GitHubReleaseURL = @"https://api.github.com/repos/microsoft/gvfs/releases";
         private const string JSONMediaType = @"application/vnd.github.v3+json";
         private const string UserAgent = @"GVFS_Auto_Upgrader";
-        private const string InstallerArgs = "/VERYSILENT /CLOSEAPPLICATIONS /SUPPRESSMSGBOXES /NORESTART /MOUNTREPOS=false";
+        private const string CommonInstallerArgs = "/VERYSILENT /CLOSEAPPLICATIONS /SUPPRESSMSGBOXES /NORESTART";
+        private const string GVFSInstallerArgs = CommonInstallerArgs + " /MOUNTREPOS=false";
+        private const string GitInstallerArgs = CommonInstallerArgs + " /ALLOWDOWNGRADE=1";
         private const string GitAssetNamePrefix = "Git";
         private const string GVFSAssetNamePrefix = "GVFS";
         private const string GitInstallerFileNamePrefix = "Git-";
@@ -216,6 +218,33 @@ namespace GVFS.Common
             return false;
         }
 
+        public bool TryCleanup(out string error)
+        {
+            error = string.Empty;
+            foreach (Asset asset in this.newestRelease.Assets)
+            {
+                Exception exception;
+                if (!this.TryDeleteDownloadedAsset(asset, out exception))
+                {
+                    error += $"Could not delete {asset.LocalPath}. {exception.ToString()}." + Environment.NewLine;
+                }
+            }
+
+            if (!string.IsNullOrEmpty(error))
+            {
+                error.TrimEnd(Environment.NewLine.ToCharArray());
+                return false;
+            }
+
+            error = null;
+            return true;
+        }
+
+        protected virtual bool TryDeleteDownloadedAsset(Asset asset, out Exception exception)
+        {
+            return this.fileSystem.TryDeleteFile(asset.LocalPath, out exception);
+        }
+
         protected virtual bool TryLoadRingConfig(out string error)
         {
             string errorAdvisory = "Please run 'git config --system gvfs.upgrade-ring [\"Fast\"|\"Slow\"|\"None\"]' and retry.";
@@ -327,11 +356,12 @@ namespace GVFS.Common
             error = null;
             exitCode = 0;
 
-            string path = null;
-            if (this.TryGetLocalInstallerPath(name, out path))
+            string path;
+            string installerArgs;
+            if (this.TryGetLocalInstallerPath(name, out path, out installerArgs))
             {
                 string logFilePath = GVFSEnlistment.GetNewLogFileName(GetLogDirectoryPath(), Path.GetFileNameWithoutExtension(path));
-                string args = InstallerArgs + " /Log=" + logFilePath;
+                string args = installerArgs + " /Log=" + logFilePath;
                 this.RunInstaller(path, args, out exitCode, out error);
 
                 if (exitCode != 0 && string.IsNullOrEmpty(error))
@@ -347,24 +377,30 @@ namespace GVFS.Common
             return false;
         }
 
-        private bool TryGetLocalInstallerPath(string name, out string path)
+        private bool TryGetLocalInstallerPath(string name, out string path, out string args)
         {
-            path = null;
-
             foreach (Asset asset in this.newestRelease.Assets)
             {
                 string extension = Path.GetExtension(asset.Name);
                 if (extension != null && extension == ".exe")
                 {
-                    if ((name == GitAssetNamePrefix && asset.Name.StartsWith(GitInstallerFileNamePrefix)) ||
-                        (name == GVFSAssetNamePrefix && asset.Name.StartsWith(GVFSInstallerFileNamePrefix)))
+                    path = asset.LocalPath;
+                    if (name == GitAssetNamePrefix && asset.Name.StartsWith(GitInstallerFileNamePrefix))
                     {
-                        path = asset.LocalPath;
+                        args = GitInstallerArgs;
+                        return true;
+                    }
+
+                    if (name == GVFSAssetNamePrefix && asset.Name.StartsWith(GVFSInstallerFileNamePrefix))
+                    {
+                        args = GVFSInstallerArgs;
                         return true;
                     }
                 }
             }
 
+            path = null;
+            args = null;
             return false;
         }
         
