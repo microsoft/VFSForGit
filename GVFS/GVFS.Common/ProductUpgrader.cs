@@ -218,21 +218,18 @@ namespace GVFS.Common
 
         public bool TryCleanup(out string error)
         {
-            bool isError = false;
-            string exceptionInfo = string.Empty;
+            error = string.Empty;
             foreach (Asset asset in this.newestRelease.Assets)
             {
                 Exception exception;
                 if (!this.TryDeleteDownloadedAsset(asset, out exception))
                 {
-                    exceptionInfo += $"Could not delete {asset.LocalPath}. {exception.ToString()}.";
-                    isError = true;
+                    error += $"Could not delete {asset.LocalPath}. {exception.ToString()}.";
                 }
             }
 
-            if (isError)
+            if (!string.IsNullOrEmpty(error))
             {
-                error = exceptionInfo;
                 return false;
             }
 

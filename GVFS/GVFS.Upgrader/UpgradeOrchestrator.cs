@@ -218,7 +218,8 @@ namespace GVFS.Upgrader
                     {
                         EventMetadata metadata = new EventMetadata();
                         metadata.Add("Upgrade Step", nameof(this.TryRunCleanUp));
-                        this.tracer.RelatedError(metadata, $"{nameof(this.preRunChecker.TryMountAllGVFSRepos)} failed. {remountError}");
+                        metadata.Add("Remount Error", remountError);
+                        this.tracer.RelatedError(metadata, $"{nameof(this.preRunChecker.TryMountAllGVFSRepos)} failed.");
                         errorMessage += remountError + Environment.NewLine;
                         success = false;
                     }
@@ -228,9 +229,8 @@ namespace GVFS.Upgrader
                     {
                         EventMetadata metadata = new EventMetadata();
                         metadata.Add("Upgrade Step", nameof(this.TryRunCleanUp));
-                        this.tracer.RelatedError(metadata, $"{nameof(this.upgrader.TryCleanup)} failed. {downloadsCleanupError}");
-                        errorMessage += downloadsCleanupError + Environment.NewLine;
-                        success = false;
+                        metadata.Add("Download cleanup error", downloadsCleanupError);
+                        this.tracer.RelatedError(metadata, $"{nameof(this.upgrader.TryCleanup)} failed.");
                     }
 
                     return success;

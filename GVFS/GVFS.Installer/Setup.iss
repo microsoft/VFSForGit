@@ -165,7 +165,7 @@ DestDir: "{app}"; Flags: ignoreversion; Source:"{#ServiceDir}\GVFS.Service.exe";
 [UninstallDelete]
 ; Deletes the entire installation directory, including files and subdirectories
 Type: filesandordirs; Name: "{app}";
-Type: filesandordirs; Name: "{sd}\ProgramData\GVFS\GVFS.Upgrade";
+Type: filesandordirs; Name: "{commonappdata}\GVFS\GVFS.Upgrade";
 
 [Registry]
 Root: HKLM; Subkey: "{#EnvironmentKey}"; \

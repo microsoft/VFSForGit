@@ -271,10 +271,9 @@ namespace GVFS.UnitTests.Windows.Upgrader
                 {
                     this.Upgrader.SetFailOnAction(MockProductUpgrader.ActionType.GVFSCleanup);
                 },
-                expectedReturn: ReturnCode.GenericError,
+                expectedReturn: ReturnCode.Success,
                 expectedOutput: new List<string>
                 {
-                    "Error deleting downloaded GVFS installer."
                 },
                 expectedErrors: new List<string>
                 {
@@ -290,10 +289,9 @@ namespace GVFS.UnitTests.Windows.Upgrader
                 {
                     this.Upgrader.SetFailOnAction(MockProductUpgrader.ActionType.GitCleanup);
                 },
-                expectedReturn: ReturnCode.GenericError,
+                expectedReturn: ReturnCode.Success,
                 expectedOutput: new List<string>
                 {
-                    "Error deleting downloaded Git installer."
                 },
                 expectedErrors: new List<string>
                 {

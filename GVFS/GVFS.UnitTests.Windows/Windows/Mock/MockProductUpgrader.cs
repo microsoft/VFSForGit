@@ -34,7 +34,7 @@ namespace GVFS.UnitTests.Windows.Mock.Upgrader
             GitInstall = 0x10,
             GVFSInstall = 0x20,
             GVFSCleanup = 0x40,
-            GitCleanup = 0x80
+            GitCleanup = 0x80,
         }
 
         public RingType LocalRingConfig { get; set; }
