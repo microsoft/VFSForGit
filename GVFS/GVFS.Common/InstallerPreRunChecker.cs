@@ -45,15 +45,6 @@ namespace GVFS.Upgrader
             }
 
             this.tracer.RelatedInfo("Okay to run GVFS upgrade.");
-
-            this.tracer.RelatedInfo("Checking if Git upgrade can be run on this machine.");
-            if (gitVersion != null && !this.IsGitUpgradeAllowed(gitVersion, out error))
-            {
-                this.tracer.RelatedError($"{nameof(TryRunPreUpgradeChecks)}: {error}");
-                return false;
-            }
-
-            this.tracer.RelatedInfo("Okay to run Git upgrade.");
             this.tracer.RelatedInfo("Successfully finished pre upgrade checks.");
 
             error = null;
@@ -182,32 +173,6 @@ namespace GVFS.Upgrader
             }
 
             return isRunning;
-        }
-
-        protected virtual bool IsGitUpgradeAllowed(GitVersion newGitVersion, out string error)
-        {
-            error = null;
-
-            string gitPath = GVFSPlatform.Instance.GitInstallation.GetInstalledGitBinPath();
-            if (gitPath == null)
-            {
-                // clean install, not an error.
-                return true;
-            }
-
-            GitVersion installedGitVersion;
-            if (!this.TryGetGitVersion(gitPath, out installedGitVersion, out error))
-            {
-                return false;
-            }
-
-            if (newGitVersion.IsLessThan(installedGitVersion))
-            {
-                error = "Upgrade Git version (" + newGitVersion.ToString() + ") is older than installed version of Git (" + installedGitVersion.ToString() + ")";
-                return false;
-            }
-
-            return true;
         }
 
         protected virtual bool TryRunGVFSWithArgs(string args, out string error)
