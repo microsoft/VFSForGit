@@ -69,11 +69,13 @@ namespace GVFS.Platform.Windows
             return true;
         }
 
-        public override InProcEventListener CreateTelemetryListenerIfEnabled(string providerName)
+        public override InProcEventListener CreateTelemetryListenerIfEnabled(string providerName, string enlistmentId, string mountId)
         {
             return ETWTelemetryEventListener.CreateTelemetryListenerIfEnabled(
                 this.GitInstallation.GetInstalledGitBinPath(),
-                providerName);
+                providerName,
+                enlistmentId,
+                mountId);
         }
 
         public override void InitializeEnlistmentACLs(string enlistmentPath)

@@ -75,7 +75,7 @@ namespace GVFS.Platform.Mac
             return pipe;
         }
 
-        public override InProcEventListener CreateTelemetryListenerIfEnabled(string providerName)
+        public override InProcEventListener CreateTelemetryListenerIfEnabled(string providerName, string enlistmentId, string mountId)
         {
             return null;
         }

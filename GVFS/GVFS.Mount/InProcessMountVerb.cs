@@ -1,5 +1,6 @@
 ﻿using CommandLine;
 using GVFS.Common;
+using GVFS.Common.Git;
 using GVFS.Common.Http;
 using GVFS.Common.Tracing;
 using System;
@@ -124,7 +125,23 @@ namespace GVFS.Mount
 
         private JsonTracer CreateTracer(GVFSEnlistment enlistment, EventLevel verbosity, Keywords keywords)
         {
-            JsonTracer tracer = new JsonTracer(GVFSConstants.GVFSEtwProviderName, "GVFSMount");
+            string enlistmentId = null;
+            string mountId = null;
+
+            GitProcess git = new GitProcess(enlistment);
+            GitProcess.Result configResult = git.GetFromLocalConfig(GVFSConstants.GitConfig.EnlistmentId);
+            if (!configResult.HasErrors)
+            {
+                enlistmentId = configResult.Output.Trim();
+            }
+
+            configResult = git.GetFromLocalConfig(GVFSConstants.GitConfig.MountId);
+            if (!configResult.HasErrors)
+            {
+                mountId = configResult.Output.Trim();
+            }
+
+            JsonTracer tracer = new JsonTracer(GVFSConstants.GVFSEtwProviderName, "GVFSMount", enlistmentId: enlistmentId, mountId: mountId);
             tracer.AddLogFileEventListener(
                 GVFSEnlistment.GetNewGVFSLogFileName(enlistment.GVFSLogsRoot, GVFSConstants.LogFileTypes.MountProcess),
                 verbosity,

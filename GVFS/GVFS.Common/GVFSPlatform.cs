@@ -50,7 +50,7 @@ namespace GVFS.Common
         public abstract bool TryGetGVFSHooksPathAndVersion(out string hooksPaths, out string hooksVersion, out string error);
         public abstract bool TryInstallGitCommandHooks(GVFSContext context, string executingDirectory, string hookName, string commandHookPath, out string errorMessage);
 
-        public abstract InProcEventListener CreateTelemetryListenerIfEnabled(string providerName);
+        public abstract InProcEventListener CreateTelemetryListenerIfEnabled(string providerName, string enlistmentId, string mountId);
 
         public abstract Dictionary<string, string> GetPhysicalDiskInfo(string path);
 
