@@ -447,9 +447,8 @@ BOOL APIENTRY DllMain( HMODULE hModule,
             (folder + @"\MoveUnhydratedFileToDotGitFolder\Program.cs").ShouldBeAFile(this.fileSystem).WithContents(MoveRenameFileTests.TestFileContents);
         }
 
-        // TODO(Mac) This *should* be working already, we need further investigation of why this test fails on build agents, but not on dev machines.
         [TestCase, Order(15)]
-        [Category(Categories.MacTODO.M2)]
+        [Category(Categories.MacTODO.FailsOnBuildAgent)]
         public void FilterNonUTF8FileName()
         {
             string encodingFilename = "ريلٌأكتوبرûمارسأغسطسºٰٰۂْٗ۵ريلٌأك.txt";
