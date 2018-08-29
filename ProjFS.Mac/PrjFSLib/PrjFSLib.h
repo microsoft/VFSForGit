@@ -89,7 +89,6 @@ typedef enum
 {
     PrjFS_UpdateType_Invalid                        = 0x00000000,
     
-    PrjFS_UpdateType_AllowDirtyData                 = 0x00000002,
     PrjFS_UpdateType_AllowReadOnly                  = 0x00000020,
     
 } PrjFS_UpdateType;

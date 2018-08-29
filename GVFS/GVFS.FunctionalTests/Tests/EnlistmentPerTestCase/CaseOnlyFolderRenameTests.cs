@@ -13,7 +13,6 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerTestCase
         private FileSystemRunner fileSystem;
 
         public CaseOnlyFolderRenameTests()
-            : base()
         {
             this.fileSystem = new BashRunner();
         }

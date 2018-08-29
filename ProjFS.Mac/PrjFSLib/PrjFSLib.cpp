@@ -373,6 +373,9 @@ PrjFS_Result PrjFS_UpdatePlaceholderFileIfNeeded(
         << std::hex << updateFlags << std::dec << ")" << std::endl;
 #endif
     
+    // TODO(Mac): Check if the contentId or fileMode have changed before proceeding
+    // with the update
+    
     PrjFS_Result result = PrjFS_DeleteFile(relativePath, updateFlags, failureCause);
     if (result != PrjFS_Result_Success)
     {
