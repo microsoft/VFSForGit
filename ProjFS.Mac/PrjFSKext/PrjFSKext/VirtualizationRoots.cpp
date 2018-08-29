@@ -88,6 +88,35 @@ VirtualizationRoot* VirtualizationRoots_FindForVnode(vnode_t vnode)
     return root;
 }
 
+int16_t VirtualizationRoots_LookupVnodeHierarchical(vnode_t vnode)
+{
+    int16_t rootIndex = RootIndex_None;
+    
+    vnode_get(vnode);
+    while (NULLVP != vnode && !vnode_isvroot(vnode))
+    {
+        rootIndex = VirtualizationRoots_LookupVnode(vnode, nullptr);
+        if (rootIndex >= 0)
+        {
+            break;
+        }
+        else if (rootIndex == RootIndex_ProviderTemporaryDirectory)
+        {
+            break;
+        }
+        
+        vnode_t parent = vnode_getparent(vnode);
+        vnode_put(vnode);
+        vnode = parent;
+    }
+    if (NULLVP != vnode)
+    {
+        vnode_put(vnode);
+    }
+    
+    return rootIndex;
+}
+
 int16_t VirtualizationRoots_LookupVnode(vnode_t vnode, vfs_context_t context)
 {
     VnodeFsidInode fsidInode = Vnode_GetFsidAndInode(vnode, context);
@@ -209,7 +238,7 @@ static int16_t InsertVirtualizationRoot_Locked(PrjFSProviderUserClient* userClie
         root->rootInode = persistentIds.inode;
         strlcpy(root->path, path, sizeof(root->path));
         
-         root->tempDirectoryVNode = temporaryDirectory;
+        root->tempDirectoryVNode = temporaryDirectory;
     }
     
     return rootIndex;

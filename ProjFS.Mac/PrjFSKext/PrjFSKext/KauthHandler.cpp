@@ -595,15 +595,18 @@ static bool ShouldHandleVnodeOpEvent(
         }
     }
     
-    *root = VirtualizationRoots_FindForVnode(vnode);
+    int16_t rootIndex = VirtualizationRoots_LookupVnodeHierarchical(vnode);
     
     // This VNode is in the temp directory, do not act on it.
-    if (RootIndex_ProviderTemporaryDirectory == (*root)->index)
+    if (RootIndex_ProviderTemporaryDirectory == rootIndex)
     {
         *kauthResult = KAUTH_RESULT_DEFER;
         return false;
     }
-    else if (nullptr == *root && (*root)->tempDirectoryVNode)
+    
+    *root = VirtualizationRoots_FindForVnode(vnode);
+    
+    if (nullptr == *root)
     {
         KextLog_FileNote(vnode, "No virtualization root found for file with set flag.");
         
@@ -646,15 +649,28 @@ static bool ShouldHandleFileOpEvent(
     {
         return false;
     }
-
-    *root = VirtualizationRoots_FindForVnode(vnode);
+    
+    // TODO(Mac): We will still want to handle renames into a root, and those vnodes would
+    // not yet have the FileFlags_IsInVirtualizationRoot set
+    uint32_t vnodeFileFlags = ReadVNodeFileFlags(vnode, context);
+    if (!FileFlagsBitIsSet(vnodeFileFlags, FileFlags_IsInVirtualizationRoot))
+    {
+        // This vnode is not part of ANY virtualization root, so exit now before doing any more work.
+        // This gives us a cheap way to avoid adding overhead to IO outside of a virtualization root.      
+        return false;
+    }
+    
+    int16_t rootIndex = VirtualizationRoots_LookupVnodeHierarchical(vnode);
     
     // This VNode is in the temp directory, do not act on it.
-    if (RootIndex_ProviderTemporaryDirectory == (*root)->index)
+    if (RootIndex_ProviderTemporaryDirectory == rootIndex)
     {
         return false;
     }
-    else if (nullptr == *root)
+    
+    *root = VirtualizationRoots_FindForVnode(vnode);
+    
+    if (nullptr == *root)
     {
         return false;
     }

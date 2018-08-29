@@ -44,6 +44,7 @@ kern_return_t VirtualizationRoots_Init(void);
 kern_return_t VirtualizationRoots_Cleanup(void);
 
 VirtualizationRoot* VirtualizationRoots_FindForVnode(vnode_t vnode);
+int16_t VirtualizationRoots_LookupVnodeHierarchical(vnode_t vnode);
 
 struct VirtualizationRootResult
 {
