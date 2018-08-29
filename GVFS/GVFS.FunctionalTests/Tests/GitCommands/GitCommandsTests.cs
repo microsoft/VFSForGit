@@ -315,7 +315,7 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
         {
             // 663045 - Confirm that folder can be deleted after adding a file then changing branches
             string newFileParentFolderPath = Path.Combine("GVFS", "GVFS", "CommandLine");
-            string newFilePath = Path.Combine(newFileParentFolderPath + "testfile.txt");
+            string newFilePath = Path.Combine(newFileParentFolderPath, "testfile.txt");
             string newFileContents = "test contents";
 
             this.CommitChangesSwitchBranch(
