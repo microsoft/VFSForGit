@@ -147,6 +147,16 @@ namespace GVFS.Upgrader
             return GVFSPlatform.Instance.KernelDriver.IsGVFSUpgradeSupported();
         }
 
+        protected virtual bool FreshInstallOrServiceRunning()
+        {
+            bool isInstalled;
+            bool isRunning;
+
+            GVFSPlatform.Instance.IsServiceInstalledAndRunning(GVFSConstants.Service.ServiceName, out isInstalled, out isRunning);
+
+            return isInstalled ? isRunning : true;
+        }
+
         protected virtual bool IsUnattended()
         {
             return GVFSEnlistment.IsUnattended(this.tracer);
@@ -245,6 +255,12 @@ namespace GVFS.Upgrader
             if (!this.IsProjFSInboxed())
             {
                 error = "Unsupported ProjFS configuration.\nCheck your team's documentation for how to upgrade.";
+                return false;
+            }
+
+            if (!this.FreshInstallOrServiceRunning())
+            {
+                error = "GVFS Service is not running.\nStart \"GVFS.Service\" and run \"gvfs upgrade\" again.";
                 return false;
             }
 

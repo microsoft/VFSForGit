@@ -149,6 +149,26 @@ namespace GVFS.UnitTests.Windows.Upgrader
         }
 
         [TestCase]
+        public void IsGVFSServiceRunningPreCheck()
+        {
+            this.ConfigureRunAndVerify(
+                configure: () =>
+                {
+                    this.PrerunChecker.SetReturnFalseOnCheck(MockInstallerPrerunChecker.FailOnCheckType.IsFreshInstallOrServiceRunning);
+                },
+                expectedReturn: ReturnCode.GenericError,
+                expectedOutput: new List<string>
+                {
+                    "GVFS Service is not running.",
+                    "Start \"GVFS.Service\" and run \"gvfs upgrade\" again."
+                },
+                expectedErrors: new List<string>
+                {
+                    "GVFS Service is not running."
+                });
+        }
+
+        [TestCase]
         public void ElevatedRunPreCheck()
         {
             this.ConfigureRunAndVerify(

@@ -32,6 +32,7 @@ namespace GVFS.UnitTests.Windows.Mock.Upgrader
             IsGitUpgradeAllowed = 0x20,
             UnMountRepos = 0x40,
             RemountRepos = 0x80,
+            IsFreshInstallOrServiceRunning = 0x100
         }
         
         public List<string> GVFSArgs { get; private set; } = new List<string>();
@@ -64,6 +65,12 @@ namespace GVFS.UnitTests.Windows.Mock.Upgrader
             gitVersion = new GitVersion(2, 17, 1, "gvfs", 1, 4);
             error = null;
             return true;
+        }
+
+        protected override bool FreshInstallOrServiceRunning()
+        {
+            this.SequenceTracker.RecordMethod("PreCheck_IsServiceRunning");
+            return this.FakedResultOfCheck(FailOnCheckType.IsFreshInstallOrServiceRunning);
         }
 
         protected override bool IsElevated()

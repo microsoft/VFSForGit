@@ -90,6 +90,11 @@ namespace GVFS.UnitTests.Mock.Common
             throw new NotSupportedException();
         }
 
+        public override void IsServiceInstalledAndRunning(string name, out bool installed, out bool running)
+        {
+            throw new NotSupportedException();
+        }
+
         public override bool TryGetGVFSEnlistmentRoot(string directory, out string enlistmentRoot, out string errorMessage)
         {
             throw new NotSupportedException();
