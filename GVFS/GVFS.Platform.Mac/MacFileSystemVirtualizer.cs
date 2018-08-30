@@ -14,6 +14,8 @@ namespace GVFS.Platform.Mac
 {
     public class MacFileSystemVirtualizer : FileSystemVirtualizer
     {
+        public static readonly byte[] PlaceholderVersionId = ToVersionIdByteArray(new byte[] { PlaceholderVersion });
+
         private VirtualizationInstance virtualizationInstance;
 
         public MacFileSystemVirtualizer(GVFSContext context, GVFSGitObjects gitObjects)
@@ -89,7 +91,7 @@ namespace GVFS.Platform.Mac
 
             Result result = this.virtualizationInstance.UpdatePlaceholderIfNeeded(
                 relativePath,
-                ToVersionIdByteArray(GetPlaceholderVersionId()),
+                PlaceholderVersionId,
                 ToVersionIdByteArray(ConvertShaToContentId(shaContentId)),
                 (ulong)endOfFile,
                 fileMode,
@@ -447,7 +449,7 @@ namespace GVFS.Platform.Mac
                     sha = fileInfo.Sha.ToString();
                     result = this.virtualizationInstance.WritePlaceholderFile(
                         childRelativePath,
-                        ToVersionIdByteArray(FileSystemVirtualizer.GetPlaceholderVersionId()),
+                        PlaceholderVersionId,
                         ToVersionIdByteArray(FileSystemVirtualizer.ConvertShaToContentId(sha)),
                         (ulong)fileInfo.Size,
                         fileMode);

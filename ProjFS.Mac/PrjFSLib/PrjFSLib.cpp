@@ -405,7 +405,7 @@ PrjFS_Result PrjFS_DeleteFile(
         return PrjFS_Result_EInvalidArgs;
     }
 
-    // TODO(Mac): Unless allowed by updateFlags, ensure file is not full before proceeding
+    // TODO(Mac): Ensure file is not full before proceeding
     
     char fullPath[PrjFSMaxPath];
     CombinePaths(s_virtualizationRootFullPath.c_str(), relativePath, fullPath);

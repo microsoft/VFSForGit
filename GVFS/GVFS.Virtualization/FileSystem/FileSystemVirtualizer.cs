@@ -63,16 +63,6 @@ namespace GVFS.Virtualization.FileSystem
             return Encoding.Unicode.GetBytes(sha);
         }
 
-        /// <summary>
-        /// GVFS uses the first byte of the providerId field of placeholders to version
-        /// the data that it stores in the contentId (and providerId) fields of the placeholder
-        /// </summary>
-        /// <returns>Byte array to set as placeholder version Id</returns>
-        public static byte[] GetPlaceholderVersionId()
-        {
-            return new byte[] { PlaceholderVersion };
-        }
-
         public virtual bool TryStart(FileSystemCallbacks fileSystemCallbacks, out string error)
         {
             this.FileSystemCallbacks = fileSystemCallbacks;
