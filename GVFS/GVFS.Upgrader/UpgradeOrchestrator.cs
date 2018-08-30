@@ -15,7 +15,6 @@ namespace GVFS.Upgrader
         private InstallerPreRunChecker preRunChecker;
         private TextWriter output;
         private TextReader input;
-        private bool isLocked;
         private bool remount;
         private bool deleteDownloadedAssets;
         private bool shouldExit;
@@ -35,7 +34,6 @@ namespace GVFS.Upgrader
             this.input = input;
             this.remount = false;
             this.deleteDownloadedAssets = false;
-            this.isLocked = false;
             this.shouldExit = shouldExit;
             this.ExitCode = ReturnCode.Success;
         }
@@ -58,7 +56,6 @@ namespace GVFS.Upgrader
             this.input = Console.In;
             this.remount = false;
             this.deleteDownloadedAssets = false;
-            this.isLocked = false;
             this.shouldExit = false;
             this.ExitCode = ReturnCode.Success;
         }
@@ -138,7 +135,6 @@ namespace GVFS.Upgrader
                 () =>
                 {
                     if (!this.TryCheckIfUpgradeAvailable(out newGVFSVersion, out errorMessage) ||
-                        !this.TryAcquireUpgradeLock(out errorMessage) ||
                         !this.TryGetNewGitVersion(out newGitVersion, out errorMessage))
                     {
                         return false;
@@ -199,20 +195,11 @@ namespace GVFS.Upgrader
         
         private bool TryRunCleanUp(out string error)
         {
-            error = null;
-
             string errorMessage = string.Empty;
             if (!this.LaunchInsideSpinner(
                 () =>
                 {
                     bool success = true;
-                    string unlockError;
-                    if (!this.TryReleaseUpgradeLock(out unlockError))
-                    {
-                        errorMessage += unlockError + Environment.NewLine;
-                        success = false;
-                    }
-
                     string remountError;
                     if (this.remount && !this.preRunChecker.TryMountAllGVFSRepos(out remountError))
                     {
@@ -220,7 +207,7 @@ namespace GVFS.Upgrader
                         metadata.Add("Upgrade Step", nameof(this.TryRunCleanUp));
                         metadata.Add("Remount Error", remountError);
                         this.tracer.RelatedError(metadata, $"{nameof(this.preRunChecker.TryMountAllGVFSRepos)} failed.");
-                        errorMessage += remountError + Environment.NewLine;
+                        errorMessage += remountError;
                         success = false;
                     }
 
@@ -237,48 +224,11 @@ namespace GVFS.Upgrader
                 },
                 "Finishing upgrade"))
             {
-                error = errorMessage.TrimEnd(Environment.NewLine.ToCharArray());
+                error = errorMessage;
                 return false;
             }
 
-            return true;
-        }
-        
-        private bool TryAcquireUpgradeLock(out string error)
-        {
             error = null;
-
-            if (this.isLocked)
-            {
-                error = "Could not acquire global upgrade lock. Already locked.";
-                this.tracer.RelatedError($"{nameof(this.TryAcquireUpgradeLock)} failed. {error}");
-                return false;
-            }
-
-            if (this.upgrader.AcquireUpgradeLock())
-            {
-                this.tracer.RelatedInfo("Acquired upgrade lock.");
-                this.isLocked = true;
-                return true;
-            }
-
-            error = "Could not acquire global upgrade lock. Another instance of gvfs upgrade might be running.";
-            this.tracer.RelatedError($"{nameof(this.TryAcquireUpgradeLock)} failed. {error}");
-
-            return false;
-        }
-
-        private bool TryReleaseUpgradeLock(out string error)
-        {
-            error = null;
-
-            if (this.isLocked && !this.upgrader.ReleaseUpgradeLock())
-            {
-                error = "Could not release global upgrade lock.";
-                this.tracer.RelatedError($"{nameof(this.TryReleaseUpgradeLock)} failed. {error}");
-                return false;
-            }
-
             return true;
         }
 

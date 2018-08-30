@@ -207,10 +207,6 @@ namespace GVFS.CommandLine
 
         private bool TryLaunchUpgradeTool(string path, out string error)
         {
-            error = null;
-
-            bool toolRunning = false;
-
             this.tracer.RelatedInfo("Launching upgrade tool");
 
             if (!this.processWrapper.Start(path))
@@ -218,43 +214,10 @@ namespace GVFS.CommandLine
                 error = "Error launching upgrade tool";
                 return false;
             }
-
-            int retryCount = 20;
-            int exitCode = -1;
-            while (retryCount > 0)
-            {
-                if (this.processWrapper.HasExited)
-                {
-                    exitCode = this.processWrapper.ExitCode;
-                    break;
-                }
-
-                if (this.upgrader.IsGVFSUpgradeRunning())
-                {
-                    toolRunning = true;
-                    break;
-                }
-
-                System.Threading.Thread.Sleep(TimeSpan.FromMilliseconds(250));
-                retryCount--;
-            }
-
-            if (!toolRunning && exitCode != 0)
-            {
-                if (exitCode == -1)
-                {
-                    error = "Error running upgrade tool.";
-                }
-                else
-                {
-                    error = "Error running upgrade tool. Tool quit prematurely. Exit code: " + exitCode;
-                }
-                
-                return false;
-            }
             
             this.tracer.RelatedInfo("Successfully launched upgrade tool.");
 
+            error = null;
             return true;
         }
 
