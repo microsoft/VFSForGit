@@ -32,7 +32,7 @@ namespace GVFS.UnitTests.Windows.Mock.Upgrader
             IsGitUpgradeAllowed = 0x20,
             UnMountRepos = 0x40,
             RemountRepos = 0x80,
-            IsFreshInstallOrServiceRunning = 0x100
+            IsServiceInstalledAndNotRunning = 0x100
         }
         
         public List<string> GVFSArgs { get; private set; } = new List<string>();
@@ -56,6 +56,7 @@ namespace GVFS.UnitTests.Windows.Mock.Upgrader
             this.SetReturnFalseOnCheck(MockInstallerPrerunChecker.FailOnCheckType.IsDevelopmentVersion);
             this.SetReturnFalseOnCheck(MockInstallerPrerunChecker.FailOnCheckType.UnattendedMode);
             this.SetReturnFalseOnCheck(MockInstallerPrerunChecker.FailOnCheckType.BlockingProcessesRunning);
+            this.SetReturnFalseOnCheck(MockInstallerPrerunChecker.FailOnCheckType.IsServiceInstalledAndNotRunning);
 
             this.GVFSArgs.Clear();
         }
@@ -67,10 +68,10 @@ namespace GVFS.UnitTests.Windows.Mock.Upgrader
             return true;
         }
 
-        protected override bool FreshInstallOrServiceRunning()
+        protected override bool IsServiceInstalledAndNotRunning()
         {
             this.SequenceTracker.RecordMethod("PreCheck_IsServiceRunning");
-            return this.FakedResultOfCheck(FailOnCheckType.IsFreshInstallOrServiceRunning);
+            return this.FakedResultOfCheck(FailOnCheckType.IsServiceInstalledAndNotRunning);
         }
 
         protected override bool IsElevated()

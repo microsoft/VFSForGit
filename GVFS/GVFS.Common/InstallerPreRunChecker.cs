@@ -147,14 +147,11 @@ namespace GVFS.Upgrader
             return GVFSPlatform.Instance.KernelDriver.IsGVFSUpgradeSupported();
         }
 
-        protected virtual bool FreshInstallOrServiceRunning()
+        protected virtual bool IsServiceInstalledAndNotRunning()
         {
-            bool isInstalled;
-            bool isRunning;
+            GVFSPlatform.Instance.IsServiceInstalledAndRunning(GVFSConstants.Service.ServiceName, out bool isInstalled, out bool isRunning);
 
-            GVFSPlatform.Instance.IsServiceInstalledAndRunning(GVFSConstants.Service.ServiceName, out isInstalled, out isRunning);
-
-            return isInstalled ? isRunning : true;
+            return isInstalled && !isRunning;
         }
 
         protected virtual bool IsUnattended()
@@ -258,7 +255,7 @@ namespace GVFS.Upgrader
                 return false;
             }
 
-            if (!this.FreshInstallOrServiceRunning())
+            if (this.IsServiceInstalledAndNotRunning())
             {
                 error = "GVFS Service is not running.\nStart \"GVFS.Service\" and run \"gvfs upgrade\" again.";
                 return false;
