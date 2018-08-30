@@ -86,7 +86,7 @@ namespace GVFS.Common
         public static class DotGVFS
         {
             public const string Root = ".gvfs";
-            public const string TempRoot = ".temp";
+            public const string TempRoot = ".staging";
             public const string CorruptObjectsName = "CorruptObjects";
 
             public static readonly string LogPath = Path.Combine(DotGVFS.Root, "logs");

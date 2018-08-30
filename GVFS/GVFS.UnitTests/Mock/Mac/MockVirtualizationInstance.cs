@@ -33,6 +33,7 @@ namespace GVFS.UnitTests.Mock.Mac
 
         public override Result StartVirtualizationInstance(
             string virtualizationRootFullPath,
+            string temporaryDirectoryFullPath,
             uint poolThreadCount)
         {
             poolThreadCount.ShouldBeAtLeast(1U, "poolThreadCount must be greater than 0");

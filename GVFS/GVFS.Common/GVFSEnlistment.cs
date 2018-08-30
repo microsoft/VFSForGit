@@ -31,7 +31,7 @@ namespace GVFS.Common
         {
             this.NamedPipeName = GVFSPlatform.Instance.GetNamedPipeName(this.EnlistmentRoot);
             this.DotGVFSRoot = Path.Combine(this.EnlistmentRoot, GVFSConstants.DotGVFS.Root);
-            this.TempRoot = Path.Combine(this.EnlistmentRoot, GVFSConstants.DotGVFS.TempRoot);
+            this.TempRoot = Path.Combine(this.DotGVFSRoot, GVFSConstants.DotGVFS.TempRoot);
             this.GitStatusCacheFolder = Path.Combine(this.DotGVFSRoot, GVFSConstants.DotGVFS.GitStatusCache.Name);
             this.GitStatusCachePath = Path.Combine(this.DotGVFSRoot, GVFSConstants.DotGVFS.GitStatusCache.CachePath);
             this.GVFSLogsRoot = Path.Combine(this.EnlistmentRoot, GVFSConstants.DotGVFS.LogPath);

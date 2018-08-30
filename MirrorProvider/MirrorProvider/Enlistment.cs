@@ -8,7 +8,7 @@ namespace MirrorProvider
         {
             this.EnlistmentRoot = root;
             this.DotMirrorRoot = Path.Combine(root, ".mirror");
-            this.TempRoot = Path.Combine(root, ".temp");
+            this.TempRoot = Path.Combine(this.DotMirrorRoot, ".staging");
             this.SrcRoot = Path.Combine(root, "src");
 
             this.ConfigFile = Path.Combine(this.DotMirrorRoot, "config");

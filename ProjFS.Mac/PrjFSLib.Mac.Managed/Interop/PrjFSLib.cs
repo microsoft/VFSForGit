@@ -11,6 +11,7 @@ namespace PrjFSLib.Mac.Interop
         [DllImport(PrjFSLibPath, EntryPoint = "PrjFS_StartVirtualizationInstance")]
         public static extern Result StartVirtualizationInstance(
             string virtualizationRootFullPath,
+            string temporaryDirectoryFullPath,
             Callbacks callbacks,
             uint poolThreadCount);
 

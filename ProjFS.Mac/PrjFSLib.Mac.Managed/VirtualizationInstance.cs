@@ -27,6 +27,7 @@ namespace PrjFSLib.Mac
 
         public virtual Result StartVirtualizationInstance(
             string virtualizationRootFullPath,
+            string temporaryDirectoryFullPath,
             uint poolThreadCount)
         {
             Interop.Callbacks callbacks = new Interop.Callbacks
@@ -38,6 +39,7 @@ namespace PrjFSLib.Mac
 
             return Interop.PrjFSLib.StartVirtualizationInstance(
                 virtualizationRootFullPath,
+                temporaryDirectoryFullPath,
                 callbacks,
                 poolThreadCount);
         }

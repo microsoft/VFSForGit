@@ -73,6 +73,7 @@ static const char* NotificationTypeToString(PrjFS_NotificationType notificationT
 // State
 static io_connect_t s_kernelServiceConnection = IO_OBJECT_NULL;
 static std::string s_virtualizationRootFullPath;
+static std::string s_temporaryDirectoryFullPath;
 static PrjFS_Callbacks s_callbacks;
 static dispatch_queue_t s_messageQueueDispatchQueue;
 static dispatch_queue_t s_kernelRequestHandlingConcurrentQueue;
@@ -90,6 +91,7 @@ static std::mutex s_PendingRequestMessageMutex;
 
 PrjFS_Result PrjFS_StartVirtualizationInstance(
     _In_    const char*                             virtualizationRootFullPath,
+    _In_    const char*                             temporaryDirectoryFullPath,
     _In_    PrjFS_Callbacks                         callbacks,
     _In_    unsigned int                            poolThreadCount)
 {
@@ -97,6 +99,7 @@ PrjFS_Result PrjFS_StartVirtualizationInstance(
     std::cout
         << "PrjFS_StartVirtualizationInstance("
         << virtualizationRootFullPath << ", "
+        << temporaryDirectoryFullPath << ", "
         << callbacks.EnumerateDirectory << ", "
         << callbacks.GetFileStream << ", "
         << callbacks.NotifyOperation << ", "
@@ -136,19 +139,13 @@ PrjFS_Result PrjFS_StartVirtualizationInstance(
     }
     
     s_virtualizationRootFullPath = virtualizationRootFullPath;
+    s_temporaryDirectoryFullPath = temporaryDirectoryFullPath;
     s_callbacks = callbacks;
-    
-    std::string providerTemporaryPath = virtualizationRootFullPath;
-    size_t last_slash = providerTemporaryPath.find_last_of('/');
-    if (last_slash != std::string::npos)
-    {
-        providerTemporaryPath.resize(last_slash + 1);
-        providerTemporaryPath += ".temp";
-    }
-    errno_t error = RegisterVirtualizationRootPath(virtualizationRootFullPath, providerTemporaryPath.c_str());
+
+    errno_t error = RegisterVirtualizationRootPath(virtualizationRootFullPath, temporaryDirectoryFullPath);
     if (error != 0)
     {
-        cerr << "Registering virtualization root failed: " << error << ", " << strerror(error) << " root path: " << virtualizationRootFullPath << ", temp path " << providerTemporaryPath << endl;
+        cerr << "Registering virtualization root failed: " << error << ", " << strerror(error) << " root path: " << virtualizationRootFullPath << ", temp path " << temporaryDirectoryFullPath << endl;
         return PrjFS_Result_EInvalidOperation;
     }
     
@@ -266,16 +263,14 @@ PrjFS_Result PrjFS_WritePlaceholderDirectory(
         return PrjFS_Result_EInvalidArgs;
     }
     
-    char tempPath[PrjFSMaxPath];
     char intermediatePath[PrjFSMaxPath];
-    char fullPath[PrjFSMaxPath];
+    char finalPath[PrjFSMaxPath];
     char* baseName;
     char baseNameBuffer[MAXPATHLEN];
     
     baseName = basename_r(relativePath, baseNameBuffer);
-    CombinePaths(s_virtualizationRootFullPath.c_str(), "../.temp", tempPath);
-    CombinePaths(tempPath, baseName, intermediatePath);
-    CombinePaths(s_virtualizationRootFullPath.c_str(), relativePath, fullPath);
+    CombinePaths(s_temporaryDirectoryFullPath.c_str(), baseName, intermediatePath);
+    CombinePaths(s_virtualizationRootFullPath.c_str(), relativePath, finalPath);
     
     if (mkdir(intermediatePath, 0777))
     {
@@ -287,7 +282,7 @@ PrjFS_Result PrjFS_WritePlaceholderDirectory(
         goto CleanupAndFail;
     }
     
-    if (rename(intermediatePath, fullPath))
+    if (rename(intermediatePath, finalPath))
     {
         goto CleanupAndFail;
     }
@@ -323,17 +318,14 @@ PrjFS_Result PrjFS_WritePlaceholderFile(
     
     PrjFSFileXAttrData fileXattrData = {};
     
-    char tempPath[PrjFSMaxPath];
     char intermediatePath[PrjFSMaxPath];
     char finalPath[PrjFSMaxPath];
     char* baseName;
     char baseNameBuffer[MAXPATHLEN];
     
     baseName = basename_r(relativePath, baseNameBuffer);
-    CombinePaths(s_virtualizationRootFullPath.c_str(), "../.temp", tempPath);
-    CombinePaths(tempPath, baseName, intermediatePath);
+    CombinePaths(s_temporaryDirectoryFullPath.c_str(), baseName, intermediatePath);
     CombinePaths(s_virtualizationRootFullPath.c_str(), relativePath, finalPath);
-    
     
     // Mode "wbx" means
     //  - Create an empty file if none exists
