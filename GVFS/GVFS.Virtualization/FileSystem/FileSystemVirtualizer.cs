@@ -93,6 +93,12 @@ namespace GVFS.Virtualization.FileSystem
 
         public abstract FileSystemResult DeleteFile(string relativePath, UpdatePlaceholderType updateFlags, out UpdateFailureReason failureReason);
 
+        public abstract FileSystemResult WritePlaceholder(
+            string relativePath, 
+            long endOfFile,
+            bool isDirectory,
+            string shaContentId);
+
         public abstract FileSystemResult UpdatePlaceholderIfNeeded(
             string relativePath,
             DateTime creationTime,

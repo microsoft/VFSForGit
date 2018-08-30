@@ -35,6 +35,7 @@ namespace GVFS.UnitTests.Mock.Virtualization.Projection
             }
 
             this.PlaceholdersCreated = new ConcurrentHashSet<string>();
+            this.ExpandedFolders = new ConcurrentHashSet<string>();
             this.MockFileModes = new ConcurrentDictionary<string, ushort>();
 
             this.unblockGetProjectedItems = new ManualResetEvent(true);
@@ -52,6 +53,8 @@ namespace GVFS.UnitTests.Mock.Virtualization.Projection
         public bool EnumerationInMemory { get; set; }
 
         public ConcurrentHashSet<string> PlaceholdersCreated { get; }
+
+        public ConcurrentHashSet<string> ExpandedFolders { get; }
 
         public ConcurrentDictionary<string, ushort> MockFileModes { get; }
 
@@ -229,6 +232,11 @@ namespace GVFS.UnitTests.Mock.Virtualization.Projection
 
             parentFolderPath = null;
             return null;
+        }
+
+        public override void OnPlaceholderFolderExpanded(string relativePath)
+        {
+            this.ExpandedFolders.Add(relativePath);
         }
 
         public override void OnPlaceholderFileCreated(string virtualPath, string sha)

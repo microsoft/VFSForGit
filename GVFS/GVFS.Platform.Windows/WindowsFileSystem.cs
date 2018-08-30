@@ -6,6 +6,7 @@ namespace GVFS.Platform.Windows
     public partial class WindowsFileSystem : IPlatformFileSystem
     {
         public bool SupportsFileMode { get; } = false;
+        public bool EnumerationExpandsDirectories { get; } = false;
 
         public void FlushFileBuffers(string path)
         {

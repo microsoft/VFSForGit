@@ -1,6 +1,7 @@
 ﻿using GVFS.Common;
 using GVFS.Platform.Mac;
 using GVFS.Tests.Should;
+using GVFS.UnitTests.Category;
 using GVFS.UnitTests.Mock.Git;
 using GVFS.UnitTests.Mock.Mac;
 using GVFS.UnitTests.Mock.Virtualization.Background;
@@ -228,6 +229,7 @@ namespace GVFS.UnitTests.Platform.Mac
                 mockVirtualization.OnEnumerateDirectory(1, "test", triggeringProcessId: 1, triggeringProcessName: "UnitTests").ShouldEqual(Result.Success);
                 mockVirtualization.CreatedPlaceholders.ShouldContain(
                     kvp => kvp.Key.Equals(Path.Combine("test", "test.txt"), StringComparison.OrdinalIgnoreCase) && kvp.Value == FileMode644);
+                gitIndexProjection.ExpandedFolders.ShouldMatchInOrder("test");
                 fileSystemCallbacks.Stop();
             }
         }
@@ -311,6 +313,7 @@ namespace GVFS.UnitTests.Platform.Mac
         }
 
         [TestCase]
+        [Category(CategoryConstants.ExceptionExpected)]
         public void OnGetFileStreamReturnsErrorWhenWriteFileContentsFails()
         {
             using (MockBackgroundFileSystemTaskRunner backgroundTaskRunner = new MockBackgroundFileSystemTaskRunner())

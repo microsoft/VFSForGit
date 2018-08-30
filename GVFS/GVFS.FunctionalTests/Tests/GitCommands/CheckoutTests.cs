@@ -87,6 +87,24 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
             GENERIC_READ = 2147483648
         }
 
+        // WIP: This test occasionally fails
+        [TestCase]
+        [Category(Categories.MacTODO.M3)]
+        public void ReadDeepFilesAfterCheckout()
+        {
+            // In commit 8df701986dea0a5e78b742d2eaf9348825b14d35 the CheckoutNewBranchFromStartingPointTest files were not present
+            this.ValidateGitCommand("checkout 8df701986dea0a5e78b742d2eaf9348825b14d35");
+
+            // In commit cd5c55fea4d58252bb38058dd3818da75aff6685 the CheckoutNewBranchFromStartingPointTest files were present
+            this.ValidateGitCommand("checkout cd5c55fea4d58252bb38058dd3818da75aff6685");
+
+            this.FileShouldHaveContents("TestFile1 \r\n", "GitCommandsTests", "CheckoutNewBranchFromStartingPointTest", "test1.txt");
+            this.FileShouldHaveContents("TestFile2 \r\n", "GitCommandsTests", "CheckoutNewBranchFromStartingPointTest", "test2.txt");
+
+            this.ValidateGitCommand("status");
+        }
+
+        // WIP: This test occasionally fails
         [TestCase]
         [Category(Categories.MacTODO.M3)]
         public void CheckoutNewBranchFromStartingPointTest()

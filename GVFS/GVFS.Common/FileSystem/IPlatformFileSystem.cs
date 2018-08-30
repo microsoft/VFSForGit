@@ -3,6 +3,7 @@
     public interface IPlatformFileSystem
     {
         bool SupportsFileMode { get; }
+        bool EnumerationExpandsDirectories { get; }
         void FlushFileBuffers(string path);
         void MoveAndOverwriteFile(string sourceFileName, string destinationFilename);
         void CreateHardLink(string newLinkFileName, string existingFileName);

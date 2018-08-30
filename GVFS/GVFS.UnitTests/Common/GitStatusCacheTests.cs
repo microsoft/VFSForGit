@@ -2,6 +2,7 @@
 using GVFS.Common.Git;
 using GVFS.Common.NamedPipes;
 using GVFS.Tests.Should;
+using GVFS.UnitTests.Category;
 using GVFS.UnitTests.Mock.Common;
 using GVFS.UnitTests.Mock.FileSystem;
 using GVFS.UnitTests.Mock.Git;
@@ -108,6 +109,7 @@ namespace GVFS.UnitTests.Common
         }
 
         [TestCase]
+        [Category(CategoryConstants.ExceptionExpected)]
         public void CacheFileErrorShouldBlock()
         {
             this.fileSystem.DeleteFileThrowsException = true;

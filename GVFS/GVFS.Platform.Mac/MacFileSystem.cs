@@ -7,6 +7,7 @@ namespace GVFS.Platform.Mac
     public partial class MacFileSystem : IPlatformFileSystem
     {
         public bool SupportsFileMode { get; } = true;
+        public bool EnumerationExpandsDirectories { get; } = true;
 
         public void FlushFileBuffers(string path)
         {
