@@ -16,8 +16,6 @@ namespace GVFS.FunctionalTests.FileSystemRunners
             new[]
             {
                 new object[] { new SystemIORunner() },
-                new object[] { new CmdRunner() },
-                new object[] { new PowerShellRunner() },
                 new object[] { new BashRunner() },
             };
 

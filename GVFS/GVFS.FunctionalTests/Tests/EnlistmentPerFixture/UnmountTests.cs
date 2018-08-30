@@ -34,6 +34,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
         }
 
         [TestCase]
+        [Category(Categories.MacTODO.NeedsLockHolder)]
         public void UnmountWaitsForLock()
         {
             ManualResetEventSlim lockHolder = GitHelpers.AcquireGVFSLock(this.Enlistment, out _);
@@ -50,6 +51,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
         }
 
         [TestCase]
+        [Category(Categories.MacTODO.NeedsLockHolder)]
         public void UnmountSkipLock()
         {
             ManualResetEventSlim lockHolder = GitHelpers.AcquireGVFSLock(this.Enlistment, out _, Timeout.Infinite, true);

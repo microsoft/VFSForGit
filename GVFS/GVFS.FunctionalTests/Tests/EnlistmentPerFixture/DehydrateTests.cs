@@ -11,6 +11,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
 {
     [TestFixture]
     [Category(Categories.FullSuiteOnly)]
+    [Category(Categories.MacTODO.M4)]
     public class DehydrateTests : TestsWithEnlistmentPerFixture
     {
         private const int GVFSGenericError = 3;

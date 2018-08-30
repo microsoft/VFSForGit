@@ -12,7 +12,6 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
 {
     [TestFixtureSource(typeof(FileSystemRunner), FileSystemRunner.TestRunners)]
     [Category(Categories.GitCommands)]
-    [Category(Categories.Mac.M2)]
     public class GitMoveRenameTests : TestsWithEnlistmentPerFixture
     {
         private string testFileContents = "0123456789";
@@ -92,7 +91,6 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
         }
 
         [TestCase, Order(5)]
-        [Category(Categories.Mac.M3)]
         public void GitStatusAndObjectAfterGitAdd()
         {
             string existingFilename = "test.cs";
@@ -128,7 +126,6 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
         }
 
         [TestCase, Order(6)]
-        [Category(Categories.Mac.M3)]
         public void GitStatusAfterUnstage()
         {
             string existingFilename = "test.cs";

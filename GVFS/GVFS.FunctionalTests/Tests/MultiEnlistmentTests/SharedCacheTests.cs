@@ -14,6 +14,7 @@ namespace GVFS.FunctionalTests.Tests.MultiEnlistmentTests
 {
     [TestFixture]
     [Category(Categories.FullSuiteOnly)]
+    [Category(Categories.MacTODO.M3)]
     public class SharedCacheTests : TestsWithMultiEnlistment
     {
         private const string WellKnownFile = "Readme.md";

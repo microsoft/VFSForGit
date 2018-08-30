@@ -22,7 +22,6 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
         }
 
         [TestCase, Order(1)]
-        [Category(Categories.Mac.M2)]
         public void GitStatus()
         {
             GitHelpers.CheckGitCommandAgainstGVFSRepo(
@@ -33,14 +32,12 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
         }
 
         [TestCase, Order(2)]
-        [Category(Categories.Mac.M2)]
         public void GitLog()
         {
             GitHelpers.CheckGitCommandAgainstGVFSRepo(this.Enlistment.RepoRoot, "log -n1", "commit", "Author:", "Date:");
         }
 
         [TestCase, Order(3)]
-        [Category(Categories.Mac.M2)]
         public void GitBranch()
         {
             GitHelpers.CheckGitCommandAgainstGVFSRepo(
@@ -51,6 +48,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
         }
 
         [TestCase, Order(4)]
+        [Category(Categories.MacTODO.NeedsLockHolder)]
         public void GitCommandWaitsWhileAnotherIsRunning()
         {
             int pid;
@@ -61,6 +59,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
         }
 
         [TestCase, Order(5)]
+        [Category(Categories.MacTODO.NeedsLockHolder)]
         public void GitAliasNamedAfterKnownCommandAcquiresLock()
         {
             string alias = nameof(this.GitAliasNamedAfterKnownCommandAcquiresLock);
@@ -73,6 +72,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
         }
 
         [TestCase, Order(6)]
+        [Category(Categories.MacTODO.NeedsLockHolder)]
         public void GitAliasInSubfolderNamedAfterKnownCommandAcquiresLock()
         {
             string alias = nameof(this.GitAliasInSubfolderNamedAfterKnownCommandAcquiresLock);
@@ -89,6 +89,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
         }
 
         [TestCase, Order(7)]
+        [Category(Categories.MacTODO.NeedsLockHolder)]
         public void ExternalLockHolderReportedWhenBackgroundTasksArePending()
         {
             int pid;
@@ -106,6 +107,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
         }
 
         [TestCase, Order(8)]
+        [Category(Categories.MacTODO.NeedsLockHolder)]
         public void OrphanedGVFSLockIsCleanedUp()
         {
             int pid;

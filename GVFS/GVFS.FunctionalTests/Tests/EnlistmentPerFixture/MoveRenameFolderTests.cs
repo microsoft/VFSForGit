@@ -6,7 +6,6 @@ using System.IO;
 namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
 {
     [TestFixtureSource(typeof(FileSystemRunner), FileSystemRunner.TestRunners)]
-    [Category(Categories.Mac.M2TODO)]
     public class MoveRenameFolderTests : TestsWithEnlistmentPerFixture
     {       
         private const string TestFileContents =
@@ -40,12 +39,14 @@ BOOL APIENTRY DllMain( HMODULE hModule,
             this.fileSystem = fileSystem;
         }
 
+        // WindowsOnly because renames of partial folders are blocked only on Windows
         [TestCase]
+        [Category(Categories.WindowsOnly)]
         public void RenameFolderShouldFail()
         {
             string testFileName = "RenameFolderShouldFail.cpp";
-            string oldFolderName = "Test_EPF_MoveRenameFolderTests\\RenameFolderShouldFail\\source";
-            string newFolderName = "Test_EPF_MoveRenameFolderTests\\RenameFolderShouldFail\\sourcerenamed";
+            string oldFolderName = Path.Combine("Test_EPF_MoveRenameFolderTests", "RenameFolderShouldFail", "source");
+            string newFolderName = Path.Combine("Test_EPF_MoveRenameFolderTests", "RenameFolderShouldFail", "sourcerenamed");
             this.Enlistment.GetVirtualPathTo(newFolderName).ShouldNotExistOnDisk(this.fileSystem);
 
             this.fileSystem.MoveDirectory_RequestShouldNotBeSupported(this.Enlistment.GetVirtualPathTo(oldFolderName), this.Enlistment.GetVirtualPathTo(newFolderName));
@@ -57,13 +58,16 @@ BOOL APIENTRY DllMain( HMODULE hModule,
             this.Enlistment.GetVirtualPathTo(Path.Combine(oldFolderName, testFileName)).ShouldBeAFile(this.fileSystem).WithContents(TestFileContents);
         }
 
+        // This test requires expansion on PreDelete to be implemented
+        // MacOnly because renames of partial folders are blocked on Windows
         [TestCase]
-        [Ignore("Disabled until moving partial folders is supported")]
+        [Category(Categories.MacTODO.M2)]
+        [Category(Categories.MacOnly)]
         public void ChangeUnhydratedFolderName()
         {
             string testFileName = "ChangeUnhydratedFolderName.cpp";
-            string oldFolderName = "Test_EPF_MoveRenameFolderTests\\ChangeUnhydratedFolderName\\source";
-            string newFolderName = "Test_EPF_MoveRenameFolderTests\\ChangeUnhydratedFolderName\\source_renamed";
+            string oldFolderName = Path.Combine("Test_EPF_MoveRenameFolderTests", "ChangeUnhydratedFolderName", "source");
+            string newFolderName = Path.Combine("Test_EPF_MoveRenameFolderTests", "ChangeUnhydratedFolderName", "source_renamed");
             this.Enlistment.GetVirtualPathTo(newFolderName).ShouldNotExistOnDisk(this.fileSystem);
 
             this.fileSystem.MoveDirectory(this.Enlistment.GetVirtualPathTo(oldFolderName), this.Enlistment.GetVirtualPathTo(newFolderName));
@@ -75,12 +79,15 @@ BOOL APIENTRY DllMain( HMODULE hModule,
             this.Enlistment.GetVirtualPathTo(Path.Combine(newFolderName, testFileName)).ShouldBeAFile(this.fileSystem).WithContents(TestFileContents);
         }
 
+        // This test requires expansion on PreDelete to be implemented
+        // MacOnly because renames of partial folders are blocked on Windows
         [TestCase]
-        [Ignore("Disabled until moving partial folders is supported")]
+        [Category(Categories.MacTODO.M2)]
+        [Category(Categories.MacOnly)]
         public void MoveUnhydratedFolderToNewFolder()
         {
             string testFileName = "MoveUnhydratedFolderToVirtualNTFSFolder.cpp";
-            string oldFolderName = "Test_EPF_MoveRenameFolderTests\\MoveUnhydratedFolderToVirtualNTFSFolder";
+            string oldFolderName = Path.Combine("Test_EPF_MoveRenameFolderTests", "MoveUnhydratedFolderToVirtualNTFSFolder");
 
             string newFolderName = "NewPerFixtureParent";
             this.Enlistment.GetVirtualPathTo(newFolderName).ShouldNotExistOnDisk(this.fileSystem);
@@ -97,14 +104,17 @@ BOOL APIENTRY DllMain( HMODULE hModule,
             this.Enlistment.GetVirtualPathTo(Path.Combine(movedFolderPath, testFileName)).ShouldBeAFile(this.fileSystem).WithContents(TestFileContents);
         }
 
+        // This test requires expansion on PreDelete to be implemented
+        // MacOnly because renames of partial folders are blocked on Windows
         [TestCase]
-        [Ignore("Disabled until moving partial folders is supported")]
+        [Category(Categories.MacTODO.M2)]
+        [Category(Categories.MacOnly)]
         public void MoveUnhydratedFolderToFullFolderInDotGitFolder()
         {
             string testFileName = "MoveUnhydratedFolderToFullFolderInDotGitFolder.cpp";
-            string oldFolderName = "Test_EPF_MoveRenameFolderTests\\MoveUnhydratedFolderToFullFolderInDotGitFolder";
+            string oldFolderName = Path.Combine("Test_EPF_MoveRenameFolderTests", "MoveUnhydratedFolderToFullFolderInDotGitFolder");
 
-            string newFolderName = ".git\\NewPerFixtureParent";
+            string newFolderName = Path.Combine(".git", "NewPerFixtureParent");
             this.Enlistment.GetVirtualPathTo(newFolderName).ShouldNotExistOnDisk(this.fileSystem);
             this.fileSystem.CreateDirectory(this.Enlistment.GetVirtualPathTo(newFolderName));
             this.Enlistment.GetVirtualPathTo(newFolderName).ShouldBeADirectory(this.fileSystem);
@@ -119,7 +129,6 @@ BOOL APIENTRY DllMain( HMODULE hModule,
         }
 
         [TestCase]
-        [Category(Categories.Mac.M2)]
         public void MoveFullFolderToFullFolderInDotGitFolder()
         {
             string fileContents = "Test contents for MoveFullFolderToFullFolderInDotGitFolder";
@@ -147,12 +156,15 @@ BOOL APIENTRY DllMain( HMODULE hModule,
             Path.Combine(movedFolderPath, testFileName).ShouldBeAFile(this.fileSystem).WithContents(fileContents);
         }
 
+        // This test requires expansion on PreDelete to be implemented
+        // MacOnly because renames of partial folders are blocked on Windows
         [TestCase]
-        [Ignore("Disabled until moving partial folders is supported")]
+        [Category(Categories.MacTODO.M2)]
+        [Category(Categories.MacOnly)]
         public void MoveAndRenameUnhydratedFolderToNewFolder()
         {
             string testFileName = "MoveAndRenameUnhydratedFolderToNewFolder.cpp";
-            string oldFolderName = "Test_EPF_MoveRenameFolderTests\\MoveAndRenameUnhydratedFolderToNewFolder";
+            string oldFolderName = Path.Combine("Test_EPF_MoveRenameFolderTests", "MoveAndRenameUnhydratedFolderToNewFolder");
 
             string newFolderName = "NewPerTestCaseParent";
             this.Enlistment.GetVirtualPathTo(newFolderName).ShouldNotExistOnDisk(this.fileSystem);
@@ -169,12 +181,15 @@ BOOL APIENTRY DllMain( HMODULE hModule,
             this.Enlistment.GetVirtualPathTo(Path.Combine(movedFolderPath, testFileName)).ShouldBeAFile(this.fileSystem).WithContents(TestFileContents);
         }
 
+        // This test requires expansion on PreDelete to be implemented
+        // MacOnly because renames of partial folders are blocked on Windows
         [TestCase]
-        [Ignore("Disabled until moving partial folders is supported")]
+        [Category(Categories.MacTODO.M2)]
+        [Category(Categories.MacOnly)]
         public void MoveFolderWithUnhydratedAndFullContents()
         {
             string testFileName = "MoveFolderWithUnhydratedAndFullContents.cs";
-            string oldFolderName = "Test_EPF_MoveRenameFolderTests\\MoveFolderWithUnhydratedAndFullContents";
+            string oldFolderName = Path.Combine("Test_EPF_MoveRenameFolderTests", "MoveFolderWithUnhydratedAndFullContents");
 
             string newFile = "TestFile.txt";
             string newFileContents = "Contents of TestFile.txt";

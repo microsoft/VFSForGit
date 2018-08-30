@@ -71,7 +71,14 @@ namespace PrjFSLib.Mac
             UpdateType updateFlags,
             out UpdateFailureCause failureCause)
         {
-            throw new NotImplementedException();
+            UpdateFailureCause deleteFailureCause = UpdateFailureCause.NoFailure;
+            Result result = Interop.PrjFSLib.DeleteFile(
+                relativePath,
+                updateFlags,
+                ref deleteFailureCause);
+
+            failureCause = deleteFailureCause;
+            return result;
         }
 
         public virtual Result WritePlaceholderDirectory(
@@ -106,10 +113,28 @@ namespace PrjFSLib.Mac
             byte[] providerId,
             byte[] contentId,
             ulong fileSize,
+            ushort fileMode,
             UpdateType updateFlags,
             out UpdateFailureCause failureCause)
         {
-            throw new NotImplementedException();
+            if (providerId.Length != Interop.PrjFSLib.PlaceholderIdLength ||
+                contentId.Length != Interop.PrjFSLib.PlaceholderIdLength)
+            {
+                throw new ArgumentException();
+            }
+
+            UpdateFailureCause updateFailureCause = UpdateFailureCause.NoFailure;
+            Result result = Interop.PrjFSLib.UpdatePlaceholderFileIfNeeded(
+                relativePath,
+                providerId,
+                contentId,
+                fileSize,
+                fileMode,
+                updateFlags,
+                ref updateFailureCause);
+
+            failureCause = updateFailureCause;
+            return result;
         }
 
         public virtual Result CompleteCommand(
