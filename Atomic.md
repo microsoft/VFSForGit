@@ -37,13 +37,13 @@ WritePlaceholderDirectory:
 
 WritePlaceholderFile:
 
--   Fopen() fails to create a file
+-   fopen() fails to create a file
 
     -   This is retriable today as a second attempt should see the
          IsEmpty bit on the parent directory and call WritePlaceholderFile
          again. 
 
--   Ftruncate fails to expand the file to the correct size (or is never
+-   ftruncate() fails to expand the file to the correct size (or is never
      reached because of a crash)
 
     -   We have an incomplete placeholder file in the virtualization root
@@ -90,7 +90,7 @@ WritePlaceholderFile:
     -   This file will never be expanded as the kext will exit
             when we do not see the IsEmpty bit
 
--   Chmod() fails or is never reached due to a crash
+-   chmod() fails or is never reached due to a crash
 
     -   The default mode should be 755 (unless a user has played with
          umask, but this hole is out of scope for this design) so
@@ -107,14 +107,13 @@ Proposed Solution:
 ------------------
 
 This solution creates placeholders in a .staging directory within the
-provider's directory (.gvfs/.mirror), marks them up and then uses rename()
+provider's directory (.gvfs or .mirror), marks them up and then uses rename()
 to move them into the virtualization root.
 
-A sample of this change is implemented here (user mode component only):
-https://github.com/nickgra/VFSForGit/tree/atomic
+In order to protect this directory from user tampering, we will have the kext block accesses to this directory that are not coming from the special identity that the mount process will use (this will be described in a separate design document).
 
 Currently, the provider registers its virtualization root with the kext
-at clone time. We have code today that will log on files detected
+at mount time. We have code today that will log on files detected
 outside of the virtualization root, which could be helpful for
 diagnosing customer issues.
 
@@ -163,12 +162,12 @@ WritePlaceholderDirectory:
 
 WritePlaceholderFile:
 
--   Fopen() fails to create a file
+-   fopen() fails to create a file
 
     -   We can simply retry and have this succeed. Nothing was created
         in .staging
 
--   Ftruncate fails to expand the file to the correct size (or is never
+-   ftruncate() fails to expand the file to the correct size (or is never
      reached because of a crash)
 
     -   We can simply retry and have this succeed. The file written in
@@ -199,7 +198,7 @@ WritePlaceholderFile:
         -   An incomplete placeholder is in .staging that can be safely
             overwritten/deleted when the enumeration is retried
 
--   Chmod() fails or is never reached due to a crash
+-   chmod() fails or is never reached due to a crash
 
     -   We can retry and have this succeed as the placeholder hasn't
         left .staging yet
@@ -211,14 +210,15 @@ WritePlaceholderFile:
             the virtualization root. The placeholder will be overwritten
             as part of the retry
 
-With this approach, each placeholder file that will be created will be moved in one at a time to their final location rather than moving all placeholders that may be present in a directory at once. 
+With this approach, as we expand a directory, each placeholder file that will be created will be moved in one at a time to their final location rather than moving all placeholders that may be present in a directory at once. 
 
-In a case where we crash (or the machine crashes, or the user kills the mount process) while expanding a placeholder directory, we will be able to recover by calling UpdatePlaceholderInformation on files that were enumerated by the previous attempt and creating the rest of the placeholders as expected. 
+Designs where we moved an entire directory's worth of placeholders were considered, but were tabled in favor of this approach (making any expansion/hydration retriable). Atomic swapping of directories with rename_xp() causes xattrs and bits to be swapped as well, which would add additional complications. We were unable to demonstrate any scenarios that wouldn't be covered by the retriable behavior.
 
-We need to call UpdatePlaceholderInformation in order to prevent data loss in scenarios where users manage to create files in the partially enumerated directory (if the kext is unmounted, the user can write files into the directory that will look like full files to VFSForGit).
-UpdatePlaceholderInformation currently will add any file to ModifiedPaths (which will make 'git status' begin tracking it, if any changes are present) and will one day be smart enough to only update files that are still placeholders.
+In a case where we crash (or the machine crashes, or the user kills the mount process) while expanding a placeholder directory, we will be able to recover by calling UpdatePlaceholderIfNeeded on files that were enumerated by the previous attempt and creating the rest of the placeholders as expected. 
 
-Designs where we moved an entire directory's worth of placeholders were considered, but were tabled in favor of this approach (making any expansion/hydration retriable).
+We need to call UpdatePlaceholderIfNeeded in order to prevent data loss in scenarios where users manage to create files in the partially enumerated directory (if the kext is unmounted, the user can write files into the directory that will look like full files to VFSForGit).
+UpdatePlaceholderIfNeeded will (in the future) fail if the file is not currently a placeholder.
+If this happens then VFSForGit's expansion code (that is calling UpdatePlaceholderIfNeeded) will need to update ModifiedPaths.
 
 All of the potential holes identified above are filled by this design,
 so I believe this to be our best bet to create placeholders in an atomic
@@ -232,10 +232,7 @@ Miscellanea/Things to Validate
 
 -   Placeholders that are being created in .staging should be given a
     temporary name (we'll rename() into the actual name). If we give
-    them the exact name of the final file, there is a hole where some
-    issue occurs, they get abandoned in the .staging directory. Once that
-    happens, we'll encounter issues on a retry where we try creating a
-    file where one exists with the same name.
+    them the exact name of the final file, there is a hole where directories containing items with the same base name will be written into the temporary directory and risk colliding with each other.
 
 -   A directory that we're filling with placeholders that has files not
     owned by us (no bits set) should not have changes made to the files
