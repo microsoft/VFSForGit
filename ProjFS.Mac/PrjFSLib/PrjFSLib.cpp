@@ -65,7 +65,9 @@ static Message ParseMessageMemory(const void* messageMemory, uint32_t size);
 
 static void ClearMachNotification(mach_port_t port);
 
+#ifdef DEBUG
 static const char* NotificationTypeToString(PrjFS_NotificationType notificationType);
+#endif
 
 // State
 static io_connect_t s_kernelServiceConnection = IO_OBJECT_NULL;
@@ -856,6 +858,7 @@ static void ClearMachNotification(mach_port_t port)
     mach_msg(&msg.msgHdr, MACH_RCV_MSG | MACH_RCV_TIMEOUT, 0, sizeof(msg), port, 0, MACH_PORT_NULL);
 }
 
+#ifdef DEBUG
 static const char* NotificationTypeToString(PrjFS_NotificationType notificationType)
 {
     switch(notificationType)
@@ -884,3 +887,4 @@ static const char* NotificationTypeToString(PrjFS_NotificationType notificationT
             return STRINGIFY(PrjFS_NotificationType_FileDeleted);
     }
 }
+#endif
