@@ -56,6 +56,11 @@ namespace GVFS.Platform.Mac
             return MacPlatform.IsProcessActiveImplementation(processId);
         }
 
+        public override void IsServiceInstalledAndRunning(string name, out bool installed, out bool running)
+        {
+            throw new NotImplementedException();
+        }
+
         public override void StartBackgroundProcess(string programName, string[] args)
         {
             ProcessLauncher.StartBackgroundProcess(programName, args);

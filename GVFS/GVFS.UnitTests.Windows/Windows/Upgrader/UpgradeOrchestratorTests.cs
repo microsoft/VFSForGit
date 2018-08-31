@@ -49,6 +49,7 @@ namespace GVFS.UnitTests.Windows.Upgrader
                     "PreCheck_DevelopmentVersion",
                     "PreCheck_Elevated",
                     "PreCheck_ProjFSInboxed",
+                    "PreCheck_IsServiceRunning",
                     "UnmountAll",
                     "PreCheck_BlockingProcessRunning",
                     "DownloadAsset_GVFS",

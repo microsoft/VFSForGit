@@ -37,7 +37,7 @@ namespace GVFS.Common
 
         public abstract void StartBackgroundProcess(string programName, string[] args);
         public abstract bool IsProcessActive(int processId);
-
+        public abstract void IsServiceInstalledAndRunning(string name, out bool installed, out bool running);
         public abstract string GetNamedPipeName(string enlistmentRoot);
         public abstract NamedPipeServerStream CreatePipeByName(string pipeName);
 
