@@ -9,7 +9,6 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerTestCase
 {
     [TestFixture]
     [Category(Categories.FullSuiteOnly)]
-    [Category(Categories.Mac.M1)]
     public class PersistedWorkingDirectoryTests : TestsWithEnlistmentPerTestCase
     {
         [TestCaseSource(typeof(FileSystemRunner), FileSystemRunner.TestRunners)]

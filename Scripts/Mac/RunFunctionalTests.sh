@@ -15,4 +15,4 @@ sudo mkdir /GVFS.FT
 sudo chown $USER /GVFS.FT
 
 $SRCDIR/ProjFS.Mac/Scripts/LoadPrjFSKext.sh
-$PUBLISHDIR/GVFS.FunctionalTests --full-suite --mac-only
+$PUBLISHDIR/GVFS.FunctionalTests --full-suite

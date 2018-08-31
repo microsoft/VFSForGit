@@ -10,7 +10,7 @@ using System.Linq;
 namespace GVFS.FunctionalTests.Tests.EnlistmentPerTestCase
 {
     [TestFixture]
-    [Category(Categories.Mac.M2TODO)]
+    [Category(Categories.MacTODO.M2)]
     public class PersistedModifiedPathsTests : TestsWithEnlistmentPerTestCase
     {
         private static readonly string FileToAdd = Path.Combine("GVFS", "TestAddFile.txt");

@@ -5,7 +5,8 @@ using NUnit.Framework;
 namespace GVFS.FunctionalTests.Tests.GitCommands
 {
     [TestFixture]
-    [Category(Categories.Mac.M3)]
+    [Category(Categories.GitCommands)]
+    [Category(Categories.MacTODO.M3)]
     public class HashObjectTests : GitRepoTests
     {
         public HashObjectTests() : base(enlistmentPerTest: false)

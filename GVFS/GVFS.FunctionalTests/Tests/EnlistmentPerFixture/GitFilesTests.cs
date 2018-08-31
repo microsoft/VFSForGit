@@ -12,7 +12,6 @@ using System.Threading;
 namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
 {
     [TestFixtureSource(typeof(FileSystemRunner), FileSystemRunner.TestRunners)]
-    [Category(Categories.Mac.M2)]
     public class GitFilesTests : TestsWithEnlistmentPerFixture
     {
         private FileSystemRunner fileSystem;
@@ -66,12 +65,12 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
         }
 
         [TestCase, Order(3)]
-        [Category(Categories.Mac.M2TODO)]
+        [Category(Categories.MacTODO.M2)]
         public void CreateFileInFolderTest()
         {
             string folderName = "folder2";
             string fileName = "file2.txt";
-            string filePath = folderName + "\\" + fileName;
+            string filePath = Path.Combine(folderName, fileName);
 
             this.Enlistment.GetVirtualPathTo(filePath).ShouldNotExistOnDisk(this.fileSystem);
             GVFSHelpers.ModifiedPathsShouldNotContain(this.fileSystem, this.Enlistment.DotGVFSRoot, filePath);
@@ -87,7 +86,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
         }
 
         [TestCase, Order(4)]
-        [Category(Categories.Mac.M2TODO)]
+        [Category(Categories.MacTODO.M3)]
         public void RenameEmptyFolderTest()
         {
             string folderName = "folder3a";
@@ -108,7 +107,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
         }
 
         [TestCase, Order(5)]
-        [Category(Categories.Mac.M2TODO)]
+        [Category(Categories.MacTODO.M2)]
         public void RenameFolderTest()
         {
             string folderName = "folder4a";
@@ -141,7 +140,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
         }
 
         [TestCase, Order(6)]
-        [Category(Categories.Mac.M2TODO)]
+        [Category(Categories.MacTODO.M2)]
         public void CaseOnlyRenameOfNewFolderKeepsExcludeEntries()
         {
             string[] expectedModifiedPathsEntries =
@@ -189,9 +188,8 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
             GVFSHelpers.ModifiedPathsShouldNotContain(this.fileSystem, this.Enlistment.DotGVFSRoot, gitFileToCheck);
         }
 
-        // TODO(Mac): Enable this test once the LockHolder is converted to .NET Core
         [TestCase, Order(8)]
-        [Category(Categories.Mac.M2TODO)]
+        [Category(Categories.MacTODO.NeedsLockHolder)]
         public void ModifiedFileWillGetAddedToModifiedPathsFile()
         {
             string gitFileToTest = "GVFS/GVFS.Common/RetryWrapper.cs";
@@ -337,7 +335,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
         }
 
         [TestCase, Order(15)]
-        [Category(Categories.Mac.M2TODO)]
+        [Category(Categories.MacTODO.M2)]
         public void SupersededFileAddedToSparseCheckoutAndSkipWorktreeBitCleared()
         {
             string fileToSupersedeEntry = "GVFlt_FileOperationTest/WriteAndVerify.txt";

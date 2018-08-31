@@ -191,8 +191,9 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
             this.FileSystem.CreateEmptyFile(controlFile);
         }
 
-        protected void CreateFile(string filePath, string content)
+        protected void CreateFile(string content, params string[] filePathPaths)
         {
+            string filePath = Path.Combine(filePathPaths);
             string virtualFile = Path.Combine(this.Enlistment.RepoRoot, filePath);
             string controlFile = Path.Combine(this.ControlGitRepo.RootPath, filePath);
             this.FileSystem.WriteAllText(virtualFile, content);
@@ -207,8 +208,9 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
             this.FileSystem.CreateDirectory(controlFolder);
         }
 
-        protected void EditFile(string filePath, string content)
+        protected void EditFile(string content, params string[] filePathParts)
         {
+            string filePath = Path.Combine(filePathParts);
             string virtualFile = Path.Combine(this.Enlistment.RepoRoot, filePath);
             string controlFile = Path.Combine(this.ControlGitRepo.RootPath, filePath);
             this.FileSystem.AppendAllText(virtualFile, content);
@@ -255,8 +257,9 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
             controlFileTo.ShouldBeAFile(this.FileSystem);
         }
 
-        protected void DeleteFile(string filePath)
+        protected void DeleteFile(params string[] filePathParts)
         {
+            string filePath = Path.Combine(filePathParts);
             string virtualFile = Path.Combine(this.Enlistment.RepoRoot, filePath);
             string controlFile = Path.Combine(this.ControlGitRepo.RootPath, filePath);
             this.FileSystem.DeleteFile(virtualFile);
@@ -265,8 +268,9 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
             controlFile.ShouldNotExistOnDisk(this.FileSystem);
         }
 
-        protected void DeleteFolder(string folderPath)
+        protected void DeleteFolder(params string[] folderPathParts)
         {
+            string folderPath = Path.Combine(folderPathParts);
             string virtualFolder = Path.Combine(this.Enlistment.RepoRoot, folderPath);
             string controlFolder = Path.Combine(this.ControlGitRepo.RootPath, folderPath);
             this.FileSystem.DeleteDirectory(virtualFolder);
@@ -287,48 +291,57 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
             controlFileFrom.ShouldNotExistOnDisk(this.FileSystem);
         }
 
-        protected void FolderShouldExist(string folderPath)
+        protected void FolderShouldExist(params string[] folderPathParts)
         {
+            string folderPath = Path.Combine(folderPathParts);
             string virtualFolder = Path.Combine(this.Enlistment.RepoRoot, folderPath);
             string controlFolder = Path.Combine(this.ControlGitRepo.RootPath, folderPath);
             virtualFolder.ShouldBeADirectory(this.FileSystem);
             controlFolder.ShouldBeADirectory(this.FileSystem);
         }
 
-        protected void FolderShouldExistAndHaveFile(string folderPath, string fileName)
+        protected void FolderShouldExistAndHaveFile(params string[] filePathParts)
         {
+            string filePath = Path.Combine(filePathParts);
+            string folderPath = Path.GetDirectoryName(filePath);
+            string fileName = Path.GetFileName(filePath);
+
             string virtualFolder = Path.Combine(this.Enlistment.RepoRoot, folderPath);
             string controlFolder = Path.Combine(this.ControlGitRepo.RootPath, folderPath);
             virtualFolder.ShouldBeADirectory(this.FileSystem).WithItems(fileName).Count().ShouldEqual(1);
             controlFolder.ShouldBeADirectory(this.FileSystem).WithItems(fileName).Count().ShouldEqual(1);
         }
 
-        protected void FolderShouldExistAndBeEmpty(string folderPath)
+        protected void FolderShouldExistAndBeEmpty(params string[] folderPathParts)
         {
+            string folderPath = Path.Combine(folderPathParts);
             string virtualFolder = Path.Combine(this.Enlistment.RepoRoot, folderPath);
             string controlFolder = Path.Combine(this.ControlGitRepo.RootPath, folderPath);
             virtualFolder.ShouldBeADirectory(this.FileSystem).WithNoItems();
             controlFolder.ShouldBeADirectory(this.FileSystem).WithNoItems();
         }
 
-        protected void ShouldNotExistOnDisk(string path)
+        protected void ShouldNotExistOnDisk(params string[] pathParts)
         {
+            string path = Path.Combine(pathParts);
             string virtualPath = Path.Combine(this.Enlistment.RepoRoot, path);
             string controlPath = Path.Combine(this.ControlGitRepo.RootPath, path);
             virtualPath.ShouldNotExistOnDisk(this.FileSystem);
             controlPath.ShouldNotExistOnDisk(this.FileSystem);
         }
 
-        protected void FileShouldHaveContents(string filePath, string contents)
+        protected void FileShouldHaveContents(string contents, params string[] filePathParts)
         {
+            string filePath = Path.Combine(filePathParts);
             string virtualFilePath = Path.Combine(this.Enlistment.RepoRoot, filePath);
             string controlFilePath = Path.Combine(this.ControlGitRepo.RootPath, filePath);
             virtualFilePath.ShouldBeAFile(this.FileSystem).WithContents(contents);
             controlFilePath.ShouldBeAFile(this.FileSystem).WithContents(contents);
         }
 
-        protected void FileContentsShouldMatch(string filePath)
+        protected void FileContentsShouldMatch(params string[] filePathPaths)
         {
+            string filePath = Path.Combine(filePathPaths);
             string virtualFilePath = Path.Combine(this.Enlistment.RepoRoot, filePath);
             string controlFilePath = Path.Combine(this.ControlGitRepo.RootPath, filePath);
             virtualFilePath.ShouldBeAFile(this.FileSystem).WithContents(controlFilePath.ShouldBeAFile(this.FileSystem).WithContents());
@@ -350,16 +363,18 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
             controlFolderPath.ShouldBeADirectory(this.FileSystem).WithCaseMatchingName(caseSensitiveName);
         }
 
-        protected void AppendAllText(string filePath, string content)
+        protected void AppendAllText(string content, params string[] filePathParts)
         {
+            string filePath = Path.Combine(filePathParts);
             string virtualFile = Path.Combine(this.Enlistment.RepoRoot, filePath);
             string controlFile = Path.Combine(this.ControlGitRepo.RootPath, filePath);
             this.FileSystem.AppendAllText(virtualFile, content);
             this.FileSystem.AppendAllText(controlFile, content);
         }
 
-        protected void ReplaceText(string filePath, string newContent)
+        protected void ReplaceText(string newContent, params string[] filePathParts)
         {
+            string filePath = Path.Combine(filePathParts);
             string virtualFile = Path.Combine(this.Enlistment.RepoRoot, filePath);
             string controlFile = Path.Combine(this.ControlGitRepo.RootPath, filePath);
             this.FileSystem.WriteAllText(virtualFile, newContent);
@@ -375,7 +390,7 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
 
         protected void ValidateFileDirectoryTest(string command, string commandBranch = DirectoryWithFileAfterBranch)
         {
-            this.EditFile("Readme.md", "Change file");
+            this.EditFile("Change file", "Readme.md");
             this.ValidateGitCommand("add --all");
             this.RunGitCommand("commit -m \"Some change\"");
             this.ValidateGitCommand($"{command} {commandBranch}");
@@ -401,88 +416,88 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
         protected void RunFileDirectoryWriteTest(string command, string commandBranch = DirectoryWithFileAfterBranch)
         {
             this.SetupForFileDirectoryTest(commandBranch);
-            this.EditFile("file.txt\\file.txt", "Change file");
+            this.EditFile("Change file", "file.txt", "file.txt");
             this.ValidateFileDirectoryTest(command, commandBranch);
         }
 
         protected void ReadConflictTargetFiles()
         {
-            this.FileContentsShouldMatch(@"Test_ConflictTests\AddedFiles\AddedByBothDifferentContent.txt");
-            this.FileContentsShouldMatch(@"Test_ConflictTests\AddedFiles\AddedByBothSameContent.txt");
-            this.FileContentsShouldMatch(@"Test_ConflictTests\AddedFiles\AddedByTarget.txt");
-            this.FileContentsShouldMatch(@"Test_ConflictTests\ModifiedFiles\ChangeInSource.txt");
-            this.FileContentsShouldMatch(@"Test_ConflictTests\ModifiedFiles\ChangeInTarget.txt");
-            this.FileContentsShouldMatch(@"Test_ConflictTests\ModifiedFiles\ChangeInTargetDeleteInSource.txt");
-            this.FileContentsShouldMatch(@"Test_ConflictTests\ModifiedFiles\ConflictingChange.txt");
-            this.FileContentsShouldMatch(@"Test_ConflictTests\ModifiedFiles\SameChange.txt");
-            this.FileContentsShouldMatch(@"Test_ConflictTests\ModifiedFiles\SuccessfulMerge.txt");
-            this.FileContentsShouldMatch(@"Test_ConflictTests\DeletedFiles\DeleteInSource.txt");
+            this.FileContentsShouldMatch("Test_ConflictTests", "AddedFiles", "AddedByBothDifferentContent.txt");
+            this.FileContentsShouldMatch("Test_ConflictTests", "AddedFiles", "AddedByBothSameContent.txt");
+            this.FileContentsShouldMatch("Test_ConflictTests", "AddedFiles", "AddedByTarget.txt");
+            this.FileContentsShouldMatch("Test_ConflictTests", "ModifiedFiles", "ChangeInSource.txt");
+            this.FileContentsShouldMatch("Test_ConflictTests", "ModifiedFiles", "ChangeInTarget.txt");
+            this.FileContentsShouldMatch("Test_ConflictTests", "ModifiedFiles", "ChangeInTargetDeleteInSource.txt");
+            this.FileContentsShouldMatch("Test_ConflictTests", "ModifiedFiles", "ConflictingChange.txt");
+            this.FileContentsShouldMatch("Test_ConflictTests", "ModifiedFiles", "SameChange.txt");
+            this.FileContentsShouldMatch("Test_ConflictTests", "ModifiedFiles", "SuccessfulMerge.txt");
+            this.FileContentsShouldMatch("Test_ConflictTests", "DeletedFiles", "DeleteInSource.txt");
         }
 
         protected void FilesShouldMatchCheckoutOfTargetBranch()
         {
-            this.FileContentsShouldMatch(@"Test_ConflictTests\AddedFiles\AddedByBothDifferentContent.txt");
-            this.FileContentsShouldMatch(@"Test_ConflictTests\AddedFiles\AddedByBothSameContent.txt");
-            this.FileContentsShouldMatch(@"Test_ConflictTests\AddedFiles\AddedByTarget.txt");
-            this.FileContentsShouldMatch(@"Test_ConflictTests\AddedFiles\NoChange.txt");
+            this.FileContentsShouldMatch("Test_ConflictTests", "AddedFiles", "AddedByBothDifferentContent.txt");
+            this.FileContentsShouldMatch("Test_ConflictTests", "AddedFiles", "AddedByBothSameContent.txt");
+            this.FileContentsShouldMatch("Test_ConflictTests", "AddedFiles", "AddedByTarget.txt");
+            this.FileContentsShouldMatch("Test_ConflictTests", "AddedFiles", "NoChange.txt");
 
-            this.FileContentsShouldMatch(@"Test_ConflictTests\DeletedFiles\DeleteInSource.txt");
+            this.FileContentsShouldMatch("Test_ConflictTests", "DeletedFiles", "DeleteInSource.txt");
 
-            this.FileContentsShouldMatch(@"Test_ConflictTests\ModifiedFiles\ChangeInSource.txt");
-            this.FileContentsShouldMatch(@"Test_ConflictTests\ModifiedFiles\ChangeInTarget.txt");
-            this.FileContentsShouldMatch(@"Test_ConflictTests\ModifiedFiles\ChangeInTargetDeleteInSource.txt");
-            this.FileContentsShouldMatch(@"Test_ConflictTests\ModifiedFiles\ConflictingChange.txt");
-            this.FileContentsShouldMatch(@"Test_ConflictTests\ModifiedFiles\SameChange.txt");
-            this.FileContentsShouldMatch(@"Test_ConflictTests\ModifiedFiles\SuccessfulMerge.txt");
+            this.FileContentsShouldMatch("Test_ConflictTests", "ModifiedFiles", "ChangeInSource.txt");
+            this.FileContentsShouldMatch("Test_ConflictTests", "ModifiedFiles", "ChangeInTarget.txt");
+            this.FileContentsShouldMatch("Test_ConflictTests", "ModifiedFiles", "ChangeInTargetDeleteInSource.txt");
+            this.FileContentsShouldMatch("Test_ConflictTests", "ModifiedFiles", "ConflictingChange.txt");
+            this.FileContentsShouldMatch("Test_ConflictTests", "ModifiedFiles", "SameChange.txt");
+            this.FileContentsShouldMatch("Test_ConflictTests", "ModifiedFiles", "SuccessfulMerge.txt");
         }
 
         protected void FilesShouldMatchCheckoutOfSourceBranch()
         {
-            this.FileContentsShouldMatch(@"Test_ConflictTests\AddedFiles\AddedByBothDifferentContent.txt");
-            this.FileContentsShouldMatch(@"Test_ConflictTests\AddedFiles\AddedByBothSameContent.txt");
-            this.FileContentsShouldMatch(@"Test_ConflictTests\AddedFiles\AddedBySource.txt");
-            this.FileContentsShouldMatch(@"Test_ConflictTests\AddedFiles\NoChange.txt");
+            this.FileContentsShouldMatch("Test_ConflictTests", "AddedFiles", "AddedByBothDifferentContent.txt");
+            this.FileContentsShouldMatch("Test_ConflictTests", "AddedFiles", "AddedByBothSameContent.txt");
+            this.FileContentsShouldMatch("Test_ConflictTests", "AddedFiles", "AddedBySource.txt");
+            this.FileContentsShouldMatch("Test_ConflictTests", "AddedFiles", "NoChange.txt");
 
-            this.FileContentsShouldMatch(@"Test_ConflictTests\DeletedFiles\DeleteInTarget.txt");
+            this.FileContentsShouldMatch("Test_ConflictTests", "DeletedFiles", "DeleteInTarget.txt");
 
-            this.FileContentsShouldMatch(@"Test_ConflictTests\ModifiedFiles\ChangeInSource.txt");
-            this.FileContentsShouldMatch(@"Test_ConflictTests\ModifiedFiles\ChangeInSourceDeleteInTarget.txt");
-            this.FileContentsShouldMatch(@"Test_ConflictTests\ModifiedFiles\ChangeInTarget.txt");
-            this.FileContentsShouldMatch(@"Test_ConflictTests\ModifiedFiles\ConflictingChange.txt");
-            this.FileContentsShouldMatch(@"Test_ConflictTests\ModifiedFiles\SameChange.txt");
-            this.FileContentsShouldMatch(@"Test_ConflictTests\ModifiedFiles\SuccessfulMerge.txt");
+            this.FileContentsShouldMatch("Test_ConflictTests", "ModifiedFiles", "ChangeInSource.txt");
+            this.FileContentsShouldMatch("Test_ConflictTests", "ModifiedFiles", "ChangeInSourceDeleteInTarget.txt");
+            this.FileContentsShouldMatch("Test_ConflictTests", "ModifiedFiles", "ChangeInTarget.txt");
+            this.FileContentsShouldMatch("Test_ConflictTests", "ModifiedFiles", "ConflictingChange.txt");
+            this.FileContentsShouldMatch("Test_ConflictTests", "ModifiedFiles", "SameChange.txt");
+            this.FileContentsShouldMatch("Test_ConflictTests", "ModifiedFiles", "SuccessfulMerge.txt");
         }
 
         protected void FilesShouldMatchAfterNoConflict()
         {
-            this.FileContentsShouldMatch(@"Test_ConflictTests\AddedFiles\AddedByBothDifferentContent.txt");
-            this.FileContentsShouldMatch(@"Test_ConflictTests\AddedFiles\AddedByBothSameContent.txt");
-            this.FileContentsShouldMatch(@"Test_ConflictTests\AddedFiles\AddedByTarget.txt");
-            this.FileContentsShouldMatch(@"Test_ConflictTests\AddedFiles\NoChange.txt");
+            this.FileContentsShouldMatch("Test_ConflictTests", "AddedFiles", "AddedByBothDifferentContent.txt");
+            this.FileContentsShouldMatch("Test_ConflictTests", "AddedFiles", "AddedByBothSameContent.txt");
+            this.FileContentsShouldMatch("Test_ConflictTests", "AddedFiles", "AddedByTarget.txt");
+            this.FileContentsShouldMatch("Test_ConflictTests", "AddedFiles", "NoChange.txt");
 
-            this.FileContentsShouldMatch(@"Test_ConflictTests\ModifiedFiles\ChangeInSource.txt");
-            this.FileContentsShouldMatch(@"Test_ConflictTests\ModifiedFiles\ChangeInTarget.txt");
-            this.FileContentsShouldMatch(@"Test_ConflictTests\ModifiedFiles\ChangeInTargetDeleteInSource.txt");
-            this.FileContentsShouldMatch(@"Test_ConflictTests\ModifiedFiles\ConflictingChange.txt");
-            this.FileContentsShouldMatch(@"Test_ConflictTests\ModifiedFiles\SameChange.txt");
-            this.FileContentsShouldMatch(@"Test_ConflictTests\ModifiedFiles\SuccessfulMerge.txt");
+            this.FileContentsShouldMatch("Test_ConflictTests", "ModifiedFiles", "ChangeInSource.txt");
+            this.FileContentsShouldMatch("Test_ConflictTests", "ModifiedFiles", "ChangeInTarget.txt");
+            this.FileContentsShouldMatch("Test_ConflictTests", "ModifiedFiles", "ChangeInTargetDeleteInSource.txt");
+            this.FileContentsShouldMatch("Test_ConflictTests", "ModifiedFiles", "ConflictingChange.txt");
+            this.FileContentsShouldMatch("Test_ConflictTests", "ModifiedFiles", "SameChange.txt");
+            this.FileContentsShouldMatch("Test_ConflictTests", "ModifiedFiles", "SuccessfulMerge.txt");
         }
 
         protected void FilesShouldMatchAfterConflict()
         {
-            this.FileContentsShouldMatch(@"Test_ConflictTests\AddedFiles\AddedByBothDifferentContent.txt");
-            this.FileContentsShouldMatch(@"Test_ConflictTests\AddedFiles\AddedByBothSameContent.txt");
-            this.FileContentsShouldMatch(@"Test_ConflictTests\AddedFiles\AddedBySource.txt");
-            this.FileContentsShouldMatch(@"Test_ConflictTests\AddedFiles\AddedByTarget.txt");
-            this.FileContentsShouldMatch(@"Test_ConflictTests\AddedFiles\NoChange.txt");
+            this.FileContentsShouldMatch("Test_ConflictTests", "AddedFiles", "AddedByBothDifferentContent.txt");
+            this.FileContentsShouldMatch("Test_ConflictTests", "AddedFiles", "AddedByBothSameContent.txt");
+            this.FileContentsShouldMatch("Test_ConflictTests", "AddedFiles", "AddedBySource.txt");
+            this.FileContentsShouldMatch("Test_ConflictTests", "AddedFiles", "AddedByTarget.txt");
+            this.FileContentsShouldMatch("Test_ConflictTests", "AddedFiles", "NoChange.txt");
 
-            this.FileContentsShouldMatch(@"Test_ConflictTests\ModifiedFiles\ChangeInSource.txt");
-            this.FileContentsShouldMatch(@"Test_ConflictTests\ModifiedFiles\ChangeInSourceDeleteInTarget.txt");
-            this.FileContentsShouldMatch(@"Test_ConflictTests\ModifiedFiles\ChangeInTarget.txt");
-            this.FileContentsShouldMatch(@"Test_ConflictTests\ModifiedFiles\ChangeInTargetDeleteInSource.txt");
-            this.FileContentsShouldMatch(@"Test_ConflictTests\ModifiedFiles\ConflictingChange.txt");
-            this.FileContentsShouldMatch(@"Test_ConflictTests\ModifiedFiles\SameChange.txt");
-            this.FileContentsShouldMatch(@"Test_ConflictTests\ModifiedFiles\SuccessfulMerge.txt");
+            this.FileContentsShouldMatch("Test_ConflictTests", "ModifiedFiles", "ChangeInSource.txt");
+            this.FileContentsShouldMatch("Test_ConflictTests", "ModifiedFiles", "ChangeInSourceDeleteInTarget.txt");
+            this.FileContentsShouldMatch("Test_ConflictTests", "ModifiedFiles", "ChangeInTarget.txt");
+            this.FileContentsShouldMatch("Test_ConflictTests", "ModifiedFiles", "ChangeInTargetDeleteInSource.txt");
+            this.FileContentsShouldMatch("Test_ConflictTests", "ModifiedFiles", "ConflictingChange.txt");
+            this.FileContentsShouldMatch("Test_ConflictTests", "ModifiedFiles", "SameChange.txt");
+            this.FileContentsShouldMatch("Test_ConflictTests", "ModifiedFiles", "SuccessfulMerge.txt");
         }
     }
 }

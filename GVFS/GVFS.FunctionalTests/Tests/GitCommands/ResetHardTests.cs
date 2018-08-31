@@ -4,6 +4,8 @@ using NUnit.Framework;
 namespace GVFS.FunctionalTests.Tests.GitCommands
 {
     [TestFixture]
+    [Category(Categories.GitCommands)]
+    [Category(Categories.MacTODO.M3)]
     public class ResetHardTests : GitRepoTests
     {
         private const string ResetHardCommand = "reset --hard";

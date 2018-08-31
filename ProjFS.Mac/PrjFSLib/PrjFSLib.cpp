@@ -65,7 +65,9 @@ static Message ParseMessageMemory(const void* messageMemory, uint32_t size);
 
 static void ClearMachNotification(mach_port_t port);
 
+#ifdef DEBUG
 static const char* NotificationTypeToString(PrjFS_NotificationType notificationType);
+#endif
 
 // State
 static io_connect_t s_kernelServiceConnection = IO_OBJECT_NULL;
@@ -289,7 +291,8 @@ PrjFS_Result PrjFS_WritePlaceholderFile(
         << relativePath << ", " 
         << (int)providerId[0] << ", "
         << (int)contentId[0] << ", "
-        << fileSize << ")" << std::endl;
+        << fileSize << ", "
+        << std::oct << fileMode << std::dec << ")" << std::endl;
 #endif
     
     if (nullptr == relativePath)
@@ -350,6 +353,77 @@ CleanupAndFail:
     }
     
     return PrjFS_Result_EIOError;
+}
+
+PrjFS_Result PrjFS_UpdatePlaceholderFileIfNeeded(
+    _In_    const char*                             relativePath,
+    _In_    unsigned char                           providerId[PrjFS_PlaceholderIdLength],
+    _In_    unsigned char                           contentId[PrjFS_PlaceholderIdLength],
+    _In_    unsigned long                           fileSize,
+    _In_    uint16_t                                fileMode,
+    _In_    PrjFS_UpdateType                        updateFlags,
+    _Out_   PrjFS_UpdateFailureCause*               failureCause)
+{
+#ifdef DEBUG
+    std::cout
+        << "PrjFS_UpdatePlaceholderFileIfNeeded("
+        << relativePath << ", "
+        << (int)providerId[0] << ", "
+        << (int)contentId[0] << ", "
+        << fileSize << ", "
+        << std::oct << fileMode << std::dec << ", "
+        << std::hex << updateFlags << std::dec << ")" << std::endl;
+#endif
+    
+    // TODO(Mac): Check if the contentId or fileMode have changed before proceeding
+    // with the update
+    
+    PrjFS_Result result = PrjFS_DeleteFile(relativePath, updateFlags, failureCause);
+    if (result != PrjFS_Result_Success)
+    {
+       return result;
+    }
+
+    return PrjFS_WritePlaceholderFile(relativePath, providerId, contentId, fileSize, fileMode);
+}
+
+PrjFS_Result PrjFS_DeleteFile(
+    _In_    const char*                             relativePath,
+    _In_    PrjFS_UpdateType                        updateFlags,
+    _Out_   PrjFS_UpdateFailureCause*               failureCause)
+{
+#ifdef DEBUG
+    std::cout
+        << "PrjFS_DeleteFile("
+        << relativePath << ", "
+        << std::hex << updateFlags << std::dec << ")" << std::endl;
+#endif
+    
+    // TODO(Mac): Populate failure cause appropriately
+    *failureCause = PrjFS_UpdateFailureCause_Invalid;
+    
+    if (nullptr == relativePath)
+    {
+        return PrjFS_Result_EInvalidArgs;
+    }
+
+    // TODO(Mac): Ensure file is not full before proceeding
+    
+    char fullPath[PrjFSMaxPath];
+    CombinePaths(s_virtualizationRootFullPath.c_str(), relativePath, fullPath);
+    if (0 != unlink(fullPath))
+    {
+        switch(errno)
+        {
+            case ENOENT:  // A component of fullPath does not exist
+            case ENOTDIR: // A component of fullPath is not a directory
+                return PrjFS_Result_Success;
+            default:
+                return PrjFS_Result_EIOError;
+        }
+    }
+
+    return PrjFS_Result_Success;
 }
 
 PrjFS_Result PrjFS_WriteFileContents(
@@ -784,6 +858,7 @@ static void ClearMachNotification(mach_port_t port)
     mach_msg(&msg.msgHdr, MACH_RCV_MSG | MACH_RCV_TIMEOUT, 0, sizeof(msg), port, 0, MACH_PORT_NULL);
 }
 
+#ifdef DEBUG
 static const char* NotificationTypeToString(PrjFS_NotificationType notificationType)
 {
     switch(notificationType)
@@ -812,3 +887,4 @@ static const char* NotificationTypeToString(PrjFS_NotificationType notificationT
             return STRINGIFY(PrjFS_NotificationType_FileDeleted);
     }
 }
+#endif

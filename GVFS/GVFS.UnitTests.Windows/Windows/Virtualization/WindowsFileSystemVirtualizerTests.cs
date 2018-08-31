@@ -441,7 +441,7 @@ namespace GVFS.UnitTests.Windows.Virtualization
                     Guid enumerationGuid = Guid.NewGuid();
 
                     byte[] contentId = FileSystemVirtualizer.ConvertShaToContentId("0123456789012345678901234567890123456789");
-                    byte[] placeholderVersion = FileSystemVirtualizer.GetPlaceholderVersionId();
+                    byte[] placeholderVersion = WindowsFileSystemVirtualizer.PlaceholderVersionId;
 
                     mockVirtualization.OnGetFileStream(
                         commandId: 1,
@@ -657,7 +657,7 @@ namespace GVFS.UnitTests.Windows.Virtualization
                     Guid enumerationGuid = Guid.NewGuid();
 
                     byte[] contentId = FileSystemVirtualizer.ConvertShaToContentId("0123456789012345678901234567890123456789");
-                    byte[] placeholderVersion = FileSystemVirtualizer.GetPlaceholderVersionId();
+                    byte[] placeholderVersion = WindowsFileSystemVirtualizer.PlaceholderVersionId;
 
                     uint fileLength = 100;
                     MockGVFSGitObjects mockGVFSGitObjects = this.Repo.GitObjects as MockGVFSGitObjects;
@@ -709,7 +709,7 @@ namespace GVFS.UnitTests.Windows.Virtualization
                     Guid enumerationGuid = Guid.NewGuid();
 
                     byte[] contentId = FileSystemVirtualizer.ConvertShaToContentId("0123456789012345678901234567890123456789");
-                    byte[] placeholderVersion = FileSystemVirtualizer.GetPlaceholderVersionId();
+                    byte[] placeholderVersion = WindowsFileSystemVirtualizer.PlaceholderVersionId;
 
                     MockGVFSGitObjects mockGVFSGitObjects = this.Repo.GitObjects as MockGVFSGitObjects;
 
@@ -760,7 +760,7 @@ namespace GVFS.UnitTests.Windows.Virtualization
                 Guid enumerationGuid = Guid.NewGuid();
 
                 byte[] contentId = FileSystemVirtualizer.ConvertShaToContentId("0123456789012345678901234567890123456789");
-                byte[] placeholderVersion = FileSystemVirtualizer.GetPlaceholderVersionId();
+                byte[] placeholderVersion = WindowsFileSystemVirtualizer.PlaceholderVersionId;
 
                 uint fileLength = 100;
                 MockGVFSGitObjects mockGVFSGitObjects = this.Repo.GitObjects as MockGVFSGitObjects;
@@ -815,7 +815,7 @@ namespace GVFS.UnitTests.Windows.Virtualization
                     Guid enumerationGuid = Guid.NewGuid();
 
                     byte[] contentId = FileSystemVirtualizer.ConvertShaToContentId("0123456789012345678901234567890123456789");
-                    byte[] placeholderVersion = FileSystemVirtualizer.GetPlaceholderVersionId();
+                    byte[] placeholderVersion = WindowsFileSystemVirtualizer.PlaceholderVersionId;
 
                     uint fileLength = 100;
                     MockGVFSGitObjects mockGVFSGitObjects = this.Repo.GitObjects as MockGVFSGitObjects;

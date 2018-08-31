@@ -214,6 +214,7 @@ void KauthHandler_HandleKernelMessageResponse(uint64_t messageId, MessageType re
                 }
             }
             Mutex_Release(s_outstandingMessagesMutex);
+            break;
         }
         
         // The follow are not valid responses to kernel messages

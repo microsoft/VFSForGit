@@ -4,6 +4,7 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
 {
     [TestFixture]
     [Category(Categories.GitCommands)]
+    [Category(Categories.MacTODO.M3)]
     public class CherryPickConflictTests : GitRepoTests
     {
         public CherryPickConflictTests() : base(enlistmentPerTest: true)
