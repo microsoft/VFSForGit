@@ -22,13 +22,10 @@ namespace GVFS.Common
         private const string GVFSAssetNamePrefix = "GVFS";
         private const string GitInstallerFileNamePrefix = "Git-";
         private const string GVFSInstallerFileNamePrefix = "SetupGVFS";
-        private const string UpgradeLockFileName = "GVFSUpgrade.Lock";
-        private const string UpgradeLockFileSignature = "GVFS";
         private const int RepoMountFailureExitCode = 17;
 
         private Version installedVersion;
         private Release newestRelease;
-        private FileBasedLock globalUpgradeLock;
         private PhysicalFileSystem fileSystem;
 
         public ProductUpgrader(
@@ -41,12 +38,6 @@ namespace GVFS.Common
 
             string upgradesDirectoryPath = GetUpgradesDirectoryPath();
             this.fileSystem.CreateDirectory(upgradesDirectoryPath);
-            this.globalUpgradeLock = new FileBasedLock(
-                this.fileSystem,
-                tracer,
-                Path.Combine(upgradesDirectoryPath, UpgradeLockFileName),
-                UpgradeLockFileSignature,
-                overwriteExistingLock: true);
         }
 
         public enum RingType
@@ -67,21 +58,6 @@ namespace GVFS.Common
         public bool IsNoneRing()
         {
             return this.TryLoadRingConfig(out string _) && this.Ring == RingType.None;
-        }
-
-        public bool IsGVFSUpgradeRunning()
-        {
-            return !this.globalUpgradeLock.IsFree();
-        }
-
-        public bool AcquireUpgradeLock()
-        {
-            return this.globalUpgradeLock.TryAcquireLockAndDeleteOnClose();
-        }
-
-        public bool ReleaseUpgradeLock()
-        {
-            return this.globalUpgradeLock.TryReleaseLock();
         }
 
         public bool TryGetNewerVersion(
