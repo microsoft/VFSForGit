@@ -2,6 +2,7 @@
 using System;
 using System.IO;
 using System.IO.Pipes;
+using System.Net.Sockets;
 using System.Threading;
 
 namespace GVFS.Common.NamedPipes
@@ -122,6 +123,13 @@ namespace GVFS.Common.NamedPipes
                     metadata.Add("Exception", e.ToString());
                     metadata.Add(TracingConstants.MessageKey.WarningMessage, "OnNewConnection: Connection broken");
                     this.tracer.RelatedEvent(EventLevel.Warning, "OnNewConnectionn_EndWaitForConnection_IOException", metadata);
+                }
+                catch (SocketException)
+                {
+                    if (!this.isStopping)
+                    {
+                        throw;
+                    }
                 }
                 catch (ObjectDisposedException)
                 {
