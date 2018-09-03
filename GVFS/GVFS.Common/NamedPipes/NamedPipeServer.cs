@@ -1,8 +1,8 @@
 ﻿using GVFS.Common.Tracing;
 using System;
-using System.Net.Sockets;
 using System.IO;
 using System.IO.Pipes;
+using System.Net.Sockets;
 using System.Threading;
 
 namespace GVFS.Common.NamedPipes
