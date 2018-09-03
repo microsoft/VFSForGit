@@ -124,7 +124,7 @@ namespace GVFS.Common.NamedPipes
                     metadata.Add(TracingConstants.MessageKey.WarningMessage, "OnNewConnection: Connection broken");
                     this.tracer.RelatedEvent(EventLevel.Warning, "OnNewConnectionn_EndWaitForConnection_IOException", metadata);
                 }
-                catch(SocketException)
+                catch (SocketException)
                 {
                     if (!this.isStopping)
                     {
