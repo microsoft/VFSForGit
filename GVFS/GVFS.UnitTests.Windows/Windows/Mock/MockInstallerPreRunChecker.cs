@@ -114,18 +114,6 @@ namespace GVFS.UnitTests.Windows.Mock.Upgrader
             return isRunning;
         }
 
-        protected override bool IsGitUpgradeAllowed(GitVersion newGitVersion, out string error)
-        {
-            if (!this.FakedResultOfCheck(FailOnCheckType.IsGitUpgradeAllowed))
-            {
-                error = GitUpgradeCheckError;
-                return false;
-            }
-
-            error = null;
-            return true;
-        }
-
         protected override bool TryRunGVFSWithArgs(string args, out string error)
         {
             this.GVFSArgs.Add(args);
