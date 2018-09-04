@@ -142,7 +142,7 @@ namespace GVFS.Platform.Windows
                 endOfFile: endOfFile,
                 isDirectory: isDirectory,
                 contentId: FileSystemVirtualizer.ConvertShaToContentId(sha),
-                providerId: FPlaceholderVersionId);
+                providerId: PlaceholderVersionId);
 
             return new FileSystemResult(HResultToFSResult(result), unchecked((int)result));
         }
