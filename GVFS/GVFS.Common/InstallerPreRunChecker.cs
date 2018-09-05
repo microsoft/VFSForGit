@@ -44,8 +44,7 @@ namespace GVFS.Upgrader
                 return false;
             }
 
-            this.tracer.RelatedInfo("Okay to run GVFS upgrade.");
-            this.tracer.RelatedInfo("Successfully finished pre upgrade checks.");
+            this.tracer.RelatedInfo("Successfully finished pre upgrade checks. Okay to run GVFS upgrade.");
 
             error = null;
             return true;

@@ -358,16 +358,16 @@ namespace GVFS.Common
             foreach (Asset asset in this.newestRelease.Assets)
             {
                 string extension = Path.GetExtension(asset.Name);
-                if (extension != null && extension == ".exe")
+                if (!string.IsNullOrEmpty(extension) && extension.Equals(".exe", StringComparison.OrdinalIgnoreCase))
                 {
                     path = asset.LocalPath;
-                    if (name == GitAssetNamePrefix && asset.Name.StartsWith(GitInstallerFileNamePrefix))
+                    if (name == GitAssetNamePrefix && asset.Name.StartsWith(GitInstallerFileNamePrefix, StringComparison.OrdinalIgnoreCase))
                     {
                         args = GitInstallerArgs;
                         return true;
                     }
 
-                    if (name == GVFSAssetNamePrefix && asset.Name.StartsWith(GVFSInstallerFileNamePrefix))
+                    if (name == GVFSAssetNamePrefix && asset.Name.StartsWith(GVFSInstallerFileNamePrefix, StringComparison.OrdinalIgnoreCase))
                     {
                         args = GVFSInstallerArgs;
                         return true;
