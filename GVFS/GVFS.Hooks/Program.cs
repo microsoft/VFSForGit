@@ -430,7 +430,7 @@ namespace GVFS.Hooks
                 case "ls-files":
                 case "ls-tree":
                 case "merge-base":
-                case "midx":
+                case "multi-pack-index":
                 case "name-rev":
                 case "push":
                 case "remote":

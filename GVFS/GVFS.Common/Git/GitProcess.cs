@@ -359,14 +359,12 @@ namespace GVFS.Common.Git
         /// <summary>
         /// Write a new multi-pack-index (MIDX) in the specified pack directory.
         /// 
-        /// This will update the midx-head file to point to the new MIDX file.
-        /// 
         /// If no new packfiles are found, then this is a no-op.
         /// </summary>
-        public Result WriteMultiPackIndex(string packDir)
+        public Result WriteMultiPackIndex(string objectDir)
         {
             // We override the config settings so we keep writing the MIDX file even if it is disabled for reads.
-            return this.InvokeGitAgainstDotGitFolder("-c core.midx=true midx --write --update-head --pack-dir \"" + packDir + "\"");
+            return this.InvokeGitAgainstDotGitFolder("-c core.multiPackIndex=true multi-pack-index write --object-dir=\"" + objectDir + "\"");
         }
 
         public Result RemoteAdd(string remoteName, string url)

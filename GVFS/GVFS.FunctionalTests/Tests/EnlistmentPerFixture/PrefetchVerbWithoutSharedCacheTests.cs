@@ -277,27 +277,6 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
             otherFilePath.ShouldBeAFile(this.fileSystem).WithContents(otherFileContents);
         }
 
-        [TestCase, Order(9)]
-        public void PostFetchJobCleansMidxFiles()
-        {
-            string packDir = Path.Combine(this.Enlistment.GetObjectRoot(this.fileSystem), "pack");
-            string staleMidxFile = Path.Combine(packDir, "midx-FAKE.midx");
-            string tmpMidxFile = Path.Combine(packDir, "tmp_midx_halted");
-
-            // Reset the pack directory so the prefetch definitely triggers MIDX computation
-            this.fileSystem.DeleteDirectory(packDir);
-            this.fileSystem.CreateDirectory(packDir);
-
-            this.fileSystem.CreateEmptyFile(staleMidxFile);
-            this.fileSystem.CreateEmptyFile(tmpMidxFile);
-
-            this.Enlistment.Prefetch("--commits");
-            this.PostFetchJobShouldComplete();
-
-            this.fileSystem.FileExists(staleMidxFile).ShouldBeFalse();
-            this.fileSystem.FileExists(tmpMidxFile).ShouldBeFalse();
-        }
-
         private void PackShouldHaveIdxFile(string pathPath)
         {
             string idxPath = Path.ChangeExtension(pathPath, ".idx");
@@ -378,9 +357,8 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
                 Thread.Sleep(500);
             }
 
-            ProcessResult midxResult = GitProcess.InvokeProcess(this.Enlistment.RepoRoot, "midx --read --pack-dir=\"" + objectDir + "/pack\"");
+            ProcessResult midxResult = GitProcess.InvokeProcess(this.Enlistment.RepoRoot, "multi-pack-index verify --object-dir=\"" + objectDir + "\"");
             midxResult.ExitCode.ShouldEqual(0);
-            midxResult.Output.ShouldContain("4d494458"); // Header from midx file.
 
             ProcessResult graphResult = GitProcess.InvokeProcess(this.Enlistment.RepoRoot, "commit-graph read --object-dir=\"" + objectDir + "\"");
             graphResult.ExitCode.ShouldEqual(0);

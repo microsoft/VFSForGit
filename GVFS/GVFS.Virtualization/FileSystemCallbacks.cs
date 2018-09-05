@@ -568,7 +568,7 @@ namespace GVFS.Virtualization
                     {
                         this.context.Tracer.RelatedWarning(
                             metadata: null,
-                            message: PostFetchTelemetryKey + ": Failed to generate midx for new packfiles",
+                            message: PostFetchTelemetryKey + ": Failed to generate multi-pack-index for new packfiles",
                             keywords: Keywords.Telemetry);
                     }
 

@@ -81,7 +81,7 @@ namespace GVFS.CommandLine
                 { "core.commitGraph", "true" },
                 { "core.fscache", "true" },
                 { "core.gvfs", "true" },
-                { "core.midx", "true" },
+                { "core.multiPackIndex", "true" },
                 { "core.preloadIndex", "true" },
                 { "core.safecrlf", "false" },
                 { "core.untrackedCache", "false" },
