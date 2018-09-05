@@ -140,13 +140,12 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
         }
 
         [TestCase]
-        [Category(Categories.MacTODO.M3)]
         public void MoveFileFromDotGitFolderToWorkingDirectoryAndAddAndCheckout()
         {
             string testFileContents = "Test file contents for MoveFileFromDotGitFolderToWorkingDirectoryAndAddAndCheckout";
             string filename = "AddedBySource.txt";
-            string dotGitFilePath = @".git\" + filename;
-            string targetPath = @"Test_ConflictTests\AddedFiles\" + filename;
+            string dotGitFilePath = Path.Combine(".git", filename);
+            string targetPath = Path.Combine("Test_ConflictTests", "AddedFiles", filename);
 
             // In commit db95d631e379d366d26d899523f8136a77441914 Test_ConflictTests\AddedFiles\AddedBySource.txt does not exist
             this.ControlGitRepo.Fetch(GitRepoTests.ConflictSourceBranch);
@@ -173,7 +172,6 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
         }
 
         [TestCase]
-        [Category(Categories.MacTODO.M3)]
         public void CheckoutBranchNoCrashOnStatus()
         {
             this.ControlGitRepo.Fetch("FunctionalTests/20170331_git_crash");
@@ -182,7 +180,6 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
         }
 
         [TestCase]
-        [Category(Categories.MacTODO.M3)]
         public void CheckoutCommitWhereFileContentsChangeAfterRead()
         {
             this.ControlGitRepo.Fetch(GitRepoTests.ConflictSourceBranch);
@@ -202,7 +199,6 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
         }
 
         [TestCase]
-        [Category(Categories.MacTODO.M3)]
         public void CheckoutCommitWhereFileDeletedAfterRead()
         {
             this.ControlGitRepo.Fetch(GitRepoTests.ConflictSourceBranch);
@@ -729,7 +725,6 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
         }
 
         [TestCase]
-        [Category(Categories.MacTODO.M3)]
         public void DeleteFolderAndChangeBranchToFolderWithDifferentCase()
         {
             // 692765 - Recursive modified paths entries for folders should be case insensitive when
