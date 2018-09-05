@@ -358,7 +358,7 @@ namespace GVFS.Common
             foreach (Asset asset in this.newestRelease.Assets)
             {
                 string extension = Path.GetExtension(asset.Name);
-                if (!string.IsNullOrEmpty(extension) && extension.Equals(".exe", StringComparison.OrdinalIgnoreCase))
+                if (string.Equals(extension, ".exe", StringComparison.OrdinalIgnoreCase))
                 {
                     path = asset.LocalPath;
                     if (name == GitAssetNamePrefix && asset.Name.StartsWith(GitInstallerFileNamePrefix, StringComparison.OrdinalIgnoreCase))
