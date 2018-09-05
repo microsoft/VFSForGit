@@ -1,6 +1,7 @@
 ﻿using GVFS.Common;
 using GVFS.Tests.Should;
 using GVFS.UnitTests.Mock;
+using GVFS.UnitTests.Mock.Common;
 using GVFS.UnitTests.Mock.FileSystem;
 using NUnit.Framework;
 using System;
@@ -17,6 +18,17 @@ namespace GVFS.UnitTests.Common
         private const string ExistingEntries = @"A file.txt
 A dir/file2.txt
 A dir1/dir2/file3.txt
+";
+        private const string EntriesToCompress = @"A file.txt
+A dir/file2.txt
+A dir/dir3/dir4/
+A dir1/dir2/file3.txt
+A dir/
+A dir1/dir2/
+A dir1/file.txt
+A dir1/dir2/dir3/dir4/dir5/
+A dir/dir2/file3.txt
+A dir/dir4/dir5/
 ";
 
         [TestCase]
@@ -119,7 +131,19 @@ A dir1/dir2/file3.txt
             modifiedPathsDatabase.Contains("dir2/dir", isFolder: true).ShouldBeTrue();
         }
 
-        private static void TestAddingPath(string path, bool isFolder = false)
+        [TestCase]
+        public void CompressEntries()
+        {
+            ModifiedPathsDatabase mpd = CreateModifiedPathsDatabase(EntriesToCompress);
+            mpd.Compress(new MockTracer());
+            mpd.Count.ShouldEqual(4);
+            mpd.Contains("file.txt", isFolder: false).ShouldBeTrue();
+            mpd.Contains("dir/", isFolder: true).ShouldBeTrue();
+            mpd.Contains("dir1/dir2/", isFolder: true).ShouldBeTrue();
+            mpd.Contains("dir1/file.txt", isFolder: false).ShouldBeTrue();
+    }
+
+    private static void TestAddingPath(string path, bool isFolder = false)
         {
             TestAddingPath(path, path, isFolder);
         }

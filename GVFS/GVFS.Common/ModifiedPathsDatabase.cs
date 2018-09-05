@@ -52,6 +52,34 @@ namespace GVFS.Common
             return true;
         }
 
+        public void Compress(ITracer tracer)
+        {
+            int startingCount = this.modifiedPaths.Count;
+            using (ITracer activity = tracer.StartActivity("Compress ModifiedPaths", EventLevel.Informational))
+            {
+                foreach (var item in this.modifiedPaths)
+                {
+                    int pathSeparatorIndex = item.IndexOf('/');
+                    while (pathSeparatorIndex >= 0 && pathSeparatorIndex < item.Length - 1)
+                    {
+                        string folder = item.Substring(0, pathSeparatorIndex + 1);
+                        if (this.modifiedPaths.Contains(folder))
+                        {
+                            this.modifiedPaths.TryRemove(item);
+                            break;
+                        }
+
+                        pathSeparatorIndex = item.IndexOf('/', pathSeparatorIndex + 1);
+                    }
+                }
+
+                EventMetadata metadata = new EventMetadata();
+                metadata.Add(nameof(startingCount), startingCount);
+                metadata.Add("EndCount", this.modifiedPaths.Count);
+                activity.Stop(metadata);
+            }
+        }
+
         public bool Contains(string path, bool isFolder)
         {
             string entry = this.NormalizeEntryString(path, isFolder);

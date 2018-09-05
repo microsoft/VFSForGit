@@ -89,6 +89,9 @@ namespace GVFS.Virtualization
                 throw new InvalidRepoException(error);
             }
 
+            this.modifiedPaths.Compress(this.context.Tracer);
+            this.modifiedPaths.WriteAllEntriesAndFlush();
+
             this.BlobSizes = blobSizes;
             this.BlobSizes.Initialize();
 
