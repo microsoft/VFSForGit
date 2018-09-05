@@ -87,7 +87,10 @@ namespace GVFS.Common.NamedPipes
 
         private void OnNewConnection(IAsyncResult ar)
         {
-            this.OnNewConnection(ar, createNewThreadIfSynchronous: true);
+            if (!this.isStopping)
+            {
+                this.OnNewConnection(ar, createNewThreadIfSynchronous: true);
+            }
         }
 
         private void OnNewConnection(IAsyncResult ar, bool createNewThreadIfSynchronous)
