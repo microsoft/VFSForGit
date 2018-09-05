@@ -126,13 +126,6 @@ namespace GVFS.Common.NamedPipes
                     metadata.Add(TracingConstants.MessageKey.WarningMessage, "OnNewConnection: Connection broken");
                     this.tracer.RelatedEvent(EventLevel.Warning, "OnNewConnectionn_EndWaitForConnection_IOException", metadata);
                 }
-                catch (ObjectDisposedException)
-                {
-                    if (!this.isStopping)
-                    {
-                        throw;
-                    }
-                }
                 catch (Exception e)
                 {
                     this.LogErrorAndExit("OnNewConnection caught unhandled exception, exiting process", e);
