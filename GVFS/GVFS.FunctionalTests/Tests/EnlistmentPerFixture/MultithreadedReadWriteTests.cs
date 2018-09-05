@@ -21,23 +21,46 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
             // Otherwise, this test loses most of its value because there will be no races occurring on creating the
             // placeholder directories, enumerating them, and then creating a placeholder file and hydrating it.
             
-            string fileName = Path.Combine("GVFS", "GVFS.FunctionalTests", "Tests", "LongRunningEnlistment", "GitMoveRenameTests.cs");
+            string fileName = Path.Combine("GVFS", "GVFS.FunctionalTests", "Tests", "LongRunningEnlistment");
             string virtualPath = this.Enlistment.GetVirtualPathTo(fileName);
 
             Exception readException = null;
 
-            Thread[] threads = new Thread[32];
+            Thread[] threads = new Thread[2];
             for (int i = 0; i < threads.Length; ++i)
             {
                 threads[i] = new Thread(() =>
                 {
                     try
                     {
-                        FileSystemRunner.DefaultRunner.ReadAllText(virtualPath).ShouldBeNonEmpty();
+                        FileSystemRunner fileSystem = FileSystemRunner.DefaultRunner;
+
+                        ////new DirectoryInfo(this.Enlistment.GetVirtualPathTo("GVFS")).Exists.ShouldBeTrue();
+                        ////new DirectoryInfo(this.Enlistment.GetVirtualPathTo("GVFS", "GVFS.FunctionalTests")).Exists.ShouldBeTrue();
+                        ////new DirectoryInfo(this.Enlistment.GetVirtualPathTo("GVFS", "GVFS.FunctionalTests", "Tests")).Exists.ShouldBeTrue();
+                        ////new DirectoryInfo(this.Enlistment.GetVirtualPathTo("GVFS", "GVFS.FunctionalTests", "Tests", "LongRunningEnlistment")).Exists.ShouldBeTrue();
+
+                        ////new FileInfo(virtualPath).Exists.ShouldBeTrue();
+                        ////fileSystem.ReadAllText(virtualPath).ShouldBeNonEmpty();
+                        virtualPath.ShouldBeADirectory(fileSystem);
+                        Console.WriteLine("Read the file \n");
+                    }
+                    catch (IOException e)
+                    {
+                        readException = e;
+                        Console.WriteLine(string.Format(
+                            "IOException: \n" +
+                            "    Message: {0}\n" +
+                            "    HResult: {1}\n" +
+                            "    InnerException: {2}\n",
+                            e.Message,
+                            e.HResult,
+                            e.InnerException));
                     }
                     catch (Exception e)
                     {
                         readException = e;
+                        Console.WriteLine(e + "\n");
                     }
                 });
 

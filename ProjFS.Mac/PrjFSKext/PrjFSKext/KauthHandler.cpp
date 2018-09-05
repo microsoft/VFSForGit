@@ -233,6 +233,7 @@ void KauthHandler_HandleKernelMessageResponse(uint64_t messageId, MessageType re
                 }
             }
             Mutex_Release(s_outstandingMessagesMutex);
+
             break;
         }
         
@@ -322,6 +323,7 @@ static int HandleVnodeOperation(
                         &kauthResult,
                         kauthError))
                 {
+                    KextLog_VnodeOp(currentVnode, vnodeType, procname, uid, action, "DIRECTORY ENUMERATION FAILED");
                     Mutex_Release(s_hydrationMutex);
                     goto CleanupAndReturn;
                 }
@@ -389,6 +391,7 @@ static int HandleVnodeOperation(
                         &kauthResult,
                         kauthError))
                 {
+                    KextLog_VnodeOp(currentVnode, vnodeType, procname, uid, action, "FILE HYDRATION FAILED");
                     Mutex_Release(s_hydrationMutex);
                     goto CleanupAndReturn;
                 }

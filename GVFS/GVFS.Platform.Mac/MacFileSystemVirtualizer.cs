@@ -1,4 +1,4 @@
-﻿using GVFS.Common;
+using GVFS.Common;
 using GVFS.Common.Git;
 using GVFS.Common.Tracing;
 using GVFS.Virtualization.BlobSize;
@@ -234,6 +234,8 @@ namespace GVFS.Platform.Mac
                                     nextByte = stream.ReadByte();
                                     ++bufferIndex;
                                 }
+
+                                Thread.Sleep(1000);
 
                                 Result result = this.virtualizationInstance.WriteFileContents(
                                     fileHandle,
@@ -481,6 +483,7 @@ namespace GVFS.Platform.Mac
                     metadata.Add("fileInfo.Size", fileInfo.Size);
                     metadata.Add("fileInfo.IsFolder", fileInfo.IsFolder);
                     metadata.Add(nameof(sha), sha);
+                    metadata.Add("result", "0x" + result.ToString("X"));
                     this.Context.Tracer.RelatedError(metadata, $"{nameof(this.CreatePlaceholders)}: Write placeholder failed");
 
                     return result;
