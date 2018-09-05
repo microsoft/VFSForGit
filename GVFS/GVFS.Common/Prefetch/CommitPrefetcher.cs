@@ -155,7 +155,7 @@ namespace GVFS.Common.Prefetch
                 {
                     tracer.RelatedWarning(
                         metadata: null,
-                        message: "Failed to connect to GVFS. Skipping post-fetch job request.",
+                        message: "Failed to connect to GVFS.Mount process. Skipping post-fetch job request.",
                         keywords: Keywords.Telemetry);
                     return false;
                 }
