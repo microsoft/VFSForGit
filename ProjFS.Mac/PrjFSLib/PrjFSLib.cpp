@@ -142,9 +142,12 @@ PrjFS_Result PrjFS_StartVirtualizationInstance(
     s_temporaryDirectoryFullPath = temporaryDirectoryFullPath;
     s_callbacks = callbacks;
 
+    // TODO(Mac): Validate temporaryDirectoryFullPath is not a child of virtualizationRootFullPath
+    
     errno_t error = RegisterVirtualizationRootPath(virtualizationRootFullPath, temporaryDirectoryFullPath);
     if (error != 0)
     {
+        // TODO(Mac): We should pass details back to the caller about why we failed here.
         cerr << "Registering virtualization root failed: " << error << ", " << strerror(error) << " root path: " << virtualizationRootFullPath << ", temp path " << temporaryDirectoryFullPath << endl;
         return PrjFS_Result_EInvalidOperation;
     }
@@ -263,26 +266,35 @@ PrjFS_Result PrjFS_WritePlaceholderDirectory(
         return PrjFS_Result_EInvalidArgs;
     }
     
-    char intermediatePath[PrjFSMaxPath];
     char finalPath[PrjFSMaxPath];
-    char* baseName;
-    char baseNameBuffer[MAXPATHLEN];
-    
-    baseName = basename_r(relativePath, baseNameBuffer);
-    CombinePaths(s_temporaryDirectoryFullPath.c_str(), baseName, intermediatePath);
     CombinePaths(s_virtualizationRootFullPath.c_str(), relativePath, finalPath);
+    char* tempPath = strcat(strdup(s_temporaryDirectoryFullPath.c_str()), "/XXXXXX");
     
-    if (mkdir(intermediatePath, 0777))
+    tempPath = mkdtemp(tempPath);
+    if (nullptr == tempPath)
     {
         goto CleanupAndFail;
     }
     
-    if (!InitializeEmptyPlaceholder(intermediatePath))
+    if (!InitializeEmptyPlaceholder(tempPath))
     {
         goto CleanupAndFail;
     }
     
-    if (rename(intermediatePath, finalPath))
+    if (chmod(tempPath, 0777))
+    {
+        goto CleanupAndFail;
+    }
+    
+#ifdef DEBUG
+    std::cout
+    << "PrjFS_WritePlaceholderDirectory - Preparing to rename("
+    << tempPath << " ->"
+    << finalPath << ")"
+    << std::endl;
+#endif
+    
+    if (rename(tempPath, finalPath))
     {
         goto CleanupAndFail;
     }
@@ -290,7 +302,6 @@ PrjFS_Result PrjFS_WritePlaceholderDirectory(
     return PrjFS_Result_Success;
     
 CleanupAndFail:
-    // TODO: cleanup the directory on disk if needed
     return PrjFS_Result_EIOError;
 }
 
@@ -318,20 +329,13 @@ PrjFS_Result PrjFS_WritePlaceholderFile(
     
     PrjFSFileXAttrData fileXattrData = {};
     
-    char intermediatePath[PrjFSMaxPath];
     char finalPath[PrjFSMaxPath];
-    char* baseName;
-    char baseNameBuffer[MAXPATHLEN];
-    
-    baseName = basename_r(relativePath, baseNameBuffer);
-    CombinePaths(s_temporaryDirectoryFullPath.c_str(), baseName, intermediatePath);
     CombinePaths(s_virtualizationRootFullPath.c_str(), relativePath, finalPath);
+    char* tempPath = strcat(strdup(s_temporaryDirectoryFullPath.c_str()), "/XXXXXX");
     
-    // Mode "wbx" means
-    //  - Create an empty file if none exists
-    //  - Fail if a file already exists at this path
-    FILE* file = fopen(intermediatePath, "wbx");
-    if (nullptr == file)
+    int tempFD = mkstemp(tempPath);
+    FILE* file = fdopen(tempFD, "wb");
+    if (!tempFD || nullptr == file)
     {
         goto CleanupAndFail;
     }
@@ -349,7 +353,7 @@ PrjFS_Result PrjFS_WritePlaceholderFile(
     memcpy(fileXattrData.contentId, contentId, PrjFS_PlaceholderIdLength);
     
     if (!InitializeEmptyPlaceholder(
-                                    intermediatePath,
+                                    tempPath,
                                     &fileXattrData,
                                     PrjFSFileXAttrName))
     {
@@ -357,7 +361,7 @@ PrjFS_Result PrjFS_WritePlaceholderFile(
     }
     
     // TODO(Mac): Only call chmod if fileMode is different than the default file mode
-    if (chmod(intermediatePath, fileMode))
+    if (chmod(tempPath, fileMode))
     {
         goto CleanupAndFail;
     }
@@ -365,12 +369,12 @@ PrjFS_Result PrjFS_WritePlaceholderFile(
 #ifdef DEBUG
     std::cout
     << "PrjFS_WritePlaceholderFile - Preparing to rename("
-    << intermediatePath << " ->"
-    << finalPath << ", "
-")" << std::endl;
+    << tempPath << " ->"
+    << finalPath << ")"
+    << std::endl;
 #endif
     
-    if (rename(intermediatePath, finalPath))
+    if (rename(tempPath, finalPath))
     {
         goto CleanupAndFail;
     }
@@ -378,15 +382,6 @@ PrjFS_Result PrjFS_WritePlaceholderFile(
     return PrjFS_Result_Success;
     
 CleanupAndFail:
-    if (nullptr != file)
-    {
-        // TODO: we now have a partially created placeholder file. Should we delete it?
-        // A better pattern would likely be to create the file in a tmp location, fully initialize its state, then move it into the requested path
-        
-        fclose(file);
-        file = nullptr;
-    }
-    
     return PrjFS_Result_EIOError;
 }
 
