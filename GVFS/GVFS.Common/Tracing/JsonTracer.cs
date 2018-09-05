@@ -20,6 +20,9 @@ namespace GVFS.Common.Tracing
 
         private EventLevel startStopLevel;
         private Keywords startStopKeywords;
+
+        private bool disposed;
+
         public JsonTracer(string providerName, string activityName, bool disableTelemetry = false)
             : this(providerName, Guid.Empty, activityName, enlistmentId: null, mountId: null, disableTelemetry: disableTelemetry)
         {
@@ -101,6 +104,8 @@ namespace GVFS.Common.Tracing
 
                 this.listeners.Clear();
             }
+
+            this.disposed = true;
         }
 
         public virtual void RelatedEvent(EventLevel level, string eventName, EventMetadata metadata)
@@ -256,6 +261,15 @@ namespace GVFS.Common.Tracing
         private void WriteEvent(string eventName, EventLevel level, Keywords keywords, EventMetadata metadata, EventOpcode opcode)
         {
             string jsonPayload = metadata != null ? JsonConvert.SerializeObject(metadata) : null;
+
+            if (this.disposed)
+            {
+                Console.WriteLine("Writing to disposed tracer");
+                Console.WriteLine(jsonPayload);
+
+                throw new ObjectDisposedException(nameof(JsonTracer));
+            }
+
             foreach (InProcEventListener listener in this.listeners)
             {
                 listener.RecordMessage(eventName, this.activityId, this.parentActivityId, level, keywords, opcode, jsonPayload);
