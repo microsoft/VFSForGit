@@ -30,7 +30,6 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
         }
 
         [TestCase]
-        [Category(Categories.Windows)]
         public void NoNagWhenUpgradeNotAvailable()
         {
             this.EmptyDownloadDirectory();
@@ -43,7 +42,6 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
         }
 
         [TestCase]
-        [Category(Categories.Windows)]
         public void NagWhenUpgradeAvailable()
         {
             this.CreateUpgradeInstallers();
