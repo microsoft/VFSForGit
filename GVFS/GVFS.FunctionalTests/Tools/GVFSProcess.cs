@@ -21,7 +21,7 @@ namespace GVFS.FunctionalTests.Tools
         public void Clone(string repositorySource, string branchToCheckout)
         {
             string args = string.Format(
-                "clone \"{0}\" \"{1}\" --branch \"{2}\" --no-mount --no-prefetch --local-cache-path \"{3}\"",
+                "clone \"{0}\" \"{1}\" --branch \"{2}\" --local-cache-path \"{3}\"",
                 repositorySource,
                 this.enlistmentRoot,
                 branchToCheckout,

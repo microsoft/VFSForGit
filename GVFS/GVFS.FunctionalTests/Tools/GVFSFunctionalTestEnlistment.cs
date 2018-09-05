@@ -157,7 +157,6 @@ namespace GVFS.FunctionalTests.Tools
         {
             this.gvfsProcess.Clone(this.RepoUrl, this.Commitish);
 
-            this.MountGVFS();
             GitProcess.Invoke(this.RepoRoot, "checkout " + this.Commitish);
             GitProcess.Invoke(this.RepoRoot, "branch --unset-upstream");
             GitProcess.Invoke(this.RepoRoot, "config core.abbrev 40");
