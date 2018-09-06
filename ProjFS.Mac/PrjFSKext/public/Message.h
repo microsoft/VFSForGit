@@ -20,6 +20,9 @@ typedef enum
     MessageType_KtoU_NotifyFilePreDelete,
     MessageType_KtoU_NotifyDirectoryPreDelete,
     MessageType_KtoU_NotifyFileCreated,
+    MessageType_KtoU_NotifyFileRenamed,
+    MessageType_KtoU_NotifyDirectoryRenamed,
+    MessageType_KtoU_NotifyFileHardLinkCreated,
     
     // Responses
     MessageType_Response_Success,

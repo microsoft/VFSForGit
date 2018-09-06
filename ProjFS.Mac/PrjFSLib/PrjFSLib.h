@@ -46,6 +46,7 @@ typedef enum
     PrjFS_NotificationType_NewFileCreated           = 0x00000004,
     PrjFS_NotificationType_PreDelete                = 0x00000010,
     PrjFS_NotificationType_FileRenamed              = 0x00000080,
+    PrjFS_NotificationType_HardLinkCreated          = 0x00000100,
     PrjFS_NotificationType_PreConvertToFull         = 0x00001000,
     
     PrjFS_NotificationType_PreModify                = 0x10000001,
@@ -101,15 +102,16 @@ typedef enum
     
 } PrjFS_UpdateFailureCause;
 
-PrjFS_Result PrjFS_UpdatePlaceholderFileIfNeeded(
+extern "C" PrjFS_Result PrjFS_UpdatePlaceholderFileIfNeeded(
     _In_    const char*                             relativePath,
     _In_    unsigned char                           providerId[PrjFS_PlaceholderIdLength],
     _In_    unsigned char                           contentId[PrjFS_PlaceholderIdLength],
     _In_    unsigned long                           fileSize,
+    _In_    uint16_t                                fileMode,
     _In_    PrjFS_UpdateType                        updateFlags,
     _Out_   PrjFS_UpdateFailureCause*               failureCause);
 
-PrjFS_Result PrjFS_DeleteFile(
+extern "C" PrjFS_Result PrjFS_DeleteFile(
     _In_    const char*                             relativePath,
     _In_    PrjFS_UpdateType                        updateFlags,
     _Out_   PrjFS_UpdateFailureCause*               failureCause);

@@ -27,6 +27,11 @@ namespace GVFS.FunctionalTests.FileSystemRunners
             "The process cannot access the file because it is being used by another process"
         };
 
+        public override bool SupportsHardlinkCreation
+        {
+            get { return true; }
+        }
+
         protected override string FileName
         {
             get
@@ -106,6 +111,11 @@ namespace GVFS.FunctionalTests.FileSystemRunners
         public override void CreateEmptyFile(string path)
         {
             this.RunProcess(string.Format("/C type NUL > \"{0}\"", path));
+        }
+
+        public override void CreateHardLink(string newLinkFilePath, string existingFilePath)
+        {
+            this.RunProcess(string.Format("/C mklink /H \"{0}\" \"{1}\"", newLinkFilePath, existingFilePath));
         }
 
         public override void AppendAllText(string path, string contents)

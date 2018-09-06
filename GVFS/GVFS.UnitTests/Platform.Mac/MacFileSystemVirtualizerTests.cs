@@ -84,9 +84,23 @@ namespace GVFS.UnitTests.Platform.Mac
         [TestCase]
         public void UpdatePlaceholderIfNeeded()
         {
+            using (MockBackgroundFileSystemTaskRunner backgroundTaskRunner = new MockBackgroundFileSystemTaskRunner())
             using (MockVirtualizationInstance mockVirtualization = new MockVirtualizationInstance())
+            using (MockGitIndexProjection gitIndexProjection = new MockGitIndexProjection(new[] { "test.txt" }))
             using (MacFileSystemVirtualizer virtualizer = new MacFileSystemVirtualizer(this.Repo.Context, this.Repo.GitObjects, mockVirtualization))
+            using (FileSystemCallbacks fileSystemCallbacks = new FileSystemCallbacks(
+                this.Repo.Context,
+                this.Repo.GitObjects,
+                RepoMetadata.Instance,
+                new MockBlobSizes(),
+                gitIndexProjection,
+                backgroundTaskRunner,
+                virtualizer))
             {
+                gitIndexProjection.MockFileModes.TryAdd("test" + Path.DirectorySeparatorChar + "test.txt", FileMode644);
+                string error;
+                fileSystemCallbacks.TryStart(out error).ShouldEqual(true);
+
                 UpdateFailureReason failureReason = UpdateFailureReason.NoFailure;
 
                 mockVirtualization.UpdatePlaceholderIfNeededResult = Result.Success;
@@ -142,6 +156,7 @@ namespace GVFS.UnitTests.Platform.Mac
                         out failureReason)
                     .ShouldEqual(new FileSystemResult(FSResult.IOError, (int)mockVirtualization.UpdatePlaceholderIfNeededResult));
                 failureReason.ShouldEqual((UpdateFailureReason)mockVirtualization.UpdatePlaceholderIfNeededFailureCause);
+                fileSystemCallbacks.Stop();
             }
         }
 
@@ -273,7 +288,7 @@ namespace GVFS.UnitTests.Platform.Mac
                 fileSystemCallbacks.TryStart(out error).ShouldEqual(true);
 
                 byte[] contentId = FileSystemVirtualizer.ConvertShaToContentId("0123456789012345678901234567890123456789");
-                byte[] placeholderVersion = FileSystemVirtualizer.GetPlaceholderVersionId();
+                byte[] placeholderVersion = MacFileSystemVirtualizer.PlaceholderVersionId;
 
                 uint fileLength = 100;
                 MockGVFSGitObjects mockGVFSGitObjects = this.Repo.GitObjects as MockGVFSGitObjects;
@@ -315,7 +330,7 @@ namespace GVFS.UnitTests.Platform.Mac
                 fileSystemCallbacks.TryStart(out error).ShouldEqual(true);
 
                 byte[] contentId = FileSystemVirtualizer.ConvertShaToContentId("0123456789012345678901234567890123456789");
-                byte[] placeholderVersion = FileSystemVirtualizer.GetPlaceholderVersionId();
+                byte[] placeholderVersion = MacFileSystemVirtualizer.PlaceholderVersionId;
 
                 uint fileLength = 100;
                 MockGVFSGitObjects mockGVFSGitObjects = this.Repo.GitObjects as MockGVFSGitObjects;

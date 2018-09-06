@@ -44,6 +44,8 @@ template<typename TPlaceholder> static bool InitializeEmptyPlaceholder(const cha
 static bool AddXAttr(const char* path, const char* name, const void* value, size_t size);
 static bool GetXAttr(const char* path, const char* name, size_t size, _Out_ void* value);
 
+static inline PrjFS_NotificationType KUMessageTypeToNotificationType(MessageType kuNotificationType);
+
 static bool IsVirtualizationRoot(const char* path);
 static void CombinePaths(const char* root, const char* relative, char (&combined)[PrjFSMaxPath]);
 
@@ -63,7 +65,9 @@ static Message ParseMessageMemory(const void* messageMemory, uint32_t size);
 
 static void ClearMachNotification(mach_port_t port);
 
+#ifdef DEBUG
 static const char* NotificationTypeToString(PrjFS_NotificationType notificationType);
+#endif
 
 // State
 static io_connect_t s_kernelServiceConnection = IO_OBJECT_NULL;
@@ -287,7 +291,8 @@ PrjFS_Result PrjFS_WritePlaceholderFile(
         << relativePath << ", " 
         << (int)providerId[0] << ", "
         << (int)contentId[0] << ", "
-        << fileSize << ")" << std::endl;
+        << fileSize << ", "
+        << std::oct << fileMode << std::dec << ")" << std::endl;
 #endif
     
     if (nullptr == relativePath)
@@ -329,6 +334,7 @@ PrjFS_Result PrjFS_WritePlaceholderFile(
         goto CleanupAndFail;
     }
     
+    // TODO(Mac): Only call chmod if fileMode is different than the default file mode
     if (chmod(fullPath, fileMode))
     {
         goto CleanupAndFail;
@@ -347,6 +353,77 @@ CleanupAndFail:
     }
     
     return PrjFS_Result_EIOError;
+}
+
+PrjFS_Result PrjFS_UpdatePlaceholderFileIfNeeded(
+    _In_    const char*                             relativePath,
+    _In_    unsigned char                           providerId[PrjFS_PlaceholderIdLength],
+    _In_    unsigned char                           contentId[PrjFS_PlaceholderIdLength],
+    _In_    unsigned long                           fileSize,
+    _In_    uint16_t                                fileMode,
+    _In_    PrjFS_UpdateType                        updateFlags,
+    _Out_   PrjFS_UpdateFailureCause*               failureCause)
+{
+#ifdef DEBUG
+    std::cout
+        << "PrjFS_UpdatePlaceholderFileIfNeeded("
+        << relativePath << ", "
+        << (int)providerId[0] << ", "
+        << (int)contentId[0] << ", "
+        << fileSize << ", "
+        << std::oct << fileMode << std::dec << ", "
+        << std::hex << updateFlags << std::dec << ")" << std::endl;
+#endif
+    
+    // TODO(Mac): Check if the contentId or fileMode have changed before proceeding
+    // with the update
+    
+    PrjFS_Result result = PrjFS_DeleteFile(relativePath, updateFlags, failureCause);
+    if (result != PrjFS_Result_Success)
+    {
+       return result;
+    }
+
+    return PrjFS_WritePlaceholderFile(relativePath, providerId, contentId, fileSize, fileMode);
+}
+
+PrjFS_Result PrjFS_DeleteFile(
+    _In_    const char*                             relativePath,
+    _In_    PrjFS_UpdateType                        updateFlags,
+    _Out_   PrjFS_UpdateFailureCause*               failureCause)
+{
+#ifdef DEBUG
+    std::cout
+        << "PrjFS_DeleteFile("
+        << relativePath << ", "
+        << std::hex << updateFlags << std::dec << ")" << std::endl;
+#endif
+    
+    // TODO(Mac): Populate failure cause appropriately
+    *failureCause = PrjFS_UpdateFailureCause_Invalid;
+    
+    if (nullptr == relativePath)
+    {
+        return PrjFS_Result_EInvalidArgs;
+    }
+
+    // TODO(Mac): Ensure file is not full before proceeding
+    
+    char fullPath[PrjFSMaxPath];
+    CombinePaths(s_virtualizationRootFullPath.c_str(), relativePath, fullPath);
+    if (0 != unlink(fullPath))
+    {
+        switch(errno)
+        {
+            case ENOENT:  // A component of fullPath does not exist
+            case ENOTDIR: // A component of fullPath is not a directory
+                return PrjFS_Result_Success;
+            default:
+                return PrjFS_Result_EIOError;
+        }
+    }
+
+    return PrjFS_Result_Success;
 }
 
 PrjFS_Result PrjFS_WriteFileContents(
@@ -422,48 +499,34 @@ static void HandleKernelRequest(Message request, void* messageMemory)
         }
             
         case MessageType_KtoU_NotifyFileModified:
-        {
-            result = HandleFileNotification(
-                requestHeader,
-                request.path,
-                false,  // isDirectory
-                PrjFS_NotificationType_FileModified);
-            break;
-        }
-        
         case MessageType_KtoU_NotifyFilePreDelete:
-        {
-            result = HandleFileNotification(
-                requestHeader,
-                request.path,
-                false,  // isDirectory
-                PrjFS_NotificationType_PreDelete);
-            break;
-        }
-        
         case MessageType_KtoU_NotifyDirectoryPreDelete:
         {
             result = HandleFileNotification(
                 requestHeader,
                 request.path,
-                true,  // isDirectory
-                PrjFS_NotificationType_PreDelete);
+                requestHeader->messageType == MessageType_KtoU_NotifyDirectoryPreDelete,  // isDirectory
+                KUMessageTypeToNotificationType(static_cast<MessageType>(requestHeader->messageType)));
             break;
         }
         
         case MessageType_KtoU_NotifyFileCreated:
+        case MessageType_KtoU_NotifyFileRenamed:
+        case MessageType_KtoU_NotifyDirectoryRenamed:
+        case MessageType_KtoU_NotifyFileHardLinkCreated:
         {
             char fullPath[PrjFSMaxPath];
             CombinePaths(s_virtualizationRootFullPath.c_str(), request.path, fullPath);
 			
             // TODO(Mac): Handle SetBitInFileFlags failures
             SetBitInFileFlags(fullPath, FileFlags_IsInVirtualizationRoot, true);
-        
+
+            bool isDirectory = requestHeader->messageType == MessageType_KtoU_NotifyDirectoryRenamed;
             result = HandleFileNotification(
                 requestHeader,
                 request.path,
-                false,  // isDirectory
-                PrjFS_NotificationType_NewFileCreated);
+                isDirectory,
+                KUMessageTypeToNotificationType(static_cast<MessageType>(requestHeader->messageType)));
             break;
         }
     }
@@ -726,6 +789,39 @@ static bool GetXAttr(const char* path, const char* name, size_t size, _Out_ void
     return false;
 }
 
+static inline PrjFS_NotificationType KUMessageTypeToNotificationType(MessageType kuNotificationType)
+{
+    switch(kuNotificationType)
+    {
+        case MessageType_KtoU_NotifyFileModified:
+            return PrjFS_NotificationType_FileModified;
+        
+        case MessageType_KtoU_NotifyFilePreDelete:
+        case MessageType_KtoU_NotifyDirectoryPreDelete:
+            return PrjFS_NotificationType_PreDelete;
+            
+        case MessageType_KtoU_NotifyFileCreated:
+            return PrjFS_NotificationType_NewFileCreated;
+            
+        case MessageType_KtoU_NotifyFileRenamed:
+        case MessageType_KtoU_NotifyDirectoryRenamed:
+            return PrjFS_NotificationType_FileRenamed;
+            
+        case MessageType_KtoU_NotifyFileHardLinkCreated:
+            return PrjFS_NotificationType_HardLinkCreated;
+        
+        // Non-notification types
+        case MessageType_Invalid:
+        case MessageType_UtoK_StartVirtualizationInstance:
+        case MessageType_UtoK_StopVirtualizationInstance:
+        case MessageType_KtoU_EnumerateDirectory:
+        case MessageType_KtoU_HydrateFile:
+        case MessageType_Response_Success:
+        case MessageType_Response_Fail:
+            return PrjFS_NotificationType_Invalid;
+    }
+}
+
 static errno_t SendKernelMessageResponse(uint64_t messageId, MessageType responseType)
 {
     const uint64_t inputs[] = { messageId, responseType };
@@ -762,6 +858,7 @@ static void ClearMachNotification(mach_port_t port)
     mach_msg(&msg.msgHdr, MACH_RCV_MSG | MACH_RCV_TIMEOUT, 0, sizeof(msg), port, 0, MACH_PORT_NULL);
 }
 
+#ifdef DEBUG
 static const char* NotificationTypeToString(PrjFS_NotificationType notificationType)
 {
     switch(notificationType)
@@ -777,6 +874,8 @@ static const char* NotificationTypeToString(PrjFS_NotificationType notificationT
             return STRINGIFY(PrjFS_NotificationType_PreDelete);
         case PrjFS_NotificationType_FileRenamed:
             return STRINGIFY(PrjFS_NotificationType_FileRenamed);
+        case PrjFS_NotificationType_HardLinkCreated:
+            return STRINGIFY(PrjFS_NotificationType_HardLinkCreated);
         case PrjFS_NotificationType_PreConvertToFull:
             return STRINGIFY(PrjFS_NotificationType_PreConvertToFull);
             
@@ -788,3 +887,4 @@ static const char* NotificationTypeToString(PrjFS_NotificationType notificationT
             return STRINGIFY(PrjFS_NotificationType_FileDeleted);
     }
 }
+#endif

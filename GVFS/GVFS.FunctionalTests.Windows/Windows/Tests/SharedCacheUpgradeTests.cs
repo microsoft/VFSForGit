@@ -14,7 +14,7 @@ namespace GVFS.FunctionalTests.Windows.Windows.Tests
 {
     [TestFixture]
     [Category(Categories.FullSuiteOnly)]
-    [Category(Categories.Windows)]
+    [Category(Categories.WindowsOnly)]
     public class SharedCacheUpgradeTests : TestsWithMultiEnlistment
     {
         private string localCachePath;

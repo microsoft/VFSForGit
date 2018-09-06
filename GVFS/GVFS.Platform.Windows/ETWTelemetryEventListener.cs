@@ -32,14 +32,18 @@ namespace GVFS.Platform.Windows
         private const long MeasureKeyword = 0x400000000000;
 
         private EventSource eventSource;
+        private string enlistmentId;
+        private string mountId;
 
-        private ETWTelemetryEventListener(string providerName, string[] traitsList) 
+        private ETWTelemetryEventListener(string providerName, string[] traitsList, string enlistmentId, string mountId) 
             : base(EventLevel.Verbose, Keywords.Telemetry)
         {           
             this.eventSource = new EventSource(providerName, EventSourceSettings.EtwSelfDescribingEventFormat, traitsList);
+            this.enlistmentId = enlistmentId;
+            this.mountId = mountId;
         }
 
-        public static ETWTelemetryEventListener CreateTelemetryListenerIfEnabled(string gitBinRoot, string providerName)
+        public static ETWTelemetryEventListener CreateTelemetryListenerIfEnabled(string gitBinRoot, string providerName, string enlistmentId, string mountId)
         {
             // This listener is disabled unless the user specifies the proper git config setting.
 
@@ -52,7 +56,7 @@ namespace GVFS.Platform.Windows
             if (!result.HasErrors && !string.IsNullOrEmpty(result.Output.TrimEnd('\r', '\n')))
             {
                 string[] traitsList = result.Output.TrimEnd('\r', '\n').Split('|');
-                return new ETWTelemetryEventListener(providerName, traitsList);
+                return new ETWTelemetryEventListener(providerName, traitsList, enlistmentId, mountId);
             }
             else
             {
@@ -83,12 +87,12 @@ namespace GVFS.Platform.Windows
 
             if (jsonPayload != null)
             {
-                JsonPayload payload = new JsonPayload(jsonPayload);
+                JsonPayload payload = new JsonPayload(jsonPayload, this.enlistmentId, this.mountId);
                 this.eventSource.Write(eventName, ref options, ref activityId, ref parentActivityId, ref payload);
             }
             else
             {
-                EmptyStruct payload = new EmptyStruct();
+                Payload payload = new Payload(this.enlistmentId, this.mountId);
                 this.eventSource.Write(eventName, ref options, ref activityId, ref parentActivityId, ref payload);
             }
         }
@@ -105,22 +109,38 @@ namespace GVFS.Platform.Windows
             return options;
         }
         
-        // Needed to pass relatedId without metadata
         [EventData]
-        public struct EmptyStruct
+        public struct Payload
         {
+            public Payload(string enlistmentId, string mountId)
+            {
+                this.EnlistmentId = enlistmentId;
+                this.MountId = mountId;
+            }
+
+            [EventField]
+            public string EnlistmentId { get; }
+            [EventField]
+            public string MountId { get; }
         }
 
         [EventData]
         public struct JsonPayload
         {
-            public JsonPayload(string payload)
+            public JsonPayload(string payload, string enlistmentId, string mountId)
             {
                 this.Json = payload;
+                this.EnlistmentId = enlistmentId;
+                this.MountId = mountId;
             }
 
             [EventField]
             public string Json { get; }
+
+            [EventField]
+            public string EnlistmentId { get; }
+            [EventField]
+            public string MountId { get; }
         }
     }
 }

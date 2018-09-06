@@ -24,6 +24,7 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
         }
 
         [TestCase]
+        [Category(Categories.MacTODO.M4)]   
         public void ModifyingAndDeletingRepositoryExcludeFileInvalidatesCache()
         {
             string repositoryExcludeFile = Path.Combine(".git", "info", "exclude");
@@ -31,7 +32,7 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
             this.RepositoryIgnoreTestSetup();
 
             // Add ignore pattern to existing exclude file
-            this.EditFile(repositoryExcludeFile, "*.ign");
+            this.EditFile("*.ign", repositoryExcludeFile);
 
             // The exclude file has been modified, verify this status
             // excludes the "test.ign" file as expected.
@@ -49,6 +50,7 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
         }
 
         [TestCase]
+        [Category(Categories.MacTODO.M4)]  
         public void NewRepositoryExcludeFileInvalidatesCache()
         {
             string repositoryExcludeFileRelativePath = Path.Combine(".git", "info", "exclude");
@@ -61,7 +63,7 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
             File.Exists(repositoryExcludeFilePath).ShouldBeFalse("Repository exclude path should not exist");
 
             // Create new exclude file with ignore pattern
-            this.CreateFile(repositoryExcludeFileRelativePath, "*.ign");
+            this.CreateFile("*.ign", repositoryExcludeFileRelativePath);
 
             // The exclude file has been modified, verify this status
             // excludes the "test.ign" file as expected.
@@ -69,6 +71,7 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
         }
 
         [TestCase]
+        [Category(Categories.MacTODO.M4)]  
         public void ModifyingHeadSymbolicRefInvalidatesCache()
         {
             this.ValidateGitCommand("status");
@@ -84,6 +87,7 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
         }
 
         [TestCase]
+        [Category(Categories.MacTODO.M4)]  
         public void ModifyingHeadRefInvalidatesCache()
         {
             this.ValidateGitCommand("status");
@@ -104,7 +108,7 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
             File.Delete(statusCachePath);
 
             // Create a new file with an extension that will be ignored later in the test.
-            this.CreateFile("test.ign", "file to be ignored");
+            this.CreateFile("file to be ignored", "test.ign");
 
             this.WaitForStatusCacheToBeGenerated();
 

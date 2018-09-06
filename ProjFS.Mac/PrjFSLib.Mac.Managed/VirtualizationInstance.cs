@@ -17,6 +17,8 @@ namespace PrjFSLib.Mac
         public virtual NotifyFileModified OnFileModified { get; set; }
         public virtual NotifyPreDeleteEvent OnPreDelete { get; set; }
         public virtual NotifyNewFileCreatedEvent OnNewFileCreated { get; set; }
+        public virtual NotifyFileRenamedEvent OnFileRenamed { get; set; }
+        public virtual NotifyHardLinkCreatedEvent OnHardLinkCreated { get; set; }
 
         public static Result ConvertDirectoryToVirtualizationRoot(string fullPath)
         {
@@ -69,7 +71,14 @@ namespace PrjFSLib.Mac
             UpdateType updateFlags,
             out UpdateFailureCause failureCause)
         {
-            throw new NotImplementedException();
+            UpdateFailureCause deleteFailureCause = UpdateFailureCause.NoFailure;
+            Result result = Interop.PrjFSLib.DeleteFile(
+                relativePath,
+                updateFlags,
+                ref deleteFailureCause);
+
+            failureCause = deleteFailureCause;
+            return result;
         }
 
         public virtual Result WritePlaceholderDirectory(
@@ -104,10 +113,28 @@ namespace PrjFSLib.Mac
             byte[] providerId,
             byte[] contentId,
             ulong fileSize,
+            ushort fileMode,
             UpdateType updateFlags,
             out UpdateFailureCause failureCause)
         {
-            throw new NotImplementedException();
+            if (providerId.Length != Interop.PrjFSLib.PlaceholderIdLength ||
+                contentId.Length != Interop.PrjFSLib.PlaceholderIdLength)
+            {
+                throw new ArgumentException();
+            }
+
+            UpdateFailureCause updateFailureCause = UpdateFailureCause.NoFailure;
+            Result result = Interop.PrjFSLib.UpdatePlaceholderFileIfNeeded(
+                relativePath,
+                providerId,
+                contentId,
+                fileSize,
+                fileMode,
+                updateFlags,
+                ref updateFailureCause);
+
+            failureCause = updateFailureCause;
+            return result;
         }
 
         public virtual Result CompleteCommand(
@@ -131,8 +158,7 @@ namespace PrjFSLib.Mac
             int triggeringProcessId,
             string triggeringProcessName,
             bool isDirectory,
-            NotificationType notificationType,
-            string destinationRelativePath)
+            NotificationType notificationType)
         {
             switch (notificationType)
             {
@@ -145,6 +171,14 @@ namespace PrjFSLib.Mac
 
                 case NotificationType.NewFileCreated:
                     this.OnNewFileCreated(relativePath, isDirectory);
+                    return Result.Success;
+
+                case NotificationType.FileRenamed:
+                    this.OnFileRenamed(relativePath, isDirectory);
+                    return Result.Success;
+
+                case NotificationType.HardLinkCreated:
+                    this.OnHardLinkCreated(relativePath);
                     return Result.Success;
             }
 

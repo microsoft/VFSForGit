@@ -80,7 +80,7 @@ namespace GVFS.Platform.Mac
             return pipe;
         }
 
-        public override InProcEventListener CreateTelemetryListenerIfEnabled(string providerName)
+        public override InProcEventListener CreateTelemetryListenerIfEnabled(string providerName, string enlistmentId, string mountId)
         {
             return null;
         }
@@ -131,6 +131,14 @@ namespace GVFS.Platform.Mac
         {
             // TODO(Mac): support git status cache
             return false;
+        }
+
+        public override FileBasedLock CreateFileBasedLock(
+            PhysicalFileSystem fileSystem,
+            ITracer tracer,
+            string lockPath)
+        {
+            return new MacFileBasedLock(fileSystem, tracer, lockPath);
         }
     }
 }

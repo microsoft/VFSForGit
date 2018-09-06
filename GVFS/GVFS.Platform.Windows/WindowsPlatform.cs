@@ -70,11 +70,13 @@ namespace GVFS.Platform.Windows
             return true;
         }
 
-        public override InProcEventListener CreateTelemetryListenerIfEnabled(string providerName)
+        public override InProcEventListener CreateTelemetryListenerIfEnabled(string providerName, string enlistmentId, string mountId)
         {
             return ETWTelemetryEventListener.CreateTelemetryListenerIfEnabled(
                 this.GitInstallation.GetInstalledGitBinPath(),
-                providerName);
+                providerName,
+                enlistmentId,
+                mountId);
         }
 
         public override void InitializeEnlistmentACLs(string enlistmentPath)
@@ -260,6 +262,14 @@ namespace GVFS.Platform.Windows
         public override bool IsGitStatusCacheSupported()
         {
             return File.Exists(Path.Combine(Paths.GetServiceDataRoot(GVFSConstants.Service.ServiceName), GVFSConstants.GitStatusCache.EnableGitStatusCacheTokenFile));
+        }
+
+        public override FileBasedLock CreateFileBasedLock(
+            PhysicalFileSystem fileSystem,
+            ITracer tracer,
+            string lockPath)
+        {
+            return new WindowsFileBasedLock(fileSystem, tracer, lockPath);
         }
 
         public override bool TryGetGVFSEnlistmentRoot(string directory, out string enlistmentRoot, out string errorMessage)

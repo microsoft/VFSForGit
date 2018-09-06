@@ -14,6 +14,8 @@ namespace GVFS.Platform.Mac
 {
     public class MacFileSystemVirtualizer : FileSystemVirtualizer
     {
+        public static readonly byte[] PlaceholderVersionId = ToVersionIdByteArray(new byte[] { PlaceholderVersion });
+
         private VirtualizationInstance virtualizationInstance;
 
         public MacFileSystemVirtualizer(GVFSContext context, GVFSGitObjects gitObjects)
@@ -81,11 +83,18 @@ namespace GVFS.Platform.Mac
             out UpdateFailureReason failureReason)
         {
             UpdateFailureCause failureCause = UpdateFailureCause.NoFailure;
+
+            // TODO(Mac): Add functional tests that include:
+            //     - Mode + content changes between commits
+            //     - Mode only changes (without any change to content, see issue #223)
+            ushort fileMode = this.FileSystemCallbacks.GitIndexProjection.GetFilePathMode(relativePath);
+
             Result result = this.virtualizationInstance.UpdatePlaceholderIfNeeded(
                 relativePath,
-                GetPlaceholderVersionId(),
-                ConvertShaToContentId(shaContentId),
+                PlaceholderVersionId,
+                ToVersionIdByteArray(ConvertShaToContentId(shaContentId)),
                 (ulong)endOfFile,
+                fileMode,
                 (UpdateType)updateFlags,
                 out failureCause);
             failureReason = (UpdateFailureReason)failureCause;
@@ -102,6 +111,8 @@ namespace GVFS.Platform.Mac
             this.virtualizationInstance.OnFileModified = this.OnFileModified;
             this.virtualizationInstance.OnPreDelete = this.OnPreDelete;
             this.virtualizationInstance.OnNewFileCreated = this.OnNewFileCreated;
+            this.virtualizationInstance.OnFileRenamed = this.OnFileRenamed;
+            this.virtualizationInstance.OnHardLinkCreated = this.OnHardLinkCreated;
 
             uint threadCount = (uint)Environment.ProcessorCount * 2;
 
@@ -347,6 +358,24 @@ namespace GVFS.Platform.Mac
                 this.LogUnhandledExceptionAndExit(nameof(this.OnNewFileCreated), metadata);
             }
         }
+        
+        private void OnFileRenamed(string relativeDestinationPath, bool isDirectory)
+        {
+            // ProjFS for Mac *could* be updated to provide us with relativeSourcePath as well,
+            // but because VFSForGit doesn't need the source path on Mac for correct behavior
+            // the relativeSourcePath is left out of the notification to keep the kext simple
+            this.OnFileRenamed(
+                relativeSourcePath: string.Empty, 
+                relativeDestinationPath: relativeDestinationPath, 
+                isDirectory: isDirectory);
+        }
+
+        private void OnHardLinkCreated(string relativeNewLinkPath)
+        {
+            this.OnHardLinkCreated(
+                relativeExistingFilePath: string.Empty, 
+                relativeNewLinkPath: relativeNewLinkPath);
+        }
 
         private Result OnEnumerateDirectory(
             ulong commandId,
@@ -377,7 +406,7 @@ namespace GVFS.Platform.Mac
                         projectedItems = this.FileSystemCallbacks.GitIndexProjection.GetProjectedItems(CancellationToken.None, blobSizesConnection, relativePath);
                     }
 
-                    result = this.CreateEnumerationPlaceholders(relativePath, projectedItems);
+                    result = this.CreatePlaceholders(relativePath, projectedItems, triggeringProcessName);
                 }
                 catch (SizesUnavailableException e)
                 {
@@ -402,37 +431,50 @@ namespace GVFS.Platform.Mac
             return Result.EIOError;
         }
 
-        private Result CreateEnumerationPlaceholders(string relativePath, IEnumerable<ProjectedFileInfo> projectedItems)
+        private Result CreatePlaceholders(string directoryRelativePath, IEnumerable<ProjectedFileInfo> projectedItems, string triggeringProcessName)
         {
             foreach (ProjectedFileInfo fileInfo in projectedItems)
             {
                 Result result;
+                string sha = null;
+                string childRelativePath = Path.Combine(directoryRelativePath, fileInfo.Name);
                 if (fileInfo.IsFolder)
                 {
-                    result = this.virtualizationInstance.WritePlaceholderDirectory(Path.Combine(relativePath, fileInfo.Name));
+                    result = this.virtualizationInstance.WritePlaceholderDirectory(childRelativePath);
                 }
                 else
                 {
                     // TODO(Mac): Add functional tests that validate file mode is set correctly
-                    string filePath = Path.Combine(relativePath, fileInfo.Name);
-                    ushort fileMode = this.FileSystemCallbacks.GitIndexProjection.GetFilePathMode(filePath);
+                    ushort fileMode = this.FileSystemCallbacks.GitIndexProjection.GetFilePathMode(childRelativePath);
+                    sha = fileInfo.Sha.ToString();
                     result = this.virtualizationInstance.WritePlaceholderFile(
-                        filePath,
-                        ToVersionIdByteArray(FileSystemVirtualizer.GetPlaceholderVersionId()),
-                        ToVersionIdByteArray(FileSystemVirtualizer.ConvertShaToContentId(fileInfo.Sha.ToString())),
+                        childRelativePath,
+                        PlaceholderVersionId,
+                        ToVersionIdByteArray(FileSystemVirtualizer.ConvertShaToContentId(sha)),
                         (ulong)fileInfo.Size,
                         fileMode);
                 }
 
                 if (result != Result.Success)
                 {
-                    EventMetadata metadata = this.CreateEventMetadata(relativePath);
+                    EventMetadata metadata = this.CreateEventMetadata(childRelativePath);
                     metadata.Add("fileInfo.Name", fileInfo.Name);
                     metadata.Add("fileInfo.Size", fileInfo.Size);
                     metadata.Add("fileInfo.IsFolder", fileInfo.IsFolder);
-                    this.Context.Tracer.RelatedError(metadata, $"{nameof(this.CreateEnumerationPlaceholders)}: Write placeholder failed");
+                    this.Context.Tracer.RelatedError(metadata, $"{nameof(this.CreatePlaceholders)}: Write placeholder failed");
 
                     return result;
+                }
+                else
+                {
+                    if (fileInfo.IsFolder)
+                    {
+                        this.FileSystemCallbacks.OnPlaceholderFolderCreated(childRelativePath);
+                    }
+                    else
+                    {
+                        this.FileSystemCallbacks.OnPlaceholderFileCreated(childRelativePath, sha, triggeringProcessName);
+                    }
                 }
             }
 

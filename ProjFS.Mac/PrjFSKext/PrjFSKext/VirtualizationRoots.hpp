@@ -18,7 +18,7 @@ struct VirtualizationRoot
     fsid_t                      rootFsid;
     uint64_t                    rootInode;
     
-    // TODO: this should eventually be entirely diagnostic and not used for decisions
+    // TODO(Mac): this should eventually be entirely diagnostic and not used for decisions
     char                        path[PrjFSMaxPath];
 
     int32_t                     index;

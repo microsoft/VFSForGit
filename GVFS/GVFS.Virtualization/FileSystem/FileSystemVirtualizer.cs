@@ -63,16 +63,6 @@ namespace GVFS.Virtualization.FileSystem
             return Encoding.Unicode.GetBytes(sha);
         }
 
-        /// <summary>
-        /// GVFS uses the first byte of the providerId field of placeholders to version
-        /// the data that it stores in the contentId (and providerId) fields of the placeholder
-        /// </summary>
-        /// <returns>Byte array to set as placeholder version Id</returns>
-        public static byte[] GetPlaceholderVersionId()
-        {
-            return new byte[] { PlaceholderVersion };
-        }
-
         public virtual bool TryStart(FileSystemCallbacks fileSystemCallbacks, out string error)
         {
             this.FileSystemCallbacks = fileSystemCallbacks;
@@ -207,6 +197,62 @@ namespace GVFS.Virtualization.FileSystem
             }
 
             this.FileSystemCallbacks.InvalidateGitStatusCache();
+        }
+        
+        protected void OnFileRenamed(string relativeSourcePath, string relativeDestinationPath, bool isDirectory)
+        {
+            try
+            {
+                bool srcPathInDotGit = FileSystemCallbacks.IsPathInsideDotGit(relativeSourcePath);
+                bool dstPathInDotGit = FileSystemCallbacks.IsPathInsideDotGit(relativeDestinationPath);
+
+                if (dstPathInDotGit)
+                {
+                    this.OnDotGitFileOrFolderChanged(relativeDestinationPath);
+                }
+
+                if (!(srcPathInDotGit && dstPathInDotGit))
+                {
+                    if (isDirectory)
+                    {
+                        this.FileSystemCallbacks.OnFolderRenamed(relativeSourcePath, relativeDestinationPath);
+                    }
+                    else
+                    {
+                        this.FileSystemCallbacks.OnFileRenamed(relativeSourcePath, relativeDestinationPath);
+                    }
+                }
+            }
+            catch (Exception e)
+            {
+                EventMetadata metadata = this.CreateEventMetadata(relativeSourcePath, e);
+                metadata.Add("destinationPath", relativeDestinationPath);
+                metadata.Add("isDirectory", isDirectory);
+                this.LogUnhandledExceptionAndExit(nameof(this.OnFileRenamed), metadata);
+            }
+        }
+
+        protected void OnHardLinkCreated(string relativeExistingFilePath, string relativeNewLinkPath)
+        {
+            try
+            {
+                bool pathInDotGit = FileSystemCallbacks.IsPathInsideDotGit(relativeNewLinkPath);
+
+                if (pathInDotGit)
+                {
+                    this.OnDotGitFileOrFolderChanged(relativeNewLinkPath);
+                }
+                else
+                {
+                    this.FileSystemCallbacks.OnFileHardLinkCreated(relativeNewLinkPath);
+                }
+            }
+            catch (Exception e)
+            {
+                EventMetadata metadata = this.CreateEventMetadata(relativeNewLinkPath, e);
+                metadata.Add(nameof(relativeExistingFilePath), relativeExistingFilePath);
+                this.LogUnhandledExceptionAndExit(nameof(this.OnHardLinkCreated), metadata);
+            }
         }
 
         protected EventMetadata CreateEventMetadata(

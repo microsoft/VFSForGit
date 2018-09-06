@@ -19,6 +19,12 @@ namespace GVFS.Platform.Windows
 {
     public class WindowsFileSystemVirtualizer : FileSystemVirtualizer
     {
+        /// <summary>
+        /// GVFS uses the first byte of the providerId field of placeholders to version
+        /// the data that it stores in the contentId (and providerId) fields of the placeholder
+        /// </summary>
+        public static readonly byte[] PlaceholderVersionId = new byte[] { PlaceholderVersion };
+
         private const string ClassName = nameof(WindowsFileSystemVirtualizer);
         private const int MaxBlobStreamBufferSize = 64 * 1024;
         private const int MinPrjLibThreads = 5;
@@ -131,7 +137,7 @@ namespace GVFS.Platform.Windows
                 fileAttributes,
                 endOfFile,
                 ConvertShaToContentId(shaContentId),
-                GetPlaceholderVersionId(),
+                PlaceholderVersionId,
                 (UpdateType)updateFlags,
                 out failureCause);
             failureReason = (UpdateFailureReason)failureCause;
@@ -159,7 +165,7 @@ namespace GVFS.Platform.Windows
             this.virtualizationInstance.OnNotifyPreRename = this.NotifyPreRenameHandler;
             this.virtualizationInstance.OnNotifyPreSetHardlink = null;
             this.virtualizationInstance.OnNotifyFileRenamed = this.NotifyFileRenamedHandler;
-            this.virtualizationInstance.OnNotifyHardlinkCreated = null;
+            this.virtualizationInstance.OnNotifyHardlinkCreated = this.NotifyHardlinkCreated;
             this.virtualizationInstance.OnNotifyFileHandleClosedNoModification = null;
             this.virtualizationInstance.OnNotifyFileHandleClosedFileModifiedOrDeleted = this.NotifyFileHandleClosedFileModifiedOrDeletedHandler;
             this.virtualizationInstance.OnNotifyFilePreConvertToFull = this.NotifyFilePreConvertToFullHandler;
@@ -757,7 +763,7 @@ namespace GVFS.Platform.Windows
                     endOfFile: fileInfo.Size,
                     isDirectory: fileInfo.IsFolder,
                     contentId: FileSystemVirtualizer.ConvertShaToContentId(sha),
-                    providerId: FileSystemVirtualizer.GetPlaceholderVersionId());
+                    providerId: PlaceholderVersionId);
 
                 if (result != HResult.Ok)
                 {
@@ -1094,7 +1100,11 @@ namespace GVFS.Platform.Windows
                         if (gitCommand.IsValidGitCommand)
                         {
                             string directoryPath = Path.Combine(this.Context.Enlistment.WorkingDirectoryRoot, virtualPath);
-                            HResult hr = this.virtualizationInstance.ConvertDirectoryToPlaceholder(directoryPath, ConvertShaToContentId(GVFSConstants.AllZeroSha), GetPlaceholderVersionId());
+                            HResult hr = this.virtualizationInstance.ConvertDirectoryToPlaceholder(
+                                directoryPath, 
+                                ConvertShaToContentId(GVFSConstants.AllZeroSha), 
+                                PlaceholderVersionId);
+                            
                             if (hr == HResult.Ok)
                             {
                                 this.FileSystemCallbacks.OnPlaceholderFolderCreated(virtualPath);
@@ -1223,35 +1233,14 @@ namespace GVFS.Platform.Windows
             bool isDirectory,
             ref NotificationType notificationMask)
         {
-            try
-            {
-                bool srcPathInDotGit = FileSystemCallbacks.IsPathInsideDotGit(virtualPath);
-                bool dstPathInDotGit = FileSystemCallbacks.IsPathInsideDotGit(destinationPath);
+            this.OnFileRenamed(virtualPath, destinationPath, isDirectory);
+        }
 
-                if (dstPathInDotGit)
-                {
-                    this.OnDotGitFileOrFolderChanged(destinationPath);
-                }
-
-                if (!(srcPathInDotGit && dstPathInDotGit))
-                {
-                    if (isDirectory)
-                    {
-                        this.FileSystemCallbacks.OnFolderRenamed(virtualPath, destinationPath);
-                    }
-                    else
-                    {
-                        this.FileSystemCallbacks.OnFileRenamed(virtualPath, destinationPath);
-                    }
-                }
-            }
-            catch (Exception e)
-            {
-                EventMetadata metadata = this.CreateEventMetadata(virtualPath, e);
-                metadata.Add("destinationPath", destinationPath);
-                metadata.Add("isDirectory", isDirectory);
-                this.LogUnhandledExceptionAndExit(nameof(this.NotifyFileRenamedHandler), metadata);
-            }
+        private void NotifyHardlinkCreated(
+            string relativeExistingFilePath,
+            string relativeNewLinkPath)
+        {
+            this.OnHardLinkCreated(relativeExistingFilePath, relativeNewLinkPath);
         }
 
         private void NotifyFileHandleClosedFileModifiedOrDeletedHandler(
@@ -1386,19 +1375,23 @@ namespace GVFS.Platform.Windows
                 NotificationType.PreRename |
                 NotificationType.PreDelete |
                 NotificationType.FileRenamed |
+                NotificationType.HardlinkCreated |
                 NotificationType.FileHandleClosedFileModified;
 
             public const NotificationType LogsHeadFile = 
-                NotificationType.FileRenamed | 
+                NotificationType.FileRenamed |
+                NotificationType.HardlinkCreated |
                 NotificationType.FileHandleClosedFileModified;
 
             public const NotificationType ExcludeAndHeadFile =
                 NotificationType.FileRenamed |
+                NotificationType.HardlinkCreated |
                 NotificationType.FileHandleClosedFileDeleted |
                 NotificationType.FileHandleClosedFileModified;
 
             public const NotificationType FilesAndFoldersInRefsHeads =
                 NotificationType.FileRenamed |
+                NotificationType.HardlinkCreated |
                 NotificationType.FileHandleClosedFileDeleted |
                 NotificationType.FileHandleClosedFileModified;
 
@@ -1406,6 +1399,7 @@ namespace GVFS.Platform.Windows
                 NotificationType.NewFileCreated |
                 NotificationType.FileSupersededOrOverwritten |
                 NotificationType.FileRenamed |
+                NotificationType.HardlinkCreated |
                 NotificationType.FileHandleClosedFileDeleted |
                 NotificationType.FilePreConvertToFull |
                 NotificationType.FileHandleClosedFileModified;

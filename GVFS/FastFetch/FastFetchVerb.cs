@@ -206,7 +206,7 @@ namespace FastFetch
                 Console.WriteLine("The ParentActivityId provided (" + this.ParentActivityId + ") is not a valid GUID.");
             }
 
-            using (JsonTracer tracer = new JsonTracer("Microsoft.Git.FastFetch", parentActivityId, "FastFetch", disableTelemetry: true))
+            using (JsonTracer tracer = new JsonTracer("Microsoft.Git.FastFetch", parentActivityId, "FastFetch", enlistmentId: null, mountId: null, disableTelemetry: true))
             {
                 if (this.Verbose)
                 {

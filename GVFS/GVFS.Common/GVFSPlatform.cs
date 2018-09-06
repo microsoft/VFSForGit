@@ -50,7 +50,7 @@ namespace GVFS.Common
         public abstract bool TryGetGVFSHooksPathAndVersion(out string hooksPaths, out string hooksVersion, out string error);
         public abstract bool TryInstallGitCommandHooks(GVFSContext context, string executingDirectory, string hookName, string commandHookPath, out string errorMessage);
 
-        public abstract InProcEventListener CreateTelemetryListenerIfEnabled(string providerName);
+        public abstract InProcEventListener CreateTelemetryListenerIfEnabled(string providerName, string enlistmentId, string mountId);
 
         public abstract Dictionary<string, string> GetPhysicalDiskInfo(string path);
 
@@ -58,6 +58,11 @@ namespace GVFS.Common
         public abstract bool TryGetGVFSEnlistmentRoot(string directory, out string enlistmentRoot, out string errorMessage);
 
         public abstract bool IsGitStatusCacheSupported();
+
+        public abstract FileBasedLock CreateFileBasedLock(
+            PhysicalFileSystem fileSystem,
+            ITracer tracer,
+            string lockPath);
 
         public bool TryGetNormalizedPathRoot(string path, out string pathRoot, out string errorMessage)
         {
