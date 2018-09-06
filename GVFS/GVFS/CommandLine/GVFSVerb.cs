@@ -191,6 +191,22 @@ namespace GVFS.CommandLine
             return this.ShowStatusWhileRunning(action, message, gvfsLogEnlistmentRoot);
         }
 
+        protected bool TryAuthenticate(ITracer tracer, GVFSEnlistment enlistment, out string authErrorMessage)
+        {
+            string authError = null;
+
+            bool result = this.ShowStatusWhileRunning(
+                () =>
+                {
+                    return enlistment.Authentication.TryRefreshCredentials(tracer, out authError);
+                },
+                "Authenticating",
+                enlistment.EnlistmentRoot);
+
+            authErrorMessage = authError;
+            return result;
+        }
+
         protected void ReportErrorAndExit(ITracer tracer, ReturnCode exitCode, string error, params object[] args)
         {
             if (!string.IsNullOrEmpty(error))

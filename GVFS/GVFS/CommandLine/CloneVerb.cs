@@ -168,13 +168,10 @@ namespace GVFS.CommandLine
                         this.Output.WriteLine("  Local Cache:  " + resolvedLocalCacheRoot);
                         this.Output.WriteLine("  Destination:  " + enlistment.EnlistmentRoot);
 
-                        string authErrorMessage = null;
-                        if (!this.ShowStatusWhileRunning(
-                            () => enlistment.Authentication.TryRefreshCredentials(tracer, out authErrorMessage),
-                            "Authenticating",
-                            normalizedEnlistmentRootPath))
+                        string authErrorMessage;
+                        if (!this.TryAuthenticate(tracer, enlistment, out authErrorMessage))
                         {
-                            this.ReportErrorAndExit(tracer, "Cannot clone because authentication failed");
+                            this.ReportErrorAndExit(tracer, "Cannot clone because authentication failed: " + authErrorMessage);
                         }
 
                         RetryConfig retryConfig = this.GetRetryConfig(tracer, enlistment, TimeSpan.FromMinutes(RetryConfig.FetchAndCloneTimeoutMinutes));
