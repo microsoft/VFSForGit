@@ -7,6 +7,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Runtime.InteropServices;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -14,7 +15,6 @@ namespace GVFS.FunctionalTests.Tests.MultiEnlistmentTests
 {
     [TestFixture]
     [Category(Categories.FullSuiteOnly)]
-    [Category(Categories.MacTODO.M3)]
     public class SharedCacheTests : TestsWithMultiEnlistment
     {
         private const string WellKnownFile = "Readme.md";
@@ -61,6 +61,7 @@ namespace GVFS.FunctionalTests.Tests.MultiEnlistmentTests
         }
 
         [TestCase]
+        [Category(Categories.MacTODO.M4)]
         public void RepairFixesCorruptBlobSizesDatabase()
         {
             GVFSFunctionalTestEnlistment enlistment = this.CloneAndMountEnlistment();
@@ -80,6 +81,7 @@ namespace GVFS.FunctionalTests.Tests.MultiEnlistmentTests
         }
 
         [TestCase]
+        [Category(Categories.MacTODO.M4)]
         public void CloneCleansUpStaleMetadataLock()
         {
             GVFSFunctionalTestEnlistment enlistment1 = this.CloneAndMountEnlistment();
@@ -124,6 +126,7 @@ namespace GVFS.FunctionalTests.Tests.MultiEnlistmentTests
         }
 
         [TestCase]
+        [Category(Categories.MacTODO.M3)]
         public void DeleteObjectsCacheAndCacheMappingBeforeMount()
         {
             GVFSFunctionalTestEnlistment enlistment1 = this.CloneAndMountEnlistment();
@@ -133,7 +136,7 @@ namespace GVFS.FunctionalTests.Tests.MultiEnlistmentTests
 
             string objectsRoot = GVFSHelpers.GetPersistedGitObjectsRoot(enlistment1.DotGVFSRoot).ShouldNotBeNull();
             objectsRoot.ShouldBeADirectory(this.fileSystem);
-            CmdRunner.DeleteDirectoryWithUnlimitedRetries(objectsRoot);
+            this.DeleteDirectoryWithUnlimitedRetries(objectsRoot);
 
             string metadataPath = Path.Combine(this.localCachePath, "mapping.dat");
             metadataPath.ShouldBeAFile(this.fileSystem);
@@ -156,6 +159,7 @@ namespace GVFS.FunctionalTests.Tests.MultiEnlistmentTests
         }
 
         [TestCase]
+        [Category(Categories.MacTODO.M3)]
         public void DeleteCacheDuringHydrations()
         {
             GVFSFunctionalTestEnlistment enlistment1 = this.CloneAndMountEnlistment();
@@ -173,7 +177,7 @@ namespace GVFS.FunctionalTests.Tests.MultiEnlistmentTests
                 try
                 {
                     // Delete objectsRoot rather than this.localCachePath as the blob sizes database cannot be deleted while GVFS is mounted
-                    CmdRunner.DeleteDirectoryWithUnlimitedRetries(objectsRoot);
+                    this.DeleteDirectoryWithUnlimitedRetries(objectsRoot);
                     Thread.Sleep(100);
                 }
                 catch (IOException)
@@ -213,7 +217,7 @@ namespace GVFS.FunctionalTests.Tests.MultiEnlistmentTests
             mappingFileContents.Length.ShouldNotEqual(0, "mapping.dat should not be empty");
 
             // Delete the git objects root folder, mount should re-create it and the mapping.dat file should not change
-            CmdRunner.DeleteDirectoryWithUnlimitedRetries(objectsRoot);
+            this.DeleteDirectoryWithUnlimitedRetries(objectsRoot);
 
             enlistment.MountGVFS();
 
@@ -240,7 +244,7 @@ namespace GVFS.FunctionalTests.Tests.MultiEnlistmentTests
             mappingFileContents.Length.ShouldNotEqual(0, "mapping.dat should not be empty");
 
             // Delete the local cache folder, mount should re-create it and generate a new mapping file and local cache key
-            CmdRunner.DeleteDirectoryWithUnlimitedRetries(enlistment.LocalCacheRoot);
+            this.DeleteDirectoryWithUnlimitedRetries(enlistment.LocalCacheRoot);
 
             enlistment.MountGVFS();
 
@@ -268,7 +272,7 @@ namespace GVFS.FunctionalTests.Tests.MultiEnlistmentTests
         // localCacheParentPath can be deleted (as the SQLite blob sizes database cannot be deleted while GVFS is mounted) 
         protected override void OnTearDownEnlistmentsDeleted()
         {
-            CmdRunner.DeleteDirectoryWithUnlimitedRetries(this.localCacheParentPath);
+            this.DeleteDirectoryWithUnlimitedRetries(this.localCacheParentPath);
         }
 
         private GVFSFunctionalTestEnlistment CloneAndMountEnlistment(string branch = null)
@@ -301,6 +305,19 @@ namespace GVFS.FunctionalTests.Tests.MultiEnlistmentTests
                 {
                     File.ReadAllText(allFiles[i]);
                 }
+            }
+        }
+
+        public void DeleteDirectoryWithUnlimitedRetries(string path)
+        {
+            if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+            {
+                CmdRunner.DeleteDirectoryWithUnlimitedRetries(path);
+            }
+            else
+            {
+                // TODO(Mac): See if we can use BashRunner.DeleteDirectoryWithRetry on Windows as well
+                BashRunner.DeleteDirectoryWithUnlimitedRetries(path);
             }
         }
     }
