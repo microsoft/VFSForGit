@@ -1,4 +1,4 @@
-﻿using GVFS.Common;
+using GVFS.Common;
 using GVFS.Common.Git;
 using GVFS.Common.NamedPipes;
 using GVFS.Hooks.HooksPlatform;
@@ -83,6 +83,12 @@ namespace GVFS.Hooks
 
         private static void RunPreCommands(string[] args)
         {
+            if (ProductUpgrader.IsLocalUpgradeAvailable())
+            {
+                Console.WriteLine("A newer version of GVFS is available.");
+                Console.WriteLine("Run \"gvfs upgrade\" on \"Command Prompt\" as Administrator to install.");
+            }
+
             string command = GetGitCommand(args);
             switch (command)
             {

@@ -1,4 +1,4 @@
-﻿using GVFS.Common;
+using GVFS.Common;
 using GVFS.Common.FileSystem;
 using GVFS.Common.NamedPipes;
 using GVFS.Common.Tracing;
@@ -6,6 +6,7 @@ using GVFS.Service.Handlers;
 using System;
 using System.IO;
 using System.Linq;
+using System.Reflection;
 using System.Runtime.Serialization;
 using System.ServiceProcess;
 using System.Threading;
@@ -23,12 +24,14 @@ namespace GVFS.Service
         private string serviceName;
         private string serviceDataLocation;
         private RepoRegistry repoRegistry;
+        private ProductUpgradeTimer productUpgradeTimer;
 
         public GVFSService(JsonTracer tracer)
         {
             this.tracer = tracer;
             this.serviceName = GVFSConstants.Service.ServiceName;
             this.CanHandleSessionChangeEvent = true;
+            this.productUpgradeTimer = new ProductUpgradeTimer(tracer);
         }
 
         public void Run()
@@ -37,6 +40,7 @@ namespace GVFS.Service
             {
                 this.repoRegistry = new RepoRegistry(this.tracer, new PhysicalFileSystem(), this.serviceDataLocation);
                 this.repoRegistry.Upgrade();
+                this.productUpgradeTimer.Start();
                 string pipeName = this.serviceName + ".Pipe";
                 this.tracer.RelatedInfo("Starting pipe server with name: " + pipeName);
 
@@ -68,6 +72,11 @@ namespace GVFS.Service
 
             try
             {
+                if (this.productUpgradeTimer != null)
+                {
+                    this.productUpgradeTimer.Stop();
+                }
+
                 if (this.tracer != null)
                 {
                     this.tracer.RelatedInfo("Stopping");

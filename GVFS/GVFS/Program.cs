@@ -1,4 +1,4 @@
-﻿using CommandLine;
+using CommandLine;
 using GVFS.CommandLine;
 using GVFS.Common;
 using GVFS.PlatformLoader;
@@ -27,6 +27,7 @@ namespace GVFS
                 typeof(ServiceVerb),
                 typeof(StatusVerb),
                 typeof(UnmountVerb),
+                typeof(UpgradeVerb)
             };
 
             int consoleWidth = 80;
@@ -78,6 +79,14 @@ namespace GVFS
                             // The service verb doesn't operate on a repo, so it doesn't use the enlistment
                             // path at all.
                             service.Execute();
+                            Environment.Exit((int)ReturnCode.Success);
+                        })
+                    .WithParsed<UpgradeVerb>(
+                        upgrade =>
+                        {
+                            // The service verb doesn't operate on a repo, so it doesn't use the enlistment
+                            // path at all.
+                            upgrade.Execute();
                             Environment.Exit((int)ReturnCode.Success);
                         })
                     .WithParsed<GVFSVerb>(
