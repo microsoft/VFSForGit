@@ -2,15 +2,16 @@
 
 ## Windows
 
-|Branch|Unit Tests|Functional Tests|
-|:--:|:--:|:--:|
-|**master**|[![Build status](https://gvfs.visualstudio.com/ci/_apis/build/status/CI%20-%20Windows%20-%20master?branchName=master)](https://gvfs.visualstudio.com/ci/_build/latest?definitionId=7)|[![Build status](https://gvfs.visualstudio.com/ci/_apis/build/status/CI%20-%20Windows%20-%20Full%20Functional%20Tests?branchName=master)](https://gvfs.visualstudio.com/ci/_build/latest?definitionId=6)|
-
+|Branch|Unit Tests|Functional Tests|Large Repo Perf|
+|:--:|:--:|:--:|:--:|
+|**master**|[![Build status](https://dev.azure.com/gvfs/ci/_apis/build/status/CI%20-%20Windows?branchName=master)](https://dev.azure.com/gvfs/ci/_build/latest?definitionId=7)|[![Build status](https://dev.azure.com/gvfs/ci/_apis/build/status/CI%20-%20Windows%20-%20Full%20Functional%20Tests?branchName=master)](https://dev.azure.com/gvfs/ci/_build/latest?definitionId=6)|[![Build status](https://dev.azure.com/mseng/VSOnline/_apis/build/status/GVFS/GitHub%20VFSForGit%20Large%20Repo%20Perf%20Tests?branchName=master)](https://dev.azure.com/mseng/VSOnline/_build/latest?definitionId=7179)|
+|**shipped**|[![Build status](https://dev.azure.com/gvfs/ci/_apis/build/status/CI%20-%20Windows?branchName=releases%2Fshipped)](https://dev.azure.com/gvfs/ci/_build/latest?definitionId=7)|[![Build status](https://dev.azure.com/gvfs/ci/_apis/build/status/CI%20-%20Windows%20-%20Full%20Functional%20Tests?branchName=releases%2Fshipped)](https://dev.azure.com/gvfs/ci/_build/latest?definitionId=6)|[![Build status](https://dev.azure.com/mseng/VSOnline/_apis/build/status/GVFS/GitHub%20VFSForGit%20Large%20Repo%20Perf%20Tests?branchName=releases%2Fshipped)](https://dev.azure.com/mseng/VSOnline/_build/latest?definitionId=7179)|
 
 ## Mac
 |Branch|Unit Tests|Functional Tests|
 |:--:|:--:|:--:|
-|**master**|[![Build status](https://gvfs.visualstudio.com/ci/_apis/build/status/CI%20-%20Mac%20-%20master?branchName=master)](https://gvfs.visualstudio.com/ci/_build/latest?definitionId=15)||
+|**master**|[![Build status](https://dev.azure.com/gvfs/ci/_apis/build/status/CI%20-%20Mac?branchName=master)](https://dev.azure.com/gvfs/ci/_build/latest?definitionId=15)|[![Build status](https://dev.azure.com/mseng/VSOnline/_apis/build/status/GVFS/GitHub%20VFSForGit%20Mac%20Functional%20Tests?branchName=master)](https://dev.azure.com/mseng/VSOnline/_build/latest?definitionId=7350)|
+|**shipped**|[![Build status](https://dev.azure.com/gvfs/ci/_apis/build/status/CI%20-%20Mac?branchName=releases%2Fshipped)](https://dev.azure.com/gvfs/ci/_build/latest?definitionId=15)||
 
 ## What is VFS for Git?
 
