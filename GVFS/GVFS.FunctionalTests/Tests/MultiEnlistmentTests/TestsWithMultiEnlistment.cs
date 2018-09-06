@@ -1,7 +1,6 @@
 ﻿using GVFS.FunctionalTests.Tools;
 using NUnit.Framework;
 using System.Collections.Generic;
-using System.IO;
 
 namespace GVFS.FunctionalTests.Tests.MultiEnlistmentTests
 {

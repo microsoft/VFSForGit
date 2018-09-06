@@ -87,7 +87,10 @@ namespace GVFS.Common.NamedPipes
 
         private void OnNewConnection(IAsyncResult ar)
         {
-            this.OnNewConnection(ar, createNewThreadIfSynchronous: true);
+            if (!this.isStopping)
+            {
+                this.OnNewConnection(ar, createNewThreadIfSynchronous: true);
+            }
         }
 
         private void OnNewConnection(IAsyncResult ar, bool createNewThreadIfSynchronous)
@@ -122,13 +125,6 @@ namespace GVFS.Common.NamedPipes
                     metadata.Add("Exception", e.ToString());
                     metadata.Add(TracingConstants.MessageKey.WarningMessage, "OnNewConnection: Connection broken");
                     this.tracer.RelatedEvent(EventLevel.Warning, "OnNewConnectionn_EndWaitForConnection_IOException", metadata);
-                }
-                catch (ObjectDisposedException)
-                {
-                    if (!this.isStopping)
-                    {
-                        throw;
-                    }
                 }
                 catch (Exception e)
                 {

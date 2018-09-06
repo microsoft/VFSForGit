@@ -82,11 +82,11 @@ namespace GVFS.FunctionalTests.Tools
             get; private set;
         }
 
-        public static GVFSFunctionalTestEnlistment CloneAndMountWithPerRepoCache(string pathToGvfs, string commitish = null)
+        public static GVFSFunctionalTestEnlistment CloneAndMountWithPerRepoCache(string pathToGvfs, bool skipPrefetch)
         {
             string enlistmentRoot = GVFSFunctionalTestEnlistment.GetUniqueEnlistmentRoot();
             string localCache = GVFSFunctionalTestEnlistment.GetRepoSpecificLocalCacheRoot(enlistmentRoot);
-            return CloneAndMount(pathToGvfs, enlistmentRoot, commitish, localCache);
+            return CloneAndMount(pathToGvfs, enlistmentRoot, null, localCache, skipPrefetch);
         }
 
         public static GVFSFunctionalTestEnlistment CloneAndMount(string pathToGvfs, string commitish = null, string localCacheRoot = null)
@@ -153,11 +153,10 @@ namespace GVFS.FunctionalTests.Tools
             }
         }
 
-        public void CloneAndMount()
+        public void CloneAndMount(bool skipPrefetch)
         {
-            this.gvfsProcess.Clone(this.RepoUrl, this.Commitish);
+            this.gvfsProcess.Clone(this.RepoUrl, this.Commitish, skipPrefetch);
 
-            this.MountGVFS();
             GitProcess.Invoke(this.RepoRoot, "checkout " + this.Commitish);
             GitProcess.Invoke(this.RepoRoot, "branch --unset-upstream");
             GitProcess.Invoke(this.RepoRoot, "config core.abbrev 40");
@@ -265,7 +264,7 @@ namespace GVFS.FunctionalTests.Tools
                 objectHash.Substring(2));
         }
         
-        private static GVFSFunctionalTestEnlistment CloneAndMount(string pathToGvfs, string enlistmentRoot, string commitish, string localCacheRoot)
+        private static GVFSFunctionalTestEnlistment CloneAndMount(string pathToGvfs, string enlistmentRoot, string commitish, string localCacheRoot, bool skipPrefetch = false)
         {
             GVFSFunctionalTestEnlistment enlistment = new GVFSFunctionalTestEnlistment(
                 pathToGvfs,
@@ -276,7 +275,7 @@ namespace GVFS.FunctionalTests.Tools
 
             try
             {
-                enlistment.CloneAndMount();
+                enlistment.CloneAndMount(skipPrefetch);
             }
             catch (Exception e)
             {

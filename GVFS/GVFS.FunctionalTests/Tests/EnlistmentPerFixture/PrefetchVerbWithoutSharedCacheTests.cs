@@ -22,7 +22,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
         // Set forcePerRepoObjectCache to true to avoid any of the tests inadvertently corrupting
         // the cache 
         public PrefetchVerbWithoutSharedCacheTests()
-            : base(forcePerRepoObjectCache: true)
+            : base(forcePerRepoObjectCache: true, skipPrefetchDuringClone: true)
         {
             this.fileSystem = new SystemIORunner();
         }
