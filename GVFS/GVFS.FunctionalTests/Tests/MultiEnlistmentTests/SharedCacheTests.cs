@@ -308,7 +308,7 @@ namespace GVFS.FunctionalTests.Tests.MultiEnlistmentTests
             }
         }
 
-        public void DeleteDirectoryWithUnlimitedRetries(string path)
+        private void DeleteDirectoryWithUnlimitedRetries(string path)
         {
             if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
             {
