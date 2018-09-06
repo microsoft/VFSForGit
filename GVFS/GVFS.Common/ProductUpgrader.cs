@@ -174,13 +174,20 @@ namespace GVFS.Common
                     catch (UnauthorizedAccessException e)
                     {
                         success = false;
-                        error = string.Join(Environment.NewLine, "Unauthorized access.", "Please retry gvfs upgrade from an elevated command prompt.", e.ToString());
+                        error = string.Join(
+                            Environment.NewLine, 
+                            "Unauthorized access.", 
+                            $"Make sure you have write permissions to directory {rootDirectoryPath} and run `gvfs upgrade` again.", 
+                            e.ToString());
                         break;
                     }
                     catch (IOException e)
                     {
                         success = false;
-                        error = "Disk error while trying to copy upgrade tools." + Environment.NewLine + e.ToString();
+                        error = string.Join(
+                            Environment.NewLine, 
+                            "Disk error while trying to copy upgrade tools.", 
+                            e.ToString());
                         break;
                     }
                 }
@@ -221,7 +228,7 @@ namespace GVFS.Common
 
         protected virtual bool TryLoadRingConfig(out string error)
         {
-            string errorAdvisory = "Please run 'git config --system gvfs.upgrade-ring [\"Fast\"|\"Slow\"|\"None\"]' and retry.";
+            string errorAdvisory = "Run `git config --system gvfs.upgrade-ring [\"Fast\"|\"Slow\"|\"None\"]` and run `gvfs upgrade` again.";
             string gitPath = GVFSPlatform.Instance.GitInstallation.GetInstalledGitBinPath();
             GitProcess.Result result = GitProcess.GetFromSystemConfig(gitPath, GVFSConstants.GitConfig.UpgradeRing);
             if (!result.HasErrors && !string.IsNullOrEmpty(result.Output.TrimEnd('\r', '\n')))
@@ -239,7 +246,7 @@ namespace GVFS.Common
                 }
                 else
                 {
-                    error = "Invalid upgrade ring type(" + ringConfig + ") specified in Git config.";
+                    error = "Invalid upgrade ring `" + ringConfig + "` specified in Git config.";
                     error += Environment.NewLine + errorAdvisory;
                 }
             }

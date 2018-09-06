@@ -119,8 +119,6 @@ namespace GVFS.UnitTests.Windows.Upgrader
             this.CallSequenceTracker.VerifyMethodsNotCalled(
                 new List<string>()
                 {
-                    "DownloadAsset_GVFS",
-                    "DownloadAsset_Git",
                     "InstallAsset_Git",
                     "InstallAsset_GVFS",
                     "MountAll"
@@ -138,18 +136,17 @@ namespace GVFS.UnitTests.Windows.Upgrader
                 expectedReturn: ReturnCode.GenericError,
                 expectedOutput: new List<string>
                 {
-                    "Please retry after quitting these processes - GVFS.Mount, git"
+                    "ERROR: Blocking processes are running.",
+                    "Run `gvfs upgrade` again after quitting these processes - GVFS.Mount, git"
                 },
                 expectedErrors: new List<string>
                 {
-                    "Please retry after quitting these processes - GVFS.Mount, git"
+                    "Run `gvfs upgrade` again after quitting these processes - GVFS.Mount, git"
                 });
 
             this.CallSequenceTracker.VerifyMethodsNotCalled(
                 new List<string>()
                 {
-                    "DownloadAsset_GVFS",
-                    "DownloadAsset_Git",
                     "InstallAsset_Git",
                     "InstallAsset_GVFS",
                     "MountAll"
@@ -308,7 +305,7 @@ namespace GVFS.UnitTests.Windows.Upgrader
                 {
                     this.PrerunChecker.SetReturnFalseOnCheck(MockInstallerPrerunChecker.FailOnCheckType.RemountRepos);
                 },
-                expectedReturn: ReturnCode.GenericError,
+                expectedReturn: ReturnCode.Success,
                 expectedOutput: new List<string>
                 {
                     "Auto remount failed."

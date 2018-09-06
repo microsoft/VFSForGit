@@ -55,7 +55,7 @@ namespace GVFS.UnitTests.Windows.Upgrader
 
         public virtual void InvalidUpgradeRing()
         {
-            string errorString = "Invalid upgrade ring type(Invalid) specified in Git config.";
+            string errorString = "Invalid upgrade ring `Invalid` specified in Git config.";
             this.ConfigureRunAndVerify(
                 configure: () =>
                 {
