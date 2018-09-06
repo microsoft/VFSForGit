@@ -1,7 +1,5 @@
 ﻿using GVFS.Tests.Should;
-using System;
 using System.Diagnostics;
-using System.Runtime.InteropServices;
 
 namespace GVFS.FunctionalTests.Tools
 {
@@ -18,14 +16,15 @@ namespace GVFS.FunctionalTests.Tools
             this.localCacheRoot = localCacheRoot;
         }
         
-        public void Clone(string repositorySource, string branchToCheckout)
+        public void Clone(string repositorySource, string branchToCheckout, bool skipPrefetch)
         {
             string args = string.Format(
-                "clone \"{0}\" \"{1}\" --branch \"{2}\" --local-cache-path \"{3}\"",
+                "clone \"{0}\" \"{1}\" --branch \"{2}\" --local-cache-path \"{3}\" {4}",
                 repositorySource,
                 this.enlistmentRoot,
                 branchToCheckout,
-                this.localCacheRoot);
+                this.localCacheRoot,
+                skipPrefetch ? "--no-prefetch" : string.Empty);
             this.CallGVFS(args, failOnError: true);
         }
 
