@@ -69,9 +69,10 @@ namespace GVFS.Common.Http
             CancellationToken cancellationToken,
             MediaTypeWithQualityHeaderValue acceptType = null)
         {
-            string authString;
+            string authString = null;
             string errorMessage;
-            if (!this.authentication.TryGetCredentials(this.Tracer, out authString, out errorMessage))
+            if (!this.authentication.IsAnonymous &&
+                !this.authentication.TryGetCredentials(this.Tracer, out authString, out errorMessage))
             {
                 return new GitEndPointResponseData(
                     HttpStatusCode.Unauthorized,
@@ -152,7 +153,15 @@ namespace GVFS.Common.Http
                     errorMessage = response.Content.ReadAsStringAsync().GetAwaiter().GetResult();
                     int statusInt = (int)response.StatusCode;
 
-                    if (response.StatusCode == HttpStatusCode.Unauthorized || response.StatusCode == HttpStatusCode.BadRequest || response.StatusCode == HttpStatusCode.Redirect)
+                    bool shouldRetry = ShouldRetry(response.StatusCode);
+
+                    if (response.StatusCode == HttpStatusCode.Unauthorized &&
+                        this.authentication.IsAnonymous)
+                    {
+                        shouldRetry = false;
+                        errorMessage = "Anonymous request was rejected with a 401";
+                    }
+                    else if (response.StatusCode == HttpStatusCode.Unauthorized || response.StatusCode == HttpStatusCode.BadRequest || response.StatusCode == HttpStatusCode.Redirect)
                     {
                         this.authentication.Revoke(authString);
                         if (!this.authentication.IsBackingOff)
@@ -172,7 +181,7 @@ namespace GVFS.Common.Http
                     gitEndPointResponseData = new GitEndPointResponseData(
                         response.StatusCode,
                         new GitObjectsHttpException(response.StatusCode, errorMessage),
-                        ShouldRetry(response.StatusCode),
+                        shouldRetry,
                         message: response,
                         onResponseDisposed: () => availableConnections.Release());
                 }

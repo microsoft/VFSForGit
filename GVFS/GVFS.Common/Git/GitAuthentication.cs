@@ -1,4 +1,5 @@
-﻿using GVFS.Common.Tracing;
+﻿using GVFS.Common.Http;
+using GVFS.Common.Tracing;
 using System;
 using System.Text;
 
@@ -29,6 +30,8 @@ namespace GVFS.Common.Git
                 return this.GetNextAuthAttemptTime() > DateTime.Now;
             }
         }
+
+        public bool IsAnonymous { get; private set; } = true;
 
         public void ConfirmCredentialsWorked(string usedCredential)
         {
@@ -71,6 +74,8 @@ namespace GVFS.Common.Git
 
         public bool TryGetCredentials(ITracer tracer, out string gitAuthString, out string errorMessage)
         {
+            this.IsAnonymous = false;
+
             gitAuthString = this.cachedAuthString;
             if (this.cachedAuthString == null)
             {
@@ -107,11 +112,35 @@ namespace GVFS.Common.Git
                     }
 
                     gitAuthString = this.cachedAuthString;
+                    tracer.RelatedInfo("Received auth token");
                 }
             }
 
             errorMessage = null;
             return true;
+        }
+
+        public bool TryAnonymousQuery(ITracer tracer, GVFSEnlistment enlistment)
+        {
+            using (ConfigHttpRequestor configRequestor = new ConfigHttpRequestor(tracer, enlistment, new RetryConfig()))
+            {
+                ServerGVFSConfig gvfsConfig;
+                if (configRequestor.TryQueryGVFSConfig(out gvfsConfig))
+                {
+                    tracer.RelatedInfo("Anonymous query to /gvfs/config succeeded");
+
+                    this.IsAnonymous = true;
+                    return true;
+                }
+
+                // TODO: We should not lump all errors together here. The query could have failed for a number of
+                // reasons unrelated to auth, so we still need to update TryQueryGVFSConfig to pass back a result
+                // indicating if the error was caused by a 401. But this is good enough for now to test the behavior.
+                tracer.RelatedInfo("Anonymous query to /gvfs/config failed");
+            }
+
+            this.IsAnonymous = false;
+            return false;
         }
 
         private DateTime GetNextAuthAttemptTime()

@@ -198,7 +198,9 @@ namespace GVFS.CommandLine
             bool result = this.ShowStatusWhileRunning(
                 () =>
                 {
-                    return enlistment.Authentication.TryRefreshCredentials(tracer, out authError);
+                    return
+                        enlistment.Authentication.TryAnonymousQuery(tracer, enlistment) ||
+                        enlistment.Authentication.TryRefreshCredentials(tracer, out authError);
                 },
                 "Authenticating",
                 enlistment.EnlistmentRoot);
