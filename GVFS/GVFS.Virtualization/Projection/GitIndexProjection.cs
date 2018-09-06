@@ -1311,9 +1311,9 @@ namespace GVFS.Virtualization.Projection
                 {
                     if (!existingFolderPlaceholders.Contains(childRelativePath))
                     {
-                        // TODO(Mac): Check return value of WritePlaceholder
+                        // TODO(Mac): Issue #245, handle failures of WritePlaceholder
                         this.fileSystemVirtualizer.WritePlaceholder(
-                            childRelativePath, 
+                            childRelativePath,
                             endOfFile: 0, 
                             isDirectory: true, 
                             shaContentId: GVFSConstants.AllZeroSha);
@@ -1332,7 +1332,7 @@ namespace GVFS.Virtualization.Projection
                         FileData childFileData = childEntry as FileData;
                         string sha = childFileData.Sha.ToString();
 
-                        // TODO(Mac): Check return value of WritePlaceholder
+                        // TODO(Mac): Issue #245, handle failures of WritePlaceholder
                         this.fileSystemVirtualizer.WritePlaceholder(childRelativePath, childFileData.Size, isDirectory: false, shaContentId: sha);
 
                         updatedPlaceholderList.TryAdd(
