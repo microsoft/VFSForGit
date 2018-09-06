@@ -37,10 +37,8 @@ namespace GVFS.FunctionalTests.Tools
 
         public bool TryMount(out string output)
         {
-            string mountCommand = "mount \"" + this.enlistmentRoot + "\" --internal_use_only_service_name " + GVFSServiceProcess.TestServiceName;
-
             this.IsEnlistmentMounted().ShouldEqual(false, "GVFS is already mounted");
-            output = this.CallGVFS(mountCommand);
+            output = this.CallGVFS("mount \"" + this.enlistmentRoot + "\"");
             return this.IsEnlistmentMounted();
         }
 
@@ -58,11 +56,7 @@ namespace GVFS.FunctionalTests.Tools
 
         public string Diagnose()
         {
-            string diagnoseArgs = string.Join(
-                " ",
-                "diagnose \"" + this.enlistmentRoot + "\"",
-                "--internal_use_only_service_name " + GVFSServiceProcess.TestServiceName);
-            return this.CallGVFS(diagnoseArgs);
+            return this.CallGVFS("diagnose \"" + this.enlistmentRoot + "\"");
         }
 
         public string Status()
@@ -79,11 +73,7 @@ namespace GVFS.FunctionalTests.Tools
         {
             if (this.IsEnlistmentMounted())
             {
-                string unmountArgs = string.Join(
-                    " ",
-                    "unmount \"" + this.enlistmentRoot + "\"",
-                    "--internal_use_only_service_name " + GVFSServiceProcess.TestServiceName);
-                string result = this.CallGVFS(unmountArgs, failOnError: true);
+                string result = this.CallGVFS("unmount \"" + this.enlistmentRoot + "\"", failOnError: true);
                 this.IsEnlistmentMounted().ShouldEqual(false, "GVFS did not unmount: " + result);
             }
         }
@@ -96,18 +86,14 @@ namespace GVFS.FunctionalTests.Tools
 
         public string RunServiceVerb(string argument)
         {
-            string serviceVerbArgs = string.Join(
-                " ",
-                "service " + argument,
-                "--internal_use_only_service_name " + GVFSServiceProcess.TestServiceName);
-            return this.CallGVFS(serviceVerbArgs, failOnError: true);
+            return this.CallGVFS("service " + argument, failOnError: true);
         }
 
         private string CallGVFS(string args, bool failOnError = false)
         {
             ProcessStartInfo processInfo = null;
             processInfo = new ProcessStartInfo(this.pathToGVFS);
-            processInfo.Arguments = args;
+            processInfo.Arguments = args + " --internal_use_only_service_name " + GVFSServiceProcess.TestServiceName;
 
             processInfo.WindowStyle = ProcessWindowStyle.Hidden;
             processInfo.UseShellExecute = false;
