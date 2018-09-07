@@ -137,11 +137,11 @@ namespace GVFS.UnitTests.Windows.Upgrader
                 expectedOutput: new List<string>
                 {
                     "ERROR: Blocking processes are running.",
-                    "Run `gvfs upgrade` again after quitting these processes - GVFS.Mount, git"
+                    "Run `gvfs upgrade [--confirm]` again after quitting these processes - GVFS.Mount, git"
                 },
                 expectedErrors: new List<string>
                 {
-                    "Run `gvfs upgrade` again after quitting these processes - GVFS.Mount, git"
+                    "Run `gvfs upgrade [--confirm]` again after quitting these processes - GVFS.Mount, git"
                 });
 
             this.CallSequenceTracker.VerifyMethodsNotCalled(

@@ -26,7 +26,7 @@ namespace GVFS.Upgrader
 
             if (this.IsUnattended())
             {
-                error = "`gvfs upgrade` is not supported in unattended mode";
+                error = "`gvfs upgrade [--confirm]` is not supported in unattended mode";
                 this.tracer.RelatedError($"{nameof(TryRunPreUpgradeChecks)}: {error}");
                 return false;
             }
@@ -129,7 +129,7 @@ namespace GVFS.Upgrader
                 error = string.Join(
                     Environment.NewLine, 
                     "Blocking processes are running.",
-                    "Run `gvfs upgrade` again after quitting these processes - " + string.Join(", ", processList.ToArray()));
+                    "Run `gvfs upgrade [--confirm]` again after quitting these processes - " + string.Join(", ", processList.ToArray()));
                 this.tracer.RelatedError($"{nameof(TryUnmountAllGVFSRepos)}: {error}");
                 return false;
             }
@@ -251,7 +251,7 @@ namespace GVFS.Upgrader
                 error = string.Join(
                     Environment.NewLine,
                     "The installer needs to be run from an elevated command prompt.",
-                    "Run `gvfs upgrade --confirm` again from an elevated command prompt.");
+                    "Run `gvfs upgrade [--confirm]` again from an elevated command prompt.");
                 return false;
             }
 
@@ -259,7 +259,7 @@ namespace GVFS.Upgrader
             {
                 error = string.Join(
                     Environment.NewLine,
-                    "Unsupported ProjFS configuration.",
+                    "ProjFS configuration does not support `gvfs upgrade [--confirm]`.",
                     "Check your team's documentation for how to upgrade.");
                 return false;
             }
@@ -269,7 +269,7 @@ namespace GVFS.Upgrader
                 error = string.Join(
                     Environment.NewLine,
                     "GVFS Service is not running.",
-                    "Start \"GVFS.Service\" and run `gvfs upgrade` again.");
+                    "Run `sc start GVFS.Service` and run `gvfs upgrade [--confirm]` again.");
                 return false;
             }
 

@@ -27,6 +27,7 @@ namespace GVFS.Common
         private Version installedVersion;
         private Release newestRelease;
         private PhysicalFileSystem fileSystem;
+        private ITracer tracer;
 
         public ProductUpgrader(
             string currentVersion,
@@ -35,6 +36,7 @@ namespace GVFS.Common
             this.installedVersion = new Version(currentVersion);
             this.fileSystem = new PhysicalFileSystem();
             this.Ring = RingType.Invalid;
+            this.tracer = tracer;
 
             string upgradesDirectoryPath = GetUpgradesDirectoryPath();
             this.fileSystem.CreateDirectory(upgradesDirectoryPath);
@@ -177,8 +179,9 @@ namespace GVFS.Common
                         error = string.Join(
                             Environment.NewLine, 
                             "Unauthorized access.", 
-                            $"Make sure you have write permissions to directory {rootDirectoryPath} and run `gvfs upgrade` again.", 
-                            e.ToString());
+                            $"Make sure you have write permissions to directory {rootDirectoryPath} and run `gvfs upgrade [--confirm]` again.", 
+                            e.Message);
+                        this.tracer.RelatedException(e, nameof(this.TryCreateToolsDirectory), "Error creating upgrade tools directory.");
                         break;
                     }
                     catch (IOException e)
@@ -186,8 +189,9 @@ namespace GVFS.Common
                         success = false;
                         error = string.Join(
                             Environment.NewLine, 
-                            "Disk error while trying to copy upgrade tools.", 
-                            e.ToString());
+                            "I/O error while trying to copy upgrade tools.", 
+                            e.Message);
+                        this.tracer.RelatedException(e, nameof(this.TryCreateToolsDirectory), "Error creating upgrade tools directory.");
                         break;
                     }
                 }
@@ -228,7 +232,7 @@ namespace GVFS.Common
 
         protected virtual bool TryLoadRingConfig(out string error)
         {
-            string errorAdvisory = "Run `git config --system gvfs.upgrade-ring [\"Fast\"|\"Slow\"|\"None\"]` and run `gvfs upgrade` again.";
+            string errorAdvisory = "Run `git config --system gvfs.upgrade-ring [\"Fast\"|\"Slow\"|\"None\"]` and run `gvfs upgrade [--confirm]` again.";
             string gitPath = GVFSPlatform.Instance.GitInstallation.GetInstalledGitBinPath();
             GitProcess.Result result = GitProcess.GetFromSystemConfig(gitPath, GVFSConstants.GitConfig.UpgradeRing);
             if (!result.HasErrors && !string.IsNullOrEmpty(result.Output.TrimEnd('\r', '\n')))
@@ -286,7 +290,8 @@ namespace GVFS.Common
             }
             catch (WebException exception)
             {
-                errorMessage = "Download error: " + exception.ToString();
+                errorMessage = "Download error: " + exception.Message;
+                this.tracer.RelatedException(exception, nameof(this.TryDownloadAsset), $"Error downloading asset {asset.Name}.");
                 return false;
             }
 
@@ -314,11 +319,13 @@ namespace GVFS.Common
             }
             catch (HttpRequestException exception)
             {
-                errorMessage = string.Format("Network error: could not connect to GitHub. {0}", exception.ToString());
+                errorMessage = string.Format("Network error: could not connect to GitHub. {0}", exception.Message);
+                this.tracer.RelatedException(exception, nameof(this.TryFetchReleases), $"Error fetching release info.");
             }
             catch (SerializationException exception)
             {
-                errorMessage = string.Format("Parse error: could not parse releases info from GitHub. {0}", exception.ToString());
+                errorMessage = string.Format("Parse error: could not parse releases info from GitHub. {0}", exception.Message);
+                this.tracer.RelatedException(exception, nameof(this.TryFetchReleases), $"Error parsing release info.");
             }
 
             return false;
