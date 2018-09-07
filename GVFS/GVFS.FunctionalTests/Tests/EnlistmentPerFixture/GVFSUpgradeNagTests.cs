@@ -10,7 +10,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
 {
     [TestFixture]
     [Category(Categories.FullSuiteOnly)]
-    [Category(Categories.Windows)]
+    [Category(Categories.WindowsOnly)]
     public class UpgradeNagTests : TestsWithEnlistmentPerFixture
     {
         private const string GVFSInstallerName = "SetupGVFS.1.0.18234.1.exe";
