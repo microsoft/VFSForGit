@@ -80,6 +80,37 @@ namespace GVFS.UnitTests.Common
         }
 
         [TestCase]
+        public void GetAllEntriesSplitsFilesAndFoldersCorrectly()
+        {
+            ConfigurableFileSystem fs = new ConfigurableFileSystem();
+            using (PlaceholderListDatabase dut1 = CreatePlaceholderListDatabase(fs, string.Empty))
+            {
+                dut1.AddAndFlushFile(InputGitIgnorePath, InputGitIgnoreSHA);
+                dut1.AddAndFlushFolder("partialFolder", isExpanded: false);
+                dut1.AddAndFlushFile(InputGitAttributesPath, InputGitAttributesSHA);
+                dut1.AddAndFlushFolder("expandedFolder", isExpanded: true);
+                dut1.AddAndFlushFile(InputThirdFilePath, InputThirdFileSHA);
+                dut1.RemoveAndFlush(InputThirdFilePath);
+            }
+
+            string error;
+            PlaceholderListDatabase dut2;
+            PlaceholderListDatabase.TryCreate(null, MockEntryFileName, fs, out dut2, out error).ShouldEqual(true, error);
+            List<PlaceholderListDatabase.PlaceholderData> fileData;
+            List<PlaceholderListDatabase.PlaceholderData> folderData;
+            dut2.GetAllEntries(out fileData, out folderData);
+            fileData.Count.ShouldEqual(2);
+            folderData.Count.ShouldEqual(2);
+            folderData.ShouldContain(
+                new[]
+                {
+                    new PlaceholderListDatabase.PlaceholderData("partialFolder", PlaceholderListDatabase.PartialFolderValue),
+                    new PlaceholderListDatabase.PlaceholderData("expandedFolder", PlaceholderListDatabase.ExpandedFolderValue)
+                },
+                (data1, data2) => data1.Path == data2.Path && data1.Sha == data2.Sha);
+        }
+
+        [TestCase]
         public void WriteAllEntriesCorrectlyWritesFile()
         {
             ConfigurableFileSystem fs = new ConfigurableFileSystem();

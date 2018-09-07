@@ -88,20 +88,17 @@ namespace GVFS.Common
             }
         }
 
-        public void GetAllEntries(out List<PlaceholderData> filePlaceholders, out List<PlaceholderData> folderPlaceholders)
+        public List<PlaceholderData> GetAllEntries()
         {
             try
             {
-                filePlaceholders = new List<PlaceholderData>(Math.Max(1, this.EstimatedCount));
-                folderPlaceholders = new List<PlaceholderData>(Math.Max(1, this.EstimatedCount * .3));
+                List<PlaceholderData> placeholders = new List<PlaceholderData>(Math.Max(1, this.EstimatedCount));
 
                 string error;
                 if (!this.TryLoadFromDisk<string, string>(
                     this.TryParseAddLine,
                     this.TryParseRemoveLine,
-                    (key, value) => value.StartsWith(FolderValuePrefix, StringComparison.Ordinal) ? 
-                        folderPlaceholders.Add(new PlaceholderData(path: key, fileShaOrFolderValue: value)) : 
-                        filePlaceholders.Add(new PlaceholderData(path: key, fileShaOrFolderValue: value)),
+                    (key, value) => placeholders.Add(new PlaceholderData(path: key, fileShaOrFolderValue: value)),
                     out error,
                     () =>
                     {
@@ -115,6 +112,53 @@ namespace GVFS.Common
                 {
                     throw new InvalidDataException(error);
                 }
+
+                return placeholders;
+            }
+            catch (Exception e)
+            {
+                throw new FileBasedCollectionException(e);
+            }
+        }
+
+        public void GetAllEntries(out List<PlaceholderData> filePlaceholders, out List<PlaceholderData> folderPlaceholders)
+        {
+            try
+            {
+                List<PlaceholderData> filePlaceholdersFromDisk = new List<PlaceholderData>(Math.Max(1, this.EstimatedCount));
+                List<PlaceholderData> folderPlaceholdersFromDisk = new List<PlaceholderData>(Math.Max(1, (int)(this.EstimatedCount * .3)));
+
+                string error;
+                if (!this.TryLoadFromDisk<string, string>(
+                    this.TryParseAddLine,
+                    this.TryParseRemoveLine,
+                    (key, value) =>
+                    {
+                        if (value.StartsWith(FolderValuePrefix, StringComparison.Ordinal))
+                        {
+                            folderPlaceholdersFromDisk.Add(new PlaceholderData(path: key, fileShaOrFolderValue: value));
+                        }
+                        else
+                        {
+                            filePlaceholdersFromDisk.Add(new PlaceholderData(path: key, fileShaOrFolderValue: value));
+                        }
+                    },
+                    out error,
+                    () =>
+                    {
+                        if (this.placeholderDataEntries != null)
+                        {
+                            throw new InvalidOperationException("PlaceholderListDatabase should always flush queue placeholders using WriteAllEntriesAndFlush before calling GetAllEntries again.");
+                        }
+
+                        this.placeholderDataEntries = new List<PlaceholderDataEntry>();
+                    }))
+                {
+                    throw new InvalidDataException(error);
+                }
+
+                filePlaceholders = filePlaceholdersFromDisk;
+                folderPlaceholders = folderPlaceholdersFromDisk;
             }
             catch (Exception e)
             {
