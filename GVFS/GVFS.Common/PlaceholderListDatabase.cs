@@ -8,17 +8,12 @@ namespace GVFS.Common
 {
     public class PlaceholderListDatabase : FileBasedCollection
     {
-        // PartialFolderValue =  "@FPARTIAL_000000000000000000000000000000"
-        public static readonly string PartialFolderValue = FolderValuePrefix + "PARTIAL_000000000000000000000000000000";
-
-        // ExpandedFolderValue = "@FEXPANDED_00000000000000000000000000000"
-        public static readonly string ExpandedFolderValue = ExpandedFolderPrefix + "XPANDED_00000000000000000000000000000";
+        public const string PartialFolderValue =  "@FPARTIAL_000000000000000000000000000000";
+        public const string ExpandedFolderValue = "@FEXPANDED_00000000000000000000000000000";
 
         private const char PathTerminator = '\0';
-
-        // Prefixs allow for 
-        private const string FolderValuePrefix = "WF";
-        private static readonly string ExpandedFolderPrefix = FolderValuePrefix + "E";
+        private const string FolderValuePrefix = "@F";
+        private const string ExpandedFolderPrefix = "@FE";
 
         // This list holds entries that would otherwise be lost because WriteAllEntriesAndFlush has not been called, but a file 
         // snapshot has been taken using GetAllEntries.

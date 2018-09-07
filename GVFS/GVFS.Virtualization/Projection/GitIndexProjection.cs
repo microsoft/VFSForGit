@@ -1389,7 +1389,8 @@ namespace GVFS.Virtualization.Projection
                     metadata.Add("UpdateFailureCause", failureReason.ToString());                    
                     this.context.Tracer.RelatedEvent(EventLevel.Informational, nameof(this.RemoveFolderPlaceholderIfEmpty) + "_DeleteFileFailure", metadata);
 
-                    updatedPlaceholderList.TryAdd(placeholder.Path, placeholder);
+                    // TODO(Mac): Issue #245, handle failures DeleteFile on Mac.  If we don't do anything we could leave an untracked folder
+                    // placeholder on disk that will never be updated by Git or VFSForGit
 
                     break;
             }

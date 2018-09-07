@@ -124,7 +124,7 @@ namespace GVFS.Tests.Should
 
         public static IEnumerable<T> ShouldMatchInOrder<T>(this IEnumerable<T> group, params T[] expectedValues)
         {
-            return group.ShouldMatchInOrder(expectedValues, (t1, t2) => t1.Equals(t2));
+            return group.ShouldMatchInOrder((IEnumerable<T>)expectedValues);
         }
 
         public static IEnumerable<T> ShouldMatchInOrder<T>(this IEnumerable<T> group, IEnumerable<T> expectedValues)
