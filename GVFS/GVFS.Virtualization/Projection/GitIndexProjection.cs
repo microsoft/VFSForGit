@@ -899,7 +899,11 @@ namespace GVFS.Virtualization.Projection
                 {
                     EventMetadata metadata = CreateEventMetadata();
                     metadata.Add("folderPath", folderPath);
-                    this.context.Tracer.RelatedInfo(metadata, $"{nameof(this.TryGetOrAddFolderDataFromCache)}: Found a file at specified path");
+                    metadata.Add(TracingConstants.MessageKey.InfoMessage, "Found file at path");
+                    this.context.Tracer.RelatedEvent(
+                        EventLevel.Informational,
+                        $"{nameof(this.TryGetOrAddFolderDataFromCache)}_FileAtPath",
+                        metadata);
 
                     folderPath = null;
                     return false;
