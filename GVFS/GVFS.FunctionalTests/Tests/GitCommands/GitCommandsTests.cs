@@ -382,7 +382,6 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
         }
 
         [TestCase]
-        [Ignore("Currently failing regression test for how GVFS handles newlines in git command line")]
         public void CommitWithNewlinesInMessage()
         {
             this.ValidateGitCommand("checkout -b tests/functional/commit_with_uncommon_arguments");

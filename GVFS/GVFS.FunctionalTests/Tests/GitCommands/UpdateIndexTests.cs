@@ -65,7 +65,6 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
 
         [TestCase]
         [Category(Categories.MacTODO.M4)]
-        [Ignore("Currently failing regression test for how GVFS handles newlines in git command line")]
         public void UpdateIndexWithCacheInfo()
         {
             // Update Protocol.md with the contents from blob 583f1...

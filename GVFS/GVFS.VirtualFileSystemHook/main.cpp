@@ -31,7 +31,7 @@ int main(int argc, char *argv[])
     int error = 0;
     bool success = WriteToPipe(
         pipeHandle,
-        "MPL|1\n",
+        "MPL|1\x3",
         messageLength,
         &bytesWritten,
         &error);
@@ -49,6 +49,7 @@ int main(int argc, char *argv[])
     int lastError;
     bool finishedReading = false;
     bool firstRead = true;
+
     do
     {
         char *pMessage = &message[0];
@@ -80,7 +81,7 @@ int main(int argc, char *argv[])
             messageLength -= 2;
         }
 
-        if (*(pMessage + messageLength - 1) == '\n')
+        if (*(pMessage + messageLength - 1) == '\x3')
         {
             finishedReading = true;
             messageLength -= 1;
