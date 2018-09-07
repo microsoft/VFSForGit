@@ -162,6 +162,32 @@ namespace GVFS.CommandLine
             return verb.ReturnCode;
         }
 
+        protected ReturnCode Execute<TVerb>(
+            GVFSEnlistment enlistment,
+            Action<TVerb> configureVerb = null)
+            where TVerb : GVFSVerb.ForExistingEnlistment, new()
+        {
+            TVerb verb = new TVerb();
+            verb.EnlistmentRootPathParameter = enlistment.EnlistmentRoot;
+            verb.ServiceName = this.ServiceName;
+            verb.Unattended = this.Unattended;
+
+            if (configureVerb != null)
+            {
+                configureVerb(verb);
+            }
+
+            try
+            {
+                verb.Execute(enlistment.Authentication);
+            }
+            catch (VerbAbortedException)
+            {
+            }
+
+            return verb.ReturnCode;
+        }
+
         protected bool ShowStatusWhileRunning(
             Func<bool> action,
             string message,
@@ -198,9 +224,13 @@ namespace GVFS.CommandLine
             bool result = this.ShowStatusWhileRunning(
                 () =>
                 {
-                    return
-                        enlistment.Authentication.TryAnonymousQuery(tracer, enlistment) ||
-                        enlistment.Authentication.TryRefreshCredentials(tracer, out authError);
+                    if (enlistment.Authentication.IsAnonymous &&
+                        enlistment.Authentication.TryAnonymousQuery(tracer, enlistment))
+                    {
+                        return true;
+                    }
+
+                    return enlistment.Authentication.TryRefreshCredentials(tracer, out authError);
                 },
                 "Authenticating",
                 enlistment.EnlistmentRoot);
@@ -752,10 +782,21 @@ You can specify a URL, a name of a configured cache server, or the special names
 
             public sealed override void Execute()
             {
+                this.Execute(authentication: null);
+            }
+
+            public void Execute(GitAuthentication authentication)
+            {
                 this.ValidatePathParameter(this.EnlistmentRootPathParameter);
 
                 this.PreCreateEnlistment();
                 GVFSEnlistment enlistment = this.CreateEnlistment(this.EnlistmentRootPathParameter);
+
+                if (authentication != null)
+                {
+                    enlistment.ReuseExistingAuth(authentication);
+                }
+
                 this.Execute(enlistment);
             }
 

@@ -205,7 +205,7 @@ namespace GVFS.CommandLine
                     if (!this.NoPrefetch)
                     {
                         ReturnCode result = this.Execute<PrefetchVerb>(
-                            fullEnlistmentRootPathParameter,
+                            enlistment,
                             verb =>
                             {
                                 verb.Commits = true;
@@ -229,7 +229,7 @@ namespace GVFS.CommandLine
                     else
                     {
                         this.Execute<MountVerb>(
-                            fullEnlistmentRootPathParameter,
+                            enlistment,
                             verb =>
                             {
                                 verb.SkipMountedCheck = true;

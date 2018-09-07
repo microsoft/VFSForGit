@@ -122,6 +122,11 @@ namespace GVFS.Common.Git
 
         public bool TryAnonymousQuery(ITracer tracer, GVFSEnlistment enlistment)
         {
+            if (!this.IsAnonymous)
+            {
+                throw new InvalidOperationException("An anonymous request was already rejected");
+            }
+
             using (ConfigHttpRequestor configRequestor = new ConfigHttpRequestor(tracer, enlistment, new RetryConfig()))
             {
                 ServerGVFSConfig gvfsConfig;
