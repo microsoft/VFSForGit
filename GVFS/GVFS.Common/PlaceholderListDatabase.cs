@@ -88,17 +88,20 @@ namespace GVFS.Common
             }
         }
 
-        public List<PlaceholderData> GetAllEntries()
+        public void GetAllEntries(out List<PlaceholderData> filePlaceholders, out List<PlaceholderData> folderPlaceholders)
         {
             try
             {
-                List<PlaceholderData> output = new List<PlaceholderData>(Math.Max(1, this.EstimatedCount));
+                filePlaceholders = new List<PlaceholderData>(Math.Max(1, this.EstimatedCount));
+                folderPlaceholders = new List<PlaceholderData>(Math.Max(1, this.EstimatedCount * .3));
 
                 string error;
                 if (!this.TryLoadFromDisk<string, string>(
                     this.TryParseAddLine,
                     this.TryParseRemoveLine,
-                    (key, value) => output.Add(new PlaceholderData(path: key, fileShaOrFolderValue: value)),
+                    (key, value) => value.StartsWith(FolderValuePrefix, StringComparison.Ordinal) ? 
+                        folderPlaceholders.Add(new PlaceholderData(path: key, fileShaOrFolderValue: value)) : 
+                        filePlaceholders.Add(new PlaceholderData(path: key, fileShaOrFolderValue: value)),
                     out error,
                     () =>
                     {
@@ -112,8 +115,6 @@ namespace GVFS.Common
                 {
                     throw new InvalidDataException(error);
                 }
-
-                return output;
             }
             catch (Exception e)
             {
