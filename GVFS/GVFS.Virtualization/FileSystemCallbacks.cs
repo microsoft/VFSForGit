@@ -691,10 +691,20 @@ namespace GVFS.Virtualization
                         result = this.TryAddModifiedPath(gitUpdate.VirtualPath, isFolder: true);
                         if (result == FileSystemTaskResult.Success)
                         {
+                            if (!this.newlyCreatedFileAndFolderPaths.Contains(gitUpdate.VirtualPath))
+                            {
+                                this.newlyCreatedFileAndFolderPaths.Add(gitUpdate.VirtualPath);
+                            }
+
+                            if (this.newlyCreatedFileAndFolderPaths.Contains(gitUpdate.OldVirtualPath))
+                            {
+                                this.TryRemoveModifiedPath(gitUpdate.OldVirtualPath, isFolder: true);
+                            }
+
                             Queue<string> relativeFolderPaths = new Queue<string>();
                             relativeFolderPaths.Enqueue(gitUpdate.VirtualPath);
 
-                            // Add all the files in the renamed folder to the always_exclude file
+                            // Remove old paths from modified paths if in the newly created list
                             while (relativeFolderPaths.Count > 0)
                             {
                                 string folderPath = relativeFolderPaths.Dequeue();
@@ -705,14 +715,20 @@ namespace GVFS.Virtualization
                                         foreach (DirectoryItemInfo itemInfo in this.context.FileSystem.ItemsInDirectory(Path.Combine(this.context.Enlistment.WorkingDirectoryRoot, folderPath)))
                                         {
                                             string itemVirtualPath = Path.Combine(folderPath, itemInfo.Name);
+                                            string oldItemVirtualPath = gitUpdate.OldVirtualPath + itemVirtualPath.Substring(gitUpdate.VirtualPath.Length);
+                                            if (!this.newlyCreatedFileAndFolderPaths.Contains(itemVirtualPath))
+                                            {
+                                                this.newlyCreatedFileAndFolderPaths.Add(itemVirtualPath);
+                                            }
+
+                                            if (this.newlyCreatedFileAndFolderPaths.Contains(oldItemVirtualPath))
+                                            {
+                                                this.TryRemoveModifiedPath(oldItemVirtualPath, isFolder: itemInfo.IsDirectory);
+                                            }
+
                                             if (itemInfo.IsDirectory)
                                             {
                                                 relativeFolderPaths.Enqueue(itemVirtualPath);
-                                            }
-                                            else
-                                            {
-                                                string oldItemVirtualPath = gitUpdate.OldVirtualPath + itemVirtualPath.Substring(gitUpdate.VirtualPath.Length);
-                                                result = this.TryAddModifiedPath(itemVirtualPath, isFolder: false);
                                             }
                                         }
                                     }
