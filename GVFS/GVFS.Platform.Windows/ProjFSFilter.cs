@@ -34,6 +34,7 @@ namespace GVFS.Platform.Windows
         private const uint OkResult = 0;
         private const uint NameCollisionErrorResult = 0x801F0012;
 
+        public bool EnumerationExpandsDirectories { get; } = false;
         public string DriverLogFolderName { get; } = ProjFSFilter.ServiceName;
 
         public static bool TryAttach(ITracer tracer, string enlistmentRoot, out string errorMessage)

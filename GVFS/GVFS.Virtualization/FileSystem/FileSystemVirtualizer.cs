@@ -13,6 +13,8 @@ namespace GVFS.Virtualization.FileSystem
     {
         public const byte PlaceholderVersion = 1;
 
+        protected static readonly byte[] FolderContentId = Encoding.Unicode.GetBytes(GVFSConstants.AllZeroSha);
+
         protected static readonly GitCommandLineParser.Verbs CanCreatePlaceholderVerbs =
             GitCommandLineParser.Verbs.AddOrStage | GitCommandLineParser.Verbs.Move | GitCommandLineParser.Verbs.Status;
 
@@ -93,11 +95,8 @@ namespace GVFS.Virtualization.FileSystem
 
         public abstract FileSystemResult DeleteFile(string relativePath, UpdatePlaceholderType updateFlags, out UpdateFailureReason failureReason);
 
-        public abstract FileSystemResult WritePlaceholder(
-            string relativePath, 
-            long endOfFile,
-            bool isDirectory,
-            string shaContentId);
+        public abstract FileSystemResult WritePlaceholderFile(string relativePath, long endOfFile, string sha);
+        public abstract FileSystemResult WritePlaceholderDirectory(string relativePath);
 
         public abstract FileSystemResult UpdatePlaceholderIfNeeded(
             string relativePath,

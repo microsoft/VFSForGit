@@ -115,22 +115,11 @@ namespace GVFS.Platform.Windows
             return new FileSystemResult(HResultToFSResult(result), unchecked((int)result));
         }
 
-        public override FileSystemResult WritePlaceholder(
+        public override FileSystemResult WritePlaceholderFile(
             string relativePath,
             long endOfFile,
-            bool isDirectory,
             string sha)
         {
-            uint fileAttributes;
-            if (isDirectory)
-            {
-                fileAttributes = (uint)NativeMethods.FileAttributes.FILE_ATTRIBUTE_DIRECTORY;
-            }
-            else
-            {
-                fileAttributes = (uint)NativeMethods.FileAttributes.FILE_ATTRIBUTE_ARCHIVE;
-            }
-
             FileProperties properties = this.FileSystemCallbacks.GetLogsHeadFileProperties();
             HResult result = this.virtualizationInstance.WritePlaceholderInformation(
                 relativePath,
@@ -138,10 +127,28 @@ namespace GVFS.Platform.Windows
                 properties.LastAccessTimeUTC,
                 properties.LastWriteTimeUTC,
                 changeTime: properties.LastWriteTimeUTC,
-                fileAttributes: fileAttributes,
+                fileAttributes: (uint)NativeMethods.FileAttributes.FILE_ATTRIBUTE_ARCHIVE,
                 endOfFile: endOfFile,
-                isDirectory: isDirectory,
+                isDirectory: false,
                 contentId: FileSystemVirtualizer.ConvertShaToContentId(sha),
+                providerId: PlaceholderVersionId);
+
+            return new FileSystemResult(HResultToFSResult(result), unchecked((int)result));
+        }
+
+        public override FileSystemResult WritePlaceholderDirectory(string relativePath)
+        {
+            FileProperties properties = this.FileSystemCallbacks.GetLogsHeadFileProperties();
+            HResult result = this.virtualizationInstance.WritePlaceholderInformation(
+                relativePath,
+                properties.CreationTimeUTC,
+                properties.LastAccessTimeUTC,
+                properties.LastWriteTimeUTC,
+                changeTime: properties.LastWriteTimeUTC,
+                fileAttributes: (uint)NativeMethods.FileAttributes.FILE_ATTRIBUTE_DIRECTORY,
+                endOfFile: 0,
+                isDirectory: true,
+                contentId: FolderContentId,
                 providerId: PlaceholderVersionId);
 
             return new FileSystemResult(HResultToFSResult(result), unchecked((int)result));
@@ -772,11 +779,20 @@ namespace GVFS.Platform.Windows
                 // with proper case.
                 string gitCaseVirtualPath = Path.Combine(parentFolderPath, fileInfo.Name);
 
-                string sha = fileInfo.IsFolder ? string.Empty : fileInfo.Sha.ToString();
+                string sha;
+                FileSystemResult fileSystemResult;
+                if (fileInfo.IsFolder)
+                {
+                    sha = string.Empty;
+                    fileSystemResult = this.WritePlaceholderDirectory(gitCaseVirtualPath);
+                }
+                else
+                {
+                    sha = fileInfo.Sha.ToString();
+                    fileSystemResult = this.WritePlaceholderFile(gitCaseVirtualPath, fileInfo.Size, sha);
+                }
 
-                FileSystemResult fileSystemResult = this.WritePlaceholder(gitCaseVirtualPath, fileInfo.Size, fileInfo.IsFolder, sha);
                 result = (HResult)fileSystemResult.RawResult;
-
                 if (result != HResult.Ok)
                 {
                     EventMetadata metadata = this.CreateEventMetadata(virtualPath);
@@ -1115,7 +1131,7 @@ namespace GVFS.Platform.Windows
                             string directoryPath = Path.Combine(this.Context.Enlistment.WorkingDirectoryRoot, virtualPath);
                             HResult hr = this.virtualizationInstance.ConvertDirectoryToPlaceholder(
                                 directoryPath, 
-                                ConvertShaToContentId(GVFSConstants.AllZeroSha), 
+                                FolderContentId, 
                                 PlaceholderVersionId);
                             
                             if (hr == HResult.Ok)

@@ -17,7 +17,7 @@ namespace GVFS.FunctionalTests.Windows.Tests
     [Category(Categories.WindowsOnly)]
     public class DiskLayoutUpgradeTests : TestsWithEnlistmentPerTestCase
     {
-        public const int CurrentDiskLayoutMajorVersion = 16;
+        public const int CurrentDiskLayoutMajorVersion = 17;
         public const int CurrentDiskLayoutMinorVersion = 0;
 
         public const string BlobSizesCacheName = "blobSizes";
@@ -153,34 +153,7 @@ namespace GVFS.FunctionalTests.Windows.Tests
         [TestCase]
         public void MountWritesFolderPlaceholdersToPlaceholderDatabase()
         {
-            // Create some placeholder data
-            this.fileSystem.ReadAllText(Path.Combine(this.Enlistment.RepoRoot, "Readme.md"));
-            this.fileSystem.ReadAllText(Path.Combine(this.Enlistment.RepoRoot, "Scripts\\RunUnitTests.bat"));
-            this.fileSystem.ReadAllText(Path.Combine(this.Enlistment.RepoRoot, "GVFS\\GVFS.Common\\Git\\GitRefs.cs"));
-
-            // Create a full folder
-            this.fileSystem.CreateDirectory(Path.Combine(this.Enlistment.RepoRoot, "GVFS\\FullFolder"));
-            this.fileSystem.WriteAllText(Path.Combine(this.Enlistment.RepoRoot, "GVFS\\FullFolder\\test.txt"), "Test contents");
-
-            // Create a tombstone
-            this.fileSystem.DeleteDirectory(Path.Combine(this.Enlistment.RepoRoot, "GVFS\\GVFS.Tests\\Properties"));
-
-            string junctionTarget = Path.Combine(this.Enlistment.EnlistmentRoot, "DirJunction");
-            string symlinkTarget = Path.Combine(this.Enlistment.EnlistmentRoot, "DirSymlink");
-            Directory.CreateDirectory(junctionTarget);
-            Directory.CreateDirectory(symlinkTarget);
-
-            string junctionLink = Path.Combine(this.Enlistment.RepoRoot, "DirJunction");
-            string symlink = Path.Combine(this.Enlistment.RepoRoot, "DirLink");
-            ProcessHelper.Run("CMD.exe", "/C mklink /J " + junctionLink + " " + junctionTarget);
-            ProcessHelper.Run("CMD.exe", "/C mklink /D " + symlink + " " + symlinkTarget);
-
-            string target = Path.Combine(this.Enlistment.EnlistmentRoot, "GVFS", "GVFS", "GVFS.UnitTests");
-            string link = Path.Combine(this.Enlistment.RepoRoot, "UnitTests");
-            ProcessHelper.Run("CMD.exe", "/C mklink /J " + link + " " + target);
-            target = Path.Combine(this.Enlistment.EnlistmentRoot, "GVFS", "GVFS", "GVFS.Installer");
-            link = Path.Combine(this.Enlistment.RepoRoot, "Installer");
-            ProcessHelper.Run("CMD.exe", "/C mklink /D " + link + " " + target);
+            this.PerformIOBeforePlaceholderDatabaseUpgradeTest();
 
             this.Enlistment.UnmountGVFS();
 
@@ -189,7 +162,9 @@ namespace GVFS.FunctionalTests.Windows.Tests
             string[] lines = this.GetPlaceholderDatabaseLinesBeforeUpgrade(placeholderDatabasePath);
 
             // Placeholder database file should only have file placeholders
-            this.fileSystem.WriteAllText(placeholderDatabasePath, string.Join(Environment.NewLine, lines.Where(x => !x.EndsWith(TestConstants.AllZeroSha))) + Environment.NewLine);
+            this.fileSystem.WriteAllText(
+                placeholderDatabasePath, 
+                string.Join(Environment.NewLine, lines.Where(x => !x.EndsWith(TestConstants.PartialFolderPlaceholderDatabaseValue))) + Environment.NewLine);
 
             GVFSHelpers.SaveDiskLayoutVersion(this.Enlistment.DotGVFSRoot, "12", "1");
 
@@ -197,7 +172,38 @@ namespace GVFS.FunctionalTests.Windows.Tests
             this.Enlistment.UnmountGVFS();
 
             // Validate the folder placeholders are in the placeholder database now
-            this.GetPlaceholderDatabaseLinesAfterUpgrade(placeholderDatabasePath);
+            this.GetPlaceholderDatabaseLinesAfterUpgradeFrom12_1(placeholderDatabasePath);
+
+            this.ValidatePersistedVersionMatchesCurrentVersion();
+        }
+
+        [TestCase]
+        public void MountUpdatesAllZeroShaFolderPlaceholderEntriesToPartialFolderSpecialValue()
+        {
+            this.PerformIOBeforePlaceholderDatabaseUpgradeTest();
+
+            this.Enlistment.UnmountGVFS();
+
+            // Delete the existing folder placeholder data
+            string placeholderDatabasePath = Path.Combine(this.Enlistment.DotGVFSRoot, GVFSHelpers.PlaceholderListFile);
+            string[] lines = this.GetPlaceholderDatabaseLinesBeforeUpgrade(placeholderDatabasePath);
+
+            // Update the placeholder file so that folders have an all zero SHA
+            this.fileSystem.WriteAllText(
+                placeholderDatabasePath, 
+                string.Join(
+                    Environment.NewLine, 
+                    lines.Select(x => x.Replace(TestConstants.PartialFolderPlaceholderDatabaseValue, TestConstants.AllZeroSha))) + Environment.NewLine);
+
+            GVFSHelpers.SaveDiskLayoutVersion(this.Enlistment.DotGVFSRoot, "16", "0");
+
+            this.Enlistment.MountGVFS();
+            this.Enlistment.UnmountGVFS();
+
+            // Validate the folder placeholders in the database have PartialFolderPlaceholderDatabaseValue values
+            this.GetPlaceholderDatabaseLinesAfterUpgradeFrom16(placeholderDatabasePath);
+
+            this.ValidatePersistedVersionMatchesCurrentVersion();
         }
 
         [TestCase]
@@ -232,17 +238,7 @@ namespace GVFS.FunctionalTests.Windows.Tests
 
             this.Enlistment.MountGVFS();
 
-            string majorVersion;
-            string minorVersion;
-            GVFSHelpers.GetPersistedDiskLayoutVersion(this.Enlistment.DotGVFSRoot, out majorVersion, out minorVersion);
-
-            majorVersion
-                .ShouldBeAnInt("Disk layout version should always be an int")
-                .ShouldEqual(CurrentDiskLayoutMajorVersion, "Disk layout version should be upgraded to the latest");
-
-            minorVersion
-                .ShouldBeAnInt("Disk layout version should always be an int")
-                .ShouldEqual(CurrentDiskLayoutMinorVersion, "Disk layout version should be upgraded to the latest");
+            this.ValidatePersistedVersionMatchesCurrentVersion();
 
             GVFSHelpers.GetPersistedLocalCacheRoot(this.Enlistment.DotGVFSRoot)
                 .ShouldEqual(string.Empty, "LocalCacheRoot should be an empty string when upgrading from a version prior to 12");
@@ -335,6 +331,40 @@ A tools/perllib/MS/Somefile.txt
 ";
 
             modifiedPathsDatabasePath.ShouldBeAFile(this.fileSystem).WithContents(expectedModifiedPaths);
+
+            this.ValidatePersistedVersionMatchesCurrentVersion();
+        }
+
+        private void PerformIOBeforePlaceholderDatabaseUpgradeTest()
+        {
+            // Create some placeholder data
+            this.fileSystem.ReadAllText(Path.Combine(this.Enlistment.RepoRoot, "Readme.md"));
+            this.fileSystem.ReadAllText(Path.Combine(this.Enlistment.RepoRoot, "Scripts\\RunUnitTests.bat"));
+            this.fileSystem.ReadAllText(Path.Combine(this.Enlistment.RepoRoot, "GVFS\\GVFS.Common\\Git\\GitRefs.cs"));
+
+            // Create a full folder
+            this.fileSystem.CreateDirectory(Path.Combine(this.Enlistment.RepoRoot, "GVFS\\FullFolder"));
+            this.fileSystem.WriteAllText(Path.Combine(this.Enlistment.RepoRoot, "GVFS\\FullFolder\\test.txt"), "Test contents");
+
+            // Create a tombstone
+            this.fileSystem.DeleteDirectory(Path.Combine(this.Enlistment.RepoRoot, "GVFS\\GVFS.Tests\\Properties"));
+
+            string junctionTarget = Path.Combine(this.Enlistment.EnlistmentRoot, "DirJunction");
+            string symlinkTarget = Path.Combine(this.Enlistment.EnlistmentRoot, "DirSymlink");
+            Directory.CreateDirectory(junctionTarget);
+            Directory.CreateDirectory(symlinkTarget);
+
+            string junctionLink = Path.Combine(this.Enlistment.RepoRoot, "DirJunction");
+            string symlink = Path.Combine(this.Enlistment.RepoRoot, "DirLink");
+            ProcessHelper.Run("CMD.exe", "/C mklink /J " + junctionLink + " " + junctionTarget);
+            ProcessHelper.Run("CMD.exe", "/C mklink /D " + symlink + " " + symlinkTarget);
+
+            string target = Path.Combine(this.Enlistment.EnlistmentRoot, "GVFS", "GVFS", "GVFS.UnitTests");
+            string link = Path.Combine(this.Enlistment.RepoRoot, "UnitTests");
+            ProcessHelper.Run("CMD.exe", "/C mklink /J " + link + " " + target);
+            target = Path.Combine(this.Enlistment.EnlistmentRoot, "GVFS", "GVFS", "GVFS.Installer");
+            link = Path.Combine(this.Enlistment.RepoRoot, "Installer");
+            ProcessHelper.Run("CMD.exe", "/C mklink /D " + link + " " + target);
         }
 
         private string[] GetPlaceholderDatabaseLinesBeforeUpgrade(string placeholderDatabasePath)
@@ -348,16 +378,16 @@ A tools/perllib/MS/Somefile.txt
             lines.ShouldContain(x => x.Contains("A GVFS\\GVFS.Tests\\Properties\\AssemblyInfo.cs"));
             lines.ShouldContain(x => x.Contains("A .gitignore"));
             lines.ShouldContain(x => x == "D GVFS\\GVFS.Tests\\Properties\\AssemblyInfo.cs");
-            lines.ShouldContain(x => x == "A Scripts\0" + TestConstants.AllZeroSha);
-            lines.ShouldContain(x => x == "A GVFS\0" + TestConstants.AllZeroSha);
-            lines.ShouldContain(x => x == "A GVFS\\GVFS.Common\0" + TestConstants.AllZeroSha);
-            lines.ShouldContain(x => x == "A GVFS\\GVFS.Common\\Git\0" + TestConstants.AllZeroSha);
-            lines.ShouldContain(x => x == "A GVFS\\GVFS.Tests\0" + TestConstants.AllZeroSha);
-            lines.ShouldContain(x => x == "A GVFS\\GVFS.Tests\\Properties\0" + TestConstants.AllZeroSha);
+            lines.ShouldContain(x => x == "A Scripts\0" + TestConstants.PartialFolderPlaceholderDatabaseValue);
+            lines.ShouldContain(x => x == "A GVFS\0" + TestConstants.PartialFolderPlaceholderDatabaseValue);
+            lines.ShouldContain(x => x == "A GVFS\\GVFS.Common\0" + TestConstants.PartialFolderPlaceholderDatabaseValue);
+            lines.ShouldContain(x => x == "A GVFS\\GVFS.Common\\Git\0" + TestConstants.PartialFolderPlaceholderDatabaseValue);
+            lines.ShouldContain(x => x == "A GVFS\\GVFS.Tests\0" + TestConstants.PartialFolderPlaceholderDatabaseValue);
+            lines.ShouldContain(x => x == "A GVFS\\GVFS.Tests\\Properties\0" + TestConstants.PartialFolderPlaceholderDatabaseValue);
             return lines;
         }
 
-        private string[] GetPlaceholderDatabaseLinesAfterUpgrade(string placeholderDatabasePath)
+        private string[] GetPlaceholderDatabaseLinesAfterUpgradeFrom12_1(string placeholderDatabasePath)
         {
             placeholderDatabasePath.ShouldBeAFile(this.fileSystem);
             string[] lines = this.fileSystem.ReadAllText(placeholderDatabasePath).Split(new char[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries);
@@ -366,11 +396,29 @@ A tools/perllib/MS/Somefile.txt
             lines.ShouldContain(x => x.Contains("Scripts\\RunUnitTests.bat"));
             lines.ShouldContain(x => x.Contains("GVFS\\GVFS.Common\\Git\\GitRefs.cs"));
             lines.ShouldContain(x => x.Contains("A .gitignore"));
-            lines.ShouldContain(x => x == "A Scripts\0" + TestConstants.AllZeroSha);
-            lines.ShouldContain(x => x == "A GVFS\0" + TestConstants.AllZeroSha);
-            lines.ShouldContain(x => x == "A GVFS\\GVFS.Common\0" + TestConstants.AllZeroSha);
-            lines.ShouldContain(x => x == "A GVFS\\GVFS.Common\\Git\0" + TestConstants.AllZeroSha);
-            lines.ShouldContain(x => x == "A GVFS\\GVFS.Tests\0" + TestConstants.AllZeroSha);
+            lines.ShouldContain(x => x == "A Scripts\0" + TestConstants.PartialFolderPlaceholderDatabaseValue);
+            lines.ShouldContain(x => x == "A GVFS\0" + TestConstants.PartialFolderPlaceholderDatabaseValue);
+            lines.ShouldContain(x => x == "A GVFS\\GVFS.Common\0" + TestConstants.PartialFolderPlaceholderDatabaseValue);
+            lines.ShouldContain(x => x == "A GVFS\\GVFS.Common\\Git\0" + TestConstants.PartialFolderPlaceholderDatabaseValue);
+            lines.ShouldContain(x => x == "A GVFS\\GVFS.Tests\0" + TestConstants.PartialFolderPlaceholderDatabaseValue);
+            return lines;
+        }
+
+        private string[] GetPlaceholderDatabaseLinesAfterUpgradeFrom16(string placeholderDatabasePath)
+        {
+            placeholderDatabasePath.ShouldBeAFile(this.fileSystem);
+            string[] lines = this.fileSystem.ReadAllText(placeholderDatabasePath).Split(new char[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries);
+            lines.Length.ShouldEqual(10);
+            lines.ShouldContain(x => x.Contains("Readme.md"));
+            lines.ShouldContain(x => x.Contains("Scripts\\RunUnitTests.bat"));
+            lines.ShouldContain(x => x.Contains("GVFS\\GVFS.Common\\Git\\GitRefs.cs"));
+            lines.ShouldContain(x => x.Contains("A .gitignore"));
+            lines.ShouldContain(x => x == "A Scripts\0" + TestConstants.PartialFolderPlaceholderDatabaseValue);
+            lines.ShouldContain(x => x == "A GVFS\0" + TestConstants.PartialFolderPlaceholderDatabaseValue);
+            lines.ShouldContain(x => x == "A GVFS\\GVFS.Common\0" + TestConstants.PartialFolderPlaceholderDatabaseValue);
+            lines.ShouldContain(x => x == "A GVFS\\GVFS.Common\\Git\0" + TestConstants.PartialFolderPlaceholderDatabaseValue);
+            lines.ShouldContain(x => x == "A GVFS\\GVFS.Tests\0" + TestConstants.PartialFolderPlaceholderDatabaseValue);
+            lines.ShouldContain(x => x == "A GVFS\\GVFS.Tests\\Properties\0" + TestConstants.PartialFolderPlaceholderDatabaseValue);
             return lines;
         }
 

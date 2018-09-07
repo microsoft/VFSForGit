@@ -7,7 +7,6 @@ namespace GVFS.Common
         public const int ShaStringLength = 40;
         public const int MaxPath = 260;
         public const string AllZeroSha = "0000000000000000000000000000000000000000";
-        public const string ExpandedFolderSha = "X_EXPANDED_FOLDER00000000000000000000000";
 
         public const char GitPathSeparator = '/';
         public const string GitPathSeparatorString = "/";

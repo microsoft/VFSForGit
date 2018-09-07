@@ -27,7 +27,12 @@ namespace GVFS.UnitTests.Mock.Virtualization.FileSystem
         {
         }
 
-        public override FileSystemResult WritePlaceholder(string relativePath, long endOfFile, bool isDirectory, string shaContentId)
+        public override FileSystemResult WritePlaceholderFile(string relativePath, long endOfFile, string sha)
+        {
+            throw new NotImplementedException();
+        }
+
+        public override FileSystemResult WritePlaceholderDirectory(string relativePath)
         {
             throw new NotImplementedException();
         }
