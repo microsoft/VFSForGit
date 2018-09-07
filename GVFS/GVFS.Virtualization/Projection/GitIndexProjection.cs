@@ -1108,7 +1108,7 @@ namespace GVFS.Virtualization.Projection
                     HashSet<string> folderPlaceholders = new HashSet<string>(folderPlaceholderData.Select(x => x.Path), StringComparer.OrdinalIgnoreCase);
                     foreach (PlaceholderListDatabase.PlaceholderData folderPlaceholder in folderPlaceholderData.OrderByDescending(x => x.Path))
                     {
-                        if (GVFSPlatform.Instance.FileSystem.EnumerationExpandsDirectories && folderPlaceholder.IsExpandedFolder)
+                        if (GVFSPlatform.Instance.KernelDriver.EnumerationExpandsDirectories && folderPlaceholder.IsExpandedFolder)
                         {
                             this.ReExpandFolder(blobSizesConnection, folderPlaceholder.Path, updatedPlaceholderList, folderPlaceholders, folderPlaceholdersToKeep);
                         }
@@ -1356,7 +1356,7 @@ namespace GVFS.Virtualization.Projection
                 return;
             }
 
-            if (GVFSPlatform.Instance.FileSystem.EnumerationExpandsDirectories)
+            if (GVFSPlatform.Instance.KernelDriver.EnumerationExpandsDirectories)
             {
                 // If enumeration expands directories we should exit early if the folder
                 // is still in the projection to avoid deleting folder placeholders that should
