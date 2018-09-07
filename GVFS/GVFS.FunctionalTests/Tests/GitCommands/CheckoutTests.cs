@@ -734,7 +734,7 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
         }
 
         [TestCase]
-        [Category(Categories.MacTODO.M3)]
+        [Category(Categories.MacTODO.NeedsCachePoisonFix)]
         public void SuccessfullyChecksOutDirectoryToFileToDirectory()
         {
             // This test switches between two branches and verifies specific transitions occured

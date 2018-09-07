@@ -899,7 +899,7 @@ namespace GVFS.Virtualization.Projection
                 {
                     EventMetadata metadata = CreateEventMetadata();
                     metadata.Add("folderPath", folderPath);
-                    this.context.Tracer.RelatedWarning(metadata, "GitIndexProjection_TryGetOrAddFolderDataFromCacheFoundFile: Found a file when expecting a folder");
+                    this.context.Tracer.RelatedInfo(metadata, $"{nameof(this.TryGetOrAddFolderDataFromCache)}: Found a file at specified path");
 
                     folderPath = null;
                     return false;
@@ -1319,7 +1319,7 @@ namespace GVFS.Virtualization.Projection
                 if (childEntry.IsFolder)
                 {
                     if (!existingFolderPlaceholders.Contains(childRelativePath))
-                    {                        
+                    {
                         this.fileSystemVirtualizer.WritePlaceholderDirectory(childRelativePath);                    
                         updatedPlaceholderList.TryAdd(
                             childRelativePath, 
