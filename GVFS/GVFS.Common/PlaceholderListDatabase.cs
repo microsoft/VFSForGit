@@ -8,7 +8,7 @@ namespace GVFS.Common
 {
     public class PlaceholderListDatabase : FileBasedCollection
     {
-        public const string PartialFolderValue =  "@FPARTIAL_000000000000000000000000000000";
+        public const string PartialFolderValue = "@FPARTIAL_000000000000000000000000000000";
         public const string ExpandedFolderValue = "@FEXPANDED_00000000000000000000000000000";
 
         private const char PathTerminator = '\0';
