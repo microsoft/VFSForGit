@@ -316,7 +316,7 @@ namespace GVFS.Common
             // The major version should be bumped whenever there is an on-disk format change that requires a one-way upgrade.
             // Increasing this version will make older versions of GVFS unable to mount a repo that has been mounted by a newer
             // version of GVFS.
-            public const int CurrentMajorVersion = 16;
+            public const int CurrentMajorVersion = 17;
 
             // The minor version should be bumped whenever there is an upgrade that can be safely ignored by older versions of GVFS.
             // For example, this allows an upgrade step that sets a default value for some new config setting.
