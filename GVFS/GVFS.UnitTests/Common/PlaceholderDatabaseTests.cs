@@ -21,8 +21,9 @@ namespace GVFS.UnitTests.Common
         private const string InputThirdFilePath = "thirdFile";
         private const string InputThirdFileSHA = "ff9630E00F715315FC90D4AEC98E6A7398F8BF11";
 
-        private const string ExpectedGitIgnoreEntry = "A " + InputGitIgnorePath + "\0" + InputGitIgnoreSHA + "\r\n";
-        private const string ExpectedGitAttributesEntry = "A " + InputGitAttributesPath + "\0" + InputGitAttributesSHA + "\r\n";
+        private const string PlaceholderDatabaseNewLine = "\r\n";
+        private const string ExpectedGitIgnoreEntry = "A " + InputGitIgnorePath + "\0" + InputGitIgnoreSHA + PlaceholderDatabaseNewLine;
+        private const string ExpectedGitAttributesEntry = "A " + InputGitAttributesPath + "\0" + InputGitAttributesSHA + PlaceholderDatabaseNewLine;
 
         private const string ExpectedTwoEntries = ExpectedGitIgnoreEntry + ExpectedGitAttributesEntry;
 
@@ -115,7 +116,7 @@ namespace GVFS.UnitTests.Common
         [TestCase]
         public void HandlesRaceBetweenRemoveAndWriteAllEntries()
         {
-            const string DeleteGitAttributesEntry = "D .gitattributes\r\n";
+            const string DeleteGitAttributesEntry = "D .gitattributes" + PlaceholderDatabaseNewLine;
 
             ConfigurableFileSystem fs = new ConfigurableFileSystem();
             fs.ExpectedFiles.Add(MockEntryFileName + ".tmp", new ReusableMemoryStream(string.Empty));

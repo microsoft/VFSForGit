@@ -1308,18 +1308,14 @@ namespace GVFS.Virtualization.Projection
                     childRelativePath = relativeFolderPath + Path.DirectorySeparatorChar + childEntry.Name.GetString();
                 }
 
+                // TODO(Mac): Issue #245, handle failures of WritePlaceholderDirectory and WritePlaceholderFile
+                PlaceholderListDatabase.PlaceholderData newPlaceholder = null;              
                 if (childEntry.IsFolder)
                 {
                     if (!existingFolderPlaceholders.Contains(childRelativePath))
-                    {
-                        // TODO(Mac): Issue #245, handle failures of WritePlaceholderDirectory
-                        this.fileSystemVirtualizer.WritePlaceholderDirectory(childRelativePath);
-
-                        updatedPlaceholderList.TryAdd(
-                            childRelativePath,
-                            new PlaceholderListDatabase.PlaceholderData(childRelativePath, PlaceholderListDatabase.PartialFolderValue));
-
-                        folderPlaceholdersToKeep.Add(relativeFolderPath);
+                    {                        
+                        this.fileSystemVirtualizer.WritePlaceholderDirectory(childRelativePath);                    
+                        newPlaceholder = new PlaceholderListDatabase.PlaceholderData(childRelativePath, PlaceholderListDatabase.PartialFolderValue);
                     }
                 }
                 else
@@ -1328,16 +1324,15 @@ namespace GVFS.Virtualization.Projection
                     {
                         FileData childFileData = childEntry as FileData;
                         string sha = childFileData.Sha.ToString();
-
-                        // TODO(Mac): Issue #245, handle failures of WritePlaceholderFile
                         this.fileSystemVirtualizer.WritePlaceholderFile(childRelativePath, childFileData.Size, sha);
-
-                        updatedPlaceholderList.TryAdd(
-                            childRelativePath,
-                            new PlaceholderListDatabase.PlaceholderData(childRelativePath, sha));
-
-                        folderPlaceholdersToKeep.Add(relativeFolderPath);
+                        newPlaceholder = new PlaceholderListDatabase.PlaceholderData(childRelativePath, sha);
                     }
+                }
+
+                if (newPlaceholder != null)
+                {
+                    updatedPlaceholderList.TryAdd(childRelativePath, newPlaceholder);
+                    folderPlaceholdersToKeep.Add(relativeFolderPath);
                 }
             }
         }

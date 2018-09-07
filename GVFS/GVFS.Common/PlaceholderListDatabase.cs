@@ -17,7 +17,7 @@ namespace GVFS.Common
         private const char PathTerminator = '\0';
 
         // Prefixs allow for 
-        private const string FolderValuePrefix = "@F";
+        private const string FolderValuePrefix = "WF";
         private static readonly string ExpandedFolderPrefix = FolderValuePrefix + "E";
 
         // This list holds entries that would otherwise be lost because WriteAllEntriesAndFlush has not been called, but a file 
@@ -217,7 +217,7 @@ namespace GVFS.Common
             {
                 key = null;
                 value = null;
-                error = "Invalid SHA1 length: " + line;
+                error = $"Invalid SHA1 length {line.Length - idx - 1}: " + line;
                 return false;
             }
 
