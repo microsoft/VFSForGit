@@ -162,7 +162,7 @@ namespace GVFS.FunctionalTests.Windows.Tests
             string[] lines = this.GetPlaceholderDatabaseLinesBeforeUpgrade(placeholderDatabasePath);
 
             // Placeholder database file should only have file placeholders
-            this.fileSystem.WriteAllText(placeholderDatabasePath, string.Join(Environment.NewLine, lines.Where(x => !x.EndsWith(TestConstants.AllZeroSha))) + Environment.NewLine);
+            this.fileSystem.WriteAllText(placeholderDatabasePath, string.Join(Environment.NewLine, lines.Where(x => !x.EndsWith(TestConstants.PartialFolderPlaceholderDatabaseValue))) + Environment.NewLine);
 
             GVFSHelpers.SaveDiskLayoutVersion(this.Enlistment.DotGVFSRoot, "12", "1");
 
@@ -191,7 +191,7 @@ namespace GVFS.FunctionalTests.Windows.Tests
                 placeholderDatabasePath, 
                 string.Join(
                     Environment.NewLine, 
-                    lines.Select(x => x.Replace(TestConstants.PartialFolderPlaceholderDatabaseValue, TestConstants.AllZeroSha))) + Environment.NewLine);
+                    lines.Select(x => x.Replace(TestConstants.PartialFolderPlaceholderDatabaseValue, TestConstants.PartialFolderPlaceholderDatabaseValue))) + Environment.NewLine);
 
             GVFSHelpers.SaveDiskLayoutVersion(this.Enlistment.DotGVFSRoot, "16", "0");
 
