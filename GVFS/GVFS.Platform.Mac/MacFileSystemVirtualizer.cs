@@ -70,30 +70,26 @@ namespace GVFS.Platform.Mac
             this.Context.Tracer.RelatedEvent(EventLevel.Informational, $"{nameof(this.Stop)}_StopRequested", metadata: null);
         }
 
-        public override FileSystemResult WritePlaceholder(
+        public override FileSystemResult WritePlaceholderFile(
             string relativePath,
             long endOfFile,
-            bool isDirectory,
             string sha)
         {
-            Result result;
+            // TODO(Mac): Add functional tests that validate file mode is set correctly
+            ushort fileMode = this.FileSystemCallbacks.GitIndexProjection.GetFilePathMode(relativePath);
+            Result result = this.virtualizationInstance.WritePlaceholderFile(
+                relativePath,
+                PlaceholderVersionId,
+                ToVersionIdByteArray(FileSystemVirtualizer.ConvertShaToContentId(sha)),
+                (ulong)endOfFile,
+                fileMode);
 
-            if (isDirectory)
-            {
-                result = this.virtualizationInstance.WritePlaceholderDirectory(relativePath);
-            }
-            else
-            {
-                // TODO(Mac): Add functional tests that validate file mode is set correctly
-                ushort fileMode = this.FileSystemCallbacks.GitIndexProjection.GetFilePathMode(relativePath);
-                result = this.virtualizationInstance.WritePlaceholderFile(
-                    relativePath,
-                    PlaceholderVersionId,
-                    ToVersionIdByteArray(FileSystemVirtualizer.ConvertShaToContentId(sha)),
-                    (ulong)endOfFile,
-                    fileMode);
-            }
+            return new FileSystemResult(ResultToFSResult(result), unchecked((int)result));
+        }
 
+        public override FileSystemResult WritePlaceholderDirectory(string relativePath)
+        {
+            Result result = this.virtualizationInstance.WritePlaceholderDirectory(relativePath);
             return new FileSystemResult(ResultToFSResult(result), unchecked((int)result));
         }
 
@@ -462,18 +458,29 @@ namespace GVFS.Platform.Mac
         {
             foreach (ProjectedFileInfo fileInfo in projectedItems)
             {
-                Result result;
-                string sha = fileInfo.IsFolder ? null : fileInfo.Sha.ToString();
                 string childRelativePath = Path.Combine(directoryRelativePath, fileInfo.Name);
 
-                FileSystemResult fileSystemResult = this.WritePlaceholder(childRelativePath, fileInfo.Size, fileInfo.IsFolder, sha);
-                result = (Result)fileSystemResult.RawResult;
+                string sha;
+                FileSystemResult fileSystemResult;
+                if (fileInfo.IsFolder)
+                {
+                    sha = string.Empty;
+                    fileSystemResult = this.WritePlaceholderDirectory(childRelativePath);
+                }
+                else
+                {
+                    sha = fileInfo.Sha.ToString();
+                    fileSystemResult = this.WritePlaceholderFile(childRelativePath, fileInfo.Size, sha);
+                }
+
+                Result result = (Result)fileSystemResult.RawResult;
                 if (result != Result.Success)
                 {
                     EventMetadata metadata = this.CreateEventMetadata(childRelativePath);
                     metadata.Add("fileInfo.Name", fileInfo.Name);
                     metadata.Add("fileInfo.Size", fileInfo.Size);
                     metadata.Add("fileInfo.IsFolder", fileInfo.IsFolder);
+                    metadata.Add(nameof(sha), sha);
                     this.Context.Tracer.RelatedError(metadata, $"{nameof(this.CreatePlaceholders)}: Write placeholder failed");
 
                     return result;

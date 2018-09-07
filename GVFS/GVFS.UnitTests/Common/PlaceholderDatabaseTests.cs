@@ -50,11 +50,11 @@ namespace GVFS.UnitTests.Common
         {
             ConfigurableFileSystem fs = new ConfigurableFileSystem();
             PlaceholderListDatabase dut = CreatePlaceholderListDatabase(fs, string.Empty);
-            dut.AddAndFlush(InputGitIgnorePath, InputGitIgnoreSHA);
+            dut.AddAndFlushFile(InputGitIgnorePath, InputGitIgnoreSHA);
 
             fs.ExpectedFiles[MockEntryFileName].ReadAsString().ShouldEqual(ExpectedGitIgnoreEntry);
 
-            dut.AddAndFlush(InputGitAttributesPath, InputGitAttributesSHA);
+            dut.AddAndFlushFile(InputGitAttributesPath, InputGitAttributesSHA);
 
             fs.ExpectedFiles[MockEntryFileName].ReadAsString().ShouldEqual(ExpectedTwoEntries);
         }
@@ -65,9 +65,9 @@ namespace GVFS.UnitTests.Common
             ConfigurableFileSystem fs = new ConfigurableFileSystem();
             using (PlaceholderListDatabase dut1 = CreatePlaceholderListDatabase(fs, string.Empty))
             {
-                dut1.AddAndFlush(InputGitIgnorePath, InputGitIgnoreSHA);
-                dut1.AddAndFlush(InputGitAttributesPath, InputGitAttributesSHA);
-                dut1.AddAndFlush(InputThirdFilePath, InputThirdFileSHA);
+                dut1.AddAndFlushFile(InputGitIgnorePath, InputGitIgnoreSHA);
+                dut1.AddAndFlushFile(InputGitAttributesPath, InputGitAttributesSHA);
+                dut1.AddAndFlushFile(InputThirdFilePath, InputThirdFileSHA);
                 dut1.RemoveAndFlush(InputThirdFilePath);
             }
 
@@ -106,7 +106,7 @@ namespace GVFS.UnitTests.Common
             
             List<PlaceholderListDatabase.PlaceholderData> existingEntries = dut.GetAllEntries();
 
-            dut.AddAndFlush(InputGitAttributesPath, InputGitAttributesSHA);
+            dut.AddAndFlushFile(InputGitAttributesPath, InputGitAttributesSHA);
             
             dut.WriteAllEntriesAndFlush(existingEntries);
             fs.ExpectedFiles[MockEntryFileName].ReadAsString().ShouldEqual(ExpectedTwoEntries);

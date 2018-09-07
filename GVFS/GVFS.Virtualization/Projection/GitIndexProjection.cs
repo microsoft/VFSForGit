@@ -317,17 +317,17 @@ namespace GVFS.Virtualization.Projection
 
         public void OnPlaceholderFolderCreated(string virtualPath)
         {
-            this.placeholderList.AddAndFlush(virtualPath, GVFSConstants.AllZeroSha);
+            this.placeholderList.AddAndFlushFolder(virtualPath, isExpanded: false);
         }
 
         public virtual void OnPlaceholderFolderExpanded(string relativePath)
         {
-            this.placeholderList.AddAndFlush(relativePath, GVFSConstants.ExpandedFolderSha);
+            this.placeholderList.AddAndFlushFolder(relativePath, isExpanded: true);
         }
 
         public virtual void OnPlaceholderFileCreated(string virtualPath, string sha)
         {
-            this.placeholderList.AddAndFlush(virtualPath, sha);
+            this.placeholderList.AddAndFlushFile(virtualPath, sha);
         }
 
         public virtual bool TryGetProjectedItemsFromMemory(string folderPath, out List<ProjectedFileInfo> projectedItems)
@@ -1304,23 +1304,19 @@ namespace GVFS.Virtualization.Projection
                 }
                 else
                 {
-                    childRelativePath = relativeFolderPath + Path.DirectorySeparatorChar + childEntry.Name.GetString();                    
+                    childRelativePath = relativeFolderPath + Path.DirectorySeparatorChar + childEntry.Name.GetString();
                 }
 
                 if (childEntry.IsFolder)
                 {
                     if (!existingFolderPlaceholders.Contains(childRelativePath))
                     {
-                        // TODO(Mac): Issue #245, handle failures of WritePlaceholder
-                        this.fileSystemVirtualizer.WritePlaceholder(
-                            childRelativePath,
-                            endOfFile: 0, 
-                            isDirectory: true, 
-                            shaContentId: GVFSConstants.AllZeroSha);
+                        // TODO(Mac): Issue #245, handle failures of WritePlaceholderDirectory
+                        this.fileSystemVirtualizer.WritePlaceholderDirectory(childRelativePath);
 
                         updatedPlaceholderList.TryAdd(
                             childRelativePath,
-                            new PlaceholderListDatabase.PlaceholderData(childRelativePath, GVFSConstants.AllZeroSha));
+                            new PlaceholderListDatabase.PlaceholderData(childRelativePath, PlaceholderListDatabase.PartialFolderValue));
 
                         folderPlaceholdersToKeep.Add(relativeFolderPath);
                     }
@@ -1332,8 +1328,8 @@ namespace GVFS.Virtualization.Projection
                         FileData childFileData = childEntry as FileData;
                         string sha = childFileData.Sha.ToString();
 
-                        // TODO(Mac): Issue #245, handle failures of WritePlaceholder
-                        this.fileSystemVirtualizer.WritePlaceholder(childRelativePath, childFileData.Size, isDirectory: false, shaContentId: sha);
+                        // TODO(Mac): Issue #245, handle failures of WritePlaceholderFile
+                        this.fileSystemVirtualizer.WritePlaceholderFile(childRelativePath, childFileData.Size, sha);
 
                         updatedPlaceholderList.TryAdd(
                             childRelativePath,
