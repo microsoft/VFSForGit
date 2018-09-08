@@ -138,7 +138,11 @@ namespace GVFS.Common
             metadata.Add("Area", "ModifiedPathsDatabase");
             metadata.Add(nameof(entry), entry);
             metadata.Add(nameof(isFolder), isFolder);
-            metadata.Add("Exception", e.ToString());
+            if (e != null)
+            {
+                metadata.Add("Exception", e.ToString());
+            }
+
             return metadata;
         }
 
