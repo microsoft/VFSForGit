@@ -20,11 +20,14 @@ namespace GVFS.Service
 
         public void Start()
         {
+            Random random = new Random();
+            TimeSpan startTime = TimeSpan.FromMinutes(random.Next(0, 60));
+
             this.tracer.RelatedInfo("Starting auto upgrade checks");
             this.timer = new Timer(
                 this.TimerCallback,
                 null,
-                TimeSpan.Zero,
+                startTime,
                 TimeInterval);
         }
 
