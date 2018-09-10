@@ -43,7 +43,7 @@ namespace GVFS.UnitTests.Windows.Upgrader
                 expectedOutput: new List<string>
                 {
                     "New GVFS version available: " + NewerThanLocalVersion,
-                    "Run gvfs upgrade --confirm to install it"
+                    "Run `gvfs upgrade --confirm` to install it"
                 },
                 expectedErrors: null);
         }
@@ -139,12 +139,12 @@ namespace GVFS.UnitTests.Windows.Upgrader
                 expectedReturn: ReturnCode.GenericError,
                 expectedOutput: new List<string>
                 {
-                    "Unsupported ProjFS configuration.",
+                    "ERROR: ProjFS configuration does not support `gvfs upgrade [--confirm]`.",
                     "Check your team's documentation for how to upgrade."
                 },
                 expectedErrors: new List<string>
                 {
-                    "Unsupported ProjFS configuration."
+                    "ProjFS configuration does not support `gvfs upgrade [--confirm]`."
                 });
         }
 
@@ -160,7 +160,7 @@ namespace GVFS.UnitTests.Windows.Upgrader
                 expectedOutput: new List<string>
                 {
                     "GVFS Service is not running.",
-                    "Start \"GVFS.Service\" and run \"gvfs upgrade\" again."
+                    "Run `sc start GVFS.Service` and run `gvfs upgrade [--confirm]` again."
                 },
                 expectedErrors: new List<string>
                 {
@@ -180,7 +180,7 @@ namespace GVFS.UnitTests.Windows.Upgrader
                 expectedOutput: new List<string>
                 {
                     "The installer needs to be run from an elevated command prompt.",
-                    "Please open an elevated (administrator) command prompt and run gvfs upgrade again."
+                    "Run `gvfs upgrade [--confirm]` again from an elevated command prompt."
                 },
                 expectedErrors: new List<string>
                 {
@@ -199,11 +199,11 @@ namespace GVFS.UnitTests.Windows.Upgrader
                 expectedReturn: ReturnCode.GenericError,
                 expectedOutput: new List<string>
                 {
-                    "Cannot run upgrade, when GVFS is running in unattended mode."
+                    "`gvfs upgrade [--confirm]` is not supported in unattended mode"
                 },
                 expectedErrors: new List<string>
                 {
-                    "Cannot run upgrade, when GVFS is running in unattended mode."
+                    "`gvfs upgrade [--confirm]` is not supported in unattended mode"
                 });
         }
 

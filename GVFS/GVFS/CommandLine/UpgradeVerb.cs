@@ -73,6 +73,7 @@ namespace GVFS.CommandLine
         
         private bool TryRunProductUpgrade()
         {
+            string errorOutputFormat = Environment.NewLine + "ERROR: {0}";
             string error = null;
             Version newestVersion = null;
             bool isInstallable = false;
@@ -87,7 +88,7 @@ namespace GVFS.CommandLine
 
             if (!this.TryRunUpgradeChecks(out newestVersion, out isInstallable, out error))
             {
-                this.Output.WriteLine($"{error}");
+                this.Output.WriteLine(errorOutputFormat, error);
                 this.tracer.RelatedError($"{nameof(this.TryRunProductUpgrade)}: Upgrade checks failed. {error}");
                 return false;
             }
@@ -102,22 +103,21 @@ namespace GVFS.CommandLine
 
             if (!isInstallable)
             {
-                string message = "Upgrade is not installable." + Environment.NewLine + error;
                 this.tracer.RelatedError($"{nameof(this.TryRunProductUpgrade)}: {error}");
-                this.ReportInfoToConsole(message);
+                this.Output.WriteLine(errorOutputFormat, error);
                 return false;
             }
 
             if (!this.Confirmed)
             {
-                this.ReportInfoToConsole("Run gvfs upgrade --confirm to install it");
+                this.ReportInfoToConsole("Run `gvfs upgrade --confirm` to install it");
                 return true;
             }
 
             if (!this.TryRunInstaller(out error))
             {
                 this.tracer.RelatedError($"{nameof(this.TryRunProductUpgrade)}: Could not launch installer. {error}");
-                this.ReportInfoToConsole($"Could not launch installer. {error}");
+                this.Output.WriteLine(errorOutputFormat, "Could not launch installer. " + error);
                 return false;
             }
 

@@ -65,11 +65,10 @@ namespace GVFS.Upgrader
         public void Execute()
         {
             string error = null;
-            string finishMessage = null;
 
             if (this.upgrader.IsNoneRing())
             {
-                finishMessage = "Upgrade ring set to None. No upgrade check was performed.";
+                this.output.WriteLine("Upgrade ring set to None. No upgrade check was performed.");
             }
             else
             {
@@ -86,22 +85,20 @@ namespace GVFS.Upgrader
                     string cleanUpError = null;
                     if (!this.TryRunCleanUp(out cleanUpError))
                     {
-                        error = string.IsNullOrEmpty(error) ? cleanUpError : error + Environment.NewLine + cleanUpError;
-                        this.ExitCode = ReturnCode.GenericError;
+                        cleanUpError = Environment.NewLine + "WARNING: " + cleanUpError;
+                        this.output.WriteLine(cleanUpError);
+                        this.ExitCode = ReturnCode.Success;
                     }
                 }
-
-                finishMessage = "Finished upgrade";
             }
             
             if (this.ExitCode == ReturnCode.GenericError)
             {
-                finishMessage = "Upgrade finished with errors";
-                this.tracer.RelatedInfo(finishMessage);
+                error = Environment.NewLine + "ERROR: " + error;
                 this.output.WriteLine(error);
             }
 
-            this.output.WriteLine(finishMessage + ". Press Enter to exit.");
+            this.output.WriteLine("Press Enter to exit.");
             if (this.input == Console.In)
             {
                 this.input.ReadLine();
@@ -126,7 +123,6 @@ namespace GVFS.Upgrader
         private bool TryRunUpgradeInstall(out Version newVersion, out string error)
         {
             newVersion = null;
-            error = null;
 
             Version newGVFSVersion = null;
             GitVersion newGitVersion = null;
@@ -142,12 +138,28 @@ namespace GVFS.Upgrader
 
                     this.LogInstalledVersionInfo();
                     this.LogVersionInfo(newGVFSVersion, newGitVersion, "Available Version");
-                    
+
                     if (!this.preRunChecker.TryRunPreUpgradeChecks(newGitVersion, out errorMessage))
                     {
                         return false;
                     }
 
+                    if (!this.TryDownloadUpgrade(newGVFSVersion, out errorMessage))
+                    {
+                        return false;
+                    }
+
+                    return true;
+                },
+                "Downloading"))
+            {
+                error = errorMessage;
+                return false;
+            }
+
+            if (!this.LaunchInsideSpinner(
+                () =>
+                {
                     if (!this.preRunChecker.TryUnmountAllGVFSRepos(out errorMessage))
                     {
                         return false;
@@ -155,8 +167,7 @@ namespace GVFS.Upgrader
 
                     this.remount = true;
 
-                    if (!this.TryDownloadUpgrade(newGVFSVersion, out errorMessage) ||
-                        !this.TryInstallGitUpgrade(newGitVersion, out errorMessage))
+                    if (!this.TryInstallGitUpgrade(newGitVersion, out errorMessage))
                     {
                         return false;
                     }
@@ -168,8 +179,6 @@ namespace GVFS.Upgrader
                 error = errorMessage;
                 return false;
             }
-
-            newVersion = newGVFSVersion;
 
             if (!this.LaunchInsideSpinner(
                 () =>
@@ -183,49 +192,49 @@ namespace GVFS.Upgrader
                 },
                 "Installing GVFS"))
             {
-                newVersion = null;
                 error = errorMessage;
                 return false;
             }
 
             this.LogVersionInfo(newGVFSVersion, newGitVersion, "Newly Installed Version");
 
+            newVersion = newGVFSVersion;
+            error = null;
             return true;
         }
         
         private bool TryRunCleanUp(out string error)
         {
             string errorMessage = string.Empty;
-            if (!this.LaunchInsideSpinner(
+            if (this.remount && !this.LaunchInsideSpinner(
                 () =>
                 {
-                    bool success = true;
                     string remountError;
-                    if (this.remount && !this.preRunChecker.TryMountAllGVFSRepos(out remountError))
+                    if (!this.preRunChecker.TryMountAllGVFSRepos(out remountError))
                     {
                         EventMetadata metadata = new EventMetadata();
                         metadata.Add("Upgrade Step", nameof(this.TryRunCleanUp));
                         metadata.Add("Remount Error", remountError);
                         this.tracer.RelatedError(metadata, $"{nameof(this.preRunChecker.TryMountAllGVFSRepos)} failed.");
-                        errorMessage += remountError;
-                        success = false;
+                        errorMessage += remountError + Environment.NewLine + "You may remount repositories manually with `gvfs mount` from the enlistment.";
+                        return false;
                     }
 
-                    string downloadsCleanupError;
-                    if (this.deleteDownloadedAssets && !this.upgrader.TryCleanup(out downloadsCleanupError))
-                    {
-                        EventMetadata metadata = new EventMetadata();
-                        metadata.Add("Upgrade Step", nameof(this.TryRunCleanUp));
-                        metadata.Add("Download cleanup error", downloadsCleanupError);
-                        this.tracer.RelatedError(metadata, $"{nameof(this.upgrader.TryCleanup)} failed.");
-                    }
-
-                    return success;
+                    return true;
                 },
-                "Finishing upgrade"))
+                "Remounting repositories"))
             {
                 error = errorMessage;
                 return false;
+            }
+
+            string downloadsCleanupError;
+            if (this.deleteDownloadedAssets && !this.upgrader.TryCleanup(out downloadsCleanupError))
+            {
+                EventMetadata metadata = new EventMetadata();
+                metadata.Add("Upgrade Step", nameof(this.TryRunCleanUp));
+                metadata.Add("Download cleanup error", downloadsCleanupError);
+                this.tracer.RelatedError(metadata, $"{nameof(this.upgrader.TryCleanup)} failed.");
             }
 
             error = null;

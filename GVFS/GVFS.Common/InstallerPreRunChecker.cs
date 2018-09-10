@@ -26,7 +26,7 @@ namespace GVFS.Upgrader
 
             if (this.IsUnattended())
             {
-                error = "Cannot run upgrade, when GVFS is running in unattended mode.";
+                error = "`gvfs upgrade [--confirm]` is not supported in unattended mode";
                 this.tracer.RelatedError($"{nameof(TryRunPreUpgradeChecks)}: {error}");
                 return false;
             }
@@ -116,7 +116,10 @@ namespace GVFS.Upgrader
 
             if (processList.Count > 0)
             {
-                error = "Please retry after quitting these processes - " + string.Join(", ", processList.ToArray());
+                error = string.Join(
+                    Environment.NewLine, 
+                    "Blocking processes are running.",
+                    "Run `gvfs upgrade [--confirm]` again after quitting these processes - " + string.Join(", ", processList.ToArray()));
                 this.tracer.RelatedError($"{nameof(TryUnmountAllGVFSRepos)}: {error}");
                 return false;
             }
@@ -209,19 +212,28 @@ namespace GVFS.Upgrader
 
             if (!this.IsElevated())
             {
-                error = "The installer needs to be run from an elevated command prompt.\nPlease open an elevated (administrator) command prompt and run gvfs upgrade again.";
+                error = string.Join(
+                    Environment.NewLine,
+                    "The installer needs to be run from an elevated command prompt.",
+                    "Run `gvfs upgrade [--confirm]` again from an elevated command prompt.");
                 return false;
             }
 
             if (!this.IsProjFSInboxed())
             {
-                error = "Unsupported ProjFS configuration.\nCheck your team's documentation for how to upgrade.";
+                error = string.Join(
+                    Environment.NewLine,
+                    "ProjFS configuration does not support `gvfs upgrade [--confirm]`.",
+                    "Check your team's documentation for how to upgrade.");
                 return false;
             }
 
             if (this.IsServiceInstalledAndNotRunning())
             {
-                error = "GVFS Service is not running.\nStart \"GVFS.Service\" and run \"gvfs upgrade\" again.";
+                error = string.Join(
+                    Environment.NewLine,
+                    "GVFS Service is not running.",
+                    "Run `sc start GVFS.Service` and run `gvfs upgrade [--confirm]` again.");
                 return false;
             }
 

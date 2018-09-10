@@ -114,7 +114,7 @@ namespace GVFS.UnitTests.Windows.Mock.Upgrader
 
             if (this.LocalRingConfig == RingType.Invalid)
             {
-                error = "Invalid upgrade ring type(Invalid) specified in Git config.";
+                error = "Invalid upgrade ring `Invalid` specified in Git config.";
                 return false;
             }
 
