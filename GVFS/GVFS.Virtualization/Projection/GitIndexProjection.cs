@@ -1097,9 +1097,20 @@ namespace GVFS.Virtualization.Projection
 
             using (ITracer activity = this.context.Tracer.StartActivity("UpdatePlaceholders", EventLevel.Informational, metadata))
             {
+                int minItemsPerThread = 10;
+                int numThreads = Math.Max(8, Environment.ProcessorCount);
+                numThreads = Math.Min(numThreads, list.Count / minItemsPerThread);
+                numThreads = Math.Max(numThreads, 1);
+
                 ConcurrentHashSet<string> folderPlaceholdersToKeep = new ConcurrentHashSet<string>();
-                ConcurrentDictionary<string, PlaceholderListDatabase.PlaceholderData> updatedPlaceholderList = new ConcurrentDictionary<string, PlaceholderListDatabase.PlaceholderData>(StringComparer.Ordinal);
+                ConcurrentDictionary<string, PlaceholderListDatabase.PlaceholderData> updatedPlaceholderList = 
+                    new ConcurrentDictionary<string, PlaceholderListDatabase.PlaceholderData>(
+                        concurrencyLevel: numThreads, 
+                        capacity: placeholderFilesListCopy.Count + placeholderFoldersListCopy.Count, 
+                        StringComparer.Ordinal);
+                
                 this.ProcessListOnThreads(
+                    numThreads,
                     placeholderFilesListCopy,
                     (placeholderBatch, start, end, blobSizesConnection, availableSizes) => 
                         this.BatchPopulateMissingSizesFromRemote(blobSizesConnection, placeholderBatch, start, end, availableSizes),
@@ -1139,13 +1150,11 @@ namespace GVFS.Virtualization.Projection
         }
 
         private void ProcessListOnThreads<T>(
+            int numThreads,
             List<T> list, 
             Action<List<T>, int, int, BlobSizes.BlobSizesConnection, Dictionary<string, long>> preProcessBatch, 
             Action<T, BlobSizes.BlobSizesConnection, Dictionary<string, long>> processItem)
         {
-            int minItemsPerThread = 10;
-            int numThreads = Math.Max(8, Environment.ProcessorCount);
-            numThreads = Math.Min(numThreads, list.Count / minItemsPerThread);
             if (numThreads > 1)
             {
                 Thread[] processThreads = new Thread[numThreads];
