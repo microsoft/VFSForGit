@@ -317,7 +317,7 @@ namespace MirrorProvider.Windows
             // NotificationType.FileHandleClosedFileModified and so this method will only be called for modifications.  
             // Once MacFileSystemVirtualizer supports delete notifications we'll register for
             // NotificationType.FileHandleClosedFileDeleted and this method will be called for both modifications and deletions.
-            Console.WriteLine($"OnFileModifiedOrDeleted: `{relativePath}`, isDirectory: {isDirectory}, isModfied: {isFileDeleted}, isDeleted: {isFileDeleted}");
+            Console.WriteLine($"OnFileModifiedOrDeleted: `{relativePath}`, isDirectory: {isDirectory}, isModfied: {isFileModified}, isDeleted: {isFileDeleted}");
         }
 
         private void OnFileRenamed(
