@@ -115,6 +115,45 @@ namespace GVFS.Platform.Windows
             return new FileSystemResult(HResultToFSResult(result), unchecked((int)result));
         }
 
+        public override FileSystemResult WritePlaceholderFile(
+            string relativePath,
+            long endOfFile,
+            string sha)
+        {
+            FileProperties properties = this.FileSystemCallbacks.GetLogsHeadFileProperties();
+            HResult result = this.virtualizationInstance.WritePlaceholderInformation(
+                relativePath,
+                properties.CreationTimeUTC,
+                properties.LastAccessTimeUTC,
+                properties.LastWriteTimeUTC,
+                changeTime: properties.LastWriteTimeUTC,
+                fileAttributes: (uint)NativeMethods.FileAttributes.FILE_ATTRIBUTE_ARCHIVE,
+                endOfFile: endOfFile,
+                isDirectory: false,
+                contentId: FileSystemVirtualizer.ConvertShaToContentId(sha),
+                providerId: PlaceholderVersionId);
+
+            return new FileSystemResult(HResultToFSResult(result), unchecked((int)result));
+        }
+
+        public override FileSystemResult WritePlaceholderDirectory(string relativePath)
+        {
+            FileProperties properties = this.FileSystemCallbacks.GetLogsHeadFileProperties();
+            HResult result = this.virtualizationInstance.WritePlaceholderInformation(
+                relativePath,
+                properties.CreationTimeUTC,
+                properties.LastAccessTimeUTC,
+                properties.LastWriteTimeUTC,
+                changeTime: properties.LastWriteTimeUTC,
+                fileAttributes: (uint)NativeMethods.FileAttributes.FILE_ATTRIBUTE_DIRECTORY,
+                endOfFile: 0,
+                isDirectory: true,
+                contentId: FolderContentId,
+                providerId: PlaceholderVersionId);
+
+            return new FileSystemResult(HResultToFSResult(result), unchecked((int)result));
+        }
+
         public override FileSystemResult UpdatePlaceholderIfNeeded(
             string relativePath,
             DateTime creationTime,
@@ -740,31 +779,20 @@ namespace GVFS.Platform.Windows
                 // with proper case.
                 string gitCaseVirtualPath = Path.Combine(parentFolderPath, fileInfo.Name);
 
-                string sha = string.Empty;
-                uint fileAttributes;
+                string sha;
+                FileSystemResult fileSystemResult;
                 if (fileInfo.IsFolder)
                 {
-                    fileAttributes = (uint)NativeMethods.FileAttributes.FILE_ATTRIBUTE_DIRECTORY;
+                    sha = string.Empty;
+                    fileSystemResult = this.WritePlaceholderDirectory(gitCaseVirtualPath);
                 }
                 else
                 {
                     sha = fileInfo.Sha.ToString();
-                    fileAttributes = (uint)NativeMethods.FileAttributes.FILE_ATTRIBUTE_ARCHIVE;
+                    fileSystemResult = this.WritePlaceholderFile(gitCaseVirtualPath, fileInfo.Size, sha);
                 }
 
-                FileProperties properties = this.FileSystemCallbacks.GetLogsHeadFileProperties();
-                result = this.virtualizationInstance.WritePlaceholderInformation(
-                    gitCaseVirtualPath,
-                    properties.CreationTimeUTC,
-                    properties.LastAccessTimeUTC,
-                    properties.LastWriteTimeUTC,
-                    changeTime: properties.LastWriteTimeUTC,
-                    fileAttributes: fileAttributes,
-                    endOfFile: fileInfo.Size,
-                    isDirectory: fileInfo.IsFolder,
-                    contentId: FileSystemVirtualizer.ConvertShaToContentId(sha),
-                    providerId: PlaceholderVersionId);
-
+                result = (HResult)fileSystemResult.RawResult;
                 if (result != HResult.Ok)
                 {
                     EventMetadata metadata = this.CreateEventMetadata(virtualPath);
@@ -777,6 +805,7 @@ namespace GVFS.Platform.Windows
                     metadata.Add("triggeringProcessImageFileName", triggeringProcessImageFileName);
                     metadata.Add("FileName", fileInfo.Name);
                     metadata.Add("IsFolder", fileInfo.IsFolder);
+                    metadata.Add(nameof(sha), sha);
                     metadata.Add(nameof(result), result.ToString("X") + "(" + result.ToString("G") + ")");
                     this.Context.Tracer.RelatedError(metadata, $"{nameof(this.GetPlaceholderInformationAsyncHandler)}: {nameof(this.virtualizationInstance.WritePlaceholderInformation)} failed");
                 }
@@ -1102,7 +1131,7 @@ namespace GVFS.Platform.Windows
                             string directoryPath = Path.Combine(this.Context.Enlistment.WorkingDirectoryRoot, virtualPath);
                             HResult hr = this.virtualizationInstance.ConvertDirectoryToPlaceholder(
                                 directoryPath, 
-                                ConvertShaToContentId(GVFSConstants.AllZeroSha), 
+                                FolderContentId, 
                                 PlaceholderVersionId);
                             
                             if (hr == HResult.Ok)

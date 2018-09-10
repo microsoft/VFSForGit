@@ -310,7 +310,6 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
         }
 
         [TestCase]
-        [Category(Categories.MacTODO.M3)]
         public void AddFileAndCommitOnNewBranchSwitchDeleteFolderAndSwitchBack()
         {
             // 663045 - Confirm that folder can be deleted after adding a file then changing branches
@@ -710,7 +709,6 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
         }
 
         [TestCase]
-        [Category(Categories.MacTODO.M3)]
         public void ResetSoft()
         {
             this.ValidateGitCommand("checkout -b tests/functional/ResetSoft");
@@ -742,7 +740,6 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
         }
 
         [TestCase]
-        [Category(Categories.MacTODO.M3)]
         public void ResetSoftTwice()
         {
             this.ValidateGitCommand("checkout -b tests/functional/ResetSoftTwice");
@@ -754,7 +751,6 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
         }
 
         [TestCase]
-        [Category(Categories.MacTODO.M3)]
         public void ResetMixedTwice()
         {
             this.ValidateGitCommand("checkout -b tests/functional/ResetMixedTwice");

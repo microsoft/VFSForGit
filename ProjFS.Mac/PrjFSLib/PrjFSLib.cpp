@@ -411,7 +411,7 @@ PrjFS_Result PrjFS_DeleteFile(
     
     char fullPath[PrjFSMaxPath];
     CombinePaths(s_virtualizationRootFullPath.c_str(), relativePath, fullPath);
-    if (0 != unlink(fullPath))
+    if (0 != remove(fullPath))
     {
         switch(errno)
         {

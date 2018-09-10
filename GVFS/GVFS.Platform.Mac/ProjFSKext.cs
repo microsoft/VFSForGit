@@ -10,6 +10,8 @@ namespace GVFS.Platform.Mac
 {
     public class ProjFSKext : IKernelDriver
     {
+        public bool EnumerationExpandsDirectories { get; } = true;
+
         public string DriverLogFolderName => throw new NotImplementedException();
 
         public bool IsSupported(string normalizedEnlistmentRootPath, out string warning, out string error)

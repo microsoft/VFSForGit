@@ -16,7 +16,7 @@ static RWLock s_rwLock = {};
 
 // Arbitrary choice, but prevents user space attacker from causing
 // allocation of too much wired kernel memory.
-static const size_t MaxVirtualizationRoots = 64;
+static const size_t MaxVirtualizationRoots = 128;
 
 static VirtualizationRoot s_virtualizationRoots[MaxVirtualizationRoots] = {};
 
