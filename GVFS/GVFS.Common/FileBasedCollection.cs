@@ -15,6 +15,8 @@ namespace GVFS.Common
 
         private const string AddEntryPrefix = "A ";
         private const string RemoveEntryPrefix = "D ";
+
+        // Use the same newline separator regardless of platform 
         private const string NewLine = "\r\n";
         private const int IoFailureRetryDelayMS = 50;
         private const int IoFailureLoggingThreshold = 500;

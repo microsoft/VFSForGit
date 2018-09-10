@@ -1104,8 +1104,9 @@ namespace GVFS.Virtualization.Projection
 
                 ConcurrentHashSet<string> folderPlaceholdersToKeep = new ConcurrentHashSet<string>();
 
-                // On platforms that expand on enumeration we need to keep the updated placeholders in a collection
-                // that supports fast searching (for ReExpandFolder)
+                // updatedPlaceholderDictionary and updatedPlaceholderBag are mutually exclusive.
+                //  - On platforms that expand on enumeration: updatedPlaceholderDictionary is used (required for ReExpandFolder)
+                //  - On platforms that do not expand on enumeration: updatedPlaceholderBag is used (for speed)
                 ConcurrentDictionary<string, PlaceholderListDatabase.PlaceholderData> updatedPlaceholderDictionary;
                 ConcurrentBag<PlaceholderListDatabase.PlaceholderData> updatedPlaceholderBag;
                 Action<PlaceholderListDatabase.PlaceholderData> addPlaceholderToUpdatedPlaceholders;
@@ -1140,9 +1141,11 @@ namespace GVFS.Virtualization.Projection
                     // A hash of the folder placeholders is only required if the platform expands directories
                     HashSet<string> folderPlaceholders = 
                         GVFSPlatform.Instance.KernelDriver.EnumerationExpandsDirectories ?
-                                    new HashSet<string>(placeholderFoldersListCopy.Select(x => x.Path), StringComparer.OrdinalIgnoreCase) : 
-                                    null;
+                        new HashSet<string>(placeholderFoldersListCopy.Select(x => x.Path), StringComparer.OrdinalIgnoreCase) : 
+                        null;
                     
+                    // Order the folders in decscending order so that we walk the tree from bottom up (ensuring child folders are deleted before
+                    // their parents)
                     foreach (PlaceholderListDatabase.PlaceholderData folderPlaceholder in placeholderFoldersListCopy.OrderByDescending(x => x.Path))
                     {
                         // Remove folder placeholders before re-expansion to ensure that projection changes that convert a folder to a file work
@@ -1151,6 +1154,12 @@ namespace GVFS.Virtualization.Projection
                         {
                             if (GVFSPlatform.Instance.KernelDriver.EnumerationExpandsDirectories && folderPlaceholder.IsExpandedFolder)
                             {
+                                if (updatedPlaceholderDictionary == null)
+                                {
+                                    throw new InvalidOperationException(
+                                        $"{nameof(updatedPlaceholderDictionary)} must be used when enumeration expands directories");
+                                }
+
                                 this.ReExpandFolder(blobSizesConnection, folderPlaceholder.Path, updatedPlaceholderDictionary, folderPlaceholders);
                             }
                         }
@@ -1159,10 +1168,22 @@ namespace GVFS.Virtualization.Projection
 
                 if (GVFSPlatform.Instance.KernelDriver.EnumerationExpandsDirectories)
                 {
+                    if (updatedPlaceholderBag != null)
+                    {
+                        throw new InvalidOperationException(
+                            $"{nameof(updatedPlaceholderBag)} should only be used when enumeration does not expand directories");
+                    }
+
                     this.placeholderList.WriteAllEntriesAndFlush(updatedPlaceholderDictionary.Values);
                 }
                 else
                 {
+                    if (updatedPlaceholderDictionary != null)
+                    {
+                        throw new InvalidOperationException(
+                            $"{nameof(updatedPlaceholderDictionary)} should only be used when enumeration expands directories");
+                    }
+
                     this.placeholderList.WriteAllEntriesAndFlush(updatedPlaceholderBag);
                 }
 
@@ -1332,6 +1353,7 @@ namespace GVFS.Virtualization.Projection
                 return;
             }
 
+            // TODO(Mac): Issue #255, batch file sizes up-front for the new placeholders written by ReExpandFolder
             folderData.PopulateSizes(
                 this.context.Tracer,
                 this.gitObjects,
@@ -1403,7 +1425,8 @@ namespace GVFS.Virtualization.Projection
             if (GVFSPlatform.Instance.KernelDriver.EnumerationExpandsDirectories)
             {
                 // If enumeration expands directories we should leave folder placeholders
-                // that are still in the projection on disk (even if they are empty).
+                // that are still in the projection on disk (they might still be physically empty
+                // on disk if they've not been expanded).
                 //
                 // If enumeration does not expand directories there is no harm in deleting empty
                 // folder placeholders that are in the projection as they will be re-projected during

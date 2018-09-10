@@ -8,12 +8,13 @@ namespace GVFS.Common
 {
     public class PlaceholderListDatabase : FileBasedCollection
     {
-        public const string PartialFolderValue = "@FPARTIAL_000000000000000000000000000000";
-        public const string ExpandedFolderValue = "@FEXPANDED_00000000000000000000000000000";
+        // Special folder values must:
+        // - Be 40 characters long
+        // - Not be a valid SHA-1 value (to avoid collisions with files)
+        public const string PartialFolderValue = "                          PARTIAL FOLDER";
+        public const string ExpandedFolderValue = "                         EXPANDED FOLDER";
 
         private const char PathTerminator = '\0';
-        private const string FolderValuePrefix = "@F";
-        private const string ExpandedFolderPrefix = "@FE";
 
         // This list holds entries that would otherwise be lost because WriteAllEntriesAndFlush has not been called, but a file 
         // snapshot has been taken using GetAllEntries.
@@ -134,7 +135,7 @@ namespace GVFS.Common
                     this.TryParseRemoveLine,
                     (key, value) =>
                     {
-                        if (value.StartsWith(FolderValuePrefix, StringComparison.Ordinal))
+                        if (value == PartialFolderValue || value == ExpandedFolderValue)
                         {
                             folderPlaceholdersFromDisk.Add(new PlaceholderData(path: key, fileShaOrFolderValue: value));
                         }
@@ -291,7 +292,7 @@ namespace GVFS.Common
             {
                 get 
                 {
-                    return this.Sha.StartsWith(FolderValuePrefix, StringComparison.Ordinal);
+                    return this.Sha == PartialFolderValue || this.IsExpandedFolder;
                 }
             }
 
@@ -299,7 +300,7 @@ namespace GVFS.Common
             {
                 get
                 {
-                    return this.Sha.StartsWith(ExpandedFolderPrefix, StringComparison.Ordinal);
+                    return this.Sha == ExpandedFolderValue;
                 }
             }
         }
