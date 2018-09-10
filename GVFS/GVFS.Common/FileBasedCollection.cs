@@ -15,6 +15,7 @@ namespace GVFS.Common
 
         private const string AddEntryPrefix = "A ";
         private const string RemoveEntryPrefix = "D ";
+        private const string NewLine = "\r\n";
         private const int IoFailureRetryDelayMS = 50;
         private const int IoFailureLoggingThreshold = 500;
 
@@ -390,7 +391,7 @@ namespace GVFS.Common
                 throw new InvalidOperationException(nameof(this.WriteToDisk) + " requires that collectionAppendsDirectlyToFile be true");
             }
 
-            byte[] bytes = Encoding.UTF8.GetBytes(value + "\r\n");
+            byte[] bytes = Encoding.UTF8.GetBytes(value + NewLine);
             lock (this.fileLock)
             {
                 this.dataFileHandle.Write(bytes, 0, bytes.Length);
@@ -399,7 +400,7 @@ namespace GVFS.Common
         }
 
         /// <summary>
-        /// Reads entries from dataFileHandle, removing any data after the last \r\n. Requires fileLock.
+        /// Reads entries from dataFileHandle, removing any data after the last NewLine ("\r\n"). Requires fileLock.
         /// </summary>
         private void RemoveLastEntryIfInvalid()
         {
@@ -442,7 +443,7 @@ namespace GVFS.Common
                 {
                     foreach (string line in getDataLines())
                     {
-                        writer.Write(line + "\r\n");
+                        writer.Write(line + NewLine);
                     }
 
                     tempFile.Flush();
