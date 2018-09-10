@@ -235,7 +235,7 @@ namespace GVFS.Platform.Mac
                                     ++bufferIndex;
                                 }
 
-                                Thread.Sleep(1000);
+                                ////Thread.Sleep(1000);
 
                                 Result result = this.virtualizationInstance.WriteFileContents(
                                     fileHandle,
