@@ -382,6 +382,17 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
         }
 
         [TestCase]
+        [Ignore("Currently failing regression test for how GVFS handles newlines in git command line")]
+        public void CommitWithNewlinesInMessage()
+        {
+            this.ValidateGitCommand("checkout -b tests/functional/commit_with_uncommon_arguments");
+            this.CreateFile();
+            this.ValidateGitCommand("status");
+            this.ValidateGitCommand("add .");
+            this.RunGitCommand("commit -m \"Message that contains \na\nnew\nline\"");
+        }
+
+        [TestCase]
         public void CaseOnlyRenameFileAndChangeBranches()
         {
             // 693190 - Confirm that file does not disappear after case-only rename and branch
