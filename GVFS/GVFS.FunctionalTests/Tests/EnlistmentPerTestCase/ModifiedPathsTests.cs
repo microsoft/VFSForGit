@@ -109,7 +109,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerTestCase
             string folderToRenameTarget = this.Enlistment.GetVirtualPathTo(RenameFolderTarget);
             fileSystem.MoveDirectory(folderToRename, folderToRenameTarget);
 
-            // Moving the new folder out of the repo should not change the modified paths
+            // Moving the new folder out of the repo should not change the modified paths file
             string folderTargetOutsideSrc = Path.Combine(this.Enlistment.EnlistmentRoot, RenameFolderTarget);
             folderTargetOutsideSrc.ShouldNotExistOnDisk(fileSystem);
             fileSystem.MoveDirectory(folderToRenameTarget, folderTargetOutsideSrc);

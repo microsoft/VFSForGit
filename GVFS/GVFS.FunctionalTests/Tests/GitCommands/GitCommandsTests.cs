@@ -1041,7 +1041,7 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
             fileSystemAction();
             this.ValidateGitCommand("status");
             this.ValidateGitCommand(addCommand);
-            this.RunGitCommand("commit -m \"BasicCommit for {test}\"");
+            this.RunGitCommand($"commit -m \"BasicCommit for {test}\"");
         }
 
         private void SwitchBranch(Action fileSystemAction, [CallerMemberName]string test = GitCommandsTests.UnknownTestName)

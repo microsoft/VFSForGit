@@ -88,7 +88,6 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
             string renamedFolderName = "folder3b";
             string[] expectedModifiedEntries =
             {
-                folderName + "/",
                 renamedFolderName + "/",
             };
 
@@ -110,19 +109,14 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
             string[] fileNames = { "a", "b", "c" };
             string[] expectedModifiedEntries =
             {
-                renamedFolderName + "/" + fileNames[0],
-                renamedFolderName + "/" + fileNames[1],
-                renamedFolderName + "/" + fileNames[2],
-                folderName + "/" + fileNames[0],
-                folderName + "/" + fileNames[1],
-                folderName + "/" + fileNames[2],
+                renamedFolderName + "/",
             };
 
             this.Enlistment.GetVirtualPathTo(folderName).ShouldNotExistOnDisk(this.fileSystem);
             this.fileSystem.CreateDirectory(this.Enlistment.GetVirtualPathTo(folderName));
             foreach (string fileName in fileNames)
             {
-                string filePath = folderName + "\\" + fileName;
+                string filePath = Path.Combine(folderName, fileName);
                 this.fileSystem.CreateEmptyFile(this.Enlistment.GetVirtualPathTo(filePath));
                 this.Enlistment.GetVirtualPathTo(filePath).ShouldBeAFile(this.fileSystem);
             }
