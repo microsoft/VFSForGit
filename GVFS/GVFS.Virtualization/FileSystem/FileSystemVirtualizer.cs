@@ -241,15 +241,18 @@ namespace GVFS.Virtualization.FileSystem
         {
             try
             {
-                bool pathInDotGit = FileSystemCallbacks.IsPathInsideDotGit(relativeNewLinkPath);
+                if (!string.IsNullOrEmpty(relativeNewLinkPath))
+                {
+                    bool pathInDotGit = FileSystemCallbacks.IsPathInsideDotGit(relativeNewLinkPath);
 
-                if (pathInDotGit)
-                {
-                    this.OnDotGitFileOrFolderChanged(relativeNewLinkPath);
-                }
-                else
-                {
-                    this.FileSystemCallbacks.OnFileHardLinkCreated(relativeNewLinkPath);
+                    if (pathInDotGit)
+                    {
+                        this.OnDotGitFileOrFolderChanged(relativeNewLinkPath);
+                    }
+                    else
+                    {
+                        this.FileSystemCallbacks.OnFileHardLinkCreated(relativeNewLinkPath);
+                    }
                 }
             }
             catch (Exception e)

@@ -6,12 +6,12 @@ using NUnit.Framework;
 using System;
 using System.IO;
 using System.Linq;
+using System.Runtime.InteropServices;
 
 namespace GVFS.FunctionalTests.Tests.EnlistmentPerTestCase
 {
     [TestFixture]
-    [Category(Categories.MacTODO.M2)]
-    public class PersistedModifiedPathsTests : TestsWithEnlistmentPerTestCase
+    public class ModifiedPathsTests : TestsWithEnlistmentPerTestCase
     {
         private static readonly string FileToAdd = Path.Combine("GVFS", "TestAddFile.txt");
         private static readonly string FileToUpdate = Path.Combine("GVFS", "GVFS", "Program.cs");
@@ -26,7 +26,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerTestCase
         private static readonly string FileToCreateOutsideRepo = "PersistedSparseExcludeTests_outsideRepo.txt";
         private static readonly string FolderToCreateOutsideRepo = "PersistedSparseExcludeTests_outsideFolder";
         private static readonly string FolderToDelete = "Scripts";
-        private static readonly string ExpectedModifiedFilesContents = 
+        private static readonly string ExpectedModifiedFilesContentsAfterRemount =
 @"A .gitattributes
 A GVFS/TestAddFile.txt
 A GVFS/GVFS/Program.cs
@@ -47,8 +47,9 @@ A Scripts/RunUnitTests.bat
 A Scripts/
 ";
 
+        [Category(Categories.MacTODO.M2)]
         [TestCaseSource(typeof(FileSystemRunner), FileSystemRunner.TestRunners)]
-        public void ExcludeSparseFileSavedAfterRemount(FileSystemRunner fileSystem)
+        public void ModifiedPathsSavedAfterRemount(FileSystemRunner fileSystem)
         {
             string fileToAdd = this.Enlistment.GetVirtualPathTo(FileToAdd);
             fileSystem.WriteAllText(fileToAdd, "Contents for the new file");
@@ -116,8 +117,73 @@ A Scripts/
             modifiedPathsDatabase.ShouldBeAFile(fileSystem);
             using (StreamReader reader = new StreamReader(File.Open(modifiedPathsDatabase, FileMode.Open, FileAccess.Read, FileShare.ReadWrite)))
             {
-                reader.ReadToEnd().ShouldEqual(ExpectedModifiedFilesContents);
+                reader.ReadToEnd().ShouldEqual(ExpectedModifiedFilesContentsAfterRemount);
             }
-        }      
+        }
+
+        [TestCaseSource(typeof(HardLinkRunners), HardLinkRunners.TestRunners)]
+        public void ModifiedPathsCorrectAfterHardLinking(FileSystemRunner fileSystem)
+        {
+            const string ExpectedModifiedFilesContentsAfterHardlinks =
+@"A .gitattributes
+A LinkToReadme.md
+A LinkToFileOutsideSrc.txt
+";
+
+            // Create a link from src\LinkToReadme.md to src\Readme.md
+            string existingFileInRepoPath = this.Enlistment.GetVirtualPathTo("Readme.md");
+            string contents = existingFileInRepoPath.ShouldBeAFile(fileSystem).WithContents();
+            string hardLinkToFileInRepoPath = this.Enlistment.GetVirtualPathTo("LinkToReadme.md");
+            hardLinkToFileInRepoPath.ShouldNotExistOnDisk(fileSystem);
+            fileSystem.CreateHardLink(hardLinkToFileInRepoPath, existingFileInRepoPath);
+            hardLinkToFileInRepoPath.ShouldBeAFile(fileSystem).WithContents(contents);
+
+            // Create a link from src\LinkToFileOutsideSrc.txt to FileOutsideRepo.txt
+            string fileOutsideOfRepoPath = Path.Combine(this.Enlistment.EnlistmentRoot, "FileOutsideRepo.txt");
+            string fileOutsideOfRepoContents = "File outside of repo";
+            fileOutsideOfRepoPath.ShouldNotExistOnDisk(fileSystem);
+            fileSystem.WriteAllText(fileOutsideOfRepoPath, fileOutsideOfRepoContents);
+            string hardLinkToFileOutsideRepoPath = this.Enlistment.GetVirtualPathTo("LinkToFileOutsideSrc.txt");
+            hardLinkToFileOutsideRepoPath.ShouldNotExistOnDisk(fileSystem);
+            fileSystem.CreateHardLink(hardLinkToFileOutsideRepoPath, fileOutsideOfRepoPath);
+            hardLinkToFileOutsideRepoPath.ShouldBeAFile(fileSystem).WithContents(fileOutsideOfRepoContents);
+
+            // Create a link from LinkOutsideSrcToInsideSrc.cs to src\GVFS\GVFS\Program.cs
+            string secondFileInRepoPath = this.Enlistment.GetVirtualPathTo("GVFS", "GVFS", "Program.cs");
+            contents = secondFileInRepoPath.ShouldBeAFile(fileSystem).WithContents();
+            string hardLinkOutsideRepoToFileInRepoPath = Path.Combine(this.Enlistment.EnlistmentRoot, "LinkOutsideSrcToInsideSrc.cs");
+            hardLinkOutsideRepoToFileInRepoPath.ShouldNotExistOnDisk(fileSystem);
+            fileSystem.CreateHardLink(hardLinkOutsideRepoToFileInRepoPath, secondFileInRepoPath);
+            hardLinkOutsideRepoToFileInRepoPath.ShouldBeAFile(fileSystem).WithContents(contents);
+
+            string modifiedPathsDatabase = Path.Combine(this.Enlistment.DotGVFSRoot, TestConstants.Databases.ModifiedPaths);
+            modifiedPathsDatabase.ShouldBeAFile(fileSystem);
+            using (StreamReader reader = new StreamReader(File.Open(modifiedPathsDatabase, FileMode.Open, FileAccess.Read, FileShare.ReadWrite)))
+            {
+                reader.ReadToEnd().ShouldEqual(ExpectedModifiedFilesContentsAfterHardlinks);
+            }
+        }
+
+        private class HardLinkRunners
+        {
+            public const string TestRunners = "Runners";
+
+            public static object[] Runners
+            {
+                get
+                {
+                    if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+                    {
+                        return new[]
+                        {
+                            new object[] { new CmdRunner() },
+                            new object[] { new BashRunner() },
+                        };
+                    }
+
+                    return new[] { new object[] { new BashRunner() } };
+                }
+            }
+        }
     }
 }
