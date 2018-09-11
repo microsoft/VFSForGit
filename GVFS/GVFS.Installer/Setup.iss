@@ -35,7 +35,7 @@ AppPublisher={#MyAppPublisher}
 AppPublisherURL={#MyAppPublisherURL}
 AppSupportURL={#MyAppURL}
 AppUpdatesURL={#MyAppURL}
-AppCopyright=Copyright � Microsoft 2017
+AppCopyright=Copyright � Microsoft 2018
 BackColor=clWhite
 BackSolid=yes
 DefaultDirName={pf}\{#MyAppName}
@@ -630,8 +630,8 @@ begin
       end;
     ssPostInstall:
       begin
-		if ExpandConstant('{param:REMOUNTREPOS|true}') = 'true' then
-			MountRepos();
+        if ExpandConstant('{param:REMOUNTREPOS|true}') = 'true' then
+          MountRepos();
       end;
     end;
 end;

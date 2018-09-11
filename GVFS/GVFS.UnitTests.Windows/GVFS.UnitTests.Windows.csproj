@@ -82,7 +82,6 @@
     <Compile Include="Windows\Mock\MockProductUpgrader.cs" />
     <Compile Include="Windows\Mock\MockTextWriter.cs" />
     <Compile Include="Windows\Service\RepoRegistryTests.cs" />
-    <Compile Include="Windows\Upgrader\CallSequenceTracker.cs" />
     <Compile Include="Windows\Upgrader\ProductUpgraderTests.cs" />
     <Compile Include="Windows\Upgrader\UpgradeOrchestratorTests.cs" />
     <Compile Include="Windows\Upgrader\UpgradeTests.cs" />

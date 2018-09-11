@@ -80,6 +80,18 @@ namespace GVFS.UnitTests.Windows.Upgrader
                 expectedUpgradeVersion:UpgradeTests.NewerThanLocalVersion);
         }
 
+        public override void NoneLocalRing()
+        {
+        }
+
+        public override void InvalidUpgradeRing()
+        {
+        }
+
+        public override void FetchReleaseInfo()
+        {
+        }
+
         protected override void RunUpgrade()
         {
         }

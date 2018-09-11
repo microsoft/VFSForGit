@@ -41,7 +41,8 @@ namespace GVFS.Service
         {
             string errorMessage = null;
 
-            if (!this.TryDownloadUpgrade(out errorMessage))
+            InstallerPreRunChecker prerunChecker = new InstallerPreRunChecker(this.tracer);
+            if (prerunChecker.TryRunPreUpgradeChecks(out string _) && !this.TryDownloadUpgrade(out errorMessage))
             {
                 this.tracer.RelatedError(errorMessage);
             }
@@ -50,12 +51,6 @@ namespace GVFS.Service
         private bool TryDownloadUpgrade(out string errorMessage)
         {
             this.tracer.RelatedInfo("Checking for product upgrades.");
-
-            InstallerPreRunChecker prerunChecker = new InstallerPreRunChecker(this.tracer);
-            if (!prerunChecker.TryRunPreUpgradeChecks(gitVersion: null, error: out errorMessage))
-            {
-                return false;
-            }
 
             ProductUpgrader productUpgrader = new ProductUpgrader(ProcessHelper.GetCurrentProcessVersion(), this.tracer);
             Version newerVersion = null;
@@ -66,7 +61,14 @@ namespace GVFS.Service
                 return false;
             }
 
-            if (newerVersion != null && productUpgrader.TryDownloadNewestVersion(out detailedError))
+            if (newerVersion == null)
+            {
+                // Already up-to-date
+                errorMessage = null;
+                return true;
+            }
+
+            if (productUpgrader.TryDownloadNewestVersion(out detailedError))
             {
                 errorMessage = null;
                 return true;

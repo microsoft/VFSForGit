@@ -80,9 +80,9 @@ namespace GVFS.CommandLine
 
             if (this.upgrader.IsNoneRing())
             {
-                string message = "Upgrade ring set to None. No upgrade check was performed.";
-                this.tracer.RelatedInfo($"{nameof(this.TryRunProductUpgrade)}: {message}");
-                this.ReportInfoToConsole(message);
+                this.tracer.RelatedInfo($"{nameof(this.TryRunProductUpgrade)}: {GVFSConstants.UpgradeVerbMessages.NoneRingConsoleAlert}");
+                this.ReportInfoToConsole(GVFSConstants.UpgradeVerbMessages.NoneRingConsoleAlert);
+                this.ReportInfoToConsole(GVFSConstants.UpgradeVerbMessages.SetUpgradeRingCommand);
                 return true;
             }
 
@@ -116,8 +116,8 @@ namespace GVFS.CommandLine
 
             if (!this.TryRunInstaller(out error))
             {
-                this.tracer.RelatedError($"{nameof(this.TryRunProductUpgrade)}: Could not launch installer. {error}");
-                this.Output.WriteLine(errorOutputFormat, "Could not launch installer. " + error);
+                this.tracer.RelatedError($"{nameof(this.TryRunProductUpgrade)}: Could not launch upgrade tool. {error}");
+                this.Output.WriteLine(errorOutputFormat, "Could not launch upgrade tool. " + error);
                 return false;
             }
 
@@ -126,11 +126,11 @@ namespace GVFS.CommandLine
 
         private bool TryRunUpgradeChecks(
             out Version latestVersion,
-            out bool installable,
-            out string error)
+            out bool isUpgradeInstallable,
+            out string consoleError)
         {
             bool upgradeCheckSuccess = false;
-            bool upgradeInstallable = false;
+            bool upgradeIsInstallable = false;
             string errorMessage = null;
             Version version = null;
 
@@ -140,11 +140,11 @@ namespace GVFS.CommandLine
                     upgradeCheckSuccess = this.TryCheckUpgradeAvailable(out version, out errorMessage);
                     if (upgradeCheckSuccess && version != null)
                     {
-                        upgradeInstallable = true;
+                        upgradeIsInstallable = true;
 
                         if (!this.TryCheckUpgradeInstallable(out errorMessage))
                         {
-                            upgradeInstallable = false;
+                            upgradeIsInstallable = false;
                         }
                     }
 
@@ -154,13 +154,13 @@ namespace GVFS.CommandLine
                 suppressGvfsLogMessage: true);
 
             latestVersion = version;
-            installable = upgradeInstallable;
-            error = errorMessage;
+            isUpgradeInstallable = upgradeIsInstallable;
+            consoleError = errorMessage;
 
             return upgradeCheckSuccess;
         }
 
-        private bool TryRunInstaller(out string error)
+        private bool TryRunInstaller(out string consoleError)
         {
             string upgraderPath = null;
             string errorMessage = null;
@@ -181,59 +181,59 @@ namespace GVFS.CommandLine
             
             if (!preUpgradeSuccess)
             {
-                error = errorMessage;
+                consoleError = errorMessage;
                 return false;
             }
 
-            error = null;
+            consoleError = null;
             return true;
         }
 
-        private bool TryCopyUpgradeTool(out string upgraderExePath, out string error)
+        private bool TryCopyUpgradeTool(out string upgraderExePath, out string consoleError)
         {
             upgraderExePath = null;
 
             this.tracer.RelatedInfo("Copying upgrade tool");
 
-            if (!this.upgrader.TryCreateToolsDirectory(out upgraderExePath, out error))
+            if (!this.upgrader.TrySetupToolsDirectory(out upgraderExePath, out consoleError))
             {
                 return false;
             }
 
-            this.tracer.RelatedInfo("Successfully Copied upgrade tool.");
+            this.tracer.RelatedInfo($"Successfully Copied upgrade tool to {upgraderExePath}");
 
             return true;
         }
 
-        private bool TryLaunchUpgradeTool(string path, out string error)
+        private bool TryLaunchUpgradeTool(string path, out string consoleError)
         {
             this.tracer.RelatedInfo("Launching upgrade tool");
 
             if (!this.processWrapper.Start(path))
             {
-                error = "Error launching upgrade tool";
+                consoleError = "Error launching upgrade tool";
                 return false;
             }
             
             this.tracer.RelatedInfo("Successfully launched upgrade tool.");
 
-            error = null;
+            consoleError = null;
             return true;
         }
 
         private bool TryCheckUpgradeAvailable(
             out Version latestVersion, 
-            out string error)
+            out string consoleError)
         {
             latestVersion = null;
-            error = null;
+            consoleError = null;
 
             this.tracer.RelatedInfo("Checking server for available upgrades.");
 
             bool checkSucceeded = false;
             Version version = null;
 
-            checkSucceeded = this.upgrader.TryGetNewerVersion(out version, out error);
+            checkSucceeded = this.upgrader.TryGetNewerVersion(out version, out consoleError);
             if (!checkSucceeded)
             {
                 return false;
@@ -246,21 +246,16 @@ namespace GVFS.CommandLine
             return true;
         }
 
-        private bool TryCheckUpgradeInstallable(out string error)
+        private bool TryCheckUpgradeInstallable(out string consoleError)
         {
-            error = null;
+            consoleError = null;
 
             this.tracer.RelatedInfo("Checking if upgrade is installable on this machine.");
 
-            GitVersion gitVersion = null;
-            if (!this.upgrader.TryGetGitVersion(out gitVersion, out error))
-            {
-                return false;
-            }
+            this.prerunChecker.CommandToRerun = this.Confirmed ? "gvfs upgrade --confirm" : "gvfs upgrade";
 
             if (!this.prerunChecker.TryRunPreUpgradeChecks(
-                gitVersion,
-                out error))
+                out consoleError))
             {
                 return false;
             }

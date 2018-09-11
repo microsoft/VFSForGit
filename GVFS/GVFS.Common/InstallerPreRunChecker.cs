@@ -5,92 +5,69 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
+using System.Linq;
 using System.Threading;
 
 namespace GVFS.Upgrader
 {
     public class InstallerPreRunChecker
     {
-        private static readonly string[] BlockingProcessList = { "GVFS", "GVFS.Mount", "git", "ssh-agent", "bash", "gitk", "git-bash" };
+        private static readonly HashSet<string> BlockingProcessSet = new HashSet<string> { "GVFS", "GVFS.Mount", "git", "ssh-agent", "bash", "wish", "git-bash" };
 
         private ITracer tracer;
-
+                
         public InstallerPreRunChecker(ITracer tracer)
         {
             this.tracer = tracer;
+            this.CommandToRerun = string.Empty;
         }
 
-        public bool TryRunPreUpgradeChecks(GitVersion gitVersion, out string error)
+        public string CommandToRerun { get; set; }
+
+        public bool TryRunPreUpgradeChecks(out string consoleError)
         {
             this.tracer.RelatedInfo("Checking if GVFS upgrade can be run on this machine.");
 
             if (this.IsUnattended())
             {
-                error = "`gvfs upgrade [--confirm]` is not supported in unattended mode";
-                this.tracer.RelatedError($"{nameof(TryRunPreUpgradeChecks)}: {error}");
+                consoleError = "`gvfs upgrade` is not supported in unattended mode";
+                this.tracer.RelatedError($"{nameof(TryRunPreUpgradeChecks)}: {consoleError}");
                 return false;
             }
 
             if (this.IsDevelopmentVersion())
             {
-                error = "Cannot run upgrade when development version of GVFS is installed.";
-                this.tracer.RelatedError($"{nameof(TryRunPreUpgradeChecks)}: {error}");
+                consoleError = "Cannot run upgrade when development version of GVFS is installed.";
+                this.tracer.RelatedError($"{nameof(TryRunPreUpgradeChecks)}: {consoleError}");
                 return false;
             }
 
-            if (!this.IsGVFSUpgradeAllowed(out error))
+            if (!this.IsGVFSUpgradeAllowed(out consoleError))
             {
-                this.tracer.RelatedError($"{nameof(TryRunPreUpgradeChecks)}: {error}");
+                this.tracer.RelatedError($"{nameof(TryRunPreUpgradeChecks)}: {consoleError}");
                 return false;
             }
 
             this.tracer.RelatedInfo("Successfully finished pre upgrade checks. Okay to run GVFS upgrade.");
 
-            error = null;
+            consoleError = null;
             return true;
         }
-
-        public bool TryGetGitVersion(string gitPath, out GitVersion gitVersion, out string error)
+        
+        public bool TryMountAllGVFSRepos(out string consoleError)
         {
-            error = null;
-            gitVersion = null;
-
-            string fakePath = string.Empty;
-            GVFSEnlistment enlistment = new GVFSEnlistment(fakePath, fakePath, gitPath, fakePath);
-            GitProcess.Result versionResult = GitProcess.Version(enlistment);
-            string version = versionResult.Output;
-
-            if (!GitVersion.TryParseGitVersionCommandResult(version, out gitVersion))
-            {
-                error = "Unable to determine installed git version. " + version;
-                return false;
-            }
-
-            return true;
+            return this.TryRunGVFSWithArgs("service --mount-all", out consoleError);
         }
 
-        public virtual bool TryGetGitVersion(out GitVersion gitVersion, out string error)
+        public bool TryUnmountAllGVFSRepos(out string consoleError)
         {
-            return this.TryGetGitVersion(
-                GVFSPlatform.Instance.GitInstallation.GetInstalledGitBinPath(), 
-                out gitVersion, 
-                out error);
-        }
-
-        public bool TryMountAllGVFSRepos(out string error)
-        {
-            return this.TryRunGVFSWithArgs("service --mount-all", out error);
-        }
-
-        public bool TryUnmountAllGVFSRepos(out string error)
-        {
-            error = null;
+            consoleError = null;
 
             this.tracer.RelatedInfo("Unmounting any mounted GVFS repositories.");
 
-            if (!this.TryRunGVFSWithArgs("service --unmount-all", out error))
+            if (!this.TryRunGVFSWithArgs("service --unmount-all", out consoleError))
             {
-                this.tracer.RelatedError($"{nameof(TryUnmountAllGVFSRepos)}: {error}");
+                this.tracer.RelatedError($"{nameof(TryUnmountAllGVFSRepos)}: {consoleError}");
                 return false;
             }
 
@@ -102,7 +79,6 @@ namespace GVFS.Upgrader
             this.tracer.RelatedInfo("Checking if GVFS or dependent processes are running.");
             int retryCount = 10;
             List<string> processList = null;
-            string thisProcessName = Process.GetCurrentProcess().ProcessName;
             while (retryCount > 0)
             {
                 if (!this.IsBlockingProcessRunning(out processList))
@@ -116,11 +92,11 @@ namespace GVFS.Upgrader
 
             if (processList.Count > 0)
             {
-                error = string.Join(
+                consoleError = string.Join(
                     Environment.NewLine, 
                     "Blocking processes are running.",
-                    "Run `gvfs upgrade [--confirm]` again after quitting these processes - " + string.Join(", ", processList.ToArray()));
-                this.tracer.RelatedError($"{nameof(TryUnmountAllGVFSRepos)}: {error}");
+                    $"Run `{this.CommandToRerun}` again after quitting these processes - " + string.Join(", ", processList.ToArray()));
+                this.tracer.RelatedError($"{nameof(TryUnmountAllGVFSRepos)}: {consoleError}");
                 return false;
             }
 
@@ -135,7 +111,7 @@ namespace GVFS.Upgrader
             return GVFSPlatform.Instance.IsElevated();
         }
 
-        protected virtual bool IsProjFSInboxed()
+        protected virtual bool IsGVFSUpgradeSupported()
         {
             return GVFSPlatform.Instance.KernelDriver.IsGVFSUpgradeSupported();
         }
@@ -159,34 +135,27 @@ namespace GVFS.Upgrader
 
         protected virtual bool IsBlockingProcessRunning(out List<string> processes)
         {
-            processes = new List<string>();
-
-            bool isRunning = false;
             int currentProcessId = Process.GetCurrentProcess().Id;
-            foreach (string processName in BlockingProcessList)
+            Process[] allProcesses = Process.GetProcesses();
+            HashSet<string> matchingNames = new HashSet<string>();
+
+            foreach (Process process in allProcesses)
             {
-                Process[] matches = Process.GetProcessesByName(processName);
-                foreach (Process process in matches)
+                if (process.Id == currentProcessId || !BlockingProcessSet.Contains(process.ProcessName))
                 {
-                    if (process.Id == currentProcessId)
-                    {
-                        continue;
-                    }
-                    else
-                    {
-                        isRunning = true;
-                        processes.Add(processName);
-                        break;
-                    }
+                    continue;
                 }
+
+                matchingNames.Add(process.ProcessName);
             }
 
-            return isRunning;
+            processes = matchingNames.ToList();
+            return processes.Count > 0;
         }
 
-        protected virtual bool TryRunGVFSWithArgs(string args, out string error)
+        protected virtual bool TryRunGVFSWithArgs(string args, out string consoleError)
         {
-            error = null;
+            consoleError = null;
 
             string gvfsPath = Path.Combine(
                 ProcessHelper.WhereDirectory(GVFSPlatform.Instance.Constants.GVFSExecutableName),
@@ -201,39 +170,39 @@ namespace GVFS.Upgrader
             {
                 string output = string.IsNullOrEmpty(processResult.Output) ? string.Empty : processResult.Output;
                 string errorString = string.IsNullOrEmpty(processResult.Errors) ? "GVFS error" : processResult.Errors;
-                error = string.Format("{0}. {1}", errorString, output);
+                consoleError = string.Format("{0}. {1}", errorString, output);
                 return false;
             }
         }
 
-        private bool IsGVFSUpgradeAllowed(out string error)
+        private bool IsGVFSUpgradeAllowed(out string consoleError)
         {
-            error = null;
+            consoleError = null;
 
             if (!this.IsElevated())
             {
-                error = string.Join(
+                consoleError = string.Join(
                     Environment.NewLine,
                     "The installer needs to be run from an elevated command prompt.",
-                    "Run `gvfs upgrade [--confirm]` again from an elevated command prompt.");
+                    $"Run `{this.CommandToRerun}` again from an elevated command prompt.");
                 return false;
             }
 
-            if (!this.IsProjFSInboxed())
+            if (!this.IsGVFSUpgradeSupported())
             {
-                error = string.Join(
+                consoleError = string.Join(
                     Environment.NewLine,
-                    "ProjFS configuration does not support `gvfs upgrade [--confirm]`.",
+                    "ProjFS configuration does not support `gvfs upgrade`.",
                     "Check your team's documentation for how to upgrade.");
                 return false;
             }
 
             if (this.IsServiceInstalledAndNotRunning())
             {
-                error = string.Join(
+                consoleError = string.Join(
                     Environment.NewLine,
                     "GVFS Service is not running.",
-                    "Run `sc start GVFS.Service` and run `gvfs upgrade [--confirm]` again.");
+                    $"Run `sc start GVFS.Service` and run `{this.CommandToRerun}` again.");
                 return false;
             }
 

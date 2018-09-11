@@ -86,7 +86,7 @@ namespace GVFS.Hooks
             if (ProductUpgrader.IsLocalUpgradeAvailable())
             {
                 Console.Out.WriteLine("A newer version of GVFS is available.");
-                Console.Out.WriteLine("Run \"gvfs upgrade\" on \"Command Prompt\" as Administrator to install.");
+                Console.Out.WriteLine("Run `gvfs upgrade --confirm` from an elevated command prompt to install.");
             }
 
             string command = GetGitCommand(args);

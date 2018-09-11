@@ -117,7 +117,7 @@ namespace GVFS.CommandLine
                         this.CopyAllFiles(
                             ProductUpgrader.GetUpgradesDirectoryPath(),
                             archiveFolderPath,
-                            ProductUpgrader.GetLogDirectoryName(),
+                            ProductUpgrader.LogDirectory,
                             copySubFolders: true,
                             targetFolderName: ProductUpgrader.UpgraderName);
                      

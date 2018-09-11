@@ -26,7 +26,9 @@ namespace GVFS.Common.Git
             // git version output is of the form
             // git version 2.17.0.gvfs.1.preview.3
 
-            if (input.StartsWith("git version "))
+            const string GitVersionExpectedPrefix = "git version ";
+
+            if (input.StartsWith(GitVersionExpectedPrefix))
             {
                 input = input.Substring(12);
             }

@@ -27,6 +27,7 @@ namespace GVFS.UnitTests.Windows.Upgrader
                 this.ProcessWrapper,
                 this.Output);
             this.UpgradeVerb.Confirmed = false;
+            this.PrerunChecker.CommandToRerun = "gvfs upgrade";
         }
 
         [TestCase]
@@ -74,6 +75,7 @@ namespace GVFS.UnitTests.Windows.Upgrader
                 configure: () =>
                 {
                     this.UpgradeVerb.Confirmed = true;
+                    this.PrerunChecker.CommandToRerun = "gvfs upgrade --confirm";
                 },
                 expectedReturn: ReturnCode.Success,
                 expectedOutput: new List<string>
@@ -102,13 +104,6 @@ namespace GVFS.UnitTests.Windows.Upgrader
 
         [TestCase]
         [Category(CategoryConstants.ExceptionExpected)]
-        public override void FetchReleaseInfo()
-        {
-            base.FetchReleaseInfo();
-        }
-
-        [TestCase]
-        [Category(CategoryConstants.ExceptionExpected)]
         public void CopyTools()
         {
             this.ConfigureRunAndVerify(
@@ -116,15 +111,16 @@ namespace GVFS.UnitTests.Windows.Upgrader
                 {
                     this.Upgrader.SetFailOnAction(MockProductUpgrader.ActionType.CopyTools);
                     this.UpgradeVerb.Confirmed = true;
+                    this.PrerunChecker.CommandToRerun = "gvfs upgrade --confirm";
                 },
                 expectedReturn: ReturnCode.GenericError,
                 expectedOutput: new List<string>
                 {
-                    "Could not launch installer. Unable to copy upgrader tools"
+                    "Could not launch upgrade tool. Unable to copy upgrader tools"
                 },
                 expectedErrors: new List<string>
                 {
-                    "Could not launch installer. Unable to copy upgrader tools"
+                    "Could not launch upgrade tool. Unable to copy upgrader tools"
                 });
         }
 
@@ -139,12 +135,12 @@ namespace GVFS.UnitTests.Windows.Upgrader
                 expectedReturn: ReturnCode.GenericError,
                 expectedOutput: new List<string>
                 {
-                    "ERROR: ProjFS configuration does not support `gvfs upgrade [--confirm]`.",
+                    "ERROR: ProjFS configuration does not support `gvfs upgrade`.",
                     "Check your team's documentation for how to upgrade."
                 },
                 expectedErrors: new List<string>
                 {
-                    "ProjFS configuration does not support `gvfs upgrade [--confirm]`."
+                    "ProjFS configuration does not support `gvfs upgrade`."
                 });
         }
 
@@ -160,7 +156,7 @@ namespace GVFS.UnitTests.Windows.Upgrader
                 expectedOutput: new List<string>
                 {
                     "GVFS Service is not running.",
-                    "Run `sc start GVFS.Service` and run `gvfs upgrade [--confirm]` again."
+                    "Run `sc start GVFS.Service` and run `gvfs upgrade` again."
                 },
                 expectedErrors: new List<string>
                 {
@@ -180,7 +176,7 @@ namespace GVFS.UnitTests.Windows.Upgrader
                 expectedOutput: new List<string>
                 {
                     "The installer needs to be run from an elevated command prompt.",
-                    "Run `gvfs upgrade [--confirm]` again from an elevated command prompt."
+                    "Run `gvfs upgrade` again from an elevated command prompt."
                 },
                 expectedErrors: new List<string>
                 {
@@ -199,11 +195,11 @@ namespace GVFS.UnitTests.Windows.Upgrader
                 expectedReturn: ReturnCode.GenericError,
                 expectedOutput: new List<string>
                 {
-                    "`gvfs upgrade [--confirm]` is not supported in unattended mode"
+                    "`gvfs upgrade` is not supported in unattended mode"
                 },
                 expectedErrors: new List<string>
                 {
-                    "`gvfs upgrade [--confirm]` is not supported in unattended mode"
+                    "`gvfs upgrade` is not supported in unattended mode"
                 });
         }
 

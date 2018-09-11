@@ -9,9 +9,10 @@ using System.Linq;
 namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
 {
     [TestFixture]
+    [NonParallelizable]
     [Category(Categories.FullSuiteOnly)]
     [Category(Categories.WindowsOnly)]
-    public class UpgradeNagTests : TestsWithEnlistmentPerFixture
+    public class UpgradeReminderTests : TestsWithEnlistmentPerFixture
     {
         private const string GVFSInstallerName = "SetupGVFS.1.0.18234.1.exe";
         private const string GitInstallerName = "Git-2.17.1.gvfs.2.5.g2962052-64-bit.exe";
@@ -19,7 +20,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
         private string upgradeDirectory;
         private FileSystemRunner fileSystem;
 
-        public UpgradeNagTests()
+        public UpgradeReminderTests()
         {
             this.fileSystem = new SystemIORunner();
             this.upgradeDirectory = Path.Combine(
@@ -53,7 +54,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
             result.Errors.ShouldContain(new string[] 
                 {
                     "A newer version of GVFS is available.",
-                    "Run \"gvfs upgrade\" on \"Command Prompt\" as Administrator to install."
+                    "Run `gvfs upgrade --confirm` from an elevated command prompt to install."
                 });
 
             this.EmptyDownloadDirectory();
