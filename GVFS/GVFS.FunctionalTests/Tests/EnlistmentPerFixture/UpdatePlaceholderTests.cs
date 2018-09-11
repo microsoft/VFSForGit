@@ -8,12 +8,12 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
+using System.Runtime.InteropServices;
 
 namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
 {
     [TestFixture]
     [Category(Categories.GitCommands)]
-    [Category(Categories.MacTODO.M3)]
     public class UpdatePlaceholderTests : TestsWithEnlistmentPerFixture
     {
         private const string TestParentFolderName = "Test_EPF_UpdatePlaceholderTests";
@@ -34,7 +34,9 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
             this.GitStatusShouldBeClean(NewFilesAndChangesCommitId);
         }
 
+        // WindowsOnly because test requires Windows specific file sharing behavior
         [TestCase, Order(1)]
+        [Category(Categories.WindowsOnly)]
         public void LockToPreventDelete_SingleFile()
         {
             string testFile1Contents = "TestContentsLockToPreventDelete \r\n";
@@ -42,10 +44,8 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
             string testFile1Path = this.Enlistment.GetVirtualPathTo(Path.Combine(TestParentFolderName, "LockToPreventDelete", testFile1Name));
 
             testFile1Path.ShouldBeAFile(this.fileSystem).WithContents(testFile1Contents);
-            using (SafeFileHandle testFile1Handle = this.CreateFile(testFile1Path, FileShare.Read))
+            using (FileStream testFile1 = File.Open(testFile1Path, FileMode.Open, FileAccess.Read, FileShare.Read))
             {
-                testFile1Handle.IsInvalid.ShouldEqual(false);
-
                 ProcessResult result = this.InvokeGitAgainstGVFSRepo("checkout " + OldCommitId);
                 result.Errors.ShouldContain(
                     "GVFS was unable to delete the following files. To recover, close all handles to the files and run these commands:",
@@ -70,7 +70,9 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
             testFile1Path.ShouldBeAFile(this.fileSystem).WithContents(testFile1Contents);
         }
 
+        // WindowsOnly because test requires Windows specific file sharing behavior
         [TestCase, Order(2)]
+        [Category(Categories.WindowsOnly)]
         public void LockToPreventDelete_MultipleFiles()
         {
             string testFile2Contents = "TestContentsLockToPreventDelete2 \r\n";
@@ -89,14 +91,10 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
             testFile3Path.ShouldBeAFile(this.fileSystem).WithContents(testFile3Contents);
             testFile4Path.ShouldBeAFile(this.fileSystem).WithContents(testFile4Contents);
 
-            using (SafeFileHandle testFile2Handle = this.CreateFile(testFile2Path, FileShare.Read))
-            using (SafeFileHandle testFile3Handle = this.CreateFile(testFile3Path, FileShare.Read))
-            using (SafeFileHandle testFile4Handle = this.CreateFile(testFile4Path, FileShare.Read))
+            using (FileStream testFile2 = File.Open(testFile2Path, FileMode.Open, FileAccess.Read, FileShare.Read))
+            using (FileStream testFile3 = File.Open(testFile3Path, FileMode.Open, FileAccess.Read, FileShare.Read))
+            using (FileStream testFile4 = File.Open(testFile4Path, FileMode.Open, FileAccess.Read, FileShare.Read))
             {
-                testFile2Handle.IsInvalid.ShouldEqual(false);
-                testFile3Handle.IsInvalid.ShouldEqual(false);
-                testFile4Handle.IsInvalid.ShouldEqual(false);
-
                 ProcessResult result = this.InvokeGitAgainstGVFSRepo("checkout " + OldCommitId);
                 result.Errors.ShouldContain(
                     "GVFS was unable to delete the following files. To recover, close all handles to the files and run these commands:",
@@ -136,7 +134,9 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
             testFile4Path.ShouldBeAFile(this.fileSystem).WithContents(testFile4Contents);
         }
 
+        // WindowsOnly because test requires Windows specific file sharing behavior
         [TestCase, Order(3)]
+        [Category(Categories.WindowsOnly)]
         public void LockToPreventUpdate_SingleFile()
         {
             string testFile1Contents = "Commit2LockToPreventUpdate \r\n";
@@ -145,10 +145,8 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
             string testFile1Path = this.Enlistment.GetVirtualPathTo(Path.Combine(TestParentFolderName, "LockToPreventUpdate", testFile1Name));
 
             testFile1Path.ShouldBeAFile(this.fileSystem).WithContents(testFile1Contents);
-            using (SafeFileHandle testFile1Handle = this.CreateFile(testFile1Path, FileShare.Read))
+            using (FileStream testFile1 = File.Open(testFile1Path, FileMode.Open, FileAccess.Read, FileShare.Read))
             {
-                testFile1Handle.IsInvalid.ShouldEqual(false);
-
                 ProcessResult result = this.InvokeGitAgainstGVFSRepo("checkout " + OldCommitId);
                 result.Errors.ShouldContain(
                     "GVFS was unable to update the following files. To recover, close all handles to the files and run these commands:",
@@ -173,7 +171,9 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
             testFile1Path.ShouldBeAFile(this.fileSystem).WithContents(testFile1Contents);
         }
 
+        // WindowsOnly because test requires Windows specific file sharing behavior
         [TestCase, Order(4)]
+        [Category(Categories.WindowsOnly)]
         public void LockToPreventUpdate_MultipleFiles()
         {
             string testFile2Contents = "Commit2LockToPreventUpdate2 \r\n";
@@ -196,14 +196,10 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
             testFile3Path.ShouldBeAFile(this.fileSystem).WithContents(testFile3Contents);
             testFile4Path.ShouldBeAFile(this.fileSystem).WithContents(testFile4Contents);
 
-            using (SafeFileHandle testFile2Handle = this.CreateFile(testFile2Path, FileShare.Read))
-            using (SafeFileHandle testFile3Handle = this.CreateFile(testFile3Path, FileShare.Read))
-            using (SafeFileHandle testFile4Handle = this.CreateFile(testFile4Path, FileShare.Read))
+            using (FileStream testFile2 = File.Open(testFile2Path, FileMode.Open, FileAccess.Read, FileShare.Read))
+            using (FileStream testFile3 = File.Open(testFile3Path, FileMode.Open, FileAccess.Read, FileShare.Read))
+            using (FileStream testFile4 = File.Open(testFile4Path, FileMode.Open, FileAccess.Read, FileShare.Read))
             {
-                testFile2Handle.IsInvalid.ShouldEqual(false);
-                testFile3Handle.IsInvalid.ShouldEqual(false);
-                testFile4Handle.IsInvalid.ShouldEqual(false);
-
                 ProcessResult result = this.InvokeGitAgainstGVFSRepo("checkout " + OldCommitId);
                 result.Errors.ShouldContain(
                     "GVFS was unable to update the following files. To recover, close all handles to the files and run these commands:",
@@ -241,7 +237,9 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
             testFile4Path.ShouldBeAFile(this.fileSystem).WithContents(testFile4Contents);
         }
 
+        // WindowsOnly because test requires Windows specific file sharing behavior
         [TestCase, Order(5)]
+        [Category(Categories.WindowsOnly)]
         public void LockToPreventUpdateAndDelete()
         {
             string testFileUpdate1Contents = "Commit2LockToPreventUpdateAndDelete \r\n";
@@ -276,20 +274,13 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
             testFileDelete2Path.ShouldBeAFile(this.fileSystem).WithContents(testFileDelete2Contents);
             testFileDelete3Path.ShouldBeAFile(this.fileSystem).WithContents(testFileDelete3Contents);
 
-            using (SafeFileHandle testFileUpdate1Handle = this.CreateFile(testFileUpdate1Path, FileShare.Read))
-            using (SafeFileHandle testFileUpdate2Handle = this.CreateFile(testFileUpdate2Path, FileShare.Read))
-            using (SafeFileHandle testFileUpdate3Handle = this.CreateFile(testFileUpdate3Path, FileShare.Read))
-            using (SafeFileHandle testFileDelete1Handle = this.CreateFile(testFileDelete1Path, FileShare.Read))
-            using (SafeFileHandle testFileDelete2Handle = this.CreateFile(testFileDelete2Path, FileShare.Read))
-            using (SafeFileHandle testFileDelete3Handle = this.CreateFile(testFileDelete3Path, FileShare.Read))
+            using (FileStream testFileUpdate1 = File.Open(testFileUpdate1Path, FileMode.Open, FileAccess.Read, FileShare.Read))
+            using (FileStream testFileUpdate2 = File.Open(testFileUpdate2Path, FileMode.Open, FileAccess.Read, FileShare.Read))
+            using (FileStream testFileUpdate3 = File.Open(testFileUpdate3Path, FileMode.Open, FileAccess.Read, FileShare.Read))
+            using (FileStream testFileDelete1 = File.Open(testFileDelete1Path, FileMode.Open, FileAccess.Read, FileShare.Read))
+            using (FileStream testFileDelete2 = File.Open(testFileDelete2Path, FileMode.Open, FileAccess.Read, FileShare.Read))
+            using (FileStream testFileDelete3 = File.Open(testFileDelete3Path, FileMode.Open, FileAccess.Read, FileShare.Read))
             {
-                testFileUpdate1Handle.IsInvalid.ShouldEqual(false);
-                testFileUpdate2Handle.IsInvalid.ShouldEqual(false);
-                testFileUpdate3Handle.IsInvalid.ShouldEqual(false);
-                testFileDelete1Handle.IsInvalid.ShouldEqual(false);
-                testFileDelete2Handle.IsInvalid.ShouldEqual(false);
-                testFileDelete3Handle.IsInvalid.ShouldEqual(false);
-
                 ProcessResult checkoutResult = GitProcess.InvokeProcess(this.Enlistment.RepoRoot, "checkout " + OldCommitId);
                 checkoutResult.Errors.ShouldContain(
                     "HEAD is now at " + OldCommitId,
@@ -365,24 +356,18 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
 
             if (this.CanUpdateAndDeletePlaceholdersWithOpenHandles())
             {
-                using (SafeFileHandle testFileUpdate4Handle = this.CreateFile(testFileUpdate4Path, FileShare.Read | FileShare.Delete))
-                using (SafeFileHandle testFileDelete4Handle = this.CreateFile(testFileDelete4Path, FileShare.Read | FileShare.Delete))
+                using (FileStream testFileUpdate4 = File.Open(testFileUpdate4Path, FileMode.Open, FileAccess.Read, FileShare.Read | FileShare.Delete))
+                using (FileStream testFileDelete4 = File.Open(testFileDelete4Path, FileMode.Open, FileAccess.Read, FileShare.Read | FileShare.Delete))
                 {
-                    testFileUpdate4Handle.IsInvalid.ShouldEqual(false);
-                    testFileDelete4Handle.IsInvalid.ShouldEqual(false);
-
                     this.GitCheckoutCommitId(OldCommitId);
                     this.GitStatusShouldBeClean(OldCommitId);
                 }
             }
             else
             {
-                using (SafeFileHandle testFileUpdate4Handle = this.CreateFile(testFileUpdate4Path, FileShare.Read | FileShare.Delete))
-                using (SafeFileHandle testFileDelete4Handle = this.CreateFile(testFileDelete4Path, FileShare.Read | FileShare.Delete))
+                using (FileStream testFileUpdate4Handle = File.Open(testFileUpdate4Path, FileMode.Open, FileAccess.Read, FileShare.Read | FileShare.Delete))
+                using (FileStream testFileDelete4Handle = File.Open(testFileDelete4Path, FileMode.Open, FileAccess.Read, FileShare.Read | FileShare.Delete))
                 {
-                    testFileUpdate4Handle.IsInvalid.ShouldEqual(false);
-                    testFileDelete4Handle.IsInvalid.ShouldEqual(false);
-
                     ProcessResult checkoutResult = GitProcess.InvokeProcess(this.Enlistment.RepoRoot, "checkout " + OldCommitId);
                     checkoutResult.Errors.ShouldContain(
                         "HEAD is now at " + OldCommitId,
@@ -451,7 +436,9 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
             testFile3Path.ShouldBeAFile(this.fileSystem).WithContents(testFile3Contents);
         }
 
+        // WindowsOnly because test requires Windows specific file sharing behavior
         [TestCase, Order(8)]
+        [Category(Categories.WindowsOnly)]
         public void LockMoreThanMaxReportedFileNames()
         {
             string updateFilesFolder = "FilesToUpdate";
@@ -463,22 +450,24 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
                 this.Enlistment.GetVirtualPathTo(Path.Combine(TestParentFolderName, "MaxFileListCount", deleteFilesFolder, i.ToString() + ".txt")).ShouldBeAFile(this.fileSystem);
             }
 
-            List<SafeFileHandle> openHandles = new List<SafeFileHandle>();
+            List<FileStream> openFiles = new List<FileStream>();
             try
             {
                 for (int i = 1; i <= 51; ++i)
                 {
-                    SafeFileHandle handle = this.CreateFile(
+                    FileStream file = File.Open(
                         this.Enlistment.GetVirtualPathTo(Path.Combine(TestParentFolderName, "MaxFileListCount", updateFilesFolder, i.ToString() + ".txt")),
+                        FileMode.Open, 
+                        FileAccess.Read,
                         FileShare.Read);
-                    openHandles.Add(handle);
-                    handle.IsInvalid.ShouldEqual(false);
+                    openFiles.Add(file);
 
-                    handle = this.CreateFile(
+                    file = File.Open(
                         this.Enlistment.GetVirtualPathTo(Path.Combine(TestParentFolderName, "MaxFileListCount", deleteFilesFolder, i.ToString() + ".txt")),
+                        FileMode.Open,
+                        FileAccess.Read,
                         FileShare.Read);
-                    openHandles.Add(handle);
-                    handle.IsInvalid.ShouldEqual(false);
+                    openFiles.Add(file);
                 }
 
                 ProcessResult result = this.InvokeGitAgainstGVFSRepo("checkout " + OldCommitId);
@@ -501,9 +490,9 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
             }
             finally
             {
-                foreach (SafeFileHandle handle in openHandles)
+                foreach (FileStream file in openFiles)
                 {
-                    handle.Dispose();
+                    file.Dispose();
                 }
             }
 
@@ -569,30 +558,23 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
             this.InvokeGitAgainstGVFSRepo("checkout " + commitId).Errors.ShouldContain("HEAD is now at " + commitId);
         }
 
-        private SafeFileHandle CreateFile(string path, FileShare shareMode)
-        {
-            return NativeMethods.CreateFile(
-                path,
-                (uint)FileAccess.Read,
-                shareMode,
-                IntPtr.Zero,
-                FileMode.Open,
-                (uint)FileAttributes.Normal,
-                IntPtr.Zero);
-        }
-
         private bool CanUpdateAndDeletePlaceholdersWithOpenHandles()
         {
-            // https://msdn.microsoft.com/en-us/library/windows/desktop/ms724429(v=vs.85).aspx
-            FileVersionInfo kernel32Info = FileVersionInfo.GetVersionInfo(Path.Combine(Environment.SystemDirectory, "kernel32.dll"));
-
-            // 16248 is first build with support - see 12658248 for details
-            if (kernel32Info.FileBuildPart >= 16248)
+            if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
             {
-                return true;
+                // https://msdn.microsoft.com/en-us/library/windows/desktop/ms724429(v=vs.85).aspx
+                FileVersionInfo kernel32Info = FileVersionInfo.GetVersionInfo(Path.Combine(Environment.SystemDirectory, "kernel32.dll"));
+
+                // 16248 is first build with support - see 12658248 for details
+                if (kernel32Info.FileBuildPart >= 16248)
+                {
+                    return true;
+                }
+
+                return false;
             }
 
-            return false;
+            return true;
         }
     }
 }
