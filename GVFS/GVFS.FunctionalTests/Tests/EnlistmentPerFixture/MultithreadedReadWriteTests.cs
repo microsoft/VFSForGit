@@ -14,7 +14,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
     public class MultithreadedReadWriteTests : TestsWithEnlistmentPerFixture
     {
         [TestCase, Order(1)]
-        [Category(Categories.WindowsOnly)]
+        [Category(Categories.MacTODO.NeedsCachePoisonFix)]
         public void CanReadVirtualFileInParallel()
         {
             // Note: This test MUST go first, or else it needs to ensure that it is reading a unique path compared to the

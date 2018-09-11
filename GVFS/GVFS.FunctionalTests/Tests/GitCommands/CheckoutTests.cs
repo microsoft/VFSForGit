@@ -88,7 +88,23 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
         }
 
         [TestCase]
-        [Category(Categories.MacTODO.M3)]
+        [Category(Categories.MacTODO.NeedsCachePoisonFix)]
+        public void ReadDeepFilesAfterCheckout()
+        {
+            // In commit 8df701986dea0a5e78b742d2eaf9348825b14d35 the CheckoutNewBranchFromStartingPointTest files were not present
+            this.ValidateGitCommand("checkout 8df701986dea0a5e78b742d2eaf9348825b14d35");
+
+            // In commit cd5c55fea4d58252bb38058dd3818da75aff6685 the CheckoutNewBranchFromStartingPointTest files were present
+            this.ValidateGitCommand("checkout cd5c55fea4d58252bb38058dd3818da75aff6685");
+
+            this.FileShouldHaveContents("TestFile1 \r\n", "GitCommandsTests", "CheckoutNewBranchFromStartingPointTest", "test1.txt");
+            this.FileShouldHaveContents("TestFile2 \r\n", "GitCommandsTests", "CheckoutNewBranchFromStartingPointTest", "test2.txt");
+
+            this.ValidateGitCommand("status");
+        }
+
+        [TestCase]
+        [Category(Categories.MacTODO.NeedsCachePoisonFix)]
         public void CheckoutNewBranchFromStartingPointTest()
         {
             // In commit 8df701986dea0a5e78b742d2eaf9348825b14d35 the CheckoutNewBranchFromStartingPointTest files were not present
@@ -105,7 +121,7 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
         }
 
         [TestCase]
-        [Category(Categories.MacTODO.M3)]
+        [Category(Categories.MacTODO.NeedsCachePoisonFix)]
         public void CheckoutOrhpanBranchFromStartingPointTest()
         {
             // In commit 8df701986dea0a5e78b742d2eaf9348825b14d35 the CheckoutOrhpanBranchFromStartingPointTest files were not present
@@ -122,13 +138,12 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
         }
 
         [TestCase]
-        [Category(Categories.MacTODO.M3)]
         public void MoveFileFromDotGitFolderToWorkingDirectoryAndAddAndCheckout()
         {
             string testFileContents = "Test file contents for MoveFileFromDotGitFolderToWorkingDirectoryAndAddAndCheckout";
             string filename = "AddedBySource.txt";
-            string dotGitFilePath = @".git\" + filename;
-            string targetPath = @"Test_ConflictTests\AddedFiles\" + filename;
+            string dotGitFilePath = Path.Combine(".git", filename);
+            string targetPath = Path.Combine("Test_ConflictTests", "AddedFiles", filename);
 
             // In commit db95d631e379d366d26d899523f8136a77441914 Test_ConflictTests\AddedFiles\AddedBySource.txt does not exist
             this.ControlGitRepo.Fetch(GitRepoTests.ConflictSourceBranch);
@@ -155,7 +170,6 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
         }
 
         [TestCase]
-        [Category(Categories.MacTODO.M3)]
         public void CheckoutBranchNoCrashOnStatus()
         {
             this.ControlGitRepo.Fetch("FunctionalTests/20170331_git_crash");
@@ -164,7 +178,6 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
         }
 
         [TestCase]
-        [Category(Categories.MacTODO.M3)]
         public void CheckoutCommitWhereFileContentsChangeAfterRead()
         {
             this.ControlGitRepo.Fetch(GitRepoTests.ConflictSourceBranch);
@@ -184,7 +197,6 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
         }
 
         [TestCase]
-        [Category(Categories.MacTODO.M3)]
         public void CheckoutCommitWhereFileDeletedAfterRead()
         {
             this.ControlGitRepo.Fetch(GitRepoTests.ConflictSourceBranch);
@@ -205,7 +217,6 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
         }
 
         [TestCase]
-        [Category(Categories.MacTODO.M3)]
         public void CheckoutBranchAfterReadingFileAndVerifyContentsCorrect()
         {
             this.ControlGitRepo.Fetch(GitRepoTests.ConflictSourceBranch);
@@ -218,11 +229,10 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
             this.FilesShouldMatchCheckoutOfSourceBranch();
 
             // Verify modified paths contents
-            GVFSHelpers.ModifiedPathsContentsShouldEqual(this.FileSystem, this.Enlistment.DotGVFSRoot, "A .gitattributes" + Environment.NewLine);
+            GVFSHelpers.ModifiedPathsContentsShouldEqual(this.FileSystem, this.Enlistment.DotGVFSRoot, "A .gitattributes" + GVFSHelpers.ModifiedPathsNewLine);
         }
 
         [TestCase]
-        [Category(Categories.MacTODO.M3)]
         public void CheckoutBranchAfterReadingAllFilesAndVerifyContentsCorrect()
         {
             this.ControlGitRepo.Fetch(GitRepoTests.ConflictSourceBranch);
@@ -237,7 +247,7 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
                 .WithDeepStructure(this.FileSystem, this.ControlGitRepo.RootPath, compareContent: true);
 
             // Verify modified paths contents
-            GVFSHelpers.ModifiedPathsContentsShouldEqual(this.FileSystem, this.Enlistment.DotGVFSRoot, "A .gitattributes" + Environment.NewLine);
+            GVFSHelpers.ModifiedPathsContentsShouldEqual(this.FileSystem, this.Enlistment.DotGVFSRoot, "A .gitattributes" + GVFSHelpers.ModifiedPathsNewLine);
         }
 
         [TestCase]
@@ -268,7 +278,6 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
         }
 
         [TestCase]
-        [Category(Categories.MacTODO.M3)]
         public void CheckoutBranchThatDoesNotHaveFolderShouldNotHaveFolder()
         {
             // this.ControlGitRepo.Commitish should not have the folder Test_ConflictTests\AddedFiles
@@ -294,7 +303,6 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
         }
 
         [TestCase]
-        [Category(Categories.MacTODO.M3)]
         public void EditFileReadFileAndCheckoutConflict()
         {
             // editFilePath was changed on ConflictTargetBranch
@@ -329,7 +337,6 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
         }
 
         [TestCase]
-        [Category(Categories.MacTODO.M3)]
         public void MarkFileAsReadOnlyAndCheckoutCommitWhereFileIsDifferent()
         {
             string filePath = Path.Combine("Test_ConflictTests", "ModifiedFiles", "ConflictingChange.txt");
@@ -345,7 +352,6 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
         }
 
         [TestCase]
-        [Category(Categories.MacTODO.M3)]
         public void MarkFileAsReadOnlyAndCheckoutCommitWhereFileIsDeleted()
         {
             string filePath = Path.Combine("Test_ConflictTests", "AddedFiles", "AddedBySource.txt");
@@ -361,7 +367,6 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
         }
 
         [TestCase]
-        [Category(Categories.MacTODO.M3)]
         public void ModifyAndCheckoutFirstOfSeveralFilesWhoseNamesAppearBeforeDot()
         {
             // Commit cb2d05febf64e3b0df50bd8d3fe8f05c0e2caa47 has the files (a).txt and (z).txt 
@@ -446,7 +451,6 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
         }
 
         [TestCase]
-        [Category(Categories.MacTODO.M3)]
         public void CheckoutBranchWithOpenHandleBlockingRepoMetdataUpdate()
         {
             this.ControlGitRepo.Fetch(GitRepoTests.ConflictSourceBranch);
@@ -552,7 +556,6 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
         }
 
         [TestCase]
-        [Category(Categories.MacTODO.M3)]
         public void CheckoutBranchWithStaleRepoMetadataTmpFileOnDisk()
         {
             this.ControlGitRepo.Fetch(GitRepoTests.ConflictSourceBranch);
@@ -711,7 +714,6 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
         }
 
         [TestCase]
-        [Category(Categories.MacTODO.M3)]
         public void DeleteFolderAndChangeBranchToFolderWithDifferentCase()
         {
             // 692765 - Recursive modified paths entries for folders should be case insensitive when
@@ -732,7 +734,7 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
         }
 
         [TestCase]
-        [Category(Categories.MacTODO.M3)]
+        [Category(Categories.MacTODO.NeedsCachePoisonFix)]
         public void SuccessfullyChecksOutDirectoryToFileToDirectory()
         {
             // This test switches between two branches and verifies specific transitions occured
@@ -875,7 +877,6 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
         }
 
         [TestCase]
-        [Category(Categories.MacTODO.M3)]
         public void CheckoutBranchDirectoryWithOneFile()
         {
             this.SetupForFileDirectoryTest(commandBranch: GitRepoTests.DirectoryWithDifferentFileAfterBranch);
@@ -883,14 +884,12 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
         }
 
         [TestCase]
-        [Category(Categories.MacTODO.M3)]
         public void CheckoutBranchDirectoryWithOneFileEnumerate()
         {
             this.RunFileDirectoryEnumerateTest("checkout", commandBranch: GitRepoTests.DirectoryWithDifferentFileAfterBranch);
         }
 
         [TestCase]
-        [Category(Categories.MacTODO.M3)]
         public void CheckoutBranchDirectoryWithOneFileRead()
         {
             this.RunFileDirectoryReadTest("checkout", commandBranch: GitRepoTests.DirectoryWithDifferentFileAfterBranch);

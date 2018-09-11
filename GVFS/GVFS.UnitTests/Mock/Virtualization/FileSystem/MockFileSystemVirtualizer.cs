@@ -27,6 +27,16 @@ namespace GVFS.UnitTests.Mock.Virtualization.FileSystem
         {
         }
 
+        public override FileSystemResult WritePlaceholderFile(string relativePath, long endOfFile, string sha)
+        {
+            throw new NotImplementedException();
+        }
+
+        public override FileSystemResult WritePlaceholderDirectory(string relativePath)
+        {
+            throw new NotImplementedException();
+        }
+
         public override FileSystemResult UpdatePlaceholderIfNeeded(string relativePath, DateTime creationTime, DateTime lastAccessTime, DateTime lastWriteTime, DateTime changeTime, uint fileAttributes, long endOfFile, string shaContentId, UpdatePlaceholderType updateFlags, out UpdateFailureReason failureReason)
         {
             throw new NotImplementedException();

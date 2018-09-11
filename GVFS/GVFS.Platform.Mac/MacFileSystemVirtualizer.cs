@@ -70,6 +70,29 @@ namespace GVFS.Platform.Mac
             this.Context.Tracer.RelatedEvent(EventLevel.Informational, $"{nameof(this.Stop)}_StopRequested", metadata: null);
         }
 
+        public override FileSystemResult WritePlaceholderFile(
+            string relativePath,
+            long endOfFile,
+            string sha)
+        {
+            // TODO(Mac): Add functional tests that validate file mode is set correctly
+            ushort fileMode = this.FileSystemCallbacks.GitIndexProjection.GetFilePathMode(relativePath);
+            Result result = this.virtualizationInstance.WritePlaceholderFile(
+                relativePath,
+                PlaceholderVersionId,
+                ToVersionIdByteArray(FileSystemVirtualizer.ConvertShaToContentId(sha)),
+                (ulong)endOfFile,
+                fileMode);
+
+            return new FileSystemResult(ResultToFSResult(result), unchecked((int)result));
+        }
+
+        public override FileSystemResult WritePlaceholderDirectory(string relativePath)
+        {
+            Result result = this.virtualizationInstance.WritePlaceholderDirectory(relativePath);
+            return new FileSystemResult(ResultToFSResult(result), unchecked((int)result));
+        }
+
         public override FileSystemResult UpdatePlaceholderIfNeeded(
             string relativePath,
             DateTime creationTime,
@@ -435,32 +458,29 @@ namespace GVFS.Platform.Mac
         {
             foreach (ProjectedFileInfo fileInfo in projectedItems)
             {
-                Result result;
-                string sha = null;
                 string childRelativePath = Path.Combine(directoryRelativePath, fileInfo.Name);
+
+                string sha;
+                FileSystemResult fileSystemResult;
                 if (fileInfo.IsFolder)
                 {
-                    result = this.virtualizationInstance.WritePlaceholderDirectory(childRelativePath);
+                    sha = string.Empty;
+                    fileSystemResult = this.WritePlaceholderDirectory(childRelativePath);
                 }
                 else
                 {
-                    // TODO(Mac): Add functional tests that validate file mode is set correctly
-                    ushort fileMode = this.FileSystemCallbacks.GitIndexProjection.GetFilePathMode(childRelativePath);
                     sha = fileInfo.Sha.ToString();
-                    result = this.virtualizationInstance.WritePlaceholderFile(
-                        childRelativePath,
-                        PlaceholderVersionId,
-                        ToVersionIdByteArray(FileSystemVirtualizer.ConvertShaToContentId(sha)),
-                        (ulong)fileInfo.Size,
-                        fileMode);
+                    fileSystemResult = this.WritePlaceholderFile(childRelativePath, fileInfo.Size, sha);
                 }
 
+                Result result = (Result)fileSystemResult.RawResult;
                 if (result != Result.Success)
                 {
                     EventMetadata metadata = this.CreateEventMetadata(childRelativePath);
                     metadata.Add("fileInfo.Name", fileInfo.Name);
                     metadata.Add("fileInfo.Size", fileInfo.Size);
                     metadata.Add("fileInfo.IsFolder", fileInfo.IsFolder);
+                    metadata.Add(nameof(sha), sha);
                     this.Context.Tracer.RelatedError(metadata, $"{nameof(this.CreatePlaceholders)}: Write placeholder failed");
 
                     return result;
@@ -477,6 +497,8 @@ namespace GVFS.Platform.Mac
                     }
                 }
             }
+
+            this.FileSystemCallbacks.OnPlaceholderFolderExpanded(directoryRelativePath);
 
             return Result.Success;
         }

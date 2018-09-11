@@ -4,7 +4,6 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
 {
     [TestFixture]
     [Category(Categories.GitCommands)]
-    [Category(Categories.MacTODO.M3)]
     public class ResetSoftTests : GitRepoTests
     {
         public ResetSoftTests() : base(enlistmentPerTest: true)
@@ -51,6 +50,7 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
         }
 
         [TestCase]
+        [Category(Categories.MacTODO.M3)]
         public void ResetSoftThenResetHeadThenCheckoutNoConflicts()
         {
             this.ValidateGitCommand("checkout " + GitRepoTests.ConflictTargetBranch);

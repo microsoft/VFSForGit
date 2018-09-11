@@ -4,7 +4,6 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
 {
     [TestFixture]
     [Category(Categories.GitCommands)]
-    [Category(Categories.MacTODO.M4)]
     public class UpdateRefTests : GitRepoTests
     {
         public UpdateRefTests() : base(enlistmentPerTest: true)

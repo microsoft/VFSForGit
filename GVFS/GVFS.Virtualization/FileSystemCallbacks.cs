@@ -471,6 +471,11 @@ namespace GVFS.Virtualization
             this.GitIndexProjection.OnPlaceholderFolderCreated(relativePath);
         }
 
+        public void OnPlaceholderFolderExpanded(string relativePath)
+        {
+            this.GitIndexProjection.OnPlaceholderFolderExpanded(relativePath);
+        }
+
         public FileProperties GetLogsHeadFileProperties()
         {
             // Use a temporary FileProperties in case another thread sets this.logsHeadFileProperties before this 

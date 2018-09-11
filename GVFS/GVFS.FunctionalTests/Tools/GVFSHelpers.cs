@@ -13,6 +13,8 @@ namespace GVFS.FunctionalTests.Tools
 {
     public static class GVFSHelpers
     {
+        public const string ModifiedPathsNewLine = "\r\n";
+
         public static readonly string BackgroundOpsFile = Path.Combine("databases", "BackgroundGitOperations.dat");
         public static readonly string PlaceholderListFile = Path.Combine("databases", "PlaceholderList.dat");
         public static readonly string RepoMetadataName = Path.Combine("databases", "RepoMetadata.dat");
@@ -21,9 +23,7 @@ namespace GVFS.FunctionalTests.Tools
         private const string DiskLayoutMinorVersionKey = "DiskLayoutMinorVersion";
         private const string LocalCacheRootKey = "LocalCacheRoot";
         private const string GitObjectsRootKey = "GitObjectsRoot";
-        private const string BlobSizesRootKey = "BlobSizesRoot";
-
-        private const string ModifiedPathsNewLine = "\r\n";
+        private const string BlobSizesRootKey = "BlobSizesRoot";        
 
         public static void SaveDiskLayoutVersion(string dotGVFSRoot, string majorVersion, string minorVersion)
         {

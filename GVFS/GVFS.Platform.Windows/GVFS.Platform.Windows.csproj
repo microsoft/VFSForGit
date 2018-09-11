@@ -79,6 +79,7 @@
     <Compile Include="DiskLayoutUpgrades\DiskLayout13to14Upgrade_BlobSizes.cs" />
     <Compile Include="DiskLayoutUpgrades\DiskLayout14to15Upgrade_ModifiedPaths.cs" />
     <Compile Include="DiskLayoutUpgrades\DiskLayout15to16Upgrade_GitStatusCache.cs" />
+    <Compile Include="DiskLayoutUpgrades\DiskLayout16to17Upgrade_FolderPlaceholderValues.cs" />
     <Compile Include="DiskLayoutUpgrades\DiskLayout7to8Upgrade_NewOperationType.cs" />
     <Compile Include="DiskLayoutUpgrades\DiskLayout8to9Upgrade_RepoMetadataToJson.cs" />
     <Compile Include="DiskLayoutUpgrades\DiskLayout9to10Upgrade_BackgroundAndPlaceholderListToFileBased.cs" />

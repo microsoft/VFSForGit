@@ -8,6 +8,12 @@ namespace GVFS.Common
 {
     public class PlaceholderListDatabase : FileBasedCollection
     {
+        // Special folder values must:
+        // - Be 40 characters long
+        // - Not be a valid SHA-1 value (to avoid collisions with files)
+        public const string PartialFolderValue = "                          PARTIAL FOLDER";
+        public const string ExpandedFolderValue = "                         EXPANDED FOLDER";
+
         private const char PathTerminator = '\0';
 
         // This list holds entries that would otherwise be lost because WriteAllEntriesAndFlush has not been called, but a file 
@@ -51,26 +57,15 @@ namespace GVFS.Common
             output = temp;
             return true;
         }
-        
-        public void AddAndFlush(string path, string sha)
+
+        public void AddAndFlushFile(string path, string sha)
         {
-            try
-            {
-                this.WriteAddEntry(
-                    path + PathTerminator + sha,
-                    () =>
-                    {
-                        this.EstimatedCount++;
-                        if (this.placeholderDataEntries != null)
-                        {
-                            this.placeholderDataEntries.Add(new PlaceholderDataEntry(path, sha));
-                        }
-                    });
-            }
-            catch (Exception e)
-            {
-                throw new FileBasedCollectionException(e);
-            }
+            this.AddAndFlush(path, sha);
+        }
+
+        public void AddAndFlushFolder(string path, bool isExpanded)
+        {
+            this.AddAndFlush(path, isExpanded ? ExpandedFolderValue : PartialFolderValue);
         }
 
         public void RemoveAndFlush(string path)
@@ -98,13 +93,13 @@ namespace GVFS.Common
         {
             try
             {
-                List<PlaceholderData> output = new List<PlaceholderData>(Math.Max(1, this.EstimatedCount));
+                List<PlaceholderData> placeholders = new List<PlaceholderData>(Math.Max(1, this.EstimatedCount));
 
                 string error;
                 if (!this.TryLoadFromDisk<string, string>(
                     this.TryParseAddLine,
                     this.TryParseRemoveLine,
-                    (key, value) => output.Add(new PlaceholderData(path: key, sha: value)),
+                    (key, value) => placeholders.Add(new PlaceholderData(path: key, fileShaOrFolderValue: value)),
                     out error,
                     () =>
                     {
@@ -119,7 +114,52 @@ namespace GVFS.Common
                     throw new InvalidDataException(error);
                 }
 
-                return output;
+                return placeholders;
+            }
+            catch (Exception e)
+            {
+                throw new FileBasedCollectionException(e);
+            }
+        }
+
+        public void GetAllEntries(out List<PlaceholderData> filePlaceholders, out List<PlaceholderData> folderPlaceholders)
+        {
+            try
+            {
+                List<PlaceholderData> filePlaceholdersFromDisk = new List<PlaceholderData>(Math.Max(1, this.EstimatedCount));
+                List<PlaceholderData> folderPlaceholdersFromDisk = new List<PlaceholderData>(Math.Max(1, (int)(this.EstimatedCount * .3)));
+
+                string error;
+                if (!this.TryLoadFromDisk<string, string>(
+                    this.TryParseAddLine,
+                    this.TryParseRemoveLine,
+                    (key, value) =>
+                    {
+                        if (value == PartialFolderValue || value == ExpandedFolderValue)
+                        {
+                            folderPlaceholdersFromDisk.Add(new PlaceholderData(path: key, fileShaOrFolderValue: value));
+                        }
+                        else
+                        {
+                            filePlaceholdersFromDisk.Add(new PlaceholderData(path: key, fileShaOrFolderValue: value));
+                        }
+                    },
+                    out error,
+                    () =>
+                    {
+                        if (this.placeholderDataEntries != null)
+                        {
+                            throw new InvalidOperationException("PlaceholderListDatabase should always flush queue placeholders using WriteAllEntriesAndFlush before calling GetAllEntries again.");
+                        }
+
+                        this.placeholderDataEntries = new List<PlaceholderDataEntry>();
+                    }))
+                {
+                    throw new InvalidDataException(error);
+                }
+
+                filePlaceholders = filePlaceholdersFromDisk;
+                folderPlaceholders = folderPlaceholdersFromDisk;
             }
             catch (Exception e)
             {
@@ -181,6 +221,27 @@ namespace GVFS.Common
             }
         }
 
+        private void AddAndFlush(string path, string sha)
+        {
+            try
+            {
+                this.WriteAddEntry(
+                    path + PathTerminator + sha,
+                    () =>
+                    {
+                        this.EstimatedCount++;
+                        if (this.placeholderDataEntries != null)
+                        {
+                            this.placeholderDataEntries.Add(new PlaceholderDataEntry(path, sha));
+                        }
+                    });
+            }
+            catch (Exception e)
+            {
+                throw new FileBasedCollectionException(e);
+            }
+        }
+
         private bool TryParseAddLine(string line, out string key, out string value, out string error)
         {
             // Expected: <Placeholder-Path>\0<40-Char-SHA1>
@@ -197,7 +258,7 @@ namespace GVFS.Common
             {
                 key = null;
                 value = null;
-                error = "Invalid SHA1 length: " + line;
+                error = $"Invalid SHA1 length {line.Length - idx - 1}: " + line;
                 return false;
             }
 
@@ -218,10 +279,10 @@ namespace GVFS.Common
 
         public class PlaceholderData
         {
-            public PlaceholderData(string path, string sha)
+            public PlaceholderData(string path, string fileShaOrFolderValue)
             {
                 this.Path = path;
-                this.Sha = sha;
+                this.Sha = fileShaOrFolderValue;
             }
 
             public string Path { get; }
@@ -229,7 +290,18 @@ namespace GVFS.Common
 
             public bool IsFolder
             {
-                get { return this.Sha == GVFSConstants.AllZeroSha; }
+                get 
+                {
+                    return this.Sha == PartialFolderValue || this.IsExpandedFolder;
+                }
+            }
+
+            public bool IsExpandedFolder
+            {
+                get
+                {
+                    return this.Sha == ExpandedFolderValue;
+                }
             }
         }
 

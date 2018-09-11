@@ -409,7 +409,7 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
         protected void RunFileDirectoryReadTest(string command, string commandBranch = DirectoryWithFileAfterBranch)
         {
             this.SetupForFileDirectoryTest(commandBranch);
-            this.FileContentsShouldMatch("file.txt\\file.txt");
+            this.FileContentsShouldMatch("file.txt", "file.txt");
             this.ValidateFileDirectoryTest(command, commandBranch);
         }
 
