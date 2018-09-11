@@ -18,3 +18,5 @@ chmod 775 ~/GVFSTest
 chmod +a "_projfsacl deny search,directory_inherit" ~/GVFSTest 
 
 $PUBLISHDIR/gvfs clone $REPOURL ~/GVFSTest/enlistment --local-cache-path ~/GVFSTest/.gvfsCache --no-mount --no-prefetch
+
+$PUBLISHDIR/gvfs prefetch ~/GVFSTest/enlistment --files \*

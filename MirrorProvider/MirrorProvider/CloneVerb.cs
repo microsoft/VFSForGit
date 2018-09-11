@@ -38,6 +38,9 @@ namespace MirrorProvider
                 return;
             }
 
+            Directory.CreateDirectory(Path.Combine(enlistment.SrcRoot, ".mirrorInsideSrc"));
+            File.WriteAllText(Path.Combine(enlistment.SrcRoot, ".mirrorInsideSrc", "foo.txt"), "Some contents");
+
             if (fileSystemVirtualizer.TryConvertVirtualizationRoot(enlistment.SrcRoot, out string error))
             {
                 Console.WriteLine($"Virtualization root created successfully at {enlistment.SrcRoot}");
