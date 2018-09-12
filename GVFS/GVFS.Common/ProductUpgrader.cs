@@ -14,7 +14,7 @@ namespace GVFS.Common
 {
     public partial class ProductUpgrader
     {
-        private const string GitHubReleaseURL = @"https://api.github.com/repos/microsoft/gvfs/releases";
+        private const string GitHubReleaseURL = @"https://api.github.com/repos/microsoft/vfsforgit/releases";
         private const string JSONMediaType = @"application/vnd.github.v3+json";
         private const string UserAgent = @"GVFS_Auto_Upgrader";
         private const string CommonInstallerArgs = "/VERYSILENT /CLOSEAPPLICATIONS /SUPPRESSMSGBOXES /NORESTART";
@@ -25,6 +25,17 @@ namespace GVFS.Common
         private const string GitInstallerFileNamePrefix = "Git-";
         private const string GVFSInstallerFileNamePrefix = "SetupGVFS";
         private const int RepoMountFailureExitCode = 17;
+        private const string ToolsDirectory = "Tools";
+        private const string UpgraderToolName = "GVFS.Upgrader.exe";
+        private static readonly string[] UpgraderToolAndLibs =
+            {
+                "GVFS.Upgrader.exe",
+                "GVFS.Common.dll",
+                "GVFS.Platform.Windows.dll",
+                "Microsoft.Diagnostics.Tracing.EventSource.dll",
+                "netstandard.dll",
+                "Newtonsoft.Json.dll"
+            };
 
         private Version installedVersion;
         private Release newestRelease;
@@ -156,17 +167,15 @@ namespace GVFS.Common
             return launched;
         }
 
-        public virtual bool TryCreateToolsDirectory(out string upgraderToolPath, out string error)
+        public virtual bool TrySetupToolsDirectory(out string upgraderToolPath, out string error)
         {
-            upgraderToolPath = null;
-            error = null;
-
             string rootDirectoryPath = ProductUpgrader.GetUpgradesDirectoryPath();
             string toolsDirectoryPath = Path.Combine(rootDirectoryPath, ToolsDirectory);
-            if (TryCreateDirectory(toolsDirectoryPath, out error))
+            Exception exception;
+            if (TryCreateDirectory(toolsDirectoryPath, out exception))
             {
-                bool success = true;
                 string currentPath = ProcessHelper.GetCurrentProcessLocation();
+                error = null;
                 foreach (string name in UpgraderToolAndLibs)
                 {
                     string toolPath = Path.Combine(currentPath, name);
@@ -177,31 +186,31 @@ namespace GVFS.Common
                     }
                     catch (UnauthorizedAccessException e)
                     {
-                        success = false;
                         error = string.Join(
                             Environment.NewLine, 
-                            "Unauthorized access.", 
-                            $"Make sure you have write permissions to directory {rootDirectoryPath} and run `gvfs upgrade [--confirm]` again.", 
-                            e.Message);
-                        this.tracer.RelatedException(e, nameof(this.TryCreateToolsDirectory), "Error creating upgrade tools directory.");
+                            "Unauthorized access. " + e.Message, 
+                            $"Make sure you have write permissions to directory {rootDirectoryPath} and run `gvfs upgrade --confirm` again.");
+                        this.tracer.RelatedException(e, nameof(this.TrySetupToolsDirectory), $"Error copying {toolPath} to {destinationPath}.");
                         break;
                     }
                     catch (IOException e)
                     {
-                        success = false;
                         error = string.Join(
                             Environment.NewLine, 
                             "I/O error while trying to copy upgrade tools.", 
                             e.Message);
-                        this.tracer.RelatedException(e, nameof(this.TryCreateToolsDirectory), "Error creating upgrade tools directory.");
+                        this.tracer.RelatedException(e, nameof(this.TrySetupToolsDirectory), $"Error copying {toolPath} to {destinationPath}.");
                         break;
                     }
                 }
 
-                upgraderToolPath = Path.Combine(toolsDirectoryPath, UpgraderToolName);
-                return success;
+                upgraderToolPath = string.IsNullOrEmpty(error) ? Path.Combine(toolsDirectoryPath, UpgraderToolName) : null;
+                return string.IsNullOrEmpty(error);
             }
 
+            upgraderToolPath = null;
+            error = exception.Message;
+            this.tracer.RelatedException(exception, nameof(this.TrySetupToolsDirectory), $"Error creating upgrade tools directory {toolsDirectoryPath}.");
             return false;
         }
 
@@ -237,7 +246,7 @@ namespace GVFS.Common
             string errorAdvisory = "Run `git config --system gvfs.upgrade-ring [\"Fast\"|\"Slow\"|\"None\"]` and run `gvfs upgrade [--confirm]` again.";
             string gitPath = GVFSPlatform.Instance.GitInstallation.GetInstalledGitBinPath();
             GitProcess.Result result = GitProcess.GetFromSystemConfig(gitPath, GVFSConstants.GitConfig.UpgradeRing);
-            if (!result.HasErrors && !string.IsNullOrEmpty(result.Output.TrimEnd('\r', '\n')))
+            if (!result.HasErrors && !string.IsNullOrEmpty(result.Output))
             {
                 string ringConfig = result.Output.TrimEnd('\r', '\n');
                 RingType ringType;
@@ -252,16 +261,15 @@ namespace GVFS.Common
                 }
                 else
                 {
-                    error = "Invalid upgrade ring `" + ringConfig + "` specified in Git config.";
-                    error += Environment.NewLine + errorAdvisory;
+                    error = "Invalid upgrade ring `" + ringConfig + "` specified in Git config.";                    
                 }
             }
             else
             {
-                error = string.IsNullOrEmpty(result.Errors) ? "Unable to determine upgrade ring." : result.Errors;
-                error += Environment.NewLine + errorAdvisory;
+                error = string.IsNullOrEmpty(result.Errors) ? "Unable to determine upgrade ring." : result.Errors;                
             }
 
+            error += Environment.NewLine + errorAdvisory;
             this.Ring = RingType.Invalid;
             return false;
         }
@@ -271,18 +279,15 @@ namespace GVFS.Common
             errorMessage = null;
 
             string downloadPath = GetAssetDownloadsPath();
-            if (!ProductUpgrader.TryCreateDirectory(downloadPath, out errorMessage))
+            Exception exception;
+            if (!ProductUpgrader.TryCreateDirectory(downloadPath, out exception))
             {
+                errorMessage = exception.Message;
+                this.tracer.RelatedException(exception, nameof(this.TryDownloadAsset), $"Error creating download directory {downloadPath}.");
                 return false;
             }
 
             string localPath = Path.Combine(downloadPath, asset.Name);
-            if (File.Exists(localPath) && asset.Size == new FileInfo(localPath).Length)
-            {
-                asset.LocalPath = localPath;
-                return true;
-            }
-
             WebClient webClient = new WebClient();
 
             try
@@ -290,10 +295,10 @@ namespace GVFS.Common
                 webClient.DownloadFile(asset.DownloadURL, localPath);
                 asset.LocalPath = localPath;
             }
-            catch (WebException exception)
+            catch (WebException webException)
             {
                 errorMessage = "Download error: " + exception.Message;
-                this.tracer.RelatedException(exception, nameof(this.TryDownloadAsset), $"Error downloading asset {asset.Name}.");
+                this.tracer.RelatedException(webException, nameof(this.TryDownloadAsset), $"Error downloading asset {asset.Name}.");
                 return false;
             }
 

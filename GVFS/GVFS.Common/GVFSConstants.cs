@@ -84,7 +84,7 @@ namespace GVFS.Common
             public const string Service = "service";
             public const string UpgradeVerb = UpgradePrefix + "_verb";
             public const string UpgradeProcess = UpgradePrefix + "_process";
-            public const string Upgrade = MountPrefix + "_upgrade";
+            public const string UpgradeDiskLayout = MountPrefix + "_upgrade";
         }
 
         public static class DotGVFS
@@ -218,6 +218,12 @@ namespace GVFS.Common
             {
                 public const string SkipLock = "skip-wait-for-lock";
             }
+        }
+
+        public static class UpgradeVerbMessages
+        {
+            public const string NoneRingConsoleAlert = "Upgrade ring set to None. No upgrade check was performed.";
+            public const string SetUpgradeRingCommand = "To set or change upgrade ring, run `git config --system gvfs.upgrade-ring [\"Fast\"|\"Slow\"|\"None\"] from an elevated command prompt.";
         }
     }
 }

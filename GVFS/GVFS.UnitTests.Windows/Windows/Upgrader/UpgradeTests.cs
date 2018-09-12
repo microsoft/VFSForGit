@@ -1,5 +1,6 @@
 ﻿using GVFS.Common;
 using GVFS.Tests.Should;
+using GVFS.UnitTests.Category;
 using GVFS.UnitTests.Mock.Common;
 using GVFS.UnitTests.Windows.Mock.Upgrader;
 using NUnit.Framework;
@@ -17,16 +18,14 @@ namespace GVFS.UnitTests.Windows.Upgrader
         protected MockTracer Tracer { get; private set; }
         protected MockTextWriter Output { get; private set; }
         protected MockInstallerPrerunChecker PrerunChecker { get; private set; }
-        protected CallSequenceTracker CallSequenceTracker { get; private set; }
         protected MockProductUpgrader Upgrader { get; private set; }
 
         public virtual void Setup()
         {
             this.Tracer = new MockTracer();
             this.Output = new MockTextWriter();
-            this.CallSequenceTracker = new CallSequenceTracker();
-            this.PrerunChecker = new MockInstallerPrerunChecker(this.CallSequenceTracker, this.Tracer);
-            this.Upgrader = new MockProductUpgrader(LocalGVFSVersion, this.CallSequenceTracker, this.Tracer);
+            this.PrerunChecker = new MockInstallerPrerunChecker(this.Tracer);
+            this.Upgrader = new MockProductUpgrader(LocalGVFSVersion, this.Tracer);
      
             this.PrerunChecker.Reset();
             this.Upgrader.PretendNewReleaseAvailableAtRemote(
@@ -35,6 +34,7 @@ namespace GVFS.UnitTests.Windows.Upgrader
             this.Upgrader.LocalRingConfig = ProductUpgrader.RingType.Slow;
         }
 
+        [TestCase]
         public virtual void NoneLocalRing()
         {
             string message = "Upgrade ring set to None. No upgrade check was performed.";
@@ -53,6 +53,7 @@ namespace GVFS.UnitTests.Windows.Upgrader
                 });
         }
 
+        [TestCase]
         public virtual void InvalidUpgradeRing()
         {
             string errorString = "Invalid upgrade ring `Invalid` specified in Git config.";
@@ -72,6 +73,8 @@ namespace GVFS.UnitTests.Windows.Upgrader
                 });
         }
 
+        [TestCase]
+        [Category(CategoryConstants.ExceptionExpected)]
         public virtual void FetchReleaseInfo()
         {
             string errorString = "Error fetching upgrade release info.";

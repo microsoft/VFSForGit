@@ -14,13 +14,11 @@ namespace GVFS.UnitTests.Windows.Mock.Upgrader
         private ActionType failActionTypes;
 
         public MockProductUpgrader(
-            string currentVersion, 
-            CallSequenceTracker sequenceTrackerCallback, 
+            string currentVersion,
             ITracer tracer) : base(currentVersion, tracer)
         {
             this.DownloadedFiles = new List<string>();
             this.InstallerArgs = new Dictionary<string, Dictionary<string, string>>();
-            this.SequenceTracker = sequenceTrackerCallback;
         }
 
         [Flags]
@@ -40,7 +38,6 @@ namespace GVFS.UnitTests.Windows.Mock.Upgrader
         public RingType LocalRingConfig { get; set; }
         public List<string> DownloadedFiles { get; private set; }
         public Dictionary<string, Dictionary<string, string>> InstallerArgs { get; private set; }
-        public CallSequenceTracker SequenceTracker { get; private set; }
 
         private Release FakeUpgradeRelease { get; set; }
 
@@ -90,10 +87,8 @@ namespace GVFS.UnitTests.Windows.Mock.Upgrader
             this.FakeUpgradeRelease = release;
         }
 
-        public override bool TryCreateToolsDirectory(out string upgraderToolPath, out string error)
+        public override bool TrySetupToolsDirectory(out string upgraderToolPath, out string error)
         {
-            this.SequenceTracker.RecordMethod("CopyTools");
-
             if (this.failActionTypes.HasFlag(ActionType.CopyTools))
             {
                 upgraderToolPath = null;
@@ -108,8 +103,6 @@ namespace GVFS.UnitTests.Windows.Mock.Upgrader
 
         protected override bool TryLoadRingConfig(out string error)
         {
-            this.SequenceTracker.RecordMethod("LoadRingConfig");
-
             this.Ring = this.LocalRingConfig;
 
             if (this.LocalRingConfig == RingType.Invalid)
@@ -127,8 +120,6 @@ namespace GVFS.UnitTests.Windows.Mock.Upgrader
             bool validAsset = true;
             if (this.expectedGVFSAssetName.Equals(asset.Name, StringComparison.OrdinalIgnoreCase))
             {
-                this.SequenceTracker.RecordMethod("DownloadAsset_GVFS");
-
                 if (this.failActionTypes.HasFlag(ActionType.GVFSDownload))
                 {
                     errorMessage = "Error downloading GVFS from GitHub";
@@ -137,8 +128,6 @@ namespace GVFS.UnitTests.Windows.Mock.Upgrader
             }
             else if (this.expectedGitAssetName.Equals(asset.Name, StringComparison.OrdinalIgnoreCase))
             {
-                this.SequenceTracker.RecordMethod("DownloadAsset_Git");
-
                 if (this.failActionTypes.HasFlag(ActionType.GitDownload))
                 {
                     errorMessage = "Error downloading Git from GitHub";
@@ -168,8 +157,6 @@ namespace GVFS.UnitTests.Windows.Mock.Upgrader
         {
             if (this.expectedGVFSAssetName.Equals(asset.Name, StringComparison.OrdinalIgnoreCase))
             {
-                this.SequenceTracker.RecordMethod("DeleteDownloadedAsset_GVFS");
-
                 if (this.failActionTypes.HasFlag(ActionType.GVFSCleanup))
                 {
                     exception = new Exception("Error deleting downloaded GVFS installer.");
@@ -181,8 +168,6 @@ namespace GVFS.UnitTests.Windows.Mock.Upgrader
             }
             else if (this.expectedGitAssetName.Equals(asset.Name, StringComparison.OrdinalIgnoreCase))
             {
-                this.SequenceTracker.RecordMethod("DeleteDownloadedAsset_Git");
-
                 if (this.failActionTypes.HasFlag(ActionType.GitCleanup))
                 {
                     exception = new Exception("Error deleting downloaded Git installer.");
@@ -201,8 +186,6 @@ namespace GVFS.UnitTests.Windows.Mock.Upgrader
 
         protected override bool TryFetchReleases(out List<Release> releases, out string errorMessage)
         {
-            this.SequenceTracker.RecordMethod("FetchReleaseInfo");
-
             if (this.failActionTypes.HasFlag(ActionType.FetchReleaseInfo))
             {
                 releases = null;
@@ -228,7 +211,6 @@ namespace GVFS.UnitTests.Windows.Mock.Upgrader
 
             if (fileName.Equals(this.expectedGitAssetName, StringComparison.OrdinalIgnoreCase))
             {
-                this.SequenceTracker.RecordMethod("InstallAsset_Git");
                 this.InstallerArgs.Add("Git", installationInfo);
                 if (this.failActionTypes.HasFlag(ActionType.GitInstall))
                 {
@@ -241,7 +223,6 @@ namespace GVFS.UnitTests.Windows.Mock.Upgrader
 
             if (fileName.Equals(this.expectedGVFSAssetName, StringComparison.OrdinalIgnoreCase))
             {
-                this.SequenceTracker.RecordMethod("InstallAsset_GVFS");
                 this.InstallerArgs.Add("GVFS", installationInfo);
                 if (this.failActionTypes.HasFlag(ActionType.GVFSInstall))
                 {

@@ -23,79 +23,16 @@ namespace GVFS.UnitTests.Windows.Upgrader
                 this.PrerunChecker,
                 input: null,
                 output: this.Output,
-                shouldExit: false);
+                shouldExitOnError: false);
+            this.PrerunChecker.CommandToRerun = "gvfs upgrade --confirm";
         }
 
         [TestCase]
-        public void UpgradeSequence()
+        public void UpgradeNoError()
         {
-            // Expected sequence-
-            // 1. Read upgrade ring from git system config
-            // 2. fetch upgrade info from GitHub/Release, 
-            // 3. pre-run checks, 
-            // 4. repository unmount,
-            // 5. download of assets, 
-            // 6. installation 
-            // 7. repository re-mount
-
             this.Orchestrator.Execute();
-
-            this.CallSequenceTracker.VerifyMethodsCalledInSequence(
-                new List<string>
-                {
-                    "LoadRingConfig",
-                    "FetchReleaseInfo",
-                    "PreCheck_Unattended",
-                    "PreCheck_DevelopmentVersion",
-                    "PreCheck_Elevated",
-                    "PreCheck_ProjFSInboxed",
-                    "PreCheck_IsServiceRunning",
-                    "UnmountAll",
-                    "PreCheck_BlockingProcessRunning",
-                    "DownloadAsset_GVFS",
-                    "DownloadAsset_Git",
-                    "InstallAsset_Git",
-                    "InstallAsset_GVFS",
-                    "DeleteDownloadedAsset_GVFS",
-                    "DeleteDownloadedAsset_Git",
-                    "MountAll"
-                });
-
             this.Orchestrator.ExitCode.ShouldEqual(ReturnCode.Success);
-        }
-
-        [TestCase]
-        public override void NoneLocalRing()
-        {
-            base.NoneLocalRing();
-        }
-
-        [TestCase]
-        public override void InvalidUpgradeRing()
-        {
-            base.InvalidUpgradeRing();
-        }
-
-        [TestCase]
-        public override void FetchReleaseInfo()
-        {
-            base.FetchReleaseInfo();
-
-            this.CallSequenceTracker.VerifyMethodsNotCalled(
-                new List<string>()
-                {
-                    "PreCheck_Unattended",
-                    "PreCheck_DevelopmentVersion",
-                    "PreCheck_Elevated",
-                    "PreCheck_ProjFSInboxed",
-                    "UnmountAll",
-                    "PreCheck_BlockingProcessRunning",
-                    "DownloadAsset_GVFS",
-                    "DownloadAsset_Git",
-                    "InstallAsset_Git",
-                    "InstallAsset_GVFS",
-                    "MountAll"
-                });
+            this.Tracer.RelatedErrorEvents.ShouldBeEmpty();
         }
 
         [TestCase]
@@ -115,14 +52,6 @@ namespace GVFS.UnitTests.Windows.Upgrader
                 {
                     "Unmount of some of the repositories failed."
                 });
-
-            this.CallSequenceTracker.VerifyMethodsNotCalled(
-                new List<string>()
-                {
-                    "InstallAsset_Git",
-                    "InstallAsset_GVFS",
-                    "MountAll"
-                });
         }
 
         [TestCase]
@@ -137,19 +66,11 @@ namespace GVFS.UnitTests.Windows.Upgrader
                 expectedOutput: new List<string>
                 {
                     "ERROR: Blocking processes are running.",
-                    "Run `gvfs upgrade [--confirm]` again after quitting these processes - GVFS.Mount, git"
+                    $"Run `gvfs upgrade --confirm` again after quitting these processes - GVFS.Mount, git"
                 },
                 expectedErrors: new List<string>
                 {
-                    "Run `gvfs upgrade [--confirm]` again after quitting these processes - GVFS.Mount, git"
-                });
-
-            this.CallSequenceTracker.VerifyMethodsNotCalled(
-                new List<string>()
-                {
-                    "InstallAsset_Git",
-                    "InstallAsset_GVFS",
-                    "MountAll"
+                    $"Run `gvfs upgrade --confirm` again after quitting these processes - GVFS.Mount, git"
                 });
         }
 

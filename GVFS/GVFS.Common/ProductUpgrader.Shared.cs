@@ -6,22 +6,11 @@ namespace GVFS.Common
     public partial class ProductUpgrader
     {
         public const string UpgraderName = "GVFS.Upgrade";
+        public const string LogDirectory = "Logs";
 
         private const string RootDirectory = UpgraderName;
         private const string DownloadDirectory = "Downloads";
-        private const string ToolsDirectory = "Tools";
-        private const string LogDirectory = "Logs";
-        private const string UpgraderToolName = "GVFS.Upgrader.exe";
-        private static readonly string[] UpgraderToolAndLibs =
-            {
-                "GVFS.Upgrader.exe",
-                "GVFS.Common.dll",
-                "GVFS.Platform.Windows.dll",
-                "Microsoft.Diagnostics.Tracing.EventSource.dll",
-                "netstandard.dll",
-                "Newtonsoft.Json.dll"
-            };
-
+        
         public static bool IsLocalUpgradeAvailable()
         {
             string downloadDirectory = GetAssetDownloadsPath();
@@ -37,36 +26,30 @@ namespace GVFS.Common
         {
             return Paths.GetServiceDataRoot(RootDirectory);
         }
-
-        public static string GetLogDirectoryName()
-        {
-            return LogDirectory;
-        }
-
+        
         public static string GetLogDirectoryPath()
         {
             return Path.Combine(Paths.GetServiceDataRoot(RootDirectory), LogDirectory);
         }
 
-        private static bool TryCreateDirectory(string path, out string error)
+        private static bool TryCreateDirectory(string path, out Exception exception)
         {
-            error = null;
-
             try
             {
                 Directory.CreateDirectory(path);
             }
-            catch (IOException exception)
+            catch (IOException e)
             {
-                error = exception.ToString();
+                exception = e;
                 return false;
             }
-            catch (UnauthorizedAccessException exception)
+            catch (UnauthorizedAccessException e)
             {
-                error = exception.ToString();
+                exception = e;
                 return false;
             }
 
+            exception = null;
             return true;
         }
 
