@@ -84,7 +84,6 @@ namespace GVFS.CommandLine
                 { "core.midx", "true" },
                 { "core.preloadIndex", "true" },
                 { "core.safecrlf", "false" },
-                { "core.sparseCheckout", "true" },
                 { "core.untrackedCache", "false" },
                 { "core.repositoryformatversion", "0" },
                 { "core.filemode", "false" },

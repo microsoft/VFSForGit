@@ -52,7 +52,7 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
             GitHelpers.InvokeGitAgainstGVFSRepo(this.Enlistment.RepoRoot, "update-index --remove Test_ConflictTests/AddedFiles/AddedByBothDifferentContent.txt");
             this.FilesShouldMatchCheckoutOfTargetBranch();
 
-            // Open Test_ConflictTests/AddedFiles/AddedByBothDifferentContent.txt for write so that it's added to the sparse-checkout            
+            // Open Test_ConflictTests/AddedFiles/AddedByBothDifferentContent.txt for write so that it's added to the modified paths database
             using (FileStream stream = File.Open(Path.Combine(this.Enlistment.RepoRoot, @"Test_ConflictTests\AddedFiles\AddedByBothDifferentContent.txt"), FileMode.Open, FileAccess.Write))
             {
                 // TODO 940287: Remove this File.Open once update-index --add\--remove are working as expected

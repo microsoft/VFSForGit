@@ -23,7 +23,12 @@ namespace GVFS.FunctionalTests.Tools
         private const string DiskLayoutMinorVersionKey = "DiskLayoutMinorVersion";
         private const string LocalCacheRootKey = "LocalCacheRoot";
         private const string GitObjectsRootKey = "GitObjectsRoot";
-        private const string BlobSizesRootKey = "BlobSizesRoot";        
+        private const string BlobSizesRootKey = "BlobSizesRoot";
+
+        public static string ConvertPathToGitFormat(string path)
+        {
+            return path.Replace(Path.DirectorySeparatorChar, TestConstants.GitPathSeparator);
+        }
 
         public static void SaveDiskLayoutVersion(string dotGVFSRoot, string majorVersion, string minorVersion)
         {

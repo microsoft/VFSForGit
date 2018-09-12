@@ -823,7 +823,7 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
         [Category(Categories.MacTODO.M3)]
         public void CheckoutEditCheckoutWithoutFolderThenCheckoutWithMultipleFiles()
         {
-            // Edit the file to get the entry in the sparse-checkout file
+            // Edit the file to get the entry in the modified paths database
             this.EditFile("Changing the content of one file", "DeleteFileWithNameAheadOfDotAndSwitchCommits", "1");
             this.RunGitCommand("reset --hard -q HEAD");
 

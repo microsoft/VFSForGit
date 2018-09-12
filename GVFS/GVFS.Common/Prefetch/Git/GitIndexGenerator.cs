@@ -60,11 +60,11 @@ namespace GVFS.Common.Prefetch.Git
 
         public bool HasFailures { get; private set; }
 
-        public void CreateFromHeadTree(uint indexVersion, HashSet<string> sparseCheckoutEntries = null)
+        public void CreateFromHeadTree(uint indexVersion)
         {
             using (ITracer updateIndexActivity = this.tracer.StartActivity("CreateFromHeadTree", EventLevel.Informational))
             {
-                Thread entryWritingThread = new Thread(() => this.WriteAllEntries(indexVersion, sparseCheckoutEntries));
+                Thread entryWritingThread = new Thread(() => this.WriteAllEntries(indexVersion));
                 entryWritingThread.Start();
 
                 GitProcess git = new GitProcess(this.enlistment);
@@ -94,7 +94,7 @@ namespace GVFS.Common.Prefetch.Git
             }
         }
 
-        private void WriteAllEntries(uint version, HashSet<string> sparseCheckoutEntries)
+        private void WriteAllEntries(uint version)
         {
             try
             {
@@ -109,10 +109,7 @@ namespace GVFS.Common.Prefetch.Git
                     LsTreeEntry entry;
                     while (this.entryQueue.TryTake(out entry, Timeout.Infinite))
                     {
-                        bool skipWorkTree = 
-                            sparseCheckoutEntries != null && 
-                            !sparseCheckoutEntries.Contains(entry.Filename) && 
-                            !sparseCheckoutEntries.Contains(this.GetDirectoryNameForGitPath(entry.Filename));
+                        bool skipWorkTree = false;
                         this.WriteEntry(writer, version, entry.Sha, entry.Filename, skipWorkTree, ref lastStringLength);
                     }
 

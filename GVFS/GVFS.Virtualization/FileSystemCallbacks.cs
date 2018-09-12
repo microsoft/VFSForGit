@@ -705,7 +705,7 @@ namespace GVFS.Virtualization
                                         exceptionMetadata.Add("virtualPath", gitUpdate.VirtualPath);
                                         exceptionMetadata.Add(TracingConstants.MessageKey.InfoMessage, "DirectoryNotFoundException while traversing folder path");
                                         exceptionMetadata.Add("folderPath", folderPath);
-                                        this.context.Tracer.RelatedEvent(EventLevel.Informational, "DirectoryNotFoundWhileUpdatingAlwaysExclude", exceptionMetadata);
+                                        this.context.Tracer.RelatedEvent(EventLevel.Informational, "DirectoryNotFoundWhileUpdatingModifiedPaths", exceptionMetadata);
                                     }
                                     catch (IOException e)
                                     {
