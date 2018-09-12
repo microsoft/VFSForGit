@@ -330,6 +330,21 @@ namespace GVFS.Platform.Mac
                 bool pathInsideDotGit = Virtualization.FileSystemCallbacks.IsPathInsideDotGit(relativePath);
                 if (pathInsideDotGit)
                 {
+                    if (relativePath.Equals(GVFSConstants.DotGit.Index, StringComparison.OrdinalIgnoreCase))
+                    {
+                        string lockedGitCommand = this.Context.Repository.GVFSLock.GetLockedGitCommand();
+                        if (string.IsNullOrEmpty(lockedGitCommand))
+                        {
+                            EventMetadata metadata = new EventMetadata();
+                            metadata.Add("Area", EtwArea);
+                            metadata.Add(TracingConstants.MessageKey.WarningMessage, "Blocked index delete outside the lock");
+                            this.Context.Tracer.RelatedEvent(EventLevel.Warning, $"{nameof(OnPreDelete)}_BlockedIndexDelete", metadata);
+
+                            // TODO(Mac): Is this the correct Result to return?
+                            return Result.EAccessDenied;
+                        }
+                    }
+
                     this.OnDotGitFileOrFolderDeleted(relativePath);
                 }
                 else

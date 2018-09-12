@@ -32,7 +32,6 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
         }
 
         [TestCase]
-        [Category(Categories.MacTODO.M2)]
         public void GitCheckoutFailsOutsideLock()
         {
             const string BackupPrefix = "BACKUP_";
@@ -65,21 +64,18 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
         }
 
         [TestCase]
-        [Category(Categories.MacTODO.M4)]
         public void LockPreventsRenameFromOutsideRootOnTopOfIndex()
         {
             this.OverwritingIndexShouldFail(Path.Combine(this.Enlistment.EnlistmentRoot, "LockPreventsRenameFromOutsideRootOnTopOfIndex.txt"));
         }
 
         [TestCase]
-        [Category(Categories.MacTODO.M4)]
         public void LockPreventsRenameFromInsideWorkingTreeOnTopOfIndex()
         {
             this.OverwritingIndexShouldFail(this.Enlistment.GetVirtualPathTo("LockPreventsRenameFromInsideWorkingTreeOnTopOfIndex.txt"));
         }
 
         [TestCase]
-        [Category(Categories.MacTODO.M4)]
         public void LockPreventsRenameOfIndexLockOnTopOfIndex()
         {
             this.OverwritingIndexShouldFail(this.Enlistment.GetVirtualPathTo(".git", "index.lock"));
@@ -90,6 +86,9 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
             string existingFileName,
             string newFileName,
             uint flags);
+
+        [DllImport("libc", EntryPoint = "rename", SetLastError = true)]
+        private static extern int Rename(string oldPath, string newPath);
 
         private void OverwritingIndexShouldFail(string testFilePath)
         {
@@ -102,15 +101,28 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
             this.fileSystem.WriteAllText(testFilePath, testFileContents);
 
             this.Enlistment.WaitForBackgroundOperations().ShouldEqual(true, "Background operations failed to complete.");
-            MoveFileEx(
-                testFilePath, 
-                indexPath, 
-                (uint)(MoveFileFlags.MoveFileReplaceExisting | MoveFileFlags.MoveFileCopyAllowed)).ShouldBeFalse("GVFS should prevent renaming on top of index when GVFSLock is not held");
+
+            this.RenameAndOverwrite(testFilePath, indexPath).ShouldBeFalse("GVFS should prevent renaming on top of index when GVFSLock is not held");
             byte[] newIndexContents = File.ReadAllBytes(indexPath);
 
             indexContents.SequenceEqual(newIndexContents).ShouldBeTrue("Index contenst should not have changed");
 
             this.fileSystem.DeleteFile(testFilePath);
+        }
+
+        private bool RenameAndOverwrite(string oldPath, string newPath)
+        {
+            if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+            {
+                return MoveFileEx(
+                    oldPath,
+                    newPath,
+                    (uint)(MoveFileFlags.MoveFileReplaceExisting | MoveFileFlags.MoveFileCopyAllowed));
+            }
+            else
+            {
+                return Rename(oldPath, newPath) == 0;
+            }
         }
     }
 }

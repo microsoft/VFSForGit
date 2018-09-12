@@ -4,6 +4,7 @@ using NUnit.Framework;
 using System;
 using System.Diagnostics;
 using System.IO;
+using System.Runtime.InteropServices;
 using System.Threading;
 
 namespace GVFS.FunctionalTests.FileSystemRunners
@@ -28,9 +29,16 @@ namespace GVFS.FunctionalTests.FileSystemRunners
             "Function not implemented"
         };
 
-        private static string[] permissionDeniedMessage = new string[]
+        private static string[] permissionDeniedWindowsMessage = new string[]
         {
             "Permission denied"
+        };
+
+        // TODO(Mac): Update this message when the kext returns a more accurate
+        // error code
+        private static string[] permissionDeniedMacMessage = new string[]
+        {
+            "Resource temporarily unavailable"
         };
 
         private readonly string pathToBash;
@@ -246,7 +254,14 @@ namespace GVFS.FunctionalTests.FileSystemRunners
 
         public override void DeleteFile_AccessShouldBeDenied(string path)
         {
-            this.DeleteFile(path).ShouldContain(permissionDeniedMessage);
+            if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+            {
+                this.DeleteFile(path).ShouldContain(permissionDeniedWindowsMessage);
+            }
+            else
+            {
+                this.DeleteFile(path).ShouldContain(permissionDeniedMacMessage);
+            }
         }
 
         public override void ReadAllText_FileShouldNotBeFound(string path)
