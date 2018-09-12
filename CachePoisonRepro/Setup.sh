@@ -13,6 +13,10 @@ $SRCDIR/ProjFS.Mac/Scripts/LoadPrjFSKext.sh
 $SRCDIR/MirrorProvider/Scripts/Mac/Build.sh
 
 mkdir ~/CachePoisonTest 
+sudo chown $USER:admin ~/CachePoisonTest 
+chmod 775 ~/CachePoisonTest 
+chmod +a "_projfsacl deny search,directory_inherit" ~/CachePoisonTest 
+
 TESTDIR=~/CachePoisonTest/$1
 rm -Rf $TESTDIR
 mkdir $TESTDIR

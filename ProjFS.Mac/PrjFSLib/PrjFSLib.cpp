@@ -354,7 +354,6 @@ static bool TrySwitchCurrentThreadToUser(uid_t uid)
         }
     }
     
-    std::cout << "pthread_setugid_np(" << uid << ") succeeded" << std::endl;
     return true;
 }
 
@@ -692,7 +691,10 @@ static PrjFS_Result HandleEnumerateDirectoryRequest(const MessageHeader* request
             return PrjFS_Result_EIOError;
         }
         
-        std::cout << "Enumerated '" << path << "' successfully" << std::endl;
+        if (!TrySwitchCurrentThreadToUser(0))
+        {
+            return PrjFS_Result_EUnableToSwitchUsers;
+        }
     }
     
     return callbackResult;

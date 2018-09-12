@@ -68,6 +68,9 @@ VirtualizationRoot* VirtualizationRoots_FindForVnode(vnode_t vnode)
         if (rootIndex >= 0)
         {
             root = &s_virtualizationRoots[rootIndex];
+            
+            vfs_setauthcache_ttl(vnode_mount(vnode), 0);
+            
             break;
         }
         

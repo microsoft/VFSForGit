@@ -27,10 +27,18 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
 
             Exception readException = null;
 
-            FileSystemRunner fileSystem = FileSystemRunner.DefaultRunner;
-            this.Enlistment.RepoRoot.ShouldBeADirectory(fileSystem).WithDirectories().ToList();
+            ////Thread.Sleep(5000);
 
-            Thread[] threads = new Thread[16];
+            FileSystemRunner fileSystem = FileSystemRunner.DefaultRunner;
+            ////new DirectoryInfo(this.Enlistment.RepoRoot).Exists.ShouldBeTrue();
+            ////new DirectoryInfo(this.Enlistment.GetVirtualPathTo("GVFS")).Exists.ShouldBeTrue();
+            ////new DirectoryInfo(this.Enlistment.GetVirtualPathTo("GVFS", "GVFS.FunctionalTests")).Exists.ShouldBeTrue();
+            ////new DirectoryInfo(this.Enlistment.GetVirtualPathTo("GVFS", "GVFS.FunctionalTests", "Tests")).Exists.ShouldBeTrue();
+            ////new DirectoryInfo(this.Enlistment.GetVirtualPathTo("GVFS", "GVFS.FunctionalTests", "Tests", "LongRunningEnlistment")).Exists.ShouldBeTrue();
+
+            ////Thread.Sleep(5000);
+
+            Thread[] threads = new Thread[128];
             for (int i = 0; i < threads.Length; ++i)
             {
                 threads[i] = new Thread(() =>

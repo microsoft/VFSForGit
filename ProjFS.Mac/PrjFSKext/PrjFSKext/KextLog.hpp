@@ -45,16 +45,18 @@ template <typename... args>
 #define KextLog_FileInfo(vnode, format, ...)  ({ _os_log_verify_format_str(format, ##__VA_ARGS__); KextLogFile_Printf(KEXTLOG_INFO, vnode, format " (vnode path: '%s')", ##__VA_ARGS__); })
 #define KextLog_FileNote(vnode, format, ...)  ({ _os_log_verify_format_str(format, ##__VA_ARGS__); KextLogFile_Printf(KEXTLOG_NOTE, vnode, format " (vnode path: '%s', vid: %d)", ##__VA_ARGS__); })
 
-#define KextLog_VnodeOp(vnode, vnodeType, procname, uid, action, message) \
+#define KextLog_VnodeOp(vnode, eventId, vnodeType, procname, uid, action, message) \
     do { \
         if (VDIR == vnodeType) \
         { \
             KextLog_FileNote( \
                 vnode, \
-                message ". Proc: %s. Uid: %d. Tid: %llu. Directory vnode action: %s%s%s%s%s%s%s%s%s%s%s%s%s \n    ", \
+                message ". EventId: %d. Proc: %s. Uid: %d. Tid: %llu. Directory vnode action: %s%s%s%s%s%s%s%s%s%s%s%s%s%s \n    ", \
+                eventId, \
                 procname, \
                 uid, \
                 thread_tid(current_thread()), \
+                (action & KAUTH_VNODE_ACCESS)               ? " \n    KAUTH_VNODE_ACCESS" : "", \
                 (action & KAUTH_VNODE_LIST_DIRECTORY)       ? " \n    KAUTH_VNODE_LIST_DIRECTORY" : "", \
                 (action & KAUTH_VNODE_ADD_FILE)             ? " \n    KAUTH_VNODE_ADD_FILE" : "", \
                 (action & KAUTH_VNODE_SEARCH)               ? " \n    KAUTH_VNODE_SEARCH" : "", \
@@ -73,10 +75,12 @@ template <typename... args>
         { \
             KextLog_FileNote( \
                 vnode, \
-                message ". Proc: %s. Uid: %d. Tid: %llu. File vnode action: %s%s%s%s%s%s%s%s%s%s%s%s \n    ", \
+                message ". EventId: %d. Proc: %s. Uid: %d. Tid: %llu. File vnode action: %s%s%s%s%s%s%s%s%s%s%s%s%s \n    ", \
+                eventId, \
                 procname, \
                 uid, \
                 thread_tid(current_thread()), \
+                (action & KAUTH_VNODE_ACCESS)               ? " \n    KAUTH_VNODE_ACCESS" : "", \
                 (action & KAUTH_VNODE_READ_DATA)            ? " \n    KAUTH_VNODE_READ_DATA" : "", \
                 (action & KAUTH_VNODE_WRITE_DATA)           ? " \n    KAUTH_VNODE_WRITE_DATA" : "", \
                 (action & KAUTH_VNODE_EXECUTE)              ? " \n    KAUTH_VNODE_EXECUTE" : "", \

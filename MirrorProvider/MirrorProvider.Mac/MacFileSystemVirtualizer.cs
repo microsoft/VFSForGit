@@ -55,6 +55,8 @@ namespace MirrorProvider.Mac
                     return Result.EFileNotFound;
                 }
 
+                Thread.Sleep(100);
+
                 foreach (ProjectedFileInfo child in this.GetChildItems(relativePath))
                 {
                     if (child.IsDirectory)
@@ -120,6 +122,8 @@ namespace MirrorProvider.Mac
 
             try
             {
+                Thread.Sleep(100);
+
                 const int bufferSize = 4096;
                 FileSystemResult hydrateFileResult = this.HydrateFile(
                     relativePath,
