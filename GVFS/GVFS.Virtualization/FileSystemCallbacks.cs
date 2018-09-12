@@ -691,14 +691,10 @@ namespace GVFS.Virtualization
                         result = this.TryAddModifiedPath(gitUpdate.VirtualPath, isFolder: true);
                         if (result == FileSystemTaskResult.Success)
                         {
-                            if (!this.newlyCreatedFileAndFolderPaths.Contains(gitUpdate.VirtualPath))
-                            {
-                                this.newlyCreatedFileAndFolderPaths.Add(gitUpdate.VirtualPath);
-                            }
-
+                            this.newlyCreatedFileAndFolderPaths.Add(gitUpdate.VirtualPath);
                             if (this.newlyCreatedFileAndFolderPaths.Contains(gitUpdate.OldVirtualPath))
                             {
-                                this.TryRemoveModifiedPath(gitUpdate.OldVirtualPath, isFolder: true);
+                                result = this.TryRemoveModifiedPath(gitUpdate.OldVirtualPath, isFolder: true);
                             }
 
                             Queue<string> relativeFolderPaths = new Queue<string>();
@@ -716,14 +712,11 @@ namespace GVFS.Virtualization
                                         {
                                             string itemVirtualPath = Path.Combine(folderPath, itemInfo.Name);
                                             string oldItemVirtualPath = gitUpdate.OldVirtualPath + itemVirtualPath.Substring(gitUpdate.VirtualPath.Length);
-                                            if (!this.newlyCreatedFileAndFolderPaths.Contains(itemVirtualPath))
-                                            {
-                                                this.newlyCreatedFileAndFolderPaths.Add(itemVirtualPath);
-                                            }
 
+                                            this.newlyCreatedFileAndFolderPaths.Add(itemVirtualPath);
                                             if (this.newlyCreatedFileAndFolderPaths.Contains(oldItemVirtualPath))
                                             {
-                                                this.TryRemoveModifiedPath(oldItemVirtualPath, isFolder: itemInfo.IsDirectory);
+                                                result = this.TryRemoveModifiedPath(oldItemVirtualPath, isFolder: itemInfo.IsDirectory);
                                             }
 
                                             if (itemInfo.IsDirectory)
