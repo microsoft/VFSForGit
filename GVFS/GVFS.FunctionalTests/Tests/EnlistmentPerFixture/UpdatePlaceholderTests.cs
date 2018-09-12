@@ -30,7 +30,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
             // Start each test at NewFilesAndChangesCommitId
             this.GitCheckoutCommitId(NewFilesAndChangesCommitId);
             this.GitStatusShouldBeClean(NewFilesAndChangesCommitId);
-        }        
+        }
 
         [TestCase, Order(1)]
         public void LockWithFullShareUpdateAndDelete()
