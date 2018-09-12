@@ -32,6 +32,11 @@ namespace GVFS.FunctionalTests.FileSystemRunners
             "PermissionDenied"
         };
 
+        public override bool SupportsHardlinkCreation
+        {
+            get { return true; }
+        }
+
         protected override string FileName
         {
             get
@@ -103,6 +108,11 @@ namespace GVFS.FunctionalTests.FileSystemRunners
         public override void CreateEmptyFile(string path)
         {
             this.RunProcess(string.Format("-Command \"&{{ New-Item -ItemType file {0}}}\"", path));
+        }
+
+        public override void CreateHardLink(string newLinkFilePath, string existingFilePath)
+        {
+            this.RunProcess(string.Format("-Command \"&{{ New-Item -ItemType HardLink -Path {0} -Value {1}}}\"", newLinkFilePath, existingFilePath));
         }
 
         public override void WriteAllText(string path, string contents)

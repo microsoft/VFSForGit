@@ -3,10 +3,9 @@ using GVFS.FunctionalTests.Should;
 using GVFS.FunctionalTests.Tools;
 using GVFS.Tests.Should;
 using NUnit.Framework;
-using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Linq;
-using System.Runtime.InteropServices;
 
 namespace GVFS.FunctionalTests.Tests.EnlistmentPerTestCase
 {
@@ -172,15 +171,22 @@ A LinkToFileOutsideSrc.txt
             {
                 get
                 {
-                    if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+                    List<object[]> hardLinkRunners = new List<object[]>();
+                    foreach (object[] runner in FileSystemRunner.Runners.ToList())
                     {
-                        return new[]
+                        FileSystemRunner fileSystem = runner.ToList().First() as FileSystemRunner;
+                        if (fileSystem.SupportsHardlinkCreation)
                         {
-                            new object[] { new CmdRunner() },
-                            new object[] { new BashRunner() },
-                        };
+                            hardLinkRunners.Add(new object[] { fileSystem });
+                        }
                     }
 
+                    if (hardLinkRunners.Count > 0)
+                    {
+                        return hardLinkRunners.ToArray();
+                    }
+
+                    // Always return at least one runner that supports creating hard links
                     return new[] { new object[] { new BashRunner() } };
                 }
             }
