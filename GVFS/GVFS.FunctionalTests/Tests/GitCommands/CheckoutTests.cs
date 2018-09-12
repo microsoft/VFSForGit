@@ -802,6 +802,7 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
             this.ShouldNotExistOnDisk("d", "c");
         }
 
+        // TODO(Mac): This test needs the fix for issue #264
         [TestCase]
         [Category(Categories.MacTODO.M3)]
         public void DeleteFileThenCheckout()
