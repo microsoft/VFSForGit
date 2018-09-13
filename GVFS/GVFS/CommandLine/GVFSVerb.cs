@@ -1,4 +1,4 @@
-﻿using CommandLine;
+using CommandLine;
 using GVFS.Common;
 using GVFS.Common.FileSystem;
 using GVFS.Common.Git;
@@ -641,8 +641,7 @@ You can specify a URL, a name of a configured cache server, or the special names
                 this.ReportErrorAndExit(tracer, "Error: Invalid version of git {0}.  Must use gvfs version.", version);
             }
 
-            Version gvfsVersion = new Version(ProcessHelper.GetCurrentProcessVersion());
-            if (gvfsVersion.Major == 0)
+            if (ProcessHelper.IsDevelopmentVersion())
             {
                 if (gitVersion.IsLessThan(GVFSConstants.SupportedGitVersion))
                 {

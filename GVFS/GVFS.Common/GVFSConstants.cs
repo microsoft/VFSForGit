@@ -1,4 +1,4 @@
-﻿using System.IO;
+using System.IO;
 
 namespace GVFS.Common
 {
@@ -33,6 +33,7 @@ namespace GVFS.Common
             public const string HooksPrefix = GitConfig.GVFSPrefix + "clone.default-";
             public const string GVFSTelemetryId = GitConfig.GVFSPrefix + "telemetry-id";
             public const string HooksExtension = ".hooks";
+            public const string UpgradeRing = GVFSPrefix + "upgrade-ring";
         }
 
         public static class GitStatusCache
@@ -72,6 +73,7 @@ namespace GVFS.Common
         public static class LogFileTypes
         {            
             public const string MountPrefix = "mount";
+            public const string UpgradePrefix = "upgrade";
 
             public const string Clone = "clone";
             public const string Dehydrate = "dehydrate";
@@ -80,7 +82,9 @@ namespace GVFS.Common
             public const string Prefetch = "prefetch";
             public const string Repair = "repair";
             public const string Service = "service";
-            public const string Upgrade = MountPrefix + "_upgrade";
+            public const string UpgradeVerb = UpgradePrefix + "_verb";
+            public const string UpgradeProcess = UpgradePrefix + "_process";
+            public const string UpgradeDiskLayout = MountPrefix + "_upgrade";
         }
 
         public static class DotGVFS
@@ -214,6 +218,12 @@ namespace GVFS.Common
             {
                 public const string SkipLock = "skip-wait-for-lock";
             }
+        }
+
+        public static class UpgradeVerbMessages
+        {
+            public const string NoneRingConsoleAlert = "Upgrade ring set to None. No upgrade check was performed.";
+            public const string SetUpgradeRingCommand = "To set or change upgrade ring, run `git config --system gvfs.upgrade-ring [\"Fast\"|\"Slow\"|\"None\"] from an elevated command prompt.";
         }
     }
 }
