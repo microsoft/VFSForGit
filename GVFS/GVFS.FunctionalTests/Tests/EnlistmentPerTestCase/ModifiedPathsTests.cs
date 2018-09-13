@@ -3,9 +3,7 @@ using GVFS.FunctionalTests.Should;
 using GVFS.FunctionalTests.Tools;
 using GVFS.Tests.Should;
 using NUnit.Framework;
-using System.Collections.Generic;
 using System.IO;
-using System.Linq;
 
 namespace GVFS.FunctionalTests.Tests.EnlistmentPerTestCase
 {
