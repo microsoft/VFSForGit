@@ -14,6 +14,7 @@ typedef enum
     
     // Messages from kernel to user mode
     MessageType_KtoU_EnumerateDirectory,
+    MessageType_KtoU_RecursivelyEnumerateDirectory,
     MessageType_KtoU_HydrateFile,
     
     MessageType_KtoU_NotifyFileModified,

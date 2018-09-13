@@ -7,6 +7,8 @@
 #include <sys/xattr.h>
 #include <thread>
 #include <unistd.h>
+#include <dirent.h>
+#include <list>
 #include <unordered_map>
 #include <set>
 #include <IOKit/IOKitLib.h>
@@ -54,6 +56,7 @@ static errno_t RegisterVirtualizationRootPath(const char* path);
 
 static void HandleKernelRequest(Message requestSpec, void* messageMemory);
 static PrjFS_Result HandleEnumerateDirectoryRequest(const MessageHeader* request, const char* path);
+static PrjFS_Result HandleRecursivelyEnumerateDirectoryRequest(const MessageHeader* request, const char* path);
 static PrjFS_Result HandleHydrateFileRequest(const MessageHeader* request, const char* path);
 static PrjFS_Result HandleFileNotification(
     const MessageHeader* request,
@@ -491,6 +494,12 @@ static void HandleKernelRequest(Message request, void* messageMemory)
             result = HandleEnumerateDirectoryRequest(requestHeader, request.path);
             break;
         }
+        
+        case MessageType_KtoU_RecursivelyEnumerateDirectory:
+        {
+            result = HandleRecursivelyEnumerateDirectoryRequest(requestHeader, request.path);
+            break;
+        }
             
         case MessageType_KtoU_HydrateFile:
         {
@@ -579,13 +588,75 @@ static PrjFS_Result HandleEnumerateDirectoryRequest(const MessageHeader* request
         
         if (!SetBitInFileFlags(fullPath, FileFlags_IsEmpty, false))
         {
-            // TODO: how should we handle this scenario where the provider thinks it succeeded, but we were unable to
+            // TODO(Mac): how should we handle this scenario where the provider thinks it succeeded, but we were unable to
             // update placeholder metadata?
             return PrjFS_Result_EIOError;
         }
     }
     
     return callbackResult;
+}
+
+static PrjFS_Result HandleRecursivelyEnumerateDirectoryRequest(const MessageHeader* request, const char* path)
+{
+#ifdef DEBUG
+    std::cout << "PrjFSLib.HandleRecursivelyEnumerateDirectoryRequest: " << path << std::endl;
+#endif
+    
+    DIR* directory = nullptr;
+    PrjFS_Result result = PrjFS_Result_Success;
+    std::list<std::string> directoryRelativePaths;
+    directoryRelativePaths.push_back(path);
+    
+    // Walk each directory, expanding those that are found to be empty
+    char pathBuffer[PrjFSMaxPath];
+    std::list<std::string>::iterator relativePathIter = directoryRelativePaths.begin();
+    while(relativePathIter != directoryRelativePaths.end())
+    {
+        CombinePaths(s_virtualizationRootFullPath.c_str(), relativePathIter->c_str(), pathBuffer);
+    
+        // TODO(Mac): how should we handle scenarios where we were unable to fully expand the directory and
+        // its children?
+        if (IsBitSetInFileFlags(pathBuffer, FileFlags_IsEmpty))
+        {
+            PrjFS_Result result = HandleEnumerateDirectoryRequest(request, relativePathIter->c_str());
+            if (result != PrjFS_Result_Success)
+            {
+                goto CleanupAndReturn;
+            }
+        }
+        
+        DIR* directory = opendir(pathBuffer);
+        if (nullptr == directory)
+        {
+            result = PrjFS_Result_EIOError;
+            goto CleanupAndReturn;
+        }
+        
+        dirent* dirEntry = readdir(directory);
+        while(dirEntry != nullptr)
+        {
+            if (dirEntry->d_type == DT_DIR &&
+                0 != strncmp(".", dirEntry->d_name, sizeof(dirEntry->d_name)) &&
+                0 != strncmp("..", dirEntry->d_name, sizeof(dirEntry->d_name)))
+            {
+                CombinePaths(relativePathIter->c_str(), dirEntry->d_name, pathBuffer);
+                directoryRelativePaths.push_back(pathBuffer);
+            }
+            
+            dirEntry = readdir(directory);
+        }
+    
+        ++relativePathIter;
+    }
+    
+CleanupAndReturn:
+    if (directory != nullptr)
+    {
+        closedir(directory);
+    }
+    
+    return result;
 }
 
 static PrjFS_Result HandleHydrateFileRequest(const MessageHeader* request, const char* path)
@@ -815,6 +886,7 @@ static inline PrjFS_NotificationType KUMessageTypeToNotificationType(MessageType
         case MessageType_UtoK_StartVirtualizationInstance:
         case MessageType_UtoK_StopVirtualizationInstance:
         case MessageType_KtoU_EnumerateDirectory:
+        case MessageType_KtoU_RecursivelyEnumerateDirectory:
         case MessageType_KtoU_HydrateFile:
         case MessageType_Response_Success:
         case MessageType_Response_Fail:

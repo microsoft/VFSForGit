@@ -222,6 +222,7 @@ void KauthHandler_HandleKernelMessageResponse(uint64_t messageId, MessageType re
         case MessageType_UtoK_StartVirtualizationInstance:
         case MessageType_UtoK_StopVirtualizationInstance:
         case MessageType_KtoU_EnumerateDirectory:
+        case MessageType_KtoU_RecursivelyEnumerateDirectory:
         case MessageType_KtoU_HydrateFile:
         case MessageType_KtoU_NotifyFileModified:
         case MessageType_KtoU_NotifyFilePreDelete:
@@ -276,9 +277,27 @@ static int HandleVnodeOperation(
         goto CleanupAndReturn;
     }
     
+    if (ActionBitIsSet(action, KAUTH_VNODE_DELETE))
+    {
+        if (!TrySendRequestAndWaitForResponse(
+                root,
+                VDIR == vnodeType ? MessageType_KtoU_NotifyDirectoryPreDelete : MessageType_KtoU_NotifyFilePreDelete,
+                currentVnode,
+                pid,
+                procname,
+                &kauthResult,
+                kauthError))
+        {
+            goto CleanupAndReturn;
+        }
+    }
+    
     if (VDIR == vnodeType)
     {
-        if (ActionBitIsSet(
+        bool deleteAction = ActionBitIsSet(action, KAUTH_VNODE_DELETE);
+        
+        if (deleteAction ||
+            ActionBitIsSet(
                 action,
                 KAUTH_VNODE_LIST_DIRECTORY |
                 KAUTH_VNODE_SEARCH |
@@ -286,11 +305,14 @@ static int HandleVnodeOperation(
                 KAUTH_VNODE_READ_ATTRIBUTES |
                 KAUTH_VNODE_READ_EXTATTRIBUTES))
         {
-            if (FileFlagsBitIsSet(currentVnodeFileFlags, FileFlags_IsEmpty))
+            // Recursively expand directory on delete to ensure child placeholders are created before rename operations
+            if (deleteAction || FileFlagsBitIsSet(currentVnodeFileFlags, FileFlags_IsEmpty))
             {
                 if (!TrySendRequestAndWaitForResponse(
                         root,
-                        MessageType_KtoU_EnumerateDirectory,
+                        deleteAction ?
+                            MessageType_KtoU_RecursivelyEnumerateDirectory :
+                            MessageType_KtoU_EnumerateDirectory,
                         currentVnode,
                         pid,
                         procname,
@@ -301,39 +323,9 @@ static int HandleVnodeOperation(
                 }
             }
         }
-        
-        if (ActionBitIsSet(action, KAUTH_VNODE_DELETE))
-        {
-            if (!TrySendRequestAndWaitForResponse(
-                    root,
-                    MessageType_KtoU_NotifyDirectoryPreDelete,
-                    currentVnode,
-                    pid,
-                    procname,
-                    &kauthResult,
-                    kauthError))
-            {
-                goto CleanupAndReturn;
-            }
-        }
     }
     else
     {
-        if (ActionBitIsSet(action, KAUTH_VNODE_DELETE))
-        {
-            if (!TrySendRequestAndWaitForResponse(
-                    root,
-                    MessageType_KtoU_NotifyFilePreDelete,
-                    currentVnode,
-                    pid,
-                    procname,
-                    &kauthResult,
-                    kauthError))
-            {
-                goto CleanupAndReturn;
-            }
-        }
-        
         if (ActionBitIsSet(
                 action,
                 KAUTH_VNODE_READ_ATTRIBUTES |
