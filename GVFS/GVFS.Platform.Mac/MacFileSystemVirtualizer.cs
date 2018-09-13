@@ -16,6 +16,8 @@ namespace GVFS.Platform.Mac
     {
         public static readonly byte[] PlaceholderVersionId = ToVersionIdByteArray(new byte[] { PlaceholderVersion });
 
+        private const string ClassName = nameof(MacFileSystemVirtualizer);
+
         private VirtualizationInstance virtualizationInstance;
 
         public MacFileSystemVirtualizer(GVFSContext context, GVFSGitObjects gitObjects)
@@ -31,6 +33,8 @@ namespace GVFS.Platform.Mac
         {
             this.virtualizationInstance = virtualizationInstance ?? new VirtualizationInstance();
         }
+
+        protected override string EtwArea => ClassName;
 
         public static FSResult ResultToFSResult(Result result)
         {
@@ -330,6 +334,20 @@ namespace GVFS.Platform.Mac
                 bool pathInsideDotGit = Virtualization.FileSystemCallbacks.IsPathInsideDotGit(relativePath);
                 if (pathInsideDotGit)
                 {
+                    if (relativePath.Equals(GVFSConstants.DotGit.Index, StringComparison.OrdinalIgnoreCase))
+                    {
+                        string lockedGitCommand = this.Context.Repository.GVFSLock.GetLockedGitCommand();
+                        if (string.IsNullOrEmpty(lockedGitCommand))
+                        {
+                            EventMetadata metadata = new EventMetadata();
+                            metadata.Add("Area", this.EtwArea);
+                            metadata.Add(TracingConstants.MessageKey.WarningMessage, "Blocked index delete outside the lock");
+                            this.Context.Tracer.RelatedEvent(EventLevel.Warning, $"{nameof(OnPreDelete)}_BlockedIndexDelete", metadata);
+
+                            return Result.EAccessDenied;
+                        }
+                    }
+
                     this.OnDotGitFileOrFolderDeleted(relativePath);
                 }
                 else
