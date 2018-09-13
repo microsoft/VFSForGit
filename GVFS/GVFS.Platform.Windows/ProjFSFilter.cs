@@ -34,8 +34,6 @@ namespace GVFS.Platform.Windows
         private const uint OkResult = 0;
         private const uint NameCollisionErrorResult = 0x801F0012;
 
-        public bool EnumerationExpandsDirectories { get; } = false;
-		
         private enum ProjFSInboxStatus
         {
             Invalid,
@@ -43,6 +41,8 @@ namespace GVFS.Platform.Windows
             Enabled = 3,
             Disabled = 4,
         }
+
+        public bool EnumerationExpandsDirectories { get; } = false;
 
         public string DriverLogFolderName { get; } = ProjFSFilter.ServiceName;
 
