@@ -32,11 +32,6 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
         [TestCase, Order(3)]
         public void AddAndStageHardLinksTest()
         {
-            if (!this.FileSystem.SupportsHardlinkCreation)
-            {
-                return;
-            }
-
             this.CreateHardLink("ReadmeLink.md", "Readme.md");
             this.ValidateGitCommand("add ReadmeLink.md");
             this.RunGitCommand("commit -m \"Created ReadmeLink.md\"");

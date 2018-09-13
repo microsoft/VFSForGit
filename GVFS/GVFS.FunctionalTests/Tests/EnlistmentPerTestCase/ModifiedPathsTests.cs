@@ -120,7 +120,7 @@ A Scripts/
             }
         }
 
-        [TestCaseSource(typeof(HardLinkRunners), HardLinkRunners.TestRunners)]
+        [TestCaseSource(typeof(FileSystemRunner), FileSystemRunner.TestRunners)]
         public void ModifiedPathsCorrectAfterHardLinking(FileSystemRunner fileSystem)
         {
             const string ExpectedModifiedFilesContentsAfterHardlinks =
@@ -160,35 +160,6 @@ A LinkToFileOutsideSrc.txt
             using (StreamReader reader = new StreamReader(File.Open(modifiedPathsDatabase, FileMode.Open, FileAccess.Read, FileShare.ReadWrite)))
             {
                 reader.ReadToEnd().ShouldEqual(ExpectedModifiedFilesContentsAfterHardlinks);
-            }
-        }
-
-        private class HardLinkRunners
-        {
-            public const string TestRunners = "Runners";
-
-            public static object[] Runners
-            {
-                get
-                {
-                    List<object[]> hardLinkRunners = new List<object[]>();
-                    foreach (object[] runner in FileSystemRunner.Runners.ToList())
-                    {
-                        FileSystemRunner fileSystem = runner.ToList().First() as FileSystemRunner;
-                        if (fileSystem.SupportsHardlinkCreation)
-                        {
-                            hardLinkRunners.Add(new object[] { fileSystem });
-                        }
-                    }
-
-                    if (hardLinkRunners.Count > 0)
-                    {
-                        return hardLinkRunners.ToArray();
-                    }
-
-                    // Always return at least one runner that supports creating hard links
-                    return new[] { new object[] { new BashRunner() } };
-                }
             }
         }
     }
