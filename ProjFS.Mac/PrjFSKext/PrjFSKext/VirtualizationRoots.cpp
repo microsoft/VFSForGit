@@ -105,7 +105,6 @@ int16_t VirtualizationRoots_LookupVnode(vnode_t vnode, vfs_context_t context)
         {
             // TODO: check xattr contents
             
-            
             char path[PrjFSMaxPath] = "";
             int pathLength = sizeof(path);
             vn_getpath(vnode, path, &pathLength);
@@ -281,6 +280,12 @@ VirtualizationRootResult VirtualizationRoot_RegisterProviderForPath(PrjFSProvide
     if (NULLVP != virtualizationRootVNode)
     {
         vnode_put(virtualizationRootVNode);
+    }
+    
+    if (rootIndex >= 0)
+    {
+        VirtualizationRoot* root = &s_virtualizationRoots[rootIndex];
+        vfs_setauthcache_ttl(vnode_mount(root->rootVNode), 0);
     }
     
     vfs_context_rele(vfsContext);
