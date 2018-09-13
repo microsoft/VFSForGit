@@ -34,13 +34,7 @@ namespace GVFS.Platform.Mac
             this.virtualizationInstance = virtualizationInstance ?? new VirtualizationInstance();
         }
 
-        protected override string EtwArea
-        {
-            get
-            {
-                return ClassName;
-            }
-        }
+        protected override string EtwArea => ClassName;
 
         public static FSResult ResultToFSResult(Result result)
         {
@@ -350,7 +344,6 @@ namespace GVFS.Platform.Mac
                             metadata.Add(TracingConstants.MessageKey.WarningMessage, "Blocked index delete outside the lock");
                             this.Context.Tracer.RelatedEvent(EventLevel.Warning, $"{nameof(OnPreDelete)}_BlockedIndexDelete", metadata);
 
-                            // TODO(Mac): Is this the correct Result to return?
                             return Result.EAccessDenied;
                         }
                     }

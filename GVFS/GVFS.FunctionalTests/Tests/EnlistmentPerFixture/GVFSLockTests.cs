@@ -81,14 +81,14 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
             this.OverwritingIndexShouldFail(this.Enlistment.GetVirtualPathTo(".git", "index.lock"));
         }
 
-        [DllImport("kernel32.dll", SetLastError = true, CharSet = CharSet.Unicode)]
-        private static extern bool MoveFileEx(
+        [DllImport("kernel32.dll", EntryPoint = "MoveFileEx", SetLastError = true, CharSet = CharSet.Unicode)]
+        private static extern bool WindowsMoveFileEx(
             string existingFileName,
             string newFileName,
             uint flags);
 
         [DllImport("libc", EntryPoint = "rename", SetLastError = true)]
-        private static extern int Rename(string oldPath, string newPath);
+        private static extern int MacRename(string oldPath, string newPath);
 
         private void OverwritingIndexShouldFail(string testFilePath)
         {
@@ -114,14 +114,14 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
         {
             if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
             {
-                return MoveFileEx(
+                return WindowsMoveFileEx(
                     oldPath,
                     newPath,
                     (uint)(MoveFileFlags.MoveFileReplaceExisting | MoveFileFlags.MoveFileCopyAllowed));
             }
             else
             {
-                return Rename(oldPath, newPath) == 0;
+                return MacRename(oldPath, newPath) == 0;
             }
         }
     }

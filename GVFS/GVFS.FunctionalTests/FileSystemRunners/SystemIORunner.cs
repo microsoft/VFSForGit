@@ -1,4 +1,5 @@
-﻿using NUnit.Framework;
+﻿using GVFS.Tests.Should;
+using NUnit.Framework;
 using System;
 using System.Diagnostics;
 using System.IO;
@@ -61,6 +62,7 @@ namespace GVFS.FunctionalTests.FileSystemRunners
         public override void DeleteFile_AccessShouldBeDenied(string path)
         {
             this.ShouldFail<Exception>(() => { this.DeleteFile(path); });
+            this.FileExists(path).ShouldBeTrue($"{path} does not exist when it should");
         }
 
         public override string ReadAllText(string path)

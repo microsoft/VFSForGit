@@ -29,14 +29,12 @@ namespace GVFS.FunctionalTests.FileSystemRunners
             "Function not implemented"
         };
 
-        private static string[] permissionDeniedWindowsMessage = new string[]
+        private static string[] windowsPermissionDeniedMessage = new string[]
         {
             "Permission denied"
         };
 
-        // TODO(Mac): Update this message when the kext returns a more accurate
-        // error code
-        private static string[] permissionDeniedMacMessage = new string[]
+        private static string[] macPermissionDeniedMessage = new string[]
         {
             "Resource temporarily unavailable"
         };
@@ -116,7 +114,7 @@ namespace GVFS.FunctionalTests.FileSystemRunners
         {
             // BashRunner does nothing special when a failure is expected, so just confirm source file is still present
             this.MoveFile(sourcePath, targetPath);
-            this.FileExists(sourcePath).ShouldEqual(true);
+            this.FileExists(sourcePath).ShouldBeTrue();
         }
 
         public override void MoveFile_FileShouldNotBeFound(string sourcePath, string targetPath)
@@ -254,14 +252,8 @@ namespace GVFS.FunctionalTests.FileSystemRunners
 
         public override void DeleteFile_AccessShouldBeDenied(string path)
         {
-            if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
-            {
-                this.DeleteFile(path).ShouldContain(permissionDeniedWindowsMessage);
-            }
-            else
-            {
-                this.DeleteFile(path).ShouldContain(permissionDeniedMacMessage);
-            }
+            this.DeleteFile(path).ShouldContain(this.GetPermissionDeniedError());
+            this.FileExists(path).ShouldBeTrue($"{path} does not exist when it should");
         }
 
         public override void ReadAllText_FileShouldNotBeFound(string path)
@@ -286,6 +278,16 @@ namespace GVFS.FunctionalTests.FileSystemRunners
             bashPath = bashPath.Replace(":\\", "/");
             bashPath = bashPath.Replace('\\', '/');
             return bashPath;
+        }
+
+        private string[] GetPermissionDeniedError()
+        {
+            if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+            {
+                return windowsPermissionDeniedMessage;
+            }
+
+            return macPermissionDeniedMessage;
         }
     }
 }

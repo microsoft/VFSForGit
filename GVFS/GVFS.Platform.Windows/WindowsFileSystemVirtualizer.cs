@@ -55,13 +55,7 @@ namespace GVFS.Platform.Windows
             this.activeCommands = new ConcurrentDictionary<int, CancellationTokenSource>();
         }
 
-        protected override string EtwArea
-        {
-            get
-            {
-                return ClassName;
-            }
-        }
+        protected override string EtwArea => ClassName;
 
         /// <remarks>
         /// Public for unit testing
