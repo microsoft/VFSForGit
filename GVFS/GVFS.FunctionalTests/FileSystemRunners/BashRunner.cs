@@ -114,7 +114,7 @@ namespace GVFS.FunctionalTests.FileSystemRunners
         {
             // BashRunner does nothing special when a failure is expected, so just confirm source file is still present
             this.MoveFile(sourcePath, targetPath);
-            this.FileExists(sourcePath).ShouldBeTrue();
+            this.FileExists(sourcePath).ShouldBeTrue($"{sourcePath} does not exist when it should");
         }
 
         public override void MoveFile_FileShouldNotBeFound(string sourcePath, string targetPath)
