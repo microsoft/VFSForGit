@@ -27,6 +27,17 @@ namespace GVFS.FunctionalTests.Windows.Tests
 
         private FileSystemRunner fileSystem = new SystemIORunner();
 
+        [SetUp]
+        public override void CreateEnlistment()
+        {
+            base.CreateEnlistment();
+
+            // Since there isn't a sparse-checkout file that is used anymore one needs to be added
+            // in order to test the old upgrades that might have needed it
+            string sparseCheckoutPath = Path.Combine(this.Enlistment.RepoRoot, TestConstants.DotGit.Info.SparseCheckoutPath);
+            this.fileSystem.WriteAllText(sparseCheckoutPath, "/.gitattributes\r\n");
+        }
+
         [TestCase]
         public void MountUpgradesFromVersion7()
         {

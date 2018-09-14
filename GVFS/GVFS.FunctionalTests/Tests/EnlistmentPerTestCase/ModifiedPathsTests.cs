@@ -3,9 +3,7 @@ using GVFS.FunctionalTests.Should;
 using GVFS.FunctionalTests.Tools;
 using GVFS.Tests.Should;
 using NUnit.Framework;
-using System;
 using System.IO;
-using System.Linq;
 using System.Runtime.InteropServices;
 
 namespace GVFS.FunctionalTests.Tests.EnlistmentPerTestCase
@@ -18,33 +16,33 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerTestCase
         private static readonly string FileToDelete = "Readme.md";
         private static readonly string FileToRename = Path.Combine("GVFS", "GVFS.Mount", "MountVerb.cs");
         private static readonly string RenameFileTarget = Path.Combine("GVFS", "GVFS.Mount", "MountVerb2.cs");
-        private static readonly string FolderToCreate = "PersistedSparseExcludeTests_NewFolder";
-        private static readonly string FolderToRename = "PersistedSparseExcludeTests_NewFolderForRename";
-        private static readonly string RenameFolderTarget = "PersistedSparseExcludeTests_NewFolderForRename2";
+        private static readonly string FolderToCreate = $"{nameof(ModifiedPathsTests)}_NewFolder";
+        private static readonly string FolderToRename = $"{nameof(ModifiedPathsTests)}_NewFolderForRename";
+        private static readonly string RenameFolderTarget = $"{nameof(ModifiedPathsTests)}_NewFolderForRename2";
         private static readonly string DotGitFileToCreate = Path.Combine(".git", "TestFileFromDotGit.txt");
         private static readonly string RenameNewDotGitFileTarget = "TestFileFromDotGit.txt";
-        private static readonly string FileToCreateOutsideRepo = "PersistedSparseExcludeTests_outsideRepo.txt";
-        private static readonly string FolderToCreateOutsideRepo = "PersistedSparseExcludeTests_outsideFolder";
+        private static readonly string FileToCreateOutsideRepo = $"{nameof(ModifiedPathsTests)}_outsideRepo.txt";
+        private static readonly string FolderToCreateOutsideRepo = $"{nameof(ModifiedPathsTests)}_outsideFolder";
         private static readonly string FolderToDelete = "Scripts";
-        private static readonly string ExpectedModifiedFilesContentsAfterRemount =
-@"A .gitattributes
-A GVFS/TestAddFile.txt
-A GVFS/GVFS/Program.cs
-A Readme.md
-A GVFS/GVFS.Mount/MountVerb.cs
-A GVFS/GVFS.Mount/MountVerb2.cs
-A PersistedSparseExcludeTests_NewFolder/
-A PersistedSparseExcludeTests_NewFolderForRename/
-A PersistedSparseExcludeTests_NewFolderForRename2/
-A TestFileFromDotGit.txt
-A PersistedSparseExcludeTests_outsideRepo.txt
-A PersistedSparseExcludeTests_outsideFolder/
-A Scripts/CreateCommonAssemblyVersion.bat
-A Scripts/CreateCommonCliAssemblyVersion.bat
-A Scripts/CreateCommonVersionHeader.bat
-A Scripts/RunFunctionalTests.bat
-A Scripts/RunUnitTests.bat
-A Scripts/
+        private static readonly string ExpectedModifiedFilesContentsAfterRemount = 
+$@"A .gitattributes
+A {GVFSHelpers.ConvertPathToGitFormat(FileToAdd)}
+A {GVFSHelpers.ConvertPathToGitFormat(FileToUpdate)}
+A {FileToDelete}
+A {GVFSHelpers.ConvertPathToGitFormat(FileToRename)}
+A {GVFSHelpers.ConvertPathToGitFormat(RenameFileTarget)}
+A {FolderToCreate}/
+A {FolderToRename}/
+A {RenameFolderTarget}/
+A {RenameNewDotGitFileTarget}
+A {FileToCreateOutsideRepo}
+A {FolderToCreateOutsideRepo}/
+A {FolderToDelete}/CreateCommonAssemblyVersion.bat
+A {FolderToDelete}/CreateCommonCliAssemblyVersion.bat
+A {FolderToDelete}/CreateCommonVersionHeader.bat
+A {FolderToDelete}/RunFunctionalTests.bat
+A {FolderToDelete}/RunUnitTests.bat
+A {FolderToDelete}/
 ";
 
         [Category(Categories.MacTODO.M2)]
@@ -72,14 +70,14 @@ A Scripts/
             string folderToRenameTarget = this.Enlistment.GetVirtualPathTo(RenameFolderTarget);
             fileSystem.MoveDirectory(folderToRename, folderToRenameTarget);
 
-            // Moving the new folder out of the repo should not change the always_exclude file
+            // Moving the new folder out of the repo should not change the modified paths
             string folderTargetOutsideSrc = Path.Combine(this.Enlistment.EnlistmentRoot, RenameFolderTarget);
             folderTargetOutsideSrc.ShouldNotExistOnDisk(fileSystem);
             fileSystem.MoveDirectory(folderToRenameTarget, folderTargetOutsideSrc);
             folderTargetOutsideSrc.ShouldBeADirectory(fileSystem);
             folderToRenameTarget.ShouldNotExistOnDisk(fileSystem);
 
-            // Moving a file from the .git folder to the working directory should add the file to the sparse-checkout
+            // Moving a file from the .git folder to the working directory should add the file to the modified paths
             string dotGitfileToAdd = this.Enlistment.GetVirtualPathTo(DotGitFileToCreate);
             fileSystem.WriteAllText(dotGitfileToAdd, "Contents for the new file in dot git");
             fileSystem.MoveFile(dotGitfileToAdd, this.Enlistment.GetVirtualPathTo(RenameNewDotGitFileTarget));
