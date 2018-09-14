@@ -109,8 +109,7 @@ namespace GVFS.Common.Prefetch.Git
                     LsTreeEntry entry;
                     while (this.entryQueue.TryTake(out entry, Timeout.Infinite))
                     {
-                        bool skipWorkTree = false;
-                        this.WriteEntry(writer, version, entry.Sha, entry.Filename, skipWorkTree, ref lastStringLength);
+                        this.WriteEntry(writer, version, entry.Sha, entry.Filename, ref lastStringLength);
                     }
 
                     // Update entry count
@@ -140,7 +139,7 @@ namespace GVFS.Common.Prefetch.Git
             return filename.Substring(0, idx + 1);
         }
 
-        private void WriteEntry(BinaryWriter writer, uint version, string sha, string filename, bool skipWorktree, ref uint lastStringLength)
+        private void WriteEntry(BinaryWriter writer, uint version, string sha, string filename, ref uint lastStringLength)
         {
             long startPosition = writer.BaseStream.Position;
 
@@ -153,13 +152,7 @@ namespace GVFS.Common.Prefetch.Git
             byte[] filenameBytes = Encoding.UTF8.GetBytes(filename);
 
             ushort flags = (ushort)(filenameBytes.Length & 0xFFF);
-            flags |= version >= 3 && skipWorktree ? ExtendedBit : (ushort)0;
             writer.Write(EndianHelper.Swap(flags));
-
-            if (version >= 3 && skipWorktree)
-            {
-                writer.Write(EndianHelper.Swap(SkipWorktreeBit));
-            }
 
             if (version >= 4)
             {
