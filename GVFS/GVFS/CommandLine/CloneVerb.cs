@@ -552,10 +552,6 @@ namespace GVFS.CommandLine
                 Path.Combine(enlistment.WorkingDirectoryRoot, GVFSConstants.DotGit.Head),
                 "ref: refs/heads/" + branch);
 
-            File.AppendAllText(
-                Path.Combine(enlistment.WorkingDirectoryRoot, GVFSConstants.DotGit.Info.SparseCheckoutPath),
-                GVFSConstants.GitPathSeparatorString + GVFSConstants.SpecialGitFiles.GitAttributes + "\n");
-
             if (!this.TryDownloadRootGitAttributes(enlistment, gitObjects, gitRepo, out errorMessage))
             {
                 return new Result(errorMessage);

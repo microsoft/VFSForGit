@@ -136,7 +136,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
 
         [TestCase, Order(6)]
         [Category(Categories.MacTODO.M2)]
-        public void CaseOnlyRenameOfNewFolderKeepsExcludeEntries()
+        public void CaseOnlyRenameOfNewFolderKeepsModifiedPathsEntries()
         {
             string[] expectedModifiedPathsEntries =
             {
@@ -157,7 +157,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
         }
 
         [TestCase, Order(7)]
-        public void ReadingFileDoesNotUpdateIndexOrSparseCheckout()
+        public void ReadingFileDoesNotUpdateIndexOrModifiedPaths()
         {
             string gitFileToCheck = "GVFS/GVFS.FunctionalTests/Category/CategoryConstants.cs";
             string virtualFile = this.Enlistment.GetVirtualPathTo(gitFileToCheck);
@@ -291,13 +291,13 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
         }
 
         [TestCase, Order(13)]
-        public void FileRenamedOutOfRepoAddedToModifiedPathsFile()
+        public void FileRenamedOutOfRepoAddedToModifiedPathsAndSkipWorktreeBitCleared()
         {
             string fileToRenameEntry = "GVFlt_MoveFileTest/PartialToOutside/from/lessInFrom.txt";
             string fileToRenameVirtualPath = this.Enlistment.GetVirtualPathTo(fileToRenameEntry);
             this.VerifyWorktreeBit(fileToRenameEntry, LsFilesStatus.SkipWorktree);
 
-            string fileOutsideRepoPath = Path.Combine(this.Enlistment.EnlistmentRoot, "FileRenamedOutOfRepoAddedToSparseCheckoutAndSkipWorktreeBitCleared.txt");
+            string fileOutsideRepoPath = Path.Combine(this.Enlistment.EnlistmentRoot, $"{nameof(this.FileRenamedOutOfRepoAddedToModifiedPathsAndSkipWorktreeBitCleared)}.txt");
             this.fileSystem.MoveFile(fileToRenameVirtualPath, fileOutsideRepoPath);
             fileOutsideRepoPath.ShouldBeAFile(this.fileSystem).WithContents("lessData");
 
@@ -310,13 +310,13 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
         }
 
         [TestCase, Order(14)]
-        public void OverwrittenFileAddedToSparseCheckoutAndSkipWorktreeBitCleared()
+        public void OverwrittenFileAddedToModifiedPathsAndSkipWorktreeBitCleared()
         {
             string fileToOverwriteEntry = "Test_EPF_WorkingDirectoryTests/1/2/3/4/ReadDeepProjectedFile.cpp";
             string fileToOverwriteVirtualPath = this.Enlistment.GetVirtualPathTo(fileToOverwriteEntry);
             this.VerifyWorktreeBit(fileToOverwriteEntry, LsFilesStatus.SkipWorktree);
 
-            string testContents = "Test contents for FileRenamedOutOfRepoWillBeAddedToSparseCheckoutAndHaveSkipWorktreeBitCleared";
+            string testContents = $"Test contents for {nameof(this.OverwrittenFileAddedToModifiedPathsAndSkipWorktreeBitCleared)}";
 
             this.fileSystem.WriteAllText(fileToOverwriteVirtualPath, testContents);
             this.Enlistment.WaitForBackgroundOperations().ShouldEqual(true, "Background operations failed to complete.");
@@ -331,13 +331,13 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
 
         [TestCase, Order(15)]
         [Category(Categories.MacTODO.M2)]
-        public void SupersededFileAddedToSparseCheckoutAndSkipWorktreeBitCleared()
+        public void SupersededFileAddedToModifiedPathsAndSkipWorktreeBitCleared()
         {
             string fileToSupersedeEntry = "GVFlt_FileOperationTest/WriteAndVerify.txt";
             string fileToSupersedePath = this.Enlistment.GetVirtualPathTo("GVFlt_FileOperationTest\\WriteAndVerify.txt");
             this.VerifyWorktreeBit(fileToSupersedeEntry, LsFilesStatus.SkipWorktree);
 
-            string newContent = "SupersededFileWillBeAddedToSparseCheckoutAndHaveSkipWorktreeBitCleared test new contents";
+            string newContent = $"{nameof(this.SupersededFileAddedToModifiedPathsAndSkipWorktreeBitCleared)} test new contents";
 
             SupersedeFile(fileToSupersedePath, newContent).ShouldEqual(true);
             this.Enlistment.WaitForBackgroundOperations().ShouldEqual(true, "Background operations failed to complete.");

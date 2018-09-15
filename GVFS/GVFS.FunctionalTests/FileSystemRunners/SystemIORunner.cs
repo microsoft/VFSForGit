@@ -62,6 +62,7 @@ namespace GVFS.FunctionalTests.FileSystemRunners
         public override void DeleteFile_AccessShouldBeDenied(string path)
         {
             this.ShouldFail<Exception>(() => { this.DeleteFile(path); });
+            this.FileExists(path).ShouldBeTrue($"{path} does not exist when it should");
         }
 
         public override string ReadAllText(string path)

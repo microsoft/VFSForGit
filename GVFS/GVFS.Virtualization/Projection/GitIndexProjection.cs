@@ -1607,7 +1607,7 @@ namespace GVFS.Virtualization.Projection
                     //      update in the working directory will be full files but we will have a placeholder entry for them as well.
 
                     // There have been reports of FileSystemVirtualizationInvalidOperation getting hit without a corresponding background
-                    // task having been scheduled (to add the file to the sparse-checkout and clear the skip-worktree bit).  
+                    // task having been scheduled (to add the file to the modified paths).
                     // Schedule OnFailedPlaceholderUpdate\OnFailedPlaceholderDelete to be sure that Git starts managing this
                     // file.  Currently the only known way that this can happen is deleting a partial file and putting a full
                     // file in its place while GVFS is unmounted.

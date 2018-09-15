@@ -48,6 +48,11 @@ namespace GVFS.FunctionalTests.Windows.Windows.Tests
             versionJsonPath.ShouldBeAFile(this.fileSystem);
             this.fileSystem.DeleteFile(versionJsonPath);
 
+            // Since there isn't a sparse-checkout file that is used anymore one needs to be added
+            // in order to test the old upgrades that might have needed it
+            string sparseCheckoutPath = Path.Combine(enlistment.RepoRoot, TestConstants.DotGit.Info.SparseCheckoutPath);
+            this.fileSystem.WriteAllText(sparseCheckoutPath, "/.gitattributes\r\n");
+
             // "13.0" was the last version before blob sizes were moved out of Esent
             string metadataPath = Path.Combine(enlistment.DotGVFSRoot, GVFSHelpers.RepoMetadataName);
             this.fileSystem.CreateEmptyFile(metadataPath);
@@ -102,6 +107,11 @@ namespace GVFS.FunctionalTests.Windows.Windows.Tests
             versionJsonPath = Path.Combine(enlistment2.DotGVFSRoot, GVFSHelpers.RepoMetadataName);
             versionJsonPath.ShouldBeAFile(this.fileSystem);
             this.fileSystem.DeleteFile(versionJsonPath);
+
+            // Since there isn't a sparse-checkout file that is used anymore one needs to be added
+            // in order to test the old upgrades that might have needed it
+            string sparseCheckoutPath2 = Path.Combine(enlistment2.RepoRoot, TestConstants.DotGit.Info.SparseCheckoutPath);
+            this.fileSystem.WriteAllText(sparseCheckoutPath2, "/.gitattributes\r\n");
 
             // "13.0" was the last version before blob sizes were moved out of Esent
             metadataPath = Path.Combine(enlistment2.DotGVFSRoot, GVFSHelpers.RepoMetadataName);

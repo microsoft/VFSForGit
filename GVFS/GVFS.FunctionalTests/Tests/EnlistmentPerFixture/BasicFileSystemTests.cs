@@ -785,7 +785,6 @@ namespace GVFS.FunctionalTests.Tests.LongRunningEnlistment
         }
 
         [TestCaseSource(typeof(FileSystemRunner), FileSystemRunner.TestRunners)]
-        [Category(Categories.MacTODO.M4)]
         public void DeleteIndexFileFails(FileSystemRunner fileSystem)
         {
             string indexFilePath = this.Enlistment.GetVirtualPathTo(Path.Combine(".git", "index"));
