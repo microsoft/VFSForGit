@@ -4,7 +4,6 @@ using GVFS.FunctionalTests.Tools;
 using GVFS.Tests.Should;
 using NUnit.Framework;
 using System.IO;
-using System.Runtime.InteropServices;
 
 namespace GVFS.FunctionalTests.Tests.EnlistmentPerTestCase
 {
@@ -119,7 +118,7 @@ A {FolderToDelete}/
             }
         }
 
-        [TestCaseSource(typeof(HardLinkRunners), HardLinkRunners.TestRunners)]
+        [TestCaseSource(typeof(FileSystemRunner), FileSystemRunner.TestRunners)]
         public void ModifiedPathsCorrectAfterHardLinking(FileSystemRunner fileSystem)
         {
             const string ExpectedModifiedFilesContentsAfterHardlinks =
@@ -159,28 +158,6 @@ A LinkToFileOutsideSrc.txt
             using (StreamReader reader = new StreamReader(File.Open(modifiedPathsDatabase, FileMode.Open, FileAccess.Read, FileShare.ReadWrite)))
             {
                 reader.ReadToEnd().ShouldEqual(ExpectedModifiedFilesContentsAfterHardlinks);
-            }
-        }
-
-        private class HardLinkRunners
-        {
-            public const string TestRunners = "Runners";
-
-            public static object[] Runners
-            {
-                get
-                {
-                    if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
-                    {
-                        return new[]
-                        {
-                            new object[] { new CmdRunner() },
-                            new object[] { new BashRunner() },
-                        };
-                    }
-
-                    return new[] { new object[] { new BashRunner() } };
-                }
             }
         }
     }

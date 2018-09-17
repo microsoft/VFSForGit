@@ -42,11 +42,6 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
         [TestCase, Order(2)]
         public void CreateHardLinkTest()
         {
-            if (!this.fileSystem.SupportsHardlinkCreation)
-            {
-                return;
-            }
-
             string existingFileName = "fileToLinkTo.txt";
             string existingFilePath = this.Enlistment.GetVirtualPathTo(existingFileName);
             GVFSHelpers.ModifiedPathsShouldNotContain(this.fileSystem, this.Enlistment.DotGVFSRoot, existingFileName);

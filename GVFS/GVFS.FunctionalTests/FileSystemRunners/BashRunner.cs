@@ -53,11 +53,6 @@ namespace GVFS.FunctionalTests.FileSystemRunners
             }
         }
 
-        public override bool SupportsHardlinkCreation
-        {
-            get { return true; }
-        }
-
         protected override string FileName
         {
             get

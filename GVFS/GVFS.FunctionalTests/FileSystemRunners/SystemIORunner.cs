@@ -77,6 +77,18 @@ namespace GVFS.FunctionalTests.FileSystemRunners
             }
         }
 
+        public override void CreateHardLink(string newLinkFilePath, string existingFilePath)
+        {
+            if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+            {
+                WindowsCreateHardLink(newLinkFilePath, existingFilePath, IntPtr.Zero).ShouldBeTrue($"Failed to create hard link: {Marshal.GetLastWin32Error()}");
+            }
+            else
+            {
+                MacCreateHardLink(existingFilePath, newLinkFilePath).ShouldEqual(0, $"Failed to create hard link: {Marshal.GetLastWin32Error()}");
+            }
+        }
+
         public override void WriteAllText(string path, string contents)
         {
             File.WriteAllText(path, contents);
@@ -179,6 +191,15 @@ namespace GVFS.FunctionalTests.FileSystemRunners
 
         [DllImport("kernel32", SetLastError = true)]
         private static extern bool MoveFileEx(string existingFileName, string newFileName, int flags);
+
+        [DllImport("libc", EntryPoint = "link", SetLastError = true)]
+        private static extern int MacCreateHardLink(string oldPath, string newPath);
+
+        [DllImport("kernel32.dll", EntryPoint = "CreateHardLink", SetLastError = true, CharSet = CharSet.Unicode)]
+        private static extern bool WindowsCreateHardLink(
+            string newLinkFileName,
+            string existingFileName,
+            IntPtr securityAttributes);
 
         private static void RetryOnException(Action action)
         {
