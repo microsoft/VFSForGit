@@ -23,20 +23,22 @@ namespace GVFS.Common
         private const string GitAssetNamePrefix = "Git";
         private const string GVFSAssetNamePrefix = "GVFS";
         private const string GitInstallerFileNamePrefix = "Git-";
-        private const string GVFSInstallerFileNamePrefix = "SetupGVFS";
         private const int RepoMountFailureExitCode = 17;
         private const string ToolsDirectory = "Tools";
-        private const string UpgraderToolName = "GVFS.Upgrader.exe";
+        private static readonly string UpgraderToolName = GVFSPlatform.Instance.Constants.GVFSUpgraderExecutableName;
+        private static readonly string UpgraderToolConfigFile = UpgraderToolName + ".config";
         private static readonly string[] UpgraderToolAndLibs =
             {
-                "GVFS.Upgrader.exe",
+                UpgraderToolName,
+                UpgraderToolConfigFile,
                 "GVFS.Common.dll",
                 "GVFS.Platform.Windows.dll",
                 "Microsoft.Diagnostics.Tracing.EventSource.dll",
                 "netstandard.dll",
+                "System.Net.Http.dll",
                 "Newtonsoft.Json.dll"
             };
-
+        
         private Version installedVersion;
         private Release newestRelease;
         private PhysicalFileSystem fileSystem;
@@ -167,6 +169,13 @@ namespace GVFS.Common
             return launched;
         }
 
+        // TrySetupToolsDirectory -
+        // Copies GVFS Upgrader tool and its dependencies to a temporary location in ProgramData.
+        // Reason why this is needed - When GVFS.Upgrader.exe is run from C:\ProgramFiles\GVFS folder
+        // upgrade installer that is downloaded and run will fail. This is because it cannot overwrite
+        // C:\ProgramFiles\GVFS\GVFS.Upgrader.exe that is running. Moving GVFS.Upgrader.exe along with
+        // its dependencies to a temporary location inside ProgramData and running GVFS.Upgrader.exe 
+        // from this temporary location helps avoid this problem.
         public virtual bool TrySetupToolsDirectory(out string upgraderToolPath, out string error)
         {
             string rootDirectoryPath = ProductUpgrader.GetUpgradesDirectoryPath();
@@ -188,18 +197,15 @@ namespace GVFS.Common
                     {
                         error = string.Join(
                             Environment.NewLine, 
-                            "Unauthorized access. " + e.Message, 
+                            "File copy error - " + e.Message, 
                             $"Make sure you have write permissions to directory {rootDirectoryPath} and run `gvfs upgrade --confirm` again.");
-                        this.tracer.RelatedException(e, nameof(this.TrySetupToolsDirectory), $"Error copying {toolPath} to {destinationPath}.");
+                        this.TraceException(e, nameof(this.TrySetupToolsDirectory), $"Error copying {toolPath} to {destinationPath}.");
                         break;
                     }
                     catch (IOException e)
                     {
-                        error = string.Join(
-                            Environment.NewLine, 
-                            "I/O error while trying to copy upgrade tools.", 
-                            e.Message);
-                        this.tracer.RelatedException(e, nameof(this.TrySetupToolsDirectory), $"Error copying {toolPath} to {destinationPath}.");
+                        error = "File copy error - " + e.Message;
+                        this.TraceException(e, nameof(this.TrySetupToolsDirectory), $"Error copying {toolPath} to {destinationPath}.");
                         break;
                     }
                 }
@@ -210,7 +216,7 @@ namespace GVFS.Common
 
             upgraderToolPath = null;
             error = exception.Message;
-            this.tracer.RelatedException(exception, nameof(this.TrySetupToolsDirectory), $"Error creating upgrade tools directory {toolsDirectoryPath}.");
+            this.TraceException(exception, nameof(this.TrySetupToolsDirectory), $"Error creating upgrade tools directory {toolsDirectoryPath}.");
             return false;
         }
 
@@ -283,7 +289,7 @@ namespace GVFS.Common
             if (!ProductUpgrader.TryCreateDirectory(downloadPath, out exception))
             {
                 errorMessage = exception.Message;
-                this.tracer.RelatedException(exception, nameof(this.TryDownloadAsset), $"Error creating download directory {downloadPath}.");
+                this.TraceException(exception, nameof(this.TryDownloadAsset), $"Error creating download directory {downloadPath}.");
                 return false;
             }
 
@@ -298,7 +304,7 @@ namespace GVFS.Common
             catch (WebException webException)
             {
                 errorMessage = "Download error: " + exception.Message;
-                this.tracer.RelatedException(webException, nameof(this.TryDownloadAsset), $"Error downloading asset {asset.Name}.");
+                this.TraceException(webException, nameof(this.TryDownloadAsset), $"Error downloading asset {asset.Name}.");
                 return false;
             }
 
@@ -327,12 +333,12 @@ namespace GVFS.Common
             catch (HttpRequestException exception)
             {
                 errorMessage = string.Format("Network error: could not connect to GitHub. {0}", exception.Message);
-                this.tracer.RelatedException(exception, nameof(this.TryFetchReleases), $"Error fetching release info.");
+                this.TraceException(exception, nameof(this.TryFetchReleases), $"Error fetching release info.");
             }
             catch (SerializationException exception)
             {
                 errorMessage = string.Format("Parse error: could not parse releases info from GitHub. {0}", exception.Message);
-                this.tracer.RelatedException(exception, nameof(this.TryFetchReleases), $"Error parsing release info.");
+                this.TraceException(exception, nameof(this.TryFetchReleases), $"Error parsing release info.");
             }
 
             return false;
@@ -346,30 +352,41 @@ namespace GVFS.Common
             error = processResult.Errors;
         }
 
-        private bool TryRunInstallerForAsset(string name, out int exitCode, out string error)
+        private bool TryRunInstallerForAsset(string name, out int installerExitCode, out string error)
         {
             error = null;
-            exitCode = 0;
+            installerExitCode = 0;
 
+            bool installerIsRun = false;
             string path;
             string installerArgs;
             if (this.TryGetLocalInstallerPath(name, out path, out installerArgs))
             {
                 string logFilePath = GVFSEnlistment.GetNewLogFileName(GetLogDirectoryPath(), Path.GetFileNameWithoutExtension(path));
                 string args = installerArgs + " /Log=" + logFilePath;
-                this.RunInstaller(path, args, out exitCode, out error);
+                this.RunInstaller(path, args, out installerExitCode, out error);
 
-                if (exitCode != 0 && string.IsNullOrEmpty(error))
+                if (installerExitCode != 0 && string.IsNullOrEmpty(error))
                 {
                     error = name + " installer failed. Error log: " + logFilePath;
                 }
 
-                return true;
+                installerIsRun = true;
+            }
+            else
+            {
+                error = "Could not find downloaded installer for " + name;
             }
 
-            error = "Could not find " + name;
+            return installerIsRun;
+        }
 
-            return false;
+        private void TraceException(Exception exception, string method, string message)
+        {
+            EventMetadata metadata = new EventMetadata();
+            metadata.Add("Method", method);
+            metadata.Add("Exception", exception.ToString());
+            this.tracer.RelatedError(metadata, message, Keywords.Telemetry);
         }
 
         private bool TryGetLocalInstallerPath(string name, out string path, out string args)

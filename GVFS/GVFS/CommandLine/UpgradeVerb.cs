@@ -100,18 +100,18 @@ namespace GVFS.CommandLine
             }
 
             this.ReportInfoToConsole("New GVFS version available: {0}", newestVersion.ToString());
+                        
+            if (!this.Confirmed)
+            {
+                this.ReportInfoToConsole("Run `gvfs upgrade --confirm` to install it");
+                return true;
+            }
 
             if (!isInstallable)
             {
                 this.tracer.RelatedError($"{nameof(this.TryRunProductUpgrade)}: {error}");
                 this.Output.WriteLine(errorOutputFormat, error);
                 return false;
-            }
-
-            if (!this.Confirmed)
-            {
-                this.ReportInfoToConsole("Run `gvfs upgrade --confirm` to install it");
-                return true;
             }
 
             if (!this.TryRunInstaller(out error))
@@ -209,9 +209,19 @@ namespace GVFS.CommandLine
         {
             this.tracer.RelatedInfo("Launching upgrade tool");
 
-            if (!this.processWrapper.Start(path))
+            Exception exception;
+            if (!this.processWrapper.TryStart(path, out exception))
             {
-                consoleError = "Error launching upgrade tool";
+                if (exception != null)
+                {
+                    consoleError = exception.Message;
+                    this.tracer.RelatedError($"Error launching upgrade tool. {exception.ToString()}");
+                }
+                else
+                {
+                    consoleError = $"Error launching upgrade tool";
+                }
+                
                 return false;
             }
             
@@ -289,7 +299,7 @@ namespace GVFS.CommandLine
                 get { return this.Process.ExitCode; }
             }
 
-            public virtual bool Start(string path)
+            public virtual bool TryStart(string path, out Exception exception)
             {
                 this.Process.StartInfo = new ProcessStartInfo(path)
                 {
@@ -297,7 +307,18 @@ namespace GVFS.CommandLine
                     WindowStyle = ProcessWindowStyle.Normal
                 };
 
-                return this.Process.Start();
+                exception = null;
+
+                try
+                {   
+                    return this.Process.Start();
+                }
+                catch (Exception ex)
+                {
+                    exception = ex;
+                }
+
+                return false;
             }
         }
     }

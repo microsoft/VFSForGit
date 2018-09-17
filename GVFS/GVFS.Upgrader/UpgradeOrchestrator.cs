@@ -16,7 +16,6 @@ namespace GVFS.Upgrader
         private TextWriter output;
         private TextReader input;
         private bool remount;
-        private bool deleteDownloadedAssets;
         private bool shouldExitOnError;
 
         public UpgradeOrchestrator(
@@ -33,7 +32,6 @@ namespace GVFS.Upgrader
             this.output = output;
             this.input = input;
             this.remount = false;
-            this.deleteDownloadedAssets = false;
             this.shouldExitOnError = shouldExitOnError;
             this.ExitCode = ReturnCode.Success;
         }
@@ -55,7 +53,6 @@ namespace GVFS.Upgrader
             this.output = Console.Out;
             this.input = Console.In;
             this.remount = false;
-            this.deleteDownloadedAssets = false;
             this.shouldExitOnError = false;
             this.ExitCode = ReturnCode.Success;
         }
@@ -101,9 +98,9 @@ namespace GVFS.Upgrader
                 this.output.WriteLine(error);
             }
 
-            this.output.WriteLine("Press Enter to exit.");
             if (this.input == Console.In)
             {
+                this.output.WriteLine("Press Enter to exit.");
                 this.input.ReadLine();
             }
             
@@ -239,7 +236,7 @@ namespace GVFS.Upgrader
         private void DeletedDownloadedAssets()
         {
             string downloadsCleanupError;
-            if (this.deleteDownloadedAssets && !this.upgrader.TryCleanup(out downloadsCleanupError))
+            if (!this.upgrader.TryCleanup(out downloadsCleanupError))
             {
                 EventMetadata metadata = new EventMetadata();
                 metadata.Add("Upgrade Step", nameof(this.DeletedDownloadedAssets));
@@ -305,7 +302,6 @@ namespace GVFS.Upgrader
                 return false;
             }
 
-            this.deleteDownloadedAssets = true;
             this.tracer.RelatedInfo("Successfully downloaded version: " + version.ToString());
 
             return true;
@@ -355,8 +351,8 @@ namespace GVFS.Upgrader
             string message)
         {
             EventMetadata metadata = new EventMetadata();
-            metadata.Add("GVFS", gvfsVersion.ToString());
-            metadata.Add("Git", gitVersion.ToString());
+            metadata.Add(nameof(gvfsVersion), gvfsVersion.ToString());
+            metadata.Add(nameof(gitVersion), gitVersion.ToString());
 
             this.tracer.RelatedEvent(EventLevel.Informational, message, metadata);
         }
@@ -365,7 +361,7 @@ namespace GVFS.Upgrader
         {
             EventMetadata metadata = new EventMetadata();
             string installedGVFSVersion = ProcessHelper.GetCurrentProcessVersion();
-            metadata.Add("GVFS", installedGVFSVersion);
+            metadata.Add(nameof(installedGVFSVersion), installedGVFSVersion);
 
             GitVersion installedGitVersion = null;
             string error = null;
@@ -373,7 +369,7 @@ namespace GVFS.Upgrader
                 out installedGitVersion,
                 out error))
             {
-                metadata.Add("Git", installedGitVersion.ToString());
+                metadata.Add(nameof(installedGitVersion), installedGitVersion.ToString());
             }
 
             this.tracer.RelatedEvent(EventLevel.Informational, "Installed Version", metadata);

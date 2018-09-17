@@ -224,6 +224,8 @@ namespace GVFS.Common
         {
             public const string NoneRingConsoleAlert = "Upgrade ring set to None. No upgrade check was performed.";
             public const string SetUpgradeRingCommand = "To set or change upgrade ring, run `git config --system gvfs.upgrade-ring [\"Fast\"|\"Slow\"|\"None\"] from an elevated command prompt.";
+            public const string UpgradeAvailable = "A newer version of GVFS is available.";
+            public const string UpgradeInstallAdvice = "Run `gvfs upgrade --confirm` from an elevated command prompt to install.";
         }
     }
 }

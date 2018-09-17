@@ -84,7 +84,7 @@ namespace GVFS
                     .WithParsed<UpgradeVerb>(
                         upgrade =>
                         {
-                            // The service verb doesn't operate on a repo, so it doesn't use the enlistment
+                            // The upgrade verb doesn't operate on a repo, so it doesn't use the enlistment
                             // path at all.
                             upgrade.Execute();
                             Environment.Exit((int)ReturnCode.Success);

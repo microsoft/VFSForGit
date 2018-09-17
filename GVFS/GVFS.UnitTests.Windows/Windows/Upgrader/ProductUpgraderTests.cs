@@ -82,18 +82,22 @@ namespace GVFS.UnitTests.Windows.Upgrader
 
         public override void NoneLocalRing()
         {
+            throw new NotImplementedException();
         }
 
         public override void InvalidUpgradeRing()
         {
+            throw new NotImplementedException();
         }
 
         public override void FetchReleaseInfo()
         {
+            throw new NotImplementedException();
         }
 
         protected override void RunUpgrade()
         {
+            throw new NotImplementedException();
         }
 
         protected override ReturnCode ExitCode()

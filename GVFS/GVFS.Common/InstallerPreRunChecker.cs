@@ -54,6 +54,7 @@ namespace GVFS.Upgrader
             return true;
         }
         
+        // TODO: Move repo mount calls to GVFS.Upgrader project.
         public bool TryMountAllGVFSRepos(out string consoleError)
         {
             return this.TryRunGVFSWithArgs("service --mount-all", out consoleError);
@@ -100,7 +101,6 @@ namespace GVFS.Upgrader
                 return false;
             }
 
-            this.tracer.RelatedInfo("No GVFS or dependent processes are running.");
             this.tracer.RelatedInfo("Successfully unmounted repositories.");
 
             return true;

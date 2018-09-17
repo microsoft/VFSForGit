@@ -92,11 +92,6 @@ namespace GVFS.UnitTests.Mock.Common
             this.RelatedErrorEvents.Add(string.Format(format, args));
         }
 
-        public void RelatedException(Exception exception, string method, string message)
-        {
-            throw new NotImplementedException();
-        }
-
         public ITracer StartActivity(string activityName, EventLevel level)
         {
             return new MockTracer();

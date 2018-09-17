@@ -130,6 +130,7 @@ namespace GVFS.UnitTests.Windows.Upgrader
             this.ConfigureRunAndVerify(
                 configure: () =>
                 {
+                    this.UpgradeVerb.Confirmed = true;
                     this.PrerunChecker.SetReturnFalseOnCheck(MockInstallerPrerunChecker.FailOnCheckType.ProjFSEnabled);
                 },
                 expectedReturn: ReturnCode.GenericError,
@@ -150,13 +151,14 @@ namespace GVFS.UnitTests.Windows.Upgrader
             this.ConfigureRunAndVerify(
                 configure: () =>
                 {
+                    this.UpgradeVerb.Confirmed = true;
                     this.PrerunChecker.SetReturnTrueOnCheck(MockInstallerPrerunChecker.FailOnCheckType.IsServiceInstalledAndNotRunning);
                 },
                 expectedReturn: ReturnCode.GenericError,
                 expectedOutput: new List<string>
                 {
                     "GVFS Service is not running.",
-                    "Run `sc start GVFS.Service` and run `gvfs upgrade` again."
+                    "Run `sc start GVFS.Service` and run `gvfs upgrade --confirm` again."
                 },
                 expectedErrors: new List<string>
                 {
@@ -170,13 +172,14 @@ namespace GVFS.UnitTests.Windows.Upgrader
             this.ConfigureRunAndVerify(
                 configure: () =>
                 {
+                    this.UpgradeVerb.Confirmed = true;
                     this.PrerunChecker.SetReturnFalseOnCheck(MockInstallerPrerunChecker.FailOnCheckType.IsElevated);
                 },
                 expectedReturn: ReturnCode.GenericError,
                 expectedOutput: new List<string>
                 {
                     "The installer needs to be run from an elevated command prompt.",
-                    "Run `gvfs upgrade` again from an elevated command prompt."
+                    "Run `gvfs upgrade --confirm` again from an elevated command prompt."
                 },
                 expectedErrors: new List<string>
                 {
@@ -190,6 +193,7 @@ namespace GVFS.UnitTests.Windows.Upgrader
             this.ConfigureRunAndVerify(
                 configure: () =>
                 {
+                    this.UpgradeVerb.Confirmed = true;
                     this.PrerunChecker.SetReturnTrueOnCheck(MockInstallerPrerunChecker.FailOnCheckType.UnattendedMode);
                 },
                 expectedReturn: ReturnCode.GenericError,
@@ -209,6 +213,7 @@ namespace GVFS.UnitTests.Windows.Upgrader
             this.ConfigureRunAndVerify(
                 configure: () =>
                 {
+                    this.UpgradeVerb.Confirmed = true;
                     this.PrerunChecker.SetReturnTrueOnCheck(MockInstallerPrerunChecker.FailOnCheckType.IsDevelopmentVersion);
                 },
                 expectedReturn: ReturnCode.GenericError,

@@ -30,7 +30,7 @@ namespace GVFS.Common.Git
 
             if (input.StartsWith(GitVersionExpectedPrefix))
             {
-                input = input.Substring(12);
+                input = input.Substring(GitVersionExpectedPrefix.Length);
             }
 
             return TryParseVersion(input, out version);

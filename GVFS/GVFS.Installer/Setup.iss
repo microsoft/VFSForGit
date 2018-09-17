@@ -631,7 +631,9 @@ begin
     ssPostInstall:
       begin
         if ExpandConstant('{param:REMOUNTREPOS|true}') = 'true' then
-          MountRepos();
+          begin
+            MountRepos();
+          end
       end;
     end;
 end;
@@ -658,8 +660,10 @@ begin
   Result := '';
   if ConfirmUnmountAll() then
     begin
-	  if ExpandConstant('{param:REMOUNTREPOS|true}') = 'true' then
-		UnmountRepos();
+      if ExpandConstant('{param:REMOUNTREPOS|true}') = 'true' then
+        begin
+          UnmountRepos();
+        end
     end;
   if not EnsureGvfsNotRunning() then
     begin

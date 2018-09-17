@@ -119,7 +119,7 @@ namespace GVFS.CommandLine
                             archiveFolderPath,
                             ProductUpgrader.LogDirectory,
                             copySubFolders: true,
-                            targetFolderName: ProductUpgrader.UpgraderName);
+                            targetFolderName: ProductUpgrader.UpgradeDirectoryName);
                      
                         return true;
                     },
@@ -172,9 +172,9 @@ namespace GVFS.CommandLine
             string sourceRoot, 
             string targetRoot, 
             string folderName, 
-            bool copySubFolders, 
-            string targetFolderName = null, 
-            bool hideErrorsFromStdout = false)
+            bool copySubFolders,
+            bool hideErrorsFromStdout = false,
+            string targetFolderName = null)
         {
             string sourceFolder = Path.Combine(sourceRoot, folderName);
             string targetFolder = Path.Combine(targetRoot, targetFolderName ?? folderName);

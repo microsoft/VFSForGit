@@ -1,22 +1,28 @@
 using System;
+using System.Diagnostics;
 using System.IO;
 
 namespace GVFS.Common
 {
     public partial class ProductUpgrader
     {
-        public const string UpgraderName = "GVFS.Upgrade";
+        public const string UpgradeDirectoryName = "GVFS.Upgrade";
         public const string LogDirectory = "Logs";
 
-        private const string RootDirectory = UpgraderName;
+        private const string RootDirectory = UpgradeDirectoryName;
         private const string DownloadDirectory = "Downloads";
-        
+        private const string GVFSInstallerFileNamePrefix = "SetupGVFS";
+
         public static bool IsLocalUpgradeAvailable()
         {
             string downloadDirectory = GetAssetDownloadsPath();
             if (Directory.Exists(downloadDirectory))
             {
-                return Directory.GetFiles(GetAssetDownloadsPath()).Length > 0;
+                string[] installers = Directory.GetFiles(
+                    GetAssetDownloadsPath(), 
+                    $"{GVFSInstallerFileNamePrefix}*.*", 
+                    SearchOption.TopDirectoryOnly);
+                return installers.Length > 0;
             }
 
             return false;

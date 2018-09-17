@@ -171,14 +171,6 @@ namespace GVFS.Common.Tracing
             this.RelatedError(string.Format(format, args));
         }
 
-        public virtual void RelatedException(Exception exception, string method, string message)
-        {
-            EventMetadata metadata = new EventMetadata();
-            metadata.Add("Method", method);
-            metadata.Add("Exception", exception.ToString());
-            this.RelatedError(metadata, message);
-        }
-
         public TimeSpan Stop(EventMetadata metadata)
         {
             if (this.stopped)

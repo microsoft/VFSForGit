@@ -111,6 +111,11 @@ namespace GVFS.Common
             {
                 get { return "GVFS.Mount" + this.ExecutableExtension; }
             }
+
+            public string GVFSUpgraderExecutableName
+            {
+                get { return "GVFS.Upgrader" + this.ExecutableExtension;  }
+            }
         }
     }
 }

@@ -23,7 +23,7 @@ namespace GVFS.Service
             Random random = new Random();
             TimeSpan startTime = TimeSpan.FromMinutes(random.Next(0, 60));
 
-            this.tracer.RelatedInfo("Starting auto upgrade checks");
+            this.tracer.RelatedInfo($"Starting auto upgrade checks. Start time - {startTime.ToString()}");
             this.timer = new Timer(
                 this.TimerCallback,
                 null,

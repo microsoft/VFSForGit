@@ -1,4 +1,5 @@
-﻿using static GVFS.CommandLine.UpgradeVerb;
+﻿using System;
+using static GVFS.CommandLine.UpgradeVerb;
 
 namespace GVFS.UnitTests.Windows.Upgrader
 {
@@ -32,11 +33,12 @@ namespace GVFS.UnitTests.Windows.Upgrader
             get { return this.exitCode; }
         }
 
-        public override bool Start(string path)
+        public override bool TryStart(string path, out Exception exception)
         {
             this.LaunchPath = path;
             this.IsLaunched = true;
 
+            exception = null;
             return this.startResult;
         }
     }
