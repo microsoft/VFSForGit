@@ -267,6 +267,8 @@ static int HandleVnodeOperation(
     char procname[MAXCOMLEN + 1];
     
     // TODO(Mac): Issue #271 - Reduce reliance on vn_getpath
+    // Call vn_getpath first when the cache is hottest to increase the chances
+    // of successfully getting the path
     if (0 == vn_getpath(currentVnode, vnodePathBuffer, &vnodePathLength))
     {
         vnodePath = vnodePathBuffer;
