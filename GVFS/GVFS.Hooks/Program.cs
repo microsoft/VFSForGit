@@ -1,4 +1,4 @@
-﻿using GVFS.Common;
+using GVFS.Common;
 using GVFS.Common.Git;
 using GVFS.Common.NamedPipes;
 using GVFS.Hooks.HooksPlatform;
@@ -83,6 +83,12 @@ namespace GVFS.Hooks
 
         private static void RunPreCommands(string[] args)
         {
+            if (ProductUpgrader.IsLocalUpgradeAvailable())
+            {
+                Console.WriteLine(GVFSConstants.UpgradeVerbMessages.UpgradeAvailable);
+                Console.WriteLine(GVFSConstants.UpgradeVerbMessages.UpgradeInstallAdvice);
+            }
+
             string command = GetGitCommand(args);
             switch (command)
             {

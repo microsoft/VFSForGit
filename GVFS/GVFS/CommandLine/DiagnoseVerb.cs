@@ -1,4 +1,4 @@
-﻿using CommandLine;
+using CommandLine;
 using GVFS.Common;
 using GVFS.Common.FileSystem;
 using GVFS.Common.Git;
@@ -113,6 +113,14 @@ namespace GVFS.CommandLine
                             this.ServiceName,
                             copySubFolders: true);
 
+                        // upgrader
+                        this.CopyAllFiles(
+                            ProductUpgrader.GetUpgradesDirectoryPath(),
+                            archiveFolderPath,
+                            ProductUpgrader.LogDirectory,
+                            copySubFolders: true,
+                            targetFolderName: ProductUpgrader.UpgradeDirectoryName);
+                     
                         return true;
                     },
                     "Copying logs");
@@ -160,10 +168,16 @@ namespace GVFS.CommandLine
             this.diagnosticLogFileWriter.WriteLine(information);
         }
 
-        private void CopyAllFiles(string sourceRoot, string targetRoot, string folderName, bool copySubFolders, bool hideErrorsFromStdout = false)
+        private void CopyAllFiles(
+            string sourceRoot, 
+            string targetRoot, 
+            string folderName, 
+            bool copySubFolders,
+            bool hideErrorsFromStdout = false,
+            string targetFolderName = null)
         {
             string sourceFolder = Path.Combine(sourceRoot, folderName);
-            string targetFolder = Path.Combine(targetRoot, folderName);
+            string targetFolder = Path.Combine(targetRoot, targetFolderName ?? folderName);
 
             try
             {

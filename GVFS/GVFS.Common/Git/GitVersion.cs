@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 
 namespace GVFS.Common.Git
 {
@@ -20,6 +20,21 @@ namespace GVFS.Common.Git
         public int Build { get; private set; }
         public int Revision { get; private set; }
         public int MinorRevision { get; private set; }
+
+        public static bool TryParseGitVersionCommandResult(string input, out GitVersion version)
+        {
+            // git version output is of the form
+            // git version 2.17.0.gvfs.1.preview.3
+
+            const string GitVersionExpectedPrefix = "git version ";
+
+            if (input.StartsWith(GitVersionExpectedPrefix))
+            {
+                input = input.Substring(GitVersionExpectedPrefix.Length);
+            }
+
+            return TryParseVersion(input, out version);
+        }
 
         public static bool TryParseInstallerName(string input, out GitVersion version)
         {

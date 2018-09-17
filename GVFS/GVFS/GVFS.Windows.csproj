@@ -1,4 +1,4 @@
-﻿<?xml version="1.0" encoding="utf-8"?>
+<?xml version="1.0" encoding="utf-8"?>
 <Project ToolsVersion="14.0" DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <Import Project="$(MSBuildExtensionsPath)\$(MSBuildToolsVersion)\Microsoft.Common.props" Condition="Exists('$(MSBuildExtensionsPath)\$(MSBuildToolsVersion)\Microsoft.Common.props')" />
   <Import Project="$(SolutionDir)\GVFS\GVFS.Build\ProjFS.props" />
@@ -80,6 +80,7 @@
     <Compile Include="CommandLine\LogVerb.cs" />
     <Compile Include="CommandLine\MountVerb.cs" />
     <Compile Include="CommandLine\PrefetchVerb.cs" />
+    <Compile Include="CommandLine\UpgradeVerb.cs" />
     <Compile Include="RepairJobs\BackgroundOperationDatabaseRepairJob.cs" />
     <Compile Include="RepairJobs\BlobSizeDatabaseRepairJob.cs" />
     <Compile Include="RepairJobs\GitHeadRepairJob.cs" />

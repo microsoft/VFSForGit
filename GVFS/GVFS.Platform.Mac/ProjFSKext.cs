@@ -1,4 +1,4 @@
-﻿using GVFS.Common;
+using GVFS.Common;
 using GVFS.Common.FileSystem;
 using GVFS.Common.Tracing;
 using PrjFSLib.Mac;
@@ -13,6 +13,12 @@ namespace GVFS.Platform.Mac
         public bool EnumerationExpandsDirectories { get; } = true;
 
         public string DriverLogFolderName => throw new NotImplementedException();
+
+        public bool IsGVFSUpgradeSupported()
+        {
+            // TODO(Mac)
+            return false;
+        }
 
         public bool IsSupported(string normalizedEnlistmentRootPath, out string warning, out string error)
         {

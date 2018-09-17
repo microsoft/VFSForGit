@@ -1,4 +1,4 @@
-﻿using GVFS.Common.Tracing;
+using GVFS.Common.Tracing;
 
 namespace GVFS.Common.FileSystem
 {
@@ -10,5 +10,6 @@ namespace GVFS.Common.FileSystem
         string FlushDriverLogs();
         bool TryPrepareFolderForCallbacks(string folderPath, out string error);
         bool IsReady(JsonTracer tracer, string enlistmentRoot, out string error);
+        bool IsGVFSUpgradeSupported();
     }
 }
