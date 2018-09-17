@@ -223,6 +223,11 @@ namespace GVFS.Common
         public bool TryCleanup(out string error)
         {
             error = string.Empty;
+            if (this.newestRelease == null)
+            {
+                return true;
+            }
+
             foreach (Asset asset in this.newestRelease.Assets)
             {
                 Exception exception;
