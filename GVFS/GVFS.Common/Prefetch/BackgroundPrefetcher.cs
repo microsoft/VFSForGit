@@ -12,6 +12,7 @@ namespace GVFS.Common.Prefetch
         private const string TelemetryKey = nameof(BackgroundPrefetcher);
         private readonly TimeSpan timerPeriod = TimeSpan.FromMinutes(15);
         private readonly TimeSpan timeBetweenPrefetches = TimeSpan.FromMinutes(70);
+        private readonly object launchPrefetchLock = new object();
 
         private ITracer tracer;
         private GVFSEnlistment enlistment;
@@ -48,19 +49,30 @@ namespace GVFS.Common.Prefetch
 
         public bool LaunchPrefetchJobIfIdle()
         {
-            if (this.prefetchJobThread?.IsAlive == true)
+            try
             {
-                this.tracer.RelatedInfo(nameof(BackgroundPrefetcher) + ": background thread not idle, skipping timed start");
-            }
-            else
-            {
-                this.prefetchJobThread = new Thread(() => this.BackgroundPrefetch());
-                this.prefetchJobThread.IsBackground = true;
-                this.prefetchJobThread.Start();
-                return true;
-            }
+                lock (this.launchPrefetchLock)
+                {
+                    if (this.prefetchJobThread?.IsAlive == true)
+                    {
+                        this.tracer.RelatedInfo(nameof(BackgroundPrefetcher) + ": background thread not idle, skipping timed start");
+                    }
+                    else
+                    {
+                        this.prefetchJobThread = new Thread(() => this.BackgroundPrefetch());
+                        this.prefetchJobThread.IsBackground = true;
+                        this.prefetchJobThread.Start();
+                        return true;
+                    }
 
-            return false;
+                    return false;
+                }
+            }
+            catch (Exception e)
+            {
+                this.LogUnhandledExceptionAndExit(nameof(this.LaunchPrefetchJobIfIdle), e);
+                return false;
+            }
         }
 
         /// <summary>
@@ -119,16 +131,21 @@ namespace GVFS.Common.Prefetch
             }
             catch (Exception e)
             {
-                EventMetadata metadata = new EventMetadata();
-                metadata.Add("Method", nameof(this.BackgroundPrefetch));
-                metadata.Add("ExceptionMessage", e.Message);
-                metadata.Add("StackTrace", e.StackTrace);
-                this.tracer.RelatedError(
-                    metadata: metadata,
-                    message: TelemetryKey + ": Unexpected Exception while running prefetch background thread (fatal): " + e.Message,
-                    keywords: Keywords.Telemetry);
-                Environment.Exit((int)ReturnCode.GenericError);
+                this.LogUnhandledExceptionAndExit(nameof(this.BackgroundPrefetch), e);
             }
+        }
+
+        private void LogUnhandledExceptionAndExit(string methodName, Exception e)
+        {
+            EventMetadata metadata = new EventMetadata();
+            metadata.Add("Method", methodName);
+            metadata.Add("ExceptionMessage", e.Message);
+            metadata.Add("StackTrace", e.StackTrace);
+            this.tracer.RelatedError(
+                metadata: metadata,
+                message: TelemetryKey + ": Unexpected Exception while running prefetch background thread (fatal): " + e.Message,
+                keywords: Keywords.Telemetry);
+            Environment.Exit((int)ReturnCode.GenericError);
         }
     }
 }
