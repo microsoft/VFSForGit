@@ -30,7 +30,6 @@ namespace GVFS.Platform.Windows
         private const string FilterLoggerSessionName = "Microsoft-Windows-ProjFS-Filter-Log";
 
         private const string ProjFSNativeLibFileName = "ProjectedFSLib.dll";
-        private const string ProjFSManagedLibFileName = "ProjectedFSLib.Managed.dll";
 
         private const uint OkResult = 0;
         private const uint NameCollisionErrorResult = 0x801F0012;
@@ -321,40 +320,14 @@ namespace GVFS.Platform.Windows
             return sb.ToString();
         }
 
-        public bool TryPrepareFolderForCallbacks(string folderPath, out string error, out Exception exception)
+        public bool TryPrepareFolderForCallbacks(string folderPath, out string error)
         {
-            exception = null;
             error = string.Empty;
             Guid virtualizationInstanceGuid = Guid.NewGuid();
-
-            try
+            HResult result = VirtualizationInstance.ConvertDirectoryToVirtualizationRoot(virtualizationInstanceGuid, folderPath);
+            if (result != HResult.Ok)
             {
-                HResult result = VirtualizationInstance.ConvertDirectoryToVirtualizationRoot(virtualizationInstanceGuid, folderPath);
-                if (result != HResult.Ok)
-                {
-                    error = "Failed to prepare \"" + folderPath + "\" for callbacks, error: " + result.ToString("F");
-                    return false;
-                }
-            }
-            catch (FileNotFoundException e)
-            {
-                exception = e;
-
-                if (e.FileName.Equals(ProjFSManagedLibFileName, StringComparison.OrdinalIgnoreCase))
-                {
-                    error = $"Failed to load {ProjFSManagedLibFileName}. Ensure that ProjFS is installed and enabled";
-                }
-                else
-                {
-                    error = $"FileNotFoundException while trying to prepare \"{folderPath}\" for callbacks: {e.Message}";
-                }
-
-                return false;
-            }
-            catch (Exception e)
-            {
-                exception = e;
-                error = $"Exception while trying to prepare \"{folderPath}\" for callbacks: {e.Message}";
+                error = "Failed to prepare \"" + folderPath + "\" for callbacks, error: " + result.ToString("F");
                 return false;
             }
 
