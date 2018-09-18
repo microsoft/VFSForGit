@@ -40,7 +40,7 @@ namespace GVFS.UnitTests.Prefetch
         {
             using (CommonRepoSetup setup = new CommonRepoSetup())
             {
-                BlockedDirectoryExistsFileSystem fileSystem = new BlockedDirectoryExistsFileSystem(setup.FileSystem.RootDirectory);
+                BlockedCreateDirectoryFileSystem fileSystem = new BlockedCreateDirectoryFileSystem(setup.FileSystem.RootDirectory);
                 using (BackgroundPrefetcher prefetcher = new BackgroundPrefetcher(
                     setup.Context.Tracer,
                     setup.Context.Enlistment,
@@ -49,31 +49,31 @@ namespace GVFS.UnitTests.Prefetch
                 {
                     prefetcher.LaunchPrefetchJobIfIdle().ShouldBeTrue();
                     prefetcher.LaunchPrefetchJobIfIdle().ShouldBeFalse();
-                    fileSystem.UnblockDirectoryExists();
+                    fileSystem.UnblockCreateDirectory();
                     prefetcher.WaitForPrefetchToFinish();
                 }
             }
         }
 
-        private class BlockedDirectoryExistsFileSystem : MockFileSystem
+        private class BlockedCreateDirectoryFileSystem : MockFileSystem
         {
-            private ManualResetEvent unblockDirectoryExists;
+            private ManualResetEvent unblockCreateDirectory;
 
-            public BlockedDirectoryExistsFileSystem(MockDirectory rootDirectory)
+            public BlockedCreateDirectoryFileSystem(MockDirectory rootDirectory)
                 : base(rootDirectory)
             {
-                this.unblockDirectoryExists = new ManualResetEvent(initialState: false);
+                this.unblockCreateDirectory = new ManualResetEvent(initialState: false);
             }
 
-            public void UnblockDirectoryExists()
+            public void UnblockCreateDirectory()
             {
-                this.unblockDirectoryExists.Set();
+                this.unblockCreateDirectory.Set();
             }
 
-            public override bool DirectoryExists(string path)
+            public override void CreateDirectory(string path)
             {
-                this.unblockDirectoryExists.WaitOne();
-                return base.DirectoryExists(path);
+                this.unblockCreateDirectory.WaitOne();
+                base.CreateDirectory(path);
             }
         }
     }
