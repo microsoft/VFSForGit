@@ -1,4 +1,4 @@
-﻿using Microsoft.Win32.SafeHandles;
+using Microsoft.Win32.SafeHandles;
 using System;
 using System.Diagnostics;
 using System.IO;
@@ -49,6 +49,13 @@ namespace GVFS.Common
             return fileVersionInfo.ProductVersion;
         }
         
+        public static bool IsDevelopmentVersion()
+        {
+            Version currentVersion = new Version(ProcessHelper.GetCurrentProcessVersion());
+
+            return currentVersion.Major == 0;
+        }
+
         public static string WhereDirectory(string processName)
         {
             ProcessResult result = ProcessHelper.Run("where", processName);
