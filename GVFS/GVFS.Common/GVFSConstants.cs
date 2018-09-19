@@ -222,10 +222,12 @@ namespace GVFS.Common
 
         public static class UpgradeVerbMessages
         {
-            public const string NoneRingConsoleAlert = "Upgrade ring set to None. No upgrade check was performed.";
-            public const string SetUpgradeRingCommand = "To set or change upgrade ring, run `git config --global gvfs.upgradering [\"Fast\"|\"Slow\"|\"None\"] from an elevated command prompt.";
-            public const string UpgradeAvailable = "A newer version of GVFS is available.";
-            public const string UpgradeInstallAdvice = "Run `gvfs upgrade --confirm` from an elevated command prompt to install.";
+            public const string NoneRingConsoleAlert = "Upgrade ring set to \"None\". No upgrade check was performed.";
+            public const string InvalidRingConsoleAlert = "Upgrade ring is not set. No upgrade check was performed.";
+            public const string SetUpgradeRingCommand = "To set or change upgrade ring, run `git config --global gvfs.upgradering [\"Fast\"|\"Slow\"|\"None\"] from a command prompt.";
+            public const string ReminderNotification = "A new version of GVFS is available. Run `gvfs upgrade` to start the upgrade.";
+            public const string UnmountRepoWarning = "The upgrade process will unmount all GVFS repositories for several minutes and remount them when it is complete. Ensure you are at a stopping point prior to upgrading.";
+            public const string UpgradeInstallAdvice = "When you are ready, run `gvfs upgrade --confirm` from an elevated command prompt.";
         }
     }
 }

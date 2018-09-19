@@ -35,6 +35,13 @@ namespace GVFS.CommandLine
             HelpText = "Prints a list of all mounted repos")]
         public bool List { get; set; }
 
+        [Option(
+            "log-mount-failure-in-stderr",
+            Default = false,
+            Required = false,
+            HelpText = "This parameter is reserved for internal use.")]
+        public bool RedirectMountFailuresToStderr { get; set; }
+
         public override string EnlistmentRootPathParameter
         {
             get { throw new InvalidOperationException(); }
@@ -103,7 +110,13 @@ namespace GVFS.CommandLine
 
                 if (failedRepoRoots.Count() > 0)
                 {
-                    this.ReportErrorAndExit("\r\nThe following repos failed to mount:\r\n" + string.Join("\r\n", failedRepoRoots.ToArray()));
+                    string errorString = $"The following repos failed to mount:{Environment.NewLine}{string.Join("\r\n", failedRepoRoots.ToArray())}";
+                    if (this.RedirectMountFailuresToStderr)
+                    {
+                        Console.Error.WriteLine(errorString);
+                    }
+                    
+                    this.ReportErrorAndExit(Environment.NewLine + errorString);                    
                 }
             }
             else if (this.UnmountAll)
@@ -132,7 +145,13 @@ namespace GVFS.CommandLine
 
                 if (failedRepoRoots.Count() > 0)
                 {
-                    this.ReportErrorAndExit("\r\nThe following repos failed to unmount:\r\n" + string.Join("\r\n", failedRepoRoots.ToArray()));
+                    string errorString = $"The following repos failed to unmount:{Environment.NewLine}{string.Join(Environment.NewLine, failedRepoRoots.ToArray())}";
+                    if (this.RedirectMountFailuresToStderr)
+                    {
+                        Console.Error.WriteLine(errorString);
+                    }
+
+                    this.ReportErrorAndExit(Environment.NewLine + errorString);
                 }
             }
         }

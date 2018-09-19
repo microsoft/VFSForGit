@@ -63,10 +63,19 @@ namespace GVFS.Upgrader
         {
             string error = null;
 
-            if (this.upgrader.IsNoneRing())
+            ProductUpgrader.RingType ring = ProductUpgrader.RingType.Invalid;
+
+            if (!this.TryLoadUpgradeRing(out ring, out error) || ring == ProductUpgrader.RingType.None)
             {
-                this.output.WriteLine(GVFSConstants.UpgradeVerbMessages.NoneRingConsoleAlert);
-                this.output.WriteLine(GVFSConstants.UpgradeVerbMessages.SetUpgradeRingCommand);
+                string message = ring == ProductUpgrader.RingType.None ?
+                    GVFSConstants.UpgradeVerbMessages.NoneRingConsoleAlert :
+                    GVFSConstants.UpgradeVerbMessages.InvalidRingConsoleAlert;
+                this.output.WriteLine(message);
+
+                if (ring == ProductUpgrader.RingType.None)
+                {
+                    this.output.WriteLine(GVFSConstants.UpgradeVerbMessages.SetUpgradeRingCommand);
+                }
             }
             else
             {
@@ -91,11 +100,15 @@ namespace GVFS.Upgrader
                     this.DeletedDownloadedAssets();
                 }
             }
-            
+
             if (this.ExitCode == ReturnCode.GenericError)
             {
                 error = Environment.NewLine + "ERROR: " + error;
                 this.output.WriteLine(error);
+            }
+            else
+            {
+                this.output.WriteLine(Environment.NewLine + "Upgrade completed successfully!");
             }
 
             if (this.input == Console.In)
@@ -118,6 +131,27 @@ namespace GVFS.Upgrader
                 this.output,
                 this.output == Console.Out && !GVFSPlatform.Instance.IsConsoleOutputRedirectedToFile(),
                 null);
+        }
+
+        private bool TryLoadUpgradeRing(out ProductUpgrader.RingType ring, out string consoleError)
+        {
+            bool loaded = false;
+            if (!this.upgrader.TryLoadRingConfig(out consoleError))
+            {
+                EventMetadata metadata = new EventMetadata();
+                metadata.Add("Upgrade Step", nameof(this.TryLoadUpgradeRing));
+                metadata.Add("Load Error", consoleError);
+                this.tracer.RelatedError(metadata, $"{nameof(this.TryLoadUpgradeRing)} failed.");
+                this.ExitCode = ReturnCode.GenericError;
+            }
+            else
+            {
+                consoleError = null;
+                loaded = true;
+            }
+            
+            ring = this.upgrader.Ring;
+            return loaded;
         }
 
         private bool TryRunUpgradeInstall(out Version newVersion, out string consoleError)
@@ -202,7 +236,7 @@ namespace GVFS.Upgrader
 
                     return true;
                 },
-                $"Installing VFSForGit version: {newGVFSVersion}"))
+                $"Installing GVFS version: {newGVFSVersion}"))
             {
                 consoleError = errorMessage;
                 return false;
@@ -260,17 +294,18 @@ namespace GVFS.Upgrader
         {
             gitVersion = null;
 
-            this.tracer.RelatedInfo("Reading Git version from release info");
-
-            if (!this.upgrader.TryGetGitVersion(out gitVersion, out consoleError))
+            using (ITracer activity = this.tracer.StartActivity(nameof(this.TryGetNewGitVersion), EventLevel.Informational))
             {
-                EventMetadata metadata = new EventMetadata();
-                metadata.Add("Upgrade Step", nameof(this.TryGetNewGitVersion));
-                this.tracer.RelatedError(metadata, $"{nameof(this.upgrader.TryGetGitVersion)} failed. {consoleError}");
-                return false;
+                if (!this.upgrader.TryGetGitVersion(out gitVersion, out consoleError))
+                {
+                    EventMetadata metadata = new EventMetadata();
+                    metadata.Add("Upgrade Step", nameof(this.TryGetNewGitVersion));
+                    this.tracer.RelatedError(metadata, $"{nameof(this.upgrader.TryGetGitVersion)} failed. {consoleError}");
+                    return false;
+                }
+
+                activity.RelatedInfo("Successfully read Git version {0}", gitVersion);
             }
-            
-            this.tracer.RelatedInfo("Successfully read Git version {0}", gitVersion);
 
             return true;
         }
@@ -279,79 +314,89 @@ namespace GVFS.Upgrader
         {
             newestVersion = null;
 
-            this.tracer.RelatedInfo("Checking upgrade server for new releases");
-
-            if (!this.upgrader.TryGetNewerVersion(out newestVersion, out consoleError))
+            using (ITracer activity = this.tracer.StartActivity(nameof(this.TryCheckIfUpgradeAvailable), EventLevel.Informational))
             {
-                EventMetadata metadata = new EventMetadata();
-                metadata.Add("Upgrade Step", nameof(this.TryCheckIfUpgradeAvailable));
-                this.tracer.RelatedError(metadata, $"{nameof(this.upgrader.TryGetNewerVersion)} failed. {consoleError}");
-                return false;
-            }
+                if (!this.upgrader.TryGetNewerVersion(out newestVersion, out consoleError))
+                {
+                    EventMetadata metadata = new EventMetadata();
+                    metadata.Add("Upgrade Step", nameof(this.TryCheckIfUpgradeAvailable));
+                    this.tracer.RelatedError(metadata, $"{nameof(this.upgrader.TryGetNewerVersion)} failed. {consoleError}");
+                    return false;
+                }
 
-            if (newestVersion == null)
-            {
-                consoleError = "No upgrades available in ring: " + this.upgrader.Ring;
-                this.tracer.RelatedInfo("No new upgrade releases available");
-                return false;
-            }
+                if (newestVersion == null)
+                {
+                    consoleError = "No upgrades available in ring: " + this.upgrader.Ring;
+                    this.tracer.RelatedInfo("No new upgrade releases available");
+                    return false;
+                }
 
-            this.tracer.RelatedInfo("Successfully checked for new release. {0}", newestVersion);
+                activity.RelatedInfo("Successfully checked for new release. {0}", newestVersion);
+            }
             
             return true;
         }
 
         private bool TryDownloadUpgrade(Version version, out string consoleError)
         {
-            this.tracer.RelatedInfo("Downloading version: " + version.ToString());
-
-            if (!this.upgrader.TryDownloadNewestVersion(out consoleError))
+            using (ITracer activity = this.tracer.StartActivity(
+                $"{nameof(this.TryDownloadUpgrade)}({version.ToString()})", 
+                EventLevel.Informational))
             {
-                EventMetadata metadata = new EventMetadata();
-                metadata.Add("Upgrade Step", nameof(this.TryDownloadUpgrade));
-                this.tracer.RelatedError(metadata, $"{nameof(this.upgrader.TryDownloadNewestVersion)} failed. {consoleError}");
-                return false;
-            }
+                if (!this.upgrader.TryDownloadNewestVersion(out consoleError))
+                {
+                    EventMetadata metadata = new EventMetadata();
+                    metadata.Add("Upgrade Step", nameof(this.TryDownloadUpgrade));
+                    this.tracer.RelatedError(metadata, $"{nameof(this.upgrader.TryDownloadNewestVersion)} failed. {consoleError}");
+                    return false;
+                }
 
-            this.tracer.RelatedInfo("Successfully downloaded version: " + version.ToString());
+                activity.RelatedInfo("Successfully downloaded version: " + version.ToString());
+            }
 
             return true;
         }
 
         private bool TryInstallGitUpgrade(GitVersion version, out string consoleError)
         {
-            this.tracer.RelatedInfo("Installing Git version: " + version.ToString());
-
             bool installSuccess = false;
-            if (!this.upgrader.TryRunGitInstaller(out installSuccess, out consoleError) ||
-                !installSuccess)
-            {
-                EventMetadata metadata = new EventMetadata();
-                metadata.Add("Upgrade Step", nameof(this.TryInstallGitUpgrade));
-                this.tracer.RelatedError(metadata, $"{nameof(this.upgrader.TryRunGitInstaller)} failed. {consoleError}");
-                return false;
-            }
+            using (ITracer activity = this.tracer.StartActivity(
+                $"{nameof(this.TryInstallGitUpgrade)}({version.ToString()})",
+                EventLevel.Informational))
+            {                
+                if (!this.upgrader.TryRunGitInstaller(out installSuccess, out consoleError) ||
+                    !installSuccess)
+                {
+                    EventMetadata metadata = new EventMetadata();
+                    metadata.Add("Upgrade Step", nameof(this.TryInstallGitUpgrade));
+                    this.tracer.RelatedError(metadata, $"{nameof(this.upgrader.TryRunGitInstaller)} failed. {consoleError}");
+                    return false;
+                }
 
-            this.tracer.RelatedInfo("Successfully installed Git version: " + version.ToString());
+                activity.RelatedInfo("Successfully installed Git version: " + version.ToString());
+            }
 
             return installSuccess;
         }
 
         private bool TryInstallGVFSUpgrade(Version version, out string consoleError)
         {
-            this.tracer.RelatedInfo("Installing GVFS version: " + version.ToString());
-
             bool installSuccess = false;
-            if (!this.upgrader.TryRunGVFSInstaller(out installSuccess, out consoleError) ||
-                !installSuccess)
+            using (ITracer activity = this.tracer.StartActivity(
+                $"{nameof(this.TryInstallGVFSUpgrade)}({version.ToString()})",
+                EventLevel.Informational))
             {
-                EventMetadata metadata = new EventMetadata();
-                metadata.Add("Upgrade Step", nameof(this.TryInstallGVFSUpgrade));
-                this.tracer.RelatedError(metadata, $"{nameof(this.upgrader.TryRunGVFSInstaller)} failed. {consoleError}");
-                return false;
-            }
+                if (!this.upgrader.TryRunGVFSInstaller(out installSuccess, out consoleError) ||
+                !installSuccess)
+                {
+                    EventMetadata metadata = new EventMetadata();
+                    metadata.Add("Upgrade Step", nameof(this.TryInstallGVFSUpgrade));
+                    this.tracer.RelatedError(metadata, $"{nameof(this.upgrader.TryRunGVFSInstaller)} failed. {consoleError}");
+                    return false;
+                }
 
-            this.tracer.RelatedInfo("Successfully installed GVFS version: " + version.ToString());
+                activity.RelatedInfo("Successfully installed GVFS version: " + version.ToString());
+            }
 
             return installSuccess;
         }

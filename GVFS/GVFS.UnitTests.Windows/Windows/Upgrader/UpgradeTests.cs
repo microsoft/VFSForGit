@@ -37,7 +37,7 @@ namespace GVFS.UnitTests.Windows.Upgrader
         [TestCase]
         public virtual void NoneLocalRing()
         {
-            string message = "Upgrade ring set to None. No upgrade check was performed.";
+            string message = "Upgrade ring set to \"None\". No upgrade check was performed.";
             this.ConfigureRunAndVerify(
                 configure: () =>
                 {

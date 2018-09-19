@@ -71,12 +71,7 @@ namespace GVFS.Common
         }
 
         public RingType Ring { get; protected set; }
-
-        public bool IsNoneRing()
-        {
-            return this.TryLoadRingConfig(out string _) && this.Ring == RingType.None;
-        }
-
+        
         public bool TryGetNewerVersion(
             out Version newVersion,
             out string errorMessage)
@@ -246,13 +241,8 @@ namespace GVFS.Common
             error = null;
             return true;
         }
-
-        protected virtual bool TryDeleteDownloadedAsset(Asset asset, out Exception exception)
-        {
-            return this.fileSystem.TryDeleteFile(asset.LocalPath, out exception);
-        }
-
-        protected virtual bool TryLoadRingConfig(out string error)
+        
+        public virtual bool TryLoadRingConfig(out string error)
         {
             string errorAdvisory = "Run `git config --global gvfs.upgradering [\"Fast\"|\"Slow\"|\"None\"]` and run `gvfs upgrade [--confirm]` again.";
             string gitPath = GVFSPlatform.Instance.GitInstallation.GetInstalledGitBinPath();
@@ -283,6 +273,11 @@ namespace GVFS.Common
             error += Environment.NewLine + errorAdvisory;
             this.Ring = RingType.Invalid;
             return false;
+        }
+
+        protected virtual bool TryDeleteDownloadedAsset(Asset asset, out Exception exception)
+        {
+            return this.fileSystem.TryDeleteFile(asset.LocalPath, out exception);
         }
 
         protected virtual bool TryDownloadAsset(Asset asset, out string errorMessage)

@@ -101,14 +101,14 @@ namespace GVFS.UnitTests.Windows.Mock.Upgrader
         {
             this.GVFSArgs.Add(args);
             
-            if (string.CompareOrdinal(args, "service --unmount-all") == 0)
+            if (string.CompareOrdinal(args, "service --unmount-all --log-mount-failure-in-stderr") == 0)
             {
                 bool result = this.FakedResultOfCheck(FailOnCheckType.UnMountRepos);
                 error = result == false ? "Unmount of some of the repositories failed." : null;
                 return result;
             }
 
-            if (string.CompareOrdinal(args, "service --mount-all") == 0)
+            if (string.CompareOrdinal(args, "service --mount-all --log-mount-failure-in-stderr") == 0)
             {
                 bool result = this.FakedResultOfCheck(FailOnCheckType.RemountRepos);
                 error = result == false ? "Auto remount failed." : null;
