@@ -101,7 +101,7 @@ namespace GVFS.UnitTests.Windows.Mock.Upgrader
             return true;
         }
 
-        protected override bool TryLoadRingConfig(out string error)
+        public override bool TryLoadRingConfig(out string error)
         {
             this.Ring = this.LocalRingConfig;
 

@@ -44,7 +44,7 @@ namespace GVFS.UnitTests.Windows.Upgrader
                 expectedOutput: new List<string>
                 {
                     "New GVFS version available: " + NewerThanLocalVersion,
-                    "Run `gvfs upgrade --confirm` to install it"
+                    "When you are ready, run `gvfs upgrade --confirm` from an elevated command prompt."
                 },
                 expectedErrors: null);
         }

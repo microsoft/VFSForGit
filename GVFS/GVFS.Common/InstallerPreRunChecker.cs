@@ -26,29 +26,30 @@ namespace GVFS.Upgrader
 
         public bool TryRunPreUpgradeChecks(out string consoleError)
         {
-            this.tracer.RelatedInfo("Checking if GVFS upgrade can be run on this machine.");
-
-            if (this.IsUnattended())
+            using (ITracer activity = this.tracer.StartActivity(nameof(this.TryRunPreUpgradeChecks), EventLevel.Informational))
             {
-                consoleError = "`gvfs upgrade` is not supported in unattended mode";
-                this.tracer.RelatedError($"{nameof(TryRunPreUpgradeChecks)}: {consoleError}");
-                return false;
-            }
+                if (this.IsUnattended())
+                {
+                    consoleError = "`gvfs upgrade` is not supported in unattended mode";
+                    this.tracer.RelatedError($"{nameof(TryRunPreUpgradeChecks)}: {consoleError}");
+                    return false;
+                }
 
-            if (this.IsDevelopmentVersion())
-            {
-                consoleError = "Cannot run upgrade when development version of GVFS is installed.";
-                this.tracer.RelatedError($"{nameof(TryRunPreUpgradeChecks)}: {consoleError}");
-                return false;
-            }
+                if (this.IsDevelopmentVersion())
+                {
+                    consoleError = "Cannot run upgrade when development version of GVFS is installed.";
+                    this.tracer.RelatedError($"{nameof(TryRunPreUpgradeChecks)}: {consoleError}");
+                    return false;
+                }
 
-            if (!this.IsGVFSUpgradeAllowed(out consoleError))
-            {
-                this.tracer.RelatedError($"{nameof(TryRunPreUpgradeChecks)}: {consoleError}");
-                return false;
-            }
+                if (!this.IsGVFSUpgradeAllowed(out consoleError))
+                {
+                    this.tracer.RelatedError($"{nameof(TryRunPreUpgradeChecks)}: {consoleError}");
+                    return false;
+                }
 
-            this.tracer.RelatedInfo("Successfully finished pre upgrade checks. Okay to run GVFS upgrade.");
+                activity.RelatedInfo("Successfully finished pre upgrade checks. Okay to run GVFS upgrade.");
+            }                
 
             consoleError = null;
             return true;
@@ -57,7 +58,7 @@ namespace GVFS.Upgrader
         // TODO: Move repo mount calls to GVFS.Upgrader project.
         public bool TryMountAllGVFSRepos(out string consoleError)
         {
-            return this.TryRunGVFSWithArgs("service --mount-all", out consoleError);
+            return this.TryRunGVFSWithArgs("service --mount-all --log-mount-failure-in-stderr", out consoleError);
         }
 
         public bool TryUnmountAllGVFSRepos(out string consoleError)
@@ -66,42 +67,45 @@ namespace GVFS.Upgrader
 
             this.tracer.RelatedInfo("Unmounting any mounted GVFS repositories.");
 
-            if (!this.TryRunGVFSWithArgs("service --unmount-all", out consoleError))
+            using (ITracer activity = this.tracer.StartActivity(nameof(this.TryUnmountAllGVFSRepos), EventLevel.Informational))
             {
-                this.tracer.RelatedError($"{nameof(TryUnmountAllGVFSRepos)}: {consoleError}");
-                return false;
-            }
-
-            // While checking for blocking processes like GVFS.Mount immediately after un-mounting, 
-            // then sometimes GVFS.Mount shows up as running. But if the check is done after waiting 
-            // for some time, then eventually GVFS.Mount goes away. The retry loop below is to help 
-            // account for this delay between the time un-mount call returns and when GVFS.Mount
-            // actually quits.
-            this.tracer.RelatedInfo("Checking if GVFS or dependent processes are running.");
-            int retryCount = 10;
-            List<string> processList = null;
-            while (retryCount > 0)
-            {
-                if (!this.IsBlockingProcessRunning(out processList))
+                if (!this.TryRunGVFSWithArgs("service --unmount-all --log-mount-failure-in-stderr", out consoleError))
                 {
-                    break;
+                    this.tracer.RelatedError($"{nameof(TryUnmountAllGVFSRepos)}: {consoleError}");
+                    return false;
                 }
 
-                Thread.Sleep(TimeSpan.FromMilliseconds(250));
-                retryCount--;
-            }
+                // While checking for blocking processes like GVFS.Mount immediately after un-mounting, 
+                // then sometimes GVFS.Mount shows up as running. But if the check is done after waiting 
+                // for some time, then eventually GVFS.Mount goes away. The retry loop below is to help 
+                // account for this delay between the time un-mount call returns and when GVFS.Mount
+                // actually quits.
+                this.tracer.RelatedInfo("Checking if GVFS or dependent processes are running.");
+                int retryCount = 10;
+                List<string> processList = null;
+                while (retryCount > 0)
+                {
+                    if (!this.IsBlockingProcessRunning(out processList))
+                    {
+                        break;
+                    }
 
-            if (processList.Count > 0)
-            {
-                consoleError = string.Join(
-                    Environment.NewLine, 
-                    "Blocking processes are running.",
-                    $"Run `{this.CommandToRerun}` again after quitting these processes - " + string.Join(", ", processList.ToArray()));
-                this.tracer.RelatedError($"{nameof(TryUnmountAllGVFSRepos)}: {consoleError}");
-                return false;
-            }
+                    Thread.Sleep(TimeSpan.FromMilliseconds(250));
+                    retryCount--;
+                }
 
-            this.tracer.RelatedInfo("Successfully unmounted repositories.");
+                if (processList.Count > 0)
+                {
+                    consoleError = string.Join(
+                        Environment.NewLine,
+                        "Blocking processes are running.",
+                        $"Run `{this.CommandToRerun}` again after quitting these processes - " + string.Join(", ", processList.ToArray()));
+                    this.tracer.RelatedError($"{nameof(TryUnmountAllGVFSRepos)}: {consoleError}");
+                    return false;
+                }
+
+                activity.RelatedInfo("Successfully unmounted repositories.");
+            }
 
             return true;
         }
@@ -168,9 +172,7 @@ namespace GVFS.Upgrader
             }
             else
             {
-                string output = string.IsNullOrEmpty(processResult.Output) ? string.Empty : processResult.Output;
-                string errorString = string.IsNullOrEmpty(processResult.Errors) ? "GVFS error" : processResult.Errors;
-                consoleError = string.Format("{0}. {1}", errorString, output);
+                consoleError = string.IsNullOrEmpty(processResult.Errors) ? $"GVFS {args} failed." : processResult.Errors;
                 return false;
             }
         }

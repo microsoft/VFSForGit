@@ -31,30 +31,41 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
         }
 
         [TestCase]
-        public void NoNagWhenUpgradeNotAvailable()
+        public void NoReminderWhenUpgradeNotAvailable()
         {
             this.EmptyDownloadDirectory();
 
-            ProcessResult result = GitHelpers.InvokeGitAgainstGVFSRepo(
+            for (int count = 0; count < 50; count++)
+            {
+                ProcessResult result = GitHelpers.InvokeGitAgainstGVFSRepo(
                 this.Enlistment.RepoRoot,
                 "status");
 
-            string.IsNullOrEmpty(result.Errors).ShouldBeTrue();
+                string.IsNullOrEmpty(result.Errors).ShouldBeTrue();
+            }
         }
 
         [TestCase]
-        public void NagWhenUpgradeAvailable()
+        public void RemindWhenUpgradeAvailable()
         {
             this.CreateUpgradeInstallers();
 
-            ProcessResult result = GitHelpers.InvokeGitAgainstGVFSRepo(
+            string errors = string.Empty;
+            for (int count = 0; count < 50; count++)
+            {
+                ProcessResult result = GitHelpers.InvokeGitAgainstGVFSRepo(
                 this.Enlistment.RepoRoot,
                 "status");
 
-            result.Errors.ShouldContain(new string[] 
+                if (!string.IsNullOrEmpty(result.Errors))
                 {
-                    "A newer version of GVFS is available.",
-                    "Run `gvfs upgrade --confirm` from an elevated command prompt to install."
+                    errors += result.Errors;
+                }
+            }
+
+            errors.ShouldContain(new string[] 
+                {
+                    "A new version of GVFS is available."
                 });
 
             this.EmptyDownloadDirectory();
