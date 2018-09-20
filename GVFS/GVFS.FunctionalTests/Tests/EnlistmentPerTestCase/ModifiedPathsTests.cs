@@ -34,7 +34,6 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerTestCase
                 $"A {GVFSHelpers.ConvertPathToGitFormat(FileToRename)}",
                 $"A {GVFSHelpers.ConvertPathToGitFormat(RenameFileTarget)}",
                 $"A {FolderToCreate}/",
-                $"A {FolderToRename}/",
                 $"A {RenameFolderTarget}/",
                 $"A {RenameNewDotGitFileTarget}",
                 $"A {FileToCreateOutsideRepo}",
@@ -162,11 +161,12 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerTestCase
         [TestCaseSource(typeof(FileSystemRunner), FileSystemRunner.TestRunners)]
         public void ModifiedPathsCorrectAfterHardLinking(FileSystemRunner fileSystem)
         {
-            const string ExpectedModifiedFilesContentsAfterHardlinks =
-@"A .gitattributes
-A LinkToReadme.md
-A LinkToFileOutsideSrc.txt
-";
+            string[] expectedModifiedFilesContentsAfterHardlinks =
+                {
+                    "A .gitattributes",
+                    "A LinkToReadme.md",
+                    "A LinkToFileOutsideSrc.txt",
+                };
 
             // Create a link from src\LinkToReadme.md to src\Readme.md
             string existingFileInRepoPath = this.Enlistment.GetVirtualPathTo("Readme.md");
@@ -198,7 +198,8 @@ A LinkToFileOutsideSrc.txt
             modifiedPathsDatabase.ShouldBeAFile(fileSystem);
             using (StreamReader reader = new StreamReader(File.Open(modifiedPathsDatabase, FileMode.Open, FileAccess.Read, FileShare.ReadWrite)))
             {
-                reader.ReadToEnd().ShouldEqual(ExpectedModifiedFilesContentsAfterHardlinks);
+                reader.ReadToEnd().Split(new char[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries).OrderBy(x => x)
+                    .ShouldMatchInOrder(expectedModifiedFilesContentsAfterHardlinks.OrderBy(x => x));
             }
         }
 
