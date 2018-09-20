@@ -56,8 +56,8 @@ The installer can now be found at `C:\Repos\VFSForGit\BuildOutput\GVFS.Installer
 
 ### First setup your Mac
 
-* Ensure you have Xcode installed and have accepted the terms of use (Launch Xcode at least once).
-* Install [Visual Studio for Mac ](https://visualstudio.microsoft.com/vs/mac)
+* Ensure you have Xcode installed and have accepted the terms of use and launched Xcode at least once.
+* Install [Visual Studio for Mac ](https://visualstudio.microsoft.com/vs/mac). (This will also install the `dotnet` CLI).
 * If you still do not have the `dotnet` cli `>= v2.1.300` installed [manually install it](https://www.microsoft.com/net/download/dotnet-core/2.1)
 * [Install Homebrew](https://brew.sh/)
 * Install Java with
@@ -81,7 +81,55 @@ The installer can now be found at `C:\Repos\VFSForGit\BuildOutput\GVFS.Installer
   ```
   to disable SIP.
 
-* Now `cd` into
+* Now `cd` back into your VFS src directory and run
+
+  ```
+  Scripts/Mac/BuildGVFSForMac.sh [Release]
+  ```
+
+  **Troubleshooting**
+
+  If you get
+  ```
+  xcodebuild: error: SDK "macosx10.13" cannot be located.
+  ```
+  You may have the "XCode Command Line Tools" installed (helpfully by Mac OS) instead of full XCode.
+  Make sure
+  ```
+  xcode-select -p
+  ```
+
+  shows `/Applications/Xcode.app/Contents/Developer`. If it does not, install Xcode and then launch it (you can close it afterwards.)
+
+* Now setup the git credential manager by running
+
+  ```
+  Scripts/Mac/PrepFunctionalTests.sh
+  ```
+
+* Now you have to load the ProjFS Kext.
+
+  ```
+  ProjFS.Mac/Scripts/LoadPrjFSKext.sh [Release]
+  ```
+
+* Now you can put your built gvfs program on your path. A simple way to do that is by adding `Path/to/VFS/Publish` to your path.
+
+  Check you have it by running
+
+  ```
+  command -v gvfs
+  ```
+
+  You should see a path to the gvfs executable.
+
+* Try cloning! Now that you have `gvfs` ready you can try cloning a VFS for Git enabled repository!
+
+  ```
+  gvfs clone URL_TO_REPOSITORY [--cache-url] --local-cache-path ~/.gvfsCache
+  ```
+
+  Note you may have a cache server URL to use. Note the current use of `--local-cache-path`. That argument prevent gvfs from running into a permissions error trying to put the cache at the root of your Mac's hard-drive.
 
 
 ## Trying out VFS for Git
