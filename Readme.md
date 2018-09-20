@@ -54,7 +54,7 @@ The installer can now be found at `C:\Repos\VFSForGit\BuildOutput\GVFS.Installer
 
 ## Building VFS for Git on Mac
 
-### First setup your Mac
+VFS for macOS is still in progress. You can build it, but this will not create a macOS VFS installer the same way the current Windows build will.
 
 * Ensure you have Xcode installed and have accepted the terms of use and launched Xcode at least once.
 * Install [Visual Studio for Mac ](https://visualstudio.microsoft.com/vs/mac). (This will also install the `dotnet` CLI).
