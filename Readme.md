@@ -56,7 +56,7 @@ The installer can now be found at `C:\Repos\VFSForGit\BuildOutput\GVFS.Installer
 
 VFS for macOS is still in progress. You can build it, but this will not create a macOS VFS installer the same way the current Windows build will.
 
-* Ensure you have Xcode installed and have accepted the terms of use and launched Xcode at least once.
+* Ensure you have Xcode installed, have accepted the terms of use, and launched Xcode at least once.
 
 * Disable "System Integrity Protection" (for loading unsigned kexts) by booting into recovery mode (`[Win/⌘] + R` while booting).
   Once booted into recovery mode open Utilities -> Terminal to launch a termnial. Enter:
