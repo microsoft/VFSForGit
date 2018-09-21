@@ -63,6 +63,16 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
             GitHelpers.InvokeGitAgainstGVFSRepo(this.Enlistment.RepoRoot, "update-index --add Test_ConflictTests/AddedFiles/AddedByBothDifferentContent.txt");
         }
 
+        [TestCase]
+        [Category(Categories.MacTODO.M4)]
+        public void UpdateIndexWithCacheInfo()
+        {
+            // Update Protocol.md with the contents from blob 583f1...
+            string command = $"update-index --cacheinfo 100644 \"583f1a56db7cc884d54534c5d9c56b93a1e00a2b\n\" Protocol.md";
+
+            this.ValidateGitCommand(command);
+        }
+
         protected override void CreateEnlistment()
         {
             base.CreateEnlistment();

@@ -18,8 +18,8 @@
 #define DLO_REQUEST_LENGTH (4 + SHA1_LENGTH + 1)
 
 // Expected response:
-// "S\n" -> Success
-// "F\n" -> Failure
+// "S\x3" -> Success
+// "F\x3" -> Failure
 #define DLO_RESPONSE_LENGTH 2
 
 enum ReadObjectHookErrorReturnCode
@@ -33,7 +33,7 @@ int DownloadSHA(PIPE_HANDLE pipeHandle, const char *sha1)
     // Format:  "DLO|<40 character SHA>"
     // Example: "DLO|920C34DCDDFC8F07AC4704C8C0D087D6F2095729"
     char request[DLO_REQUEST_LENGTH+1];
-    if (snprintf(request, DLO_REQUEST_LENGTH+1, "DLO|%s\n", sha1) != DLO_REQUEST_LENGTH)
+    if (snprintf(request, DLO_REQUEST_LENGTH+1, "DLO|%s\x3", sha1) != DLO_REQUEST_LENGTH)
     {
         die(ReturnCode::InvalidSHA, "First argument must be a 40 character SHA, actual value: %s\n", sha1);
     }
