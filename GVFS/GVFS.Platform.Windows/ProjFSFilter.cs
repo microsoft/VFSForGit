@@ -30,6 +30,7 @@ namespace GVFS.Platform.Windows
         private const string FilterLoggerSessionName = "Microsoft-Windows-ProjFS-Filter-Log";
 
         private const string ProjFSNativeLibFileName = "ProjectedFSLib.dll";
+        private const string ProjFSManagedLibFileName = "ProjectedFSLib.Managed.dll";
 
         private const uint OkResult = 0;
         private const uint NameCollisionErrorResult = 0x801F0012;
@@ -320,18 +321,34 @@ namespace GVFS.Platform.Windows
             return sb.ToString();
         }
 
-        public bool TryPrepareFolderForCallbacks(string folderPath, out string error)
+        public bool TryPrepareFolderForCallbacks(string folderPath, out string error, out Exception exception)
         {
-            error = string.Empty;
-            Guid virtualizationInstanceGuid = Guid.NewGuid();
-            HResult result = VirtualizationInstance.ConvertDirectoryToVirtualizationRoot(virtualizationInstanceGuid, folderPath);
-            if (result != HResult.Ok)
+            exception = null;
+            try
             {
-                error = "Failed to prepare \"" + folderPath + "\" for callbacks, error: " + result.ToString("F");
+                return this.TryPrepareFolderForCallbacksImpl(folderPath, out error);
+            }
+            catch (FileNotFoundException e)
+            {
+                exception = e;
+
+                if (e.FileName.Equals(ProjFSManagedLibFileName, StringComparison.OrdinalIgnoreCase))
+                {
+                    error = $"Failed to load {ProjFSManagedLibFileName}. Ensure that ProjFS is installed and enabled";
+                }
+                else
+                {
+                    error = $"FileNotFoundException while trying to prepare \"{folderPath}\" for callbacks: {e.Message}";
+                }
+
                 return false;
             }
-
-            return true;
+            catch (Exception e)
+            {
+                exception = e;
+                error = $"Exception while trying to prepare \"{folderPath}\" for callbacks: {e.Message}";
+                return false;
+            }
         }
 
         // TODO 1050199: Once the service is an optional component, GVFS should only attempt to attach
@@ -562,7 +579,23 @@ namespace GVFS.Platform.Windows
         private static ProcessResult CallPowershellCommand(string command)
         {
             return ProcessHelper.Run("powershell.exe", "-NonInteractive -NoProfile -Command \"& { " + command + " }\"");
-        }           
+        }
+
+        // Using an Impl method allows TryPrepareFolderForCallbacks to catch any ProjFS dependency related exceptions
+        // thrown in the process of calling this method.
+        private bool TryPrepareFolderForCallbacksImpl(string folderPath, out string error)
+        {
+            error = string.Empty;
+            Guid virtualizationInstanceGuid = Guid.NewGuid();
+            HResult result = VirtualizationInstance.ConvertDirectoryToVirtualizationRoot(virtualizationInstanceGuid, folderPath);
+            if (result != HResult.Ok)
+            {
+                error = "Failed to prepare \"" + folderPath + "\" for callbacks, error: " + result.ToString("F");
+                return false;
+            }
+
+            return true;
+        }
 
         private static class NativeMethods
         {

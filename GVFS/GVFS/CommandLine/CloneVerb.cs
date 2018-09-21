@@ -609,29 +609,22 @@ namespace GVFS.CommandLine
             }
 
             // Prepare the working directory folder for GVFS last to ensure that gvfs mount will fail if gvfs clone has failed
-            Result prepForCallbacksResult = new Result(true);
-            try
-            {
-                string prepFileSystemError;
-                if (!GVFSPlatform.Instance.KernelDriver.TryPrepareFolderForCallbacks(enlistment.WorkingDirectoryRoot, out prepFileSystemError))
-                {
-                    prepForCallbacksResult = new Result(prepFileSystemError);
-                }
-            }
-            catch (Exception e)
+            Exception exception;
+            string prepFileSystemError;
+            if (!GVFSPlatform.Instance.KernelDriver.TryPrepareFolderForCallbacks(enlistment.WorkingDirectoryRoot, out prepFileSystemError, out exception))
             {
                 EventMetadata metadata = new EventMetadata();
-                metadata.Add("Exception", e.ToString());
+                metadata.Add(nameof(prepFileSystemError), prepFileSystemError);
+                if (exception != null)
+                {
+                    metadata.Add("Exception", exception.ToString());
+                }
+
                 tracer.RelatedError(metadata, $"{nameof(this.CreateClone)}: TryPrepareFolderForCallbacks failed");
-                prepForCallbacksResult = new Result($"Failed to prepare \"{enlistment.WorkingDirectoryRoot}\" for callbacks, exception: {e.Message}");
+                return new Result(prepFileSystemError);
             }
 
-            if (!prepForCallbacksResult.Success)
-            {
-                tracer.RelatedError($"TryPrepareFolderForCallbacks failed, error: {prepForCallbacksResult.ErrorMessage}");
-            }
-
-            return prepForCallbacksResult;
+            return new Result(true);
         }
 
         private void CreateGitScript(GVFSEnlistment enlistment)

@@ -46,8 +46,9 @@ namespace GVFS.Platform.Mac
             return true;
         }
 
-        public bool TryPrepareFolderForCallbacks(string folderPath, out string error)
+        public bool TryPrepareFolderForCallbacks(string folderPath, out string error, out Exception exception)
         {
+            exception = null;
             error = string.Empty;
             Result result = VirtualizationInstance.ConvertDirectoryToVirtualizationRoot(folderPath);
             if (result != Result.Success)
