@@ -1,4 +1,5 @@
 ﻿using System.IO;
+using System.Runtime.InteropServices;
 
 namespace GVFS.FunctionalTests
 {
@@ -16,14 +17,23 @@ namespace GVFS.FunctionalTests
 
         public static bool ReplaceInboxProjFS { get; set; }
 
+        public static bool StartedFromDebugger { get; set; }
+
         public static string PathToGVFS
         {
             get
             {
-                return
-                    TestGVFSOnPath ? 
-                    Properties.Settings.Default.PathToGVFS : 
-                    Path.Combine(Properties.Settings.Default.CurrentDirectory, Properties.Settings.Default.PathToGVFS);
+                if (TestGVFSOnPath)
+                {
+                    return Properties.Settings.Default.PathToGVFS;
+                }
+
+                if (StartedFromDebugger && RuntimeInformation.IsOSPlatform(OSPlatform.OSX))
+                {
+                    return Path.Combine(Properties.Settings.Default.CurrentDirectory, "..", "..", "..", "..", "..", "..", "Publish", Properties.Settings.Default.PathToGVFS);
+                }
+
+                return Path.Combine(Properties.Settings.Default.CurrentDirectory, Properties.Settings.Default.PathToGVFS);
             }
         }
     }
