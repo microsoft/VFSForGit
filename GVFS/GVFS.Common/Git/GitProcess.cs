@@ -113,6 +113,7 @@ namespace GVFS.Common.Git
             {
                 Result gitCredentialOutput = this.InvokeGitAgainstDotGitFolder(
                     "credential fill",
+                    repoUrl,
                     stdin => stdin.Write("url=" + repoUrl + "\n\n"),
                     parseStdOutLine: null);
 
@@ -258,7 +259,7 @@ namespace GVFS.Common.Git
 
         public Result DiffTree(string sourceTreeish, string targetTreeish, Action<string> onResult)
         {
-            return this.InvokeGitAgainstDotGitFolder("diff-tree -r -t " + sourceTreeish + " " + targetTreeish, null, onResult);
+            return this.InvokeGitAgainstDotGitFolder("diff-tree -r -t " + sourceTreeish + " " + targetTreeish, null, null, onResult);
         }
 
         public Result CreateBranchWithUpstream(string branchToCreate, string upstreamBranch)
@@ -291,6 +292,7 @@ namespace GVFS.Common.Git
         {
             return this.InvokeGitAgainstDotGitFolder(
                 "unpack-objects",
+                null,
                 stdin =>
                 {
                     packFileStream.CopyTo(stdin.BaseStream);
@@ -358,6 +360,7 @@ namespace GVFS.Common.Git
             return this.InvokeGitAgainstDotGitFolder(
                 "ls-tree " + (recursive ? "-r " : string.Empty) + (showAllTrees ? "-t " : string.Empty) + treeish,
                 null,
+                null,
                 parseStdOutLine);
         }
 
@@ -389,7 +392,7 @@ namespace GVFS.Common.Git
             return this.InvokeGitAgainstDotGitFolder("read-tree " + treeIsh);
         }
 
-        public Process GetGitProcess(string command, string workingDirectory, string dotGitDirectory, bool useReadObjectHook, bool redirectStandardError)
+        public Process GetGitProcess(string command, string repoUrl, string workingDirectory, string dotGitDirectory, bool useReadObjectHook, bool redirectStandardError)
         {
             ProcessStartInfo processInfo = new ProcessStartInfo(this.gitBinPath);
             processInfo.WorkingDirectory = workingDirectory;
@@ -414,6 +417,12 @@ namespace GVFS.Common.Git
 
             processInfo.EnvironmentVariables["GIT_TERMINAL_PROMPT"] = "0";
             processInfo.EnvironmentVariables["GCM_VALIDATE"] = "0";
+
+            if (!string.IsNullOrEmpty(repoUrl))
+            {
+                processInfo.EnvironmentVariables["GCM_URL_OVERRIDE"] = repoUrl;
+            }
+
             processInfo.EnvironmentVariables["PATH"] =
                 string.Join(
                     ";",
@@ -439,6 +448,7 @@ namespace GVFS.Common.Git
 
         protected virtual Result InvokeGitImpl(
             string command,
+            string repoUrl,
             string workingDirectory,
             string dotGitDirectory,
             bool useReadObjectHook,
@@ -456,7 +466,7 @@ namespace GVFS.Common.Git
                 // From https://msdn.microsoft.com/en-us/library/system.diagnostics.process.standardoutput.aspx
                 // To avoid deadlocks, use asynchronous read operations on at least one of the streams.
                 // Do not perform a synchronous read to the end of both redirected streams.
-                using (Process executingProcess = this.GetGitProcess(command, workingDirectory, dotGitDirectory, useReadObjectHook, redirectStandardError: true))
+                using (Process executingProcess = this.GetGitProcess(command, repoUrl, workingDirectory, dotGitDirectory, useReadObjectHook, redirectStandardError: true))
                 {
                     StringBuilder output = new StringBuilder();
                     StringBuilder errors = new StringBuilder();
@@ -549,6 +559,7 @@ namespace GVFS.Common.Git
         {
             return this.InvokeGitImpl(
                 command,
+                null,
                 workingDirectory: Environment.SystemDirectory,
                 dotGitDirectory: null,
                 useReadObjectHook: false,
@@ -567,6 +578,7 @@ namespace GVFS.Common.Git
         {
             return this.InvokeGitImpl(
                 command,
+                null,
                 workingDirectory: this.workingDirectoryRoot,
                 dotGitDirectory: null,
                 useReadObjectHook: useReadObjectHook,
@@ -581,11 +593,12 @@ namespace GVFS.Common.Git
         /// </summary>
         private Result InvokeGitAgainstDotGitFolder(string command)
         {
-            return this.InvokeGitAgainstDotGitFolder(command, null, null);
+            return this.InvokeGitAgainstDotGitFolder(command, null, null, null);
         }
 
         private Result InvokeGitAgainstDotGitFolder(
             string command,
+            string url,
             Action<StreamWriter> writeStdIn,
             Action<string> parseStdOutLine)
         {
@@ -594,6 +607,7 @@ namespace GVFS.Common.Git
             // does not touch the working directory
             return this.InvokeGitImpl(
                 command,
+                url,
                 workingDirectory: Environment.SystemDirectory,
                 dotGitDirectory: this.dotGitRoot,
                 useReadObjectHook: false,
