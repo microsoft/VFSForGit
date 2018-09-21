@@ -8,14 +8,14 @@ using System.IO;
 
 namespace GVFS.CommandLine
 {
-    [Verb(UpgradeVerbName, HelpText = "Checks if a new GVFS release is available.")]
+    [Verb(UpgradeVerbName, HelpText = "Checks for new GVFS release, downloads and installs it when available.")]
     public class UpgradeVerb : GVFSVerb
     {
         private const string UpgradeVerbName = "upgrade";
         private ITracer tracer;
         private ProductUpgrader upgrader;
         private InstallerPreRunChecker prerunChecker;
-        private ProcessLauncher processWrapper;
+        private ProcessLauncher processLauncher;
 
         public UpgradeVerb(
             ProductUpgrader upgrader,
@@ -27,13 +27,13 @@ namespace GVFS.CommandLine
             this.upgrader = upgrader;
             this.tracer = tracer;
             this.prerunChecker = prerunChecker;
-            this.processWrapper = processWrapper;
+            this.processLauncher = processWrapper;
             this.Output = output;
         }
 
         public UpgradeVerb()
         {
-            this.processWrapper = new ProcessLauncher();
+            this.processLauncher = new ProcessLauncher();
             this.Output = Console.Out;
         }
 
@@ -76,7 +76,7 @@ namespace GVFS.CommandLine
                     jsonTracer.AddLogFileEventListener(logFilePath, EventLevel.Informational, Keywords.Any);
 
                     this.tracer = jsonTracer;
-                    this.prerunChecker = new InstallerPreRunChecker(this.tracer);
+                    this.prerunChecker = new InstallerPreRunChecker(this.tracer, this.Confirmed ? GVFSConstants.UpgradeVerbMessages.GVFSUpgradeConfirm : GVFSConstants.UpgradeVerbMessages.GVFSUpgrade);
                     this.upgrader = new ProductUpgrader(ProcessHelper.GetCurrentProcessVersion(), this.tracer);
                 }
 
@@ -84,7 +84,7 @@ namespace GVFS.CommandLine
             }
             else
             {
-                this.ReportInfoToConsole($"ERROR: `gvfs upgrade` in only supported on Microsoft Windows Operating System.");
+                this.ReportInfoToConsole($"ERROR: {GVFSConstants.UpgradeVerbMessages.GVFSUpgrade} in only supported on Microsoft Windows Operating System.");
                 return false;
             }
         }
@@ -265,7 +265,7 @@ namespace GVFS.CommandLine
             using (ITracer activity = this.tracer.StartActivity(nameof(this.TryLaunchUpgradeTool), EventLevel.Informational))
             {
                 Exception exception;
-                if (!this.processWrapper.TryStart(path, out exception))
+                if (!this.processLauncher.TryStart(path, out exception))
                 {
                     if (exception != null)
                     {
@@ -319,8 +319,6 @@ namespace GVFS.CommandLine
 
             using (ITracer activity = this.tracer.StartActivity(nameof(this.TryCheckUpgradeInstallable), EventLevel.Informational))
             {
-                this.prerunChecker.CommandToRerun = this.Confirmed ? "gvfs upgrade --confirm" : "gvfs upgrade";
-
                 if (!this.prerunChecker.TryRunPreUpgradeChecks(
                     out consoleError))
                 {

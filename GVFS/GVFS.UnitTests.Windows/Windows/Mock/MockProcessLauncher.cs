@@ -1,9 +1,8 @@
 ﻿using System;
-using static GVFS.CommandLine.UpgradeVerb;
 
 namespace GVFS.UnitTests.Windows.Upgrader
 {
-    public class MockProcessLauncher : ProcessLauncher
+    public class MockProcessLauncher : GVFS.CommandLine.UpgradeVerb.ProcessLauncher
     {
         private int exitCode;
         private bool hasExited;
@@ -12,7 +11,7 @@ namespace GVFS.UnitTests.Windows.Upgrader
         public MockProcessLauncher(
             int exitCode,
             bool hasExited,
-            bool startResult) : base()
+            bool startResult)
         {
             this.exitCode = exitCode;
             this.hasExited = hasExited;

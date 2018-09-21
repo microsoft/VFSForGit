@@ -27,7 +27,7 @@ namespace GVFS.UnitTests.Windows.Upgrader
                 this.ProcessWrapper,
                 this.Output);
             this.UpgradeVerb.Confirmed = false;
-            this.PrerunChecker.CommandToRerun = "gvfs upgrade";
+            this.PrerunChecker.SetCommandToRerun("`gvfs upgrade`");
         }
 
         [TestCase]
@@ -75,7 +75,7 @@ namespace GVFS.UnitTests.Windows.Upgrader
                 configure: () =>
                 {
                     this.UpgradeVerb.Confirmed = true;
-                    this.PrerunChecker.CommandToRerun = "gvfs upgrade --confirm";
+                    this.PrerunChecker.SetCommandToRerun("`gvfs upgrade --confirm`");
                 },
                 expectedReturn: ReturnCode.Success,
                 expectedOutput: new List<string>
@@ -111,7 +111,7 @@ namespace GVFS.UnitTests.Windows.Upgrader
                 {
                     this.Upgrader.SetFailOnAction(MockProductUpgrader.ActionType.CopyTools);
                     this.UpgradeVerb.Confirmed = true;
-                    this.PrerunChecker.CommandToRerun = "gvfs upgrade --confirm";
+                    this.PrerunChecker.SetCommandToRerun("`gvfs upgrade --confirm`");
                 },
                 expectedReturn: ReturnCode.GenericError,
                 expectedOutput: new List<string>
@@ -148,6 +148,7 @@ namespace GVFS.UnitTests.Windows.Upgrader
         [TestCase]
         public void IsGVFSServiceRunningPreCheck()
         {
+            this.PrerunChecker.SetCommandToRerun("`gvfs upgrade --confirm`");
             this.ConfigureRunAndVerify(
                 configure: () =>
                 {
@@ -158,7 +159,7 @@ namespace GVFS.UnitTests.Windows.Upgrader
                 expectedOutput: new List<string>
                 {
                     "GVFS Service is not running.",
-                    "Run `sc start GVFS.Service` and run `gvfs upgrade --confirm` again."
+                    "Run `sc start GVFS.Service` and run `gvfs upgrade --confirm` again from an elevated command prompt."
                 },
                 expectedErrors: new List<string>
                 {
@@ -169,6 +170,7 @@ namespace GVFS.UnitTests.Windows.Upgrader
         [TestCase]
         public void ElevatedRunPreCheck()
         {
+            this.PrerunChecker.SetCommandToRerun("`gvfs upgrade --confirm`");
             this.ConfigureRunAndVerify(
                 configure: () =>
                 {
@@ -204,26 +206,6 @@ namespace GVFS.UnitTests.Windows.Upgrader
                 expectedErrors: new List<string>
                 {
                     "`gvfs upgrade` is not supported in unattended mode"
-                });
-        }
-
-        [TestCase]
-        public void DeveloperMachinePreCheck()
-        {
-            this.ConfigureRunAndVerify(
-                configure: () =>
-                {
-                    this.UpgradeVerb.Confirmed = true;
-                    this.PrerunChecker.SetReturnTrueOnCheck(MockInstallerPrerunChecker.FailOnCheckType.IsDevelopmentVersion);
-                },
-                expectedReturn: ReturnCode.GenericError,
-                expectedOutput: new List<string>
-                {
-                    "Cannot run upgrade when development version of GVFS is installed."
-                },
-                expectedErrors: new List<string>
-                {
-                    "Cannot run upgrade when development version of GVFS is installed."
                 });
         }
 

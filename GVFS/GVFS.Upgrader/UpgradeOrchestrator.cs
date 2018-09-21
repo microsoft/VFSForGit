@@ -15,24 +15,21 @@ namespace GVFS.Upgrader
         private InstallerPreRunChecker preRunChecker;
         private TextWriter output;
         private TextReader input;
-        private bool remount;
-        private bool shouldExitOnError;
+        private bool mount;
 
         public UpgradeOrchestrator(
             ProductUpgrader upgrader, 
             ITracer tracer,
             InstallerPreRunChecker preRunChecker,
             TextReader input,
-            TextWriter output,
-            bool shouldExitOnError)
+            TextWriter output)
         {
             this.upgrader = upgrader;
             this.tracer = tracer;
             this.preRunChecker = preRunChecker;
             this.output = output;
             this.input = input;
-            this.remount = false;
-            this.shouldExitOnError = shouldExitOnError;
+            this.mount = false;
             this.ExitCode = ReturnCode.Success;
         }
 
@@ -48,12 +45,11 @@ namespace GVFS.Upgrader
                 Keywords.Any);
 
             this.tracer = jsonTracer;
-            this.preRunChecker = new InstallerPreRunChecker(this.tracer);
+            this.preRunChecker = new InstallerPreRunChecker(this.tracer, GVFSConstants.UpgradeVerbMessages.GVFSUpgradeConfirm);
             this.upgrader = new ProductUpgrader(ProcessHelper.GetCurrentProcessVersion(), this.tracer);
             this.output = Console.Out;
             this.input = Console.In;
-            this.remount = false;
-            this.shouldExitOnError = false;
+            this.mount = false;
             this.ExitCode = ReturnCode.Success;
         }
 
@@ -82,18 +78,18 @@ namespace GVFS.Upgrader
                 try
                 {
                     Version newVersion = null;
-                    if (!this.TryRunUpgradeInstall(out newVersion, out error))
+                    if (!this.TryRunUpgrade(out newVersion, out error))
                     {
                         this.ExitCode = ReturnCode.GenericError;
                     }
                 }
                 finally
                 {
-                    string remountError = null;
-                    if (!this.TryRemountRepositories(out remountError))
+                    string mountError = null;
+                    if (!this.TryMountRepositories(out mountError))
                     {
-                        remountError = Environment.NewLine + "WARNING: " + remountError;
-                        this.output.WriteLine(remountError);
+                        mountError = Environment.NewLine + "WARNING: " + mountError;
+                        this.output.WriteLine(mountError);
                         this.ExitCode = ReturnCode.Success;
                     }
 
@@ -116,11 +112,8 @@ namespace GVFS.Upgrader
                 this.output.WriteLine("Press Enter to exit.");
                 this.input.ReadLine();
             }
-            
-            if (this.shouldExitOnError)
-            {
-                Environment.Exit((int)this.ExitCode);
-            }
+
+            Environment.ExitCode = (int)this.ExitCode;
         }
 
         private bool LaunchInsideSpinner(Func<bool> method, string message)
@@ -154,7 +147,7 @@ namespace GVFS.Upgrader
             return loaded;
         }
 
-        private bool TryRunUpgradeInstall(out Version newVersion, out string consoleError)
+        private bool TryRunUpgrade(out Version newVersion, out string consoleError)
         {
             newVersion = null;
 
@@ -173,7 +166,6 @@ namespace GVFS.Upgrader
                     this.LogInstalledVersionInfo();
                     this.LogVersionInfo(newGVFSVersion, newGitVersion, "Available Version");
 
-                    this.preRunChecker.CommandToRerun = "gvfs upgrade --confirm";
                     if (!this.preRunChecker.TryRunPreUpgradeChecks(out errorMessage))
                     {
                         return false;
@@ -200,7 +192,7 @@ namespace GVFS.Upgrader
                         return false;
                     }
 
-                    this.remount = true;
+                    this.mount = true;
 
                     return true;
                 },
@@ -249,20 +241,20 @@ namespace GVFS.Upgrader
             return true;
         }
         
-        private bool TryRemountRepositories(out string consoleError)
+        private bool TryMountRepositories(out string consoleError)
         {
             string errorMessage = string.Empty;
-            if (this.remount && !this.LaunchInsideSpinner(
+            if (this.mount && !this.LaunchInsideSpinner(
                 () =>
                 {
-                    string remountError;
-                    if (!this.preRunChecker.TryMountAllGVFSRepos(out remountError))
+                    string mountError;
+                    if (!this.preRunChecker.TryMountAllGVFSRepos(out mountError))
                     {
                         EventMetadata metadata = new EventMetadata();
-                        metadata.Add("Upgrade Step", nameof(this.TryRemountRepositories));
-                        metadata.Add("Remount Error", remountError);
+                        metadata.Add("Upgrade Step", nameof(this.TryMountRepositories));
+                        metadata.Add("Mount Error", mountError);
                         this.tracer.RelatedError(metadata, $"{nameof(this.preRunChecker.TryMountAllGVFSRepos)} failed.");
-                        errorMessage += remountError;
+                        errorMessage += mountError;
                         return false;
                     }
 
