@@ -425,7 +425,6 @@ namespace GVFS.Virtualization
 
         public virtual void OnFileRenamed(string oldRelativePath, string newRelativePath)
         {
-            this.newlyCreatedFileAndFolderPaths.Add(newRelativePath);
             this.backgroundFileSystemTaskRunner.Enqueue(FileSystemTask.OnFileRenamed(oldRelativePath, newRelativePath));
         }
 

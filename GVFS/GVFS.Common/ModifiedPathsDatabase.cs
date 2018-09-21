@@ -84,8 +84,6 @@ namespace GVFS.Common
                     isRetryable = false;
                     return false;
                 }
-
-                return true;
             }
 
             return true;
@@ -113,8 +111,6 @@ namespace GVFS.Common
                     isRetryable = false;
                     return false;
                 }
-
-                return true;
             }
 
             return true;
