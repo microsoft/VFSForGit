@@ -112,9 +112,9 @@ VFS for Git on Mac is still in progress. You can build it, but this will not cre
   ProjFS.Mac/Scripts/LoadPrjFSKext.sh [Release]
   ```
 
-* Now you can put your built gvfs program on your path. A simple way to do that is by adding `Path/to/VFS/Publish` to your path.
+* Add your built gvfs program to your path. A simple way to do that is by adding `Path/to/VFS/Publish` to your path.
 
-  Check you have it by running
+  Confirm you have it by running
 
   ```
   command -v gvfs
@@ -122,7 +122,7 @@ VFS for Git on Mac is still in progress. You can build it, but this will not cre
 
   You should see a path to the gvfs executable.
 
-* Try cloning! Now that you have `gvfs` ready you can try cloning a VFS for Git enabled repository!
+* Try cloning a VFS for Git enabled repository!
 
   ```
   gvfs clone URL_TO_REPOSITORY --local-cache-path ~/.gvfsCache
