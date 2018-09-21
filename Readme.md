@@ -54,29 +54,29 @@ The installer can now be found at `C:\Repos\VFSForGit\BuildOutput\GVFS.Installer
 
 ## Building VFS for Git on Mac
 
-VFS for macOS is still in progress. You can build it, but this will not create a macOS VFS installer the same way the current Windows build will.
+VFS for Git on Mac is still in progress. You can build it, but this will not create a macOS VFS installer the same way the current Windows build will.
 
 * Ensure you have Xcode installed, have accepted the terms of use, and launched Xcode at least once.
 
-* Disable "System Integrity Protection" (for loading unsigned kexts) by booting into recovery mode (`[Win/⌘] + R` while booting).
+* Disable the "System Integrity Protection" (for loading unsigned Kexts) by booting into recovery mode (`[Win/⌘] + R` while booting).
   Once booted into recovery mode open Utilities -> Terminal to launch a termnial. Enter:
   ```
   csrutil disable
   ```
-  to disable SIP.
+  to disable SIP. Then click the Apple logo in the top left and restart.
 
 * Install [Visual Studio for Mac ](https://visualstudio.microsoft.com/vs/mac). (This will also install the `dotnet` CLI).
 
-* If you still do not have the `dotnet` cli `>= v2.1.300` installed [manually install it](https://www.microsoft.com/net/download/dotnet-core/2.1)
+* If you still do not have the `dotnet` cli `>= v2.1.300` installed [manually install it]. You can check what version you have with `dotnet --version`.(https://www.microsoft.com/net/download/dotnet-core/2.1)
 
-* If you are not currently an Apple Developer you will need to become one so that you can either use Microsoft certs or create your own certs for signing purposes. (If you are a Microsoft employee you must use your alias@microsoft.com when creating your Apple account.)
+* You will need to manage and sign your own certificate. [Apple Developer Cert Docs](https://developer.apple.com/documentation/security/certificate_key_and_trust_services/certificates).
 
-* Create a `VFS` directory and Clone the VFS repo into a directory called `src` inside it:
+* Create a `VFS` directory and Clone VFSForGit into a directory called `src` inside it:
   ```
   mkdir VFS && cd VFS && git clone https://github.com/Microsoft/VFSForGit.git src && cd src
   ```
 
-* Now `cd` back into your VFS src directory and run
+* From the src directory run
 
   ```
   Scripts/Mac/BuildGVFSForMac.sh [Release]
@@ -96,7 +96,11 @@ VFS for macOS is still in progress. You can build it, but this will not create a
 
   shows `/Applications/Xcode.app/Contents/Developer`. If it does not, install Xcode and then launch it (you can close it afterwards.)
 
-* Now setup the git credential manager by running
+* Prep your machine to use VFS for Git. The following are all done by the script below.wwwww
+  * install Homebrew
+  * install and setup the git credential manager (with `brew`)
+  * install/update Java (with `brew`)
+  * install a VFS for Git aware version of Git
 
   ```
   Scripts/Mac/PrepFunctionalTests.sh
@@ -124,7 +128,7 @@ VFS for macOS is still in progress. You can build it, but this will not create a
   gvfs clone URL_TO_REPOSITORY --local-cache-path ~/.gvfsCache
   ```
 
-  Note the current use of `--local-cache-path`. That argument prevent gvfs from running into a permissions error trying to put the cache at the root of your Mac's hard-drive.
+  Note the current use of `--local-cache-path`. That argument prevents VFS for Git from running into a permissions error trying to put the cache at the root of your Mac's hard-drive because porting of this feature is still in progress.
 
 
 ## Trying out VFS for Git
