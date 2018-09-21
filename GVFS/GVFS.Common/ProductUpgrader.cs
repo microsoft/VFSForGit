@@ -66,8 +66,8 @@ namespace GVFS.Common
             // upgrade logic.
             Invalid = 0,
             None = 10,
-            Slow = 20,
-            Fast = 30,
+            Slow = None + 1,
+            Fast = Slow + 1,
         }
 
         public RingType Ring { get; protected set; }
@@ -193,7 +193,7 @@ namespace GVFS.Common
                         error = string.Join(
                             Environment.NewLine, 
                             "File copy error - " + e.Message, 
-                            $"Make sure you have write permissions to directory {rootDirectoryPath} and run `gvfs upgrade --confirm` again.");
+                            $"Make sure you have write permissions to directory {rootDirectoryPath} and run {GVFSConstants.UpgradeVerbMessages.GVFSUpgradeConfirm} again.");
                         this.TraceException(e, nameof(this.TrySetupToolsDirectory), $"Error copying {toolPath} to {destinationPath}.");
                         break;
                     }
@@ -244,7 +244,6 @@ namespace GVFS.Common
         
         public virtual bool TryLoadRingConfig(out string error)
         {
-            string errorAdvisory = "Run `git config --global gvfs.upgradering [\"Fast\"|\"Slow\"|\"None\"]` and run `gvfs upgrade [--confirm]` again.";
             string gitPath = GVFSPlatform.Instance.GitInstallation.GetInstalledGitBinPath();
             GitProcess.Result result = GitProcess.GetFromGlobalConfig(gitPath, GVFSConstants.GitConfig.UpgradeRing);
             if (!result.HasErrors && !string.IsNullOrEmpty(result.Output))
@@ -270,7 +269,7 @@ namespace GVFS.Common
                 error = string.IsNullOrEmpty(result.Errors) ? "Unable to determine upgrade ring." : result.Errors;                
             }
 
-            error += Environment.NewLine + errorAdvisory;
+            error += Environment.NewLine + GVFSConstants.UpgradeVerbMessages.SetUpgradeRingCommand;
             this.Ring = RingType.Invalid;
             return false;
         }
@@ -332,12 +331,12 @@ namespace GVFS.Common
             }
             catch (HttpRequestException exception)
             {
-                errorMessage = string.Format("Network error: could not connect to GitHub. {0}", exception.Message);
+                errorMessage = string.Format("Network error: could not connect to GitHub({0}). {1}", GitHubReleaseURL, exception.Message);
                 this.TraceException(exception, nameof(this.TryFetchReleases), $"Error fetching release info.");
             }
             catch (SerializationException exception)
             {
-                errorMessage = string.Format("Parse error: could not parse releases info from GitHub. {0}", exception.Message);
+                errorMessage = string.Format("Parse error: could not parse releases info from GitHub({0}). {1}", GitHubReleaseURL, exception.Message);
                 this.TraceException(exception, nameof(this.TryFetchReleases), $"Error parsing release info.");
             }
 
@@ -350,6 +349,27 @@ namespace GVFS.Common
 
             exitCode = processResult.ExitCode;
             error = processResult.Errors;
+        }
+
+        private static bool TryCreateDirectory(string path, out Exception exception)
+        {
+            try
+            {
+                Directory.CreateDirectory(path);
+            }
+            catch (IOException e)
+            {
+                exception = e;
+                return false;
+            }
+            catch (UnauthorizedAccessException e)
+            {
+                exception = e;
+                return false;
+            }
+
+            exception = null;
+            return true;
         }
 
         private bool TryRunInstallerForAsset(string name, out int installerExitCode, out string error)
@@ -415,7 +435,7 @@ namespace GVFS.Common
             args = null;
             return false;
         }
-        
+
         [DataContract(Name = "asset")]
         protected class Asset
         {

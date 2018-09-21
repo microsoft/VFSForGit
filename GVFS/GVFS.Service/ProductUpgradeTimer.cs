@@ -21,14 +21,14 @@ namespace GVFS.Service
         public void Start()
         {
             Random random = new Random();
-            TimeSpan startTime = TimeSpan.FromMinutes(random.Next(0, 60));
+            TimeSpan startTime = TimeSpan.Zero;
 
-            this.tracer.RelatedInfo($"Starting auto upgrade checks. Start time - {startTime.ToString()}");
+            this.tracer.RelatedInfo("Starting auto upgrade checks.");
             this.timer = new Timer(
                 this.TimerCallback,
-                null,
-                startTime,
-                TimeInterval);
+                state: null,
+                dueTime: startTime,
+                period: TimeInterval);
         }
 
         public void Stop()
@@ -41,7 +41,7 @@ namespace GVFS.Service
         {
             string errorMessage = null;
 
-            InstallerPreRunChecker prerunChecker = new InstallerPreRunChecker(this.tracer);
+            InstallerPreRunChecker prerunChecker = new InstallerPreRunChecker(this.tracer, string.Empty);
             if (prerunChecker.TryRunPreUpgradeChecks(out string _) && !this.TryDownloadUpgrade(out errorMessage))
             {
                 this.tracer.RelatedError(errorMessage);
@@ -50,33 +50,34 @@ namespace GVFS.Service
 
         private bool TryDownloadUpgrade(out string errorMessage)
         {
-            this.tracer.RelatedInfo("Checking for product upgrades.");
+            using (ITracer activity = this.tracer.StartActivity("Checking for product upgrades.", EventLevel.Informational))
+            {
+                ProductUpgrader productUpgrader = new ProductUpgrader(ProcessHelper.GetCurrentProcessVersion(), this.tracer);
+                Version newerVersion = null;
+                string detailedError = null;
+                if (!productUpgrader.TryGetNewerVersion(out newerVersion, out detailedError))
+                {
+                    errorMessage = "Could not fetch new version info. " + detailedError;
+                    return false;
+                }
 
-            ProductUpgrader productUpgrader = new ProductUpgrader(ProcessHelper.GetCurrentProcessVersion(), this.tracer);
-            Version newerVersion = null;
-            string detailedError = null;
-            if (!productUpgrader.TryGetNewerVersion(out newerVersion, out detailedError))
-            {
-                errorMessage = "Could not fetch new version info. " + detailedError;
-                return false;
-            }
+                if (newerVersion == null)
+                {
+                    // Already up-to-date
+                    errorMessage = null;
+                    return true;
+                }
 
-            if (newerVersion == null)
-            {
-                // Already up-to-date
-                errorMessage = null;
-                return true;
-            }
-
-            if (productUpgrader.TryDownloadNewestVersion(out detailedError))
-            {
-                errorMessage = null;
-                return true;
-            }
-            else
-            {
-                errorMessage = "Could not download product upgrade. " + detailedError;
-                return false;
+                if (productUpgrader.TryDownloadNewestVersion(out detailedError))
+                {
+                    errorMessage = null;
+                    return true;
+                }
+                else
+                {
+                    errorMessage = "Could not download product upgrade. " + detailedError;
+                    return false;
+                }
             }
         }
     }

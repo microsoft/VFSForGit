@@ -15,7 +15,7 @@ namespace GVFS.UnitTests.Windows.Mock.Upgrader
 
         private FailOnCheckType failOnCheck;
 
-        public MockInstallerPrerunChecker(ITracer tracer) : base(tracer)
+        public MockInstallerPrerunChecker(ITracer tracer) : base(tracer, string.Empty)
         {
         }
 
@@ -27,15 +27,11 @@ namespace GVFS.UnitTests.Windows.Mock.Upgrader
             IsElevated = 0x2,
             BlockingProcessesRunning = 0x4,
             UnattendedMode = 0x8,
-            IsDevelopmentVersion = 0x10,
-            IsGitUpgradeAllowed = 0x20,
-            UnMountRepos = 0x40,
-            RemountRepos = 0x80,
-            IsServiceInstalledAndNotRunning = 0x100
+            UnMountRepos = 0x10,
+            RemountRepos = 0x20,
+            IsServiceInstalledAndNotRunning = 0x40,
         }
         
-        public List<string> GVFSArgs { get; private set; } = new List<string>();
-
         public void SetReturnFalseOnCheck(FailOnCheckType prerunCheck)
         {
             this.failOnCheck |= prerunCheck;
@@ -50,12 +46,14 @@ namespace GVFS.UnitTests.Windows.Mock.Upgrader
         {
             this.failOnCheck = FailOnCheckType.Invalid;
 
-            this.SetReturnFalseOnCheck(MockInstallerPrerunChecker.FailOnCheckType.IsDevelopmentVersion);
             this.SetReturnFalseOnCheck(MockInstallerPrerunChecker.FailOnCheckType.UnattendedMode);
             this.SetReturnFalseOnCheck(MockInstallerPrerunChecker.FailOnCheckType.BlockingProcessesRunning);
             this.SetReturnFalseOnCheck(MockInstallerPrerunChecker.FailOnCheckType.IsServiceInstalledAndNotRunning);
+        }
 
-            this.GVFSArgs.Clear();
+        public void SetCommandToRerun(string command)
+        {
+            this.CommandToRerun = command;
         }
 
         protected override bool IsServiceInstalledAndNotRunning()
@@ -77,15 +75,10 @@ namespace GVFS.UnitTests.Windows.Mock.Upgrader
         {
             return this.FakedResultOfCheck(FailOnCheckType.UnattendedMode);
         }
-
-        protected override bool IsDevelopmentVersion()
+        
+        protected override bool IsBlockingProcessRunning(out HashSet<string> processes)
         {
-            return this.FakedResultOfCheck(FailOnCheckType.IsDevelopmentVersion);
-        }
-
-        protected override bool IsBlockingProcessRunning(out List<string> processes)
-        {
-            processes = new List<string>();
+            processes = new HashSet<string>();
 
             bool isRunning = this.FakedResultOfCheck(FailOnCheckType.BlockingProcessesRunning);
             if (isRunning)
@@ -98,17 +91,15 @@ namespace GVFS.UnitTests.Windows.Mock.Upgrader
         }
 
         protected override bool TryRunGVFSWithArgs(string args, out string error)
-        {
-            this.GVFSArgs.Add(args);
-            
-            if (string.CompareOrdinal(args, "service --unmount-all --log-mount-failure-in-stderr") == 0)
+        {            
+            if (string.CompareOrdinal(args, "service --unmount-all") == 0)
             {
                 bool result = this.FakedResultOfCheck(FailOnCheckType.UnMountRepos);
                 error = result == false ? "Unmount of some of the repositories failed." : null;
                 return result;
             }
 
-            if (string.CompareOrdinal(args, "service --mount-all --log-mount-failure-in-stderr") == 0)
+            if (string.CompareOrdinal(args, "service --mount-all") == 0)
             {
                 bool result = this.FakedResultOfCheck(FailOnCheckType.RemountRepos);
                 error = result == false ? "Auto remount failed." : null;

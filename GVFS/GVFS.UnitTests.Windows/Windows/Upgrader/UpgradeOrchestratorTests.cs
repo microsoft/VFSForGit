@@ -22,9 +22,8 @@ namespace GVFS.UnitTests.Windows.Upgrader
                 this.Tracer,
                 this.PrerunChecker,
                 input: null,
-                output: this.Output,
-                shouldExitOnError: false);
-            this.PrerunChecker.CommandToRerun = "gvfs upgrade --confirm";
+                output: this.Output);
+            this.PrerunChecker.SetCommandToRerun("`gvfs upgrade --confirm`");
         }
 
         [TestCase]

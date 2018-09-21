@@ -19,7 +19,7 @@ namespace GVFS.Common
             if (Directory.Exists(downloadDirectory))
             {
                 string[] installers = Directory.GetFiles(
-                    GetAssetDownloadsPath(), 
+                    downloadDirectory, 
                     $"{GVFSInstallerFileNamePrefix}*.*", 
                     SearchOption.TopDirectoryOnly);
                 return installers.Length > 0;
@@ -36,27 +36,6 @@ namespace GVFS.Common
         public static string GetLogDirectoryPath()
         {
             return Path.Combine(Paths.GetServiceDataRoot(RootDirectory), LogDirectory);
-        }
-
-        private static bool TryCreateDirectory(string path, out Exception exception)
-        {
-            try
-            {
-                Directory.CreateDirectory(path);
-            }
-            catch (IOException e)
-            {
-                exception = e;
-                return false;
-            }
-            catch (UnauthorizedAccessException e)
-            {
-                exception = e;
-                return false;
-            }
-
-            exception = null;
-            return true;
         }
 
         private static string GetAssetDownloadsPath()

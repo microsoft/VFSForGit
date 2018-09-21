@@ -94,6 +94,8 @@ namespace GVFS.Common.Git
 
         public static bool TryGetVersion(out GitVersion gitVersion, out string error)
         {
+            // TODO Implement IGitInstallation in MockPlatform.cs & remove 
+            // NotSupportedException handler.
             try
             {
                 string gitPath = GVFSPlatform.Instance.GitInstallation.GetInstalledGitBinPath();
