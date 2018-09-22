@@ -9,6 +9,7 @@
 #include <unistd.h>
 #include <dirent.h>
 #include <list>
+#include <queue>
 #include <unordered_map>
 #include <set>
 #include <IOKit/IOKitLib.h>
@@ -605,21 +606,21 @@ static PrjFS_Result HandleRecursivelyEnumerateDirectoryRequest(const MessageHead
     
     DIR* directory = nullptr;
     PrjFS_Result result = PrjFS_Result_Success;
-    std::list<std::string> directoryRelativePaths;
-    directoryRelativePaths.push_back(path);
+    std::queue<std::string> directoryRelativePaths;
+    directoryRelativePaths.push(path);
     
     // Walk each directory, expanding those that are found to be empty
     char pathBuffer[PrjFSMaxPath];
-    std::list<std::string>::iterator relativePathIter = directoryRelativePaths.begin();
-    while(relativePathIter != directoryRelativePaths.end())
+    while (!directoryRelativePaths.empty())
     {
-        CombinePaths(s_virtualizationRootFullPath.c_str(), relativePathIter->c_str(), pathBuffer);
+        string directoryRelativePath(directoryRelativePaths.front());
+        directoryRelativePaths.pop();
+        
+        CombinePaths(s_virtualizationRootFullPath.c_str(), directoryRelativePath.c_str(), pathBuffer);
     
-        // TODO(Mac): how should we handle scenarios where we were unable to fully expand the directory and
-        // its children?
         if (IsBitSetInFileFlags(pathBuffer, FileFlags_IsEmpty))
         {
-            PrjFS_Result result = HandleEnumerateDirectoryRequest(request, relativePathIter->c_str());
+            PrjFS_Result result = HandleEnumerateDirectoryRequest(request, directoryRelativePath.c_str());
             if (result != PrjFS_Result_Success)
             {
                 goto CleanupAndReturn;
@@ -634,20 +635,18 @@ static PrjFS_Result HandleRecursivelyEnumerateDirectoryRequest(const MessageHead
         }
         
         dirent* dirEntry = readdir(directory);
-        while(dirEntry != nullptr)
+        while (dirEntry != nullptr)
         {
             if (dirEntry->d_type == DT_DIR &&
                 0 != strncmp(".", dirEntry->d_name, sizeof(dirEntry->d_name)) &&
                 0 != strncmp("..", dirEntry->d_name, sizeof(dirEntry->d_name)))
             {
-                CombinePaths(relativePathIter->c_str(), dirEntry->d_name, pathBuffer);
-                directoryRelativePaths.push_back(pathBuffer);
+                CombinePaths(directoryRelativePath.c_str(), dirEntry->d_name, pathBuffer);
+                directoryRelativePaths.emplace(pathBuffer);
             }
             
             dirEntry = readdir(directory);
         }
-    
-        ++relativePathIter;
     }
     
 CleanupAndReturn:

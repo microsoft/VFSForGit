@@ -294,17 +294,16 @@ static int HandleVnodeOperation(
     
     if (VDIR == vnodeType)
     {
-        bool deleteAction = ActionBitIsSet(action, KAUTH_VNODE_DELETE);
-        
-        if (deleteAction ||
-            ActionBitIsSet(
+        if (ActionBitIsSet(
                 action,
                 KAUTH_VNODE_LIST_DIRECTORY |
                 KAUTH_VNODE_SEARCH |
                 KAUTH_VNODE_READ_SECURITY |
                 KAUTH_VNODE_READ_ATTRIBUTES |
-                KAUTH_VNODE_READ_EXTATTRIBUTES))
+                KAUTH_VNODE_READ_EXTATTRIBUTES |
+                KAUTH_VNODE_DELETE))
         {
+            bool deleteAction = ActionBitIsSet(action, KAUTH_VNODE_DELETE);
             // Recursively expand directory on delete to ensure child placeholders are created before rename operations
             if (deleteAction || FileFlagsBitIsSet(currentVnodeFileFlags, FileFlags_IsEmpty))
             {
