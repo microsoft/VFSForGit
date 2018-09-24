@@ -22,7 +22,11 @@ namespace GVFS.Virtualization.Projection
     {
         public const string ProjectionIndexBackupName = "GVFS_projection";
 
-        protected static readonly ushort FileMode644 = Convert.ToUInt16("644", 8);
+        // Bitmasks for extracting file type and mode from the ushort stored in the index
+        public const ushort FileTypeMask = 0xF000;
+        public const ushort FileModeMask = 0x1FF;
+
+        protected static readonly ushort Regular644File = (ushort)((ushort)FileType.Regular | Convert.ToUInt16("644", 8));
 
         private const int IndexFileStreamBufferSize = 512 * 1024;
 
@@ -54,7 +58,7 @@ namespace GVFS.Virtualization.Projection
 
         // nonDefaultFileModes is only populated when the platform supports file mode
         // On platforms that support file modes, file paths that are not in nonDefaultFileModes have mode 644
-        private Dictionary<string, ushort> nonDefaultFileModes = new Dictionary<string, ushort>(StringComparer.OrdinalIgnoreCase);
+        private Dictionary<string, ushort> nonDefaultFileTypesAndModes = new Dictionary<string, ushort>(StringComparer.OrdinalIgnoreCase);
 
         private BlobSizes blobSizes;
         private PlaceholderListDatabase placeholderList;
@@ -116,6 +120,15 @@ namespace GVFS.Virtualization.Projection
         // For Unit Testing
         protected GitIndexProjection()
         {
+        }
+
+        public enum FileType : ushort
+        {
+            Invalid = 0,
+
+            Regular = 0x8000,
+            SymLink = 0xA000,
+            GitLink = 0xE000,
         }
 
         public int EstimatedPlaceholderCount
@@ -356,11 +369,11 @@ namespace GVFS.Virtualization.Projection
             }
         }
 
-        public virtual ushort GetFilePathMode(string filePath)
+        public virtual ushort GetFileTypeAndMode(string filePath)
         {
             if (!GVFSPlatform.Instance.FileSystem.SupportsFileMode)
             {
-                throw new InvalidOperationException("GetFilePathMode is only supported on GVFSPlatforms that support file mode");
+                throw new InvalidOperationException($"{nameof(this.GetFileTypeAndMode)} is only supported on GVFSPlatforms that support file mode");
             }
 
             this.projectionReadWriteLock.EnterReadLock();
@@ -368,12 +381,12 @@ namespace GVFS.Virtualization.Projection
             try
             {
                 ushort fileMode;
-                if (this.nonDefaultFileModes.TryGetValue(filePath, out fileMode))
+                if (this.nonDefaultFileTypesAndModes.TryGetValue(filePath, out fileMode))
                 {
                     return fileMode;
                 }
 
-                return FileMode644;
+                return Regular644File;
             }
             finally
             {
@@ -667,12 +680,12 @@ namespace GVFS.Virtualization.Projection
             {
                 // TODO(Mac): Test if performance could be improved by reduce this to a single check
                 // (e.g. by defaulting FileMode to 644 and eliminating the SupportsFileMode check)
-                if (indexEntry.FileMode != FileMode644)
+                if (indexEntry.FileTypeAndMode != Regular644File)
                 {
                     // TODO(Mac): The line below causes a conversion from LazyUTF8String to .NET string.
                     // Measure the perf and memory overhead of performing this conversion, and determine if we need
                     // a way to keep the path as LazyUTF8String[]
-                    this.nonDefaultFileModes.Add(indexEntry.GetFullPath(), indexEntry.FileMode);
+                    this.nonDefaultFileTypesAndModes.Add(indexEntry.GetFullPath(), indexEntry.FileTypeAndMode);
                 }
             }
         }
@@ -693,7 +706,7 @@ namespace GVFS.Virtualization.Projection
             SortedFolderEntries.FreePool();
             LazyUTF8String.FreePool();
             this.projectionFolderCache.Clear();
-            this.nonDefaultFileModes.Clear();
+            this.nonDefaultFileTypesAndModes.Clear();
             this.rootFolderData.ResetData(new LazyUTF8String("<root>"));
         }
 

@@ -36,7 +36,7 @@ namespace GVFS.UnitTests.Mock.Virtualization.Projection
 
             this.PlaceholdersCreated = new ConcurrentHashSet<string>();
             this.ExpandedFolders = new ConcurrentHashSet<string>();
-            this.MockFileModes = new ConcurrentDictionary<string, ushort>();
+            this.MockFileTypesAndModes = new ConcurrentDictionary<string, ushort>();
 
             this.unblockGetProjectedItems = new ManualResetEvent(true);
             this.waitForGetProjectedItems = new ManualResetEvent(true);
@@ -56,7 +56,7 @@ namespace GVFS.UnitTests.Mock.Virtualization.Projection
 
         public ConcurrentHashSet<string> ExpandedFolders { get; }
 
-        public ConcurrentDictionary<string, ushort> MockFileModes { get; }
+        public ConcurrentDictionary<string, ushort> MockFileTypesAndModes { get; }
 
         public bool ThrowOperationCanceledExceptionOnProjectionRequest { get; set; }
 
@@ -161,10 +161,10 @@ namespace GVFS.UnitTests.Mock.Virtualization.Projection
             return false;
         }
 
-        public override ushort GetFilePathMode(string path)
+        public override ushort GetFileTypeAndMode(string path)
         {
             ushort result;
-            if (this.MockFileModes.TryGetValue(path, out result))
+            if (this.MockFileTypesAndModes.TryGetValue(path, out result))
             {
                 return result;
             }

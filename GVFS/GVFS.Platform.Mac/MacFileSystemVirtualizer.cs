@@ -80,13 +80,13 @@ namespace GVFS.Platform.Mac
             string sha)
         {
             // TODO(Mac): Add functional tests that validate file mode is set correctly
-            ushort fileMode = this.FileSystemCallbacks.GitIndexProjection.GetFilePathMode(relativePath);
+            ushort fileTypeAndMode = this.FileSystemCallbacks.GitIndexProjection.GetFileTypeAndMode(relativePath);
             Result result = this.virtualizationInstance.WritePlaceholderFile(
                 relativePath,
                 PlaceholderVersionId,
                 ToVersionIdByteArray(FileSystemVirtualizer.ConvertShaToContentId(sha)),
                 (ulong)endOfFile,
-                fileMode);
+                (ushort)(fileTypeAndMode & GitIndexProjection.FileModeMask));
 
             return new FileSystemResult(ResultToFSResult(result), unchecked((int)result));
         }
@@ -114,14 +114,14 @@ namespace GVFS.Platform.Mac
             // TODO(Mac): Add functional tests that include:
             //     - Mode + content changes between commits
             //     - Mode only changes (without any change to content, see issue #223)
-            ushort fileMode = this.FileSystemCallbacks.GitIndexProjection.GetFilePathMode(relativePath);
+            ushort fileTypeAndMode = this.FileSystemCallbacks.GitIndexProjection.GetFileTypeAndMode(relativePath);
 
             Result result = this.virtualizationInstance.UpdatePlaceholderIfNeeded(
                 relativePath,
                 PlaceholderVersionId,
                 ToVersionIdByteArray(ConvertShaToContentId(shaContentId)),
                 (ulong)endOfFile,
-                fileMode,
+                (ushort)(fileTypeAndMode & GitIndexProjection.FileModeMask),
                 (UpdateType)updateFlags,
                 out failureCause);
             failureReason = (UpdateFailureReason)failureCause;
