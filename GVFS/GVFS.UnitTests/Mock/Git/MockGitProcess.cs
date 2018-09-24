@@ -26,7 +26,7 @@ namespace GVFS.UnitTests.Mock.Git
             this.expectedCommandInfos.Add(commandInfo);
         }
 
-        protected override Result InvokeGitImpl(string command, string workingDirectory, string dotGitDirectory, bool useReadObjectHook, Action<StreamWriter> writeStdIn, Action<string> parseStdOutLine, int timeoutMs)
+        protected override Result InvokeGitImpl(string command, string repoUrl, string workingDirectory, string dotGitDirectory, bool useReadObjectHook, Action<StreamWriter> writeStdIn, Action<string> parseStdOutLine, int timeoutMs)
         {
             if (this.ShouldFail)
             {
