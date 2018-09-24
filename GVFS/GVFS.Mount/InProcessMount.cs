@@ -546,6 +546,9 @@ namespace GVFS.Mount
 
             this.heartbeat = new HeartbeatThread(this.tracer, this.fileSystemCallbacks);
             this.heartbeat.Start();
+
+            // Launch a background job to compute the multi-pack-index. Will do nothing if up-to-date.
+            this.fileSystemCallbacks.LaunchPostFetchJob(packIndexes: new List<string>());
         }
 
         private void UnmountAndStopWorkingDirectoryCallbacks()
