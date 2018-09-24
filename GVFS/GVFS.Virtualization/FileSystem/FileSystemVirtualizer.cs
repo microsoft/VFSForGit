@@ -185,7 +185,7 @@ namespace GVFS.Virtualization.FileSystem
             }
         }
 
-        protected void OnWorkingDirectoryFileOrFolderDeleted(string relativePath, bool isDirectory)
+        protected void OnWorkingDirectoryFileOrFolderDeleteNotification(string relativePath, bool isDirectory, bool isPreDelete)
         {
             if (isDirectory)
             {
@@ -193,12 +193,26 @@ namespace GVFS.Virtualization.FileSystem
                 GitCommandLineParser gitCommand = new GitCommandLineParser(this.Context.Repository.GVFSLock.GetLockedGitCommand());
                 if (!gitCommand.IsValidGitCommand)
                 {
-                    this.FileSystemCallbacks.OnFolderDeleted(relativePath);
+                    if (isPreDelete)
+                    {
+                        this.FileSystemCallbacks.OnFolderPreDelete(relativePath);
+                    }
+                    else
+                    {
+                        this.FileSystemCallbacks.OnFolderDeleted(relativePath);
+                    }
                 }
             }
             else
             {
-                this.FileSystemCallbacks.OnFileDeleted(relativePath);
+                if (isPreDelete)
+                {
+                    this.FileSystemCallbacks.OnFilePreDelete(relativePath);
+                }
+                else
+                {
+                    this.FileSystemCallbacks.OnFileDeleted(relativePath);
+                }
             }
 
             this.FileSystemCallbacks.InvalidateGitStatusCache();

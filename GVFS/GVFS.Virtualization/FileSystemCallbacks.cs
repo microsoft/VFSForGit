@@ -438,6 +438,11 @@ namespace GVFS.Virtualization
             this.backgroundFileSystemTaskRunner.Enqueue(FileSystemTask.OnFileDeleted(relativePath));
         }
 
+        public void OnFilePreDelete(string relativePath)
+        {
+            this.backgroundFileSystemTaskRunner.Enqueue(FileSystemTask.OnFilePreDelete(relativePath));
+        }
+
         public void OnFolderCreated(string relativePath)
         {
             this.newlyCreatedFileAndFolderPaths.Add(relativePath);
@@ -452,6 +457,11 @@ namespace GVFS.Virtualization
         public void OnFolderDeleted(string relativePath)
         {
             this.backgroundFileSystemTaskRunner.Enqueue(FileSystemTask.OnFolderDeleted(relativePath));
+        }
+
+        public void OnFolderPreDelete(string relativePath)
+        {
+            this.backgroundFileSystemTaskRunner.Enqueue(FileSystemTask.OnFolderPreDelete(relativePath));
         }
 
         public void OnPlaceholderFileCreated(string relativePath, string sha, string triggeringProcessImageFileName)
@@ -650,6 +660,27 @@ namespace GVFS.Virtualization
 
                     break;
 
+                case FileSystemTask.OperationType.OnFilePreDelete:
+                    metadata.Add("virtualPath", gitUpdate.VirtualPath);
+                    if (this.newlyCreatedFileAndFolderPaths.Contains(gitUpdate.VirtualPath))
+                    {
+                        string fullPathToFolder = Path.Combine(this.context.Enlistment.WorkingDirectoryRoot, gitUpdate.VirtualPath);
+                        if (!this.context.FileSystem.FileExists(fullPathToFolder))
+                        {
+                            result = this.TryRemoveModifiedPath(gitUpdate.VirtualPath, isFolder: false);
+                        }
+                        else
+                        {
+                            result = FileSystemTaskResult.Success;
+                        }
+                    }
+                    else
+                    {
+                        result = this.AddModifiedPathAndRemoveFromPlaceholderList(gitUpdate.VirtualPath);
+                    }
+
+                    break;
+
                 case FileSystemTask.OperationType.OnFileDeleted:
                     metadata.Add("virtualPath", gitUpdate.VirtualPath);
                     if (this.newlyCreatedFileAndFolderPaths.Contains(gitUpdate.VirtualPath))
@@ -764,6 +795,27 @@ namespace GVFS.Virtualization
 
                     break;
 
+                case FileSystemTask.OperationType.OnFolderPreDelete:
+                    metadata.Add("virtualPath", gitUpdate.VirtualPath);
+                    if (this.newlyCreatedFileAndFolderPaths.Contains(gitUpdate.VirtualPath))
+                    {
+                        string fullPathToFolder = Path.Combine(this.context.Enlistment.WorkingDirectoryRoot, gitUpdate.VirtualPath);
+                        if (!this.context.FileSystem.DirectoryExists(fullPathToFolder))
+                        {
+                            result = this.TryRemoveModifiedPath(gitUpdate.VirtualPath, isFolder: true);
+                        }
+                        else
+                        {
+                            result = FileSystemTaskResult.Success;
+                        }
+                    }
+                    else
+                    {
+                        result = this.TryAddModifiedPath(gitUpdate.VirtualPath, isFolder: true);
+                    }
+
+                    break;
+
                 case FileSystemTask.OperationType.OnFolderDeleted:
                     metadata.Add("virtualPath", gitUpdate.VirtualPath);
                     if (this.newlyCreatedFileAndFolderPaths.Contains(gitUpdate.VirtualPath))
@@ -808,13 +860,6 @@ namespace GVFS.Virtualization
 
         private FileSystemTaskResult TryRemoveModifiedPath(string virtualPath, bool isFolder)
         {
-            string fullPathToItem = Path.Combine(this.context.Enlistment.WorkingDirectoryRoot, virtualPath);
-            if ((isFolder && this.context.FileSystem.DirectoryExists(fullPathToItem)) || 
-                (!isFolder && this.context.FileSystem.FileExists(fullPathToItem)))
-            {
-                return FileSystemTaskResult.Success;
-            }
-
             if (!this.modifiedPaths.TryRemove(virtualPath, isFolder, out bool isRetryable))
             {
                 return isRetryable ? FileSystemTaskResult.RetryableError : FileSystemTaskResult.FatalError;
