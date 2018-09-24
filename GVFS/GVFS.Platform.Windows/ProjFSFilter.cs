@@ -584,11 +584,6 @@ namespace GVFS.Platform.Windows
                 (int)ProjFSInboxStatus.NotInbox + "}else{if($var.State -eq 'Enabled'){exit " + (int)ProjFSInboxStatus.Enabled + "}else{exit " + (int)ProjFSInboxStatus.Disabled + "}}");
         }
 
-        private static ProcessResult CallPowershellCommand(string command)
-        {
-            return ProcessHelper.Run("powershell.exe", "-NonInteractive -NoProfile -Command \"& { " + command + " }\"");
-        }
-
         private static EventMetadata CreateEventMetadata(Exception e = null)
         {
             EventMetadata metadata = new EventMetadata();
