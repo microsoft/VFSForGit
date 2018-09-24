@@ -13,6 +13,8 @@ namespace GVFS.FunctionalTests
     {
         public static void Main(string[] args)
         {
+            GVFSTestConfig.StartedFromDebugger = Debugger.IsAttached;
+            
             Properties.Settings.Default.Initialize();
             NUnitRunner runner = new NUnitRunner(args);
 
