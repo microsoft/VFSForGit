@@ -221,9 +221,18 @@ of your enlistment's src folder.
 
         private void PrepareSrcFolder(ITracer tracer, GVFSEnlistment enlistment)
         {
+            Exception exception;
             string error;
-            if (!GVFSPlatform.Instance.KernelDriver.TryPrepareFolderForCallbacks(enlistment.WorkingDirectoryRoot, out error))
+            if (!GVFSPlatform.Instance.KernelDriver.TryPrepareFolderForCallbacks(enlistment.WorkingDirectoryRoot, out error, out exception))
             {
+                EventMetadata metadata = new EventMetadata();
+                metadata.Add(nameof(error), error);
+                if (exception != null)
+                {
+                    metadata.Add("Exception", exception.ToString());
+                }
+
+                tracer.RelatedError(metadata, $"{nameof(this.PrepareSrcFolder)}: TryPrepareFolderForCallbacks failed");
                 this.ReportErrorAndExit(tracer, "Failed to recreate the virtualization root: " + error);
             }
         }
