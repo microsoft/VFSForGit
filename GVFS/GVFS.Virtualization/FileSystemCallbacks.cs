@@ -428,6 +428,11 @@ namespace GVFS.Virtualization
             this.backgroundFileSystemTaskRunner.Enqueue(FileSystemTask.OnFileHardLinkCreated(newLinkRelativePath));
         }
 
+        public virtual void OnFileSymLinkCreated(string newLinkRelativePath)
+        {
+            this.backgroundFileSystemTaskRunner.Enqueue(FileSystemTask.OnFileSymLinkCreated(newLinkRelativePath));
+        }
+
         public void OnFileDeleted(string relativePath)
         {
             this.backgroundFileSystemTaskRunner.Enqueue(FileSystemTask.OnFileDeleted(relativePath));
@@ -615,6 +620,7 @@ namespace GVFS.Virtualization
                 case FileSystemTask.OperationType.OnFileCreated:
                 case FileSystemTask.OperationType.OnFailedPlaceholderDelete:
                 case FileSystemTask.OperationType.OnFileHardLinkCreated:
+                case FileSystemTask.OperationType.OnFileSymLinkCreated:
                     metadata.Add("virtualPath", gitUpdate.VirtualPath);
                     result = this.AddModifiedPathAndRemoveFromPlaceholderList(gitUpdate.VirtualPath);
                     break;

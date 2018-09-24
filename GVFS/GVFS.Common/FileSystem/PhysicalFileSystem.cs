@@ -103,9 +103,9 @@ namespace GVFS.Common.FileSystem
             RecursiveDelete(path);
         }
 
-        public virtual bool IsSymlink(string path)
+        public virtual bool IsSymLink(string path)
         {
-            return (this.GetAttributes(path) & FileAttributes.ReparsePoint) == FileAttributes.ReparsePoint && NativeMethods.IsSymlink(path);
+            return (this.GetAttributes(path) & FileAttributes.ReparsePoint) == FileAttributes.ReparsePoint && NativeMethods.IsSymLink(path);
         }
 
         public virtual IEnumerable<DirectoryItemInfo> ItemsInDirectory(string path)

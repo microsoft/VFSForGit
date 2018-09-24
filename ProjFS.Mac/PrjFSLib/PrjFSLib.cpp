@@ -355,6 +355,38 @@ CleanupAndFail:
     return PrjFS_Result_EIOError;
 }
 
+PrjFS_Result PrjFS_WriteSymLink(
+    _In_    const char*                             relativePath,
+    _In_    const char*                             symLinkContents)
+{
+#ifdef DEBUG
+    std::cout
+        << "PrjFS_WriteSymLink("
+        << relativePath << ", "
+        << symLinkContents << ")" << std::endl;
+#endif
+    
+    if (nullptr == relativePath || nullptr == symLinkContents)
+    {
+        return PrjFS_Result_EInvalidArgs;
+    }
+    
+    char fullPath[PrjFSMaxPath];
+    CombinePaths(s_virtualizationRootFullPath.c_str(), relativePath, fullPath);
+    
+    if(symlink(symLinkContents, fullPath))
+    {
+        goto CleanupAndFail;
+    }
+
+    return PrjFS_Result_Success;
+    
+CleanupAndFail:
+    
+    return PrjFS_Result_EIOError;
+    
+}
+
 PrjFS_Result PrjFS_UpdatePlaceholderFileIfNeeded(
     _In_    const char*                             relativePath,
     _In_    unsigned char                           providerId[PrjFS_PlaceholderIdLength],
@@ -385,6 +417,29 @@ PrjFS_Result PrjFS_UpdatePlaceholderFileIfNeeded(
     }
 
     return PrjFS_WritePlaceholderFile(relativePath, providerId, contentId, fileSize, fileMode);
+}
+
+PrjFS_Result PrjFS_ReplacePlaceholderFileWithSymLink(
+    _In_    const char*                             relativePath,
+    _In_    const char*                             symLinkContents,
+    _In_    PrjFS_UpdateType                        updateFlags,
+    _Out_   PrjFS_UpdateFailureCause*               failureCause)
+{
+#ifdef DEBUG
+    std::cout
+        << "PrjFS_ReplacePlaceholderFileWithSymLink("
+        << relativePath << ", "
+        << symLinkContents << ", "
+        << std::hex << updateFlags << std::dec << ")" << std::endl;
+#endif
+    
+    PrjFS_Result result = PrjFS_DeleteFile(relativePath, updateFlags, failureCause);
+    if (result != PrjFS_Result_Success)
+    {
+       return result;
+    }
+    
+    return PrjFS_WriteSymLink(relativePath, symLinkContents);
 }
 
 PrjFS_Result PrjFS_DeleteFile(

@@ -99,7 +99,8 @@ namespace GVFS.UnitTests.Platform.Mac
                 backgroundTaskRunner,
                 virtualizer))
             {
-                gitIndexProjection.MockFileTypesAndModes.TryAdd("test" + Path.DirectorySeparatorChar + "test.txt", (ushort)(RegularFileType | FileMode644));
+                string filePath = "test" + Path.DirectorySeparatorChar + "test.txt";
+                gitIndexProjection.MockFileTypesAndModes.TryAdd(filePath, (ushort)(RegularFileType | FileMode644));
                 string error;
                 fileSystemCallbacks.TryStart(out error).ShouldEqual(true);
 
@@ -109,7 +110,7 @@ namespace GVFS.UnitTests.Platform.Mac
                 mockVirtualization.UpdatePlaceholderIfNeededFailureCause = UpdateFailureCause.NoFailure;
                 virtualizer
                     .UpdatePlaceholderIfNeeded(
-                        "test.txt",
+                        filePath,
                         DateTime.Now,
                         DateTime.Now,
                         DateTime.Now,
@@ -126,7 +127,7 @@ namespace GVFS.UnitTests.Platform.Mac
                 mockVirtualization.UpdatePlaceholderIfNeededFailureCause = UpdateFailureCause.NoFailure;
                 virtualizer
                     .UpdatePlaceholderIfNeeded(
-                        "test.txt",
+                        filePath,
                         DateTime.Now,
                         DateTime.Now,
                         DateTime.Now,
@@ -146,7 +147,7 @@ namespace GVFS.UnitTests.Platform.Mac
                 // TODO: The result should probably be VirtualizationInvalidOperation but for now it's IOError
                 virtualizer
                     .UpdatePlaceholderIfNeeded(
-                        "test.txt",
+                        filePath,
                         DateTime.Now,
                         DateTime.Now,
                         DateTime.Now,

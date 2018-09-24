@@ -210,7 +210,7 @@ namespace GVFS.Virtualization.Projection
                                 break;
 
                             default:
-                                throw new InvalidDataException($"Invalid object type {type:X} found in index");
+                                throw new InvalidDataException($"Invalid file type {type:X} found in index");
                         }
                                     
                         this.resuableParsedIndexEntry.FileTypeAndMode = typeAndMode;
