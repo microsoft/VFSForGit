@@ -344,7 +344,8 @@ of your enlistment's src folder.
         {
             string errorMessage = null;
 
-            if (!this.ShowStatusWhileRunning(
+            if (!this.TryAuthenticate(tracer, enlistment, out errorMessage) ||
+                !this.ShowStatusWhileRunning(
                 () =>
                 {
                     CacheServerInfo cacheServer = new CacheServerInfo(enlistment.RepoUrl, null);

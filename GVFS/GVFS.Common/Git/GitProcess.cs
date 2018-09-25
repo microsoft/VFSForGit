@@ -120,10 +120,12 @@ namespace GVFS.Common.Git
             ITracer tracer,
             string repoUrl,
             out string username,
-            out string password)
+            out string password,
+            out string errorMessage)
         {
             username = null;
             password = null;
+            errorMessage = null;
 
             using (ITracer activity = tracer.StartActivity("TryGetCredentials", EventLevel.Informational))
             {
@@ -139,6 +141,7 @@ namespace GVFS.Common.Git
                         errorData,
                         "Git could not get credentials: " + gitCredentialOutput.Errors,
                         Keywords.Network | Keywords.Telemetry);
+                    errorMessage = gitCredentialOutput.Errors;
 
                     return false;
                 }

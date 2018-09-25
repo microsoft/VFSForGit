@@ -8,14 +8,17 @@ namespace GVFS.Common.Git
     public class GitAuthentication
     {
         private const double MaxBackoffSeconds = 30;
+
         private readonly object gitAuthLock = new object();
+        private readonly GitProcess git;
+        private readonly string repoUrl;
+
         private int numberOfAttempts = 0;
         private DateTime lastAuthAttempt = DateTime.MinValue;
 
         private string cachedAuthString;
 
-        private GitProcess git;
-        private string repoUrl;
+        private bool isInitialized;
 
         public GitAuthentication(GitProcess git, string repoUrl)
         {
@@ -57,10 +60,9 @@ namespace GVFS.Common.Git
 
                 if (this.cachedAuthString != null)
                 {
-                    // Wipe the username and password so we can try recovering if applicable.
                     this.cachedAuthString = null;
-
                     this.git.RevokeCredential(this.repoUrl);
+
                     this.UpdateBackoff();
                 }
             }
@@ -74,38 +76,27 @@ namespace GVFS.Common.Git
 
         public bool TryGetCredentials(ITracer tracer, out string gitAuthString, out string errorMessage)
         {
+            if (!this.isInitialized)
+            {
+                throw new InvalidOperationException("This auth instance must be initialized before it can be used");
+            }
+
             gitAuthString = this.cachedAuthString;
-            if (this.cachedAuthString == null)
+            if (gitAuthString == null)
             {
                 lock (this.gitAuthLock)
                 {
                     if (this.cachedAuthString == null)
                     {
-                        string gitUsername;
-                        string gitPassword;
-
                         if (this.IsBackingOff)
                         {
-                            gitAuthString = null;
                             errorMessage = "Auth failed. No retries will be made until: " + this.GetNextAuthAttemptTime();
                             return false;
                         }
 
-                        if (!this.git.TryGetCredentials(tracer, this.repoUrl, out gitUsername, out gitPassword))
+                        if (!this.TryCallGitCredential(tracer, out errorMessage))
                         {
-                            gitAuthString = null;
-                            errorMessage = "Authentication failed.";
-                            this.UpdateBackoff();
                             return false;
-                        }
-
-                        if (!string.IsNullOrEmpty(gitUsername) && !string.IsNullOrEmpty(gitPassword))
-                        {
-                            this.cachedAuthString = Convert.ToBase64String(Encoding.ASCII.GetBytes(gitUsername + ":" + gitPassword));
-                        }
-                        else
-                        {
-                            this.cachedAuthString = string.Empty;
                         }
                     }
 
@@ -121,9 +112,26 @@ namespace GVFS.Common.Git
         public bool TryInitialize(ITracer tracer, GVFSEnlistment enlistment, out string errorMessage)
         {
             errorMessage = null;
-            return
-                this.TryAnonymousQuery(tracer, enlistment) ||
-                this.TryRefreshCredentials(tracer, out errorMessage);
+
+            if (this.TryAnonymousQuery(tracer, enlistment) ||
+                this.TryCallGitCredential(tracer, out errorMessage))
+            {
+                this.isInitialized = true;
+                return true;
+            }
+
+            return false;
+        }
+
+        public bool TryInitializeAndRequireAuth(ITracer tracer, out string errorMessage)
+        {
+            if (this.TryCallGitCredential(tracer, out errorMessage))
+            {
+                this.isInitialized = true;
+                return true;
+            }
+
+            return false;
         }
 
         private bool TryAnonymousQuery(ITracer tracer, GVFSEnlistment enlistment)
@@ -164,6 +172,30 @@ namespace GVFS.Common.Git
         {
             this.lastAuthAttempt = DateTime.Now;
             this.numberOfAttempts++;
+        }
+
+        private bool TryCallGitCredential(ITracer tracer, out string errorMessage)
+        {
+            string gitUsername;
+            string gitPassword;
+            if (!this.git.TryGetCredentials(tracer, this.repoUrl, out gitUsername, out gitPassword, out errorMessage))
+            {
+                this.UpdateBackoff();
+                return false;
+            }
+
+            if (!string.IsNullOrEmpty(gitUsername) && !string.IsNullOrEmpty(gitPassword))
+            {
+                this.cachedAuthString = Convert.ToBase64String(Encoding.ASCII.GetBytes(gitUsername + ":" + gitPassword));
+            }
+            else
+            {
+                // TODO: How can we get back an empty username/password? This may have been an early attempt to "handle" anonymous auth
+                // and if so, it should be treated as an error here.
+                this.cachedAuthString = string.Empty;
+            }
+
+            return true;
         }
     }
 }
