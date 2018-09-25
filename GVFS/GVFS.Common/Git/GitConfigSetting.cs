@@ -6,6 +6,7 @@ namespace GVFS.Common.Git
     {
         public const string CoreVirtualizeObjectsName = "core.virtualizeobjects";
         public const string CoreVirtualFileSystemName = "core.virtualfilesystem";
+        public const string CredentialUseHttpPath = "credential.useHttpPath";
 
         public GitConfigSetting(string name, params string[] values)
         {
