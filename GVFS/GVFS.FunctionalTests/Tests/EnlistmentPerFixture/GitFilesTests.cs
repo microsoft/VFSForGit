@@ -132,22 +132,32 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
         [Category(Categories.MacTODO.M2)]
         public void CaseOnlyRenameOfNewFolderKeepsModifiedPathsEntries()
         {
-            string[] expectedModifiedPathsEntries =
+            if (this.fileSystem is PowerShellRunner)
             {
-                "Folder/",
-                "Folder/testfile",
+                Assert.Ignore("Powershell does not support case only renames.");
+            }
+
+            string[] expectedModifiedPathsEntriesAfterCreate =
+            {
+                "A Folder/",
+                "A Folder/testfile",
+            };
+
+            string[] expectedModifiedPathsEntriesAfterRename =
+            {
+                "A folder/",
             };
 
             this.fileSystem.CreateDirectory(Path.Combine(this.Enlistment.RepoRoot, "Folder"));
             this.fileSystem.CreateEmptyFile(Path.Combine(this.Enlistment.RepoRoot, "Folder", "testfile"));
             this.Enlistment.WaitForBackgroundOperations().ShouldEqual(true, "Background operations failed to complete.");
 
-            GVFSHelpers.ModifiedPathsShouldContain(this.fileSystem, this.Enlistment.DotGVFSRoot, expectedModifiedPathsEntries);
+            GVFSHelpers.ModifiedPathsShouldContain(this.fileSystem, this.Enlistment.DotGVFSRoot, expectedModifiedPathsEntriesAfterCreate);
 
             this.fileSystem.RenameDirectory(this.Enlistment.RepoRoot, "Folder", "folder");
             this.Enlistment.WaitForBackgroundOperations().ShouldEqual(true, "Background operations failed to complete.");
 
-            GVFSHelpers.ModifiedPathsShouldContain(this.fileSystem, this.Enlistment.DotGVFSRoot, expectedModifiedPathsEntries);
+            GVFSHelpers.ModifiedPathsShouldContain(this.fileSystem, this.Enlistment.DotGVFSRoot, expectedModifiedPathsEntriesAfterRename);
         }
 
         [TestCase, Order(7)]

@@ -718,20 +718,22 @@ namespace GVFS.Virtualization
                     metadata.Add("oldVirtualPath", gitUpdate.OldVirtualPath);
                     metadata.Add("virtualPath", gitUpdate.VirtualPath);
 
+                    if (!string.IsNullOrEmpty(gitUpdate.OldVirtualPath) &&
+                        this.newlyCreatedFileAndFolderPaths.Contains(gitUpdate.OldVirtualPath))
+                    {
+                        result = this.TryRemoveModifiedPath(gitUpdate.OldVirtualPath, isFolder: true);
+                    }
+
                     // An empty destination path means the folder was renamed to somewhere outside of the repo
                     // Note that only full folders can be moved\renamed, and so there will already be a recursive
                     // sparse-checkout entry for the virtualPath of the folder being moved (meaning that no 
                     // additional work is needed for any files\folders inside the folder being moved)
-                    if (!string.IsNullOrEmpty(gitUpdate.VirtualPath))
+                    if (result == FileSystemTaskResult.Success && !string.IsNullOrEmpty(gitUpdate.VirtualPath))
                     {
                         result = this.TryAddModifiedPath(gitUpdate.VirtualPath, isFolder: true);
                         if (result == FileSystemTaskResult.Success)
                         {
                             this.newlyCreatedFileAndFolderPaths.Add(gitUpdate.VirtualPath);
-                            if (this.newlyCreatedFileAndFolderPaths.Contains(gitUpdate.OldVirtualPath))
-                            {
-                                result = this.TryRemoveModifiedPath(gitUpdate.OldVirtualPath, isFolder: true);
-                            }
 
                             Queue<string> relativeFolderPaths = new Queue<string>();
                             relativeFolderPaths.Enqueue(gitUpdate.VirtualPath);
