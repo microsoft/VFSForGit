@@ -109,7 +109,7 @@ namespace GVFS.Common.Git
             return true;
         }
 
-        public bool TryInitialize(ITracer tracer, GVFSEnlistment enlistment, out string errorMessage)
+        public bool TryInitialize(ITracer tracer, Enlistment enlistment, out string errorMessage)
         {
             errorMessage = null;
 
@@ -134,7 +134,7 @@ namespace GVFS.Common.Git
             return false;
         }
 
-        private bool TryAnonymousQuery(ITracer tracer, GVFSEnlistment enlistment)
+        private bool TryAnonymousQuery(ITracer tracer, Enlistment enlistment)
         {
             using (ConfigHttpRequestor configRequestor = new ConfigHttpRequestor(tracer, enlistment, new RetryConfig()))
             {
