@@ -17,10 +17,10 @@ namespace GVFS.Common.Http
             this.repoUrl = enlistment.RepoUrl;
         }
 
-        public bool TryQueryGVFSConfig(out ServerGVFSConfig serverGVFSConfig, out HttpStatusCode httpError)
+        public bool TryQueryGVFSConfig(bool logErrors, out ServerGVFSConfig serverGVFSConfig, out HttpStatusCode? httpStatus)
         {
             serverGVFSConfig = null;
-            httpError = default(HttpStatusCode);
+            httpStatus = null;
 
             Uri gvfsConfigEndpoint;
             string gvfsConfigEndpointString = this.repoUrl + GVFSConstants.Endpoints.GVFSConfig;
@@ -41,7 +41,11 @@ namespace GVFS.Common.Http
 
             long requestId = HttpRequestor.GetNewRequestId();
             RetryWrapper<ServerGVFSConfig> retrier = new RetryWrapper<ServerGVFSConfig>(this.RetryConfig.MaxAttempts, CancellationToken.None);
-            retrier.OnFailure += RetryWrapper<ServerGVFSConfig>.StandardErrorHandler(this.Tracer, requestId, "QueryGvfsConfig");
+
+            if (logErrors)
+            {
+                retrier.OnFailure += RetryWrapper<ServerGVFSConfig>.StandardErrorHandler(this.Tracer, requestId, "QueryGvfsConfig");
+            }
 
             RetryWrapper<ServerGVFSConfig>.InvocationResult output = retrier.Invoke(
                 tryCount =>
@@ -80,7 +84,7 @@ namespace GVFS.Common.Http
             GitObjectsHttpException httpException = output.Error as GitObjectsHttpException;
             if (httpException != null)
             {
-                httpError = httpException.StatusCode;
+                httpStatus = httpException.StatusCode;
             }
 
             return false;

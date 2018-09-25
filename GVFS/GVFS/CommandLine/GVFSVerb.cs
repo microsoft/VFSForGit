@@ -291,7 +291,8 @@ namespace GVFS.CommandLine
                 {
                     using (ConfigHttpRequestor configRequestor = new ConfigHttpRequestor(tracer, enlistment, retryConfig))
                     {
-                        return configRequestor.TryQueryGVFSConfig(out serverGVFSConfig, out _);
+                        const bool LogErrors = true;
+                        return configRequestor.TryQueryGVFSConfig(LogErrors, out serverGVFSConfig, out _);
                     }
                 },
                 "Querying remote for config",

@@ -111,30 +111,38 @@ namespace GVFS.Common.Git
 
         public bool TryInitialize(ITracer tracer, Enlistment enlistment, out string errorMessage)
         {
+            if (this.isInitialized)
+            {
+                throw new InvalidOperationException("Already initialized");
+            }
+
             errorMessage = null;
 
-            bool queryFailed;
-            bool requiresAuth;
-
-            this.AttemptAnonymousQuery(tracer, enlistment, out queryFailed, out requiresAuth);
-            if (queryFailed)
+            bool isAnonymous;
+            if (!this.TryAnonymousQuery(tracer, enlistment, out isAnonymous))
             {
                 errorMessage = $"Unable to determine if authentication is required";
                 return false;
             }
 
-            if (requiresAuth &&
+            if (isAnonymous &&
                 !this.TryCallGitCredential(tracer, out errorMessage))
             {
                 return false;
             }
 
+            this.IsAnonymous = isAnonymous;
             this.isInitialized = true;
             return true;
         }
 
         public bool TryInitializeAndRequireAuth(ITracer tracer, out string errorMessage)
         {
+            if (this.isInitialized)
+            {
+                throw new InvalidOperationException("Already initialized");
+            }
+
             if (this.TryCallGitCredential(tracer, out errorMessage))
             {
                 this.isInitialized = true;
@@ -144,38 +152,49 @@ namespace GVFS.Common.Git
             return false;
         }
 
-        private void AttemptAnonymousQuery(ITracer tracer, Enlistment enlistment, out bool queryFailed, out bool requiresAuth)
+        private bool TryAnonymousQuery(ITracer tracer, Enlistment enlistment, out bool isAnonymous)
         {
-            using (ConfigHttpRequestor configRequestor = new ConfigHttpRequestor(tracer, enlistment, new RetryConfig()))
+            bool querySucceeded;
+            using (ITracer anonymousTracer = tracer.StartActivity("AttemptAnonymousAuth", EventLevel.Informational))
             {
-                ServerGVFSConfig gvfsConfig;
-                HttpStatusCode httpError;
-                if (configRequestor.TryQueryGVFSConfig(out gvfsConfig, out httpError))
+                HttpStatusCode? httpStatus;
+
+                using (ConfigHttpRequestor configRequestor = new ConfigHttpRequestor(anonymousTracer, enlistment, new RetryConfig()))
                 {
-                    tracer.RelatedInfo($"GitAuthentication.AttemptAnonymousQuery: Anonymous query to {GVFSConstants.Endpoints.GVFSConfig} succeeded");
+                    ServerGVFSConfig gvfsConfig;
+                    const bool LogErrors = false;
+                    if (configRequestor.TryQueryGVFSConfig(LogErrors, out gvfsConfig, out httpStatus))
+                    {
+                        anonymousTracer.RelatedInfo($"GitAuthentication.AttemptAnonymousQuery: Anonymous query to {GVFSConstants.Endpoints.GVFSConfig} succeeded");
 
-                    this.IsAnonymous = true;
+                        querySucceeded = true;
+                        isAnonymous = true;
+                    }
+                    else if (httpStatus == HttpStatusCode.Unauthorized)
+                    {
+                        anonymousTracer.RelatedInfo($"GitAuthentication.AttemptAnonymousQuery: Anonymous query to {GVFSConstants.Endpoints.GVFSConfig} rejected with 401");
 
-                    queryFailed = false;
-                    requiresAuth = false;
+                        querySucceeded = true;
+                        isAnonymous = false;
+                    }
+                    else
+                    {
+                        anonymousTracer.RelatedError($"GitAuthentication.AttemptAnonymousQuery: Anonymous query to {GVFSConstants.Endpoints.GVFSConfig} failed with {httpStatus}");
+
+                        querySucceeded = false;
+                        isAnonymous = false;
+                    }
                 }
-                else if (httpError == HttpStatusCode.Unauthorized)
+
+                anonymousTracer.Stop(new EventMetadata
                 {
-                    tracer.RelatedInfo($"GitAuthentication.AttemptAnonymousQuery: Anonymous query to {GVFSConstants.Endpoints.GVFSConfig} rejected with 401");
-
-                    this.IsAnonymous = false;
-
-                    queryFailed = false;
-                    requiresAuth = true;
-                }
-                else
-                {
-                    tracer.RelatedError($"GitAuthentication.AttemptAnonymousQuery: Anonymous query to {GVFSConstants.Endpoints.GVFSConfig} failed with {httpError}");
-
-                    queryFailed = true;
-                    requiresAuth = false;
-                }
+                    { "HttpStatus", httpStatus.HasValue ? httpStatus.ToString() : "None" },
+                    { "QuerySucceeded", querySucceeded },
+                    { "IsAnonymous", isAnonymous },
+                });
             }
+
+            return querySucceeded;
         }
 
         private DateTime GetNextAuthAttemptTime()
