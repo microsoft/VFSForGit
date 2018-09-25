@@ -1,6 +1,7 @@
 ﻿using GVFS.Common.Tracing;
 using Newtonsoft.Json;
 using System;
+using System.Net;
 using System.Net.Http;
 using System.Threading;
 
@@ -16,9 +17,10 @@ namespace GVFS.Common.Http
             this.repoUrl = enlistment.RepoUrl;
         }
 
-        public bool TryQueryGVFSConfig(out ServerGVFSConfig serverGVFSConfig)
+        public bool TryQueryGVFSConfig(out ServerGVFSConfig serverGVFSConfig, out HttpStatusCode httpError)
         {
             serverGVFSConfig = null;
+            httpError = default(HttpStatusCode);
 
             Uri gvfsConfigEndpoint;
             string gvfsConfigEndpointString = this.repoUrl + GVFSConstants.Endpoints.GVFSConfig;
@@ -73,6 +75,12 @@ namespace GVFS.Common.Http
             {
                 serverGVFSConfig = output.Result;
                 return true;
+            }
+
+            GitObjectsHttpException httpException = output.Error as GitObjectsHttpException;
+            if (httpException != null)
+            {
+                httpError = httpException.StatusCode;
             }
 
             return false;

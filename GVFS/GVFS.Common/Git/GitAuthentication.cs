@@ -1,6 +1,7 @@
 ﻿using GVFS.Common.Http;
 using GVFS.Common.Tracing;
 using System;
+using System.Net;
 using System.Text;
 
 namespace GVFS.Common.Git
@@ -101,7 +102,6 @@ namespace GVFS.Common.Git
                     }
 
                     gitAuthString = this.cachedAuthString;
-                    tracer.RelatedInfo("Received auth token");
                 }
             }
 
@@ -113,14 +113,24 @@ namespace GVFS.Common.Git
         {
             errorMessage = null;
 
-            if (this.TryAnonymousQuery(tracer, enlistment) ||
-                this.TryCallGitCredential(tracer, out errorMessage))
+            bool queryFailed;
+            bool requiresAuth;
+
+            this.AttemptAnonymousQuery(tracer, enlistment, out queryFailed, out requiresAuth);
+            if (queryFailed)
             {
-                this.isInitialized = true;
-                return true;
+                errorMessage = $"Unable to determine if authentication is required";
+                return false;
             }
 
-            return false;
+            if (requiresAuth &&
+                !this.TryCallGitCredential(tracer, out errorMessage))
+            {
+                return false;
+            }
+
+            this.isInitialized = true;
+            return true;
         }
 
         public bool TryInitializeAndRequireAuth(ITracer tracer, out string errorMessage)
@@ -134,27 +144,38 @@ namespace GVFS.Common.Git
             return false;
         }
 
-        private bool TryAnonymousQuery(ITracer tracer, Enlistment enlistment)
+        private void AttemptAnonymousQuery(ITracer tracer, Enlistment enlistment, out bool queryFailed, out bool requiresAuth)
         {
             using (ConfigHttpRequestor configRequestor = new ConfigHttpRequestor(tracer, enlistment, new RetryConfig()))
             {
                 ServerGVFSConfig gvfsConfig;
-                if (configRequestor.TryQueryGVFSConfig(out gvfsConfig))
+                HttpStatusCode httpError;
+                if (configRequestor.TryQueryGVFSConfig(out gvfsConfig, out httpError))
                 {
-                    tracer.RelatedInfo($"Anonymous query to {GVFSConstants.Endpoints.GVFSConfig} succeeded");
+                    tracer.RelatedInfo($"GitAuthentication.AttemptAnonymousQuery: Anonymous query to {GVFSConstants.Endpoints.GVFSConfig} succeeded");
 
                     this.IsAnonymous = true;
-                    return true;
+
+                    queryFailed = false;
+                    requiresAuth = false;
                 }
+                else if (httpError == HttpStatusCode.Unauthorized)
+                {
+                    tracer.RelatedInfo($"GitAuthentication.AttemptAnonymousQuery: Anonymous query to {GVFSConstants.Endpoints.GVFSConfig} rejected with 401");
 
-                // TODO: We should not lump all errors together here. The query could have failed for a number of
-                // reasons unrelated to auth, so we still need to update TryQueryGVFSConfig to pass back a result
-                // indicating if the error was caused by a 401. But this is good enough for now to test the behavior.
-                tracer.RelatedInfo($"Anonymous query to {GVFSConstants.Endpoints.GVFSConfig} failed");
+                    this.IsAnonymous = false;
+
+                    queryFailed = false;
+                    requiresAuth = true;
+                }
+                else
+                {
+                    tracer.RelatedError($"GitAuthentication.AttemptAnonymousQuery: Anonymous query to {GVFSConstants.Endpoints.GVFSConfig} failed with {httpError}");
+
+                    queryFailed = true;
+                    requiresAuth = false;
+                }
             }
-
-            this.IsAnonymous = false;
-            return false;
         }
 
         private DateTime GetNextAuthAttemptTime()
