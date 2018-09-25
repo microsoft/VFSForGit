@@ -310,7 +310,8 @@ namespace GVFS.CommandLine
                 normalizedEnlistementRootPath,
                 this.RepositoryURL,
                 gitBinPath,
-                hooksPath);
+                hooksPath,
+                authentication: null);
             
             return new Result(true);
         }

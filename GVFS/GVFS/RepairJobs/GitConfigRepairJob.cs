@@ -43,31 +43,27 @@ namespace GVFS.RepairJobs
                 return IssueType.Fixable;
             }
 
-            // At this point, we've confirmed that the repo url can be gotten, so we have to 
-            // reinitialize the GitProcess with a valid repo url for 'git credential fill'
-            string repoUrl = null;
+            // We've validated the repo URL, so now make sure we can authenticate
             try
             {
                 GVFSEnlistment enlistment = GVFSEnlistment.CreateFromDirectory(
                     this.Enlistment.EnlistmentRoot,
                     this.Enlistment.GitBinPath,
-                    this.Enlistment.GVFSHooksRoot);
-                git = new GitProcess(enlistment);
-                repoUrl = enlistment.RepoUrl;
+                    this.Enlistment.GVFSHooksRoot,
+                    authentication: null);
+
+                string authError;
+                if (!enlistment.Authentication.TryInitialize(this.Tracer, enlistment, out authError))
+                {
+                    messages.Add("Authentication failed. Run 'gvfs log' for more info.");
+                    messages.Add(".git\\config is valid and remote 'origin' is set, but may have a typo:");
+                    messages.Add(result.Output.Trim());
+                    return IssueType.CantFix;
+                }
             }
             catch (InvalidRepoException)
             {
                 messages.Add("An issue was found that may be a side-effect of other issues. Fix them with 'gvfs repair --confirm' then 'gvfs repair' again.");
-                return IssueType.CantFix;
-            }
-
-            string username;
-            string password;
-            if (!git.TryGetCredentials(this.Tracer, repoUrl, out username, out password))
-            {
-                messages.Add("Authentication failed. Run 'gvfs log' for more info.");
-                messages.Add(".git\\config is valid and remote 'origin' is set, but may have a typo:");
-                messages.Add(result.Output.Trim());
                 return IssueType.CantFix;
             }
 

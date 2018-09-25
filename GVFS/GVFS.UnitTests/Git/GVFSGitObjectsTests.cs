@@ -138,7 +138,7 @@ namespace GVFS.UnitTests.Git
         private GVFSGitObjects CreateTestableGVFSGitObjects(MockHttpGitObjects httpObjects, MockFileSystemWithCallbacks fileSystem)
         {
             MockTracer tracer = new MockTracer();
-            GVFSEnlistment enlistment = new GVFSEnlistment(TestEnlistmentRoot, "https://fakeRepoUrl", "fakeGitBinPath", gvfsHooksRoot: null);
+            GVFSEnlistment enlistment = new GVFSEnlistment(TestEnlistmentRoot, "https://fakeRepoUrl", "fakeGitBinPath", gvfsHooksRoot: null, authentication: null);
             enlistment.InitializeCachePathsFromKey(TestLocalCacheRoot, TestObjecRoot);
             GitRepo repo = new GitRepo(tracer, enlistment, fileSystem, () => new MockLibGit2Repo(tracer));
 

@@ -174,7 +174,8 @@ namespace GVFS.DiskLayoutUpgrades
             GVFSEnlistment enlistment = GVFSEnlistment.CreateFromDirectory(
                 enlistmentRoot,
                 GVFSPlatform.Instance.GitInstallation.GetInstalledGitBinPath(),
-                ProcessHelper.GetCurrentProcessLocation());
+                ProcessHelper.GetCurrentProcessLocation(),
+                authentication: null);
             GitProcess git = enlistment.CreateGitProcess();
 
             foreach (string key in configSettings.Keys)

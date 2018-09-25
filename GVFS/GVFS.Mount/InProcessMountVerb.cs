@@ -178,7 +178,7 @@ namespace GVFS.Mount
             GVFSEnlistment enlistment = null;
             try
             {
-                enlistment = GVFSEnlistment.CreateFromDirectory(enlistmentRootPath, gitBinPath, ProcessHelper.GetCurrentProcessLocation());
+                enlistment = GVFSEnlistment.CreateFromDirectory(enlistmentRootPath, gitBinPath, ProcessHelper.GetCurrentProcessLocation(), authentication: null);
                 if (enlistment == null)
                 {
                     this.ReportErrorAndExit(

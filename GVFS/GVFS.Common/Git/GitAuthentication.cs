@@ -118,7 +118,7 @@ namespace GVFS.Common.Git
             return true;
         }
 
-        public bool Initialize(ITracer tracer, GVFSEnlistment enlistment, out string errorMessage)
+        public bool TryInitialize(ITracer tracer, GVFSEnlistment enlistment, out string errorMessage)
         {
             errorMessage = null;
             return

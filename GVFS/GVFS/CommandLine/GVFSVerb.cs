@@ -222,7 +222,7 @@ namespace GVFS.CommandLine
             string authError = null;
 
             bool result = this.ShowStatusWhileRunning(
-                () => enlistment.Authentication.Initialize(tracer, enlistment, out authError),
+                () => enlistment.Authentication.TryInitialize(tracer, enlistment, out authError),
                 "Authenticating",
                 enlistment.EnlistmentRoot);
 
@@ -781,12 +781,7 @@ You can specify a URL, a name of a configured cache server, or the special names
                 this.ValidatePathParameter(this.EnlistmentRootPathParameter);
 
                 this.PreCreateEnlistment();
-                GVFSEnlistment enlistment = this.CreateEnlistment(this.EnlistmentRootPathParameter);
-
-                if (authentication != null)
-                {
-                    enlistment.ReuseExistingAuth(authentication);
-                }
+                GVFSEnlistment enlistment = this.CreateEnlistment(this.EnlistmentRootPathParameter, authentication);
 
                 this.Execute(enlistment);
             }
@@ -1038,7 +1033,7 @@ You can specify a URL, a name of a configured cache server, or the special names
                 }
             }
 
-            private GVFSEnlistment CreateEnlistment(string enlistmentRootPath)
+            private GVFSEnlistment CreateEnlistment(string enlistmentRootPath, GitAuthentication authentication)
             {
                 string gitBinPath = GVFSPlatform.Instance.GitInstallation.GetInstalledGitBinPath();
                 if (string.IsNullOrWhiteSpace(gitBinPath))
@@ -1065,11 +1060,11 @@ You can specify a URL, a name of a configured cache server, or the special names
                 {
                     if (this.validateOriginURL)
                     {
-                        enlistment = GVFSEnlistment.CreateFromDirectory(enlistmentRootPath, gitBinPath, hooksPath);
+                        enlistment = GVFSEnlistment.CreateFromDirectory(enlistmentRootPath, gitBinPath, hooksPath, authentication);
                     }
                     else
                     {
-                        enlistment = GVFSEnlistment.CreateWithoutRepoUrlFromDirectory(enlistmentRootPath, gitBinPath, hooksPath);
+                        enlistment = GVFSEnlistment.CreateWithoutRepoUrlFromDirectory(enlistmentRootPath, gitBinPath, hooksPath, authentication);
                     }
 
                     if (enlistment == null)

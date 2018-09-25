@@ -76,7 +76,7 @@ namespace GVFS.Service.Handlers
 
             try
             {
-                enlistment = GVFSEnlistment.CreateFromDirectory(repoRoot, gitBinPath, hooksPath);
+                enlistment = GVFSEnlistment.CreateFromDirectory(repoRoot, gitBinPath, hooksPath, authentication: null);
             }
             catch (InvalidRepoException)
             {
