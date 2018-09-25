@@ -661,6 +661,9 @@ namespace GVFS.Virtualization
                     break;
 
                 case FileSystemTask.OperationType.OnFilePreDelete:
+                    // This code assumes that the current implementations of FileSystemVirtualizer will call either
+                    // the PreDelete or the Delete not both so if a new implementation starts calling both
+                    // this will need to be cleaned up to not duplicate the work that is being done.
                     metadata.Add("virtualPath", gitUpdate.VirtualPath);
                     if (this.newlyCreatedFileAndFolderPaths.Contains(gitUpdate.VirtualPath))
                     {
@@ -682,6 +685,9 @@ namespace GVFS.Virtualization
                     break;
 
                 case FileSystemTask.OperationType.OnFileDeleted:
+                    // This code assumes that the current implementations of FileSystemVirtualizer will call either
+                    // the PreDelete or the Delete not both so if a new implementation starts calling both
+                    // this will need to be cleaned up to not duplicate the work that is being done.
                     metadata.Add("virtualPath", gitUpdate.VirtualPath);
                     if (this.newlyCreatedFileAndFolderPaths.Contains(gitUpdate.VirtualPath))
                     {
@@ -796,6 +802,9 @@ namespace GVFS.Virtualization
                     break;
 
                 case FileSystemTask.OperationType.OnFolderPreDelete:
+                    // This code assumes that the current implementations of FileSystemVirtualizer will call either
+                    // the PreDelete or the Delete not both so if a new implementation starts calling both
+                    // this will need to be cleaned up to not duplicate the work that is being done.
                     metadata.Add("virtualPath", gitUpdate.VirtualPath);
                     if (this.newlyCreatedFileAndFolderPaths.Contains(gitUpdate.VirtualPath))
                     {
@@ -817,6 +826,9 @@ namespace GVFS.Virtualization
                     break;
 
                 case FileSystemTask.OperationType.OnFolderDeleted:
+                    // This code assumes that the current implementations of FileSystemVirtualizer will call either
+                    // the PreDelete or the Delete not both so if a new implementation starts calling both
+                    // this will need to be cleaned up to not duplicate the work that is being done.
                     metadata.Add("virtualPath", gitUpdate.VirtualPath);
                     if (this.newlyCreatedFileAndFolderPaths.Contains(gitUpdate.VirtualPath))
                     {
