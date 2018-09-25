@@ -74,8 +74,6 @@ namespace GVFS.Common.Git
 
         public bool TryGetCredentials(ITracer tracer, out string gitAuthString, out string errorMessage)
         {
-            this.IsAnonymous = false;
-
             gitAuthString = this.cachedAuthString;
             if (this.cachedAuthString == null)
             {
@@ -120,19 +118,22 @@ namespace GVFS.Common.Git
             return true;
         }
 
-        public bool TryAnonymousQuery(ITracer tracer, GVFSEnlistment enlistment)
+        public bool Initialize(ITracer tracer, GVFSEnlistment enlistment, out string errorMessage)
         {
-            if (!this.IsAnonymous)
-            {
-                throw new InvalidOperationException("An anonymous request was already rejected");
-            }
+            errorMessage = null;
+            return
+                this.TryAnonymousQuery(tracer, enlistment) ||
+                this.TryRefreshCredentials(tracer, out errorMessage);
+        }
 
+        private bool TryAnonymousQuery(ITracer tracer, GVFSEnlistment enlistment)
+        {
             using (ConfigHttpRequestor configRequestor = new ConfigHttpRequestor(tracer, enlistment, new RetryConfig()))
             {
                 ServerGVFSConfig gvfsConfig;
                 if (configRequestor.TryQueryGVFSConfig(out gvfsConfig))
                 {
-                    tracer.RelatedInfo("Anonymous query to /gvfs/config succeeded");
+                    tracer.RelatedInfo($"Anonymous query to {GVFSConstants.Endpoints.GVFSConfig} succeeded");
 
                     this.IsAnonymous = true;
                     return true;
@@ -141,7 +142,7 @@ namespace GVFS.Common.Git
                 // TODO: We should not lump all errors together here. The query could have failed for a number of
                 // reasons unrelated to auth, so we still need to update TryQueryGVFSConfig to pass back a result
                 // indicating if the error was caused by a 401. But this is good enough for now to test the behavior.
-                tracer.RelatedInfo("Anonymous query to /gvfs/config failed");
+                tracer.RelatedInfo($"Anonymous query to {GVFSConstants.Endpoints.GVFSConfig} failed");
             }
 
             this.IsAnonymous = false;

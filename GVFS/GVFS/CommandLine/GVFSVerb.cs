@@ -222,16 +222,7 @@ namespace GVFS.CommandLine
             string authError = null;
 
             bool result = this.ShowStatusWhileRunning(
-                () =>
-                {
-                    if (enlistment.Authentication.IsAnonymous &&
-                        enlistment.Authentication.TryAnonymousQuery(tracer, enlistment))
-                    {
-                        return true;
-                    }
-
-                    return enlistment.Authentication.TryRefreshCredentials(tracer, out authError);
-                },
+                () => enlistment.Authentication.Initialize(tracer, enlistment, out authError),
                 "Authenticating",
                 enlistment.EnlistmentRoot);
 
