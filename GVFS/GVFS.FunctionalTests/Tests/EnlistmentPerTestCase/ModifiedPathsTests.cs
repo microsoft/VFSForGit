@@ -34,7 +34,6 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerTestCase
                 $"A {GVFSHelpers.ConvertPathToGitFormat(FileToRename)}",
                 $"A {GVFSHelpers.ConvertPathToGitFormat(RenameFileTarget)}",
                 $"A {FolderToCreate}/",
-                $"A {RenameFolderTarget}/",
                 $"A {RenameNewDotGitFileTarget}",
                 $"A {FileToCreateOutsideRepo}",
                 $"A {FolderToCreateOutsideRepo}/",
@@ -108,7 +107,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerTestCase
             string folderToRenameTarget = this.Enlistment.GetVirtualPathTo(RenameFolderTarget);
             fileSystem.MoveDirectory(folderToRename, folderToRenameTarget);
 
-            // Moving the new folder out of the repo should not change the modified paths file
+            // Moving the new folder out of the repo will remove it from the modified paths file
             string folderTargetOutsideSrc = Path.Combine(this.Enlistment.EnlistmentRoot, RenameFolderTarget);
             folderTargetOutsideSrc.ShouldNotExistOnDisk(fileSystem);
             fileSystem.MoveDirectory(folderToRenameTarget, folderTargetOutsideSrc);
