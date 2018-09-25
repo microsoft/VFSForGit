@@ -63,7 +63,7 @@ namespace GVFS.Common
         public string GitBinPath { get; }
         public string GVFSHooksRoot { get; }
 
-        public GitAuthentication Authentication { get; private set; }
+        public GitAuthentication Authentication { get; }
 
         public static string GetNewLogFileName(string logsRoot, string prefix)
         {
@@ -90,11 +90,6 @@ namespace GVFS.Common
         public virtual GitProcess CreateGitProcess()
         {
             return new GitProcess(this);
-        }
-
-        public void ReuseExistingAuth(GitAuthentication authentication)
-        {
-            this.Authentication = authentication;
         }
     }
 }
