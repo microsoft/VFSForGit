@@ -10,6 +10,7 @@ using GVFS.UnitTests.Mock.Virtualization.Projection;
 using GVFS.UnitTests.Virtual;
 using GVFS.Virtualization;
 using GVFS.Virtualization.FileSystem;
+using GVFS.Virtualization.Projection;
 using NUnit.Framework;
 using PrjFSLib.Mac;
 using System;
@@ -21,7 +22,6 @@ namespace GVFS.UnitTests.Platform.Mac
     [TestFixture]
     public class MacFileSystemVirtualizerTests : TestsWithCommonRepo
     {
-        private static readonly ushort RegularFileType = 0x8000;
         private static readonly ushort FileMode644 = Convert.ToUInt16("644", 8);
         private static readonly ushort FileMode664 = Convert.ToUInt16("664", 8);
         private static readonly ushort FileMode755 = Convert.ToUInt16("755", 8);
@@ -100,7 +100,7 @@ namespace GVFS.UnitTests.Platform.Mac
                 virtualizer))
             {
                 string filePath = "test" + Path.DirectorySeparatorChar + "test.txt";
-                gitIndexProjection.MockFileTypesAndModes.TryAdd(filePath, (ushort)(RegularFileType | FileMode644));
+                gitIndexProjection.MockFileTypesAndModes.TryAdd(filePath, (ushort)((ushort)GitIndexProjection.FileType.Regular | FileMode644));
                 string error;
                 fileSystemCallbacks.TryStart(out error).ShouldEqual(true);
 
@@ -164,6 +164,97 @@ namespace GVFS.UnitTests.Platform.Mac
         }
 
         [TestCase]
+        public void WritePlaceholderForSymLink()
+        {
+            using (MockBackgroundFileSystemTaskRunner backgroundTaskRunner = new MockBackgroundFileSystemTaskRunner())
+            using (MockVirtualizationInstance mockVirtualization = new MockVirtualizationInstance())
+            using (MockGitIndexProjection gitIndexProjection = new MockGitIndexProjection(new[] { "test.txt" }))
+            using (MacFileSystemVirtualizer virtualizer = new MacFileSystemVirtualizer(this.Repo.Context, this.Repo.GitObjects, mockVirtualization))
+            using (FileSystemCallbacks fileSystemCallbacks = new FileSystemCallbacks(
+                this.Repo.Context,
+                this.Repo.GitObjects,
+                RepoMetadata.Instance,
+                new MockBlobSizes(),
+                gitIndexProjection,
+                backgroundTaskRunner,
+                virtualizer))
+            {
+                string filePath = "test" + Path.DirectorySeparatorChar + "test.txt";
+                gitIndexProjection.MockFileTypesAndModes.TryAdd(filePath, (ushort)GitIndexProjection.FileType.SymLink);
+                string error;
+                fileSystemCallbacks.TryStart(out error).ShouldEqual(true);
+
+                virtualizer.WritePlaceholderFile(
+                    filePath, 
+                    endOfFile: 0, 
+                    sha: string.Empty).ShouldEqual(new FileSystemResult(FSResult.Ok, (int)Result.Success));
+
+                mockVirtualization.CreatedPlaceholders.ShouldBeEmpty();
+                mockVirtualization.CreatedSymLinks.Count.ShouldEqual(1);
+                mockVirtualization.CreatedSymLinks.ShouldContain(entry => entry.Equals(filePath));
+
+                // Creating a symlink should schedule a background task
+                backgroundTaskRunner.Count.ShouldEqual(1);
+                backgroundTaskRunner.BackgroundTasks[0].Operation.ShouldEqual(GVFS.Virtualization.Background.FileSystemTask.OperationType.OnFileSymLinkCreated);
+                backgroundTaskRunner.BackgroundTasks[0].VirtualPath.ShouldEqual(filePath);
+
+                fileSystemCallbacks.Stop();
+            }
+        }
+
+        [TestCase]
+        public void UpdatePlaceholderToSymLink()
+        {
+            using (MockBackgroundFileSystemTaskRunner backgroundTaskRunner = new MockBackgroundFileSystemTaskRunner())
+            using (MockVirtualizationInstance mockVirtualization = new MockVirtualizationInstance())
+            using (MockGitIndexProjection gitIndexProjection = new MockGitIndexProjection(new[] { "test.txt" }))
+            using (MacFileSystemVirtualizer virtualizer = new MacFileSystemVirtualizer(this.Repo.Context, this.Repo.GitObjects, mockVirtualization))
+            using (FileSystemCallbacks fileSystemCallbacks = new FileSystemCallbacks(
+                this.Repo.Context,
+                this.Repo.GitObjects,
+                RepoMetadata.Instance,
+                new MockBlobSizes(),
+                gitIndexProjection,
+                backgroundTaskRunner,
+                virtualizer))
+            {
+                string filePath = "test" + Path.DirectorySeparatorChar + "test.txt";
+                gitIndexProjection.MockFileTypesAndModes.TryAdd(filePath, (ushort)GitIndexProjection.FileType.SymLink);
+                string error;
+                fileSystemCallbacks.TryStart(out error).ShouldEqual(true);
+
+                UpdateFailureReason failureReason = UpdateFailureReason.NoFailure;
+
+                mockVirtualization.UpdatePlaceholderIfNeededResult = Result.Success;
+                mockVirtualization.UpdatePlaceholderIfNeededFailureCause = UpdateFailureCause.NoFailure;
+                virtualizer
+                    .UpdatePlaceholderIfNeeded(
+                        filePath,
+                        DateTime.Now,
+                        DateTime.Now,
+                        DateTime.Now,
+                        DateTime.Now,
+                        0,
+                        15,
+                        string.Empty,
+                        UpdatePlaceholderType.AllowReadOnly,
+                        out failureReason)
+                    .ShouldEqual(new FileSystemResult(FSResult.Ok, (int)mockVirtualization.UpdatePlaceholderIfNeededResult));
+                failureReason.ShouldEqual((UpdateFailureReason)mockVirtualization.UpdatePlaceholderIfNeededFailureCause);
+
+                mockVirtualization.CreatedSymLinks.Count.ShouldEqual(1);
+                mockVirtualization.CreatedSymLinks.ShouldContain(entry => entry.Equals(filePath));
+
+                // Creating a symlink should schedule a background task
+                backgroundTaskRunner.Count.ShouldEqual(1);
+                backgroundTaskRunner.BackgroundTasks[0].Operation.ShouldEqual(GVFS.Virtualization.Background.FileSystemTask.OperationType.OnFileSymLinkCreated);
+                backgroundTaskRunner.BackgroundTasks[0].VirtualPath.ShouldEqual(filePath);
+
+                fileSystemCallbacks.Stop();
+            }
+        }
+
+        [TestCase]
         public void ClearNegativePathCacheIsNoOp()
         {
             using (MockVirtualizationInstance mockVirtualization = new MockVirtualizationInstance())
@@ -191,7 +282,7 @@ namespace GVFS.UnitTests.Platform.Mac
                 backgroundFileSystemTaskRunner: backgroundTaskRunner,
                 fileSystemVirtualizer: virtualizer))
             {
-                gitIndexProjection.MockFileTypesAndModes.TryAdd("test" + Path.DirectorySeparatorChar + "test.txt", (ushort)(RegularFileType | FileMode644));
+                gitIndexProjection.MockFileTypesAndModes.TryAdd("test" + Path.DirectorySeparatorChar + "test.txt", (ushort)((ushort)GitIndexProjection.FileType.Regular | FileMode644));
 
                 string error;
                 fileSystemCallbacks.TryStart(out error).ShouldEqual(true);
@@ -221,7 +312,7 @@ namespace GVFS.UnitTests.Platform.Mac
                 backgroundFileSystemTaskRunner: backgroundTaskRunner,
                 fileSystemVirtualizer: virtualizer))
             {
-                gitIndexProjection.MockFileTypesAndModes.TryAdd("test" + Path.DirectorySeparatorChar + "test.txt", (ushort)(RegularFileType | FileMode644));
+                gitIndexProjection.MockFileTypesAndModes.TryAdd("test" + Path.DirectorySeparatorChar + "test.txt", (ushort)((ushort)GitIndexProjection.FileType.Regular | FileMode644));
 
                 string error;
                 fileSystemCallbacks.TryStart(out error).ShouldEqual(true);
@@ -252,9 +343,9 @@ namespace GVFS.UnitTests.Platform.Mac
                 backgroundFileSystemTaskRunner: backgroundTaskRunner,
                 fileSystemVirtualizer: virtualizer))
             {
-                gitIndexProjection.MockFileTypesAndModes.TryAdd("test" + Path.DirectorySeparatorChar + "test644.txt", (ushort)(RegularFileType | FileMode644));
-                gitIndexProjection.MockFileTypesAndModes.TryAdd("test" + Path.DirectorySeparatorChar + "test664.txt", (ushort)(RegularFileType | FileMode664));
-                gitIndexProjection.MockFileTypesAndModes.TryAdd("test" + Path.DirectorySeparatorChar + "test755.txt", (ushort)(RegularFileType | FileMode755));
+                gitIndexProjection.MockFileTypesAndModes.TryAdd("test" + Path.DirectorySeparatorChar + "test644.txt", (ushort)((ushort)GitIndexProjection.FileType.Regular | FileMode644));
+                gitIndexProjection.MockFileTypesAndModes.TryAdd("test" + Path.DirectorySeparatorChar + "test664.txt", (ushort)((ushort)GitIndexProjection.FileType.Regular | FileMode664));
+                gitIndexProjection.MockFileTypesAndModes.TryAdd("test" + Path.DirectorySeparatorChar + "test755.txt", (ushort)((ushort)GitIndexProjection.FileType.Regular | FileMode755));
 
                 string error;
                 fileSystemCallbacks.TryStart(out error).ShouldEqual(true);
