@@ -125,7 +125,7 @@ namespace GVFS.Common.Git
                 return false;
             }
 
-            if (isAnonymous &&
+            if (!isAnonymous &&
                 !this.TryCallGitCredential(tracer, out errorMessage))
             {
                 return false;
@@ -135,7 +135,7 @@ namespace GVFS.Common.Git
             this.isInitialized = true;
             return true;
         }
-
+        
         public bool TryInitializeAndRequireAuth(ITracer tracer, out string errorMessage)
         {
             if (this.isInitialized)
@@ -165,22 +165,16 @@ namespace GVFS.Common.Git
                     const bool LogErrors = false;
                     if (configRequestor.TryQueryGVFSConfig(LogErrors, out gvfsConfig, out httpStatus))
                     {
-                        anonymousTracer.RelatedInfo($"GitAuthentication.AttemptAnonymousQuery: Anonymous query to {GVFSConstants.Endpoints.GVFSConfig} succeeded");
-
                         querySucceeded = true;
                         isAnonymous = true;
                     }
                     else if (httpStatus == HttpStatusCode.Unauthorized)
                     {
-                        anonymousTracer.RelatedInfo($"GitAuthentication.AttemptAnonymousQuery: Anonymous query to {GVFSConstants.Endpoints.GVFSConfig} rejected with 401");
-
                         querySucceeded = true;
                         isAnonymous = false;
                     }
                     else
                     {
-                        anonymousTracer.RelatedError($"GitAuthentication.AttemptAnonymousQuery: Anonymous query to {GVFSConstants.Endpoints.GVFSConfig} failed with {httpStatus}");
-
                         querySucceeded = false;
                         isAnonymous = false;
                     }
@@ -188,7 +182,7 @@ namespace GVFS.Common.Git
 
                 anonymousTracer.Stop(new EventMetadata
                 {
-                    { "HttpStatus", httpStatus.HasValue ? httpStatus.ToString() : "None" },
+                    { "HttpStatus", httpStatus.HasValue ? ((int)httpStatus).ToString() : "None" },
                     { "QuerySucceeded", querySucceeded },
                     { "IsAnonymous", isAnonymous },
                 });
