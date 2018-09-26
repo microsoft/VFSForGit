@@ -5,7 +5,7 @@ using System.Linq;
 
 namespace GVFS.Common
 {
-    public class GVFSConfig
+    public class ServerGVFSConfig
     {
         public IEnumerable<VersionRange> AllowedGVFSClientVersions { get; set; }
 

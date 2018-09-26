@@ -119,7 +119,7 @@ namespace GVFS.CommandLine
                 Result cloneResult = new Result(false);
 
                 CacheServerInfo cacheServer = null;
-                GVFSConfig gvfsConfig = null;
+                ServerGVFSConfig serverGVFSConfig = null;
 
                 using (JsonTracer tracer = new JsonTracer(GVFSConstants.GVFSEtwProviderName, "GVFSClone"))
                 {
@@ -178,19 +178,19 @@ namespace GVFS.CommandLine
                         }
 
                         RetryConfig retryConfig = this.GetRetryConfig(tracer, enlistment, TimeSpan.FromMinutes(RetryConfig.FetchAndCloneTimeoutMinutes));
-                        gvfsConfig = this.QueryGVFSConfig(tracer, enlistment, retryConfig);
+                        serverGVFSConfig = this.QueryGVFSConfig(tracer, enlistment, retryConfig);
 
-                        cacheServer = this.ResolveCacheServer(tracer, cacheServer, cacheServerResolver, gvfsConfig);
+                        cacheServer = this.ResolveCacheServer(tracer, cacheServer, cacheServerResolver, serverGVFSConfig);
 
                         if (!GVFSPlatform.Instance.IsUnderConstruction)
                         {
-                            this.ValidateClientVersions(tracer, enlistment, gvfsConfig, showWarnings: true);
+                            this.ValidateClientVersions(tracer, enlistment, serverGVFSConfig, showWarnings: true);
                         }
                        
                         this.ShowStatusWhileRunning(
                             () =>
                             {
-                                cloneResult = this.TryClone(tracer, enlistment, cacheServer, retryConfig, gvfsConfig, resolvedLocalCacheRoot);
+                                cloneResult = this.TryClone(tracer, enlistment, cacheServer, retryConfig, serverGVFSConfig, resolvedLocalCacheRoot);
                                 return cloneResult.Success;
                             },
                             "Cloning",
@@ -214,7 +214,7 @@ namespace GVFS.CommandLine
                                 verb.Commits = true;
                                 verb.SkipVersionCheck = true;
                                 verb.ResolvedCacheServer = cacheServer;
-                                verb.GVFSConfig = gvfsConfig;
+                                verb.ServerGVFSConfig = serverGVFSConfig;
                             });
 
                         if (result != ReturnCode.Success)
@@ -238,7 +238,7 @@ namespace GVFS.CommandLine
                                 verb.SkipMountedCheck = true;
                                 verb.SkipVersionCheck = true;
                                 verb.ResolvedCacheServer = cacheServer;
-                                verb.DownloadedGVFSConfig = gvfsConfig;
+                                verb.DownloadedGVFSConfig = serverGVFSConfig;
                             });
                     }
                 }
@@ -323,7 +323,7 @@ namespace GVFS.CommandLine
             GVFSEnlistment enlistment, 
             CacheServerInfo cacheServer, 
             RetryConfig retryConfig, 
-            GVFSConfig gvfsConfig,
+            ServerGVFSConfig serverGVFSConfig,
             string resolvedLocalCacheRoot)
         {
             Result pipeResult;
@@ -372,7 +372,7 @@ namespace GVFS.CommandLine
                     }
 
                     string localCacheError;
-                    if (!this.TryDetermineLocalCacheAndInitializePaths(tracer, enlistment, gvfsConfig, cacheServer, resolvedLocalCacheRoot, out localCacheError))
+                    if (!this.TryDetermineLocalCacheAndInitializePaths(tracer, enlistment, serverGVFSConfig, cacheServer, resolvedLocalCacheRoot, out localCacheError))
                     {
                         tracer.RelatedError(localCacheError);
                         return new Result(localCacheError);
@@ -460,7 +460,7 @@ namespace GVFS.CommandLine
         private bool TryDetermineLocalCacheAndInitializePaths(
             ITracer tracer,
             GVFSEnlistment enlistment,
-            GVFSConfig gvfsConfig,
+            ServerGVFSConfig serverGVFSConfig,
             CacheServerInfo currentCacheServer,
             string localCacheRoot,
             out string errorMessage)
@@ -472,7 +472,7 @@ namespace GVFS.CommandLine
             string localCacheKey;
             if (!localCacheResolver.TryGetLocalCacheKeyFromLocalConfigOrRemoteCacheServers(
                 tracer,
-                gvfsConfig,
+                serverGVFSConfig,
                 currentCacheServer,
                 localCacheRoot,
                 localCacheKey: out localCacheKey,
