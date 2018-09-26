@@ -59,7 +59,8 @@ Note that VFS for Git on Mac is under active development.
 * Ensure you have Xcode installed, have accepted the terms of use, and have launched Xcode at least once.
 
 * Disable the "System Integrity Protection" (for loading unsigned Kexts) by booting into recovery mode (`[Win/⌘] + R` while booting).
-  Once booted into recovery mode open Utilities -> Terminal to launch a termnial. Enter:
+  Once booted into recovery mode open Utilities -> Terminal to launch a terminal. Enter:
+
   ```
   csrutil disable
   ```
