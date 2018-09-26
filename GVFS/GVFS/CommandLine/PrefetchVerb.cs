@@ -70,7 +70,7 @@ namespace GVFS.CommandLine
 
         public bool SkipVersionCheck { get; set; }
         public CacheServerInfo ResolvedCacheServer { get; set; }
-        public GVFSConfig GVFSConfig { get; set; }
+        public ServerGVFSConfig ServerGVFSConfig { get; set; }
 
         protected override string VerbName
         {
@@ -100,7 +100,7 @@ namespace GVFS.CommandLine
                 RetryConfig retryConfig = this.GetRetryConfig(tracer, enlistment, TimeSpan.FromMinutes(RetryConfig.FetchAndCloneTimeoutMinutes));
 
                 CacheServerInfo cacheServer = this.ResolvedCacheServer;
-                GVFSConfig gvfsConfig = this.GVFSConfig;
+                ServerGVFSConfig serverGVFSConfig = this.ServerGVFSConfig;
                 if (!this.SkipVersionCheck)
                 {
                     string authErrorMessage;
@@ -111,23 +111,23 @@ namespace GVFS.CommandLine
                         this.ReportErrorAndExit(tracer, "Unable to prefetch because authentication failed");
                     }
 
-                    if (gvfsConfig == null)
+                    if (serverGVFSConfig == null)
                     {
-                        gvfsConfig = this.QueryGVFSConfig(tracer, enlistment, retryConfig);
+                        serverGVFSConfig = this.QueryGVFSConfig(tracer, enlistment, retryConfig);
                     }
 
                     if (cacheServer == null)
                     {
                         CacheServerResolver cacheServerResolver = new CacheServerResolver(tracer, enlistment);
-                        cacheServer = cacheServerResolver.ResolveNameFromRemote(cacheServerUrl, gvfsConfig);
+                        cacheServer = cacheServerResolver.ResolveNameFromRemote(cacheServerUrl, serverGVFSConfig);
                     }
 
-                    this.ValidateClientVersions(tracer, enlistment, gvfsConfig, showWarnings: false);
+                    this.ValidateClientVersions(tracer, enlistment, serverGVFSConfig, showWarnings: false);
 
                     this.Output.WriteLine("Configured cache server: " + cacheServer);
                 }
 
-                this.InitializeLocalCacheAndObjectsPaths(tracer, enlistment, retryConfig, gvfsConfig, cacheServer);
+                this.InitializeLocalCacheAndObjectsPaths(tracer, enlistment, retryConfig, serverGVFSConfig, cacheServer);
 
                 try
                 {

@@ -104,7 +104,7 @@ of your enlistment's src folder.
                 }
 
                 // Local cache and objects paths are required for TryDownloadGitObjects
-                this.InitializeLocalCacheAndObjectsPaths(tracer, enlistment, retryConfig, gvfsConfig: null, cacheServer: null);
+                this.InitializeLocalCacheAndObjectsPaths(tracer, enlistment, retryConfig, serverGVFSConfig: null, cacheServer: null);
 
                 if (this.TryBackupFiles(tracer, enlistment, backupRoot))
                 {

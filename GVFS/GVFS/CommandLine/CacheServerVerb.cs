@@ -42,7 +42,7 @@ namespace GVFS.CommandLine
 
             using (ITracer tracer = new JsonTracer(GVFSConstants.GVFSEtwProviderName, "CacheVerb"))
             {
-                GVFSConfig gvfsConfig = this.QueryGVFSConfig(tracer, enlistment, retryConfig);
+                ServerGVFSConfig serverGVFSConfig = this.QueryGVFSConfig(tracer, enlistment, retryConfig);
 
                 CacheServerResolver cacheServerResolver = new CacheServerResolver(tracer, enlistment);
                 string error = null;
@@ -50,7 +50,7 @@ namespace GVFS.CommandLine
                 if (this.CacheToSet != null)
                 {
                     CacheServerInfo cacheServer = cacheServerResolver.ParseUrlOrFriendlyName(this.CacheToSet);
-                    cacheServer = this.ResolveCacheServer(tracer, cacheServer, cacheServerResolver, gvfsConfig);
+                    cacheServer = this.ResolveCacheServer(tracer, cacheServer, cacheServerResolver, serverGVFSConfig);
 
                     if (!cacheServerResolver.TrySaveUrlToLocalConfig(cacheServer, out error))
                     {
@@ -61,7 +61,7 @@ namespace GVFS.CommandLine
                 }
                 else if (this.ListCacheServers)
                 {
-                    List<CacheServerInfo> cacheServers = gvfsConfig.CacheServers.ToList();
+                    List<CacheServerInfo> cacheServers = serverGVFSConfig.CacheServers.ToList();
 
                     if (cacheServers != null && cacheServers.Any())
                     {
@@ -80,7 +80,7 @@ namespace GVFS.CommandLine
                 else
                 {
                     string cacheServerUrl = CacheServerResolver.GetUrlFromConfig(enlistment);
-                    CacheServerInfo cacheServer = cacheServerResolver.ResolveNameFromRemote(cacheServerUrl, gvfsConfig);
+                    CacheServerInfo cacheServer = cacheServerResolver.ResolveNameFromRemote(cacheServerUrl, serverGVFSConfig);
 
                     this.Output.WriteLine("Using cache server: " + cacheServer);
                 }

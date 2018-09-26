@@ -244,15 +244,15 @@ namespace GVFS.CommandLine
             return retryConfig;
         }
 
-        protected GVFSConfig QueryGVFSConfig(ITracer tracer, GVFSEnlistment enlistment, RetryConfig retryConfig)
+        protected ServerGVFSConfig QueryGVFSConfig(ITracer tracer, GVFSEnlistment enlistment, RetryConfig retryConfig)
         {
-            GVFSConfig gvfsConfig = null;
+            ServerGVFSConfig serverGVFSConfig = null;
             if (!this.ShowStatusWhileRunning(
                 () =>
                 {
                     using (ConfigHttpRequestor configRequestor = new ConfigHttpRequestor(tracer, enlistment, retryConfig))
                     {
-                        return configRequestor.TryQueryGVFSConfig(out gvfsConfig);
+                        return configRequestor.TryQueryGVFSConfig(out serverGVFSConfig);
                     }
                 },
                 "Querying remote for config",
@@ -260,11 +260,11 @@ namespace GVFS.CommandLine
             {
                 this.ReportErrorAndExit(tracer, "Unable to query /gvfs/config");
             }
+			
+            return serverGVFSConfig;
+        }        
 
-            return gvfsConfig;
-        }
-
-        protected void ValidateClientVersions(ITracer tracer, GVFSEnlistment enlistment, GVFSConfig gvfsConfig, bool showWarnings)
+        protected void ValidateClientVersions(ITracer tracer, GVFSEnlistment enlistment, ServerGVFSConfig gvfsConfig, bool showWarnings)
         {
             if (!GVFSPlatform.Instance.IsUnderConstruction)
             {
@@ -354,7 +354,7 @@ You can specify a URL, a name of a configured cache server, or the special names
             ITracer tracer,
             CacheServerInfo cacheServer,
             CacheServerResolver cacheServerResolver,
-            GVFSConfig gvfsConfig)
+            ServerGVFSConfig serverGVFSConfig)
         {
             CacheServerInfo resolvedCacheServer = cacheServer;
 
@@ -365,7 +365,7 @@ You can specify a URL, a name of a configured cache server, or the special names
 
                 if (!cacheServerResolver.TryResolveUrlFromRemote(
                         cacheServerName,
-                        gvfsConfig,
+                        serverGVFSConfig,
                         out resolvedCacheServer,
                         out error))
                 {
@@ -374,7 +374,7 @@ You can specify a URL, a name of a configured cache server, or the special names
             }
             else if (cacheServer.Name.Equals(CacheServerInfo.ReservedNames.UserDefined))
             {
-                resolvedCacheServer = cacheServerResolver.ResolveNameFromRemote(cacheServer.Url, gvfsConfig);
+                resolvedCacheServer = cacheServerResolver.ResolveNameFromRemote(cacheServer.Url, serverGVFSConfig);
             }
 
             this.Output.WriteLine("Using cache server: " + resolvedCacheServer);
@@ -660,7 +660,7 @@ You can specify a URL, a name of a configured cache server, or the special names
             }
         }
 
-        private bool TryValidateGVFSVersion(GVFSEnlistment enlistment, ITracer tracer, GVFSConfig config, out string errorMessage, out bool errorIsFatal)
+        private bool TryValidateGVFSVersion(GVFSEnlistment enlistment, ITracer tracer, ServerGVFSConfig config, out string errorMessage, out bool errorIsFatal)
         {
             errorMessage = null;
             errorIsFatal = false;
@@ -669,7 +669,7 @@ You can specify a URL, a name of a configured cache server, or the special names
             {
                 Version currentVersion = new Version(ProcessHelper.GetCurrentProcessVersion());
 
-                IEnumerable<GVFSConfig.VersionRange> allowedGvfsClientVersions =
+                IEnumerable<ServerGVFSConfig.VersionRange> allowedGvfsClientVersions =
                     config != null
                     ? config.AllowedGVFSClientVersions
                     : null;
@@ -692,7 +692,7 @@ You can specify a URL, a name of a configured cache server, or the special names
                     return false;
                 }
 
-                foreach (GVFSConfig.VersionRange versionRange in config.AllowedGVFSClientVersions)
+                foreach (ServerGVFSConfig.VersionRange versionRange in config.AllowedGVFSClientVersions)
                 {
                     if (currentVersion >= versionRange.Min &&
                         (versionRange.Max == null || currentVersion <= versionRange.Max))
@@ -751,7 +751,7 @@ You can specify a URL, a name of a configured cache server, or the special names
                 ITracer tracer,
                 GVFSEnlistment enlistment,
                 RetryConfig retryConfig,
-                GVFSConfig gvfsConfig,
+                ServerGVFSConfig serverGVFSConfig,
                 CacheServerInfo cacheServer)
             {
                 string error;
@@ -765,7 +765,7 @@ You can specify a URL, a name of a configured cache server, or the special names
                 // Note: Repos cloned with a version of GVFS that predates the local cache will not have a local cache configured
                 if (!string.IsNullOrWhiteSpace(enlistment.LocalCacheRoot))
                 {
-                    this.EnsureLocalCacheIsHealthy(tracer, enlistment, retryConfig, gvfsConfig, cacheServer);
+                    this.EnsureLocalCacheIsHealthy(tracer, enlistment, retryConfig, serverGVFSConfig, cacheServer);
                 }
 
                 RepoMetadata.Shutdown();
@@ -813,7 +813,7 @@ You can specify a URL, a name of a configured cache server, or the special names
                 ITracer tracer,
                 GVFSEnlistment enlistment,
                 RetryConfig retryConfig,
-                GVFSConfig gvfsConfig,
+                ServerGVFSConfig serverGVFSConfig,
                 CacheServerInfo cacheServer)
             {
                 if (!Directory.Exists(enlistment.LocalCacheRoot))
@@ -901,7 +901,7 @@ You can specify a URL, a name of a configured cache server, or the special names
                     }
 
                     string error;
-                    if (gvfsConfig == null)
+                    if (serverGVFSConfig == null)
                     {
                         if (retryConfig == null)
                         {
@@ -911,14 +911,14 @@ You can specify a URL, a name of a configured cache server, or the special names
                             }
                         }
 
-                        gvfsConfig = this.QueryGVFSConfig(tracer, enlistment, retryConfig);
+                        serverGVFSConfig = this.QueryGVFSConfig(tracer, enlistment, retryConfig);
                     }
 
                     string localCacheKey;
                     LocalCacheResolver localCacheResolver = new LocalCacheResolver(enlistment);
                     if (!localCacheResolver.TryGetLocalCacheKeyFromLocalConfigOrRemoteCacheServers(
                         tracer,
-                        gvfsConfig,
+                        serverGVFSConfig,
                         cacheServer,
                         enlistment.LocalCacheRoot,
                         localCacheKey: out localCacheKey,
