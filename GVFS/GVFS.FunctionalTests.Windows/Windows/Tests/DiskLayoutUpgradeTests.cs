@@ -324,24 +324,30 @@ namespace GVFS.FunctionalTests.Windows.Tests
             this.Enlistment.MountGVFS();
             this.Enlistment.UnmountGVFS();
 
-            string expectedModifiedPaths = @"A .gitattributes
-A developer/me/
-A developer/me/JLANGE9._prerazzle
-A developer/me/StateSwitch.Save
-A tools/x86/remote.exe
-A tools/x86/runelevated.exe
-A tools/amd64/remote.exe
-A tools/amd64/runelevated.exe
-A tools/perllib/MS/TraceLogging.dll
-A tools/managed/v2.0/midldd.CheckedInExe
-A tools/managed/v4.0/sdapi.dll
-A tools/managed/v2.0/midlpars.dll
-A tools/managed/v2.0/RPCDataSupport.dll
-A tools/managed/v2.0/MidlStaticAnalysis.dll
-A tools/perllib/MS/Somefile.txt
-";
+            string[] expectedModifiedPaths =
+                {
+                    "A .gitattributes",
+                    "A developer/me/",
+                    "A developer/me/JLANGE9._prerazzle",
+                    "A developer/me/StateSwitch.Save",
+                    "A tools/x86/remote.exe",
+                    "A tools/x86/runelevated.exe",
+                    "A tools/amd64/remote.exe",
+                    "A tools/amd64/runelevated.exe",
+                    "A tools/perllib/MS/TraceLogging.dll",
+                    "A tools/managed/v2.0/midldd.CheckedInExe",
+                    "A tools/managed/v4.0/sdapi.dll",
+                    "A tools/managed/v2.0/midlpars.dll",
+                    "A tools/managed/v2.0/RPCDataSupport.dll",
+                    "A tools/managed/v2.0/MidlStaticAnalysis.dll",
+                    "A tools/perllib/MS/Somefile.txt",
+                };
 
-            modifiedPathsDatabasePath.ShouldBeAFile(this.fileSystem).WithContents(expectedModifiedPaths);
+            modifiedPathsDatabasePath.ShouldBeAFile(this.fileSystem);
+            this.fileSystem.ReadAllText(modifiedPathsDatabasePath)
+                .Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries)
+                .OrderBy(x => x)
+                .ShouldMatchInOrder(expectedModifiedPaths.OrderBy(x => x));
 
             this.ValidatePersistedVersionMatchesCurrentVersion();
         }

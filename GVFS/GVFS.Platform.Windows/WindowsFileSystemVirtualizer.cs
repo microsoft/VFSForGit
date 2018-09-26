@@ -1296,7 +1296,7 @@ namespace GVFS.Platform.Windows
                     }
                     else
                     {
-                        this.OnWorkingDirectoryFileOrFolderDeleted(virtualPath, isDirectory);
+                        this.OnWorkingDirectoryFileOrFolderDeleteNotification(virtualPath, isDirectory, isPreDelete: false);
                     }
                 }
             }
