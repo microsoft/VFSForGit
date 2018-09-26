@@ -54,9 +54,9 @@ The installer can now be found at `C:\Repos\VFSForGit\BuildOutput\GVFS.Installer
 
 ## Building VFS for Git on Mac
 
-VFS for Git on Mac is still in progress. You can build it, but this will not create a macOS VFS installer the same way the current Windows build will.
+Note that VFS for Git on Mac is under active development.
 
-* Ensure you have Xcode installed, have accepted the terms of use, and launched Xcode at least once.
+* Ensure you have Xcode installed, have accepted the terms of use, and have launched Xcode at least once.
 
 * Disable the "System Integrity Protection" (for loading unsigned Kexts) by booting into recovery mode (`[Win/⌘] + R` while booting).
   Once booted into recovery mode open Utilities -> Terminal to launch a termnial. Enter:
@@ -71,9 +71,9 @@ VFS for Git on Mac is still in progress. You can build it, but this will not cre
 
 * You will need to manage and sign your own certificate. [Apple Developer Cert Docs](https://developer.apple.com/documentation/security/certificate_key_and_trust_services/certificates).
 
-* Create a `VFS` directory and Clone VFSForGit into a directory called `src` inside it:
+* Create a `VFSForGit` directory and Clone VFSForGit into a directory called `src` inside it:
   ```
-  mkdir VFS && cd VFS && git clone https://github.com/Microsoft/VFSForGit.git src && cd src
+  mkdir VFSForGit && cd VFSForGit && git clone https://github.com/Microsoft/VFSForGit.git src && cd src
   ```
 
 * From the src directory run
