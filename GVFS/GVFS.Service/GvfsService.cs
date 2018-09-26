@@ -8,6 +8,8 @@ using System.IO;
 using System.Linq;
 using System.Reflection;
 using System.Runtime.Serialization;
+using System.Security.AccessControl;
+using System.Security.Principal;
 using System.ServiceProcess;
 using System.Threading;
 
@@ -150,6 +152,7 @@ namespace GVFS.Service
 
             this.serviceDataLocation = Paths.GetServiceDataRoot(this.serviceName);
             Directory.CreateDirectory(this.serviceDataLocation);
+            this.EnableAccessToAuthenticatedUsers(Path.GetDirectoryName(this.serviceDataLocation));
 
             this.tracer.AddLogFileEventListener(
                 GVFSEnlistment.GetNewGVFSLogFileName(Paths.GetServiceLogsPath(this.serviceName), GVFSConstants.LogFileTypes.Service),
@@ -343,6 +346,21 @@ namespace GVFS.Service
             metadata.Add("Exception", e.ToString());
             this.tracer.RelatedError(metadata, "Unhandled exception in " + method);
             Environment.Exit((int)ReturnCode.GenericError);
+        }
+
+        private void EnableAccessToAuthenticatedUsers(string rootDirectory)
+        {
+            // GVFS Config is written to a temporary file and then renamed to its final destination.
+            // For this rename operation to succeed, user needs to have delete permission on the 
+            // destination file, in case it is pre-existing. If the pre-existing file was created 
+            // by a different user, then the delete will fail.
+            // Reference: https://stackoverflow.com/questions/22107812/privileges-owner-issue-when-writing-in-c-programdata
+            // This work around allows safe write to succeed in C:\ProgramData directory.
+
+            DirectorySecurity security = Directory.GetAccessControl(Path.GetDirectoryName(this.serviceDataLocation));
+            SecurityIdentifier authenticatedUsers = new SecurityIdentifier(WellKnownSidType.AuthenticatedUserSid, null);
+            security.AddAccessRule(new FileSystemAccessRule(authenticatedUsers, FileSystemRights.FullControl, AccessControlType.Allow));
+            Directory.SetAccessControl(Path.GetDirectoryName(this.serviceDataLocation), security);
         }
     }
 }
