@@ -77,7 +77,6 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
             this.Enlistment.WaitForBackgroundOperations().ShouldEqual(true, "Background operations failed to complete.");
 
             GVFSHelpers.ModifiedPathsShouldContain(this.fileSystem, this.Enlistment.DotGVFSRoot, folderName + "/");
-            GVFSHelpers.ModifiedPathsShouldContain(this.fileSystem, this.Enlistment.DotGVFSRoot, folderName + "/" + fileName);
         }
 
         [TestCase, Order(4)]
@@ -140,7 +139,6 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
             string[] expectedModifiedPathsEntriesAfterCreate =
             {
                 "A Folder/",
-                "A Folder/testfile",
             };
 
             string[] expectedModifiedPathsEntriesAfterRename =

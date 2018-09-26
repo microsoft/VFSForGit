@@ -1,6 +1,8 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
+using System.Text;
 using GVFS.Common.FileSystem;
 using GVFS.Common.Tracing;
 
@@ -67,7 +69,7 @@ namespace GVFS.Common
         {
             isRetryable = true;
             string entry = this.NormalizeEntryString(path, isFolder);
-            if (!this.modifiedPaths.Contains(entry))
+            if (!this.modifiedPaths.Contains(entry) && !this.ContainsParentDirectory(entry))
             {
                 try
                 {
@@ -181,6 +183,22 @@ namespace GVFS.Common
             key = line;
             error = null;
             return true;
+        }
+
+        private bool ContainsParentDirectory(string modifiedPath)
+        {
+            string[] pathParts = modifiedPath.Split(new char[] { '/' }, StringSplitOptions.RemoveEmptyEntries);
+            StringBuilder parentFolder = new StringBuilder();
+            foreach (string pathPart in pathParts.Take(pathParts.Length - 1))
+            {
+                parentFolder.Append(pathPart + "/");
+                if (this.modifiedPaths.Contains(parentFolder.ToString()))
+                {
+                    return true;
+                }
+            }
+
+            return false;
         }
 
         private string NormalizeEntryString(string virtualPath, bool isFolder)
