@@ -27,7 +27,8 @@ namespace GVFS
                 typeof(ServiceVerb),
                 typeof(StatusVerb),
                 typeof(UnmountVerb),
-                typeof(UpgradeVerb)
+                typeof(UpgradeVerb),
+                typeof(ConfigVerb)
             };
 
             int consoleWidth = 80;
@@ -87,6 +88,12 @@ namespace GVFS
                             // The upgrade verb doesn't operate on a repo, so it doesn't use the enlistment
                             // path at all.
                             upgrade.Execute();
+                            Environment.Exit((int)ReturnCode.Success);
+                        })
+                    .WithParsed<ConfigVerb>(
+                        config =>
+                        {
+                            config.Execute();
                             Environment.Exit((int)ReturnCode.Success);
                         })
                     .WithParsed<GVFSVerb>(
