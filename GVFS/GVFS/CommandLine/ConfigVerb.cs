@@ -5,7 +5,7 @@ using System;
 namespace GVFS.CommandLine
 {
     [Verb(ConfigVerbName, HelpText = "Get and set GVFS options.")]
-    public class ConfigVerb : GVFSVerb.NonRepoVerb
+    public class ConfigVerb : GVFSVerb.ForNoEnlistment
     {
         private const string ConfigVerbName = "config";
         private LocalGVFSConfig localConfig;

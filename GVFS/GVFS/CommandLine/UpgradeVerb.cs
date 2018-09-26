@@ -9,7 +9,7 @@ using System.IO;
 namespace GVFS.CommandLine
 {
     [Verb(UpgradeVerbName, HelpText = "Checks for new GVFS release, downloads and installs it when available.")]
-    public class UpgradeVerb : GVFSVerb.NonRepoVerb
+    public class UpgradeVerb : GVFSVerb.ForNoEnlistment
     {
         private const string UpgradeVerbName = "upgrade";
         private ITracer tracer;
