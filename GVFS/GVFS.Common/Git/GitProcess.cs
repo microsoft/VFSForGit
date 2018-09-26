@@ -87,6 +87,11 @@ namespace GVFS.Common.Git
             return new GitProcess(gitBinPath, workingDirectoryRoot: null, gvfsHooksRoot: null).InvokeGitOutsideEnlistment("config --system " + settingName);
         }
 
+        public static Result GetFromFileConfig(string gitBinPath, string configFile, string settingName)
+        {
+            return new GitProcess(gitBinPath, workingDirectoryRoot: null, gvfsHooksRoot: null).InvokeGitOutsideEnlistment("config --file " + configFile + " " + settingName);
+        }
+
         public static bool TryGetVersion(out GitVersion gitVersion, out string error)
         {
             string gitPath = GVFSPlatform.Instance.GitInstallation.GetInstalledGitBinPath();
@@ -199,6 +204,16 @@ namespace GVFS.Common.Git
         {
             return this.InvokeGitAgainstDotGitFolder(string.Format(
                 "config --local --add {0} {1}",
+                 settingName,
+                 value));
+        }
+
+        public Result SetInFileConfig(string configFile, string settingName, string value, bool replaceAll = false)
+        {
+            return this.InvokeGitOutsideEnlistment(string.Format(
+                "config --file {0} {1} \"{2}\" \"{3}\"",
+                 configFile,
+                 replaceAll ? "--replace-all " : string.Empty,
                  settingName,
                  value));
         }
