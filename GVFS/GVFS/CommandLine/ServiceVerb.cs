@@ -10,7 +10,7 @@ using System.Linq;
 namespace GVFS.CommandLine
 {
     [Verb(ServiceVerbName, HelpText = "Runs commands for the GVFS service.")]
-    public class ServiceVerb : GVFSVerb.NonRepoVerb
+    public class ServiceVerb : GVFSVerb.ForNoEnlistment
     {
         private const string ServiceVerbName = "service";
 

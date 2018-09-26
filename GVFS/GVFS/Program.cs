@@ -74,7 +74,7 @@ namespace GVFS
                             clone.Execute();
                             Environment.Exit((int)ReturnCode.Success);
                         })
-                    .WithParsed<GVFSVerb.NonRepoVerb>(
+                    .WithParsed<GVFSVerb.ForNoEnlistment>(
                         verb =>
                         {
                             verb.Execute();

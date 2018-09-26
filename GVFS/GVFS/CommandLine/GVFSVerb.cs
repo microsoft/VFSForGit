@@ -1039,9 +1039,9 @@ You can specify a URL, a name of a configured cache server, or the special names
             }
         }
 
-        public abstract class NonRepoVerb : GVFSVerb
+        public abstract class ForNoEnlistment : GVFSVerb
         {
-            public NonRepoVerb(bool validateOrigin = true) : base(validateOrigin)
+            public ForNoEnlistment(bool validateOrigin = true) : base(validateOrigin)
             {
             }
 
