@@ -37,11 +37,6 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerTestCase
                 $"A {RenameNewDotGitFileTarget}",
                 $"A {FileToCreateOutsideRepo}",
                 $"A {FolderToCreateOutsideRepo}/",
-                $"A {FolderToDelete}/CreateCommonAssemblyVersion.bat",
-                $"A {FolderToDelete}/CreateCommonCliAssemblyVersion.bat",
-                $"A {FolderToDelete}/CreateCommonVersionHeader.bat",
-                $"A {FolderToDelete}/RunFunctionalTests.bat",
-                $"A {FolderToDelete}/RunUnitTests.bat",
                 $"A {FolderToDelete}/",
             };
 
