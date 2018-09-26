@@ -134,16 +134,16 @@ A dir/dir4/dir5/
         [TestCase]
         public void CompressEntries()
         {
-            ModifiedPathsDatabase mpd = CreateModifiedPathsDatabase(EntriesToCompress);
-            mpd.Compress(new MockTracer());
-            mpd.Count.ShouldEqual(4);
-            mpd.Contains("file.txt", isFolder: false).ShouldBeTrue();
-            mpd.Contains("dir/", isFolder: true).ShouldBeTrue();
-            mpd.Contains("dir1/dir2/", isFolder: true).ShouldBeTrue();
-            mpd.Contains("dir1/file.txt", isFolder: false).ShouldBeTrue();
-    }
+            ModifiedPathsDatabase modifiedPathsDatabase = CreateModifiedPathsDatabase(EntriesToCompress);
+            modifiedPathsDatabase.Compress(new MockTracer());
+            modifiedPathsDatabase.Count.ShouldEqual(4);
+            modifiedPathsDatabase.Contains("file.txt", isFolder: false).ShouldBeTrue();
+            modifiedPathsDatabase.Contains("dir/", isFolder: true).ShouldBeTrue();
+            modifiedPathsDatabase.Contains("dir1/dir2/", isFolder: true).ShouldBeTrue();
+            modifiedPathsDatabase.Contains("dir1/file.txt", isFolder: false).ShouldBeTrue();
+        }
 
-    private static void TestAddingPath(string path, bool isFolder = false)
+        private static void TestAddingPath(string path, bool isFolder = false)
         {
             TestAddingPath(path, path, isFolder);
         }
