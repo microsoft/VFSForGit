@@ -1,6 +1,8 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
+using System.Text;
 using GVFS.Common.FileSystem;
 using GVFS.Common.Tracing;
 
@@ -52,24 +54,30 @@ namespace GVFS.Common
             return true;
         }
 
-        public void Compress(ITracer tracer)
+        /// <summary>
+        /// This method will examine the modified paths to check if there is already a parent folder entry in
+        /// the modified paths.  If there is a parent folder the entry does not need to be in the modified paths
+        /// and will be removed because the parent folder is recursive and covers any children.
+        /// </summary>
+        public void RemoveEntriesWithParentFolderEntry(ITracer tracer)
         {
             int startingCount = this.modifiedPaths.Count;
             using (ITracer activity = tracer.StartActivity("Compress ModifiedPaths", EventLevel.Informational))
             {
-                foreach (var item in this.modifiedPaths)
+                StringBuilder parentFolder = new StringBuilder();
+                foreach (string modifiedPath in this.modifiedPaths)
                 {
-                    int pathSeparatorIndex = item.IndexOf('/');
-                    while (pathSeparatorIndex >= 0 && pathSeparatorIndex < item.Length - 1)
+                    string[] pathParts = modifiedPath.Split(new char[] { '/' }, StringSplitOptions.RemoveEmptyEntries);
+
+                    parentFolder.Clear();
+                    foreach (string pathPart in pathParts.Take(pathParts.Length - 1))
                     {
-                        string folder = item.Substring(0, pathSeparatorIndex + 1);
-                        if (this.modifiedPaths.Contains(folder))
+                        parentFolder.Append(pathPart + "/");
+                        if (this.modifiedPaths.Contains(parentFolder.ToString()))
                         {
-                            this.modifiedPaths.TryRemove(item);
+                            this.modifiedPaths.TryRemove(modifiedPath);
                             break;
                         }
-
-                        pathSeparatorIndex = item.IndexOf('/', pathSeparatorIndex + 1);
                     }
                 }
 

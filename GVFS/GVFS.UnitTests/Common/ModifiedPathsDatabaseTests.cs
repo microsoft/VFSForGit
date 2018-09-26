@@ -135,7 +135,7 @@ A dir/dir4/dir5/
         public void CompressEntries()
         {
             ModifiedPathsDatabase modifiedPathsDatabase = CreateModifiedPathsDatabase(EntriesToCompress);
-            modifiedPathsDatabase.Compress(new MockTracer());
+            modifiedPathsDatabase.RemoveEntriesWithParentFolder(new MockTracer());
             modifiedPathsDatabase.Count.ShouldEqual(4);
             modifiedPathsDatabase.Contains("file.txt", isFolder: false).ShouldBeTrue();
             modifiedPathsDatabase.Contains("dir/", isFolder: true).ShouldBeTrue();
