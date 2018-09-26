@@ -10,7 +10,7 @@ using System.Linq;
 namespace GVFS.CommandLine
 {
     [Verb(ServiceVerbName, HelpText = "Runs commands for the GVFS service.")]
-    public class ServiceVerb : GVFSVerb
+    public class ServiceVerb : GVFSVerb.NonRepoVerb
     {
         private const string ServiceVerbName = "service";
 
@@ -34,12 +34,6 @@ namespace GVFS.CommandLine
             Required = false,
             HelpText = "Prints a list of all mounted repos")]
         public bool List { get; set; }
-
-        public override string EnlistmentRootPathParameter
-        {
-            get { throw new InvalidOperationException(); }
-            set { throw new InvalidOperationException(); }
-        }
 
         protected override string VerbName
         {

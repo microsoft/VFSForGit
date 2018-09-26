@@ -4,13 +4,27 @@ using System;
 
 namespace GVFS.CommandLine
 {
-    [Verb(ConfigVerbName, HelpText = "Set and Get GVFS config settings.")]
-    public class ConfigVerb : GVFSVerb
+    [Verb(ConfigVerbName, HelpText = "Get and set GVFS options.")]
+    public class ConfigVerb : GVFSVerb.NonRepoVerb
     {
         private const string ConfigVerbName = "config";
         private LocalGVFSConfig localConfig;
 
-        public override string EnlistmentRootPathParameter { get; set; }
+        [Value(
+                0,
+                Required = true,
+                Default = "",
+                MetaName = "GVFS config setting name",
+                HelpText = "Name of GVFS config setting that is to be set or read")]
+        public string Key { get; set; }
+
+        [Value(
+                1,
+                Required = false,
+                Default = "",
+                MetaName = "GVFS config setting value",
+                HelpText = "Value of GVFS config setting to be set")]
+        public string Value { get; set; }
 
         protected override string VerbName
         {
@@ -19,27 +33,15 @@ namespace GVFS.CommandLine
 
         public override void Execute()
         {
-            string[] args = Environment.GetCommandLineArgs();
-            if (args.Length < 3 || args.Length > 4)
-            {
-                string usageString = string.Join(
-                    Environment.NewLine,
-                    "Error: wrong number of arguments.",
-                    "Usage: gvfs config <config> <value>");
-                this.ReportErrorAndExit(usageString);
-            }
+            this.localConfig = new LocalGVFSConfig();
 
-            this.localConfig = new LocalGVFSConfig(GVFSPlatform.Instance.GitInstallation.GetInstalledGitBinPath());
-
-            string key = args[2];
-            string value = null;
             string error = null;
-            bool isRead = args.Length == 3;
+            bool isRead = string.IsNullOrEmpty(this.Value);
 
-            key = args[2];
             if (isRead)
             {
-                if (this.localConfig.TryGetValueForKey(key, out value, out error))
+                string value = null;
+                if (this.localConfig.TryGetConfig(this.Key, out value, out error, tracer: null))
                 {
                     Console.WriteLine(value);
                 }
@@ -50,8 +52,7 @@ namespace GVFS.CommandLine
             }
             else
             {
-                value = args[3];
-                if (!this.localConfig.TrySetValueForKey(key, value, out error))
+                if (!this.localConfig.TrySetConfig(this.Key, this.Value, out error, tracer: null))
                 {
                     this.ReportErrorAndExit(error);
                 }

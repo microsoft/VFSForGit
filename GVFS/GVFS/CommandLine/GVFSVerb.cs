@@ -1041,6 +1041,19 @@ You can specify a URL, a name of a configured cache server, or the special names
             }
         }
 
+        public abstract class NonRepoVerb : GVFSVerb
+        {
+            public NonRepoVerb(bool validateOrigin = true) : base(validateOrigin)
+            {
+            }
+
+            public override string EnlistmentRootPathParameter
+            {
+                get { throw new InvalidOperationException(); }
+                set { throw new InvalidOperationException(); }
+            }
+        }
+
         public class VerbAbortedException : Exception
         {
             public VerbAbortedException(GVFSVerb verb)

@@ -1,99 +1,112 @@
 ﻿using GVFS.Common.FileSystem;
-using GVFS.Common.Git;
-using System;
+using GVFS.Common.Tracing;
 using System.IO;
 
 namespace GVFS.Common
 {
     public class LocalGVFSConfig
     {
-        private const string FileName = "local_config.dat";
-        private string configFile;
-        private string gitPath;
-        private PhysicalFileSystem fileSystem;
+        private const string FileName = "gvfs.config";
+        private readonly string configFile;
+        private readonly PhysicalFileSystem fileSystem;
 
-        public LocalGVFSConfig(string gitPath)
+        public LocalGVFSConfig()
         {
             string servicePath = Paths.GetServiceDataRoot(GVFSConstants.Service.ServiceName);
             string gvfsDirectory = Path.GetDirectoryName(servicePath);
 
             this.configFile = Path.Combine(gvfsDirectory, FileName);
-            this.gitPath = gitPath;
             this.fileSystem = new PhysicalFileSystem();
         }
 
-        public bool TryGetValueForKey(string key, out string value, out string error)
-        {
-            return this.TryGetConfig(this.KeyWithGVFSSectionPrefix(key), out value, out error);
-        }
+        private FileBasedDictionary<string, string> AllSettings { get; set; }
 
-        public bool TrySetValueForKey(string key, string value, out string error)
+        public bool TryGetConfig(
+            string key, 
+            out string value, 
+            out string error,
+            ITracer tracer)
         {
-            return this.TrySetConfig(this.KeyWithGVFSSectionPrefix(key), value, out error);
-        }
-
-        private bool TryGetConfig(string key, out string value, out string error)
-        {
-            if (!this.fileSystem.FileExists(this.configFile))
+            if (!this.TryLoadSettings(tracer, out error))
             {
-                error = $"Error reading {key}. Config file({this.configFile}) does not exist.";
+                error = $"Error getting config value {key}. {error}";
                 value = null;
                 return false;
             }
-
-            GitProcess.Result result = GitProcess.GetFromFileConfig(this.gitPath, this.configFile, key);
-            if (!result.HasErrors && !string.IsNullOrEmpty(result.Output))
+                        
+            try
             {
+                this.AllSettings.TryGetValue(key, out value);
                 error = null;
-                value = result.Output.TrimEnd('\r', '\n');
                 return true;
             }
-            else
+            catch (FileBasedCollectionException exception)
             {
-                error = string.IsNullOrEmpty(result.Errors) ? $"Error reading \"{key}\" from file {this.configFile}." : result.Errors;
+                const string ErrorFormat = "Error getting config value for {0}. Config file {1}. {2}";
+                if (tracer != null)
+                {
+                    tracer.RelatedError(ErrorFormat, key, this.configFile, exception.ToString());
+                }
+
+                error = string.Format(ErrorFormat, key, this.configFile, exception.Message);
                 value = null;
                 return false;
             }
         }
 
-        private bool TrySetConfig(string key, string value, out string error)
+        public bool TrySetConfig(
+            string key, 
+            string value, 
+            out string error,
+            ITracer tracer)
         {
-            if (!this.fileSystem.FileExists(this.configFile) && !this.TryCreateConfigFile(out error))
+            if (!this.TryLoadSettings(tracer, out error))
             {
                 error = $"Error setting config value {key}: {value}. {error}";
                 return false;
             }
 
-            GitProcess git = new GitProcess(this.gitPath, workingDirectoryRoot: null, gvfsHooksRoot: null);
-            GitProcess.Result result = git.SetInFileConfig(this.configFile, key, value, replaceAll: true);
-            if (result.HasErrors)
+            try
             {
-                error = string.IsNullOrEmpty(result.Errors) ? $"Error setting config value {key}: {value}. Config file {this.configFile}." : result.Errors;
+                this.AllSettings.SetValueAndFlush(key, value);
+                error = null;
+                return true;
+            }
+            catch (FileBasedCollectionException exception)
+            {
+                const string ErrorFormat = "Error setting config value {0}: {1}. Config file {2}. {3}";
+                if (tracer != null)
+                {
+                    tracer.RelatedError(ErrorFormat, key, value, this.configFile, exception.ToString());
+                }
+
+                error = string.Format(ErrorFormat, key, value, this.configFile, exception.Message);
+                value = null;
+                return false;
+            }
+        }
+
+        private bool TryLoadSettings(ITracer tracer, out string error)
+        {
+            if (this.AllSettings == null)
+            {
+                FileBasedDictionary<string, string> config = null;
+                if (FileBasedDictionary<string, string>.TryCreate(
+                    tracer: tracer,
+                    dictionaryPath: this.configFile,
+                    fileSystem: this.fileSystem,
+                    output: out config,
+                    error: out error))
+                {
+                    this.AllSettings = config;
+                    return true;
+                }
+
                 return false;
             }
 
             error = null;
             return true;
-        }
-
-        private bool TryCreateConfigFile(out string error)
-        {
-            Exception exception = null;
-            if (!this.fileSystem.TryWriteTempFileAndRename(this.configFile, string.Empty, out exception))
-            {
-                error = $"Could not create config file {this.configFile}. {exception.Message}";
-                return false;
-            }
-
-            error = null;
-            return true;
-        }
-
-        private string KeyWithGVFSSectionPrefix(string key)
-        {
-            const string GVFSSectionName = "gvfs";
-
-            return string.Join(".", GVFSSectionName, key);
         }
     }
 }

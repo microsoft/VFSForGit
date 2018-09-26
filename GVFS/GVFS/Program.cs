@@ -28,7 +28,7 @@ namespace GVFS
                 typeof(StatusVerb),
                 typeof(UnmountVerb),
                 typeof(UpgradeVerb),
-                typeof(ConfigVerb)
+                typeof(ConfigVerb),
             };
 
             int consoleWidth = 80;
@@ -74,26 +74,10 @@ namespace GVFS
                             clone.Execute();
                             Environment.Exit((int)ReturnCode.Success);
                         })
-                    .WithParsed<ServiceVerb>(
-                        service =>
+                    .WithParsed<GVFSVerb.NonRepoVerb>(
+                        verb =>
                         {
-                            // The service verb doesn't operate on a repo, so it doesn't use the enlistment
-                            // path at all.
-                            service.Execute();
-                            Environment.Exit((int)ReturnCode.Success);
-                        })
-                    .WithParsed<UpgradeVerb>(
-                        upgrade =>
-                        {
-                            // The upgrade verb doesn't operate on a repo, so it doesn't use the enlistment
-                            // path at all.
-                            upgrade.Execute();
-                            Environment.Exit((int)ReturnCode.Success);
-                        })
-                    .WithParsed<ConfigVerb>(
-                        config =>
-                        {
-                            config.Execute();
+                            verb.Execute();
                             Environment.Exit((int)ReturnCode.Success);
                         })
                     .WithParsed<GVFSVerb>(
