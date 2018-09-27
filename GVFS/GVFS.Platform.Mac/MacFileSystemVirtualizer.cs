@@ -480,7 +480,7 @@ namespace GVFS.Platform.Mac
                 }
                 else
                 {
-                    this.OnWorkingDirectoryFileOrFolderDeleted(relativePath, isDirectory);
+                    this.OnWorkingDirectoryFileOrFolderDeleteNotification(relativePath, isDirectory, isPreDelete: true);
                 }
             }
             catch (Exception e)
