@@ -100,7 +100,7 @@ namespace GVFS.UnitTests.Platform.Mac
                 virtualizer))
             {
                 string filePath = "test" + Path.DirectorySeparatorChar + "test.txt";
-                gitIndexProjection.MockFileTypesAndModes.TryAdd(filePath, (ushort)((ushort)GitIndexProjection.FileType.Regular | FileMode644));
+                gitIndexProjection.MockFileTypesAndModes.TryAdd(filePath, FileTypeAndMode.Regular644File);
                 string error;
                 fileSystemCallbacks.TryStart(out error).ShouldEqual(true);
 
@@ -180,7 +180,7 @@ namespace GVFS.UnitTests.Platform.Mac
                 virtualizer))
             {
                 string filePath = "test" + Path.DirectorySeparatorChar + "test.txt";
-                gitIndexProjection.MockFileTypesAndModes.TryAdd(filePath, (ushort)GitIndexProjection.FileType.SymLink);
+                gitIndexProjection.MockFileTypesAndModes.TryAdd(filePath, new FileTypeAndMode((ushort)FileTypeAndMode.FileType.SymLink));
                 string error;
                 fileSystemCallbacks.TryStart(out error).ShouldEqual(true);
 
@@ -219,7 +219,7 @@ namespace GVFS.UnitTests.Platform.Mac
                 virtualizer))
             {
                 string filePath = "test" + Path.DirectorySeparatorChar + "test.txt";
-                gitIndexProjection.MockFileTypesAndModes.TryAdd(filePath, (ushort)GitIndexProjection.FileType.SymLink);
+                gitIndexProjection.MockFileTypesAndModes.TryAdd(filePath, new FileTypeAndMode((ushort)FileTypeAndMode.FileType.SymLink));
                 string error;
                 fileSystemCallbacks.TryStart(out error).ShouldEqual(true);
 
@@ -282,7 +282,7 @@ namespace GVFS.UnitTests.Platform.Mac
                 backgroundFileSystemTaskRunner: backgroundTaskRunner,
                 fileSystemVirtualizer: virtualizer))
             {
-                gitIndexProjection.MockFileTypesAndModes.TryAdd("test" + Path.DirectorySeparatorChar + "test.txt", (ushort)((ushort)GitIndexProjection.FileType.Regular | FileMode644));
+                gitIndexProjection.MockFileTypesAndModes.TryAdd("test" + Path.DirectorySeparatorChar + "test.txt", FileTypeAndMode.Regular644File);
 
                 string error;
                 fileSystemCallbacks.TryStart(out error).ShouldEqual(true);
@@ -312,7 +312,7 @@ namespace GVFS.UnitTests.Platform.Mac
                 backgroundFileSystemTaskRunner: backgroundTaskRunner,
                 fileSystemVirtualizer: virtualizer))
             {
-                gitIndexProjection.MockFileTypesAndModes.TryAdd("test" + Path.DirectorySeparatorChar + "test.txt", (ushort)((ushort)GitIndexProjection.FileType.Regular | FileMode644));
+                gitIndexProjection.MockFileTypesAndModes.TryAdd("test" + Path.DirectorySeparatorChar + "test.txt", FileTypeAndMode.Regular644File);
 
                 string error;
                 fileSystemCallbacks.TryStart(out error).ShouldEqual(true);
@@ -343,9 +343,9 @@ namespace GVFS.UnitTests.Platform.Mac
                 backgroundFileSystemTaskRunner: backgroundTaskRunner,
                 fileSystemVirtualizer: virtualizer))
             {
-                gitIndexProjection.MockFileTypesAndModes.TryAdd("test" + Path.DirectorySeparatorChar + "test644.txt", (ushort)((ushort)GitIndexProjection.FileType.Regular | FileMode644));
-                gitIndexProjection.MockFileTypesAndModes.TryAdd("test" + Path.DirectorySeparatorChar + "test664.txt", (ushort)((ushort)GitIndexProjection.FileType.Regular | FileMode664));
-                gitIndexProjection.MockFileTypesAndModes.TryAdd("test" + Path.DirectorySeparatorChar + "test755.txt", (ushort)((ushort)GitIndexProjection.FileType.Regular | FileMode755));
+                gitIndexProjection.MockFileTypesAndModes.TryAdd("test" + Path.DirectorySeparatorChar + "test644.txt", FileTypeAndMode.Regular644File);
+                gitIndexProjection.MockFileTypesAndModes.TryAdd("test" + Path.DirectorySeparatorChar + "test664.txt", new FileTypeAndMode((ushort)((ushort)FileTypeAndMode.FileType.Regular | FileMode664)));
+                gitIndexProjection.MockFileTypesAndModes.TryAdd("test" + Path.DirectorySeparatorChar + "test755.txt", new FileTypeAndMode((ushort)((ushort)FileTypeAndMode.FileType.Regular | FileMode755)));
 
                 string error;
                 fileSystemCallbacks.TryStart(out error).ShouldEqual(true);

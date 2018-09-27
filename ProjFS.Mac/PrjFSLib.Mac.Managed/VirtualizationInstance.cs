@@ -110,9 +110,9 @@ namespace PrjFSLib.Mac
 
         public virtual Result WriteSymLink(
             string relativePath,
-            string symLinkContents)
+            string symLinkTarget)
         {
-            return Interop.PrjFSLib.WriteSymLink(relativePath, symLinkContents);
+            return Interop.PrjFSLib.WriteSymLink(relativePath, symLinkTarget);
         }
 
         public virtual Result UpdatePlaceholderIfNeeded(
@@ -146,14 +146,14 @@ namespace PrjFSLib.Mac
 
         public virtual Result ReplacePlaceholderFileWithSymLink(
             string relativePath,
-            string symLinkContents,
+            string symLinkTarget,
             UpdateType updateFlags,
             out UpdateFailureCause failureCause)
         {
             UpdateFailureCause updateFailureCause = UpdateFailureCause.NoFailure;
             Result result = Interop.PrjFSLib.ReplacePlaceholderFileWithSymLink(
                 relativePath,
-                symLinkContents,
+                symLinkTarget,
                 updateFlags,
                 ref updateFailureCause);
 

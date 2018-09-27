@@ -35,7 +35,7 @@ namespace PrjFSLib.Mac.Interop
         [DllImport(PrjFSLibPath, EntryPoint = "PrjFS_WriteSymLink")]
         public static extern Result WriteSymLink(
             string relativePath,
-            string symLinkContents);
+            string symLinkTarget);
         
         [DllImport(PrjFSLibPath, EntryPoint = "PrjFS_UpdatePlaceholderFileIfNeeded")]
         public static extern Result UpdatePlaceholderFileIfNeeded(
@@ -52,7 +52,7 @@ namespace PrjFSLib.Mac.Interop
         [DllImport(PrjFSLibPath, EntryPoint = "PrjFS_ReplacePlaceholderFileWithSymLink")]
         public static extern Result ReplacePlaceholderFileWithSymLink(
             string relativePath,
-            string symLinkContents,
+            string symLinkTarget,
             UpdateType updateType,
             ref UpdateFailureCause failureCause);
 

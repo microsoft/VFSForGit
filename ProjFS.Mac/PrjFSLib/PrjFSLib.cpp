@@ -357,16 +357,16 @@ CleanupAndFail:
 
 PrjFS_Result PrjFS_WriteSymLink(
     _In_    const char*                             relativePath,
-    _In_    const char*                             symLinkContents)
+    _In_    const char*                             symLinkTarget)
 {
 #ifdef DEBUG
     std::cout
         << "PrjFS_WriteSymLink("
         << relativePath << ", "
-        << symLinkContents << ")" << std::endl;
+        << symLinkTarget << ")" << std::endl;
 #endif
     
-    if (nullptr == relativePath || nullptr == symLinkContents)
+    if (nullptr == relativePath || nullptr == symLinkTarget)
     {
         return PrjFS_Result_EInvalidArgs;
     }
@@ -374,10 +374,12 @@ PrjFS_Result PrjFS_WriteSymLink(
     char fullPath[PrjFSMaxPath];
     CombinePaths(s_virtualizationRootFullPath.c_str(), relativePath, fullPath);
     
-    if(symlink(symLinkContents, fullPath))
+    if(symlink(symLinkTarget, fullPath))
     {
         goto CleanupAndFail;
     }
+    
+    SetBitInFileFlags(fullPath, FileFlags_IsInVirtualizationRoot, true);
 
     return PrjFS_Result_Success;
     
@@ -421,7 +423,7 @@ PrjFS_Result PrjFS_UpdatePlaceholderFileIfNeeded(
 
 PrjFS_Result PrjFS_ReplacePlaceholderFileWithSymLink(
     _In_    const char*                             relativePath,
-    _In_    const char*                             symLinkContents,
+    _In_    const char*                             symLinkTarget,
     _In_    PrjFS_UpdateType                        updateFlags,
     _Out_   PrjFS_UpdateFailureCause*               failureCause)
 {
@@ -429,7 +431,7 @@ PrjFS_Result PrjFS_ReplacePlaceholderFileWithSymLink(
     std::cout
         << "PrjFS_ReplacePlaceholderFileWithSymLink("
         << relativePath << ", "
-        << symLinkContents << ", "
+        << symLinkTarget << ", "
         << std::hex << updateFlags << std::dec << ")" << std::endl;
 #endif
     
@@ -439,7 +441,7 @@ PrjFS_Result PrjFS_ReplacePlaceholderFileWithSymLink(
        return result;
     }
     
-    return PrjFS_WriteSymLink(relativePath, symLinkContents);
+    return PrjFS_WriteSymLink(relativePath, symLinkTarget);
 }
 
 PrjFS_Result PrjFS_DeleteFile(
@@ -787,7 +789,7 @@ static void CombinePaths(const char* root, const char* relative, char (&combined
 static bool SetBitInFileFlags(const char* path, uint32_t bit, bool value)
 {
     struct stat fileAttributes;
-    if (stat(path, &fileAttributes))
+    if (lstat(path, &fileAttributes))
     {
         return false;
     }
@@ -802,7 +804,7 @@ static bool SetBitInFileFlags(const char* path, uint32_t bit, bool value)
         newValue = fileAttributes.st_flags & ~bit;
     }
     
-    if (chflags(path, newValue))
+    if (lchflags(path, newValue))
     {
         return false;
     }
@@ -813,7 +815,7 @@ static bool SetBitInFileFlags(const char* path, uint32_t bit, bool value)
 static bool IsBitSetInFileFlags(const char* path, uint32_t bit)
 {
     struct stat fileAttributes;
-    if (stat(path, &fileAttributes))
+    if (lstat(path, &fileAttributes))
     {
         return false;
     }

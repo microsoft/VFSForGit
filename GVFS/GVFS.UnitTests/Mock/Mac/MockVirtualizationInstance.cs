@@ -84,7 +84,7 @@ namespace GVFS.UnitTests.Mock.Mac
 
         public override Result WriteSymLink(
             string relativePath, 
-            string symLinkContents)
+            string symLinkTarget)
         {
             this.CreatedSymLinks.Add(relativePath);
             return Result.Success;
@@ -105,7 +105,7 @@ namespace GVFS.UnitTests.Mock.Mac
 
         public override Result ReplacePlaceholderFileWithSymLink(
             string relativePath, 
-            string symLinkContents, 
+            string symLinkTarget, 
             UpdateType updateFlags, 
             out UpdateFailureCause failureCause)
         {

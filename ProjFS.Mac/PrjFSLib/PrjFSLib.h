@@ -87,7 +87,7 @@ extern "C" PrjFS_Result PrjFS_WritePlaceholderFile(
 
 extern "C" PrjFS_Result PrjFS_WriteSymLink(
     _In_    const char*                             relativePath,
-    _In_    const char*                             symLinkContents);
+    _In_    const char*                             symLinkTarget);
 
 typedef enum
 {
@@ -117,7 +117,7 @@ extern "C" PrjFS_Result PrjFS_UpdatePlaceholderFileIfNeeded(
 
 extern "C" PrjFS_Result PrjFS_ReplacePlaceholderFileWithSymLink(
     _In_    const char*                             relativePath,
-    _In_    const char*                             symLinkContents,
+    _In_    const char*                             symLinkTarget,
     _In_    PrjFS_UpdateType                        updateFlags,
     _Out_   PrjFS_UpdateFailureCause*               failureCause);
 

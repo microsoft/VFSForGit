@@ -58,7 +58,7 @@ namespace GVFS.FunctionalTests.FileSystemRunners
             Invalid,
             File,
             Directory,
-            SymLink
+            SymLink,
         }
 
         protected override string FileName

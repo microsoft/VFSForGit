@@ -16,10 +16,6 @@ namespace GVFS.Virtualization.Projection
             private const ushort ExtendedBit = 0x4000;
             private const ushort SkipWorktreeBit = 0x4000;
 
-            private static readonly ushort FileMode755 = Convert.ToUInt16("755", 8);
-            private static readonly ushort FileMode664 = Convert.ToUInt16("644", 8);
-            private static readonly ushort FileMode644 = Convert.ToUInt16("644", 8);
-
             private Stream indexStream;
             private byte[] page;
             private int nextByteIndex;
@@ -185,35 +181,36 @@ namespace GVFS.Virtualization.Projection
                         // 3-bit unused
                         // 9-bit unix permission. Only 0755 and 0644 are valid for regular files. (Legacy repos can also contain 664)
                         //     Symbolic links and gitlinks have value 0 in this field.
-                        ushort typeAndMode = this.ReadUInt16();
+                        ushort indexFormatTypeAndMode = this.ReadUInt16();
 
-                        ushort type = (ushort)(typeAndMode & FileTypeMask);
-                        ushort mode = (ushort)(typeAndMode & FileModeMask);
+                        FileTypeAndMode typeAndMode = new FileTypeAndMode(indexFormatTypeAndMode);
 
-                        switch ((FileType)type)
+                        switch (typeAndMode.Type)
                         {
-                            case FileType.Regular:
-                                if (mode != FileMode755 && mode != FileMode644 && mode != FileMode664)
+                            case FileTypeAndMode.FileType.Regular:
+                                if (typeAndMode.Mode != FileTypeAndMode.FileMode755 && 
+                                    typeAndMode.Mode != FileTypeAndMode.FileMode644 && 
+                                    typeAndMode.Mode != FileTypeAndMode.FileMode664)
                                 {
-                                    throw new InvalidDataException($"Invalid file mode {Convert.ToString(mode, 8)} found for regular file in index");
+                                    throw new InvalidDataException($"Invalid file mode {typeAndMode.GetModeAsOctalString()} found for regular file in index");
                                 }
 
                                 break;
 
-                            case FileType.SymLink:
-                            case FileType.GitLink:
-                                if (mode != 0)
+                            case FileTypeAndMode.FileType.SymLink:
+                            case FileTypeAndMode.FileType.GitLink:
+                                if (typeAndMode.Mode != 0)
                                 {
-                                    throw new InvalidDataException($"Invalid file mode {Convert.ToString(mode, 8)} found for link file({type:X}) in index");
+                                    throw new InvalidDataException($"Invalid file mode {typeAndMode.GetModeAsOctalString()} found for link file({typeAndMode.Type:X}) in index");
                                 }
 
                                 break;
 
                             default:
-                                throw new InvalidDataException($"Invalid file type {type:X} found in index");
+                                throw new InvalidDataException($"Invalid file type {typeAndMode.Type:X} found in index");
                         }
                                     
-                        this.resuableParsedIndexEntry.FileTypeAndMode = typeAndMode;
+                        this.resuableParsedIndexEntry.TypeAndMode = typeAndMode;
 
                         this.Skip(12);
                     }
