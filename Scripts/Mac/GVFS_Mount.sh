@@ -10,4 +10,4 @@ SCRIPTDIR=$(dirname ${BASH_SOURCE[0]})
 ROOTDIR=$SCRIPTDIR/../../..
 PUBLISHDIR=$ROOTDIR/Publish 
 
-$PUBLISHDIR/gvfs mount ~/GVFSTest
+$PUBLISHDIR/gvfs mount ~/GVFSTest/enlistment

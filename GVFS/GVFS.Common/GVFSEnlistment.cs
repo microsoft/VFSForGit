@@ -125,6 +125,10 @@ namespace GVFS.Common
             errorMessage = null;
             using (NamedPipeClient pipeClient = new NamedPipeClient(GVFSPlatform.Instance.GetNamedPipeName(enlistmentRoot)))
             {
+                // This sleep allows the permissions to propagate and persist onto the socket file. If we don't
+                // sleep here, we get a permissions exception when trying to connect.
+                Thread.Sleep(TimeSpan.FromSeconds(3));
+                
                 int timeout = unattended ? 300000 : 60000;
                 if (!pipeClient.Connect(timeout))
                 {
@@ -209,6 +213,10 @@ namespace GVFS.Common
                 GVFSPlatform.Instance.InitializeEnlistmentACLs(this.EnlistmentRoot);
                 Directory.CreateDirectory(this.WorkingDirectoryRoot);
                 this.CreateHiddenDirectory(this.DotGVFSRoot);
+
+                GVFSPlatform.Instance.FileSystem.ChangeMode(
+                    this.DotGVFSRoot,
+                    Convert.ToUInt16("6776", 8));
             }
             catch (IOException)
             {

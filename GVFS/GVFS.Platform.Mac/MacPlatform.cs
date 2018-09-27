@@ -70,7 +70,11 @@ namespace GVFS.Platform.Mac
                 PipeTransmissionMode.Byte,
                 PipeOptions.WriteThrough | PipeOptions.Asynchronous,
                 0,  // default inBufferSize
-                0); // default outBufferSize)
+                0); // default outBufferSize
+
+            GVFSPlatform.Instance.FileSystem.ChangeMode(
+                pipeName,
+                Convert.ToUInt16("6776", 8));
 
             return pipe;
         }

@@ -1,6 +1,7 @@
 ﻿using PrjFSLib.Mac;
 using System;
 using System.IO;
+using System.Threading;
 
 namespace MirrorProvider.Mac
 {
@@ -47,14 +48,14 @@ namespace MirrorProvider.Mac
             int triggeringProcessId,
             string triggeringProcessName)
         {
-            Console.WriteLine($"OnEnumerateDirectory({commandId}, '{relativePath}', {triggeringProcessId}, {triggeringProcessName})");
-
             try
             {
                 if (!this.DirectoryExists(relativePath))
                 {
                     return Result.EFileNotFound;
                 }
+
+                Thread.Sleep(100);
 
                 foreach (ProjectedFileInfo child in this.GetChildItems(relativePath))
                 {
@@ -75,7 +76,7 @@ namespace MirrorProvider.Mac
                         // having to p/invoke to determine if the original file is exectuable or not.
                         // A real provider will have to get this information from its data source. For example, GVFS gets this info 
                         // out of the git index along with all the other info for projecting files.
-                        UInt16 fileMode = Convert.ToUInt16("755", 8);
+                        UInt16 fileMode = Convert.ToUInt16("775", 8);
 
                         Result result = this.virtualizationInstance.WritePlaceholderFile(
                             Path.Combine(relativePath, child.Name),
@@ -88,6 +89,11 @@ namespace MirrorProvider.Mac
                             Console.WriteLine($"WritePlaceholderFile failed: {result}");
                             return result;
                         }
+                    }
+
+                    if (relativePath == "A")
+                    {
+                        Thread.Sleep(TimeSpan.FromHours(1));
                     }
                 }
             }
@@ -109,8 +115,6 @@ namespace MirrorProvider.Mac
             string triggeringProcessName,
             IntPtr fileHandle)
         {
-            Console.WriteLine($"OnGetFileStream({commandId}, '{relativePath}', {contentId.Length}/{contentId[0]}:{contentId[1]}, {providerId.Length}/{providerId[0]}:{providerId[1]}, {triggeringProcessId}, {triggeringProcessName}, 0x{fileHandle.ToInt64():X})");
-
             if (!this.FileExists(relativePath))
             {
                 return Result.EFileNotFound;
@@ -118,6 +122,8 @@ namespace MirrorProvider.Mac
 
             try
             {
+                Thread.Sleep(100);
+
                 const int bufferSize = 4096;
                 FileSystemResult hydrateFileResult = this.HydrateFile(
                     relativePath,
@@ -153,28 +159,23 @@ namespace MirrorProvider.Mac
 
         private void OnFileModified(string relativePath)
         {
-            Console.WriteLine($"OnFileModified: {relativePath}");
         }
 
         private Result OnPreDelete(string relativePath, bool isDirectory)
         {
-            Console.WriteLine($"OnPreDelete (isDirectory: {isDirectory}): {relativePath}");
             return Result.Success;
         }
 
         private void OnNewFileCreated(string relativePath, bool isDirectory)
         {
-            Console.WriteLine($"OnNewFileCreated (isDirectory: {isDirectory}): {relativePath}");
         }
 
         private void OnFileRenamed(string relativeDestinationPath, bool isDirectory)
         {
-            Console.WriteLine($"OnFileRenamed (isDirectory: {isDirectory}) destination: {relativeDestinationPath}");
         }
 
         private void OnHardLinkCreated(string relativeNewLinkPath)
         {
-            Console.WriteLine($"OnHardLinkCreated: {relativeNewLinkPath}");
         }
 
         private static byte[] ToVersionIdByteArray(byte version)

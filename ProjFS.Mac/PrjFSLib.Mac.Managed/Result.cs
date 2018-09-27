@@ -23,6 +23,8 @@
         ENotAVirtualizationRoot             = 0x20000080,
         EVirtualizationRootAlreadyExists    = 0x20000100,
 
+        EUnableToSwitchUsers                = 0x20000200,
+
         ENotYetImplemented                  = 0xFFFFFFFF,
     }
 }

@@ -12,4 +12,11 @@ SCRIPTDIR=$(dirname ${BASH_SOURCE[0]})
 ROOTDIR=$SCRIPTDIR/../../..
 PUBLISHDIR=$ROOTDIR/Publish 
 
-$PUBLISHDIR/gvfs clone $REPOURL ~/GVFSTest --local-cache-path ~/GVFSTest/.gvfsCache --no-mount --no-prefetch
+mkdir ~/GVFSTest
+sudo chown $USER:admin ~/GVFSTest
+chmod 775 ~/GVFSTest
+chmod +a "_projfsacl deny search,directory_inherit" ~/GVFSTest 
+
+$PUBLISHDIR/gvfs clone $REPOURL ~/GVFSTest/enlistment --local-cache-path ~/GVFSTest/.gvfsCache --no-mount --no-prefetch
+
+$PUBLISHDIR/gvfs prefetch ~/GVFSTest/enlistment --files \*

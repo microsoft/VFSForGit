@@ -14,6 +14,9 @@
 #include <mach/mach_port.h>
 #include <CoreFoundation/CFNumber.h>
 
+#include <pwd.h>
+#include <grp.h>
+
 #include "stdlib.h"
 
 #include "PrjFSLib.h"
@@ -36,6 +39,26 @@ struct _PrjFS_FileHandle
 };
 
 // Function prototypes
+static void CreatePlaceholderDirectoryAsMountUser(
+    _In_    const char*                             relativePath,
+    _Out_   PrjFS_Result*                           result);
+
+static void CreatePlaceholderFileAsMountUser(
+    _In_    const char*                             relativePath,
+    _In_    unsigned char                           providerId[PrjFS_PlaceholderIdLength],
+    _In_    unsigned char                           contentId[PrjFS_PlaceholderIdLength],
+    _In_    unsigned long                           fileSize,
+    _In_    uint16_t                                fileMode,
+    _Out_   PrjFS_Result*                           result);
+
+static void WriteFileContentsAsMountUser(
+    _In_    const PrjFS_FileHandle*                 fileHandle,
+    _In_    const void*                             bytes,
+    _In_    unsigned int                            byteCount,
+    _Out_   PrjFS_Result*                           result);
+
+static bool TrySwitchCurrentThreadToUser(uid_t uid);
+
 static bool SetBitInFileFlags(const char* path, uint32_t bit, bool value);
 static bool IsBitSetInFileFlags(const char* path, uint32_t bit);
 
@@ -44,7 +67,7 @@ template<typename TPlaceholder> static bool InitializeEmptyPlaceholder(const cha
 static bool AddXAttr(const char* path, const char* name, const void* value, size_t size);
 static bool GetXAttr(const char* path, const char* name, size_t size, _Out_ void* value);
 
-static inline PrjFS_NotificationType KUMessageTypeToNotificationType(MessageType kuNotificationType);
+//static inline PrjFS_NotificationType KUMessageTypeToNotificationType(MessageType kuNotificationType);
 
 static bool IsVirtualizationRoot(const char* path);
 static void CombinePaths(const char* root, const char* relative, char (&combined)[PrjFSMaxPath]);
@@ -55,19 +78,15 @@ static errno_t RegisterVirtualizationRootPath(const char* path);
 static void HandleKernelRequest(Message requestSpec, void* messageMemory);
 static PrjFS_Result HandleEnumerateDirectoryRequest(const MessageHeader* request, const char* path);
 static PrjFS_Result HandleHydrateFileRequest(const MessageHeader* request, const char* path);
-static PrjFS_Result HandleFileNotification(
-    const MessageHeader* request,
-    const char* path,
-    bool isDirectory,
-    PrjFS_NotificationType notificationType);
+//static PrjFS_Result HandleFileNotification(
+//    const MessageHeader* request,
+//    const char* path,
+//    bool isDirectory,
+//    PrjFS_NotificationType notificationType);
 
 static Message ParseMessageMemory(const void* messageMemory, uint32_t size);
 
 static void ClearMachNotification(mach_port_t port);
-
-#ifdef DEBUG
-static const char* NotificationTypeToString(PrjFS_NotificationType notificationType);
-#endif
 
 // State
 static io_connect_t s_kernelServiceConnection = IO_OBJECT_NULL;
@@ -92,16 +111,6 @@ PrjFS_Result PrjFS_StartVirtualizationInstance(
     _In_    PrjFS_Callbacks                         callbacks,
     _In_    unsigned int                            poolThreadCount)
 {
-#ifdef DEBUG
-    std::cout
-        << "PrjFS_StartVirtualizationInstance("
-        << virtualizationRootFullPath << ", "
-        << callbacks.EnumerateDirectory << ", "
-        << callbacks.GetFileStream << ", "
-        << callbacks.NotifyOperation << ", "
-        << poolThreadCount << ")" << std::endl;
-#endif
-    
     if (nullptr == virtualizationRootFullPath ||
         nullptr == callbacks.EnumerateDirectory ||
         nullptr == callbacks.GetFileStream ||
@@ -118,6 +127,13 @@ PrjFS_Result PrjFS_StartVirtualizationInstance(
     if (!IsVirtualizationRoot(virtualizationRootFullPath))
     {
         return PrjFS_Result_ENotAVirtualizationRoot;
+    }
+    
+    struct group* adminGroup = getgrnam("admin");
+    if (chown(virtualizationRootFullPath, 502, adminGroup->gr_gid))
+    {
+        std::cout << "chown(" << virtualizationRootFullPath << ") failed. errno: " << errno << std::endl;
+        return PrjFS_Result_EIOError;
     }
     
     s_kernelServiceConnection = PrjFSService_ConnectToDriver(UserClientType_Provider);
@@ -216,10 +232,6 @@ PrjFS_Result PrjFS_StartVirtualizationInstance(
 PrjFS_Result PrjFS_ConvertDirectoryToVirtualizationRoot(
     _In_    const char*                             virtualizationRootFullPath)
 {
-#ifdef DEBUG
-    std::cout << "PrjFS_ConvertDirectoryToVirtualizationRoot(" << virtualizationRootFullPath << ")" << std::endl;
-#endif
-    
     if (nullptr == virtualizationRootFullPath)
     {
         return PrjFS_Result_EInvalidArgs;
@@ -232,6 +244,12 @@ PrjFS_Result PrjFS_ConvertDirectoryToVirtualizationRoot(
         IsVirtualizationRoot(virtualizationRootFullPath))
     {
         return PrjFS_Result_EVirtualizationRootAlreadyExists;
+    }
+    
+    if (chmod(virtualizationRootFullPath, 0775))
+    {
+        std::cout << "chmod(" << virtualizationRootFullPath << ", 0775) failed. errno: " << errno << std::endl;
+        return PrjFS_Result_EIOError;
     }
 
     PrjFSVirtualizationRootXAttrData rootXattrData = {};
@@ -249,33 +267,20 @@ PrjFS_Result PrjFS_ConvertDirectoryToVirtualizationRoot(
 PrjFS_Result PrjFS_WritePlaceholderDirectory(
     _In_    const char*                             relativePath)
 {
-#ifdef DEBUG
-    std::cout << "PrjFS_WritePlaceholderDirectory(" << relativePath << ")" << std::endl;
-#endif
-    
     if (nullptr == relativePath)
     {
         return PrjFS_Result_EInvalidArgs;
     }
     
-    char fullPath[PrjFSMaxPath];
-    CombinePaths(s_virtualizationRootFullPath.c_str(), relativePath, fullPath);
+    PrjFS_Result result = PrjFS_Result_EIOError;
 
-    if (mkdir(fullPath, 0777))
-    {
-        goto CleanupAndFail;
-    }
+    std::thread requestHandlerThread(
+        CreatePlaceholderDirectoryAsMountUser,
+        relativePath,
+        &result);
+    requestHandlerThread.join();
     
-    if (!InitializeEmptyPlaceholder(fullPath))
-    {
-        goto CleanupAndFail;
-    }
-    
-    return PrjFS_Result_Success;
-    
-CleanupAndFail:
-    // TODO: cleanup the directory on disk if needed
-    return PrjFS_Result_EIOError;
+    return result;
 }
 
 PrjFS_Result PrjFS_WritePlaceholderFile(
@@ -285,39 +290,149 @@ PrjFS_Result PrjFS_WritePlaceholderFile(
     _In_    unsigned long                           fileSize,
     _In_    uint16_t                                fileMode)
 {
-#ifdef DEBUG
-    std::cout
-        << "PrjFS_WritePlaceholderFile("
-        << relativePath << ", " 
-        << (int)providerId[0] << ", "
-        << (int)contentId[0] << ", "
-        << fileSize << ", "
-        << std::oct << fileMode << std::dec << ")" << std::endl;
-#endif
-    
     if (nullptr == relativePath)
     {
         return PrjFS_Result_EInvalidArgs;
     }
     
-    PrjFSFileXAttrData fileXattrData = {};
+    PrjFS_Result result;
+    std::thread requestHandlerThread(
+        CreatePlaceholderFileAsMountUser,
+        relativePath,
+        providerId,
+        contentId,
+        fileSize,
+        fileMode,
+        &result);
+    requestHandlerThread.join();
     
+    return result;
+}
+
+PrjFS_Result PrjFS_WriteFileContents(
+    _In_    const PrjFS_FileHandle*                 fileHandle,
+    _In_    const void*                             bytes,
+    _In_    unsigned int                            byteCount)
+{
+    if (nullptr == fileHandle->file ||
+        nullptr == bytes)
+    {
+        return PrjFS_Result_EInvalidArgs;
+    }
+    
+    PrjFS_Result result;
+    std::thread requestHandlerThread(
+        WriteFileContentsAsMountUser,
+        fileHandle,
+        bytes,
+        byteCount,
+        &result);
+    requestHandlerThread.join();
+    
+    return result;
+}
+
+// Private functions
+
+static bool TrySwitchCurrentThreadToUser(uid_t uid)
+{
+//    struct passwd* mountUser = getpwnam("gvfsmountuser");
+//    uid_t uid = mountUser->pw_uid;
+    struct group* adminGroup = getgrnam("admin");
+
+    if (pthread_setugid_np(uid, adminGroup->gr_gid))
+    {
+        if (EPERM == errno)
+        {
+            // I _think_ this error happens if we're already running as the intended user
+            // TODO: verify this!
+        }
+        else
+        {
+            std::cout << "ERROR: Failed to pthread_setugid_np(" << uid << ") errno: " << errno << std::endl;
+            return false;
+        }
+    }
+    
+    return true;
+}
+
+static void CreatePlaceholderDirectoryAsMountUser(const char* relativePath, PrjFS_Result* result)
+{
+    if (!TrySwitchCurrentThreadToUser(502))
+    {
+        *result = PrjFS_Result_EUnableToSwitchUsers;
+        goto CleanupAndReturn;
+    }
+    
+    char fullPath[PrjFSMaxPath];
+    CombinePaths(s_virtualizationRootFullPath.c_str(), relativePath, fullPath);
+
+    if (mkdir(fullPath, 0775))
+    {
+        std::cout << "mkdir(" << fullPath << ") failed. errno: " << errno << std::endl;
+        goto CleanupAndReturn;
+    }
+    
+    if (chmod(fullPath, 0775))
+    {
+        std::cout << "chmod(" << fullPath << ") failed. errno: " << errno << std::endl;
+        goto CleanupAndReturn;
+    }
+    
+    if (!InitializeEmptyPlaceholder(fullPath))
+    {
+        goto CleanupAndReturn;
+    }
+    
+    *result = PrjFS_Result_Success;
+    
+CleanupAndReturn:
+    if (!TrySwitchCurrentThreadToUser(0))
+    {
+        *result = PrjFS_Result_EUnableToSwitchUsers;
+    }
+
+    // TODO: cleanup the directory on disk if needed
+    return;
+}
+
+static void CreatePlaceholderFileAsMountUser(
+    _In_    const char*                             relativePath,
+    _In_    unsigned char                           providerId[PrjFS_PlaceholderIdLength],
+    _In_    unsigned char                           contentId[PrjFS_PlaceholderIdLength],
+    _In_    unsigned long                           fileSize,
+    _In_    uint16_t                                fileMode,
+    _Out_   PrjFS_Result*                           result)
+{
+    *result = PrjFS_Result_EIOError;
+
+    PrjFSFileXAttrData fileXattrData = {};
+    FILE* file = nullptr;
+
+    if (!TrySwitchCurrentThreadToUser(502))
+    {
+        *result = PrjFS_Result_EUnableToSwitchUsers;
+        goto CleanupAndReturn;
+    }
+
     char fullPath[PrjFSMaxPath];
     CombinePaths(s_virtualizationRootFullPath.c_str(), relativePath, fullPath);
     
     // Mode "wbx" means
     //  - Create an empty file if none exists
     //  - Fail if a file already exists at this path
-    FILE* file = fopen(fullPath, "wbx");
+    file = fopen(fullPath, "wbx");
     if (nullptr == file)
     {
-        goto CleanupAndFail;
+        std::cout << "fopen(" << fullPath << ") failed. errno: " << errno << std::endl;
+        goto CleanupAndReturn;
     }
     
     // Expand the file to the desired size
     if (ftruncate(fileno(file), fileSize))
     {
-        goto CleanupAndFail;
+        goto CleanupAndReturn;
     }
     
     fclose(file);
@@ -331,18 +446,18 @@ PrjFS_Result PrjFS_WritePlaceholderFile(
             &fileXattrData,
             PrjFSFileXAttrName))
     {
-        goto CleanupAndFail;
+        goto CleanupAndReturn;
     }
     
     // TODO(Mac): Only call chmod if fileMode is different than the default file mode
     if (chmod(fullPath, fileMode))
     {
-        goto CleanupAndFail;
+        goto CleanupAndReturn;
     }
 
-    return PrjFS_Result_Success;
+    *result = PrjFS_Result_Success;
     
-CleanupAndFail:
+CleanupAndReturn:
     if (nullptr != file)
     {
         // TODO: we now have a partially created placeholder file. Should we delete it?
@@ -352,7 +467,10 @@ CleanupAndFail:
         file = nullptr;
     }
     
-    return PrjFS_Result_EIOError;
+    if (!TrySwitchCurrentThreadToUser(0))
+    {
+        *result = PrjFS_Result_EUnableToSwitchUsers;
+    }
 }
 
 PrjFS_Result PrjFS_UpdatePlaceholderFileIfNeeded(
@@ -363,18 +481,7 @@ PrjFS_Result PrjFS_UpdatePlaceholderFileIfNeeded(
     _In_    uint16_t                                fileMode,
     _In_    PrjFS_UpdateType                        updateFlags,
     _Out_   PrjFS_UpdateFailureCause*               failureCause)
-{
-#ifdef DEBUG
-    std::cout
-        << "PrjFS_UpdatePlaceholderFileIfNeeded("
-        << relativePath << ", "
-        << (int)providerId[0] << ", "
-        << (int)contentId[0] << ", "
-        << fileSize << ", "
-        << std::oct << fileMode << std::dec << ", "
-        << std::hex << updateFlags << std::dec << ")" << std::endl;
-#endif
-    
+{    
     // TODO(Mac): Check if the contentId or fileMode have changed before proceeding
     // with the update
     
@@ -391,14 +498,7 @@ PrjFS_Result PrjFS_DeleteFile(
     _In_    const char*                             relativePath,
     _In_    PrjFS_UpdateType                        updateFlags,
     _Out_   PrjFS_UpdateFailureCause*               failureCause)
-{
-#ifdef DEBUG
-    std::cout
-        << "PrjFS_DeleteFile("
-        << relativePath << ", "
-        << std::hex << updateFlags << std::dec << ")" << std::endl;
-#endif
-    
+{    
     // TODO(Mac): Populate failure cause appropriately
     *failureCause = PrjFS_UpdateFailureCause_Invalid;
     
@@ -426,37 +526,30 @@ PrjFS_Result PrjFS_DeleteFile(
     return PrjFS_Result_Success;
 }
 
-PrjFS_Result PrjFS_WriteFileContents(
+static void WriteFileContentsAsMountUser(
     _In_    const PrjFS_FileHandle*                 fileHandle,
     _In_    const void*                             bytes,
-    _In_    unsigned int                            byteCount)
+    _In_    unsigned int                            byteCount,
+    _Out_   PrjFS_Result*                           result)
 {
-#ifdef DEBUG
-    std::cout
-        << "PrjFS_WriteFile("
-        << fileHandle->file << ", "
-        << (int)((char*)bytes)[0] << ", "
-        << (int)((char*)bytes)[1] << ", "
-        << (int)((char*)bytes)[2] << ", "
-        << byteCount << ")" << std::endl;
-#endif
+    *result = PrjFS_Result_EIOError;
     
-    if (nullptr == fileHandle->file ||
-        nullptr == bytes)
+    if (!TrySwitchCurrentThreadToUser(502))
     {
-        return PrjFS_Result_EInvalidArgs;
+        *result = PrjFS_Result_EUnableToSwitchUsers;
+        return;
     }
     
-    if (byteCount != fwrite(bytes, 1, byteCount, fileHandle->file))
+    if (byteCount == fwrite(bytes, 1, byteCount, fileHandle->file))
     {
-        return PrjFS_Result_EIOError;
+        *result = PrjFS_Result_Success;
     }
     
-    return PrjFS_Result_Success;
+    if (!TrySwitchCurrentThreadToUser(0))
+    {
+        *result = PrjFS_Result_EUnableToSwitchUsers;
+    }
 }
-
-// Private functions
-
 
 static Message ParseMessageMemory(const void* messageMemory, uint32_t size)
 {
@@ -479,55 +572,58 @@ static Message ParseMessageMemory(const void* messageMemory, uint32_t size)
     return Message { header, path };
 }
 
-static void HandleKernelRequest(Message request, void* messageMemory)
+static void HandleKernelRequestAsMountUser(Message request, void* messageMemory)
 {
     PrjFS_Result result = PrjFS_Result_EIOError;
     
-    const MessageHeader* requestHeader = request.messageHeader;
-    switch (requestHeader->messageType)
+//    if (TrySwitchCurrentThreadToUser(502))
     {
-        case MessageType_KtoU_EnumerateDirectory:
+        const MessageHeader* requestHeader = request.messageHeader;
+        switch (requestHeader->messageType)
         {
-            result = HandleEnumerateDirectoryRequest(requestHeader, request.path);
-            break;
-        }
-            
-        case MessageType_KtoU_HydrateFile:
-        {
-            result = HandleHydrateFileRequest(requestHeader, request.path);
-            break;
-        }
-            
-        case MessageType_KtoU_NotifyFileModified:
-        case MessageType_KtoU_NotifyFilePreDelete:
-        case MessageType_KtoU_NotifyDirectoryPreDelete:
-        {
-            result = HandleFileNotification(
-                requestHeader,
-                request.path,
-                requestHeader->messageType == MessageType_KtoU_NotifyDirectoryPreDelete,  // isDirectory
-                KUMessageTypeToNotificationType(static_cast<MessageType>(requestHeader->messageType)));
-            break;
-        }
-        
-        case MessageType_KtoU_NotifyFileCreated:
-        case MessageType_KtoU_NotifyFileRenamed:
-        case MessageType_KtoU_NotifyDirectoryRenamed:
-        case MessageType_KtoU_NotifyFileHardLinkCreated:
-        {
-            char fullPath[PrjFSMaxPath];
-            CombinePaths(s_virtualizationRootFullPath.c_str(), request.path, fullPath);
-			
-            // TODO(Mac): Handle SetBitInFileFlags failures
-            SetBitInFileFlags(fullPath, FileFlags_IsInVirtualizationRoot, true);
-
-            bool isDirectory = requestHeader->messageType == MessageType_KtoU_NotifyDirectoryRenamed;
-            result = HandleFileNotification(
-                requestHeader,
-                request.path,
-                isDirectory,
-                KUMessageTypeToNotificationType(static_cast<MessageType>(requestHeader->messageType)));
-            break;
+            case MessageType_KtoU_EnumerateDirectory:
+            {
+                result = HandleEnumerateDirectoryRequest(requestHeader, request.path);
+                break;
+            }
+                
+            case MessageType_KtoU_HydrateFile:
+            {
+                result = HandleHydrateFileRequest(requestHeader, request.path);
+                break;
+            }
+                
+//            case MessageType_KtoU_NotifyFileModified:
+//            case MessageType_KtoU_NotifyFilePreDelete:
+//            case MessageType_KtoU_NotifyDirectoryPreDelete:
+//            {
+//                result = HandleFileNotification(
+//                    requestHeader,
+//                    request.path,
+//                    requestHeader->messageType == MessageType_KtoU_NotifyDirectoryPreDelete,  // isDirectory
+//                    KUMessageTypeToNotificationType(static_cast<MessageType>(requestHeader->messageType)));
+//                break;
+//            }
+//
+//            case MessageType_KtoU_NotifyFileCreated:
+//            case MessageType_KtoU_NotifyFileRenamed:
+//            case MessageType_KtoU_NotifyDirectoryRenamed:
+//            case MessageType_KtoU_NotifyFileHardLinkCreated:
+//            {
+//                char fullPath[PrjFSMaxPath];
+//                CombinePaths(s_virtualizationRootFullPath.c_str(), request.path, fullPath);
+//
+//                // TODO(Mac): Handle SetBitInFileFlags failures
+//                SetBitInFileFlags(fullPath, FileFlags_IsInVirtualizationRoot, true);
+//
+//                bool isDirectory = requestHeader->messageType == MessageType_KtoU_NotifyDirectoryRenamed;
+//                result = HandleFileNotification(
+//                    requestHeader,
+//                    request.path,
+//                    isDirectory,
+//                    KUMessageTypeToNotificationType(static_cast<MessageType>(requestHeader->messageType)));
+//                break;
+//            }
         }
     }
     
@@ -560,12 +656,17 @@ static void HandleKernelRequest(Message request, void* messageMemory)
     free(messageMemory);
 }
 
+static void HandleKernelRequest(Message request, void* messageMemory)
+{
+    std::thread requestHandlerThread(
+        HandleKernelRequestAsMountUser,
+        request,
+        messageMemory);
+    requestHandlerThread.join();
+}
+
 static PrjFS_Result HandleEnumerateDirectoryRequest(const MessageHeader* request, const char* path)
 {
-#ifdef DEBUG
-    std::cout << "PrjFSLib.HandleEnumerateDirectoryRequest: " << path << std::endl;
-#endif
-    
     PrjFS_Result callbackResult = s_callbacks.EnumerateDirectory(
         0 /* commandId */,
         path,
@@ -574,6 +675,11 @@ static PrjFS_Result HandleEnumerateDirectoryRequest(const MessageHeader* request
     
     if (PrjFS_Result_Success == callbackResult)
     {
+        if (!TrySwitchCurrentThreadToUser(502))
+        {
+            return PrjFS_Result_EUnableToSwitchUsers;
+        }
+        
         char fullPath[PrjFSMaxPath];
         CombinePaths(s_virtualizationRootFullPath.c_str(), path, fullPath);
         
@@ -581,7 +687,13 @@ static PrjFS_Result HandleEnumerateDirectoryRequest(const MessageHeader* request
         {
             // TODO: how should we handle this scenario where the provider thinks it succeeded, but we were unable to
             // update placeholder metadata?
+            std::cout << "Failed to enumerate " << path << std::endl;
             return PrjFS_Result_EIOError;
+        }
+        
+        if (!TrySwitchCurrentThreadToUser(0))
+        {
+            return PrjFS_Result_EUnableToSwitchUsers;
         }
     }
     
@@ -590,9 +702,10 @@ static PrjFS_Result HandleEnumerateDirectoryRequest(const MessageHeader* request
 
 static PrjFS_Result HandleHydrateFileRequest(const MessageHeader* request, const char* path)
 {
-#ifdef DEBUG
-    std::cout << "PrjFSLib.HandleHydrateFileRequest: " << path << std::endl;
-#endif
+    if (!TrySwitchCurrentThreadToUser(502))
+    {
+        return PrjFS_Result_EUnableToSwitchUsers;
+    }
     
     char fullPath[PrjFSMaxPath];
     CombinePaths(s_virtualizationRootFullPath.c_str(), path, fullPath);
@@ -612,6 +725,7 @@ static PrjFS_Result HandleHydrateFileRequest(const MessageHeader* request, const
     fileHandle.file = fopen(fullPath, "rb+");
     if (nullptr == fileHandle.file)
     {
+        std::cout << "fopen(" << fullPath << ") failed. errno: " << errno << std::endl;
         return PrjFS_Result_EIOError;
     }
     
@@ -622,6 +736,13 @@ static PrjFS_Result HandleHydrateFileRequest(const MessageHeader* request, const
         return PrjFS_Result_EIOError;
     }
     
+    // We have to switch back to the original user before calling the provider, in case the provider
+    // needs to do its own IO and relies on the permissions of the running user
+    if (!TrySwitchCurrentThreadToUser(0))
+    {
+        return PrjFS_Result_EUnableToSwitchUsers;
+    }
+    
     PrjFS_Result callbackResult = s_callbacks.GetFileStream(
         0 /* comandId */,
         path,
@@ -630,6 +751,12 @@ static PrjFS_Result HandleHydrateFileRequest(const MessageHeader* request, const
         request->pid,
         request->procname,
         &fileHandle);
+    
+    // And back again so we can do our own IO
+    if (!TrySwitchCurrentThreadToUser(502))
+    {
+        return PrjFS_Result_EUnableToSwitchUsers;
+    }
     
     // TODO: once we support async callbacks, we'll need to save off the fileHandle if the result is Pending
     
@@ -647,46 +774,48 @@ static PrjFS_Result HandleHydrateFileRequest(const MessageHeader* request, const
         //  * The provider writes more bytes than expected. The write succeeds, but whatever tool originally opened the file may have already
         //    allocated the originally reported size, and now the contents appear truncated.
         
-        if (!SetBitInFileFlags(fullPath, FileFlags_IsEmpty, false))
+        if (SetBitInFileFlags(fullPath, FileFlags_IsEmpty, false))
+        {
+            if (!TrySwitchCurrentThreadToUser(0))
+            {
+                return PrjFS_Result_EUnableToSwitchUsers;
+            }
+            
+            return PrjFS_Result_Success;
+        }
+        else
         {
             // TODO: how should we handle this scenario where the provider thinks it succeeded, but we were unable to
             // update placeholder metadata?
-            return PrjFS_Result_EIOError;
         }
     }
     
-    return callbackResult;
+    return PrjFS_Result_EIOError;
 }
 
-static PrjFS_Result HandleFileNotification(
-    const MessageHeader* request,
-    const char* path,
-    bool isDirectory,
-    PrjFS_NotificationType notificationType)
-{
-#ifdef DEBUG
-    std::cout << "PrjFSLib.HandleFileNotification: " << path
-              << " notificationType: " << NotificationTypeToString(notificationType)
-              << " isDirectory: " << isDirectory << std::endl;
-#endif
-    
-    char fullPath[PrjFSMaxPath];
-    CombinePaths(s_virtualizationRootFullPath.c_str(), path, fullPath);
-    
-    PrjFSFileXAttrData xattrData = {};
-    GetXAttr(fullPath, PrjFSFileXAttrName, sizeof(PrjFSFileXAttrData), &xattrData);
-
-    return s_callbacks.NotifyOperation(
-        0 /* commandId */,
-        path,
-        xattrData.providerId,
-        xattrData.contentId,
-        request->pid,
-        request->procname,
-        isDirectory,
-        notificationType,
-        nullptr /* destinationRelativePath */);
-}
+//static PrjFS_Result HandleFileNotification(
+//    const MessageHeader* request,
+//    const char* path,
+//    bool isDirectory,
+//    PrjFS_NotificationType notificationType)
+//{
+//    char fullPath[PrjFSMaxPath];
+//    CombinePaths(s_virtualizationRootFullPath.c_str(), path, fullPath);
+//
+//    PrjFSFileXAttrData xattrData = {};
+//    GetXAttr(fullPath, PrjFSFileXAttrName, sizeof(PrjFSFileXAttrData), &xattrData);
+//
+//    return s_callbacks.NotifyOperation(
+//        0 /* commandId */,
+//        path,
+//        xattrData.providerId,
+//        xattrData.contentId,
+//        request->pid,
+//        request->procname,
+//        isDirectory,
+//        notificationType,
+//        nullptr /* destinationRelativePath */);
+//}
 
 static bool InitializeEmptyPlaceholder(const char* fullPath)
 {
@@ -734,6 +863,7 @@ static bool SetBitInFileFlags(const char* path, uint32_t bit, bool value)
     struct stat fileAttributes;
     if (stat(path, &fileAttributes))
     {
+        std::cout << "stat(" << path << ") failed. errno: " << errno << std::endl;
         return false;
     }
     
@@ -749,6 +879,7 @@ static bool SetBitInFileFlags(const char* path, uint32_t bit, bool value)
     
     if (chflags(path, newValue))
     {
+        std::cout << "chflags(" << path << ") failed. errno: " << errno << std::endl;
         return false;
     }
     
@@ -789,38 +920,38 @@ static bool GetXAttr(const char* path, const char* name, size_t size, _Out_ void
     return false;
 }
 
-static inline PrjFS_NotificationType KUMessageTypeToNotificationType(MessageType kuNotificationType)
-{
-    switch(kuNotificationType)
-    {
-        case MessageType_KtoU_NotifyFileModified:
-            return PrjFS_NotificationType_FileModified;
-        
-        case MessageType_KtoU_NotifyFilePreDelete:
-        case MessageType_KtoU_NotifyDirectoryPreDelete:
-            return PrjFS_NotificationType_PreDelete;
-            
-        case MessageType_KtoU_NotifyFileCreated:
-            return PrjFS_NotificationType_NewFileCreated;
-            
-        case MessageType_KtoU_NotifyFileRenamed:
-        case MessageType_KtoU_NotifyDirectoryRenamed:
-            return PrjFS_NotificationType_FileRenamed;
-            
-        case MessageType_KtoU_NotifyFileHardLinkCreated:
-            return PrjFS_NotificationType_HardLinkCreated;
-        
-        // Non-notification types
-        case MessageType_Invalid:
-        case MessageType_UtoK_StartVirtualizationInstance:
-        case MessageType_UtoK_StopVirtualizationInstance:
-        case MessageType_KtoU_EnumerateDirectory:
-        case MessageType_KtoU_HydrateFile:
-        case MessageType_Response_Success:
-        case MessageType_Response_Fail:
-            return PrjFS_NotificationType_Invalid;
-    }
-}
+//static inline PrjFS_NotificationType KUMessageTypeToNotificationType(MessageType kuNotificationType)
+//{
+//    switch(kuNotificationType)
+//    {
+//        case MessageType_KtoU_NotifyFileModified:
+//            return PrjFS_NotificationType_FileModified;
+//
+//        case MessageType_KtoU_NotifyFilePreDelete:
+//        case MessageType_KtoU_NotifyDirectoryPreDelete:
+//            return PrjFS_NotificationType_PreDelete;
+//
+//        case MessageType_KtoU_NotifyFileCreated:
+//            return PrjFS_NotificationType_NewFileCreated;
+//
+//        case MessageType_KtoU_NotifyFileRenamed:
+//        case MessageType_KtoU_NotifyDirectoryRenamed:
+//            return PrjFS_NotificationType_FileRenamed;
+//
+//        case MessageType_KtoU_NotifyFileHardLinkCreated:
+//            return PrjFS_NotificationType_HardLinkCreated;
+//
+//        // Non-notification types
+//        case MessageType_Invalid:
+//        case MessageType_UtoK_StartVirtualizationInstance:
+//        case MessageType_UtoK_StopVirtualizationInstance:
+//        case MessageType_KtoU_EnumerateDirectory:
+//        case MessageType_KtoU_HydrateFile:
+//        case MessageType_Response_Success:
+//        case MessageType_Response_Fail:
+//            return PrjFS_NotificationType_Invalid;
+//    }
+//}
 
 static errno_t SendKernelMessageResponse(uint64_t messageId, MessageType responseType)
 {
@@ -857,34 +988,3 @@ static void ClearMachNotification(mach_port_t port)
     } msg;
     mach_msg(&msg.msgHdr, MACH_RCV_MSG | MACH_RCV_TIMEOUT, 0, sizeof(msg), port, 0, MACH_PORT_NULL);
 }
-
-#ifdef DEBUG
-static const char* NotificationTypeToString(PrjFS_NotificationType notificationType)
-{
-    switch(notificationType)
-    {
-        case PrjFS_NotificationType_Invalid:
-            return STRINGIFY(PrjFS_NotificationType_Invalid);
-
-        case PrjFS_NotificationType_None:
-            return STRINGIFY(PrjFS_NotificationType_None);
-        case PrjFS_NotificationType_NewFileCreated:
-            return STRINGIFY(PrjFS_NotificationType_NewFileCreated);
-        case PrjFS_NotificationType_PreDelete:
-            return STRINGIFY(PrjFS_NotificationType_PreDelete);
-        case PrjFS_NotificationType_FileRenamed:
-            return STRINGIFY(PrjFS_NotificationType_FileRenamed);
-        case PrjFS_NotificationType_HardLinkCreated:
-            return STRINGIFY(PrjFS_NotificationType_HardLinkCreated);
-        case PrjFS_NotificationType_PreConvertToFull:
-            return STRINGIFY(PrjFS_NotificationType_PreConvertToFull);
-            
-        case PrjFS_NotificationType_PreModify:
-            return STRINGIFY(PrjFS_NotificationType_PreModify);
-        case PrjFS_NotificationType_FileModified:
-            return STRINGIFY(PrjFS_NotificationType_FileModified);
-        case PrjFS_NotificationType_FileDeleted:
-            return STRINGIFY(PrjFS_NotificationType_FileDeleted);
-    }
-}
-#endif

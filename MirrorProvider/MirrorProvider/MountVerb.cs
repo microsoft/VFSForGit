@@ -27,6 +27,8 @@ namespace MirrorProvider
             Console.WriteLine();
             Console.WriteLine($"Mounting {Path.GetFullPath(this.enlistment.EnlistmentRoot)}");
 
+            File.ReadAllText(Path.Combine(enlistment.SrcRoot, ".mirrorInsideSrc", "foo.txt"));
+
             if (fileSystemVirtualizer.TryStartVirtualizationInstance(this.enlistment, out string error))
             {
                 Console.WriteLine("Virtualization instance started successfully");

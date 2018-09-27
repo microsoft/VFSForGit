@@ -4,6 +4,7 @@ using GVFS.Tests.Should;
 using NUnit.Framework;
 using System;
 using System.IO;
+using System.Linq;
 using System.Text;
 using System.Threading;
 
@@ -20,11 +21,22 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
             // other tests in this class. That applies to every directory in the path, as well as the leaf file name.
             // Otherwise, this test loses most of its value because there will be no races occurring on creating the
             // placeholder directories, enumerating them, and then creating a placeholder file and hydrating it.
-            
+
             string fileName = Path.Combine("GVFS", "GVFS.FunctionalTests", "Tests", "LongRunningEnlistment", "GitMoveRenameTests.cs");
             string virtualPath = this.Enlistment.GetVirtualPathTo(fileName);
 
             Exception readException = null;
+
+            ////Thread.Sleep(5000);
+
+            FileSystemRunner fileSystem = FileSystemRunner.DefaultRunner;
+            ////new DirectoryInfo(this.Enlistment.RepoRoot).Exists.ShouldBeTrue();
+            ////new DirectoryInfo(this.Enlistment.GetVirtualPathTo("GVFS")).Exists.ShouldBeTrue();
+            ////new DirectoryInfo(this.Enlistment.GetVirtualPathTo("GVFS", "GVFS.FunctionalTests")).Exists.ShouldBeTrue();
+            ////new DirectoryInfo(this.Enlistment.GetVirtualPathTo("GVFS", "GVFS.FunctionalTests", "Tests")).Exists.ShouldBeTrue();
+            ////new DirectoryInfo(this.Enlistment.GetVirtualPathTo("GVFS", "GVFS.FunctionalTests", "Tests", "LongRunningEnlistment")).Exists.ShouldBeTrue();
+
+            ////Thread.Sleep(5000);
 
             Thread[] threads = new Thread[128];
             for (int i = 0; i < threads.Length; ++i)
@@ -33,11 +45,32 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
                 {
                     try
                     {
-                        FileSystemRunner.DefaultRunner.ReadAllText(virtualPath).ShouldBeNonEmpty();
+                        ////new DirectoryInfo(this.Enlistment.GetVirtualPathTo("GVFS")).Exists.ShouldBeTrue();
+                        ////new DirectoryInfo(this.Enlistment.GetVirtualPathTo("GVFS", "GVFS.FunctionalTests")).Exists.ShouldBeTrue();
+                        ////new DirectoryInfo(this.Enlistment.GetVirtualPathTo("GVFS", "GVFS.FunctionalTests", "Tests")).Exists.ShouldBeTrue();
+                        ////new DirectoryInfo(this.Enlistment.GetVirtualPathTo("GVFS", "GVFS.FunctionalTests", "Tests", "LongRunningEnlistment")).Exists.ShouldBeTrue();
+
+                        ////new FileInfo(virtualPath).Exists.ShouldBeTrue();
+                        fileSystem.ReadAllText(virtualPath).ShouldBeNonEmpty();
+                        ////virtualPath.ShouldBeADirectory(fileSystem);
+                        Console.WriteLine("Read the file \n");
+                    }
+                    catch (IOException e)
+                    {
+                        readException = e;
+                        Console.WriteLine(string.Format(
+                            "IOException: \n" +
+                            "    Message: {0}\n" +
+                            "    HResult: {1}\n" +
+                            "    InnerException: {2}\n",
+                            e.Message,
+                            e.HResult,
+                            e.InnerException));
                     }
                     catch (Exception e)
                     {
                         readException = e;
+                        Console.WriteLine(e + "\n");
                     }
                 });
 
