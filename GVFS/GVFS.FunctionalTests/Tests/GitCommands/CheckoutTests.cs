@@ -88,7 +88,6 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
         }
 
         [TestCase]
-        [Category(Categories.MacTODO.NeedsCachePoisonFix)]
         public void ReadDeepFilesAfterCheckout()
         {
             // In commit 8df701986dea0a5e78b742d2eaf9348825b14d35 the CheckoutNewBranchFromStartingPointTest files were not present
@@ -104,7 +103,6 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
         }
 
         [TestCase]
-        [Category(Categories.MacTODO.NeedsCachePoisonFix)]
         public void CheckoutNewBranchFromStartingPointTest()
         {
             // In commit 8df701986dea0a5e78b742d2eaf9348825b14d35 the CheckoutNewBranchFromStartingPointTest files were not present
@@ -121,7 +119,6 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
         }
 
         [TestCase]
-        [Category(Categories.MacTODO.NeedsCachePoisonFix)]
         public void CheckoutOrhpanBranchFromStartingPointTest()
         {
             // In commit 8df701986dea0a5e78b742d2eaf9348825b14d35 the CheckoutOrhpanBranchFromStartingPointTest files were not present
@@ -251,7 +248,6 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
         }
 
         [TestCase]
-        [Category(Categories.MacTODO.M3)]
         public void CheckoutBranchThatHasFolderShouldGetDeleted()
         {
             // this.ControlGitRepo.Commitish should not have the folder Test_ConflictTests\AddedFiles
@@ -734,7 +730,6 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
         }
 
         [TestCase]
-        [Category(Categories.MacTODO.NeedsCachePoisonFix)]
         public void SuccessfullyChecksOutDirectoryToFileToDirectory()
         {
             // This test switches between two branches and verifies specific transitions occured
@@ -803,6 +798,7 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
             this.ShouldNotExistOnDisk("d", "c");
         }
 
+        // TODO(Mac): This test needs the fix for issue #264
         [TestCase]
         [Category(Categories.MacTODO.M3)]
         public void DeleteFileThenCheckout()
@@ -823,7 +819,7 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
         [Category(Categories.MacTODO.M3)]
         public void CheckoutEditCheckoutWithoutFolderThenCheckoutWithMultipleFiles()
         {
-            // Edit the file to get the entry in the sparse-checkout file
+            // Edit the file to get the entry in the modified paths database
             this.EditFile("Changing the content of one file", "DeleteFileWithNameAheadOfDotAndSwitchCommits", "1");
             this.RunGitCommand("reset --hard -q HEAD");
 

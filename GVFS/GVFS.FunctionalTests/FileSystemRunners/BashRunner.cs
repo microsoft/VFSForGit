@@ -4,6 +4,7 @@ using NUnit.Framework;
 using System;
 using System.Diagnostics;
 using System.IO;
+using System.Runtime.InteropServices;
 using System.Threading;
 
 namespace GVFS.FunctionalTests.FileSystemRunners
@@ -28,9 +29,14 @@ namespace GVFS.FunctionalTests.FileSystemRunners
             "Function not implemented"
         };
 
-        private static string[] permissionDeniedMessage = new string[]
+        private static string[] windowsPermissionDeniedMessage = new string[]
         {
             "Permission denied"
+        };
+
+        private static string[] macPermissionDeniedMessage = new string[]
+        {
+            "Resource temporarily unavailable"
         };
 
         private readonly string pathToBash;
@@ -45,11 +51,6 @@ namespace GVFS.FunctionalTests.FileSystemRunners
             {
                 this.pathToBash = "bash.exe";
             }
-        }
-
-        public override bool SupportsHardlinkCreation
-        {
-            get { return true; }
         }
 
         protected override string FileName
@@ -108,7 +109,7 @@ namespace GVFS.FunctionalTests.FileSystemRunners
         {
             // BashRunner does nothing special when a failure is expected, so just confirm source file is still present
             this.MoveFile(sourcePath, targetPath);
-            this.FileExists(sourcePath).ShouldEqual(true);
+            this.FileExists(sourcePath).ShouldBeTrue($"{sourcePath} does not exist when it should");
         }
 
         public override void MoveFile_FileShouldNotBeFound(string sourcePath, string targetPath)
@@ -246,7 +247,8 @@ namespace GVFS.FunctionalTests.FileSystemRunners
 
         public override void DeleteFile_AccessShouldBeDenied(string path)
         {
-            this.DeleteFile(path).ShouldContain(permissionDeniedMessage);
+            this.DeleteFile(path).ShouldContain(this.GetPermissionDeniedError());
+            this.FileExists(path).ShouldBeTrue($"{path} does not exist when it should");
         }
 
         public override void ReadAllText_FileShouldNotBeFound(string path)
@@ -271,6 +273,16 @@ namespace GVFS.FunctionalTests.FileSystemRunners
             bashPath = bashPath.Replace(":\\", "/");
             bashPath = bashPath.Replace('\\', '/');
             return bashPath;
+        }
+
+        private string[] GetPermissionDeniedError()
+        {
+            if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+            {
+                return windowsPermissionDeniedMessage;
+            }
+
+            return macPermissionDeniedMessage;
         }
     }
 }

@@ -101,6 +101,7 @@
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="Windows\Tests\DiskLayoutUpgradeTests.cs" />
     <Compile Include="Windows\Tests\JunctionAndSubstTests.cs" />
+    <Compile Include="Windows\Tests\WindowsUpdatePlaceholderTests.cs.cs" />
     <Compile Include="Windows\Tests\WindowsFileSystemTests.cs" />
     <Compile Include="Windows\Tests\ServiceTests.cs" />
     <Compile Include="Windows\Tests\SharedCacheUpgradeTests.cs" />

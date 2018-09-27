@@ -47,11 +47,6 @@ namespace GVFS.FunctionalTests.FileSystemRunners
             get { return defaultRunner; }
         }
 
-        public virtual bool SupportsHardlinkCreation 
-        { 
-            get { return false; } 
-        }
-
         // File methods
         public abstract bool FileExists(string path);       
         public abstract string MoveFile(string sourcePath, string targetPath);
@@ -74,11 +69,7 @@ namespace GVFS.FunctionalTests.FileSystemRunners
         public abstract void ReadAllText_FileShouldNotBeFound(string path);
 
         public abstract void CreateEmptyFile(string path);
-
-        public virtual void CreateHardLink(string newLinkFilePath, string existingFilePath)
-        {
-            Assert.Fail($"This runner does not support {nameof(this.CreateHardLink)}");
-        }
+        public abstract void CreateHardLink(string newLinkFilePath, string existingFilePath);
 
         /// <summary>
         /// Write the specified contents to the specified file.  By calling this method the caller is

@@ -48,6 +48,7 @@ static bool TrySendRequestAndWaitForResponse(
     const VirtualizationRoot* root,
     MessageType messageType,
     const vnode_t vnode,
+    const char* vnodePath,
     int pid,
     const char* procname,
     int* kauthResult,
@@ -254,14 +255,25 @@ static int HandleVnodeOperation(
     vnode_t currentVnode =  reinterpret_cast<vnode_t>(arg1);
     // arg2 is the (vnode_t) parent vnode
     int* kauthError =       reinterpret_cast<int*>(arg3);
+    int kauthResult = KAUTH_RESULT_DEFER;
+
+    const char* vnodePath = nullptr;
+    char vnodePathBuffer[PrjFSMaxPath];
+    int vnodePathLength = PrjFSMaxPath;
 
     VirtualizationRoot* root = nullptr;
     vtype vnodeType;
     uint32_t currentVnodeFileFlags;
     int pid;
     char procname[MAXCOMLEN + 1];
-
-    int kauthResult = KAUTH_RESULT_DEFER;
+    
+    // TODO(Mac): Issue #271 - Reduce reliance on vn_getpath
+    // Call vn_getpath first when the cache is hottest to increase the chances
+    // of successfully getting the path
+    if (0 == vn_getpath(currentVnode, vnodePathBuffer, &vnodePathLength))
+    {
+        vnodePath = vnodePathBuffer;
+    }
 
     if (!ShouldHandleVnodeOpEvent(
             context,
@@ -283,6 +295,7 @@ static int HandleVnodeOperation(
                 root,
                 VDIR == vnodeType ? MessageType_KtoU_NotifyDirectoryPreDelete : MessageType_KtoU_NotifyFilePreDelete,
                 currentVnode,
+                vnodePath,
                 pid,
                 procname,
                 &kauthResult,
@@ -313,6 +326,7 @@ static int HandleVnodeOperation(
                             MessageType_KtoU_RecursivelyEnumerateDirectory :
                             MessageType_KtoU_EnumerateDirectory,
                         currentVnode,
+                        vnodePath,
                         pid,
                         procname,
                         &kauthResult,
@@ -342,6 +356,7 @@ static int HandleVnodeOperation(
                         root,
                         MessageType_KtoU_HydrateFile,
                         currentVnode,
+                        vnodePath,
                         pid,
                         procname,
                         &kauthResult,
@@ -419,6 +434,7 @@ static int HandleFileOpOperation(
                 root,
                 messageType,
                 currentVnodeFromPath,
+                newPath,
                 pid,
                 procname,
                 &kauthResult,
@@ -430,7 +446,7 @@ static int HandleFileOpOperation(
     else if (KAUTH_FILEOP_CLOSE == action)
     {
         vnode_t currentVnode = reinterpret_cast<vnode_t>(arg0);
-        // arg1 is the (const char *) path
+        const char* path = (const char*)arg1;
         int closeFlags = static_cast<int>(arg2);
         
         if (vnode_isdir(currentVnode))
@@ -467,6 +483,7 @@ static int HandleFileOpOperation(
                     root,
                     MessageType_KtoU_NotifyFileModified,
                     currentVnode,
+                    path,
                     pid,
                     procname,
                     &kauthResult,
@@ -483,6 +500,7 @@ static int HandleFileOpOperation(
                     root,
                     MessageType_KtoU_NotifyFileCreated,
                     currentVnode,
+                    path,
                     pid,
                     procname,
                     &kauthResult,
@@ -638,6 +656,7 @@ static bool TrySendRequestAndWaitForResponse(
     const VirtualizationRoot* root,
     MessageType messageType,
     const vnode_t vnode,
+    const char* vnodePath,
     int pid,
     const char* procname,
     int* kauthResult,
@@ -648,11 +667,10 @@ static bool TrySendRequestAndWaitForResponse(
     OutstandingMessage message;
     message.receivedResponse = false;
     
-    char vnodePath[PrjFSMaxPath];
-    int vnodePathLength = PrjFSMaxPath;
-    if (vn_getpath(vnode, vnodePath, &vnodePathLength))
+    if (nullptr == vnodePath)
     {
-        KextLog_Error("Unable to resolve a vnode to its path");
+        // Default error code is EACCES. See errno.h for more codes.
+        *kauthError = EAGAIN;
         *kauthResult = KAUTH_RESULT_DENY;
         return false;
     }

@@ -2,15 +2,16 @@
 
 ## Windows
 
-|Branch|Unit Tests|Functional Tests|
-|:--:|:--:|:--:|
-|**master**|[![Build status](https://gvfs.visualstudio.com/ci/_apis/build/status/CI%20-%20Windows%20-%20master?branchName=master)](https://gvfs.visualstudio.com/ci/_build/latest?definitionId=7)|[![Build status](https://gvfs.visualstudio.com/ci/_apis/build/status/CI%20-%20Windows%20-%20Full%20Functional%20Tests?branchName=master)](https://gvfs.visualstudio.com/ci/_build/latest?definitionId=6)|
-
+|Branch|Unit Tests|Functional Tests|Large Repo Perf|Large Repo Build|
+|:--:|:--:|:--:|:--:|:--:|
+|**master**|[![Build status](https://dev.azure.com/gvfs/ci/_apis/build/status/CI%20-%20Windows?branchName=master)](https://dev.azure.com/gvfs/ci/_build/latest?definitionId=7&branchName=master)|[![Build status](https://dev.azure.com/gvfs/ci/_apis/build/status/CI%20-%20Windows%20-%20Full%20Functional%20Tests?branchName=master)](https://dev.azure.com/gvfs/ci/_build/latest?definitionId=6&branchName=master)|[![Build status](https://dev.azure.com/mseng/VSOnline/_apis/build/status/GVFS/GitHub%20VFSForGit%20Large%20Repo%20Perf%20Tests?branchName=master)](https://dev.azure.com/mseng/VSOnline/_build/latest?definitionId=7179&branchName=master)|[![Build status](https://dev.azure.com/mseng/VSOnline/_apis/build/status/GVFS/GitHub%20VFSForGit%20Large%20Repo%20Build?branchName=master)](https://dev.azure.com/mseng/VSOnline/_build/latest?definitionId=7180&branchName=master)|
+|**shipped**|[![Build status](https://dev.azure.com/gvfs/ci/_apis/build/status/CI%20-%20Windows?branchName=releases%2Fshipped)](https://dev.azure.com/gvfs/ci/_build/latest?definitionId=7&branchName=releases%2Fshipped)|[![Build status](https://dev.azure.com/gvfs/ci/_apis/build/status/CI%20-%20Windows%20-%20Full%20Functional%20Tests?branchName=releases%2Fshipped)](https://dev.azure.com/gvfs/ci/_build/latest?definitionId=6&branchName=releases%2Fshipped)|[![Build status](https://dev.azure.com/mseng/VSOnline/_apis/build/status/GVFS/GitHub%20VFSForGit%20Large%20Repo%20Perf%20Tests?branchName=releases%2Fshipped)](https://dev.azure.com/mseng/VSOnline/_build/latest?definitionId=7179&branchName=releases%2Fshipped)|[![Build status](https://dev.azure.com/mseng/VSOnline/_apis/build/status/GVFS/GitHub%20VFSForGit%20Large%20Repo%20Build?branchName=releases%2Fshipped)](https://dev.azure.com/mseng/VSOnline/_build/latest?definitionId=7180&branchName=releases%2Fshipped)|
 
 ## Mac
 |Branch|Unit Tests|Functional Tests|
 |:--:|:--:|:--:|
-|**master**|[![Build status](https://gvfs.visualstudio.com/ci/_apis/build/status/CI%20-%20Mac%20-%20master?branchName=master)](https://gvfs.visualstudio.com/ci/_build/latest?definitionId=15)||
+|**master**|[![Build status](https://dev.azure.com/gvfs/ci/_apis/build/status/CI%20-%20Mac?branchName=master)](https://dev.azure.com/gvfs/ci/_build/latest?definitionId=15&branchName=master)|[![Build status](https://dev.azure.com/mseng/VSOnline/_apis/build/status/GVFS/CI%20-%20Mac%20-%20Functional%20Tests?branchName=master)](https://dev.azure.com/mseng/VSOnline/_build/latest?definitionId=7376&branchName=master)|
+|**shipped**|[![Build status](https://dev.azure.com/gvfs/ci/_apis/build/status/CI%20-%20Mac?branchName=releases%2Fshipped)](https://dev.azure.com/gvfs/ci/_build/latest?definitionId=15&branchName=releases%2Fshipped)|[![Build status](https://dev.azure.com/mseng/VSOnline/_apis/build/status/GVFS/CI%20-%20Mac%20-%20Functional%20Tests?branchName=releases%2Fshipped)](https://dev.azure.com/mseng/VSOnline/_build/latest?definitionId=7376&branchName=releases%2Fshipped)|
 
 ## What is VFS for Git?
 

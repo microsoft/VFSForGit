@@ -8,8 +8,8 @@ namespace GVFS.Common.NamedPipes
     {
         private string pipeName;
         private NamedPipeClientStream clientStream;
-        private StreamReader reader;
-        private StreamWriter writer;
+        private NamedPipeStreamReader reader;
+        private NamedPipeStreamWriter writer;
 
         public NamedPipeClient(string pipeName)
         {
@@ -37,8 +37,8 @@ namespace GVFS.Common.NamedPipes
                 return false;
             }
 
-            this.reader = new StreamReader(this.clientStream);
-            this.writer = new StreamWriter(this.clientStream);
+            this.reader = new NamedPipeStreamReader(this.clientStream);
+            this.writer = new NamedPipeStreamWriter(this.clientStream);
 
             return true;
         }
@@ -68,8 +68,7 @@ namespace GVFS.Common.NamedPipes
 
             try
             {
-                this.writer.WritePlatformIndependentLine(message);
-                this.writer.Flush();
+                this.writer.WriteMessage(message);
             }
             catch (IOException e)
             {
@@ -81,7 +80,7 @@ namespace GVFS.Common.NamedPipes
         {
             try
             {
-                string response = this.reader.ReadLine();
+                string response = this.reader.ReadMessage();
                 if (response == null)
                 {
                     throw new BrokenPipeException("Unable to read from pipe", null);

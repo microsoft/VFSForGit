@@ -81,7 +81,7 @@ namespace MirrorProvider
                 return FileSystemResult.EFileNotFound;
             }
 
-            using (FileStream fs = new FileStream(fullPathInMirror, FileMode.Open))
+            using (FileStream fs = new FileStream(fullPathInMirror, FileMode.Open, FileAccess.Read))
             {
                 long remainingData = fs.Length;
                 byte[] buffer = new byte[bufferSize];

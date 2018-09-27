@@ -382,6 +382,16 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
         }
 
         [TestCase]
+        public void CommitWithNewlinesInMessage()
+        {
+            this.ValidateGitCommand("checkout -b tests/functional/commit_with_uncommon_arguments");
+            this.CreateFile();
+            this.ValidateGitCommand("status");
+            this.ValidateGitCommand("add .");
+            this.RunGitCommand("commit -m \"Message that contains \na\nnew\nline\"");
+        }
+
+        [TestCase]
         public void CaseOnlyRenameFileAndChangeBranches()
         {
             // 693190 - Confirm that file does not disappear after case-only rename and branch
@@ -1031,7 +1041,7 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
             fileSystemAction();
             this.ValidateGitCommand("status");
             this.ValidateGitCommand(addCommand);
-            this.RunGitCommand("commit -m \"BasicCommit for {test}\"");
+            this.RunGitCommand($"commit -m \"BasicCommit for {test}\"");
         }
 
         private void SwitchBranch(Action fileSystemAction, [CallerMemberName]string test = GitCommandsTests.UnknownTestName)

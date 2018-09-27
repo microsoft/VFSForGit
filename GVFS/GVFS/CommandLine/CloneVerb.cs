@@ -552,10 +552,6 @@ namespace GVFS.CommandLine
                 Path.Combine(enlistment.WorkingDirectoryRoot, GVFSConstants.DotGit.Head),
                 "ref: refs/heads/" + branch);
 
-            File.AppendAllText(
-                Path.Combine(enlistment.WorkingDirectoryRoot, GVFSConstants.DotGit.Info.SparseCheckoutPath),
-                GVFSConstants.GitPathSeparatorString + GVFSConstants.SpecialGitFiles.GitAttributes + "\n");
-
             if (!this.TryDownloadRootGitAttributes(enlistment, gitObjects, gitRepo, out errorMessage))
             {
                 return new Result(errorMessage);
@@ -613,10 +609,18 @@ namespace GVFS.CommandLine
             }
 
             // Prepare the working directory folder for GVFS last to ensure that gvfs mount will fail if gvfs clone has failed
+            Exception exception;
             string prepFileSystemError;
-            if (!GVFSPlatform.Instance.KernelDriver.TryPrepareFolderForCallbacks(enlistment.WorkingDirectoryRoot, out prepFileSystemError))
+            if (!GVFSPlatform.Instance.KernelDriver.TryPrepareFolderForCallbacks(enlistment.WorkingDirectoryRoot, out prepFileSystemError, out exception))
             {
-                tracer.RelatedError(prepFileSystemError);
+                EventMetadata metadata = new EventMetadata();
+                metadata.Add(nameof(prepFileSystemError), prepFileSystemError);
+                if (exception != null)
+                {
+                    metadata.Add("Exception", exception.ToString());
+                }
+
+                tracer.RelatedError(metadata, $"{nameof(this.CreateClone)}: TryPrepareFolderForCallbacks failed");
                 return new Result(prepFileSystemError);
             }
 

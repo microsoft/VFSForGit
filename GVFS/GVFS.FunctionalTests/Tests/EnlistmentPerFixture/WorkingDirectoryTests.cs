@@ -430,7 +430,7 @@ BOOL APIENTRY DllMain( HMODULE hModule,
             folder.ShouldNotExistOnDisk(this.fileSystem);
             GVFSHelpers.ModifiedPathsShouldNotContain(this.fileSystem, this.Enlistment.DotGVFSRoot, folderName);
 
-            // Confirm sparse-checkout picks up renamed folder
+            // Confirm modified paths picks up renamed folder
             string newFolder = this.Enlistment.GetVirtualPathTo("newFolder");
             this.fileSystem.CreateDirectory(newFolder);
             this.fileSystem.MoveDirectory(newFolder, folder);

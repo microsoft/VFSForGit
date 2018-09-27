@@ -6,7 +6,6 @@ using NUnit.Framework;
 using System;
 using System.IO;
 using System.Linq;
-using System.Runtime.InteropServices;
 
 namespace GVFS.FunctionalTests.Tests.EnlistmentPerTestCase
 {
@@ -18,34 +17,70 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerTestCase
         private static readonly string FileToDelete = "Readme.md";
         private static readonly string FileToRename = Path.Combine("GVFS", "GVFS.Mount", "MountVerb.cs");
         private static readonly string RenameFileTarget = Path.Combine("GVFS", "GVFS.Mount", "MountVerb2.cs");
-        private static readonly string FolderToCreate = "PersistedSparseExcludeTests_NewFolder";
-        private static readonly string FolderToRename = "PersistedSparseExcludeTests_NewFolderForRename";
-        private static readonly string RenameFolderTarget = "PersistedSparseExcludeTests_NewFolderForRename2";
+        private static readonly string FolderToCreate = $"{nameof(ModifiedPathsTests)}_NewFolder";
+        private static readonly string FolderToRename = $"{nameof(ModifiedPathsTests)}_NewFolderForRename";
+        private static readonly string RenameFolderTarget = $"{nameof(ModifiedPathsTests)}_NewFolderForRename2";
         private static readonly string DotGitFileToCreate = Path.Combine(".git", "TestFileFromDotGit.txt");
         private static readonly string RenameNewDotGitFileTarget = "TestFileFromDotGit.txt";
-        private static readonly string FileToCreateOutsideRepo = "PersistedSparseExcludeTests_outsideRepo.txt";
-        private static readonly string FolderToCreateOutsideRepo = "PersistedSparseExcludeTests_outsideFolder";
+        private static readonly string FileToCreateOutsideRepo = $"{nameof(ModifiedPathsTests)}_outsideRepo.txt";
+        private static readonly string FolderToCreateOutsideRepo = $"{nameof(ModifiedPathsTests)}_outsideFolder";
         private static readonly string FolderToDelete = "Scripts";
-        private static readonly string ExpectedModifiedFilesContentsAfterRemount =
-@"A .gitattributes
-A GVFS/TestAddFile.txt
-A GVFS/GVFS/Program.cs
-A Readme.md
-A GVFS/GVFS.Mount/MountVerb.cs
-A GVFS/GVFS.Mount/MountVerb2.cs
-A PersistedSparseExcludeTests_NewFolder/
-A PersistedSparseExcludeTests_NewFolderForRename/
-A PersistedSparseExcludeTests_NewFolderForRename2/
-A TestFileFromDotGit.txt
-A PersistedSparseExcludeTests_outsideRepo.txt
-A PersistedSparseExcludeTests_outsideFolder/
-A Scripts/CreateCommonAssemblyVersion.bat
-A Scripts/CreateCommonCliAssemblyVersion.bat
-A Scripts/CreateCommonVersionHeader.bat
-A Scripts/RunFunctionalTests.bat
-A Scripts/RunUnitTests.bat
-A Scripts/
-";
+        private static readonly string[] ExpectedModifiedFilesContentsAfterRemount =
+            {
+                $"A .gitattributes",
+                $"A {GVFSHelpers.ConvertPathToGitFormat(FileToAdd)}",
+                $"A {GVFSHelpers.ConvertPathToGitFormat(FileToUpdate)}",
+                $"A {FileToDelete}",
+                $"A {GVFSHelpers.ConvertPathToGitFormat(FileToRename)}",
+                $"A {GVFSHelpers.ConvertPathToGitFormat(RenameFileTarget)}",
+                $"A {FolderToCreate}/",
+                $"A {RenameNewDotGitFileTarget}",
+                $"A {FileToCreateOutsideRepo}",
+                $"A {FolderToCreateOutsideRepo}/",
+                $"A {FolderToDelete}/CreateCommonAssemblyVersion.bat",
+                $"A {FolderToDelete}/CreateCommonCliAssemblyVersion.bat",
+                $"A {FolderToDelete}/CreateCommonVersionHeader.bat",
+                $"A {FolderToDelete}/RunFunctionalTests.bat",
+                $"A {FolderToDelete}/RunUnitTests.bat",
+                $"A {FolderToDelete}/",
+            };
+
+        [TestCaseSource(typeof(FileSystemRunner), FileSystemRunner.TestRunners)]
+        public void DeletedTempFileIsRemovedFromModifiedFiles(FileSystemRunner fileSystem)
+        {
+            string tempFile = this.CreateFile(fileSystem, "temp.txt");
+            fileSystem.DeleteFile(tempFile);
+            tempFile.ShouldNotExistOnDisk(fileSystem);
+
+            this.Enlistment.UnmountGVFS();
+            this.ValidateModifiedPathsDoNotContain(fileSystem, "temp.txt");
+        }
+
+        [TestCaseSource(typeof(FileSystemRunner), FileSystemRunner.TestRunners)]
+        public void DeletedTempFolderIsRemovedFromModifiedFiles(FileSystemRunner fileSystem)
+        {
+            string tempFolder = this.CreateDirectory(fileSystem, "Temp");
+            fileSystem.DeleteDirectory(tempFolder);
+            tempFolder.ShouldNotExistOnDisk(fileSystem);
+
+            this.Enlistment.UnmountGVFS();
+            this.ValidateModifiedPathsDoNotContain(fileSystem, "Temp/");
+        }
+
+        [TestCaseSource(typeof(FileSystemRunner), FileSystemRunner.TestRunners)]
+        public void DeletedTempFolderDeletesFilesFromModifiedFiles(FileSystemRunner fileSystem)
+        {
+            string tempFolder = this.CreateDirectory(fileSystem, "Temp");
+            string tempFile1 = this.CreateFile(fileSystem, Path.Combine("Temp", "temp1.txt"));
+            string tempFile2 = this.CreateFile(fileSystem, Path.Combine("Temp", "temp2.txt"));
+            fileSystem.DeleteDirectory(tempFolder);
+            tempFolder.ShouldNotExistOnDisk(fileSystem);
+            tempFile1.ShouldNotExistOnDisk(fileSystem);
+            tempFile2.ShouldNotExistOnDisk(fileSystem);
+
+            this.Enlistment.UnmountGVFS();
+            this.ValidateModifiedPathsDoNotContain(fileSystem, "Temp/", "Temp/temp1.txt", "Temp/temp2.txt");
+        }
 
         [Category(Categories.MacTODO.M2)]
         [TestCaseSource(typeof(FileSystemRunner), FileSystemRunner.TestRunners)]
@@ -72,14 +107,14 @@ A Scripts/
             string folderToRenameTarget = this.Enlistment.GetVirtualPathTo(RenameFolderTarget);
             fileSystem.MoveDirectory(folderToRename, folderToRenameTarget);
 
-            // Moving the new folder out of the repo should not change the always_exclude file
+            // Moving the new folder out of the repo will remove it from the modified paths file
             string folderTargetOutsideSrc = Path.Combine(this.Enlistment.EnlistmentRoot, RenameFolderTarget);
             folderTargetOutsideSrc.ShouldNotExistOnDisk(fileSystem);
             fileSystem.MoveDirectory(folderToRenameTarget, folderTargetOutsideSrc);
             folderTargetOutsideSrc.ShouldBeADirectory(fileSystem);
             folderToRenameTarget.ShouldNotExistOnDisk(fileSystem);
 
-            // Moving a file from the .git folder to the working directory should add the file to the sparse-checkout
+            // Moving a file from the .git folder to the working directory should add the file to the modified paths
             string dotGitfileToAdd = this.Enlistment.GetVirtualPathTo(DotGitFileToCreate);
             fileSystem.WriteAllText(dotGitfileToAdd, "Contents for the new file in dot git");
             fileSystem.MoveFile(dotGitfileToAdd, this.Enlistment.GetVirtualPathTo(RenameNewDotGitFileTarget));
@@ -117,18 +152,20 @@ A Scripts/
             modifiedPathsDatabase.ShouldBeAFile(fileSystem);
             using (StreamReader reader = new StreamReader(File.Open(modifiedPathsDatabase, FileMode.Open, FileAccess.Read, FileShare.ReadWrite)))
             {
-                reader.ReadToEnd().ShouldEqual(ExpectedModifiedFilesContentsAfterRemount);
+                reader.ReadToEnd().Split(new char[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries).OrderBy(x => x)
+                    .ShouldMatchInOrder(ExpectedModifiedFilesContentsAfterRemount.OrderBy(x => x));
             }
         }
 
-        [TestCaseSource(typeof(HardLinkRunners), HardLinkRunners.TestRunners)]
+        [TestCaseSource(typeof(FileSystemRunner), FileSystemRunner.TestRunners)]
         public void ModifiedPathsCorrectAfterHardLinking(FileSystemRunner fileSystem)
         {
-            const string ExpectedModifiedFilesContentsAfterHardlinks =
-@"A .gitattributes
-A LinkToReadme.md
-A LinkToFileOutsideSrc.txt
-";
+            string[] expectedModifiedFilesContentsAfterHardlinks =
+                {
+                    "A .gitattributes",
+                    "A LinkToReadme.md",
+                    "A LinkToFileOutsideSrc.txt",
+                };
 
             // Create a link from src\LinkToReadme.md to src\Readme.md
             string existingFileInRepoPath = this.Enlistment.GetVirtualPathTo("Readme.md");
@@ -160,30 +197,31 @@ A LinkToFileOutsideSrc.txt
             modifiedPathsDatabase.ShouldBeAFile(fileSystem);
             using (StreamReader reader = new StreamReader(File.Open(modifiedPathsDatabase, FileMode.Open, FileAccess.Read, FileShare.ReadWrite)))
             {
-                reader.ReadToEnd().ShouldEqual(ExpectedModifiedFilesContentsAfterHardlinks);
+                reader.ReadToEnd().Split(new char[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries).OrderBy(x => x)
+                    .ShouldMatchInOrder(expectedModifiedFilesContentsAfterHardlinks.OrderBy(x => x));
             }
         }
 
-        private class HardLinkRunners
+        private string CreateDirectory(FileSystemRunner fileSystem, string relativePath)
         {
-            public const string TestRunners = "Runners";
+            string tempFolder = this.Enlistment.GetVirtualPathTo(relativePath);
+            fileSystem.CreateDirectory(tempFolder);
+            tempFolder.ShouldBeADirectory(fileSystem);
+            return tempFolder;
+        }
 
-            public static object[] Runners
-            {
-                get
-                {
-                    if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
-                    {
-                        return new[]
-                        {
-                            new object[] { new CmdRunner() },
-                            new object[] { new BashRunner() },
-                        };
-                    }
+        private string CreateFile(FileSystemRunner fileSystem, string relativePath)
+        {
+            string tempFile = this.Enlistment.GetVirtualPathTo(relativePath);
+            fileSystem.WriteAllText(tempFile, $"Contents for the {relativePath} file");
+            tempFile.ShouldBeAFile(fileSystem);
+            return tempFile;
+        }
 
-                    return new[] { new object[] { new BashRunner() } };
-                }
-            }
+        private void ValidateModifiedPathsDoNotContain(FileSystemRunner fileSystem, params string[] paths)
+        {
+            GVFSHelpers.ModifiedPathsShouldNotContain(fileSystem, this.Enlistment.DotGVFSRoot, paths.Select(x => $"A {x}" + Environment.NewLine).ToArray());
+            GVFSHelpers.ModifiedPathsShouldNotContain(fileSystem, this.Enlistment.DotGVFSRoot, paths.Select(x => $"D {x}" + Environment.NewLine).ToArray());
         }
     }
 }

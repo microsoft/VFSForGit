@@ -224,14 +224,8 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
             string virtualNewLinkFile = Path.Combine(this.Enlistment.RepoRoot, newLinkFileName);
             string controlNewLinkFile = Path.Combine(this.ControlGitRepo.RootPath, newLinkFileName);
 
-            // GitRepoTests are only run with SystemIORunner (which does not support hardlink
-            // creation) so use a BashRunner instead.
-            this.FileSystem.SupportsHardlinkCreation.ShouldBeFalse(
-                "If this.FileSystem.SupportsHardlinkCreation is true, CreateHardLink no longer needs to create a BashRunner");
-            FileSystemRunner runner = new BashRunner();
-
-            runner.CreateHardLink(virtualNewLinkFile, virtualExistingFile);
-            runner.CreateHardLink(controlNewLinkFile, controlExistingFile);
+            this.FileSystem.CreateHardLink(virtualNewLinkFile, virtualExistingFile);
+            this.FileSystem.CreateHardLink(controlNewLinkFile, controlExistingFile);
         }
 
         protected void SetFileAsReadOnly(string filePath)

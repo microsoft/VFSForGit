@@ -32,11 +32,6 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
         [TestCase, Order(3)]
         public void AddAndStageHardLinksTest()
         {
-            if (!this.FileSystem.SupportsHardlinkCreation)
-            {
-                return;
-            }
-
             this.CreateHardLink("ReadmeLink.md", "Readme.md");
             this.ValidateGitCommand("add ReadmeLink.md");
             this.RunGitCommand("commit -m \"Created ReadmeLink.md\"");
@@ -61,7 +56,7 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
         private void CommandAllowsPlaceholderCreation(string command, params string[] fileToReadPathParts)
         {
             string fileToRead = Path.Combine(fileToReadPathParts);
-            this.EditFile($"Some new content for {command}.", "Readme.md");
+            this.EditFile($"Some new content for {command}.", "Protocol.md");
             ManualResetEventSlim resetEvent = GitHelpers.RunGitCommandWithWaitAndStdIn(this.Enlistment, resetTimeout: 3000, command: $"{command} -p", stdinToQuit: "q", processId: out _);
             this.FileContentsShouldMatch(fileToRead);
             this.ValidateGitCommand("--no-optional-locks status");

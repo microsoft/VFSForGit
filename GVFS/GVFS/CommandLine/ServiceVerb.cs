@@ -51,11 +51,11 @@ namespace GVFS.CommandLine
             int optionCount = new[] { this.MountAll, this.UnmountAll, this.List }.Count(flag => flag);
             if (optionCount == 0)
             {
-                this.ReportErrorAndExit("Error: You must specify an argument.  Run 'gvfs serivce --help' for details.");
+                this.ReportErrorAndExit($"Error: You must specify an argument.  Run 'gvfs {ServiceVerbName} --help' for details.");
             }
             else if (optionCount > 1)
             {
-                this.ReportErrorAndExit("Error: You cannot specify multiple arguments.  Run 'gvfs serivce --help' for details.");
+                this.ReportErrorAndExit($"Error: You cannot specify multiple arguments.  Run 'gvfs {ServiceVerbName} --help' for details.");
             }
 
             string errorMessage;

@@ -29,7 +29,9 @@ namespace GVFS.Virtualization.Background
             OnFolderFirstWrite,
             OnIndexWriteWithoutProjectionChange,
             OnPlaceholderCreationsBlockedForGit,
-            OnFileHardLinkCreated
+            OnFileHardLinkCreated,
+            OnFilePreDelete,
+            OnFolderPreDelete,
         }
 
         public OperationType Operation { get; }
@@ -55,6 +57,11 @@ namespace GVFS.Virtualization.Background
         public static FileSystemTask OnFileDeleted(string virtualPath)
         {
             return new FileSystemTask(OperationType.OnFileDeleted, virtualPath, oldVirtualPath: null);
+        }
+
+        public static FileSystemTask OnFilePreDelete(string virtualPath)
+        {
+            return new FileSystemTask(OperationType.OnFilePreDelete, virtualPath, oldVirtualPath: null);
         }
 
         public static FileSystemTask OnFileOverwritten(string virtualPath)
@@ -95,6 +102,11 @@ namespace GVFS.Virtualization.Background
         public static FileSystemTask OnFolderDeleted(string virtualPath)
         {
             return new FileSystemTask(OperationType.OnFolderDeleted, virtualPath, oldVirtualPath: null);
+        }
+
+        public static FileSystemTask OnFolderPreDelete(string virtualPath)
+        {
+            return new FileSystemTask(OperationType.OnFolderPreDelete, virtualPath, oldVirtualPath: null);
         }
 
         public static FileSystemTask OnIndexWriteWithoutProjectionChange()

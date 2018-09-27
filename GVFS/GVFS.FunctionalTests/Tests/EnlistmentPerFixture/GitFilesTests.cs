@@ -42,11 +42,6 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
         [TestCase, Order(2)]
         public void CreateHardLinkTest()
         {
-            if (!this.fileSystem.SupportsHardlinkCreation)
-            {
-                return;
-            }
-
             string existingFileName = "fileToLinkTo.txt";
             string existingFilePath = this.Enlistment.GetVirtualPathTo(existingFileName);
             GVFSHelpers.ModifiedPathsShouldNotContain(this.fileSystem, this.Enlistment.DotGVFSRoot, existingFileName);
@@ -93,7 +88,6 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
             string renamedFolderName = "folder3b";
             string[] expectedModifiedEntries =
             {
-                folderName + "/",
                 renamedFolderName + "/",
             };
 
@@ -115,19 +109,14 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
             string[] fileNames = { "a", "b", "c" };
             string[] expectedModifiedEntries =
             {
-                renamedFolderName + "/" + fileNames[0],
-                renamedFolderName + "/" + fileNames[1],
-                renamedFolderName + "/" + fileNames[2],
-                folderName + "/" + fileNames[0],
-                folderName + "/" + fileNames[1],
-                folderName + "/" + fileNames[2],
+                renamedFolderName + "/",
             };
 
             this.Enlistment.GetVirtualPathTo(folderName).ShouldNotExistOnDisk(this.fileSystem);
             this.fileSystem.CreateDirectory(this.Enlistment.GetVirtualPathTo(folderName));
             foreach (string fileName in fileNames)
             {
-                string filePath = folderName + "\\" + fileName;
+                string filePath = Path.Combine(folderName, fileName);
                 this.fileSystem.CreateEmptyFile(this.Enlistment.GetVirtualPathTo(filePath));
                 this.Enlistment.GetVirtualPathTo(filePath).ShouldBeAFile(this.fileSystem);
             }
@@ -141,28 +130,38 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
 
         [TestCase, Order(6)]
         [Category(Categories.MacTODO.M2)]
-        public void CaseOnlyRenameOfNewFolderKeepsExcludeEntries()
+        public void CaseOnlyRenameOfNewFolderKeepsModifiedPathsEntries()
         {
-            string[] expectedModifiedPathsEntries =
+            if (this.fileSystem is PowerShellRunner)
             {
-                "Folder/",
-                "Folder/testfile",
+                Assert.Ignore("Powershell does not support case only renames.");
+            }
+
+            string[] expectedModifiedPathsEntriesAfterCreate =
+            {
+                "A Folder/",
+                "A Folder/testfile",
+            };
+
+            string[] expectedModifiedPathsEntriesAfterRename =
+            {
+                "A folder/",
             };
 
             this.fileSystem.CreateDirectory(Path.Combine(this.Enlistment.RepoRoot, "Folder"));
             this.fileSystem.CreateEmptyFile(Path.Combine(this.Enlistment.RepoRoot, "Folder", "testfile"));
             this.Enlistment.WaitForBackgroundOperations().ShouldEqual(true, "Background operations failed to complete.");
 
-            GVFSHelpers.ModifiedPathsShouldContain(this.fileSystem, this.Enlistment.DotGVFSRoot, expectedModifiedPathsEntries);
+            GVFSHelpers.ModifiedPathsShouldContain(this.fileSystem, this.Enlistment.DotGVFSRoot, expectedModifiedPathsEntriesAfterCreate);
 
             this.fileSystem.RenameDirectory(this.Enlistment.RepoRoot, "Folder", "folder");
             this.Enlistment.WaitForBackgroundOperations().ShouldEqual(true, "Background operations failed to complete.");
 
-            GVFSHelpers.ModifiedPathsShouldContain(this.fileSystem, this.Enlistment.DotGVFSRoot, expectedModifiedPathsEntries);
+            GVFSHelpers.ModifiedPathsShouldContain(this.fileSystem, this.Enlistment.DotGVFSRoot, expectedModifiedPathsEntriesAfterRename);
         }
 
         [TestCase, Order(7)]
-        public void ReadingFileDoesNotUpdateIndexOrSparseCheckout()
+        public void ReadingFileDoesNotUpdateIndexOrModifiedPaths()
         {
             string gitFileToCheck = "GVFS/GVFS.FunctionalTests/Category/CategoryConstants.cs";
             string virtualFile = this.Enlistment.GetVirtualPathTo(gitFileToCheck);
@@ -296,13 +295,13 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
         }
 
         [TestCase, Order(13)]
-        public void FileRenamedOutOfRepoAddedToModifiedPathsFile()
+        public void FileRenamedOutOfRepoAddedToModifiedPathsAndSkipWorktreeBitCleared()
         {
             string fileToRenameEntry = "GVFlt_MoveFileTest/PartialToOutside/from/lessInFrom.txt";
             string fileToRenameVirtualPath = this.Enlistment.GetVirtualPathTo(fileToRenameEntry);
             this.VerifyWorktreeBit(fileToRenameEntry, LsFilesStatus.SkipWorktree);
 
-            string fileOutsideRepoPath = Path.Combine(this.Enlistment.EnlistmentRoot, "FileRenamedOutOfRepoAddedToSparseCheckoutAndSkipWorktreeBitCleared.txt");
+            string fileOutsideRepoPath = Path.Combine(this.Enlistment.EnlistmentRoot, $"{nameof(this.FileRenamedOutOfRepoAddedToModifiedPathsAndSkipWorktreeBitCleared)}.txt");
             this.fileSystem.MoveFile(fileToRenameVirtualPath, fileOutsideRepoPath);
             fileOutsideRepoPath.ShouldBeAFile(this.fileSystem).WithContents("lessData");
 
@@ -315,13 +314,13 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
         }
 
         [TestCase, Order(14)]
-        public void OverwrittenFileAddedToSparseCheckoutAndSkipWorktreeBitCleared()
+        public void OverwrittenFileAddedToModifiedPathsAndSkipWorktreeBitCleared()
         {
             string fileToOverwriteEntry = "Test_EPF_WorkingDirectoryTests/1/2/3/4/ReadDeepProjectedFile.cpp";
             string fileToOverwriteVirtualPath = this.Enlistment.GetVirtualPathTo(fileToOverwriteEntry);
             this.VerifyWorktreeBit(fileToOverwriteEntry, LsFilesStatus.SkipWorktree);
 
-            string testContents = "Test contents for FileRenamedOutOfRepoWillBeAddedToSparseCheckoutAndHaveSkipWorktreeBitCleared";
+            string testContents = $"Test contents for {nameof(this.OverwrittenFileAddedToModifiedPathsAndSkipWorktreeBitCleared)}";
 
             this.fileSystem.WriteAllText(fileToOverwriteVirtualPath, testContents);
             this.Enlistment.WaitForBackgroundOperations().ShouldEqual(true, "Background operations failed to complete.");
@@ -336,13 +335,13 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
 
         [TestCase, Order(15)]
         [Category(Categories.MacTODO.M2)]
-        public void SupersededFileAddedToSparseCheckoutAndSkipWorktreeBitCleared()
+        public void SupersededFileAddedToModifiedPathsAndSkipWorktreeBitCleared()
         {
             string fileToSupersedeEntry = "GVFlt_FileOperationTest/WriteAndVerify.txt";
             string fileToSupersedePath = this.Enlistment.GetVirtualPathTo("GVFlt_FileOperationTest\\WriteAndVerify.txt");
             this.VerifyWorktreeBit(fileToSupersedeEntry, LsFilesStatus.SkipWorktree);
 
-            string newContent = "SupersededFileWillBeAddedToSparseCheckoutAndHaveSkipWorktreeBitCleared test new contents";
+            string newContent = $"{nameof(this.SupersededFileAddedToModifiedPathsAndSkipWorktreeBitCleared)} test new contents";
 
             SupersedeFile(fileToSupersedePath, newContent).ShouldEqual(true);
             this.Enlistment.WaitForBackgroundOperations().ShouldEqual(true, "Background operations failed to complete.");

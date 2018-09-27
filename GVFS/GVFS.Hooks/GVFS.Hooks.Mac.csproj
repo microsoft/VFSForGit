@@ -59,8 +59,11 @@
     <Compile Include="..\GVFS.Common\NamedPipes\NamedPipeClient.cs">
       <Link>Common\NamedPipes\NamedPipeClient.cs</Link>
     </Compile>
-    <Compile Include="..\GVFS.Common\NamedPipes\StreamWriterExtensions.cs">
-      <Link>Common\NamedPipes\StreamWriterExtensions.cs</Link>
+    <Compile Include="..\GVFS.Common\NamedPipes\NamedPipeStreamReader.cs">
+      <Link>Common\NamedPipes\NamedPipeStreamReader.cs</Link>
+    </Compile>
+    <Compile Include="..\GVFS.Common\NamedPipes\NamedPipeStreamWriter.cs">
+      <Link>Common\NamedPipes\NamedPipeStreamWriter.cs</Link>
     </Compile>
     <Compile Include="..\GVFS.Common\NativeMethods.Shared.cs">
       <Link>Common\NativeMethods.Shared.cs</Link>

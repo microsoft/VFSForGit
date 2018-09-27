@@ -9,13 +9,11 @@ namespace GVFS.RepairJobs
     public class GitIndexRepairJob : RepairJob
     {
         private readonly string indexPath;
-        private readonly string sparseCheckoutPath;
         
         public GitIndexRepairJob(ITracer tracer, TextWriter output, GVFSEnlistment enlistment)
             : base(tracer, output, enlistment)
         {
             this.indexPath = Path.Combine(this.Enlistment.DotGitRoot, GVFSConstants.DotGit.IndexName);
-            this.sparseCheckoutPath = Path.Combine(this.Enlistment.WorkingDirectoryRoot, GVFSConstants.DotGit.Info.SparseCheckoutPath);
         }
 
         public override string Name

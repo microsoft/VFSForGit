@@ -221,9 +221,18 @@ of your enlistment's src folder.
 
         private void PrepareSrcFolder(ITracer tracer, GVFSEnlistment enlistment)
         {
+            Exception exception;
             string error;
-            if (!GVFSPlatform.Instance.KernelDriver.TryPrepareFolderForCallbacks(enlistment.WorkingDirectoryRoot, out error))
+            if (!GVFSPlatform.Instance.KernelDriver.TryPrepareFolderForCallbacks(enlistment.WorkingDirectoryRoot, out error, out exception))
             {
+                EventMetadata metadata = new EventMetadata();
+                metadata.Add(nameof(error), error);
+                if (exception != null)
+                {
+                    metadata.Add("Exception", exception.ToString());
+                }
+
+                tracer.RelatedError(metadata, $"{nameof(this.PrepareSrcFolder)}: TryPrepareFolderForCallbacks failed");
                 this.ReportErrorAndExit(tracer, "Failed to recreate the virtualization root: " + error);
             }
         }
@@ -232,7 +241,6 @@ of your enlistment's src folder.
         {
             string backupSrc = Path.Combine(backupRoot, "src");
             string backupGit = Path.Combine(backupRoot, ".git");
-            string backupInfo = Path.Combine(backupGit, GVFSConstants.DotGit.Info.Name);
             string backupGvfs = Path.Combine(backupRoot, ".gvfs");
             string backupDatabases = Path.Combine(backupGvfs, GVFSConstants.DotGVFS.Databases.Name);
 
@@ -243,7 +251,6 @@ of your enlistment's src folder.
                     string ioError;
                     if (!this.TryIO(tracer, () => Directory.CreateDirectory(backupRoot), "Create backup directory", out ioError) ||
                         !this.TryIO(tracer, () => Directory.CreateDirectory(backupGit), "Create backup .git directory", out ioError) ||
-                        !this.TryIO(tracer, () => Directory.CreateDirectory(backupInfo), "Create backup .git\\info directory", out ioError) ||
                         !this.TryIO(tracer, () => Directory.CreateDirectory(backupGvfs), "Create backup .gvfs directory", out ioError) ||
                         !this.TryIO(tracer, () => Directory.CreateDirectory(backupDatabases), "Create backup .gvfs databases directory", out ioError))
                     {
@@ -262,43 +269,6 @@ of your enlistment's src folder.
                     // ... but move the .git folder back to the new src folder so we can preserve objects, refs, logs...
                     if (!this.TryIO(tracer, () => Directory.CreateDirectory(enlistment.WorkingDirectoryRoot), "Create new src folder", out errorMessage) ||
                         !this.TryIO(tracer, () => Directory.Move(Path.Combine(backupSrc, ".git"), enlistment.DotGitRoot), "Keep existing .git folder", out errorMessage))
-                    {
-                        return false;
-                    }
-
-                    // ... but then move the hydration-related files back to the backup...
-                    if (!this.TryIO(
-                            tracer,
-                            () => File.Move(
-                                Path.Combine(enlistment.WorkingDirectoryRoot, GVFSConstants.DotGit.Info.SparseCheckoutPath),
-                                Path.Combine(backupInfo, GVFSConstants.DotGit.Info.SparseCheckoutName)),
-                            "Backup the sparse-checkout file",
-                            out errorMessage) ||
-                        !this.TryIO(
-                            tracer,
-                            () =>
-                            {
-                                if (File.Exists(Path.Combine(enlistment.WorkingDirectoryRoot, GVFSConstants.DotGit.Info.AlwaysExcludePath)))
-                                {
-                                    File.Move(
-                                        Path.Combine(enlistment.WorkingDirectoryRoot, GVFSConstants.DotGit.Info.AlwaysExcludePath),
-                                        Path.Combine(backupInfo, GVFSConstants.DotGit.Info.AlwaysExcludeName));
-                                }
-                            },
-                            "Backup the always_exclude file",
-                            out errorMessage))
-                    {
-                        return false;
-                    }
-
-                    // ... and recreate empty ones in the new .git folder...
-                    if (!this.TryIO(
-                            tracer,
-                            () => File.AppendAllText(
-                                Path.Combine(enlistment.WorkingDirectoryRoot, GVFSConstants.DotGit.Info.SparseCheckoutPath),
-                                GVFSConstants.GitPathSeparatorString + GVFSConstants.SpecialGitFiles.GitAttributes + "\n"),
-                            "Recreate a new sparse-checkout file",
-                            out errorMessage))
                     {
                         return false;
                     }
@@ -419,7 +389,7 @@ of your enlistment's src folder.
             if (!this.ShowStatusWhileRunning(
                 () =>
                 {
-                    // Create a new index based on the new minimal sparse-checkout
+                    // Create a new index based on the new minimal modified paths
                     using (NamedPipeServer pipeServer = AllowAllLocksNamedPipeServer.Create(tracer, enlistment))
                     {
                         GitProcess git = new GitProcess(enlistment);

@@ -12,8 +12,6 @@ namespace GVFS.FunctionalTests.Tools
 {
     public static class GitHelpers
     {
-        public const string AlwaysExcludeFilePath = @".git\info\always_exclude";
-
         /// <summary>
         /// This string must match the command name provided in the
         /// GVFS.FunctionalTests.LockHolder program.
