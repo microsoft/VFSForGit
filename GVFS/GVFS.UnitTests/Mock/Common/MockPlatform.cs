@@ -4,6 +4,7 @@ using GVFS.Common.Git;
 using GVFS.Common.Tracing;
 using GVFS.UnitTests.Mock.Common.Tracing;
 using GVFS.UnitTests.Mock.FileSystem;
+using GVFS.UnitTests.Mock.Git;
 using System;
 using System.Collections.Generic;
 using System.IO.Pipes;
@@ -19,7 +20,7 @@ namespace GVFS.UnitTests.Mock.Common
 
         public override IKernelDriver KernelDriver => throw new NotSupportedException();
 
-        public override IGitInstallation GitInstallation => throw new NotSupportedException();
+        public override IGitInstallation GitInstallation { get; } = new MockGitInstallation();
 
         public override IDiskLayoutUpgradeData DiskLayoutUpgrade => throw new NotSupportedException();
 
