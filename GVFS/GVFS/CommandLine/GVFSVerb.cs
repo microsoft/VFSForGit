@@ -619,23 +619,13 @@ You can specify a URL, a name of a configured cache server, or the special names
 
         private void CheckGitVersion(ITracer tracer, GVFSEnlistment enlistment, out string version)
         {
-            GitProcess.Result versionResult = GitProcess.Version(enlistment);
-            if (versionResult.HasErrors)
+            GitVersion gitVersion;
+            if (!GitProcess.TryGetVersion(out gitVersion, out string _))
             {
                 this.ReportErrorAndExit(tracer, "Error: Unable to retrieve the git version");
             }
 
-            GitVersion gitVersion;
-            version = versionResult.Output;
-            if (version.StartsWith("git version "))
-            {
-                version = version.Substring(12);
-            }
-
-            if (!GitVersion.TryParseVersion(version, out gitVersion))
-            {
-                this.ReportErrorAndExit(tracer, "Error: Unable to parse the git version. {0}", version);
-            }
+            version = gitVersion.ToString();
 
             if (gitVersion.Platform != GVFSConstants.SupportedGitVersion.Platform)
             {

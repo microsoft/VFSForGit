@@ -77,11 +77,6 @@ namespace GVFS.Common.Git
             return new GitProcess(enlistment).InvokeGitOutsideEnlistment("init \"" + enlistment.WorkingDirectoryRoot + "\"");
         }
 
-        public static Result Version(Enlistment enlistment)
-        {
-            return new GitProcess(enlistment).InvokeGitOutsideEnlistment("--version");
-        }
-
         public static Result GetFromGlobalConfig(string gitBinPath, string settingName)
         {
             return new GitProcess(gitBinPath, workingDirectoryRoot: null, gvfsHooksRoot: null).InvokeGitOutsideEnlistment("config --global " + settingName);
@@ -94,11 +89,9 @@ namespace GVFS.Common.Git
 
         public static bool TryGetVersion(out GitVersion gitVersion, out string error)
         {
-            // TODO Implement IGitInstallation in MockPlatform.cs & remove 
-            // NotSupportedException handler.
-            try
+            string gitPath = GVFSPlatform.Instance.GitInstallation.GetInstalledGitBinPath();
+            if (gitPath != null)
             {
-                string gitPath = GVFSPlatform.Instance.GitInstallation.GetInstalledGitBinPath();
                 GitProcess gitProcess = new GitProcess(gitPath, null, null);
                 Result result = gitProcess.InvokeGitOutsideEnlistment("--version");
                 string version = result.Output;
@@ -112,10 +105,10 @@ namespace GVFS.Common.Git
                 error = null;
                 return true;
             }
-            catch (NotSupportedException exception)
+            else
             {
-                error = exception.ToString();
                 gitVersion = null;
+                error = "Unable to determine installed git path.";
                 return false;
             }
         }

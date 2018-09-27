@@ -49,7 +49,18 @@ namespace GVFS.CommandLine
 
                 this.WriteMessage(string.Empty);
                 this.WriteMessage("gvfs version " + ProcessHelper.GetCurrentProcessVersion());
-                this.WriteMessage(GitProcess.Version(enlistment).Output);
+
+                GitVersion gitVersion;
+                string error;
+                if (GitProcess.TryGetVersion(out gitVersion, out error))
+                {
+                    this.WriteMessage("git version " + gitVersion.ToString());
+                }
+                else
+                {
+                    this.WriteMessage("Could not determine git version. " + error);
+                }
+
                 this.WriteMessage(GVFSPlatform.Instance.GitInstallation.GetInstalledGitBinPath());
                 this.WriteMessage(string.Empty);
                 this.WriteMessage("Enlistment root: " + enlistment.EnlistmentRoot);
@@ -120,6 +131,11 @@ namespace GVFS.CommandLine
                             ProductUpgrader.LogDirectory,
                             copySubFolders: true,
                             targetFolderName: ProductUpgrader.UpgradeDirectoryName);
+                        this.LogDirectoryEnumeration(
+                            ProductUpgrader.GetUpgradesDirectoryPath(), 
+                            Path.Combine(archiveFolderPath, ProductUpgrader.UpgradeDirectoryName),
+                            ProductUpgrader.DownloadDirectory, 
+                            "downloaded-assets.txt");
                      
                         return true;
                     },
