@@ -90,7 +90,6 @@ namespace GVFS.Upgrader
                     {
                         mountError = Environment.NewLine + "WARNING: " + mountError;
                         this.output.WriteLine(mountError);
-                        this.ExitCode = ReturnCode.Success;
                     }
 
                     this.DeletedDownloadedAssets();

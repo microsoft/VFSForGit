@@ -14,7 +14,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
     [Category(Categories.WindowsOnly)]
     public class UpgradeReminderTests : TestsWithEnlistmentPerFixture
     {
-        private const string GVFSInstallerName = "SetupGVFS.1.0.18234.1.exe";
+        private const string GVFSInstallerName = "VFSGit.1.0.18234.1.exe";
         private const string GitInstallerName = "Git-2.17.1.gvfs.2.5.g2962052-64-bit.exe";
 
         private string upgradeDirectory;

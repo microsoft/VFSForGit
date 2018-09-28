@@ -10,9 +10,9 @@ namespace GVFS.Common
 {
     public abstract class GVFSPlatform
     {
-        public GVFSPlatform(string executableExtension)
+        public GVFSPlatform(string executableExtension, string installerExtension)
         {
-            this.Constants = new GVFSPlatformConstants(executableExtension);
+            this.Constants = new GVFSPlatformConstants(executableExtension, installerExtension);
         }
 
         public static GVFSPlatform Instance { get; private set; }
@@ -81,12 +81,15 @@ namespace GVFS.Common
 
         public class GVFSPlatformConstants
         {
-            public GVFSPlatformConstants(string executableExtension)
+            public GVFSPlatformConstants(string executableExtension, string installerExtension)
             {
                 this.ExecutableExtension = executableExtension;
+                this.InstallerExtension = installerExtension;
             }
 
             public string ExecutableExtension { get; }
+            public string InstallerExtension { get; }
+
             public string GVFSExecutableName
             {
                 get { return "GVFS" + this.ExecutableExtension; }

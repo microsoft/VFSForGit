@@ -12,7 +12,7 @@ namespace GVFS.Platform.Mac
     public partial class MacPlatform : GVFSPlatform
     {
         public MacPlatform()
-            : base(executableExtension: string.Empty)
+            : base(executableExtension: string.Empty, installerExtension: string.Empty)
         {
         }
 

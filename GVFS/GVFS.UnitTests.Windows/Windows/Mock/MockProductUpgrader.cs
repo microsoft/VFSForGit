@@ -69,11 +69,11 @@ namespace GVFS.UnitTests.Windows.Mock.Upgrader
 
             Random random = new Random();
             Asset gvfsAsset = new Asset();
-            gvfsAsset.Name = "SetupGVFS." + upgradeVersion + ".exe";
+            gvfsAsset.Name = "VFSGit." + upgradeVersion + ".exe";
 
             // This is not cross-checked anywhere, random value is good.
             gvfsAsset.Size = random.Next(int.MaxValue / 10, int.MaxValue / 2);
-            gvfsAsset.DownloadURL = new Uri(assetDownloadURLPrefix + "/SetupGVFS." + upgradeVersion + ".exe");
+            gvfsAsset.DownloadURL = new Uri(assetDownloadURLPrefix + "/VFSGit." + upgradeVersion + ".exe");
             release.Assets.Add(gvfsAsset);
 
             Asset gitAsset = new Asset();
