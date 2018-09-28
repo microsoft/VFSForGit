@@ -266,6 +266,8 @@ static int HandleVnodeOperation(
     uint32_t currentVnodeFileFlags;
     int pid;
     char procname[MAXCOMLEN + 1];
+    bool isDeleteAction = false;
+    bool isDirectory = false;
     
     // TODO(Mac): Issue #271 - Reduce reliance on vn_getpath
     // Call vn_getpath first when the cache is hottest to increase the chances
@@ -289,11 +291,16 @@ static int HandleVnodeOperation(
         goto CleanupAndReturn;
     }
     
-    if (ActionBitIsSet(action, KAUTH_VNODE_DELETE))
+    isDeleteAction = ActionBitIsSet(action, KAUTH_VNODE_DELETE);
+    isDirectory = VDIR == vnodeType;
+    
+    if (isDeleteAction)
     {
         if (!TrySendRequestAndWaitForResponse(
                 root,
-                VDIR == vnodeType ? MessageType_KtoU_NotifyDirectoryPreDelete : MessageType_KtoU_NotifyFilePreDelete,
+                isDirectory ?
+                    MessageType_KtoU_NotifyDirectoryPreDelete :
+                    MessageType_KtoU_NotifyFilePreDelete,
                 currentVnode,
                 vnodePath,
                 pid,
@@ -305,7 +312,7 @@ static int HandleVnodeOperation(
         }
     }
     
-    if (VDIR == vnodeType)
+    if (isDirectory)
     {
         if (ActionBitIsSet(
                 action,
@@ -316,13 +323,12 @@ static int HandleVnodeOperation(
                 KAUTH_VNODE_READ_EXTATTRIBUTES |
                 KAUTH_VNODE_DELETE))
         {
-            bool deleteAction = ActionBitIsSet(action, KAUTH_VNODE_DELETE);
             // Recursively expand directory on delete to ensure child placeholders are created before rename operations
-            if (deleteAction || FileFlagsBitIsSet(currentVnodeFileFlags, FileFlags_IsEmpty))
+            if (isDeleteAction || FileFlagsBitIsSet(currentVnodeFileFlags, FileFlags_IsEmpty))
             {
                 if (!TrySendRequestAndWaitForResponse(
                         root,
-                        deleteAction ?
+                        isDeleteAction ?
                             MessageType_KtoU_RecursivelyEnumerateDirectory :
                             MessageType_KtoU_EnumerateDirectory,
                         currentVnode,

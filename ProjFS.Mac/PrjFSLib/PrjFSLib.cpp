@@ -8,7 +8,6 @@
 #include <thread>
 #include <unistd.h>
 #include <dirent.h>
-#include <list>
 #include <queue>
 #include <unordered_map>
 #include <set>
