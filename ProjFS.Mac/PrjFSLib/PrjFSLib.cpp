@@ -378,10 +378,10 @@ PrjFS_Result PrjFS_WriteSymLink(
     _In_    const char*                             symLinkTarget)
 {
 #ifdef DEBUG
-    std::cout
+    cout
         << "PrjFS_WriteSymLink("
         << relativePath << ", "
-        << symLinkTarget << ")" << std::endl;
+        << symLinkTarget << ")" << endl;
 #endif
     
     if (nullptr == relativePath || nullptr == symLinkTarget)
@@ -446,11 +446,11 @@ PrjFS_Result PrjFS_ReplacePlaceholderFileWithSymLink(
     _Out_   PrjFS_UpdateFailureCause*               failureCause)
 {
 #ifdef DEBUG
-    std::cout
+    cout
         << "PrjFS_ReplacePlaceholderFileWithSymLink("
         << relativePath << ", "
         << symLinkTarget << ", "
-        << std::hex << updateFlags << std::dec << ")" << std::endl;
+        << hex << updateFlags << dec << ")" << endl;
 #endif
     
     PrjFS_Result result = PrjFS_DeleteFile(relativePath, updateFlags, failureCause);
