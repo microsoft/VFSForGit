@@ -1194,7 +1194,7 @@ namespace GVFS.Virtualization.Projection
             }
 
             // SNTODO: now that we've updated all placeholder files, go through the always-hydrate list 
-            // and schedule a low priority request to hydrate all matching paths
+            // and schedule a low priority download+hydrate request for every matching path
         }
 
         private void ProcessListOnThreads<T>(

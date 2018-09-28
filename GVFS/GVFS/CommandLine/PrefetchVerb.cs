@@ -54,6 +54,13 @@ namespace GVFS.CommandLine
         public bool HydrateFiles { get; set; }
 
         [Option(
+            "always-hydrate",
+            Required = false,
+            Default = false,
+            HelpText = "Specify this flag to indicate that these files should always be hydrated, even after a projection change")]
+        public bool AlwaysHydrate { get; set; }
+
+        [Option(
             'c',
             "commits",
             Required = false,
@@ -312,6 +319,8 @@ namespace GVFS.CommandLine
                     : "Fetching blobs ";
                 this.ShowStatusWhileRunning(doPrefetch, message + this.GetCacheServerDisplay(cacheServer, enlistment.RepoUrl));
             }
+
+            // SNTODO: if AlwaysHydrate is true, also add the Files and Folders params to the always-exclude file
 
             if (blobPrefetcher.HasFailures)
             {
