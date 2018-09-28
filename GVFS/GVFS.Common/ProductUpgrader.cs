@@ -131,7 +131,8 @@ namespace GVFS.Common
 
             foreach (Asset asset in this.newestRelease.Assets)
             {
-                if (!this.TryDownloadAsset(asset, out errorMessage))
+                if (string.Equals(Path.GetExtension(asset.Name), GVFSPlatform.Instance.Constants.InstallerExtension, StringComparison.OrdinalIgnoreCase) &&
+                    !this.TryDownloadAsset(asset, out errorMessage))
                 {
                     return false;
                 }
@@ -413,8 +414,7 @@ namespace GVFS.Common
         {
             foreach (Asset asset in this.newestRelease.Assets)
             {
-                string extension = Path.GetExtension(asset.Name);
-                if (string.Equals(extension, ".exe", StringComparison.OrdinalIgnoreCase))
+                if (string.Equals(Path.GetExtension(asset.Name), GVFSPlatform.Instance.Constants.InstallerExtension, StringComparison.OrdinalIgnoreCase))
                 {
                     path = asset.LocalPath;
                     if (name == GitAssetNamePrefix && asset.Name.StartsWith(GitInstallerFileNamePrefix, StringComparison.OrdinalIgnoreCase))
