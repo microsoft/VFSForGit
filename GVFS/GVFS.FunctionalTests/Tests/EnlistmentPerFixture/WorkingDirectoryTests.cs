@@ -16,8 +16,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
     [TestFixtureSource(typeof(FileSystemRunner), FileSystemRunner.TestRunners)]
     public class WorkingDirectoryTests : TestsWithEnlistmentPerFixture
     {
-        private const int CurrentPlaceholderVersion = 1;
-        private const string TestFileContents =
+        public const string TestFileContents =
 @"// dllmain.cpp : Defines the entry point for the DLL application.
 #include ""stdafx.h""
 
@@ -41,6 +40,7 @@ BOOL APIENTRY DllMain( HMODULE hModule,
 }
 
 ";
+        private const int CurrentPlaceholderVersion = 1;
 
         private FileSystemRunner fileSystem;
 

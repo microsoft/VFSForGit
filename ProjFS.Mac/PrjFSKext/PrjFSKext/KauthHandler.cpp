@@ -223,6 +223,7 @@ void KauthHandler_HandleKernelMessageResponse(uint64_t messageId, MessageType re
         case MessageType_UtoK_StartVirtualizationInstance:
         case MessageType_UtoK_StopVirtualizationInstance:
         case MessageType_KtoU_EnumerateDirectory:
+        case MessageType_KtoU_RecursivelyEnumerateDirectory:
         case MessageType_KtoU_HydrateFile:
         case MessageType_KtoU_NotifyFileModified:
         case MessageType_KtoU_NotifyFilePreDelete:
@@ -265,6 +266,8 @@ static int HandleVnodeOperation(
     uint32_t currentVnodeFileFlags;
     int pid;
     char procname[MAXCOMLEN + 1];
+    bool isDeleteAction = false;
+    bool isDirectory = false;
     
     // TODO(Mac): Issue #271 - Reduce reliance on vn_getpath
     // Call vn_getpath first when the cache is hottest to increase the chances
@@ -288,7 +291,28 @@ static int HandleVnodeOperation(
         goto CleanupAndReturn;
     }
     
-    if (VDIR == vnodeType)
+    isDeleteAction = ActionBitIsSet(action, KAUTH_VNODE_DELETE);
+    isDirectory = VDIR == vnodeType;
+    
+    if (isDeleteAction)
+    {
+        if (!TrySendRequestAndWaitForResponse(
+                root,
+                isDirectory ?
+                    MessageType_KtoU_NotifyDirectoryPreDelete :
+                    MessageType_KtoU_NotifyFilePreDelete,
+                currentVnode,
+                vnodePath,
+                pid,
+                procname,
+                &kauthResult,
+                kauthError))
+        {
+            goto CleanupAndReturn;
+        }
+    }
+    
+    if (isDirectory)
     {
         if (ActionBitIsSet(
                 action,
@@ -296,13 +320,17 @@ static int HandleVnodeOperation(
                 KAUTH_VNODE_SEARCH |
                 KAUTH_VNODE_READ_SECURITY |
                 KAUTH_VNODE_READ_ATTRIBUTES |
-                KAUTH_VNODE_READ_EXTATTRIBUTES))
+                KAUTH_VNODE_READ_EXTATTRIBUTES |
+                KAUTH_VNODE_DELETE))
         {
-            if (FileFlagsBitIsSet(currentVnodeFileFlags, FileFlags_IsEmpty))
+            // Recursively expand directory on delete to ensure child placeholders are created before rename operations
+            if (isDeleteAction || FileFlagsBitIsSet(currentVnodeFileFlags, FileFlags_IsEmpty))
             {
                 if (!TrySendRequestAndWaitForResponse(
                         root,
-                        MessageType_KtoU_EnumerateDirectory,
+                        isDeleteAction ?
+                            MessageType_KtoU_RecursivelyEnumerateDirectory :
+                            MessageType_KtoU_EnumerateDirectory,
                         currentVnode,
                         vnodePath,
                         pid,
@@ -314,41 +342,9 @@ static int HandleVnodeOperation(
                 }
             }
         }
-        
-        if (ActionBitIsSet(action, KAUTH_VNODE_DELETE))
-        {
-            if (!TrySendRequestAndWaitForResponse(
-                    root,
-                    MessageType_KtoU_NotifyDirectoryPreDelete,
-                    currentVnode,
-                    vnodePath,
-                    pid,
-                    procname,
-                    &kauthResult,
-                    kauthError))
-            {
-                goto CleanupAndReturn;
-            }
-        }
     }
     else
     {
-        if (ActionBitIsSet(action, KAUTH_VNODE_DELETE))
-        {
-            if (!TrySendRequestAndWaitForResponse(
-                    root,
-                    MessageType_KtoU_NotifyFilePreDelete,
-                    currentVnode,
-                    vnodePath,
-                    pid,
-                    procname,
-                    &kauthResult,
-                    kauthError))
-            {
-                goto CleanupAndReturn;
-            }
-        }
-        
         if (ActionBitIsSet(
                 action,
                 KAUTH_VNODE_READ_ATTRIBUTES |
