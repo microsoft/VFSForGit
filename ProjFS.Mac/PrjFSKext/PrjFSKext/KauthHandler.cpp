@@ -425,7 +425,7 @@ static int HandleFileOpOperation(
         KAUTH_FILEOP_LINK == action)
     {
         // arg0 is the (const char *) fromPath (or the file being linked to)
-        const char* newPath = (const char*)arg1;
+        const char* newPath = reinterpret_cast<const char*>(arg1);
         
         // TODO(Mac): We need to handle failures to lookup the vnode.  If we fail to lookup the vnode
         // it's possible that we'll miss notifications
@@ -481,7 +481,7 @@ static int HandleFileOpOperation(
     else if (KAUTH_FILEOP_CLOSE == action)
     {
         vnode_t currentVnode = reinterpret_cast<vnode_t>(arg0);
-        const char* path = (const char*)arg1;
+        const char* path = reinterpret_cast<const char*>(arg1);
         int closeFlags = static_cast<int>(arg2);
         
         if (vnode_isdir(currentVnode))
