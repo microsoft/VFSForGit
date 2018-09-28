@@ -176,15 +176,15 @@ namespace GVFS.CommandLine
         }
 
         protected bool ShowStatusWhileRunning(
-            Func<bool> action, 
-            string message, 
+            Func<bool> action,
+            string message,
             bool suppressGvfsLogMessage = false)
         {
             string gvfsLogEnlistmentRoot = null;
             if (!suppressGvfsLogMessage)
             {
                 string errorMessage;
-                GVFSPlatform.Instance.TryGetGVFSEnlistmentRoot(this.EnlistmentRootPathParameter, out gvfsLogEnlistmentRoot, out errorMessage);                
+                GVFSPlatform.Instance.TryGetGVFSEnlistmentRoot(this.EnlistmentRootPathParameter, out gvfsLogEnlistmentRoot, out errorMessage);
             }
 
             return this.ShowStatusWhileRunning(action, message, gvfsLogEnlistmentRoot);
@@ -261,7 +261,7 @@ namespace GVFS.CommandLine
             }
 
             return gvfsConfig;
-        }        
+        }
 
         protected void ValidateClientVersions(ITracer tracer, GVFSEnlistment enlistment, GVFSConfig gvfsConfig, bool showWarnings)
         {
@@ -401,9 +401,10 @@ You can specify a URL, a name of a configured cache server, or the special names
             GitObjectsHttpRequestor objectRequestor,
             GVFSGitObjects gitObjects,
             GitRepo repo,
-            out string error)
+            out string error,
+            bool ignoreIfRootExists = true)
         {
-            if (!repo.CommitAndRootTreeExists(commitId))
+            if (!ignoreIfRootExists || !repo.CommitAndRootTreeExists(commitId))
             {
                 if (!gitObjects.TryDownloadCommit(commitId))
                 {
@@ -740,7 +741,7 @@ You can specify a URL, a name of a configured cache server, or the special names
                 MetaName = "Enlistment Root Path",
                 HelpText = "Full or relative path to the GVFS enlistment root")]
             public override string EnlistmentRootPathParameter { get; set; }
-            
+
             public sealed override void Execute()
             {
                 this.ValidatePathParameter(this.EnlistmentRootPathParameter);
@@ -855,7 +856,7 @@ You can specify a URL, a name of a configured cache server, or the special names
                     if (File.Exists(alternatesFilePath))
                     {
                         try
-                        {                            
+                        {
                             using (Stream stream = fileSystem.OpenFileStream(
                                 alternatesFilePath,
                                 FileMode.Open,
@@ -922,7 +923,7 @@ You can specify a URL, a name of a configured cache server, or the special names
 
                         gvfsConfig = this.QueryGVFSConfig(tracer, enlistment, retryConfig);
                     }
-                    
+
                     string localCacheKey;
                     LocalCacheResolver localCacheResolver = new LocalCacheResolver(enlistment);
                     if (!localCacheResolver.TryGetLocalCacheKeyFromLocalConfigOrRemoteCacheServers(
@@ -1009,7 +1010,7 @@ You can specify a URL, a name of a configured cache server, or the special names
                 if (GVFSPlatform.Instance.IsUnderConstruction)
                 {
                     hooksPath = "hooksUnderConstruction";
-                }                
+                }
                 else
                 {
                     hooksPath = ProcessHelper.WhereDirectory(GVFSPlatform.Instance.Constants.GVFSHooksExecutableName);
@@ -1017,8 +1018,8 @@ You can specify a URL, a name of a configured cache server, or the special names
                     {
                         this.ReportErrorAndExit("Could not find " + GVFSPlatform.Instance.Constants.GVFSHooksExecutableName);
                     }
-                }             
-                
+                }
+
                 GVFSEnlistment enlistment = null;
                 try
                 {
@@ -1030,7 +1031,7 @@ You can specify a URL, a name of a configured cache server, or the special names
                     {
                         enlistment = GVFSEnlistment.CreateWithoutRepoUrlFromDirectory(enlistmentRootPath, gitBinPath, hooksPath);
                     }
-                    
+
                     if (enlistment == null)
                     {
                         this.ReportErrorAndExit(
