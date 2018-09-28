@@ -94,10 +94,12 @@ class ProfileSample
     ProfileSample(const ProfileSample&) = delete;
     ProfileSample() = delete;
 
+#if PRJFS_PERFORMANCE_TRACING_ENABLE
     const uint64_t startTimestamp;
     PrjFS_PerfCounter wholeSampleProbe;
     PrjFS_PerfCounter finalSplitProbe;
     uint64_t splitTimestamp;
+#endif
 
 public:
     inline ProfileSample(PrjFS_PerfCounter defaultProbe);
@@ -110,6 +112,7 @@ public:
 
 ProfileSample::~ProfileSample()
 {
+#if PRJFS_PERFORMANCE_TRACING_ENABLE
     uint64_t endTimestamp = mach_absolute_time();
     if (this->wholeSampleProbe != Probe_None)
     {
@@ -120,36 +123,49 @@ ProfileSample::~ProfileSample()
     {
         PerfTracing_RecordSample(&profile_probes[this->finalSplitProbe], this->splitTimestamp, endTimestamp);
     }
+#endif
 };
 
 void ProfileSample::TakeSplitSample(PrjFS_PerfCounter splitProbe)
 {
+#if PRJFS_PERFORMANCE_TRACING_ENABLE
     uint64_t newSplitTimestamp = mach_absolute_time();
     PerfTracing_RecordSample(&profile_probes[splitProbe], this->splitTimestamp, newSplitTimestamp);
     this->splitTimestamp = newSplitTimestamp;
+#endif
 }
 
 void ProfileSample::TakeSplitSample(PrjFS_PerfCounter splitProbe, PrjFS_PerfCounter newFinalSplitProbe)
 {
+#if PRJFS_PERFORMANCE_TRACING_ENABLE
     this->TakeSplitSample(splitProbe);
     this->finalSplitProbe = newFinalSplitProbe;
+#endif
 }
 
 void ProfileSample::SetFinalSplitProbe(PrjFS_PerfCounter newFinalSplitProbe)
 {
+#if PRJFS_PERFORMANCE_TRACING_ENABLE
     this->finalSplitProbe = newFinalSplitProbe;
+#endif
 }
 
-ProfileSample::ProfileSample(PrjFS_PerfCounter defaultProbe) :
+
+ProfileSample::ProfileSample(PrjFS_PerfCounter defaultProbe)
+#if PRJFS_PERFORMANCE_TRACING_ENABLE
+    :
     startTimestamp(mach_absolute_time()),
     wholeSampleProbe(defaultProbe),
     finalSplitProbe(Probe_None),
     splitTimestamp(this->startTimestamp)
+#endif
 {
 }
 
 void ProfileSample::SetProbe(PrjFS_PerfCounter probe)
 {
+#if PRJFS_PERFORMANCE_TRACING_ENABLE
     this->wholeSampleProbe = probe;
+#endif
 }
 

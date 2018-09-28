@@ -20,6 +20,7 @@ void PerfTracing_ProbeInit(PerfTracingProbe* probe)
 
 IOReturn PerfTracing_ExportDataUserClient(IOExternalMethodArguments* arguments)
 {
+#if PRJFS_PERFORMANCE_TRACING_ENABLE
     if (arguments->structureOutput == nullptr || arguments->structureOutputSize != sizeof(profile_probes))
     {
         return kIOReturnBadArgument;
@@ -27,6 +28,9 @@ IOReturn PerfTracing_ExportDataUserClient(IOExternalMethodArguments* arguments)
     
     memcpy(arguments->structureOutput, profile_probes, sizeof(profile_probes));
     return kIOReturnSuccess;
+#else
+    return kIOReturnUnsupported;
+#endif
 }
 
 void PerfTracing_RecordSample(PerfTracingProbe* probe, uint64_t startTime, uint64_t endTime)
