@@ -26,13 +26,13 @@ the UX to the existing `gvfs prefetch` verb.
 
 Side note on the existing prefetch verb: it's really two different commands in one, and it's
 unfortunate that they are combined. The command `gvfs prefetch --commits` is entirely different in
-its goals, usage, and implementation than either of `gvfs prefetch --files` or `gvfs prefetch -
-folders` (and the latter two can be combined with each other, but not with `--commits`). Ideally we
+its goals, usage, and implementation than either of `gvfs prefetch --files` or `gvfs prefetch 
+--folders` (and the latter two can be combined with each other, but not with `--commits`). Ideally we
 would have had `gvfs prefetch-commits` and `gvfs prefetch-files` as two separate commands, which
 would have then led to a cleaner design for this new addition. I'm open to other suggestions here
 if anyone sees a better pattern for extending the current verbs.
 
-###Proposed UX for always-hydrate commands:
+### Proposed UX for always-hydrate commands:
 Adding new entries: 
 
 Add an `--always-hydrate` flag to the existing `--files` and `--folders` variants of `gvfs prefetch`.
@@ -50,8 +50,8 @@ Syntax:
       [--[always-]hydrate]
 ```
 
-The only change from today's syntax is the optional `[always-]` on the hydrate flag. `--always
-hydrate` implies `--hydrate`.
+The only change from today's syntax is the optional `[always-]` on the hydrate flag. 
+`--always-hydrate` implies `--hydrate`.
 
 Passing in the `--always-hydrate` flag has all the same behaviors that `prefetch --hydrate` has today
 and also adds the specified files and folders to the `always-hydrate` file, so that those files will
@@ -80,9 +80,12 @@ The `--list-always-hydrate` flag is incompatible with any of the other flags. It
       --remove-always-hydrate
 ```
 
+The `--remove-always-hydrate` flag is incompatible with any combination of `--[always-]hydrate` or
+`--list-always-hydrate`.
+
 Any entries that match the specified `--files` and `--folders` arguments will be removed from the
-always-hydrate file. To remove all entries, the user can specify `gvfs prefetch --remove-always
-hydrate --files *`.
+always-hydrate file. To remove all entries, the user can specify `gvfs prefetch 
+--remove-always-hydrate --files *`.
 
 ## Implementation
 ### Storing always-hydrate entries
