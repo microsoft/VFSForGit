@@ -26,10 +26,25 @@
 
 #define STRINGIFY(s) #s
 
-using std::endl; using std::cerr;
-using std::unordered_map; using std::set; using std::string;
+using std::cerr;
+using std::cout;
+using std::dec;
+using std::endl;
+using std::extent;
+using std::hex;
+using std::is_pod;
+using std::lock_guard;
+using std::make_pair;
+using std::move;
 using std::mutex;
-typedef std::lock_guard<mutex> mutex_lock;
+using std::oct;
+using std::pair;
+using std::queue;
+using std::set;
+using std::string;
+using std::unordered_map;
+
+typedef lock_guard<mutex> mutex_lock;
 
 // Structs
 struct _PrjFS_FileHandle
@@ -74,14 +89,14 @@ static const char* NotificationTypeToString(PrjFS_NotificationType notificationT
 
 // State
 static io_connect_t s_kernelServiceConnection = IO_OBJECT_NULL;
-static std::string s_virtualizationRootFullPath;
+static string s_virtualizationRootFullPath;
 static PrjFS_Callbacks s_callbacks;
 static dispatch_queue_t s_messageQueueDispatchQueue;
 static dispatch_queue_t s_kernelRequestHandlingConcurrentQueue;
 
 // Map of relative path -> set of pending message IDs for that path, plus mutex to protect it.
 static unordered_map<string, set<uint64_t>> s_PendingRequestMessageIDs;
-static std::mutex s_PendingRequestMessageMutex;
+static mutex s_PendingRequestMessageMutex;
 
 
 // The full API is defined in the header, but only the minimal set of functions needed
@@ -96,13 +111,13 @@ PrjFS_Result PrjFS_StartVirtualizationInstance(
     _In_    unsigned int                            poolThreadCount)
 {
 #ifdef DEBUG
-    std::cout
+    cout
         << "PrjFS_StartVirtualizationInstance("
         << virtualizationRootFullPath << ", "
         << callbacks.EnumerateDirectory << ", "
         << callbacks.GetFileStream << ", "
         << callbacks.NotifyOperation << ", "
-        << poolThreadCount << ")" << std::endl;
+        << poolThreadCount << ")" << endl;
 #endif
     
     if (nullptr == virtualizationRootFullPath ||
@@ -174,7 +189,7 @@ PrjFS_Result PrjFS_StartVirtualizationInstance(
             IOReturn result = IODataQueueDequeue(dataQueue.queueMemory, messageMemory, &dequeuedSize);
             if (kIOReturnSuccess != result || dequeuedSize != messageSize)
             {
-                cerr << "Unexpected result dequeueing message - result 0x" << std::hex << result << " dequeued " << dequeuedSize << "/" << messageSize << " bytes\n";
+                cerr << "Unexpected result dequeueing message - result 0x" << hex << result << " dequeued " << dequeuedSize << "/" << messageSize << " bytes\n";
                 abort();
             }
             
@@ -191,8 +206,8 @@ PrjFS_Result PrjFS_StartVirtualizationInstance(
                 if (file_messages_found == s_PendingRequestMessageIDs.end())
                 {
                     // Not handling this file/dir yet
-                    std::pair<PendingMessageIterator, bool> inserted =
-                        s_PendingRequestMessageIDs.insert(std::make_pair(string(message.path), set<uint64_t>{ message.messageHeader->messageId }));
+                    pair<PendingMessageIterator, bool> inserted =
+                        s_PendingRequestMessageIDs.insert(make_pair(string(message.path), set<uint64_t>{ message.messageHeader->messageId }));
                     assert(inserted.second);
                 }
                 else
@@ -220,7 +235,7 @@ PrjFS_Result PrjFS_ConvertDirectoryToVirtualizationRoot(
     _In_    const char*                             virtualizationRootFullPath)
 {
 #ifdef DEBUG
-    std::cout << "PrjFS_ConvertDirectoryToVirtualizationRoot(" << virtualizationRootFullPath << ")" << std::endl;
+    cout << "PrjFS_ConvertDirectoryToVirtualizationRoot(" << virtualizationRootFullPath << ")" << endl;
 #endif
     
     if (nullptr == virtualizationRootFullPath)
@@ -253,7 +268,7 @@ PrjFS_Result PrjFS_WritePlaceholderDirectory(
     _In_    const char*                             relativePath)
 {
 #ifdef DEBUG
-    std::cout << "PrjFS_WritePlaceholderDirectory(" << relativePath << ")" << std::endl;
+    cout << "PrjFS_WritePlaceholderDirectory(" << relativePath << ")" << endl;
 #endif
     
     if (nullptr == relativePath)
@@ -289,13 +304,13 @@ PrjFS_Result PrjFS_WritePlaceholderFile(
     _In_    uint16_t                                fileMode)
 {
 #ifdef DEBUG
-    std::cout
+    cout
         << "PrjFS_WritePlaceholderFile("
         << relativePath << ", " 
         << (int)providerId[0] << ", "
         << (int)contentId[0] << ", "
         << fileSize << ", "
-        << std::oct << fileMode << std::dec << ")" << std::endl;
+        << oct << fileMode << dec << ")" << endl;
 #endif
     
     if (nullptr == relativePath)
@@ -368,14 +383,14 @@ PrjFS_Result PrjFS_UpdatePlaceholderFileIfNeeded(
     _Out_   PrjFS_UpdateFailureCause*               failureCause)
 {
 #ifdef DEBUG
-    std::cout
+    cout
         << "PrjFS_UpdatePlaceholderFileIfNeeded("
         << relativePath << ", "
         << (int)providerId[0] << ", "
         << (int)contentId[0] << ", "
         << fileSize << ", "
-        << std::oct << fileMode << std::dec << ", "
-        << std::hex << updateFlags << std::dec << ")" << std::endl;
+        << oct << fileMode << dec << ", "
+        << hex << updateFlags << dec << ")" << endl;
 #endif
     
     // TODO(Mac): Check if the contentId or fileMode have changed before proceeding
@@ -396,10 +411,10 @@ PrjFS_Result PrjFS_DeleteFile(
     _Out_   PrjFS_UpdateFailureCause*               failureCause)
 {
 #ifdef DEBUG
-    std::cout
+    cout
         << "PrjFS_DeleteFile("
         << relativePath << ", "
-        << std::hex << updateFlags << std::dec << ")" << std::endl;
+        << hex << updateFlags << dec << ")" << endl;
 #endif
     
     // TODO(Mac): Populate failure cause appropriately
@@ -435,13 +450,13 @@ PrjFS_Result PrjFS_WriteFileContents(
     _In_    unsigned int                            byteCount)
 {
 #ifdef DEBUG
-    std::cout
+    cout
         << "PrjFS_WriteFile("
         << fileHandle->file << ", "
         << (int)((char*)bytes)[0] << ", "
         << (int)((char*)bytes)[1] << ", "
         << (int)((char*)bytes)[2] << ", "
-        << byteCount << ")" << std::endl;
+        << byteCount << ")" << endl;
 #endif
     
     if (nullptr == fileHandle->file ||
@@ -550,13 +565,13 @@ static void HandleKernelRequest(Message request, void* messageMemory)
             ? MessageType_Response_Success
             : MessageType_Response_Fail;
 
-        std::set<uint64_t> messageIDs;
+        set<uint64_t> messageIDs;
 
         {
             mutex_lock lock(s_PendingRequestMessageMutex);
             unordered_map<string, set<uint64_t>>::iterator fileMessageIDsFound = s_PendingRequestMessageIDs.find(request.path);
             assert(fileMessageIDsFound != s_PendingRequestMessageIDs.end());
-            messageIDs = std::move(fileMessageIDsFound->second);
+            messageIDs = move(fileMessageIDsFound->second);
             s_PendingRequestMessageIDs.erase(fileMessageIDsFound);
         }
 
@@ -572,7 +587,7 @@ static void HandleKernelRequest(Message request, void* messageMemory)
 static PrjFS_Result HandleEnumerateDirectoryRequest(const MessageHeader* request, const char* path)
 {
 #ifdef DEBUG
-    std::cout << "PrjFSLib.HandleEnumerateDirectoryRequest: " << path << std::endl;
+    cout << "PrjFSLib.HandleEnumerateDirectoryRequest: " << path << endl;
 #endif
     
     PrjFS_Result callbackResult = s_callbacks.EnumerateDirectory(
@@ -600,12 +615,12 @@ static PrjFS_Result HandleEnumerateDirectoryRequest(const MessageHeader* request
 static PrjFS_Result HandleRecursivelyEnumerateDirectoryRequest(const MessageHeader* request, const char* path)
 {
 #ifdef DEBUG
-    std::cout << "PrjFSLib.HandleRecursivelyEnumerateDirectoryRequest: " << path << std::endl;
+    cout << "PrjFSLib.HandleRecursivelyEnumerateDirectoryRequest: " << path << endl;
 #endif
     
     DIR* directory = nullptr;
     PrjFS_Result result = PrjFS_Result_Success;
-    std::queue<std::string> directoryRelativePaths;
+    queue<string> directoryRelativePaths;
     directoryRelativePaths.push(path);
     
     // Walk each directory, expanding those that are found to be empty
@@ -660,7 +675,7 @@ CleanupAndReturn:
 static PrjFS_Result HandleHydrateFileRequest(const MessageHeader* request, const char* path)
 {
 #ifdef DEBUG
-    std::cout << "PrjFSLib.HandleHydrateFileRequest: " << path << std::endl;
+    cout << "PrjFSLib.HandleHydrateFileRequest: " << path << endl;
 #endif
     
     char fullPath[PrjFSMaxPath];
@@ -734,9 +749,10 @@ static PrjFS_Result HandleFileNotification(
     PrjFS_NotificationType notificationType)
 {
 #ifdef DEBUG
-    std::cout << "PrjFSLib.HandleFileNotification: " << path
-              << " notificationType: " << NotificationTypeToString(notificationType)
-              << " isDirectory: " << isDirectory << std::endl;
+    cout
+        << "PrjFSLib.HandleFileNotification: " << path
+        << " notificationType: " << NotificationTypeToString(notificationType)
+        << " isDirectory: " << isDirectory << endl;
 #endif
     
     char fullPath[PrjFSMaxPath];
@@ -772,7 +788,7 @@ static bool InitializeEmptyPlaceholder(const char* fullPath, TPlaceholder* data,
         data->header.magicNumber = PlaceholderMagicNumber;
         data->header.formatVersion = PlaceholderFormatVersion;
         
-        static_assert(std::is_pod<TPlaceholder>(), "TPlaceholder must be a POD struct");
+        static_assert(is_pod<TPlaceholder>(), "TPlaceholder must be a POD struct");
         if (AddXAttr(fullPath, xattrName, data, sizeof(TPlaceholder)))
         {
             return true;
@@ -898,8 +914,8 @@ static errno_t SendKernelMessageResponse(uint64_t messageId, MessageType respons
     IOReturn callResult = IOConnectCallScalarMethod(
         s_kernelServiceConnection,
         ProviderSelector_KernelMessageResponse,
-        inputs, std::extent<decltype(inputs)>::value, // scalar inputs
-        nullptr, nullptr);                            // no outputs
+        inputs, extent<decltype(inputs)>::value, // scalar inputs
+        nullptr, nullptr);                       // no outputs
     return callResult == kIOReturnSuccess ? 0 : EBADMSG;
 }
 
