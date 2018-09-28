@@ -44,7 +44,7 @@ dotnet build $SRCDIR/GVFS.sln --runtime osx-x64 --framework netcoreapp2.1 --conf
 dotnet publish $SRCDIR/GVFS.sln /p:Configuration=$DOTNETCONFIGURATION /p:Platform=x64 --runtime osx-x64 --framework netcoreapp2.1 --self-contained --output $PUBLISHDIR /maxcpucount:1 || exit 1
 
 NATIVEDIR=$SRCDIR/GVFS/GVFS.Native.Mac
-xcodebuild -sdk macosx10.13 -configuration $CONFIGURATION -workspace $NATIVEDIR/GVFS.Native.Mac.xcworkspace build -scheme GVFS.Native.Mac -derivedDataPath $ROOTDIR/BuildOutput/GVFS.Native.Mac || exit 1
+xcodebuild -configuration $CONFIGURATION -workspace $NATIVEDIR/GVFS.Native.Mac.xcworkspace build -scheme GVFS.Native.Mac -derivedDataPath $ROOTDIR/BuildOutput/GVFS.Native.Mac || exit 1
 
 echo 'Copying native binaries to Publish directory'
 cp $BUILDOUTPUT/GVFS.Native.Mac/Build/Products/$CONFIGURATION/GVFS.ReadObjectHook $PUBLISHDIR || exit 1
