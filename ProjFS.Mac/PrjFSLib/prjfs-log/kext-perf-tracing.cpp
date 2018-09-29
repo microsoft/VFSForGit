@@ -16,6 +16,23 @@ static uint64_t nanosecondsFromAbsoluteTime(uint64_t machAbsoluteTime)
 
 static const char* const PerfCounterNames[Probe_Count] =
 {
+    [Probe_VnodeOp] = "VnodeOp",
+    [Probe_FileOp] = "FileOp",
+    [Probe_Op_EarlyOut] = "Op_EarlyOut",
+    [Probe_Op_NoVirtualizationRootFlag] = "Op_NoVirtualizationRootFlag",
+    [Probe_Op_EmptyFlag] = "Op_EmptyFlag",
+    [Probe_Op_DenyCrawler] = "Op_DenyCrawler",
+    [Probe_Op_Offline] = "Op_Offline",
+    [Probe_Op_Provider] = "Op_Provider",
+    [Probe_VnodeOp_PopulatePlaceholderDirectory] = "VnodeOp_PopulatePlaceholderDirectory",
+    [Probe_VnodeOp_HydratePlaceholderFile] = "VnodeOp_HydratePlaceholderFile",
+    
+    [Probe_Op_IdentifySplit] = "Op_IdentifySplit",
+    [Probe_Op_VirtualizationRootFindSplit] = "Op_VirtualizationRootFindSplit",
+    
+    [Probe_ReadFileFlags] = "Probe_ReadFileFlags",
+    [Probe_VirtualizationRoot_Find] = "VirtualizationRoot_Find",
+    [Probe_VirtualizationRoot_FindIteration] = "VirtualizationRoot_FindIteration",
 };
 
 bool PrjFSLog_FetchAndPrintKextProfilingData(io_connect_t connection)

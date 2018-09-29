@@ -37,6 +37,24 @@ enum PrjFS_PerfCounter : int32_t
 {
     // Note: ensure that any changes to this list are reflected in the PerfCounterNames array of strings
     
+    Probe_VnodeOp = 0,
+    Probe_FileOp,
+    Probe_Op_EarlyOut,
+    Probe_Op_NoVirtualizationRootFlag,
+    Probe_Op_EmptyFlag,
+    Probe_Op_DenyCrawler,
+    Probe_Op_Offline,
+    Probe_Op_Provider,
+    Probe_VnodeOp_PopulatePlaceholderDirectory,
+    Probe_VnodeOp_HydratePlaceholderFile,
+    
+    Probe_Op_IdentifySplit,
+    Probe_Op_VirtualizationRootFindSplit,
+        
+    Probe_ReadFileFlags,
+    
+    Probe_VirtualizationRoot_Find,
+    Probe_VirtualizationRoot_FindIteration,
     
     Probe_Count,
     

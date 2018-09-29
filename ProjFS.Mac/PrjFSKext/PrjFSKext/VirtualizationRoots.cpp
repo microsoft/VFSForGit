@@ -11,6 +11,7 @@
 #include "PrjFSProviderUserClient.hpp"
 #include "kernel-header-wrappers/mount.h"
 #include "VnodeUtilities.hpp"
+#include "PerformanceTracing.hpp"
 
 
 struct VirtualizationRoot
@@ -133,12 +134,16 @@ kern_return_t VirtualizationRoots_Cleanup()
 
 VirtualizationRootHandle VirtualizationRoot_FindForVnode(vnode_t vnode, const FsidInode& vnodeFsidInode)
 {
+    ProfileSample functionSample(Probe_VirtualizationRoot_Find);
+
     VirtualizationRootHandle rootHandle = RootHandle_None;
     
     vnode_get(vnode);
     // Search up the tree until we hit a known virtualization root or THE root of the file system
     while (RootHandle_None == rootHandle && NULLVP != vnode && !vnode_isvroot(vnode))
     {
+        ProfileSample iterationSample(Probe_VirtualizationRoot_FindIteration);
+
         rootHandle = FindOrDetectRootAtVnode(vnode, nullptr /* vfs context */, vnodeFsidInode);
         // Note: if FindOrDetectRootAtVnode returns a "special" handle other
         // than RootHandle_None, we want to stop the search and return that.
