@@ -402,9 +402,9 @@ You can specify a URL, a name of a configured cache server, or the special names
             GVFSGitObjects gitObjects,
             GitRepo repo,
             out string error,
-            bool ignoreIfRootExists = true)
+            bool checkLocalObjectCache = true)
         {
-            if (!ignoreIfRootExists || !repo.CommitAndRootTreeExists(commitId))
+            if (!checkLocalObjectCache || !repo.CommitAndRootTreeExists(commitId))
             {
                 if (!gitObjects.TryDownloadCommit(commitId))
                 {

@@ -572,7 +572,7 @@ namespace GVFS.CommandLine
                 // It is possible to have the above TryDownloadCommit() fail because we
                 // already have the commit and root tree we intend to check out, but
                 // don't have a tree further down the working directory. If we fail
-                // checkout here, it may be due to not having these trees and the
+                // checkout here, its' because we don't have these trees and the
                 // read-object hook is not available yet. Force downloading the commit
                 // again and retry the checkout.
 
@@ -583,7 +583,7 @@ namespace GVFS.CommandLine
                     gitObjects,
                     gitRepo,
                     out errorMessage,
-                    ignoreIfRootExists: false))
+                    checkLocalObjectCache: false))
                 {
                     return new Result(errorMessage);
                 }
