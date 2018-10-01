@@ -4,9 +4,9 @@ using GVFS.Tests.Should;
 using Microsoft.Data.Sqlite;
 using Newtonsoft.Json;
 using NUnit.Framework;
+using System;
 using System.Collections.Generic;
 using System.IO;
-using System.Linq;
 
 namespace GVFS.FunctionalTests.Tools
 {
@@ -113,7 +113,7 @@ namespace GVFS.FunctionalTests.Tools
             string modifiedPathsDatabase = Path.Combine(dotGVFSRoot, TestConstants.Databases.ModifiedPaths);
             modifiedPathsDatabase.ShouldBeAFile(fileSystem);
             string modifedPathsContents = GVFSHelpers.ReadAllTextFromWriteLockedFile(modifiedPathsDatabase);
-            string[] modifedPathLines = modifedPathsContents.Split(ModifiedPathsNewLine);
+            string[] modifedPathLines = modifedPathsContents.Split(new[] { ModifiedPathsNewLine }, StringSplitOptions.None);
             foreach (string gitPath in gitPaths)
             {
                 modifedPathLines.ShouldContain(path => path.Equals(ModifedPathsLinePrefix + gitPath));
