@@ -187,18 +187,18 @@ namespace GVFS.Virtualization.Projection
 
                         switch (typeAndMode.Type)
                         {
-                            case FileTypeAndMode.FileType.Regular:
-                                if (typeAndMode.Mode != FileTypeAndMode.FileMode755 && 
-                                    typeAndMode.Mode != FileTypeAndMode.FileMode644 && 
-                                    typeAndMode.Mode != FileTypeAndMode.FileMode664)
+                            case FileType.Regular:
+                                if (typeAndMode.Mode != FileMode755 && 
+                                    typeAndMode.Mode != FileMode644 && 
+                                    typeAndMode.Mode != FileMode664)
                                 {
                                     throw new InvalidDataException($"Invalid file mode {typeAndMode.GetModeAsOctalString()} found for regular file in index");
                                 }
 
                                 break;
 
-                            case FileTypeAndMode.FileType.SymLink:
-                            case FileTypeAndMode.FileType.GitLink:
+                            case FileType.SymLink:
+                            case FileType.GitLink:
                                 if (typeAndMode.Mode != 0)
                                 {
                                     throw new InvalidDataException($"Invalid file mode {typeAndMode.GetModeAsOctalString()} found for link file({typeAndMode.Type:X}) in index");

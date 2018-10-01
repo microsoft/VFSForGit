@@ -83,20 +83,22 @@ namespace GVFS.Platform.Mac
             string sha)
         {
             // TODO(Mac): Add functional tests that validate file mode is set correctly
-            FileTypeAndMode fileTypeAndMode = this.FileSystemCallbacks.GitIndexProjection.GetFileTypeAndMode(relativePath);
+            GitIndexProjection.FileType fileType;
+            ushort fileMode;
+            this.FileSystemCallbacks.GitIndexProjection.GetFileTypeAndMode(relativePath, out fileType, out fileMode);
 
-            if (fileTypeAndMode.Type == FileTypeAndMode.FileType.Regular)
+            if (fileType == GitIndexProjection.FileType.Regular)
             {
                 Result result = this.virtualizationInstance.WritePlaceholderFile(
                     relativePath,
                     PlaceholderVersionId,
                     ToVersionIdByteArray(FileSystemVirtualizer.ConvertShaToContentId(sha)),
                     (ulong)endOfFile,
-                    fileTypeAndMode.Mode);
+                    fileMode);
 
                 return new FileSystemResult(ResultToFSResult(result), unchecked((int)result));
             }
-            else if (fileTypeAndMode.Type == FileTypeAndMode.FileType.SymLink)
+            else if (fileType == GitIndexProjection.FileType.SymLink)
             {
                 string symLinkTarget;
                 if (this.TryGetSymLinkTarget(sha, out symLinkTarget))
@@ -116,7 +118,8 @@ namespace GVFS.Platform.Mac
             else
             {
                 EventMetadata metadata = this.CreateEventMetadata(relativePath);
-                metadata.Add("FileType", fileTypeAndMode.Type);
+                metadata.Add(nameof(fileType), fileType);
+                metadata.Add(nameof(fileMode), fileMode);
                 this.Context.Tracer.RelatedError(metadata, $"{nameof(this.WritePlaceholderFile)}: Unsupported fileType");
                 return new FileSystemResult(FSResult.IOError, 0);
             }
@@ -145,23 +148,25 @@ namespace GVFS.Platform.Mac
             // TODO(Mac): Add functional tests that include:
             //     - Mode + content changes between commits
             //     - Mode only changes (without any change to content, see issue #223)
-            FileTypeAndMode fileTypeAndMode = this.FileSystemCallbacks.GitIndexProjection.GetFileTypeAndMode(relativePath);
+            GitIndexProjection.FileType fileType;
+            ushort fileMode;
+            this.FileSystemCallbacks.GitIndexProjection.GetFileTypeAndMode(relativePath, out fileType, out fileMode);
 
-            if (fileTypeAndMode.Type == FileTypeAndMode.FileType.Regular)
+            if (fileType == GitIndexProjection.FileType.Regular)
             {
                 Result result = this.virtualizationInstance.UpdatePlaceholderIfNeeded(
                     relativePath,
                     PlaceholderVersionId,
                     ToVersionIdByteArray(ConvertShaToContentId(shaContentId)),
                     (ulong)endOfFile,
-                    fileTypeAndMode.Mode,
+                    fileMode,
                     (UpdateType)updateFlags,
                     out failureCause);
                 
                 failureReason = (UpdateFailureReason)failureCause;
                 return new FileSystemResult(ResultToFSResult(result), unchecked((int)result));
             }
-            else if (fileTypeAndMode.Type == FileTypeAndMode.FileType.SymLink)
+            else if (fileType == GitIndexProjection.FileType.SymLink)
             {
                 string symLinkTarget;
                 if (this.TryGetSymLinkTarget(shaContentId, out symLinkTarget))
@@ -187,8 +192,8 @@ namespace GVFS.Platform.Mac
             else
             {
                 EventMetadata metadata = this.CreateEventMetadata(relativePath);
-                metadata.Add("FileType", fileTypeAndMode.Type);
-                metadata.Add("FileMode", fileTypeAndMode.Mode);
+                metadata.Add(nameof(fileType), fileType);
+                metadata.Add(nameof(fileMode), fileMode);
                 this.Context.Tracer.RelatedError(metadata, $"{nameof(this.UpdatePlaceholderIfNeeded)}: Unsupported fileType");
                 failureReason = UpdateFailureReason.NoFailure;
                 return new FileSystemResult(FSResult.IOError, 0);

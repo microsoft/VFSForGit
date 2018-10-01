@@ -36,7 +36,7 @@ namespace GVFS.UnitTests.Mock.Virtualization.Projection
 
             this.PlaceholdersCreated = new ConcurrentHashSet<string>();
             this.ExpandedFolders = new ConcurrentHashSet<string>();
-            this.MockFileTypesAndModes = new ConcurrentDictionary<string, FileTypeAndMode>();
+            this.MockFileTypesAndModes = new ConcurrentDictionary<string, ushort>();
 
             this.unblockGetProjectedItems = new ManualResetEvent(true);
             this.waitForGetProjectedItems = new ManualResetEvent(true);
@@ -56,7 +56,7 @@ namespace GVFS.UnitTests.Mock.Virtualization.Projection
 
         public ConcurrentHashSet<string> ExpandedFolders { get; }
 
-        public ConcurrentDictionary<string, FileTypeAndMode> MockFileTypesAndModes { get; }
+        public ConcurrentDictionary<string, ushort> MockFileTypesAndModes { get; }
 
         public bool ThrowOperationCanceledExceptionOnProjectionRequest { get; set; }
 
@@ -161,15 +161,18 @@ namespace GVFS.UnitTests.Mock.Virtualization.Projection
             return false;
         }
 
-        public override FileTypeAndMode GetFileTypeAndMode(string path)
+        public override void GetFileTypeAndMode(string path, out FileType fileType, out ushort fileMode)
         {
-            FileTypeAndMode result;
-            if (this.MockFileTypesAndModes.TryGetValue(path, out result))
-            {
-                return result;
-            }
+            fileType = FileType.Invalid;
+            fileMode = 0;
 
-            return new FileTypeAndMode(0);
+            ushort mockFileTypeAndMode;
+            if (this.MockFileTypesAndModes.TryGetValue(path, out mockFileTypeAndMode))
+            {
+                FileTypeAndMode typeAndMode = new FileTypeAndMode(mockFileTypeAndMode);
+                fileType = typeAndMode.Type;
+                fileMode = typeAndMode.Mode;
+            }
         }
 
         public override List<ProjectedFileInfo> GetProjectedItems(
