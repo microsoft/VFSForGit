@@ -50,7 +50,7 @@ If you'd like to build your own VFS for Git Windows installer:
 build will fail, and the second and subsequent builds will succeed. This is because the build requires a prebuild code generation step.
 For details, see the build script in the previous step.
 
-The installer can now be found at `C:\Repos\VFSForGit\BuildOutput\GVFS.Installer\bin\x64\[Debug|Release]\SetupGVFS.<version>.exe`
+The installer can now be found at `C:\Repos\VFSForGit\BuildOutput\GVFS.Installer\bin\x64\[Debug|Release]\VFSGit.<version>.exe`
 
 ## Trying out VFS for Git
 

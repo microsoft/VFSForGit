@@ -59,7 +59,6 @@ namespace GVFS.UnitTests.Windows.Mock.Upgrader
         public void PretendNewReleaseAvailableAtRemote(string upgradeVersion, RingType remoteRing)
         {
             string assetDownloadURLPrefix = "https://github.com/Microsoft/VFSForGit/releases/download/v" + upgradeVersion;
-
             Release release = new Release();
 
             release.Name = "GVFS " + upgradeVersion;
@@ -69,17 +68,17 @@ namespace GVFS.UnitTests.Windows.Mock.Upgrader
 
             Random random = new Random();
             Asset gvfsAsset = new Asset();
-            gvfsAsset.Name = "VFSGit." + upgradeVersion + ".exe";
+            gvfsAsset.Name = "VFSGit." + upgradeVersion + GVFSPlatform.Instance.Constants.InstallerExtension;
 
             // This is not cross-checked anywhere, random value is good.
             gvfsAsset.Size = random.Next(int.MaxValue / 10, int.MaxValue / 2);
-            gvfsAsset.DownloadURL = new Uri(assetDownloadURLPrefix + "/VFSGit." + upgradeVersion + ".exe");
+            gvfsAsset.DownloadURL = new Uri(assetDownloadURLPrefix + "/VFSGit." + upgradeVersion + GVFSPlatform.Instance.Constants.InstallerExtension);
             release.Assets.Add(gvfsAsset);
 
             Asset gitAsset = new Asset();
-            gitAsset.Name = "Git-2.17.1.gvfs.2.1.4.g4385455-64-bit.exe";
+            gitAsset.Name = "Git-2.17.1.gvfs.2.1.4.g4385455-64-bit" + GVFSPlatform.Instance.Constants.InstallerExtension;
             gitAsset.Size = random.Next(int.MaxValue / 10, int.MaxValue / 2);
-            gitAsset.DownloadURL = new Uri(assetDownloadURLPrefix + "/Git-2.17.1.gvfs.2.1.4.g4385455-64-bit.exe");
+            gitAsset.DownloadURL = new Uri(assetDownloadURLPrefix + "/Git-2.17.1.gvfs.2.1.4.g4385455-64-bit" + GVFSPlatform.Instance.Constants.InstallerExtension);
             release.Assets.Add(gitAsset);
 
             this.expectedGVFSAssetName = gvfsAsset.Name;

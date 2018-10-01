@@ -1,4 +1,5 @@
-﻿using GVFS.Common.Git;
+﻿using GVFS.Common;
+using GVFS.Common.Git;
 using GVFS.Tests.Should;
 using NUnit.Framework;
 
@@ -10,9 +11,9 @@ namespace GVFS.UnitTests.Common
         [TestCase]
         public void TryParseInstallerName()
         {
-            this.ParseAndValidateInstallerVersion("Git-1.2.3.gvfs.4.5.gb16030b-64-bit.exe");
-            this.ParseAndValidateInstallerVersion("git-1.2.3.gvfs.4.5.gb16030b-64-bit.exe");
-            this.ParseAndValidateInstallerVersion("Git-1.2.3.gvfs.4.5.gb16030b-64-bit.EXE");
+            this.ParseAndValidateInstallerVersion("Git-1.2.3.gvfs.4.5.gb16030b-64-bit" + GVFSPlatform.Instance.Constants.InstallerExtension);
+            this.ParseAndValidateInstallerVersion("git-1.2.3.gvfs.4.5.gb16030b-64-bit" + GVFSPlatform.Instance.Constants.InstallerExtension);
+            this.ParseAndValidateInstallerVersion("Git-1.2.3.gvfs.4.5.gb16030b-64-bit" + GVFSPlatform.Instance.Constants.InstallerExtension);
         }
 
         [TestCase]
@@ -206,7 +207,7 @@ namespace GVFS.UnitTests.Common
         private void ParseAndValidateInstallerVersion(string installerName)
         {
             GitVersion version;
-            bool success = GitVersion.TryParseInstallerName(installerName, out version);
+            bool success = GitVersion.TryParseInstallerName(installerName, GVFSPlatform.Instance.Constants.InstallerExtension, out version);
             success.ShouldBeTrue();
 
             version.Major.ShouldEqual(1);
