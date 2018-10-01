@@ -52,19 +52,20 @@ namespace GVFS.UnitTests.Platform.Mac
             using (MockVirtualizationInstance mockVirtualization = new MockVirtualizationInstance())
             using (MacFileSystemVirtualizer virtualizer = new MacFileSystemVirtualizer(this.Repo.Context, this.Repo.GitObjects, mockVirtualization))
             {
+                const string DeleteTestFileName = "deleteMe.txt";
                 UpdateFailureReason failureReason = UpdateFailureReason.NoFailure;
 
                 mockVirtualization.DeleteFileResult = Result.Success;
                 mockVirtualization.DeleteFileUpdateFailureCause = UpdateFailureCause.NoFailure;
                 virtualizer
-                    .DeleteFile("test.txt", UpdatePlaceholderType.AllowReadOnly, out failureReason)
+                    .DeleteFile(DeleteTestFileName, UpdatePlaceholderType.AllowReadOnly, out failureReason)
                     .ShouldEqual(new FileSystemResult(FSResult.Ok, (int)mockVirtualization.DeleteFileResult));
                 failureReason.ShouldEqual((UpdateFailureReason)mockVirtualization.DeleteFileUpdateFailureCause);
 
                 mockVirtualization.DeleteFileResult = Result.EFileNotFound;
                 mockVirtualization.DeleteFileUpdateFailureCause = UpdateFailureCause.NoFailure;
                 virtualizer
-                    .DeleteFile("test.txt", UpdatePlaceholderType.AllowReadOnly, out failureReason)
+                    .DeleteFile(DeleteTestFileName, UpdatePlaceholderType.AllowReadOnly, out failureReason)
                     .ShouldEqual(new FileSystemResult(FSResult.FileOrPathNotFound, (int)mockVirtualization.DeleteFileResult));
                 failureReason.ShouldEqual((UpdateFailureReason)mockVirtualization.DeleteFileUpdateFailureCause);
 
@@ -74,7 +75,7 @@ namespace GVFS.UnitTests.Platform.Mac
                 // TODO: The result should probably be VirtualizationInvalidOperation but for now it's IOError
                 mockVirtualization.DeleteFileUpdateFailureCause = UpdateFailureCause.DirtyData;
                 virtualizer
-                    .DeleteFile("test.txt", UpdatePlaceholderType.AllowReadOnly, out failureReason)
+                    .DeleteFile(DeleteTestFileName, UpdatePlaceholderType.AllowReadOnly, out failureReason)
                     .ShouldEqual(new FileSystemResult(FSResult.IOError, (int)mockVirtualization.DeleteFileResult));
                 failureReason.ShouldEqual((UpdateFailureReason)mockVirtualization.DeleteFileUpdateFailureCause);
             }
@@ -83,9 +84,10 @@ namespace GVFS.UnitTests.Platform.Mac
         [TestCase]
         public void UpdatePlaceholderIfNeeded()
         {
+            const string UpdatePlaceholderFileName = "testUpdatePlaceholder.txt";
             using (MockBackgroundFileSystemTaskRunner backgroundTaskRunner = new MockBackgroundFileSystemTaskRunner())
             using (MockVirtualizationInstance mockVirtualization = new MockVirtualizationInstance())
-            using (MockGitIndexProjection gitIndexProjection = new MockGitIndexProjection(new[] { "test.txt" }))
+            using (MockGitIndexProjection gitIndexProjection = new MockGitIndexProjection(new[] { UpdatePlaceholderFileName }))
             using (MacFileSystemVirtualizer virtualizer = new MacFileSystemVirtualizer(this.Repo.Context, this.Repo.GitObjects, mockVirtualization))
             using (FileSystemCallbacks fileSystemCallbacks = new FileSystemCallbacks(
                 this.Repo.Context,
@@ -96,8 +98,7 @@ namespace GVFS.UnitTests.Platform.Mac
                 backgroundTaskRunner,
                 virtualizer))
             {
-                string filePath = "test" + Path.DirectorySeparatorChar + "test.txt";
-                gitIndexProjection.MockFileTypesAndModes.TryAdd(filePath, Regular644FileTypeAndMode);
+                gitIndexProjection.MockFileTypesAndModes.TryAdd(UpdatePlaceholderFileName, Regular644FileTypeAndMode);
                 string error;
                 fileSystemCallbacks.TryStart(out error).ShouldEqual(true);
 
@@ -107,7 +108,7 @@ namespace GVFS.UnitTests.Platform.Mac
                 mockVirtualization.UpdatePlaceholderIfNeededFailureCause = UpdateFailureCause.NoFailure;
                 virtualizer
                     .UpdatePlaceholderIfNeeded(
-                        filePath,
+                        UpdatePlaceholderFileName,
                         DateTime.Now,
                         DateTime.Now,
                         DateTime.Now,
@@ -119,12 +120,14 @@ namespace GVFS.UnitTests.Platform.Mac
                         out failureReason)
                     .ShouldEqual(new FileSystemResult(FSResult.Ok, (int)mockVirtualization.UpdatePlaceholderIfNeededResult));
                 failureReason.ShouldEqual((UpdateFailureReason)mockVirtualization.UpdatePlaceholderIfNeededFailureCause);
+                mockVirtualization.UpdatedPlaceholders.ShouldContain(path => path.Key.Equals(UpdatePlaceholderFileName) && path.Value == FileTypeAndMode.FileMode644);
+                mockVirtualization.UpdatedPlaceholders.Clear();
 
                 mockVirtualization.UpdatePlaceholderIfNeededResult = Result.EFileNotFound;
                 mockVirtualization.UpdatePlaceholderIfNeededFailureCause = UpdateFailureCause.NoFailure;
                 virtualizer
                     .UpdatePlaceholderIfNeeded(
-                        filePath,
+                        UpdatePlaceholderFileName,
                         DateTime.Now,
                         DateTime.Now,
                         DateTime.Now,
@@ -144,7 +147,7 @@ namespace GVFS.UnitTests.Platform.Mac
                 // TODO: The result should probably be VirtualizationInvalidOperation but for now it's IOError
                 virtualizer
                     .UpdatePlaceholderIfNeeded(
-                        filePath,
+                        UpdatePlaceholderFileName,
                         DateTime.Now,
                         DateTime.Now,
                         DateTime.Now,
@@ -163,9 +166,10 @@ namespace GVFS.UnitTests.Platform.Mac
         [TestCase]
         public void WritePlaceholderForSymLink()
         {
+            const string WriteSymLinkFileName = "testWriteSymLink.txt";
             using (MockBackgroundFileSystemTaskRunner backgroundTaskRunner = new MockBackgroundFileSystemTaskRunner())
             using (MockVirtualizationInstance mockVirtualization = new MockVirtualizationInstance())
-            using (MockGitIndexProjection gitIndexProjection = new MockGitIndexProjection(new[] { "test.txt" }))
+            using (MockGitIndexProjection gitIndexProjection = new MockGitIndexProjection(new[] { WriteSymLinkFileName }))
             using (MacFileSystemVirtualizer virtualizer = new MacFileSystemVirtualizer(this.Repo.Context, this.Repo.GitObjects, mockVirtualization))
             using (FileSystemCallbacks fileSystemCallbacks = new FileSystemCallbacks(
                 this.Repo.Context,
@@ -176,24 +180,24 @@ namespace GVFS.UnitTests.Platform.Mac
                 backgroundTaskRunner,
                 virtualizer))
             {
-                string filePath = "test" + Path.DirectorySeparatorChar + "test.txt";
-                gitIndexProjection.MockFileTypesAndModes.TryAdd(filePath, new FileTypeAndMode(FileTypeAndMode.FileType.SymLink, mode: 0));
+                gitIndexProjection.MockFileTypesAndModes.TryAdd(WriteSymLinkFileName, new FileTypeAndMode(FileTypeAndMode.FileType.SymLink, mode: 0));
+
                 string error;
                 fileSystemCallbacks.TryStart(out error).ShouldEqual(true);
 
                 virtualizer.WritePlaceholderFile(
-                    filePath, 
+                    WriteSymLinkFileName, 
                     endOfFile: 0, 
                     sha: string.Empty).ShouldEqual(new FileSystemResult(FSResult.Ok, (int)Result.Success));
 
                 mockVirtualization.CreatedPlaceholders.ShouldBeEmpty();
                 mockVirtualization.CreatedSymLinks.Count.ShouldEqual(1);
-                mockVirtualization.CreatedSymLinks.ShouldContain(entry => entry.Equals(filePath));
+                mockVirtualization.CreatedSymLinks.ShouldContain(entry => entry.Equals(WriteSymLinkFileName));
 
                 // Creating a symlink should schedule a background task
                 backgroundTaskRunner.Count.ShouldEqual(1);
                 backgroundTaskRunner.BackgroundTasks[0].Operation.ShouldEqual(GVFS.Virtualization.Background.FileSystemTask.OperationType.OnFileSymLinkCreated);
-                backgroundTaskRunner.BackgroundTasks[0].VirtualPath.ShouldEqual(filePath);
+                backgroundTaskRunner.BackgroundTasks[0].VirtualPath.ShouldEqual(WriteSymLinkFileName);
 
                 fileSystemCallbacks.Stop();
             }
@@ -202,9 +206,10 @@ namespace GVFS.UnitTests.Platform.Mac
         [TestCase]
         public void UpdatePlaceholderToSymLink()
         {
+            const string PlaceholderToLinkFileName = "testUpdatePlaceholderToLink.txt";
             using (MockBackgroundFileSystemTaskRunner backgroundTaskRunner = new MockBackgroundFileSystemTaskRunner())
             using (MockVirtualizationInstance mockVirtualization = new MockVirtualizationInstance())
-            using (MockGitIndexProjection gitIndexProjection = new MockGitIndexProjection(new[] { "test.txt" }))
+            using (MockGitIndexProjection gitIndexProjection = new MockGitIndexProjection(new[] { PlaceholderToLinkFileName }))
             using (MacFileSystemVirtualizer virtualizer = new MacFileSystemVirtualizer(this.Repo.Context, this.Repo.GitObjects, mockVirtualization))
             using (FileSystemCallbacks fileSystemCallbacks = new FileSystemCallbacks(
                 this.Repo.Context,
@@ -215,8 +220,7 @@ namespace GVFS.UnitTests.Platform.Mac
                 backgroundTaskRunner,
                 virtualizer))
             {
-                string filePath = "test" + Path.DirectorySeparatorChar + "test.txt";
-                gitIndexProjection.MockFileTypesAndModes.TryAdd(filePath, new FileTypeAndMode(FileTypeAndMode.FileType.SymLink, mode: 0));
+                gitIndexProjection.MockFileTypesAndModes.TryAdd(PlaceholderToLinkFileName, new FileTypeAndMode(FileTypeAndMode.FileType.SymLink, mode: 0));
                 string error;
                 fileSystemCallbacks.TryStart(out error).ShouldEqual(true);
 
@@ -226,7 +230,7 @@ namespace GVFS.UnitTests.Platform.Mac
                 mockVirtualization.UpdatePlaceholderIfNeededFailureCause = UpdateFailureCause.NoFailure;
                 virtualizer
                     .UpdatePlaceholderIfNeeded(
-                        filePath,
+                        PlaceholderToLinkFileName,
                         DateTime.Now,
                         DateTime.Now,
                         DateTime.Now,
@@ -238,14 +242,14 @@ namespace GVFS.UnitTests.Platform.Mac
                         out failureReason)
                     .ShouldEqual(new FileSystemResult(FSResult.Ok, (int)mockVirtualization.UpdatePlaceholderIfNeededResult));
                 failureReason.ShouldEqual((UpdateFailureReason)mockVirtualization.UpdatePlaceholderIfNeededFailureCause);
-
+                mockVirtualization.UpdatedPlaceholders.Count.ShouldEqual(0, "UpdatePlaceholderIfNeeded should not be called when converting a placeholder to a link");
                 mockVirtualization.CreatedSymLinks.Count.ShouldEqual(1);
-                mockVirtualization.CreatedSymLinks.ShouldContain(entry => entry.Equals(filePath));
+                mockVirtualization.CreatedSymLinks.ShouldContain(entry => entry.Equals(PlaceholderToLinkFileName));
 
                 // Creating a symlink should schedule a background task
                 backgroundTaskRunner.Count.ShouldEqual(1);
                 backgroundTaskRunner.BackgroundTasks[0].Operation.ShouldEqual(GVFS.Virtualization.Background.FileSystemTask.OperationType.OnFileSymLinkCreated);
-                backgroundTaskRunner.BackgroundTasks[0].VirtualPath.ShouldEqual(filePath);
+                backgroundTaskRunner.BackgroundTasks[0].VirtualPath.ShouldEqual(PlaceholderToLinkFileName);
 
                 fileSystemCallbacks.Stop();
             }
@@ -266,9 +270,15 @@ namespace GVFS.UnitTests.Platform.Mac
         [TestCase]
         public void OnEnumerateDirectoryReturnsSuccessWhenResultsNotInMemory()
         {
+            const string TestFileName = "test.txt";
+            const string TestFolderName = "testFolder";
+            string testFilePath = Path.Combine(TestFolderName, TestFileName);
             using (MockBackgroundFileSystemTaskRunner backgroundTaskRunner = new MockBackgroundFileSystemTaskRunner())
             using (MockVirtualizationInstance mockVirtualization = new MockVirtualizationInstance())
-            using (MockGitIndexProjection gitIndexProjection = new MockGitIndexProjection(new[] { "test.txt" }))
+
+            // Don't include TestFolderName as MockGitIndexProjection returns the same list of files regardless of what folder name
+            // it is passed
+            using (MockGitIndexProjection gitIndexProjection = new MockGitIndexProjection(new[] { TestFileName }))
             using (MacFileSystemVirtualizer virtualizer = new MacFileSystemVirtualizer(this.Repo.Context, this.Repo.GitObjects, mockVirtualization))
             using (FileSystemCallbacks fileSystemCallbacks = new FileSystemCallbacks(
                 this.Repo.Context,
@@ -279,16 +289,16 @@ namespace GVFS.UnitTests.Platform.Mac
                 backgroundFileSystemTaskRunner: backgroundTaskRunner,
                 fileSystemVirtualizer: virtualizer))
             {
-                gitIndexProjection.MockFileTypesAndModes.TryAdd("test" + Path.DirectorySeparatorChar + "test.txt", Regular644FileTypeAndMode);
+                gitIndexProjection.MockFileTypesAndModes.TryAdd(testFilePath, Regular644FileTypeAndMode);
 
                 string error;
                 fileSystemCallbacks.TryStart(out error).ShouldEqual(true);
 
                 Guid enumerationGuid = Guid.NewGuid();
                 gitIndexProjection.EnumerationInMemory = false;
-                mockVirtualization.OnEnumerateDirectory(1, "test", triggeringProcessId: 1, triggeringProcessName: "UnitTests").ShouldEqual(Result.Success);
+                mockVirtualization.OnEnumerateDirectory(1, TestFolderName, triggeringProcessId: 1, triggeringProcessName: "UnitTests").ShouldEqual(Result.Success);
                 mockVirtualization.CreatedPlaceholders.ShouldContain(
-                    kvp => kvp.Key.Equals(Path.Combine("test", "test.txt"), StringComparison.OrdinalIgnoreCase) && kvp.Value == FileTypeAndMode.FileMode644);
+                    kvp => kvp.Key.Equals(testFilePath, StringComparison.OrdinalIgnoreCase) && kvp.Value == FileTypeAndMode.FileMode644);
                 fileSystemCallbacks.Stop();
             }
         }
@@ -296,9 +306,15 @@ namespace GVFS.UnitTests.Platform.Mac
         [TestCase]
         public void OnEnumerateDirectoryReturnsSuccessWhenResultsInMemory()
         {
+            const string TestFileName = "test.txt";
+            const string TestFolderName = "testFolder";
+            string testFilePath = Path.Combine(TestFolderName, TestFileName);
             using (MockBackgroundFileSystemTaskRunner backgroundTaskRunner = new MockBackgroundFileSystemTaskRunner())
             using (MockVirtualizationInstance mockVirtualization = new MockVirtualizationInstance())
-            using (MockGitIndexProjection gitIndexProjection = new MockGitIndexProjection(new[] { "test.txt" }))
+                
+            // Don't include TestFolderName as MockGitIndexProjection returns the same list of files regardless of what folder name
+            // it is passed
+            using (MockGitIndexProjection gitIndexProjection = new MockGitIndexProjection(new[] { TestFileName }))
             using (MacFileSystemVirtualizer virtualizer = new MacFileSystemVirtualizer(this.Repo.Context, this.Repo.GitObjects, mockVirtualization))
             using (FileSystemCallbacks fileSystemCallbacks = new FileSystemCallbacks(
                 this.Repo.Context,
@@ -309,17 +325,17 @@ namespace GVFS.UnitTests.Platform.Mac
                 backgroundFileSystemTaskRunner: backgroundTaskRunner,
                 fileSystemVirtualizer: virtualizer))
             {
-                gitIndexProjection.MockFileTypesAndModes.TryAdd("test" + Path.DirectorySeparatorChar + "test.txt", Regular644FileTypeAndMode);
+                gitIndexProjection.MockFileTypesAndModes.TryAdd(testFilePath, Regular644FileTypeAndMode);
 
                 string error;
                 fileSystemCallbacks.TryStart(out error).ShouldEqual(true);
 
                 Guid enumerationGuid = Guid.NewGuid();
                 gitIndexProjection.EnumerationInMemory = true;
-                mockVirtualization.OnEnumerateDirectory(1, "test", triggeringProcessId: 1, triggeringProcessName: "UnitTests").ShouldEqual(Result.Success);
+                mockVirtualization.OnEnumerateDirectory(1, TestFolderName, triggeringProcessId: 1, triggeringProcessName: "UnitTests").ShouldEqual(Result.Success);
                 mockVirtualization.CreatedPlaceholders.ShouldContain(
-                    kvp => kvp.Key.Equals(Path.Combine("test", "test.txt"), StringComparison.OrdinalIgnoreCase) && kvp.Value == FileTypeAndMode.FileMode644);
-                gitIndexProjection.ExpandedFolders.ShouldMatchInOrder("test");
+                    kvp => kvp.Key.Equals(testFilePath, StringComparison.OrdinalIgnoreCase) && kvp.Value == FileTypeAndMode.FileMode644);
+                gitIndexProjection.ExpandedFolders.ShouldMatchInOrder(TestFolderName);
                 fileSystemCallbacks.Stop();
             }
         }
@@ -327,9 +343,19 @@ namespace GVFS.UnitTests.Platform.Mac
         [TestCase]
         public void OnEnumerateDirectorySetsFileModes()
         {
+            const string TestFile644Name = "test644.txt";
+            const string TestFile664Name = "test664.txt";
+            const string TestFile755Name = "test755.txt";
+            const string TestFolderName = "testFolder";
+            string TestFile644Path = Path.Combine(TestFolderName, TestFile644Name);
+            string TestFile664Path = Path.Combine(TestFolderName, TestFile664Name);
+            string TestFile755Path = Path.Combine(TestFolderName, TestFile755Name);
             using (MockBackgroundFileSystemTaskRunner backgroundTaskRunner = new MockBackgroundFileSystemTaskRunner())
             using (MockVirtualizationInstance mockVirtualization = new MockVirtualizationInstance())
-            using (MockGitIndexProjection gitIndexProjection = new MockGitIndexProjection(new[] { "test644.txt", "test664.txt", "test755.txt" }))
+
+            // Don't include TestFolderName as MockGitIndexProjection returns the same list of files regardless of what folder name
+            // it is passed
+            using (MockGitIndexProjection gitIndexProjection = new MockGitIndexProjection(new[] { TestFile644Name, TestFile664Name, TestFile755Name }))
             using (MacFileSystemVirtualizer virtualizer = new MacFileSystemVirtualizer(this.Repo.Context, this.Repo.GitObjects, mockVirtualization))
             using (FileSystemCallbacks fileSystemCallbacks = new FileSystemCallbacks(
                 this.Repo.Context,
@@ -340,22 +366,22 @@ namespace GVFS.UnitTests.Platform.Mac
                 backgroundFileSystemTaskRunner: backgroundTaskRunner,
                 fileSystemVirtualizer: virtualizer))
             {
-                gitIndexProjection.MockFileTypesAndModes.TryAdd("test" + Path.DirectorySeparatorChar + "test644.txt", Regular644FileTypeAndMode);
-                gitIndexProjection.MockFileTypesAndModes.TryAdd("test" + Path.DirectorySeparatorChar + "test664.txt", new FileTypeAndMode(FileTypeAndMode.FileType.Regular, FileTypeAndMode.FileMode664));
-                gitIndexProjection.MockFileTypesAndModes.TryAdd("test" + Path.DirectorySeparatorChar + "test755.txt", new FileTypeAndMode(FileTypeAndMode.FileType.Regular, FileTypeAndMode.FileMode755));
+                gitIndexProjection.MockFileTypesAndModes.TryAdd(TestFile644Path, Regular644FileTypeAndMode);
+                gitIndexProjection.MockFileTypesAndModes.TryAdd(TestFile664Path, new FileTypeAndMode(FileTypeAndMode.FileType.Regular, FileTypeAndMode.FileMode664));
+                gitIndexProjection.MockFileTypesAndModes.TryAdd(TestFile755Path, new FileTypeAndMode(FileTypeAndMode.FileType.Regular, FileTypeAndMode.FileMode755));
 
                 string error;
                 fileSystemCallbacks.TryStart(out error).ShouldEqual(true);
 
                 Guid enumerationGuid = Guid.NewGuid();
                 gitIndexProjection.EnumerationInMemory = true;
-                mockVirtualization.OnEnumerateDirectory(1, "test", triggeringProcessId: 1, triggeringProcessName: "UnitTests").ShouldEqual(Result.Success);
+                mockVirtualization.OnEnumerateDirectory(1, TestFolderName, triggeringProcessId: 1, triggeringProcessName: "UnitTests").ShouldEqual(Result.Success);
                 mockVirtualization.CreatedPlaceholders.ShouldContain(
-                    kvp => kvp.Key.Equals(Path.Combine("test", "test644.txt"), StringComparison.OrdinalIgnoreCase) && kvp.Value == FileTypeAndMode.FileMode644);
+                    kvp => kvp.Key.Equals(TestFile644Path, StringComparison.OrdinalIgnoreCase) && kvp.Value == FileTypeAndMode.FileMode644);
                 mockVirtualization.CreatedPlaceholders.ShouldContain(
-                    kvp => kvp.Key.Equals(Path.Combine("test", "test664.txt"), StringComparison.OrdinalIgnoreCase) && kvp.Value == FileTypeAndMode.FileMode664);
+                    kvp => kvp.Key.Equals(TestFile664Path, StringComparison.OrdinalIgnoreCase) && kvp.Value == FileTypeAndMode.FileMode664);
                 mockVirtualization.CreatedPlaceholders.ShouldContain(
-                    kvp => kvp.Key.Equals(Path.Combine("test", "test755.txt"), StringComparison.OrdinalIgnoreCase) && kvp.Value == FileTypeAndMode.FileMode755);
+                    kvp => kvp.Key.Equals(TestFile755Path, StringComparison.OrdinalIgnoreCase) && kvp.Value == FileTypeAndMode.FileMode755);
                 fileSystemCallbacks.Stop();
             }
         }
@@ -363,9 +389,10 @@ namespace GVFS.UnitTests.Platform.Mac
         [TestCase]
         public void OnGetFileStreamReturnsSuccessWhenFileStreamAvailable()
         {
+            const string TestFileName = "test.txt";
             using (MockBackgroundFileSystemTaskRunner backgroundTaskRunner = new MockBackgroundFileSystemTaskRunner())
             using (MockVirtualizationInstance mockVirtualization = new MockVirtualizationInstance())
-            using (MockGitIndexProjection gitIndexProjection = new MockGitIndexProjection(new[] { "test.txt" }))
+            using (MockGitIndexProjection gitIndexProjection = new MockGitIndexProjection(new[] { TestFileName }))
             using (MacFileSystemVirtualizer virtualizer = new MacFileSystemVirtualizer(this.Repo.Context, this.Repo.GitObjects, mockVirtualization))
             using (FileSystemCallbacks fileSystemCallbacks = new FileSystemCallbacks(
                 this.Repo.Context,
@@ -389,7 +416,7 @@ namespace GVFS.UnitTests.Platform.Mac
 
                 mockVirtualization.OnGetFileStream(
                     commandId: 1,
-                    relativePath: "test.txt",
+                    relativePath: TestFileName,
                     providerId: placeholderVersion,
                     contentId: contentId,
                     triggeringProcessId: 2,
@@ -406,9 +433,10 @@ namespace GVFS.UnitTests.Platform.Mac
         [Category(CategoryConstants.ExceptionExpected)]
         public void OnGetFileStreamReturnsErrorWhenWriteFileContentsFails()
         {
+            const string TestFileName = "test.txt";
             using (MockBackgroundFileSystemTaskRunner backgroundTaskRunner = new MockBackgroundFileSystemTaskRunner())
             using (MockVirtualizationInstance mockVirtualization = new MockVirtualizationInstance())
-            using (MockGitIndexProjection gitIndexProjection = new MockGitIndexProjection(new[] { "test.txt" }))
+            using (MockGitIndexProjection gitIndexProjection = new MockGitIndexProjection(new[] { TestFileName }))
             using (MacFileSystemVirtualizer virtualizer = new MacFileSystemVirtualizer(this.Repo.Context, this.Repo.GitObjects, mockVirtualization))
             using (FileSystemCallbacks fileSystemCallbacks = new FileSystemCallbacks(
                 this.Repo.Context,
@@ -432,7 +460,7 @@ namespace GVFS.UnitTests.Platform.Mac
 
                 mockVirtualization.OnGetFileStream(
                     commandId: 1,
-                    relativePath: "test.txt",
+                    relativePath: TestFileName,
                     providerId: placeholderVersion,
                     contentId: contentId,
                     triggeringProcessId: 2,
