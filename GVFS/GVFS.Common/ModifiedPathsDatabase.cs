@@ -1,8 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.IO;
-using System.Linq;
-using System.Text;
 using GVFS.Common.FileSystem;
 using GVFS.Common.Tracing;
 
@@ -187,12 +185,12 @@ namespace GVFS.Common
 
         private bool ContainsParentDirectory(string modifiedPath)
         {
-            string[] pathParts = modifiedPath.Split(new char[] { '/' }, StringSplitOptions.RemoveEmptyEntries);
-            StringBuilder parentFolder = new StringBuilder();
-            foreach (string pathPart in pathParts.Take(pathParts.Length - 1))
+            string[] pathParts = modifiedPath.Split(new char[] { GVFSConstants.GitPathSeparator }, StringSplitOptions.RemoveEmptyEntries);
+            string parentFolder = string.Empty;
+            for (int i = 0; i < pathParts.Length - 1; i++)
             {
-                parentFolder.Append(pathPart + "/");
-                if (this.modifiedPaths.Contains(parentFolder.ToString()))
+                parentFolder += pathParts[i] + GVFSConstants.GitPathSeparatorString;
+                if (this.modifiedPaths.Contains(parentFolder))
                 {
                     return true;
                 }
