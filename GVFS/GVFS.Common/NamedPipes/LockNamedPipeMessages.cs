@@ -283,8 +283,10 @@ namespace GVFS.Common.NamedPipes
             {
                 if (!string.IsNullOrEmpty(body))
                 {
-                    // This mesage is stored using the MessageSeperator delimitor for performance reasons
-                    string[] dataParts = body.Split(MessageSeparator);
+                    // This mesage is stored using the MessageSeperator delimitor for performance reasons.
+                    // The final part is free-text, so could include the delimiter. Limit our count to the
+                    // number of controlled parts.
+                    string[] dataParts = body.Split(new char[] { MessageSeparator }, count: 5);
                     int pid;
                     bool isElevated = false;
                     bool checkAvailabilityOnly = false;

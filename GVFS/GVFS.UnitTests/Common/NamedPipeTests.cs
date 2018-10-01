@@ -36,6 +36,9 @@ namespace GVFS.UnitTests.Common
             this.ValidateError("1|1|true|10|git status", "Invalid lock message. Expected bool for isElevated, got: 1 from message: '1|1|true|10|git status'");
             this.ValidateError("1|true|true|true|git status", "Invalid lock message. Expected command length, got: true from message: '1|true|true|true|git status'");
             this.ValidateError("1|true|true|5|git status", "Invalid lock message. The parsedCommand is an unexpected length, got: 5 from message: '1|true|true|5|git status'");
+
+            LockData data = LockData.FromBody("1|true|true|35|git commit -m \"Pipes|in|my|message\"");
+            data.ParsedCommand.ShouldEqual("git commit -m \"Pipes|in|my|message\"");
         }
 
         private void ValidateError(string body, string exceptionMessage)
