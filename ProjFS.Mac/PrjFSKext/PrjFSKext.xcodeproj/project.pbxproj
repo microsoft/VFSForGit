@@ -408,6 +408,7 @@
 					"$(inherited)",
 					"MACH_ASSERT=1",
 				);
+				GCC_WARN_SHADOW = YES;
 				INFOPLIST_FILE = PrjFSKext/Info.plist;
 				MODULE_NAME = io.gvfs.PrjFSKext;
 				MODULE_START = PrjFSKext_Start;
@@ -430,7 +431,11 @@
 			buildSettings = {
 				CODE_SIGN_STYLE = Automatic;
 				DEVELOPMENT_TEAM = UBF8T346G9;
-				GCC_PREPROCESSOR_DEFINITIONS = "MACH_ASSERT=1";
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"MACH_ASSERT=1",
+					"$(inherited)",
+				);
+				GCC_WARN_SHADOW = YES;
 				INFOPLIST_FILE = PrjFSKext/Info.plist;
 				MODULE_NAME = io.gvfs.PrjFSKext;
 				MODULE_START = PrjFSKext_Start;
