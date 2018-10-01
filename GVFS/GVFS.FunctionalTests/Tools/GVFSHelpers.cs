@@ -4,10 +4,10 @@ using GVFS.Tests.Should;
 using Microsoft.Data.Sqlite;
 using Newtonsoft.Json;
 using NUnit.Framework;
+using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
-using System.Reflection;
 
 namespace GVFS.FunctionalTests.Tools
 {
@@ -18,6 +18,9 @@ namespace GVFS.FunctionalTests.Tools
         public static readonly string BackgroundOpsFile = Path.Combine("databases", "BackgroundGitOperations.dat");
         public static readonly string PlaceholderListFile = Path.Combine("databases", "PlaceholderList.dat");
         public static readonly string RepoMetadataName = Path.Combine("databases", "RepoMetadata.dat");
+
+        private const string ModifedPathsLineAddPrefix = "A ";
+        private const string ModifedPathsLineDeletePrefix = "D ";
 
         private const string DiskLayoutMajorVersionKey = "DiskLayoutVersion";
         private const string DiskLayoutMinorVersionKey = "DiskLayoutMinorVersion";
@@ -111,15 +114,29 @@ namespace GVFS.FunctionalTests.Tools
         {
             string modifiedPathsDatabase = Path.Combine(dotGVFSRoot, TestConstants.Databases.ModifiedPaths);
             modifiedPathsDatabase.ShouldBeAFile(fileSystem);
-            GVFSHelpers.ReadAllTextFromWriteLockedFile(modifiedPathsDatabase).ShouldContain(
-                gitPaths.Select(path => path + ModifiedPathsNewLine).ToArray());
+            string modifedPathsContents = GVFSHelpers.ReadAllTextFromWriteLockedFile(modifiedPathsDatabase);
+            string[] modifedPathLines = modifedPathsContents.Split(new[] { ModifiedPathsNewLine }, StringSplitOptions.None);
+            foreach (string gitPath in gitPaths)
+            {
+                modifedPathLines.ShouldContain(path => path.Equals(ModifedPathsLineAddPrefix + gitPath));
+            }
         }
 
         public static void ModifiedPathsShouldNotContain(FileSystemRunner fileSystem, string dotGVFSRoot, params string[] gitPaths)
         {
             string modifiedPathsDatabase = Path.Combine(dotGVFSRoot, TestConstants.Databases.ModifiedPaths);
             modifiedPathsDatabase.ShouldBeAFile(fileSystem);
-            GVFSHelpers.ReadAllTextFromWriteLockedFile(modifiedPathsDatabase).ShouldNotContain(ignoreCase: true, unexpectedSubstrings: gitPaths);
+            string modifedPathsContents = GVFSHelpers.ReadAllTextFromWriteLockedFile(modifiedPathsDatabase);
+            string[] modifedPathLines = modifedPathsContents.Split(new[] { ModifiedPathsNewLine }, StringSplitOptions.None);
+            foreach (string gitPath in gitPaths)
+            {
+                modifedPathLines.ShouldNotContain(
+                    path =>
+                    {
+                        return path.Equals(ModifedPathsLineAddPrefix + gitPath, StringComparison.OrdinalIgnoreCase) ||
+                               path.Equals(ModifedPathsLineDeletePrefix + gitPath, StringComparison.OrdinalIgnoreCase);
+                    });
+            }
         }
 
         private static byte[] StringToShaBytes(string sha)
