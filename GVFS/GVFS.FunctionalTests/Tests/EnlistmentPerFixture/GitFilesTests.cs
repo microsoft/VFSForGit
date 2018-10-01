@@ -139,13 +139,13 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
 
             string[] expectedModifiedPathsEntriesAfterCreate =
             {
-                "A Folder/",
-                "A Folder/testfile",
+                "Folder/",
+                "Folder/testfile",
             };
 
             string[] expectedModifiedPathsEntriesAfterRename =
             {
-                "A folder/",
+                "folder/",
             };
 
             this.fileSystem.CreateDirectory(Path.Combine(this.Enlistment.RepoRoot, "Folder"));

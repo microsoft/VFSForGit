@@ -980,15 +980,17 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
         {
             this.ValidateGitCommand("checkout -b tests/functional/EditFileNeedingUtf8Encoding");
             this.ValidateGitCommand("status");
+
             string virtualFile = Path.Combine(this.Enlistment.RepoRoot, EncodingFileFolder, EncodingFilename);
             string controlFile = Path.Combine(this.ControlGitRepo.RootPath, EncodingFileFolder, EncodingFilename);
+            string relativeGitPath = EncodingFileFolder + "/" + EncodingFilename;
 
             string contents = virtualFile.ShouldBeAFile(this.FileSystem).WithContents();
             string expectedContents = controlFile.ShouldBeAFile(this.FileSystem).WithContents();
             contents.ShouldEqual(expectedContents);
 
             // Confirm that the entry is not in the the modified paths database
-            GVFSHelpers.ModifiedPathsShouldNotContain(this.FileSystem, this.Enlistment.DotGVFSRoot, EncodingFilename);
+            GVFSHelpers.ModifiedPathsShouldNotContain(this.FileSystem, this.Enlistment.DotGVFSRoot, relativeGitPath);
             this.ValidateGitCommand("status");
 
             this.AppendAllText(ContentWhenEditingFile, virtualFile);
@@ -997,7 +999,7 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
             this.ValidateGitCommand("status");
 
             // Confirm that the entry was added to the modified paths database
-            GVFSHelpers.ModifiedPathsShouldContain(this.FileSystem, this.Enlistment.DotGVFSRoot, EncodingFilename);
+            GVFSHelpers.ModifiedPathsShouldContain(this.FileSystem, this.Enlistment.DotGVFSRoot, relativeGitPath);
         }
 
         [TestCase]
