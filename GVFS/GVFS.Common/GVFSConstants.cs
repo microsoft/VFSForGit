@@ -231,7 +231,7 @@ namespace GVFS.Common
             public const string GVFSUpgradeOptionalConfirm = "`gvfs upgrade [--confirm]`";
             public const string NoneRingConsoleAlert = "Upgrade ring set to \"None\". No upgrade check was performed.";
             public const string InvalidRingConsoleAlert = "Upgrade ring is not set. No upgrade check was performed.";
-            public const string SetUpgradeRingCommand = "To set or change upgrade ring, run `gvfs config " + LocalGVFSConfig.UpgradeRing + " [\"Fast\"|\"Slow\"|\"None\"] from a command prompt.";
+            public const string SetUpgradeRingCommand = "To set or change upgrade ring, run `gvfs config " + LocalGVFSConfig.UpgradeRing + " [\"Fast\"|\"Slow\"|\"None\"]` from a command prompt.";
             public const string ReminderNotification = "A new version of GVFS is available. Run " + UpgradeVerbMessages.GVFSUpgrade + " to start the upgrade.";
             public const string UnmountRepoWarning = "The upgrade process will unmount all GVFS repositories for several minutes and remount them when it is complete. Ensure you are at a stopping point prior to upgrading.";
             public const string UpgradeInstallAdvice = "When you are ready, run " + UpgradeVerbMessages.GVFSUpgradeConfirm + " from an elevated command prompt.";
