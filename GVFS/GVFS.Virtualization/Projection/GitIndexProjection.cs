@@ -37,6 +37,8 @@ namespace GVFS.Virtualization.Projection
 
         private const int ExternalLockReleaseTimeoutMs = 50;
 
+        private static readonly FileTypeAndMode Regular644FileTypeAndMode = new FileTypeAndMode(FileTypeAndMode.FileType.Regular, FileTypeAndMode.FileMode644);
+
         private char[] gitPathSeparatorCharArray = new char[] { GVFSConstants.GitPathSeparator };
 
         private GVFSContext context;
@@ -371,7 +373,7 @@ namespace GVFS.Virtualization.Projection
                     return fileTypeAndMode;
                 }
 
-                return FileTypeAndMode.Regular644File;
+                return Regular644FileTypeAndMode;
             }
             finally
             {
@@ -663,9 +665,10 @@ namespace GVFS.Virtualization.Projection
 
             if (GVFSPlatform.Instance.FileSystem.SupportsFileMode)
             {
-                // TODO(Mac): Test if performance could be improved by reduce this to a single check
-                // (e.g. by defaulting FileMode to 644 and eliminating the SupportsFileMode check)
-                if (indexEntry.TypeAndMode != FileTypeAndMode.Regular644File)
+                // TODO(Mac): Test if performance could be improved by eliminating the SupportsFileMode check
+                // (e.g. by defaulting FileMode to Regular 644 and eliminating the SupportsFileMode check)
+                if (indexEntry.TypeAndMode.Type != FileTypeAndMode.FileType.Regular ||
+                    indexEntry.TypeAndMode.Mode != FileTypeAndMode.FileMode644)
                 {
                     // TODO(Mac): The line below causes a conversion from LazyUTF8String to .NET string.
                     // Measure the perf and memory overhead of performing this conversion, and determine if we need

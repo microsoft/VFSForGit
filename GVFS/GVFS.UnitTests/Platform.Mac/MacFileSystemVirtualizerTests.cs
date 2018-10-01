@@ -22,10 +22,7 @@ namespace GVFS.UnitTests.Platform.Mac
     [TestFixture]
     public class MacFileSystemVirtualizerTests : TestsWithCommonRepo
     {
-        private static readonly ushort FileMode644 = Convert.ToUInt16("644", 8);
-        private static readonly ushort FileMode664 = Convert.ToUInt16("664", 8);
-        private static readonly ushort FileMode755 = Convert.ToUInt16("755", 8);
-
+        private static readonly FileTypeAndMode Regular644FileTypeAndMode = new FileTypeAndMode(FileTypeAndMode.FileType.Regular, FileTypeAndMode.FileMode644);
         private static readonly Dictionary<Result, FSResult> MappedResults = new Dictionary<Result, FSResult>()
         {
             { Result.Success, FSResult.Ok },
@@ -100,7 +97,7 @@ namespace GVFS.UnitTests.Platform.Mac
                 virtualizer))
             {
                 string filePath = "test" + Path.DirectorySeparatorChar + "test.txt";
-                gitIndexProjection.MockFileTypesAndModes.TryAdd(filePath, FileTypeAndMode.Regular644File);
+                gitIndexProjection.MockFileTypesAndModes.TryAdd(filePath, Regular644FileTypeAndMode);
                 string error;
                 fileSystemCallbacks.TryStart(out error).ShouldEqual(true);
 
@@ -180,7 +177,7 @@ namespace GVFS.UnitTests.Platform.Mac
                 virtualizer))
             {
                 string filePath = "test" + Path.DirectorySeparatorChar + "test.txt";
-                gitIndexProjection.MockFileTypesAndModes.TryAdd(filePath, new FileTypeAndMode((ushort)FileTypeAndMode.FileType.SymLink));
+                gitIndexProjection.MockFileTypesAndModes.TryAdd(filePath, new FileTypeAndMode(FileTypeAndMode.FileType.SymLink, mode: 0));
                 string error;
                 fileSystemCallbacks.TryStart(out error).ShouldEqual(true);
 
@@ -219,7 +216,7 @@ namespace GVFS.UnitTests.Platform.Mac
                 virtualizer))
             {
                 string filePath = "test" + Path.DirectorySeparatorChar + "test.txt";
-                gitIndexProjection.MockFileTypesAndModes.TryAdd(filePath, new FileTypeAndMode((ushort)FileTypeAndMode.FileType.SymLink));
+                gitIndexProjection.MockFileTypesAndModes.TryAdd(filePath, new FileTypeAndMode(FileTypeAndMode.FileType.SymLink, mode: 0));
                 string error;
                 fileSystemCallbacks.TryStart(out error).ShouldEqual(true);
 
@@ -282,7 +279,7 @@ namespace GVFS.UnitTests.Platform.Mac
                 backgroundFileSystemTaskRunner: backgroundTaskRunner,
                 fileSystemVirtualizer: virtualizer))
             {
-                gitIndexProjection.MockFileTypesAndModes.TryAdd("test" + Path.DirectorySeparatorChar + "test.txt", FileTypeAndMode.Regular644File);
+                gitIndexProjection.MockFileTypesAndModes.TryAdd("test" + Path.DirectorySeparatorChar + "test.txt", Regular644FileTypeAndMode);
 
                 string error;
                 fileSystemCallbacks.TryStart(out error).ShouldEqual(true);
@@ -291,7 +288,7 @@ namespace GVFS.UnitTests.Platform.Mac
                 gitIndexProjection.EnumerationInMemory = false;
                 mockVirtualization.OnEnumerateDirectory(1, "test", triggeringProcessId: 1, triggeringProcessName: "UnitTests").ShouldEqual(Result.Success);
                 mockVirtualization.CreatedPlaceholders.ShouldContain(
-                    kvp => kvp.Key.Equals(Path.Combine("test", "test.txt"), StringComparison.OrdinalIgnoreCase) && kvp.Value == FileMode644);
+                    kvp => kvp.Key.Equals(Path.Combine("test", "test.txt"), StringComparison.OrdinalIgnoreCase) && kvp.Value == FileTypeAndMode.FileMode644);
                 fileSystemCallbacks.Stop();
             }
         }
@@ -312,7 +309,7 @@ namespace GVFS.UnitTests.Platform.Mac
                 backgroundFileSystemTaskRunner: backgroundTaskRunner,
                 fileSystemVirtualizer: virtualizer))
             {
-                gitIndexProjection.MockFileTypesAndModes.TryAdd("test" + Path.DirectorySeparatorChar + "test.txt", FileTypeAndMode.Regular644File);
+                gitIndexProjection.MockFileTypesAndModes.TryAdd("test" + Path.DirectorySeparatorChar + "test.txt", Regular644FileTypeAndMode);
 
                 string error;
                 fileSystemCallbacks.TryStart(out error).ShouldEqual(true);
@@ -321,7 +318,7 @@ namespace GVFS.UnitTests.Platform.Mac
                 gitIndexProjection.EnumerationInMemory = true;
                 mockVirtualization.OnEnumerateDirectory(1, "test", triggeringProcessId: 1, triggeringProcessName: "UnitTests").ShouldEqual(Result.Success);
                 mockVirtualization.CreatedPlaceholders.ShouldContain(
-                    kvp => kvp.Key.Equals(Path.Combine("test", "test.txt"), StringComparison.OrdinalIgnoreCase) && kvp.Value == FileMode644);
+                    kvp => kvp.Key.Equals(Path.Combine("test", "test.txt"), StringComparison.OrdinalIgnoreCase) && kvp.Value == FileTypeAndMode.FileMode644);
                 gitIndexProjection.ExpandedFolders.ShouldMatchInOrder("test");
                 fileSystemCallbacks.Stop();
             }
@@ -343,9 +340,9 @@ namespace GVFS.UnitTests.Platform.Mac
                 backgroundFileSystemTaskRunner: backgroundTaskRunner,
                 fileSystemVirtualizer: virtualizer))
             {
-                gitIndexProjection.MockFileTypesAndModes.TryAdd("test" + Path.DirectorySeparatorChar + "test644.txt", FileTypeAndMode.Regular644File);
-                gitIndexProjection.MockFileTypesAndModes.TryAdd("test" + Path.DirectorySeparatorChar + "test664.txt", new FileTypeAndMode((ushort)((ushort)FileTypeAndMode.FileType.Regular | FileMode664)));
-                gitIndexProjection.MockFileTypesAndModes.TryAdd("test" + Path.DirectorySeparatorChar + "test755.txt", new FileTypeAndMode((ushort)((ushort)FileTypeAndMode.FileType.Regular | FileMode755)));
+                gitIndexProjection.MockFileTypesAndModes.TryAdd("test" + Path.DirectorySeparatorChar + "test644.txt", Regular644FileTypeAndMode);
+                gitIndexProjection.MockFileTypesAndModes.TryAdd("test" + Path.DirectorySeparatorChar + "test664.txt", new FileTypeAndMode(FileTypeAndMode.FileType.Regular, FileTypeAndMode.FileMode664));
+                gitIndexProjection.MockFileTypesAndModes.TryAdd("test" + Path.DirectorySeparatorChar + "test755.txt", new FileTypeAndMode(FileTypeAndMode.FileType.Regular, FileTypeAndMode.FileMode755));
 
                 string error;
                 fileSystemCallbacks.TryStart(out error).ShouldEqual(true);
@@ -354,11 +351,11 @@ namespace GVFS.UnitTests.Platform.Mac
                 gitIndexProjection.EnumerationInMemory = true;
                 mockVirtualization.OnEnumerateDirectory(1, "test", triggeringProcessId: 1, triggeringProcessName: "UnitTests").ShouldEqual(Result.Success);
                 mockVirtualization.CreatedPlaceholders.ShouldContain(
-                    kvp => kvp.Key.Equals(Path.Combine("test", "test644.txt"), StringComparison.OrdinalIgnoreCase) && kvp.Value == FileMode644);
+                    kvp => kvp.Key.Equals(Path.Combine("test", "test644.txt"), StringComparison.OrdinalIgnoreCase) && kvp.Value == FileTypeAndMode.FileMode644);
                 mockVirtualization.CreatedPlaceholders.ShouldContain(
-                    kvp => kvp.Key.Equals(Path.Combine("test", "test664.txt"), StringComparison.OrdinalIgnoreCase) && kvp.Value == FileMode664);
+                    kvp => kvp.Key.Equals(Path.Combine("test", "test664.txt"), StringComparison.OrdinalIgnoreCase) && kvp.Value == FileTypeAndMode.FileMode664);
                 mockVirtualization.CreatedPlaceholders.ShouldContain(
-                    kvp => kvp.Key.Equals(Path.Combine("test", "test755.txt"), StringComparison.OrdinalIgnoreCase) && kvp.Value == FileMode755);
+                    kvp => kvp.Key.Equals(Path.Combine("test", "test755.txt"), StringComparison.OrdinalIgnoreCase) && kvp.Value == FileTypeAndMode.FileMode755);
                 fileSystemCallbacks.Stop();
             }
         }
