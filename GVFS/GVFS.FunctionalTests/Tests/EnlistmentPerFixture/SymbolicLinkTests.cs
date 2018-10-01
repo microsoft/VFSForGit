@@ -29,6 +29,12 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
         private const string GrandChildFileContents = "This is the third file";
         private const string GrandChildLinkNowAFileContents = "This was a link but is now a file";
 
+        // FunctionalTests/20180925_SymLinksPart3 files
+        private const string ChildFolder2Name = "ChildDir2";
+
+        // FunctionalTests/20180925_SymLinksPart4 files
+        // Note: In this branch ChildLinkName has been changed to a directory and ChildFolder2Name has been changed to a link to ChildFolderName
+
         private BashRunner bashRunner;
         public SymbolicLinkTests()
         {
@@ -48,18 +54,22 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
             string testFilePath = this.Enlistment.GetVirtualPathTo(Path.Combine(TestFolderName, TestFileName));
             testFilePath.ShouldBeAFile(this.bashRunner).WithContents(TestFileContents);
             this.bashRunner.IsSymbolicLink(testFilePath).ShouldBeFalse($"{testFilePath} should not be a symlink");
+            GVFSHelpers.ModifiedPathsShouldNotContain(this.bashRunner, this.Enlistment.DotGVFSRoot, TestFolderName + "/" + TestFileName);
 
             string testFile2Path = this.Enlistment.GetVirtualPathTo(Path.Combine(TestFolderName, TestFile2Name));
             testFile2Path.ShouldBeAFile(this.bashRunner).WithContents(TestFile2Contents);
             this.bashRunner.IsSymbolicLink(testFile2Path).ShouldBeFalse($"{testFile2Path} should not be a symlink");
+            GVFSHelpers.ModifiedPathsShouldNotContain(this.bashRunner, this.Enlistment.DotGVFSRoot, TestFolderName + "/" + TestFile2Name);
 
             string childLinkPath = this.Enlistment.GetVirtualPathTo(Path.Combine(TestFolderName, ChildLinkName));
             this.bashRunner.IsSymbolicLink(childLinkPath).ShouldBeTrue($"{childLinkPath} should be a symlink");
             childLinkPath.ShouldBeAFile(this.bashRunner).WithContents(TestFileContents);
+            GVFSHelpers.ModifiedPathsShouldContain(this.bashRunner, this.Enlistment.DotGVFSRoot, TestFolderName + "/" + ChildLinkName);
 
             string grandChildLinkPath = this.Enlistment.GetVirtualPathTo(Path.Combine(TestFolderName, ChildFolderName, GrandChildLinkName));
             this.bashRunner.IsSymbolicLink(grandChildLinkPath).ShouldBeTrue($"{grandChildLinkPath} should be a symlink");
             grandChildLinkPath.ShouldBeAFile(this.bashRunner).WithContents(TestFile2Contents);
+            GVFSHelpers.ModifiedPathsShouldContain(this.bashRunner, this.Enlistment.DotGVFSRoot, TestFolderName + "/" + ChildFolderName + "/" + GrandChildLinkName);
         }
 
         [TestCase, Order(2)]
@@ -76,15 +86,18 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
             string testFilePath = this.Enlistment.GetVirtualPathTo(Path.Combine(TestFolderName, TestFileName));
             testFilePath.ShouldBeAFile(this.bashRunner).WithContents(TestFileContents);
             this.bashRunner.IsSymbolicLink(testFilePath).ShouldBeFalse($"{testFilePath} should not be a symlink");
+            GVFSHelpers.ModifiedPathsShouldNotContain(this.bashRunner, this.Enlistment.DotGVFSRoot, TestFolderName + "/" + TestFileName);
 
             string testFile2Path = this.Enlistment.GetVirtualPathTo(Path.Combine(TestFolderName, TestFile2Name));
             testFile2Path.ShouldBeAFile(this.bashRunner).WithContents(TestFile2Contents);
             this.bashRunner.IsSymbolicLink(testFile2Path).ShouldBeFalse($"{testFile2Path} should not be a symlink");
+            GVFSHelpers.ModifiedPathsShouldNotContain(this.bashRunner, this.Enlistment.DotGVFSRoot, TestFolderName + "/" + TestFile2Name);
 
             // In this branch childLinkPath has been changed to point to testFile2Path
             string childLinkPath = this.Enlistment.GetVirtualPathTo(Path.Combine(TestFolderName, ChildLinkName));
             this.bashRunner.IsSymbolicLink(childLinkPath).ShouldBeTrue($"{childLinkPath} should be a symlink");
             childLinkPath.ShouldBeAFile(this.bashRunner).WithContents(TestFile2Contents);
+            GVFSHelpers.ModifiedPathsShouldContain(this.bashRunner, this.Enlistment.DotGVFSRoot, TestFolderName + "/" + ChildLinkName);
 
             // grandChildLinkPath should now be a file
             string grandChildLinkPath = this.Enlistment.GetVirtualPathTo(Path.Combine(TestFolderName, ChildFolderName, GrandChildLinkName));
@@ -95,6 +108,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
             string newGrandChildFilePath = this.Enlistment.GetVirtualPathTo(Path.Combine(TestFolderName, ChildFolderName, GrandChildFileName));
             newGrandChildFilePath.ShouldBeAFile(this.bashRunner).WithContents(GrandChildFileContents);
             this.bashRunner.IsSymbolicLink(newGrandChildFilePath).ShouldBeFalse($"{newGrandChildFilePath} should not be a symlink");
+            GVFSHelpers.ModifiedPathsShouldNotContain(this.bashRunner, this.Enlistment.DotGVFSRoot, TestFolderName + "/" + ChildFolderName + "/" + GrandChildFileName);
         }
 
         [TestCase, Order(3)]
@@ -111,6 +125,13 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
             string testFilePath = this.Enlistment.GetVirtualPathTo(Path.Combine(TestFolderName, TestFileName));
             testFilePath.ShouldBeAFile(this.bashRunner).WithContents(GrandChildFileContents);
             this.bashRunner.IsSymbolicLink(testFilePath).ShouldBeTrue($"{testFilePath} should be a symlink");
+            GVFSHelpers.ModifiedPathsShouldContain(this.bashRunner, this.Enlistment.DotGVFSRoot, TestFolderName + "/" + TestFileName);
+
+            // There should be a new ChildFolder2Name directory
+            string childFolder2Path = this.Enlistment.GetVirtualPathTo(Path.Combine(TestFolderName, ChildFolder2Name));
+            this.bashRunner.IsSymbolicLink(childFolder2Path).ShouldBeFalse($"{childFolder2Path} should not be a symlink");
+            childFolder2Path.ShouldBeADirectory(this.bashRunner);
+            GVFSHelpers.ModifiedPathsShouldNotContain(this.bashRunner, this.Enlistment.DotGVFSRoot, TestFolderName + "/" + ChildFolder2Name);
 
             // The rest of the files are unchanged from FunctionalTests/20180925_SymLinksPart2
             string testFile2Path = this.Enlistment.GetVirtualPathTo(Path.Combine(TestFolderName, TestFile2Name));
@@ -120,6 +141,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
             string childLinkPath = this.Enlistment.GetVirtualPathTo(Path.Combine(TestFolderName, ChildLinkName));
             this.bashRunner.IsSymbolicLink(childLinkPath).ShouldBeTrue($"{childLinkPath} should be a symlink");
             childLinkPath.ShouldBeAFile(this.bashRunner).WithContents(TestFile2Contents);
+            GVFSHelpers.ModifiedPathsShouldContain(this.bashRunner, this.Enlistment.DotGVFSRoot, TestFolderName + "/" + ChildLinkName);
 
             string grandChildLinkPath = this.Enlistment.GetVirtualPathTo(Path.Combine(TestFolderName, ChildFolderName, GrandChildLinkName));
             this.bashRunner.IsSymbolicLink(grandChildLinkPath).ShouldBeFalse($"{grandChildLinkPath} should not be a symlink");
@@ -131,12 +153,33 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
         }
 
         [TestCase, Order(4)]
+        public void CheckoutBranchWhereSymLinkTransistionsToFolderAndFolderTransitionsToSymlink()
+        {
+            GitHelpers.InvokeGitAgainstGVFSRepo(this.Enlistment.RepoRoot, "checkout FunctionalTests/20180925_SymLinksPart4");
+            GitHelpers.CheckGitCommandAgainstGVFSRepo(
+                this.Enlistment.RepoRoot,
+                "status",
+                "On branch FunctionalTests/20180925_SymLinksPart4",
+                "nothing to commit, working tree clean");
+
+            // In this branch ChildLinkName has been changed to a directory and ChildFolder2Name has been changed to a link to ChildFolderName
+            string linkNowADirectoryPath = this.Enlistment.GetVirtualPathTo(Path.Combine(TestFolderName, ChildLinkName));
+            this.bashRunner.IsSymbolicLink(linkNowADirectoryPath).ShouldBeFalse($"{linkNowADirectoryPath} should not be a symlink");
+            linkNowADirectoryPath.ShouldBeADirectory(this.bashRunner);
+            GVFSHelpers.ModifiedPathsShouldContain(this.bashRunner, this.Enlistment.DotGVFSRoot, TestFolderName + "/" + ChildLinkName);
+
+            string directoryNowALinkPath = this.Enlistment.GetVirtualPathTo(Path.Combine(TestFolderName, ChildFolder2Name));
+            this.bashRunner.IsSymbolicLink(directoryNowALinkPath).ShouldBeTrue($"{directoryNowALinkPath} should be a symlink");
+            GVFSHelpers.ModifiedPathsShouldContain(this.bashRunner, this.Enlistment.DotGVFSRoot, TestFolderName + "/" + ChildFolder2Name);
+        }
+
+        [TestCase, Order(5)]
         public void GitStatusReportsSymLinkChanges()
         {
             GitHelpers.CheckGitCommandAgainstGVFSRepo(
                 this.Enlistment.RepoRoot,
                 "status",
-                "On branch FunctionalTests/20180925_SymLinksPart3",
+                "On branch FunctionalTests/20180925_SymLinksPart4",
                 "nothing to commit, working tree clean");
             
             string testFilePath = this.Enlistment.GetVirtualPathTo(Path.Combine(TestFolderName, TestFileName));
@@ -156,7 +199,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
             GitHelpers.CheckGitCommandAgainstGVFSRepo(
                 this.Enlistment.RepoRoot,
                 "status",
-                "On branch FunctionalTests/20180925_SymLinksPart3",
+                "On branch FunctionalTests/20180925_SymLinksPart4",
                 $"modified:   {TestFolderName}/{TestFileName}");
         }
     }

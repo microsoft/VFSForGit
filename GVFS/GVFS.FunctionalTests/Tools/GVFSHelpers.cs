@@ -7,7 +7,6 @@ using NUnit.Framework;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
-using System.Reflection;
 
 namespace GVFS.FunctionalTests.Tools
 {
@@ -18,6 +17,8 @@ namespace GVFS.FunctionalTests.Tools
         public static readonly string BackgroundOpsFile = Path.Combine("databases", "BackgroundGitOperations.dat");
         public static readonly string PlaceholderListFile = Path.Combine("databases", "PlaceholderList.dat");
         public static readonly string RepoMetadataName = Path.Combine("databases", "RepoMetadata.dat");
+
+        private const string ModifedPathsLinePrefix = "A ";
 
         private const string DiskLayoutMajorVersionKey = "DiskLayoutVersion";
         private const string DiskLayoutMinorVersionKey = "DiskLayoutMinorVersion";
@@ -111,8 +112,12 @@ namespace GVFS.FunctionalTests.Tools
         {
             string modifiedPathsDatabase = Path.Combine(dotGVFSRoot, TestConstants.Databases.ModifiedPaths);
             modifiedPathsDatabase.ShouldBeAFile(fileSystem);
-            GVFSHelpers.ReadAllTextFromWriteLockedFile(modifiedPathsDatabase).ShouldContain(
-                gitPaths.Select(path => path + ModifiedPathsNewLine).ToArray());
+            string modifedPathsContents = GVFSHelpers.ReadAllTextFromWriteLockedFile(modifiedPathsDatabase);
+            string[] modifedPathLines = modifedPathsContents.Split(ModifiedPathsNewLine);
+            foreach (string gitPath in gitPaths)
+            {
+                modifedPathLines.ShouldContain(path => path.Equals(ModifedPathsLinePrefix + gitPath));
+            }
         }
 
         public static void ModifiedPathsShouldNotContain(FileSystemRunner fileSystem, string dotGVFSRoot, params string[] gitPaths)
