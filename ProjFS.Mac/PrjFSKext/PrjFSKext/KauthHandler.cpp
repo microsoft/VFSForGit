@@ -260,6 +260,18 @@ static int HandleVnodeOperation(
     // arg2 is the (vnode_t) parent vnode
     int* kauthError =       reinterpret_cast<int*>(arg3);
     int kauthResult = KAUTH_RESULT_DEFER;
+    bool putVnodeWhenDone = false;
+
+    // A lot of our file checks such as attribute tests behave oddly if the vnode
+    // refers to a named fork/stream; apply the logic as if the vnode operation was
+    // occurring on the file itself. (/path/to/file/..namedfork/rsrc)
+    if (vnode_isnamedstream(currentVnode))
+    {
+        vnode_t mainFileFork = vnode_getparent(currentVnode);
+        assert(NULLVP != mainFileFork);
+        currentVnode = mainFileFork;
+        putVnodeWhenDone = true;
+    }
 
     const char* vnodePath = nullptr;
     char vnodePathBuffer[PrjFSMaxPath];
@@ -384,6 +396,11 @@ static int HandleVnodeOperation(
     }
     
 CleanupAndReturn:
+    if (putVnodeWhenDone)
+    {
+        vnode_put(currentVnode);
+    }
+    
     atomic_fetch_sub(&s_numActiveKauthEvents, 1);
     return kauthResult;
 }
