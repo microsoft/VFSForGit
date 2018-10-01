@@ -114,7 +114,7 @@ namespace GVFS.Common
             foreach (Asset asset in this.newestRelease.Assets)
             {
                 if (asset.Name.StartsWith(GitInstallerFileNamePrefix) &&
-                    GitVersion.TryParseInstallerName(asset.Name, out gitVersion))
+                    GitVersion.TryParseInstallerName(asset.Name, GVFSPlatform.Instance.Constants.InstallerExtension, out gitVersion))
                 {
                     return true;
                 }
