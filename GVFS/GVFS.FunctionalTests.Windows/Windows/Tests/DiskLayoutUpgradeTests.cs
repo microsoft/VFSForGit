@@ -365,14 +365,14 @@ namespace GVFS.FunctionalTests.Windows.Tests
             this.fileSystem.DeleteDirectory(Path.Combine(this.Enlistment.RepoRoot, "GVFS\\GVFS.Tests\\Properties"));
 
             string junctionTarget = Path.Combine(this.Enlistment.EnlistmentRoot, "DirJunction");
-            string symlinkTarget = Path.Combine(this.Enlistment.EnlistmentRoot, "DirSymlink");
+            string symLinkTarget = Path.Combine(this.Enlistment.EnlistmentRoot, "DirSymLink");
             Directory.CreateDirectory(junctionTarget);
-            Directory.CreateDirectory(symlinkTarget);
+            Directory.CreateDirectory(symLinkTarget);
 
             string junctionLink = Path.Combine(this.Enlistment.RepoRoot, "DirJunction");
-            string symlink = Path.Combine(this.Enlistment.RepoRoot, "DirLink");
+            string symLink = Path.Combine(this.Enlistment.RepoRoot, "DirLink");
             ProcessHelper.Run("CMD.exe", "/C mklink /J " + junctionLink + " " + junctionTarget);
-            ProcessHelper.Run("CMD.exe", "/C mklink /D " + symlink + " " + symlinkTarget);
+            ProcessHelper.Run("CMD.exe", "/C mklink /D " + symLink + " " + symLinkTarget);
 
             string target = Path.Combine(this.Enlistment.EnlistmentRoot, "GVFS", "GVFS", "GVFS.UnitTests");
             string link = Path.Combine(this.Enlistment.RepoRoot, "UnitTests");

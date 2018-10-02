@@ -75,7 +75,7 @@ namespace GVFS.Platform.Windows.DiskLayoutUpgrades
 
         private static IEnumerable<string> GetFolderPlaceholdersFromDisk(ITracer tracer, PhysicalFileSystem fileSystem, string path)
         {
-            if (!fileSystem.IsSymlink(path))
+            if (!fileSystem.IsSymLink(path))
             {
                 foreach (string directory in fileSystem.EnumerateDirectories(path))
                 {

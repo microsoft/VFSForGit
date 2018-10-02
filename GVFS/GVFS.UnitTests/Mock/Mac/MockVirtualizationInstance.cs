@@ -15,6 +15,8 @@ namespace GVFS.UnitTests.Mock.Mac
         {
             this.commandCompleted = new AutoResetEvent(false);
             this.CreatedPlaceholders = new ConcurrentDictionary<string, ushort>();
+            this.UpdatedPlaceholders = new ConcurrentDictionary<string, ushort>();
+            this.CreatedSymLinks = new ConcurrentHashSet<string>();
             this.WriteFileReturnResult = Result.Success;
         }
 
@@ -27,6 +29,9 @@ namespace GVFS.UnitTests.Mock.Mac
         public UpdateFailureCause DeleteFileUpdateFailureCause { get; set; }
 
         public ConcurrentDictionary<string, ushort> CreatedPlaceholders { get; private set; }
+        public ConcurrentDictionary<string, ushort> UpdatedPlaceholders { get; private set; }
+
+        public ConcurrentHashSet<string> CreatedSymLinks { get; }
 
         public override EnumerateDirectoryCallback OnEnumerateDirectory { get; set; }
         public override GetFileStreamCallback OnGetFileStream { get; set; }
@@ -79,6 +84,14 @@ namespace GVFS.UnitTests.Mock.Mac
             return Result.Success;
         }
 
+        public override Result WriteSymLink(
+            string relativePath, 
+            string symLinkTarget)
+        {
+            this.CreatedSymLinks.Add(relativePath);
+            return Result.Success;
+        }
+
         public override Result UpdatePlaceholderIfNeeded(
             string relativePath,
             byte[] providerId,
@@ -88,6 +101,22 @@ namespace GVFS.UnitTests.Mock.Mac
             UpdateType updateFlags,
             out UpdateFailureCause failureCause)
         {
+            failureCause = this.UpdatePlaceholderIfNeededFailureCause;
+            if (failureCause == UpdateFailureCause.NoFailure)
+            {
+                this.UpdatedPlaceholders[relativePath] = fileMode;
+            }
+
+            return this.UpdatePlaceholderIfNeededResult;
+        }
+
+        public override Result ReplacePlaceholderFileWithSymLink(
+            string relativePath, 
+            string symLinkTarget, 
+            UpdateType updateFlags, 
+            out UpdateFailureCause failureCause)
+        {
+            this.CreatedSymLinks.Add(relativePath);
             failureCause = this.UpdatePlaceholderIfNeededFailureCause;
             return this.UpdatePlaceholderIfNeededResult;
         }

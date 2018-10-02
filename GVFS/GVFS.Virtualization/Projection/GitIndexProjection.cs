@@ -22,7 +22,9 @@ namespace GVFS.Virtualization.Projection
     {
         public const string ProjectionIndexBackupName = "GVFS_projection";
 
-        protected static readonly ushort FileMode644 = Convert.ToUInt16("644", 8);
+        public static readonly ushort FileMode755 = Convert.ToUInt16("755", 8);
+        public static readonly ushort FileMode664 = Convert.ToUInt16("664", 8);
+        public static readonly ushort FileMode644 = Convert.ToUInt16("644", 8);
 
         private const int IndexFileStreamBufferSize = 512 * 1024;
 
@@ -52,9 +54,9 @@ namespace GVFS.Virtualization.Projection
         // Cache of folder paths (in Windows format) to folder data
         private ConcurrentDictionary<string, FolderData> projectionFolderCache = new ConcurrentDictionary<string, FolderData>(StringComparer.OrdinalIgnoreCase);
 
-        // nonDefaultFileModes is only populated when the platform supports file mode
-        // On platforms that support file modes, file paths that are not in nonDefaultFileModes have mode 644
-        private Dictionary<string, ushort> nonDefaultFileModes = new Dictionary<string, ushort>(StringComparer.OrdinalIgnoreCase);
+        // nonDefaultFileTypesAndModes is only populated when the platform supports file mode
+        // On platforms that support file modes, file paths that are not in nonDefaultFileTypesAndModes are regular files with mode 644
+        private Dictionary<string, FileTypeAndMode> nonDefaultFileTypesAndModes = new Dictionary<string, FileTypeAndMode>(StringComparer.OrdinalIgnoreCase);
 
         private BlobSizes blobSizes;
         private PlaceholderListDatabase placeholderList;
@@ -116,6 +118,15 @@ namespace GVFS.Virtualization.Projection
         // For Unit Testing
         protected GitIndexProjection()
         {
+        }
+
+        public enum FileType : short
+        {
+            Invalid,
+
+            Regular,
+            SymLink,
+            GitLink,
         }
 
         public int EstimatedPlaceholderCount
@@ -356,24 +367,26 @@ namespace GVFS.Virtualization.Projection
             }
         }
 
-        public virtual ushort GetFilePathMode(string filePath)
+        public virtual void GetFileTypeAndMode(string filePath, out FileType fileType, out ushort fileMode)
         {
             if (!GVFSPlatform.Instance.FileSystem.SupportsFileMode)
             {
-                throw new InvalidOperationException("GetFilePathMode is only supported on GVFSPlatforms that support file mode");
+                throw new InvalidOperationException($"{nameof(this.GetFileTypeAndMode)} is only supported on GVFSPlatforms that support file mode");
             }
+
+            fileType = FileType.Regular;
+            fileMode = FileMode644;
 
             this.projectionReadWriteLock.EnterReadLock();
 
             try
             {
-                ushort fileMode;
-                if (this.nonDefaultFileModes.TryGetValue(filePath, out fileMode))
+                FileTypeAndMode fileTypeAndMode;
+                if (this.nonDefaultFileTypesAndModes.TryGetValue(filePath, out fileTypeAndMode))
                 {
-                    return fileMode;
+                    fileType = fileTypeAndMode.Type;
+                    fileMode = fileTypeAndMode.Mode;
                 }
-
-                return FileMode644;
             }
             finally
             {
@@ -665,14 +678,15 @@ namespace GVFS.Virtualization.Projection
 
             if (GVFSPlatform.Instance.FileSystem.SupportsFileMode)
             {
-                // TODO(Mac): Test if performance could be improved by reduce this to a single check
-                // (e.g. by defaulting FileMode to 644 and eliminating the SupportsFileMode check)
-                if (indexEntry.FileMode != FileMode644)
+                // TODO(Mac): Test if performance could be improved by eliminating the SupportsFileMode check
+                // (e.g. by defaulting FileMode to Regular 644 and eliminating the SupportsFileMode check)
+                if (indexEntry.TypeAndMode.Type != FileType.Regular ||
+                    indexEntry.TypeAndMode.Mode != FileMode644)
                 {
                     // TODO(Mac): The line below causes a conversion from LazyUTF8String to .NET string.
                     // Measure the perf and memory overhead of performing this conversion, and determine if we need
                     // a way to keep the path as LazyUTF8String[]
-                    this.nonDefaultFileModes.Add(indexEntry.GetFullPath(), indexEntry.FileMode);
+                    this.nonDefaultFileTypesAndModes.Add(indexEntry.GetFullPath(), indexEntry.TypeAndMode);
                 }
             }
         }
@@ -693,7 +707,7 @@ namespace GVFS.Virtualization.Projection
             SortedFolderEntries.FreePool();
             LazyUTF8String.FreePool();
             this.projectionFolderCache.Clear();
-            this.nonDefaultFileModes.Clear();
+            this.nonDefaultFileTypesAndModes.Clear();
             this.rootFolderData.ResetData(new LazyUTF8String("<root>"));
         }
 

@@ -53,6 +53,14 @@ namespace GVFS.FunctionalTests.FileSystemRunners
             }
         }
 
+        private enum FileType
+        {
+            Invalid,
+            File,
+            Directory,
+            SymLink,
+        }
+
         protected override string FileName
         {
             get
@@ -86,15 +94,22 @@ namespace GVFS.FunctionalTests.FileSystemRunners
             }
         }
 
+        public bool IsSymbolicLink(string path)
+        {
+            return this.FileExistsOnDisk(path, FileType.SymLink);
+        }
+
+        public void CreateSymbolicLink(string newLinkFilePath, string existingFilePath)
+        {
+            string existingFileBashPath = this.ConvertWinPathToBashPath(existingFilePath);
+            string newLinkBashPath = this.ConvertWinPathToBashPath(newLinkFilePath);
+
+            this.RunProcess(string.Format("-c \"ln -s -F {0} {1}\"", existingFileBashPath, newLinkBashPath));
+        }
+
         public override bool FileExists(string path)
         {
-            string bashPath = this.ConvertWinPathToBashPath(path);
-
-            string command = string.Format("-c  \"[ -f {0} ] && echo {1} || echo {2}\"", bashPath, ShellRunner.SuccessOutput, ShellRunner.FailureOutput);
-
-            string output = this.RunProcess(command).Trim();
-
-            return output.Equals(ShellRunner.SuccessOutput, StringComparison.InvariantCulture);
+            return this.FileExistsOnDisk(path, FileType.File);
         }
 
         public override string MoveFile(string sourcePath, string targetPath)
@@ -187,11 +202,7 @@ namespace GVFS.FunctionalTests.FileSystemRunners
 
         public override bool DirectoryExists(string path)
         {
-            string bashPath = this.ConvertWinPathToBashPath(path);
-
-            string output = this.RunProcess(string.Format("-c  \"[ -d {0} ] && echo {1} || echo {2}\"", bashPath, ShellRunner.SuccessOutput, ShellRunner.FailureOutput)).Trim();
-
-            return output.Equals(ShellRunner.SuccessOutput, StringComparison.InvariantCulture);
+            return this.FileExistsOnDisk(path, FileType.Directory);
         }
 
         public override void MoveDirectory(string sourcePath, string targetPath)
@@ -265,6 +276,31 @@ namespace GVFS.FunctionalTests.FileSystemRunners
         public override void DeleteDirectory_ShouldBeBlockedByProcess(string path)
         {
             Assert.Fail("Unlike the other runners, bash.exe does not check folder handle before recusively deleting");
+        }
+
+        private bool FileExistsOnDisk(string path, FileType type)
+        {
+            string checkArgument = string.Empty;
+            switch (type)
+            {
+                case FileType.File:
+                    checkArgument = "-f";
+                    break;
+                case FileType.Directory:
+                    checkArgument = "-d";
+                    break;
+                case FileType.SymLink:
+                    checkArgument = "-h";
+                    break;
+                default:
+                    Assert.Fail($"{nameof(FileExistsOnDisk)} does not support {nameof(FileType)} {type}");
+                    break;
+            }
+
+            string bashPath = this.ConvertWinPathToBashPath(path);
+            string command = $"-c  \"[ {checkArgument} {bashPath} ] && echo {ShellRunner.SuccessOutput} || echo {ShellRunner.FailureOutput}\"";
+            string output = this.RunProcess(command).Trim();
+            return output.Equals(ShellRunner.SuccessOutput, StringComparison.InvariantCulture);
         }
 
         private string ConvertWinPathToBashPath(string winPath)

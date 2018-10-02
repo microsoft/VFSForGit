@@ -1,5 +1,6 @@
 ﻿using GVFS.Common.NamedPipes;
 using GVFS.Tests.Should;
+using GVFS.UnitTests.Category;
 using NUnit.Framework;
 using System.IO;
 
@@ -58,6 +59,7 @@ namespace GVFS.UnitTests.Common
 
         [Test]
         [Description("Verify that the expected exception is thrown if message is not terminated with expected byte.")]
+        [Category(CategoryConstants.ExceptionExpected)]
         public void ReadingPartialMessgeThrows()
         {
             byte[] bytes = System.Text.Encoding.ASCII.GetBytes("This is a partial message");

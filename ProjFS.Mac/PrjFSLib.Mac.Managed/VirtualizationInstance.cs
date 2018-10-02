@@ -108,6 +108,13 @@ namespace PrjFSLib.Mac
                 fileMode);
         }
 
+        public virtual Result WriteSymLink(
+            string relativePath,
+            string symLinkTarget)
+        {
+            return Interop.PrjFSLib.WriteSymLink(relativePath, symLinkTarget);
+        }
+
         public virtual Result UpdatePlaceholderIfNeeded(
             string relativePath,
             byte[] providerId,
@@ -130,6 +137,23 @@ namespace PrjFSLib.Mac
                 contentId,
                 fileSize,
                 fileMode,
+                updateFlags,
+                ref updateFailureCause);
+
+            failureCause = updateFailureCause;
+            return result;
+        }
+
+        public virtual Result ReplacePlaceholderFileWithSymLink(
+            string relativePath,
+            string symLinkTarget,
+            UpdateType updateFlags,
+            out UpdateFailureCause failureCause)
+        {
+            UpdateFailureCause updateFailureCause = UpdateFailureCause.NoFailure;
+            Result result = Interop.PrjFSLib.ReplacePlaceholderFileWithSymLink(
+                relativePath,
+                symLinkTarget,
                 updateFlags,
                 ref updateFailureCause);
 

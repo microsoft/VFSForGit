@@ -127,7 +127,7 @@ namespace GVFS.Common
             return versionInfo.BuildNumber;
         }
 
-        public static bool IsSymlink(string path)
+        public static bool IsSymLink(string path)
         {
             using (SafeFileHandle output = CreateFile(
                 path,

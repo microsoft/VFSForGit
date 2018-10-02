@@ -181,8 +181,36 @@ namespace GVFS.Virtualization.Projection
                         // 3-bit unused
                         // 9-bit unix permission. Only 0755 and 0644 are valid for regular files. (Legacy repos can also contain 664)
                         //     Symbolic links and gitlinks have value 0 in this field.
-                        ushort mode = this.ReadUInt16();
-                        this.resuableParsedIndexEntry.FileMode = (ushort)(mode & 0x1FF);
+                        ushort indexFormatTypeAndMode = this.ReadUInt16();
+
+                        FileTypeAndMode typeAndMode = new FileTypeAndMode(indexFormatTypeAndMode);
+
+                        switch (typeAndMode.Type)
+                        {
+                            case FileType.Regular:
+                                if (typeAndMode.Mode != FileMode755 && 
+                                    typeAndMode.Mode != FileMode644 && 
+                                    typeAndMode.Mode != FileMode664)
+                                {
+                                    throw new InvalidDataException($"Invalid file mode {typeAndMode.GetModeAsOctalString()} found for regular file in index");
+                                }
+
+                                break;
+
+                            case FileType.SymLink:
+                            case FileType.GitLink:
+                                if (typeAndMode.Mode != 0)
+                                {
+                                    throw new InvalidDataException($"Invalid file mode {typeAndMode.GetModeAsOctalString()} found for link file({typeAndMode.Type:X}) in index");
+                                }
+
+                                break;
+
+                            default:
+                                throw new InvalidDataException($"Invalid file type {typeAndMode.Type:X} found in index");
+                        }
+                                    
+                        this.resuableParsedIndexEntry.TypeAndMode = typeAndMode;
 
                         this.Skip(12);
                     }

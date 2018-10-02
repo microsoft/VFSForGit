@@ -27,7 +27,7 @@ namespace GVFS.Virtualization.Projection
 
             public byte[] Sha { get; } = new byte[20];
             public bool SkipWorktree { get; set; }
-            public ushort FileMode { get; set; }
+            public FileTypeAndMode TypeAndMode { get; set; }
             public GitIndexParser.MergeStage MergeState { get; set; }
             public int ReplaceIndex { get; set; }
 
