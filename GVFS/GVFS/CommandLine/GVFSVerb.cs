@@ -92,6 +92,7 @@ namespace GVFS.CommandLine
                 { GitConfigSetting.CoreVirtualizeObjectsName, "true" },
                 { GitConfigSetting.CoreVirtualFileSystemName, Paths.ConvertPathToGitFormat(GVFSConstants.DotGit.Hooks.VirtualFileSystemPath) },
                 { "core.hookspath", expectedHooksPath },
+                { GitConfigSetting.CredentialUseHttpPath, "true" },
                 { "credential.validate", "false" },
                 { "diff.autoRefreshIndex", "false" },
                 { "gc.auto", "0" },

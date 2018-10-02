@@ -194,7 +194,7 @@ namespace GVFS.UnitTests.Git
 
             int revocations = 0;
             gitProcess.SetExpectedCommandResult(
-                "credential fill",
+                "-c credential.useHttpPath=true credential fill",
                 () => new GitProcess.Result("username=username\r\npassword=password" + revocations + "\r\n", string.Empty, GitProcess.Result.SuccessCode));
 
             gitProcess.SetExpectedCommandResult(

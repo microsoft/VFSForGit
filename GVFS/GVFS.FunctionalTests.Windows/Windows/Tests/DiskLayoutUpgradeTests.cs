@@ -328,8 +328,6 @@ namespace GVFS.FunctionalTests.Windows.Tests
                 {
                     "A .gitattributes",
                     "A developer/me/",
-                    "A developer/me/JLANGE9._prerazzle",
-                    "A developer/me/StateSwitch.Save",
                     "A tools/x86/remote.exe",
                     "A tools/x86/runelevated.exe",
                     "A tools/amd64/remote.exe",
