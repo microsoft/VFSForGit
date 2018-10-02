@@ -7,6 +7,7 @@ namespace GVFS.Platform.Windows
     public class ActiveEnumeration
     {
         private static FileNamePatternMatcher wildcardPatternMatcher = null;
+        private static FileNamePatternMatcher strictPatternMatcher = new FileNamePatternMatcher(NameMatchsNoWildcardFilter);
 
         // Use our own enumerator to avoid having to dispose anything
         private ProjectedFileInfoEnumerator fileInfoEnumerator;
@@ -66,10 +67,18 @@ namespace GVFS.Platform.Windows
         /// </returns>
         public bool MoveNext()
         {
-            this.IsCurrentValid = this.fileInfoEnumerator.MoveNext();
-            while (this.IsCurrentValid && this.IsCurrentHidden())
+            if (this.IsCurrentValid && this.patternMatcher == strictPatternMatcher)
+            {
+                this.fileInfoEnumerator.MoveToEnd();
+                this.IsCurrentValid = false;
+            }
+            else
             {
                 this.IsCurrentValid = this.fileInfoEnumerator.MoveNext();
+                while (this.IsCurrentValid && this.IsCurrentHidden())
+                {
+                    this.IsCurrentValid = this.fileInfoEnumerator.MoveNext();
+                }
             }
 
             return this.IsCurrentValid;
@@ -131,7 +140,7 @@ namespace GVFS.Platform.Windows
                 }
                 else
                 {
-                    this.patternMatcher = NameMatchsNoWildcardFilter;
+                    this.patternMatcher = strictPatternMatcher;
                 }
 
                 if (this.IsCurrentValid && this.IsCurrentHidden())
@@ -181,9 +190,14 @@ namespace GVFS.Platform.Windows
                     return true;
                 }
 
+                this.MoveToEnd();
+                return false;
+            }
+
+            public void MoveToEnd()
+            {
                 this.index = this.list.Count + 1;
                 this.Current = null;
-                return false;
             }
 
             public void Reset()
