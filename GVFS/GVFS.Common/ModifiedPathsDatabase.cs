@@ -67,7 +67,7 @@ namespace GVFS.Common
         {
             isRetryable = true;
             string entry = this.NormalizeEntryString(path, isFolder);
-            if (!this.modifiedPaths.Contains(entry))
+            if (!this.modifiedPaths.Contains(entry) && !this.ContainsParentDirectory(entry))
             {
                 try
                 {
@@ -181,6 +181,22 @@ namespace GVFS.Common
             key = line;
             error = null;
             return true;
+        }
+
+        private bool ContainsParentDirectory(string modifiedPath)
+        {
+            string[] pathParts = modifiedPath.Split(new char[] { GVFSConstants.GitPathSeparator }, StringSplitOptions.RemoveEmptyEntries);
+            string parentFolder = string.Empty;
+            for (int i = 0; i < pathParts.Length - 1; i++)
+            {
+                parentFolder += pathParts[i] + GVFSConstants.GitPathSeparatorString;
+                if (this.modifiedPaths.Contains(parentFolder))
+                {
+                    return true;
+                }
+            }
+
+            return false;
         }
 
         private string NormalizeEntryString(string virtualPath, bool isFolder)
