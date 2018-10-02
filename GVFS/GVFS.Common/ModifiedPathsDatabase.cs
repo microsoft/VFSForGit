@@ -1,8 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.IO;
-using System.Linq;
-using System.Text;
 using GVFS.Common.FileSystem;
 using GVFS.Common.Tracing;
 
@@ -62,22 +60,13 @@ namespace GVFS.Common
         public void RemoveEntriesWithParentFolderEntry(ITracer tracer)
         {
             int startingCount = this.modifiedPaths.Count;
-            using (ITracer activity = tracer.StartActivity("Compress ModifiedPaths", EventLevel.Informational))
+            using (ITracer activity = tracer.StartActivity(nameof(this.RemoveEntriesWithParentFolderEntry), EventLevel.Informational))
             {
-                StringBuilder parentFolder = new StringBuilder();
                 foreach (string modifiedPath in this.modifiedPaths)
                 {
-                    string[] pathParts = modifiedPath.Split(new char[] { '/' }, StringSplitOptions.RemoveEmptyEntries);
-
-                    parentFolder.Clear();
-                    foreach (string pathPart in pathParts.Take(pathParts.Length - 1))
+                    if (this.ContainsParentDirectory(modifiedPath))
                     {
-                        parentFolder.Append(pathPart + "/");
-                        if (this.modifiedPaths.Contains(parentFolder.ToString()))
-                        {
-                            this.modifiedPaths.TryRemove(modifiedPath);
-                            break;
-                        }
+                        this.modifiedPaths.TryRemove(modifiedPath);
                     }
                 }
 
