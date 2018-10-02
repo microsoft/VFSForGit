@@ -37,11 +37,6 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerTestCase
                 $"A {RenameNewDotGitFileTarget}",
                 $"A {FileToCreateOutsideRepo}",
                 $"A {FolderToCreateOutsideRepo}/",
-                $"A {FolderToDelete}/CreateCommonAssemblyVersion.bat",
-                $"A {FolderToDelete}/CreateCommonCliAssemblyVersion.bat",
-                $"A {FolderToDelete}/CreateCommonVersionHeader.bat",
-                $"A {FolderToDelete}/RunFunctionalTests.bat",
-                $"A {FolderToDelete}/RunUnitTests.bat",
                 $"A {FolderToDelete}/",
             };
 
@@ -138,9 +133,16 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerTestCase
             folderToCreateOutsideRepoTargetPath.ShouldBeADirectory(fileSystem);
             folderToCreateOutsideRepoPath.ShouldNotExistOnDisk(fileSystem);
 
-            string folderToDelete = this.Enlistment.GetVirtualPathTo(FolderToDelete);
-            fileSystem.DeleteDirectory(folderToDelete);
-            folderToDelete.ShouldNotExistOnDisk(fileSystem);
+            string folderToDeleteFullPath = this.Enlistment.GetVirtualPathTo(FolderToDelete);
+            fileSystem.WriteAllText(Path.Combine(folderToDeleteFullPath, "NewFile.txt"), "Contents for new file");
+            string newFileToDelete = Path.Combine(folderToDeleteFullPath, "NewFileToDelete.txt");
+            fileSystem.WriteAllText(newFileToDelete, "Contents for new file");
+            fileSystem.DeleteFile(newFileToDelete);
+            fileSystem.WriteAllText(Path.Combine(folderToDeleteFullPath, "CreateCommonVersionHeader.bat"), "Changing the file contents");
+            fileSystem.DeleteFile(Path.Combine(folderToDeleteFullPath, "RunUnitTests.bat"));
+
+            fileSystem.DeleteDirectory(folderToDeleteFullPath);
+            folderToDeleteFullPath.ShouldNotExistOnDisk(fileSystem);
 
             // Remount
             this.Enlistment.UnmountGVFS();

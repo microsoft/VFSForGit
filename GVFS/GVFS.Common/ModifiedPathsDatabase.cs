@@ -52,6 +52,31 @@ namespace GVFS.Common
             return true;
         }
 
+        /// <summary>
+        /// This method will examine the modified paths to check if there is already a parent folder entry in
+        /// the modified paths.  If there is a parent folder the entry does not need to be in the modified paths
+        /// and will be removed because the parent folder is recursive and covers any children.
+        /// </summary>
+        public void RemoveEntriesWithParentFolderEntry(ITracer tracer)
+        {
+            int startingCount = this.modifiedPaths.Count;
+            using (ITracer activity = tracer.StartActivity(nameof(this.RemoveEntriesWithParentFolderEntry), EventLevel.Informational))
+            {
+                foreach (string modifiedPath in this.modifiedPaths)
+                {
+                    if (this.ContainsParentDirectory(modifiedPath))
+                    {
+                        this.modifiedPaths.TryRemove(modifiedPath);
+                    }
+                }
+
+                EventMetadata metadata = new EventMetadata();
+                metadata.Add(nameof(startingCount), startingCount);
+                metadata.Add("EndCount", this.modifiedPaths.Count);
+                activity.Stop(metadata);
+            }
+        }
+
         public bool Contains(string path, bool isFolder)
         {
             string entry = this.NormalizeEntryString(path, isFolder);

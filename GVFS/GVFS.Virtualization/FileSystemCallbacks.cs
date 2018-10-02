@@ -171,6 +171,9 @@ namespace GVFS.Virtualization
 
         public bool TryStart(out string error)
         {
+            this.modifiedPaths.RemoveEntriesWithParentFolderEntry(this.context.Tracer);
+            this.modifiedPaths.WriteAllEntriesAndFlush();
+
             if (!this.fileSystemVirtualizer.TryStart(this, out error))
             {
                 return false;
