@@ -23,7 +23,7 @@ namespace GVFS.UnitTests.Windows.Virtualization
 
         public ActiveEnumerationTests(PatternMatcherWrapper wrapper)
         {
-            ActiveEnumeration.SetPatternMatcher(wrapper.Matcher);
+            ActiveEnumeration.SetWildcardPatternMatcher(wrapper.Matcher);
         }
 
         public static object[] Runners

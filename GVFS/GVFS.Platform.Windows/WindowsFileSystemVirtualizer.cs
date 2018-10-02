@@ -272,11 +272,11 @@ namespace GVFS.Platform.Windows
 
             if (projFSPatternMatchingWorks)
             {
-                ActiveEnumeration.SetPatternMatcher(Utils.IsFileNameMatch);
+                ActiveEnumeration.SetWildcardPatternMatcher(Utils.IsFileNameMatch);
             }
             else
             {
-                ActiveEnumeration.SetPatternMatcher(InternalFileNameMatchesFilter);
+                ActiveEnumeration.SetWildcardPatternMatcher(InternalFileNameMatchesFilter);
             }
 
             this.Context.Tracer.RelatedEvent(
