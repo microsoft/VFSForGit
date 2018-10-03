@@ -53,7 +53,7 @@ namespace GVFS.CommandLine
                 this.WriteMessage(GVFSPlatform.Instance.GitInstallation.GetInstalledGitBinPath());
                 this.WriteMessage(string.Empty);
                 this.WriteMessage("Enlistment root: " + enlistment.EnlistmentRoot);
-                this.WriteMessage("Cache Server: " + CacheServerResolver.GetUrlFromConfig(enlistment));
+                this.WriteMessage("Cache Server: " + CacheServerResolver.GetCacheServerFromConfig(enlistment));
 
                 string localCacheRoot;
                 string gitObjectsRoot;
