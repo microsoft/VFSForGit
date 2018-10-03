@@ -567,6 +567,30 @@ namespace GVFS.CommandLine
             }
 
             GitProcess.Result forceCheckoutResult = git.ForceCheckout(branch);
+            if (forceCheckoutResult.HasErrors && forceCheckoutResult.Errors.IndexOf("unable to read tree") > 0)
+            {
+                // It is possible to have the above TryDownloadCommit() fail because we
+                // already have the commit and root tree we intend to check out, but
+                // don't have a tree further down the working directory. If we fail
+                // checkout here, its' because we don't have these trees and the
+                // read-object hook is not available yet. Force downloading the commit
+                // again and retry the checkout.
+
+                if (!this.TryDownloadCommit(
+                    refs.GetTipCommitId(branch),
+                    enlistment,
+                    objectRequestor,
+                    gitObjects,
+                    gitRepo,
+                    out errorMessage,
+                    checkLocalObjectCache: false))
+                {
+                    return new Result(errorMessage);
+                }
+
+                forceCheckoutResult = git.ForceCheckout(branch);
+            }
+
             if (forceCheckoutResult.HasErrors)
             {
                 string[] errorLines = forceCheckoutResult.Errors.Split('\n');
