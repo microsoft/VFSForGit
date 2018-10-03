@@ -211,9 +211,9 @@ namespace GVFS.FunctionalTests.Tools
             return this.gvfsProcess.Diagnose();
         }
 
-        public string Status()
+        public string Status(string trace = null)
         {
-            return this.gvfsProcess.Status();
+            return this.gvfsProcess.Status(trace);
         }
 
         public bool WaitForBackgroundOperations(int maxWaitMilliseconds = DefaultMaxWaitMSForStatusCheck)
