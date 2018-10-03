@@ -20,8 +20,8 @@ namespace GVFS.Common
         private const string CommonInstallerArgs = "/VERYSILENT /CLOSEAPPLICATIONS /SUPPRESSMSGBOXES /NORESTART";
         private const string GVFSInstallerArgs = CommonInstallerArgs + " /MOUNTREPOS=false";
         private const string GitInstallerArgs = CommonInstallerArgs + " /ALLOWDOWNGRADE=1";
-        private const string GitAssetNamePrefix = "Git";
-        private const string GVFSAssetNamePrefix = "GVFS";
+        private const string GitAssetId = "Git";
+        private const string GVFSAssetId = "GVFS";
         private const string GitInstallerFileNamePrefix = "Git-";
         private const int RepoMountFailureExitCode = 17;
         private const string ToolsDirectory = "Tools";
@@ -127,17 +127,37 @@ namespace GVFS.Common
 
         public bool TryDownloadNewestVersion(out string errorMessage)
         {
-            errorMessage = null;
-
+            bool downloadedGit = false;
+            bool downloadedGVFS = false;
             foreach (Asset asset in this.newestRelease.Assets)
             {
-                if (string.Equals(Path.GetExtension(asset.Name), GVFSPlatform.Instance.Constants.InstallerExtension, StringComparison.OrdinalIgnoreCase) &&
-                    !this.TryDownloadAsset(asset, out errorMessage))
+                bool targetOSMatch = string.Equals(Path.GetExtension(asset.Name), GVFSPlatform.Instance.Constants.InstallerExtension, StringComparison.OrdinalIgnoreCase);
+                bool isGitAsset = this.IsGitAsset(asset);
+                bool isGVFSAsset = isGitAsset ? false : this.IsGVFSAsset(asset);
+                if (!targetOSMatch || (!isGVFSAsset && !isGitAsset))
                 {
+                    continue;
+                }
+                                
+                if (!this.TryDownloadAsset(asset, out errorMessage))
+                {
+                    errorMessage = $"Could not download {(isGVFSAsset ? GVFSAssetId : GitAssetId)} installer. {errorMessage}";
                     return false;
+                }
+                else
+                {
+                    downloadedGit = isGitAsset ? true : downloadedGit;
+                    downloadedGVFS = isGVFSAsset ? true : downloadedGVFS;
                 }
             }
 
+            if (!downloadedGit || !downloadedGVFS)
+            {
+                errorMessage = $"Could not find {(!downloadedGit ? GitAssetId : GVFSAssetId)} installer in the latest release.";
+                return false;
+            }
+
+            errorMessage = null;
             return true;
         }
 
@@ -147,7 +167,7 @@ namespace GVFS.Common
             installationSucceeded = false;
 
             int exitCode = 0;
-            bool launched = this.TryRunInstallerForAsset(GitAssetNamePrefix, out exitCode, out error);
+            bool launched = this.TryRunInstallerForAsset(GitAssetId, out exitCode, out error);
             installationSucceeded = exitCode == 0;
 
             return launched;
@@ -159,7 +179,7 @@ namespace GVFS.Common
             installationSucceeded = false;
 
             int exitCode = 0;
-            bool launched = this.TryRunInstallerForAsset(GVFSAssetNamePrefix, out exitCode, out error);
+            bool launched = this.TryRunInstallerForAsset(GVFSAssetId, out exitCode, out error);
             installationSucceeded = exitCode == 0 || exitCode == RepoMountFailureExitCode;
 
             return launched;
@@ -370,7 +390,7 @@ namespace GVFS.Common
             return true;
         }
 
-        private bool TryRunInstallerForAsset(string name, out int installerExitCode, out string error)
+        private bool TryRunInstallerForAsset(string assetId, out int installerExitCode, out string error)
         {
             error = null;
             installerExitCode = 0;
@@ -378,7 +398,7 @@ namespace GVFS.Common
             bool installerIsRun = false;
             string path;
             string installerArgs;
-            if (this.TryGetLocalInstallerPath(name, out path, out installerArgs))
+            if (this.TryGetLocalInstallerPath(assetId, out path, out installerArgs))
             {
                 string logFilePath = GVFSEnlistment.GetNewLogFileName(GetLogDirectoryPath(), Path.GetFileNameWithoutExtension(path));
                 string args = installerArgs + " /Log=" + logFilePath;
@@ -386,14 +406,14 @@ namespace GVFS.Common
 
                 if (installerExitCode != 0 && string.IsNullOrEmpty(error))
                 {
-                    error = name + " installer failed. Error log: " + logFilePath;
+                    error = assetId + " installer failed. Error log: " + logFilePath;
                 }
 
                 installerIsRun = true;
             }
             else
             {
-                error = "Could not find downloaded installer for " + name;
+                error = "Could not find downloaded installer for " + assetId;
             }
 
             return installerIsRun;
@@ -407,20 +427,20 @@ namespace GVFS.Common
             this.tracer.RelatedError(metadata, message, Keywords.Telemetry);
         }
 
-        private bool TryGetLocalInstallerPath(string name, out string path, out string args)
+        private bool TryGetLocalInstallerPath(string assetId, out string path, out string args)
         {
             foreach (Asset asset in this.newestRelease.Assets)
             {
                 if (string.Equals(Path.GetExtension(asset.Name), GVFSPlatform.Instance.Constants.InstallerExtension, StringComparison.OrdinalIgnoreCase))
                 {
                     path = asset.LocalPath;
-                    if (name == GitAssetNamePrefix && asset.Name.StartsWith(GitInstallerFileNamePrefix, StringComparison.OrdinalIgnoreCase))
+                    if (assetId == GitAssetId && this.IsGitAsset(asset))
                     {
                         args = GitInstallerArgs;
                         return true;
                     }
 
-                    if (name == GVFSAssetNamePrefix && asset.Name.StartsWith(GVFSInstallerFileNamePrefix, StringComparison.OrdinalIgnoreCase))
+                    if (assetId == GVFSAssetId && this.IsGVFSAsset(asset))
                     {
                         args = GVFSInstallerArgs;
                         return true;
@@ -430,6 +450,29 @@ namespace GVFS.Common
 
             path = null;
             args = null;
+            return false;
+        }
+
+        private bool IsGVFSAsset(Asset asset)
+        {
+            return this.AssetInstallerNameCompare(asset, GVFSInstallerFileNamePrefix, VFSForGitInstallerFileNamePrefix);
+        }
+
+        private bool IsGitAsset(Asset asset)
+        {
+            return this.AssetInstallerNameCompare(asset, GitInstallerFileNamePrefix);
+        }
+
+        private bool AssetInstallerNameCompare(Asset asset, params string[] expectedFileNamePrefixes)
+        {
+            foreach (string fileNamePrefix in expectedFileNamePrefixes)
+            {
+                if (asset.Name.StartsWith(fileNamePrefix, StringComparison.OrdinalIgnoreCase))
+                {
+                    return true;
+                }
+            }
+
             return false;
         }
 

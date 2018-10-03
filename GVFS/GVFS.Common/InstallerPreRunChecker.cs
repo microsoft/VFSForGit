@@ -161,7 +161,7 @@ namespace GVFS.Upgrader
                 }
                 else
                 {
-                    consoleError = string.IsNullOrEmpty(processResult.Errors) ? $"GVFS {args} failed." : processResult.Errors;
+                    consoleError = string.IsNullOrEmpty(processResult.Errors) ? $"`gvfs {args}` failed." : processResult.Errors;
                     return false;
                 }
             }
@@ -174,14 +174,15 @@ namespace GVFS.Upgrader
 
         private bool IsGVFSUpgradeAllowed(out string consoleError)
         {
-            consoleError = null;
-
+            bool isConfirmed = string.Equals(this.CommandToRerun, GVFSConstants.UpgradeVerbMessages.GVFSUpgradeConfirm, StringComparison.OrdinalIgnoreCase);
+            string adviceText = null;
             if (!this.IsElevated())
             {
+                adviceText = isConfirmed ? $"Run {this.CommandToRerun} again from an elevated command prompt." : $"To install, run {GVFSConstants.UpgradeVerbMessages.GVFSUpgradeConfirm} from an elevated command prompt.";
                 consoleError = string.Join(
                     Environment.NewLine,
                     "The installer needs to be run from an elevated command prompt.",
-                    $"Run {this.CommandToRerun} again from an elevated command prompt.");
+                    adviceText);
                 return false;
             }
 
@@ -189,20 +190,22 @@ namespace GVFS.Upgrader
             {
                 consoleError = string.Join(
                     Environment.NewLine,
-                    $"ProjFS configuration does not support {GVFSConstants.UpgradeVerbMessages.GVFSUpgrade}.",
+                    $"{GVFSConstants.UpgradeVerbMessages.GVFSUpgrade} is not supported because you have previously installed an out of band ProjFS driver.",
                     "Check your team's documentation for how to upgrade.");
                 return false;
             }
 
             if (this.IsServiceInstalledAndNotRunning())
             {
+                adviceText = isConfirmed ? $"Run `sc start GVFS.Service` and run {this.CommandToRerun} again from an elevated command prompt." : $"To install, run `sc start GVFS.Service` and run {GVFSConstants.UpgradeVerbMessages.GVFSUpgradeConfirm} from an elevated command prompt.";
                 consoleError = string.Join(
                     Environment.NewLine,
                     "GVFS Service is not running.",
-                    $"Run `sc start GVFS.Service` and run {this.CommandToRerun} again from an elevated command prompt.");
+                    adviceText);
                 return false;
             }
 
+            consoleError = null;
             return true;
         }
     }

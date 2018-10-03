@@ -43,8 +43,8 @@ namespace GVFS.UnitTests.Windows.Upgrader
                 expectedReturn: ReturnCode.Success,
                 expectedOutput: new List<string>
                 {
-                    "New GVFS version available: " + NewerThanLocalVersion,
-                    "When you are ready, run `gvfs upgrade --confirm` from an elevated command prompt."
+                    "New GVFS version " + NewerThanLocalVersion + " available in ring Slow",
+                    "When ready, run `gvfs upgrade --confirm` from an elevated command prompt."
                 },
                 expectedErrors: null);
         }
@@ -80,7 +80,7 @@ namespace GVFS.UnitTests.Windows.Upgrader
                 expectedReturn: ReturnCode.Success,
                 expectedOutput: new List<string>
                 {
-                    "New GVFS version available: " + NewerThanLocalVersion,
+                    "New GVFS version " + NewerThanLocalVersion + " available in ring Slow",
                     "Launching upgrade tool...Succeeded"
                 },
                 expectedErrors:null);
@@ -136,12 +136,12 @@ namespace GVFS.UnitTests.Windows.Upgrader
                 expectedReturn: ReturnCode.GenericError,
                 expectedOutput: new List<string>
                 {
-                    "ERROR: ProjFS configuration does not support `gvfs upgrade`.",
+                    "ERROR: `gvfs upgrade` is not supported because you have previously installed an out of band ProjFS driver.",
                     "Check your team's documentation for how to upgrade."
                 },
                 expectedErrors: new List<string>
                 {
-                    "ProjFS configuration does not support `gvfs upgrade`."
+                    "`gvfs upgrade` is not supported because you have previously installed an out of band ProjFS driver."
                 });
         }
 

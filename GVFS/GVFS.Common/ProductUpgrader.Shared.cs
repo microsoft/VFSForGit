@@ -11,16 +11,18 @@ namespace GVFS.Common
         public const string DownloadDirectory = "Downloads";
 
         private const string RootDirectory = UpgradeDirectoryName;
-        private const string GVFSInstallerFileNamePrefix = "VFSGit";
+        private const string GVFSInstallerFileNamePrefix = "SetupGVFS";
+        private const string VFSForGitInstallerFileNamePrefix = "VFSForGit";
 
         public static bool IsLocalUpgradeAvailable()
         {
             string downloadDirectory = GetAssetDownloadsPath();
             if (Directory.Exists(downloadDirectory))
             {
+                const string PotentialInstallerName = "*VFS*.*";
                 string[] installers = Directory.GetFiles(
-                    downloadDirectory, 
-                    $"{GVFSInstallerFileNamePrefix}*.*", 
+                    downloadDirectory,
+                    PotentialInstallerName, 
                     SearchOption.TopDirectoryOnly);
                 return installers.Length > 0;
             }

@@ -9,6 +9,7 @@ namespace GVFS.Common
         private const string FileName = "gvfs.config";
         private readonly string configFile;
         private readonly PhysicalFileSystem fileSystem;
+        private FileBasedDictionary<string, string> allSettings;
 
         public LocalGVFSConfig()
         {
@@ -18,8 +19,6 @@ namespace GVFS.Common
             this.configFile = Path.Combine(gvfsDirectory, FileName);
             this.fileSystem = new PhysicalFileSystem();
         }
-
-        private FileBasedDictionary<string, string> AllSettings { get; set; }
 
         public bool TryGetConfig(
             string key, 
@@ -36,7 +35,7 @@ namespace GVFS.Common
                         
             try
             {
-                this.AllSettings.TryGetValue(key, out value);
+                this.allSettings.TryGetValue(key, out value);
                 error = null;
                 return true;
             }
@@ -68,7 +67,7 @@ namespace GVFS.Common
 
             try
             {
-                this.AllSettings.SetValueAndFlush(key, value);
+                this.allSettings.SetValueAndFlush(key, value);
                 error = null;
                 return true;
             }
@@ -88,7 +87,7 @@ namespace GVFS.Common
 
         private bool TryLoadSettings(ITracer tracer, out string error)
         {
-            if (this.AllSettings == null)
+            if (this.allSettings == null)
             {
                 FileBasedDictionary<string, string> config = null;
                 if (FileBasedDictionary<string, string>.TryCreate(
@@ -98,7 +97,7 @@ namespace GVFS.Common
                     output: out config,
                     error: out error))
                 {
-                    this.AllSettings = config;
+                    this.allSettings = config;
                     return true;
                 }
 

@@ -60,6 +60,7 @@ namespace GVFS.Upgrader
             string error = null;
 
             ProductUpgrader.RingType ring = ProductUpgrader.RingType.Invalid;
+            string mountError = null;
 
             if (!this.TryLoadUpgradeRing(out ring, out error) || ring == ProductUpgrader.RingType.None)
             {
@@ -85,7 +86,6 @@ namespace GVFS.Upgrader
                 }
                 finally
                 {
-                    string mountError = null;
                     if (!this.TryMountRepositories(out mountError))
                     {
                         mountError = Environment.NewLine + "WARNING: " + mountError;
@@ -103,7 +103,7 @@ namespace GVFS.Upgrader
             }
             else
             {
-                this.output.WriteLine(Environment.NewLine + "Upgrade completed successfully!");
+                this.output.WriteLine($"{Environment.NewLine}{(string.IsNullOrEmpty(mountError) ? "U" : "Repository mount failed. But u")}pgrade completed successfully!");
             }
 
             if (this.input == Console.In)
@@ -229,6 +229,8 @@ namespace GVFS.Upgrader
                 },
                 $"Installing GVFS version: {newGVFSVersion}"))
             {
+                this.mount = false;
+
                 consoleError = errorMessage;
                 return false;
             }

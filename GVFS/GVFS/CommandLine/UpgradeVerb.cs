@@ -91,15 +91,16 @@ namespace GVFS.CommandLine
         {
             string errorOutputFormat = Environment.NewLine + "ERROR: {0}";
             string error = null;
+            string cannotInstallReason = null;
             Version newestVersion = null;
             ProductUpgrader.RingType ring = ProductUpgrader.RingType.Invalid;
 
-            bool isInstallable = this.TryCheckUpgradeInstallable(out error);
+            bool isInstallable = this.TryCheckUpgradeInstallable(out cannotInstallReason);
             if (this.Confirmed && !isInstallable)
             {
-                this.ReportInfoToConsole($"Cannot install upgrade on this machine.");
-                this.Output.WriteLine(errorOutputFormat, error);
-                this.tracer.RelatedError($"{nameof(this.TryRunProductUpgrade)}: Upgrade is not installable. {error}");
+                this.ReportInfoToConsole($"Cannot upgrade GVFS on this machine.");
+                this.Output.WriteLine(errorOutputFormat, cannotInstallReason);
+                this.tracer.RelatedError($"{nameof(this.TryRunProductUpgrade)}: Upgrade is not installable. {cannotInstallReason}");
                 return false;
             }
 
@@ -132,7 +133,7 @@ namespace GVFS.CommandLine
                 return true;
             }
             
-            string upgradeAvailableMessage = $"New GVFS version available: {newestVersion.ToString()}";
+            string upgradeAvailableMessage = $"New GVFS version {newestVersion.ToString()} available in ring {ring}";
             if (this.Confirmed)
             {
                 this.ReportInfoToConsole(upgradeAvailableMessage);
@@ -156,15 +157,19 @@ namespace GVFS.CommandLine
                 if (isInstallable)
                 {
                     string message = string.Join(
-                        Environment.NewLine + Environment.NewLine, 
-                        upgradeAvailableMessage,
+                        Environment.NewLine, 
                         GVFSConstants.UpgradeVerbMessages.UnmountRepoWarning,
                         GVFSConstants.UpgradeVerbMessages.UpgradeInstallAdvice);
-                    this.ReportInfoToConsole(message);
+                    this.ReportInfoToConsole(upgradeAvailableMessage + Environment.NewLine + Environment.NewLine + message + Environment.NewLine);
                 }
                 else
                 {
                     this.ReportInfoToConsole($"{Environment.NewLine}{upgradeAvailableMessage}");
+                    
+                    if (!string.IsNullOrEmpty(cannotInstallReason))
+                    {
+                        this.ReportInfoToConsole($"{Environment.NewLine}{cannotInstallReason}");
+                    }
                 }
             }          
 
