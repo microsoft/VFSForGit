@@ -14,6 +14,14 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerTestCase
     public class RepairTests : TestsWithEnlistmentPerTestCase
     {
         [TestCase]
+        public void NoFixesNeeded()
+        {
+            this.Enlistment.UnmountGVFS();
+
+            this.Enlistment.Repair();
+        }
+
+        [TestCase]
         public void FixesCorruptHeadSha()
         {
             this.Enlistment.UnmountGVFS();
