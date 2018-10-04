@@ -62,9 +62,7 @@ Note that VFS for Git on Mac is under active development.
 
 * If you still do not have the `dotnet` cli `>= v2.1.300` installed [manually install it]. You can check what version you have with `dotnet --version`.(https://www.microsoft.com/net/download/dotnet-core/2.1)
 
-* You will need to manage and sign your own certificate.
-
-  If you're using Xcode for the first time, you may have to login to Xcode with your Apple ID to generate a codesigning certificate. You can do this by launching Xcode.app, opening the PrjFS.xcworkspace and trying to build. You can find the signing options in the General tab of the project's settings.
+* If you're using Xcode for the first time, you may have to login to Xcode with your Apple ID to generate a codesigning certificate. You can do this by launching Xcode.app, opening the PrjFS.xcworkspace and trying to build. You can find the signing options in the General tab of the project's settings.
 
 * Create a `VFSForGit` directory and Clone VFSForGit into a directory called `src` inside it:
   ```
@@ -104,9 +102,9 @@ Note that VFS for Git on Mac is under active development.
 
   shows `/Applications/Xcode.app/Contents/Developer`. If it does not, install Xcode and then launch it (you can close it afterwards.)
 
-* For the time being, only for active development, you will have to disable the SIP (System Integrity Protection) in order to load the kext).
+* In order to build VFS for Git on Mac (and PrjFSKext) you will have to disable the SIP (System Integrity Protection) in order to load the kext).
 
-  **This is dangerous and very bad for the security of your machine. Do not do this on any production machine! If you no longer need to developer VFS for Git on Mac we recommend re-enabling SIP ASAP.**
+  **This is dangerous and very bad for the security of your machine. Do not do this on any production machine! If you no longer need to develop VFS for Git on Mac we recommend re-enabling SIP ASAP.**
 
   To disable SIP boot into recovery mode (`[Win/⌘] + R` while booting your Mac).
   Once booted into recovery mode open Utilities -> Terminal to launch a terminal. Enter:
