@@ -58,29 +58,36 @@ Note that VFS for Git on Mac is under active development.
 
 * Ensure you have Xcode installed, have accepted the terms of use, and have launched Xcode at least once.
 
-* Disable the "System Integrity Protection" (for loading unsigned Kexts) by booting into recovery mode (`[Win/⌘] + R` while booting).
-  Once booted into recovery mode open Utilities -> Terminal to launch a terminal. Enter:
-
-  ```
-  csrutil disable
-  ```
-  to disable SIP. Then click the Apple logo in the top left and restart.
-
 * Install [Visual Studio for Mac ](https://visualstudio.microsoft.com/vs/mac). (This will also install the `dotnet` CLI).
 
 * If you still do not have the `dotnet` cli `>= v2.1.300` installed [manually install it]. You can check what version you have with `dotnet --version`.(https://www.microsoft.com/net/download/dotnet-core/2.1)
 
-* You will need to manage and sign your own certificate. [Apple Developer Cert Docs](https://developer.apple.com/documentation/security/certificate_key_and_trust_services/certificates).
+* You will need to manage and sign your own certificate.
+
+  If you're using Xcode for the first time, you may have to login to Xcode with your Apple ID to generate a codesigning certificate. You can do this by launching Xcode.app, opening the PrjFS.xcworkspace and trying to build. You can find the signing options in the General tab of the project's settings.
 
 * Create a `VFSForGit` directory and Clone VFSForGit into a directory called `src` inside it:
   ```
-  mkdir VFSForGit && cd VFSForGit && git clone https://github.com/Microsoft/VFSForGit.git src && cd src
+  mkdir VFSForGit
+  cd VFSForGit
+  git clone https://github.com/Microsoft/VFSForGit.git src
+  cd src
+  ```
+
+* Prep your machine to use VFS for Git. The following are all done by the script below.
+  * install Homebrew
+  * install and setup the Git Credential Manager (with `brew`)
+  * install/update Java (with `brew`)
+  * install a VFS for Git aware version of Git
+
+  ```
+  Scripts/Mac/PrepFunctionalTests.sh
   ```
 
 * From the src directory run
 
   ```
-  Scripts/Mac/BuildGVFSForMac.sh [Release]
+  Scripts/Mac/BuildGVFSForMac.sh [Debug|Release]
   ```
 
   _Troubleshooting if this fails_
@@ -97,23 +104,32 @@ Note that VFS for Git on Mac is under active development.
 
   shows `/Applications/Xcode.app/Contents/Developer`. If it does not, install Xcode and then launch it (you can close it afterwards.)
 
-* Prep your machine to use VFS for Git. The following are all done by the script below.wwwww
-  * install Homebrew
-  * install and setup the git credential manager (with `brew`)
-  * install/update Java (with `brew`)
-  * install a VFS for Git aware version of Git
+* For the time being, only for active development, you will have to disable the SIP (System Integrity Protection) in order to load the kext).
+
+  **This is dangerous and very bad for the security of your machine. Do not do this on any production machine! If you no longer need to developer VFS for Git on Mac we recommend re-enabling SIP ASAP.**
+
+  To disable SIP boot into recovery mode (`[Win/⌘] + R` while booting your Mac).
+  Once booted into recovery mode open Utilities -> Terminal to launch a terminal. Enter:
 
   ```
-  Scripts/Mac/PrepFunctionalTests.sh
+  csrutil disable
+  # use "csrutil enable" to re-enable when you no longer need to build VFS for Git on Mac
   ```
+  Then click the Apple logo in the top left and restart.
 
 * Now you have to load the ProjFS Kext.
 
   ```
-  ProjFS.Mac/Scripts/LoadPrjFSKext.sh [Release]
+  ProjFS.Mac/Scripts/LoadPrjFSKext.sh [Debug|Release]
   ```
 
-* Add your built gvfs program to your path. A simple way to do that is by adding `Path/to/VFS/Publish` to your path.
+* Add your built VFS for Git executable (`gvfs`) program to your path. A simple way to do that is by adding
+
+  ```
+  <Path to>/VFSForGit/Publish
+  ```
+
+  to your `PATH`.
 
   Confirm you have it by running
 
@@ -129,7 +145,7 @@ Note that VFS for Git on Mac is under active development.
   gvfs clone URL_TO_REPOSITORY --local-cache-path ~/.gvfsCache
   ```
 
-  Note the current use of `--local-cache-path`. That argument prevents VFS for Git from running into a permissions error trying to put the cache at the root of your Mac's hard-drive because porting of this feature is still in progress.
+  Note the current use of `--local-cache-path`. Without this argument VFS for Git will encounter a permissions error when it attempts to create its cache at the root of your hard-drive. Automatic picking of the cache path has not yet been ported to VFS for Git on Mac.
 
 
 ## Trying out VFS for Git
