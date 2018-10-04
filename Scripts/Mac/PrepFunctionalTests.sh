@@ -36,13 +36,6 @@ fi
 
 git-credential-manager install
 
-# If our Java version is 9+ (the formatting of 'java -version' changed in Java 9), work around
-# https://github.com/Microsoft/Git-Credential-Manager-for-Mac-and-Linux/issues/71
-JAVAVERSION="$(java -version 2>&1 | egrep -o '"[[:digit:]]+.[[:digit:]]+.[[:digit:]]+"' | xargs)"
-if [[ ! -z $JAVAVERSION ]]; then
-    git config --global credential.helper "!/usr/bin/java -Ddebug=false --add-modules java.xml.bind -Djava.net.useSystemProxies=true -jar /usr/local/Cellar/git-credential-manager/2.0.3/libexec/git-credential-manager-2.0.3.jar" || exit 1
-fi
-
 # If we're running on an agent where the PAT environment variable is set and a URL is passed into the script, add it to the keychain.
 PATURL=$1
 PAT=$2

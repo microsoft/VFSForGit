@@ -30,10 +30,10 @@ built executables, and releases may still refer to the old GVFS name. See https:
 * VFS for Git requires Windows 10 Anniversary Update (Windows 10 version 1607) or later
 * Run the latest GVFS and Git for Windows installers from https://github.com/Microsoft/VFSForGit/releases
 
-## Building VFS for Git
+## Building VFS for Git on Windows
 
 If you'd like to build your own VFS for Git Windows installer:
-* Install Visual Studio 2017 Community Edition or higher (https://www.visualstudio.com/downloads/). 
+* Install Visual Studio 2017 Community Edition or higher (https://www.visualstudio.com/downloads/).
   * Include the following workloads:
     * .NET desktop development
     * Desktop development with C++
@@ -46,15 +46,109 @@ If you'd like to build your own VFS for Git Windows installer:
 * Create a folder to clone into, e.g. `C:\Repos\VFSForGit`
 * Clone this repo into the `src` subfolder, e.g. `C:\Repos\VFSForGit\src`
 * Run `\src\Scripts\BuildGVFSForWindows.bat`
-* You can also build in Visual Studio by opening `src\GVFS.sln` (do not upgrade any projects) and building. However, the very first 
+* You can also build in Visual Studio by opening `src\GVFS.sln` (do not upgrade any projects) and building. However, the very first
 build will fail, and the second and subsequent builds will succeed. This is because the build requires a prebuild code generation step.
 For details, see the build script in the previous step.
 
 The installer can now be found at `C:\Repos\VFSForGit\BuildOutput\GVFS.Installer\bin\x64\[Debug|Release]\SetupGVFS.<version>.exe`
 
+## Building VFS for Git on Mac
+
+Note that VFS for Git on Mac is under active development.
+
+* Ensure you have Xcode installed, have accepted the terms of use, and have launched Xcode at least once.
+
+* Install [Visual Studio for Mac ](https://visualstudio.microsoft.com/vs/mac). (This will also install the `dotnet` CLI).
+
+* If you still do not have the `dotnet` cli `>= v2.1.300` installed [manually install it]. You can check what version you have with `dotnet --version`.(https://www.microsoft.com/net/download/dotnet-core/2.1)
+
+* If you're using Xcode for the first time, you may have to login to Xcode with your Apple ID to generate a codesigning certificate. You can do this by launching Xcode.app, opening the PrjFS.xcworkspace and trying to build. You can find the signing options in the General tab of the project's settings.
+
+* Create a `VFSForGit` directory and Clone VFSForGit into a directory called `src` inside it:
+  ```
+  mkdir VFSForGit
+  cd VFSForGit
+  git clone https://github.com/Microsoft/VFSForGit.git src
+  cd src
+  ```
+
+* Prep your machine to use VFS for Git. The following are all done by the script below.
+  * install Homebrew
+  * install and setup the Git Credential Manager (with `brew`)
+  * install/update Java (with `brew`)
+  * install a VFS for Git aware version of Git
+
+  ```
+  Scripts/Mac/PrepFunctionalTests.sh
+  ```
+
+* From the src directory run
+
+  ```
+  Scripts/Mac/BuildGVFSForMac.sh [Debug|Release]
+  ```
+
+  _Troubleshooting if this fails_
+
+  If you get
+  ```
+  xcodebuild: error: SDK "macosx10.13" cannot be located.
+  ```
+  You may have the "XCode Command Line Tools" installed (helpfully by Mac OS) instead of full XCode.
+  Make sure
+  ```
+  xcode-select -p
+  ```
+
+  shows `/Applications/Xcode.app/Contents/Developer`. If it does not, install Xcode and then launch it (you can close it afterwards.)
+
+* In order to build VFS for Git on Mac (and PrjFSKext) you will have to disable the SIP (System Integrity Protection) in order to load the kext).
+
+  **This is dangerous and very bad for the security of your machine. Do not do this on any production machine! If you no longer need to develop VFS for Git on Mac we recommend re-enabling SIP ASAP.**
+
+  To disable SIP boot into recovery mode (`[Win/⌘] + R` while booting your Mac).
+  Once booted into recovery mode open Utilities -> Terminal to launch a terminal. Enter:
+
+  ```
+  csrutil disable
+  # use "csrutil enable" to re-enable when you no longer need to build VFS for Git on Mac
+  ```
+  Then click the Apple logo in the top left and restart.
+
+* Now you have to load the ProjFS Kext.
+
+  ```
+  ProjFS.Mac/Scripts/LoadPrjFSKext.sh [Debug|Release]
+  ```
+
+* Add your built VFS for Git executable (`gvfs`) program to your path. A simple way to do that is by adding
+
+  ```
+  <Path to>/VFSForGit/Publish
+  ```
+
+  to your `PATH`.
+
+  Confirm you have it by running
+
+  ```
+  command -v gvfs
+  ```
+
+  You should see a path to the gvfs executable.
+
+* Try cloning a VFS for Git enabled repository!
+
+  ```
+  gvfs clone URL_TO_REPOSITORY --local-cache-path ~/.gvfsCache
+  ```
+
+  Note the current use of `--local-cache-path`. Without this argument VFS for Git will encounter a permissions error when it attempts to create its cache at the root of your hard-drive. Automatic picking of the cache path has not yet been ported to VFS for Git on Mac.
+
+
 ## Trying out VFS for Git
 
-* VFS for Git will work with any git service that supports the GVFS [protocol](Protocol.md). For example, you can create a repo in 
+* VFS for Git will work with any git service that supports the GVFS [protocol](Protocol.md). For example, you can create a repo in
 Visual Studio Team Services (https://www.visualstudio.com/team-services/), and push some contents to it. There are two constraints:
   * Your repo must not enable any clean/smudge filters
   * Your repo must have a `.gitattributes` file in the root that includes the line `* -text`
@@ -62,6 +156,7 @@ Visual Studio Team Services (https://www.visualstudio.com/team-services/), and p
 * `cd <root>\src`
 * Run git commands as you normally would
 * `gvfs unmount` when done
+
 
 # Licenses
 
