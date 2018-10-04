@@ -13,7 +13,6 @@ namespace GVFS.Common
         public const string BlobSizesCacheName = "blobSizes";
 
         private const string GitObjectCacheName = "gitObjects";
-        private const string InvalidRepoUrl = "invalid://repoUrl";
 
         private string gitVersion;
         private string gvfsVersion;
@@ -90,7 +89,7 @@ namespace GVFS.Common
                     return null;
                 }
 
-                return new GVFSEnlistment(enlistmentRoot, InvalidRepoUrl, gitBinRoot, gvfsHooksRoot);
+                return new GVFSEnlistment(enlistmentRoot, string.Empty, gitBinRoot, gvfsHooksRoot);
             }
 
             return null;
