@@ -1,11 +1,3 @@
-//
-//  FsidInode.h
-//  PrjFSKext
-//
-//  Created by William Baker on 10/4/18.
-//  Copyright © 2018 GVFS. All rights reserved.
-//
-
 #ifndef FsidInode_h
 #define FsidInode_h
 
