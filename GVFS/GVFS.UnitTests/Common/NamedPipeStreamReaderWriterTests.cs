@@ -24,7 +24,6 @@ namespace GVFS.UnitTests.Common
         }
 
         [Test]
-        [Description("Verify that we can transmit multiple messages")]
         public void CanWriteAndReadMessages()
         {
             string firstMessage = @"This is a new message";
@@ -41,7 +40,6 @@ namespace GVFS.UnitTests.Common
         }
 
         [Test]
-        [Description("Verify that we can transmit a message that contains content that is the size of a NamedPipeStreamReader's buffer")]
         public void CanSendBufferSizedContent()
         {
             string longMessage = new string('T', BufferSize);
@@ -49,7 +47,6 @@ namespace GVFS.UnitTests.Common
         }
 
         [Test]
-        [Description("Verify that we can transmit message that is the same size a NamedPipeStreamReader's buffer")]
         public void CanSendBufferSizedMessage()
         {
             int numBytesInMessageTerminator = 1;
@@ -58,7 +55,6 @@ namespace GVFS.UnitTests.Common
         }
 
         [Test]
-        [Description("Verify that the expected exception is thrown if message is not terminated with expected byte.")]
         [Category(CategoryConstants.ExceptionExpected)]
         public void ReadingPartialMessgeThrows()
         {
@@ -71,7 +67,6 @@ namespace GVFS.UnitTests.Common
         }
 
         [Test]
-        [Description("Verify that we can transmit message that is larger than the buffer")]
         public void CanSendMultiBufferSizedMessage()
         {
             string longMessage = new string('T', BufferSize * 3);
@@ -79,15 +74,13 @@ namespace GVFS.UnitTests.Common
         }
 
         [Test]
-        [Description("Verify that we can transmit message that newline characters")]
-        public void CanSendNewLines()
+        public void CanSendMessagesWithNewLines()
         {
             string messageWithNewLines = "This is a \nstringwith\nnewlines";
             this.TestTransmitMessage(messageWithNewLines);
         }
 
         [Test]
-        [Description("Verify that we can transmit message multiple messages in the same buffer")]
         public void CanSendMultipleMessagesIntheSameBuffer()
         {
             string[] messages = new string[]
@@ -101,12 +94,10 @@ namespace GVFS.UnitTests.Common
         }
 
         [Test]
-        [Description("Verify that we can handle messages that are chunked at different points")]
         public void CanHandleMultipleChunkedMessagesInTheSameBuffer()
         {
             string chunkedMessage = new string('T', BufferSize + (BufferSize / 2));
 
-            // Verify that we corrently handle messages 
             string[] messages = new string[]
             {
                 chunkedMessage,
