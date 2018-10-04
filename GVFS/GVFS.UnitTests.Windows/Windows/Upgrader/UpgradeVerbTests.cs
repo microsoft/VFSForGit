@@ -81,7 +81,7 @@ namespace GVFS.UnitTests.Windows.Upgrader
                 expectedOutput: new List<string>
                 {
                     "New GVFS version " + NewerThanLocalVersion + " available in ring Slow",
-                    "Launching upgrade tool...Succeeded"
+                    "Launching upgrade tool..."
                 },
                 expectedErrors:null);
 
