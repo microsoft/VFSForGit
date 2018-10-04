@@ -268,6 +268,25 @@ namespace GVFS.FunctionalTests.Tests.MultiEnlistmentTests
             this.AlternatesFileShouldHaveGitObjectsRoot(enlistment);
         }
 
+        [TestCase]
+        public void SecondCloneSucceedsWithMissingTrees()
+        {
+            string newCachePath = Path.Combine(this.localCacheParentPath, ".customGvfsCache2");
+            GVFSFunctionalTestEnlistment enlistment1 = this.CreateNewEnlistment(localCacheRoot: newCachePath, skipPrefetch: true);
+            File.ReadAllText(Path.Combine(enlistment1.RepoRoot, WellKnownFile));
+            this.AlternatesFileShouldHaveGitObjectsRoot(enlistment1);
+
+            // This Git command loads the commit and root tree for WellKnownCommitSha,
+            // but does not download any more reachable objects.
+            string command = "cat-file -p origin/" + WellKnownBranch + "^{tree}";
+            ProcessResult result = GitHelpers.InvokeGitAgainstGVFSRepo(enlistment1.RepoRoot, command);
+            result.ExitCode.ShouldEqual(0, $"git {command} failed with error: " + result.Errors);
+
+            // If we did not properly check the failed checkout at this step, then clone will fail during checkout.
+            GVFSFunctionalTestEnlistment enlistment2 = this.CreateNewEnlistment(localCacheRoot: newCachePath, branch: WellKnownBranch, skipPrefetch: true);
+            File.ReadAllText(Path.Combine(enlistment2.RepoRoot, WellKnownFile));
+        }
+
         // Override OnTearDownEnlistmentsDeleted rathern than using [TearDown] as the enlistments need to be unmounted before
         // localCacheParentPath can be deleted (as the SQLite blob sizes database cannot be deleted while GVFS is mounted) 
         protected override void OnTearDownEnlistmentsDeleted()
