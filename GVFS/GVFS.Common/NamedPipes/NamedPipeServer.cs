@@ -12,9 +12,7 @@ namespace GVFS.Common.NamedPipes
     /// Named Pipe protocol:
     ///    The client / server process send a "message" (or line) of data as a
     ///    sequence of bytes terminated by a 0x3 byte (ASCII control code for
-    ///    End of text). The sender of a message must wait for a response from
-    ///    the other side before sending another message. Text is encoded as
-    ///    UTF-8 to be sent as bytes across the wire.
+    ///    End of text). Text is encoded as UTF-8 to be sent as bytes across the wire.
     ///
     /// This format was chosen so that
     ///   1) A reasonable range of values can be transmitted across the pipe,

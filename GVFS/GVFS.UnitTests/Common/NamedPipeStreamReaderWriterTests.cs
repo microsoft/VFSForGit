@@ -88,7 +88,6 @@ namespace GVFS.UnitTests.Common
 
         [Test]
         [Description("Verify that we can transmit message multiple messages in the same buffer")]
-        [Ignore("Demonstrate failing behavior")]
         public void CanSendMultipleMessagesIntheSameBuffer()
         {
             string[] messages = new string[]
@@ -103,7 +102,6 @@ namespace GVFS.UnitTests.Common
 
         [Test]
         [Description("Verify that we can handle messages that are chunked at different points")]
-        [Ignore("Demonstrate failing behavior")]
         public void CanHandleMultipleChunkedMessagesInTheSameBuffer()
         {
             string chunkedMessage = new string('T', BufferSize + (BufferSize / 2));
