@@ -86,6 +86,39 @@ namespace GVFS.UnitTests.Common
             this.TestTransmitMessage(messageWithNewLines);
         }
 
+        [Test]
+        [Description("Verify that we can transmit message multiple messages in the same buffer")]
+        [Ignore("Demonstrate failing behavior")]
+        public void CanSendMultipleMessagesIntheSameBuffer()
+        {
+            string[] messages = new string[]
+            {
+                "This is a new message",
+                "This is another message",
+                "This is the third message in a series of messages"
+            };
+
+            this.TestTransmitMessages(messages);
+        }
+
+        [Test]
+        [Description("Verify that we can handle messages that are chunked at different points")]
+        [Ignore("Demonstrate failing behavior")]
+        public void CanHandleMultipleChunkedMessagesInTheSameBuffer()
+        {
+            string chunkedMessage = new string('T', BufferSize + (BufferSize / 2));
+
+            // Verify that we corrently handle messages 
+            string[] messages = new string[]
+            {
+                chunkedMessage,
+                "This is another message",
+                chunkedMessage
+            };
+
+            this.TestTransmitMessages(messages);
+        }
+
         private void TestTransmitMessage(string message)
         {
             long pos = this.ReadStreamPosition();
@@ -95,6 +128,24 @@ namespace GVFS.UnitTests.Common
 
             string readMessage = this.streamReader.ReadMessage();
             readMessage.ShouldEqual(message, "The message read from the stream reader is not the same as the message that was sent.");
+        }
+        
+        private void TestTransmitMessages(string[] messages)
+        {
+            long pos = this.ReadStreamPosition();
+
+            foreach (string message in messages)
+            {
+                this.streamWriter.WriteMessage(message);
+            }
+            
+            this.SetStreamPosition(pos);
+
+            foreach (string message in messages)
+            {
+                string readMessage = this.streamReader.ReadMessage();
+                readMessage.ShouldEqual(message, "The message read from the stream reader is not the same as the message that was sent.");
+            }
         }
 
         private long ReadStreamPosition()
