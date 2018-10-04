@@ -143,6 +143,11 @@ namespace GVFS.Common
             }
         }
 
+        public static void ThrowLastWin32Exception(string message)
+        {
+            throw new Win32Exception(Marshal.GetLastWin32Error(), message);
+        }
+
         [DllImport("kernel32.dll", SetLastError = true)]
         public static extern SafeFileHandle OpenProcess(
             ProcessAccessFlags processAccess,
@@ -152,11 +157,6 @@ namespace GVFS.Common
         [DllImport("kernel32.dll", SetLastError = true)]
         [return: MarshalAs(UnmanagedType.Bool)]
         public static extern bool GetExitCodeProcess(SafeFileHandle hProcess, out uint lpExitCode);
-
-        private static void ThrowLastWin32Exception(string message)
-        {
-            throw new Win32Exception(Marshal.GetLastWin32Error(), message);
-        }
 
         [DllImport("kernel32.dll", SetLastError = true, CharSet = CharSet.Unicode)]
         private static extern SafeFileHandle CreateFile(
