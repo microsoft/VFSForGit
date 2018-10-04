@@ -21,7 +21,7 @@ namespace GVFS.FunctionalTests.Tests.MultiEnlistmentTests
 
         // This branch and commit sha should point to the same place.
         private const string WellKnownBranch = "FunctionalTests/20170602";
-        private const string WellKnownCommitSha = "79dc4233df4d9a7e053662bff95df498f640022e";
+        private const string WellKnownCommitSha = "42eb6632beffae26893a3d6e1a9f48d652327c6f";
 
         private string localCachePath;
         private string localCacheParentPath;
