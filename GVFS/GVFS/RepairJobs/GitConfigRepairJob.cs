@@ -45,6 +45,7 @@ namespace GVFS.RepairJobs
 
             // At this point, we've confirmed that the repo url can be gotten, so we have to 
             // reinitialize the GitProcess with a valid repo url for 'git credential fill'
+            string repoUrl = null;
             try
             {
                 GVFSEnlistment enlistment = GVFSEnlistment.CreateFromDirectory(
@@ -52,6 +53,7 @@ namespace GVFS.RepairJobs
                     this.Enlistment.GitBinPath,
                     this.Enlistment.GVFSHooksRoot);
                 git = new GitProcess(enlistment);
+                repoUrl = enlistment.RepoUrl;
             }
             catch (InvalidRepoException)
             {
@@ -61,7 +63,7 @@ namespace GVFS.RepairJobs
 
             string username;
             string password;
-            if (!git.TryGetCredentials(this.Tracer, this.Enlistment.RepoUrl, out username, out password))
+            if (!git.TryGetCredentials(this.Tracer, repoUrl, out username, out password))
             {
                 messages.Add("Authentication failed. Run 'gvfs log' for more info.");
                 messages.Add(".git\\config is valid and remote 'origin' is set, but may have a typo:");
