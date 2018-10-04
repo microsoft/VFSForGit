@@ -162,36 +162,6 @@ namespace GVFS.Service
             return false;
         }
 
-        public void AutoMountRepos(int sessionId)
-        {
-            using (ITracer activity = this.tracer.StartActivity("AutoMount", EventLevel.Informational))
-            {
-                using (GVFSMountProcess process = new GVFSMountProcess(activity, sessionId))
-                {
-                    List<RepoRegistration> activeRepos = this.GetActiveReposForUser(process.CurrentUser.Identity.User.Value);
-                    if (activeRepos.Count == 0)
-                    {
-                        return;
-                    }
-
-                    this.SendNotification(sessionId, "GVFS AutoMount", "Attempting to mount {0} GVFS repo(s)", activeRepos.Count);
-
-                    foreach (RepoRegistration repo in activeRepos)
-                    {
-                        // TODO #1043088: We need to respect the elevation level of the original mount
-                        if (process.Mount(repo.EnlistmentRoot))
-                        {
-                            this.SendNotification(sessionId, "GVFS AutoMount", "The following GVFS repo is now mounted: \n{0}", repo.EnlistmentRoot);
-                        }
-                        else
-                        {
-                            this.SendNotification(sessionId, "GVFS AutoMount", "The following GVFS repo failed to mount: \n{0}", repo.EnlistmentRoot);
-                        }
-                    }
-                }
-            }
-        }
-
         public Dictionary<string, RepoRegistration> ReadRegistry()
         {
             Dictionary<string, RepoRegistration> allRepos = new Dictionary<string, RepoRegistration>(StringComparer.OrdinalIgnoreCase);
@@ -232,31 +202,38 @@ namespace GVFS.Service
                                 RepoRegistration registration = RepoRegistration.FromJson(entry);
 
                                 string errorMessage;
-                                string normalizedEnlistmentRootPath = registration.EnlistmentRoot;
-                                if (GVFSPlatform.Instance.FileSystem.TryGetNormalizedPath(registration.EnlistmentRoot, out normalizedEnlistmentRootPath, out errorMessage))
+                                string enlistmentPath = registration.EnlistmentRoot;
+
+                                // Try and normalize the enlistment path if the volume is available, otherwise just take the
+                                // path verbatim.
+                                string volumePath = GVFSPlatform.Instance.FileSystem.GetVolumeRoot(registration.EnlistmentRoot);
+                                if (GVFSPlatform.Instance.FileSystem.IsVolumeAvailable(volumePath))
                                 {
-                                    if (!normalizedEnlistmentRootPath.Equals(registration.EnlistmentRoot, StringComparison.OrdinalIgnoreCase))
+                                    string normalizedPath;
+                                    if (GVFSPlatform.Instance.FileSystem.TryGetNormalizedPath(registration.EnlistmentRoot, out normalizedPath, out errorMessage))
+                                    {
+                                        if (!normalizedPath.Equals(registration.EnlistmentRoot, StringComparison.OrdinalIgnoreCase))
+                                        {
+                                            enlistmentPath = normalizedPath;
+
+                                            EventMetadata metadata = new EventMetadata();
+                                            metadata.Add("registration.EnlistmentRoot", registration.EnlistmentRoot);
+                                            metadata.Add(nameof(normalizedPath), normalizedPath);
+                                            metadata.Add(TracingConstants.MessageKey.InfoMessage, $"{nameof(ReadRegistry)}: Mapping registered enlistment root to final path");
+                                            this.tracer.RelatedEvent(EventLevel.Informational, $"{nameof(ReadRegistry)}_NormalizedPathMapping", metadata);
+                                        }
+                                    }
+                                    else
                                     {
                                         EventMetadata metadata = new EventMetadata();
                                         metadata.Add("registration.EnlistmentRoot", registration.EnlistmentRoot);
-                                        metadata.Add(nameof(normalizedEnlistmentRootPath), normalizedEnlistmentRootPath);
-                                        metadata.Add(TracingConstants.MessageKey.InfoMessage, $"{nameof(ReadRegistry)}: Mapping registered enlistment root to final path");
-                                        this.tracer.RelatedEvent(EventLevel.Informational, $"{nameof(ReadRegistry)}_NormalizedPathMapping", metadata);
+                                        metadata.Add("NormalizedEnlistmentRootPath", normalizedPath);
+                                        metadata.Add("ErrorMessage", errorMessage);
+                                        this.tracer.RelatedWarning(metadata, $"{nameof(ReadRegistry)}: Failed to get normalized path name for registed enlistment root");
                                     }
-                                }                                    
-                                else
-                                {
-                                    EventMetadata metadata = new EventMetadata();
-                                    metadata.Add("registration.EnlistmentRoot", registration.EnlistmentRoot);
-                                    metadata.Add("NormalizedEnlistmentRootPath", normalizedEnlistmentRootPath);
-                                    metadata.Add("ErrorMessage", errorMessage);
-                                    this.tracer.RelatedWarning(metadata, $"{nameof(ReadRegistry)}: Failed to get normalized path name for registed enlistment root");
                                 }
 
-                                if (normalizedEnlistmentRootPath != null)
-                                {
-                                    allRepos[normalizedEnlistmentRootPath] = registration;
-                                }
+                                allRepos[enlistmentPath] = registration;
                             }
                             catch (Exception e)
                             {
@@ -298,34 +275,29 @@ namespace GVFS.Service
             }
         }
 
-        private List<RepoRegistration> GetActiveReposForUser(string ownerSID)
+        public bool TryGetActiveReposForUser(string ownerSID, out List<RepoRegistration> repoList, out string errorMessage)
         {
+            repoList = null;
+            errorMessage = null;
+
             lock (this.repoLock)
             {
                 try
                 {
                     Dictionary<string, RepoRegistration> repos = this.ReadRegistry();
-                    return repos
+                    repoList = repos
                         .Values
                         .Where(repo => repo.IsActive)
                         .Where(repo => string.Equals(repo.OwnerSID, ownerSID, StringComparison.InvariantCultureIgnoreCase))
                         .ToList();
+                    return true;
                 }
                 catch (Exception e)
                 {
-                    this.tracer.RelatedError("Unable to get list of active repos for user {0}: {1}", ownerSID, e.ToString());
-                    return new List<RepoRegistration>();
+                    errorMessage = string.Format("Unable to get list of active repos for user {0}: {1}", ownerSID, e.ToString());
+                    return false;
                 }
             }
-        }
-
-        private void SendNotification(int sessionId, string title, string format, params object[] args)
-        {
-            NamedPipeMessages.Notification.Request request = new NamedPipeMessages.Notification.Request();
-            request.Title = title;
-            request.Message = string.Format(format, args);
-
-            NotificationHandler.Instance.SendNotification(this.tracer, sessionId, request);
         }
 
         private void WriteRegistry(Dictionary<string, RepoRegistration> registry)

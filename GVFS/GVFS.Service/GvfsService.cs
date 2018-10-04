@@ -4,6 +4,8 @@ using GVFS.Common.NamedPipes;
 using GVFS.Common.Tracing;
 using GVFS.Service.Handlers;
 using System;
+using System.Collections.Generic;
+using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Reflection;
@@ -26,6 +28,7 @@ namespace GVFS.Service
         private string serviceName;
         private string serviceDataLocation;
         private RepoRegistry repoRegistry;
+        private IDictionary<int, RepoAutoMounter> repoMounters;
         private ProductUpgradeTimer productUpgradeTimer;
 
         public GVFSService(JsonTracer tracer)
@@ -42,6 +45,7 @@ namespace GVFS.Service
             {
                 this.repoRegistry = new RepoRegistry(this.tracer, new PhysicalFileSystem(), this.serviceDataLocation);
                 this.repoRegistry.Upgrade();
+                this.repoMounters = new Dictionary<int, RepoAutoMounter>();
                 this.productUpgradeTimer.Start();
                 string pipeName = this.serviceName + ".Pipe";
                 this.tracer.RelatedInfo("Starting pipe server with name: " + pipeName);
@@ -115,18 +119,30 @@ namespace GVFS.Service
 
                 if (!GVFSEnlistment.IsUnattended(tracer: null))
                 {
+                    int sessionId = changeDescription.SessionId;
+
                     if (changeDescription.Reason == SessionChangeReason.SessionLogon)
                     {
-                        this.tracer.RelatedInfo("SessionLogon detected, sessionId: {0}", changeDescription.SessionId);
+                        this.tracer.RelatedInfo("SessionLogon detected, sessionId: {0}", sessionId);
                         using (ITracer activity = this.tracer.StartActivity("LogonAutomount", EventLevel.Informational))
                         {
-                            this.repoRegistry.AutoMountRepos(changeDescription.SessionId);
-                            this.repoRegistry.TraceStatus();
+                            var mounter = new RepoAutoMounter(this.tracer, this.repoRegistry, sessionId);
+                            this.repoMounters.Add(sessionId, mounter);
+
+                            mounter.Start();
+
+                            // TODO: this.repoRegistry.TraceStatus();
                         }
                     }
                     else if (changeDescription.Reason == SessionChangeReason.SessionLogoff)
                     {
-                        this.tracer.RelatedInfo("SessionLogoff detected");
+                        this.tracer.RelatedInfo("SessionLogoff detected, sesssionId: {0}", sessionId);
+                        RepoAutoMounter mounter;
+                        if (this.repoMounters.TryGetValue(sessionId, out mounter))
+                        {
+                            mounter.Stop();
+                            mounter.Dispose();
+                        }
                     }
                 }
             }
@@ -205,7 +221,7 @@ namespace GVFS.Service
             this.serviceThread = new Thread(this.Run);
 
             this.serviceThread.Start();
-        }        
+        }
 
         private void HandleRequest(ITracer tracer, string request, NamedPipeServer.Connection connection)
         {

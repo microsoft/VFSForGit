@@ -32,6 +32,7 @@ namespace GVFS.Service.Handlers
             NamedPipeMessages.GetActiveRepoListRequest.Response response = new NamedPipeMessages.GetActiveRepoListRequest.Response();
             response.State = NamedPipeMessages.CompletionState.Success;
             response.RepoList = new List<string>();
+            response.InvalidRepoList = new List<string>();
 
             List<RepoRegistration> repos;
             if (this.registry.TryGetActiveRepos(out repos, out errorMessage))
@@ -42,14 +43,7 @@ namespace GVFS.Service.Handlers
                 {
                     if (!this.IsValidRepo(repoRoot))
                     {
-                        if (!this.registry.TryRemoveRepo(repoRoot, out errorMessage))
-                        {
-                            this.tracer.RelatedInfo("Removing an invalid repo failed with error: " + response.ErrorMessage);
-                        }
-                        else
-                        {
-                            this.tracer.RelatedInfo("Removed invalid repo entry from registry: " + repoRoot);
-                        }
+                        response.InvalidRepoList.Add(repoRoot);
                     }
                     else
                     {

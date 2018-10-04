@@ -72,6 +72,7 @@
     <Compile Include="$(BuildOutputDir)\CommonAssemblyVersion.cs">
       <Link>CommonAssemblyVersion.cs</Link>
     </Compile>
+    <Compile Include="BitLockerHelpers.cs" />
     <Compile Include="DiskLayoutUpgrades\DiskLayout10to11Upgrade_NewOperationType.cs" />
     <Compile Include="DiskLayoutUpgrades\DiskLayout11to12Upgrade_SharedLocalCache.cs" />
     <Compile Include="DiskLayoutUpgrades\DiskLayout12to13Upgrade_FolderPlaceholder.cs" />
@@ -101,6 +102,7 @@
     <Compile Include="WindowsPlatform.cs" />
     <Compile Include="WindowsPlatform.Shared.cs" />
     <Compile Include="WindowsFileSystem.cs" />
+    <Compile Include="WindowsVolumeStateWatcher.cs" />
   </ItemGroup>
   <ItemGroup>
     <None Include="packages.config">

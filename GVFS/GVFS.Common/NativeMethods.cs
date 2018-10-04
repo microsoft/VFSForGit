@@ -164,6 +164,13 @@ namespace GVFS.Common
             return DateTime.Now - uptime;
         }
 
+        [DllImport("kernel32.dll", CharSet = CharSet.Unicode)]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        public static extern bool GetVolumePathName(
+            string volumeName,
+            StringBuilder volumePathName,
+            uint bufferLength);
+
         [DllImport("kernel32.dll", SetLastError = true, CharSet = CharSet.Unicode)]
         private static extern bool MoveFileEx(
             string existingFileName,

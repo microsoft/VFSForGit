@@ -27,6 +27,26 @@ namespace GVFS.UnitTests.Mock.FileSystem
             throw new NotSupportedException();
         }
 
+        public bool IsPathUnderDirectory(string directoryPath, string path)
+        {
+            throw new NotImplementedException();
+        }
+
+        public string GetVolumeRoot(string path)
+        {
+            throw new NotImplementedException();
+        }
+
+        public bool IsVolumeAvailable(string path)
+        {
+            throw new NotImplementedException();
+        }
+
+        public IVolumeStateWatcher CreateVolumeStateWatcher()
+        {
+            throw new NotImplementedException();
+        }
+
         public bool TryGetNormalizedPath(string path, out string normalizedPath, out string errorMessage)
         {
             errorMessage = null;

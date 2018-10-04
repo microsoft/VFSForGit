@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="utf-8"?>
+﻿<?xml version="1.0" encoding="utf-8"?>
 <Project ToolsVersion="14.0" DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <Import Project="$(MSBuildExtensionsPath)\$(MSBuildToolsVersion)\Microsoft.Common.props" Condition="Exists('$(MSBuildExtensionsPath)\$(MSBuildToolsVersion)\Microsoft.Common.props')" />
   <Import Project="$(SolutionDir)\GVFS\GVFS.Build\GVFS.cs.props" />
@@ -74,9 +74,10 @@
     <Compile Include="ProductUpgradeTimer.cs" />
     <Compile Include="Program.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
+    <Compile Include="RepoAutoMounter.cs" />
     <Compile Include="RepoRegistration.cs" />
     <Compile Include="RepoRegistry.cs" />
-    <Compile Include="GVFSMountProcess.cs" />
+    <Compile Include="GVFSMountProcessManager.cs" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\GVFS.Common\GVFS.Common.csproj">

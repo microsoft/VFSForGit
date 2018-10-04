@@ -53,7 +53,7 @@ namespace GVFS.Platform.Windows
             try
             {
                 StringBuilder volumePathName = new StringBuilder(GVFSConstants.MaxPath);
-                if (!NativeMethods.GetVolumePathName(enlistmentRoot, volumePathName, GVFSConstants.MaxPath))
+                if (!Common.NativeMethods.GetVolumePathName(enlistmentRoot, volumePathName, GVFSConstants.MaxPath))
                 {
                     errorMessage = "Could not get volume path name";
                     tracer.RelatedError($"{nameof(TryAttach)}:{errorMessage}");
@@ -626,13 +626,6 @@ namespace GVFS.Platform.Windows
                 string instanceName,
                 uint createdInstanceNameLength = 0,
                 string createdInstanceName = null);
-
-            [DllImport("kernel32.dll", CharSet = CharSet.Unicode)]
-            [return: MarshalAs(UnmanagedType.Bool)]
-            public static extern bool GetVolumePathName(
-                string volumeName,
-                StringBuilder volumePathName,
-                uint bufferLength);
         }
     }
 }
