@@ -7,6 +7,7 @@
 
 #include "PrjFSCommon.h"
 #include "VirtualizationRoots.hpp"
+#include "VnodeUtilities.hpp"
 #include "KauthHandler.hpp"
 #include "KextLog.hpp"
 #include "Message.h"
@@ -48,6 +49,7 @@ static bool TrySendRequestAndWaitForResponse(
     const VirtualizationRoot* root,
     MessageType messageType,
     const vnode_t vnode,
+    const FsidInode& vnodeFsidInode,
     const char* vnodePath,
     int pid,
     const char* procname,
@@ -66,6 +68,7 @@ static bool ShouldHandleVnodeOpEvent(
     VirtualizationRoot** root,
     vtype* vnodeType,
     uint32_t* vnodeFileFlags,
+    FsidInode* vnodeFsidInode,
     int* pid,
     char procname[MAXCOMLEN + 1],
     int* kauthResult);
@@ -78,6 +81,7 @@ static bool ShouldHandleFileOpEvent(
 
     // Out params:
     VirtualizationRoot** root,
+    FsidInode* vnodeFsidInode,
     int* pid);
 
 // Structs
@@ -264,6 +268,7 @@ static int HandleVnodeOperation(
     VirtualizationRoot* root = nullptr;
     vtype vnodeType;
     uint32_t currentVnodeFileFlags;
+    FsidInode vnodeFsidInode;
     int pid;
     char procname[MAXCOMLEN + 1];
     bool isDeleteAction = false;
@@ -284,6 +289,7 @@ static int HandleVnodeOperation(
             &root,
             &vnodeType,
             &currentVnodeFileFlags,
+            &vnodeFsidInode,
             &pid,
             procname,
             &kauthResult))
@@ -302,6 +308,7 @@ static int HandleVnodeOperation(
                     MessageType_KtoU_NotifyDirectoryPreDelete :
                     MessageType_KtoU_NotifyFilePreDelete,
                 currentVnode,
+                vnodeFsidInode,
                 vnodePath,
                 pid,
                 procname,
@@ -332,6 +339,7 @@ static int HandleVnodeOperation(
                             MessageType_KtoU_RecursivelyEnumerateDirectory :
                             MessageType_KtoU_EnumerateDirectory,
                         currentVnode,
+                        vnodeFsidInode,
                         vnodePath,
                         pid,
                         procname,
@@ -362,6 +370,7 @@ static int HandleVnodeOperation(
                         root,
                         MessageType_KtoU_HydrateFile,
                         currentVnode,
+                        vnodeFsidInode,
                         vnodePath,
                         pid,
                         procname,
@@ -410,12 +419,14 @@ static int HandleFileOpOperation(
         }
         
         VirtualizationRoot* root = nullptr;
+        FsidInode vnodeFsidInode;
         int pid;
         if (!ShouldHandleFileOpEvent(
                 context,
                 currentVnodeFromPath,
                 action,
                 &root,
+                &vnodeFsidInode,
                 &pid))
         {
             goto CleanupAndReturn;
@@ -440,6 +451,7 @@ static int HandleFileOpOperation(
                 root,
                 messageType,
                 currentVnodeFromPath,
+                vnodeFsidInode,
                 newPath,
                 pid,
                 procname,
@@ -467,12 +479,14 @@ static int HandleFileOpOperation(
         }
             
         VirtualizationRoot* root = nullptr;
+        FsidInode vnodeFsidInode;
         int pid;
         if (!ShouldHandleFileOpEvent(
                 context,
                 currentVnode,
                 action,
                 &root,
+                &vnodeFsidInode,
                 &pid))
         {
             goto CleanupAndReturn;
@@ -489,6 +503,7 @@ static int HandleFileOpOperation(
                     root,
                     MessageType_KtoU_NotifyFileModified,
                     currentVnode,
+                    vnodeFsidInode,
                     path,
                     pid,
                     procname,
@@ -506,6 +521,7 @@ static int HandleFileOpOperation(
                     root,
                     MessageType_KtoU_NotifyFileCreated,
                     currentVnode,
+                    vnodeFsidInode,
                     path,
                     pid,
                     procname,
@@ -541,6 +557,7 @@ static bool ShouldHandleVnodeOpEvent(
     VirtualizationRoot** root,
     vtype* vnodeType,
     uint32_t* vnodeFileFlags,
+    FsidInode* vnodeFsidInode,
     int* pid,
     char procname[MAXCOMLEN + 1],
     int* kauthResult)
@@ -591,7 +608,8 @@ static bool ShouldHandleVnodeOpEvent(
         }
     }
     
-    *root = VirtualizationRoots_FindForVnode(vnode);
+    *vnodeFsidInode = Vnode_GetFsidAndInode(vnode, context);
+    *root = VirtualizationRoots_FindForVnode(vnode, *vnodeFsidInode);
     
     if (nullptr == *root)
     {
@@ -629,6 +647,7 @@ static bool ShouldHandleFileOpEvent(
 
     // Out params:
     VirtualizationRoot** root,
+    FsidInode* vnodeFsidInode,
     int* pid)
 {
     vtype vnodeType = vnode_vtype(vnode);
@@ -636,8 +655,9 @@ static bool ShouldHandleFileOpEvent(
     {
         return false;
     }
-
-    *root = VirtualizationRoots_FindForVnode(vnode);
+    
+    *vnodeFsidInode = Vnode_GetFsidAndInode(vnode, context);
+    *root = VirtualizationRoots_FindForVnode(vnode, *vnodeFsidInode);
     if (nullptr == *root)
     {
         return false;
@@ -662,6 +682,7 @@ static bool TrySendRequestAndWaitForResponse(
     const VirtualizationRoot* root,
     MessageType messageType,
     const vnode_t vnode,
+    const FsidInode& vnodeFsidInode,
     const char* vnodePath,
     int pid,
     const char* procname,
@@ -686,7 +707,15 @@ static bool TrySendRequestAndWaitForResponse(
     int nextMessageId = OSIncrementAtomic(&s_nextMessageId);
     
     Message messageSpec = {};
-    Message_Init(&messageSpec, &(message.request), nextMessageId, messageType, pid, procname, relativePath);
+    Message_Init(
+        &messageSpec,
+        &(message.request),
+        nextMessageId,
+        messageType,
+        vnodeFsidInode,
+        pid,
+        procname,
+        relativePath);
 
     bool isShuttingDown = false;
     Mutex_Acquire(s_outstandingMessagesMutex);

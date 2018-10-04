@@ -1,5 +1,6 @@
 #pragma once
 
+#include "FsidInode.h"
 #include "PrjFSClasses.hpp"
 #include "kernel-header-wrappers/vnode.h"
 
@@ -27,7 +28,7 @@ struct VirtualizationRoot
 kern_return_t VirtualizationRoots_Init(void);
 kern_return_t VirtualizationRoots_Cleanup(void);
 
-VirtualizationRoot* VirtualizationRoots_FindForVnode(vnode_t vnode);
+VirtualizationRoot* VirtualizationRoots_FindForVnode(vnode_t vnode, const FsidInode& vnodeFsidInode);
 
 struct VirtualizationRootResult
 {
@@ -41,4 +42,4 @@ struct Message;
 errno_t ActiveProvider_SendMessage(int32_t rootIndex, const Message message);
 bool VirtualizationRoot_VnodeIsOnAllowedFilesystem(vnode_t vnode);
 
-int16_t VirtualizationRoots_LookupVnode(vnode_t vnode, vfs_context_t context);
+int16_t VirtualizationRoots_LookupVnode(vnode_t vnode, vfs_context_t context, const FsidInode& vnodeFsidInode);
