@@ -267,29 +267,6 @@ namespace GVFS.FunctionalTests.Tests.MultiEnlistmentTests
 
             this.AlternatesFileShouldHaveGitObjectsRoot(enlistment);
         }
-        
-        [TestCase]
-        public void SecondCloneSucceedsWithMissingTrees()
-        {
-            string newCachePath = Path.Combine(this.localCacheParentPath, ".customGvfsCache2");
-            GVFSFunctionalTestEnlistment enlistment1 = this.CreateNewEnlistment(localCacheRoot: newCachePath);
-            File.ReadAllText(Path.Combine(enlistment1.RepoRoot, WellKnownFile));
-
-            this.AlternatesFileShouldHaveGitObjectsRoot(enlistment1);
-
-            string packDir = Path.Combine(enlistment1.GetObjectRoot(this.fileSystem), "pack");
-            string[] packDirFiles = Directory.EnumerateFiles(packDir, "*", SearchOption.AllDirectories).ToArray();
-            for (int i = 0; i < packDirFiles.Length; i++)
-            {
-                this.fileSystem.DeleteFile(Path.Combine(packDir, packDirFiles[i]));
-            }
-
-            // Enumerate the root directory, populating the tip commit and root tree
-            this.fileSystem.EnumerateDirectory(enlistment1.RepoRoot);
-
-            GVFSFunctionalTestEnlistment enlistment2 = this.CreateNewEnlistment(localCacheRoot: newCachePath);
-            this.fileSystem.EnumerateDirectory(enlistment2.RepoRoot);
-        }
 
         // Override OnTearDownEnlistmentsDeleted rathern than using [TearDown] as the enlistments need to be unmounted before
         // localCacheParentPath can be deleted (as the SQLite blob sizes database cannot be deleted while GVFS is mounted) 
