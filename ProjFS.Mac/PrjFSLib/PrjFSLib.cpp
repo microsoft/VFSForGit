@@ -55,6 +55,32 @@ struct _PrjFS_FileHandle
     FILE* file;
 };
 
+struct FsidInodeCompare
+{
+    bool operator() (const FsidInode& lhs, const FsidInode& rhs) const
+    {
+        if (lhs.fsid.val[0] !=  rhs.fsid.val[0])
+        {
+            return lhs.fsid.val[0] < rhs.fsid.val[0];
+        }
+        
+        if (lhs.fsid.val[1] !=  rhs.fsid.val[1])
+        {
+            return lhs.fsid.val[1] < rhs.fsid.val[1];
+        }
+        
+        return lhs.inode < rhs.inode;
+    }
+};
+
+struct MutexAndUseCount
+{
+    shared_ptr<mutex> mutex;
+    int useCount;
+};
+
+typedef map<FsidInode, MutexAndUseCount, FsidInodeCompare> FileMutexMap;
+
 // Function prototypes
 static bool SetBitInFileFlags(const char* path, uint32_t bit, bool value);
 static bool IsBitSetInFileFlags(const char* path, uint32_t bit);
@@ -90,6 +116,9 @@ static void ClearMachNotification(mach_port_t port);
 static const char* NotificationTypeToString(PrjFS_NotificationType notificationType);
 #endif
 
+static FileMutexMap::iterator CheckoutFileMutexIterator(const FsidInode& fsidInode);
+static void ReturnFileMutexIterator(FileMutexMap::iterator lockIterator);
+
 // State
 static io_connect_t s_kernelServiceConnection = IO_OBJECT_NULL;
 static string s_virtualizationRootFullPath;
@@ -97,27 +126,9 @@ static PrjFS_Callbacks s_callbacks;
 static dispatch_queue_t s_messageQueueDispatchQueue;
 static dispatch_queue_t s_kernelRequestHandlingConcurrentQueue;
 
-struct CaseInsensitiveStringCompare
-{
-    bool operator() (const std::string& lhs, const std::string& rhs) const
-    {
-        return strcasecmp(lhs.c_str(), rhs.c_str()) < 0;
-    }
-};
-
-struct MutexAndUseCount
-{
-    shared_ptr<mutex> mutex;
-    int useCount;
-};
-
-// Map of relative path -> MutexAndUseCount for that path, plus mutex to protect the map itself.
-typedef map<string, MutexAndUseCount, CaseInsensitiveStringCompare> PathToMutexMap;
-PathToMutexMap s_inProgressExpansions;
-mutex s_inProgressExpansionsMutex;
-
-static shared_ptr<mutex> CheckoutPathMutex(const string& fullPath);
-static void ReturnPathMutex(const string& fullPath, const shared_ptr<mutex>& mutex);
+// Map of FsidInode -> MutexAndUseCount for that FsidInode, plus mutex to protect the map itself.
+FileMutexMap s_fileLocks;
+mutex s_fileLocksMutex;
 
 // The full API is defined in the header, but only the minimal set of functions needed
 // for the initial MirrorProvider implementation are listed here. Calling any other function
@@ -643,9 +654,9 @@ static PrjFS_Result HandleEnumerateDirectoryRequest(const MessageHeader* request
     }
     
     PrjFS_Result result;
-    shared_ptr<mutex> expansionMutex = CheckoutPathMutex(fullPath);
+    FileMutexMap::iterator mutexIterator = CheckoutFileMutexIterator(request->fsidInode);
     {
-        mutex_lock lock(*expansionMutex);
+        mutex_lock lock(*(mutexIterator->second.mutex));
         if (!IsBitSetInFileFlags(fullPath, FileFlags_IsEmpty))
         {
             result = PrjFS_Result_Success;
@@ -670,7 +681,7 @@ static PrjFS_Result HandleEnumerateDirectoryRequest(const MessageHeader* request
     }
 
 CleanupAndReturn:
-    ReturnPathMutex(fullPath, expansionMutex);
+    ReturnFileMutexIterator(mutexIterator);
 
     return result;
 }
@@ -755,10 +766,10 @@ static PrjFS_Result HandleHydrateFileRequest(const MessageHeader* request, const
     PrjFS_Result result;
     PrjFS_FileHandle fileHandle;
     
-    shared_ptr<mutex> hydrationMutex = CheckoutPathMutex(fullPath);
+    FileMutexMap::iterator mutexIterator = CheckoutFileMutexIterator(request->fsidInode);
     
     {
-        mutex_lock lock(*hydrationMutex);
+        mutex_lock lock(*(mutexIterator->second.mutex));
         if (!IsBitSetInFileFlags(fullPath, FileFlags_IsEmpty))
         {
             result = PrjFS_Result_Success;
@@ -820,7 +831,7 @@ static PrjFS_Result HandleHydrateFileRequest(const MessageHeader* request, const
     }
 
 CleanupAndReturn:
-    ReturnPathMutex(fullPath, hydrationMutex);
+    ReturnFileMutexIterator(mutexIterator);
     return result;
 }
 
@@ -1057,33 +1068,30 @@ static const char* NotificationTypeToString(PrjFS_NotificationType notificationT
 }
 #endif
 
-static shared_ptr<mutex> CheckoutPathMutex(const string& fullPath)
+static FileMutexMap::iterator CheckoutFileMutexIterator(const FsidInode& fsidInode)
 {
-    mutex_lock lock(s_inProgressExpansionsMutex);
-    PathToMutexMap::iterator iter = s_inProgressExpansions.find(fullPath);
-    if (iter == s_inProgressExpansions.end())
+    mutex_lock lock(s_fileLocksMutex);
+    FileMutexMap::iterator iter = s_fileLocks.find(fsidInode);
+    if (iter == s_fileLocks.end())
     {
-        pair<PathToMutexMap::iterator, bool> newEntry = s_inProgressExpansions.insert(
-            PathToMutexMap::value_type(fullPath, { make_shared<mutex>(), 1 }));
+        pair<FileMutexMap::iterator, bool> newEntry = s_fileLocks.insert(
+            FileMutexMap::value_type(fsidInode, { make_shared<mutex>(), 1 }));
         assert(newEntry.second);
-        return newEntry.first->second.mutex;
+        return newEntry.first;
     }
     else
     {
         iter->second.useCount++;
-        return iter->second.mutex;
+        return iter;
     }
 }
 
-static void ReturnPathMutex(const string& fullPath, const shared_ptr<mutex>& mutex)
+static void ReturnFileMutexIterator(FileMutexMap::iterator lockIterator)
 {
-    mutex_lock lock(s_inProgressExpansionsMutex);
-    PathToMutexMap::iterator iter = s_inProgressExpansions.find(fullPath);
-    assert(iter != s_inProgressExpansions.end());
-    assert(iter->second.mutex.get() == mutex.get());
-    iter->second.useCount--;
-    if (iter->second.useCount == 0)
+    mutex_lock lock(s_fileLocksMutex);
+    lockIterator->second.useCount--;
+    if (lockIterator->second.useCount == 0)
     {
-        s_inProgressExpansions.erase(iter);
+        s_fileLocks.erase(lockIterator);
     }
 }

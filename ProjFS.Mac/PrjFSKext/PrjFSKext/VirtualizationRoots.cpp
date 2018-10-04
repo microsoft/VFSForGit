@@ -20,9 +20,9 @@ static const size_t MaxVirtualizationRoots = 128;
 
 static VirtualizationRoot s_virtualizationRoots[MaxVirtualizationRoots] = {};
 
-static int16_t FindRootForVnode_Locked(vnode_t vnode, uint32_t vid, VnodeFsidInode fileId);
+static int16_t FindRootForVnode_Locked(vnode_t vnode, uint32_t vid, FsidInode fileId);
 static int16_t FindUnusedIndex_Locked();
-static int16_t InsertVirtualizationRoot_Locked(PrjFSProviderUserClient* userClient, pid_t clientPID, vnode_t vnode, uint32_t vid, VnodeFsidInode persistentIds, const char* path);
+static int16_t InsertVirtualizationRoot_Locked(PrjFSProviderUserClient* userClient, pid_t clientPID, vnode_t vnode, uint32_t vid, FsidInode persistentIds, const char* path);
 
 kern_return_t VirtualizationRoots_Init()
 {
@@ -56,7 +56,7 @@ kern_return_t VirtualizationRoots_Cleanup()
     return KERN_FAILURE;
 }
 
-VirtualizationRoot* VirtualizationRoots_FindForVnode(vnode_t vnode)
+VirtualizationRoot* VirtualizationRoots_FindForVnode(vnode_t vnode, const FsidInode& vnodeFsidInode)
 {
     VirtualizationRoot* root = nullptr;
     
@@ -64,7 +64,7 @@ VirtualizationRoot* VirtualizationRoots_FindForVnode(vnode_t vnode)
     // Search up the tree until we hit a known virtualization root or THE root of the file system
     while (nullptr == root && NULLVP != vnode && !vnode_isvroot(vnode))
     {
-        int16_t rootIndex = VirtualizationRoots_LookupVnode(vnode, nullptr);
+        int16_t rootIndex = VirtualizationRoots_LookupVnode(vnode, /*context*/ nullptr, vnodeFsidInode);
         if (rootIndex >= 0)
         {
             root = &s_virtualizationRoots[rootIndex];
@@ -84,16 +84,15 @@ VirtualizationRoot* VirtualizationRoots_FindForVnode(vnode_t vnode)
     return root;
 }
 
-int16_t VirtualizationRoots_LookupVnode(vnode_t vnode, vfs_context_t context)
+int16_t VirtualizationRoots_LookupVnode(vnode_t vnode, vfs_context_t context, const FsidInode& vnodeFsidInode)
 {
-    VnodeFsidInode fsidInode = Vnode_GetFsidAndInode(vnode, context);
     uint32_t vid = vnode_vid(vnode);
     
     int16_t rootIndex;
     
     RWLock_AcquireShared(s_rwLock);
     {
-        rootIndex = FindRootForVnode_Locked(vnode, vid, fsidInode);
+        rootIndex = FindRootForVnode_Locked(vnode, vid, vnodeFsidInode);
     }
     RWLock_ReleaseShared(s_rwLock);
     
@@ -112,12 +111,12 @@ int16_t VirtualizationRoots_LookupVnode(vnode_t vnode, vfs_context_t context)
             RWLock_AcquireExclusive(s_rwLock);
             {
                 // Vnode may already have been inserted as a root in the interim
-                rootIndex = FindRootForVnode_Locked(vnode, vid, fsidInode);
+                rootIndex = FindRootForVnode_Locked(vnode, vid, vnodeFsidInode);
                 
                 if (rootIndex < 0)
                 {
                     // Insert new offline root
-                    rootIndex = InsertVirtualizationRoot_Locked(nullptr, 0, vnode, vid, fsidInode, path);
+                    rootIndex = InsertVirtualizationRoot_Locked(nullptr, 0, vnode, vid, vnodeFsidInode, path);
                     
                     // TODO: error handling
                     assert(rootIndex >= 0);
@@ -149,7 +148,7 @@ static bool FsidsAreEqual(fsid_t a, fsid_t b)
     return a.val[0] == b.val[0] && a.val[1] == b.val[1];
 }
 
-static int16_t FindRootForVnode_Locked(vnode_t vnode, uint32_t vid, VnodeFsidInode fileId)
+static int16_t FindRootForVnode_Locked(vnode_t vnode, uint32_t vid, FsidInode fileId)
 {
     for (int16_t i = 0; i < MaxVirtualizationRoots; ++i)
     {
@@ -177,7 +176,7 @@ static int16_t FindRootForVnode_Locked(vnode_t vnode, uint32_t vid, VnodeFsidIno
 }
 
 // Returns negative value if it failed, or inserted index on success
-static int16_t InsertVirtualizationRoot_Locked(PrjFSProviderUserClient* userClient, pid_t clientPID, vnode_t vnode, uint32_t vid, VnodeFsidInode persistentIds, const char* path)
+static int16_t InsertVirtualizationRoot_Locked(PrjFSProviderUserClient* userClient, pid_t clientPID, vnode_t vnode, uint32_t vid, FsidInode persistentIds, const char* path)
 {
     // New root
     int16_t rootIndex = FindUnusedIndex_Locked();
@@ -230,7 +229,7 @@ VirtualizationRootResult VirtualizationRoot_RegisterProviderForPath(PrjFSProvide
         }
         else
         {
-            VnodeFsidInode vnodeIds = Vnode_GetFsidAndInode(virtualizationRootVNode, vfsContext);
+            FsidInode vnodeIds = Vnode_GetFsidAndInode(virtualizationRootVNode, vfsContext);
             uint32_t rootVid = vnode_vid(virtualizationRootVNode);
             
             RWLock_AcquireExclusive(s_rwLock);
