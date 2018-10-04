@@ -13,17 +13,15 @@ namespace GVFS.CommandLine
         [Value(
                 0,
                 Required = true,
-                Default = "",
-                MetaName = "GVFS config setting name",
-                HelpText = "Name of GVFS config setting that is to be set or read")]
+                MetaName = "Setting name",
+                HelpText = "Name of setting that is to be set or read")]
         public string Key { get; set; }
 
         [Value(
                 1,
                 Required = false,
-                Default = "",
-                MetaName = "GVFS config setting value",
-                HelpText = "Value of GVFS config setting to be set")]
+                MetaName = "Setting value",
+                HelpText = "Value of setting to be set")]
         public string Value { get; set; }
 
         protected override string VerbName

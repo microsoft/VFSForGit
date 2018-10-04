@@ -260,7 +260,7 @@ namespace GVFS.CommandLine
             {
                 this.ReportErrorAndExit(tracer, "Unable to query /gvfs/config");
             }
-			
+
             return serverGVFSConfig;
         }        
 

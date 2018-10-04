@@ -62,17 +62,17 @@ namespace GVFS.Upgrader
             ProductUpgrader.RingType ring = ProductUpgrader.RingType.Invalid;
             string mountError = null;
 
-            if (!this.TryLoadUpgradeRing(out ring, out error) || ring == ProductUpgrader.RingType.None)
+            if (!this.TryLoadUpgradeRing(out ring, out error))
+            {
+                this.output.WriteLine(GVFSConstants.UpgradeVerbMessages.InvalidRingConsoleAlert);
+            }
+            else if (ring == ProductUpgrader.RingType.None || ring == ProductUpgrader.RingType.NoConfig)
             {
                 string message = ring == ProductUpgrader.RingType.None ?
                     GVFSConstants.UpgradeVerbMessages.NoneRingConsoleAlert :
-                    GVFSConstants.UpgradeVerbMessages.InvalidRingConsoleAlert;
+                    GVFSConstants.UpgradeVerbMessages.NoRingConfigConsoleAlert;
                 this.output.WriteLine(message);
-
-                if (ring == ProductUpgrader.RingType.None)
-                {
-                    this.output.WriteLine(GVFSConstants.UpgradeVerbMessages.SetUpgradeRingCommand);
-                }
+                this.output.WriteLine(GVFSConstants.UpgradeVerbMessages.SetUpgradeRingCommand);
             }
             else
             {
@@ -103,7 +103,7 @@ namespace GVFS.Upgrader
             }
             else
             {
-                this.output.WriteLine($"{Environment.NewLine}{(string.IsNullOrEmpty(mountError) ? "U" : "Repository mount failed. But u")}pgrade completed successfully!");
+                this.output.WriteLine($"{Environment.NewLine}Upgrade completed successfully{(string.IsNullOrEmpty(mountError) ? "." : ", but one or more repositories will need to be mounted manually.")}");
             }
 
             if (this.input == Console.In)

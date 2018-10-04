@@ -35,7 +35,7 @@ namespace GVFS.Common
                         
             try
             {
-                this.allSettings.TryGetValue(key, out value);
+                this.allSettings.TryGetValue(key.ToUpper(), out value);
                 error = null;
                 return true;
             }
@@ -67,7 +67,7 @@ namespace GVFS.Common
 
             try
             {
-                this.allSettings.SetValueAndFlush(key, value);
+                this.allSettings.SetValueAndFlush(key.ToUpper(), value);
                 error = null;
                 return true;
             }

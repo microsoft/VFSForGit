@@ -112,10 +112,10 @@ namespace GVFS.CommandLine
                 return false;
             }
 
-            if (ring == ProductUpgrader.RingType.None)
+            if (ring == ProductUpgrader.RingType.None || ring == ProductUpgrader.RingType.NoConfig)
             {
                 this.tracer.RelatedInfo($"{nameof(this.TryRunProductUpgrade)}: {GVFSConstants.UpgradeVerbMessages.NoneRingConsoleAlert}");
-                this.ReportInfoToConsole(GVFSConstants.UpgradeVerbMessages.NoneRingConsoleAlert);
+                this.ReportInfoToConsole(ring == ProductUpgrader.RingType.None ? GVFSConstants.UpgradeVerbMessages.NoneRingConsoleAlert : GVFSConstants.UpgradeVerbMessages.NoRingConfigConsoleAlert);
                 this.ReportInfoToConsole(GVFSConstants.UpgradeVerbMessages.SetUpgradeRingCommand);
                 return true;
             }
@@ -154,23 +154,11 @@ namespace GVFS.CommandLine
             }
             else
             {
-                if (isInstallable)
-                {
-                    string message = string.Join(
-                        Environment.NewLine, 
+                string message = string.Join(
+                        Environment.NewLine,
                         GVFSConstants.UpgradeVerbMessages.UnmountRepoWarning,
                         GVFSConstants.UpgradeVerbMessages.UpgradeInstallAdvice);
-                    this.ReportInfoToConsole(upgradeAvailableMessage + Environment.NewLine + Environment.NewLine + message + Environment.NewLine);
-                }
-                else
-                {
-                    this.ReportInfoToConsole($"{Environment.NewLine}{upgradeAvailableMessage}");
-                    
-                    if (!string.IsNullOrEmpty(cannotInstallReason))
-                    {
-                        this.ReportInfoToConsole($"{Environment.NewLine}{cannotInstallReason}");
-                    }
-                }
+                this.ReportInfoToConsole(upgradeAvailableMessage + Environment.NewLine + Environment.NewLine + message + Environment.NewLine);
             }          
 
             return true;
@@ -221,23 +209,15 @@ namespace GVFS.CommandLine
             string upgraderPath = null;
             string errorMessage = null;
 
-            bool preUpgradeSuccess = this.ShowStatusWhileRunning(
-                () =>
-                {
-                    if (this.TryCopyUpgradeTool(out upgraderPath, out errorMessage) &&
-                        this.TryLaunchUpgradeTool(upgraderPath, out errorMessage))
-                    {
-                        return true;
-                    }
+            this.ReportInfoToConsole("Launching upgrade tool...");
 
-                    return false;
-                },
-                "Launching upgrade tool",
-                suppressGvfsLogMessage: true);
-            
-            if (!preUpgradeSuccess)
+            if (!this.TryCopyUpgradeTool(out upgraderPath, out consoleError))
             {
-                consoleError = errorMessage;
+                return false;
+            }
+
+            if (!this.TryLaunchUpgradeTool(upgraderPath, out errorMessage))
+            {
                 return false;
             }
 
@@ -310,7 +290,7 @@ namespace GVFS.CommandLine
 
                 latestVersion = version;
 
-                activity.RelatedInfo("Successfully checked server for GVFS upgrades.");
+                activity.RelatedInfo($"Successfully checked server for GVFS upgrades. New version available {latestVersion}");
             }
 
             return true;

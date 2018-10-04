@@ -59,12 +59,16 @@ namespace GVFS.Common
 
         public enum RingType
         {
-            // The values here should be ascending. 
+            // The values here should be ascending.
+            // Invalid - User has set an incorrect ring
+            // NoConfig - User has Not set any ring yet
+            // None - User has set a valid "None" ring
             // (Fast should be greater than Slow, 
             //  Slow should be greater than None, None greater than Invalid.)
             // This is required for the correct implementation of Ring based 
             // upgrade logic.
             Invalid = 0,
+            NoConfig = None - 1,
             None = 10,
             Slow = None + 1,
             Fast = Slow + 1,
@@ -281,13 +285,18 @@ namespace GVFS.Common
                     error = null;
                     return true;
                 }
-                else
+
+                if (string.IsNullOrEmpty(ringConfig))
                 {
-                    error = "Invalid upgrade ring `" + ringConfig + "` specified in gvfs config.";
+                    this.Ring = RingType.NoConfig;
+                    error = null;
+                    return true;
                 }
+
+                error = "Invalid upgrade ring `" + ringConfig + "` specified in gvfs config." + Environment.NewLine;
             }
             
-            error += Environment.NewLine + GVFSConstants.UpgradeVerbMessages.SetUpgradeRingCommand;
+            error += GVFSConstants.UpgradeVerbMessages.SetUpgradeRingCommand;
             this.Ring = RingType.Invalid;
             return false;
         }
