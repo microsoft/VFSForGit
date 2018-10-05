@@ -60,11 +60,8 @@ namespace GVFS.Common.Prefetch.Jobs
                         {
                             using (FileStream filestream = new FileStream(path, FileMode.Open, FileAccess.Read))
                             {
-                                int thisByte = filestream.ReadByte();
-                                if (thisByte != -1)
-                                {
-                                    succeeded = true;
-                                }
+                                filestream.ReadByte();
+                                succeeded = true;
                             }
                         }
 
