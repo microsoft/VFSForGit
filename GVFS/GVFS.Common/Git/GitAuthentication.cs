@@ -82,6 +82,11 @@ namespace GVFS.Common.Git
                 throw new InvalidOperationException("This auth instance must be initialized before it can be used");
             }
 
+            if (this.IsAnonymous)
+            {
+                throw new NotSupportedException("This session succeeded with anonymous auth, cannot switch to authenticated without restarting");
+            }
+
             gitAuthString = this.cachedAuthString;
             if (gitAuthString == null)
             {
@@ -224,9 +229,8 @@ namespace GVFS.Common.Git
             }
             else
             {
-                // TODO: How can we get back an empty username/password? This may have been an early attempt to "handle" anonymous auth
-                // and if so, it should be treated as an error here.
-                this.cachedAuthString = string.Empty;
+                errorMessage = "Got back empty credentials from git";
+                return false;
             }
 
             return true;
