@@ -82,11 +82,6 @@ namespace GVFS.Common.Git
                 throw new InvalidOperationException("This auth instance must be initialized before it can be used");
             }
 
-            if (this.IsAnonymous)
-            {
-                throw new NotSupportedException("This session succeeded with anonymous auth, cannot switch to authenticated without restarting");
-            }
-
             gitAuthString = this.cachedAuthString;
             if (gitAuthString == null)
             {
