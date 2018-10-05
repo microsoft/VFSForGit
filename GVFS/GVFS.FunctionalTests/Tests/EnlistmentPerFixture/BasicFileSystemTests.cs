@@ -171,7 +171,9 @@ namespace GVFS.FunctionalTests.Tests.LongRunningEnlistment
                 
                 ++retryCount;
                 Thread.Sleep(500);
-                attributes = new FileInfo(virtualFile).Attributes & ~FileAttributes.Archive;
+
+                info.Refresh();
+                attributes = info.Attributes & ~FileAttributes.Archive;
             }
                    
             attributes.ShouldEqual(FileAttributes.Hidden, $"Attributes do not match, expected: {FileAttributes.Hidden} actual: {attributes}");
