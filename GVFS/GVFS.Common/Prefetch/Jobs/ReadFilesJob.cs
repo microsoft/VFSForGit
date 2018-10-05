@@ -46,7 +46,7 @@ namespace GVFS.Common.Prefetch.Jobs
                         bool succeeded = false;
 
                         // TODO(Mac): Replace this with a native method as opposed to a slow .NET method
-                        if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+                        if (!GVFSPlatform.Instance.IsUnderConstruction)
                         {
                             using (SafeFileHandle handle = NativeFileReader.Open(path))
                             {
