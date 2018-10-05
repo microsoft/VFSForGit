@@ -74,12 +74,14 @@
     </Compile>
     <Compile Include="CommandLine\CacheServerVerb.cs" />
     <Compile Include="CommandLine\CloneVerb.cs" />
+    <Compile Include="CommandLine\ConfigVerb.cs" />
     <Compile Include="CommandLine\DehydrateVerb.cs" />
     <Compile Include="CommandLine\DiagnoseVerb.cs" />
     <Compile Include="CommandLine\GVFSVerb.cs" />
     <Compile Include="CommandLine\LogVerb.cs" />
     <Compile Include="CommandLine\MountVerb.cs" />
     <Compile Include="CommandLine\PrefetchVerb.cs" />
+    <Compile Include="CommandLine\UpgradeVerb.cs" />
     <Compile Include="RepairJobs\BackgroundOperationDatabaseRepairJob.cs" />
     <Compile Include="RepairJobs\BlobSizeDatabaseRepairJob.cs" />
     <Compile Include="RepairJobs\GitHeadRepairJob.cs" />

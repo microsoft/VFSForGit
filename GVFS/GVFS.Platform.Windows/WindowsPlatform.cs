@@ -12,6 +12,7 @@ using System.IO.Pipes;
 using System.Linq;
 using System.Security.AccessControl;
 using System.Security.Principal;
+using System.ServiceProcess;
 using System.Text;
 
 namespace GVFS.Platform.Windows
@@ -23,7 +24,7 @@ namespace GVFS.Platform.Windows
         private const string BuildLabExRegistryValue = "BuildLabEx";
 
         public WindowsPlatform()
-            : base(executableExtension: ".exe")
+            : base(executableExtension: ".exe", installerExtension: ".exe")
         {
         }
 
@@ -168,6 +169,14 @@ namespace GVFS.Platform.Windows
         public override bool IsProcessActive(int processId)
         {
             return WindowsPlatform.IsProcessActiveImplementation(processId);
+        }
+
+        public override void IsServiceInstalledAndRunning(string name, out bool installed, out bool running)
+        {
+            ServiceController service = ServiceController.GetServices().FirstOrDefault(s => s.ServiceName.Equals(name, StringComparison.Ordinal));
+
+            installed = service != null;
+            running = service != null ? service.Status == ServiceControllerStatus.Running : false;
         }
 
         public override string GetNamedPipeName(string enlistmentRoot)

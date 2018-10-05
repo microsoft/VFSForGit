@@ -327,7 +327,7 @@ namespace GVFS.DiskLayoutUpgrades
                 tracer.AddLogFileEventListener(
                     GVFSEnlistment.GetNewGVFSLogFileName(
                         Path.Combine(enlistmentRoot, GVFSConstants.DotGVFS.LogPath),
-                        GVFSConstants.LogFileTypes.Upgrade),
+                        GVFSConstants.LogFileTypes.MountUpgrade),
                     EventLevel.Informational,
                     Keywords.Any);
 

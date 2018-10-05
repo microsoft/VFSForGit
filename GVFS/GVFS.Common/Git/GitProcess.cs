@@ -77,11 +77,6 @@ namespace GVFS.Common.Git
             return new GitProcess(enlistment).InvokeGitOutsideEnlistment("init \"" + enlistment.WorkingDirectoryRoot + "\"");
         }
 
-        public static Result Version(Enlistment enlistment)
-        {
-            return new GitProcess(enlistment).InvokeGitOutsideEnlistment("--version");
-        }
-
         public static Result GetFromGlobalConfig(string gitBinPath, string settingName)
         {
             return new GitProcess(gitBinPath, workingDirectoryRoot: null, gvfsHooksRoot: null).InvokeGitOutsideEnlistment("config --global " + settingName);
@@ -90,6 +85,37 @@ namespace GVFS.Common.Git
         public static Result GetFromSystemConfig(string gitBinPath, string settingName)
         {
             return new GitProcess(gitBinPath, workingDirectoryRoot: null, gvfsHooksRoot: null).InvokeGitOutsideEnlistment("config --system " + settingName);
+        }
+
+        public static Result GetFromFileConfig(string gitBinPath, string configFile, string settingName)
+        {
+            return new GitProcess(gitBinPath, workingDirectoryRoot: null, gvfsHooksRoot: null).InvokeGitOutsideEnlistment("config --file " + configFile + " " + settingName);
+        }
+
+        public static bool TryGetVersion(out GitVersion gitVersion, out string error)
+        {
+            string gitPath = GVFSPlatform.Instance.GitInstallation.GetInstalledGitBinPath();
+            if (gitPath != null)
+            {
+                GitProcess gitProcess = new GitProcess(gitPath, null, null);
+                Result result = gitProcess.InvokeGitOutsideEnlistment("--version");
+                string version = result.Output;
+
+                if (!GitVersion.TryParseGitVersionCommandResult(version, out gitVersion))
+                {
+                    error = "Unable to determine installed git version. " + version;
+                    return false;
+                }
+
+                error = null;
+                return true;
+            }
+            else
+            {
+                gitVersion = null;
+                error = "Unable to determine installed git path.";
+                return false;
+            }
         }
 
         public virtual void RevokeCredential(string repoUrl)
@@ -178,6 +204,16 @@ namespace GVFS.Common.Git
         {
             return this.InvokeGitAgainstDotGitFolder(string.Format(
                 "config --local --add {0} {1}",
+                 settingName,
+                 value));
+        }
+
+        public Result SetInFileConfig(string configFile, string settingName, string value, bool replaceAll = false)
+        {
+            return this.InvokeGitOutsideEnlistment(string.Format(
+                "config --file {0} {1} \"{2}\" \"{3}\"",
+                 configFile,
+                 replaceAll ? "--replace-all " : string.Empty,
                  settingName,
                  value));
         }

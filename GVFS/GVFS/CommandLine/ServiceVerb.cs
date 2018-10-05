@@ -10,7 +10,7 @@ using System.Linq;
 namespace GVFS.CommandLine
 {
     [Verb(ServiceVerbName, HelpText = "Runs commands for the GVFS service.")]
-    public class ServiceVerb : GVFSVerb
+    public class ServiceVerb : GVFSVerb.ForNoEnlistment
     {
         private const string ServiceVerbName = "service";
 
@@ -34,12 +34,6 @@ namespace GVFS.CommandLine
             Required = false,
             HelpText = "Prints a list of all mounted repos")]
         public bool List { get; set; }
-
-        public override string EnlistmentRootPathParameter
-        {
-            get { throw new InvalidOperationException(); }
-            set { throw new InvalidOperationException(); }
-        }
 
         protected override string VerbName
         {
@@ -103,7 +97,9 @@ namespace GVFS.CommandLine
 
                 if (failedRepoRoots.Count() > 0)
                 {
-                    this.ReportErrorAndExit("\r\nThe following repos failed to mount:\r\n" + string.Join("\r\n", failedRepoRoots.ToArray()));
+                    string errorString = $"The following repos failed to mount:{Environment.NewLine}{string.Join("\r\n", failedRepoRoots.ToArray())}";
+                    Console.Error.WriteLine(errorString);
+                    this.ReportErrorAndExit(Environment.NewLine + errorString);                    
                 }
             }
             else if (this.UnmountAll)
@@ -132,7 +128,9 @@ namespace GVFS.CommandLine
 
                 if (failedRepoRoots.Count() > 0)
                 {
-                    this.ReportErrorAndExit("\r\nThe following repos failed to unmount:\r\n" + string.Join("\r\n", failedRepoRoots.ToArray()));
+                    string errorString = $"The following repos failed to unmount:{Environment.NewLine}{string.Join(Environment.NewLine, failedRepoRoots.ToArray())}";
+                    Console.Error.WriteLine(errorString);
+                    this.ReportErrorAndExit(Environment.NewLine + errorString);
                 }
             }
         }

@@ -11,5 +11,6 @@ namespace GVFS.Common.FileSystem
         string FlushDriverLogs();
         bool TryPrepareFolderForCallbacks(string folderPath, out string error, out Exception exception);
         bool IsReady(JsonTracer tracer, string enlistmentRoot, out string error);
+        bool IsGVFSUpgradeSupported();
     }
 }

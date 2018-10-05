@@ -12,7 +12,7 @@ namespace GVFS.Platform.Mac
     public partial class MacPlatform : GVFSPlatform
     {
         public MacPlatform()
-            : base(executableExtension: string.Empty)
+            : base(executableExtension: string.Empty, installerExtension: ".dmg")
         {
         }
 
@@ -54,6 +54,11 @@ namespace GVFS.Platform.Mac
         public override bool IsProcessActive(int processId)
         {
             return MacPlatform.IsProcessActiveImplementation(processId);
+        }
+
+        public override void IsServiceInstalledAndRunning(string name, out bool installed, out bool running)
+        {
+            throw new NotImplementedException();
         }
 
         public override void StartBackgroundProcess(string programName, string[] args)

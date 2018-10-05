@@ -14,6 +14,7 @@
 #define GVFSMountDir BuildOutputDir + "\GVFS.Mount.Windows\bin\" + PlatformAndConfiguration
 #define ReadObjectDir BuildOutputDir + "\GVFS.ReadObjectHook.Windows\bin\" + PlatformAndConfiguration
 #define VirtualFileSystemDir BuildOutputDir + "\GVFS.VirtualFileSystemHook.Windows\bin\" + PlatformAndConfiguration
+#define GVFSUpgraderDir BuildOutputDir + "\GVFS.Upgrader\bin\" + PlatformAndConfiguration
 
 #define MyAppName "GVFS"
 #define MyAppInstallerVersion GetFileVersion(GVFSDir + "\GVFS.exe")
@@ -34,7 +35,7 @@ AppPublisher={#MyAppPublisher}
 AppPublisherURL={#MyAppPublisherURL}
 AppSupportURL={#MyAppURL}
 AppUpdatesURL={#MyAppURL}
-AppCopyright=Copyright © Microsoft 2017
+AppCopyright=Copyright ï¿½ Microsoft 2018
 BackColor=clWhite
 BackSolid=yes
 DefaultDirName={pf}\{#MyAppName}
@@ -92,6 +93,11 @@ DestDir: "{app}"; Flags: ignoreversion; Source:"{#GVFSCommonDir}\git2.dll"
 DestDir: "{app}"; Flags: ignoreversion; Source:"{#GVFSMountDir}\GVFS.Mount.pdb"
 DestDir: "{app}"; Flags: ignoreversion; Source:"{#GVFSMountDir}\GVFS.Mount.exe"
 DestDir: "{app}"; Flags: ignoreversion; Source:"{#GVFSMountDir}\GVFS.Mount.exe.config"
+
+; GVFS.Upgrader Files
+DestDir: "{app}"; Flags: ignoreversion; Source:"{#GVFSUpgraderDir}\GVFS.Upgrader.pdb"
+DestDir: "{app}"; Flags: ignoreversion; Source:"{#GVFSUpgraderDir}\GVFS.Upgrader.exe"
+DestDir: "{app}"; Flags: ignoreversion; Source:"{#GVFSUpgraderDir}\GVFS.Upgrader.exe.config"
 
 ; GVFS.ReadObjectHook files
 DestDir: "{app}"; Flags: ignoreversion; Source:"{#ReadObjectDir}\GVFS.ReadObjectHook.pdb"
@@ -159,6 +165,7 @@ DestDir: "{app}"; Flags: ignoreversion; Source:"{#ServiceDir}\GVFS.Service.exe";
 [UninstallDelete]
 ; Deletes the entire installation directory, including files and subdirectories
 Type: filesandordirs; Name: "{app}";
+Type: filesandordirs; Name: "{commonappdata}\GVFS\GVFS.Upgrade";
 
 [Registry]
 Root: HKLM; Subkey: "{#EnvironmentKey}"; \
@@ -623,7 +630,10 @@ begin
       end;
     ssPostInstall:
       begin
-        MountRepos();
+        if ExpandConstant('{param:REMOUNTREPOS|true}') = 'true' then
+          begin
+            MountRepos();
+          end
       end;
     end;
 end;
@@ -650,7 +660,10 @@ begin
   Result := '';
   if ConfirmUnmountAll() then
     begin
-      UnmountRepos();
+      if ExpandConstant('{param:REMOUNTREPOS|true}') = 'true' then
+        begin
+          UnmountRepos();
+        end
     end;
   if not EnsureGvfsNotRunning() then
     begin

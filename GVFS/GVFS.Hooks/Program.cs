@@ -1,4 +1,4 @@
-﻿using GVFS.Common;
+using GVFS.Common;
 using GVFS.Common.Git;
 using GVFS.Common.NamedPipes;
 using GVFS.Hooks.HooksPlatform;
@@ -22,6 +22,7 @@ namespace GVFS.Hooks
         private static Dictionary<string, string> specialArgValues = new Dictionary<string, string>();
         private static string enlistmentRoot;
         private static string enlistmentPipename;
+        private static Random random = new Random();
 
         private delegate void LockRequestDelegate(bool unattended, string[] args, int pid, NamedPipeClient pipeClient);
 
@@ -68,6 +69,7 @@ namespace GVFS.Hooks
                             RunLockRequest(args, unattended, ReleaseGVFSLock);
                         }
 
+                        RunPostCommands(args);
                         break;
 
                     default:
@@ -90,6 +92,26 @@ namespace GVFS.Hooks
                 case "pull":
                     ProcessHelper.Run("gvfs", "prefetch --commits", redirectOutput: false);
                     break;
+            }
+        }
+
+        private static void RunPostCommands(string[] args)
+        {
+            RemindUpgradeAvailable();
+        }
+
+        private static void RemindUpgradeAvailable()
+        {
+            // The idea is to generate a random number between 0 and 100. To make 
+            // sure that the reminder is displayed only 10% of the times a git 
+            // command is run, check that the random number is between 0 and 10, 
+            // which will have a probability of 10/100 == 10%.
+            int reminderFrequency = 10;
+            int randomValue = random.Next(0, 100);
+
+            if (randomValue <= reminderFrequency && ProductUpgrader.IsLocalUpgradeAvailable())
+            {
+                Console.WriteLine(Environment.NewLine + GVFSConstants.UpgradeVerbMessages.ReminderNotification);
             }
         }
 

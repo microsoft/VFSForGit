@@ -77,7 +77,15 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="Windows\Mock\MockInstallerPreRunChecker.cs" />
+    <Compile Include="Windows\Mock\MockProcessLauncher.cs" />
+    <Compile Include="Windows\Mock\MockProductUpgrader.cs" />
+    <Compile Include="Windows\Mock\MockTextWriter.cs" />
     <Compile Include="Windows\Service\RepoRegistryTests.cs" />
+    <Compile Include="Windows\Upgrader\ProductUpgraderTests.cs" />
+    <Compile Include="Windows\Upgrader\UpgradeOrchestratorTests.cs" />
+    <Compile Include="Windows\Upgrader\UpgradeTests.cs" />
+    <Compile Include="Windows\Upgrader\UpgradeVerbTests.cs" />
     <Compile Include="Windows\Virtualization\ActiveEnumerationTests.cs" />
     <Compile Include="Windows\Virtualization\PatternMatcherTests.cs" />
     <Compile Include="Windows\Virtualization\WindowsFileSystemVirtualizerTests.cs" />
@@ -119,6 +127,10 @@
     <ProjectReference Include="..\GVFS.Tests\GVFS.Tests.csproj">
       <Project>{72701bc3-5da9-4c7a-bf10-9e98c9fc8eac}</Project>
       <Name>GVFS.Tests</Name>
+    </ProjectReference>
+    <ProjectReference Include="..\GVFS.Upgrader\GVFS.Upgrader.csproj">
+      <Project>{aecec217-2499-403d-b0bb-2962b9be5970}</Project>
+      <Name>GVFS.Upgrader</Name>
     </ProjectReference>
     <ProjectReference Include="..\GVFS.Virtualization\GVFS.Virtualization.csproj">
       <Project>{F468B05A-95E5-46BC-8C67-B80A78527B7D}</Project>
