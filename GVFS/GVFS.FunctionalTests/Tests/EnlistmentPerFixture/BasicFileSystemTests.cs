@@ -8,12 +8,17 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Threading;
 
 namespace GVFS.FunctionalTests.Tests.LongRunningEnlistment
 {
     [TestFixture]
     public class BasicFileSystemTests : TestsWithEnlistmentPerFixture
     {
+        private const int FileAttributeSparseFile = 0x00000200;
+        private const int FileAttributeReparsePoint = 0x00000400;
+        private const int FileAttributeRecallOnOpen = 0x00040000;
+
         [TestCaseSource(typeof(FileRunnersAndFolders), FileRunnersAndFolders.TestRunners)]
         public void ShrinkFileContents(FileSystemRunner fileSystem, string parentFolder)
         {
@@ -152,7 +157,24 @@ namespace GVFS.FunctionalTests.Tests.LongRunningEnlistment
 
             // Ignore the archive bit as it can be re-added to the file as part of its expansion to full
             FileAttributes attributes = info.Attributes & ~FileAttributes.Archive;
-            attributes.ShouldEqual(FileAttributes.Hidden, "Attributes do not match");
+
+            int retryCount = 0;
+            int maxRetries = 10;
+            while (attributes != FileAttributes.Hidden && retryCount < maxRetries)
+            {
+                // ProjFS attributes are remoted asynchronously when files are converted to full
+                FileAttributes attributesLessProjFS = attributes & (FileAttributes)~(FileAttributeSparseFile | FileAttributeRecallOnOpen | FileAttributeReparsePoint);
+
+                attributesLessProjFS.ShouldEqual(
+                    FileAttributes.Hidden, 
+                    $"Attributes (ignoring ProjFS attributes) do not match, expected: {FileAttributes.Hidden} actual: {attributesLessProjFS}");
+                
+                ++retryCount;
+                Thread.Sleep(500);
+                attributes = new FileInfo(virtualFile).Attributes & ~FileAttributes.Archive;
+            }
+                   
+            attributes.ShouldEqual(FileAttributes.Hidden, $"Attributes do not match, expected: {FileAttributes.Hidden} actual: {attributes}");
         }
 
         [TestCase]
