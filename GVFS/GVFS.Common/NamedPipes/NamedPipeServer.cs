@@ -6,6 +6,20 @@ using System.Threading;
 
 namespace GVFS.Common.NamedPipes
 {
+    /// <summary>
+    /// The server side of a Named Pipe used for interprocess communication.
+    ///
+    /// Named Pipe protocol:
+    ///    The client / server process sends a "message" (or line) of data as a
+    ///    sequence of bytes terminated by a 0x3 byte (ASCII control code for
+    ///    End of text). Text is encoded as UTF-8 to be sent as bytes across the wire.
+    ///
+    /// This format was chosen so that
+    ///   1) A reasonable range of values can be transmitted across the pipe,
+    ///      including null and bytes that represent newline characters,
+    ///   2) It would be easy to implement in multiple places 
+    ///      (we have managed and native implementations).
+    /// </summary>
     public class NamedPipeServer : IDisposable
     {
         // TODO(Mac) the limit is much shorter on macOS

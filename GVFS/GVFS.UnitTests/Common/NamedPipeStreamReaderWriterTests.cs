@@ -24,7 +24,6 @@ namespace GVFS.UnitTests.Common
         }
 
         [Test]
-        [Description("Verify that we can transmit multiple messages")]
         public void CanWriteAndReadMessages()
         {
             string firstMessage = @"This is a new message";
@@ -41,7 +40,6 @@ namespace GVFS.UnitTests.Common
         }
 
         [Test]
-        [Description("Verify that we can transmit a message that contains content that is the size of a NamedPipeStreamReader's buffer")]
         public void CanSendBufferSizedContent()
         {
             string longMessage = new string('T', BufferSize);
@@ -49,7 +47,6 @@ namespace GVFS.UnitTests.Common
         }
 
         [Test]
-        [Description("Verify that we can transmit message that is the same size a NamedPipeStreamReader's buffer")]
         public void CanSendBufferSizedMessage()
         {
             int numBytesInMessageTerminator = 1;
@@ -58,7 +55,6 @@ namespace GVFS.UnitTests.Common
         }
 
         [Test]
-        [Description("Verify that the expected exception is thrown if message is not terminated with expected byte.")]
         [Category(CategoryConstants.ExceptionExpected)]
         public void ReadingPartialMessgeThrows()
         {
@@ -71,7 +67,6 @@ namespace GVFS.UnitTests.Common
         }
 
         [Test]
-        [Description("Verify that we can transmit message that is larger than the buffer")]
         public void CanSendMultiBufferSizedMessage()
         {
             string longMessage = new string('T', BufferSize * 3);
@@ -79,11 +74,38 @@ namespace GVFS.UnitTests.Common
         }
 
         [Test]
-        [Description("Verify that we can transmit message that newline characters")]
-        public void CanSendNewLines()
+        public void CanSendMessagesWithNewLines()
         {
             string messageWithNewLines = "This is a \nstringwith\nnewlines";
             this.TestTransmitMessage(messageWithNewLines);
+        }
+
+        [Test]
+        public void CanSendMultipleMessagesIntheSameBuffer()
+        {
+            string[] messages = new string[]
+            {
+                "This is a new message",
+                "This is another message",
+                "This is the third message in a series of messages"
+            };
+
+            this.TestTransmitMessages(messages);
+        }
+
+        [Test]
+        public void CanHandleMultipleChunkedMessagesInTheSameBuffer()
+        {
+            string chunkedMessage = new string('T', BufferSize + (BufferSize / 2));
+
+            string[] messages = new string[]
+            {
+                chunkedMessage,
+                "This is another message",
+                chunkedMessage
+            };
+
+            this.TestTransmitMessages(messages);
         }
 
         private void TestTransmitMessage(string message)
@@ -95,6 +117,24 @@ namespace GVFS.UnitTests.Common
 
             string readMessage = this.streamReader.ReadMessage();
             readMessage.ShouldEqual(message, "The message read from the stream reader is not the same as the message that was sent.");
+        }
+        
+        private void TestTransmitMessages(string[] messages)
+        {
+            long pos = this.ReadStreamPosition();
+
+            foreach (string message in messages)
+            {
+                this.streamWriter.WriteMessage(message);
+            }
+            
+            this.SetStreamPosition(pos);
+
+            foreach (string message in messages)
+            {
+                string readMessage = this.streamReader.ReadMessage();
+                readMessage.ShouldEqual(message, "The message read from the stream reader is not the same as the message that was sent.");
+            }
         }
 
         private long ReadStreamPosition()
