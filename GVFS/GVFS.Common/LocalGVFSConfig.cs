@@ -21,21 +21,21 @@ namespace GVFS.Common
         }
 
         public bool TryGetConfig(
-            string key, 
+            string name, 
             out string value, 
             out string error,
             ITracer tracer)
         {
             if (!this.TryLoadSettings(tracer, out error))
             {
-                error = $"Error getting config value {key}. {error}";
+                error = $"Error getting config value {name}. {error}";
                 value = null;
                 return false;
             }
                         
             try
             {
-                this.allSettings.TryGetValue(key.ToUpper(), out value);
+                this.allSettings.TryGetValue(this.KeyFromConfigName(name), out value);
                 error = null;
                 return true;
             }
@@ -44,30 +44,30 @@ namespace GVFS.Common
                 const string ErrorFormat = "Error getting config value for {0}. Config file {1}. {2}";
                 if (tracer != null)
                 {
-                    tracer.RelatedError(ErrorFormat, key, this.configFile, exception.ToString());
+                    tracer.RelatedError(ErrorFormat, name, this.configFile, exception.ToString());
                 }
 
-                error = string.Format(ErrorFormat, key, this.configFile, exception.Message);
+                error = string.Format(ErrorFormat, name, this.configFile, exception.Message);
                 value = null;
                 return false;
             }
         }
 
         public bool TrySetConfig(
-            string key, 
+            string name, 
             string value, 
             out string error,
             ITracer tracer)
         {
             if (!this.TryLoadSettings(tracer, out error))
             {
-                error = $"Error setting config value {key}: {value}. {error}";
+                error = $"Error setting config value {name}: {value}. {error}";
                 return false;
             }
 
             try
             {
-                this.allSettings.SetValueAndFlush(key.ToUpper(), value);
+                this.allSettings.SetValueAndFlush(this.KeyFromConfigName(name), value);
                 error = null;
                 return true;
             }
@@ -76,13 +76,18 @@ namespace GVFS.Common
                 const string ErrorFormat = "Error setting config value {0}: {1}. Config file {2}. {3}";
                 if (tracer != null)
                 {
-                    tracer.RelatedError(ErrorFormat, key, value, this.configFile, exception.ToString());
+                    tracer.RelatedError(ErrorFormat, name, value, this.configFile, exception.ToString());
                 }
 
-                error = string.Format(ErrorFormat, key, value, this.configFile, exception.Message);
+                error = string.Format(ErrorFormat, name, value, this.configFile, exception.Message);
                 value = null;
                 return false;
             }
+        }
+
+        private string KeyFromConfigName(string configName)
+        {
+            return configName.ToUpperInvariant();
         }
 
         private bool TryLoadSettings(ITracer tracer, out string error)

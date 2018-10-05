@@ -414,9 +414,8 @@ namespace GVFS.Upgrader
 
             GitVersion installedGitVersion = null;
             string error = null;
-            if (GitProcess.TryGetVersion(
-                out installedGitVersion,
-                out error))
+            string gitPath = GVFSPlatform.Instance.GitInstallation.GetInstalledGitBinPath();
+            if (!string.IsNullOrEmpty(gitPath) && GitProcess.TryGetVersion(gitPath, out installedGitVersion, out error))
             {
                 metadata.Add(nameof(installedGitVersion), installedGitVersion.ToString());
             }

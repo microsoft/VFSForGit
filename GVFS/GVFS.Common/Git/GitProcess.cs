@@ -92,30 +92,21 @@ namespace GVFS.Common.Git
             return new GitProcess(gitBinPath, workingDirectoryRoot: null, gvfsHooksRoot: null).InvokeGitOutsideEnlistment("config --file " + configFile + " " + settingName);
         }
 
-        public static bool TryGetVersion(out GitVersion gitVersion, out string error)
+        public static bool TryGetVersion(string gitBinPath, out GitVersion gitVersion, out string error)
         {
-            string gitPath = GVFSPlatform.Instance.GitInstallation.GetInstalledGitBinPath();
-            if (gitPath != null)
-            {
-                GitProcess gitProcess = new GitProcess(gitPath, null, null);
-                Result result = gitProcess.InvokeGitOutsideEnlistment("--version");
-                string version = result.Output;
+            GitProcess gitProcess = new GitProcess(gitBinPath, null, null);
+            Result result = gitProcess.InvokeGitOutsideEnlistment("--version");
+            string version = result.Output;
 
-                if (!GitVersion.TryParseGitVersionCommandResult(version, out gitVersion))
-                {
-                    error = "Unable to determine installed git version. " + version;
-                    return false;
-                }
-
-                error = null;
-                return true;
-            }
-            else
+            if (result.HasErrors || !GitVersion.TryParseGitVersionCommandResult(version, out gitVersion))
             {
                 gitVersion = null;
-                error = "Unable to determine installed git path.";
+                error = "Unable to determine installed git version. " + version;
                 return false;
             }
+
+            error = null;
+            return true;
         }
 
         public virtual void RevokeCredential(string repoUrl)

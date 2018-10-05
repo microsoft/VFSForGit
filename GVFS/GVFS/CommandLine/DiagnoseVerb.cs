@@ -50,9 +50,10 @@ namespace GVFS.CommandLine
                 this.WriteMessage(string.Empty);
                 this.WriteMessage("gvfs version " + ProcessHelper.GetCurrentProcessVersion());
 
-                GitVersion gitVersion;
-                string error;
-                if (GitProcess.TryGetVersion(out gitVersion, out error))
+                GitVersion gitVersion = null;
+                string error = null;
+                string gitPath = GVFSPlatform.Instance.GitInstallation.GetInstalledGitBinPath();
+                if (!string.IsNullOrEmpty(gitPath) && GitProcess.TryGetVersion(gitPath, out gitVersion, out error))
                 {
                     this.WriteMessage("git version " + gitVersion.ToString());
                 }

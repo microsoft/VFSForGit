@@ -83,12 +83,12 @@ namespace GVFS.Common
             public const string Dehydrate = "dehydrate";
             public const string MountVerb = MountPrefix + "_verb";
             public const string MountProcess = MountPrefix + "_process";
+            public const string MountUpgrade = MountPrefix + "_repoupgrade";
             public const string Prefetch = "prefetch";
             public const string Repair = "repair";
             public const string Service = "service";
             public const string UpgradeVerb = UpgradePrefix + "_verb";
-            public const string UpgradeProcess = UpgradePrefix + "_process";
-            public const string MountUpgrade = MountPrefix + "_repoupgrade";
+            public const string UpgradeProcess = UpgradePrefix + "_process";            
         }
 
         public static class DotGVFS
@@ -228,7 +228,6 @@ namespace GVFS.Common
         {
             public const string GVFSUpgrade = "`gvfs upgrade`";
             public const string GVFSUpgradeConfirm = "`gvfs upgrade --confirm`";
-            public const string GVFSUpgradeOptionalConfirm = "`gvfs upgrade [--confirm]`";
             public const string NoUpgradeCheckPerformed = "No upgrade check was performed.";
             public const string NoneRingConsoleAlert = "Upgrade ring set to \"None\". " + NoUpgradeCheckPerformed;
             public const string NoRingConfigConsoleAlert = "Upgrade ring is not set. " + NoUpgradeCheckPerformed;
