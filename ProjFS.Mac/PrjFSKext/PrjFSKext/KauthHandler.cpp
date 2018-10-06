@@ -42,11 +42,9 @@ static inline bool ActionBitIsSet(kauth_action_t action, kauth_action_t mask);
 
 static bool IsFileSystemCrawler(char* procname);
 
-static const char* GetRelativePath(const char* path, const char* root);
-
 static void Sleep(int seconds, void* channel);
 static bool TrySendRequestAndWaitForResponse(
-    const VirtualizationRoot* root,
+    VirtualizationRootHandle root,
     MessageType messageType,
     const vnode_t vnode,
     const FsidInode& vnodeFsidInode,
@@ -65,7 +63,7 @@ static bool ShouldHandleVnodeOpEvent(
     kauth_action_t action,
 
     // Out params:
-    VirtualizationRoot** root,
+    VirtualizationRootHandle* root,
     vtype* vnodeType,
     uint32_t* vnodeFileFlags,
     FsidInode* vnodeFsidInode,
@@ -80,7 +78,7 @@ static bool ShouldHandleFileOpEvent(
     kauth_action_t action,
 
     // Out params:
-    VirtualizationRoot** root,
+    VirtualizationRootHandle* root,
     FsidInode* vnodeFsidInode,
     int* pid);
 
@@ -260,12 +258,24 @@ static int HandleVnodeOperation(
     // arg2 is the (vnode_t) parent vnode
     int* kauthError =       reinterpret_cast<int*>(arg3);
     int kauthResult = KAUTH_RESULT_DEFER;
+    bool putVnodeWhenDone = false;
+
+    // A lot of our file checks such as attribute tests behave oddly if the vnode
+    // refers to a named fork/stream; apply the logic as if the vnode operation was
+    // occurring on the file itself. (/path/to/file/..namedfork/rsrc)
+    if (vnode_isnamedstream(currentVnode))
+    {
+        vnode_t mainFileFork = vnode_getparent(currentVnode);
+        assert(NULLVP != mainFileFork);
+        currentVnode = mainFileFork;
+        putVnodeWhenDone = true;
+    }
 
     const char* vnodePath = nullptr;
     char vnodePathBuffer[PrjFSMaxPath];
     int vnodePathLength = PrjFSMaxPath;
 
-    VirtualizationRoot* root = nullptr;
+    VirtualizationRootHandle root = RootHandle_None;
     vtype vnodeType;
     uint32_t currentVnodeFileFlags;
     FsidInode vnodeFsidInode;
@@ -384,6 +394,11 @@ static int HandleVnodeOperation(
     }
     
 CleanupAndReturn:
+    if (putVnodeWhenDone)
+    {
+        vnode_put(currentVnode);
+    }
+    
     atomic_fetch_sub(&s_numActiveKauthEvents, 1);
     return kauthResult;
 }
@@ -408,7 +423,7 @@ static int HandleFileOpOperation(
         KAUTH_FILEOP_LINK == action)
     {
         // arg0 is the (const char *) fromPath (or the file being linked to)
-        const char* newPath = (const char*)arg1;
+        const char* newPath = reinterpret_cast<const char*>(arg1);
         
         // TODO(Mac): We need to handle failures to lookup the vnode.  If we fail to lookup the vnode
         // it's possible that we'll miss notifications
@@ -418,7 +433,7 @@ static int HandleFileOpOperation(
             goto CleanupAndReturn;
         }
         
-        VirtualizationRoot* root = nullptr;
+        VirtualizationRootHandle root = RootHandle_None;
         FsidInode vnodeFsidInode;
         int pid;
         if (!ShouldHandleFileOpEvent(
@@ -464,7 +479,7 @@ static int HandleFileOpOperation(
     else if (KAUTH_FILEOP_CLOSE == action)
     {
         vnode_t currentVnode = reinterpret_cast<vnode_t>(arg0);
-        const char* path = (const char*)arg1;
+        const char* path = reinterpret_cast<const char*>(arg1);
         int closeFlags = static_cast<int>(arg2);
         
         if (vnode_isdir(currentVnode))
@@ -478,7 +493,7 @@ static int HandleFileOpOperation(
             goto CleanupAndReturn;
         }
             
-        VirtualizationRoot* root = nullptr;
+        VirtualizationRootHandle root = RootHandle_None;
         FsidInode vnodeFsidInode;
         int pid;
         if (!ShouldHandleFileOpEvent(
@@ -554,7 +569,7 @@ static bool ShouldHandleVnodeOpEvent(
     kauth_action_t action,
 
     // Out params:
-    VirtualizationRoot** root,
+    VirtualizationRootHandle* root,
     vtype* vnodeType,
     uint32_t* vnodeFileFlags,
     FsidInode* vnodeFsidInode,
@@ -562,8 +577,8 @@ static bool ShouldHandleVnodeOpEvent(
     char procname[MAXCOMLEN + 1],
     int* kauthResult)
 {
-    *root = nullptr;
     *kauthResult = KAUTH_RESULT_DEFER;
+    *root = RootHandle_None;
     
     if (!VirtualizationRoot_VnodeIsOnAllowedFilesystem(vnode))
     {
@@ -609,19 +624,22 @@ static bool ShouldHandleVnodeOpEvent(
     }
     
     *vnodeFsidInode = Vnode_GetFsidAndInode(vnode, context);
-    *root = VirtualizationRoots_FindForVnode(vnode, *vnodeFsidInode);
+    *root = VirtualizationRoot_FindForVnode(vnode, *vnodeFsidInode);
     
-    if (nullptr == *root)
+    if (RootHandle_ProviderTemporaryDirectory == *root)
+    {
+        *kauthResult = KAUTH_RESULT_DEFER;
+        return false;
+    }
+    else if (RootHandle_None == *root)
     {
         KextLog_FileNote(vnode, "No virtualization root found for file with set flag.");
         
         *kauthResult = KAUTH_RESULT_DEFER;
         return false;
     }
-    else if (nullptr == (*root)->providerUserClient)
+    else if (!VirtualizationRoot_IsOnline(*root))
     {
-        // There is no registered provider for this root
-        
         // TODO(Mac): Protect files in the worktree from modification (and prevent
         // the creation of new files) when the provider is offline
         
@@ -630,7 +648,7 @@ static bool ShouldHandleVnodeOpEvent(
     }
     
     // If the calling process is the provider, we must exit right away to avoid deadlocks
-    if (*pid == (*root)->providerPid)
+    if (VirtualizationRoot_PIDMatchesProvider(*root, *pid))
     {
         *kauthResult = KAUTH_RESULT_DEFER;
         return false;
@@ -646,10 +664,12 @@ static bool ShouldHandleFileOpEvent(
     kauth_action_t action,
 
     // Out params:
-    VirtualizationRoot** root,
+    VirtualizationRootHandle* root,
     FsidInode* vnodeFsidInode,
     int* pid)
 {
+    *root = RootHandle_None;
+
     vtype vnodeType = vnode_vtype(vnode);
     if (ShouldIgnoreVnodeType(vnodeType, vnode))
     {
@@ -657,21 +677,17 @@ static bool ShouldHandleFileOpEvent(
     }
     
     *vnodeFsidInode = Vnode_GetFsidAndInode(vnode, context);
-    *root = VirtualizationRoots_FindForVnode(vnode, *vnodeFsidInode);
-    if (nullptr == *root)
+    *root = VirtualizationRoot_FindForVnode(vnode, *vnodeFsidInode);
+    if (!VirtualizationRoot_IsValidRootHandle(*root))
     {
-        return false;
-    }
-    else if (nullptr == (*root)->providerUserClient)
-    {
-        // There is no registered provider for this root
+        // This VNode is not part of a root
         return false;
     }
     
-    // If the calling process is the provider, we must exit right away to avoid deadlocks
     *pid = GetPid(context);
-    if (*pid == (*root)->providerPid)
+    if (VirtualizationRoot_PIDMatchesProvider(*root, *pid))
     {
+        // If the calling process is the provider, we must exit right away to avoid deadlocks
         return false;
     }
     
@@ -679,7 +695,7 @@ static bool ShouldHandleFileOpEvent(
 }
 
 static bool TrySendRequestAndWaitForResponse(
-    const VirtualizationRoot* root,
+    VirtualizationRootHandle root,
     MessageType messageType,
     const vnode_t vnode,
     const FsidInode& vnodeFsidInode,
@@ -702,7 +718,7 @@ static bool TrySendRequestAndWaitForResponse(
         return false;
     }
     
-    const char* relativePath = GetRelativePath(vnodePath, root->path);
+    const char* relativePath = VirtualizationRoot_GetRootRelativePath(root, vnodePath);
     
     int nextMessageId = OSIncrementAtomic(&s_nextMessageId);
     
@@ -731,7 +747,7 @@ static bool TrySendRequestAndWaitForResponse(
     
     // TODO(Mac): Should we pass in the root directly, rather than root->index?
     //            The index seems more like a private implementation detail.
-    if (!isShuttingDown && 0 != ActiveProvider_SendMessage(root->index, messageSpec))
+    if (!isShuttingDown && 0 != ActiveProvider_SendMessage(root, messageSpec))
     {
         // TODO: appropriately handle unresponsive providers
         
@@ -866,19 +882,6 @@ static bool IsFileSystemCrawler(char* procname)
     }
     
     return false;
-}
-
-static const char* GetRelativePath(const char* path, const char* root)
-{
-    assert(strlen(path) >= strlen(root));
-    
-    const char* relativePath = path + strlen(root);
-    if (relativePath[0] == '/')
-    {
-        relativePath++;
-    }
-    
-    return relativePath;
 }
 
 static bool ShouldIgnoreVnodeType(vtype vnodeType, vnode_t vnode)
