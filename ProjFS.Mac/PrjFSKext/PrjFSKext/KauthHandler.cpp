@@ -670,6 +670,11 @@ static bool ShouldHandleFileOpEvent(
 {
     *root = RootHandle_None;
 
+    if (!VirtualizationRoot_VnodeIsOnAllowedFilesystem(vnode))
+    {
+        return false;
+    }
+
     vtype vnodeType = vnode_vtype(vnode);
     if (ShouldIgnoreVnodeType(vnodeType, vnode))
     {
