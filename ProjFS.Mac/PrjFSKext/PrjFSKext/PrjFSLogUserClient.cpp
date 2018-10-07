@@ -2,12 +2,27 @@
 #include "PrjFSLogClientShared.h"
 #include "KextLog.hpp"
 #include "PrjFSCommon.h"
+#include "PerformanceTracing.hpp"
 #include <IOKit/IOSharedDataQueue.h>
 
 
 OSDefineMetaClassAndStructors(PrjFSLogUserClient, IOUserClient);
 // Amount of memory to set aside for kernel -> userspace log messages.
 static const uint32_t LogMessageQueueCapacityBytes = 1024 * 1024;
+
+
+static const IOExternalMethodDispatch LogUserClientDispatch[] =
+{
+    [LogSelector_FetchProfilingData] =
+        {
+            .function =                 &PrjFSLogUserClient::fetchProfilingData,
+            .checkScalarInputCount =    0,
+            .checkStructureInputSize =  0,
+            .checkScalarOutputCount =   0,
+            .checkStructureOutputSize = Probe_Count * sizeof(PerfTracingProbe), // array of probes
+        },
+};
+
 
 bool PrjFSLogUserClient::initWithTask(
     task_t owningTask,
@@ -127,5 +142,33 @@ void PrjFSLogUserClient::sendLogMessage(KextLog_MessageHeader* message, uint32_t
         }
     }
     Mutex_Release(this->dataQueueWriterMutex);
+}
+
+IOReturn PrjFSLogUserClient::externalMethod(
+    uint32_t selector,
+    IOExternalMethodArguments* arguments,
+    IOExternalMethodDispatch* dispatch,
+    OSObject* target,
+    void* reference)
+{
+    IOExternalMethodDispatch local_dispatch = {};
+    if (selector < sizeof(LogUserClientDispatch) / sizeof(LogUserClientDispatch[0]))
+    {
+        if (nullptr != LogUserClientDispatch[selector].function)
+        {
+            local_dispatch = LogUserClientDispatch[selector];
+            dispatch = &local_dispatch;
+            target = this;
+        }
+    }
+    return this->super::externalMethod(selector, arguments, dispatch, target, reference);
+}
+
+IOReturn PrjFSLogUserClient::fetchProfilingData(
+    OSObject* target,
+    void* reference,
+    IOExternalMethodArguments* arguments)
+{
+    return PerfTracing_ExportDataUserClient(arguments);
 }
 

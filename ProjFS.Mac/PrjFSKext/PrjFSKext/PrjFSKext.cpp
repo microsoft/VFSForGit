@@ -5,12 +5,15 @@
 #include "KauthHandler.hpp"
 #include "Locks.hpp"
 #include "Memory.hpp"
+#include "PerformanceTracing.hpp"
 
 extern "C" kern_return_t PrjFSKext_Start(kmod_info_t* ki, void* d);
 extern "C" kern_return_t PrjFSKext_Stop(kmod_info_t* ki, void* d);
 
 kern_return_t PrjFSKext_Start(kmod_info_t* ki, void* d)
 {
+    PerfTracing_Init();
+    
     if (Locks_Init())
     {
         goto CleanupAndFail;

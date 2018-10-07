@@ -30,9 +30,9 @@ public:
     virtual IOReturn externalMethod(
         uint32_t selector,
         IOExternalMethodArguments* arguments,
-        IOExternalMethodDispatch* dispatch = 0,
-        OSObject* target = 0,
-        void* reference = 0) override;
+        IOExternalMethodDispatch* dispatch = nullptr,
+        OSObject* target = nullptr,
+        void* reference = nullptr) override;
     virtual IOReturn clientMemoryForType(
         UInt32 type,
         IOOptionBits* options,
