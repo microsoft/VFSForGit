@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.IO;
 
@@ -13,24 +14,21 @@ namespace GVFS.Common
         private const string GVFSInstallerFileNamePrefix = "SetupGVFS";
         private const string VFSForGitInstallerFileNamePrefix = "VFSForGit";
 
-        public static bool IsLocalUpgradeAvailable()
+        public static bool IsLocalUpgradeAvailable(string[] installerExtensions)
         {
             string downloadDirectory = GetAssetDownloadsPath();
             if (Directory.Exists(downloadDirectory))
             {
-                // This method is used Only by Git hooks. Git hooks does not have access
-                // to GVFSPlatform to read platform specific file extensions. That is the
-                // reason possible installer file extensions are defined here.
-                HashSet<string> extensions = new HashSet<string>() { "EXE", "DMG", "RPM", "DEB" };
-                HashSet<string> installerNames = new HashSet<string>()
+                HashSet<string> extensions = new HashSet<string>(installerExtensions, StringComparer.OrdinalIgnoreCase);
+                HashSet<string> installerNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
                 {
-                    GVFSInstallerFileNamePrefix.ToUpperInvariant(),
-                    VFSForGitInstallerFileNamePrefix.ToUpperInvariant()
+                    GVFSInstallerFileNamePrefix,
+                    VFSForGitInstallerFileNamePrefix
                 };
 
                 foreach (string file in Directory.EnumerateFiles(downloadDirectory, "*", SearchOption.TopDirectoryOnly))
                 {
-                    string[] components = Path.GetFileName(file).ToUpperInvariant().Split('.');
+                    string[] components = Path.GetFileName(file).Split('.');
                     int length = components.Length;
                     if (length >= 2 && installerNames.Contains(components[0]) && extensions.Contains(components[length - 1]))
                     {

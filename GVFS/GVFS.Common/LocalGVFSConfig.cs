@@ -1,5 +1,6 @@
 ﻿using GVFS.Common.FileSystem;
 using GVFS.Common.Tracing;
+using System;
 using System.IO;
 
 namespace GVFS.Common
@@ -35,7 +36,7 @@ namespace GVFS.Common
                         
             try
             {
-                this.allSettings.TryGetValue(this.KeyFromConfigName(name), out value);
+                this.allSettings.TryGetValue(name, out value);
                 error = null;
                 return true;
             }
@@ -67,7 +68,7 @@ namespace GVFS.Common
 
             try
             {
-                this.allSettings.SetValueAndFlush(this.KeyFromConfigName(name), value);
+                this.allSettings.SetValueAndFlush(name, value);
                 error = null;
                 return true;
             }
@@ -85,11 +86,6 @@ namespace GVFS.Common
             }
         }
 
-        private string KeyFromConfigName(string configName)
-        {
-            return configName.ToUpperInvariant();
-        }
-
         private bool TryLoadSettings(ITracer tracer, out string error)
         {
             if (this.allSettings == null)
@@ -100,7 +96,8 @@ namespace GVFS.Common
                     dictionaryPath: this.configFile,
                     fileSystem: this.fileSystem,
                     output: out config,
-                    error: out error))
+                    error: out error,
+                    keyComparer: StringComparer.OrdinalIgnoreCase))
                 {
                     this.allSettings = config;
                     return true;

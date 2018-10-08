@@ -5,6 +5,8 @@ namespace GVFS.Platform.Mac
 {
     public partial class MacPlatform
     {
+        public static readonly string[] InstallerExtensions = { "dmg" };
+
         public static bool IsElevatedImplementation()
         {
             // TODO(Mac): Implement proper check
