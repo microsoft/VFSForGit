@@ -17,7 +17,7 @@ namespace GVFS.FunctionalTests.Tests.LongRunningEnlistment
     {
         private const int FileAttributeSparseFile = 0x00000200;
         private const int FileAttributeReparsePoint = 0x00000400;
-        private const int FileAttributeRecallOnOpen = 0x00040000;
+        private const int FileAttributeRecallOnDataAccess = 0x00400000;
 
         [TestCaseSource(typeof(FileRunnersAndFolders), FileRunnersAndFolders.TestRunners)]
         public void ShrinkFileContents(FileSystemRunner fileSystem, string parentFolder)
@@ -163,7 +163,7 @@ namespace GVFS.FunctionalTests.Tests.LongRunningEnlistment
             while (attributes != FileAttributes.Hidden && retryCount < maxRetries)
             {
                 // ProjFS attributes are remoted asynchronously when files are converted to full
-                FileAttributes attributesLessProjFS = attributes & (FileAttributes)~(FileAttributeSparseFile | FileAttributeRecallOnOpen | FileAttributeReparsePoint);
+                FileAttributes attributesLessProjFS = attributes & (FileAttributes)~(FileAttributeSparseFile | FileAttributeReparsePoint | FileAttributeRecallOnDataAccess);
 
                 attributesLessProjFS.ShouldEqual(
                     FileAttributes.Hidden, 
