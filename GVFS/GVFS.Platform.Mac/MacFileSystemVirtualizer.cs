@@ -525,17 +525,20 @@ namespace GVFS.Platform.Mac
                 {
                     if (isDirectory)
                     {
-                        GitCommandLineParser gitCommand = new GitCommandLineParser(this.Context.Repository.GVFSLock.GetLockedGitCommand());
-                        if (gitCommand.IsValidGitCommand)
+                        if (!relativePath.Equals(GVFSConstants.DotGit.Root, StringComparison.OrdinalIgnoreCase))
                         {
-                            // TODO(Mac): Ensure that when git creates a folder all files\folders within that folder are written to disk
-                            EventMetadata metadata = this.CreateEventMetadata(relativePath);
-                            metadata.Add("isDirectory", isDirectory);
-                            this.Context.Tracer.RelatedWarning(metadata, $"{nameof(this.OnNewFileCreated)}: Git created a folder, currently an unsupported scenario on Mac");
-                        }
-                        else
-                        {
-                            this.FileSystemCallbacks.OnFolderCreated(relativePath);
+                            GitCommandLineParser gitCommand = new GitCommandLineParser(this.Context.Repository.GVFSLock.GetLockedGitCommand());
+                            if (gitCommand.IsValidGitCommand)
+                            {
+                                // TODO(Mac): Ensure that when git creates a folder all files\folders within that folder are written to disk
+                                EventMetadata metadata = this.CreateEventMetadata(relativePath);
+                                metadata.Add("isDirectory", isDirectory);
+                                this.Context.Tracer.RelatedWarning(metadata, $"{nameof(this.OnNewFileCreated)}: Git created a folder, currently an unsupported scenario on Mac");
+                            }
+                            else
+                            {
+                                this.FileSystemCallbacks.OnFolderCreated(relativePath);
+                            }
                         }
                     }
                     else
