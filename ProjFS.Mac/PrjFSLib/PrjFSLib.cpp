@@ -9,6 +9,7 @@
 #include <unistd.h>
 #include <dirent.h>
 #include <queue>
+#include <stack>
 #include <memory>
 #include <set>
 #include <map>
@@ -45,6 +46,7 @@ using std::pair;
 using std::queue;
 using std::set;
 using std::shared_ptr;
+using std::stack;
 using std::string;
 
 typedef lock_guard<mutex> mutex_lock;
@@ -501,6 +503,8 @@ PrjFS_Result PrjFS_DeleteFile(
             case ENOENT:  // A component of fullPath does not exist
             case ENOTDIR: // A component of fullPath is not a directory
                 return PrjFS_Result_Success;
+            case ENOTEMPTY:
+                return PrjFS_Result_EDirectoryNotEmpty;
             default:
                 return PrjFS_Result_EIOError;
         }
@@ -610,27 +614,41 @@ static void HandleKernelRequest(void* messageMemory, uint32_t messageSize)
         case MessageType_KtoU_NotifyDirectoryRenamed:
         case MessageType_KtoU_NotifyFileHardLinkCreated:
         {
+            // Walk up the directory tree and notify the provider about any directories
+            // not flagged as being in the root
+            stack<pair<string /*relative path*/, string /*full path*/>> newFolderPaths;
             string parentPath(request.path);
             size_t lastDirSeparator = parentPath.find_last_of('/');
-            if (lastDirSeparator != string::npos)
+            while (lastDirSeparator != string::npos && lastDirSeparator > 0)
             {
                 parentPath = parentPath.substr(0, lastDirSeparator);
-                
                 char parentFullPath[PrjFSMaxPath];
                 CombinePaths(s_virtualizationRootFullPath.c_str(), parentPath.c_str(), parentFullPath);
-                
-                if (!IsBitSetInFileFlags(parentFullPath, FileFlags_IsInVirtualizationRoot))
+                if (IsBitSetInFileFlags(parentFullPath, FileFlags_IsInVirtualizationRoot))
                 {
-                    // TODO(Mac): Handle SetBitInFileFlags failures
-                    SetBitInFileFlags(parentFullPath, FileFlags_IsInVirtualizationRoot, true);
-                    
-                    HandleFileNotification(
-                        requestHeader,
-                        parentPath.c_str(),
-                        parentFullPath,
-                        true, // isDirectory
-                        PrjFS_NotificationType_NewFileCreated);
+                    break;
                 }
+                else
+                {
+                    newFolderPaths.emplace(make_pair(parentPath, parentFullPath));
+                    lastDirSeparator = parentPath.find_last_of('/');
+                }
+            }
+            
+            while (!newFolderPaths.empty())
+            {
+                const pair<string /*relative path*/, string /*full path*/>& parentFolderPath = newFolderPaths.top();
+                newFolderPaths.pop();
+                
+                // TODO(Mac): Handle SetBitInFileFlags failures
+                SetBitInFileFlags(parentFolderPath.second.c_str(), FileFlags_IsInVirtualizationRoot, true);
+        
+                HandleFileNotification(
+                    requestHeader,
+                    parentFolderPath.first.c_str(),
+                    parentFolderPath.second.c_str(),
+                    true, // isDirectory
+                    PrjFS_NotificationType_NewFileCreated);
             }
             
             char fullPath[PrjFSMaxPath];

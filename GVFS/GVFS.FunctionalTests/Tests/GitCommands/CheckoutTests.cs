@@ -402,7 +402,6 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
         // ReadFileAfterTryingToReadFileAtCommitWhereFileDoesNotExist is meant to exercise the NegativePathCache and its
         // behavior when projections change
         [TestCase]
-        [Category(Categories.MacTODO.M3)]
         public void ReadFileAfterTryingToReadFileAtCommitWhereFileDoesNotExist()
         {
             this.ControlGitRepo.Fetch(GitRepoTests.ConflictSourceBranch);
@@ -612,7 +611,7 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
         }
 
         [TestCase]
-        [Category(Categories.MacTODO.M4)]
+        [Category(Categories.MacTODO.M3)]
         public void CheckoutBranchWhileOutsideToolHasExclusiveReadHandleOnDatabasesFolder()
         {
             this.ControlGitRepo.Fetch(GitRepoTests.ConflictSourceBranch);
@@ -798,9 +797,7 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
             this.ShouldNotExistOnDisk("d", "c");
         }
 
-        // TODO(Mac): This test needs the fix for issue #264
         [TestCase]
-        [Category(Categories.MacTODO.M3)]
         public void DeleteFileThenCheckout()
         {
             this.FolderShouldExistAndHaveFile("GitCommandsTests", "DeleteFileTests", "1", "#test");
@@ -816,7 +813,6 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
         }
 
         [TestCase]
-        [Category(Categories.MacTODO.M3)]
         public void CheckoutEditCheckoutWithoutFolderThenCheckoutWithMultipleFiles()
         {
             // Edit the file to get the entry in the modified paths database
@@ -844,7 +840,6 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
         }
 
         [TestCase]
-        [Category(Categories.MacTODO.M3)]
         public void CheckoutBranchWithDirectoryNameSameAsFile()
         {
             this.SetupForFileDirectoryTest();
@@ -852,21 +847,18 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
         }
 
         [TestCase]
-        [Category(Categories.MacTODO.M3)]
         public void CheckoutBranchWithDirectoryNameSameAsFileEnumerate()
         {
             this.RunFileDirectoryEnumerateTest("checkout");
         }
 
         [TestCase]
-        [Category(Categories.MacTODO.M3)]
         public void CheckoutBranchWithDirectoryNameSameAsFileWithRead()
         {
             this.RunFileDirectoryReadTest("checkout");
         }
 
         [TestCase]
-        [Category(Categories.MacTODO.M3)]
         public void CheckoutBranchWithDirectoryNameSameAsFileWithWrite()
         {
             this.RunFileDirectoryWriteTest("checkout");

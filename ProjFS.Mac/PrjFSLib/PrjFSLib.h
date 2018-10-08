@@ -33,6 +33,7 @@ typedef enum
     PrjFS_Result_EIOError                           = 0x20000040,
     PrjFS_Result_ENotAVirtualizationRoot            = 0x20000080,
     PrjFS_Result_EVirtualizationRootAlreadyExists   = 0x20000100,
+    PrjFS_Result_EDirectoryNotEmpty                 = 0x20000200,
     
     PrjFS_Result_ENotYetImplemented                 = 0xFFFFFFFF,
     
