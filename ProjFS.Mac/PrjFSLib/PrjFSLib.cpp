@@ -105,6 +105,7 @@ static PrjFS_Result HandleHydrateFileRequest(const MessageHeader* request, const
 static PrjFS_Result HandleFileNotification(
     const MessageHeader* request,
     const char* path,
+    const char* fullPath_opt,
     bool isDirectory,
     PrjFS_NotificationType notificationType);
 
@@ -598,6 +599,7 @@ static void HandleKernelRequest(void* messageMemory, uint32_t messageSize)
             result = HandleFileNotification(
                 requestHeader,
                 request.path,
+                nullptr, // fullPath_opt
                 requestHeader->messageType == MessageType_KtoU_NotifyDirectoryPreDelete,  // isDirectory
                 KUMessageTypeToNotificationType(static_cast<MessageType>(requestHeader->messageType)));
             break;
@@ -608,9 +610,32 @@ static void HandleKernelRequest(void* messageMemory, uint32_t messageSize)
         case MessageType_KtoU_NotifyDirectoryRenamed:
         case MessageType_KtoU_NotifyFileHardLinkCreated:
         {
+            string parentPath(request.path);
+            size_t lastDirSeparator = parentPath.find_last_of('/');
+            if (lastDirSeparator != string::npos)
+            {
+                parentPath = parentPath.substr(0, lastDirSeparator);
+                
+                char parentFullPath[PrjFSMaxPath];
+                CombinePaths(s_virtualizationRootFullPath.c_str(), parentPath.c_str(), parentFullPath);
+                
+                if (!IsBitSetInFileFlags(parentFullPath, FileFlags_IsInVirtualizationRoot))
+                {
+                    // TODO(Mac): Handle SetBitInFileFlags failures
+                    SetBitInFileFlags(parentFullPath, FileFlags_IsInVirtualizationRoot, true);
+                    
+                    HandleFileNotification(
+                        requestHeader,
+                        parentPath.c_str(),
+                        parentFullPath,
+                        true, // isDirectory
+                        PrjFS_NotificationType_NewFileCreated);
+                }
+            }
+            
             char fullPath[PrjFSMaxPath];
             CombinePaths(s_virtualizationRootFullPath.c_str(), request.path, fullPath);
-			
+   
             // TODO(Mac): Handle SetBitInFileFlags failures
             SetBitInFileFlags(fullPath, FileFlags_IsInVirtualizationRoot, true);
 
@@ -618,6 +643,7 @@ static void HandleKernelRequest(void* messageMemory, uint32_t messageSize)
             result = HandleFileNotification(
                 requestHeader,
                 request.path,
+                fullPath,
                 isDirectory,
                 KUMessageTypeToNotificationType(static_cast<MessageType>(requestHeader->messageType)));
             break;
@@ -838,6 +864,7 @@ CleanupAndReturn:
 static PrjFS_Result HandleFileNotification(
     const MessageHeader* request,
     const char* path,
+    const char* fullPath_opt,
     bool isDirectory,
     PrjFS_NotificationType notificationType)
 {
@@ -848,8 +875,13 @@ static PrjFS_Result HandleFileNotification(
         << " isDirectory: " << isDirectory << endl;
 #endif
     
-    char fullPath[PrjFSMaxPath];
-    CombinePaths(s_virtualizationRootFullPath.c_str(), path, fullPath);
+    const char* fullPath = fullPath_opt;
+    char computedFullPath[PrjFSMaxPath];
+    if (nullptr == fullPath)
+    {
+        CombinePaths(s_virtualizationRootFullPath.c_str(), path, computedFullPath);
+        fullPath = computedFullPath;
+    }
     
     PrjFSFileXAttrData xattrData = {};
     GetXAttr(fullPath, PrjFSFileXAttrName, sizeof(PrjFSFileXAttrData), &xattrData);
