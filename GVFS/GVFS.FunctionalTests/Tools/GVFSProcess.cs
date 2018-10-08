@@ -8,14 +8,14 @@ namespace GVFS.FunctionalTests.Tools
         private readonly string pathToGVFS;
         private readonly string enlistmentRoot;
         private readonly string localCacheRoot;
-        
+
         public GVFSProcess(string pathToGVFS, string enlistmentRoot, string localCacheRoot)
         {
             this.pathToGVFS = pathToGVFS;
             this.enlistmentRoot = enlistmentRoot;
             this.localCacheRoot = localCacheRoot;
         }
-        
+
         public void Clone(string repositorySource, string branchToCheckout, bool skipPrefetch)
         {
             string args = string.Format(
@@ -60,9 +60,9 @@ namespace GVFS.FunctionalTests.Tools
             return this.CallGVFS("diagnose \"" + this.enlistmentRoot + "\"");
         }
 
-        public string Status()
+        public string Status(string trace = null)
         {
-            return this.CallGVFS("status " + this.enlistmentRoot);
+            return this.CallGVFS("status " + this.enlistmentRoot, trace: trace);
         }
 
         public string CacheServer(string args)
@@ -90,7 +90,7 @@ namespace GVFS.FunctionalTests.Tools
             return this.CallGVFS("service " + argument, failOnError: true);
         }
 
-        private string CallGVFS(string args, bool failOnError = false)
+        private string CallGVFS(string args, bool failOnError = false, string trace = null)
         {
             ProcessStartInfo processInfo = null;
             processInfo = new ProcessStartInfo(this.pathToGVFS);
@@ -99,6 +99,11 @@ namespace GVFS.FunctionalTests.Tools
             processInfo.WindowStyle = ProcessWindowStyle.Hidden;
             processInfo.UseShellExecute = false;
             processInfo.RedirectStandardOutput = true;
+
+            if (trace != null)
+            {
+                processInfo.EnvironmentVariables["GIT_TRACE"] = trace;
+            }
 
             using (Process process = Process.Start(processInfo))
             {
