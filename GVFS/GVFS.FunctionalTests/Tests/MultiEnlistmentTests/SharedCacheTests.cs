@@ -68,7 +68,7 @@ namespace GVFS.FunctionalTests.Tests.MultiEnlistmentTests
             enlistment.UnmountGVFS();
 
             // Repair on a healthy enlistment should succeed
-            enlistment.Repair();
+            enlistment.Repair(confirm: true);
 
             string blobSizesRoot = GVFSHelpers.GetPersistedBlobSizesRoot(enlistment.DotGVFSRoot).ShouldNotBeNull();
             string blobSizesDbPath = Path.Combine(blobSizesRoot, "BlobSizes.sql");
@@ -76,7 +76,7 @@ namespace GVFS.FunctionalTests.Tests.MultiEnlistmentTests
             this.fileSystem.WriteAllText(blobSizesDbPath, "0000");
 
             enlistment.TryMountGVFS().ShouldEqual(false, "GVFS shouldn't mount when blob size db is corrupt");
-            enlistment.Repair();
+            enlistment.Repair(confirm: true);
             enlistment.MountGVFS();
         }
 

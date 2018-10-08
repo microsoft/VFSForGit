@@ -47,10 +47,11 @@ namespace GVFS.FunctionalTests.Tools
             return this.CallGVFS("prefetch \"" + this.enlistmentRoot + "\" " + args, failOnError);
         }
 
-        public void Repair()
+        public void Repair(bool confirm)
         {
+            string confirmArg = confirm ? "--confirm " : string.Empty;
             this.CallGVFS(
-                "repair --confirm \"" + this.enlistmentRoot + "\"", 
+                "repair " + confirmArg + "\"" + this.enlistmentRoot + "\"",
                 failOnError: true);
         }
 

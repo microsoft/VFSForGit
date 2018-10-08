@@ -201,9 +201,9 @@ namespace GVFS.FunctionalTests.Tools
             return this.gvfsProcess.Prefetch(args, failOnError);
         }
 
-        public void Repair()
+        public void Repair(bool confirm)
         {
-            this.gvfsProcess.Repair();
+            this.gvfsProcess.Repair(confirm);
         }
 
         public string Diagnose()
