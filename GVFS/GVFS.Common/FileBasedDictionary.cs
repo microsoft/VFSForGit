@@ -9,7 +9,7 @@ namespace GVFS.Common
 {
     public class FileBasedDictionary<TKey, TValue> : FileBasedCollection
     {
-        private ConcurrentDictionary<TKey, TValue> data = new ConcurrentDictionary<TKey, TValue>();
+        private ConcurrentDictionary<TKey, TValue> data;
 
         private FileBasedDictionary(
             ITracer tracer,
@@ -18,10 +18,7 @@ namespace GVFS.Common
             IEqualityComparer<TKey> keyComparer = null) 
             : base(tracer, fileSystem, dataFilePath, collectionAppendsDirectlyToFile: false)
         {
-            if (keyComparer != null)
-            {
-                this.data = new ConcurrentDictionary<TKey, TValue>(keyComparer);
-            }
+            this.data = new ConcurrentDictionary<TKey, TValue>(keyComparer ?? EqualityComparer<TKey>.Default);
         }
 
         public static bool TryCreate(
