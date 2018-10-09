@@ -5,7 +5,7 @@ namespace GVFS.Platform.Mac
 {
     public partial class MacPlatform
     {
-        public static readonly string InstallerExtension = "dmg";
+        public const string InstallerExtension = "dmg";
 
         public static bool IsElevatedImplementation()
         {

@@ -4,7 +4,7 @@ namespace GVFS.Hooks.HooksPlatform
 {
     public static class GVFSHooksPlatform
     {
-        public static string InstallerExtension()
+        public static string GetInstallerExtension()
         {
             return MacPlatform.InstallerExtension;
         }
