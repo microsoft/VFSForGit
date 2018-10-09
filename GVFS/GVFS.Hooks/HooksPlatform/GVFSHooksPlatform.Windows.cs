@@ -4,6 +4,11 @@ namespace GVFS.Hooks.HooksPlatform
 {
     public static class GVFSHooksPlatform
     {
+        public static string GetInstallerExtension()
+        {
+            return WindowsPlatform.InstallerExtension;
+        }
+
         public static bool IsElevated()
         {
             return WindowsPlatform.IsElevatedImplementation();

@@ -50,9 +50,9 @@ namespace GVFS.CommandLine
                 this.WriteMessage(string.Empty);
                 this.WriteMessage("gvfs version " + ProcessHelper.GetCurrentProcessVersion());
 
-                GitVersion gitVersion;
-                string error;
-                if (GitProcess.TryGetVersion(out gitVersion, out error))
+                GitVersion gitVersion = null;
+                string error = null;
+                if (!string.IsNullOrEmpty(enlistment.GitBinPath) && GitProcess.TryGetVersion(enlistment.GitBinPath, out gitVersion, out error))
                 {
                     this.WriteMessage("git version " + gitVersion.ToString());
                 }
@@ -61,7 +61,7 @@ namespace GVFS.CommandLine
                     this.WriteMessage("Could not determine git version. " + error);
                 }
 
-                this.WriteMessage(GVFSPlatform.Instance.GitInstallation.GetInstalledGitBinPath());
+                this.WriteMessage(enlistment.GitBinPath);
                 this.WriteMessage(string.Empty);
                 this.WriteMessage("Enlistment root: " + enlistment.EnlistmentRoot);
                 this.WriteMessage("Cache Server: " + CacheServerResolver.GetCacheServerFromConfig(enlistment));

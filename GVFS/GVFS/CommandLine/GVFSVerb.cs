@@ -619,8 +619,8 @@ You can specify a URL, a name of a configured cache server, or the special names
 
         private void CheckGitVersion(ITracer tracer, GVFSEnlistment enlistment, out string version)
         {
-            GitVersion gitVersion;
-            if (!GitProcess.TryGetVersion(out gitVersion, out string _))
+            GitVersion gitVersion = null;
+            if (string.IsNullOrEmpty(enlistment.GitBinPath) || !GitProcess.TryGetVersion(enlistment.GitBinPath, out gitVersion, out string _))
             {
                 this.ReportErrorAndExit(tracer, "Error: Unable to retrieve the git version");
             }
