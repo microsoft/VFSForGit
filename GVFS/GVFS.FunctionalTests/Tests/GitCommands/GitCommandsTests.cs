@@ -552,7 +552,6 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
         // MacOnly because renames of partial folders are blocked on Windows
         [TestCase]
         [Category(Categories.MacOnly)]
-        [Category(Categories.MacTODO.M3)]
         public void MoveFolderCommitChangesSwitchBranchSwitchBackTest()
         {
             this.CommitChangesSwitchBranchSwitchBack(fileSystemAction: this.MoveFolder);

@@ -91,6 +91,7 @@ static bool InitializeEmptyPlaceholder(const char* fullPath);
 template<typename TPlaceholder> static bool InitializeEmptyPlaceholder(const char* fullPath, TPlaceholder* data, const char* xattrName);
 static bool AddXAttr(const char* fullPath, const char* name, const void* value, size_t size);
 static bool GetXAttr(const char* fullPath, const char* name, size_t size, _Out_ void* value);
+static bool RemoveXAttr(const char* fullPath, const char* name);
 
 static inline PrjFS_NotificationType KUMessageTypeToNotificationType(MessageType kuNotificationType);
 
@@ -524,7 +525,6 @@ PrjFS_Result PrjFS_DeleteFile(
         << hex << updateFlags << dec << ")" << endl;
 #endif
     
-    // TODO(Mac): Populate failure cause appropriately
     *failureCause = PrjFS_UpdateFailureCause_Invalid;
     
     if (nullptr == relativePath)
@@ -533,10 +533,31 @@ PrjFS_Result PrjFS_DeleteFile(
     }
 
     // TODO(Mac): Ensure that races with hydration are handled properly
-    // TODO(Mac): Ensure file is not full before proceeding
     
     char fullPath[PrjFSMaxPath];
     CombinePaths(s_virtualizationRootFullPath.c_str(), relativePath, fullPath);
+    
+    struct stat path_stat;
+    stat(fullPath, &path_stat);
+    if (!(S_ISREG(path_stat.st_mode) || S_ISDIR(path_stat.st_mode)))
+    {
+        // Only files and directories can be deleted with PrjFS_DeleteFile
+        // Anything else should be treated as a full
+        *failureCause = PrjFS_UpdateFailureCause_FullFile;
+        return PrjFS_Result_EVirtualizationInvalidOperation;
+    }
+    
+    if (S_ISREG(path_stat.st_mode))
+    {
+        // TODO(Mac): Determine if we need a similar check for directories as well
+        PrjFSFileXAttrData xattrData = {};
+        if (!GetXAttr(fullPath, PrjFSFileXAttrName, sizeof(PrjFSFileXAttrData), &xattrData))
+        {
+            *failureCause = PrjFS_UpdateFailureCause_FullFile;
+            return PrjFS_Result_EVirtualizationInvalidOperation;
+        }
+    }
+    
     if (0 != remove(fullPath))
     {
         switch(errno)
@@ -926,9 +947,9 @@ static PrjFS_Result HandleFileNotification(
 #endif
     
     PrjFSFileXAttrData xattrData = {};
-    GetXAttr(fullPath, PrjFSFileXAttrName, sizeof(PrjFSFileXAttrData), &xattrData);
+    bool partialFile = GetXAttr(fullPath, PrjFSFileXAttrName, sizeof(PrjFSFileXAttrData), &xattrData);
 
-    return s_callbacks.NotifyOperation(
+    PrjFS_Result result = s_callbacks.NotifyOperation(
         0 /* commandId */,
         relativePath,
         xattrData.providerId,
@@ -938,6 +959,13 @@ static PrjFS_Result HandleFileNotification(
         isDirectory,
         notificationType,
         nullptr /* destinationRelativePath */);
+    
+    if (partialFile && PrjFS_NotificationType_FileModified == notificationType)
+    {
+        RemoveXAttr(fullPath, PrjFSFileXAttrName);
+    }
+    
+    return result;
 }
 
 static void FindNewFoldersInRootAndNotifyProvider(const MessageHeader* request, const char* relativePath)
@@ -1088,6 +1116,16 @@ static bool GetXAttr(const char* fullPath, const char* name, size_t size, _Out_ 
     }
     
     return false;
+}
+
+static bool RemoveXAttr(const char* fullPath, const char* name)
+{
+    if (removexattr(fullPath, name, XATTR_NOFOLLOW))
+    {
+        return false;
+    }
+
+    return true;
 }
 
 static inline PrjFS_NotificationType KUMessageTypeToNotificationType(MessageType kuNotificationType)

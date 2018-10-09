@@ -126,7 +126,6 @@ namespace GVFS.FunctionalTests.Tests.MultiEnlistmentTests
         }
 
         [TestCase]
-        [Category(Categories.MacTODO.M3)]
         public void DeleteObjectsCacheAndCacheMappingBeforeMount()
         {
             GVFSFunctionalTestEnlistment enlistment1 = this.CloneAndMountEnlistment();
@@ -159,7 +158,6 @@ namespace GVFS.FunctionalTests.Tests.MultiEnlistmentTests
         }
 
         [TestCase]
-        [Category(Categories.MacTODO.M3)]
         public void DeleteCacheDuringHydrations()
         {
             GVFSFunctionalTestEnlistment enlistment1 = this.CloneAndMountEnlistment();

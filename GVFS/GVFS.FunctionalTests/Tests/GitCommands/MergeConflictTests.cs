@@ -6,7 +6,6 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
 {
     [TestFixture]
     [Category(Categories.GitCommands)]
-    [Category(Categories.MacTODO.M3)]
     public class MergeConflictTests : GitRepoTests
     {
         public MergeConflictTests() : base(enlistmentPerTest: true)
