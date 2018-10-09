@@ -16,6 +16,8 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
         private const string EncodingFilename = "ريلٌأكتوبرûمارسأغسطسºٰٰۂْٗ۵ريلٌأك.txt";
         private const string ContentWhenEditingFile = "// Adding a comment to the file";
         private const string UnknownTestName = "Unknown";
+        private const string TopLevelFolderToCreate = "level1";
+        private const string SubFolderToCreate = "level2";
 
         private static readonly string EditFilePath = Path.Combine("GVFS", "GVFS.Common", "GVFSContext.cs");
         private static readonly string DeleteFilePath = Path.Combine("GVFS", "GVFS", "Program.cs");
@@ -1088,6 +1090,9 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
         private void CreateFile()
         {
             this.CreateFile("Some content here", Path.GetRandomFileName() + "tempFile.txt");
+            this.CreateFolder(TopLevelFolderToCreate);
+            this.CreateFolder(Path.Combine(TopLevelFolderToCreate, SubFolderToCreate));
+            this.CreateFile("File in new folder", Path.Combine(TopLevelFolderToCreate, SubFolderToCreate, Path.GetRandomFileName() + "folderFile.txt"));
         }
 
         private void EditFile()
