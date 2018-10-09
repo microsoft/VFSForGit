@@ -638,7 +638,6 @@ static void HandleKernelRequest(void* messageMemory, uint32_t messageSize)
             while (!newFolderPaths.empty())
             {
                 const pair<string /*relative path*/, string /*full path*/>& parentFolderPath = newFolderPaths.top();
-                newFolderPaths.pop();
                 
                 // TODO(Mac): Handle SetBitInFileFlags failures
                 SetBitInFileFlags(parentFolderPath.second.c_str(), FileFlags_IsInVirtualizationRoot, true);
@@ -649,6 +648,8 @@ static void HandleKernelRequest(void* messageMemory, uint32_t messageSize)
                     parentFolderPath.second.c_str(),
                     true, // isDirectory
                     PrjFS_NotificationType_NewFileCreated);
+                
+                newFolderPaths.pop();
             }
             
             char fullPath[PrjFSMaxPath];
