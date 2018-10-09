@@ -892,7 +892,6 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
         }
 
         [TestCase]
-        [Category(Categories.MacTODO.M3)]
         public void CheckoutBranchDirectoryWithOneFileWrite()
         {
             this.RunFileDirectoryWriteTest("checkout", commandBranch: GitRepoTests.DirectoryWithDifferentFileAfterBranch);

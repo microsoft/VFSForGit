@@ -323,23 +323,36 @@ PrjFS_Result PrjFS_WritePlaceholderFile(
         return PrjFS_Result_EInvalidArgs;
     }
     
+    PrjFS_Result result = PrjFS_Result_Invalid;
     PrjFSFileXAttrData fileXattrData = {};
     
     char fullPath[PrjFSMaxPath];
     CombinePaths(s_virtualizationRootFullPath.c_str(), relativePath, fullPath);
     
-    // Mode "wbx" means
-    //  - Create an empty file if none exists
-    //  - Fail if a file already exists at this path
-    FILE* file = fopen(fullPath, "wbx");
+    // Mode "wx" means:
+    //  - "w": Open for writing.  The stream is positioned at the beginning of the file.  Create the file if it does not exist.
+    //  - "x": If the file already exists, fopen() fails, and sets errno to EEXIST.
+    FILE* file = fopen(fullPath, "wx");
     if (nullptr == file)
     {
+        switch(errno)
+        {
+            case ENOENT: // A directory component in fullPath does not exist or is a dangling symbolic link.
+                result = PrjFS_Result_EPathNotFound;
+                break;
+            case EEXIST: // The file already exists
+            default:
+                result = PrjFS_Result_EIOError;
+                break;
+        }
+        
         goto CleanupAndFail;
     }
     
     // Expand the file to the desired size
     if (ftruncate(fileno(file), fileSize))
     {
+        result = PrjFS_Result_EIOError;
         goto CleanupAndFail;
     }
     
@@ -354,12 +367,14 @@ PrjFS_Result PrjFS_WritePlaceholderFile(
             &fileXattrData,
             PrjFSFileXAttrName))
     {
+        result = PrjFS_Result_EIOError;
         goto CleanupAndFail;
     }
     
     // TODO(Mac): Only call chmod if fileMode is different than the default file mode
     if (chmod(fullPath, fileMode))
     {
+        result = PrjFS_Result_EIOError;
         goto CleanupAndFail;
     }
 
@@ -375,7 +390,7 @@ CleanupAndFail:
         file = nullptr;
     }
     
-    return PrjFS_Result_EIOError;
+    return result;
 }
 
 PrjFS_Result PrjFS_WriteSymLink(
