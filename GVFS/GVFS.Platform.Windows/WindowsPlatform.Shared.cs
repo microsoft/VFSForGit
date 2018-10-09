@@ -8,7 +8,7 @@ namespace GVFS.Platform.Windows
 {
     public partial class WindowsPlatform
     {
-        public static readonly string[] InstallerExtensions = { "exe" };
+        public static readonly string InstallerExtension = "exe";
 
         private const int StillActive = 259; /* from Win32 STILL_ACTIVE */
 

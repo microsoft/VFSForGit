@@ -109,7 +109,7 @@ namespace GVFS.Hooks
             int reminderFrequency = 10;
             int randomValue = random.Next(0, 100);
 
-            if (randomValue <= reminderFrequency && ProductUpgrader.IsLocalUpgradeAvailable(GVFSHooksPlatform.InstallerExtensions()))
+            if (randomValue <= reminderFrequency && ProductUpgrader.IsLocalUpgradeAvailable(GVFSHooksPlatform.InstallerExtension()))
             {
                 Console.WriteLine(Environment.NewLine + GVFSConstants.UpgradeVerbMessages.ReminderNotification);
             }

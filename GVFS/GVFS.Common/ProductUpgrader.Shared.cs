@@ -14,12 +14,11 @@ namespace GVFS.Common
         private const string GVFSInstallerFileNamePrefix = "SetupGVFS";
         private const string VFSForGitInstallerFileNamePrefix = "VFSForGit";
 
-        public static bool IsLocalUpgradeAvailable(string[] installerExtensions)
+        public static bool IsLocalUpgradeAvailable(string installerExtension)
         {
             string downloadDirectory = GetAssetDownloadsPath();
             if (Directory.Exists(downloadDirectory))
             {
-                HashSet<string> extensions = new HashSet<string>(installerExtensions, StringComparer.OrdinalIgnoreCase);
                 HashSet<string> installerNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
                 {
                     GVFSInstallerFileNamePrefix,
@@ -30,7 +29,9 @@ namespace GVFS.Common
                 {
                     string[] components = Path.GetFileName(file).Split('.');
                     int length = components.Length;
-                    if (length >= 2 && installerNames.Contains(components[0]) && extensions.Contains(components[length - 1]))
+                    if (length >= 2 && 
+                        installerNames.Contains(components[0]) && 
+                        installerExtension.Equals(components[length - 1], StringComparison.OrdinalIgnoreCase))
                     {
                         return true;
                     }

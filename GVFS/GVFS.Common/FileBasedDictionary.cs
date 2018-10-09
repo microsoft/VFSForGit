@@ -15,10 +15,10 @@ namespace GVFS.Common
             ITracer tracer,
             PhysicalFileSystem fileSystem, 
             string dataFilePath, 
-            IEqualityComparer<TKey> keyComparer = null) 
+            IEqualityComparer<TKey> keyComparer) 
             : base(tracer, fileSystem, dataFilePath, collectionAppendsDirectlyToFile: false)
         {
-            this.data = new ConcurrentDictionary<TKey, TValue>(keyComparer ?? EqualityComparer<TKey>.Default);
+            this.data = new ConcurrentDictionary<TKey, TValue>(keyComparer);
         }
 
         public static bool TryCreate(
@@ -29,7 +29,12 @@ namespace GVFS.Common
             out string error,
             IEqualityComparer<TKey> keyComparer = null)
         {
-            output = new FileBasedDictionary<TKey, TValue>(tracer, fileSystem, dictionaryPath, keyComparer);
+            output = new FileBasedDictionary<TKey, TValue>(
+                tracer, 
+                fileSystem, 
+                dictionaryPath, 
+                keyComparer ?? EqualityComparer<TKey>.Default);
+
             if (!output.TryLoadFromDisk<TKey, TValue>(
                 output.TryParseAddLine,
                 output.TryParseRemoveLine,
