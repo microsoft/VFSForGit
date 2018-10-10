@@ -1391,59 +1391,42 @@ namespace GVFS.Virtualization.Projection
                     childRelativePath = relativeFolderPath + Path.DirectorySeparatorChar + childEntry.Name.GetString();
                 }
 
-                if (childEntry.IsFolder)
+                bool newChild = childEntry.IsFolder ? !existingFolderPlaceholders.Contains(childRelativePath) : !updatedPlaceholderList.ContainsKey(childRelativePath);
+
+                if (newChild)
                 {
-                    if (!existingFolderPlaceholders.Contains(childRelativePath))
+                    FileSystemResult result;
+                    string fileShaOrFolderValue;
+                    if (childEntry.IsFolder)
                     {
-                        FileSystemResult result = this.fileSystemVirtualizer.WritePlaceholderDirectory(childRelativePath);
-                        switch (result.Result)
-                        {
-                            case FSResult.Ok:
-                                updatedPlaceholderList.TryAdd(
-                                    childRelativePath,
-                                    new PlaceholderListDatabase.PlaceholderData(childRelativePath, PlaceholderListDatabase.PartialFolderValue));
-                                break;
-
-                            case FSResult.FileOrPathNotFound:
-                                // Git command must have removed the folder being re-expanded (relativeFolderPath)
-                                // Remove the folder from existingFolderPlaceholders so that its parent will create
-                                // it again (when it's re-expanded)
-                                existingFolderPlaceholders.Remove(relativeFolderPath);
-                                return;
-
-                            default:
-                                // TODO(Mac): Issue #245, handle failures of WritePlaceholderDirectory and WritePlaceholderFile
-                                break;
-                        }
+                        fileShaOrFolderValue = PlaceholderListDatabase.PartialFolderValue;
+                        result = this.fileSystemVirtualizer.WritePlaceholderDirectory(childRelativePath);
                     }
-                }
-                else
-                {
-                    if (!updatedPlaceholderList.ContainsKey(childRelativePath))
+                    else
                     {
                         FileData childFileData = childEntry as FileData;
-                        string sha = childFileData.Sha.ToString();
+                        fileShaOrFolderValue = childFileData.Sha.ToString();
+                        result = this.fileSystemVirtualizer.WritePlaceholderFile(childRelativePath, childFileData.Size, fileShaOrFolderValue);
+                    }
 
-                        FileSystemResult result = this.fileSystemVirtualizer.WritePlaceholderFile(childRelativePath, childFileData.Size, sha);
-                        switch (result.Result)
-                        {
-                            case FSResult.Ok:
-                                updatedPlaceholderList.TryAdd(
-                                    childRelativePath,
-                                    new PlaceholderListDatabase.PlaceholderData(childRelativePath, sha));
-                                break;
+                    switch (result.Result)
+                    {
+                        case FSResult.Ok:
+                            updatedPlaceholderList.TryAdd(
+                                childRelativePath,
+                                new PlaceholderListDatabase.PlaceholderData(childRelativePath, fileShaOrFolderValue));
+                            break;
 
-                            case FSResult.FileOrPathNotFound:
-                                // Git command must have removed the folder being re-expanded (relativeFolderPath)
-                                // Remove the folder from existingFolderPlaceholders so that its parent will create
-                                // it again (when it's re-expanded)
-                                existingFolderPlaceholders.Remove(relativeFolderPath);
-                                return;
+                        case FSResult.FileOrPathNotFound:
+                            // Git command must have removed the folder being re-expanded (relativeFolderPath)
+                            // Remove the folder from existingFolderPlaceholders so that its parent will create
+                            // it again (when it's re-expanded)
+                            existingFolderPlaceholders.Remove(relativeFolderPath);
+                            return;
 
-                            default:
-                                // TODO(Mac): Issue #245, handle failures of WritePlaceholderDirectory and WritePlaceholderFile
-                                break;
-                        }
+                        default:
+                            // TODO(Mac): Issue #245, handle failures of WritePlaceholderDirectory and WritePlaceholderFile
+                            break;
                     }
                 }
             }

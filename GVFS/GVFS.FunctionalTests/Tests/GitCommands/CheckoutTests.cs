@@ -900,9 +900,9 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
         [TestCase]
         public void CheckoutBranchDirectoryWithOneDeepFileWrite()
         {
-            this.ControlGitRepo.Fetch(DeepDirectoryWithOneFile);
-            this.ControlGitRepo.Fetch(DeepDirectoryWithOneDifferentFile);
-            this.ValidateGitCommand($"checkout {DeepDirectoryWithOneFile}");
+            this.ControlGitRepo.Fetch(GitRepoTests.DeepDirectoryWithOneFile);
+            this.ControlGitRepo.Fetch(GitRepoTests.DeepDirectoryWithOneDifferentFile);
+            this.ValidateGitCommand($"checkout {GitRepoTests.DeepDirectoryWithOneFile}");
             this.FileShouldHaveContents(
                 "TestFile1\n", 
                 "GitCommandsTests", 
@@ -926,7 +926,7 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
             this.ValidateGitCommand("add --all");
             this.RunGitCommand("commit -m \"Some change\"");
 
-            this.ValidateGitCommand($"checkout {DeepDirectoryWithOneDifferentFile}");
+            this.ValidateGitCommand($"checkout {GitRepoTests.DeepDirectoryWithOneDifferentFile}");
             this.FileShouldHaveContents(
                 "TestFile2\n",
                 "GitCommandsTests",
