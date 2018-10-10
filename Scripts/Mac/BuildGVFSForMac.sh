@@ -38,6 +38,11 @@ GITPATH="$(find $PACKAGES/gitformac.gvfs.installer/$GITVERSION -type f -name *.d
 # Now that we have a path containing the version number, generate GVFSConstants.GitVersion.cs
 $SCRIPTDIR/GenerateGitVersionConstants.sh "$GITPATH" $BUILDDIR || exit 1
 
+# If we're building the Profiling(Release) configuration, remove Profiling() for building .NET code
+if [ "$CONFIGURATION" == "Profiling(Release)" ]; then
+  CONFIGURATION=Release
+fi
+
 DOTNETCONFIGURATION=$CONFIGURATION.Mac
 dotnet restore $SRCDIR/GVFS.sln /p:Configuration=$DOTNETCONFIGURATION --packages $PACKAGES || exit 1
 dotnet build $SRCDIR/GVFS.sln --runtime osx-x64 --framework netcoreapp2.1 --configuration $DOTNETCONFIGURATION /maxcpucount:1 || exit 1
