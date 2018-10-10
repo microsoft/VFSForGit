@@ -19,6 +19,8 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
         protected const string DirectoryWithFileBeforeBranch = "FunctionalTests/20171025_DirectoryWithFileBefore";
         protected const string DirectoryWithFileAfterBranch = "FunctionalTests/20171025_DirectoryWithFileAfter";
         protected const string DirectoryWithDifferentFileAfterBranch = "FunctionalTests/20171025_DirectoryWithDifferentFile";
+        protected const string DeepDirectoryWithOneFile = "FunctionalTests/20181010_DeepFolderOneFile";
+        protected const string DeepDirectoryWithOneDifferentFile = "FunctionalTests/20181010_DeepFolderOneDifferentFile";
 
         private bool enlistmentPerTest;
 

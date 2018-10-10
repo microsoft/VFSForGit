@@ -892,10 +892,56 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
         }
 
         [TestCase]
-        [Category(Categories.MacTODO.M3)]
         public void CheckoutBranchDirectoryWithOneFileWrite()
         {
             this.RunFileDirectoryWriteTest("checkout", commandBranch: GitRepoTests.DirectoryWithDifferentFileAfterBranch);
+        }
+
+        [TestCase]
+        public void CheckoutBranchDirectoryWithOneDeepFileWrite()
+        {
+            this.ControlGitRepo.Fetch(GitRepoTests.DeepDirectoryWithOneFile);
+            this.ControlGitRepo.Fetch(GitRepoTests.DeepDirectoryWithOneDifferentFile);
+            this.ValidateGitCommand($"checkout {GitRepoTests.DeepDirectoryWithOneFile}");
+            this.FileShouldHaveContents(
+                "TestFile1\n", 
+                "GitCommandsTests", 
+                "CheckoutBranchDirectoryWithOneDeepFile",
+                "FolderDepth1",
+                "FolderDepth2",
+                "FolderDepth3",
+                "File1.txt");
+
+            // Edit the file and commit the change so that git will
+            // delete the file (and its parent directories) when
+            // changing branches
+            this.EditFile(
+                "Change file", 
+                "GitCommandsTests",
+                "CheckoutBranchDirectoryWithOneDeepFile",
+                "FolderDepth1",
+                "FolderDepth2",
+                "FolderDepth3",
+                "File1.txt");
+            this.ValidateGitCommand("add --all");
+            this.RunGitCommand("commit -m \"Some change\"");
+
+            this.ValidateGitCommand($"checkout {GitRepoTests.DeepDirectoryWithOneDifferentFile}");
+            this.FileShouldHaveContents(
+                "TestFile2\n",
+                "GitCommandsTests",
+                "CheckoutBranchDirectoryWithOneDeepFile",
+                "FolderDepth1",
+                "FolderDepth2",
+                "FolderDepth3",
+                "File2.txt");
+            this.ShouldNotExistOnDisk(
+                "GitCommandsTests",
+                "CheckoutBranchDirectoryWithOneDeepFile",
+                "FolderDepth1",
+                "FolderDepth2",
+                "FolderDepth3",
+                "File1.txt");
         }
 
         private static void CopyIndexAndRename(string indexPath)
