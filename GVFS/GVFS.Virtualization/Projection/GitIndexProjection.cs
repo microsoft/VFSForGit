@@ -1415,7 +1415,6 @@ namespace GVFS.Virtualization.Projection
                                 // TODO(Mac): Issue #245, handle failures of WritePlaceholderDirectory and WritePlaceholderFile
                                 break;
                         }
-
                     }
                 }
                 else
