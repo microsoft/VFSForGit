@@ -44,11 +44,24 @@ namespace GVFS.Common.Prefetch.Jobs
                     foreach (string path in this.blobIdToPaths[blobId])
                     {
                         bool succeeded = false;
-                        using (SafeFileHandle handle = NativeFileReader.Open(path))
+
+                        // TODO(Mac): Replace this with a native method as opposed to a slow .NET method
+                        if (!GVFSPlatform.Instance.IsUnderConstruction)
                         {
-                            if (!handle.IsInvalid)
+                            using (SafeFileHandle handle = NativeFileReader.Open(path))
                             {
-                                succeeded = NativeFileReader.ReadOneByte(handle, buffer);
+                                if (!handle.IsInvalid)
+                                {
+                                    succeeded = NativeFileReader.ReadOneByte(handle, buffer);
+                                }
+                            }
+                        }
+                        else
+                        {
+                            using (FileStream filestream = new FileStream(path, FileMode.Open, FileAccess.Read))
+                            {
+                                filestream.ReadByte();
+                                succeeded = true;
                             }
                         }
 
