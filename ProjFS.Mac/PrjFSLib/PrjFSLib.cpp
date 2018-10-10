@@ -281,16 +281,29 @@ PrjFS_Result PrjFS_WritePlaceholderDirectory(
         return PrjFS_Result_EInvalidArgs;
     }
     
+    PrjFS_Result result = PrjFS_Result_Invalid;
     char fullPath[PrjFSMaxPath];
     CombinePaths(s_virtualizationRootFullPath.c_str(), relativePath, fullPath);
 
     if (mkdir(fullPath, 0777))
     {
+        switch(errno)
+        {
+            // TODO(Mac): Return more specific error codes for other failure scenarios
+            case ENOENT: // A component of the path prefix does not exist or path is an empty string
+                result = PrjFS_Result_EPathNotFound;
+                break;
+            default:
+                result = PrjFS_Result_EIOError;
+                break;
+        }
+        
         goto CleanupAndFail;
     }
     
     if (!InitializeEmptyPlaceholder(fullPath))
     {
+        result = PrjFS_Result_EIOError;
         goto CleanupAndFail;
     }
     
@@ -298,7 +311,7 @@ PrjFS_Result PrjFS_WritePlaceholderDirectory(
     
 CleanupAndFail:
     // TODO: cleanup the directory on disk if needed
-    return PrjFS_Result_EIOError;
+    return result;
 }
 
 PrjFS_Result PrjFS_WritePlaceholderFile(
@@ -337,6 +350,7 @@ PrjFS_Result PrjFS_WritePlaceholderFile(
     {
         switch(errno)
         {
+            // TODO(Mac): Return more specific error codes for other failure scenarios
             case ENOENT: // A directory component in fullPath does not exist or is a dangling symbolic link.
                 result = PrjFS_Result_EPathNotFound;
                 break;
