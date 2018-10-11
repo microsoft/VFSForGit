@@ -1209,6 +1209,9 @@ namespace GVFS.Virtualization.Projection
                 TimeSpan duration = activity.Stop(null);
                 this.context.Repository.GVFSLock.Stats.RecordUpdatePlaceholders((long)duration.TotalMilliseconds);
             }
+
+            // SNTODO: now that we've updated all placeholder files, go through the always-hydrate list 
+            // and schedule a low priority download+hydrate request for every matching path
         }
 
         private void ProcessListOnThreads<T>(

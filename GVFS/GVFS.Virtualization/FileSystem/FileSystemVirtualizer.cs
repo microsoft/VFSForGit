@@ -18,7 +18,8 @@ namespace GVFS.Virtualization.FileSystem
         protected static readonly GitCommandLineParser.Verbs CanCreatePlaceholderVerbs =
             GitCommandLineParser.Verbs.AddOrStage | GitCommandLineParser.Verbs.Move | GitCommandLineParser.Verbs.Status;
 
-        private BlockingCollection<FileOrNetworkRequest> fileAndNetworkRequests;
+        private BlockingCollection<FileOrNetworkRequest> highPriorityQueue;
+        private BlockingCollection<FileOrNetworkRequest> lowPriorityQueue;
         private Thread[] fileAndNetworkWorkerThreads;
         private int numWorkerThreads;
 
@@ -36,7 +37,9 @@ namespace GVFS.Virtualization.FileSystem
 
             this.Context = context;
             this.GitObjects = gvfsGitObjects;
-            this.fileAndNetworkRequests = new BlockingCollection<FileOrNetworkRequest>();
+
+            this.highPriorityQueue = new BlockingCollection<FileOrNetworkRequest>();
+            this.lowPriorityQueue = new BlockingCollection<FileOrNetworkRequest>();
 
             this.numWorkerThreads = numWorkerThreads;
         }
@@ -82,7 +85,9 @@ namespace GVFS.Virtualization.FileSystem
 
         public void PrepareToStop()
         {
-            this.fileAndNetworkRequests.CompleteAdding();
+            this.highPriorityQueue.CompleteAdding();
+            this.lowPriorityQueue.CompleteAdding();
+
             foreach (Thread t in this.fileAndNetworkWorkerThreads)
             {
                 t.Join();
@@ -112,10 +117,16 @@ namespace GVFS.Virtualization.FileSystem
 
         public void Dispose()
         {
-            if (this.fileAndNetworkRequests != null)
+            if (this.highPriorityQueue != null)
             {
-                this.fileAndNetworkRequests.Dispose();
-                this.fileAndNetworkRequests = null;
+                this.highPriorityQueue.Dispose();
+                this.highPriorityQueue = null;
+            }
+
+            if (this.lowPriorityQueue != null)
+            {
+                this.lowPriorityQueue.Dispose();
+                this.lowPriorityQueue = null;
             }
         }
 
@@ -307,13 +318,31 @@ namespace GVFS.Virtualization.FileSystem
             return metadata;
         }
 
-        protected bool TryScheduleFileOrNetworkRequest(FileOrNetworkRequest request, out Exception exception)
+        protected bool TryScheduleHighPriorityRequest(FileOrNetworkRequest request, out Exception exception)
         {
             exception = null;
 
             try
             {
-                this.fileAndNetworkRequests.Add(request);
+                this.highPriorityQueue.Add(request);
+                return true;
+            }
+            catch (InvalidOperationException e)
+            {
+                // Attempted to call Add after CompleteAdding has been called
+                exception = e;
+            }
+
+            return false;
+        }
+
+        protected bool TryScheduleLowPriorityRequest(FileOrNetworkRequest request, out Exception exception)
+        {
+            exception = null;
+
+            try
+            {
+                this.lowPriorityQueue.Add(request);
                 return true;
             }
             catch (InvalidOperationException e)
@@ -347,10 +376,8 @@ namespace GVFS.Virtualization.FileSystem
         {
             try
             {
-                using (BlobSizes.BlobSizesConnection blobSizesConnection = this.FileSystemCallbacks.BlobSizes.CreateConnection())
-                {
-                    FileOrNetworkRequest request;
-                    while (this.fileAndNetworkRequests.TryTake(out request, Timeout.Infinite))
+                Action<BlobSizes.BlobSizesConnection, FileOrNetworkRequest> processRequest =
+                    (blobSizesConnection, request) =>
                     {
                         try
                         {
@@ -370,6 +397,28 @@ namespace GVFS.Virtualization.FileSystem
                         {
                             EventMetadata metadata = this.CreateEventMetadata(relativePath: null, exception: e);
                             this.LogUnhandledExceptionAndExit($"{nameof(this.ExecuteFileOrNetworkRequest)}_Cleanup", metadata);
+                        }
+                    };
+
+                BlockingCollection<FileOrNetworkRequest>[] anyQueue =
+                    new[]
+                    {
+                        this.highPriorityQueue,
+                        this.lowPriorityQueue,
+                    };
+
+                using (BlobSizes.BlobSizesConnection blobSizesConnection = this.FileSystemCallbacks.BlobSizes.CreateConnection())
+                {
+                    FileOrNetworkRequest request;
+                    while (BlockingCollection<FileOrNetworkRequest>.TryTakeFromAny(anyQueue, out request, Timeout.Infinite) != -1)
+                    {
+                        processRequest(blobSizesConnection, request);
+
+                        // Make sure to drain all high priority requests
+                        // before checking to see if there are any low priority ones
+                        while (this.highPriorityQueue.TryTake(out request, TimeSpan.Zero))
+                        {
+                            processRequest(blobSizesConnection, request);
                         }
                     }
                 }

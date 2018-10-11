@@ -353,7 +353,7 @@ namespace GVFS.Platform.Windows
                     () => cancellationSource.Dispose());
 
                 Exception e;
-                if (!this.TryScheduleFileOrNetworkRequest(startDirectoryEnumerationHandler, out e))
+                if (!this.TryScheduleHighPriorityRequest(startDirectoryEnumerationHandler, out e))
                 { 
                     EventMetadata metadata = this.CreateEventMetadata(virtualPath, e);
                     metadata.Add("commandId", commandId);
@@ -691,7 +691,7 @@ namespace GVFS.Platform.Windows
                     () => cancellationSource.Dispose());
 
                 Exception e;
-                if (!this.TryScheduleFileOrNetworkRequest(getPlaceholderInformationHandler, out e))
+                if (!this.TryScheduleHighPriorityRequest(getPlaceholderInformationHandler, out e))
                 {
                     EventMetadata metadata = this.CreateEventMetadata(virtualPath, e);
                     metadata.Add("commandId", commandId);
@@ -947,7 +947,7 @@ namespace GVFS.Platform.Windows
                     });
 
                 Exception e;
-                if (!this.TryScheduleFileOrNetworkRequest(getFileStreamHandler, out e))
+                if (!this.TryScheduleHighPriorityRequest(getFileStreamHandler, out e))
                 {
                     metadata.Add("Exception", e?.ToString());
                     metadata.Add(TracingConstants.MessageKey.WarningMessage, nameof(this.GetFileStreamHandler) + ": Failed to schedule async handler");

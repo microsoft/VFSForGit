@@ -584,7 +584,7 @@ namespace GVFS.Platform.Mac
                     metadata.Add(TracingConstants.MessageKey.InfoMessage, nameof(this.OnEnumerateDirectory) + ": Failed enumeration, mount has not yet completed");
                     this.Context.Tracer.RelatedEvent(EventLevel.Informational, $"{nameof(this.OnEnumerateDirectory)}_MountNotComplete", metadata);
 
-                    // TODO: Is this the correct Result to return?
+                    // TODO(Mac): Is this the correct Result to return?
                     return Result.EIOError;
                 }
 
@@ -593,7 +593,8 @@ namespace GVFS.Platform.Mac
                 {
                     IEnumerable<ProjectedFileInfo> projectedItems;
 
-                    // TODO: Pool these connections or schedule this work to run asynchronously using TryScheduleFileOrNetworkRequest
+                    // SNTODO: call TryScheduleHighPriorityRequest and then block on the result. Even though we don't support
+                    // async callbacks on Mac yet, we still want to make use of the download queue.
                     using (BlobSizes.BlobSizesConnection blobSizesConnection = this.FileSystemCallbacks.BlobSizes.CreateConnection())
                     {
                         projectedItems = this.FileSystemCallbacks.GitIndexProjection.GetProjectedItems(CancellationToken.None, blobSizesConnection, relativePath);
@@ -603,7 +604,7 @@ namespace GVFS.Platform.Mac
                 }
                 catch (SizesUnavailableException e)
                 {
-                    // TODO: Is this the correct Result to return?
+                    // TODO(Mac): Is this the correct Result to return?
                     result = Result.EIOError;
 
                     EventMetadata metadata = this.CreateEventMetadata(relativePath, e);
