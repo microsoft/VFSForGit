@@ -43,10 +43,9 @@ if [ "$CONFIGURATION" == "Profiling(Release)" ]; then
   CONFIGURATION=Release
 fi
 
-DOTNETCONFIGURATION=$CONFIGURATION.Mac
-dotnet restore $SRCDIR/GVFS.sln /p:Configuration=$DOTNETCONFIGURATION --packages $PACKAGES || exit 1
-dotnet build $SRCDIR/GVFS.sln --runtime osx-x64 --framework netcoreapp2.1 --configuration $DOTNETCONFIGURATION /maxcpucount:1 || exit 1
-dotnet publish $SRCDIR/GVFS.sln /p:Configuration=$DOTNETCONFIGURATION /p:Platform=x64 --runtime osx-x64 --framework netcoreapp2.1 --self-contained --output $PUBLISHDIR /maxcpucount:1 || exit 1
+dotnet restore $SRCDIR/GVFS.sln /p:Configuration=$CONFIGURATION.Mac --packages $PACKAGES || exit 1
+dotnet build $SRCDIR/GVFS.sln --runtime osx-x64 --framework netcoreapp2.1 --configuration $CONFIGURATION.Mac /maxcpucount:1 || exit 1
+dotnet publish $SRCDIR/GVFS.sln /p:Configuration=$CONFIGURATION.Mac /p:Platform=x64 --runtime osx-x64 --framework netcoreapp2.1 --self-contained --output $PUBLISHDIR /maxcpucount:1 || exit 1
 
 NATIVEDIR=$SRCDIR/GVFS/GVFS.Native.Mac
 xcodebuild -configuration $CONFIGURATION -workspace $NATIVEDIR/GVFS.Native.Mac.xcworkspace build -scheme GVFS.Native.Mac -derivedDataPath $ROOTDIR/BuildOutput/GVFS.Native.Mac || exit 1
