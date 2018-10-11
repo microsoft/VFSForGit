@@ -17,26 +17,27 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
         {
         }
 
-        [TestCase("check-attr")]
-        [TestCase("check-ignore")]
-        [TestCase("check-mailmap")]
-        [TestCase("diff-tree")]
-        [TestCase("fetch-pack")]
-        [TestCase("hash-object")]
-        [TestCase("index-pack")]
-        [TestCase("name-rev")]
-        [TestCase("notes")]
-        [TestCase("send-pack")]
-        [TestCase("rev-list")]
-        [TestCase("update-ref")]
+        [TestCase("check-attr --stdin --all")]
+        [TestCase("check-ignore --stdin")]
+        [TestCase("check-mailmap --stdin")]
+        [TestCase("diff-tree --stdin")]
+        [TestCase("hash-object --stdin")]
+        [TestCase("index-pack --stdin")]
+        [TestCase("name-rev --stdin")]
+        [TestCase("rev-list --stdin --quiet --all")]
+        [TestCase("update-ref --stdin")]
         public void AllowsPlaceholderCreationWhileGitCommandIsRunning(string commandToRun)
         {
             this.CheckPlaceholderCreation(commandToRun, shouldAllow: true);
         }
 
-        [TestCase("checkout-index")]
-        [TestCase("reset")]
-        [TestCase("update-index")]
+        [TestCase("checkout-index --stdin")]
+        [TestCase("fetch-pack --stdin URL")]
+        [TestCase("notes copy --stdin")]
+        [TestCase("reset --stdin")]
+        [TestCase("send-pack --stdin URL")]
+        [TestCase("update-index --stdin")]
+        [Category(Categories.WindowsOnly)] // Mac never blocks placeholder creation
         public void BlocksPlaceholderCreationWhileGitCommandIsRunning(string commandToRun)
         {
             this.CheckPlaceholderCreation(commandToRun, shouldAllow: false);
@@ -51,7 +52,7 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
             }
 
             this.EditFile($"Some new content for {command}.", "Protocol.md");
-            ManualResetEventSlim resetEvent = GitHelpers.RunGitCommandWithWaitAndStdIn(this.Enlistment, resetTimeout: 3000, command: $"{command} --stdin", stdinToQuit: eofCharacter, processId: out _);
+            ManualResetEventSlim resetEvent = GitHelpers.RunGitCommandWithWaitAndStdIn(this.Enlistment, resetTimeout: 3000, command: $"{command}", stdinToQuit: eofCharacter, processId: out _);
 
             if (shouldAllow)
             {
