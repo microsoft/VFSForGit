@@ -528,26 +528,22 @@ namespace GVFS.Platform.Mac
                 {
                     if (isDirectory)
                     {
-                        if (!relativePath.Equals(GVFSConstants.DotGit.Root, StringComparison.OrdinalIgnoreCase))
+                        string lockedGitCommand = this.Context.Repository.GVFSLock.GetLockedGitCommand();
+                        GitCommandLineParser gitCommand = new GitCommandLineParser(lockedGitCommand);
+                        if (gitCommand.IsValidGitCommand)
                         {
-                            string lockedGitCommand = this.Context.Repository.GVFSLock.GetLockedGitCommand();
-                            GitCommandLineParser gitCommand = new GitCommandLineParser(lockedGitCommand);
-                            if (gitCommand.IsValidGitCommand)
-                            {
-                                EventMetadata metadata = this.CreateEventMetadata(relativePath);
-                                metadata.Add(nameof(lockedGitCommand), lockedGitCommand);
-                                metadata.Add(TracingConstants.MessageKey.InfoMessage, "Git command created new folder");
-                                this.Context.Tracer.RelatedEvent(EventLevel.Informational, $"{nameof(this.OnNewFileCreated)}_GitCreatedFolder", metadata);
+                            EventMetadata metadata = this.CreateEventMetadata(relativePath);
+                            metadata.Add(nameof(lockedGitCommand), lockedGitCommand);
+                            metadata.Add(TracingConstants.MessageKey.InfoMessage, "Git command created new folder");
+                            this.Context.Tracer.RelatedEvent(EventLevel.Informational, $"{nameof(this.OnNewFileCreated)}_GitCreatedFolder", metadata);
 
-                                // Record this folder as expanded so that GitIndexProjection will re-expand the folder
-                                // when the projection change completes.  This is the closest we can get to converting this
-                                // new folder to partial (as we do on Windows).
-                                this.FileSystemCallbacks.OnPlaceholderFolderExpanded(relativePath);
-                            }
-                            else
-                            {
-                                this.FileSystemCallbacks.OnFolderCreated(relativePath);
-                            }
+                            // Record this folder as expanded so that GitIndexProjection will re-expand the folder
+                            // when the projection change completes.
+                            this.FileSystemCallbacks.OnPlaceholderFolderExpanded(relativePath);
+                        }
+                        else
+                        {
+                            this.FileSystemCallbacks.OnFolderCreated(relativePath);
                         }
                     }
                     else

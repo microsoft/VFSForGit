@@ -100,16 +100,26 @@ static void CombinePaths(const char* root, const char* relative, char (&combined
 static errno_t SendKernelMessageResponse(uint64_t messageId, MessageType responseType);
 static errno_t RegisterVirtualizationRootPath(const char* path);
 
+static PrjFS_Result MarkAllChildrenAsInRoot(const char* fullDirectoryPath);
+
 static void HandleKernelRequest(void* messageMemory, uint32_t messageSize);
 static PrjFS_Result HandleEnumerateDirectoryRequest(const MessageHeader* request, const char* path);
 static PrjFS_Result HandleRecursivelyEnumerateDirectoryRequest(const MessageHeader* request, const char* path);
 static PrjFS_Result HandleHydrateFileRequest(const MessageHeader* request, const char* path);
+static PrjFS_Result HandleNewFileInRootNotification(
+    const MessageHeader* request,
+    const char* path,
+    const char* fullPath,
+    bool isDirectory,
+    PrjFS_NotificationType notificationType);
 static PrjFS_Result HandleFileNotification(
     const MessageHeader* request,
     const char* path,
-    const char* fullPath_opt,
+    const char* fullPath,
     bool isDirectory,
     PrjFS_NotificationType notificationType);
+
+static void FindNewFoldersInRootAndNotifyProvider(const MessageHeader* request, const char* path);
 
 static Message ParseMessageMemory(const void* messageMemory, uint32_t size);
 
@@ -269,7 +279,7 @@ PrjFS_Result PrjFS_ConvertDirectoryToVirtualizationRoot(
         return PrjFS_Result_EIOError;
     }
     
-    return PrjFS_Result_Success;
+    return MarkAllChildrenAsInRoot(virtualizationRootFullPath);
 }
 
 PrjFS_Result PrjFS_WritePlaceholderDirectory(
@@ -600,10 +610,12 @@ static void HandleKernelRequest(void* messageMemory, uint32_t messageSize)
         case MessageType_KtoU_NotifyFilePreDelete:
         case MessageType_KtoU_NotifyDirectoryPreDelete:
         {
+            char fullPath[PrjFSMaxPath];
+            CombinePaths(s_virtualizationRootFullPath.c_str(), request.path, fullPath);
             result = HandleFileNotification(
                 requestHeader,
                 request.path,
-                nullptr, // fullPath_opt
+                fullPath,
                 requestHeader->messageType == MessageType_KtoU_NotifyDirectoryPreDelete,  // isDirectory
                 KUMessageTypeToNotificationType(static_cast<MessageType>(requestHeader->messageType)));
             break;
@@ -614,52 +626,10 @@ static void HandleKernelRequest(void* messageMemory, uint32_t messageSize)
         case MessageType_KtoU_NotifyDirectoryRenamed:
         case MessageType_KtoU_NotifyFileHardLinkCreated:
         {
-            // Walk up the directory tree and notify the provider about any directories
-            // not flagged as being in the root
-            stack<pair<string /*relative path*/, string /*full path*/>> newFolderPaths;
-            string parentPath(request.path);
-            size_t lastDirSeparator = parentPath.find_last_of('/');
-            while (lastDirSeparator != string::npos && lastDirSeparator > 0)
-            {
-                parentPath = parentPath.substr(0, lastDirSeparator);
-                char parentFullPath[PrjFSMaxPath];
-                CombinePaths(s_virtualizationRootFullPath.c_str(), parentPath.c_str(), parentFullPath);
-                if (IsBitSetInFileFlags(parentFullPath, FileFlags_IsInVirtualizationRoot))
-                {
-                    break;
-                }
-                else
-                {
-                    newFolderPaths.emplace(make_pair(parentPath, parentFullPath));
-                    lastDirSeparator = parentPath.find_last_of('/');
-                }
-            }
-            
-            while (!newFolderPaths.empty())
-            {
-                const pair<string /*relative path*/, string /*full path*/>& parentFolderPath = newFolderPaths.top();
-                
-                // TODO(Mac): Handle SetBitInFileFlags failures
-                SetBitInFileFlags(parentFolderPath.second.c_str(), FileFlags_IsInVirtualizationRoot, true);
-        
-                HandleFileNotification(
-                    requestHeader,
-                    parentFolderPath.first.c_str(),
-                    parentFolderPath.second.c_str(),
-                    true, // isDirectory
-                    PrjFS_NotificationType_NewFileCreated);
-                
-                newFolderPaths.pop();
-            }
-            
             char fullPath[PrjFSMaxPath];
             CombinePaths(s_virtualizationRootFullPath.c_str(), request.path, fullPath);
-   
-            // TODO(Mac): Handle SetBitInFileFlags failures
-            SetBitInFileFlags(fullPath, FileFlags_IsInVirtualizationRoot, true);
-
             bool isDirectory = requestHeader->messageType == MessageType_KtoU_NotifyDirectoryRenamed;
-            result = HandleFileNotification(
+            result = HandleNewFileInRootNotification(
                 requestHeader,
                 request.path,
                 fullPath,
@@ -880,10 +850,33 @@ CleanupAndReturn:
     return result;
 }
 
+static PrjFS_Result HandleNewFileInRootNotification(
+    const MessageHeader* request,
+    const char* path,
+    const char* fullPath,
+    bool isDirectory,
+    PrjFS_NotificationType notificationType)
+{
+    // Whenever a new file shows up in the root, we need to check if its ancestor
+    // directories are flagged as in root.  If they are not, flag them as in root and
+    // notify the provider
+    FindNewFoldersInRootAndNotifyProvider(request, path);
+    
+    // TODO(Mac): Handle SetBitInFileFlags failures
+    SetBitInFileFlags(fullPath, FileFlags_IsInVirtualizationRoot, true);
+    
+    return HandleFileNotification(
+        request,
+        path,
+        fullPath,
+        isDirectory,
+        notificationType);
+}
+
 static PrjFS_Result HandleFileNotification(
     const MessageHeader* request,
     const char* path,
-    const char* fullPath_opt,
+    const char* fullPath,
     bool isDirectory,
     PrjFS_NotificationType notificationType)
 {
@@ -893,14 +886,6 @@ static PrjFS_Result HandleFileNotification(
         << " notificationType: " << NotificationTypeToString(notificationType)
         << " isDirectory: " << isDirectory << endl;
 #endif
-    
-    const char* fullPath = fullPath_opt;
-    char computedFullPath[PrjFSMaxPath];
-    if (nullptr == fullPath)
-    {
-        CombinePaths(s_virtualizationRootFullPath.c_str(), path, computedFullPath);
-        fullPath = computedFullPath;
-    }
     
     PrjFSFileXAttrData xattrData = {};
     GetXAttr(fullPath, PrjFSFileXAttrName, sizeof(PrjFSFileXAttrData), &xattrData);
@@ -915,6 +900,47 @@ static PrjFS_Result HandleFileNotification(
         isDirectory,
         notificationType,
         nullptr /* destinationRelativePath */);
+}
+
+static void FindNewFoldersInRootAndNotifyProvider(const MessageHeader* request, const char* path)
+{
+    // Walk up the directory tree and notify the provider about any directories
+    // not flagged as being in the root
+    stack<pair<string /*relative path*/, string /*full path*/>> newFolderPaths;
+    string parentPath(path);
+    size_t lastDirSeparator = parentPath.find_last_of('/');
+    while (lastDirSeparator != string::npos && lastDirSeparator > 0)
+    {
+        parentPath = parentPath.substr(0, lastDirSeparator);
+        char parentFullPath[PrjFSMaxPath];
+        CombinePaths(s_virtualizationRootFullPath.c_str(), parentPath.c_str(), parentFullPath);
+        if (IsBitSetInFileFlags(parentFullPath, FileFlags_IsInVirtualizationRoot))
+        {
+            break;
+        }
+        else
+        {
+            newFolderPaths.emplace(make_pair(parentPath, parentFullPath));
+            lastDirSeparator = parentPath.find_last_of('/');
+        }
+    }
+
+    while (!newFolderPaths.empty())
+    {
+        const pair<string /*relative path*/, string /*full path*/>& parentFolderPath = newFolderPaths.top();
+        
+        // TODO(Mac): Handle SetBitInFileFlags failures
+        SetBitInFileFlags(parentFolderPath.second.c_str(), FileFlags_IsInVirtualizationRoot, true);
+
+        HandleFileNotification(
+            request,
+            parentFolderPath.first.c_str(),
+            parentFolderPath.second.c_str(),
+            true, // isDirectory
+            PrjFS_NotificationType_NewFileCreated);
+        
+        newFolderPaths.pop();
+    }
 }
 
 static bool InitializeEmptyPlaceholder(const char* fullPath)
@@ -1077,6 +1103,67 @@ static errno_t RegisterVirtualizationRootPath(const char* path)
         nullptr, nullptr); // no struct output
     assert(callResult == kIOReturnSuccess);
     return static_cast<errno_t>(error);
+}
+
+static PrjFS_Result MarkAllChildrenAsInRoot(const char* fullDirectoryPath)
+{
+    DIR* directory = nullptr;
+    PrjFS_Result result = PrjFS_Result_Success;
+    queue<string> directoryRelativePaths;
+    directoryRelativePaths.push("");
+    
+    char fullPathBuffer[PrjFSMaxPath];
+    char relativePathBuffer[PrjFSMaxPath];
+    
+    while (!directoryRelativePaths.empty())
+    {
+        string directoryRelativePath(directoryRelativePaths.front());
+        directoryRelativePaths.pop();
+        
+        CombinePaths(fullDirectoryPath, directoryRelativePath.c_str(), fullPathBuffer);
+        DIR* directory = opendir(fullPathBuffer);
+        if (nullptr == directory)
+        {
+            result = PrjFS_Result_EIOError;
+            goto CleanupAndReturn;
+        }
+        
+        dirent* dirEntry = readdir(directory);
+        while (dirEntry != nullptr)
+        {
+            bool entryIsDirectoryToUpdate =
+                dirEntry->d_type == DT_DIR &&
+                0 != strncmp(".", dirEntry->d_name, sizeof(dirEntry->d_name)) &&
+                0 != strncmp("..", dirEntry->d_name, sizeof(dirEntry->d_name));
+            
+            if (entryIsDirectoryToUpdate || dirEntry->d_type == DT_LNK || dirEntry->d_type == DT_REG)
+            {
+                CombinePaths(directoryRelativePath.c_str(), dirEntry->d_name, relativePathBuffer);
+                CombinePaths(fullDirectoryPath, relativePathBuffer, fullPathBuffer);
+                if (!SetBitInFileFlags(fullPathBuffer, FileFlags_IsInVirtualizationRoot, true))
+                {
+                    result = PrjFS_Result_EIOError;
+                    goto CleanupAndReturn;
+                }
+                
+                if (entryIsDirectoryToUpdate)
+                {
+                    directoryRelativePaths.emplace(relativePathBuffer);
+                }
+            }
+            
+            dirEntry = readdir(directory);
+        }
+    }
+    
+CleanupAndReturn:
+    if (directory != nullptr)
+    {
+        closedir(directory);
+    }
+    
+    return result;
+
 }
 
 static void ClearMachNotification(mach_port_t port)
