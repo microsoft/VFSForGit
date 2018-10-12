@@ -41,7 +41,7 @@ namespace GVFS.Common.Tracing
         {
             // Make a smarter guess (than 16 characters) about initial size to reduce allocations
             StringBuilder message = new StringBuilder(1024);
-            message.AppendFormat("[{0}] {1}", DateTime.Now, eventName);
+            message.AppendFormat("[{0:yyyy-MM-dd HH:mm:ss zzz}] {1}", DateTime.Now, eventName);
 
             if (opcode != 0)
             {
