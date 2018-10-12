@@ -42,7 +42,6 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
         }
 
         [TestCase, Order(4)]
-        [Category(Categories.MacTODO.M4)]
         public void PrefetchByFileExtensionWithHydrate()
         {
             int expectedCount = 3;
@@ -52,7 +51,6 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
         }
 
         [TestCase, Order(5)]
-        [Category(Categories.MacTODO.M4)]
         public void PrefetchByFilesWithHydrateWhoseObjectsAreAlreadyDownloaded()
         {
             int expectedCount = 2;

@@ -1,9 +1,6 @@
 ﻿using GVFS.Common.Tracing;
-using Microsoft.Win32.SafeHandles;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
-using System.IO;
-using System.Runtime.InteropServices;
 using System.Threading;
 
 namespace GVFS.Common.Prefetch.Jobs
@@ -43,15 +40,7 @@ namespace GVFS.Common.Prefetch.Jobs
                 {
                     foreach (string path in this.blobIdToPaths[blobId])
                     {
-                        bool succeeded = false;
-                        using (SafeFileHandle handle = NativeFileReader.Open(path))
-                        {
-                            if (!handle.IsInvalid)
-                            {
-                                succeeded = NativeFileReader.ReadOneByte(handle, buffer);
-                            }
-                        }
-
+                        bool succeeded = GVFSPlatform.Instance.FileSystem.HydrateFile(path, buffer);
                         if (succeeded)
                         {
                             Interlocked.Increment(ref this.readFileCount);
@@ -74,44 +63,6 @@ namespace GVFS.Common.Prefetch.Jobs
                         { "Failures", failedFilesCurrentThread },
                     });
             }
-        }
-
-        private class NativeFileReader
-        {
-            private const uint GenericRead = 0x80000000;
-            private const uint OpenExisting = 3;
-
-            public static SafeFileHandle Open(string fileName)
-            {
-                return CreateFile(fileName, GenericRead, (uint)(FileShare.ReadWrite | FileShare.Delete), 0, OpenExisting, 0, 0);
-            }
-
-            public static unsafe bool ReadOneByte(SafeFileHandle handle, byte[] buffer)
-            {
-                int n = 0;
-                fixed (byte* p = buffer)
-                {
-                    return ReadFile(handle, p, 1, &n, 0);
-                }
-            }
-
-            [DllImport("kernel32", SetLastError = true, ThrowOnUnmappableChar = true, CharSet = CharSet.Unicode)]
-            private static extern unsafe SafeFileHandle CreateFile(
-                string fileName,                        
-                uint desiredAccess,       
-                uint shareMode,           
-                uint securityAttributes,  
-                uint creationDisposition, 
-                uint flagsAndAttributes,  
-                int hemplateFile);
-
-            [DllImport("kernel32", SetLastError = true)]
-            private static extern unsafe bool ReadFile(
-                SafeFileHandle file,      
-                void* buffer,            
-                int numberOfBytesToRead, 
-                int* numberOfBytesRead,       
-                int overlapped);
         }
     }
 }

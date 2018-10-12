@@ -33,5 +33,10 @@ namespace GVFS.UnitTests.Mock.FileSystem
             normalizedPath = path;
             return true;
         }
+
+        public bool HydrateFile(string fileName, byte[] buffer)
+        {
+            throw new NotSupportedException();
+        }
     }
 }
