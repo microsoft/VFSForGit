@@ -117,7 +117,7 @@ namespace GVFS.FunctionalTests.Tools
             string[] modifedPathLines = modifedPathsContents.Split(new[] { ModifiedPathsNewLine }, StringSplitOptions.None);
             foreach (string gitPath in gitPaths)
             {
-                modifedPathLines.ShouldContain(path => path.Equals(ModifedPathsLineAddPrefix + gitPath));
+                modifedPathLines.ShouldContain(path => path.Equals(ModifedPathsLineAddPrefix + gitPath, StringComparison.OrdinalIgnoreCase));
             }
         }
 
