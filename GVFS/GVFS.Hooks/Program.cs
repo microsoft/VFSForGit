@@ -411,6 +411,8 @@ namespace GVFS.Hooks
                 case "branch":
                 case "cat-file":
                 case "check-attr":
+                case "check-ignore":
+                case "check-mailmap":
                 case "commit-graph":
                 case "config":
                 case "credential":
