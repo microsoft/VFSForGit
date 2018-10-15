@@ -106,9 +106,9 @@ namespace GVFS.Common
             }
         }
 
-        public void GetAllKeysAndValues(out Dictionary<TKey, TValue> keysAndValues)
+        public Dictionary<TKey, TValue> GetAllKeysAndValues()
         {
-            keysAndValues = new Dictionary<TKey, TValue>(this.data);
+            return new Dictionary<TKey, TValue>(this.data);
         }
 
         private void Flush()

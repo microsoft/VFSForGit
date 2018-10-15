@@ -273,7 +273,7 @@ namespace GVFS.Common
             LocalGVFSConfig localConfig = new LocalGVFSConfig();
 
             string ringConfig = null;
-            if (localConfig.TryGetConfig(GVFSConstants.LocalGVFSConfig.UpgradeRing, out ringConfig, out error, this.tracer))
+            if (localConfig.TryGetConfig(GVFSConstants.LocalGVFSConfig.UpgradeRing, out ringConfig, out error))
             {
                 RingType ringType;
 

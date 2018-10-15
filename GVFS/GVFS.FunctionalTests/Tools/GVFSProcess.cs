@@ -90,6 +90,11 @@ namespace GVFS.FunctionalTests.Tools
             return this.CallGVFS("service " + argument, failOnError: true);
         }
 
+        public string RunConfigVerb(string argument)
+        {
+            return this.CallGVFS("config " + argument, failOnError: true);
+        }
+
         private string CallGVFS(string args, bool failOnError = false, string trace = null)
         {
             ProcessStartInfo processInfo = null;

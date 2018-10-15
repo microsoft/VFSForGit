@@ -12,17 +12,17 @@ namespace GVFS.CommandLine
         private LocalGVFSConfig localConfig;
 
         [Option(
+            'l',
             "list",
             SetName = "needNoKeys",
-            Default = false,
             Required = false,
             HelpText = "Show all settings")]
         public bool List { get; set; }
 
         [Option(
+            'd',
             "delete",
             SetName = "needsKey",
-            Default = null,
             Required = false,
             HelpText = "Delete specified setting")]
         public string KeyToDelete { get; set; }
@@ -48,13 +48,20 @@ namespace GVFS.CommandLine
 
         public override void Execute()
         {
-            this.localConfig = new LocalGVFSConfig();
+            if (GVFSPlatform.Instance.IsUnderConstruction)
+            {
+                this.ReportErrorAndExit("`gvfs config` is not yet implemented on this operating system.");
+            }
 
+            this.localConfig = new LocalGVFSConfig();
+            bool keySpecified = !string.IsNullOrEmpty(this.Key);
+            bool isDelete = !string.IsNullOrEmpty(this.KeyToDelete);
             string error = null;
-            if (this.List)
+
+            if (this.List || (!keySpecified && !isDelete))
             {
                 Dictionary<string, string> allSettings;
-                if (!this.localConfig.TryGetAllConfig(out allSettings, out error, tracer: null))
+                if (!this.localConfig.TryGetAllConfig(out allSettings, out error))
                 {
                     this.ReportErrorAndExit(error);
                 }
@@ -68,23 +75,22 @@ namespace GVFS.CommandLine
                 return;
             }
 
-            if (!string.IsNullOrEmpty(this.KeyToDelete))
+            if (isDelete)
             {
-                if (!this.localConfig.TryRemoveConfig(this.KeyToDelete, out error, tracer: null))
+                if (!this.localConfig.TryRemoveConfig(this.KeyToDelete, out error))
                 {
                     this.ReportErrorAndExit(error);
                 }
 
                 return;
             }
-
-            bool keySpecified = !string.IsNullOrEmpty(this.Key);
+                        
             if (keySpecified)
             {
                 bool valueSpecified = !string.IsNullOrEmpty(this.Value);
                 if (valueSpecified)
                 {
-                    if (!this.localConfig.TrySetConfig(this.Key, this.Value, out error, tracer: null))
+                    if (!this.localConfig.TrySetConfig(this.Key, this.Value, out error))
                     {
                         this.ReportErrorAndExit(error);
                     }
@@ -94,7 +100,7 @@ namespace GVFS.CommandLine
                 else
                 {
                     string valueRead = null;
-                    if (!this.localConfig.TryGetConfig(this.Key, out valueRead, out error, tracer: null))
+                    if (!this.localConfig.TryGetConfig(this.Key, out valueRead, out error))
                     {
                         this.ReportErrorAndExit(error);
                     }
@@ -106,11 +112,6 @@ namespace GVFS.CommandLine
                     return;
                 }
             }
-
-            // this.PrintUsage();
-            // RFC: There was no parsing error, CommandLine Parser would have handled it already
-            // if there were any. The issue happens when user types `gvfs config`.
-            // Should I print Usage or exit silently.
         }
     }
 }

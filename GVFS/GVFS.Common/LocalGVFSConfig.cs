@@ -22,18 +22,14 @@ namespace GVFS.Common
             this.fileSystem = new PhysicalFileSystem();
         }
 
-        private delegate bool ConfigAction();
-
-        public bool TryGetAllConfig(out Dictionary<string, string> allConfig, out string error, ITracer tracer)
+        public bool TryGetAllConfig(out Dictionary<string, string> allConfig, out string error)
         {
             Dictionary<string, string> configCopy = null;
             if (!this.TryPerformAction(
                 () =>
                 {
-                    this.allSettings.GetAllKeysAndValues(out configCopy);
-                    return true;
+                    configCopy = this.allSettings.GetAllKeysAndValues();
                 },
-                tracer,
                 out error))
             {
                 allConfig = null;
@@ -48,20 +44,18 @@ namespace GVFS.Common
         public bool TryGetConfig(
             string name, 
             out string value, 
-            out string error,
-            ITracer tracer)
+            out string error)
         {
             string valueFromDict = null;
             if (!this.TryPerformAction(
                 () =>
                 {
                     this.allSettings.TryGetValue(name, out valueFromDict);
-                    return true;
                 },
-                tracer,
                 out error))
             {
                 value = null;
+                error = $"Error reading config {name}. {error}";
                 return false;
             }
 
@@ -72,46 +66,41 @@ namespace GVFS.Common
         public bool TrySetConfig(
             string name, 
             string value, 
-            out string error,
-            ITracer tracer)
+            out string error)
         {
             if (!this.TryPerformAction(
                 () => 
                 {
                     this.allSettings.SetValueAndFlush(name, value);
-                    return true;
                 }, 
-                tracer, 
                 out error))
             {
-                error = $"Error setting config value {name}: {value}. {error}";
+                error = $"Error writing config {name}={value}. {error}";
                 return false;
             }
 
             return true;
         }
 
-        public bool TryRemoveConfig(string name, out string error, ITracer tracer)
+        public bool TryRemoveConfig(string name, out string error)
         {
             if (!this.TryPerformAction(
                 () =>
                 {
                     this.allSettings.RemoveAndFlush(name);
-                    return true;
                 },
-                tracer,
                 out error))
             {
-                error = $"Error removing config value {name}. {error}";
+                error = $"Error deleting config {name}. {error}";
                 return false;
             }
 
             return true;
         }
 
-        private bool TryPerformAction(ConfigAction action, ITracer tracer, out string error)
+        private bool TryPerformAction(Action action, out string error)
         {
-            if (!this.TryLoadSettings(tracer, out error))
+            if (!this.TryLoadSettings(out error))
             {
                 error = $"Error loading config settings.";
                 return false;
@@ -119,32 +108,25 @@ namespace GVFS.Common
 
             try
             {
-                if (action())
-                {
-                    error = null;
-                    return true;
-                }
+                action();
+                error = null;
+                return true;
             }
             catch (FileBasedCollectionException exception)
             {
-                if (tracer != null)
-                {
-                    tracer.RelatedError(exception.ToString());
-                }
-
                 error = exception.Message;
             }
 
             return false;
         }
 
-        private bool TryLoadSettings(ITracer tracer, out string error)
+        private bool TryLoadSettings(out string error)
         {
             if (this.allSettings == null)
             {
                 FileBasedDictionary<string, string> config = null;
                 if (FileBasedDictionary<string, string>.TryCreate(
-                    tracer: tracer,
+                    tracer: null,
                     dictionaryPath: this.configFile,
                     fileSystem: this.fileSystem,
                     output: out config,
