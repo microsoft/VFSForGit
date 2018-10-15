@@ -1012,7 +1012,6 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
         }
 
         [TestCase]
-        [Category(Categories.MacTODO.M3)]
         public void RenameOnlyFileInFolder()
         {
             ControlGitRepo.Fetch("FunctionalTests/20170202_RenameTestMergeTarget");

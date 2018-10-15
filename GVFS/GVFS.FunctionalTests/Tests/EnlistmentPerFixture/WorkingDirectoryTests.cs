@@ -418,7 +418,6 @@ BOOL APIENTRY DllMain( HMODULE hModule,
 
         [TestCase, Order(14)]
         [Category(Categories.GitCommands)]
-        [Category(Categories.MacTODO.M3)]
         public void FolderContentsCorrectAfterCreateNewFolderRenameAndCheckoutCommitWithSameFolder()
         {
             // 3a55d3b760c87642424e834228a3408796501e7c is the commit prior to adding Test_EPF_MoveRenameFileTests
@@ -442,9 +441,9 @@ BOOL APIENTRY DllMain( HMODULE hModule,
             GitProcess.InvokeProcess(this.Enlistment.RepoRoot, "checkout " + Properties.Settings.Default.Commitish);
 
             folder.ShouldBeADirectory(this.fileSystem);
-            (folder + @"\ChangeNestedUnhydratedFileNameCase\Program.cs").ShouldBeAFile(this.fileSystem).WithContents(MoveRenameFileTests.TestFileContents);
-            (folder + @"\ChangeUnhydratedFileName\Program.cs").ShouldBeAFile(this.fileSystem).WithContents(MoveRenameFileTests.TestFileContents);
-            (folder + @"\MoveUnhydratedFileToDotGitFolder\Program.cs").ShouldBeAFile(this.fileSystem).WithContents(MoveRenameFileTests.TestFileContents);
+            Path.Combine(folder, "ChangeNestedUnhydratedFileNameCase", "Program.cs").ShouldBeAFile(this.fileSystem).WithContents(MoveRenameFileTests.TestFileContents);
+            Path.Combine(folder, "ChangeUnhydratedFileName", "Program.cs").ShouldBeAFile(this.fileSystem).WithContents(MoveRenameFileTests.TestFileContents);
+            Path.Combine(folder, "MoveUnhydratedFileToDotGitFolder", "Program.cs").ShouldBeAFile(this.fileSystem).WithContents(MoveRenameFileTests.TestFileContents);
         }
 
         [TestCase, Order(15)]

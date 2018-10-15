@@ -40,7 +40,7 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
         }
 
         [TestCase]
-        [Category(Categories.MacTODO.M4)]
+        [Category(Categories.MacTODO.M3)]
         public void UpdateIndexRemoveAddFileOpenForWrite()
         {
             // TODO 940287: Remove this test and re-enable UpdateIndexRemoveFileOnDisk
@@ -64,7 +64,7 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
         }
 
         [TestCase]
-        [Category(Categories.MacTODO.M4)]
+        [Category(Categories.MacTODO.M3)]
         public void UpdateIndexWithCacheInfo()
         {
             // Update Protocol.md with the contents from blob 583f1...

@@ -77,7 +77,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerTestCase
             GVFSHelpers.ModifiedPathsShouldNotContain(fileSystem, this.Enlistment.DotGVFSRoot, "Temp/", "Temp/temp1.txt", "Temp/temp2.txt");
         }
 
-        [Category(Categories.MacTODO.M2)]
+        [Category(Categories.MacTODO.NeedsRenameOldPath)]
         [TestCaseSource(typeof(FileSystemRunner), FileSystemRunner.TestRunners)]
         public void ModifiedPathsSavedAfterRemount(FileSystemRunner fileSystem)
         {

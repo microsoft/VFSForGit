@@ -67,7 +67,7 @@ namespace GVFS.FunctionalTests
             {
                 excludeCategories.Add(Categories.MacTODO.NeedsLockHolder);
                 excludeCategories.Add(Categories.MacTODO.FailsOnBuildAgent);
-                excludeCategories.Add(Categories.MacTODO.M2);
+                excludeCategories.Add(Categories.MacTODO.NeedsRenameOldPath);
                 excludeCategories.Add(Categories.MacTODO.M3);
                 excludeCategories.Add(Categories.MacTODO.M4);
                 excludeCategories.Add(Categories.WindowsOnly);

@@ -60,7 +60,6 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
         }
 
         [TestCase, Order(3)]
-        [Category(Categories.MacTODO.M2)]
         public void CreateFileInFolderTest()
         {
             string folderName = "folder2";
@@ -81,7 +80,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
         }
 
         [TestCase, Order(4)]
-        [Category(Categories.MacTODO.M3)]
+        [Category(Categories.MacTODO.NeedsRenameOldPath)]
         public void RenameEmptyFolderTest()
         {
             string folderName = "folder3a";
@@ -102,7 +101,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
         }
 
         [TestCase, Order(5)]
-        [Category(Categories.MacTODO.M2)]
+        [Category(Categories.MacTODO.NeedsRenameOldPath)]
         public void RenameFolderTest()
         {
             string folderName = "folder4a";
@@ -142,7 +141,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
         }
 
         [TestCase, Order(6)]
-        [Category(Categories.MacTODO.M2)]
+        [Category(Categories.MacTODO.NeedsRenameOldPath)]
         public void CaseOnlyRenameOfNewFolderKeepsModifiedPathsEntries()
         {
             if (this.fileSystem is PowerShellRunner)
@@ -337,8 +336,9 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
             this.VerifyWorktreeBit(fileToOverwriteEntry, LsFilesStatus.Cached);
         }
 
+        // WindowsOnly because Mac does not support SupersedeFile
         [TestCase, Order(15)]
-        [Category(Categories.MacTODO.M2)]
+        [Category(Categories.WindowsOnly)]
         public void SupersededFileAddedToModifiedPathsAndSkipWorktreeBitCleared()
         {
             string fileToSupersedeEntry = "GVFlt_FileOperationTest/WriteAndVerify.txt";

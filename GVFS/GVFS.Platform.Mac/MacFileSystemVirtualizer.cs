@@ -53,6 +53,9 @@ namespace GVFS.Platform.Mac
                 case Result.EPathNotFound:
                     return FSResult.FileOrPathNotFound;
 
+                case Result.EDirectoryNotEmpty:
+                    return FSResult.DirectoryNotEmpty;
+
                 default:
                     return FSResult.IOError;
             }
@@ -525,13 +528,23 @@ namespace GVFS.Platform.Mac
                 {
                     if (isDirectory)
                     {
-                        GitCommandLineParser gitCommand = new GitCommandLineParser(this.Context.Repository.GVFSLock.GetLockedGitCommand());
+                        string lockedGitCommand = this.Context.Repository.GVFSLock.GetLockedGitCommand();
+                        GitCommandLineParser gitCommand = new GitCommandLineParser(lockedGitCommand);
                         if (gitCommand.IsValidGitCommand)
                         {
-                            // TODO(Mac): Ensure that when git creates a folder all files\folders within that folder are written to disk
                             EventMetadata metadata = this.CreateEventMetadata(relativePath);
-                            metadata.Add("isDirectory", isDirectory);
-                            this.Context.Tracer.RelatedWarning(metadata, $"{nameof(this.OnNewFileCreated)}: Git created a folder, currently an unsupported scenario on Mac");
+                            metadata.Add(nameof(lockedGitCommand), lockedGitCommand);
+                            metadata.Add(TracingConstants.MessageKey.InfoMessage, "Git command created new folder");
+                            this.Context.Tracer.RelatedEvent(EventLevel.Informational, $"{nameof(this.OnNewFileCreated)}_GitCreatedFolder", metadata);
+
+                            // Record this folder as expanded so that GitIndexProjection will re-expand the folder
+                            // when the projection change completes.  
+                            // 
+                            // Git creates new folders when there are files that it needs to create.
+                            // However, git will only create files that are in ModifiedPaths.dat.  There could
+                            // be other files in the projection (that were not created by git) and so VFS must re-expand the
+                            // newly created folder to ensure that all files are written to disk.
+                            this.FileSystemCallbacks.OnPlaceholderFolderExpanded(relativePath);
                         }
                         else
                         {

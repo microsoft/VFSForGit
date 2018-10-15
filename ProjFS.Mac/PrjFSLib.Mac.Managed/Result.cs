@@ -22,6 +22,7 @@
         EIOError                            = 0x20000040,
         ENotAVirtualizationRoot             = 0x20000080,
         EVirtualizationRootAlreadyExists    = 0x20000100,
+        EDirectoryNotEmpty                  = 0x20000200,
 
         ENotYetImplemented                  = 0xFFFFFFFF,
     }
