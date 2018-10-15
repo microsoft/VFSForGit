@@ -100,7 +100,9 @@ namespace GVFS.CommandLine
                 { "index.version", "4" },
                 { "merge.stat", "false" },
                 { "merge.renames", "false" },
+                { "rebase.useBuiltin", "true" },
                 { "receive.autogc", "false" },
+                { "stash.useBuiltin", "true" },
                 { "status.deserializePath", gitStatusCachePath },
             };
 
