@@ -538,7 +538,12 @@ namespace GVFS.Platform.Mac
                             this.Context.Tracer.RelatedEvent(EventLevel.Informational, $"{nameof(this.OnNewFileCreated)}_GitCreatedFolder", metadata);
 
                             // Record this folder as expanded so that GitIndexProjection will re-expand the folder
-                            // when the projection change completes.
+                            // when the projection change completes.  
+                            // 
+                            // Git creates new folders when there are files that it needs to create.
+                            // However, git will only create files that are in ModifiedPaths.dat.  There could
+                            // be other files in the projection (that were not created by git) and so VFS must re-expand the
+                            // newly created folder to ensure that all files are written to disk.
                             this.FileSystemCallbacks.OnPlaceholderFolderExpanded(relativePath);
                         }
                         else
