@@ -18,6 +18,7 @@ namespace GVFS
             {
                 typeof(CacheServerVerb),
                 typeof(CloneVerb),
+                typeof(ConfigVerb),
                 typeof(DehydrateVerb),
                 typeof(DiagnoseVerb),
                 typeof(LogVerb),
@@ -28,7 +29,6 @@ namespace GVFS
                 typeof(StatusVerb),
                 typeof(UnmountVerb),
                 typeof(UpgradeVerb),
-                typeof(ConfigVerb),
             };
 
             int consoleWidth = 80;

@@ -1,24 +1,28 @@
 ﻿using GVFS.FunctionalTests.Tools;
 using GVFS.Tests.Should;
 using NUnit.Framework;
+using System;
+using System.Diagnostics;
 using System.IO;
 
 namespace GVFS.FunctionalTests.Tests.MultiEnlistmentTests
 {
     [TestFixture]
     [NonParallelizable]
-    [Category(Categories.FullSuiteOnly)]
-    [Category(Categories.WindowsOnly)]
+    [Category(Categories.MacTODO.M4)]
     public class ConfigVerbTests : TestsWithMultiEnlistment
     {
-        private const string ConfigFilePath = @"C:\ProgramData\GVFS\gvfs.config";
-
         [OneTimeSetUp]
         public void DeleteAllSettings()
         {
-            if (File.Exists(ConfigFilePath))
+            string configFilePath = Path.Combine(
+                Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData),
+                "GVFS",
+                "gvfs.config");
+
+            if (File.Exists(configFilePath))
             {
-                File.Delete(ConfigFilePath);
+                File.Delete(configFilePath);
             }
         }
 
@@ -26,38 +30,38 @@ namespace GVFS.FunctionalTests.Tests.MultiEnlistmentTests
         public void CreateValues()
         {
             this.RunConfigCommandAndCheckOutput("integerString 213", null);
-            this.RunConfigCommandAndCheckOutput("integerString", new string[] { "213" });
+            this.RunConfigCommandAndCheckOutput("integerString", new[] { "213" });
 
             this.RunConfigCommandAndCheckOutput("floatString 213.15", null);
-            this.RunConfigCommandAndCheckOutput("floatString", new string[] { "213.15" });
+            this.RunConfigCommandAndCheckOutput("floatString", new[] { "213.15" });
 
             this.RunConfigCommandAndCheckOutput("regularString foobar", null);
-            this.RunConfigCommandAndCheckOutput("regularString", new string[] { "foobar" });
+            this.RunConfigCommandAndCheckOutput("regularString", new[] { "foobar" });
 
             this.RunConfigCommandAndCheckOutput("spacesString \"quick brown fox\"", null);
-            this.RunConfigCommandAndCheckOutput("spacesString", new string[] { "quick brown fox" });
+            this.RunConfigCommandAndCheckOutput("spacesString", new[] { "quick brown fox" });
         }
 
         [TestCase, Order(2)]
         public void UpdateValues()
         {
             this.RunConfigCommandAndCheckOutput("integerString 314", null);
-            this.RunConfigCommandAndCheckOutput("integerString", new string[] { "314" });
+            this.RunConfigCommandAndCheckOutput("integerString", new[] { "314" });
 
             this.RunConfigCommandAndCheckOutput("floatString 3.14159", null);
-            this.RunConfigCommandAndCheckOutput("floatString", new string[] { "3.14159" });
+            this.RunConfigCommandAndCheckOutput("floatString", new[] { "3.14159" });
 
             this.RunConfigCommandAndCheckOutput("regularString helloWorld!", null);
-            this.RunConfigCommandAndCheckOutput("regularString", new string[] { "helloWorld!" });
+            this.RunConfigCommandAndCheckOutput("regularString", new[] { "helloWorld!" });
 
             this.RunConfigCommandAndCheckOutput("spacesString \"jumped over lazy dog\"", null);
-            this.RunConfigCommandAndCheckOutput("spacesString", new string[] { "jumped over lazy dog" });
+            this.RunConfigCommandAndCheckOutput("spacesString", new[] { "jumped over lazy dog" });
         }
 
         [TestCase, Order(3)]
         public void ListValues()
         {
-            string[] expectedSettings = new string[]
+            string[] expectedSettings = new[]
             {
                 "integerString=314",
                 "floatString=3.1415",
@@ -70,19 +74,26 @@ namespace GVFS.FunctionalTests.Tests.MultiEnlistmentTests
         [TestCase, Order(4)]
         public void DeleteValues()
         {
-            string[] expectedSettings = new string[]
+            string[] settingsToDelete = new[]
             {
                 "integerString",
                 "floatString",
                 "regularString",
                 "spacesString"
             };
-            foreach (string keyValue in expectedSettings)
+            foreach (string keyValue in settingsToDelete)
             {
                 this.RunConfigCommandAndCheckOutput($"--delete {keyValue}", null);
             }
 
-            this.RunConfigCommandAndCheckOutput($"--list", new string[] { string.Empty });
+            this.RunConfigCommandAndCheckOutput($"--list", new[] { string.Empty });
+        }
+
+        [TestCase, Order(5)]
+        public void ValidateMutuallyExclusiveOptions()
+        {
+            ProcessResult result = ProcessHelper.Run(GVFSTestConfig.PathToGVFS, "config --list --delete foo");
+            result.Errors.ShouldContain(new[] { "ERROR", "list", "delete", "is not compatible with" });
         }
 
         private void RunConfigCommandAndCheckOutput(string argument, string[] expectedOutput)
