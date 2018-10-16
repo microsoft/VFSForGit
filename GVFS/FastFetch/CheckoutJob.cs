@@ -1,6 +1,8 @@
-﻿using GVFS.Common.FileSystem;
+﻿using GVFS.Common;
+using GVFS.Common.FileSystem;
 using GVFS.Common.Git;
 using GVFS.Common.Prefetch.Git;
+using GVFS.Common.Prefetch.Jobs;
 using GVFS.Common.Tracing;
 using System;
 using System.Collections.Concurrent;
@@ -9,7 +11,7 @@ using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
 
-namespace GVFS.Common.Prefetch.Jobs
+namespace FastFetch
 {
     public class CheckoutJob : Job
     {
@@ -19,6 +21,7 @@ namespace GVFS.Common.Prefetch.Jobs
         private ITracer tracer;
         private Enlistment enlistment;
         private string targetCommitSha;
+        private bool forceCheckout;
 
         private DiffHelper diff;
 
@@ -31,13 +34,14 @@ namespace GVFS.Common.Prefetch.Jobs
         // Checkout requires synchronization between the delete/directory/add stages, so control the parallelization
         private int maxParallel;
 
-        public CheckoutJob(int maxParallel, IEnumerable<string> folderList, string targetCommitSha, ITracer tracer, Enlistment enlistment)
+        public CheckoutJob(int maxParallel, IEnumerable<string> folderList, string targetCommitSha, ITracer tracer, Enlistment enlistment, bool forceCheckout)
             : base(1)
         {
             this.tracer = tracer.StartActivity(AreaPath, EventLevel.Informational, Keywords.Telemetry, metadata: null);
             this.enlistment = enlistment;
             this.diff = new DiffHelper(tracer, enlistment, new string[0], folderList);
             this.targetCommitSha = targetCommitSha;
+            this.forceCheckout = forceCheckout;
             this.AvailableBlobShas = new BlockingCollection<string>();
 
             // Keep track of how parallel we're expected to be later during DoWork
@@ -62,7 +66,17 @@ namespace GVFS.Common.Prefetch.Jobs
 
         protected override void DoBeforeWork()
         {
-            this.diff.PerformDiff(this.targetCommitSha);
+            if (this.forceCheckout)
+            {
+                // Force search the entire tree by treating the repo as if it were brand new.
+                this.diff.PerformDiff(sourceTreeSha: null, targetTreeSha: this.targetCommitSha);
+            }
+            else
+            {
+                // Let the diff find the sourceTreeSha on its own.
+                this.diff.PerformDiff(this.targetCommitSha);
+            }
+
             this.HasFailures = this.diff.HasFailures;
         }
 

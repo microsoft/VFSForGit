@@ -1,4 +1,5 @@
-﻿using System;
+﻿using NUnit.Framework;
+using System;
 
 namespace GVFS.FunctionalTests.FileSystemRunners
 {
@@ -68,6 +69,7 @@ namespace GVFS.FunctionalTests.FileSystemRunners
         public abstract void ReadAllText_FileShouldNotBeFound(string path);
 
         public abstract void CreateEmptyFile(string path);
+        public abstract void CreateHardLink(string newLinkFilePath, string existingFilePath);
 
         /// <summary>
         /// Write the specified contents to the specified file.  By calling this method the caller is

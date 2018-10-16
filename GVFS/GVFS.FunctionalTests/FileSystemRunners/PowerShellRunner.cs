@@ -105,6 +105,11 @@ namespace GVFS.FunctionalTests.FileSystemRunners
             this.RunProcess(string.Format("-Command \"&{{ New-Item -ItemType file {0}}}\"", path));
         }
 
+        public override void CreateHardLink(string newLinkFilePath, string existingFilePath)
+        {
+            this.RunProcess(string.Format("-Command \"&{{ New-Item -ItemType HardLink -Path {0} -Value {1}}}\"", newLinkFilePath, existingFilePath));
+        }
+
         public override void WriteAllText(string path, string contents)
         {
             this.RunProcess(string.Format("-Command \"&{{ Out-File -FilePath {0} -InputObject '{1}' -Encoding ascii -NoNewline}}\"", path, contents));
@@ -177,6 +182,7 @@ namespace GVFS.FunctionalTests.FileSystemRunners
         public override void DeleteFile_AccessShouldBeDenied(string path)
         {
             this.DeleteFile(path).ShouldContain(permissionDeniedMessage);
+            this.FileExists(path).ShouldBeTrue($"{path} does not exist when it should");
         }
 
         public override void ReadAllText_FileShouldNotBeFound(string path)

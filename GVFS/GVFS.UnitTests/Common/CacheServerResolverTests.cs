@@ -204,9 +204,9 @@ namespace GVFS.UnitTests.Common
             return new MockGVFSEnlistment(gitProcess);
         }
 
-        private GVFSConfig CreateGVFSConfig()
+        private ServerGVFSConfig CreateGVFSConfig()
         {
-            return new GVFSConfig
+            return new ServerGVFSConfig
             {
                 CacheServers = new[]
                 {
@@ -215,9 +215,9 @@ namespace GVFS.UnitTests.Common
             };
         }
 
-        private GVFSConfig CreateDefaultDeserializedGVFSConfig()
+        private ServerGVFSConfig CreateDefaultDeserializedGVFSConfig()
         {
-            return JsonConvert.DeserializeObject<GVFSConfig>("{}");
+            return JsonConvert.DeserializeObject<ServerGVFSConfig>("{}");
         }
 
         private CacheServerResolver CreateResolver(MockGVFSEnlistment enlistment = null)

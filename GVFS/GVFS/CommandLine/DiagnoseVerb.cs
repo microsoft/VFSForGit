@@ -1,4 +1,4 @@
-﻿using CommandLine;
+using CommandLine;
 using GVFS.Common;
 using GVFS.Common.FileSystem;
 using GVFS.Common.Git;
@@ -49,11 +49,22 @@ namespace GVFS.CommandLine
 
                 this.WriteMessage(string.Empty);
                 this.WriteMessage("gvfs version " + ProcessHelper.GetCurrentProcessVersion());
-                this.WriteMessage(GitProcess.Version(enlistment).Output);
-                this.WriteMessage(GVFSPlatform.Instance.GitInstallation.GetInstalledGitBinPath());
+
+                GitVersion gitVersion = null;
+                string error = null;
+                if (!string.IsNullOrEmpty(enlistment.GitBinPath) && GitProcess.TryGetVersion(enlistment.GitBinPath, out gitVersion, out error))
+                {
+                    this.WriteMessage("git version " + gitVersion.ToString());
+                }
+                else
+                {
+                    this.WriteMessage("Could not determine git version. " + error);
+                }
+
+                this.WriteMessage(enlistment.GitBinPath);
                 this.WriteMessage(string.Empty);
                 this.WriteMessage("Enlistment root: " + enlistment.EnlistmentRoot);
-                this.WriteMessage("Cache Server: " + CacheServerResolver.GetUrlFromConfig(enlistment));
+                this.WriteMessage("Cache Server: " + CacheServerResolver.GetCacheServerFromConfig(enlistment));
 
                 string localCacheRoot;
                 string gitObjectsRoot;
@@ -113,6 +124,19 @@ namespace GVFS.CommandLine
                             this.ServiceName,
                             copySubFolders: true);
 
+                        // upgrader
+                        this.CopyAllFiles(
+                            ProductUpgrader.GetUpgradesDirectoryPath(),
+                            archiveFolderPath,
+                            ProductUpgrader.LogDirectory,
+                            copySubFolders: true,
+                            targetFolderName: ProductUpgrader.UpgradeDirectoryName);
+                        this.LogDirectoryEnumeration(
+                            ProductUpgrader.GetUpgradesDirectoryPath(), 
+                            Path.Combine(archiveFolderPath, ProductUpgrader.UpgradeDirectoryName),
+                            ProductUpgrader.DownloadDirectory, 
+                            "downloaded-assets.txt");
+                     
                         return true;
                     },
                     "Copying logs");
@@ -160,10 +184,16 @@ namespace GVFS.CommandLine
             this.diagnosticLogFileWriter.WriteLine(information);
         }
 
-        private void CopyAllFiles(string sourceRoot, string targetRoot, string folderName, bool copySubFolders, bool hideErrorsFromStdout = false)
+        private void CopyAllFiles(
+            string sourceRoot, 
+            string targetRoot, 
+            string folderName, 
+            bool copySubFolders,
+            bool hideErrorsFromStdout = false,
+            string targetFolderName = null)
         {
             string sourceFolder = Path.Combine(sourceRoot, folderName);
-            string targetFolder = Path.Combine(targetRoot, folderName);
+            string targetFolder = Path.Combine(targetRoot, targetFolderName ?? folderName);
 
             try
             {

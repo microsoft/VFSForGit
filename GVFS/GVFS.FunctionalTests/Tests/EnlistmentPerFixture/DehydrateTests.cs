@@ -11,6 +11,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
 {
     [TestFixture]
     [Category(Categories.FullSuiteOnly)]
+    [Category(Categories.MacTODO.M4)]
     public class DehydrateTests : TestsWithEnlistmentPerFixture
     {
         private const int GVFSGenericError = 3;
@@ -64,10 +65,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
 
             // .git folder items
             string gitFolder = Path.Combine(backupFolderItems[0], ".git");
-            this.DirectoryShouldContain(gitFolder, "index", "info");
-
-            string gitInfoFolder = Path.Combine(gitFolder, "info");
-            this.DirectoryShouldContain(gitInfoFolder, "sparse-checkout");
+            this.DirectoryShouldContain(gitFolder, "index");
 
             // .gvfs folder items
             string gvfsFolder = Path.Combine(backupFolderItems[0], ".gvfs");

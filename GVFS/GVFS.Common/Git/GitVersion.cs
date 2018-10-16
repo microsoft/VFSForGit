@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 
 namespace GVFS.Common.Git
 {
@@ -21,7 +21,22 @@ namespace GVFS.Common.Git
         public int Revision { get; private set; }
         public int MinorRevision { get; private set; }
 
-        public static bool TryParseInstallerName(string input, out GitVersion version)
+        public static bool TryParseGitVersionCommandResult(string input, out GitVersion version)
+        {
+            // git version output is of the form
+            // git version 2.17.0.gvfs.1.preview.3
+
+            const string GitVersionExpectedPrefix = "git version ";
+
+            if (input.StartsWith(GitVersionExpectedPrefix))
+            {
+                input = input.Substring(GitVersionExpectedPrefix.Length);
+            }
+
+            return TryParseVersion(input, out version);
+        }
+
+        public static bool TryParseInstallerName(string input, string installerExtension, out GitVersion version)
         {
             // Installer name is of the form
             // Git-2.14.1.gvfs.1.1.gb16030b-64-bit.exe
@@ -33,7 +48,7 @@ namespace GVFS.Common.Git
                 return false;
             }
 
-            if (!input.EndsWith("-64-bit.exe", StringComparison.InvariantCultureIgnoreCase))
+            if (!input.EndsWith("-64-bit" + installerExtension, StringComparison.InvariantCultureIgnoreCase))
             {
                 return false;
             }

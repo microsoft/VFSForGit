@@ -12,6 +12,7 @@ using System.IO.Pipes;
 using System.Linq;
 using System.Security.AccessControl;
 using System.Security.Principal;
+using System.ServiceProcess;
 using System.Text;
 
 namespace GVFS.Platform.Windows
@@ -23,7 +24,7 @@ namespace GVFS.Platform.Windows
         private const string BuildLabExRegistryValue = "BuildLabEx";
 
         public WindowsPlatform()
-            : base(executableExtension: ".exe")
+            : base(executableExtension: ".exe", installerExtension: ".exe")
         {
         }
 
@@ -69,11 +70,13 @@ namespace GVFS.Platform.Windows
             return true;
         }
 
-        public override InProcEventListener CreateTelemetryListenerIfEnabled(string providerName)
+        public override InProcEventListener CreateTelemetryListenerIfEnabled(string providerName, string enlistmentId, string mountId)
         {
             return ETWTelemetryEventListener.CreateTelemetryListenerIfEnabled(
                 this.GitInstallation.GetInstalledGitBinPath(),
-                providerName);
+                providerName,
+                enlistmentId,
+                mountId);
         }
 
         public override void InitializeEnlistmentACLs(string enlistmentPath)
@@ -168,6 +171,14 @@ namespace GVFS.Platform.Windows
             return WindowsPlatform.IsProcessActiveImplementation(processId);
         }
 
+        public override void IsServiceInstalledAndRunning(string name, out bool installed, out bool running)
+        {
+            ServiceController service = ServiceController.GetServices().FirstOrDefault(s => s.ServiceName.Equals(name, StringComparison.Ordinal));
+
+            installed = service != null;
+            running = service != null ? service.Status == ServiceControllerStatus.Running : false;
+        }
+
         public override string GetNamedPipeName(string enlistmentRoot)
         {
             return WindowsPlatform.GetNamedPipeNameImplementation(enlistmentRoot);
@@ -251,6 +262,14 @@ namespace GVFS.Platform.Windows
         public override bool IsGitStatusCacheSupported()
         {
             return File.Exists(Path.Combine(Paths.GetServiceDataRoot(GVFSConstants.Service.ServiceName), GVFSConstants.GitStatusCache.EnableGitStatusCacheTokenFile));
+        }
+
+        public override FileBasedLock CreateFileBasedLock(
+            PhysicalFileSystem fileSystem,
+            ITracer tracer,
+            string lockPath)
+        {
+            return new WindowsFileBasedLock(fileSystem, tracer, lockPath);
         }
 
         public override bool TryGetGVFSEnlistmentRoot(string directory, out string enlistmentRoot, out string errorMessage)

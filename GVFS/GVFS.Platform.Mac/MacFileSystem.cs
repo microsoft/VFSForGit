@@ -16,13 +16,10 @@ namespace GVFS.Platform.Mac
 
         public void MoveAndOverwriteFile(string sourceFileName, string destinationFilename)
         {
-            // TODO(Mac): Use native API
-            if (File.Exists(destinationFilename))
+            if (Rename(sourceFileName, destinationFilename) != 0)
             {
-                File.Delete(destinationFilename);
+                NativeMethods.ThrowLastWin32Exception($"Failed to renname {sourceFileName} to {destinationFilename}");
             }
-
-            File.Move(sourceFileName, destinationFilename);
         }
 
         public void CreateHardLink(string newFileName, string existingFileName)
@@ -43,5 +40,8 @@ namespace GVFS.Platform.Mac
 
         [DllImport("libc", EntryPoint = "chmod", SetLastError = true)]
         private static extern int Chmod(string pathname, int mode);
+
+        [DllImport("libc", EntryPoint = "rename", SetLastError = true)]
+        private static extern int Rename(string oldPath, string newPath);
     }
 }

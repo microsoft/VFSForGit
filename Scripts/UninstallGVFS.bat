@@ -17,4 +17,6 @@ for /F "delims=" %%f in ('dir "c:\Program Files\GVFS\unins*.exe" /B /S /O:-D') d
 :deleteGVFS
 rmdir /q/s "c:\Program Files\GVFS"
 
+if exist "C:\ProgramData\GVFS\GVFS.Upgrade" rmdir /q/s "C:\ProgramData\GVFS\GVFS.Upgrade"
+
 :end

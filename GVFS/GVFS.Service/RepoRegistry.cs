@@ -248,10 +248,15 @@ namespace GVFS.Service
                                 {
                                     EventMetadata metadata = new EventMetadata();
                                     metadata.Add("registration.EnlistmentRoot", registration.EnlistmentRoot);
+                                    metadata.Add("NormalizedEnlistmentRootPath", normalizedEnlistmentRootPath);
+                                    metadata.Add("ErrorMessage", errorMessage);
                                     this.tracer.RelatedWarning(metadata, $"{nameof(ReadRegistry)}: Failed to get normalized path name for registed enlistment root");
                                 }
 
-                                allRepos[normalizedEnlistmentRootPath] = registration;
+                                if (normalizedEnlistmentRootPath != null)
+                                {
+                                    allRepos[normalizedEnlistmentRootPath] = registration;
+                                }
                             }
                             catch (Exception e)
                             {

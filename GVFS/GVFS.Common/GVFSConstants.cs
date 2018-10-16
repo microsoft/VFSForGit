@@ -1,4 +1,4 @@
-﻿using System.IO;
+using System.IO;
 
 namespace GVFS.Common
 {
@@ -32,7 +32,12 @@ namespace GVFS.Common
             public const string DeprecatedCacheEndpointSuffix = ".cache-server-url";
             public const string HooksPrefix = GitConfig.GVFSPrefix + "clone.default-";
             public const string GVFSTelemetryId = GitConfig.GVFSPrefix + "telemetry-id";
-            public const string HooksExtension = ".hooks";
+            public const string HooksExtension = ".hooks";            
+        }
+
+        public static class LocalGVFSConfig
+        {
+            public const string UpgradeRing = "upgrade.ring";
         }
 
         public static class GitStatusCache
@@ -72,15 +77,18 @@ namespace GVFS.Common
         public static class LogFileTypes
         {            
             public const string MountPrefix = "mount";
+            public const string UpgradePrefix = "productupgrade";
 
             public const string Clone = "clone";
             public const string Dehydrate = "dehydrate";
             public const string MountVerb = MountPrefix + "_verb";
             public const string MountProcess = MountPrefix + "_process";
+            public const string MountUpgrade = MountPrefix + "_repoupgrade";
             public const string Prefetch = "prefetch";
             public const string Repair = "repair";
             public const string Service = "service";
-            public const string Upgrade = MountPrefix + "_upgrade";
+            public const string UpgradeVerb = UpgradePrefix + "_verb";
+            public const string UpgradeProcess = UpgradePrefix + "_process";            
         }
 
         public static class DotGVFS
@@ -214,6 +222,20 @@ namespace GVFS.Common
             {
                 public const string SkipLock = "skip-wait-for-lock";
             }
+        }
+
+        public static class UpgradeVerbMessages
+        {
+            public const string GVFSUpgrade = "`gvfs upgrade`";
+            public const string GVFSUpgradeConfirm = "`gvfs upgrade --confirm`";
+            public const string NoUpgradeCheckPerformed = "No upgrade check was performed.";
+            public const string NoneRingConsoleAlert = "Upgrade ring set to \"None\". " + NoUpgradeCheckPerformed;
+            public const string NoRingConfigConsoleAlert = "Upgrade ring is not set. " + NoUpgradeCheckPerformed;
+            public const string InvalidRingConsoleAlert = "Upgrade ring set to unknown value. " + NoUpgradeCheckPerformed;
+            public const string SetUpgradeRingCommand = "To set or change upgrade ring, run `gvfs config " + LocalGVFSConfig.UpgradeRing + " [\"Fast\"|\"Slow\"|\"None\"]` from a command prompt.";
+            public const string ReminderNotification = "A new version of GVFS is available. Run " + UpgradeVerbMessages.GVFSUpgrade + " to start the upgrade.";
+            public const string UnmountRepoWarning = "Upgrade will unmount and remount gvfs repos, ensure you are at a stopping point.";
+            public const string UpgradeInstallAdvice = "When ready, run " + UpgradeVerbMessages.GVFSUpgradeConfirm + " from an elevated command prompt.";
         }
     }
 }

@@ -1,11 +1,3 @@
-//
-//  VnodeUtilities.cpp
-//  PrjFSKext
-//
-//  Created by Phil Dennis-Jordan on 15/05/18.
-//  Copyright © 2018 GVFS. All rights reserved.
-//
-
 #include "VnodeUtilities.hpp"
 #include "kernel-header-wrappers/vnode.h"
 #include "kernel-header-wrappers/mount.h"
@@ -13,7 +5,7 @@
 
 extern "C" int mac_vnop_getxattr(struct vnode *, const char *, char *, size_t, size_t *);
 
-VnodeFsidInode Vnode_GetFsidAndInode(vnode_t vnode, vfs_context_t context)
+FsidInode Vnode_GetFsidAndInode(vnode_t vnode, vfs_context_t context)
 {
     vnode_attr attrs;
     VATTR_INIT(&attrs);

@@ -6,10 +6,11 @@ namespace GVFS.Platform.Windows
 {
     public class ActiveEnumeration
     {
-        private static FileNamePatternMatcher doesPatternMatch = null;
+        private static FileNamePatternMatcher doesWildcardPatternMatch = null;
 
         // Use our own enumerator to avoid having to dispose anything
         private ProjectedFileInfoEnumerator fileInfoEnumerator;
+        private FileNamePatternMatcher doesPatternMatch;
 
         private string filterString = null;
 
@@ -36,12 +37,13 @@ namespace GVFS.Platform.Windows
         }
 
         /// <summary>
-        /// Sets the pattern matching delegate that will be used for file name comparisons
+        /// Sets the pattern matching delegate that will be used for file name comparisons when the filter
+        /// contains wildcards.
         /// </summary>
         /// <param name="patternMatcher">FileNamePatternMatcher to be used by ActiveEnumeration</param>
-        public static void SetPatternMatcher(FileNamePatternMatcher patternMatcher)
+        public static void SetWildcardPatternMatcher(FileNamePatternMatcher patternMatcher)
         {
-            doesPatternMatch = patternMatcher;
+            doesWildcardPatternMatch = patternMatcher;
         }
 
         /// <summary>
@@ -107,15 +109,31 @@ namespace GVFS.Platform.Windows
             return this.filterString;
         }
 
+        private static bool NameMatchesNoWildcardFilter(string name, string filter)
+        {
+            return string.Equals(name, filter, System.StringComparison.OrdinalIgnoreCase);
+        }
+
         private void SaveFilter(string filter)
         {
             if (string.IsNullOrEmpty(filter))
             {
                 this.filterString = string.Empty;
+                this.doesPatternMatch = null;
             }
             else
             {
                 this.filterString = filter;
+
+                if (ProjFS.Utils.DoesNameContainWildCards(this.filterString))
+                {
+                    this.doesPatternMatch = doesWildcardPatternMatch;
+                }
+                else
+                {
+                    this.doesPatternMatch = NameMatchesNoWildcardFilter;
+                }
+
                 if (this.IsCurrentValid && this.IsCurrentHidden())
                 {
                     this.MoveNext();
@@ -125,7 +143,12 @@ namespace GVFS.Platform.Windows
 
         private bool IsCurrentHidden()
         {
-            return !doesPatternMatch(this.Current.Name, this.GetFilterString());
+            if (this.doesPatternMatch == null)
+            {
+                return false;
+            }
+
+            return !this.doesPatternMatch(this.Current.Name, this.GetFilterString());
         }
 
         private void ResetEnumerator()

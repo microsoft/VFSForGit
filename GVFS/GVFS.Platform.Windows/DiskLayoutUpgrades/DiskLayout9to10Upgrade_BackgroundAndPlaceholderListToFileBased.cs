@@ -75,7 +75,7 @@ namespace GVFS.Platform.Windows.DiskLayoutUpgrades
                             foreach (KeyValuePair<string, string> kvp in oldPlaceholders)
                             {
                                 tracer.RelatedInfo("Copying ESENT entry: {0} = {1}", kvp.Key, kvp.Value);
-                                data.Add(new PlaceholderListDatabase.PlaceholderData(path: kvp.Key, sha: kvp.Value));
+                                data.Add(new PlaceholderListDatabase.PlaceholderData(path: kvp.Key, fileShaOrFolderValue: kvp.Value));
                             }
 
                             newPlaceholders.WriteAllEntriesAndFlush(data);

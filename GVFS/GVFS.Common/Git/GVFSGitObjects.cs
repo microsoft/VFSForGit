@@ -28,6 +28,7 @@ namespace GVFS.Common.Git
             FileStreamCallback,
             GVFSVerb,
             NamedPipeMessage,
+            SymLinkCreation,
         }
 
         protected GVFSContext Context { get; private set; }

@@ -12,7 +12,7 @@ namespace GVFS.Platform.Mac
     public partial class MacPlatform : GVFSPlatform
     {
         public MacPlatform()
-            : base(executableExtension: string.Empty)
+            : base(executableExtension: string.Empty, installerExtension: ".dmg")
         {
         }
 
@@ -56,6 +56,11 @@ namespace GVFS.Platform.Mac
             return MacPlatform.IsProcessActiveImplementation(processId);
         }
 
+        public override void IsServiceInstalledAndRunning(string name, out bool installed, out bool running)
+        {
+            throw new NotImplementedException();
+        }
+
         public override void StartBackgroundProcess(string programName, string[] args)
         {
             ProcessLauncher.StartBackgroundProcess(programName, args);
@@ -75,7 +80,7 @@ namespace GVFS.Platform.Mac
             return pipe;
         }
 
-        public override InProcEventListener CreateTelemetryListenerIfEnabled(string providerName)
+        public override InProcEventListener CreateTelemetryListenerIfEnabled(string providerName, string enlistmentId, string mountId)
         {
             return null;
         }
@@ -126,6 +131,14 @@ namespace GVFS.Platform.Mac
         {
             // TODO(Mac): support git status cache
             return false;
+        }
+
+        public override FileBasedLock CreateFileBasedLock(
+            PhysicalFileSystem fileSystem,
+            ITracer tracer,
+            string lockPath)
+        {
+            return new MacFileBasedLock(fileSystem, tracer, lockPath);
         }
     }
 }

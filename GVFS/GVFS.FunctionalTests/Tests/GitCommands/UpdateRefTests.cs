@@ -3,6 +3,7 @@
 namespace GVFS.FunctionalTests.Tests.GitCommands
 {
     [TestFixture]
+    [Category(Categories.GitCommands)]
     public class UpdateRefTests : GitRepoTests
     {
         public UpdateRefTests() : base(enlistmentPerTest: true)

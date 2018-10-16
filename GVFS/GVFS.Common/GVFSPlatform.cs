@@ -10,9 +10,9 @@ namespace GVFS.Common
 {
     public abstract class GVFSPlatform
     {
-        public GVFSPlatform(string executableExtension)
+        public GVFSPlatform(string executableExtension, string installerExtension)
         {
-            this.Constants = new GVFSPlatformConstants(executableExtension);
+            this.Constants = new GVFSPlatformConstants(executableExtension, installerExtension);
         }
 
         public static GVFSPlatform Instance { get; private set; }
@@ -37,7 +37,7 @@ namespace GVFS.Common
 
         public abstract void StartBackgroundProcess(string programName, string[] args);
         public abstract bool IsProcessActive(int processId);
-
+        public abstract void IsServiceInstalledAndRunning(string name, out bool installed, out bool running);
         public abstract string GetNamedPipeName(string enlistmentRoot);
         public abstract NamedPipeServerStream CreatePipeByName(string pipeName);
 
@@ -50,7 +50,7 @@ namespace GVFS.Common
         public abstract bool TryGetGVFSHooksPathAndVersion(out string hooksPaths, out string hooksVersion, out string error);
         public abstract bool TryInstallGitCommandHooks(GVFSContext context, string executingDirectory, string hookName, string commandHookPath, out string errorMessage);
 
-        public abstract InProcEventListener CreateTelemetryListenerIfEnabled(string providerName);
+        public abstract InProcEventListener CreateTelemetryListenerIfEnabled(string providerName, string enlistmentId, string mountId);
 
         public abstract Dictionary<string, string> GetPhysicalDiskInfo(string path);
 
@@ -58,6 +58,11 @@ namespace GVFS.Common
         public abstract bool TryGetGVFSEnlistmentRoot(string directory, out string enlistmentRoot, out string errorMessage);
 
         public abstract bool IsGitStatusCacheSupported();
+
+        public abstract FileBasedLock CreateFileBasedLock(
+            PhysicalFileSystem fileSystem,
+            ITracer tracer,
+            string lockPath);
 
         public bool TryGetNormalizedPathRoot(string path, out string pathRoot, out string errorMessage)
         {
@@ -76,12 +81,15 @@ namespace GVFS.Common
 
         public class GVFSPlatformConstants
         {
-            public GVFSPlatformConstants(string executableExtension)
+            public GVFSPlatformConstants(string executableExtension, string installerExtension)
             {
                 this.ExecutableExtension = executableExtension;
+                this.InstallerExtension = installerExtension;
             }
 
             public string ExecutableExtension { get; }
+            public string InstallerExtension { get; }
+
             public string GVFSExecutableName
             {
                 get { return "GVFS" + this.ExecutableExtension; }
@@ -105,6 +113,11 @@ namespace GVFS.Common
             public string MountExecutableName
             {
                 get { return "GVFS.Mount" + this.ExecutableExtension; }
+            }
+
+            public string GVFSUpgraderExecutableName
+            {
+                get { return "GVFS.Upgrader" + this.ExecutableExtension;  }
             }
         }
     }

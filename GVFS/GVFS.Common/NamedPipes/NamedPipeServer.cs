@@ -6,6 +6,20 @@ using System.Threading;
 
 namespace GVFS.Common.NamedPipes
 {
+    /// <summary>
+    /// The server side of a Named Pipe used for interprocess communication.
+    ///
+    /// Named Pipe protocol:
+    ///    The client / server process sends a "message" (or line) of data as a
+    ///    sequence of bytes terminated by a 0x3 byte (ASCII control code for
+    ///    End of text). Text is encoded as UTF-8 to be sent as bytes across the wire.
+    ///
+    /// This format was chosen so that:
+    ///   1) A reasonable range of values can be transmitted across the pipe,
+    ///      including null and bytes that represent newline characters.
+    ///   2) It would be easy to implement in multiple places, as we
+    ///      have managed and native implementations.
+    /// </summary>
     public class NamedPipeServer : IDisposable
     {
         // TODO(Mac) the limit is much shorter on macOS
@@ -87,7 +101,10 @@ namespace GVFS.Common.NamedPipes
 
         private void OnNewConnection(IAsyncResult ar)
         {
-            this.OnNewConnection(ar, createNewThreadIfSynchronous: true);
+            if (!this.isStopping)
+            {
+                this.OnNewConnection(ar, createNewThreadIfSynchronous: true);
+            }
         }
 
         private void OnNewConnection(IAsyncResult ar, bool createNewThreadIfSynchronous)
@@ -123,13 +140,6 @@ namespace GVFS.Common.NamedPipes
                     metadata.Add(TracingConstants.MessageKey.WarningMessage, "OnNewConnection: Connection broken");
                     this.tracer.RelatedEvent(EventLevel.Warning, "OnNewConnectionn_EndWaitForConnection_IOException", metadata);
                 }
-                catch (ObjectDisposedException)
-                {
-                    if (!this.isStopping)
-                    {
-                        throw;
-                    }
-                }
                 catch (Exception e)
                 {
                     this.LogErrorAndExit("OnNewConnection caught unhandled exception, exiting process", e);
@@ -143,7 +153,7 @@ namespace GVFS.Common.NamedPipes
                     {
                         try
                         {
-                            this.handleConnection(new Connection(pipe, () => this.isStopping));
+                            this.handleConnection(new Connection(pipe, this.tracer, () => this.isStopping));
                         }
                         catch (Exception e)
                         {
@@ -178,16 +188,18 @@ namespace GVFS.Common.NamedPipes
         public class Connection
         {
             private NamedPipeServerStream serverStream;
-            private StreamReader reader;
-            private StreamWriter writer;
+            private NamedPipeStreamReader reader;
+            private NamedPipeStreamWriter writer;
+            private ITracer tracer;
             private Func<bool> isStopping;
 
-            public Connection(NamedPipeServerStream serverStream, Func<bool> isStopping)
+            public Connection(NamedPipeServerStream serverStream, ITracer tracer, Func<bool> isStopping)
             {
                 this.serverStream = serverStream;
+                this.tracer = tracer;
                 this.isStopping = isStopping;
-                this.reader = new StreamReader(this.serverStream);
-                this.writer = new StreamWriter(this.serverStream);
+                this.reader = new NamedPipeStreamReader(this.serverStream);
+                this.writer = new NamedPipeStreamWriter(this.serverStream);
             }
 
             public bool IsConnected
@@ -204,10 +216,17 @@ namespace GVFS.Common.NamedPipes
             {
                 try
                 {
-                    return this.reader.ReadLine();
+                    return this.reader.ReadMessage();
                 }
-                catch (IOException)
+                catch (IOException e)
                 {
+                    EventMetadata metadata = new EventMetadata();
+                    metadata.Add("ExceptionMessage", e.Message);
+                    metadata.Add("StackTrace", e.StackTrace);
+                    this.tracer.RelatedError(
+                        metadata: metadata,
+                        message: $"Error reading message from NamedPipe: {e.Message}");
+
                     return null;
                 }
             }
@@ -216,9 +235,7 @@ namespace GVFS.Common.NamedPipes
             {
                 try
                 {
-                    this.writer.WritePlatformIndependentLine(message);
-                    this.writer.Flush();
-
+                    this.writer.WriteMessage(message);
                     return true;
                 }
                 catch (IOException)

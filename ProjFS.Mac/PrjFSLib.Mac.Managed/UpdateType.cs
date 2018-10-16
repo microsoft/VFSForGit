@@ -7,7 +7,6 @@ namespace PrjFSLib.Mac
     {
         Invalid         = 0x00000000,
 
-        AllowDirtyData  = 0x00000002,
         AllowReadOnly   = 0x00000020,
     }
 }

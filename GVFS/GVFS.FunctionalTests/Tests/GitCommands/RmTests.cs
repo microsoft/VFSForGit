@@ -10,7 +10,10 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
         {
         }
 
+        // Mac(TODO): Something is triggering Readme.md to get created on disk before this
+        // test validates that it's not present
         [TestCase]
+        [Category(Categories.MacTODO.M4)]
         public void CanReadFileAfterGitRmDryRun()
         {
             this.ValidateGitCommand("status");

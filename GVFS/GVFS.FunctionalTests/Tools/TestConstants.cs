@@ -5,6 +5,8 @@ namespace GVFS.FunctionalTests.Tools
     public static class TestConstants
     {
         public const string AllZeroSha = "0000000000000000000000000000000000000000";
+        public const string PartialFolderPlaceholderDatabaseValue = "                          PARTIAL FOLDER";
+        public const char GitPathSeparator = '/';
 
         public static class DotGit
         {

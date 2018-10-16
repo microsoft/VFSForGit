@@ -1,7 +1,5 @@
 ﻿using GVFS.Tests.Should;
-using System;
 using System.Diagnostics;
-using System.Runtime.InteropServices;
 
 namespace GVFS.FunctionalTests.Tools
 {
@@ -10,22 +8,23 @@ namespace GVFS.FunctionalTests.Tools
         private readonly string pathToGVFS;
         private readonly string enlistmentRoot;
         private readonly string localCacheRoot;
-        
+
         public GVFSProcess(string pathToGVFS, string enlistmentRoot, string localCacheRoot)
         {
             this.pathToGVFS = pathToGVFS;
             this.enlistmentRoot = enlistmentRoot;
             this.localCacheRoot = localCacheRoot;
         }
-        
-        public void Clone(string repositorySource, string branchToCheckout)
+
+        public void Clone(string repositorySource, string branchToCheckout, bool skipPrefetch)
         {
             string args = string.Format(
-                "clone \"{0}\" \"{1}\" --branch \"{2}\" --no-mount --no-prefetch --local-cache-path \"{3}\"",
+                "clone \"{0}\" \"{1}\" --branch \"{2}\" --local-cache-path \"{3}\" {4}",
                 repositorySource,
                 this.enlistmentRoot,
                 branchToCheckout,
-                this.localCacheRoot);
+                this.localCacheRoot,
+                skipPrefetch ? "--no-prefetch" : string.Empty);
             this.CallGVFS(args, failOnError: true);
         }
 
@@ -38,10 +37,8 @@ namespace GVFS.FunctionalTests.Tools
 
         public bool TryMount(out string output)
         {
-            string mountCommand = "mount \"" + this.enlistmentRoot + "\" --internal_use_only_service_name " + GVFSServiceProcess.TestServiceName;
-
             this.IsEnlistmentMounted().ShouldEqual(false, "GVFS is already mounted");
-            output = this.CallGVFS(mountCommand);
+            output = this.CallGVFS("mount \"" + this.enlistmentRoot + "\"");
             return this.IsEnlistmentMounted();
         }
 
@@ -50,25 +47,22 @@ namespace GVFS.FunctionalTests.Tools
             return this.CallGVFS("prefetch \"" + this.enlistmentRoot + "\" " + args, failOnError);
         }
 
-        public void Repair()
+        public void Repair(bool confirm)
         {
+            string confirmArg = confirm ? "--confirm " : string.Empty;
             this.CallGVFS(
-                "repair --confirm \"" + this.enlistmentRoot + "\"", 
+                "repair " + confirmArg + "\"" + this.enlistmentRoot + "\"",
                 failOnError: true);
         }
 
         public string Diagnose()
         {
-            string diagnoseArgs = string.Join(
-                " ",
-                "diagnose \"" + this.enlistmentRoot + "\"",
-                "--internal_use_only_service_name " + GVFSServiceProcess.TestServiceName);
-            return this.CallGVFS(diagnoseArgs);
+            return this.CallGVFS("diagnose \"" + this.enlistmentRoot + "\"");
         }
 
-        public string Status()
+        public string Status(string trace = null)
         {
-            return this.CallGVFS("status " + this.enlistmentRoot);
+            return this.CallGVFS("status " + this.enlistmentRoot, trace: trace);
         }
 
         public string CacheServer(string args)
@@ -80,11 +74,7 @@ namespace GVFS.FunctionalTests.Tools
         {
             if (this.IsEnlistmentMounted())
             {
-                string unmountArgs = string.Join(
-                    " ",
-                    "unmount \"" + this.enlistmentRoot + "\"",
-                    "--internal_use_only_service_name " + GVFSServiceProcess.TestServiceName);
-                string result = this.CallGVFS(unmountArgs, failOnError: true);
+                string result = this.CallGVFS("unmount \"" + this.enlistmentRoot + "\"", failOnError: true);
                 this.IsEnlistmentMounted().ShouldEqual(false, "GVFS did not unmount: " + result);
             }
         }
@@ -97,22 +87,23 @@ namespace GVFS.FunctionalTests.Tools
 
         public string RunServiceVerb(string argument)
         {
-            string serviceVerbArgs = string.Join(
-                " ",
-                "service " + argument,
-                "--internal_use_only_service_name " + GVFSServiceProcess.TestServiceName);
-            return this.CallGVFS(serviceVerbArgs, failOnError: true);
+            return this.CallGVFS("service " + argument, failOnError: true);
         }
 
-        private string CallGVFS(string args, bool failOnError = false)
+        private string CallGVFS(string args, bool failOnError = false, string trace = null)
         {
             ProcessStartInfo processInfo = null;
             processInfo = new ProcessStartInfo(this.pathToGVFS);
-            processInfo.Arguments = args;
+            processInfo.Arguments = args + " --internal_use_only_service_name " + GVFSServiceProcess.TestServiceName;
 
             processInfo.WindowStyle = ProcessWindowStyle.Hidden;
             processInfo.UseShellExecute = false;
             processInfo.RedirectStandardOutput = true;
+
+            if (trace != null)
+            {
+                processInfo.EnvironmentVariables["GIT_TRACE"] = trace;
+            }
 
             using (Process process = Process.Start(processInfo))
             {

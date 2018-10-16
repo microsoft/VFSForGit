@@ -8,13 +8,17 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Threading;
 
 namespace GVFS.FunctionalTests.Tests.LongRunningEnlistment
 {
     [TestFixture]
-    [Category(Categories.Mac.M1)]
     public class BasicFileSystemTests : TestsWithEnlistmentPerFixture
     {
+        private const int FileAttributeSparseFile = 0x00000200;
+        private const int FileAttributeReparsePoint = 0x00000400;
+        private const int FileAttributeRecallOnDataAccess = 0x00400000;
+
         [TestCaseSource(typeof(FileRunnersAndFolders), FileRunnersAndFolders.TestRunners)]
         public void ShrinkFileContents(FileSystemRunner fileSystem, string parentFolder)
         {
@@ -75,7 +79,7 @@ namespace GVFS.FunctionalTests.Tests.LongRunningEnlistment
         }
 
         [TestCaseSource(typeof(FileRunnersAndFolders), FileRunnersAndFolders.TestFolders)]
-        [Category(Categories.Windows)]
+        [Category(Categories.WindowsOnly)]
         public void NewFileAttributesAreUpdated(string parentFolder)
         {
             string filename = Path.Combine(parentFolder, "FileAttributesAreUpdated");
@@ -103,7 +107,7 @@ namespace GVFS.FunctionalTests.Tests.LongRunningEnlistment
         }
 
         [TestCaseSource(typeof(FileRunnersAndFolders), FileRunnersAndFolders.TestFolders)]
-        [Category(Categories.Windows)]
+        [Category(Categories.WindowsOnly)]
         public void NewFolderAttributesAreUpdated(string parentFolder)
         {
             string folderName = Path.Combine(parentFolder, "FolderAttributesAreUpdated");
@@ -130,7 +134,7 @@ namespace GVFS.FunctionalTests.Tests.LongRunningEnlistment
         }
 
         [TestCase]
-        [Category(Categories.Windows)]
+        [Category(Categories.WindowsOnly)]
         public void ExpandedFileAttributesAreUpdated()
         {
             FileSystemRunner fileSystem = FileSystemRunner.DefaultRunner;
@@ -153,11 +157,30 @@ namespace GVFS.FunctionalTests.Tests.LongRunningEnlistment
 
             // Ignore the archive bit as it can be re-added to the file as part of its expansion to full
             FileAttributes attributes = info.Attributes & ~FileAttributes.Archive;
-            attributes.ShouldEqual(FileAttributes.Hidden, "Attributes do not match");
+
+            int retryCount = 0;
+            int maxRetries = 10;
+            while (attributes != FileAttributes.Hidden && retryCount < maxRetries)
+            {
+                // ProjFS attributes are remoted asynchronously when files are converted to full
+                FileAttributes attributesLessProjFS = attributes & (FileAttributes)~(FileAttributeSparseFile | FileAttributeReparsePoint | FileAttributeRecallOnDataAccess);
+
+                attributesLessProjFS.ShouldEqual(
+                    FileAttributes.Hidden, 
+                    $"Attributes (ignoring ProjFS attributes) do not match, expected: {FileAttributes.Hidden} actual: {attributesLessProjFS}");
+                
+                ++retryCount;
+                Thread.Sleep(500);
+
+                info.Refresh();
+                attributes = info.Attributes & ~FileAttributes.Archive;
+            }
+                   
+            attributes.ShouldEqual(FileAttributes.Hidden, $"Attributes do not match, expected: {FileAttributes.Hidden} actual: {attributes}");
         }
 
         [TestCase]
-        [Category(Categories.Windows)]
+        [Category(Categories.WindowsOnly)]
         public void UnhydratedFolderAttributesAreUpdated()
         {
             FileSystemRunner fileSystem = FileSystemRunner.DefaultRunner;
@@ -423,8 +446,9 @@ namespace GVFS.FunctionalTests.Tests.LongRunningEnlistment
             fileSystem.DeleteFile(filePath);
         }
 
+        // WindowsOnly due to differences between POSIX and Windows delete
         [TestCaseSource(typeof(FileRunnersAndFolders), FileRunnersAndFolders.TestCanDeleteFilesWhileTheyAreOpenRunners)]
-        [Category(Categories.Windows)]
+        [Category(Categories.WindowsOnly)]
         public void CanDeleteFilesWhileTheyAreOpen(FileSystemRunner fileSystem, string parentFolder)
         {
             string filename = Path.Combine(parentFolder, "CanDeleteFilesWhileTheyAreOpen");
@@ -455,8 +479,9 @@ namespace GVFS.FunctionalTests.Tests.LongRunningEnlistment
             filePath.ShouldNotExistOnDisk(fileSystem);
         }
 
+        // WindowsOnly due to differences between POSIX and Windows delete
         [TestCase]
-        [Category(Categories.Windows)]
+        [Category(Categories.WindowsOnly)]
         public void CanDeleteHydratedFilesWhileTheyAreOpenForWrite()
         {
             FileSystemRunner fileSystem = FileSystemRunner.DefaultRunner;
@@ -490,7 +515,7 @@ namespace GVFS.FunctionalTests.Tests.LongRunningEnlistment
         }
 
         [TestCase]
-        [Category(Categories.Windows)]
+        [Category(Categories.WindowsOnly)]
         public void ProjectedBlobFileTimesMatchHead()
         {
             // TODO: 467539 - Update all runners to support getting create/modify/access times
@@ -514,7 +539,7 @@ namespace GVFS.FunctionalTests.Tests.LongRunningEnlistment
         }
 
         [TestCase]
-        [Category(Categories.Windows)]
+        [Category(Categories.WindowsOnly)]
         public void ProjectedBlobFolderTimesMatchHead()
         {
             // TODO: 467539 - Update all runners to support getting create/modify/access times
@@ -784,7 +809,6 @@ namespace GVFS.FunctionalTests.Tests.LongRunningEnlistment
         }
 
         [TestCaseSource(typeof(FileSystemRunner), FileSystemRunner.TestRunners)]
-        [Category(Categories.Mac.M4)]
         public void DeleteIndexFileFails(FileSystemRunner fileSystem)
         {
             string indexFilePath = this.Enlistment.GetVirtualPathTo(Path.Combine(".git", "index"));
@@ -842,7 +866,7 @@ namespace GVFS.FunctionalTests.Tests.LongRunningEnlistment
         }
 
         [TestCaseSource(typeof(FileRunnersAndFolders), FileRunnersAndFolders.TestFolders)]
-        [Category(Categories.Windows)]
+        [Category(Categories.WindowsOnly)]
         public void CreateFileInheritsParentDirectoryAttributes(string parentFolder)
         {
             string parentDirectoryPath = this.Enlistment.GetVirtualPathTo(Path.Combine(parentFolder, "CreateFileInheritsParentDirectoryAttributes"));
@@ -859,7 +883,7 @@ namespace GVFS.FunctionalTests.Tests.LongRunningEnlistment
         }
 
         [TestCaseSource(typeof(FileRunnersAndFolders), FileRunnersAndFolders.TestFolders)]
-        [Category(Categories.Windows)]
+        [Category(Categories.WindowsOnly)]
         public void CreateDirectoryInheritsParentDirectoryAttributes(string parentFolder)
         {
             string parentDirectoryPath = this.Enlistment.GetVirtualPathTo(Path.Combine(parentFolder, "CreateDirectoryInheritsParentDirectoryAttributes"));

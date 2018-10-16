@@ -1,6 +1,8 @@
 ﻿using PrjFSLib.Mac;
 using System;
 using System.IO;
+using System.Runtime.InteropServices;
+using System.Text;
 
 namespace MirrorProvider.Mac
 {
@@ -20,6 +22,11 @@ namespace MirrorProvider.Mac
         {
             this.virtualizationInstance.OnEnumerateDirectory = this.OnEnumerateDirectory;
             this.virtualizationInstance.OnGetFileStream = this.OnGetFileStream;
+            this.virtualizationInstance.OnFileModified = this.OnFileModified;
+            this.virtualizationInstance.OnPreDelete = this.OnPreDelete;
+            this.virtualizationInstance.OnNewFileCreated = this.OnNewFileCreated;
+            this.virtualizationInstance.OnFileRenamed = this.OnFileRenamed;
+            this.virtualizationInstance.OnHardLinkCreated = this.OnHardLinkCreated;
 
             Result result = this.virtualizationInstance.StartVirtualizationInstance(
                 enlistment.SrcRoot,
@@ -53,15 +60,37 @@ namespace MirrorProvider.Mac
 
                 foreach (ProjectedFileInfo child in this.GetChildItems(relativePath))
                 {
-                    if (child.IsDirectory)
+                    if (child.Type == ProjectedFileInfo.FileType.Directory)
                     {
                         Result result = this.virtualizationInstance.WritePlaceholderDirectory(
                             Path.Combine(relativePath, child.Name));
 
                         if (result != Result.Success)
                         {
-                            Console.WriteLine("WritePlaceholderDirectory failed: " + result);
+                            Console.WriteLine($"WritePlaceholderDirectory failed: {result}");
                             return result;
+                        }
+                    }
+                    else if (child.Type == ProjectedFileInfo.FileType.SymLink)
+                    {
+                        string childRelativePath = Path.Combine(relativePath, child.Name);
+
+                        string symLinkTarget;
+                        if (this.TryGetSymLinkTarget(childRelativePath, out symLinkTarget))
+                        {
+                            Result result = this.virtualizationInstance.WriteSymLink(
+                                childRelativePath,
+                                symLinkTarget);
+
+                            if (result != Result.Success)
+                            {
+                                Console.WriteLine($"WriteSymLink failed: {result}");
+                                return result;
+                            }
+                        }
+                        else
+                        {
+                            return Result.EIOError;
                         }
                     }
                     else
@@ -80,7 +109,7 @@ namespace MirrorProvider.Mac
                             fileMode: fileMode);
                         if (result != Result.Success)
                         {
-                            Console.WriteLine("WritePlaceholderFile failed: " + result);
+                            Console.WriteLine($"WritePlaceholderFile failed: {result}");
                             return result;
                         }
                     }
@@ -88,7 +117,7 @@ namespace MirrorProvider.Mac
             }
             catch (IOException e)
             {
-                Console.WriteLine("IOException in OnEnumerateDirectory: " + e.Message);
+                Console.WriteLine($"IOException in OnEnumerateDirectory: {e.Message}");
                 return Result.EIOError;
             }
 
@@ -125,7 +154,7 @@ namespace MirrorProvider.Mac
                             (uint)bytesToCopy);
                         if (result != Result.Success)
                         {
-                            Console.WriteLine("WriteFileContents failed: " + result);
+                        Console.WriteLine($"WriteFileContents failed: {result}");
                             return false;
                         }
 
@@ -139,11 +168,66 @@ namespace MirrorProvider.Mac
             }
             catch (IOException e)
             {
-                Console.WriteLine("IOException in OnGetFileStream: " + e.Message);
+                Console.WriteLine($"IOException in OnGetFileStream: {e.Message}");
                 return Result.EIOError;
             }
 
             return Result.Success;
+        }
+
+        private void OnFileModified(string relativePath)
+        {
+            Console.WriteLine($"OnFileModified: {relativePath}");
+        }
+
+        private Result OnPreDelete(string relativePath, bool isDirectory)
+        {
+            Console.WriteLine($"OnPreDelete (isDirectory: {isDirectory}): {relativePath}");
+            return Result.Success;
+        }
+
+        private void OnNewFileCreated(string relativePath, bool isDirectory)
+        {
+            Console.WriteLine($"OnNewFileCreated (isDirectory: {isDirectory}): {relativePath}");
+        }
+
+        private void OnFileRenamed(string relativeDestinationPath, bool isDirectory)
+        {
+            Console.WriteLine($"OnFileRenamed (isDirectory: {isDirectory}) destination: {relativeDestinationPath}");
+        }
+
+        private void OnHardLinkCreated(string relativeNewLinkPath)
+        {
+            Console.WriteLine($"OnHardLinkCreated: {relativeNewLinkPath}");
+        }
+
+        private bool TryGetSymLinkTarget(string relativePath, out string symLinkTarget)
+        {
+            symLinkTarget = null;
+            string fullPathInMirror = this.GetFullPathInMirror(relativePath);
+
+            const ulong BufSize = 4096;
+            byte[] targetBuffer = new byte[BufSize];
+            long bytesRead = ReadLink(fullPathInMirror, targetBuffer, BufSize);
+            if (bytesRead < 0)
+            {
+                Console.WriteLine($"GetSymLinkTarget failed: {Marshal.GetLastWin32Error()}");
+                return false;
+            }
+
+            targetBuffer[bytesRead] = 0;
+            symLinkTarget = Encoding.UTF8.GetString(targetBuffer);
+
+            if (symLinkTarget.StartsWith(this.Enlistment.MirrorRoot, StringComparison.OrdinalIgnoreCase))
+            {
+                // Link target is an absolute path inside the MirrorRoot.  
+                // The target needs to be adjusted to point inside the src root
+                symLinkTarget = Path.Combine(
+                    this.Enlistment.SrcRoot.TrimEnd(Path.DirectorySeparatorChar),
+                    symLinkTarget.Substring(this.Enlistment.MirrorRoot.Length).TrimStart(Path.DirectorySeparatorChar));
+            }
+
+            return true;
         }
 
         private static byte[] ToVersionIdByteArray(byte version)
@@ -153,5 +237,11 @@ namespace MirrorProvider.Mac
 
             return bytes;
         }
+
+        [DllImport("libc", EntryPoint = "readlink", SetLastError = true)]
+        private static extern long ReadLink(
+            string path,
+            byte[] buf,
+            ulong bufsize);
     }
 }

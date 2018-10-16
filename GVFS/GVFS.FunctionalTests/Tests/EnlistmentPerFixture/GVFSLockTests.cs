@@ -1,4 +1,5 @@
 ﻿using GVFS.FunctionalTests.FileSystemRunners;
+using GVFS.FunctionalTests.Properties;
 using GVFS.FunctionalTests.Tools;
 using GVFS.Tests.Should;
 using NUnit.Framework;
@@ -34,16 +35,16 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
         public void GitCheckoutFailsOutsideLock()
         {
             const string BackupPrefix = "BACKUP_";
-            const string PreCommand = "pre-command.exe";
-            const string PostCommand = "post-command.exe";
+            string preCommand = "pre-command" + Settings.Default.BinaryFileNameExtension;
+            string postCommand = "post-command" + Settings.Default.BinaryFileNameExtension;
 
             string hooksBase = Path.Combine(this.Enlistment.RepoRoot, ".git", "hooks");
 
             try
             {
                 // Get hooks out of the way to simulate lock not being acquired as expected
-                this.fileSystem.MoveFile(Path.Combine(hooksBase, PreCommand), Path.Combine(hooksBase, BackupPrefix + PreCommand));
-                this.fileSystem.MoveFile(Path.Combine(hooksBase, PostCommand), Path.Combine(hooksBase, BackupPrefix + PostCommand));
+                this.fileSystem.MoveFile(Path.Combine(hooksBase, preCommand), Path.Combine(hooksBase, BackupPrefix + preCommand));
+                this.fileSystem.MoveFile(Path.Combine(hooksBase, postCommand), Path.Combine(hooksBase, BackupPrefix + postCommand));
 
                 ProcessResult result = GitHelpers.InvokeGitAgainstGVFSRepo(this.Enlistment.RepoRoot, "checkout FunctionalTests/20170510_minor");
                 result.Errors.ShouldContain("fatal: unable to write new index file");
@@ -57,8 +58,8 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
             finally
             {
                 // Reset hooks for cleanup.
-                this.fileSystem.MoveFile(Path.Combine(hooksBase, BackupPrefix + PreCommand), Path.Combine(hooksBase, PreCommand));
-                this.fileSystem.MoveFile(Path.Combine(hooksBase, BackupPrefix + PostCommand), Path.Combine(hooksBase, PostCommand));
+                this.fileSystem.MoveFile(Path.Combine(hooksBase, BackupPrefix + preCommand), Path.Combine(hooksBase, preCommand));
+                this.fileSystem.MoveFile(Path.Combine(hooksBase, BackupPrefix + postCommand), Path.Combine(hooksBase, postCommand));
             }
         }
 
@@ -77,18 +78,21 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
         [TestCase]
         public void LockPreventsRenameOfIndexLockOnTopOfIndex()
         {
-            this.OverwritingIndexShouldFail(this.Enlistment.GetVirtualPathTo(".git\\index.lock"));
+            this.OverwritingIndexShouldFail(this.Enlistment.GetVirtualPathTo(".git", "index.lock"));
         }
 
-        [DllImport("kernel32.dll", SetLastError = true, CharSet = CharSet.Unicode)]
-        private static extern bool MoveFileEx(
+        [DllImport("kernel32.dll", EntryPoint = "MoveFileEx", SetLastError = true, CharSet = CharSet.Unicode)]
+        private static extern bool WindowsMoveFileEx(
             string existingFileName,
             string newFileName,
             uint flags);
 
+        [DllImport("libc", EntryPoint = "rename", SetLastError = true)]
+        private static extern int MacRename(string oldPath, string newPath);
+
         private void OverwritingIndexShouldFail(string testFilePath)
         {
-            string indexPath = this.Enlistment.GetVirtualPathTo(".git\\index");
+            string indexPath = this.Enlistment.GetVirtualPathTo(".git", "index");
 
             this.Enlistment.WaitForBackgroundOperations().ShouldEqual(true, "Background operations failed to complete.");
             byte[] indexContents = File.ReadAllBytes(indexPath);
@@ -97,15 +101,28 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
             this.fileSystem.WriteAllText(testFilePath, testFileContents);
 
             this.Enlistment.WaitForBackgroundOperations().ShouldEqual(true, "Background operations failed to complete.");
-            MoveFileEx(
-                testFilePath, 
-                indexPath, 
-                (uint)(MoveFileFlags.MoveFileReplaceExisting | MoveFileFlags.MoveFileCopyAllowed)).ShouldBeFalse("GVFS should prevent renaming on top of index when GVFSLock is not held");
+
+            this.RenameAndOverwrite(testFilePath, indexPath).ShouldBeFalse("GVFS should prevent renaming on top of index when GVFSLock is not held");
             byte[] newIndexContents = File.ReadAllBytes(indexPath);
 
             indexContents.SequenceEqual(newIndexContents).ShouldBeTrue("Index contenst should not have changed");
 
             this.fileSystem.DeleteFile(testFilePath);
+        }
+
+        private bool RenameAndOverwrite(string oldPath, string newPath)
+        {
+            if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+            {
+                return WindowsMoveFileEx(
+                    oldPath,
+                    newPath,
+                    (uint)(MoveFileFlags.MoveFileReplaceExisting | MoveFileFlags.MoveFileCopyAllowed));
+            }
+            else
+            {
+                return MacRename(oldPath, newPath) == 0;
+            }
         }
     }
 }

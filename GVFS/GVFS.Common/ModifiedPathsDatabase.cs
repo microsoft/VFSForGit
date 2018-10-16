@@ -52,6 +52,31 @@ namespace GVFS.Common
             return true;
         }
 
+        /// <summary>
+        /// This method will examine the modified paths to check if there is already a parent folder entry in
+        /// the modified paths.  If there is a parent folder the entry does not need to be in the modified paths
+        /// and will be removed because the parent folder is recursive and covers any children.
+        /// </summary>
+        public void RemoveEntriesWithParentFolderEntry(ITracer tracer)
+        {
+            int startingCount = this.modifiedPaths.Count;
+            using (ITracer activity = tracer.StartActivity(nameof(this.RemoveEntriesWithParentFolderEntry), EventLevel.Informational))
+            {
+                foreach (string modifiedPath in this.modifiedPaths)
+                {
+                    if (this.ContainsParentDirectory(modifiedPath))
+                    {
+                        this.modifiedPaths.TryRemove(modifiedPath);
+                    }
+                }
+
+                EventMetadata metadata = new EventMetadata();
+                metadata.Add(nameof(startingCount), startingCount);
+                metadata.Add("EndCount", this.modifiedPaths.Count);
+                activity.Stop(metadata);
+            }
+        }
+
         public bool Contains(string path, bool isFolder)
         {
             string entry = this.NormalizeEntryString(path, isFolder);
@@ -67,7 +92,7 @@ namespace GVFS.Common
         {
             isRetryable = true;
             string entry = this.NormalizeEntryString(path, isFolder);
-            if (!this.modifiedPaths.Contains(entry))
+            if (!this.modifiedPaths.Contains(entry) && !this.ContainsParentDirectory(entry))
             {
                 try
                 {
@@ -75,36 +100,97 @@ namespace GVFS.Common
                 }
                 catch (IOException e)
                 {
-                    if (this.Tracer != null)
-                    {
-                        EventMetadata metadata = new EventMetadata();
-                        metadata.Add("Area", "ModifiedPathsDatabase");
-                        metadata.Add(nameof(entry), entry);
-                        metadata.Add(nameof(isFolder), isFolder);
-                        metadata.Add("Exception", e.ToString());
-                        this.Tracer.RelatedWarning(metadata, $"IOException caught while processing {nameof(this.TryAdd)}");
-                    }
-
+                    this.TraceWarning(isFolder, entry, e, nameof(this.TryAdd));
                     return false;
                 }
                 catch (Exception e)
                 {
-                    if (this.Tracer != null)
-                    {
-                        EventMetadata metadata = new EventMetadata();
-                        metadata.Add("Area", "ModifiedPathsDatabase");
-                        metadata.Add(nameof(entry), entry);
-                        metadata.Add(nameof(isFolder), isFolder);
-                        metadata.Add("Exception", e.ToString());
-                        this.Tracer.RelatedError(metadata, $"Exception caught while processing {nameof(this.TryAdd)}");
-                    }
-
+                    this.TraceError(isFolder, entry, e, nameof(this.TryAdd));
                     isRetryable = false;
                     return false;
                 }
             }
 
             return true;
+        }
+
+        public bool TryRemove(string path, bool isFolder, out bool isRetryable)
+        {
+            isRetryable = true;
+            string entry = this.NormalizeEntryString(path, isFolder);
+            if (this.modifiedPaths.Contains(entry))
+            {
+                isRetryable = true;
+                try
+                {
+                    this.WriteRemoveEntry(entry, () => this.modifiedPaths.TryRemove(entry));
+                }
+                catch (IOException e)
+                {
+                    this.TraceWarning(isFolder, entry, e, nameof(this.TryRemove));
+                    return false;
+                }
+                catch (Exception e)
+                {
+                    this.TraceError(isFolder, entry, e, nameof(this.TryRemove));
+                    isRetryable = false;
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
+        public void WriteAllEntriesAndFlush()
+        {
+            try
+            {
+                this.WriteAndReplaceDataFile(this.GenerateDataLines);
+            }
+            catch (Exception e)
+            {
+                throw new FileBasedCollectionException(e);
+            }
+        }
+
+        private static EventMetadata CreateEventMetadata(bool isFolder, string entry, Exception e)
+        {
+            EventMetadata metadata = new EventMetadata();
+            metadata.Add("Area", "ModifiedPathsDatabase");
+            metadata.Add(nameof(entry), entry);
+            metadata.Add(nameof(isFolder), isFolder);
+            if (e != null)
+            {
+                metadata.Add("Exception", e.ToString());
+            }
+
+            return metadata;
+        }
+
+        private IEnumerable<string> GenerateDataLines()
+        {
+            foreach (string entry in this.modifiedPaths)
+            {
+                yield return this.FormatAddLine(entry);
+            }
+        }
+
+        private void TraceWarning(bool isFolder, string entry, Exception e, string method)
+        {
+            if (this.Tracer != null)
+            {
+                EventMetadata metadata = CreateEventMetadata(isFolder, entry, e);
+                this.Tracer.RelatedWarning(metadata, $"{e.GetType().Name} caught while processing {method}");
+            }
+        }
+
+        private void TraceError(bool isFolder, string entry, Exception e, string method)
+        {
+            if (this.Tracer != null)
+            {
+                EventMetadata metadata = CreateEventMetadata(isFolder, entry, e);
+                this.Tracer.RelatedError(metadata, $"{e.GetType().Name} caught while processing {method}");
+            }
         }
 
         private bool TryParseAddLine(string line, out string key, out string value, out string error)
@@ -120,6 +206,22 @@ namespace GVFS.Common
             key = line;
             error = null;
             return true;
+        }
+
+        private bool ContainsParentDirectory(string modifiedPath)
+        {
+            string[] pathParts = modifiedPath.Split(new char[] { GVFSConstants.GitPathSeparator }, StringSplitOptions.RemoveEmptyEntries);
+            string parentFolder = string.Empty;
+            for (int i = 0; i < pathParts.Length - 1; i++)
+            {
+                parentFolder += pathParts[i] + GVFSConstants.GitPathSeparatorString;
+                if (this.modifiedPaths.Contains(parentFolder))
+                {
+                    return true;
+                }
+            }
+
+            return false;
         }
 
         private string NormalizeEntryString(string virtualPath, bool isFolder)

@@ -9,6 +9,7 @@ using System.Threading;
 namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
 {
     [TestFixture]
+    [NonParallelizable]
     public class PrefetchVerbTests : TestsWithEnlistmentPerFixture
     {
         private const string PrefetchCommitsAndTreesLock = "prefetch-commits-trees.lock";
@@ -29,8 +30,8 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
         [TestCase, Order(2)]
         public void PrefetchSpecificFiles()
         {
-            this.ExpectBlobCount(this.Enlistment.Prefetch(@"--files GVFS\GVFS\Program.cs"), 1);
-            this.ExpectBlobCount(this.Enlistment.Prefetch(@"--files GVFS\GVFS\Program.cs;GVFS\GVFS.FunctionalTests\GVFS.FunctionalTests.csproj"), 2);
+            this.ExpectBlobCount(this.Enlistment.Prefetch($"--files {Path.Combine("GVFS", "GVFS", "Program.cs")}"), 1);
+            this.ExpectBlobCount(this.Enlistment.Prefetch($"--files {Path.Combine("GVFS", "GVFS", "Program.cs")};{Path.Combine("GVFS", "GVFS.FunctionalTests", "GVFS.FunctionalTests.csproj")}"), 2);
         }
 
         [TestCase, Order(3)]
@@ -41,6 +42,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
         }
 
         [TestCase, Order(4)]
+        [Category(Categories.MacTODO.M4)]
         public void PrefetchByFileExtensionWithHydrate()
         {
             int expectedCount = 3;
@@ -50,10 +52,12 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
         }
 
         [TestCase, Order(5)]
+        [Category(Categories.MacTODO.M4)]
         public void PrefetchByFilesWithHydrateWhoseObjectsAreAlreadyDownloaded()
         {
             int expectedCount = 2;
-            string output = this.Enlistment.Prefetch(@"--files GVFS\GVFS\Program.cs;GVFS\GVFS.FunctionalTests\GVFS.FunctionalTests.csproj --hydrate");
+            string output = this.Enlistment.Prefetch(
+                $"--files {Path.Combine("GVFS", "GVFS", "Program.cs")};{Path.Combine("GVFS", "GVFS.FunctionalTests", "GVFS.FunctionalTests.csproj")} --hydrate");
             this.ExpectBlobCount(output, expectedCount);
             output.ShouldContain("Hydrated files:   " + expectedCount);
             output.ShouldContain("Downloaded:       0");
@@ -62,8 +66,8 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
         [TestCase, Order(6)]
         public void PrefetchFolders()
         {
-            this.ExpectBlobCount(this.Enlistment.Prefetch(@"--folders GVFS\GVFS"), 17);
-            this.ExpectBlobCount(this.Enlistment.Prefetch(@"--folders GVFS\GVFS;GVFS\GVFS.FunctionalTests"), 65);
+            this.ExpectBlobCount(this.Enlistment.Prefetch($"--folders {Path.Combine("GVFS", "GVFS")}"), 17);
+            this.ExpectBlobCount(this.Enlistment.Prefetch($"--folders {Path.Combine("GVFS", "GVFS")};{Path.Combine("GVFS", "GVFS.FunctionalTests")}"), 65);
         }
 
         [TestCase, Order(7)]
@@ -97,10 +101,12 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
         {
             this.ExpectBlobCount(this.Enlistment.Prefetch("--files *"), 494);
             this.ExpectBlobCount(this.Enlistment.Prefetch("--folders /"), 494);
-            this.ExpectBlobCount(this.Enlistment.Prefetch("--folders \\"), 494);
+            this.ExpectBlobCount(this.Enlistment.Prefetch($"--folders {Path.DirectorySeparatorChar}"), 494);
         }
 
+        // TODO(Mac): Handle that lock files are not deleted on Mac, they are simply unlocked
         [TestCase, Order(10)]
+        [Category(Categories.MacTODO.M4)]
         public void PrefetchCleansUpStalePrefetchLock()
         {
             this.Enlistment.Prefetch("--commits");
@@ -125,10 +131,13 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
             string objectDir = this.Enlistment.GetObjectRoot(this.fileSystem);
             string postFetchLock = Path.Combine(objectDir, "post-fetch.lock");
 
-            while (this.fileSystem.FileExists(postFetchLock))
+            // Wait first, to hopefully ensure the background thread has
+            // started before we check for the lock file.
+            do
             {
                 Thread.Sleep(500);
             }
+            while (this.fileSystem.FileExists(postFetchLock));
 
             ProcessResult midxResult = GitProcess.InvokeProcess(this.Enlistment.RepoRoot, "midx --read --pack-dir=\"" + objectDir + "/pack\"");
             midxResult.ExitCode.ShouldEqual(0);

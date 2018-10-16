@@ -81,6 +81,11 @@ void KextLog_DeregisterUserClient(PrjFSLogUserClient* userClient)
 
 void KextLog_Printf(KextLog_Level loglevel, const char* fmt, ...)
 {
+    if (nullptr == s_currentUserClient)
+    {
+        return;
+    }
+    
     // Stack-allocated message with 128-character string buffer for fast path
     struct KextLog_StackMessageBuffer message = {};
     KextLog_MessageHeader* messagePtr = &message.header;
@@ -121,10 +126,6 @@ void KextLog_Printf(KextLog_Level loglevel, const char* fmt, ...)
             uint64_t time = mach_absolute_time();
             messagePtr->machAbsoluteTimestamp = time;
             s_currentUserClient->sendLogMessage(messagePtr, messageSize);
-        }
-        else
-        {
-            kprintf("%s\n", messagePtr->logString);
         }
     }
     RWLock_ReleaseShared(s_kextLogRWLock);

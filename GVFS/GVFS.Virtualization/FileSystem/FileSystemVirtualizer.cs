@@ -13,6 +13,8 @@ namespace GVFS.Virtualization.FileSystem
     {
         public const byte PlaceholderVersion = 1;
 
+        protected static readonly byte[] FolderContentId = Encoding.Unicode.GetBytes(GVFSConstants.AllZeroSha);
+
         protected static readonly GitCommandLineParser.Verbs CanCreatePlaceholderVerbs =
             GitCommandLineParser.Verbs.AddOrStage | GitCommandLineParser.Verbs.Move | GitCommandLineParser.Verbs.Status;
 
@@ -63,16 +65,6 @@ namespace GVFS.Virtualization.FileSystem
             return Encoding.Unicode.GetBytes(sha);
         }
 
-        /// <summary>
-        /// GVFS uses the first byte of the providerId field of placeholders to version
-        /// the data that it stores in the contentId (and providerId) fields of the placeholder
-        /// </summary>
-        /// <returns>Byte array to set as placeholder version Id</returns>
-        public static byte[] GetPlaceholderVersionId()
-        {
-            return new byte[] { PlaceholderVersion };
-        }
-
         public virtual bool TryStart(FileSystemCallbacks fileSystemCallbacks, out string error)
         {
             this.FileSystemCallbacks = fileSystemCallbacks;
@@ -102,6 +94,9 @@ namespace GVFS.Virtualization.FileSystem
         public abstract FileSystemResult ClearNegativePathCache(out uint totalEntryCount);
 
         public abstract FileSystemResult DeleteFile(string relativePath, UpdatePlaceholderType updateFlags, out UpdateFailureReason failureReason);
+
+        public abstract FileSystemResult WritePlaceholderFile(string relativePath, long endOfFile, string sha);
+        public abstract FileSystemResult WritePlaceholderDirectory(string relativePath);
 
         public abstract FileSystemResult UpdatePlaceholderIfNeeded(
             string relativePath,
@@ -187,6 +182,98 @@ namespace GVFS.Virtualization.FileSystem
             else if (relativePath.Equals(GVFSConstants.DotGit.Info.ExcludePath, StringComparison.OrdinalIgnoreCase))
             {
                 this.FileSystemCallbacks.OnExcludeFileChanged();
+            }
+        }
+
+        protected void OnWorkingDirectoryFileOrFolderDeleteNotification(string relativePath, bool isDirectory, bool isPreDelete)
+        {
+            if (isDirectory)
+            {
+                // Don't want to add folders to the modified list if git is the one deleting the directory
+                GitCommandLineParser gitCommand = new GitCommandLineParser(this.Context.Repository.GVFSLock.GetLockedGitCommand());
+                if (!gitCommand.IsValidGitCommand)
+                {
+                    if (isPreDelete)
+                    {
+                        this.FileSystemCallbacks.OnFolderPreDelete(relativePath);
+                    }
+                    else
+                    {
+                        this.FileSystemCallbacks.OnFolderDeleted(relativePath);
+                    }
+                }
+            }
+            else
+            {
+                if (isPreDelete)
+                {
+                    this.FileSystemCallbacks.OnFilePreDelete(relativePath);
+                }
+                else
+                {
+                    this.FileSystemCallbacks.OnFileDeleted(relativePath);
+                }
+            }
+
+            this.FileSystemCallbacks.InvalidateGitStatusCache();
+        }
+        
+        protected void OnFileRenamed(string relativeSourcePath, string relativeDestinationPath, bool isDirectory)
+        {
+            try
+            {
+                bool srcPathInDotGit = FileSystemCallbacks.IsPathInsideDotGit(relativeSourcePath);
+                bool dstPathInDotGit = FileSystemCallbacks.IsPathInsideDotGit(relativeDestinationPath);
+
+                if (dstPathInDotGit)
+                {
+                    this.OnDotGitFileOrFolderChanged(relativeDestinationPath);
+                }
+
+                if (!(srcPathInDotGit && dstPathInDotGit))
+                {
+                    if (isDirectory)
+                    {
+                        this.FileSystemCallbacks.OnFolderRenamed(relativeSourcePath, relativeDestinationPath);
+                    }
+                    else
+                    {
+                        this.FileSystemCallbacks.OnFileRenamed(relativeSourcePath, relativeDestinationPath);
+                    }
+                }
+            }
+            catch (Exception e)
+            {
+                EventMetadata metadata = this.CreateEventMetadata(relativeSourcePath, e);
+                metadata.Add("destinationPath", relativeDestinationPath);
+                metadata.Add("isDirectory", isDirectory);
+                this.LogUnhandledExceptionAndExit(nameof(this.OnFileRenamed), metadata);
+            }
+        }
+
+        protected void OnHardLinkCreated(string relativeExistingFilePath, string relativeNewLinkPath)
+        {
+            try
+            {
+                if (!string.IsNullOrEmpty(relativeNewLinkPath))
+                {
+                    bool pathInDotGit = FileSystemCallbacks.IsPathInsideDotGit(relativeNewLinkPath);
+
+                    if (pathInDotGit)
+                    {
+                        this.OnDotGitFileOrFolderChanged(relativeNewLinkPath);
+                    }
+                    else
+                    {
+                        this.FileSystemCallbacks.OnFileHardLinkCreated(relativeNewLinkPath);
+                    }
+                }
+            }
+            catch (Exception e)
+            {
+                EventMetadata metadata = this.CreateEventMetadata(relativeNewLinkPath, e);
+                metadata.Add(nameof(relativeExistingFilePath), relativeExistingFilePath);
+                this.LogUnhandledExceptionAndExit(nameof(this.OnHardLinkCreated), metadata);
             }
         }
 

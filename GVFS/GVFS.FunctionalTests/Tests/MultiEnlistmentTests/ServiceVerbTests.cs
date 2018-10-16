@@ -1,13 +1,13 @@
 ﻿using GVFS.FunctionalTests.Tools;
 using GVFS.Tests.Should;
 using NUnit.Framework;
-using System.IO;
 
 namespace GVFS.FunctionalTests.Tests.MultiEnlistmentTests
 {
     [TestFixture]
     [NonParallelizable]
     [Category(Categories.FullSuiteOnly)]
+    [Category(Categories.MacTODO.M4)]
     public class ServiceVerbTests : TestsWithMultiEnlistment
     {
         private static readonly string[] EmptyRepoList = new string[] { };

@@ -7,10 +7,12 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
     public abstract class TestsWithEnlistmentPerFixture
     {
         private readonly bool forcePerRepoObjectCache;
+        private readonly bool skipPrefetchDuringClone;
         
-        public TestsWithEnlistmentPerFixture(bool forcePerRepoObjectCache = false)
+        public TestsWithEnlistmentPerFixture(bool forcePerRepoObjectCache = false, bool skipPrefetchDuringClone = false)
         {
             this.forcePerRepoObjectCache = forcePerRepoObjectCache;
+            this.skipPrefetchDuringClone = skipPrefetchDuringClone;
         }
 
         public GVFSFunctionalTestEnlistment Enlistment
@@ -23,7 +25,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
         {
             if (this.forcePerRepoObjectCache)
             {
-                this.Enlistment = GVFSFunctionalTestEnlistment.CloneAndMountWithPerRepoCache(GVFSTestConfig.PathToGVFS);
+                this.Enlistment = GVFSFunctionalTestEnlistment.CloneAndMountWithPerRepoCache(GVFSTestConfig.PathToGVFS, this.skipPrefetchDuringClone);
             }
             else
             {

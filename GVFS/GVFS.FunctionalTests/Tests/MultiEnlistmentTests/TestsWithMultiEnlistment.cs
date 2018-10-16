@@ -1,7 +1,6 @@
 ﻿using GVFS.FunctionalTests.Tools;
 using NUnit.Framework;
 using System.Collections.Generic;
-using System.IO;
 
 namespace GVFS.FunctionalTests.Tests.MultiEnlistmentTests
 {
@@ -29,9 +28,16 @@ namespace GVFS.FunctionalTests.Tests.MultiEnlistmentTests
         {
         }
 
-        protected GVFSFunctionalTestEnlistment CreateNewEnlistment(string localCacheRoot = null, string branch = null)
+        protected GVFSFunctionalTestEnlistment CreateNewEnlistment(
+            string localCacheRoot = null,
+            string branch = null,
+            bool skipPrefetch = false)
         {
-            GVFSFunctionalTestEnlistment output = GVFSFunctionalTestEnlistment.CloneAndMount(GVFSTestConfig.PathToGVFS, branch, localCacheRoot);
+            GVFSFunctionalTestEnlistment output = GVFSFunctionalTestEnlistment.CloneAndMount(
+                GVFSTestConfig.PathToGVFS,
+                branch,
+                localCacheRoot,
+                skipPrefetch);
             this.enlistmentsToDelete.Add(output);
             return output;
         }

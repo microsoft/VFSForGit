@@ -1,4 +1,4 @@
-﻿using GVFS.Common;
+using GVFS.Common;
 using GVFS.Common.FileSystem;
 using GVFS.Common.Tracing;
 using PrjFSLib.Mac;
@@ -10,7 +10,15 @@ namespace GVFS.Platform.Mac
 {
     public class ProjFSKext : IKernelDriver
     {
+        public bool EnumerationExpandsDirectories { get; } = true;
+
         public string DriverLogFolderName => throw new NotImplementedException();
+
+        public bool IsGVFSUpgradeSupported()
+        {
+            // TODO(Mac)
+            return false;
+        }
 
         public bool IsSupported(string normalizedEnlistmentRootPath, out string warning, out string error)
         {
@@ -44,8 +52,9 @@ namespace GVFS.Platform.Mac
             return true;
         }
 
-        public bool TryPrepareFolderForCallbacks(string folderPath, out string error)
+        public bool TryPrepareFolderForCallbacks(string folderPath, out string error, out Exception exception)
         {
+            exception = null;
             error = string.Empty;
             Result result = VirtualizationInstance.ConvertDirectoryToVirtualizationRoot(folderPath);
             if (result != Result.Success)

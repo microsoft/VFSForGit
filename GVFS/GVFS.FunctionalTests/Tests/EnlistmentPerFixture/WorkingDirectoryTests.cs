@@ -14,11 +14,9 @@ using System.Text;
 namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
 {
     [TestFixtureSource(typeof(FileSystemRunner), FileSystemRunner.TestRunners)]
-    [Category(Categories.Mac.M2)]
     public class WorkingDirectoryTests : TestsWithEnlistmentPerFixture
     {
-        private const int CurrentPlaceholderVersion = 1;
-        private const string TestFileContents =
+        public const string TestFileContents =
 @"// dllmain.cpp : Defines the entry point for the DLL application.
 #include ""stdafx.h""
 
@@ -42,6 +40,7 @@ BOOL APIENTRY DllMain( HMODULE hModule,
 }
 
 ";
+        private const int CurrentPlaceholderVersion = 1;
 
         private FileSystemRunner fileSystem;
 
@@ -60,11 +59,9 @@ BOOL APIENTRY DllMain( HMODULE hModule,
         }
 
         [TestCase, Order(2)]
-        [Category(Categories.Mac.M3)]
         public void StreamAccessReadWriteMemoryMappedProjectedFile()
         {
-            string filename = @"Test_EPF_WorkingDirectoryTests\StreamAccessReadWriteMemoryMappedProjectedFile.cs";
-            string fileVirtualPath = this.Enlistment.GetVirtualPathTo(filename);
+            string fileVirtualPath = this.Enlistment.GetVirtualPathTo("Test_EPF_WorkingDirectoryTests", "StreamAccessReadWriteMemoryMappedProjectedFile.cs");
             string contents = fileVirtualPath.ShouldBeAFile(this.fileSystem).WithContents();
             StringBuilder contentsBuilder = new StringBuilder(contents);
 
@@ -124,11 +121,9 @@ BOOL APIENTRY DllMain( HMODULE hModule,
         }
 
         [TestCase, Order(3)]
-        [Category(Categories.Mac.M3)]
         public void RandomAccessReadWriteMemoryMappedProjectedFile()
         {
-            string filename = @"Test_EPF_WorkingDirectoryTests\RandomAccessReadWriteMemoryMappedProjectedFile.cs";
-            string fileVirtualPath = this.Enlistment.GetVirtualPathTo(filename);
+            string fileVirtualPath = this.Enlistment.GetVirtualPathTo("Test_EPF_WorkingDirectoryTests", "RandomAccessReadWriteMemoryMappedProjectedFile.cs");
 
             string contents = fileVirtualPath.ShouldBeAFile(this.fileSystem).WithContents();
             StringBuilder contentsBuilder = new StringBuilder(contents);
@@ -185,11 +180,9 @@ BOOL APIENTRY DllMain( HMODULE hModule,
         }
 
         [TestCase, Order(4)]
-        [Category(Categories.Mac.M3)]
         public void StreamAndRandomAccessReadWriteMemoryMappedProjectedFile()
         {
-            string filename = @"Test_EPF_WorkingDirectoryTests\StreamAndRandomAccessReadWriteMemoryMappedProjectedFile.cs";
-            string fileVirtualPath = this.Enlistment.GetVirtualPathTo(filename);
+            string fileVirtualPath = this.Enlistment.GetVirtualPathTo("Test_EPF_WorkingDirectoryTests", "StreamAndRandomAccessReadWriteMemoryMappedProjectedFile.cs");
 
             StringBuilder contentsBuilder = new StringBuilder();
 
@@ -280,7 +273,6 @@ BOOL APIENTRY DllMain( HMODULE hModule,
         }
 
         [TestCase, Order(5)]
-        [Category(Categories.Mac.M3)]
         public void MoveProjectedFileToInvalidFolder()
         {
             string targetFolderName = "test_folder";
@@ -353,11 +345,9 @@ BOOL APIENTRY DllMain( HMODULE hModule,
         }
 
         [TestCase, Order(9)]
-        [Category(Categories.Mac.M3)]
         public void WriteToHydratedFileAfterRemount()
         {
-            string fileName = "Test_EPF_WorkingDirectoryTests\\WriteToHydratedFileAfterRemount.cpp";
-            string virtualFilePath = this.Enlistment.GetVirtualPathTo(fileName);
+            string virtualFilePath = this.Enlistment.GetVirtualPathTo("Test_EPF_WorkingDirectoryTests", "WriteToHydratedFileAfterRemount.cpp");
             string fileContents = virtualFilePath.ShouldBeAFile(this.fileSystem).WithContents();
 
             // Remount
@@ -402,7 +392,7 @@ BOOL APIENTRY DllMain( HMODULE hModule,
 
         [TestCase, Order(13)]
         [Category(Categories.GitCommands)]
-        [Category(Categories.Mac.M3)]
+        [Category(Categories.MacTODO.M3)]
         public void FolderContentsProjectedAfterFolderCreateAndCheckout()
         {
             string folderName = "GVFlt_MultiThreadTest";
@@ -428,7 +418,7 @@ BOOL APIENTRY DllMain( HMODULE hModule,
 
         [TestCase, Order(14)]
         [Category(Categories.GitCommands)]
-        [Category(Categories.Mac.M3)]
+        [Category(Categories.MacTODO.M3)]
         public void FolderContentsCorrectAfterCreateNewFolderRenameAndCheckoutCommitWithSameFolder()
         {
             // 3a55d3b760c87642424e834228a3408796501e7c is the commit prior to adding Test_EPF_MoveRenameFileTests
@@ -440,13 +430,13 @@ BOOL APIENTRY DllMain( HMODULE hModule,
             folder.ShouldNotExistOnDisk(this.fileSystem);
             GVFSHelpers.ModifiedPathsShouldNotContain(this.fileSystem, this.Enlistment.DotGVFSRoot, folderName);
 
-            // Confirm sparse-checkout picks up renamed folder
+            // Confirm modified paths picks up renamed folder
             string newFolder = this.Enlistment.GetVirtualPathTo("newFolder");
             this.fileSystem.CreateDirectory(newFolder);
             this.fileSystem.MoveDirectory(newFolder, folder);
 
             this.Enlistment.WaitForBackgroundOperations().ShouldEqual(true, "Background operations failed to complete.");
-            GVFSHelpers.ModifiedPathsShouldContain(this.fileSystem, this.Enlistment.DotGVFSRoot, folderName);
+            GVFSHelpers.ModifiedPathsShouldContain(this.fileSystem, this.Enlistment.DotGVFSRoot, folderName + "/");
 
             // Switch back to this.ControlGitRepo.Commitish and confirm that folder contents are correct
             GitProcess.InvokeProcess(this.Enlistment.RepoRoot, "checkout " + Properties.Settings.Default.Commitish);
@@ -457,9 +447,8 @@ BOOL APIENTRY DllMain( HMODULE hModule,
             (folder + @"\MoveUnhydratedFileToDotGitFolder\Program.cs").ShouldBeAFile(this.fileSystem).WithContents(MoveRenameFileTests.TestFileContents);
         }
 
-        // TODO(Mac) This test is technically part of M2, but we need further investigation of why this test fails on build agents, but not on dev machines.
         [TestCase, Order(15)]
-        [Category(Categories.Mac.M3)]
+        [Category(Categories.MacTODO.FailsOnBuildAgent)]
         public void FilterNonUTF8FileName()
         {
             string encodingFilename = "ريلٌأكتوبرûمارسأغسطسºٰٰۂْٗ۵ريلٌأك.txt";
@@ -506,9 +495,9 @@ BOOL APIENTRY DllMain( HMODULE hModule,
             (badObject as FileInfo).ShouldNotBeNull().Length.ShouldEqual(objectFileInfo.Length);
         }
 
+        // TODO(Mac): Figure out why git for Mac is not requesting a redownload of the truncated object
         [TestCase, Order(17)]
-        //// TODO(Mac): Figure out why git for Mac is not requesting a redownload of the truncated object
-        [Category(Categories.Mac.M3)]
+        [Category(Categories.MacTODO.M3)]
         public void TruncatedObjectRedownloaded()
         {
             GitProcess.InvokeProcess(this.Enlistment.RepoRoot, "checkout " + this.Enlistment.Commitish);

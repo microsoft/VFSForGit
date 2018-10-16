@@ -34,14 +34,14 @@ namespace GVFS.UnitTests.Virtual
             enlistmentDirectory.CreateFile(Path.Combine(this.GitParentPath, ".git", "info", "always_exclude"), "always_exclude Contents", createDirectories: true);
             enlistmentDirectory.CreateDirectory(enlistment.GitPackRoot);
 
-            MockFileSystem fileSystem = new MockFileSystem(enlistmentDirectory);
+            this.FileSystem = new MockFileSystem(enlistmentDirectory);
             this.Repository = new MockGitRepo(
                 tracer, 
                 enlistment,
-                fileSystem);
+                this.FileSystem);
             CreateStandardGitTree(this.Repository);
 
-            this.Context = new GVFSContext(tracer, fileSystem, this.Repository, enlistment);
+            this.Context = new GVFSContext(tracer, this.FileSystem, this.Repository, enlistment);
 
             this.HttpObjects = new MockHttpGitObjects(tracer, enlistment);
             this.GitObjects = new MockGVFSGitObjects(this.Context, this.HttpObjects);
@@ -56,6 +56,7 @@ namespace GVFS.UnitTests.Virtual
 
         public MockGitRepo Repository { get; private set; }
         public MockHttpGitObjects HttpObjects { get; private set; }
+        public MockFileSystem FileSystem { get; private set; }
         
         public void Dispose()
         {

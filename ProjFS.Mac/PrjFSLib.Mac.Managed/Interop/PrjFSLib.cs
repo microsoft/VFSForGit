@@ -25,15 +25,42 @@ namespace PrjFSLib.Mac.Interop
         [DllImport(PrjFSLibPath, EntryPoint = "PrjFS_WritePlaceholderFile")]
         public static extern Result WritePlaceholderFile(
             string relativePath,
-        
             [MarshalAs(UnmanagedType.LPArray, SizeConst = PlaceholderIdLength)]
             byte[] providerId,
-
             [MarshalAs(UnmanagedType.LPArray, SizeConst = PlaceholderIdLength)]
             byte[] contentId,
-        
             ulong fileSize,
-            UInt16 fileMode);
+            ushort fileMode);
+        
+        [DllImport(PrjFSLibPath, EntryPoint = "PrjFS_WriteSymLink")]
+        public static extern Result WriteSymLink(
+            string relativePath,
+            string symLinkTarget);
+        
+        [DllImport(PrjFSLibPath, EntryPoint = "PrjFS_UpdatePlaceholderFileIfNeeded")]
+        public static extern Result UpdatePlaceholderFileIfNeeded(
+            string relativePath,
+            [MarshalAs(UnmanagedType.LPArray, SizeConst = PlaceholderIdLength)]
+            byte[] providerId,
+            [MarshalAs(UnmanagedType.LPArray, SizeConst = PlaceholderIdLength)]
+            byte[] contentId,
+            ulong fileSize,
+            ushort fileMode,
+            UpdateType updateType,
+            ref UpdateFailureCause failureCause);
+
+        [DllImport(PrjFSLibPath, EntryPoint = "PrjFS_ReplacePlaceholderFileWithSymLink")]
+        public static extern Result ReplacePlaceholderFileWithSymLink(
+            string relativePath,
+            string symLinkTarget,
+            UpdateType updateType,
+            ref UpdateFailureCause failureCause);
+
+        [DllImport(PrjFSLibPath, EntryPoint = "PrjFS_DeleteFile")]
+        public static extern Result DeleteFile(
+            string relativePath,
+            UpdateType updateType,
+            ref UpdateFailureCause failureCause);
 
         [DllImport(PrjFSLibPath, EntryPoint = "PrjFS_WriteFileContents")]
         public static extern Result WriteFileContents(

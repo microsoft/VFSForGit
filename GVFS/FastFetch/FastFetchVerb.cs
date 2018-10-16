@@ -55,6 +55,15 @@ namespace FastFetch
         public bool Checkout { get; set; }
 
         [Option(
+            "force-checkout",
+            Required = false,
+            Default = false,
+            HelpText = "Force FastFetch to checkout content as if the current repo had just been initialized." +
+                       "This allows you to include more folders from the repo that were not originally checked out." +
+                       "Can only be used with the --checkout option.")]
+        public bool ForceCheckout { get; set; }
+
+        [Option(
             "search-thread-count",
             Required = false,
             Default = 0,
@@ -157,6 +166,12 @@ namespace FastFetch
                 Console.WriteLine("Cannot specify both a commit sha and a branch name.");
                 return ExitFailure;
             }
+
+            if (this.ForceCheckout && !this.Checkout)
+            {
+                Console.WriteLine("Cannot use --force-checkout option without --checkout option.");
+                return ExitFailure;
+            }
             
             this.SearchThreadCount = this.SearchThreadCount > 0 ? this.SearchThreadCount : Environment.ProcessorCount;
             this.DownloadThreadCount = this.DownloadThreadCount > 0 ? this.DownloadThreadCount : Math.Min(Environment.ProcessorCount, MaxDefaultDownloadThreads);
@@ -191,7 +206,7 @@ namespace FastFetch
                 Console.WriteLine("The ParentActivityId provided (" + this.ParentActivityId + ") is not a valid GUID.");
             }
 
-            using (JsonTracer tracer = new JsonTracer("Microsoft.Git.FastFetch", parentActivityId, "FastFetch", disableTelemetry: true))
+            using (JsonTracer tracer = new JsonTracer("Microsoft.Git.FastFetch", parentActivityId, "FastFetch", enlistmentId: null, mountId: null, disableTelemetry: true))
             {
                 if (this.Verbose)
                 {
@@ -318,7 +333,8 @@ namespace FastFetch
                     this.DownloadThreadCount,
                     this.IndexThreadCount,
                     this.CheckoutThreadCount,
-                    this.AllowIndexMetadataUpdateFromWorkingTree);
+                    this.AllowIndexMetadataUpdateFromWorkingTree,
+                    this.ForceCheckout);
             }
             else
             {

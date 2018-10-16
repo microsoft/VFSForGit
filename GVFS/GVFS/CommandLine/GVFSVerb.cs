@@ -1,4 +1,4 @@
-﻿using CommandLine;
+using CommandLine;
 using GVFS.Common;
 using GVFS.Common.FileSystem;
 using GVFS.Common.Git;
@@ -7,7 +7,6 @@ using GVFS.Common.NamedPipes;
 using GVFS.Common.Tracing;
 using System;
 using System.Collections.Generic;
-using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Security;
@@ -85,7 +84,6 @@ namespace GVFS.CommandLine
                 { "core.midx", "true" },
                 { "core.preloadIndex", "true" },
                 { "core.safecrlf", "false" },
-                { "core.sparseCheckout", "true" },
                 { "core.untrackedCache", "false" },
                 { "core.repositoryformatversion", "0" },
                 { "core.filemode", "false" },
@@ -94,12 +92,14 @@ namespace GVFS.CommandLine
                 { GitConfigSetting.CoreVirtualizeObjectsName, "true" },
                 { GitConfigSetting.CoreVirtualFileSystemName, Paths.ConvertPathToGitFormat(GVFSConstants.DotGit.Hooks.VirtualFileSystemPath) },
                 { "core.hookspath", expectedHooksPath },
+                { GitConfigSetting.CredentialUseHttpPath, "true" },
                 { "credential.validate", "false" },
                 { "diff.autoRefreshIndex", "false" },
                 { "gc.auto", "0" },
                 { "gui.gcwarning", "false" },
                 { "index.version", "4" },
                 { "merge.stat", "false" },
+                { "merge.renames", "false" },
                 { "receive.autogc", "false" },
                 { "status.deserializePath", gitStatusCachePath },
             };
@@ -177,15 +177,15 @@ namespace GVFS.CommandLine
         }
 
         protected bool ShowStatusWhileRunning(
-            Func<bool> action, 
-            string message, 
+            Func<bool> action,
+            string message,
             bool suppressGvfsLogMessage = false)
         {
             string gvfsLogEnlistmentRoot = null;
             if (!suppressGvfsLogMessage)
             {
                 string errorMessage;
-                GVFSPlatform.Instance.TryGetGVFSEnlistmentRoot(this.EnlistmentRootPathParameter, out gvfsLogEnlistmentRoot, out errorMessage);                
+                GVFSPlatform.Instance.TryGetGVFSEnlistmentRoot(this.EnlistmentRootPathParameter, out gvfsLogEnlistmentRoot, out errorMessage);
             }
 
             return this.ShowStatusWhileRunning(action, message, gvfsLogEnlistmentRoot);
@@ -244,15 +244,15 @@ namespace GVFS.CommandLine
             return retryConfig;
         }
 
-        protected GVFSConfig QueryGVFSConfig(ITracer tracer, GVFSEnlistment enlistment, RetryConfig retryConfig)
+        protected ServerGVFSConfig QueryGVFSConfig(ITracer tracer, GVFSEnlistment enlistment, RetryConfig retryConfig)
         {
-            GVFSConfig gvfsConfig = null;
+            ServerGVFSConfig serverGVFSConfig = null;
             if (!this.ShowStatusWhileRunning(
                 () =>
                 {
                     using (ConfigHttpRequestor configRequestor = new ConfigHttpRequestor(tracer, enlistment, retryConfig))
                     {
-                        return configRequestor.TryQueryGVFSConfig(out gvfsConfig);
+                        return configRequestor.TryQueryGVFSConfig(out serverGVFSConfig);
                     }
                 },
                 "Querying remote for config",
@@ -261,10 +261,10 @@ namespace GVFS.CommandLine
                 this.ReportErrorAndExit(tracer, "Unable to query /gvfs/config");
             }
 
-            return gvfsConfig;
+            return serverGVFSConfig;
         }        
 
-        protected void ValidateClientVersions(ITracer tracer, GVFSEnlistment enlistment, GVFSConfig gvfsConfig, bool showWarnings)
+        protected void ValidateClientVersions(ITracer tracer, GVFSEnlistment enlistment, ServerGVFSConfig gvfsConfig, bool showWarnings)
         {
             if (!GVFSPlatform.Instance.IsUnderConstruction)
             {
@@ -354,7 +354,7 @@ You can specify a URL, a name of a configured cache server, or the special names
             ITracer tracer,
             CacheServerInfo cacheServer,
             CacheServerResolver cacheServerResolver,
-            GVFSConfig gvfsConfig)
+            ServerGVFSConfig serverGVFSConfig)
         {
             CacheServerInfo resolvedCacheServer = cacheServer;
 
@@ -365,7 +365,7 @@ You can specify a URL, a name of a configured cache server, or the special names
 
                 if (!cacheServerResolver.TryResolveUrlFromRemote(
                         cacheServerName,
-                        gvfsConfig,
+                        serverGVFSConfig,
                         out resolvedCacheServer,
                         out error))
                 {
@@ -374,7 +374,7 @@ You can specify a URL, a name of a configured cache server, or the special names
             }
             else if (cacheServer.Name.Equals(CacheServerInfo.ReservedNames.UserDefined))
             {
-                resolvedCacheServer = cacheServerResolver.ResolveNameFromRemote(cacheServer.Url, gvfsConfig);
+                resolvedCacheServer = cacheServerResolver.ResolveNameFromRemote(cacheServer.Url, serverGVFSConfig);
             }
 
             this.Output.WriteLine("Using cache server: " + resolvedCacheServer);
@@ -402,9 +402,10 @@ You can specify a URL, a name of a configured cache server, or the special names
             GitObjectsHttpRequestor objectRequestor,
             GVFSGitObjects gitObjects,
             GitRepo repo,
-            out string error)
+            out string error,
+            bool checkLocalObjectCache = true)
         {
-            if (!repo.CommitAndRootTreeExists(commitId))
+            if (!checkLocalObjectCache || !repo.CommitAndRootTreeExists(commitId))
             {
                 if (!gitObjects.TryDownloadCommit(commitId))
                 {
@@ -618,31 +619,20 @@ You can specify a URL, a name of a configured cache server, or the special names
 
         private void CheckGitVersion(ITracer tracer, GVFSEnlistment enlistment, out string version)
         {
-            GitProcess.Result versionResult = GitProcess.Version(enlistment);
-            if (versionResult.HasErrors)
+            GitVersion gitVersion = null;
+            if (string.IsNullOrEmpty(enlistment.GitBinPath) || !GitProcess.TryGetVersion(enlistment.GitBinPath, out gitVersion, out string _))
             {
                 this.ReportErrorAndExit(tracer, "Error: Unable to retrieve the git version");
             }
 
-            GitVersion gitVersion;
-            version = versionResult.Output;
-            if (version.StartsWith("git version "))
-            {
-                version = version.Substring(12);
-            }
-
-            if (!GitVersion.TryParseVersion(version, out gitVersion))
-            {
-                this.ReportErrorAndExit(tracer, "Error: Unable to parse the git version. {0}", version);
-            }
+            version = gitVersion.ToString();
 
             if (gitVersion.Platform != GVFSConstants.SupportedGitVersion.Platform)
             {
                 this.ReportErrorAndExit(tracer, "Error: Invalid version of git {0}.  Must use gvfs version.", version);
             }
 
-            Version gvfsVersion = new Version(ProcessHelper.GetCurrentProcessVersion());
-            if (gvfsVersion.Major == 0)
+            if (ProcessHelper.IsDevelopmentVersion())
             {
                 if (gitVersion.IsLessThan(GVFSConstants.SupportedGitVersion))
                 {
@@ -670,7 +660,7 @@ You can specify a URL, a name of a configured cache server, or the special names
             }
         }
 
-        private bool TryValidateGVFSVersion(GVFSEnlistment enlistment, ITracer tracer, GVFSConfig config, out string errorMessage, out bool errorIsFatal)
+        private bool TryValidateGVFSVersion(GVFSEnlistment enlistment, ITracer tracer, ServerGVFSConfig config, out string errorMessage, out bool errorIsFatal)
         {
             errorMessage = null;
             errorIsFatal = false;
@@ -679,7 +669,7 @@ You can specify a URL, a name of a configured cache server, or the special names
             {
                 Version currentVersion = new Version(ProcessHelper.GetCurrentProcessVersion());
 
-                IEnumerable<GVFSConfig.VersionRange> allowedGvfsClientVersions =
+                IEnumerable<ServerGVFSConfig.VersionRange> allowedGvfsClientVersions =
                     config != null
                     ? config.AllowedGVFSClientVersions
                     : null;
@@ -702,7 +692,7 @@ You can specify a URL, a name of a configured cache server, or the special names
                     return false;
                 }
 
-                foreach (GVFSConfig.VersionRange versionRange in config.AllowedGVFSClientVersions)
+                foreach (ServerGVFSConfig.VersionRange versionRange in config.AllowedGVFSClientVersions)
                 {
                     if (currentVersion >= versionRange.Min &&
                         (versionRange.Max == null || currentVersion <= versionRange.Max))
@@ -741,7 +731,7 @@ You can specify a URL, a name of a configured cache server, or the special names
                 MetaName = "Enlistment Root Path",
                 HelpText = "Full or relative path to the GVFS enlistment root")]
             public override string EnlistmentRootPathParameter { get; set; }
-            
+
             public sealed override void Execute()
             {
                 this.ValidatePathParameter(this.EnlistmentRootPathParameter);
@@ -761,7 +751,7 @@ You can specify a URL, a name of a configured cache server, or the special names
                 ITracer tracer,
                 GVFSEnlistment enlistment,
                 RetryConfig retryConfig,
-                GVFSConfig gvfsConfig,
+                ServerGVFSConfig serverGVFSConfig,
                 CacheServerInfo cacheServer)
             {
                 string error;
@@ -775,7 +765,7 @@ You can specify a URL, a name of a configured cache server, or the special names
                 // Note: Repos cloned with a version of GVFS that predates the local cache will not have a local cache configured
                 if (!string.IsNullOrWhiteSpace(enlistment.LocalCacheRoot))
                 {
-                    this.EnsureLocalCacheIsHealthy(tracer, enlistment, retryConfig, gvfsConfig, cacheServer);
+                    this.EnsureLocalCacheIsHealthy(tracer, enlistment, retryConfig, serverGVFSConfig, cacheServer);
                 }
 
                 RepoMetadata.Shutdown();
@@ -823,7 +813,7 @@ You can specify a URL, a name of a configured cache server, or the special names
                 ITracer tracer,
                 GVFSEnlistment enlistment,
                 RetryConfig retryConfig,
-                GVFSConfig gvfsConfig,
+                ServerGVFSConfig serverGVFSConfig,
                 CacheServerInfo cacheServer)
             {
                 if (!Directory.Exists(enlistment.LocalCacheRoot))
@@ -856,7 +846,7 @@ You can specify a URL, a name of a configured cache server, or the special names
                     if (File.Exists(alternatesFilePath))
                     {
                         try
-                        {                            
+                        {
                             using (Stream stream = fileSystem.OpenFileStream(
                                 alternatesFilePath,
                                 FileMode.Open,
@@ -911,7 +901,7 @@ You can specify a URL, a name of a configured cache server, or the special names
                     }
 
                     string error;
-                    if (gvfsConfig == null)
+                    if (serverGVFSConfig == null)
                     {
                         if (retryConfig == null)
                         {
@@ -921,14 +911,14 @@ You can specify a URL, a name of a configured cache server, or the special names
                             }
                         }
 
-                        gvfsConfig = this.QueryGVFSConfig(tracer, enlistment, retryConfig);
+                        serverGVFSConfig = this.QueryGVFSConfig(tracer, enlistment, retryConfig);
                     }
-                    
+
                     string localCacheKey;
                     LocalCacheResolver localCacheResolver = new LocalCacheResolver(enlistment);
                     if (!localCacheResolver.TryGetLocalCacheKeyFromLocalConfigOrRemoteCacheServers(
                         tracer,
-                        gvfsConfig,
+                        serverGVFSConfig,
                         cacheServer,
                         enlistment.LocalCacheRoot,
                         localCacheKey: out localCacheKey,
@@ -1010,7 +1000,7 @@ You can specify a URL, a name of a configured cache server, or the special names
                 if (GVFSPlatform.Instance.IsUnderConstruction)
                 {
                     hooksPath = "hooksUnderConstruction";
-                }                
+                }
                 else
                 {
                     hooksPath = ProcessHelper.WhereDirectory(GVFSPlatform.Instance.Constants.GVFSHooksExecutableName);
@@ -1018,8 +1008,8 @@ You can specify a URL, a name of a configured cache server, or the special names
                     {
                         this.ReportErrorAndExit("Could not find " + GVFSPlatform.Instance.Constants.GVFSHooksExecutableName);
                     }
-                }             
-                
+                }
+
                 GVFSEnlistment enlistment = null;
                 try
                 {
@@ -1031,7 +1021,7 @@ You can specify a URL, a name of a configured cache server, or the special names
                     {
                         enlistment = GVFSEnlistment.CreateWithoutRepoUrlFromDirectory(enlistmentRootPath, gitBinPath, hooksPath);
                     }
-                    
+
                     if (enlistment == null)
                     {
                         this.ReportErrorAndExit(
@@ -1048,6 +1038,19 @@ You can specify a URL, a name of a configured cache server, or the special names
                 }
 
                 return enlistment;
+            }
+        }
+
+        public abstract class ForNoEnlistment : GVFSVerb
+        {
+            public ForNoEnlistment(bool validateOrigin = true) : base(validateOrigin)
+            {
+            }
+
+            public override string EnlistmentRootPathParameter
+            {
+                get { throw new InvalidOperationException(); }
+                set { throw new InvalidOperationException(); }
             }
         }
 

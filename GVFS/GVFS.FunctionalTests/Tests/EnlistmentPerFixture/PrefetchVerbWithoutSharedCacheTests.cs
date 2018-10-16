@@ -9,8 +9,11 @@ using System.Threading;
 
 namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
 {
+    // TODO(Mac): Before these tests can be enabled PostFetchJobShouldComplete needs
+    // to work on Mac (where post-fetch.lock is not removed from disk)
     [TestFixture]
     [Category(Categories.FullSuiteOnly)]
+    [Category(Categories.MacTODO.M4)]
     public class PrefetchVerbWithoutSharedCacheTests : TestsWithEnlistmentPerFixture
     {
         private const string PrefetchPackPrefix = "prefetch";
@@ -21,7 +24,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
         // Set forcePerRepoObjectCache to true to avoid any of the tests inadvertently corrupting
         // the cache 
         public PrefetchVerbWithoutSharedCacheTests()
-            : base(forcePerRepoObjectCache: true)
+            : base(forcePerRepoObjectCache: true, skipPrefetchDuringClone: true)
         {
             this.fileSystem = new SystemIORunner();
         }

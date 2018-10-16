@@ -1,4 +1,4 @@
-﻿using GVFS.Common;
+using GVFS.Common;
 using GVFS.Common.FileSystem;
 using GVFS.Common.Tracing;
 using Microsoft.Win32;
@@ -30,9 +30,20 @@ namespace GVFS.Platform.Windows
         private const string FilterLoggerSessionName = "Microsoft-Windows-ProjFS-Filter-Log";
 
         private const string ProjFSNativeLibFileName = "ProjectedFSLib.dll";
+        private const string ProjFSManagedLibFileName = "ProjectedFSLib.Managed.dll";
 
         private const uint OkResult = 0;
         private const uint NameCollisionErrorResult = 0x801F0012;
+
+        private enum ProjFSInboxStatus
+        {
+            Invalid,
+            NotInbox = 2,
+            Enabled = 3,
+            Disabled = 4,
+        }
+
+        public bool EnumerationExpandsDirectories { get; } = false;
 
         public string DriverLogFolderName { get; } = ProjFSFilter.ServiceName;
 
@@ -270,6 +281,11 @@ namespace GVFS.Platform.Windows
             return existsInSystem32 || existsInAppDirectory;
         }
 
+        public bool IsGVFSUpgradeSupported()
+        {
+            return IsInboxAndEnabled();
+        }
+
         public bool IsSupported(string normalizedEnlistmentRootPath, out string warning, out string error)
         {
             warning = null;
@@ -319,18 +335,34 @@ namespace GVFS.Platform.Windows
             return sb.ToString();
         }
 
-        public bool TryPrepareFolderForCallbacks(string folderPath, out string error)
+        public bool TryPrepareFolderForCallbacks(string folderPath, out string error, out Exception exception)
         {
-            error = string.Empty;
-            Guid virtualizationInstanceGuid = Guid.NewGuid();
-            HResult result = VirtualizationInstance.ConvertDirectoryToVirtualizationRoot(virtualizationInstanceGuid, folderPath);
-            if (result != HResult.Ok)
+            exception = null;
+            try
             {
-                error = "Failed to prepare \"" + folderPath + "\" for callbacks, error: " + result.ToString("F");
+                return this.TryPrepareFolderForCallbacksImpl(folderPath, out error);
+            }
+            catch (FileNotFoundException e)
+            {
+                exception = e;
+
+                if (e.FileName.Equals(ProjFSManagedLibFileName, StringComparison.OrdinalIgnoreCase))
+                {
+                    error = $"Failed to load {ProjFSManagedLibFileName}. Ensure that ProjFS is installed and enabled";
+                }
+                else
+                {
+                    error = $"FileNotFoundException while trying to prepare \"{folderPath}\" for callbacks: {e.Message}";
+                }
+
                 return false;
             }
-
-            return true;
+            catch (Exception e)
+            {
+                exception = e;
+                error = $"Exception while trying to prepare \"{folderPath}\" for callbacks: {e.Message}";
+                return false;
+            }
         }
 
         // TODO 1050199: Once the service is an optional component, GVFS should only attempt to attach
@@ -342,6 +374,12 @@ namespace GVFS.Platform.Windows
                 IsServiceRunning(tracer) &&
                 IsNativeLibInstalled(tracer, new PhysicalFileSystem()) &&
                 TryAttach(tracer, enlistmentRoot, out error);
+        }
+
+        private static bool IsInboxAndEnabled()
+        {
+            ProcessResult getOptionalFeatureResult = GetProjFSOptionalFeatureStatus();
+            return getOptionalFeatureResult.ExitCode == (int)ProjFSInboxStatus.Enabled;
         }
 
         private static bool TryGetIsInboxProjFSFinalAPI(ITracer tracer, out uint windowsBuildNumber, out bool isProjFSInbox)
@@ -477,20 +515,13 @@ namespace GVFS.Platform.Windows
         private static bool TryEnableProjFSOptionalFeature(ITracer tracer, PhysicalFileSystem fileSystem, out bool isProjFSFeatureAvailable)
         {
             EventMetadata metadata = CreateEventMetadata();
-
-            const int ProjFSNotAnOptionalFeature = 2;
-            const int ProjFSEnabled = 3;
-            const int ProjFSDisabled = 4;
-
-            ProcessResult getOptionalFeatureResult = CallPowershellCommand(
-                "$var=(Get-WindowsOptionalFeature -Online -FeatureName " + OptionalFeatureName + ");  if($var -eq $null){exit " + 
-                ProjFSNotAnOptionalFeature + "}else{if($var.State -eq 'Enabled'){exit " + ProjFSEnabled + "}else{exit " + ProjFSDisabled + "}}");
+            ProcessResult getOptionalFeatureResult = GetProjFSOptionalFeatureStatus();
 
             isProjFSFeatureAvailable = true;
             bool projFSEnabled = false;
             switch (getOptionalFeatureResult.ExitCode)
             {
-                case ProjFSNotAnOptionalFeature:
+                case (int)ProjFSInboxStatus.NotInbox:
                     metadata.Add("getOptionalFeatureResult.Output", getOptionalFeatureResult.Output);
                     metadata.Add("getOptionalFeatureResult.Errors", getOptionalFeatureResult.Errors);
                     tracer.RelatedWarning(metadata, $"{nameof(TryEnableProjFSOptionalFeature)}: {OptionalFeatureName} optional feature is missing");
@@ -498,7 +529,7 @@ namespace GVFS.Platform.Windows
                     isProjFSFeatureAvailable = false;
                     break;
 
-                case ProjFSEnabled:                    
+                case (int)ProjFSInboxStatus.Enabled:                    
                     tracer.RelatedEvent(
                         EventLevel.Informational, 
                         $"{nameof(TryEnableProjFSOptionalFeature)}_ClientProjFSAlreadyEnabled", 
@@ -507,7 +538,7 @@ namespace GVFS.Platform.Windows
                     projFSEnabled = true;
                     break;
 
-                case ProjFSDisabled:                    
+                case (int)ProjFSInboxStatus.Disabled:                    
                     ProcessResult enableOptionalFeatureResult = CallPowershellCommand("try {Enable-WindowsOptionalFeature -Online -FeatureName " + OptionalFeatureName + " -NoRestart}catch{exit 1}");
                     metadata.Add("enableOptionalFeatureResult.Output", enableOptionalFeatureResult.Output.Trim().Replace("\r\n", ","));
                     metadata.Add("enableOptionalFeatureResult.Errors", enableOptionalFeatureResult.Errors);
@@ -546,6 +577,13 @@ namespace GVFS.Platform.Windows
             return false;
         }
 
+        private static ProcessResult GetProjFSOptionalFeatureStatus()
+        {
+            return CallPowershellCommand(
+                "$var=(Get-WindowsOptionalFeature -Online -FeatureName " + OptionalFeatureName + ");  if($var -eq $null){exit " +
+                (int)ProjFSInboxStatus.NotInbox + "}else{if($var.State -eq 'Enabled'){exit " + (int)ProjFSInboxStatus.Enabled + "}else{exit " + (int)ProjFSInboxStatus.Disabled + "}}");
+        }
+
         private static EventMetadata CreateEventMetadata(Exception e = null)
         {
             EventMetadata metadata = new EventMetadata();
@@ -561,7 +599,23 @@ namespace GVFS.Platform.Windows
         private static ProcessResult CallPowershellCommand(string command)
         {
             return ProcessHelper.Run("powershell.exe", "-NonInteractive -NoProfile -Command \"& { " + command + " }\"");
-        }           
+        }
+
+        // Using an Impl method allows TryPrepareFolderForCallbacks to catch any ProjFS dependency related exceptions
+        // thrown in the process of calling this method.
+        private bool TryPrepareFolderForCallbacksImpl(string folderPath, out string error)
+        {
+            error = string.Empty;
+            Guid virtualizationInstanceGuid = Guid.NewGuid();
+            HResult result = VirtualizationInstance.ConvertDirectoryToVirtualizationRoot(virtualizationInstanceGuid, folderPath);
+            if (result != HResult.Ok)
+            {
+                error = "Failed to prepare \"" + folderPath + "\" for callbacks, error: " + result.ToString("F");
+                return false;
+            }
+
+            return true;
+        }
 
         private static class NativeMethods
         {

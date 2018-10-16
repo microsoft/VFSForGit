@@ -44,15 +44,15 @@ namespace GVFS.Common
 
         public bool TryGetLocalCacheKeyFromLocalConfigOrRemoteCacheServers(
             ITracer tracer, 
-            GVFSConfig gvfsConfig,
+            ServerGVFSConfig serverGVFSConfig,
             CacheServerInfo currentCacheServer, 
             string localCacheRoot,
             out string localCacheKey, 
             out string errorMessage)
         {
-            if (gvfsConfig == null)
+            if (serverGVFSConfig == null)
             {
-                throw new ArgumentNullException(nameof(gvfsConfig));
+                throw new ArgumentNullException(nameof(serverGVFSConfig));
             }
 
             localCacheKey = null;
@@ -64,12 +64,10 @@ namespace GVFS.Common
                 string lockPath = Path.Combine(localCacheRoot, MappingFile + ".lock");
                 this.fileSystem.CreateDirectory(localCacheRoot);
 
-                using (FileBasedLock mappingLock = new FileBasedLock(
+                using (FileBasedLock mappingLock = GVFSPlatform.Instance.CreateFileBasedLock(
                     this.fileSystem, 
                     tracer, 
-                    lockPath, 
-                    this.enlistment.EnlistmentRoot,
-                    overwriteExistingLock: true))
+                    lockPath))
                 {
                     if (!this.TryAcquireLockWithRetries(tracer, mappingLock))
                     {
@@ -117,7 +115,7 @@ namespace GVFS.Common
                                 metadata.Add("currentCacheServer", currentCacheServer.ToString());
 
                                 string getLocalCacheKeyError;
-                                if (this.TryGetLocalCacheKeyFromRemoteCacheServers(tracer, gvfsConfig, currentCacheServer, mappingFile, out localCacheKey, out getLocalCacheKeyError))
+                                if (this.TryGetLocalCacheKeyFromRemoteCacheServers(tracer, serverGVFSConfig, currentCacheServer, mappingFile, out localCacheKey, out getLocalCacheKeyError))
                                 {
                                     metadata.Add("localCacheKey", localCacheKey);
                                     metadata.Add(TracingConstants.MessageKey.InfoMessage, nameof(this.TryGetLocalCacheKeyFromLocalConfigOrRemoteCacheServers) + ": Generated new local cache key");
@@ -194,7 +192,7 @@ namespace GVFS.Common
 
         private bool TryGetLocalCacheKeyFromRemoteCacheServers(
             ITracer tracer,
-            GVFSConfig gvfsConfig,
+            ServerGVFSConfig serverGVFSConfig,
             CacheServerInfo currentCacheServer, 
             FileBasedDictionary<string, string> mappingFile, 
             out string localCacheKey,
@@ -205,7 +203,7 @@ namespace GVFS.Common
 
             try
             { 
-                if (this.TryFindExistingLocalCacheKey(mappingFile, gvfsConfig.CacheServers, out localCacheKey))
+                if (this.TryFindExistingLocalCacheKey(mappingFile, serverGVFSConfig.CacheServers, out localCacheKey))
                 {
                     EventMetadata metadata = CreateEventMetadata();
                     metadata.Add("currentCacheServer", currentCacheServer.ToString());
@@ -235,7 +233,7 @@ namespace GVFS.Common
                     mappingFileUpdates.Add(new KeyValuePair<string, string>(this.ToMappingKey(currentCacheServer.Url), localCacheKey));
                 }
 
-                foreach (CacheServerInfo cacheServer in gvfsConfig.CacheServers)
+                foreach (CacheServerInfo cacheServer in serverGVFSConfig.CacheServers)
                 {
                     string persistedLocalCacheKey;
                     if (mappingFile.TryGetValue(this.ToMappingKey(cacheServer.Url), out persistedLocalCacheKey))
@@ -279,7 +277,7 @@ namespace GVFS.Common
 
             for (int i = 0; i < NumRetries; ++i)
             {
-                if (mappingLock.TryAcquireLockAndDeleteOnClose())
+                if (mappingLock.TryAcquireLock())
                 {
                     return true;
                 }

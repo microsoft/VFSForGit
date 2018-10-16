@@ -1,6 +1,5 @@
 using GVFS.Common.FileSystem;
 using GVFS.Common.Tracing;
-using Microsoft.Win32;
 using System;
 using System.Collections.Generic;
 using System.ComponentModel;
@@ -77,11 +76,6 @@ namespace GVFS.Common.Git
             return new GitProcess(enlistment).InvokeGitOutsideEnlistment("init \"" + enlistment.WorkingDirectoryRoot + "\"");
         }
 
-        public static Result Version(Enlistment enlistment)
-        {
-            return new GitProcess(enlistment).InvokeGitOutsideEnlistment("--version");
-        }
-
         public static Result GetFromGlobalConfig(string gitBinPath, string settingName)
         {
             return new GitProcess(gitBinPath, workingDirectoryRoot: null, gvfsHooksRoot: null).InvokeGitOutsideEnlistment("config --global " + settingName);
@@ -90,6 +84,28 @@ namespace GVFS.Common.Git
         public static Result GetFromSystemConfig(string gitBinPath, string settingName)
         {
             return new GitProcess(gitBinPath, workingDirectoryRoot: null, gvfsHooksRoot: null).InvokeGitOutsideEnlistment("config --system " + settingName);
+        }
+
+        public static Result GetFromFileConfig(string gitBinPath, string configFile, string settingName)
+        {
+            return new GitProcess(gitBinPath, workingDirectoryRoot: null, gvfsHooksRoot: null).InvokeGitOutsideEnlistment("config --file " + configFile + " " + settingName);
+        }
+
+        public static bool TryGetVersion(string gitBinPath, out GitVersion gitVersion, out string error)
+        {
+            GitProcess gitProcess = new GitProcess(gitBinPath, null, null);
+            Result result = gitProcess.InvokeGitOutsideEnlistment("--version");
+            string version = result.Output;
+
+            if (result.HasErrors || !GitVersion.TryParseGitVersionCommandResult(version, out gitVersion))
+            {
+                gitVersion = null;
+                error = "Unable to determine installed git version. " + version;
+                return false;
+            }
+
+            error = null;
+            return true;
         }
 
         public virtual void RevokeCredential(string repoUrl)
@@ -112,7 +128,7 @@ namespace GVFS.Common.Git
             using (ITracer activity = tracer.StartActivity("TryGetCredentials", EventLevel.Informational))
             {
                 Result gitCredentialOutput = this.InvokeGitAgainstDotGitFolder(
-                    "credential fill",
+                    "-c " + GitConfigSetting.CredentialUseHttpPath + "=true credential fill",
                     stdin => stdin.Write("url=" + repoUrl + "\n\n"),
                     parseStdOutLine: null);
 
@@ -149,7 +165,7 @@ namespace GVFS.Common.Git
             Result result = this.InvokeGitAgainstDotGitFolder("rev-parse --show-toplevel");
             return !result.HasErrors;
         }
-                
+
         public Result RevParse(string gitRef)
         {
             return this.InvokeGitAgainstDotGitFolder("rev-parse " + gitRef);
@@ -178,6 +194,16 @@ namespace GVFS.Common.Git
         {
             return this.InvokeGitAgainstDotGitFolder(string.Format(
                 "config --local --add {0} {1}",
+                 settingName,
+                 value));
+        }
+
+        public Result SetInFileConfig(string configFile, string settingName, string value, bool replaceAll = false)
+        {
+            return this.InvokeGitOutsideEnlistment(string.Format(
+                "config --file {0} {1} \"{2}\" \"{3}\"",
+                 configFile,
+                 replaceAll ? "--replace-all " : string.Empty,
                  settingName,
                  value));
         }
@@ -405,11 +431,24 @@ namespace GVFS.Common.Git
 
             // Removing trace variables that might change git output and break parsing
             // List of environment variables: https://git-scm.com/book/gr/v2/Git-Internals-Environment-Variables
-            foreach (string key in processInfo.EnvironmentVariables.Keys.Cast<string>()
-                .Where(x => x.StartsWith("GIT_TRACE", StringComparison.OrdinalIgnoreCase))
-                .ToList())
+            foreach (string key in processInfo.EnvironmentVariables.Keys.Cast<string>().ToList())
             {
-                processInfo.EnvironmentVariables.Remove(key);
+                // If GIT_TRACE is set to a fully-rooted path, then Git sends the trace
+                // output to that path instead of stdout (GIT_TRACE=1) or stderr (GIT_TRACE=2).
+                if (key.StartsWith("GIT_TRACE", StringComparison.OrdinalIgnoreCase))
+                {
+                    try
+                    {
+                        if (!Path.IsPathRooted(processInfo.EnvironmentVariables[key]))
+                        {
+                            processInfo.EnvironmentVariables.Remove(key);
+                        }
+                    }
+                    catch (ArgumentException)
+                    {
+                        processInfo.EnvironmentVariables.Remove(key);
+                    }
+                }
             }
 
             processInfo.EnvironmentVariables["GIT_TERMINAL_PROMPT"] = "0";
@@ -601,7 +640,7 @@ namespace GVFS.Common.Git
                 parseStdOutLine: parseStdOutLine,
                 timeoutMs: -1);
         }
-        
+
         public class Result
         {
             public const int SuccessCode = 0;

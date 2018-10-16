@@ -4,6 +4,7 @@ using GVFS.Common.Git;
 using GVFS.Common.Tracing;
 using GVFS.UnitTests.Mock.Common.Tracing;
 using GVFS.UnitTests.Mock.FileSystem;
+using GVFS.UnitTests.Mock.Git;
 using System;
 using System.Collections.Generic;
 using System.IO.Pipes;
@@ -13,13 +14,13 @@ namespace GVFS.UnitTests.Mock.Common
     public class MockPlatform : GVFSPlatform
     {
         public MockPlatform()
-            : base(executableExtension: ".mockexe")
+            : base(executableExtension: ".mockexe", installerExtension: ".mockexe")
         {
         }
 
         public override IKernelDriver KernelDriver => throw new NotSupportedException();
 
-        public override IGitInstallation GitInstallation => throw new NotSupportedException();
+        public override IGitInstallation GitInstallation { get; } = new MockGitInstallation();
 
         public override IDiskLayoutUpgradeData DiskLayoutUpgrade => throw new NotSupportedException();
 
@@ -50,7 +51,7 @@ namespace GVFS.UnitTests.Mock.Common
             throw new NotSupportedException();
         }
 
-        public override InProcEventListener CreateTelemetryListenerIfEnabled(string providerName)
+        public override InProcEventListener CreateTelemetryListenerIfEnabled(string providerName, string enlistmentId, string mountId)
         {
             return new MockListener(EventLevel.Verbose, Keywords.Telemetry);
         }
@@ -90,6 +91,11 @@ namespace GVFS.UnitTests.Mock.Common
             throw new NotSupportedException();
         }
 
+        public override void IsServiceInstalledAndRunning(string name, out bool installed, out bool running)
+        {
+            throw new NotSupportedException();
+        }
+
         public override bool TryGetGVFSEnlistmentRoot(string directory, out string enlistmentRoot, out string errorMessage)
         {
             throw new NotSupportedException();
@@ -103,6 +109,11 @@ namespace GVFS.UnitTests.Mock.Common
         public override bool IsGitStatusCacheSupported()
         {
             return true;
+        }
+
+        public override FileBasedLock CreateFileBasedLock(PhysicalFileSystem fileSystem, ITracer tracer, string lockPath)
+        {
+            return new MockFileBasedLock(fileSystem, tracer, lockPath);
         }
     }
 }

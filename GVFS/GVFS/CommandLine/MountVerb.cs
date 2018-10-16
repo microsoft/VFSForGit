@@ -37,7 +37,7 @@ namespace GVFS.CommandLine
         public bool SkipMountedCheck { get; set; }
         public bool SkipVersionCheck { get; set; }
         public CacheServerInfo ResolvedCacheServer { get; set; }
-        public GVFSConfig DownloadedGVFSConfig { get; set; }
+        public ServerGVFSConfig DownloadedGVFSConfig { get; set; }
 
         protected override string VerbName
         {
@@ -128,7 +128,7 @@ namespace GVFS.CommandLine
                 }
 
                 RetryConfig retryConfig = null;
-                GVFSConfig gvfsConfig = this.DownloadedGVFSConfig;
+                ServerGVFSConfig serverGVFSConfig = this.DownloadedGVFSConfig;
                 if (!this.SkipVersionCheck)
                 {
                     string authErrorMessage = null;
@@ -140,24 +140,24 @@ namespace GVFS.CommandLine
                         this.Output.WriteLine("    Mount will proceed, but new files cannot be accessed until GVFS can authenticate.");
                     }
 
-                    if (gvfsConfig == null)
+                    if (serverGVFSConfig == null)
                     {
                         if (retryConfig == null)
                         {
                             retryConfig = this.GetRetryConfig(tracer, enlistment);
                         }
 
-                        gvfsConfig = this.QueryGVFSConfig(tracer, enlistment, retryConfig);
+                        serverGVFSConfig = this.QueryGVFSConfig(tracer, enlistment, retryConfig);
                     }
 
-                    this.ValidateClientVersions(tracer, enlistment, gvfsConfig, showWarnings: true);
+                    this.ValidateClientVersions(tracer, enlistment, serverGVFSConfig, showWarnings: true);
 
                     CacheServerResolver cacheServerResolver = new CacheServerResolver(tracer, enlistment);
-                    cacheServer = cacheServerResolver.ResolveNameFromRemote(cacheServer.Url, gvfsConfig);
+                    cacheServer = cacheServerResolver.ResolveNameFromRemote(cacheServer.Url, serverGVFSConfig);
                     this.Output.WriteLine("Configured cache server: " + cacheServer);
                 }
 
-                this.InitializeLocalCacheAndObjectsPaths(tracer, enlistment, retryConfig, gvfsConfig, cacheServer);
+                this.InitializeLocalCacheAndObjectsPaths(tracer, enlistment, retryConfig, serverGVFSConfig, cacheServer);
 
                 if (!this.ShowStatusWhileRunning(
                     () => { return this.PerformPreMountValidation(tracer, enlistment, out mountExecutableLocation, out errorMessage); },

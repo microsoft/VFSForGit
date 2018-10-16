@@ -39,7 +39,7 @@ namespace GVFS.Common.Http
 
         public bool TryResolveUrlFromRemote(
             string cacheServerName,
-            GVFSConfig gvfsConfig,
+            ServerGVFSConfig serverGVFSConfig,
             out CacheServerInfo cacheServer,
             out string error)
         {
@@ -54,12 +54,12 @@ namespace GVFS.Common.Http
             if (cacheServerName.Equals(CacheServerInfo.ReservedNames.Default, StringComparison.OrdinalIgnoreCase))
             {
                 cacheServer =
-                    gvfsConfig.CacheServers.FirstOrDefault(cache => cache.GlobalDefault)
+                    serverGVFSConfig.CacheServers.FirstOrDefault(cache => cache.GlobalDefault)
                     ?? this.CreateNone();
             }
             else
             {
-                cacheServer = gvfsConfig.CacheServers.FirstOrDefault(cache =>
+                cacheServer = serverGVFSConfig.CacheServers.FirstOrDefault(cache =>
                     cache.Name.Equals(cacheServerName, StringComparison.OrdinalIgnoreCase));
 
                 if (cacheServer == null)
@@ -74,7 +74,7 @@ namespace GVFS.Common.Http
 
         public CacheServerInfo ResolveNameFromRemote(
             string cacheServerUrl,
-            GVFSConfig gvfsConfig)
+            ServerGVFSConfig serverGVFSConfig)
         {
             if (string.IsNullOrWhiteSpace(cacheServerUrl))
             {
@@ -87,7 +87,7 @@ namespace GVFS.Common.Http
             }
 
             return
-                gvfsConfig.CacheServers.FirstOrDefault(cache => cache.Url.Equals(cacheServerUrl, StringComparison.OrdinalIgnoreCase))
+                serverGVFSConfig.CacheServers.FirstOrDefault(cache => cache.Url.Equals(cacheServerUrl, StringComparison.OrdinalIgnoreCase))
                 ?? new CacheServerInfo(cacheServerUrl, CacheServerInfo.ReservedNames.UserDefined);
         }
 

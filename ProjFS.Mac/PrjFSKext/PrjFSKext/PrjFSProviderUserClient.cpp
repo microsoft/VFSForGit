@@ -19,7 +19,11 @@ static const IOExternalMethodDispatch ProviderUserClientDispatch[] =
 {
     [ProviderSelector_RegisterVirtualizationRootPath] =
         {
-            &PrjFSProviderUserClient::registerVirtualizationRoot, 0, kIOUCVariableStructureSize, 1, 0
+            .function =                 &PrjFSProviderUserClient::registerVirtualizationRoot,
+            .checkScalarInputCount =    0,
+            .checkStructureInputSize =  kIOUCVariableStructureSize, // null-terminated string: virtualisation root path
+            .checkScalarOutputCount =   1, // returned errno
+            .checkStructureOutputSize = 0
         },
     [ProviderSelector_KernelMessageResponse] =
         {
@@ -37,7 +41,7 @@ bool PrjFSProviderUserClient::initWithTask(
     UInt32 type,
     OSDictionary* properties)
 {
-    this->virtualizationRootIndex = -1;
+    this->virtualizationRootHandle = RootHandle_None;
     this->pid = proc_selfpid();
 
     if (!this->super::initWithTask(owningTask, securityToken, type, properties))
@@ -92,9 +96,9 @@ void PrjFSProviderUserClient::free()
 // the connection.
 IOReturn PrjFSProviderUserClient::clientClose()
 {
-    int32_t root = this->virtualizationRootIndex;
-    this->virtualizationRootIndex = -1;
-    if (-1 != root)
+    VirtualizationRootHandle root = this->virtualizationRootHandle;
+    this->virtualizationRootHandle = RootHandle_None;
+    if (RootHandle_None != root)
     {
         ActiveProvider_Disconnect(root);
     }
@@ -210,7 +214,7 @@ IOReturn PrjFSProviderUserClient::registerVirtualizationRoot(const char* rootPat
         *outError = EINVAL;
         return kIOReturnSuccess;
     }
-    else if (this->virtualizationRootIndex != -1)
+    else if (this->virtualizationRootHandle != RootHandle_None)
     {
         // Already set
         *outError = EBUSY;
@@ -220,11 +224,11 @@ IOReturn PrjFSProviderUserClient::registerVirtualizationRoot(const char* rootPat
     VirtualizationRootResult result = VirtualizationRoot_RegisterProviderForPath(this, this->pid, rootPath);
     if (0 == result.error)
     {
-        this->virtualizationRootIndex = result.rootIndex;
+        this->virtualizationRootHandle = result.root;
 
         // Sets the root index in the IORegistry for diagnostic purposes
         char location[5] = "";
-        snprintf(location, sizeof(location), "%d", result.rootIndex);
+        snprintf(location, sizeof(location), "%d", result.root);
         this->setLocation(location);
     }
     

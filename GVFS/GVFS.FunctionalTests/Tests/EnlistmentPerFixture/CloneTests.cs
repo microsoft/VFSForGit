@@ -7,7 +7,6 @@ using System.IO;
 namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
 {
     [TestFixture]
-    [Category(Categories.Mac.M1)]
     public class CloneTests : TestsWithEnlistmentPerFixture
     {
         private const int GVFSGenericError = 3;

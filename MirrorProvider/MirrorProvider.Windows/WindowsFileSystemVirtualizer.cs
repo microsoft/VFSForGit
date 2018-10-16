@@ -34,14 +34,31 @@ namespace MirrorProvider.Windows
 
             this.virtualizationInstance.OnGetPlaceholderInformation = this.GetPlaceholderInformation;
             this.virtualizationInstance.OnGetFileStream = this.GetFileStream;
+            this.virtualizationInstance.OnNotifyPreDelete = this.OnPreDelete;
+            this.virtualizationInstance.OnNotifyNewFileCreated = this.OnNewFileCreated;
+            this.virtualizationInstance.OnNotifyFileHandleClosedFileModifiedOrDeleted = this.OnFileModifiedOrDeleted;
+            this.virtualizationInstance.OnNotifyFileRenamed = this.OnFileRenamed;
+            this.virtualizationInstance.OnNotifyHardlinkCreated = this.OnHardlinkCreated;
 
             uint threadCount = (uint)Environment.ProcessorCount * 2;
+
+            NotificationMapping[] notificationMappings = new NotificationMapping[]
+            {
+                new NotificationMapping(
+                    NotificationType.NewFileCreated |
+                    NotificationType.PreDelete |
+                    NotificationType.FileRenamed |
+                    NotificationType.HardlinkCreated |
+                    NotificationType.FileHandleClosedFileModified, 
+                    string.Empty),
+            };
+
             HResult result = this.virtualizationInstance.StartVirtualizationInstance(
                 enlistment.SrcRoot,
                 poolThreadCount: threadCount,
                 concurrentThreadCount: threadCount,
                 enableNegativePathCache: false,
-                notificationMappings: new NotificationMapping[] { });
+                notificationMappings: notificationMappings);
 
             if (result == HResult.Ok)
             {
@@ -274,6 +291,49 @@ namespace MirrorProvider.Windows
             }
 
             return HResult.Ok;
+        }
+
+        private HResult OnPreDelete(string relativePath, bool isDirectory)
+        {
+            Console.WriteLine($"OnPreDelete (isDirectory: {isDirectory}): {relativePath}");
+            return HResult.Ok;
+        }
+
+        private void OnNewFileCreated(
+            string relativePath,
+            bool isDirectory,
+            uint desiredAccess,
+            uint shareMode,
+            uint createDisposition,
+            uint createOptions,
+            ref NotificationType notificationMask)
+        {
+            Console.WriteLine($"OnNewFileCreated (isDirectory: {isDirectory}): {relativePath}");
+        }
+
+        private void OnFileModifiedOrDeleted(string relativePath, bool isDirectory, bool isFileModified, bool isFileDeleted)
+        {
+            // To keep WindowsFileSystemVirtualizer in sync with MacFileSystemVirtualizer we're only registering for 
+            // NotificationType.FileHandleClosedFileModified and so this method will only be called for modifications.  
+            // Once MacFileSystemVirtualizer supports delete notifications we'll register for
+            // NotificationType.FileHandleClosedFileDeleted and this method will be called for both modifications and deletions.
+            Console.WriteLine($"OnFileModifiedOrDeleted: `{relativePath}`, isDirectory: {isDirectory}, isModfied: {isFileModified}, isDeleted: {isFileDeleted}");
+        }
+
+        private void OnFileRenamed(
+            string relativeSourcePath,
+            string relativeDestinationPath,
+            bool isDirectory,
+            ref NotificationType notificationMask)
+        {
+            Console.WriteLine($"OnFileRenamed (isDirectory: {isDirectory}), relativeSourcePath: {relativeSourcePath}, relativeDestinationPath: {relativeDestinationPath}");
+        }
+
+        private void OnHardlinkCreated(
+            string relativeExistingFilePath,
+            string relativeNewLinkFilePath)
+        {
+            Console.WriteLine($"OnHardlinkCreated, relativeExistingFilePath: {relativeExistingFilePath}, relativeNewLinkFilePath: {relativeNewLinkFilePath}");
         }
 
         // TODO: Add this to the ProjFS API

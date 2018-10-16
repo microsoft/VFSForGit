@@ -1,5 +1,6 @@
 ﻿using GVFS.FunctionalTests.Tools;
 using NUnit.Framework;
+using System.IO;
 using System.Threading;
 
 namespace GVFS.FunctionalTests.Tests.GitCommands
@@ -15,7 +16,7 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
         [TestCase, Order(1)]
         public void AddBasicTest()
         {
-            this.EditFile("Readme.md", "Some new content.");
+            this.EditFile("Some new content.", "Readme.md");
             this.ValidateGitCommand("add Readme.md");
             this.RunGitCommand("commit -m \"Changing the Readme.md\"");
         }
@@ -23,26 +24,39 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
         [TestCase, Order(2)]
         public void StageBasicTest()
         {
-            this.EditFile("AuthoringTests.md", "Some new content.");
+            this.EditFile("Some new content.", "AuthoringTests.md");
             this.ValidateGitCommand("stage AuthoringTests.md");
             this.RunGitCommand("commit -m \"Changing the AuthoringTests.md\"");
         }
 
         [TestCase, Order(3)]
-        public void AddAllowsPlaceholderCreation()
+        public void AddAndStageHardLinksTest()
         {
-            this.CommandAllowsPlaceholderCreation("add", @"GVFS\GVFS\Program.cs");
+            this.CreateHardLink("ReadmeLink.md", "Readme.md");
+            this.ValidateGitCommand("add ReadmeLink.md");
+            this.RunGitCommand("commit -m \"Created ReadmeLink.md\"");
+
+            this.CreateHardLink("AuthoringTestsLink.md", "AuthoringTests.md");
+            this.ValidateGitCommand("stage AuthoringTestsLink.md");
+            this.RunGitCommand("commit -m \"Created AuthoringTestsLink.md\"");
         }
 
         [TestCase, Order(4)]
-        public void StageAllowsPlaceholderCreation()
+        public void AddAllowsPlaceholderCreation()
         {
-            this.CommandAllowsPlaceholderCreation("stage", @"GVFS\GVFS\App.config");
+            this.CommandAllowsPlaceholderCreation("add", "GVFS", "GVFS", "Program.cs");
         }
 
-        private void CommandAllowsPlaceholderCreation(string command, string fileToRead)
+        [TestCase, Order(5)]
+        public void StageAllowsPlaceholderCreation()
         {
-            this.EditFile("Readme.md", $"Some new content for {command}.");
+            this.CommandAllowsPlaceholderCreation("stage", "GVFS", "GVFS", "App.config");
+        }
+
+        private void CommandAllowsPlaceholderCreation(string command, params string[] fileToReadPathParts)
+        {
+            string fileToRead = Path.Combine(fileToReadPathParts);
+            this.EditFile($"Some new content for {command}.", "Protocol.md");
             ManualResetEventSlim resetEvent = GitHelpers.RunGitCommandWithWaitAndStdIn(this.Enlistment, resetTimeout: 3000, command: $"{command} -p", stdinToQuit: "q", processId: out _);
             this.FileContentsShouldMatch(fileToRead);
             this.ValidateGitCommand("--no-optional-locks status");

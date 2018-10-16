@@ -3,6 +3,7 @@
 #include "PrjFSClasses.hpp"
 #include "Locks.hpp"
 #include "Message.h"
+#include "VirtualizationRoots.hpp"
 #include <IOKit/IOUserClient.h>
 
 struct MessageHeader;
@@ -18,8 +19,8 @@ private:
     Mutex dataQueueWriterMutex;
 public:
     pid_t pid;
-    // The root for which this is the provider; -1 prior to registration
-    int32_t virtualizationRootIndex;
+    // The root for which this is the provider; RootHandle_None prior to registration
+    VirtualizationRootHandle virtualizationRootHandle;
     
     // IOUserClient methods:
     virtual bool initWithTask(
@@ -29,9 +30,9 @@ public:
     virtual IOReturn externalMethod(
         uint32_t selector,
         IOExternalMethodArguments* arguments,
-        IOExternalMethodDispatch* dispatch = 0,
-        OSObject* target = 0,
-        void* reference = 0) override;
+        IOExternalMethodDispatch* dispatch = nullptr,
+        OSObject* target = nullptr,
+        void* reference = nullptr) override;
     virtual IOReturn clientMemoryForType(
         UInt32 type,
         IOOptionBits* options,

@@ -59,8 +59,11 @@
     <Compile Include="..\GVFS.Common\NamedPipes\NamedPipeClient.cs">
       <Link>Common\NamedPipes\NamedPipeClient.cs</Link>
     </Compile>
-    <Compile Include="..\GVFS.Common\NamedPipes\NamedPipeStreamWriterExtensions.cs">
-      <Link>Common\NamedPipes\NamedPipeStreamWriterExtensions.cs</Link>
+    <Compile Include="..\GVFS.Common\NamedPipes\NamedPipeStreamReader.cs">
+      <Link>Common\NamedPipes\NamedPipeStreamReader.cs</Link>
+    </Compile>
+    <Compile Include="..\GVFS.Common\NamedPipes\NamedPipeStreamWriter.cs">
+      <Link>Common\NamedPipes\NamedPipeStreamWriter.cs</Link>
     </Compile>
     <Compile Include="..\GVFS.Common\NativeMethods.Shared.cs">
       <Link>Common\NativeMethods.Shared.cs</Link>
@@ -74,6 +77,7 @@
     <Compile Include="..\GVFS.Common\ProcessResult.cs">
       <Link>Common\ProcessResult.cs</Link>
     </Compile>
+    <Compile Include="..\GVFS.Common\ProductUpgrader.Shared.cs" Link="Common\ProductUpgrader.Shared.cs" />
     <Compile Include="..\GVFS.Common\Tracing\EventLevel.cs">
       <Link>Common\Tracing\EventLevel.cs</Link>
     </Compile>

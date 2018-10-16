@@ -119,7 +119,7 @@ namespace GVFS.CommandLine
                 Result cloneResult = new Result(false);
 
                 CacheServerInfo cacheServer = null;
-                GVFSConfig gvfsConfig = null;
+                ServerGVFSConfig serverGVFSConfig = null;
 
                 using (JsonTracer tracer = new JsonTracer(GVFSConstants.GVFSEtwProviderName, "GVFSClone"))
                 {
@@ -178,19 +178,19 @@ namespace GVFS.CommandLine
                         }
 
                         RetryConfig retryConfig = this.GetRetryConfig(tracer, enlistment, TimeSpan.FromMinutes(RetryConfig.FetchAndCloneTimeoutMinutes));
-                        gvfsConfig = this.QueryGVFSConfig(tracer, enlistment, retryConfig);
+                        serverGVFSConfig = this.QueryGVFSConfig(tracer, enlistment, retryConfig);
 
-                        cacheServer = this.ResolveCacheServer(tracer, cacheServer, cacheServerResolver, gvfsConfig);
+                        cacheServer = this.ResolveCacheServer(tracer, cacheServer, cacheServerResolver, serverGVFSConfig);
 
                         if (!GVFSPlatform.Instance.IsUnderConstruction)
                         {
-                            this.ValidateClientVersions(tracer, enlistment, gvfsConfig, showWarnings: true);
+                            this.ValidateClientVersions(tracer, enlistment, serverGVFSConfig, showWarnings: true);
                         }
                        
                         this.ShowStatusWhileRunning(
                             () =>
                             {
-                                cloneResult = this.TryClone(tracer, enlistment, cacheServer, retryConfig, gvfsConfig, resolvedLocalCacheRoot);
+                                cloneResult = this.TryClone(tracer, enlistment, cacheServer, retryConfig, serverGVFSConfig, resolvedLocalCacheRoot);
                                 return cloneResult.Success;
                             },
                             "Cloning",
@@ -214,7 +214,7 @@ namespace GVFS.CommandLine
                                 verb.Commits = true;
                                 verb.SkipVersionCheck = true;
                                 verb.ResolvedCacheServer = cacheServer;
-                                verb.GVFSConfig = gvfsConfig;
+                                verb.ServerGVFSConfig = serverGVFSConfig;
                             });
 
                         if (result != ReturnCode.Success)
@@ -238,7 +238,7 @@ namespace GVFS.CommandLine
                                 verb.SkipMountedCheck = true;
                                 verb.SkipVersionCheck = true;
                                 verb.ResolvedCacheServer = cacheServer;
-                                verb.DownloadedGVFSConfig = gvfsConfig;
+                                verb.DownloadedGVFSConfig = serverGVFSConfig;
                             });
                     }
                 }
@@ -323,7 +323,7 @@ namespace GVFS.CommandLine
             GVFSEnlistment enlistment, 
             CacheServerInfo cacheServer, 
             RetryConfig retryConfig, 
-            GVFSConfig gvfsConfig,
+            ServerGVFSConfig serverGVFSConfig,
             string resolvedLocalCacheRoot)
         {
             Result pipeResult;
@@ -372,7 +372,7 @@ namespace GVFS.CommandLine
                     }
 
                     string localCacheError;
-                    if (!this.TryDetermineLocalCacheAndInitializePaths(tracer, enlistment, gvfsConfig, cacheServer, resolvedLocalCacheRoot, out localCacheError))
+                    if (!this.TryDetermineLocalCacheAndInitializePaths(tracer, enlistment, serverGVFSConfig, cacheServer, resolvedLocalCacheRoot, out localCacheError))
                     {
                         tracer.RelatedError(localCacheError);
                         return new Result(localCacheError);
@@ -460,7 +460,7 @@ namespace GVFS.CommandLine
         private bool TryDetermineLocalCacheAndInitializePaths(
             ITracer tracer,
             GVFSEnlistment enlistment,
-            GVFSConfig gvfsConfig,
+            ServerGVFSConfig serverGVFSConfig,
             CacheServerInfo currentCacheServer,
             string localCacheRoot,
             out string errorMessage)
@@ -472,7 +472,7 @@ namespace GVFS.CommandLine
             string localCacheKey;
             if (!localCacheResolver.TryGetLocalCacheKeyFromLocalConfigOrRemoteCacheServers(
                 tracer,
-                gvfsConfig,
+                serverGVFSConfig,
                 currentCacheServer,
                 localCacheRoot,
                 localCacheKey: out localCacheKey,
@@ -552,10 +552,6 @@ namespace GVFS.CommandLine
                 Path.Combine(enlistment.WorkingDirectoryRoot, GVFSConstants.DotGit.Head),
                 "ref: refs/heads/" + branch);
 
-            File.AppendAllText(
-                Path.Combine(enlistment.WorkingDirectoryRoot, GVFSConstants.DotGit.Info.SparseCheckoutPath),
-                GVFSConstants.GitPathSeparatorString + GVFSConstants.SpecialGitFiles.GitAttributes + "\n");
-
             if (!this.TryDownloadRootGitAttributes(enlistment, gitObjects, gitRepo, out errorMessage))
             {
                 return new Result(errorMessage);
@@ -571,6 +567,30 @@ namespace GVFS.CommandLine
             }
 
             GitProcess.Result forceCheckoutResult = git.ForceCheckout(branch);
+            if (forceCheckoutResult.HasErrors && forceCheckoutResult.Errors.IndexOf("unable to read tree") > 0)
+            {
+                // It is possible to have the above TryDownloadCommit() fail because we
+                // already have the commit and root tree we intend to check out, but
+                // don't have a tree further down the working directory. If we fail
+                // checkout here, its' because we don't have these trees and the
+                // read-object hook is not available yet. Force downloading the commit
+                // again and retry the checkout.
+
+                if (!this.TryDownloadCommit(
+                    refs.GetTipCommitId(branch),
+                    enlistment,
+                    objectRequestor,
+                    gitObjects,
+                    gitRepo,
+                    out errorMessage,
+                    checkLocalObjectCache: false))
+                {
+                    return new Result(errorMessage);
+                }
+
+                forceCheckoutResult = git.ForceCheckout(branch);
+            }
+
             if (forceCheckoutResult.HasErrors)
             {
                 string[] errorLines = forceCheckoutResult.Errors.Split('\n');
@@ -613,10 +633,18 @@ namespace GVFS.CommandLine
             }
 
             // Prepare the working directory folder for GVFS last to ensure that gvfs mount will fail if gvfs clone has failed
+            Exception exception;
             string prepFileSystemError;
-            if (!GVFSPlatform.Instance.KernelDriver.TryPrepareFolderForCallbacks(enlistment.WorkingDirectoryRoot, out prepFileSystemError))
+            if (!GVFSPlatform.Instance.KernelDriver.TryPrepareFolderForCallbacks(enlistment.WorkingDirectoryRoot, out prepFileSystemError, out exception))
             {
-                tracer.RelatedError(prepFileSystemError);
+                EventMetadata metadata = new EventMetadata();
+                metadata.Add(nameof(prepFileSystemError), prepFileSystemError);
+                if (exception != null)
+                {
+                    metadata.Add("Exception", exception.ToString());
+                }
+
+                tracer.RelatedError(metadata, $"{nameof(this.CreateClone)}: TryPrepareFolderForCallbacks failed");
                 return new Result(prepFileSystemError);
             }
 

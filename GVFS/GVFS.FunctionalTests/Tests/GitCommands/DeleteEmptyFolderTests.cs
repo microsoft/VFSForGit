@@ -36,7 +36,7 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
         {
             ControlGitRepo.Fetch("FunctionalTests/20170202_RenameTestMergeTarget");
             this.ValidateGitCommand("checkout FunctionalTests/20170202_RenameTestMergeTarget");
-            this.DeleteFile("Test_EPF_GitCommandsTestOnlyFileFolder\\file.txt");
+            this.DeleteFile("Test_EPF_GitCommandsTestOnlyFileFolder", "file.txt");
             this.ValidateGitCommand("add .");
             this.RunGitCommand("commit -m\"Delete only file.\"");
         }

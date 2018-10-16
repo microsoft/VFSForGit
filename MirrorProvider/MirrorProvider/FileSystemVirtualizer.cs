@@ -7,19 +7,24 @@ namespace MirrorProvider
 {
     public abstract class FileSystemVirtualizer
     {
-        private Enlistment enlistment;
+        protected Enlistment Enlistment { get; private set; }
 
         public abstract bool TryConvertVirtualizationRoot(string directory, out string error);
         public virtual bool TryStartVirtualizationInstance(Enlistment enlistment, out string error)
         {
-            this.enlistment = enlistment;
+            this.Enlistment = enlistment;
             error = null;
             return true;
         }
 
+        protected string GetFullPathInMirror(string relativePath)
+        {
+            return Path.Combine(this.Enlistment.MirrorRoot, relativePath);
+        }
+
         protected bool DirectoryExists(string relativePath)
         {
-            string fullPathInMirror = Path.Combine(this.enlistment.MirrorRoot, relativePath);
+            string fullPathInMirror = this.GetFullPathInMirror(relativePath);
             DirectoryInfo dirInfo = new DirectoryInfo(fullPathInMirror);
 
             return dirInfo.Exists;
@@ -27,7 +32,7 @@ namespace MirrorProvider
 
         protected bool FileExists(string relativePath)
         {
-            string fullPathInMirror = Path.Combine(this.enlistment.MirrorRoot, relativePath);
+            string fullPathInMirror = this.GetFullPathInMirror(relativePath);
             FileInfo fileInfo = new FileInfo(fullPathInMirror);
 
             return fileInfo.Exists;
@@ -35,18 +40,18 @@ namespace MirrorProvider
 
         protected ProjectedFileInfo GetFileInfo(string relativePath)
         {
-            string fullPathInMirror = Path.Combine(this.enlistment.MirrorRoot, relativePath);
+            string fullPathInMirror = this.GetFullPathInMirror(relativePath);
             string fullParentPath = Path.GetDirectoryName(fullPathInMirror);
             string fileName = Path.GetFileName(relativePath);
 
             string actualCaseName;
-            if (this.DirectoryExists(fullParentPath, fileName, out actualCaseName))
+            ProjectedFileInfo.FileType type;
+            if (this.FileOrDirectoryExists(fullParentPath, fileName, out actualCaseName, out type))
             {
-                return new ProjectedFileInfo(actualCaseName, size: 0, isDirectory: true);
-            }
-            else if (this.FileExists(fullParentPath, fileName, out actualCaseName))
-            {
-                return new ProjectedFileInfo(actualCaseName, size: new FileInfo(fullPathInMirror).Length, isDirectory: false);
+                return new ProjectedFileInfo(
+                    actualCaseName, 
+                    size: (type == ProjectedFileInfo.FileType.File) ? new FileInfo(fullPathInMirror).Length : 0, 
+                    type: type);
             }
 
             return null;
@@ -54,7 +59,7 @@ namespace MirrorProvider
 
         protected IEnumerable<ProjectedFileInfo> GetChildItems(string relativePath)
         {
-            string fullPathInMirror = Path.Combine(this.enlistment.MirrorRoot, relativePath);
+            string fullPathInMirror = this.GetFullPathInMirror(relativePath);
             DirectoryInfo dirInfo = new DirectoryInfo(fullPathInMirror);
 
             if (!dirInfo.Exists)
@@ -62,26 +67,44 @@ namespace MirrorProvider
                 yield break;
             }
 
-            foreach (FileInfo file in dirInfo.GetFiles())
+            foreach (FileSystemInfo fileSystemInfo in dirInfo.GetFileSystemInfos())
             {
-                yield return new ProjectedFileInfo(file.Name, file.Length, isDirectory: false);
-            }
+                if ((fileSystemInfo.Attributes & FileAttributes.ReparsePoint) == FileAttributes.ReparsePoint)
+                {
+                    // While not 100% accurate on all platforms, for simplicity assume that if the the file has reparse data it's a symlink
+                    yield return new ProjectedFileInfo(
+                        fileSystemInfo.Name,
+                        size: 0,
+                        type: ProjectedFileInfo.FileType.SymLink);
+                }
+                else if ((fileSystemInfo.Attributes & FileAttributes.Directory) == FileAttributes.Directory)
+                {
+                    yield return new ProjectedFileInfo(
+                        fileSystemInfo.Name,
+                        size: 0,
+                        type: ProjectedFileInfo.FileType.Directory);
+                }
+                else
+                {
+                    FileInfo fileInfo = fileSystemInfo as FileInfo;
+                    yield return new ProjectedFileInfo(
+                        fileInfo.Name,
+                        fileInfo.Length,
+                        ProjectedFileInfo.FileType.File);
+                }
 
-            foreach (DirectoryInfo subDirectory in dirInfo.GetDirectories())
-            {
-                yield return new ProjectedFileInfo(subDirectory.Name, size: 0, isDirectory: true);
             }
         }
 
         protected FileSystemResult HydrateFile(string relativePath, int bufferSize, Func<byte[], uint, bool> tryWriteBytes)
         {
-            string fullPathInMirror = Path.Combine(this.enlistment.MirrorRoot, relativePath);
+            string fullPathInMirror = this.GetFullPathInMirror(relativePath);
             if (!File.Exists(fullPathInMirror))
             {
                 return FileSystemResult.EFileNotFound;
             }
 
-            using (FileStream fs = new FileStream(fullPathInMirror, FileMode.Open))
+            using (FileStream fs = new FileStream(fullPathInMirror, FileMode.Open, FileAccess.Read))
             {
                 long remainingData = fs.Length;
                 byte[] buffer = new byte[bufferSize];
@@ -106,23 +129,47 @@ namespace MirrorProvider
             return FileSystemResult.Success;
         }
 
-        private bool DirectoryExists(string fullParentPath, string directoryName, out string actualCaseName)
+        private bool FileOrDirectoryExists(
+            string fullParentPath,
+            string fileName,
+            out string actualCaseName,
+            out ProjectedFileInfo.FileType type)
         {
-            return this.NameExists(Directory.GetDirectories(fullParentPath), directoryName, out actualCaseName);
-        }
+            actualCaseName = null;
+            type = ProjectedFileInfo.FileType.Invalid;
 
-        private bool FileExists(string fullParentPath, string fileName, out string actualCaseName)
-        {
-            return this.NameExists(Directory.GetFiles(fullParentPath), fileName, out actualCaseName);
-        }
+            DirectoryInfo dirInfo = new DirectoryInfo(fullParentPath);
+            if (!dirInfo.Exists)
+            {
+                return false;
+            }
 
-        private bool NameExists(IEnumerable<string> paths, string name, out string actualCaseName)
-        {
-            actualCaseName = 
-                paths
-                .Select(path => Path.GetFileName(path))
-                .FirstOrDefault(actualName => actualName.Equals(name, StringComparison.OrdinalIgnoreCase));
-            return actualCaseName != null;
+            FileSystemInfo fileSystemInfo = 
+                dirInfo
+                .GetFileSystemInfos()
+                .FirstOrDefault(fsInfo => fsInfo.Name.Equals(fileName, StringComparison.OrdinalIgnoreCase));
+
+            if (fileSystemInfo == null)
+            {
+                return false;
+            }
+
+            actualCaseName = fileSystemInfo.Name;
+
+            if ((fileSystemInfo.Attributes & FileAttributes.ReparsePoint) == FileAttributes.ReparsePoint)
+            {
+                type = ProjectedFileInfo.FileType.SymLink;
+            }
+            else if ((fileSystemInfo.Attributes & FileAttributes.Directory) == FileAttributes.Directory)
+            {
+                type = ProjectedFileInfo.FileType.Directory;
+            }
+            else
+            {
+                type = ProjectedFileInfo.FileType.File;
+            }
+
+            return true;
         }
     }
 }

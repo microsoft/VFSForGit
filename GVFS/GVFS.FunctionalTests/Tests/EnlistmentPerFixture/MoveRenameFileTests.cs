@@ -52,8 +52,8 @@ namespace GVFS.StressTests
         [TestCase]
         public void ChangeUnhydratedFileName()
         {
-            string oldFilename = "Test_EPF_MoveRenameFileTests\\ChangeUnhydratedFileName\\Program.cs";
-            string newFilename = "Test_EPF_MoveRenameFileTests\\ChangeUnhydratedFileName\\renamed_Program.cs";
+            string oldFilename = Path.Combine("Test_EPF_MoveRenameFileTests", "ChangeUnhydratedFileName", "Program.cs");
+            string newFilename = Path.Combine("Test_EPF_MoveRenameFileTests", "ChangeUnhydratedFileName", "renamed_Program.cs");
 
             // Don't read oldFilename or check for its existence before calling MoveFile, because doing so
             // can cause the file to hydrate
@@ -85,7 +85,7 @@ namespace GVFS.StressTests
         {
             string oldName = "Program.cs";
             string newName = "program.cs";
-            string folderName = "Test_EPF_MoveRenameFileTests\\ChangeNestedUnhydratedFileNameCase\\";
+            string folderName = Path.Combine("Test_EPF_MoveRenameFileTests", "ChangeNestedUnhydratedFileNameCase");
 
             string oldVirtualPath = this.Enlistment.GetVirtualPathTo(Path.Combine(folderName, oldName));
             string newVirtualPath = this.Enlistment.GetVirtualPathTo(Path.Combine(folderName, newName));
@@ -100,8 +100,8 @@ namespace GVFS.StressTests
             this.Enlistment.GetVirtualPathTo(targetFolderName).ShouldBeADirectory(this.fileSystem);
 
             string testFileName = "Program.cs";
-            string testFileFolder = "Test_EPF_MoveRenameFileTests\\MoveUnhydratedFileToDotGitFolder";
-            string testFilePathSubPath = testFileFolder + "\\" + testFileName;
+            string testFileFolder = Path.Combine("Test_EPF_MoveRenameFileTests", "MoveUnhydratedFileToDotGitFolder");
+            string testFilePathSubPath = Path.Combine(testFileFolder, testFileName);
 
             string newTestFileVirtualPath = Path.Combine(this.Enlistment.GetVirtualPathTo(targetFolderName), testFileName);
 
