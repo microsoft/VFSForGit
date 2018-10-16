@@ -542,7 +542,7 @@ PrjFS_Result PrjFS_DeleteFile(
     if (!(S_ISREG(path_stat.st_mode) || S_ISDIR(path_stat.st_mode)))
     {
         // Only files and directories can be deleted with PrjFS_DeleteFile
-        // Anything else should be treated as a full
+        // Anything else should be treated as a full file
         *failureCause = PrjFS_UpdateFailureCause_FullFile;
         return PrjFS_Result_EVirtualizationInvalidOperation;
     }
@@ -962,6 +962,8 @@ static PrjFS_Result HandleFileNotification(
     
     if (partialFile && PrjFS_NotificationType_FileModified == notificationType)
     {
+        // PrjFS_NotificationType_FileModified is a post-modified FileOp event (that cannot be stopped
+        // by the provider) and so there's no need to check the result of the call to NotifyOperation
         RemoveXAttr(fullPath, PrjFSFileXAttrName);
     }
     
