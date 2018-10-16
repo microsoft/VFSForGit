@@ -491,7 +491,7 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
 
             // Confirm that no other test has caused "Protocol.md" to be added to the modified paths
             string fileName = "Protocol.md";
-            GVFSHelpers.ModifiedPathsShouldNotContain(this.FileSystem, this.Enlistment.DotGVFSRoot, fileName);
+            GVFSHelpers.ModifiedPathsShouldNotContain(this.Enlistment, this.FileSystem, fileName);
 
             string controlTargetFolder = "MoveFileFromInsideRepoToOutsideRepoAndCommit_ControlTarget";
             string gvfsTargetFolder = "MoveFileFromInsideRepoToOutsideRepoAndCommit_GVFSTarget";
@@ -992,7 +992,7 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
             contents.ShouldEqual(expectedContents);
 
             // Confirm that the entry is not in the the modified paths database
-            GVFSHelpers.ModifiedPathsShouldNotContain(this.FileSystem, this.Enlistment.DotGVFSRoot, relativeGitPath);
+            GVFSHelpers.ModifiedPathsShouldNotContain(this.Enlistment, this.FileSystem, relativeGitPath);
             this.ValidateGitCommand("status");
 
             this.AppendAllText(ContentWhenEditingFile, virtualFile);
@@ -1001,7 +1001,7 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
             this.ValidateGitCommand("status");
 
             // Confirm that the entry was added to the modified paths database
-            GVFSHelpers.ModifiedPathsShouldContain(this.FileSystem, this.Enlistment.DotGVFSRoot, relativeGitPath);
+            GVFSHelpers.ModifiedPathsShouldContain(this.Enlistment, this.FileSystem, relativeGitPath);
         }
 
         [TestCase]

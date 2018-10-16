@@ -62,7 +62,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
 
             this.GitCleanFile(TestParentFolderName + "/LockToPreventDelete/" + testFile1Name);
             this.GitStatusShouldBeClean(OldCommitId);
-            GVFSHelpers.ModifiedPathsShouldContain(this.fileSystem, this.Enlistment.DotGVFSRoot, TestParentFolderName + "/LockToPreventDelete/" + testFile1Name);
+            GVFSHelpers.ModifiedPathsShouldContain(this.Enlistment, this.fileSystem, TestParentFolderName + "/LockToPreventDelete/" + testFile1Name);
             testFile1Path.ShouldNotExistOnDisk(this.fileSystem);
 
             this.GitCheckoutCommitId(NewFilesAndChangesCommitId);
@@ -121,9 +121,9 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
 
             this.GitStatusShouldBeClean(OldCommitId);
 
-            GVFSHelpers.ModifiedPathsShouldContain(this.fileSystem, this.Enlistment.DotGVFSRoot, TestParentFolderName + "/LockToPreventDelete/" + testFile2Name);
-            GVFSHelpers.ModifiedPathsShouldContain(this.fileSystem, this.Enlistment.DotGVFSRoot, TestParentFolderName + "/LockToPreventDelete/" + testFile3Name);
-            GVFSHelpers.ModifiedPathsShouldContain(this.fileSystem, this.Enlistment.DotGVFSRoot, TestParentFolderName + "/LockToPreventDelete/" + testFile4Name);
+            GVFSHelpers.ModifiedPathsShouldContain(this.Enlistment, this.fileSystem, TestParentFolderName + "/LockToPreventDelete/" + testFile2Name);
+            GVFSHelpers.ModifiedPathsShouldContain(this.Enlistment, this.fileSystem, TestParentFolderName + "/LockToPreventDelete/" + testFile3Name);
+            GVFSHelpers.ModifiedPathsShouldContain(this.Enlistment, this.fileSystem, TestParentFolderName + "/LockToPreventDelete/" + testFile4Name);
 
             testFile2Path.ShouldNotExistOnDisk(this.fileSystem);
             testFile3Path.ShouldNotExistOnDisk(this.fileSystem);
@@ -165,7 +165,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
 
             this.GitCheckoutToDiscardChanges(TestParentFolderName + "/LockToPreventUpdate/" + testFile1Name);
             this.GitStatusShouldBeClean(OldCommitId);
-            GVFSHelpers.ModifiedPathsShouldContain(this.fileSystem, this.Enlistment.DotGVFSRoot, TestParentFolderName + "/LockToPreventUpdate/" + testFile1Name);
+            GVFSHelpers.ModifiedPathsShouldContain(this.Enlistment, this.fileSystem, TestParentFolderName + "/LockToPreventUpdate/" + testFile1Name);
             testFile1Path.ShouldBeAFile(this.fileSystem).WithContents(testFile1OldContents);
 
             this.GitCheckoutCommitId(NewFilesAndChangesCommitId);
@@ -227,9 +227,9 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
             this.GitCheckoutToDiscardChanges(TestParentFolderName + "/LockToPreventUpdate/" + testFile4Name);
 
             this.GitStatusShouldBeClean(OldCommitId);
-            GVFSHelpers.ModifiedPathsShouldContain(this.fileSystem, this.Enlistment.DotGVFSRoot, TestParentFolderName + "/LockToPreventUpdate/" + testFile2Name);
-            GVFSHelpers.ModifiedPathsShouldContain(this.fileSystem, this.Enlistment.DotGVFSRoot, TestParentFolderName + "/LockToPreventUpdate/" + testFile3Name);
-            GVFSHelpers.ModifiedPathsShouldContain(this.fileSystem, this.Enlistment.DotGVFSRoot, TestParentFolderName + "/LockToPreventUpdate/" + testFile4Name);
+            GVFSHelpers.ModifiedPathsShouldContain(this.Enlistment, this.fileSystem, TestParentFolderName + "/LockToPreventUpdate/" + testFile2Name);
+            GVFSHelpers.ModifiedPathsShouldContain(this.Enlistment, this.fileSystem, TestParentFolderName + "/LockToPreventUpdate/" + testFile3Name);
+            GVFSHelpers.ModifiedPathsShouldContain(this.Enlistment, this.fileSystem, TestParentFolderName + "/LockToPreventUpdate/" + testFile4Name);
             testFile2Path.ShouldBeAFile(this.fileSystem).WithContents(testFile2OldContents);
             testFile3Path.ShouldBeAFile(this.fileSystem).WithContents(testFile3OldContents);
             testFile4Path.ShouldBeAFile(this.fileSystem).WithContents(testFile4OldContents);
@@ -323,12 +323,12 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
 
             this.GitStatusShouldBeClean(OldCommitId);
 
-            GVFSHelpers.ModifiedPathsShouldContain(this.fileSystem, this.Enlistment.DotGVFSRoot, TestParentFolderName + "/LockToPreventUpdateAndDelete/" + testFileUpdate1Name);
-            GVFSHelpers.ModifiedPathsShouldContain(this.fileSystem, this.Enlistment.DotGVFSRoot, TestParentFolderName + "/LockToPreventUpdateAndDelete/" + testFileUpdate2Name);
-            GVFSHelpers.ModifiedPathsShouldContain(this.fileSystem, this.Enlistment.DotGVFSRoot, TestParentFolderName + "/LockToPreventUpdateAndDelete/" + testFileUpdate3Name);
-            GVFSHelpers.ModifiedPathsShouldContain(this.fileSystem, this.Enlistment.DotGVFSRoot, TestParentFolderName + "/LockToPreventUpdateAndDelete/" + testFileDelete1Name);
-            GVFSHelpers.ModifiedPathsShouldContain(this.fileSystem, this.Enlistment.DotGVFSRoot, TestParentFolderName + "/LockToPreventUpdateAndDelete/" + testFileDelete2Name);
-            GVFSHelpers.ModifiedPathsShouldContain(this.fileSystem, this.Enlistment.DotGVFSRoot, TestParentFolderName + "/LockToPreventUpdateAndDelete/" + testFileDelete3Name);
+            GVFSHelpers.ModifiedPathsShouldContain(this.Enlistment, this.fileSystem, TestParentFolderName + "/LockToPreventUpdateAndDelete/" + testFileUpdate1Name);
+            GVFSHelpers.ModifiedPathsShouldContain(this.Enlistment, this.fileSystem, TestParentFolderName + "/LockToPreventUpdateAndDelete/" + testFileUpdate2Name);
+            GVFSHelpers.ModifiedPathsShouldContain(this.Enlistment, this.fileSystem, TestParentFolderName + "/LockToPreventUpdateAndDelete/" + testFileUpdate3Name);
+            GVFSHelpers.ModifiedPathsShouldContain(this.Enlistment, this.fileSystem, TestParentFolderName + "/LockToPreventUpdateAndDelete/" + testFileDelete1Name);
+            GVFSHelpers.ModifiedPathsShouldContain(this.Enlistment, this.fileSystem, TestParentFolderName + "/LockToPreventUpdateAndDelete/" + testFileDelete2Name);
+            GVFSHelpers.ModifiedPathsShouldContain(this.Enlistment, this.fileSystem, TestParentFolderName + "/LockToPreventUpdateAndDelete/" + testFileDelete3Name);
 
             testFileUpdate1Path.ShouldBeAFile(this.fileSystem).WithContents(testFileUpdate1OldContents);
             testFileUpdate2Path.ShouldBeAFile(this.fileSystem).WithContents(testFileUpdate2OldContents);

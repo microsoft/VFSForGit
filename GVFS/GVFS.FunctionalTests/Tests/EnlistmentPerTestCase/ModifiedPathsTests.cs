@@ -47,8 +47,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerTestCase
             fileSystem.DeleteFile(tempFile);
             tempFile.ShouldNotExistOnDisk(fileSystem);
 
-            this.Enlistment.UnmountGVFS();
-            GVFSHelpers.ModifiedPathsShouldNotContain(fileSystem, this.Enlistment.DotGVFSRoot, "temp.txt");
+            GVFSHelpers.ModifiedPathsShouldNotContain(this.Enlistment, fileSystem, "temp.txt");
         }
 
         [TestCaseSource(typeof(FileSystemRunner), FileSystemRunner.TestRunners)]
@@ -58,8 +57,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerTestCase
             fileSystem.DeleteDirectory(tempFolder);
             tempFolder.ShouldNotExistOnDisk(fileSystem);
 
-            this.Enlistment.UnmountGVFS();
-            GVFSHelpers.ModifiedPathsShouldNotContain(fileSystem, this.Enlistment.DotGVFSRoot, "Temp/");
+            GVFSHelpers.ModifiedPathsShouldNotContain(this.Enlistment, fileSystem, "Temp/");
         }
 
         [TestCaseSource(typeof(FileSystemRunner), FileSystemRunner.TestRunners)]
@@ -73,8 +71,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerTestCase
             tempFile1.ShouldNotExistOnDisk(fileSystem);
             tempFile2.ShouldNotExistOnDisk(fileSystem);
 
-            this.Enlistment.UnmountGVFS();
-            GVFSHelpers.ModifiedPathsShouldNotContain(fileSystem, this.Enlistment.DotGVFSRoot, "Temp/", "Temp/temp1.txt", "Temp/temp2.txt");
+            GVFSHelpers.ModifiedPathsShouldNotContain(this.Enlistment, fileSystem, "Temp/", "Temp/temp1.txt", "Temp/temp2.txt");
         }
 
         [Category(Categories.MacTODO.NeedsRenameOldPath)]

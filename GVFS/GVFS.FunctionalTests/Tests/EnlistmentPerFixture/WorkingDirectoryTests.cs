@@ -401,7 +401,7 @@ BOOL APIENTRY DllMain( HMODULE hModule,
             GitProcess.InvokeProcess(this.Enlistment.RepoRoot, "checkout 54ea499de78eafb4dfd30b90e0bd4bcec26c4349");
 
             // Confirm that no other test has created GVFlt_MultiThreadTest or put it in the modified files
-            GVFSHelpers.ModifiedPathsShouldNotContain(this.fileSystem, this.Enlistment.DotGVFSRoot, folderName);
+            GVFSHelpers.ModifiedPathsShouldNotContain(this.Enlistment, this.fileSystem, folderName);
 
             string virtualFolderPath = this.Enlistment.GetVirtualPathTo(folderName);
             virtualFolderPath.ShouldNotExistOnDisk(this.fileSystem);
@@ -427,7 +427,7 @@ BOOL APIENTRY DllMain( HMODULE hModule,
             string folderName = "Test_EPF_MoveRenameFileTests";
             string folder = this.Enlistment.GetVirtualPathTo(folderName);
             folder.ShouldNotExistOnDisk(this.fileSystem);
-            GVFSHelpers.ModifiedPathsShouldNotContain(this.fileSystem, this.Enlistment.DotGVFSRoot, folderName);
+            GVFSHelpers.ModifiedPathsShouldNotContain(this.Enlistment, this.fileSystem, folderName);
 
             // Confirm modified paths picks up renamed folder
             string newFolder = this.Enlistment.GetVirtualPathTo("newFolder");
@@ -435,7 +435,7 @@ BOOL APIENTRY DllMain( HMODULE hModule,
             this.fileSystem.MoveDirectory(newFolder, folder);
 
             this.Enlistment.WaitForBackgroundOperations().ShouldEqual(true, "Background operations failed to complete.");
-            GVFSHelpers.ModifiedPathsShouldContain(this.fileSystem, this.Enlistment.DotGVFSRoot, folderName + "/");
+            GVFSHelpers.ModifiedPathsShouldContain(this.Enlistment, this.fileSystem, folderName + "/");
 
             // Switch back to this.ControlGitRepo.Commitish and confirm that folder contents are correct
             GitProcess.InvokeProcess(this.Enlistment.RepoRoot, "checkout " + Properties.Settings.Default.Commitish);

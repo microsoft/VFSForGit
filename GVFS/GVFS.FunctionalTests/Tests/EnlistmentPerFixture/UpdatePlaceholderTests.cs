@@ -79,7 +79,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
                 this.GitCheckoutToDiscardChanges(TestParentFolderName + "/LockToPreventUpdateAndDelete/" + testFileUpdate4Name);
                 this.GitStatusShouldBeClean(OldCommitId);
 
-                GVFSHelpers.ModifiedPathsShouldContain(this.fileSystem, this.Enlistment.DotGVFSRoot, TestParentFolderName + "/LockToPreventUpdateAndDelete/" + testFileUpdate4Name);
+                GVFSHelpers.ModifiedPathsShouldContain(this.Enlistment, this.fileSystem, TestParentFolderName + "/LockToPreventUpdateAndDelete/" + testFileUpdate4Name);
             }
 
             testFileUpdate4Path.ShouldBeAFile(this.fileSystem).WithContents(testFileUpdate4OldContents);
@@ -118,9 +118,9 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
             testFile2Path.ShouldNotExistOnDisk(this.fileSystem);
             testFile3Path.ShouldNotExistOnDisk(this.fileSystem);
 
-            GVFSHelpers.ModifiedPathsShouldNotContain(this.fileSystem, this.Enlistment.DotGVFSRoot, TestParentFolderName + "/FileProjectedAfterPlaceholderDeleteFileAndCheckout/" + testFile1Name);
-            GVFSHelpers.ModifiedPathsShouldNotContain(this.fileSystem, this.Enlistment.DotGVFSRoot, TestParentFolderName + "/FileProjectedAfterPlaceholderDeleteFileAndCheckout/" + testFile2Name);
-            GVFSHelpers.ModifiedPathsShouldNotContain(this.fileSystem, this.Enlistment.DotGVFSRoot, TestParentFolderName + "/FileProjectedAfterPlaceholderDeleteFileAndCheckout/" + testFile3Name);
+            GVFSHelpers.ModifiedPathsShouldNotContain(this.Enlistment, this.fileSystem, TestParentFolderName + "/FileProjectedAfterPlaceholderDeleteFileAndCheckout/" + testFile1Name);
+            GVFSHelpers.ModifiedPathsShouldNotContain(this.Enlistment, this.fileSystem, TestParentFolderName + "/FileProjectedAfterPlaceholderDeleteFileAndCheckout/" + testFile2Name);
+            GVFSHelpers.ModifiedPathsShouldNotContain(this.Enlistment, this.fileSystem, TestParentFolderName + "/FileProjectedAfterPlaceholderDeleteFileAndCheckout/" + testFile3Name);
 
             this.GitCheckoutCommitId(NewFilesAndChangesCommitId);
             this.GitStatusShouldBeClean(NewFilesAndChangesCommitId);

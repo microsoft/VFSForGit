@@ -25,17 +25,17 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
         public void CreateFileTest()
         {
             string fileName = "file1.txt";
-            GVFSHelpers.ModifiedPathsShouldNotContain(this.fileSystem, this.Enlistment.DotGVFSRoot, fileName);
+            GVFSHelpers.ModifiedPathsShouldNotContain(this.Enlistment, this.fileSystem, fileName);
             this.fileSystem.WriteAllText(this.Enlistment.GetVirtualPathTo(fileName), "Some content here");
             this.Enlistment.WaitForBackgroundOperations().ShouldEqual(true, "Background operations failed to complete.");
-            GVFSHelpers.ModifiedPathsShouldContain(this.fileSystem, this.Enlistment.DotGVFSRoot, fileName);
+            GVFSHelpers.ModifiedPathsShouldContain(this.Enlistment, this.fileSystem, fileName);
             this.Enlistment.GetVirtualPathTo(fileName).ShouldBeAFile(this.fileSystem).WithContents("Some content here");
 
             string emptyFileName = "file1empty.txt";
-            GVFSHelpers.ModifiedPathsShouldNotContain(this.fileSystem, this.Enlistment.DotGVFSRoot, emptyFileName);
+            GVFSHelpers.ModifiedPathsShouldNotContain(this.Enlistment, this.fileSystem, emptyFileName);
             this.fileSystem.CreateEmptyFile(this.Enlistment.GetVirtualPathTo(emptyFileName));
             this.Enlistment.WaitForBackgroundOperations().ShouldEqual(true, "Background operations failed to complete.");
-            GVFSHelpers.ModifiedPathsShouldContain(this.fileSystem, this.Enlistment.DotGVFSRoot, emptyFileName);
+            GVFSHelpers.ModifiedPathsShouldContain(this.Enlistment, this.fileSystem, emptyFileName);
             this.Enlistment.GetVirtualPathTo(emptyFileName).ShouldBeAFile(this.fileSystem);
         }
 
@@ -44,18 +44,18 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
         {
             string existingFileName = "fileToLinkTo.txt";
             string existingFilePath = this.Enlistment.GetVirtualPathTo(existingFileName);
-            GVFSHelpers.ModifiedPathsShouldNotContain(this.fileSystem, this.Enlistment.DotGVFSRoot, existingFileName);
+            GVFSHelpers.ModifiedPathsShouldNotContain(this.Enlistment, this.fileSystem, existingFileName);
             this.fileSystem.WriteAllText(existingFilePath, "Some content here");
             this.Enlistment.WaitForBackgroundOperations().ShouldEqual(true, "Background operations failed to complete.");
-            GVFSHelpers.ModifiedPathsShouldContain(this.fileSystem, this.Enlistment.DotGVFSRoot, existingFileName);
+            GVFSHelpers.ModifiedPathsShouldContain(this.Enlistment, this.fileSystem, existingFileName);
             existingFilePath.ShouldBeAFile(this.fileSystem).WithContents("Some content here");
 
             string newLinkFileName = "newHardLink.txt";
             string newLinkFilePath = this.Enlistment.GetVirtualPathTo(newLinkFileName);
-            GVFSHelpers.ModifiedPathsShouldNotContain(this.fileSystem, this.Enlistment.DotGVFSRoot, newLinkFileName);
+            GVFSHelpers.ModifiedPathsShouldNotContain(this.Enlistment, this.fileSystem, newLinkFileName);
             this.fileSystem.CreateHardLink(newLinkFilePath, existingFilePath);
             this.Enlistment.WaitForBackgroundOperations().ShouldEqual(true, "Background operations failed to complete.");
-            GVFSHelpers.ModifiedPathsShouldContain(this.fileSystem, this.Enlistment.DotGVFSRoot, newLinkFileName);
+            GVFSHelpers.ModifiedPathsShouldContain(this.Enlistment, this.fileSystem, newLinkFileName);
             newLinkFilePath.ShouldBeAFile(this.fileSystem).WithContents("Some content here");
         }
 
@@ -67,7 +67,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
             string filePath = Path.Combine(folderName, fileName);
 
             this.Enlistment.GetVirtualPathTo(filePath).ShouldNotExistOnDisk(this.fileSystem);
-            GVFSHelpers.ModifiedPathsShouldNotContain(this.fileSystem, this.Enlistment.DotGVFSRoot, filePath);
+            GVFSHelpers.ModifiedPathsShouldNotContain(this.Enlistment, this.fileSystem, filePath);
 
             this.fileSystem.CreateDirectory(this.Enlistment.GetVirtualPathTo(folderName));
             this.fileSystem.CreateEmptyFile(this.Enlistment.GetVirtualPathTo(filePath));
@@ -75,8 +75,8 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
 
             this.Enlistment.WaitForBackgroundOperations().ShouldEqual(true, "Background operations failed to complete.");
 
-            GVFSHelpers.ModifiedPathsShouldContain(this.fileSystem, this.Enlistment.DotGVFSRoot, folderName + "/");
-            GVFSHelpers.ModifiedPathsShouldNotContain(this.fileSystem, this.Enlistment.DotGVFSRoot, folderName + "/" + fileName);
+            GVFSHelpers.ModifiedPathsShouldContain(this.Enlistment, this.fileSystem, folderName + "/");
+            GVFSHelpers.ModifiedPathsShouldNotContain(this.Enlistment, this.fileSystem, folderName + "/" + fileName);
         }
 
         [TestCase, Order(4)]
@@ -96,8 +96,8 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
 
             this.Enlistment.WaitForBackgroundOperations().ShouldEqual(true, "Background operations failed to complete.");
 
-            GVFSHelpers.ModifiedPathsShouldContain(this.fileSystem, this.Enlistment.DotGVFSRoot, expectedModifiedEntries);
-            GVFSHelpers.ModifiedPathsShouldNotContain(this.fileSystem, this.Enlistment.DotGVFSRoot, folderName + "/");
+            GVFSHelpers.ModifiedPathsShouldContain(this.Enlistment, this.fileSystem, expectedModifiedEntries);
+            GVFSHelpers.ModifiedPathsShouldNotContain(this.Enlistment, this.fileSystem, folderName + "/");
         }
 
         [TestCase, Order(5)]
@@ -136,8 +136,8 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
 
             this.Enlistment.WaitForBackgroundOperations().ShouldEqual(true, "Background operations failed to complete.");
 
-            GVFSHelpers.ModifiedPathsShouldContain(this.fileSystem, this.Enlistment.DotGVFSRoot, expectedModifiedEntries);
-            GVFSHelpers.ModifiedPathsShouldNotContain(this.fileSystem, this.Enlistment.DotGVFSRoot, unexpectedModifiedEntries);
+            GVFSHelpers.ModifiedPathsShouldContain(this.Enlistment, this.fileSystem, expectedModifiedEntries);
+            GVFSHelpers.ModifiedPathsShouldNotContain(this.Enlistment, this.fileSystem, unexpectedModifiedEntries);
         }
 
         [TestCase, Order(6)]
@@ -153,14 +153,14 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
             this.fileSystem.CreateEmptyFile(Path.Combine(this.Enlistment.RepoRoot, "Folder", "testfile"));
             this.Enlistment.WaitForBackgroundOperations().ShouldEqual(true, "Background operations failed to complete.");
 
-            GVFSHelpers.ModifiedPathsShouldContain(this.fileSystem, this.Enlistment.DotGVFSRoot, "Folder/");
-            GVFSHelpers.ModifiedPathsShouldNotContain(this.fileSystem, this.Enlistment.DotGVFSRoot, "Folder/testfile");
+            GVFSHelpers.ModifiedPathsShouldContain(this.Enlistment, this.fileSystem, "Folder/");
+            GVFSHelpers.ModifiedPathsShouldNotContain(this.Enlistment, this.fileSystem, "Folder/testfile");
 
             this.fileSystem.RenameDirectory(this.Enlistment.RepoRoot, "Folder", "folder");
             this.Enlistment.WaitForBackgroundOperations().ShouldEqual(true, "Background operations failed to complete.");
 
-            GVFSHelpers.ModifiedPathsShouldContain(this.fileSystem, this.Enlistment.DotGVFSRoot, "folder/");
-            GVFSHelpers.ModifiedPathsShouldNotContain(this.fileSystem, this.Enlistment.DotGVFSRoot, "folder/testfile");
+            GVFSHelpers.ModifiedPathsShouldContain(this.Enlistment, this.fileSystem, "folder/");
+            GVFSHelpers.ModifiedPathsShouldNotContain(this.Enlistment, this.fileSystem, "folder/testfile");
         }
 
         [TestCase, Order(7)]
@@ -187,7 +187,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
             afterUpdateResult.Output.StartsWith("S ").ShouldEqual(true);
             afterUpdateResult.Output.ShouldContain("ctime: 0:0", "mtime: 0:0", "size: 0\t");
 
-            GVFSHelpers.ModifiedPathsShouldNotContain(this.fileSystem, this.Enlistment.DotGVFSRoot, gitFileToCheck);
+            GVFSHelpers.ModifiedPathsShouldNotContain(this.Enlistment, this.fileSystem, gitFileToCheck);
         }
 
         [TestCase, Order(8)]
@@ -206,7 +206,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
 
             this.Enlistment.WaitForBackgroundOperations().ShouldEqual(true, "Background operations did not complete.");
 
-            GVFSHelpers.ModifiedPathsShouldContain(this.fileSystem, this.Enlistment.DotGVFSRoot, gitFileToTest);
+            GVFSHelpers.ModifiedPathsShouldContain(this.Enlistment, this.fileSystem, gitFileToTest);
             this.VerifyWorktreeBit(gitFileToTest, LsFilesStatus.Cached);
         }
 
@@ -222,8 +222,8 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
                 this.Enlistment.GetVirtualPathTo(fileToRenameTargetEntry));
             this.Enlistment.WaitForBackgroundOperations().ShouldEqual(true, "Background operations failed to complete.");
 
-            GVFSHelpers.ModifiedPathsShouldContain(this.fileSystem, this.Enlistment.DotGVFSRoot, fileToRenameEntry);
-            GVFSHelpers.ModifiedPathsShouldContain(this.fileSystem, this.Enlistment.DotGVFSRoot, fileToRenameTargetEntry);
+            GVFSHelpers.ModifiedPathsShouldContain(this.Enlistment, this.fileSystem, fileToRenameEntry);
+            GVFSHelpers.ModifiedPathsShouldContain(this.Enlistment, this.fileSystem, fileToRenameTargetEntry);
 
             // Verify skip-worktree cleared
             this.VerifyWorktreeBit(fileToRenameEntry, LsFilesStatus.Cached);
@@ -242,8 +242,8 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
                 this.Enlistment.GetVirtualPathTo(fileToRenameTargetEntry));
             this.Enlistment.WaitForBackgroundOperations().ShouldEqual(true, "Background operations failed to complete.");
 
-            GVFSHelpers.ModifiedPathsShouldContain(this.fileSystem, this.Enlistment.DotGVFSRoot, fileToRenameEntry);
-            GVFSHelpers.ModifiedPathsShouldContain(this.fileSystem, this.Enlistment.DotGVFSRoot, fileToRenameTargetEntry);
+            GVFSHelpers.ModifiedPathsShouldContain(this.Enlistment, this.fileSystem, fileToRenameEntry);
+            GVFSHelpers.ModifiedPathsShouldContain(this.Enlistment, this.fileSystem, fileToRenameTargetEntry);
 
             // Verify skip-worktree cleared
             this.VerifyWorktreeBit(fileToRenameEntry, LsFilesStatus.Cached);
@@ -259,7 +259,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
             this.fileSystem.DeleteFile(this.Enlistment.GetVirtualPathTo(fileToDeleteEntry));
             this.Enlistment.WaitForBackgroundOperations().ShouldEqual(true, "Background operations failed to complete.");
 
-            GVFSHelpers.ModifiedPathsShouldContain(this.fileSystem, this.Enlistment.DotGVFSRoot, fileToDeleteEntry);
+            GVFSHelpers.ModifiedPathsShouldContain(this.Enlistment, this.fileSystem, fileToDeleteEntry);
 
             // Verify skip-worktree cleared
             this.VerifyWorktreeBit(fileToDeleteEntry, LsFilesStatus.Cached);
@@ -287,8 +287,8 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
             this.fileSystem.DeleteDirectory(this.Enlistment.GetVirtualPathTo(folderToDelete));
             this.Enlistment.WaitForBackgroundOperations().ShouldEqual(true, "Background operations failed to complete.");
 
-            GVFSHelpers.ModifiedPathsShouldContain(this.fileSystem, this.Enlistment.DotGVFSRoot, folderToDelete + "/");
-            GVFSHelpers.ModifiedPathsShouldContain(this.fileSystem, this.Enlistment.DotGVFSRoot, filesToDelete);
+            GVFSHelpers.ModifiedPathsShouldContain(this.Enlistment, this.fileSystem, folderToDelete + "/");
+            GVFSHelpers.ModifiedPathsShouldContain(this.Enlistment, this.fileSystem, filesToDelete);
 
             // Verify skip-worktree cleared
             foreach (string file in filesToDelete)
@@ -310,7 +310,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
 
             this.Enlistment.WaitForBackgroundOperations().ShouldEqual(true, "Background operations failed to complete.");
 
-            GVFSHelpers.ModifiedPathsShouldContain(this.fileSystem, this.Enlistment.DotGVFSRoot, fileToRenameEntry);
+            GVFSHelpers.ModifiedPathsShouldContain(this.Enlistment, this.fileSystem, fileToRenameEntry);
 
             // Verify skip-worktree cleared
             this.VerifyWorktreeBit(fileToRenameEntry, LsFilesStatus.Cached);
@@ -330,7 +330,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
 
             fileToOverwriteVirtualPath.ShouldBeAFile(this.fileSystem).WithContents(testContents);
 
-            GVFSHelpers.ModifiedPathsShouldContain(this.fileSystem, this.Enlistment.DotGVFSRoot, fileToOverwriteEntry);
+            GVFSHelpers.ModifiedPathsShouldContain(this.Enlistment, this.fileSystem, fileToOverwriteEntry);
 
             // Verify skip-worktree cleared
             this.VerifyWorktreeBit(fileToOverwriteEntry, LsFilesStatus.Cached);
@@ -350,7 +350,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
             SupersedeFile(fileToSupersedePath, newContent).ShouldEqual(true);
             this.Enlistment.WaitForBackgroundOperations().ShouldEqual(true, "Background operations failed to complete.");
 
-            GVFSHelpers.ModifiedPathsShouldContain(this.fileSystem, this.Enlistment.DotGVFSRoot, fileToSupersedeEntry);
+            GVFSHelpers.ModifiedPathsShouldContain(this.Enlistment, this.fileSystem, fileToSupersedeEntry);
 
             // Verify skip-worktree cleared
             this.VerifyWorktreeBit(fileToSupersedeEntry, LsFilesStatus.Cached);

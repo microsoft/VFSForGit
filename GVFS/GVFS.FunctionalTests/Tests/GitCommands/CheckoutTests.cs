@@ -186,11 +186,11 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
             this.FileContentsShouldMatch("Test_ConflictTests", "ModifiedFiles", fileName);
 
             // A read should not add the file to the modified paths
-            GVFSHelpers.ModifiedPathsShouldNotContain(this.FileSystem, this.Enlistment.DotGVFSRoot, fileName);
+            GVFSHelpers.ModifiedPathsShouldNotContain(this.Enlistment, this.FileSystem, fileName);
 
             this.ValidateGitCommand("checkout FunctionalTests/20170206_Conflict_Source");
             this.FileContentsShouldMatch("Test_ConflictTests", "ModifiedFiles", fileName);
-            GVFSHelpers.ModifiedPathsShouldNotContain(this.FileSystem, this.Enlistment.DotGVFSRoot, fileName);
+            GVFSHelpers.ModifiedPathsShouldNotContain(this.Enlistment, this.FileSystem, fileName);
         }
 
         [TestCase]
@@ -206,11 +206,11 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
             this.FileContentsShouldMatch(filePath);
 
             // A read should not add the file to the modified paths
-            GVFSHelpers.ModifiedPathsShouldNotContain(this.FileSystem, this.Enlistment.DotGVFSRoot, fileName);
+            GVFSHelpers.ModifiedPathsShouldNotContain(this.Enlistment, this.FileSystem, fileName);
 
             this.ValidateGitCommand("checkout FunctionalTests/20170206_Conflict_Source");
             this.ShouldNotExistOnDisk(filePath);
-            GVFSHelpers.ModifiedPathsShouldNotContain(this.FileSystem, this.Enlistment.DotGVFSRoot, fileName);
+            GVFSHelpers.ModifiedPathsShouldNotContain(this.Enlistment, this.FileSystem, fileName);
         }
 
         [TestCase]
@@ -226,7 +226,7 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
             this.FilesShouldMatchCheckoutOfSourceBranch();
 
             // Verify modified paths contents
-            GVFSHelpers.ModifiedPathsContentsShouldEqual(this.FileSystem, this.Enlistment.DotGVFSRoot, "A .gitattributes" + GVFSHelpers.ModifiedPathsNewLine);
+            GVFSHelpers.ModifiedPathsContentsShouldEqual(this.Enlistment, this.FileSystem, "A .gitattributes" + GVFSHelpers.ModifiedPathsNewLine);
         }
 
         [TestCase]
@@ -244,7 +244,7 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
                 .WithDeepStructure(this.FileSystem, this.ControlGitRepo.RootPath, compareContent: true);
 
             // Verify modified paths contents
-            GVFSHelpers.ModifiedPathsContentsShouldEqual(this.FileSystem, this.Enlistment.DotGVFSRoot, "A .gitattributes" + GVFSHelpers.ModifiedPathsNewLine);
+            GVFSHelpers.ModifiedPathsContentsShouldEqual(this.Enlistment, this.FileSystem, "A .gitattributes" + GVFSHelpers.ModifiedPathsNewLine);
         }
 
         [TestCase]
@@ -329,7 +329,7 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
             this.FileContentsShouldMatch(editFilePath);
             this.Enlistment.GetVirtualPathTo(readFilePath).ShouldBeAFile(this.FileSystem).WithContents().ShouldNotEqual(originalReadFileContents);
 
-            GVFSHelpers.ModifiedPathsShouldNotContain(this.FileSystem, this.Enlistment.DotGVFSRoot, Path.GetFileName(readFilePath));
+            GVFSHelpers.ModifiedPathsShouldNotContain(this.Enlistment, this.FileSystem, Path.GetFileName(readFilePath));
         }
 
         [TestCase]
@@ -717,7 +717,7 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
             string folderName = "GVFlt_MultiThreadTest";
 
             // Confirm that no other test has caused "GVFlt_MultiThreadTest" to be added to the modified paths database
-            GVFSHelpers.ModifiedPathsShouldNotContain(this.FileSystem, this.Enlistment.DotGVFSRoot, folderName);
+            GVFSHelpers.ModifiedPathsShouldNotContain(this.Enlistment, this.FileSystem, folderName);
 
             this.FolderShouldHaveCaseMatchingName(folderName, "GVFlt_MultiThreadTest");
             this.DeleteFolder(folderName);

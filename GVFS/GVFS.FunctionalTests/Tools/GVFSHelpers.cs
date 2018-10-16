@@ -102,16 +102,18 @@ namespace GVFS.FunctionalTests.Tools
             }
         }
 
-        public static void ModifiedPathsContentsShouldEqual(FileSystemRunner fileSystem, string dotGVFSRoot, string contents)
+        public static void ModifiedPathsContentsShouldEqual(GVFSFunctionalTestEnlistment enlistment, FileSystemRunner fileSystem, string contents)
         {
-            string modifiedPathsDatabase = Path.Combine(dotGVFSRoot, TestConstants.Databases.ModifiedPaths);
+            enlistment.WaitForBackgroundOperations().ShouldBeTrue("Background operations failed to complete.");
+            string modifiedPathsDatabase = Path.Combine(enlistment.DotGVFSRoot, TestConstants.Databases.ModifiedPaths);
             modifiedPathsDatabase.ShouldBeAFile(fileSystem);
             GVFSHelpers.ReadAllTextFromWriteLockedFile(modifiedPathsDatabase).ShouldEqual(contents);
         }
 
-        public static void ModifiedPathsShouldContain(FileSystemRunner fileSystem, string dotGVFSRoot, params string[] gitPaths)
+        public static void ModifiedPathsShouldContain(GVFSFunctionalTestEnlistment enlistment, FileSystemRunner fileSystem, params string[] gitPaths)
         {
-            string modifiedPathsDatabase = Path.Combine(dotGVFSRoot, TestConstants.Databases.ModifiedPaths);
+            enlistment.WaitForBackgroundOperations().ShouldBeTrue("Background operations failed to complete.");
+            string modifiedPathsDatabase = Path.Combine(enlistment.DotGVFSRoot, TestConstants.Databases.ModifiedPaths);
             modifiedPathsDatabase.ShouldBeAFile(fileSystem);
             string modifedPathsContents = GVFSHelpers.ReadAllTextFromWriteLockedFile(modifiedPathsDatabase);
             string[] modifedPathLines = modifedPathsContents.Split(new[] { ModifiedPathsNewLine }, StringSplitOptions.None);
@@ -121,9 +123,10 @@ namespace GVFS.FunctionalTests.Tools
             }
         }
 
-        public static void ModifiedPathsShouldNotContain(FileSystemRunner fileSystem, string dotGVFSRoot, params string[] gitPaths)
+        public static void ModifiedPathsShouldNotContain(GVFSFunctionalTestEnlistment enlistment, FileSystemRunner fileSystem, params string[] gitPaths)
         {
-            string modifiedPathsDatabase = Path.Combine(dotGVFSRoot, TestConstants.Databases.ModifiedPaths);
+            enlistment.WaitForBackgroundOperations().ShouldBeTrue("Background operations failed to complete.");
+            string modifiedPathsDatabase = Path.Combine(enlistment.DotGVFSRoot, TestConstants.Databases.ModifiedPaths);
             modifiedPathsDatabase.ShouldBeAFile(fileSystem);
             string modifedPathsContents = GVFSHelpers.ReadAllTextFromWriteLockedFile(modifiedPathsDatabase);
             string[] modifedPathLines = modifedPathsContents.Split(new[] { ModifiedPathsNewLine }, StringSplitOptions.None);
