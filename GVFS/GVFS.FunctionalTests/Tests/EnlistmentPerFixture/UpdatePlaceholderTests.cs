@@ -140,12 +140,12 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
             
             this.fileSystem.CreateEmptyFile(testFile);
 
-            this.Enlistment.WaitForBackgroundOperations().ShouldEqual(true, "Background operations failed to complete.");
+            this.Enlistment.WaitForBackgroundOperations();
             GVFSHelpers.ReadAllTextFromWriteLockedFile(placeholderDatabase).ShouldEqual(placeholdersBefore);
 
             this.fileSystem.DeleteFile(testFile);
 
-            this.Enlistment.WaitForBackgroundOperations().ShouldEqual(true, "Background operations failed to complete.");
+            this.Enlistment.WaitForBackgroundOperations();
             GVFSHelpers.ReadAllTextFromWriteLockedFile(placeholderDatabase).ShouldEqual(placeholdersBefore);
         }
 

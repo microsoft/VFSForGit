@@ -162,7 +162,7 @@ namespace GVFS.FunctionalTests.Windows.Tests
             ProcessResult statusWait = GitHelpers.InvokeGitAgainstGVFSRepo(gitWorkingDirectory, "status", cleanErrors: false);
             statusWait.Errors.ShouldContain(ExpectedStatusWaitingText);
             resetEvent.Set();
-            this.Enlistment.WaitForBackgroundOperations().ShouldEqual(true, "Background operations did not complete.");
+            this.Enlistment.WaitForBackgroundOperations();
         }
 
         private void CreateSubstDrive(string path)
