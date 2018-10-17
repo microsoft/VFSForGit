@@ -23,6 +23,7 @@
         ENotAVirtualizationRoot             = 0x20000080,
         EVirtualizationRootAlreadyExists    = 0x20000100,
         EDirectoryNotEmpty                  = 0x20000200,
+        EVirtualizationInvalidOperation     = 0x20000400,
 
         ENotYetImplemented                  = 0xFFFFFFFF,
     }

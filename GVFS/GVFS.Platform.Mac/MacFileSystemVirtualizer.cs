@@ -56,6 +56,9 @@ namespace GVFS.Platform.Mac
                 case Result.EDirectoryNotEmpty:
                     return FSResult.DirectoryNotEmpty;
 
+                case Result.EVirtualizationInvalidOperation:
+                    return FSResult.VirtualizationInvalidOperation;
+
                 default:
                     return FSResult.IOError;
             }

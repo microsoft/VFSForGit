@@ -4,7 +4,6 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
 {
     [TestFixture]
     [Category(Categories.GitCommands)]
-    [Category(Categories.MacTODO.M3)]
     public class RebaseConflictTests : GitRepoTests
     {
         public RebaseConflictTests() : base(enlistmentPerTest: true)
@@ -12,6 +11,7 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
         }
 
         [TestCase]
+        [Category(Categories.MacTODO.M3)]
         public void RebaseConflict()
         {
             this.ValidateGitCommand("checkout " + GitRepoTests.ConflictTargetBranch);
@@ -30,6 +30,7 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
         }
 
         [TestCase]
+        [Category(Categories.MacTODO.M3)]
         public void RebaseConflict_ThenAbort()
         {
             this.ValidateGitCommand("checkout " + GitRepoTests.ConflictTargetBranch);
@@ -39,6 +40,7 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
         }
 
         [TestCase]
+        [Category(Categories.MacTODO.M3)]
         public void RebaseConflict_ThenSkip()
         {
             this.ValidateGitCommand("checkout " + GitRepoTests.ConflictTargetBranch);
@@ -48,6 +50,7 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
         }
 
         [TestCase]
+        [Category(Categories.MacTODO.M3)]
         public void RebaseConflict_RemoveDeletedTheirsFile()
         {
             this.ValidateGitCommand("checkout " + GitRepoTests.ConflictTargetBranch);
@@ -56,6 +59,7 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
         }
 
         [TestCase]
+        [Category(Categories.MacTODO.M3)]
         public void RebaseConflict_AddThenContinue()
         {
             this.ValidateGitCommand("checkout " + GitRepoTests.ConflictTargetBranch);

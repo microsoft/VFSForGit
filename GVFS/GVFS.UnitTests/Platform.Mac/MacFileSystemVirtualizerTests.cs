@@ -28,6 +28,7 @@ namespace GVFS.UnitTests.Platform.Mac
             { Result.EFileNotFound, FSResult.FileOrPathNotFound },
             { Result.EPathNotFound, FSResult.FileOrPathNotFound },
             { Result.EDirectoryNotEmpty, FSResult.DirectoryNotEmpty },
+            { Result.EVirtualizationInvalidOperation, FSResult.VirtualizationInvalidOperation },
         };
 
         [TestCase]

@@ -495,7 +495,6 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
         }
 
         [TestCase]
-        [Category(Categories.MacTODO.M3)]
         public void CheckoutBranchWithOpenHandleBlockingProjectionDeleteAndRepoMetdataUpdate()
         {
             this.ControlGitRepo.Fetch(GitRepoTests.ConflictSourceBranch);
@@ -561,7 +560,6 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
         }
 
         [TestCase]
-        [Category(Categories.MacTODO.M3)]
         public void CheckoutBranchWhileOutsideToolDoesNotAllowDeleteOfOpenRepoMetadata()
         {
             this.ControlGitRepo.Fetch(GitRepoTests.ConflictSourceBranch);
@@ -610,8 +608,9 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
             }
         }
 
+        // WindowsOnly because the test depends on Windows specific file sharing behavior
         [TestCase]
-        [Category(Categories.MacTODO.M3)]
+        [Category(Categories.WindowsOnly)]
         public void CheckoutBranchWhileOutsideToolHasExclusiveReadHandleOnDatabasesFolder()
         {
             this.ControlGitRepo.Fetch(GitRepoTests.ConflictSourceBranch);

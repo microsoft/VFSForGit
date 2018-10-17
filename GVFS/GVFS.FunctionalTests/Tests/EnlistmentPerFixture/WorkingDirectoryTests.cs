@@ -496,7 +496,7 @@ BOOL APIENTRY DllMain( HMODULE hModule,
 
         // TODO(Mac): Figure out why git for Mac is not requesting a redownload of the truncated object
         [TestCase, Order(17)]
-        [Category(Categories.MacTODO.M3)]
+        [Category(Categories.MacTODO.M4)]
         public void TruncatedObjectRedownloaded()
         {
             GitProcess.InvokeProcess(this.Enlistment.RepoRoot, "checkout " + this.Enlistment.Commitish);
