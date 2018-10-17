@@ -26,10 +26,7 @@ namespace GVFS.Common
         {
             Dictionary<string, string> configCopy = null;
             if (!this.TryPerformAction(
-                () =>
-                {
-                    configCopy = this.allSettings.GetAllKeysAndValues();
-                },
+                () => configCopy = this.allSettings.GetAllKeysAndValues(),
                 out error))
             {
                 allConfig = null;
@@ -48,10 +45,7 @@ namespace GVFS.Common
         {
             string valueFromDict = null;
             if (!this.TryPerformAction(
-                () =>
-                {
-                    this.allSettings.TryGetValue(name, out valueFromDict);
-                },
+                () => this.allSettings.TryGetValue(name, out valueFromDict),
                 out error))
             {
                 value = null;
@@ -69,10 +63,7 @@ namespace GVFS.Common
             out string error)
         {
             if (!this.TryPerformAction(
-                () => 
-                {
-                    this.allSettings.SetValueAndFlush(name, value);
-                }, 
+                () => this.allSettings.SetValueAndFlush(name, value), 
                 out error))
             {
                 error = $"Error writing config {name}={value}. {error}";
@@ -85,10 +76,7 @@ namespace GVFS.Common
         public bool TryRemoveConfig(string name, out string error)
         {
             if (!this.TryPerformAction(
-                () =>
-                {
-                    this.allSettings.RemoveAndFlush(name);
-                },
+                () => this.allSettings.RemoveAndFlush(name),
                 out error))
             {
                 error = $"Error deleting config {name}. {error}";

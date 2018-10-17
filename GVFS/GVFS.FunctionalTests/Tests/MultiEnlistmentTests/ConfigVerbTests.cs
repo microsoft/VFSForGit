@@ -2,6 +2,7 @@
 using GVFS.Tests.Should;
 using NUnit.Framework;
 using System;
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 
@@ -9,108 +10,96 @@ namespace GVFS.FunctionalTests.Tests.MultiEnlistmentTests
 {
     [TestFixture]
     [NonParallelizable]
+    [Category(Categories.FullSuiteOnly)]
     [Category(Categories.MacTODO.M4)]
     public class ConfigVerbTests : TestsWithMultiEnlistment
     {
-        [OneTimeSetUp]
-        public void DeleteAllSettings()
-        {
-            string configFilePath = Path.Combine(
-                Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData),
-                "GVFS",
-                "gvfs.config");
+        private const string IntegerSettingKey = "functionalTest_Integer";
+        private const string FloatSettingKey = "functionalTest_Float";
+        private const string RegularStringSettingKey = "functionalTest_RegularString";
+        private const string SpacedStringSettingKey = "functionalTest_SpacedString";
 
-            if (File.Exists(configFilePath))
-            {
-                File.Delete(configFilePath);
-            }
-        }
+        private readonly Dictionary<string, string> initialSettings = new Dictionary<string, string>()
+        {
+            { IntegerSettingKey, "213" },
+            { FloatSettingKey, "213.15" },
+            { RegularStringSettingKey, "foobar" },
+            { SpacedStringSettingKey, "quick brown fox" }
+        };
+
+        private readonly Dictionary<string, string> updateSettings = new Dictionary<string, string>()
+        {
+            { IntegerSettingKey, "32123" },
+            { FloatSettingKey, "3.14159" },
+            { RegularStringSettingKey, "helloWorld!" },
+            { SpacedStringSettingKey, "jumped over lazy dog" }
+        };
 
         [TestCase, Order(1)]
-        public void CreateValues()
+        public void CreateSettings()
         {
-            this.RunConfigCommandAndCheckOutput("integerString 213", null);
-            this.RunConfigCommandAndCheckOutput("integerString", new[] { "213" });
-
-            this.RunConfigCommandAndCheckOutput("floatString 213.15", null);
-            this.RunConfigCommandAndCheckOutput("floatString", new[] { "213.15" });
-
-            this.RunConfigCommandAndCheckOutput("regularString foobar", null);
-            this.RunConfigCommandAndCheckOutput("regularString", new[] { "foobar" });
-
-            this.RunConfigCommandAndCheckOutput("spacesString \"quick brown fox\"", null);
-            this.RunConfigCommandAndCheckOutput("spacesString", new[] { "quick brown fox" });
+            this.ApplySettings(this.initialSettings);
+            this.ConfigShouldContainSettings(this.initialSettings);
         }
 
         [TestCase, Order(2)]
-        public void UpdateValues()
+        public void UpdateSettings()
         {
-            this.RunConfigCommandAndCheckOutput("integerString 314", null);
-            this.RunConfigCommandAndCheckOutput("integerString", new[] { "314" });
-
-            this.RunConfigCommandAndCheckOutput("floatString 3.14159", null);
-            this.RunConfigCommandAndCheckOutput("floatString", new[] { "3.14159" });
-
-            this.RunConfigCommandAndCheckOutput("regularString helloWorld!", null);
-            this.RunConfigCommandAndCheckOutput("regularString", new[] { "helloWorld!" });
-
-            this.RunConfigCommandAndCheckOutput("spacesString \"jumped over lazy dog\"", null);
-            this.RunConfigCommandAndCheckOutput("spacesString", new[] { "jumped over lazy dog" });
+            this.ApplySettings(this.updateSettings);
+            this.ConfigShouldContainSettings(this.updateSettings);
         }
 
         [TestCase, Order(3)]
-        public void ListValues()
+        public void ListSettings()
         {
-            string[] expectedSettings = new[]
-            {
-                "integerString=314",
-                "floatString=3.1415",
-                "regularString=helloWorld!",
-                "spacesString=jumped over lazy dog"
-            };
-            this.RunConfigCommandAndCheckOutput("--list", expectedSettings);
+            this.ConfigShouldContainSettings(this.updateSettings);
         }
 
         [TestCase, Order(4)]
-        public void DeleteValues()
+        public void DeleteSettings()
         {
-            string[] settingsToDelete = new[]
+            List<string> deletedLines = new List<string>();
+            foreach (KeyValuePair<string, string> setting in this.updateSettings)
             {
-                "integerString",
-                "floatString",
-                "regularString",
-                "spacesString"
-            };
-            foreach (string keyValue in settingsToDelete)
-            {
-                this.RunConfigCommandAndCheckOutput($"--delete {keyValue}", null);
+                this.RunConfigCommand($"--delete {setting.Key}");
+                deletedLines.Add(this.GetSettingLineInConfigFileFormat(setting));
             }
 
-            this.RunConfigCommandAndCheckOutput($"--list", new[] { string.Empty });
+            string allSettings = this.RunConfigCommand("--list");
+            allSettings.ShouldNotContain(ignoreCase: true, unexpectedSubstrings: deletedLines.ToArray());
         }
 
-        [TestCase, Order(5)]
-        public void ValidateMutuallyExclusiveOptions()
+        private void ConfigShouldContainSettings(Dictionary<string, string> expectedSettings)
         {
-            ProcessResult result = ProcessHelper.Run(GVFSTestConfig.PathToGVFS, "config --list --delete foo");
-            result.Errors.ShouldContain(new[] { "ERROR", "list", "delete", "is not compatible with" });
-        }
-
-        private void RunConfigCommandAndCheckOutput(string argument, string[] expectedOutput)
-        {
-            GVFSProcess gvfsProcess = new GVFSProcess(
-                GVFSTestConfig.PathToGVFS,
-                enlistmentRoot: null,
-                localCacheRoot: null);
-
-            string result = gvfsProcess.RunConfigVerb(argument);
-            if (expectedOutput != null)
+            List<string> expectedLines = new List<string>();
+            foreach (KeyValuePair<string, string> setting in expectedSettings)
             {
-                foreach (string output in expectedOutput)
-                {
-                    result.ShouldContain(expectedOutput);
-                }
+                expectedLines.Add(this.GetSettingLineInConfigFileFormat(setting));
             }
+
+            string allSettings = this.RunConfigCommand("--list");
+            allSettings.ShouldContain(expectedLines.ToArray());
+        }
+
+        private string GetSettingLineInConfigFileFormat(KeyValuePair<string, string> setting)
+        {
+            return $"{setting.Key}={setting.Value}";
+        }
+
+        private void ApplySettings(Dictionary<string, string> settings)
+        {
+            foreach (KeyValuePair<string, string> setting in settings)
+            {
+                this.RunConfigCommand($"{ setting.Key } \"{ setting.Value }\"");
+            }
+        }
+
+        private string RunConfigCommand(string argument)
+        {
+            ProcessResult result = ProcessHelper.Run(GVFSTestConfig.PathToGVFS, $"config { argument }");
+            result.ExitCode.ShouldEqual(0, result.Errors);
+
+            return result.Output;
         }
     }
 }

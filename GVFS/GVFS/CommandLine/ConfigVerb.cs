@@ -14,7 +14,6 @@ namespace GVFS.CommandLine
         [Option(
             'l',
             "list",
-            SetName = "needNoKeys",
             Required = false,
             HelpText = "Show all settings")]
         public bool List { get; set; }
@@ -22,7 +21,6 @@ namespace GVFS.CommandLine
         [Option(
             'd',
             "delete",
-            SetName = "needsKey",
             Required = false,
             HelpText = "Delete specified setting")]
         public string KeyToDelete { get; set; }
@@ -31,7 +29,7 @@ namespace GVFS.CommandLine
             0,
             Required = false,
             MetaName = "Setting name",
-            HelpText = "Name of setting that is to be set, read or deleted")]
+            HelpText = "Name of setting that is to be set or read")]
         public string Key { get; set; }
 
         [Value(
@@ -54,11 +52,14 @@ namespace GVFS.CommandLine
             }
 
             this.localConfig = new LocalGVFSConfig();
-            bool keySpecified = !string.IsNullOrEmpty(this.Key);
-            bool isDelete = !string.IsNullOrEmpty(this.KeyToDelete);
             string error = null;
 
-            if (this.List || (!keySpecified && !isDelete))
+            if (this.IsMutuallyExclusiveOptionsSet(out error))
+            {
+                this.ReportErrorAndExit(error);
+            }
+
+            if (this.List)
             {
                 Dictionary<string, string> allSettings;
                 if (!this.localConfig.TryGetAllConfig(out allSettings, out error))
@@ -75,7 +76,7 @@ namespace GVFS.CommandLine
                 return;
             }
 
-            if (isDelete)
+            if (!string.IsNullOrEmpty(this.KeyToDelete))
             {
                 if (!this.localConfig.TryRemoveConfig(this.KeyToDelete, out error))
                 {
@@ -84,8 +85,8 @@ namespace GVFS.CommandLine
 
                 return;
             }
-                        
-            if (keySpecified)
+
+            if (!string.IsNullOrEmpty(this.Key))
             {
                 bool valueSpecified = !string.IsNullOrEmpty(this.Value);
                 if (valueSpecified)
@@ -112,6 +113,34 @@ namespace GVFS.CommandLine
                     return;
                 }
             }
+        }
+
+        private bool IsMutuallyExclusiveOptionsSet(out string consoleMessage)
+        {
+            bool deleteSpecified = !string.IsNullOrEmpty(this.KeyToDelete);
+            bool setOrReadSpecified = !string.IsNullOrEmpty(this.Key);
+            bool listSpecified = this.List;
+
+            if (deleteSpecified && listSpecified)
+            {
+                consoleMessage = "You cannot delete and list settings at the same time.";
+                return true;
+            }
+
+            if (setOrReadSpecified && listSpecified)
+            {
+                consoleMessage = "You cannot list all and view (or update) individual settings at the same time.";
+                return true;
+            }
+
+            if (setOrReadSpecified && deleteSpecified)
+            {
+                consoleMessage = "You cannot delete a setting and view (or update) individual settings at the same time.";
+                return true;
+            }
+
+            consoleMessage = null;
+            return false;
         }
     }
 }
