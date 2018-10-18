@@ -1,4 +1,5 @@
 @ECHO OFF
+CALL %~dp0\EnsureVfsDevShell.bat || EXIT /b 10
 
 taskkill /f /im GVFS.Mount.exe 2>&1
 verify >nul
@@ -17,18 +18,18 @@ IF EXIST C:\Repos\GVFSPerfTest (
     ECHO no perf test enlistment found
 )
 
-IF EXIST %~dp0\..\..\BuildOutput (
+IF EXIST %VFS_OUTPUTDIR% (
     ECHO deleting build outputs
-    rmdir /s /q %~dp0\..\..\BuildOutput
+    rmdir /s /q %VFS_OUTPUTDIR%
 ) ELSE (
     ECHO no build outputs found
 )
 
-IF EXIST %~dp0\..\..\packages (
+IF EXIST %VFS_PACKAGESDIR% (
     ECHO deleting packages
-    rmdir /s /q %~dp0\..\..\packages
+    rmdir /s /q %VFS_PACKAGESDIR%
 ) ELSE (
     ECHO no packages found
 )
 
-call %~dp0\StopAllServices.bat
+call %VFS_SCRIPTSDIR%\StopAllServices.bat
