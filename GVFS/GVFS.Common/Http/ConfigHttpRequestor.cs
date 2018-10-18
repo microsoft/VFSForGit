@@ -78,6 +78,7 @@ namespace GVFS.Common.Http
             if (output.Succeeded)
             {
                 serverGVFSConfig = output.Result;
+                httpStatus = HttpStatusCode.OK;
                 return true;
             }
 
