@@ -2,6 +2,7 @@
 using GVFS.Common.Tracing;
 using GVFS.Virtualization.Background;
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 
@@ -69,14 +70,21 @@ namespace GVFS.Virtualization.Projection
                 }
             }
 
-            public FileSystemTaskResult AddMissingModifiedFiles(ITracer tracer, Stream indexStream)
+            public FileSystemTaskResult AddMissingModifiedFiles(
+                ITracer tracer, 
+                Stream indexStream, 
+                Dictionary<string, PlaceholderListDatabase.PlaceholderData> placeholderDataByPath,
+                List<PlaceholderListDatabase.PlaceholderData> placeholderDataToKeep)
             {
                 if (this.projection == null)
                 {
                     throw new InvalidOperationException($"{nameof(this.projection)} cannot be null when calling {nameof(AddMissingModifiedFiles)}");
                 }
 
-                return this.ParseIndex(tracer, indexStream, this.AddToModifiedFiles);
+                return this.ParseIndex(
+                    tracer,
+                    indexStream,
+                    (data) => this.AddToModifiedFiles(data, placeholderDataByPath, placeholderDataToKeep));
             }
 
             private static FileSystemTaskResult ValidateIndexEntry(GitIndexEntry data)
@@ -105,18 +113,28 @@ namespace GVFS.Virtualization.Projection
                 return FileSystemTaskResult.Success;
             }
 
-            private FileSystemTaskResult AddToModifiedFiles(GitIndexEntry data)
+            private FileSystemTaskResult AddToModifiedFiles(
+                GitIndexEntry data,
+                Dictionary<string, PlaceholderListDatabase.PlaceholderData> placeholderDataByPath,
+                List<PlaceholderListDatabase.PlaceholderData> placeholderDataToKeep)
             {
+                data.ParsePath();
+
                 if (!data.SkipWorktree)
                 {
                     // A git command (e.g. 'git reset --mixed') may have cleared a file's skip worktree bit without
                     // triggering an update to the projection.  Ensure this file is in GVFS's modified files database
-                    data.ParsePath();
                     return this.projection.AddModifiedPath(data.GetFullPath());
                 }
                 else
                 {
                     data.ClearLastParent();
+
+                    PlaceholderListDatabase.PlaceholderData placeholder;
+                    if (placeholderDataByPath.Remove(data.GetFullPath(), out placeholder))
+                    {
+                        placeholderDataToKeep.Add(placeholder);
+                    }
                 }
 
                 return FileSystemTaskResult.Success;

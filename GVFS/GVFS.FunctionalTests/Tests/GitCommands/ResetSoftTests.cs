@@ -50,7 +50,6 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
         }
 
         [TestCase]
-        [Category(Categories.MacTODO.M3)]
         public void ResetSoftThenResetHeadThenCheckoutNoConflicts()
         {
             this.ValidateGitCommand("checkout " + GitRepoTests.ConflictTargetBranch);

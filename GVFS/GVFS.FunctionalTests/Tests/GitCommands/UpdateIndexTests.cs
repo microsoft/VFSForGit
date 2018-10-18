@@ -40,7 +40,6 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
         }
 
         [TestCase]
-        [Category(Categories.MacTODO.M3)]
         public void UpdateIndexRemoveAddFileOpenForWrite()
         {
             // TODO 940287: Remove this test and re-enable UpdateIndexRemoveFileOnDisk
@@ -53,7 +52,11 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
             this.FilesShouldMatchCheckoutOfTargetBranch();
 
             // Open Test_ConflictTests/AddedFiles/AddedByBothDifferentContent.txt for write so that it's added to the modified paths database
-            using (FileStream stream = File.Open(Path.Combine(this.Enlistment.RepoRoot, @"Test_ConflictTests\AddedFiles\AddedByBothDifferentContent.txt"), FileMode.Open, FileAccess.Write))
+            using (
+                FileStream stream = File.Open(
+                    Path.Combine(this.Enlistment.RepoRoot, "Test_ConflictTests", "AddedFiles", "AddedByBothDifferentContent.txt"), 
+                    FileMode.Open, 
+                    FileAccess.Write))
             {
                 // TODO 940287: Remove this File.Open once update-index --add\--remove are working as expected
             }
@@ -64,7 +67,6 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
         }
 
         [TestCase]
-        [Category(Categories.MacTODO.M3)]
         public void UpdateIndexWithCacheInfo()
         {
             // Update Protocol.md with the contents from blob 583f1...

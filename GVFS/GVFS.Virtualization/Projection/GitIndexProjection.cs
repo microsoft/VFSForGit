@@ -160,10 +160,13 @@ namespace GVFS.Virtualization.Projection
         /// </summary>
         void IProfilerOnlyIndexProjection.ForceAddMissingModifiedPaths(ITracer tracer)
         {
+            Dictionary<string, PlaceholderListDatabase.PlaceholderData> placeholderDataByPath = new Dictionary<string, PlaceholderListDatabase.PlaceholderData>(StringComparer.Ordinal);
+            List<PlaceholderListDatabase.PlaceholderData> placeholderDataToKeep = new List<PlaceholderListDatabase.PlaceholderData>();
+
             using (FileStream indexStream = new FileStream(this.indexPath, FileMode.Open, FileAccess.ReadWrite, FileShare.Read, IndexFileStreamBufferSize))
             {
                 // Not checking the FileSystemTaskResult here because this is only for profiling
-                this.indexParser.AddMissingModifiedFiles(tracer, indexStream);
+                this.indexParser.AddMissingModifiedFiles(tracer, indexStream, placeholderDataByPath, placeholderDataToKeep);
             }
         }
 
@@ -529,11 +532,24 @@ namespace GVFS.Virtualization.Projection
             {
                 if (this.modifiedFilesInvalid)
                 {
-                    FileSystemTaskResult result = this.indexParser.AddMissingModifiedFiles(this.context.Tracer, this.indexFileStream);
+                    Dictionary<string, PlaceholderListDatabase.PlaceholderData> placeholderDataByPath;
+                    List<PlaceholderListDatabase.PlaceholderData> placeholdersToKeep;
+                    this.placeholderList.GetAllEntries(out placeholderDataByPath, folderPlaceholders: out placeholdersToKeep);
+
+                    FileSystemTaskResult result = this.indexParser.AddMissingModifiedFiles(this.context.Tracer, this.indexFileStream, placeholderDataByPath, placeholdersToKeep);
                     if (result == FileSystemTaskResult.Success)
                     {
                         this.modifiedFilesInvalid = false;
                     }
+
+                    // Any paths that are not in the the index must be added to ModifiedPaths.dat so that git
+                    // reports them as untracked
+                    foreach (string path in placeholderDataByPath.Keys)
+                    {
+                        this.AddModifiedPath(path);
+                    }
+
+                    this.placeholderList.WriteAllEntriesAndFlush(placeholdersToKeep);
 
                     return result;
                 }
