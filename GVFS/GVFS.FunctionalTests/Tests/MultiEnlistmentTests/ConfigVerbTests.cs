@@ -9,7 +9,6 @@ using System.IO;
 namespace GVFS.FunctionalTests.Tests.MultiEnlistmentTests
 {
     [TestFixture]
-    [NonParallelizable]
     [Category(Categories.FullSuiteOnly)]
     [Category(Categories.MacTODO.M4)]
     public class ConfigVerbTests : TestsWithMultiEnlistment
@@ -38,6 +37,7 @@ namespace GVFS.FunctionalTests.Tests.MultiEnlistmentTests
         [TestCase, Order(1)]
         public void CreateSettings()
         {
+            this.DeleteSettings();
             this.ApplySettings(this.initialSettings);
             this.ConfigShouldContainSettings(this.initialSettings);
         }

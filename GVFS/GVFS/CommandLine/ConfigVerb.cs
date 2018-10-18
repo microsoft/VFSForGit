@@ -22,7 +22,7 @@ namespace GVFS.CommandLine
             'd',
             "delete",
             Required = false,
-            HelpText = "Delete specified setting")]
+            HelpText = "Name of setting to delete")]
         public string KeyToDelete { get; set; }
 
         [Value(
@@ -72,21 +72,15 @@ namespace GVFS.CommandLine
                 {
                     Console.WriteLine(ConfigOutputFormat, setting.Key, setting.Value);
                 }
-
-                return;
             }
-
-            if (!string.IsNullOrEmpty(this.KeyToDelete))
+            else if (!string.IsNullOrEmpty(this.KeyToDelete))
             {
                 if (!this.localConfig.TryRemoveConfig(this.KeyToDelete, out error))
                 {
                     this.ReportErrorAndExit(error);
                 }
-
-                return;
             }
-
-            if (!string.IsNullOrEmpty(this.Key))
+            else if (!string.IsNullOrEmpty(this.Key))
             {
                 bool valueSpecified = !string.IsNullOrEmpty(this.Value);
                 if (valueSpecified)
@@ -95,8 +89,6 @@ namespace GVFS.CommandLine
                     {
                         this.ReportErrorAndExit(error);
                     }
-
-                    return;
                 }
                 else
                 {
@@ -109,9 +101,11 @@ namespace GVFS.CommandLine
                     {
                         Console.WriteLine(valueRead);
                     }
-                    
-                    return;
                 }
+            }
+            else
+            {
+                this.ReportErrorAndExit("You must specify an option. Run `gvfs config --help` for details.");
             }
         }
 
