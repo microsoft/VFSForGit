@@ -2,6 +2,9 @@
 
 SCRIPTDIR=$(dirname ${BASH_SOURCE[0]})
 
+# Ensure the kext isn't loaded before installing Git
+$SCRIPTDIR/../../ProjFS.Mac/Scripts/UnloadPrjFSKext.sh
+
 # Install GVFS-aware Git (that was downloaded by the build script)
 GITVERSION="$($SCRIPTDIR/GetGitVersionNumber.sh)"
 ROOTDIR=$SCRIPTDIR/../../..
