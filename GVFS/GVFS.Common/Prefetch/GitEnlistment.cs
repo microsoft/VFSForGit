@@ -1,5 +1,4 @@
-﻿using GVFS.Common;
-using System;
+﻿using System;
 using System.IO;
 
 namespace GVFS.Common.Prefetch
@@ -13,7 +12,8 @@ namespace GVFS.Common.Prefetch
                   null,
                   gitBinPath,
                   gvfsHooksRoot: null,
-                  flushFileBuffersForPacks: false)
+                  flushFileBuffersForPacks: false,
+                  authentication: null)
         {
             this.GitObjectsRoot = Path.Combine(repoRoot, GVFSConstants.DotGit.Objects.Root);
             this.LocalObjectsRoot = this.GitObjectsRoot;

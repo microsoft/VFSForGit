@@ -168,13 +168,10 @@ namespace GVFS.CommandLine
                         this.Output.WriteLine("  Local Cache:  " + resolvedLocalCacheRoot);
                         this.Output.WriteLine("  Destination:  " + enlistment.EnlistmentRoot);
 
-                        string authErrorMessage = null;
-                        if (!this.ShowStatusWhileRunning(
-                            () => enlistment.Authentication.TryRefreshCredentials(tracer, out authErrorMessage),
-                            "Authenticating",
-                            normalizedEnlistmentRootPath))
+                        string authErrorMessage;
+                        if (!this.TryAuthenticate(tracer, enlistment, out authErrorMessage))
                         {
-                            this.ReportErrorAndExit(tracer, "Cannot clone because authentication failed");
+                            this.ReportErrorAndExit(tracer, "Cannot clone because authentication failed: " + authErrorMessage);
                         }
 
                         RetryConfig retryConfig = this.GetRetryConfig(tracer, enlistment, TimeSpan.FromMinutes(RetryConfig.FetchAndCloneTimeoutMinutes));
@@ -208,7 +205,7 @@ namespace GVFS.CommandLine
                     if (!this.NoPrefetch)
                     {
                         ReturnCode result = this.Execute<PrefetchVerb>(
-                            fullEnlistmentRootPathParameter,
+                            enlistment,
                             verb =>
                             {
                                 verb.Commits = true;
@@ -232,7 +229,7 @@ namespace GVFS.CommandLine
                     else
                     {
                         this.Execute<MountVerb>(
-                            fullEnlistmentRootPathParameter,
+                            enlistment,
                             verb =>
                             {
                                 verb.SkipMountedCheck = true;
@@ -313,7 +310,8 @@ namespace GVFS.CommandLine
                 normalizedEnlistementRootPath,
                 this.RepositoryURL,
                 gitBinPath,
-                hooksPath);
+                hooksPath,
+                authentication: null);
             
             return new Result(true);
         }

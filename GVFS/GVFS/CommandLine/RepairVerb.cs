@@ -42,7 +42,8 @@ namespace GVFS.CommandLine
             GVFSEnlistment enlistment = GVFSEnlistment.CreateWithoutRepoUrlFromDirectory(
                 this.EnlistmentRootPathParameter,
                 GVFSPlatform.Instance.GitInstallation.GetInstalledGitBinPath(),
-                hooksPath);
+                hooksPath,
+                authentication: null);
 
             if (enlistment == null)
             {

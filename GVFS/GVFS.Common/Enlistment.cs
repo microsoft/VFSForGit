@@ -12,7 +12,8 @@ namespace GVFS.Common
             string repoUrl,
             string gitBinPath,
             string gvfsHooksRoot,
-            bool flushFileBuffersForPacks)
+            bool flushFileBuffersForPacks,
+            GitAuthentication authentication)
         {
             if (string.IsNullOrWhiteSpace(gitBinPath))
             {
@@ -47,7 +48,7 @@ namespace GVFS.Common
                 this.RepoUrl = originResult.Output.Trim();
             }
             
-            this.Authentication = new GitAuthentication(gitProcess, this.RepoUrl);
+            this.Authentication = authentication ?? new GitAuthentication(gitProcess, this.RepoUrl);
         }
 
         public string EnlistmentRoot { get; }

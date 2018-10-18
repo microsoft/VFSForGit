@@ -499,7 +499,7 @@ namespace GVFS.Mount
         private void MountAndStartWorkingDirectoryCallbacks(CacheServerInfo cache)
         {
             string error;
-            if (!this.context.Enlistment.Authentication.TryRefreshCredentials(this.context.Tracer, out error))
+            if (!this.context.Enlistment.Authentication.TryInitialize(this.context.Tracer, this.context.Enlistment, out error))
             {
                 this.FailMountAndExit("Failed to obtain git credentials: " + error);
             }

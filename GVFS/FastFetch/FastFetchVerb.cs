@@ -186,7 +186,7 @@ namespace FastFetch
                 Console.WriteLine("Must be run within a git repo");
                 return ExitFailure;
             }
-
+            
             string commitish = this.Commit ?? this.Branch;
             if (string.IsNullOrWhiteSpace(commitish))
             {
@@ -231,10 +231,17 @@ namespace FastFetch
                         { "TargetCommitish", commitish },
                         { "Checkout", this.Checkout },
                     });
+
+                string error;
+                if (!enlistment.Authentication.TryInitialize(tracer, enlistment, out error))
+                {
+                    tracer.RelatedError(error);
+                    Console.WriteLine(error);
+                    return ExitFailure;
+                }
                 
                 RetryConfig retryConfig = new RetryConfig(this.MaxAttempts, TimeSpan.FromMinutes(RetryConfig.FetchAndCloneTimeoutMinutes));
                 BlobPrefetcher prefetcher = this.GetFolderPrefetcher(tracer, enlistment, cacheServer, retryConfig);
-                string error;
                 if (!BlobPrefetcher.TryLoadFolderList(enlistment, this.FolderList, this.FolderListFile, prefetcher.FolderList, out error))
                 {
                     tracer.RelatedError(error);

@@ -90,7 +90,7 @@ of your enlistment's src folder.
                 this.Output.WriteLine();
 
                 this.Unmount(tracer);
-                
+
                 string error;
                 if (!DiskLayoutUpgrade.TryCheckDiskLayoutVersion(tracer, enlistment.EnlistmentRoot, out error))
                 {
@@ -101,6 +101,12 @@ of your enlistment's src folder.
                 if (!RetryConfig.TryLoadFromGitConfig(tracer, enlistment, out retryConfig, out error))
                 {
                     this.ReportErrorAndExit(tracer, "Failed to determine GVFS timeout and max retries: " + error);
+                }
+
+                string errorMessage;
+                if (!this.TryAuthenticate(tracer, enlistment, out errorMessage))
+                {
+                    this.ReportErrorAndExit(tracer, errorMessage);
                 }
 
                 // Local cache and objects paths are required for TryDownloadGitObjects
