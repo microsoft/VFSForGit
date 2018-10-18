@@ -223,3 +223,6 @@ ModelManifest.xml
 *.dll
 *.cab
 *.cer
+
+# VS Code private directory
+.vscode/
