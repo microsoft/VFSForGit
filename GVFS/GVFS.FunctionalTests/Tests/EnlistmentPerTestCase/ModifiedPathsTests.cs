@@ -47,8 +47,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerTestCase
             fileSystem.DeleteFile(tempFile);
             tempFile.ShouldNotExistOnDisk(fileSystem);
 
-            this.Enlistment.UnmountGVFS();
-            GVFSHelpers.ModifiedPathsShouldNotContain(fileSystem, this.Enlistment.DotGVFSRoot, "temp.txt");
+            GVFSHelpers.ModifiedPathsShouldNotContain(this.Enlistment, fileSystem, "temp.txt");
         }
 
         [TestCaseSource(typeof(FileSystemRunner), FileSystemRunner.TestRunners)]
@@ -58,8 +57,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerTestCase
             fileSystem.DeleteDirectory(tempFolder);
             tempFolder.ShouldNotExistOnDisk(fileSystem);
 
-            this.Enlistment.UnmountGVFS();
-            GVFSHelpers.ModifiedPathsShouldNotContain(fileSystem, this.Enlistment.DotGVFSRoot, "Temp/");
+            GVFSHelpers.ModifiedPathsShouldNotContain(this.Enlistment, fileSystem, "Temp/");
         }
 
         [TestCaseSource(typeof(FileSystemRunner), FileSystemRunner.TestRunners)]
@@ -73,8 +71,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerTestCase
             tempFile1.ShouldNotExistOnDisk(fileSystem);
             tempFile2.ShouldNotExistOnDisk(fileSystem);
 
-            this.Enlistment.UnmountGVFS();
-            GVFSHelpers.ModifiedPathsShouldNotContain(fileSystem, this.Enlistment.DotGVFSRoot, "Temp/", "Temp/temp1.txt", "Temp/temp2.txt");
+            GVFSHelpers.ModifiedPathsShouldNotContain(this.Enlistment, fileSystem, "Temp/", "Temp/temp1.txt", "Temp/temp2.txt");
         }
 
         [Category(Categories.MacTODO.NeedsRenameOldPath)]
@@ -148,7 +145,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerTestCase
             this.Enlistment.UnmountGVFS();
             this.Enlistment.MountGVFS();
 
-            this.Enlistment.WaitForBackgroundOperations().ShouldEqual(true, "Background operations failed to complete.");
+            this.Enlistment.WaitForBackgroundOperations();
 
             string modifiedPathsDatabase = Path.Combine(this.Enlistment.DotGVFSRoot, TestConstants.Databases.ModifiedPaths);
             modifiedPathsDatabase.ShouldBeAFile(fileSystem);
@@ -195,7 +192,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerTestCase
             fileSystem.CreateHardLink(hardLinkOutsideRepoToFileInRepoPath, secondFileInRepoPath);
             hardLinkOutsideRepoToFileInRepoPath.ShouldBeAFile(fileSystem).WithContents(contents);
 
-            this.Enlistment.WaitForBackgroundOperations().ShouldEqual(true, "Background operations failed to complete.");
+            this.Enlistment.WaitForBackgroundOperations();
 
             string modifiedPathsDatabase = Path.Combine(this.Enlistment.DotGVFSRoot, TestConstants.Databases.ModifiedPaths);
             modifiedPathsDatabase.ShouldBeAFile(fileSystem);

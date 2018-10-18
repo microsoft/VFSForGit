@@ -218,7 +218,7 @@ namespace GVFS.FunctionalTests.Tools
 
         public bool WaitForBackgroundOperations(int maxWaitMilliseconds = DefaultMaxWaitMSForStatusCheck)
         {
-            return this.WaitForStatus(maxWaitMilliseconds, ZeroBackgroundOperations);
+            return this.WaitForStatus(maxWaitMilliseconds, ZeroBackgroundOperations).ShouldBeTrue("Background operations failed to complete.");
         }
 
         public bool WaitForLock(string lockCommand, int maxWaitMilliseconds = DefaultMaxWaitMSForStatusCheck)

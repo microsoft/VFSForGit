@@ -94,13 +94,13 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
         {
             string indexPath = this.Enlistment.GetVirtualPathTo(".git", "index");
 
-            this.Enlistment.WaitForBackgroundOperations().ShouldEqual(true, "Background operations failed to complete.");
+            this.Enlistment.WaitForBackgroundOperations();
             byte[] indexContents = File.ReadAllBytes(indexPath);
 
             string testFileContents = "OverwriteIndexTest";
             this.fileSystem.WriteAllText(testFilePath, testFileContents);
 
-            this.Enlistment.WaitForBackgroundOperations().ShouldEqual(true, "Background operations failed to complete.");
+            this.Enlistment.WaitForBackgroundOperations();
 
             this.RenameAndOverwrite(testFilePath, indexPath).ShouldBeFalse("GVFS should prevent renaming on top of index when GVFSLock is not held");
             byte[] newIndexContents = File.ReadAllBytes(indexPath);
