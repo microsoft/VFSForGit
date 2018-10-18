@@ -1,0 +1,7 @@
+b=%VFS_SCRIPTSDIR%\BuildGVFSForWindows.bat $*
+br=%VFS_SCRIPTSDIR%\BuildGVFSForWindows.bat Release $*
+ut=%VFS_SCRIPTSDIR%\RunUnitTests.bat $*
+utr=%VFS_SCRIPTSDIR%\RunUnitTests.bat Release $*
+ft=%VFS_SCRIPTSDIR%\RunFunctionalTests.bat $*
+ftr=%VFS_SCRIPTSDIR%\RunFunctionalTests.bat Release $*
+scorch=%VFS_SCRIPTSDIR%\NukeBuildOutputs.bat $*
