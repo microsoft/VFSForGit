@@ -2,8 +2,10 @@
 
 REM Maintain compat for current build definitions while we move to YAML by
 REM automatically initing when this is running on a build agent.
-IF "%TF_BUILD%"=="true" (
-  CALL %~dp0/../init.cmd
+IF NOT "%TF_BUILD%"=="" (
+  IF "%VFS_DEVSHELL%"=="" (
+    CALL %~dp0/../init.cmd
+  )
 )
 REM Delete this block when we have moved to YAML-based pipelines.
 
