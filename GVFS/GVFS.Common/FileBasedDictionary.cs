@@ -106,6 +106,11 @@ namespace GVFS.Common
             }
         }
 
+        public Dictionary<TKey, TValue> GetAllKeysAndValues()
+        {
+            return new Dictionary<TKey, TValue>(this.data);
+        }
+
         private void Flush()
         {
             this.WriteAndReplaceDataFile(this.GenerateDataLines);

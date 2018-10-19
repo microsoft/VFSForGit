@@ -1,6 +1,7 @@
 ﻿using GVFS.Common.FileSystem;
 using GVFS.Common.Tracing;
 using System;
+using System.Collections.Generic;
 using System.IO;
 
 namespace GVFS.Common
@@ -11,7 +12,7 @@ namespace GVFS.Common
         private readonly string configFile;
         private readonly PhysicalFileSystem fileSystem;
         private FileBasedDictionary<string, string> allSettings;
-
+        
         public LocalGVFSConfig()
         {
             string servicePath = Paths.GetServiceDataRoot(GVFSConstants.Service.ServiceName);
@@ -21,78 +22,99 @@ namespace GVFS.Common
             this.fileSystem = new PhysicalFileSystem();
         }
 
+        public bool TryGetAllConfig(out Dictionary<string, string> allConfig, out string error)
+        {
+            Dictionary<string, string> configCopy = null;
+            if (!this.TryPerformAction(
+                () => configCopy = this.allSettings.GetAllKeysAndValues(),
+                out error))
+            {
+                allConfig = null;
+                return false;
+            }
+
+            allConfig = configCopy;
+            error = null;
+            return true;
+        }
+
         public bool TryGetConfig(
             string name, 
             out string value, 
-            out string error,
-            ITracer tracer)
+            out string error)
         {
-            if (!this.TryLoadSettings(tracer, out error))
+            string valueFromDict = null;
+            if (!this.TryPerformAction(
+                () => this.allSettings.TryGetValue(name, out valueFromDict),
+                out error))
             {
-                error = $"Error getting config value {name}. {error}";
                 value = null;
+                error = $"Error reading config {name}. {error}";
                 return false;
             }
-                        
-            try
-            {
-                this.allSettings.TryGetValue(name, out value);
-                error = null;
-                return true;
-            }
-            catch (FileBasedCollectionException exception)
-            {
-                const string ErrorFormat = "Error getting config value for {0}. Config file {1}. {2}";
-                if (tracer != null)
-                {
-                    tracer.RelatedError(ErrorFormat, name, this.configFile, exception.ToString());
-                }
 
-                error = string.Format(ErrorFormat, name, this.configFile, exception.Message);
-                value = null;
-                return false;
-            }
+            value = valueFromDict;
+            return true;
         }
 
         public bool TrySetConfig(
             string name, 
             string value, 
-            out string error,
-            ITracer tracer)
+            out string error)
         {
-            if (!this.TryLoadSettings(tracer, out error))
+            if (!this.TryPerformAction(
+                () => this.allSettings.SetValueAndFlush(name, value), 
+                out error))
             {
-                error = $"Error setting config value {name}: {value}. {error}";
+                error = $"Error writing config {name}={value}. {error}";
+                return false;
+            }
+
+            return true;
+        }
+
+        public bool TryRemoveConfig(string name, out string error)
+        {
+            if (!this.TryPerformAction(
+                () => this.allSettings.RemoveAndFlush(name),
+                out error))
+            {
+                error = $"Error deleting config {name}. {error}";
+                return false;
+            }
+
+            return true;
+        }
+
+        private bool TryPerformAction(Action action, out string error)
+        {
+            if (!this.TryLoadSettings(out error))
+            {
+                error = $"Error loading config settings.";
                 return false;
             }
 
             try
             {
-                this.allSettings.SetValueAndFlush(name, value);
+                action();
                 error = null;
                 return true;
             }
             catch (FileBasedCollectionException exception)
             {
-                const string ErrorFormat = "Error setting config value {0}: {1}. Config file {2}. {3}";
-                if (tracer != null)
-                {
-                    tracer.RelatedError(ErrorFormat, name, value, this.configFile, exception.ToString());
-                }
-
-                error = string.Format(ErrorFormat, name, value, this.configFile, exception.Message);
-                value = null;
-                return false;
+                error = exception.Message;
             }
+
+            return false;
         }
 
-        private bool TryLoadSettings(ITracer tracer, out string error)
+        private bool TryLoadSettings(out string error)
         {
             if (this.allSettings == null)
             {
                 FileBasedDictionary<string, string> config = null;
                 if (FileBasedDictionary<string, string>.TryCreate(
-                    tracer: tracer,
+                    tracer: null,
                     dictionaryPath: this.configFile,
                     fileSystem: this.fileSystem,
                     output: out config,
