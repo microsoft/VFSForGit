@@ -198,7 +198,11 @@ namespace GVFS.Virtualization
             lock (this.postFetchJobLock)
             {
                 // TODO(Mac): System.PlatformNotSupportedException: Thread abort is not supported on this platform
-                this.postFetchJobThread?.Abort();
+
+                if (!GVFSPlatform.Instance.IsUnderConstruction)
+                {
+                    this.postFetchJobThread?.Abort();
+                }
             }
 
             // Shutdown the GitStatusCache before other
