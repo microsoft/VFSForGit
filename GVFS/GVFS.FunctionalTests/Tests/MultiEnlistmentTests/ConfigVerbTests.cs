@@ -34,10 +34,16 @@ namespace GVFS.FunctionalTests.Tests.MultiEnlistmentTests
             { SpacedStringSettingKey, "jumped over lazy dog" }
         };
 
+        [OneTimeSetUp]
+        public void ResetTestConfig()
+        {
+            this.DeleteSettings(this.initialSettings);
+            this.DeleteSettings(this.updateSettings);
+        }
+
         [TestCase, Order(1)]
         public void CreateSettings()
         {
-            this.DeleteSettings();
             this.ApplySettings(this.initialSettings);
             this.ConfigShouldContainSettings(this.initialSettings);
         }
@@ -56,17 +62,37 @@ namespace GVFS.FunctionalTests.Tests.MultiEnlistmentTests
         }
 
         [TestCase, Order(4)]
+        public void ReadSingleSetting()
+        {
+            foreach (KeyValuePair<string, string> setting in this.updateSettings)
+            {
+                string value = this.RunConfigCommand($"{setting.Key}");
+                value.TrimEnd(Environment.NewLine.ToCharArray()).ShouldEqual($"{setting.Value}");
+            }
+        }
+
+        [TestCase, Order(5)]
         public void DeleteSettings()
         {
+            this.DeleteSettings(this.updateSettings);
+
             List<string> deletedLines = new List<string>();
             foreach (KeyValuePair<string, string> setting in this.updateSettings)
             {
-                this.RunConfigCommand($"--delete {setting.Key}");
                 deletedLines.Add(this.GetSettingLineInConfigFileFormat(setting));
             }
 
             string allSettings = this.RunConfigCommand("--list");
             allSettings.ShouldNotContain(ignoreCase: true, unexpectedSubstrings: deletedLines.ToArray());
+        }
+
+        private void DeleteSettings(Dictionary<string, string> settings)
+        {
+            List<string> deletedLines = new List<string>();
+            foreach (KeyValuePair<string, string> setting in settings)
+            {
+                this.RunConfigCommand($"--delete {setting.Key}");
+            }
         }
 
         private void ConfigShouldContainSettings(Dictionary<string, string> expectedSettings)
@@ -90,13 +116,13 @@ namespace GVFS.FunctionalTests.Tests.MultiEnlistmentTests
         {
             foreach (KeyValuePair<string, string> setting in settings)
             {
-                this.RunConfigCommand($"{ setting.Key } \"{ setting.Value }\"");
+                this.RunConfigCommand($"{setting.Key} \"{setting.Value}\"");
             }
         }
 
         private string RunConfigCommand(string argument)
         {
-            ProcessResult result = ProcessHelper.Run(GVFSTestConfig.PathToGVFS, $"config { argument }");
+            ProcessResult result = ProcessHelper.Run(GVFSTestConfig.PathToGVFS, $"config {argument}");
             result.ExitCode.ShouldEqual(0, result.Errors);
 
             return result.Output;
