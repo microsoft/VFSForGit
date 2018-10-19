@@ -1,12 +1,5 @@
 @ECHO OFF
 
-REM Don't run inside of devenv shells
-IF NOT "%VSCMD_VER%"=="" (
-  ECHO ERROR: Do not run from a Developer Command prompt.
-  ECHO Use a plain shell and try again.
-  EXIT /b 10
-)
-
 REM Don't run twice
 IF NOT "%VFS_DEVSHELL%"=="" (
     ECHO ERROR: This shell is already a VFS for Git developer shell.
@@ -31,6 +24,8 @@ SET VFS_PACKAGESDIR=%_PARSED_PATH_%
 
 CALL :RESOLVEPATH "%VFS_ENLISTMENTDIR%\.tools"
 SET VFS_TOOLSDIR=%_PARSED_PATH_%
+
+SET PATH=%VFS_TOOLSDIR%;%PATH%
 
 REM Clean up
 SET _PARSED_PATH_=
