@@ -1,5 +1,5 @@
 @ECHO OFF
-CALL %~dp0\EnsureVfsDevShell.bat || EXIT /b 10
+CALL %~dp0\EnsureVFSDevShell.bat || EXIT /b 10
 
 SETLOCAL
 
