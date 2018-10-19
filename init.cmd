@@ -40,13 +40,14 @@ SET VFS_DEVSHELL=true
 TITLE VFS ^for Git Developer Shell ^(%VFS_SRCDIR%^)
 doskey /MACROFILE=.\Scripts\Macros.cmd.txt
 
-ECHO =============================================================
-ECHO * Welcome to the VFS for Git developer shell                *
-ECHO *                                                           *
-ECHO * Build: b                     Build release: br            *
-ECHO * Run unit tests: ut           Unit test release: utr       *
-ECHO * Run functional tests: ft     Functional test release: ftr *
-ECHO =============================================================
+ECHO ==============================================
+ECHO * Welcome to the VFS for Git developer shell *
+ECHO *                                            *
+ECHO * Build: b                                   *
+ECHO * Install Git: ig                            *
+ECHO * Install VFS for Git: iv                    *
+ECHO * Run functional test: ftest [test name(s)]  *
+ECHO ==============================================
 
 GOTO :EOF
 

@@ -1,7 +1,4 @@
-b=%VFS_SCRIPTSDIR%\BuildGVFSForWindows.bat $*
-br=%VFS_SCRIPTSDIR%\BuildGVFSForWindows.bat Release $*
-ut=%VFS_SCRIPTSDIR%\RunUnitTests.bat $*
-utr=%VFS_SCRIPTSDIR%\RunUnitTests.bat Release $*
-ft=%VFS_SCRIPTSDIR%\RunFunctionalTests.bat $*
-ftr=%VFS_SCRIPTSDIR%\RunFunctionalTests.bat Release $*
-scorch=%VFS_SCRIPTSDIR%\NukeBuildOutputs.bat $*
+b=%VFS_SCRIPTSDIR%\BuildGVFSForWindows.bat Debug $*
+ftest=%VFS_SCRIPTSDIR%\RunFunctionalTests.bat Debug --full-suite --test=$*
+ig=%VFS_OUTPUTDIR%\GVFS.Build\InstallG4W.bat
+iv=%VFS_OUTPUTDIR%\GVFS.Build\InstallGVFS.bat
