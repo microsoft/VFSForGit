@@ -130,10 +130,12 @@ namespace GVFS.Virtualization.Projection
                 {
                     data.ClearLastParent();
 
+                    string placeholderPath = data.GetFullPath();
                     PlaceholderListDatabase.PlaceholderData placeholder;
-                    if (placeholderDataByPath.Remove(data.GetFullPath(), out placeholder))
+                    if (placeholderDataByPath.TryGetValue(placeholderPath, out placeholder))
                     {
                         placeholderDataToKeep.Add(placeholder);
+                        placeholderDataByPath.Remove(placeholderPath);
                     }
                 }
 
