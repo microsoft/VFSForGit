@@ -1,0 +1,43 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>netcoreapp2.1</TargetFramework>
+    <RuntimeIdentifiers>linux-x64</RuntimeIdentifiers>
+    <Platforms>x64</Platforms>
+    <Configurations>Debug;Release</Configurations>
+  </PropertyGroup>
+
+  <PropertyGroup>
+    <BuildOutputDir>..\..\..\BuildOutput</BuildOutputDir>
+  </PropertyGroup>
+
+  <PropertyGroup>
+    <IntermediateOutputPath>$(BuildOutputDir)\MirrorProvider.Linux\obj\$(Configuration)\$(Platform)</IntermediateOutputPath>
+    <OutputPath>$(BuildOutputDir)\MirrorProvider.Linux\bin\$(Configuration)\$(Platform)</OutputPath>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
+    <DebugSymbols>true</DebugSymbols>
+    <DebugType>full</DebugType>
+    <Optimize>false</Optimize>
+    <DefineConstants>TRACE;DEBUG</DefineConstants>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
+    <DebugType></DebugType>
+    <Optimize>true</Optimize>
+    <DefineConstants>TRACE;RELEASE</DefineConstants>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\ProjFS.Linux\PrjFSLib.Linux.Managed\PrjFSLib.Linux.Managed.csproj" />
+    <ProjectReference Include="..\MirrorProvider\MirrorProvider.csproj" />
+  </ItemGroup>
+
+  <!-- TODO(Linux): enable copy when built locally and not already installed
+  <ItemGroup>
+    <None Include="$(BuildOutputDir)\ProjFS.Linux\Native\Build\Products\$(Configuration)\libprojfs.so" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+  -->
+</Project>
