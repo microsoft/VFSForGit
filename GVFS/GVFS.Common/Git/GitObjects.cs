@@ -155,33 +155,13 @@ namespace GVFS.Common.Git
             using (ITracer activity = tracer.StartActivity(nameof(this.TryWriteMultiPackIndex), EventLevel.Informational, Keywords.Telemetry, metadata: null))
             {
                 GitProcess process = new GitProcess(enlistment);
-                GitProcess.Result result = process.WriteMultiPackIndex(enlistment.GitPackRoot);
+                GitProcess.Result result = process.WriteMultiPackIndex(enlistment.GitObjectsRoot);
 
-                if (!result.HasErrors)
-                {
-                    string midxHash = result.Output.Trim();
-                    activity.RelatedInfo("Updated midx-head to hash {0}", midxHash);
-
-                    string expectedMidxHead = Path.Combine(enlistment.GitPackRoot, "midx-" + midxHash + ".midx");
-
-                    List<string> midxFiles = new List<string>();
-
-                    midxFiles.AddRange(fileSystem.GetFiles(enlistment.GitPackRoot, "midx-*.midx"));
-                    midxFiles.AddRange(fileSystem.GetFiles(enlistment.GitPackRoot, "tmp_midx_*"));
-
-                    foreach (string midxFile in midxFiles)
-                    {
-                        if (!midxFile.Equals(expectedMidxHead, StringComparison.OrdinalIgnoreCase) && !fileSystem.TryDeleteFile(midxFile))
-                        {
-                            activity.RelatedWarning("Failed to delete MIDX file {0}", midxFile);
-                        }
-                    }
-                }
-                else
+                if (result.HasErrors)
                 {
                     EventMetadata errorMetadata = new EventMetadata();
                     errorMetadata.Add("Operation", nameof(this.TryWriteMultiPackIndex));
-                    errorMetadata.Add("packDir", enlistment.GitPackRoot);
+                    errorMetadata.Add("objectDir", enlistment.GitObjectsRoot);
                     errorMetadata.Add("Errors", result.Errors);
                     errorMetadata.Add("Output", result.Output.Length > 1024 ? result.Output.Substring(1024) : result.Output);
                     activity.RelatedError(errorMetadata, result.Errors, Keywords.Telemetry);

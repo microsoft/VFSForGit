@@ -198,7 +198,11 @@ namespace GVFS.Virtualization
             lock (this.postFetchJobLock)
             {
                 // TODO(Mac): System.PlatformNotSupportedException: Thread abort is not supported on this platform
-                this.postFetchJobThread?.Abort();
+
+                if (!GVFSPlatform.Instance.IsUnderConstruction)
+                {
+                    this.postFetchJobThread?.Abort();
+                }
             }
 
             // Shutdown the GitStatusCache before other
@@ -568,7 +572,7 @@ namespace GVFS.Virtualization
                     {
                         this.context.Tracer.RelatedWarning(
                             metadata: null,
-                            message: PostFetchTelemetryKey + ": Failed to generate midx for new packfiles",
+                            message: PostFetchTelemetryKey + ": Failed to generate multi-pack-index for new packfiles",
                             keywords: Keywords.Telemetry);
                     }
 
