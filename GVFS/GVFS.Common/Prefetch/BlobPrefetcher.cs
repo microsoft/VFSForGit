@@ -229,7 +229,7 @@ namespace GVFS.Common.Prefetch
                 }
             }
 
-            DiffHelper blobEnumerator = new DiffHelper(this.Tracer, this.Enlistment, this.FileList, this.FolderList);
+            DiffHelper blobEnumerator = new DiffHelper(this.Tracer, this.Enlistment, this.FileList, this.FolderList, includeSymLinks: false);
 
             ThreadStart performDiff = () =>
             {

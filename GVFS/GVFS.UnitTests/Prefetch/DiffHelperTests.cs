@@ -11,9 +11,29 @@ using System.Reflection;
 
 namespace GVFS.UnitTests.Prefetch
 {
-    [TestFixture]
+    [TestFixtureSource(TestRunners)]
     public class DiffHelperTests
     {
+        public const string TestRunners = "Runners";
+
+        private static readonly bool[] SymLinkSupport = new bool[]
+        {
+            true,
+            false,
+        };
+
+        public DiffHelperTests(bool symLinkSupport)
+        {
+            this.IncludeSymLinks = symLinkSupport;
+        }
+
+        public static bool[] Runners
+        {
+            get { return SymLinkSupport; }
+        }
+
+        public bool IncludeSymLinks { get; set; }
+
         // Make two commits. The first should look like this:
         // recursiveDelete
         // recursiveDelete/subfolder
@@ -31,7 +51,8 @@ namespace GVFS.UnitTests.Prefetch
         // folderToEdit/childFile.txt
         // folderToRename
         // folderToRename/childFile.txt
-        // 
+        // symLinkToBeCreated.txt
+        //
         // The second should follow the action indicated by the file/folder name:
         // eg. recursiveDelete should run "rmdir /s/q recursiveDelete"
         // eg. folderToBeFile should be deleted and replaced with a file of the same name
@@ -44,12 +65,14 @@ namespace GVFS.UnitTests.Prefetch
         public void CanParseDiffForwards()
         {
             MockTracer tracer = new MockTracer();
-            DiffHelper diffForwards = new DiffHelper(tracer, new MockGVFSEnlistment(), new List<string>(), new List<string>());
+            DiffHelper diffForwards = new DiffHelper(tracer, new MockGVFSEnlistment(), new List<string>(), new List<string>(), includeSymLinks: this.IncludeSymLinks);
             diffForwards.ParseDiffFile(GetDataPath("forward.txt"), "xx:\\fakeRepo");
 
-            // File added, file edited, file renamed, folder => file, edit-rename file
+            // File added, file edited, file renamed, folder => file, edit-rename file, SymLink added (if applicable)
             // Children of: Add folder, Renamed folder, edited folder, file => folder
-            diffForwards.RequiredBlobs.Count.ShouldEqual(9);
+            diffForwards.RequiredBlobs.Count.ShouldEqual(diffForwards.ShouldIncludeSymLinks ? 10 : 9);
+
+            diffForwards.FileAddOperations.ContainsKey("3bd509d373734a9f9685d6a73ba73324f72931e3").ShouldEqual(diffForwards.ShouldIncludeSymLinks);
 
             // File deleted, folder deleted, file > folder, edit-rename
             diffForwards.FileDeleteOperations.Count.ShouldEqual(4);
@@ -70,7 +93,7 @@ namespace GVFS.UnitTests.Prefetch
         public void CanParseBackwardsDiff()
         {
             MockTracer tracer = new MockTracer();
-            DiffHelper diffBackwards = new DiffHelper(tracer, new Mock.Common.MockGVFSEnlistment(), new List<string>(), new List<string>());
+            DiffHelper diffBackwards = new DiffHelper(tracer, new Mock.Common.MockGVFSEnlistment(), new List<string>(), new List<string>(), includeSymLinks: this.IncludeSymLinks);
             diffBackwards.ParseDiffFile(GetDataPath("backward.txt"), "xx:\\fakeRepo");
 
             // File > folder, deleted file, edited file, renamed file, rename-edit file
@@ -94,7 +117,7 @@ namespace GVFS.UnitTests.Prefetch
         public void ParsesCaseChangesAsAdds()
         {
             MockTracer tracer = new MockTracer();
-            DiffHelper diffBackwards = new DiffHelper(tracer, new Mock.Common.MockGVFSEnlistment(), new List<string>(), new List<string>());
+            DiffHelper diffBackwards = new DiffHelper(tracer, new Mock.Common.MockGVFSEnlistment(), new List<string>(), new List<string>(), includeSymLinks: this.IncludeSymLinks);
             diffBackwards.ParseDiffFile(GetDataPath("caseChange.txt"), "xx:\\fakeRepo");
             
             diffBackwards.RequiredBlobs.Count.ShouldEqual(2);
@@ -114,7 +137,7 @@ namespace GVFS.UnitTests.Prefetch
             MockGitProcess gitProcess = new MockGitProcess();
             gitProcess.SetExpectedCommandResult("diff-tree -r -t sha1 sha2", () => new GitProcess.Result(string.Empty, string.Empty, 1));
 
-            DiffHelper diffBackwards = new DiffHelper(tracer, new Mock.Common.MockGVFSEnlistment(), gitProcess, new List<string>(), new List<string>());
+            DiffHelper diffBackwards = new DiffHelper(tracer, new Mock.Common.MockGVFSEnlistment(), gitProcess, new List<string>(), new List<string>(), includeSymLinks: this.IncludeSymLinks);
             diffBackwards.PerformDiff("sha1", "sha2");
             diffBackwards.HasFailures.ShouldEqual(true);
         }
@@ -126,7 +149,7 @@ namespace GVFS.UnitTests.Prefetch
             MockGitProcess gitProcess = new MockGitProcess();
             gitProcess.SetExpectedCommandResult("ls-tree -r -t sha1", () => new GitProcess.Result(string.Empty, string.Empty, 1));
 
-            DiffHelper diffBackwards = new DiffHelper(tracer, new Mock.Common.MockGVFSEnlistment(), gitProcess, new List<string>(), new List<string>());
+            DiffHelper diffBackwards = new DiffHelper(tracer, new Mock.Common.MockGVFSEnlistment(), gitProcess, new List<string>(), new List<string>(), includeSymLinks: this.IncludeSymLinks);
             diffBackwards.PerformDiff(null, "sha1");
             diffBackwards.HasFailures.ShouldEqual(true);
         }

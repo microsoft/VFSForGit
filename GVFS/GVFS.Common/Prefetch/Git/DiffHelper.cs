@@ -24,24 +24,27 @@ namespace GVFS.Common.Prefetch.Git
         private Enlistment enlistment;
         private GitProcess git;
 
-        public DiffHelper(ITracer tracer, Enlistment enlistment, IEnumerable<string> fileList, IEnumerable<string> folderList)
-            : this(tracer, enlistment, new GitProcess(enlistment), fileList, folderList)
+        public DiffHelper(ITracer tracer, Enlistment enlistment, IEnumerable<string> fileList, IEnumerable<string> folderList, bool includeSymLinks)
+            : this(tracer, enlistment, new GitProcess(enlistment), fileList, folderList, includeSymLinks)
         {
         }
 
-        public DiffHelper(ITracer tracer, Enlistment enlistment, GitProcess git, IEnumerable<string> fileList, IEnumerable<string> folderList)
+        public DiffHelper(ITracer tracer, Enlistment enlistment, GitProcess git, IEnumerable<string> fileList, IEnumerable<string> folderList, bool includeSymLinks)
         {
             this.tracer = tracer;
             this.fileList = new List<string>(fileList);
             this.folderList = new List<string>(folderList);
             this.enlistment = enlistment;
             this.git = git;
+            this.ShouldIncludeSymLinks = includeSymLinks;
 
             this.DirectoryOperations = new ConcurrentQueue<DiffTreeResult>();
             this.FileDeleteOperations = new ConcurrentQueue<string>();
             this.FileAddOperations = new ConcurrentDictionary<string, HashSet<string>>(StringComparer.OrdinalIgnoreCase);
             this.RequiredBlobs = new BlockingCollection<string>();
         }
+
+        public bool ShouldIncludeSymLinks { get; set; }
 
         public bool HasFailures { get; private set; }
 
@@ -313,6 +316,11 @@ namespace GVFS.Common.Prefetch.Git
 
         private bool ShouldIncludeResult(DiffTreeResult blobAdd)
         {
+            if (blobAdd.TargetIsSymLink && !this.ShouldIncludeSymLinks)
+            {
+                return false;
+            }
+
             if (blobAdd.TargetPath == null)
             {
                 return true;
