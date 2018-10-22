@@ -153,7 +153,7 @@ namespace FastFetch
         {
             // CmdParser doesn't strip quotes, and Path.Combine will throw
             this.GitBinPath = this.GitBinPath.Replace("\"", string.Empty);
-            if (!GVFSPlatform.Instance.GitInstallation.GitExists(this.GitBinPath))
+            if (!GitInstallation.GitExists(this.GitBinPath))
             {
                 Console.WriteLine(
                     "Could not find git.exe {0}",
@@ -178,7 +178,7 @@ namespace FastFetch
             this.IndexThreadCount = this.IndexThreadCount > 0 ? this.IndexThreadCount : Environment.ProcessorCount;
             this.CheckoutThreadCount = this.CheckoutThreadCount > 0 ? this.CheckoutThreadCount : Environment.ProcessorCount;
 
-            this.GitBinPath = !string.IsNullOrWhiteSpace(this.GitBinPath) ? this.GitBinPath : GVFSPlatform.Instance.GitInstallation.GetInstalledGitBinPath();
+            this.GitBinPath = !string.IsNullOrWhiteSpace(this.GitBinPath) ? this.GitBinPath : GitInstallation.GetInstalledGitBinPath();
 
             GitEnlistment enlistment = GitEnlistment.CreateFromCurrentDirectory(this.GitBinPath);
             if (enlistment == null)
