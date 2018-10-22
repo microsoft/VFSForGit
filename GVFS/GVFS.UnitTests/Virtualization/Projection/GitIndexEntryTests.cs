@@ -163,7 +163,7 @@ namespace GVFS.UnitTests.Virtualization.Git
 
             indexEntry.GetChildName().GetString().ShouldEqual(pathParts[pathParts.Length - 1]);
             indexEntry.GetGitPath().ShouldEqual(string.Join("/", pathParts));
-            indexEntry.GetRelativePath().ShouldEqual(string.Join(Path.DirectorySeparatorChar, pathParts));
+            indexEntry.GetRelativePath().ShouldEqual(string.Join(Path.DirectorySeparatorChar.ToString(), pathParts));
         }
     }
 }
