@@ -4,7 +4,7 @@
     <id>FastFetch</id>
     <version>0.1.0</version>
     <authors>Microsoft</authors>
-    <projectUrl>https://github.com/Microsoft/GVFS</projectUrl>
+    <projectUrl>https://github.com/Microsoft/VFSForGit</projectUrl>
     <requireLicenseAcceptance>false</requireLicenseAcceptance>
     <description>
     An internal tool for quickly pulling large git repos from a GVFS-enabled git server.
@@ -12,8 +12,8 @@
     </description>
   </metadata>
   <files>
-    <file src="..\..\..\BuildOutput\FastFetch\bin\x64\Release\FastFetch.exe" target="tools"/>
-    <file src="..\..\..\BuildOutput\FastFetch\bin\x64\Release\*.dll" target="tools"/>
-    <file src="..\..\..\BuildOutput\FastFetch\bin\x64\Release\*.pdb" target="tools"/>
+    <file src="..\..\..\BuildOutput\FastFetch.Windows\bin\x64\Release\FastFetch.exe" target="tools"/>
+    <file src="..\..\..\BuildOutput\FastFetch.Windows\bin\x64\Release\*.dll" target="tools"/>
+    <file src="..\..\..\BuildOutput\FastFetch.Windows\bin\x64\Release\*.pdb" target="tools"/>
   </files>
 </package>
