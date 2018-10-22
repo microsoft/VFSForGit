@@ -62,29 +62,50 @@ namespace GVFS.Virtualization.Projection
                 }
 
                 this.projection.ClearProjectionCaches();
-                FileSystemTaskResult result = this.ParseIndex(tracer, indexStream, this.AddToProjection);
+                FileSystemTaskResult result = this.ParseIndex(tracer, indexStream, this.AddIndexEntryToProjection);
                 if (result != FileSystemTaskResult.Success)
                 {
                     // RebuildProjection should always result in FileSystemTaskResult.Success (or a thrown exception)
-                    throw new InvalidOperationException($"{nameof(RebuildProjection)}: {nameof(GitIndexParser.ParseIndex)} failed to {nameof(this.AddToProjection)}");
+                    throw new InvalidOperationException($"{nameof(RebuildProjection)}: {nameof(GitIndexParser.ParseIndex)} failed to {nameof(this.AddIndexEntryToProjection)}");
                 }
             }
 
-            public FileSystemTaskResult AddMissingModifiedFiles(
+            public FileSystemTaskResult AddMissingModifiedFilesAndRemoveThemFromPlaceholderList(
                 ITracer tracer, 
-                Stream indexStream, 
-                Dictionary<string, PlaceholderListDatabase.PlaceholderData> placeholderDataByPath,
-                List<PlaceholderListDatabase.PlaceholderData> placeholderDataToKeep)
+                Stream indexStream)
             {
                 if (this.projection == null)
                 {
-                    throw new InvalidOperationException($"{nameof(this.projection)} cannot be null when calling {nameof(AddMissingModifiedFiles)}");
+                    throw new InvalidOperationException($"{nameof(this.projection)} cannot be null when calling {nameof(AddMissingModifiedFilesAndRemoveThemFromPlaceholderList)}");
                 }
 
-                return this.ParseIndex(
+                Dictionary<string, PlaceholderListDatabase.PlaceholderData> filePlaceholders;
+                this.projection.placeholderList.GetAllFileEntries(out filePlaceholders);
+
+                FileSystemTaskResult result = this.ParseIndex(
                     tracer,
                     indexStream,
-                    (data) => this.AddToModifiedFiles(data, placeholderDataByPath, placeholderDataToKeep));
+                    (data) => this.AdjustModifedPathsAndPlaceholdersForIndexEntry(data, filePlaceholders));
+
+                if (result != FileSystemTaskResult.Success)
+                {
+                    return result;
+                }
+
+                // Any paths that were not found in the index need to be added to ModifiedPaths
+                // and removed from the placeholder list
+                foreach (string path in filePlaceholders.Keys)
+                {
+                    result = this.projection.AddModifiedPath(path);
+                    if (result != FileSystemTaskResult.Success)
+                    {
+                        return result;
+                    }
+
+                    this.projection.RemoveFromPlaceholderList(path);
+                }
+
+                return FileSystemTaskResult.Success;
             }
 
             private static FileSystemTaskResult ValidateIndexEntry(GitIndexEntry data)
@@ -97,7 +118,7 @@ namespace GVFS.Virtualization.Projection
                 return FileSystemTaskResult.Success;
             }
 
-            private FileSystemTaskResult AddToProjection(GitIndexEntry data)
+            private FileSystemTaskResult AddIndexEntryToProjection(GitIndexEntry data)
             {
                 // Never want to project the common ancestor even if the skip worktree bit is on
                 if ((data.MergeState != MergeStage.CommonAncestor && data.SkipWorktree) || data.MergeState == MergeStage.Yours)
@@ -113,33 +134,50 @@ namespace GVFS.Virtualization.Projection
                 return FileSystemTaskResult.Success;
             }
 
-            private FileSystemTaskResult AddToModifiedFiles(
-                GitIndexEntry data,
-                Dictionary<string, PlaceholderListDatabase.PlaceholderData> placeholderDataByPath,
-                List<PlaceholderListDatabase.PlaceholderData> placeholderDataToKeep)
+            /// <summary>
+            /// Adjusts the modifed paths and placeholders list for an index entry.
+            /// </summary>
+            /// <param name="gitIndexEntry">Index entry</param>
+            /// <param name="filePlaceholders">
+            /// Dictionary of file placeholders.  AdjustModifedPathsAndPlaceholdersForIndexEntry will
+            /// remove enties from filePlaceholders as they are found in the index.  After
+            /// AdjustModifedPathsAndPlaceholdersForIndexEntry is called for all entries in the index 
+            /// filePlaceholders will contain only those placeholders that are not in the index.
+            /// </param>
+            private FileSystemTaskResult AdjustModifedPathsAndPlaceholdersForIndexEntry(
+                GitIndexEntry gitIndexEntry,
+                Dictionary<string, PlaceholderListDatabase.PlaceholderData> filePlaceholders)
             {
-                data.ParsePath();
+                gitIndexEntry.ParsePath();
+                string placeholderRelativePath = gitIndexEntry.GetRelativePath();
 
-                if (!data.SkipWorktree)
+                FileSystemTaskResult result = FileSystemTaskResult.Success;
+
+                if (!gitIndexEntry.SkipWorktree)
                 {
                     // A git command (e.g. 'git reset --mixed') may have cleared a file's skip worktree bit without
-                    // triggering an update to the projection.  Ensure this file is in GVFS's modified files database
-                    return this.projection.AddModifiedPath(data.GetFullPath());
+                    // triggering an update to the projection. If git cleared the skip-worktree bit then git will
+                    // be responsible for updating the file and we need to:
+                    //    - Ensure this file is in GVFS's modified files database
+                    //    - Remove this path from the placeholders list (if present)
+                    result = this.projection.AddModifiedPath(placeholderRelativePath);
+
+                    if (result == FileSystemTaskResult.Success)
+                    {
+                        if (filePlaceholders.Remove(placeholderRelativePath))
+                        {
+                            this.projection.RemoveFromPlaceholderList(placeholderRelativePath);
+                        }
+                    }
                 }
                 else
                 {
-                    data.ClearLastParent();
+                    gitIndexEntry.ClearLastParent();
 
-                    string placeholderPath = data.GetFullPath();
-                    PlaceholderListDatabase.PlaceholderData placeholder;
-                    if (placeholderDataByPath.TryGetValue(placeholderPath, out placeholder))
-                    {
-                        placeholderDataToKeep.Add(placeholder);
-                        placeholderDataByPath.Remove(placeholderPath);
-                    }
+                    filePlaceholders.Remove(placeholderRelativePath);
                 }
 
-                return FileSystemTaskResult.Success;
+                return result;
             }
 
             /// <summary>

@@ -1,4 +1,5 @@
 ﻿using GVFS.Common;
+using System.IO;
 using System.Linq;
 
 namespace GVFS.Virtualization.Projection
@@ -140,9 +141,14 @@ namespace GVFS.Virtualization.Projection
                 return this.PathParts[this.NumParts - 1];
             }
 
-            public string GetFullPath()
+            public string GetGitPath()
             {
                 return string.Join(GVFSConstants.GitPathSeparatorString, this.PathParts.Take(this.NumParts).Select(x => x.GetString()));
+            }
+
+            public string GetRelativePath()
+            {
+                return string.Join(Path.DirectorySeparatorChar, this.PathParts.Take(this.NumParts).Select(x => x.GetString()));
             }
             
             private unsafe bool RangeContains(byte* bufferPtr, int count, byte value)

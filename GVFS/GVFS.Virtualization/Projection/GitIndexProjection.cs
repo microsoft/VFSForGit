@@ -160,13 +160,10 @@ namespace GVFS.Virtualization.Projection
         /// </summary>
         void IProfilerOnlyIndexProjection.ForceAddMissingModifiedPaths(ITracer tracer)
         {
-            Dictionary<string, PlaceholderListDatabase.PlaceholderData> placeholderDataByPath = new Dictionary<string, PlaceholderListDatabase.PlaceholderData>(StringComparer.Ordinal);
-            List<PlaceholderListDatabase.PlaceholderData> placeholderDataToKeep = new List<PlaceholderListDatabase.PlaceholderData>();
-
             using (FileStream indexStream = new FileStream(this.indexPath, FileMode.Open, FileAccess.ReadWrite, FileShare.Read, IndexFileStreamBufferSize))
             {
                 // Not checking the FileSystemTaskResult here because this is only for profiling
-                this.indexParser.AddMissingModifiedFiles(tracer, indexStream, placeholderDataByPath, placeholderDataToKeep);
+                this.indexParser.AddMissingModifiedFilesAndRemoveThemFromPlaceholderList(tracer, indexStream);
             }
         }
 
@@ -532,24 +529,14 @@ namespace GVFS.Virtualization.Projection
             {
                 if (this.modifiedFilesInvalid)
                 {
-                    Dictionary<string, PlaceholderListDatabase.PlaceholderData> placeholderDataByPath;
-                    List<PlaceholderListDatabase.PlaceholderData> placeholdersToKeep;
-                    this.placeholderList.GetAllEntries(out placeholderDataByPath, folderPlaceholders: out placeholdersToKeep);
-
-                    FileSystemTaskResult result = this.indexParser.AddMissingModifiedFiles(this.context.Tracer, this.indexFileStream, placeholderDataByPath, placeholdersToKeep);
+                    FileSystemTaskResult result = this.indexParser.AddMissingModifiedFilesAndRemoveThemFromPlaceholderList(
+                        this.context.Tracer, 
+                        this.indexFileStream);
+                    
                     if (result == FileSystemTaskResult.Success)
                     {
                         this.modifiedFilesInvalid = false;
                     }
-
-                    // Any paths that are not in the the index must be added to ModifiedPaths.dat so that git
-                    // reports them as untracked
-                    foreach (string path in placeholderDataByPath.Keys)
-                    {
-                        this.AddModifiedPath(path);
-                    }
-
-                    this.placeholderList.WriteAllEntriesAndFlush(placeholdersToKeep);
 
                     return result;
                 }
@@ -702,7 +689,7 @@ namespace GVFS.Virtualization.Projection
                     // TODO(Mac): The line below causes a conversion from LazyUTF8String to .NET string.
                     // Measure the perf and memory overhead of performing this conversion, and determine if we need
                     // a way to keep the path as LazyUTF8String[]
-                    this.nonDefaultFileTypesAndModes.Add(indexEntry.GetFullPath(), indexEntry.TypeAndMode);
+                    this.nonDefaultFileTypesAndModes.Add(indexEntry.GetGitPath(), indexEntry.TypeAndMode);
                 }
             }
         }
@@ -809,7 +796,7 @@ namespace GVFS.Virtualization.Projection
                         parentFolderName = this.rootFolderData.Name.GetString();
                     }
 
-                    string gitPath = indexEntry.GetFullPath();
+                    string gitPath = indexEntry.GetGitPath();
 
                     EventMetadata metadata = CreateEventMetadata();
                     metadata.Add("gitPath", gitPath);

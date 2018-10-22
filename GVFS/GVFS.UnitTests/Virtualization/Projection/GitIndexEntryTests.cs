@@ -2,6 +2,7 @@
 using GVFS.UnitTests.Mock.Common;
 using NUnit.Framework;
 using System;
+using System.IO;
 using System.Text;
 using static GVFS.Virtualization.Projection.GitIndexProjection;
 
@@ -161,7 +162,8 @@ namespace GVFS.UnitTests.Virtualization.Git
             }
 
             indexEntry.GetChildName().GetString().ShouldEqual(pathParts[pathParts.Length - 1]);
-            indexEntry.GetFullPath().ShouldEqual(string.Join("/", pathParts));
+            indexEntry.GetGitPath().ShouldEqual(string.Join("/", pathParts));
+            indexEntry.GetRelativePath().ShouldEqual(string.Join(Path.DirectorySeparatorChar, pathParts));
         }
     }
 }

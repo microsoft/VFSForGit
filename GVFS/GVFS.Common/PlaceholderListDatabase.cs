@@ -167,19 +167,12 @@ namespace GVFS.Common
             }
         }
 
-        public void GetAllEntries(
-            out Dictionary<string, PlaceholderListDatabase.PlaceholderData> placeholderDataByPath,
-            out List<PlaceholderData> folderPlaceholders)
+        public void GetAllFileEntries(out Dictionary<string, PlaceholderListDatabase.PlaceholderData> filePlaceholdersByPath)
         {
             try
             {
                 Dictionary<string, PlaceholderListDatabase.PlaceholderData> filePlaceholdersFromDiskByPath = 
                     new Dictionary<string, PlaceholderListDatabase.PlaceholderData>(Math.Max(1, this.EstimatedCount), StringComparer.Ordinal);
-
-                // This version of GetAllEntries was designed to be used when some file placeholders will need to be removed.  Allocate folderPlaceholdersFromDisk
-                // with enough space for all entries so that the caller can use folderPlaceholders as the list of placeholders to keep (moving items from placeholderDataByPath
-                // to folderPlaceholders, and then calling WriteAllEntriesAndFlush with folderPlaceholders)
-                List<PlaceholderData> folderPlaceholdersFromDisk = new List<PlaceholderData>(Math.Max(1, this.EstimatedCount));
 
                 string error;
                 if (!this.TryLoadFromDisk<string, string>(
@@ -187,31 +180,17 @@ namespace GVFS.Common
                     this.TryParseRemoveLine,
                     (key, value) =>
                     {
-                        if (value == PartialFolderValue || value == ExpandedFolderValue)
-                        {
-                            folderPlaceholdersFromDisk.Add(new PlaceholderData(path: key, fileShaOrFolderValue: value));
-                        }
-                        else
+                        if (value != PartialFolderValue && value != ExpandedFolderValue)
                         {
                             filePlaceholdersFromDiskByPath[key] = new PlaceholderData(path: key, fileShaOrFolderValue: value);
                         }
                     },
-                    out error,
-                    () =>
-                    {
-                        if (this.placeholderDataEntries != null)
-                        {
-                            throw new InvalidOperationException("PlaceholderListDatabase should always flush queue placeholders using WriteAllEntriesAndFlush before calling GetAllEntries again.");
-                        }
-
-                        this.placeholderDataEntries = new List<PlaceholderDataEntry>();
-                    }))
+                    out error))
                 {
                     throw new InvalidDataException(error);
                 }
 
-                placeholderDataByPath = filePlaceholdersFromDiskByPath;
-                folderPlaceholders = folderPlaceholdersFromDisk;
+                filePlaceholdersByPath = filePlaceholdersFromDiskByPath;
             }
             catch (Exception e)
             {
