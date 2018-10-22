@@ -34,21 +34,7 @@
     <CodeAnalysisRuleSet>MinimumRecommendedRules.ruleset</CodeAnalysisRuleSet>
   </PropertyGroup>
   <ItemGroup>
-    <FilesToSign Include="
-      $(BuildOutputDir)\GitHooksLoader\bin\$(Platform)\$(Configuration)\GitHooksLoader.exe;
-      $(BuildOutputDir)\FastFetch\bin\$(Platform)\$(Configuration)\FastFetch.exe;
-      $(BuildOutputDir)\GVFS.Common\bin\$(Platform)\$(Configuration)\netstandard2.0\GVFS.Common.dll;
-      $(BuildOutputDir)\GVFS.GVFlt\bin\$(Platform)\$(Configuration)\GVFS.GVFlt.dll;
-      $(BuildOutputDir)\GVFS.Hooks.Windows\bin\$(Platform)\$(Configuration)\GVFS.Hooks.exe;
-      $(BuildOutputDir)\GVFS.Mount.Windows\bin\$(Platform)\$(Configuration)\GVFS.Mount.exe;
-      $(BuildOutputDir)\GVFS.Platform.Windows\bin\$(Platform)\$(Configuration)\GVFS.Platform.Windows.dll;
-      $(BuildOutputDir)\GVFS.ReadObjectHook.Windows\bin\$(Platform)\$(Configuration)\GVFS.ReadObjectHook.exe;
-      $(BuildOutputDir)\GVFS.Service\bin\$(Platform)\$(Configuration)\GVFS.Service.exe;
-      $(BuildOutputDir)\GVFS.Service.UI\bin\$(Platform)\$(Configuration)\GVFS.Service.UI.exe;
-      $(BuildOutputDir)\GVFS.Virtualization\bin\$(Platform)\$(Configuration)\netstandard2.0\GVFS.Virtualization.dll;
-      $(BuildOutputDir)\GVFS.VirtualFileSystemHook.Windows\bin\$(Platform)\$(Configuration)\GVFS.VirtualFileSystemHook.exe;
-      $(BuildOutputDir)\GVFS.Upgrader\bin\$(Platform)\$(Configuration)\GVFS.Upgrader.exe;
-      $(BuildOutputDir)\GVFS.Windows\bin\$(Platform)\$(Configuration)\GVFS.exe;">
+    <FilesToSign Include="&#xD;&#xA;      $(BuildOutputDir)\GitHooksLoader\bin\$(Platform)\$(Configuration)\GitHooksLoader.exe;&#xD;&#xA;      $(BuildOutputDir)\FastFetch\bin\$(Platform)\$(Configuration)\FastFetch.exe;&#xD;&#xA;      $(BuildOutputDir)\GVFS.Common\bin\$(Platform)\$(Configuration)\netstandard2.0\GVFS.Common.dll;&#xD;&#xA;      $(BuildOutputDir)\GVFS.GVFlt\bin\$(Platform)\$(Configuration)\GVFS.GVFlt.dll;&#xD;&#xA;      $(BuildOutputDir)\GVFS.Hooks.Windows\bin\$(Platform)\$(Configuration)\GVFS.Hooks.exe;&#xD;&#xA;      $(BuildOutputDir)\GVFS.Mount.Windows\bin\$(Platform)\$(Configuration)\GVFS.Mount.exe;&#xD;&#xA;      $(BuildOutputDir)\GVFS.Platform.Windows\bin\$(Platform)\$(Configuration)\GVFS.Platform.Windows.dll;&#xD;&#xA;      $(BuildOutputDir)\GVFS.ReadObjectHook.Windows\bin\$(Platform)\$(Configuration)\GVFS.ReadObjectHook.exe;&#xD;&#xA;      $(BuildOutputDir)\GVFS.Service\bin\$(Platform)\$(Configuration)\GVFS.Service.exe;&#xD;&#xA;      $(BuildOutputDir)\GVFS.Service.UI\bin\$(Platform)\$(Configuration)\GVFS.Service.UI.exe;&#xD;&#xA;      $(BuildOutputDir)\GVFS.Virtualization\bin\$(Platform)\$(Configuration)\netstandard2.0\GVFS.Virtualization.dll;&#xD;&#xA;      $(BuildOutputDir)\GVFS.VirtualFileSystemHook.Windows\bin\$(Platform)\$(Configuration)\GVFS.VirtualFileSystemHook.exe;&#xD;&#xA;      $(BuildOutputDir)\GVFS.Upgrader\bin\$(Platform)\$(Configuration)\GVFS.Upgrader.exe;&#xD;&#xA;      $(BuildOutputDir)\GVFS.Windows\bin\$(Platform)\$(Configuration)\GVFS.exe;">
       <Authenticode>Microsoft</Authenticode>
       <InProject>false</InProject>
     </FilesToSign>
@@ -62,12 +48,8 @@
   <Target Name="Clean">
     <RemoveDir Directories="$(BuildOutputDir)\$(MSBuildProjectName)" />
   </Target>
-  <Target Name="ValidateSigningDependencies"
-          BeforeTargets="PrepareForBuild"
-          Inputs="$(MSBuildThisFileFullPath);$(MSBuildProjectFullPath);@(FilesToSign)"
-          Outputs="$(BuildOutputDir)\validatesign.timestamp">
-    <Error Text="File to sign not found: %(FilesToSign.Identity)"
-           Condition="!Exists('%(FilesToSign.Identity)')" />
+  <Target Name="ValidateSigningDependencies" BeforeTargets="PrepareForBuild" Inputs="$(MSBuildThisFileFullPath);$(MSBuildProjectFullPath);@(FilesToSign)" Outputs="$(BuildOutputDir)\validatesign.timestamp">
+    <Error Text="File to sign not found: %(FilesToSign.Identity)" Condition="!Exists('%(FilesToSign.Identity)')" />
     <Touch Files="$(BuildOutputDir)\validatesign.timestamp" AlwaysCreate="true" />
   </Target>
   <Target Name="Compile" />

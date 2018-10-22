@@ -2,7 +2,7 @@
   <Import Project="..\GVFS.Build\GVFS.cs.props" />
   <PropertyGroup>
     <OutputType>Exe</OutputType>
-    <AssemblyName>gvfs.mount</AssemblyName>
+    <AssemblyName>fastfetch</AssemblyName>
     <TargetFramework>netcoreapp2.1</TargetFramework>
     <Platforms>x64</Platforms>
     <RunTimeIdentifiers>osx-x64</RunTimeIdentifiers>

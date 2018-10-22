@@ -170,27 +170,16 @@
     <ApplicationNeedsManifest Include="GVFS.Service" />
   </ItemGroup>
 
-  <Target Name="GVFSPreBuild"
-          Inputs="$(MSBuildThisFileFullPath);$(MSBuildProjectFullPath);$(MSBuildThisFileDirectory)GenerateG4WNugetReference.cs;@(BuildProps)"
-          Outputs="@(GeneratedPackageConfig)">
+  <Target Name="GVFSPreBuild" Inputs="$(MSBuildThisFileFullPath);$(MSBuildProjectFullPath);$(MSBuildThisFileDirectory)GenerateG4WNugetReference.cs;@(BuildProps)" Outputs="@(GeneratedPackageConfig)">
     <GenerateG4WNugetReference GitPackageVersion="$(GitPackageVersion)" Condition="'$(OS)' == 'Windows_NT'" />
   </Target>
 
-  <Target Name="GVFSPackageRestore"
-          Inputs="$(MSBuildThisFileFullPath);$(MSBuildProjectFullPath);@(GeneratedPackageConfig)"
-          Outputs="$(RestoreTimestampPath)"
-          DependsOnTargets="GVFSPreBuild"
-          Condition="'$(OS)' == 'Windows_NT'">
-    <Exec Command="call $(MSBuildThisFileDirectory)..\..\Scripts\RestorePackages.bat"
-          WorkingDirectory="$(MSBuildThisFileDirectory)../../" />
+  <Target Name="GVFSPackageRestore" Inputs="$(MSBuildThisFileFullPath);$(MSBuildProjectFullPath);@(GeneratedPackageConfig)" Outputs="$(RestoreTimestampPath)" DependsOnTargets="GVFSPreBuild" Condition="'$(OS)' == 'Windows_NT'">
+    <Exec Command="call $(MSBuildThisFileDirectory)..\..\Scripts\RestorePackages.bat" WorkingDirectory="$(MSBuildThisFileDirectory)../../" />
     <Touch Files="$(RestoreTimestampPath)" AlwaysCreate="true" />
   </Target>
 
-  <Target Name="GenerateInstallScripts" 
-          DependsOnTargets="GVFSPackageRestore;$(GenerateInstallScriptsDependsOn)"
-          Inputs="$(RestoreTimestampPath);@(GeneratedPackageConfig);$(MSBuildThisFileFullPath);$(MSBuildProjectFullPath);$(MSBuildThisFileDirectory)GenerateGitVersionConstants.cs;$(MSBuildThisFileDirectory)GenerateInstallScripts.cs;$(MSBuildThisFileDirectory)GenerateGVFSInstallersNuspec.cs"
-          Outputs="$(GitVersionConstantsPath);$(G4WInstallBatPath);$(GVFSInstallBatPath);$(GVFSInstallerNuspecPath)"
-          Condition="'$(OS)' == 'Windows_NT'">
+  <Target Name="GenerateInstallScripts" DependsOnTargets="GVFSPackageRestore;$(GenerateInstallScriptsDependsOn)" Inputs="$(RestoreTimestampPath);@(GeneratedPackageConfig);$(MSBuildThisFileFullPath);$(MSBuildProjectFullPath);$(MSBuildThisFileDirectory)GenerateGitVersionConstants.cs;$(MSBuildThisFileDirectory)GenerateInstallScripts.cs;$(MSBuildThisFileDirectory)GenerateGVFSInstallersNuspec.cs" Outputs="$(GitVersionConstantsPath);$(G4WInstallBatPath);$(GVFSInstallBatPath);$(GVFSInstallerNuspecPath)" Condition="'$(OS)' == 'Windows_NT'">
     <GenerateGitVersionConstants GitPackageVersion="$(GitPackageVersion)" PackagesPath="$(PackagesDir)" OutputFile="$(GitVersionConstantsPath)">
       <Output PropertyName="G4WInstaller" TaskParameter="LatestInstaller" />
     </GenerateGitVersionConstants>
@@ -198,11 +187,8 @@
     <GenerateGVFSInstallersNuspec GVFSSetupPath="$(GVFSSetupPath)" GitPackageVersion="$(GitPackageVersion)" PackagesPath="$(PackagesDir)" OutputFile="$(GVFSInstallerNuspecPath)" />
   </Target>
 
-  <Target Name="GenerateShared"
-          DependsOnTargets="GenerateInstallScripts;$(GenerateSharedDependsOn)"
-          Inputs="$(RestoreTimestampPath);@(GeneratedPackageConfig);$(MSBuildThisFileFullPath);$(MSBuildProjectFullPath);$(MSBuildThisFileDirectory)GenerateVersionInfo.cs;$(MSBuildThisFileDirectory)GenerateApplicationManifests.cs"
-          Outputs="$(AssemblyVersionPath);$(VersionHeaderPath);@(ApplicationNeedsManifest->'%(OutputFile)')">
+  <Target Name="GenerateShared" DependsOnTargets="GenerateInstallScripts;$(GenerateSharedDependsOn)" Inputs="$(RestoreTimestampPath);@(GeneratedPackageConfig);$(MSBuildThisFileFullPath);$(MSBuildProjectFullPath);$(MSBuildThisFileDirectory)GenerateVersionInfo.cs;$(MSBuildThisFileDirectory)GenerateApplicationManifests.cs" Outputs="$(AssemblyVersionPath);$(VersionHeaderPath);@(ApplicationNeedsManifest-&gt;'%(OutputFile)')">
     <GenerateVersionInfo Version="$(GVFSVersion)" AssemblyVersion="$(AssemblyVersionPath)" VersionHeader="$(VersionHeaderPath)" />
-    <GenerateApplicationManifests Version="$(GVFSVersion)" ApplicationName="@(ApplicationNeedsManifest)" ManifestPath="@(ApplicationNeedsManifest->'%(OutputFile)')" />  
+    <GenerateApplicationManifests Version="$(GVFSVersion)" ApplicationName="@(ApplicationNeedsManifest)" ManifestPath="@(ApplicationNeedsManifest-&gt;'%(OutputFile)')" />  
   </Target>
 </Project>
