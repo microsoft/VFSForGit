@@ -19,6 +19,8 @@ namespace GVFS.Virtualization.Projection
             private const int MaxParts = MaxPathBufferSize / 2;
             private const byte PathSeparatorCode = 0x2F;
 
+            private static readonly string PathSeparatorString = Path.DirectorySeparatorChar.ToString();
+
             private int previousFinalSeparatorIndex = int.MaxValue;
 
             public GitIndexEntry()
@@ -148,7 +150,7 @@ namespace GVFS.Virtualization.Projection
 
             public string GetRelativePath()
             {
-                return string.Join(Path.DirectorySeparatorChar, this.PathParts.Take(this.NumParts).Select(x => x.GetString()));
+                return string.Join(PathSeparatorString, this.PathParts.Take(this.NumParts).Select(x => x.GetString()));
             }
             
             private unsafe bool RangeContains(byte* bufferPtr, int count, byte value)
