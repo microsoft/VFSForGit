@@ -117,7 +117,14 @@ namespace GVFS.CommandLine
 
                 if (!GVFSPlatform.Instance.KernelDriver.IsReady(tracer, enlistment.EnlistmentRoot, out errorMessage))
                 {
-                    tracer.RelatedInfo($"{nameof(MountVerb)}.{nameof(this.Execute)}: Enabling and attaching ProjFS through service");
+                    tracer.RelatedEvent(
+                        EventLevel.Informational,
+                            $"{nameof(MountVerb)}_{nameof(this.Execute)}_EnablingKernelDriverViaService",
+                            new EventMetadata
+                            {
+                                { "KernelDriver.IsReady_Error", errorMessage },
+                                { TracingConstants.MessageKey.InfoMessage, "Service will retry" }
+                            });
 
                     if (!this.ShowStatusWhileRunning(
                         () => { return this.TryEnableAndAttachPrjFltThroughService(enlistment.EnlistmentRoot, out errorMessage); },

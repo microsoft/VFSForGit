@@ -47,7 +47,7 @@ namespace GVFS.Platform.Windows
 
         public string DriverLogFolderName { get; } = ProjFSFilter.ServiceName;
 
-        public static bool TryAttach(ITracer tracer, string enlistmentRoot, out string errorMessage)
+        public static bool TryAttach(string enlistmentRoot, out string errorMessage)
         {
             errorMessage = null;
             try
@@ -56,7 +56,6 @@ namespace GVFS.Platform.Windows
                 if (!NativeMethods.GetVolumePathName(enlistmentRoot, volumePathName, GVFSConstants.MaxPath))
                 {
                     errorMessage = "Could not get volume path name";
-                    tracer.RelatedError($"{nameof(TryAttach)}:{errorMessage}");
                     return false;
                 }
 
@@ -64,14 +63,12 @@ namespace GVFS.Platform.Windows
                 if (result != OkResult && result != NameCollisionErrorResult)
                 {
                     errorMessage = string.Format("Attaching the filter driver resulted in: {0}", result);
-                    tracer.RelatedError(errorMessage);
                     return false;
                 }
             }
             catch (Exception e)
             {
                 errorMessage = string.Format("Attaching the filter driver resulted in: {0}", e.Message);
-                tracer.RelatedError(errorMessage);
                 return false;
             }
 
@@ -373,7 +370,7 @@ namespace GVFS.Platform.Windows
             return
                 IsServiceRunning(tracer) &&
                 IsNativeLibInstalled(tracer, new PhysicalFileSystem()) &&
-                TryAttach(tracer, enlistmentRoot, out error);
+                TryAttach(enlistmentRoot, out error);
         }
 
         private static bool IsInboxAndEnabled()
