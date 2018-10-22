@@ -12,8 +12,6 @@ namespace GVFS.Common.Prefetch.Git
 {
     public class PrefetchLibGit2Repo : LibGit2Repo
     {
-        private const int AccessDeniedWin32Error = 5;
-
         public PrefetchLibGit2Repo(ITracer tracer, string repoPath)
             : base(tracer, repoPath)
         {
@@ -44,36 +42,7 @@ namespace GVFS.Common.Prefetch.Git
 
                             foreach (string destination in destinations)
                             {
-                                try
-                                {
-                                    using (SafeFileHandle fileHandle = OpenForWrite(this.Tracer, destination))
-                                    {
-                                        if (fileHandle.IsInvalid)
-                                        {
-                                            throw new Win32Exception(Marshal.GetLastWin32Error());
-                                        }
-
-                                        byte* data = originalData;
-                                        long size = originalSize;
-                                        uint written = 0;
-                                        while (size > 0)
-                                        {
-                                            uint toWrite = size < uint.MaxValue ? (uint)size : uint.MaxValue;
-                                            if (!Native.WriteFile(fileHandle, data, toWrite, out written, IntPtr.Zero))
-                                            {
-                                                throw new Win32Exception(Marshal.GetLastWin32Error());
-                                            }
-
-                                            size -= written;
-                                            data = data + written;
-                                        }
-                                    }
-                                }
-                                catch (Exception e)
-                                {
-                                    this.Tracer.RelatedError("Exception writing {0}: {1}", destination, e);
-                                    throw;
-                                }
+                                GVFSPlatform.Instance.FileSystem.WriteFile(this.Tracer, originalData, originalSize, destination);
                             }
 
                             bytesWritten = originalSize * destinations.Count();
@@ -89,33 +58,6 @@ namespace GVFS.Common.Prefetch.Git
             }
 
             return true;
-        }
-
-        private static SafeFileHandle OpenForWrite(ITracer tracer, string fileName)
-        {
-            SafeFileHandle handle = Native.CreateFile(fileName, FileAccess.Write, FileShare.None, IntPtr.Zero, FileMode.Create, FileAttributes.Normal, IntPtr.Zero);
-            if (handle.IsInvalid)
-            {
-                // If we get a access denied, try reverting the acls to defaults inherited by parent
-                if (Marshal.GetLastWin32Error() == AccessDeniedWin32Error)
-                {
-                    tracer.RelatedEvent(
-                        EventLevel.Warning,
-                        "FailedOpenForWrite",
-                        new EventMetadata
-                        {
-                            { TracingConstants.MessageKey.WarningMessage, "Received access denied. Attempting to delete." },
-                            { "FileName", fileName }
-                        });
-
-                    File.SetAttributes(fileName, FileAttributes.Normal);
-                    File.Delete(fileName);
-
-                    handle = Native.CreateFile(fileName, FileAccess.Write, FileShare.None, IntPtr.Zero, FileMode.Create, FileAttributes.Normal, IntPtr.Zero);
-                }
-            }
-
-            return handle;
         }
     }
 }
