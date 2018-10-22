@@ -1,11 +1,11 @@
-<Project Sdk="Microsoft.NET.Sdk">
+﻿<Project Sdk="Microsoft.NET.Sdk">
   <Import Project="..\GVFS.Build\GVFS.cs.props" />
   <PropertyGroup>
     <OutputType>Exe</OutputType>
     <AssemblyName>fastfetch</AssemblyName>
     <TargetFramework>netcoreapp2.1</TargetFramework>
     <Platforms>x64</Platforms>
-    <RunTimeIdentifiers>osx-x64</RunTimeIdentifiers>
+    <RunTimeIdentifiers>osx-x64;win-64</RunTimeIdentifiers>
     <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
   </PropertyGroup>
 
@@ -17,15 +17,9 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <Compile Include="..\GVFS.PlatformLoader\PlatformLoader.Mac.cs">
-      <Link>PlatformLoader.Mac.cs</Link>
-    </Compile>
+    <ProjectReference Include="..\GVFS.Common\GVFS.Common.csproj" />
   </ItemGroup>
   
-  <ItemGroup>
-    <ProjectReference Include="..\GVFS.Platform.Mac\GVFS.Platform.Mac.csproj" />
-  </ItemGroup>
-
   <ItemGroup>
     <PackageReference Include="CommandLineParser" Version="2.1.1-beta" />
     <PackageReference Include="StyleCop.Error.MSBuild" Version="1.0.0" Condition="'$(OS)' == 'Windows_NT'" />
