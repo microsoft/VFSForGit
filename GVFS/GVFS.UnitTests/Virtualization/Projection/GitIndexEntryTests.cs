@@ -8,10 +8,30 @@ using static GVFS.Virtualization.Projection.GitIndexProjection;
 
 namespace GVFS.UnitTests.Virtualization.Git
 {
-    [TestFixture]
+    [TestFixtureSource(TestLazyPaths)]
     public class GitIndexEntryTests
     {
+        public const string TestLazyPaths = "ShouldTestLazyPaths";
+
         private const int DefaultIndexEntryCount = 10;
+        private bool shouldTestLazyPaths;
+
+        public GitIndexEntryTests(bool shouldTestLazyPaths)
+        {
+            this.shouldTestLazyPaths = shouldTestLazyPaths;
+        }
+
+        public static object[] ShouldTestLazyPaths
+        {
+            get
+            {
+                return new object[]
+                {
+                    new object[] { true },
+                    new object[] { false },
+                };
+            }
+        }
 
         [OneTimeSetUp]
         public void Setup()
@@ -137,7 +157,7 @@ namespace GVFS.UnitTests.Virtualization.Git
 
         private GitIndexEntry SetupIndexEntry(string path)
         {
-            GitIndexEntry indexEntry = new GitIndexEntry();
+            GitIndexEntry indexEntry = new GitIndexEntry(this.shouldTestLazyPaths);
             this.ParsePathForIndexEntry(indexEntry, path, replaceIndex: 0);
             return indexEntry;
         }
@@ -157,11 +177,21 @@ namespace GVFS.UnitTests.Virtualization.Git
             indexEntry.NumParts.ShouldEqual(pathParts.Length, nameof(indexEntry.NumParts));
             for (int i = 0; i < pathParts.Length; i++)
             {
-                indexEntry.PathParts[i].ShouldNotBeNull();
-                indexEntry.PathParts[i].GetString().ShouldEqual(pathParts[i]);
+                if (this.shouldTestLazyPaths)
+                {
+                    indexEntry.GetLazyPathPart(i).ShouldNotBeNull();
+                    indexEntry.GetLazyPathPart(i).GetString().ShouldEqual(pathParts[i]);
+                }
+
+                indexEntry.GetPathPart(i).ShouldNotBeNull();
+                indexEntry.GetPathPart(i).ShouldEqual(pathParts[i]);
             }
 
-            indexEntry.GetChildName().GetString().ShouldEqual(pathParts[pathParts.Length - 1]);
+            if (this.shouldTestLazyPaths)
+            {
+                indexEntry.GetLazyChildName().GetString().ShouldEqual(pathParts[pathParts.Length - 1]);
+            }
+
             indexEntry.GetGitPath().ShouldEqual(string.Join("/", pathParts));
             indexEntry.GetRelativePath().ShouldEqual(string.Join(Path.DirectorySeparatorChar.ToString(), pathParts));
         }

@@ -1,6 +1,8 @@
 ﻿using GVFS.Common;
+using System;
 using System.IO;
 using System.Linq;
+using System.Text;
 
 namespace GVFS.Virtualization.Projection
 {
@@ -23,9 +25,19 @@ namespace GVFS.Virtualization.Projection
 
             private int previousFinalSeparatorIndex = int.MaxValue;
 
-            public GitIndexEntry()
+            private LazyUTF8String[] lazyPathParts;
+            private string[] utf16PathParts;
+
+            public GitIndexEntry(bool useLazyPaths)
             {
-                this.PathParts = new LazyUTF8String[MaxParts];
+                if (useLazyPaths)
+                {
+                    this.lazyPathParts = new LazyUTF8String[MaxParts];
+                }
+                else
+                {
+                    this.utf16PathParts = new string[MaxParts];
+                }
             }
 
             public byte[] Sha { get; } = new byte[20];
@@ -41,11 +53,6 @@ namespace GVFS.Virtualization.Projection
             public byte[] PathBuffer { get; } = new byte[MaxPathBufferSize];
             public FolderData LastParent { get; set; }
 
-            public LazyUTF8String[] PathParts
-            {
-                get; private set;
-            }
-
             public int NumParts
             {
                 get; private set;
@@ -54,6 +61,27 @@ namespace GVFS.Virtualization.Projection
             public bool HasSameParentAsLastEntry
             {
                 get; private set;
+            }
+
+            public string GetPathPart(int index)
+            {
+                if (this.lazyPathParts != null)
+                {
+                    return this.lazyPathParts[index].GetString();
+                }
+
+                return this.utf16PathParts[index];
+            }
+
+            public LazyUTF8String GetLazyPathPart(int index)
+            {
+                if (this.lazyPathParts == null)
+                {
+                    throw new InvalidOperationException(
+                        $"{nameof(GetLazyPathPart)} can only be called when useLazyPaths is set to true when creating {nameof(GitIndexEntry)}");
+                }
+
+                return this.lazyPathParts[index];
             }
 
             public unsafe void ParsePath()
@@ -108,11 +136,22 @@ namespace GVFS.Virtualization.Projection
                     int partIndex = this.NumParts;
 
                     byte* forLoopPtr = pathPtr + forLoopStartIndex;
+                    byte* bufferPtr;
+                    int bufferLength;
                     for (int i = forLoopStartIndex; i < this.PathLength + 1; i++)
                     {
                         if (*forLoopPtr == PathSeparatorCode)
                         {
-                            this.PathParts[partIndex] = LazyUTF8String.FromByteArray(pathPtr + currentPartStartIndex, i - currentPartStartIndex);
+                            bufferPtr = pathPtr + currentPartStartIndex;
+                            bufferLength = i - currentPartStartIndex;
+                            if (this.lazyPathParts != null)
+                            {
+                                this.lazyPathParts[partIndex] = LazyUTF8String.FromByteArray(bufferPtr, bufferLength);
+                            }
+                            else
+                            {
+                                this.utf16PathParts[partIndex] = Encoding.UTF8.GetString(bufferPtr, bufferLength);
+                            }
 
                             partIndex++;
                             currentPartStartIndex = i + 1;
@@ -125,7 +164,16 @@ namespace GVFS.Virtualization.Projection
                     }
 
                     // We unrolled the final part calculation to after the loop, to avoid having to do a 0-byte check inside the for loop
-                    this.PathParts[partIndex] = LazyUTF8String.FromByteArray(pathPtr + currentPartStartIndex, this.PathLength - currentPartStartIndex);
+                    bufferPtr = pathPtr + currentPartStartIndex;
+                    bufferLength = this.PathLength - currentPartStartIndex;
+                    if (this.lazyPathParts != null)
+                    {
+                        this.lazyPathParts[partIndex] = LazyUTF8String.FromByteArray(bufferPtr, bufferLength);
+                    }
+                    else
+                    {
+                        this.utf16PathParts[partIndex] = Encoding.UTF8.GetString(bufferPtr, bufferLength);
+                    }
 
                     this.NumParts++;
                 }
@@ -138,9 +186,9 @@ namespace GVFS.Virtualization.Projection
                 this.LastParent = null;
             }
 
-            public LazyUTF8String GetChildName()
+            public LazyUTF8String GetLazyChildName()
             {
-                return this.PathParts[this.NumParts - 1];
+                return this.GetLazyPathPart(this.NumParts - 1);
             }
 
             public string GetGitPath()
@@ -155,7 +203,12 @@ namespace GVFS.Virtualization.Projection
 
             private string GetPath(string separator)
             {
-                return string.Join(separator, this.PathParts.Take(this.NumParts).Select(x => x.GetString()));
+                if (this.lazyPathParts != null)
+                {
+                    return string.Join(separator, this.lazyPathParts.Take(this.NumParts).Select(x => x.GetString()));
+                }
+
+                return string.Join(separator, this.utf16PathParts.Take(this.NumParts));
             }
             
             private unsafe bool RangeContains(byte* bufferPtr, int count, byte value)

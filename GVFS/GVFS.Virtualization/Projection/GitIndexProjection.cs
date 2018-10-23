@@ -669,14 +669,14 @@ namespace GVFS.Virtualization.Projection
         {
             if (indexEntry.HasSameParentAsLastEntry)
             {
-                indexEntry.LastParent.AddChildFile(indexEntry.GetChildName(), indexEntry.Sha);
+                indexEntry.LastParent.AddChildFile(indexEntry.GetLazyChildName(), indexEntry.Sha);
             }
             else
             {
                 if (indexEntry.NumParts == 1)
                 {
                     indexEntry.LastParent = this.rootFolderData;
-                    indexEntry.LastParent.AddChildFile(indexEntry.GetChildName(), indexEntry.Sha);
+                    indexEntry.LastParent.AddChildFile(indexEntry.GetLazyChildName(), indexEntry.Sha);
                 }
                 else
                 {
@@ -794,7 +794,7 @@ namespace GVFS.Virtualization.Projection
                     string parentFolderName;
                     if (pathIndex > 0)
                     {
-                        parentFolderName = indexEntry.PathParts[pathIndex - 1].GetString();
+                        parentFolderName = indexEntry.GetPathPart(pathIndex - 1);
                     }
                     else
                     {
@@ -811,10 +811,10 @@ namespace GVFS.Virtualization.Projection
                     throw new InvalidDataException("Found a file (" + parentFolderName + ") where a folder was expected: " + gitPath);
                 }
 
-                parentFolder = parentFolder.ChildEntries.GetOrAddFolder(indexEntry.PathParts[pathIndex]);
+                parentFolder = parentFolder.ChildEntries.GetOrAddFolder(indexEntry.GetLazyPathPart(pathIndex));
             }
 
-            parentFolder.AddChildFile(indexEntry.PathParts[indexEntry.NumParts - 1], indexEntry.Sha);
+            parentFolder.AddChildFile(indexEntry.GetLazyPathPart(indexEntry.NumParts - 1), indexEntry.Sha);
 
             return parentFolder;
         }

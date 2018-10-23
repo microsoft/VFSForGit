@@ -24,9 +24,14 @@ namespace GVFS.Virtualization.Projection
             private GitIndexProjection projection;
 
             /// <summary>
-            /// A single GitIndexEntry instance used for parsing all entries in the index
+            /// A single GitIndexEntry instance used for parsing all entries in the index when building the projection
             /// </summary>
-            private GitIndexEntry resuableParsedIndexEntry = new GitIndexEntry();
+            private GitIndexEntry resuableProjectionBuildingIndexEntry = new GitIndexEntry(useLazyPaths: true);
+
+            /// <summary>
+            /// A single GitIndexEntry instance used by the background task thread for parsing all entries in the index
+            /// </summary>
+            private GitIndexEntry resuableBackgroundTaskThreadIndexEntry = new GitIndexEntry(useLazyPaths: false);
 
             public GitIndexParser(GitIndexProjection projection)
             {
@@ -45,7 +50,7 @@ namespace GVFS.Virtualization.Projection
             public static void ValidateIndex(ITracer tracer, Stream indexStream)
             {
                 GitIndexParser indexParser = new GitIndexParser(null);
-                FileSystemTaskResult result = indexParser.ParseIndex(tracer, indexStream, ValidateIndexEntry);
+                FileSystemTaskResult result = indexParser.ParseIndex(tracer, indexStream, indexParser.resuableProjectionBuildingIndexEntry, ValidateIndexEntry);
 
                 if (result != FileSystemTaskResult.Success)
                 {
@@ -62,7 +67,12 @@ namespace GVFS.Virtualization.Projection
                 }
 
                 this.projection.ClearProjectionCaches();
-                FileSystemTaskResult result = this.ParseIndex(tracer, indexStream, this.AddIndexEntryToProjection);
+                FileSystemTaskResult result = this.ParseIndex(
+                    tracer, 
+                    indexStream, 
+                    this.resuableProjectionBuildingIndexEntry, 
+                    this.AddIndexEntryToProjection);
+                
                 if (result != FileSystemTaskResult.Success)
                 {
                     // RebuildProjection should always result in FileSystemTaskResult.Success (or a thrown exception)
@@ -85,8 +95,9 @@ namespace GVFS.Virtualization.Projection
                 FileSystemTaskResult result = this.ParseIndex(
                     tracer,
                     indexStream,
+                    this.resuableBackgroundTaskThreadIndexEntry,
                     (data) => this.AddEntryToModifiedPathsAndRemoveFromPlaceholdersIfNeeded(data, filePlaceholders));
-
+                
                 if (result != FileSystemTaskResult.Success)
                 {
                     return result;
@@ -193,7 +204,11 @@ namespace GVFS.Virtualization.Projection
             /// in TryIndexAction returning a FileSystemTaskResult other than Success.  All other actions result in success (or an exception in the
             /// case of a corrupt index)
             /// </remarks>
-            private FileSystemTaskResult ParseIndex(ITracer tracer, Stream indexStream, Func<GitIndexEntry, FileSystemTaskResult> entryAction)
+            private FileSystemTaskResult ParseIndex(
+                ITracer tracer, 
+                Stream indexStream, 
+                GitIndexEntry resuableParsedIndexEntry,
+                Func<GitIndexEntry, FileSystemTaskResult> entryAction)
             {
                 this.indexStream = indexStream;
                 this.indexStream.Position = 0;
@@ -223,7 +238,7 @@ namespace GVFS.Virtualization.Projection
                 SortedFolderEntries.InitializePools(tracer, entryCount);
                 LazyUTF8String.InitializePools(tracer, entryCount);
 
-                this.resuableParsedIndexEntry.ClearLastParent();
+                resuableParsedIndexEntry.ClearLastParent();
                 int previousPathLength = 0;
 
                 bool parseMode = GVFSPlatform.Instance.FileSystem.SupportsFileMode;
@@ -268,7 +283,7 @@ namespace GVFS.Virtualization.Projection
                                 throw new InvalidDataException($"Invalid file type {typeAndMode.Type:X} found in index");
                         }
                                     
-                        this.resuableParsedIndexEntry.TypeAndMode = typeAndMode;
+                        resuableParsedIndexEntry.TypeAndMode = typeAndMode;
 
                         this.Skip(12);
                     }
@@ -277,7 +292,7 @@ namespace GVFS.Virtualization.Projection
                         this.Skip(40);
                     }
 
-                    this.ReadSha(this.resuableParsedIndexEntry);
+                    this.ReadSha(resuableParsedIndexEntry);
 
                     ushort flags = this.ReadUInt16();
                     if (flags == 0)
@@ -285,24 +300,24 @@ namespace GVFS.Virtualization.Projection
                         throw new InvalidDataException("Invalid flags found in index");
                     }
 
-                    this.resuableParsedIndexEntry.MergeState = (MergeStage)((flags >> 12) & 3);
+                    resuableParsedIndexEntry.MergeState = (MergeStage)((flags >> 12) & 3);
                     bool isExtended = (flags & ExtendedBit) == ExtendedBit;
-                    this.resuableParsedIndexEntry.PathLength = (ushort)(flags & 0xFFF);
+                    resuableParsedIndexEntry.PathLength = (ushort)(flags & 0xFFF);
 
-                    this.resuableParsedIndexEntry.SkipWorktree = false;
+                    resuableParsedIndexEntry.SkipWorktree = false;
                     if (isExtended)
                     {
                         ushort extendedFlags = this.ReadUInt16();
-                        this.resuableParsedIndexEntry.SkipWorktree = (extendedFlags & SkipWorktreeBit) == SkipWorktreeBit;
+                        resuableParsedIndexEntry.SkipWorktree = (extendedFlags & SkipWorktreeBit) == SkipWorktreeBit;
                     }
 
                     int replaceLength = this.ReadReplaceLength();
-                    this.resuableParsedIndexEntry.ReplaceIndex = previousPathLength - replaceLength;
-                    int bytesToRead = this.resuableParsedIndexEntry.PathLength - this.resuableParsedIndexEntry.ReplaceIndex + 1;
-                    this.ReadPath(this.resuableParsedIndexEntry, this.resuableParsedIndexEntry.ReplaceIndex, bytesToRead);
-                    previousPathLength = this.resuableParsedIndexEntry.PathLength;
+                    resuableParsedIndexEntry.ReplaceIndex = previousPathLength - replaceLength;
+                    int bytesToRead = resuableParsedIndexEntry.PathLength - resuableParsedIndexEntry.ReplaceIndex + 1;
+                    this.ReadPath(resuableParsedIndexEntry, resuableParsedIndexEntry.ReplaceIndex, bytesToRead);
+                    previousPathLength = resuableParsedIndexEntry.PathLength;
 
-                    result = entryAction.Invoke(this.resuableParsedIndexEntry);
+                    result = entryAction.Invoke(resuableParsedIndexEntry);
                     if (result != FileSystemTaskResult.Success)
                     {
                         return result;
