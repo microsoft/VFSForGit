@@ -360,8 +360,12 @@ namespace GVFS.Virtualization
             }
             else if (this.GitCommandLeavesProjectionUnchanged(gitCommand))
             {
-                this.GitIndexProjection.InvalidateModifiedFiles();
-                this.backgroundFileSystemTaskRunner.Enqueue(FileSystemTask.OnIndexWriteWithoutProjectionChange());
+                if (gitCommand.IsResetSoftOrMixed())
+                {
+                    this.GitIndexProjection.InvalidateModifiedFiles();
+                    this.backgroundFileSystemTaskRunner.Enqueue(FileSystemTask.OnIndexWriteByResetMixed());
+                }
+
                 this.InvalidateGitStatusCache();
             }
             else
@@ -856,7 +860,7 @@ namespace GVFS.Virtualization
                     result = FileSystemTaskResult.Success;
                     break;
 
-                case FileSystemTask.OperationType.OnIndexWriteWithoutProjectionChange:
+                case FileSystemTask.OperationType.OnIndexWriteByResetMixed:
                     result = this.GitIndexProjection.AddMissingModifiedFiles();
                     break;
 

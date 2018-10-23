@@ -79,13 +79,13 @@ namespace GVFS.Virtualization.Projection
                     throw new InvalidOperationException($"{nameof(this.projection)} cannot be null when calling {nameof(AddMissingModifiedFilesAndRemoveThemFromPlaceholderList)}");
                 }
 
-                Dictionary<string, PlaceholderListDatabase.PlaceholderData> filePlaceholders;
-                this.projection.placeholderList.GetAllFileEntries(out filePlaceholders);
+                Dictionary<string, PlaceholderListDatabase.PlaceholderData> filePlaceholders = 
+                    this.projection.placeholderList.GetAllFileEntries();
 
                 FileSystemTaskResult result = this.ParseIndex(
                     tracer,
                     indexStream,
-                    (data) => this.AdjustModifedPathsAndPlaceholdersForIndexEntry(data, filePlaceholders));
+                    (data) => this.AddEntryToModifiedPathsAndRemoveFromPlaceholdersIfNeeded(data, filePlaceholders));
 
                 if (result != FileSystemTaskResult.Success)
                 {
@@ -139,12 +139,12 @@ namespace GVFS.Virtualization.Projection
             /// </summary>
             /// <param name="gitIndexEntry">Index entry</param>
             /// <param name="filePlaceholders">
-            /// Dictionary of file placeholders.  AdjustModifedPathsAndPlaceholdersForIndexEntry will
+            /// Dictionary of file placeholders.  AddEntryToModifiedPathsAndRemoveFromPlaceholdersIfNeeded will
             /// remove enties from filePlaceholders as they are found in the index.  After
-            /// AdjustModifedPathsAndPlaceholdersForIndexEntry is called for all entries in the index 
+            /// AddEntryToModifiedPathsAndRemoveFromPlaceholdersIfNeeded is called for all entries in the index 
             /// filePlaceholders will contain only those placeholders that are not in the index.
             /// </param>
-            private FileSystemTaskResult AdjustModifedPathsAndPlaceholdersForIndexEntry(
+            private FileSystemTaskResult AddEntryToModifiedPathsAndRemoveFromPlaceholdersIfNeeded(
                 GitIndexEntry gitIndexEntry,
                 Dictionary<string, PlaceholderListDatabase.PlaceholderData> filePlaceholders)
             {

@@ -167,7 +167,7 @@ namespace GVFS.Common
             }
         }
 
-        public void GetAllFileEntries(out Dictionary<string, PlaceholderListDatabase.PlaceholderData> filePlaceholdersByPath)
+        public Dictionary<string, PlaceholderListDatabase.PlaceholderData> GetAllFileEntries()
         {
             try
             {
@@ -190,7 +190,7 @@ namespace GVFS.Common
                     throw new InvalidDataException(error);
                 }
 
-                filePlaceholdersByPath = filePlaceholdersFromDiskByPath;
+                return filePlaceholdersFromDiskByPath;
             }
             catch (Exception e)
             {

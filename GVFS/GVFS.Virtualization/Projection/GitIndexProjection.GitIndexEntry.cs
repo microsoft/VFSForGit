@@ -145,12 +145,17 @@ namespace GVFS.Virtualization.Projection
 
             public string GetGitPath()
             {
-                return string.Join(GVFSConstants.GitPathSeparatorString, this.PathParts.Take(this.NumParts).Select(x => x.GetString()));
+                return this.GetPath(GVFSConstants.GitPathSeparatorString);
             }
 
             public string GetRelativePath()
             {
-                return string.Join(PathSeparatorString, this.PathParts.Take(this.NumParts).Select(x => x.GetString()));
+                return this.GetPath(PathSeparatorString);
+            }
+
+            private string GetPath(string separator)
+            {
+                return string.Join(separator, this.PathParts.Take(this.NumParts).Select(x => x.GetString()));
             }
             
             private unsafe bool RangeContains(byte* bufferPtr, int count, byte value)

@@ -529,16 +529,21 @@ namespace GVFS.Virtualization.Projection
             {
                 if (this.modifiedFilesInvalid)
                 {
-                    FileSystemTaskResult result = this.indexParser.AddMissingModifiedFilesAndRemoveThemFromPlaceholderList(
-                        this.context.Tracer, 
-                        this.indexFileStream);
-                    
-                    if (result == FileSystemTaskResult.Success)
+                    using (ITracer activity = this.context.Tracer.StartActivity(
+                        nameof(this.indexParser.AddMissingModifiedFilesAndRemoveThemFromPlaceholderList), 
+                        EventLevel.Informational))
                     {
-                        this.modifiedFilesInvalid = false;
-                    }
+                        FileSystemTaskResult result = this.indexParser.AddMissingModifiedFilesAndRemoveThemFromPlaceholderList(
+                            activity,
+                            this.indexFileStream);
 
-                    return result;
+                        if (result == FileSystemTaskResult.Success)
+                        {
+                            this.modifiedFilesInvalid = false;
+                        }
+
+                        return result;
+                    }
                 }
             }
             catch (IOException e)
