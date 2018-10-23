@@ -1,7 +1,7 @@
 @ECHO OFF
 SETLOCAL
 
-CALL %~dp0\EnsureVFSDevShell.bat || EXIT /b 10
+CALL %~dp0\InitializeEnvironment.bat || EXIT /b 10
 
 IF "%1"=="" (SET "Configuration=Debug") ELSE (SET "Configuration=%1")
 IF "%2"=="" (SET "GVFSVersion=0.2.173.2") ELSE (SET "GVFSVersion=%2")
