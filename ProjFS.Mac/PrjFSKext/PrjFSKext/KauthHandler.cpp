@@ -879,8 +879,17 @@ static uint32_t ReadVNodeFileFlags(vnode_t vn, vfs_context_t _Nonnull context)
 {
     struct vnode_attr attributes = {};
     errno_t err = GetVNodeAttributes(vn, context, &attributes);
-    // TODO: May fail on some file system types? Perhaps we should early-out depending on mount point anyway.
-    assert(0 == err);
+    if (0 != err)
+    {
+        // TODO(Mac): May fail on some file system types? Perhaps we should early-out depending on mount point anyway.
+        // We should also consider:
+        //   - Logging this error
+        //   - Falling back on vnode lookup (or custom cache) to determine if file is in the root
+        //   - Assuming files are empty if we can't read the flags
+        
+        return 0;
+    }
+    
     assert(VATTR_IS_SUPPORTED(&attributes, va_flags));
     return attributes.va_flags;
 }
