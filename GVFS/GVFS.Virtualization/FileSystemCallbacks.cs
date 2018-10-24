@@ -360,10 +360,10 @@ namespace GVFS.Virtualization
             }
             else if (this.GitCommandLeavesProjectionUnchanged(gitCommand))
             {
-                if (gitCommand.IsResetMixed())
+                if (this.GitCommandRequiresModifiedPathValidationAfterIndexChange(gitCommand))
                 {
                     this.GitIndexProjection.InvalidateModifiedFiles();
-                    this.backgroundFileSystemTaskRunner.Enqueue(FileSystemTask.OnIndexWriteByResetMixed());
+                    this.backgroundFileSystemTaskRunner.Enqueue(FileSystemTask.OnIndexWriteRequiringModifiedPathsValidation());
                 }
 
                 this.InvalidateGitStatusCache();
@@ -627,6 +627,13 @@ namespace GVFS.Virtualization
                 gitCommand.IsCheckoutWithFilePaths();
         }
 
+        private bool GitCommandRequiresModifiedPathValidationAfterIndexChange(GitCommandLineParser gitCommand)
+        {
+            return
+                gitCommand.IsVerb(GitCommandLineParser.Verbs.UpdateIndex) ||
+                gitCommand.IsResetMixed();
+        }
+
         private FileSystemTaskResult PreBackgroundOperation()
         {
             return this.GitIndexProjection.OpenIndexForRead();
@@ -860,7 +867,7 @@ namespace GVFS.Virtualization
                     result = FileSystemTaskResult.Success;
                     break;
 
-                case FileSystemTask.OperationType.OnIndexWriteByResetMixed:
+                case FileSystemTask.OperationType.OnIndexWriteRequiringModifiedPathsValidation:
                     result = this.GitIndexProjection.AddMissingModifiedFiles();
                     break;
 
