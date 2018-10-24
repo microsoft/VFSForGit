@@ -277,6 +277,33 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
             otherFilePath.ShouldBeAFile(this.fileSystem).WithContents(otherFileContents);
         }
 
+        [TestCase, Order(9)]
+        public void PrefetchCleansUpOphanedLockFiles()
+        {
+            // Multi-pack-index write happens even if the prefetch downloads nothing, while
+            // the commit-graph write happens only when the prefetch downloads at least one pack
+
+            string graphPath = Path.Combine(this.Enlistment.GetObjectRoot(this.fileSystem), "info", "commit-graph");
+            string graphLockPath = graphPath + ".lock";
+            string midxPath = Path.Combine(this.PackRoot, "multi-pack-index");
+            string midxLockPath = midxPath + ".lock";
+
+            this.fileSystem.CreateEmptyFile(graphLockPath);
+
+            // Force deleting the prefetch packs to make the prefetch non-trivial.
+            this.fileSystem.DeleteDirectory(this.PackRoot);
+            this.fileSystem.CreateDirectory(this.PackRoot);
+            this.fileSystem.CreateEmptyFile(midxLockPath);
+
+            this.Enlistment.Prefetch("--commits");
+            this.PostFetchJobShouldComplete();
+
+            this.fileSystem.FileExists(graphLockPath).ShouldBeFalse();
+            this.fileSystem.FileExists(midxLockPath).ShouldBeFalse();
+            this.fileSystem.FileExists(graphPath).ShouldBeTrue();
+            this.fileSystem.FileExists(midxPath).ShouldBeTrue();
+        }
+
         private void PackShouldHaveIdxFile(string pathPath)
         {
             string idxPath = Path.ChangeExtension(pathPath, ".idx");

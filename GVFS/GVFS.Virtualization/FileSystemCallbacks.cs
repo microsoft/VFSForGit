@@ -20,6 +20,8 @@ namespace GVFS.Virtualization
     {
         private const string EtwArea = nameof(FileSystemCallbacks);
         private const string PostFetchLock = "post-fetch.lock";
+        private const string CommitGraphLock = "commit-graph.lock";
+        private const string MultiPackIndexLock = "multi-pack-index.lock";
         private const string PostFetchTelemetryKey = "post-fetch";
 
         private static readonly GitCommandLineParser.Verbs LeavesProjectionUnchangedVerbs =
@@ -585,7 +587,7 @@ namespace GVFS.Virtualization
 
                     using (ITracer activity = this.context.Tracer.StartActivity("TryWriteMultiPackIndex", EventLevel.Informational, Keywords.Telemetry, metadata: null))
                     {
-                        string midxLockFile = Path.Combine(this.context.Enlistment.GitPackRoot, "multi-pack-index.lock");
+                        string midxLockFile = Path.Combine(this.context.Enlistment.GitPackRoot, MultiPackIndexLock);
                         this.context.FileSystem.TryDeleteFile(midxLockFile);
 
                         if (this.stopping)
@@ -617,7 +619,7 @@ namespace GVFS.Virtualization
 
                     using (ITracer activity = this.context.Tracer.StartActivity("TryWriteGitCommitGraph", EventLevel.Informational, Keywords.Telemetry, metadata: null))
                     {
-                        string graphLockFile = Path.Combine(this.context.Enlistment.GitObjectsRoot, "info", "commit-graph.lock");
+                        string graphLockFile = Path.Combine(this.context.Enlistment.GitObjectsRoot, "info", CommitGraphLock);
                         this.context.FileSystem.TryDeleteFile(graphLockFile);
 
                         if (this.stopping)
