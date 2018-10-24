@@ -585,6 +585,9 @@ namespace GVFS.Virtualization
 
                     using (ITracer activity = this.context.Tracer.StartActivity("TryWriteMultiPackIndex", EventLevel.Informational, Keywords.Telemetry, metadata: null))
                     {
+                        string midxLockFile = Path.Combine(this.context.Enlistment.GitPackRoot, "multi-pack-index.lock");
+                        this.context.FileSystem.TryDeleteFile(midxLockFile);
+
                         if (this.stopping)
                         {
                             this.context.Tracer.RelatedWarning(
@@ -614,6 +617,9 @@ namespace GVFS.Virtualization
 
                     using (ITracer activity = this.context.Tracer.StartActivity("TryWriteGitCommitGraph", EventLevel.Informational, Keywords.Telemetry, metadata: null))
                     {
+                        string graphLockFile = Path.Combine(this.context.Enlistment.GitObjectsRoot, "info", "commit-graph.lock");
+                        this.context.FileSystem.TryDeleteFile(graphLockFile);
+
                         if (this.stopping)
                         {
                             this.context.Tracer.RelatedWarning(
