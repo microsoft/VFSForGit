@@ -150,27 +150,6 @@ namespace GVFS.Common.Git
             }
         }
 
-        public bool TryWriteMultiPackIndex(ITracer tracer, GVFSEnlistment enlistment, PhysicalFileSystem fileSystem)
-        {
-            using (ITracer activity = tracer.StartActivity(nameof(this.TryWriteMultiPackIndex), EventLevel.Informational, Keywords.Telemetry, metadata: null))
-            {
-                GitProcess process = new GitProcess(enlistment);
-                GitProcess.Result result = process.WriteMultiPackIndex(enlistment.GitObjectsRoot);
-
-                if (result.HasErrors)
-                {
-                    EventMetadata errorMetadata = new EventMetadata();
-                    errorMetadata.Add("Operation", nameof(this.TryWriteMultiPackIndex));
-                    errorMetadata.Add("objectDir", enlistment.GitObjectsRoot);
-                    errorMetadata.Add("Errors", result.Errors);
-                    errorMetadata.Add("Output", result.Output.Length > 1024 ? result.Output.Substring(1024) : result.Output);
-                    activity.RelatedError(errorMetadata, result.Errors, Keywords.Telemetry);
-                }
-
-                return !result.HasErrors;
-            }
-        }
-
         public virtual string WriteLooseObject(Stream responseStream, string sha, bool overwriteExistingObject, byte[] bufToCopyWith)
         {
             try

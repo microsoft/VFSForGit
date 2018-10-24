@@ -39,6 +39,7 @@ namespace GVFS.Virtualization
         private FileSystemVirtualizer fileSystemVirtualizer;
         private FileProperties logsHeadFileProperties;
         private Thread postFetchJobThread;
+        private GitProcess postFetchGitProcess;
         private object postFetchJobLock;
         private bool stopping;
 
@@ -197,11 +198,23 @@ namespace GVFS.Virtualization
             this.stopping = true;
             lock (this.postFetchJobLock)
             {
-                // TODO(Mac): System.PlatformNotSupportedException: Thread abort is not supported on this platform
-
-                if (!GVFSPlatform.Instance.IsUnderConstruction)
+                GitProcess process = this.postFetchGitProcess;
+                if (process != null)
                 {
-                    this.postFetchJobThread?.Abort();
+                    if (process.TryKillRunningProcess())
+                    {
+                        this.context.Tracer.RelatedEvent(
+                            EventLevel.Informational,
+                            PostFetchTelemetryKey + ": killed background Git process during " + nameof(this.Stop),
+                            metadata: null);
+                    }
+                    else
+                    {
+                        this.context.Tracer.RelatedEvent(
+                            EventLevel.Informational,
+                            PostFetchTelemetryKey + ": failed to kill background Git process during " + nameof(this.Stop),
+                            metadata: null);
+                    }
                 }
             }
 
@@ -568,12 +581,29 @@ namespace GVFS.Virtualization
                         return;
                     }
 
-                    if (!this.gitObjects.TryWriteMultiPackIndex(this.context.Tracer, this.context.Enlistment, this.context.FileSystem))
+                    this.postFetchGitProcess = new GitProcess(this.context.Enlistment);
+
+                    using (ITracer activity = this.context.Tracer.StartActivity("TryWriteMultiPackIndex", EventLevel.Informational, Keywords.Telemetry, metadata: null))
                     {
-                        this.context.Tracer.RelatedWarning(
-                            metadata: null,
-                            message: PostFetchTelemetryKey + ": Failed to generate multi-pack-index for new packfiles",
-                            keywords: Keywords.Telemetry);
+                        if (this.stopping)
+                        {
+                            this.context.Tracer.RelatedWarning(
+                                metadata: null,
+                                message: PostFetchTelemetryKey + ": Not launching 'git multi-pack-index' because the mount is stopping",
+                                keywords: Keywords.Telemetry);
+                            return;
+                        }
+
+                        GitProcess.Result result = this.postFetchGitProcess.WriteMultiPackIndex(this.context.Enlistment.GitObjectsRoot);
+
+                        if (!this.stopping && result.HasErrors)
+                        {
+                            this.context.Tracer.RelatedWarning(
+                                metadata: null,
+                                message: PostFetchTelemetryKey + ": Failed to generate multi-pack-index for new packfiles:" + result.Errors,
+                                keywords: Keywords.Telemetry);
+                            return;
+                        }
                     }
 
                     if (packIndexes == null || packIndexes.Count == 0)
@@ -584,10 +614,18 @@ namespace GVFS.Virtualization
 
                     using (ITracer activity = this.context.Tracer.StartActivity("TryWriteGitCommitGraph", EventLevel.Informational, Keywords.Telemetry, metadata: null))
                     {
-                        GitProcess process = new GitProcess(this.context.Enlistment);
-                        GitProcess.Result result = process.WriteCommitGraph(this.context.Enlistment.GitObjectsRoot, packIndexes);
+                        if (this.stopping)
+                        {
+                            this.context.Tracer.RelatedWarning(
+                                metadata: null,
+                                message: PostFetchTelemetryKey + ": Not launching 'git commit-graph' because the mount is stopping",
+                                keywords: Keywords.Telemetry);
+                            return;
+                        }
 
-                        if (result.HasErrors)
+                        GitProcess.Result result = this.postFetchGitProcess.WriteCommitGraph(this.context.Enlistment.GitObjectsRoot, packIndexes);
+
+                        if (!this.stopping && result.HasErrors)
                         {
                             this.context.Tracer.RelatedWarning(
                                 metadata: null,
@@ -597,10 +635,6 @@ namespace GVFS.Virtualization
                         }
                     }
                 }
-            }
-            catch (ThreadAbortException)
-            {
-                this.context.Tracer.RelatedInfo("Aborting post-fetch job due to ThreadAbortException");
             }
             catch (IOException e)
             {
