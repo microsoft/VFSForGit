@@ -360,7 +360,7 @@ namespace GVFS.Virtualization
             }
             else if (this.GitCommandLeavesProjectionUnchanged(gitCommand))
             {
-                if (gitCommand.IsResetSoftOrMixed())
+                if (gitCommand.IsResetMixed())
                 {
                     this.GitIndexProjection.InvalidateModifiedFiles();
                     this.backgroundFileSystemTaskRunner.Enqueue(FileSystemTask.OnIndexWriteByResetMixed());

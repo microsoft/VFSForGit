@@ -25,6 +25,9 @@ namespace GVFS.Virtualization.Projection
 
             private int previousFinalSeparatorIndex = int.MaxValue;
 
+            // lazyPathParts and utf16PathParts are mutually exclusive
+            // The `useLazyPaths` parameter of the GitIndexEntry constructor determines
+            // which of these two arrays will be used
             private LazyUTF8String[] lazyPathParts;
             private string[] utf16PathParts;
 
