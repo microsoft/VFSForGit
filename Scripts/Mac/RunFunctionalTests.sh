@@ -1,5 +1,7 @@
 #!/bin/bash
 
+. "$(dirname ${BASH_SOURCE[0]})/InitializeEnvironment.sh"
+
 CONFIGURATION=$1
 if [ -z $CONFIGURATION ]; then
   CONFIGURATION=Debug
@@ -14,5 +16,5 @@ PUBLISHDIR=$ROOTDIR/Publish
 sudo mkdir /GVFS.FT
 sudo chown $USER /GVFS.FT
 
-$SRCDIR/ProjFS.Mac/Scripts/LoadPrjFSKext.sh
-$PUBLISHDIR/GVFS.FunctionalTests --full-suite $2
+$VFS_SRCDIR/ProjFS.Mac/Scripts/LoadPrjFSKext.sh
+$VFS_PUBLISHDIR/GVFS.FunctionalTests --full-suite $2
