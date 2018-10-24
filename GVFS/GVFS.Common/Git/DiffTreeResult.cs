@@ -28,6 +28,7 @@ namespace GVFS.Common.Git
         public Operations Operation { get; set; }
         public bool SourceIsDirectory { get; set; }
         public bool TargetIsDirectory { get; set; }
+        public bool TargetIsSymLink { get; set; }
         public string TargetPath { get; set; }
         public string SourceSha { get; set; }
         public string TargetSha { get; set; }
@@ -82,6 +83,12 @@ namespace GVFS.Common.Git
             DiffTreeResult result = new DiffTreeResult();
             result.SourceIsDirectory = ValidTreeModes.Contains(parts[0]);
             result.TargetIsDirectory = ValidTreeModes.Contains(parts[1]);
+
+            if (!result.TargetIsDirectory)
+            {
+                result.TargetIsSymLink = parts[1] == "120000";
+            }
+
             result.SourceSha = parts[2];
             result.TargetSha = parts[3];
             result.Operation = DiffTreeResult.ParseOperation(parts[4]);
@@ -146,6 +153,7 @@ namespace GVFS.Common.Git
                 if (blobIndex >= 0)
                 {
                     DiffTreeResult blobAdd = new DiffTreeResult();
+                    blobAdd.TargetIsSymLink = line.StartsWith("120000");
                     blobAdd.TargetSha = line.Substring(blobIndex + BlobMarker.Length, GVFSConstants.ShaStringLength);
                     blobAdd.TargetPath = ConvertPathToAbsoluteUtf8Path(repoRoot, line.Substring(line.LastIndexOf("\t") + 1));
                     blobAdd.Operation = DiffTreeResult.Operations.Add;

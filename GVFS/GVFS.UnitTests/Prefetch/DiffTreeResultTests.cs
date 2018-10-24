@@ -33,6 +33,7 @@ namespace GVFS.UnitTests.Prefetch
         private static readonly string BlobLineFromLsTree = $"100644 blob {TestSha1}\t{TestTreePath1}";
         private static readonly string TreeLineFromLsTree = $"040000 tree {TestSha1}\t{TestTreePath1}";
         private static readonly string InvalidLineFromLsTree = $"040000 bad {TestSha1}\t{TestTreePath1}";
+        private static readonly string SymLinkLineFromLsTree = $"120000 blob {TestSha1}\t{TestTreePath1}";
 
         [TestCase]
         [Category(CategoryConstants.ExceptionExpected)]
@@ -297,6 +298,24 @@ namespace GVFS.UnitTests.Prefetch
             };
 
             DiffTreeResult result = DiffTreeResult.ParseFromDiffTreeLine(ModifyBlobLineFromDiffTree, RepoRoot);
+            this.ValidateDiffTreeResult(expected, result);
+        }
+
+        [TestCase]
+        public void ParseFromLsTreeLine_SymLinkLine()
+        {
+            DiffTreeResult expected = new DiffTreeResult()
+            {
+                Operation = DiffTreeResult.Operations.Add,
+                SourceIsDirectory = false,
+                TargetIsDirectory = false,
+                TargetIsSymLink = true,
+                TargetPath = Path.Combine(RepoRoot, TestTreePath1.Replace('/', Path.DirectorySeparatorChar)),
+                SourceSha = null,
+                TargetSha = TestSha1
+            };
+
+            DiffTreeResult result = DiffTreeResult.ParseFromLsTreeLine(SymLinkLineFromLsTree, RepoRoot);
             this.ValidateDiffTreeResult(expected, result);
         }
 
