@@ -81,7 +81,7 @@ namespace GVFS.Virtualization.Projection
             }
 
             public FileSystemTaskResult AddMissingModifiedFilesAndRemoveThemFromPlaceholderList(
-                ITracer tracer, 
+                ITracer tracer,
                 Stream indexStream)
             {
                 if (this.projection == null)
@@ -89,9 +89,17 @@ namespace GVFS.Virtualization.Projection
                     throw new InvalidOperationException($"{nameof(this.projection)} cannot be null when calling {nameof(AddMissingModifiedFilesAndRemoveThemFromPlaceholderList)}");
                 }
 
-                Dictionary<string, PlaceholderListDatabase.PlaceholderData> filePlaceholders = 
+                Dictionary<string, PlaceholderListDatabase.PlaceholderData> filePlaceholders =
                     this.projection.placeholderList.GetAllFileEntries();
 
+                tracer.RelatedEvent(
+                    EventLevel.Informational,
+                    $"{nameof(this.AddMissingModifiedFilesAndRemoveThemFromPlaceholderList)}_FilePlaceholderCount",
+                    new EventMetadata
+                    {
+                        { "FilePlaceholderCount", filePlaceholders.Count }
+                    });
+            
                 FileSystemTaskResult result = this.ParseIndex(
                     tracer,
                     indexStream,
