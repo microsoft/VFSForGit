@@ -1,6 +1,6 @@
-SCRIPTDIR=$(dirname ${BASH_SOURCE[0]})
-SRCDIR=$SCRIPTDIR/../..
-$SRCDIR/ProjFS.Mac/Scripts/UnloadPrjFSKext.sh
+. "$(dirname ${BASH_SOURCE[0]})/InitializeEnvironment.sh"
+
+$VFS_SRCDIR/ProjFS.Mac/Scripts/UnloadPrjFSKext.sh
 
 sudo rm -r /GVFS.FT
 

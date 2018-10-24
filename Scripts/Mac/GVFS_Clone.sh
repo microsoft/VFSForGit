@@ -1,4 +1,5 @@
 #!/bin/bash
+. "$(dirname ${BASH_SOURCE[0]})/InitializeEnvironment.sh"
 
 REPOURL=$1
 
@@ -7,9 +8,4 @@ if [ -z $CONFIGURATION ]; then
   CONFIGURATION=Debug
 fi
 
-SCRIPTDIR=$(dirname ${BASH_SOURCE[0]})
-
-ROOTDIR=$SCRIPTDIR/../../..
-PUBLISHDIR=$ROOTDIR/Publish 
-
-$PUBLISHDIR/gvfs clone $REPOURL ~/GVFSTest --local-cache-path ~/GVFSTest/.gvfsCache --no-mount --no-prefetch
+$VFS_PUBLISHDIR/gvfs clone $REPOURL ~/GVFSTest --local-cache-path ~/GVFSTest/.gvfsCache --no-mount --no-prefetch

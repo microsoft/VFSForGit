@@ -1,14 +1,13 @@
 #!/bin/bash
 
-SCRIPTDIR=$(dirname ${BASH_SOURCE[0]})
+. "$(dirname ${BASH_SOURCE[0]})/InitializeEnvironment.sh"
 
 # Ensure the kext isn't loaded before installing Git
-$SCRIPTDIR/../../ProjFS.Mac/Scripts/UnloadPrjFSKext.sh
+$VFS_SRCDIR/ProjFS.Mac/Scripts/UnloadPrjFSKext.sh
 
 # Install GVFS-aware Git (that was downloaded by the build script)
 GITVERSION="$($SCRIPTDIR/GetGitVersionNumber.sh)"
-ROOTDIR=$SCRIPTDIR/../../..
-GITDIR=$ROOTDIR/packages/gitformac.gvfs.installer/$GITVERSION/tools
+GITDIR=$VFS_PACKAGESDIR/gitformac.gvfs.installer/$GITVERSION/tools
 if [[ ! -d $GITDIR ]]; then
     echo "GVFS-aware Git package not found. Run BuildGVFSForMac.sh and try again"
     exit 1
