@@ -35,7 +35,7 @@ namespace GVFS.Platform.Windows.DiskLayoutUpgrades
 
                 using (placeholders)
                 {
-                    List<PlaceholderListDatabase.PlaceholderData> oldPlaceholderEntries = placeholders.GetAllEntries();
+                    List<PlaceholderListDatabase.PlaceholderData> oldPlaceholderEntries = placeholders.GetAllEntriesAndPrepToWriteAllEntries();
                     List<PlaceholderListDatabase.PlaceholderData> newPlaceholderEntries = new List<PlaceholderListDatabase.PlaceholderData>();
 
                     foreach (PlaceholderListDatabase.PlaceholderData entry in oldPlaceholderEntries)

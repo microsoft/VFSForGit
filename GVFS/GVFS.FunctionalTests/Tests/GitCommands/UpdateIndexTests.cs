@@ -22,7 +22,6 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
         }
 
         [TestCase]
-        [Ignore("TODO 940287: git update-index --add does not work properly if placeholder is not already on disk")]
         public void UpdateIndexRemoveFileOnDiskDontCheckStatus()
         {
             // TODO 940287: Remove this test and re-enable UpdateIndexRemoveFileOnDisk
@@ -50,16 +49,6 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
             GitProcess.InvokeProcess(this.ControlGitRepo.RootPath, "update-index --remove Test_ConflictTests/AddedFiles/AddedByBothDifferentContent.txt");
             GitHelpers.InvokeGitAgainstGVFSRepo(this.Enlistment.RepoRoot, "update-index --remove Test_ConflictTests/AddedFiles/AddedByBothDifferentContent.txt");
             this.FilesShouldMatchCheckoutOfTargetBranch();
-
-            // Open Test_ConflictTests/AddedFiles/AddedByBothDifferentContent.txt for write so that it's added to the modified paths database
-            using (
-                FileStream stream = File.Open(
-                    Path.Combine(this.Enlistment.RepoRoot, "Test_ConflictTests", "AddedFiles", "AddedByBothDifferentContent.txt"), 
-                    FileMode.Open, 
-                    FileAccess.Write))
-            {
-                // TODO 940287: Remove this File.Open once update-index --add\--remove are working as expected
-            }
 
             // Add the files back to the index so the git-status that is run during teardown matches
             GitProcess.InvokeProcess(this.ControlGitRepo.RootPath, "update-index --add Test_ConflictTests/AddedFiles/AddedByBothDifferentContent.txt");

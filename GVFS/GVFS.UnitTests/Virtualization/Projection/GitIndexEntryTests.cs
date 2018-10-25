@@ -8,20 +8,20 @@ using static GVFS.Virtualization.Projection.GitIndexProjection;
 
 namespace GVFS.UnitTests.Virtualization.Git
 {
-    [TestFixtureSource(TestLazyPaths)]
+    [TestFixtureSource(TestBuildingNewProjection)]
     public class GitIndexEntryTests
     {
-        public const string TestLazyPaths = "ShouldTestLazyPaths";
+        public const string TestBuildingNewProjection = "BuildingNewProjection";
 
         private const int DefaultIndexEntryCount = 10;
-        private bool shouldTestLazyPaths;
+        private bool buildingNewProjection;
 
         public GitIndexEntryTests(bool shouldTestLazyPaths)
         {
-            this.shouldTestLazyPaths = shouldTestLazyPaths;
+            this.buildingNewProjection = shouldTestLazyPaths;
         }
 
-        public static object[] ShouldTestLazyPaths
+        public static object[] BuildingNewProjection
         {
             get
             {
@@ -157,7 +157,7 @@ namespace GVFS.UnitTests.Virtualization.Git
 
         private GitIndexEntry SetupIndexEntry(string path)
         {
-            GitIndexEntry indexEntry = new GitIndexEntry(this.shouldTestLazyPaths);
+            GitIndexEntry indexEntry = new GitIndexEntry(this.buildingNewProjection);
             this.ParsePathForIndexEntry(indexEntry, path, replaceIndex: 0);
             return indexEntry;
         }
@@ -168,7 +168,15 @@ namespace GVFS.UnitTests.Virtualization.Git
             Buffer.BlockCopy(pathBuffer, 0, indexEntry.PathBuffer, 0, path.Length);
             indexEntry.PathLength = path.Length;
             indexEntry.ReplaceIndex = replaceIndex;
-            indexEntry.ParsePath();
+
+            if (this.buildingNewProjection)
+            {
+                indexEntry.BuildingProjection_ParsePath();
+            }
+            else
+            {
+                indexEntry.BackgroundTask_ParsePath();
+            }
         }
 
         private void TestPathParts(GitIndexEntry indexEntry, string[] pathParts, bool hasSameParent)
@@ -177,23 +185,27 @@ namespace GVFS.UnitTests.Virtualization.Git
             indexEntry.NumParts.ShouldEqual(pathParts.Length, nameof(indexEntry.NumParts));
             for (int i = 0; i < pathParts.Length; i++)
             {
-                if (this.shouldTestLazyPaths)
+                if (this.buildingNewProjection)
                 {
-                    indexEntry.GetLazyPathPart(i).ShouldNotBeNull();
-                    indexEntry.GetLazyPathPart(i).GetString().ShouldEqual(pathParts[i]);
+                    indexEntry.BuildingProjection_PathParts[i].ShouldNotBeNull();
+                    indexEntry.BuildingProjection_PathParts[i].GetString().ShouldEqual(pathParts[i]);
                 }
-
-                indexEntry.GetPathPart(i).ShouldNotBeNull();
-                indexEntry.GetPathPart(i).ShouldEqual(pathParts[i]);
+                else
+                {
+                    indexEntry.BackgroundTask_PathParts[i].ShouldNotBeNull();
+                    indexEntry.BackgroundTask_PathParts[i].ShouldEqual(pathParts[i]);
+                }
             }
 
-            if (this.shouldTestLazyPaths)
+            if (this.buildingNewProjection)
             {
-                indexEntry.GetLazyChildName().GetString().ShouldEqual(pathParts[pathParts.Length - 1]);
+                indexEntry.BuildingProjection_GetChildName().GetString().ShouldEqual(pathParts[pathParts.Length - 1]);
+                indexEntry.BuildingProjection_GetGitRelativePath().ShouldEqual(string.Join("/", pathParts));
             }
-
-            indexEntry.GetGitPath().ShouldEqual(string.Join("/", pathParts));
-            indexEntry.GetRelativePath().ShouldEqual(string.Join(Path.DirectorySeparatorChar.ToString(), pathParts));
+            else
+            {
+                indexEntry.BackgroundTask_GetPlatformRelativePath().ShouldEqual(string.Join(Path.DirectorySeparatorChar.ToString(), pathParts));
+            }
         }
     }
 }

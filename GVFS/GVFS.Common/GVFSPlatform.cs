@@ -81,6 +81,8 @@ namespace GVFS.Common
 
         public class GVFSPlatformConstants
         {
+            public static readonly string PathSeparatorString = Path.DirectorySeparatorChar.ToString(); 
+
             public GVFSPlatformConstants(string executableExtension, string installerExtension)
             {
                 this.ExecutableExtension = executableExtension;

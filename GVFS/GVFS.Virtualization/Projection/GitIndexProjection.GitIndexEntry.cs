@@ -21,25 +21,17 @@ namespace GVFS.Virtualization.Projection
             private const int MaxParts = MaxPathBufferSize / 2;
             private const byte PathSeparatorCode = 0x2F;
 
-            private static readonly string PathSeparatorString = Path.DirectorySeparatorChar.ToString();
-
             private int previousFinalSeparatorIndex = int.MaxValue;
 
-            // lazyPathParts and utf16PathParts are mutually exclusive
-            // The `useLazyPaths` parameter of the GitIndexEntry constructor determines
-            // which of these two arrays will be used
-            private LazyUTF8String[] lazyPathParts;
-            private string[] utf16PathParts;
-
-            public GitIndexEntry(bool useLazyPaths)
+            public GitIndexEntry(bool buildingNewProjection)
             {
-                if (useLazyPaths)
+                if (buildingNewProjection)
                 {
-                    this.lazyPathParts = new LazyUTF8String[MaxParts];
+                    this.BuildingProjection_PathParts = new LazyUTF8String[MaxParts];
                 }
                 else
                 {
-                    this.utf16PathParts = new string[MaxParts];
+                    this.BackgroundTask_PathParts = new string[MaxParts];
                 }
             }
 
@@ -56,6 +48,18 @@ namespace GVFS.Virtualization.Projection
             public byte[] PathBuffer { get; } = new byte[MaxPathBufferSize];
             public FolderData LastParent { get; set; }
 
+            // Only used when buildingNewProjection is true
+            public LazyUTF8String[] BuildingProjection_PathParts
+            {
+                get; private set;
+            }
+
+            // Only used when buildingNewProjection is false
+            public string[] BackgroundTask_PathParts
+            {
+                get; private set;
+            }
+
             public int NumParts
             {
                 get; private set;
@@ -63,31 +67,17 @@ namespace GVFS.Virtualization.Projection
 
             public bool HasSameParentAsLastEntry
             {
-                get; private set;
+               get; private set;
             }
 
-            public string GetPathPart(int index)
-            {
-                if (this.lazyPathParts != null)
-                {
-                    return this.lazyPathParts[index].GetString();
-                }
-
-                return this.utf16PathParts[index];
-            }
-
-            public LazyUTF8String GetLazyPathPart(int index)
-            {
-                if (this.lazyPathParts == null)
-                {
-                    throw new InvalidOperationException(
-                        $"{nameof(GetLazyPathPart)} can only be called when useLazyPaths is set to true when creating {nameof(GitIndexEntry)}");
-                }
-
-                return this.lazyPathParts[index];
-            }
-
-            public unsafe void ParsePath()
+            /// <summary>
+            /// Parses the path using LazyUTF8Strings. It should only be called when building a new projection.
+            /// </summary>
+            /// <remarks>
+            /// Code in this method has been fine-tuned for performance. None of it is shared with 
+            /// BackgroundTask_ParsePath to avoid overhead.
+            /// </remarks>
+            public unsafe void BuildingProjection_ParsePath()
             {
                 this.PathBuffer[this.PathLength] = 0;
 
@@ -139,22 +129,11 @@ namespace GVFS.Virtualization.Projection
                     int partIndex = this.NumParts;
 
                     byte* forLoopPtr = pathPtr + forLoopStartIndex;
-                    byte* bufferPtr;
-                    int bufferLength;
                     for (int i = forLoopStartIndex; i < this.PathLength + 1; i++)
                     {
                         if (*forLoopPtr == PathSeparatorCode)
                         {
-                            bufferPtr = pathPtr + currentPartStartIndex;
-                            bufferLength = i - currentPartStartIndex;
-                            if (this.lazyPathParts != null)
-                            {
-                                this.lazyPathParts[partIndex] = LazyUTF8String.FromByteArray(bufferPtr, bufferLength);
-                            }
-                            else
-                            {
-                                this.utf16PathParts[partIndex] = Encoding.UTF8.GetString(bufferPtr, bufferLength);
-                            }
+                            this.BuildingProjection_PathParts[partIndex] = LazyUTF8String.FromByteArray(pathPtr + currentPartStartIndex, i - currentPartStartIndex);
 
                             partIndex++;
                             currentPartStartIndex = i + 1;
@@ -167,16 +146,90 @@ namespace GVFS.Virtualization.Projection
                     }
 
                     // We unrolled the final part calculation to after the loop, to avoid having to do a 0-byte check inside the for loop
-                    bufferPtr = pathPtr + currentPartStartIndex;
-                    bufferLength = this.PathLength - currentPartStartIndex;
-                    if (this.lazyPathParts != null)
+                    this.BuildingProjection_PathParts[partIndex] = LazyUTF8String.FromByteArray(pathPtr + currentPartStartIndex, this.PathLength - currentPartStartIndex);
+
+                    this.NumParts++;
+                }
+            }
+
+
+            /// <summary>
+            /// Parses the path without using LazyUTF8Strings. It should only be called when running a background task.
+            /// </summary>
+            /// <remarks>
+            /// Code in this method has been fine-tuned for performance. None of it is shared with 
+            /// BuildingProjection_ParsePath to avoid overhead.
+            /// </remarks>
+            public unsafe void BackgroundTask_ParsePath()
+            {
+                this.PathBuffer[this.PathLength] = 0;
+
+                // The index of that path part that is after the path separator
+                int currentPartStartIndex = 0;
+
+                // The index to start looking for the next path separator
+                // Because the previous final separator is stored and we know where the previous path will be replaced
+                // the code can use the previous final separator to start looking from that point instead of having to 
+                // run through the entire path to break it apart
+                /* Example:
+                 * Previous path = folder/where/previous/separator/is/used/file.txt
+                 * This path     = folder/where/previous/separator/is/used/file2.txt
+                 *                                                        ^    ^
+                 *                         this.previousFinalSeparatorIndex    |
+                 *                                                             this.ReplaceIndex
+                 *
+                 *   folder/where/previous/separator/is/used/file2.txt
+                 *                                           ^^
+                 *                       currentPartStartIndex|
+                 *                                            forLoopStartIndex
+                 */
+                int forLoopStartIndex = 0;
+
+                fixed (byte* pathPtr = this.PathBuffer)
+                {
+                    if (this.previousFinalSeparatorIndex < this.ReplaceIndex &&
+                        !this.RangeContains(pathPtr + this.ReplaceIndex, this.PathLength - this.ReplaceIndex, PathSeparatorCode))
                     {
-                        this.lazyPathParts[partIndex] = LazyUTF8String.FromByteArray(bufferPtr, bufferLength);
+                        // Only need to parse the last part, because the rest of the string is unchanged
+
+                        // The logical thing to do would be to start the for loop at previousFinalSeparatorIndex+1, but two 
+                        // repeated / characters would make an invalid path, so we'll assume that git would not have stored that path
+                        forLoopStartIndex = this.previousFinalSeparatorIndex + 2;
+
+                        // we still do need to start the current part's index at the correct spot, so subtract one for that
+                        currentPartStartIndex = forLoopStartIndex - 1;
+
+                        this.NumParts--;
+
+                        this.HasSameParentAsLastEntry = true;
                     }
                     else
                     {
-                        this.utf16PathParts[partIndex] = Encoding.UTF8.GetString(bufferPtr, bufferLength);
+                        this.NumParts = 0;
+                        this.ClearLastParent();
                     }
+
+                    int partIndex = this.NumParts;
+
+                    byte* forLoopPtr = pathPtr + forLoopStartIndex;
+                    for (int i = forLoopStartIndex; i < this.PathLength + 1; i++)
+                    {
+                        if (*forLoopPtr == PathSeparatorCode)
+                        {
+                            this.BackgroundTask_PathParts[partIndex] = Encoding.UTF8.GetString(pathPtr + currentPartStartIndex, i - currentPartStartIndex);
+
+                            partIndex++;
+                            currentPartStartIndex = i + 1;
+
+                            this.NumParts++;
+                            this.previousFinalSeparatorIndex = i;
+                        }
+
+                        ++forLoopPtr;
+                    }
+
+                    // We unrolled the final part calculation to after the loop, to avoid having to do a 0-byte check inside the for loop
+                    this.BackgroundTask_PathParts[partIndex] = Encoding.UTF8.GetString(pathPtr + currentPartStartIndex, this.PathLength - currentPartStartIndex);
 
                     this.NumParts++;
                 }
@@ -189,29 +242,19 @@ namespace GVFS.Virtualization.Projection
                 this.LastParent = null;
             }
 
-            public LazyUTF8String GetLazyChildName()
+            public LazyUTF8String BuildingProjection_GetChildName()
             {
-                return this.GetLazyPathPart(this.NumParts - 1);
+                return this.BuildingProjection_PathParts[this.NumParts - 1];
             }
 
-            public string GetGitPath()
+            public string BuildingProjection_GetGitRelativePath()
             {
-                return this.GetPath(GVFSConstants.GitPathSeparatorString);
+                return string.Join(GVFSConstants.GitPathSeparatorString, this.BuildingProjection_PathParts.Take(this.NumParts).Select(x => x.GetString()));
             }
 
-            public string GetRelativePath()
+            public string BackgroundTask_GetPlatformRelativePath()
             {
-                return this.GetPath(PathSeparatorString);
-            }
-
-            private string GetPath(string separator)
-            {
-                if (this.lazyPathParts != null)
-                {
-                    return string.Join(separator, this.lazyPathParts.Take(this.NumParts).Select(x => x.GetString()));
-                }
-
-                return string.Join(separator, this.utf16PathParts.Take(this.NumParts));
+                return string.Join(GVFSPlatform.GVFSPlatformConstants.PathSeparatorString, this.BackgroundTask_PathParts.Take(this.NumParts));
             }
             
             private unsafe bool RangeContains(byte* bufferPtr, int count, byte value)

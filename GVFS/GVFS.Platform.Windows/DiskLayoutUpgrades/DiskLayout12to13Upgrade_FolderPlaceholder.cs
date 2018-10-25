@@ -48,7 +48,7 @@ namespace GVFS.Platform.Windows.DiskLayoutUpgrades
                         .Select(x => x.Substring(workingDirectoryRoot.Length + 1))
                         .Select(x => new PlaceholderListDatabase.PlaceholderData(x, GVFSConstants.AllZeroSha));
 
-                    List<PlaceholderListDatabase.PlaceholderData> placeholderEntries = placeholders.GetAllEntries();
+                    List<PlaceholderListDatabase.PlaceholderData> placeholderEntries = placeholders.GetAllEntriesAndPrepToWriteAllEntries();
                     placeholderEntries.AddRange(folderPlaceholderPaths);
 
                     placeholders.WriteAllEntriesAndFlush(placeholderEntries);

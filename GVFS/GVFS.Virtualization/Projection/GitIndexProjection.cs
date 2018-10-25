@@ -669,14 +669,14 @@ namespace GVFS.Virtualization.Projection
         {
             if (indexEntry.HasSameParentAsLastEntry)
             {
-                indexEntry.LastParent.AddChildFile(indexEntry.GetLazyChildName(), indexEntry.Sha);
+                indexEntry.LastParent.AddChildFile(indexEntry.BuildingProjection_GetChildName(), indexEntry.Sha);
             }
             else
             {
                 if (indexEntry.NumParts == 1)
                 {
                     indexEntry.LastParent = this.rootFolderData;
-                    indexEntry.LastParent.AddChildFile(indexEntry.GetLazyChildName(), indexEntry.Sha);
+                    indexEntry.LastParent.AddChildFile(indexEntry.BuildingProjection_GetChildName(), indexEntry.Sha);
                 }
                 else
                 {
@@ -694,7 +694,7 @@ namespace GVFS.Virtualization.Projection
                     // TODO(Mac): The line below causes a conversion from LazyUTF8String to .NET string.
                     // Measure the perf and memory overhead of performing this conversion, and determine if we need
                     // a way to keep the path as LazyUTF8String[]
-                    this.nonDefaultFileTypesAndModes.Add(indexEntry.GetGitPath(), indexEntry.TypeAndMode);
+                    this.nonDefaultFileTypesAndModes.Add(indexEntry.BuildingProjection_GetGitRelativePath(), indexEntry.TypeAndMode);
                 }
             }
         }
@@ -794,14 +794,14 @@ namespace GVFS.Virtualization.Projection
                     string parentFolderName;
                     if (pathIndex > 0)
                     {
-                        parentFolderName = indexEntry.GetPathPart(pathIndex - 1);
+                        parentFolderName = indexEntry.BuildingProjection_PathParts[pathIndex - 1].GetString();
                     }
                     else
                     {
                         parentFolderName = this.rootFolderData.Name.GetString();
                     }
 
-                    string gitPath = indexEntry.GetGitPath();
+                    string gitPath = indexEntry.BuildingProjection_GetGitRelativePath();
 
                     EventMetadata metadata = CreateEventMetadata();
                     metadata.Add("gitPath", gitPath);
@@ -811,10 +811,10 @@ namespace GVFS.Virtualization.Projection
                     throw new InvalidDataException("Found a file (" + parentFolderName + ") where a folder was expected: " + gitPath);
                 }
 
-                parentFolder = parentFolder.ChildEntries.GetOrAddFolder(indexEntry.GetLazyPathPart(pathIndex));
+                parentFolder = parentFolder.ChildEntries.GetOrAddFolder(indexEntry.BuildingProjection_PathParts[pathIndex]);
             }
 
-            parentFolder.AddChildFile(indexEntry.GetLazyPathPart(indexEntry.NumParts - 1), indexEntry.Sha);
+            parentFolder.AddChildFile(indexEntry.BuildingProjection_PathParts[indexEntry.NumParts - 1], indexEntry.Sha);
 
             return parentFolder;
         }
@@ -1111,7 +1111,7 @@ namespace GVFS.Virtualization.Projection
 
             List<PlaceholderListDatabase.PlaceholderData> placeholderFilesListCopy;
             List<PlaceholderListDatabase.PlaceholderData> placeholderFoldersListCopy;
-            this.placeholderList.GetAllEntries(out placeholderFilesListCopy, out placeholderFoldersListCopy);
+            this.placeholderList.GetAllEntriesAndPrepToWriteAllEntries(out placeholderFilesListCopy, out placeholderFoldersListCopy);
 
             EventMetadata metadata = new EventMetadata();
             metadata.Add("File placeholder count", placeholderFilesListCopy.Count);

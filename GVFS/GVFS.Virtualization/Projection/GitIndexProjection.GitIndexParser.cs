@@ -26,12 +26,12 @@ namespace GVFS.Virtualization.Projection
             /// <summary>
             /// A single GitIndexEntry instance used for parsing all entries in the index when building the projection
             /// </summary>
-            private GitIndexEntry resuableProjectionBuildingIndexEntry = new GitIndexEntry(useLazyPaths: true);
+            private GitIndexEntry resuableProjectionBuildingIndexEntry = new GitIndexEntry(buildingNewProjection: true);
 
             /// <summary>
             /// A single GitIndexEntry instance used by the background task thread for parsing all entries in the index
             /// </summary>
-            private GitIndexEntry resuableBackgroundTaskThreadIndexEntry = new GitIndexEntry(useLazyPaths: false);
+            private GitIndexEntry resuableBackgroundTaskThreadIndexEntry = new GitIndexEntry(buildingNewProjection: false);
 
             public GitIndexParser(GitIndexProjection projection)
             {
@@ -142,7 +142,7 @@ namespace GVFS.Virtualization.Projection
                 // Never want to project the common ancestor even if the skip worktree bit is on
                 if ((data.MergeState != MergeStage.CommonAncestor && data.SkipWorktree) || data.MergeState == MergeStage.Yours)
                 {
-                    data.ParsePath();
+                    data.BuildingProjection_ParsePath();
                     this.projection.AddItemFromIndexEntry(data);
                 }
                 else
@@ -167,8 +167,8 @@ namespace GVFS.Virtualization.Projection
                 GitIndexEntry gitIndexEntry,
                 Dictionary<string, PlaceholderListDatabase.PlaceholderData> filePlaceholders)
             {
-                gitIndexEntry.ParsePath();
-                string placeholderRelativePath = gitIndexEntry.GetRelativePath();
+                gitIndexEntry.BackgroundTask_ParsePath();
+                string placeholderRelativePath = gitIndexEntry.BackgroundTask_GetPlatformRelativePath();
 
                 FileSystemTaskResult result = FileSystemTaskResult.Success;
 
