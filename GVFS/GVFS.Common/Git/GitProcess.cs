@@ -133,8 +133,9 @@ namespace GVFS.Common.Git
                     if (process != null)
                     {
                         process.Kill();
-                        return true;
                     }
+
+                    return true;
                 }
             }
             catch (Win32Exception)
