@@ -1,5 +1,6 @@
 ﻿using GVFS.Common.Git;
 using GVFS.Common.Prefetch.Git;
+using GVFS.Tests;
 using GVFS.Tests.Should;
 using GVFS.UnitTests.Mock.Common;
 using GVFS.UnitTests.Mock.Git;
@@ -11,29 +12,16 @@ using System.Reflection;
 
 namespace GVFS.UnitTests.Prefetch
 {
-    [TestFixtureSource(TestRunners)]
+    [TestFixtureSource(typeof(DataSources), nameof(DataSources.AllBools))]
     public class DiffHelperTests
     {
-        public const string TestRunners = "Runners";
-
-        private static readonly bool[] SymLinkSupport = new bool[]
-        {
-            true,
-            false,
-        };
-
         public DiffHelperTests(bool symLinkSupport)
         {
             this.IncludeSymLinks = symLinkSupport;
         }
 
-        public static bool[] Runners
-        {
-            get { return SymLinkSupport; }
-        }
-
         public bool IncludeSymLinks { get; set; }
-
+        
         // Make two commits. The first should look like this:
         // recursiveDelete
         // recursiveDelete/subfolder
