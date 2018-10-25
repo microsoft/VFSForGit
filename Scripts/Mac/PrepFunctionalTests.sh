@@ -6,7 +6,7 @@
 $VFS_SRCDIR/ProjFS.Mac/Scripts/UnloadPrjFSKext.sh
 
 # Install GVFS-aware Git (that was published by the build script)
-GITPUBLISH=$VFS_PUBLISHDIR/Git
+GITPUBLISH=$VFS_OUTPUTDIR/Git
 if [[ ! -d $GITPUBLISH ]]; then
     echo "GVFS-aware Git package not found. Run BuildGVFSForMac.sh and try again"
     exit 1
