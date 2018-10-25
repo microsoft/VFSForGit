@@ -23,3 +23,6 @@ bool PrjFSService_DataQueueInit(
     uint32_t clientPortType,
     uint32_t clientMemoryType,
     dispatch_queue_t eventHandlingQueue);
+
+IODataQueueEntry* DataQueue_Peek(IODataQueueMemory* dataQueue);
+IOReturn DataQueue_Dequeue(IODataQueueMemory* dataQueue, void* data, uint32_t* dataSize);
