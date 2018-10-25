@@ -71,7 +71,8 @@ static bool ShouldHandleVnodeOpEvent(
     FsidInode* vnodeFsidInode,
     int* pid,
     char procname[MAXCOMLEN + 1],
-    int* kauthResult);
+    int* kauthResult,
+    int* kauthError);
 
 static bool ShouldHandleFileOpEvent(
     // In params:
@@ -307,7 +308,8 @@ static int HandleVnodeOperation(
             &vnodeFsidInode,
             &pid,
             procname,
-            &kauthResult))
+            &kauthResult,
+            kauthError))
     {
         goto CleanupAndReturn;
     }
@@ -589,7 +591,8 @@ static bool ShouldHandleVnodeOpEvent(
     FsidInode* vnodeFsidInode,
     int* pid,
     char procname[MAXCOMLEN + 1],
-    int* kauthResult)
+    int* kauthResult,
+    int* kauthError)
 {
     *kauthResult = KAUTH_RESULT_DEFER;
     *root = RootHandle_None;
@@ -611,9 +614,12 @@ static bool ShouldHandleVnodeOpEvent(
     
     {
         ProfileSample readflags(Probe_ReadFileFlags);
-        
-        // TODO(Mac): Don't ignore failures of TryReadVNodeFileFlags
-        TryReadVNodeFileFlags(vnode, context, vnodeFileFlags);
+        if (!TryReadVNodeFileFlags(vnode, context, vnodeFileFlags))
+        {
+            *kauthError = EBADF;
+            *kauthResult = KAUTH_RESULT_DENY;
+            return false;
+        }
     }
 
     if (!FileFlagsBitIsSet(*vnodeFileFlags, FileFlags_IsInVirtualizationRoot))
