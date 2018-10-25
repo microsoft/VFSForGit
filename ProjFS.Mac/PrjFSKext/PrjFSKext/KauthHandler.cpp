@@ -36,9 +36,9 @@ static int HandleFileOpOperation(
 
 static int GetPid(vfs_context_t _Nonnull context);
 
-static uint32_t ReadVNodeFileFlags(vnode_t vn, vfs_context_t _Nonnull context);
+static bool TryReadVNodeFileFlags(vnode_t vn, vfs_context_t _Nonnull context, uint32_t* flags);
 static inline bool FileFlagsBitIsSet(uint32_t fileFlags, uint32_t bit);
-static inline bool FileIsFlaggedAsInRoot(vnode_t vnode, vfs_context_t _Nonnull context);
+static inline bool TryGetFileIsFlaggedAsInRoot(vnode_t vnode, vfs_context_t _Nonnull context, bool* flaggedInRoot);
 static inline bool ActionBitIsSet(kauth_action_t action, kauth_action_t mask);
 
 static bool IsFileSystemCrawler(char* procname);
@@ -498,7 +498,9 @@ static int HandleFileOpOperation(
             goto CleanupAndReturn;
         }
 
-        bool fileFlaggedInRoot = FileIsFlaggedAsInRoot(currentVnode, context);
+        bool fileFlaggedInRoot;
+        assert(TryGetFileIsFlaggedAsInRoot(currentVnode, context, &fileFlaggedInRoot));
+        
         if (fileFlaggedInRoot && KAUTH_FILEOP_CLOSE_MODIFIED != closeFlags)
         {
             goto CleanupAndReturn;
@@ -609,7 +611,9 @@ static bool ShouldHandleVnodeOpEvent(
     
     {
         ProfileSample readflags(Probe_ReadFileFlags);
-        *vnodeFileFlags = ReadVNodeFileFlags(vnode, context);
+        
+        // TODO(Mac): Don't ignore failures of TryReadVNodeFileFlags
+        TryReadVNodeFileFlags(vnode, context, vnodeFileFlags);
     }
 
     if (!FileFlagsBitIsSet(*vnodeFileFlags, FileFlags_IsInVirtualizationRoot))
@@ -875,9 +879,10 @@ static errno_t GetVNodeAttributes(vnode_t vn, vfs_context_t _Nonnull context, st
     return vnode_getattr(vn, attrs, context);
 }
 
-static uint32_t ReadVNodeFileFlags(vnode_t vn, vfs_context_t _Nonnull context)
+static bool TryReadVNodeFileFlags(vnode_t vn, vfs_context_t _Nonnull context, uint32_t* flags)
 {
     struct vnode_attr attributes = {};
+    *flags = 0;
     errno_t err = GetVNodeAttributes(vn, context, &attributes);
     if (0 != err)
     {
@@ -887,11 +892,12 @@ static uint32_t ReadVNodeFileFlags(vnode_t vn, vfs_context_t _Nonnull context)
         //   - Falling back on vnode lookup (or custom cache) to determine if file is in the root
         //   - Assuming files are empty if we can't read the flags
         
-        return 0;
+        return false;
     }
     
     assert(VATTR_IS_SUPPORTED(&attributes, va_flags));
-    return attributes.va_flags;
+     *flags = attributes.va_flags;
+     return true;
 }
 
 static inline bool FileFlagsBitIsSet(uint32_t fileFlags, uint32_t bit)
@@ -900,10 +906,17 @@ static inline bool FileFlagsBitIsSet(uint32_t fileFlags, uint32_t bit)
     return 0 != (fileFlags & bit);
 }
 
-static inline bool FileIsFlaggedAsInRoot(vnode_t vnode, vfs_context_t _Nonnull context)
+static inline bool TryGetFileIsFlaggedAsInRoot(vnode_t vnode, vfs_context_t _Nonnull context, bool* flaggedInRoot)
 {
-    uint32_t vnodeFileFlags = ReadVNodeFileFlags(vnode, context);
-    return FileFlagsBitIsSet(vnodeFileFlags, FileFlags_IsInVirtualizationRoot);
+    uint32_t vnodeFileFlags;
+    *flaggedInRoot = false;
+    if (!TryReadVNodeFileFlags(vnode, context, &vnodeFileFlags))
+    {
+        return false;
+    }
+    
+    *flaggedInRoot = FileFlagsBitIsSet(vnodeFileFlags, FileFlags_IsInVirtualizationRoot);
+    return true;
 }
 static inline bool ActionBitIsSet(kauth_action_t action, kauth_action_t mask)
 {
