@@ -10,5 +10,5 @@ struct SizeOrError
     errno_t error;
 };
 
-SizeOrError Vnode_ReadXattr(vnode_t vnode, const char* xattrName, void* buffer, size_t bufferSize, vfs_context_t context);
-FsidInode Vnode_GetFsidAndInode(vnode_t vnode, vfs_context_t context);
+SizeOrError Vnode_ReadXattr(vnode_t _Nonnull vnode, const char* _Nonnull xattrName, void* _Nullable buffer, size_t bufferSize, vfs_context_t _Nonnull context);
+FsidInode Vnode_GetFsidAndInode(vnode_t _Nonnull vnode, vfs_context_t _Nonnull context);
