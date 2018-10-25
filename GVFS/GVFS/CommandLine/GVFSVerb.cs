@@ -136,6 +136,11 @@ namespace GVFS.CommandLine
         {
         }
 
+        protected static string CreateId()
+        {
+            return Guid.NewGuid().ToString("N");
+        }
+
         protected ReturnCode Execute<TVerb>(
             string enlistmentRootPath,
             Action<TVerb> configureVerb = null)
@@ -512,17 +517,26 @@ You can specify a URL, a name of a configured cache server, or the special names
             }
         }
 
-        protected void LogEnlistmentInfoAndSetConfigValues(ITracer tracer, GitProcess git, GVFSEnlistment enlistment)
+        protected void LogEnlistmentInfoAndSetConfigValues(ITracer tracer, GitProcess git, GVFSEnlistment enlistment, string enlistmentId = null, string mountId = null)
         {
-            string mountId = CreateMountId();
+            if (enlistmentId == null)
+            {
+                enlistmentId = RepoMetadata.Instance.EnlistmentId;
+            }
+
+            if (mountId == null)
+            {
+                mountId = CreateId();
+            }
+
             EventMetadata metadata = new EventMetadata();
-            metadata.Add(nameof(RepoMetadata.Instance.EnlistmentId), RepoMetadata.Instance.EnlistmentId);
+            metadata.Add(nameof(enlistmentId), enlistmentId);
             metadata.Add(nameof(mountId), mountId);
             metadata.Add("Enlistment", enlistment);
             metadata.Add("PhysicalDiskInfo", GVFSPlatform.Instance.GetPhysicalDiskInfo(enlistment.WorkingDirectoryRoot));
             tracer.RelatedEvent(EventLevel.Informational, "EnlistmentInfo", metadata, Keywords.Telemetry);
 
-            GitProcess.Result configResult = git.SetInLocalConfig(GVFSConstants.GitConfig.EnlistmentId, RepoMetadata.Instance.EnlistmentId, replaceAll: true);
+            GitProcess.Result configResult = git.SetInLocalConfig(GVFSConstants.GitConfig.EnlistmentId, enlistmentId, replaceAll: true);
             if (configResult.HasErrors)
             {
                 string error = "Could not update config with enlistment id, error: " + configResult.Errors;
@@ -535,11 +549,6 @@ You can specify a URL, a name of a configured cache server, or the special names
                 string error = "Could not update config with mount id, error: " + configResult.Errors;
                 tracer.RelatedWarning(error);
             }
-        }
-
-        private static string CreateMountId()
-        {
-            return Guid.NewGuid().ToString("N");
         }
 
         private static bool TrySetConfig(Enlistment enlistment, Dictionary<string, string> configSettings, bool isRequired)

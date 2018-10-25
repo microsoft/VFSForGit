@@ -121,7 +121,9 @@ namespace GVFS.CommandLine
                 CacheServerInfo cacheServer = null;
                 ServerGVFSConfig serverGVFSConfig = null;
 
-                using (JsonTracer tracer = new JsonTracer(GVFSConstants.GVFSEtwProviderName, "GVFSClone"))
+                string mountId = CreateId();
+                string enlistmentId = CreateId();
+                using (JsonTracer tracer = new JsonTracer(GVFSConstants.GVFSEtwProviderName, "GVFSClone", mountId, enlistmentId))
                 {
                     cloneResult = this.TryCreateEnlistment(fullEnlistmentRootPathParameter, normalizedEnlistmentRootPath, out enlistment);
                     if (cloneResult.Success)
@@ -190,7 +192,7 @@ namespace GVFS.CommandLine
                         this.ShowStatusWhileRunning(
                             () =>
                             {
-                                cloneResult = this.TryClone(tracer, enlistment, cacheServer, retryConfig, serverGVFSConfig, resolvedLocalCacheRoot);
+                                cloneResult = this.TryClone(tracer, enlistment, cacheServer, retryConfig, serverGVFSConfig, resolvedLocalCacheRoot, enlistmentId, mountId);
                                 return cloneResult.Success;
                             },
                             "Cloning",
@@ -324,7 +326,9 @@ namespace GVFS.CommandLine
             CacheServerInfo cacheServer, 
             RetryConfig retryConfig, 
             ServerGVFSConfig serverGVFSConfig,
-            string resolvedLocalCacheRoot)
+            string resolvedLocalCacheRoot,
+            string enlistmentId,
+            string mountId)
         {
             Result pipeResult;
             using (NamedPipeServer pipeServer = this.StartNamedPipe(tracer, enlistment, out pipeResult))
@@ -382,7 +386,7 @@ namespace GVFS.CommandLine
                     Directory.CreateDirectory(enlistment.GitPackRoot);
                     Directory.CreateDirectory(enlistment.BlobSizesRoot);
 
-                    return this.CreateClone(tracer, enlistment, objectRequestor, refs, this.Branch);
+                    return this.CreateClone(tracer, enlistment, objectRequestor, refs, this.Branch, enlistmentId, mountId);
                 }
             }
         }
@@ -498,7 +502,9 @@ namespace GVFS.CommandLine
             GVFSEnlistment enlistment,
             GitObjectsHttpRequestor objectRequestor,
             GitRefs refs,
-            string branch)
+            string branch,           
+            string enlistmentId,
+            string mountId)
         {
             Result initRepoResult = this.TryInitRepo(tracer, refs, enlistment);
             if (!initRepoResult.Success)
@@ -620,7 +626,7 @@ namespace GVFS.CommandLine
             try
             {
                 RepoMetadata.Instance.SaveCloneMetadata(tracer, enlistment);
-                this.LogEnlistmentInfoAndSetConfigValues(tracer, git, enlistment);
+                this.LogEnlistmentInfoAndSetConfigValues(tracer, git, enlistment, enlistmentId, mountId);
             }
             catch (Exception e)
             {

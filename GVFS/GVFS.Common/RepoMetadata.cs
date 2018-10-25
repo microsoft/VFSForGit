@@ -10,10 +10,12 @@ namespace GVFS.Common
     {
         private FileBasedDictionary<string, string> repoMetadata;
         private ITracer tracer;
-        
-        private RepoMetadata(ITracer tracer)
+        private string passedInEnlistmentId = null;
+
+        private RepoMetadata(ITracer tracer, string enlistmentId)
         {
             this.tracer = tracer;
+            this.passedInEnlistmentId = enlistmentId;
         }
 
         public static RepoMetadata Instance { get; private set; }
@@ -25,7 +27,7 @@ namespace GVFS.Common
                 string value;
                 if (!this.repoMetadata.TryGetValue(Keys.EnlistmentId, out value))
                 {
-                    value = CreateNewEnlistmentId(this.tracer);
+                    value = CreateNewEnlistmentId(this.tracer, this.passedInEnlistmentId);
                     this.repoMetadata.SetValueAndFlush(Keys.EnlistmentId, value);
                 }
 
@@ -38,12 +40,12 @@ namespace GVFS.Common
             get { return this.repoMetadata.DataFilePath; }
         }
 
-        public static bool TryInitialize(ITracer tracer, string dotGVFSPath, out string error)
+        public static bool TryInitialize(ITracer tracer, string dotGVFSPath, out string error, string enlistmentId = null)
         {
-            return TryInitialize(tracer, new PhysicalFileSystem(), dotGVFSPath, out error);
+            return TryInitialize(tracer, new PhysicalFileSystem(), dotGVFSPath, out error, enlistmentId);
         }
 
-        public static bool TryInitialize(ITracer tracer, PhysicalFileSystem fileSystem, string dotGVFSPath, out string error)
+        public static bool TryInitialize(ITracer tracer, PhysicalFileSystem fileSystem, string dotGVFSPath, out string error, string enlistmentId = null)
         {
             string dictionaryPath = Path.Combine(dotGVFSPath, GVFSConstants.DotGVFS.Databases.RepoMetadata);
             if (Instance != null)
@@ -59,7 +61,7 @@ namespace GVFS.Common
             }
             else
             {
-                Instance = new RepoMetadata(tracer);
+                Instance = new RepoMetadata(tracer, enlistmentId);
                 if (!FileBasedDictionary<string, string>.TryCreate(   
                     tracer,
                     dictionaryPath,
@@ -266,9 +268,9 @@ namespace GVFS.Common
             this.repoMetadata.SetValueAndFlush(keyName, valueName);
         }
 
-        private static string CreateNewEnlistmentId(ITracer tracer)
+        private static string CreateNewEnlistmentId(ITracer tracer, string id = null)
         {
-            string enlistmentId = Guid.NewGuid().ToString("N");
+            string enlistmentId = id ?? Guid.NewGuid().ToString("N");
             EventMetadata metadata = new EventMetadata();
             metadata.Add(nameof(enlistmentId), enlistmentId);
             tracer.RelatedEvent(EventLevel.Informational, nameof(CreateNewEnlistmentId), metadata);
