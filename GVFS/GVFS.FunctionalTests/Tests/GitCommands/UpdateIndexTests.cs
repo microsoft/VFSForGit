@@ -4,11 +4,12 @@ using System.IO;
 
 namespace GVFS.FunctionalTests.Tests.GitCommands
 {
-    [TestFixture]
+    [TestFixtureSource(typeof(GitRepoTests), GitRepoTests.ValidateWorkingTree)]
     [Category(Categories.GitCommands)]
     public class UpdateIndexTests : GitRepoTests
     {
-        public UpdateIndexTests() : base(enlistmentPerTest: true)
+        public UpdateIndexTests(ValidateWorkingTreeOptions validateWorkingTree)
+            : base(enlistmentPerTest: true, validateWorkingTree: validateWorkingTree)
         {
         }
 

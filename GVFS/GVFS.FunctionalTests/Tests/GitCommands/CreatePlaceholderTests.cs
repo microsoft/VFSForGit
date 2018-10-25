@@ -7,13 +7,14 @@ using System.Threading;
 
 namespace GVFS.FunctionalTests.Tests.GitCommands
 {
-    [TestFixture]
+    [TestFixtureSource(typeof(GitRepoTests), GitRepoTests.ValidateWorkingTree)]
     [Category(Categories.GitCommands)]
     public class CreatePlaceholderTests : GitRepoTests
     {
         private static readonly string FileToRead = Path.Combine("GVFS", "GVFS", "Program.cs");
 
-        public CreatePlaceholderTests() : base(enlistmentPerTest: true)
+        public CreatePlaceholderTests(ValidateWorkingTreeOptions validateWorkingTree) 
+            : base(enlistmentPerTest: true, validateWorkingTree: validateWorkingTree)
         {
         }
 

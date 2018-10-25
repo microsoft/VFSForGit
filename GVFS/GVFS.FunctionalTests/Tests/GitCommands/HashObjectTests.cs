@@ -4,12 +4,13 @@ using NUnit.Framework;
 
 namespace GVFS.FunctionalTests.Tests.GitCommands
 {
-    [TestFixture]
+    [TestFixtureSource(typeof(GitRepoTests), GitRepoTests.ValidateWorkingTree)]
     [Category(Categories.GitCommands)]
     [Category(Categories.MacTODO.M3)]
     public class HashObjectTests : GitRepoTests
     {
-        public HashObjectTests() : base(enlistmentPerTest: false)
+        public HashObjectTests(ValidateWorkingTreeOptions validateWorkingTree) 
+            : base(enlistmentPerTest: false, validateWorkingTree: validateWorkingTree)
         {
         }
 

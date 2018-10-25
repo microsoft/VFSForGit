@@ -11,11 +11,12 @@ using System.Threading.Tasks;
 
 namespace GVFS.FunctionalTests.Tests.GitCommands
 {
-    [TestFixture]
+    [TestFixtureSource(typeof(GitRepoTests), GitRepoTests.ValidateWorkingTree)]
     [Category(Categories.GitCommands)]
     public class CheckoutTests : GitRepoTests
     {
-        public CheckoutTests() : base(enlistmentPerTest: true)
+        public CheckoutTests(ValidateWorkingTreeOptions validateWorkingTree) 
+            : base(enlistmentPerTest: true, validateWorkingTree: validateWorkingTree)
         {
         }
 

@@ -8,7 +8,7 @@ using System.Runtime.CompilerServices;
 
 namespace GVFS.FunctionalTests.Tests.GitCommands
 {
-    [TestFixture]
+    [TestFixtureSource(typeof(GitRepoTests), GitRepoTests.ValidateWorkingTree)]
     [Category(Categories.GitCommands)]
     public class GitCommandsTests : GitRepoTests
     {
@@ -26,7 +26,8 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
         private static readonly string RenameFolderPathFrom = Path.Combine("GVFS", "GVFS.Common", "PrefetchPacks");
         private static readonly string RenameFolderPathTo = Path.Combine("GVFS", "GVFS.Common", "PrefetchPacksRenamed");
        
-        public GitCommandsTests() : base(enlistmentPerTest: false)
+        public GitCommandsTests(ValidateWorkingTreeOptions validateWorkingTree) 
+            : base(enlistmentPerTest: false, validateWorkingTree: validateWorkingTree)
         {
         }
 

@@ -13,6 +13,8 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
     [TestFixture]
     public abstract class GitRepoTests
     {
+        public const string ValidateWorkingTree = "WorkTreeValidation";
+
         protected const string ConflictSourceBranch = "FunctionalTests/20170206_Conflict_Source";
         protected const string ConflictTargetBranch = "FunctionalTests/20170206_Conflict_Target";
         protected const string NoConflictSourceBranch = "FunctionalTests/20170209_NoConflict_Source";
@@ -23,11 +25,25 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
         protected const string DeepDirectoryWithOneDifferentFile = "FunctionalTests/20181010_DeepFolderOneDifferentFile";
 
         private bool enlistmentPerTest;
+        private bool validateWorkingTree;
 
-        public GitRepoTests(bool enlistmentPerTest)
+        public GitRepoTests(bool enlistmentPerTest, ValidateWorkingTreeOptions validateWorkingTree)
         {
             this.enlistmentPerTest = enlistmentPerTest;
+            this.validateWorkingTree = validateWorkingTree == ValidateWorkingTreeOptions.ValidateWorkingTree;
             this.FileSystem = new SystemIORunner();
+        }
+
+        public enum ValidateWorkingTreeOptions
+        {
+            Invalid = 0,
+            DoNotValidateWorkingTree,
+            ValidateWorkingTree,
+        }
+
+        public static object[] WorkTreeValidation
+        {
+            get { return GVFSTestConfig.GitCommandTestWorkTreeValidation; }
         }
 
         public ControlGitRepo ControlGitRepo
@@ -74,8 +90,13 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
             this.ValidateGitCommand("checkout " + this.ControlGitRepo.Commitish);
 
             this.CheckHeadCommitTree();
-            this.Enlistment.RepoRoot.ShouldBeADirectory(this.FileSystem)
-                .WithDeepStructure(this.FileSystem, this.ControlGitRepo.RootPath);
+
+            if (this.validateWorkingTree)
+            {
+                this.Enlistment.RepoRoot.ShouldBeADirectory(this.FileSystem)
+                    .WithDeepStructure(this.FileSystem, this.ControlGitRepo.RootPath);
+            }
+
             this.ValidateGitCommand("status");
         }
 
@@ -90,16 +111,26 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
             try
             {
                 this.CheckHeadCommitTree();
-                this.Enlistment.RepoRoot.ShouldBeADirectory(this.FileSystem)
-                    .WithDeepStructure(this.FileSystem, this.ControlGitRepo.RootPath, ignoreCase: ignoreCase);
+
+                if (this.validateWorkingTree)
+                {
+                    this.Enlistment.RepoRoot.ShouldBeADirectory(this.FileSystem)
+                        .WithDeepStructure(this.FileSystem, this.ControlGitRepo.RootPath, ignoreCase: ignoreCase);
+                }
 
                 this.RunGitCommand("reset --hard -q HEAD");
                 this.RunGitCommand("clean -d -f -x");
                 this.ValidateGitCommand("checkout " + this.ControlGitRepo.Commitish);
 
                 this.CheckHeadCommitTree();
-                this.Enlistment.RepoRoot.ShouldBeADirectory(this.FileSystem)
-                    .WithDeepStructure(this.FileSystem, this.ControlGitRepo.RootPath, ignoreCase: ignoreCase);
+
+                // If enlistmentPerTest is true we can always validate the working tree because
+                // this is the last place we'll use it
+                if (this.validateWorkingTree || this.enlistmentPerTest)
+                {
+                    this.Enlistment.RepoRoot.ShouldBeADirectory(this.FileSystem)
+                        .WithDeepStructure(this.FileSystem, this.ControlGitRepo.RootPath, ignoreCase: ignoreCase);
+                }
             }
             finally
             {

@@ -2,11 +2,12 @@
 
 namespace GVFS.FunctionalTests.Tests.GitCommands
 {
-    [TestFixture]
+    [TestFixtureSource(typeof(GitRepoTests), GitRepoTests.ValidateWorkingTree)]
     [Category(Categories.GitCommands)]
     public class RebaseConflictTests : GitRepoTests
     {
-        public RebaseConflictTests() : base(enlistmentPerTest: true)
+        public RebaseConflictTests(ValidateWorkingTreeOptions validateWorkingTree)
+            : base(enlistmentPerTest: true, validateWorkingTree: validateWorkingTree)
         {
         }
 

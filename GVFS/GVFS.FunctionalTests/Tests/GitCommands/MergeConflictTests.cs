@@ -4,11 +4,12 @@ using NUnit.Framework;
 
 namespace GVFS.FunctionalTests.Tests.GitCommands
 {
-    [TestFixture]
+    [TestFixtureSource(typeof(GitRepoTests), GitRepoTests.ValidateWorkingTree)]
     [Category(Categories.GitCommands)]
     public class MergeConflictTests : GitRepoTests
     {
-        public MergeConflictTests() : base(enlistmentPerTest: true)
+        public MergeConflictTests(ValidateWorkingTreeOptions validateWorkingTree)
+            : base(enlistmentPerTest: true, validateWorkingTree: validateWorkingTree)
         {
         }
 

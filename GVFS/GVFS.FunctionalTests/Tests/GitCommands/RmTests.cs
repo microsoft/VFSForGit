@@ -3,10 +3,11 @@ using NUnit.Framework;
 
 namespace GVFS.FunctionalTests.Tests.GitCommands
 {
-    [TestFixture]
+    [TestFixtureSource(typeof(GitRepoTests), GitRepoTests.ValidateWorkingTree)]
     public class RmTests : GitRepoTests
     {
-        public RmTests() : base(enlistmentPerTest: false)
+        public RmTests(ValidateWorkingTreeOptions validateWorkingTree)
+            : base(enlistmentPerTest: false, validateWorkingTree: validateWorkingTree)
         {
         }
 
