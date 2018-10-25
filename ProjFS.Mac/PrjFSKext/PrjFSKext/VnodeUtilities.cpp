@@ -18,7 +18,7 @@ FsidInode Vnode_GetFsidAndInode(vnode_t vnode, vfs_context_t context)
     return { statfs->f_fsid, attrs.va_fileid };
 }
 
-SizeOrError Vnode_ReadXattr(vnode_t vnode, const char* xattrName, void* buffer, size_t bufferSize, vfs_context_t context)
+SizeOrError Vnode_ReadXattr(vnode_t vnode, const char* xattrName, void* buffer, size_t bufferSize)
 {
     size_t actualSize = bufferSize;
     errno_t error = mac_vnop_getxattr(vnode, xattrName, static_cast<char*>(buffer), bufferSize, &actualSize);

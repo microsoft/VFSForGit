@@ -44,7 +44,7 @@ static VirtualizationRootHandle FindRootAtVnode_Locked(vnode_t vnode, uint32_t v
 
 // Looks up the vnode and fsid/inode pair among the known roots, and if not found,
 // detects if there is a hitherto-unknown root at vnode by checking attributes.
-static VirtualizationRootHandle FindOrDetectRootAtVnode(vnode_t vnode, vfs_context_t context, const FsidInode& vnodeFsidInode);
+static VirtualizationRootHandle FindOrDetectRootAtVnode(vnode_t vnode, const FsidInode& vnodeFsidInode);
 
 static VirtualizationRootHandle FindUnusedIndex_Locked();
 static VirtualizationRootHandle InsertVirtualizationRoot_Locked(PrjFSProviderUserClient* userClient, pid_t clientPID, vnode_t vnode, uint32_t vid, FsidInode persistentIds, const char* path);
@@ -132,7 +132,7 @@ kern_return_t VirtualizationRoots_Cleanup()
     return KERN_FAILURE;
 }
 
-VirtualizationRootHandle VirtualizationRoot_FindForVnode(vnode_t vnode, const FsidInode& vnodeFsidInode)
+VirtualizationRootHandle VirtualizationRoot_FindForVnode(vnode_t _Nonnull vnode, const FsidInode& vnodeFsidInode)
 {
     ProfileSample functionSample(Probe_VirtualizationRoot_Find);
 
@@ -144,7 +144,7 @@ VirtualizationRootHandle VirtualizationRoot_FindForVnode(vnode_t vnode, const Fs
     {
         ProfileSample iterationSample(Probe_VirtualizationRoot_FindIteration);
 
-        rootHandle = FindOrDetectRootAtVnode(vnode, nullptr /* vfs context */, vnodeFsidInode);
+        rootHandle = FindOrDetectRootAtVnode(vnode, vnodeFsidInode);
         // Note: if FindOrDetectRootAtVnode returns a "special" handle other
         // than RootHandle_None, we want to stop the search and return that.
         if (rootHandle != RootHandle_None)
@@ -165,7 +165,7 @@ VirtualizationRootHandle VirtualizationRoot_FindForVnode(vnode_t vnode, const Fs
     return rootHandle;
 }
 
-static VirtualizationRootHandle FindOrDetectRootAtVnode(vnode_t vnode, vfs_context_t context, const FsidInode& vnodeFsidInode)
+static VirtualizationRootHandle FindOrDetectRootAtVnode(vnode_t _Nonnull vnode, const FsidInode& vnodeFsidInode)
 {
     uint32_t vid = vnode_vid(vnode);
     
@@ -180,7 +180,7 @@ static VirtualizationRootHandle FindOrDetectRootAtVnode(vnode_t vnode, vfs_conte
     if (rootIndex == RootHandle_None)
     {
         PrjFSVirtualizationRootXAttrData rootXattr = {};
-        SizeOrError xattrResult = Vnode_ReadXattr(vnode, PrjFSVirtualizationRootXAttrName, &rootXattr, sizeof(rootXattr), context);
+        SizeOrError xattrResult = Vnode_ReadXattr(vnode, PrjFSVirtualizationRootXAttrName, &rootXattr, sizeof(rootXattr));
         if (xattrResult.error == 0)
         {
             // TODO: check xattr contents
@@ -328,7 +328,7 @@ VirtualizationRootResult VirtualizationRoot_RegisterProviderForPath(PrjFSProvide
     assert(nullptr != userClient);
     
     vnode_t virtualizationRootVNode = NULLVP;
-    vfs_context_t vfsContext = vfs_context_create(nullptr);
+    vfs_context_t _Nonnull vfsContext = vfs_context_create(nullptr);
     
     VirtualizationRootHandle rootIndex = RootHandle_None;
     errno_t err = vnode_lookup(virtualizationRootPath, 0 /* flags */, &virtualizationRootVNode, vfsContext);
