@@ -152,7 +152,6 @@ namespace GVFS.Virtualization.Projection
                 }
             }
 
-
             /// <summary>
             /// Parses the path without using LazyUTF8Strings. It should only be called when running a background task.
             /// </summary>
