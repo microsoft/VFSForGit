@@ -81,7 +81,7 @@ namespace GVFS.CommandLine
                 { "core.commitGraph", "true" },
                 { "core.fscache", "true" },
                 { "core.gvfs", "true" },
-                { "core.midx", "true" },
+                { "core.multiPackIndex", "true" },
                 { "core.preloadIndex", "true" },
                 { "core.safecrlf", "false" },
                 { "core.untrackedCache", "false" },
@@ -162,6 +162,32 @@ namespace GVFS.CommandLine
             return verb.ReturnCode;
         }
 
+        protected ReturnCode Execute<TVerb>(
+            GVFSEnlistment enlistment,
+            Action<TVerb> configureVerb = null)
+            where TVerb : GVFSVerb.ForExistingEnlistment, new()
+        {
+            TVerb verb = new TVerb();
+            verb.EnlistmentRootPathParameter = enlistment.EnlistmentRoot;
+            verb.ServiceName = this.ServiceName;
+            verb.Unattended = this.Unattended;
+
+            if (configureVerb != null)
+            {
+                configureVerb(verb);
+            }
+
+            try
+            {
+                verb.Execute(enlistment.Authentication);
+            }
+            catch (VerbAbortedException)
+            {
+            }
+
+            return verb.ReturnCode;
+        }
+
         protected bool ShowStatusWhileRunning(
             Func<bool> action,
             string message,
@@ -189,6 +215,19 @@ namespace GVFS.CommandLine
             }
 
             return this.ShowStatusWhileRunning(action, message, gvfsLogEnlistmentRoot);
+        }
+
+        protected bool TryAuthenticate(ITracer tracer, GVFSEnlistment enlistment, out string authErrorMessage)
+        {
+            string authError = null;
+
+            bool result = this.ShowStatusWhileRunning(
+                () => enlistment.Authentication.TryInitialize(tracer, enlistment, out authError),
+                "Authenticating",
+                enlistment.EnlistmentRoot);
+
+            authErrorMessage = authError;
+            return result;
         }
 
         protected void ReportErrorAndExit(ITracer tracer, ReturnCode exitCode, string error, params object[] args)
@@ -252,7 +291,8 @@ namespace GVFS.CommandLine
                 {
                     using (ConfigHttpRequestor configRequestor = new ConfigHttpRequestor(tracer, enlistment, retryConfig))
                     {
-                        return configRequestor.TryQueryGVFSConfig(out serverGVFSConfig);
+                        const bool LogErrors = true;
+                        return configRequestor.TryQueryGVFSConfig(LogErrors, out serverGVFSConfig, out _);
                     }
                 },
                 "Querying remote for config",
@@ -734,10 +774,16 @@ You can specify a URL, a name of a configured cache server, or the special names
 
             public sealed override void Execute()
             {
+                this.Execute(authentication: null);
+            }
+
+            public void Execute(GitAuthentication authentication)
+            {
                 this.ValidatePathParameter(this.EnlistmentRootPathParameter);
 
                 this.PreCreateEnlistment();
-                GVFSEnlistment enlistment = this.CreateEnlistment(this.EnlistmentRootPathParameter);
+                GVFSEnlistment enlistment = this.CreateEnlistment(this.EnlistmentRootPathParameter, authentication);
+
                 this.Execute(enlistment);
             }
 
@@ -988,7 +1034,7 @@ You can specify a URL, a name of a configured cache server, or the special names
                 }
             }
 
-            private GVFSEnlistment CreateEnlistment(string enlistmentRootPath)
+            private GVFSEnlistment CreateEnlistment(string enlistmentRootPath, GitAuthentication authentication)
             {
                 string gitBinPath = GVFSPlatform.Instance.GitInstallation.GetInstalledGitBinPath();
                 if (string.IsNullOrWhiteSpace(gitBinPath))
@@ -1015,11 +1061,11 @@ You can specify a URL, a name of a configured cache server, or the special names
                 {
                     if (this.validateOriginURL)
                     {
-                        enlistment = GVFSEnlistment.CreateFromDirectory(enlistmentRootPath, gitBinPath, hooksPath);
+                        enlistment = GVFSEnlistment.CreateFromDirectory(enlistmentRootPath, gitBinPath, hooksPath, authentication);
                     }
                     else
                     {
-                        enlistment = GVFSEnlistment.CreateWithoutRepoUrlFromDirectory(enlistmentRootPath, gitBinPath, hooksPath);
+                        enlistment = GVFSEnlistment.CreateWithoutRepoUrlFromDirectory(enlistmentRootPath, gitBinPath, hooksPath, authentication);
                     }
 
                     if (enlistment == null)

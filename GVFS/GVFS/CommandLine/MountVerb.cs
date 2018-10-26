@@ -131,10 +131,8 @@ namespace GVFS.CommandLine
                 ServerGVFSConfig serverGVFSConfig = this.DownloadedGVFSConfig;
                 if (!this.SkipVersionCheck)
                 {
-                    string authErrorMessage = null;
-                    if (!this.ShowStatusWhileRunning(
-                        () => enlistment.Authentication.TryRefreshCredentials(tracer, out authErrorMessage),
-                        "Authenticating"))
+                    string authErrorMessage;
+                    if (!this.TryAuthenticate(tracer, enlistment, out authErrorMessage))
                     {
                         this.Output.WriteLine("    WARNING: " + authErrorMessage);
                         this.Output.WriteLine("    Mount will proceed, but new files cannot be accessed until GVFS can authenticate.");

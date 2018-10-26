@@ -1,6 +1,7 @@
 ﻿using GVFS.Common.Tracing;
 using Newtonsoft.Json;
 using System;
+using System.Net;
 using System.Net.Http;
 using System.Threading;
 
@@ -16,9 +17,10 @@ namespace GVFS.Common.Http
             this.repoUrl = enlistment.RepoUrl;
         }
 
-        public bool TryQueryGVFSConfig(out ServerGVFSConfig serverGVFSConfig)
+        public bool TryQueryGVFSConfig(bool logErrors, out ServerGVFSConfig serverGVFSConfig, out HttpStatusCode? httpStatus)
         {
             serverGVFSConfig = null;
+            httpStatus = null;
 
             Uri gvfsConfigEndpoint;
             string gvfsConfigEndpointString = this.repoUrl + GVFSConstants.Endpoints.GVFSConfig;
@@ -39,7 +41,11 @@ namespace GVFS.Common.Http
 
             long requestId = HttpRequestor.GetNewRequestId();
             RetryWrapper<ServerGVFSConfig> retrier = new RetryWrapper<ServerGVFSConfig>(this.RetryConfig.MaxAttempts, CancellationToken.None);
-            retrier.OnFailure += RetryWrapper<ServerGVFSConfig>.StandardErrorHandler(this.Tracer, requestId, "QueryGvfsConfig");
+
+            if (logErrors)
+            {
+                retrier.OnFailure += RetryWrapper<ServerGVFSConfig>.StandardErrorHandler(this.Tracer, requestId, "QueryGvfsConfig");
+            }
 
             RetryWrapper<ServerGVFSConfig>.InvocationResult output = retrier.Invoke(
                 tryCount =>
@@ -72,7 +78,14 @@ namespace GVFS.Common.Http
             if (output.Succeeded)
             {
                 serverGVFSConfig = output.Result;
+                httpStatus = HttpStatusCode.OK;
                 return true;
+            }
+
+            GitObjectsHttpException httpException = output.Error as GitObjectsHttpException;
+            if (httpException != null)
+            {
+                httpStatus = httpException.StatusCode;
             }
 
             return false;

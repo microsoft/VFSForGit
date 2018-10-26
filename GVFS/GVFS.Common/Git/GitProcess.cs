@@ -17,12 +17,24 @@ namespace GVFS.Common.Git
         private static readonly Encoding UTF8NoBOM = new UTF8Encoding(false);
         private static bool failedToSetEncoding = false;
 
+        /// <summary>
+        /// Lock taken for duration of running executingProcess.
+        /// </summary>
         private object executionLock = new object();
+
+        /// <summary>
+        /// Lock taken when changing the running state of executingProcess.
+        ///
+        /// Can be taken within executionLock.
+        /// </summary>
+        private object processLock = new object();
 
         private string gitBinPath;
         private string workingDirectoryRoot;
         private string dotGitRoot;
         private string gvfsHooksRoot;
+        private Process executingProcess;
+        private bool stopping;
 
         static GitProcess()
         {
@@ -108,6 +120,36 @@ namespace GVFS.Common.Git
             return true;
         }
 
+        public bool TryKillRunningProcess()
+        {
+            this.stopping = true;
+
+            try
+            {
+                lock (this.processLock)
+                {
+                    Process process = this.executingProcess;
+
+                    if (process != null)
+                    {
+                        process.Kill();
+                    }
+
+                    return true;
+                }
+            }
+            catch (Win32Exception)
+            {
+                // Thrown when process is already terminating
+            }
+            catch (InvalidOperationException)
+            {
+                // Process already terminated
+            }
+
+            return false;
+        }
+
         public virtual void RevokeCredential(string repoUrl)
         {
             this.InvokeGitOutsideEnlistment(
@@ -120,10 +162,12 @@ namespace GVFS.Common.Git
             ITracer tracer,
             string repoUrl,
             out string username,
-            out string password)
+            out string password,
+            out string errorMessage)
         {
             username = null;
             password = null;
+            errorMessage = null;
 
             using (ITracer activity = tracer.StartActivity("TryGetCredentials", EventLevel.Informational))
             {
@@ -139,6 +183,7 @@ namespace GVFS.Common.Git
                         errorData,
                         "Git could not get credentials: " + gitCredentialOutput.Errors,
                         Keywords.Network | Keywords.Telemetry);
+                    errorMessage = gitCredentialOutput.Errors;
 
                     return false;
                 }
@@ -359,14 +404,12 @@ namespace GVFS.Common.Git
         /// <summary>
         /// Write a new multi-pack-index (MIDX) in the specified pack directory.
         /// 
-        /// This will update the midx-head file to point to the new MIDX file.
-        /// 
         /// If no new packfiles are found, then this is a no-op.
         /// </summary>
-        public Result WriteMultiPackIndex(string packDir)
+        public Result WriteMultiPackIndex(string objectDir)
         {
             // We override the config settings so we keep writing the MIDX file even if it is disabled for reads.
-            return this.InvokeGitAgainstDotGitFolder("-c core.midx=true midx --write --update-head --pack-dir \"" + packDir + "\"");
+            return this.InvokeGitAgainstDotGitFolder("-c core.multiPackIndex=true multi-pack-index write --object-dir=\"" + objectDir + "\"");
         }
 
         public Result RemoteAdd(string remoteName, string url)
@@ -495,19 +538,19 @@ namespace GVFS.Common.Git
                 // From https://msdn.microsoft.com/en-us/library/system.diagnostics.process.standardoutput.aspx
                 // To avoid deadlocks, use asynchronous read operations on at least one of the streams.
                 // Do not perform a synchronous read to the end of both redirected streams.
-                using (Process executingProcess = this.GetGitProcess(command, workingDirectory, dotGitDirectory, useReadObjectHook, redirectStandardError: true))
+                using (this.executingProcess = this.GetGitProcess(command, workingDirectory, dotGitDirectory, useReadObjectHook, redirectStandardError: true))
                 {
                     StringBuilder output = new StringBuilder();
                     StringBuilder errors = new StringBuilder();
 
-                    executingProcess.ErrorDataReceived += (sender, args) =>
+                    this.executingProcess.ErrorDataReceived += (sender, args) =>
                     {
                         if (args.Data != null)
                         {
                             errors.Append(args.Data + "\n");
                         }
                     };
-                    executingProcess.OutputDataReceived += (sender, args) =>
+                    this.executingProcess.OutputDataReceived += (sender, args) =>
                     {
                         if (args.Data != null)
                         {
@@ -524,29 +567,39 @@ namespace GVFS.Common.Git
 
                     lock (this.executionLock)
                     {
-                        executingProcess.Start();
-
-                        if (writeStdIn != null)
+                        lock (this.processLock)
                         {
-                            writeStdIn(executingProcess.StandardInput);
+                            if (this.stopping)
+                            {
+                                return new Result(string.Empty, nameof(GitProcess) + " is stopping", Result.GenericFailureCode);
+                            }
+
+                            this.executingProcess.Start();
                         }
 
-                        executingProcess.BeginOutputReadLine();
-                        executingProcess.BeginErrorReadLine();
+                        writeStdIn?.Invoke(this.executingProcess.StandardInput);
 
-                        if (!executingProcess.WaitForExit(timeoutMs))
+                        this.executingProcess.BeginOutputReadLine();
+                        this.executingProcess.BeginErrorReadLine();
+
+                        if (!this.executingProcess.WaitForExit(timeoutMs))
                         {
-                            executingProcess.Kill();
+                            this.executingProcess.Kill();
+
                             return new Result(output.ToString(), "Operation timed out: " + errors.ToString(), Result.GenericFailureCode);
                         }
                     }
 
-                    return new Result(output.ToString(), errors.ToString(), executingProcess.ExitCode);
+                    return new Result(output.ToString(), errors.ToString(), this.executingProcess.ExitCode);
                 }
             }
             catch (Win32Exception e)
             {
                 return new Result(string.Empty, e.Message, Result.GenericFailureCode);
+            }
+            finally
+            {
+                this.executingProcess = null;
             }
         }
 

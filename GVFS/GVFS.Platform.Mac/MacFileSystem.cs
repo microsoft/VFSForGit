@@ -55,8 +55,19 @@ namespace GVFS.Platform.Mac
 
             public static bool TryReadFirstByteOfFile(string fileName, byte[] buffer)
             {
-                int fileDescriptor = Open(fileName, ReadOnly);
-                return TryReadOneByte(fileDescriptor, buffer);
+                int fileDescriptor = 1;
+                bool readStatus;
+                try
+                {
+                    fileDescriptor = Open(fileName, ReadOnly);
+                    readStatus = TryReadOneByte(fileDescriptor, buffer);
+                }
+                finally
+                {
+                    Close(fileDescriptor);
+                }
+
+                return readStatus;
             }
 
             private static bool TryReadOneByte(int fileDescriptor, byte[] buffer)
@@ -73,6 +84,9 @@ namespace GVFS.Platform.Mac
 
             [DllImport("libc", EntryPoint = "open", SetLastError = true)]
             private static extern int Open(string path, int flag);
+
+            [DllImport("libc", EntryPoint = "close", SetLastError = true)]
+            private static extern int Close(int fd);
 
             [DllImport("libc", EntryPoint = "read", SetLastError = true)]
             private static extern int Read(int fd, [Out] byte[] buf, int count);

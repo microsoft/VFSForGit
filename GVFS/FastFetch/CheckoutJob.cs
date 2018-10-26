@@ -39,7 +39,7 @@ namespace FastFetch
         {
             this.tracer = tracer.StartActivity(AreaPath, EventLevel.Informational, Keywords.Telemetry, metadata: null);
             this.enlistment = enlistment;
-            this.diff = new DiffHelper(tracer, enlistment, new string[0], folderList);
+            this.diff = new DiffHelper(tracer, enlistment, new string[0], folderList, includeSymLinks: true);
             this.targetCommitSha = targetCommitSha;
             this.forceCheckout = forceCheckout;
             this.AvailableBlobShas = new BlockingCollection<string>();

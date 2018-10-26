@@ -137,9 +137,8 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
             }
             while (this.fileSystem.FileExists(postFetchLock));
 
-            ProcessResult midxResult = GitProcess.InvokeProcess(this.Enlistment.RepoRoot, "midx --read --pack-dir=\"" + objectDir + "/pack\"");
+            ProcessResult midxResult = GitProcess.InvokeProcess(this.Enlistment.RepoRoot, "multi-pack-index verify --object-dir=\"" + objectDir + "\"");
             midxResult.ExitCode.ShouldEqual(0);
-            midxResult.Output.ShouldContain("4d494458"); // Header from midx file.
 
             ProcessResult graphResult = GitProcess.InvokeProcess(this.Enlistment.RepoRoot, "commit-graph read --object-dir=\"" + objectDir + "\"");
             graphResult.ExitCode.ShouldEqual(0);

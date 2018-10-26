@@ -113,6 +113,20 @@ namespace GVFS.Common.Prefetch
                 const int MaxDeleteRetries = 200; // 200 * IoFailureRetryDelayMS (50ms) = 10 seconds
                 const int RetryLoggingThreshold = 40; // 40 * IoFailureRetryDelayMS (50ms) = 2 seconds
 
+                // Before we delete _any_ pack-files, we need to delete the multi-pack-index, which
+                // may refer to those packs.
+
+                EventMetadata metadata = new EventMetadata();
+                string midxPath = Path.Combine(enlistment.GitPackRoot, "multi-pack-index");
+                metadata.Add("path", midxPath);
+                metadata.Add(TracingConstants.MessageKey.InfoMessage, $"{nameof(TryGetMaxGoodPrefetchTimestamp)} deleting multi-pack-index");
+                tracer.RelatedEvent(EventLevel.Informational, $"{nameof(TryGetMaxGoodPrefetchTimestamp)}_DeleteMultiPack_index", metadata);
+                if (!fileSystem.TryWaitForDelete(tracer, midxPath, IoFailureRetryDelayMS, MaxDeleteRetries, RetryLoggingThreshold))
+                {
+                    error = $"Unable to delete {midxPath}";
+                    return false;
+                }
+
                 // Delete packs and indexes in reverse order so that if prefetch is killed, subseqeuent prefetch commands will
                 // find the right starting spot.
                 for (int i = orderedPacks.Count - 1; i >= firstBadPack; --i)
@@ -120,7 +134,7 @@ namespace GVFS.Common.Prefetch
                     string packPath = orderedPacks[i].Path;
                     string idxPath = Path.ChangeExtension(packPath, ".idx");
 
-                    EventMetadata metadata = new EventMetadata();
+                    metadata = new EventMetadata();
                     metadata.Add("path", idxPath);
                     metadata.Add(TracingConstants.MessageKey.InfoMessage, $"{nameof(TryGetMaxGoodPrefetchTimestamp)} deleting bad idx file");
                     tracer.RelatedEvent(EventLevel.Informational, $"{nameof(TryGetMaxGoodPrefetchTimestamp)}_DeleteBadIdx", metadata);

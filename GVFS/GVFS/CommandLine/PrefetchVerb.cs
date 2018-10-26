@@ -104,11 +104,9 @@ namespace GVFS.CommandLine
                 if (!this.SkipVersionCheck)
                 {
                     string authErrorMessage;
-                    if (!this.ShowStatusWhileRunning(
-                        () => enlistment.Authentication.TryRefreshCredentials(tracer, out authErrorMessage),
-                        "Authenticating"))
+                    if (!this.TryAuthenticate(tracer, enlistment, out authErrorMessage))
                     {
-                        this.ReportErrorAndExit(tracer, "Unable to prefetch because authentication failed");
+                        this.ReportErrorAndExit(tracer, "Unable to prefetch because authentication failed: " + authErrorMessage);
                     }
 
                     if (serverGVFSConfig == null)

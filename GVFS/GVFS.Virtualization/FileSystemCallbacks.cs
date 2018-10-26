@@ -20,6 +20,8 @@ namespace GVFS.Virtualization
     {
         private const string EtwArea = nameof(FileSystemCallbacks);
         private const string PostFetchLock = "post-fetch.lock";
+        private const string CommitGraphLock = "commit-graph.lock";
+        private const string MultiPackIndexLock = "multi-pack-index.lock";
         private const string PostFetchTelemetryKey = "post-fetch";
 
         private static readonly GitCommandLineParser.Verbs LeavesProjectionUnchangedVerbs =
@@ -39,6 +41,7 @@ namespace GVFS.Virtualization
         private FileSystemVirtualizer fileSystemVirtualizer;
         private FileProperties logsHeadFileProperties;
         private Thread postFetchJobThread;
+        private GitProcess postFetchGitProcess;
         private object postFetchJobLock;
         private bool stopping;
 
@@ -197,8 +200,24 @@ namespace GVFS.Virtualization
             this.stopping = true;
             lock (this.postFetchJobLock)
             {
-                // TODO(Mac): System.PlatformNotSupportedException: Thread abort is not supported on this platform
-                this.postFetchJobThread?.Abort();
+                GitProcess process = this.postFetchGitProcess;
+                if (process != null)
+                {
+                    if (process.TryKillRunningProcess())
+                    {
+                        this.context.Tracer.RelatedEvent(
+                            EventLevel.Informational,
+                            PostFetchTelemetryKey + ": killed background Git process during " + nameof(this.Stop),
+                            metadata: null);
+                    }
+                    else
+                    {
+                        this.context.Tracer.RelatedEvent(
+                            EventLevel.Informational,
+                            PostFetchTelemetryKey + ": failed to kill background Git process during " + nameof(this.Stop),
+                            metadata: null);
+                    }
+                }
             }
 
             // Shutdown the GitStatusCache before other
@@ -568,12 +587,32 @@ namespace GVFS.Virtualization
                         return;
                     }
 
-                    if (!this.gitObjects.TryWriteMultiPackIndex(this.context.Tracer, this.context.Enlistment, this.context.FileSystem))
+                    this.postFetchGitProcess = new GitProcess(this.context.Enlistment);
+
+                    using (ITracer activity = this.context.Tracer.StartActivity("TryWriteMultiPackIndex", EventLevel.Informational, Keywords.Telemetry, metadata: null))
                     {
-                        this.context.Tracer.RelatedWarning(
-                            metadata: null,
-                            message: PostFetchTelemetryKey + ": Failed to generate midx for new packfiles",
-                            keywords: Keywords.Telemetry);
+                        string midxLockFile = Path.Combine(this.context.Enlistment.GitPackRoot, MultiPackIndexLock);
+                        this.context.FileSystem.TryDeleteFile(midxLockFile);
+
+                        if (this.stopping)
+                        {
+                            this.context.Tracer.RelatedWarning(
+                                metadata: null,
+                                message: PostFetchTelemetryKey + ": Not launching 'git multi-pack-index' because the mount is stopping",
+                                keywords: Keywords.Telemetry);
+                            return;
+                        }
+
+                        GitProcess.Result result = this.postFetchGitProcess.WriteMultiPackIndex(this.context.Enlistment.GitObjectsRoot);
+
+                        if (!this.stopping && result.HasErrors)
+                        {
+                            this.context.Tracer.RelatedWarning(
+                                metadata: null,
+                                message: PostFetchTelemetryKey + ": Failed to generate multi-pack-index for new packfiles:" + result.Errors,
+                                keywords: Keywords.Telemetry);
+                            return;
+                        }
                     }
 
                     if (packIndexes == null || packIndexes.Count == 0)
@@ -584,10 +623,21 @@ namespace GVFS.Virtualization
 
                     using (ITracer activity = this.context.Tracer.StartActivity("TryWriteGitCommitGraph", EventLevel.Informational, Keywords.Telemetry, metadata: null))
                     {
-                        GitProcess process = new GitProcess(this.context.Enlistment);
-                        GitProcess.Result result = process.WriteCommitGraph(this.context.Enlistment.GitObjectsRoot, packIndexes);
+                        string graphLockFile = Path.Combine(this.context.Enlistment.GitObjectsRoot, "info", CommitGraphLock);
+                        this.context.FileSystem.TryDeleteFile(graphLockFile);
 
-                        if (result.HasErrors)
+                        if (this.stopping)
+                        {
+                            this.context.Tracer.RelatedWarning(
+                                metadata: null,
+                                message: PostFetchTelemetryKey + ": Not launching 'git commit-graph' because the mount is stopping",
+                                keywords: Keywords.Telemetry);
+                            return;
+                        }
+
+                        GitProcess.Result result = this.postFetchGitProcess.WriteCommitGraph(this.context.Enlistment.GitObjectsRoot, packIndexes);
+
+                        if (!this.stopping && result.HasErrors)
                         {
                             this.context.Tracer.RelatedWarning(
                                 metadata: null,
@@ -597,10 +647,6 @@ namespace GVFS.Virtualization
                         }
                     }
                 }
-            }
-            catch (ThreadAbortException)
-            {
-                this.context.Tracer.RelatedInfo("Aborting post-fetch job due to ThreadAbortException");
             }
             catch (IOException e)
             {

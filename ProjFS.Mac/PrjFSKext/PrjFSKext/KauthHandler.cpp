@@ -34,11 +34,11 @@ static int HandleFileOpOperation(
     uintptr_t       arg2,
     uintptr_t       arg3);
 
-static int GetPid(vfs_context_t context);
+static int GetPid(vfs_context_t _Nonnull context);
 
-static uint32_t ReadVNodeFileFlags(vnode_t vn, vfs_context_t context);
+static uint32_t ReadVNodeFileFlags(vnode_t vn, vfs_context_t _Nonnull context);
 static inline bool FileFlagsBitIsSet(uint32_t fileFlags, uint32_t bit);
-static inline bool FileIsFlaggedAsInRoot(vnode_t vnode, vfs_context_t context);
+static inline bool FileIsFlaggedAsInRoot(vnode_t vnode, vfs_context_t _Nonnull context);
 static inline bool ActionBitIsSet(kauth_action_t action, kauth_action_t mask);
 
 static bool IsFileSystemCrawler(char* procname);
@@ -59,7 +59,7 @@ static bool ShouldIgnoreVnodeType(vtype vnodeType, vnode_t vnode);
 
 static bool ShouldHandleVnodeOpEvent(
     // In params:
-    vfs_context_t context,
+    vfs_context_t _Nonnull context,
     const vnode_t vnode,
     kauth_action_t action,
     ProfileSample& operationSample,
@@ -75,7 +75,7 @@ static bool ShouldHandleVnodeOpEvent(
 
 static bool ShouldHandleFileOpEvent(
     // In params:
-    vfs_context_t context,
+    vfs_context_t _Nonnull context,
     const vnode_t vnode,
     kauth_action_t action,
 
@@ -257,7 +257,7 @@ static int HandleVnodeOperation(
 
     ProfileSample functionSample(Probe_VnodeOp);
     
-    vfs_context_t context = reinterpret_cast<vfs_context_t>(arg0);
+    vfs_context_t _Nonnull context = reinterpret_cast<vfs_context_t>(arg0);
     vnode_t currentVnode =  reinterpret_cast<vnode_t>(arg1);
     // arg2 is the (vnode_t) parent vnode
     int* kauthError =       reinterpret_cast<int*>(arg3);
@@ -427,7 +427,7 @@ static int HandleFileOpOperation(
     
     ProfileSample functionSample(Probe_FileOp);
 
-    vfs_context_t context = vfs_context_create(NULL);
+    vfs_context_t _Nonnull context = vfs_context_create(NULL);
     vnode_t currentVnodeFromPath = NULLVP;
 
     if (KAUTH_FILEOP_RENAME == action ||
@@ -575,7 +575,7 @@ CleanupAndReturn:
 
 static bool ShouldHandleVnodeOpEvent(
     // In params:
-    vfs_context_t context,
+    vfs_context_t _Nonnull context,
     const vnode_t vnode,
     kauth_action_t action,
     ProfileSample& operationSample,
@@ -861,13 +861,13 @@ static void Sleep(int seconds, void* channel)
     msleep(channel, nullptr, PUSER, "io.gvfs.PrjFSKext.Sleep", &timeout);
 }
 
-static int GetPid(vfs_context_t context)
+static int GetPid(vfs_context_t _Nonnull context)
 {
     proc_t callingProcess = vfs_context_proc(context);
     return proc_pid(callingProcess);
 }
 
-static errno_t GetVNodeAttributes(vnode_t vn, vfs_context_t context, struct vnode_attr* attrs)
+static errno_t GetVNodeAttributes(vnode_t vn, vfs_context_t _Nonnull context, struct vnode_attr* attrs)
 {
     VATTR_INIT(attrs);
     VATTR_WANTED(attrs, va_flags);
@@ -875,7 +875,7 @@ static errno_t GetVNodeAttributes(vnode_t vn, vfs_context_t context, struct vnod
     return vnode_getattr(vn, attrs, context);
 }
 
-static uint32_t ReadVNodeFileFlags(vnode_t vn, vfs_context_t context)
+static uint32_t ReadVNodeFileFlags(vnode_t vn, vfs_context_t _Nonnull context)
 {
     struct vnode_attr attributes = {};
     errno_t err = GetVNodeAttributes(vn, context, &attributes);
@@ -891,7 +891,7 @@ static inline bool FileFlagsBitIsSet(uint32_t fileFlags, uint32_t bit)
     return 0 != (fileFlags & bit);
 }
 
-static inline bool FileIsFlaggedAsInRoot(vnode_t vnode, vfs_context_t context)
+static inline bool FileIsFlaggedAsInRoot(vnode_t vnode, vfs_context_t _Nonnull context)
 {
     uint32_t vnodeFileFlags = ReadVNodeFileFlags(vnode, context);
     return FileFlagsBitIsSet(vnodeFileFlags, FileFlags_IsInVirtualizationRoot);

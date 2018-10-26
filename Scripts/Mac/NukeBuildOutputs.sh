@@ -1,13 +1,10 @@
 #!/bin/bash
 
-SCRIPTDIR=$(dirname ${BASH_SOURCE[0]})
+. "$(dirname ${BASH_SOURCE[0]})/InitializeEnvironment.sh"
 
-SRCDIR=$SCRIPTDIR/../..
-ROOTDIR=$SRCDIR/..
+sudo rm -Rf $VFS_OUTPUTDIR
+rm -Rf $VFS_PACKAGESDIR
+rm -Rf $VFS_PUBLISHDIR
 
-sudo rm -Rf $ROOTDIR/BuildOutput
-rm -Rf $ROOTDIR/packages
-rm -Rf $ROOTDIR/Publish
-
-echo git --work-tree=$SRCDIR clean -Xdf -n
-git --work-tree=$SRCDIR clean -Xdf -n
+echo git --work-tree=$VFS_SRCDIR clean -Xdf -n
+git --work-tree=$VFS_SRCDIR clean -Xdf -n

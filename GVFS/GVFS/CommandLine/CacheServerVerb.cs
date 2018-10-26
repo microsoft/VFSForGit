@@ -42,6 +42,12 @@ namespace GVFS.CommandLine
 
             using (ITracer tracer = new JsonTracer(GVFSConstants.GVFSEtwProviderName, "CacheVerb"))
             {
+                string authErrorMessage;
+                if (!this.TryAuthenticate(tracer, enlistment, out authErrorMessage))
+                {
+                    this.ReportErrorAndExit(tracer, "Authentication failed: " + authErrorMessage);
+                }
+
                 ServerGVFSConfig serverGVFSConfig = this.QueryGVFSConfig(tracer, enlistment, retryConfig);
 
                 CacheServerResolver cacheServerResolver = new CacheServerResolver(tracer, enlistment);

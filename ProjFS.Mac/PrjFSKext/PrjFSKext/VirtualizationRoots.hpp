@@ -21,20 +21,20 @@ enum VirtualizationRootSpecialHandle : VirtualizationRootHandle
 kern_return_t VirtualizationRoots_Init(void);
 kern_return_t VirtualizationRoots_Cleanup(void);
 
-VirtualizationRootHandle VirtualizationRoot_FindForVnode(vnode_t vnode, const FsidInode& vnodeFsidInode);
+VirtualizationRootHandle VirtualizationRoot_FindForVnode(vnode_t _Nonnull vnode, const FsidInode& vnodeFsidInode);
 
 struct VirtualizationRootResult
 {
     errno_t error;
     VirtualizationRootHandle root;
 };
-VirtualizationRootResult VirtualizationRoot_RegisterProviderForPath(PrjFSProviderUserClient* userClient, pid_t clientPID, const char* virtualizationRootPath);
+VirtualizationRootResult VirtualizationRoot_RegisterProviderForPath(PrjFSProviderUserClient* _Nonnull userClient, pid_t clientPID, const char* _Nonnull virtualizationRootPath);
 void ActiveProvider_Disconnect(VirtualizationRootHandle rootHandle);
 
 struct Message;
 errno_t ActiveProvider_SendMessage(VirtualizationRootHandle rootHandle, const Message message);
-bool VirtualizationRoot_VnodeIsOnAllowedFilesystem(vnode_t vnode);
+bool VirtualizationRoot_VnodeIsOnAllowedFilesystem(vnode_t _Nonnull vnode);
 bool VirtualizationRoot_IsOnline(VirtualizationRootHandle rootHandle);
 bool VirtualizationRoot_PIDMatchesProvider(VirtualizationRootHandle rootHandle, pid_t pid);
 bool VirtualizationRoot_IsValidRootHandle(VirtualizationRootHandle rootHandle);
-const char* VirtualizationRoot_GetRootRelativePath(VirtualizationRootHandle rootHandle, const char* path);
+const char* _Nonnull VirtualizationRoot_GetRootRelativePath(VirtualizationRootHandle rootHandle, const char* _Nonnull path);
