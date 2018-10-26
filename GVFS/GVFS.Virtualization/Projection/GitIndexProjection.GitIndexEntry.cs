@@ -177,7 +177,7 @@ namespace GVFS.Virtualization.Projection
                             }
                             else
                             {
-                                this.backgroundTaskRelativePathBuilder.Append(Convert.ToChar(*bufferPtrForLoop));
+                                this.backgroundTaskRelativePathBuilder.Append((char)(*bufferPtrForLoop));
                             }
                         }
                         else
