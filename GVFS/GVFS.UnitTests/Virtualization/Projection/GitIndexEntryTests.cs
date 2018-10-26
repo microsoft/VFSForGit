@@ -1,4 +1,5 @@
-﻿using GVFS.Tests.Should;
+﻿using GVFS.Tests;
+using GVFS.Tests.Should;
 using GVFS.UnitTests.Mock.Common;
 using NUnit.Framework;
 using System;
@@ -8,29 +9,15 @@ using static GVFS.Virtualization.Projection.GitIndexProjection;
 
 namespace GVFS.UnitTests.Virtualization.Git
 {
-    [TestFixtureSource(TestBuildingNewProjection)]
+    [TestFixtureSource(typeof(DataSources), nameof(DataSources.AllBools))]
     public class GitIndexEntryTests
     {
-        public const string TestBuildingNewProjection = "BuildingNewProjection";
-
         private const int DefaultIndexEntryCount = 10;
         private bool buildingNewProjection;
 
         public GitIndexEntryTests(bool buildingNewProjection)
         {
             this.buildingNewProjection = buildingNewProjection;
-        }
-
-        public static object[] BuildingNewProjection
-        {
-            get
-            {
-                return new object[]
-                {
-                    new object[] { true },
-                    new object[] { false },
-                };
-            }
         }
 
         [OneTimeSetUp]
