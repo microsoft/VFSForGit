@@ -7,12 +7,6 @@ if [ -z $CONFIGURATION ]; then
   CONFIGURATION=Debug
 fi
 
-SCRIPTDIR=$(dirname ${BASH_SOURCE[0]})
-
-SRCDIR=$SCRIPTDIR/../..
-ROOTDIR=$SRCDIR/..
-PUBLISHDIR=$ROOTDIR/Publish
-
 sudo mkdir /GVFS.FT
 sudo chown $USER /GVFS.FT
 

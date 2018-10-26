@@ -45,4 +45,8 @@ echo 'Copying native binaries to Publish directory...'
 cp $VFS_OUTPUTDIR/GVFS.Native.Mac/Build/Products/$CONFIGURATION/GVFS.ReadObjectHook $VFS_PUBLISHDIR || exit 1
 cp $VFS_OUTPUTDIR/GVFS.Native.Mac/Build/Products/$CONFIGURATION/GVFS.VirtualFileSystemHook $VFS_PUBLISHDIR || exit 1
 
+echo 'Copying Git installer to the output directory...'
+$VFS_SCRIPTDIR/PublishGit.sh $GITPATH || exit 1
+
+echo 'Running VFS for Git unit tests...'
 $VFS_PUBLISHDIR/GVFS.UnitTests || exit 1
