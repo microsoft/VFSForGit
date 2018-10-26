@@ -667,20 +667,20 @@ namespace GVFS.Virtualization.Projection
 
         private void AddItemFromIndexEntry(GitIndexEntry indexEntry)
         {
-            if (indexEntry.HasSameParentAsLastEntry)
+            if (indexEntry.BuildingProjection_HasSameParentAsLastEntry)
             {
-                indexEntry.LastParent.AddChildFile(indexEntry.BuildingProjection_GetChildName(), indexEntry.Sha);
+                indexEntry.BuildingProjection_LastParent.AddChildFile(indexEntry.BuildingProjection_GetChildName(), indexEntry.Sha);
             }
             else
             {
-                if (indexEntry.NumParts == 1)
+                if (indexEntry.BuildingProjection_NumParts == 1)
                 {
-                    indexEntry.LastParent = this.rootFolderData;
-                    indexEntry.LastParent.AddChildFile(indexEntry.BuildingProjection_GetChildName(), indexEntry.Sha);
+                    indexEntry.BuildingProjection_LastParent = this.rootFolderData;
+                    indexEntry.BuildingProjection_LastParent.AddChildFile(indexEntry.BuildingProjection_GetChildName(), indexEntry.Sha);
                 }
                 else
                 {
-                    indexEntry.LastParent = this.AddFileToTree(indexEntry);
+                    indexEntry.BuildingProjection_LastParent = this.AddFileToTree(indexEntry);
                 }
             }
 
@@ -787,7 +787,7 @@ namespace GVFS.Virtualization.Projection
         private FolderData AddFileToTree(GitIndexEntry indexEntry)
         {            
             FolderData parentFolder = this.rootFolderData;
-            for (int pathIndex = 0; pathIndex < indexEntry.NumParts - 1; ++pathIndex)
+            for (int pathIndex = 0; pathIndex < indexEntry.BuildingProjection_NumParts - 1; ++pathIndex)
             {
                 if (parentFolder == null)
                 {
@@ -814,7 +814,7 @@ namespace GVFS.Virtualization.Projection
                 parentFolder = parentFolder.ChildEntries.GetOrAddFolder(indexEntry.BuildingProjection_PathParts[pathIndex]);
             }
 
-            parentFolder.AddChildFile(indexEntry.BuildingProjection_PathParts[indexEntry.NumParts - 1], indexEntry.Sha);
+            parentFolder.AddChildFile(indexEntry.BuildingProjection_PathParts[indexEntry.BuildingProjection_NumParts - 1], indexEntry.Sha);
 
             return parentFolder;
         }

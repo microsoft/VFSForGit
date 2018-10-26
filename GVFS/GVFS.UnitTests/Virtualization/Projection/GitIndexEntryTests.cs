@@ -16,9 +16,9 @@ namespace GVFS.UnitTests.Virtualization.Git
         private const int DefaultIndexEntryCount = 10;
         private bool buildingNewProjection;
 
-        public GitIndexEntryTests(bool shouldTestLazyPaths)
+        public GitIndexEntryTests(bool buildingNewProjection)
         {
-            this.buildingNewProjection = shouldTestLazyPaths;
+            this.buildingNewProjection = buildingNewProjection;
         }
 
         public static object[] BuildingNewProjection
@@ -68,6 +68,19 @@ namespace GVFS.UnitTests.Virtualization.Git
         }
 
         [TestCase]
+        public void ReplaceNonASCIIFileName()
+        {
+            string[] pathParts = new[] { "توبر", "مارسأغ", "FCIBBinaries.kml" };
+            string path = string.Join("/", pathParts);
+            GitIndexEntry indexEntry = this.SetupIndexEntry(path);
+            this.TestPathParts(indexEntry, pathParts, hasSameParent: false);
+
+            string[] pathParts2 = new[] { "توبر", "مارسأغ", "FCIBBinaries.txt" };
+            this.ParsePathForIndexEntry(indexEntry, string.Join("/", pathParts2), replaceIndex: Encoding.UTF8.GetByteCount(path) - 3);
+            this.TestPathParts(indexEntry, pathParts2, hasSameParent: true);
+        }
+
+        [TestCase]
         public void ReplaceFileNameShorter()
         {
             string[] pathParts = new[] { "MergedComponents", "InstrumentedBinCatalogs", "dirs" };
@@ -83,11 +96,25 @@ namespace GVFS.UnitTests.Virtualization.Git
         public void TestComponentsWithSimilarNames()
         {
             string[] pathParts = new[] { "MergedComponents", "SDK", "FCIBBinaries.kml" };
-            GitIndexEntry indexEntry = this.SetupIndexEntry(string.Join("/", pathParts));
+            string path = string.Join("/", pathParts);
+            GitIndexEntry indexEntry = this.SetupIndexEntry(path);
             this.TestPathParts(indexEntry, pathParts, hasSameParent: false);
 
             string[] pathParts2 = new[] { "MergedComponents", "SDK", "FCIBBinaries", "TH2Legacy", "amd64", "mdmerge.exe" };
-            this.ParsePathForIndexEntry(indexEntry, string.Join("/", pathParts2), replaceIndex: 17);
+            this.ParsePathForIndexEntry(indexEntry, string.Join("/", pathParts2), replaceIndex: path.Length - 4);
+            this.TestPathParts(indexEntry, pathParts2, hasSameParent: false);
+        }
+
+        [TestCase]
+        public void TestComponentsWithSimilarNonASCIINames()
+        {
+            string[] pathParts = new[] { "توبر", "مارسأغ", "FCIBBinaries.kml" };
+            string path = string.Join("/", pathParts);
+            GitIndexEntry indexEntry = this.SetupIndexEntry(path);
+            this.TestPathParts(indexEntry, pathParts, hasSameParent: false);
+
+            string[] pathParts2 = new[] { "توبر", "مارسأغ", "FCIBBinaries", "TH2Legacy", "amd64", "mdmerge.exe" };
+            this.ParsePathForIndexEntry(indexEntry, string.Join("/", pathParts2), replaceIndex: Encoding.UTF8.GetByteCount(path) - 4);
             this.TestPathParts(indexEntry, pathParts2, hasSameParent: false);
         }
 
@@ -147,12 +174,16 @@ namespace GVFS.UnitTests.Virtualization.Git
             this.TestPathParts(indexEntry, pathParts, hasSameParent: false);
 
             string[] pathParts2 = new[] { "folder", "one", "newfile.txt" };
-            this.ParsePathForIndexEntry(indexEntry, string.Join("/", pathParts2), replaceIndex: 12);
+            this.ParsePathForIndexEntry(indexEntry, string.Join("/", pathParts2), replaceIndex: 11);
             this.TestPathParts(indexEntry, pathParts2, hasSameParent: true);
-            indexEntry.LastParent = new FolderData();
-            indexEntry.ClearLastParent();
-            indexEntry.HasSameParentAsLastEntry.ShouldBeFalse();
-            indexEntry.LastParent.ShouldBeNull();
+
+            if (this.buildingNewProjection)
+            {
+                indexEntry.BuildingProjection_LastParent = new FolderData();
+                indexEntry.ClearLastParent();
+                indexEntry.BuildingProjection_HasSameParentAsLastEntry.ShouldBeFalse();
+                indexEntry.BuildingProjection_LastParent.ShouldBeNull();
+            }
         }
 
         private GitIndexEntry SetupIndexEntry(string path)
@@ -164,9 +195,9 @@ namespace GVFS.UnitTests.Virtualization.Git
 
         private void ParsePathForIndexEntry(GitIndexEntry indexEntry, string path, int replaceIndex)
         {
-            byte[] pathBuffer = Encoding.ASCII.GetBytes(path);
-            Buffer.BlockCopy(pathBuffer, 0, indexEntry.PathBuffer, 0, path.Length);
-            indexEntry.PathLength = path.Length;
+            byte[] pathBuffer = Encoding.UTF8.GetBytes(path);
+            Buffer.BlockCopy(pathBuffer, 0, indexEntry.PathBuffer, 0, pathBuffer.Length);
+            indexEntry.PathLength = pathBuffer.Length;
             indexEntry.ReplaceIndex = replaceIndex;
 
             if (this.buildingNewProjection)
@@ -181,19 +212,18 @@ namespace GVFS.UnitTests.Virtualization.Git
 
         private void TestPathParts(GitIndexEntry indexEntry, string[] pathParts, bool hasSameParent)
         {
-            indexEntry.HasSameParentAsLastEntry.ShouldEqual(hasSameParent, nameof(indexEntry.HasSameParentAsLastEntry));
-            indexEntry.NumParts.ShouldEqual(pathParts.Length, nameof(indexEntry.NumParts));
+            if (this.buildingNewProjection)
+            {
+                indexEntry.BuildingProjection_HasSameParentAsLastEntry.ShouldEqual(hasSameParent, nameof(indexEntry.BuildingProjection_HasSameParentAsLastEntry));
+                indexEntry.BuildingProjection_NumParts.ShouldEqual(pathParts.Length, nameof(indexEntry.BuildingProjection_NumParts));
+            }
+
             for (int i = 0; i < pathParts.Length; i++)
             {
                 if (this.buildingNewProjection)
                 {
                     indexEntry.BuildingProjection_PathParts[i].ShouldNotBeNull();
                     indexEntry.BuildingProjection_PathParts[i].GetString().ShouldEqual(pathParts[i]);
-                }
-                else
-                {
-                    indexEntry.BackgroundTask_PathParts[i].ShouldNotBeNull();
-                    indexEntry.BackgroundTask_PathParts[i].ShouldEqual(pathParts[i]);
                 }
             }
 

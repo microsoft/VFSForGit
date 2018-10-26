@@ -191,8 +191,6 @@ namespace GVFS.Virtualization.Projection
                 }
                 else
                 {
-                    gitIndexEntry.ClearLastParent();
-
                     filePlaceholders.Remove(placeholderRelativePath);
                 }
 
