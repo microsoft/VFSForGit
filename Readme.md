@@ -93,13 +93,13 @@ Note that VFS for Git on Mac is under active development.
   ```
   xcodebuild: error: SDK "macosx10.13" cannot be located.
   ```
-  You may have the "XCode Command Line Tools" installed (helpfully by Mac OS) instead of full `XCode`.
+  You may have the "Xcode Command Line Tools" installed (helpfully by Mac OS) instead of full `Xcode`.
   Make sure
   ```
   xcode-select -p
   ```
 
-  shows `/Applications/Xcode.app/Contents/Developer`. If it does not, install Xcode and then launch it (you can close it afterwards.)
+  shows `/Applications/Xcode.app/Contents/Developer`. If it does not, install `Xcode` and then launch it (you can close it afterwards.)
 
 * In order to build VFS for Git on Mac (and PrjFSKext) you will have to disable the SIP (System Integrity Protection) in order to load the kext).
 
