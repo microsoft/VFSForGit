@@ -13,6 +13,7 @@
 #include "kernel-header-wrappers/mount.h"
 #include "VnodeUtilities.hpp"
 #include "PerformanceTracing.hpp"
+#include "AssociativeArray.hpp"
 
 
 struct VirtualizationRoot
@@ -34,11 +35,21 @@ struct VirtualizationRoot
     char                        path[PrjFSMaxPath];
 };
 
+struct UsedMountPoint
+{
+    mount_t  mountPoint;
+    uint32_t authCacheDisableCount;
+    int      savedAuthCacheTTL;
+};
+
 static RWLock s_virtualizationRootsLock = {};
 
 // Current length of the s_virtualizationRoots array
 static uint16_t s_maxVirtualizationRoots = 0;
 static VirtualizationRoot* s_virtualizationRoots = nullptr;
+
+static bool UsedMountPoint_MountEquals(const mount_t& mountPoint, const UsedMountPoint& usedMountPoint);
+static AssociativeArray<mount_t, UsedMountPoint, &UsedMountPoint_MountEquals> s_usedMountPoints;
 
 // Looks up the vnode/vid and fsid/inode pairs among the known roots
 static VirtualizationRootHandle FindRootAtVnode_Locked(vnode_t vnode, uint32_t vid, FsidInode fileId);
@@ -49,6 +60,9 @@ static VirtualizationRootHandle FindOrDetectRootAtVnode(vnode_t vnode, const Fsi
 
 static VirtualizationRootHandle FindUnusedIndex_Locked();
 static VirtualizationRootHandle InsertVirtualizationRoot_Locked(PrjFSProviderUserClient* userClient, pid_t clientPID, vnode_t vnode, uint32_t vid, FsidInode persistentIds, const char* path);
+
+static void MountPointIncrementAuthCacheDisableCount(mount_t mountPoint);
+static void MountPointDecrementAuthCacheDisableCount_Locked(mount_t mountPoint);
 
 bool VirtualizationRoot_IsOnline(VirtualizationRootHandle rootHandle)
 {
@@ -124,6 +138,8 @@ kern_return_t VirtualizationRoots_Init()
 
 kern_return_t VirtualizationRoots_Cleanup()
 {
+    s_usedMountPoints.ClearAndFreeMemory();
+
     if (RWLock_IsValid(s_virtualizationRootsLock))
     {
         RWLock_FreeMemory(&s_virtualizationRootsLock);
@@ -417,7 +433,8 @@ VirtualizationRootResult VirtualizationRoot_RegisterProviderForPath(PrjFSProvide
     if (rootIndex >= 0)
     {
         VirtualizationRoot* root = &s_virtualizationRoots[rootIndex];
-        vfs_setauthcache_ttl(vnode_mount(root->rootVNode), 0);
+        mount_t mountPoint = vnode_mount(root->rootVNode);
+        MountPointIncrementAuthCacheDisableCount(mountPoint);
     }
     
     vfs_context_rele(vfsContext);
@@ -436,6 +453,9 @@ void ActiveProvider_Disconnect(VirtualizationRootHandle rootIndex)
         assert(nullptr != root->providerUserClient);
         
         assert(NULLVP != root->rootVNode);
+        mount_t mountPoint = vnode_mount(root->rootVNode);
+        MountPointDecrementAuthCacheDisableCount_Locked(mountPoint);
+        
         vnode_put(root->rootVNode);
         root->providerPid = 0;
         
@@ -533,4 +553,78 @@ const char* VirtualizationRoot_GetRootRelativePath(VirtualizationRootHandle root
     RWLock_ReleaseShared(s_virtualizationRootsLock);
     
     return relativePath;
+}
+
+static bool UsedMountPoint_MountEquals(const mount_t& mountPoint, const UsedMountPoint& usage)
+{
+    return mountPoint == usage.mountPoint;
+}
+
+static void MountPointIncrementAuthCacheDisableCount(mount_t mountPoint)
+{
+    RWLock_AcquireExclusive(s_virtualizationRootsLock);
+    {
+        UsedMountPoint* usedMountPoint = s_usedMountPoints.FindOrInsertLockedAllowResize(
+            mountPoint,
+            UsedMountPoint { .mountPoint = mountPoint },
+            s_virtualizationRootsLock);
+    
+        if (nullptr == usedMountPoint)
+        {
+            // Alloc failure, give up trying to track the mount point
+            KextLog_Note("MountPointIncrementAuthCacheDisableCount: failed to resize array, disabling auth cache on mount point %s without saving previous value", vfs_statfs(mountPoint)->f_mntonname);
+            vfs_setauthcache_ttl(mountPoint, 0);
+        }
+        else
+        {
+            if (usedMountPoint->authCacheDisableCount == 0)
+            {
+                usedMountPoint->savedAuthCacheTTL = vfs_authcache_ttl(mountPoint);
+                vfs_setauthcache_ttl(mountPoint, 0);
+                KextLog_Info("MountPointIncrementAuthCacheDisableCount: disabling auth cache on mount point '%s' saved TTL = %d",
+                    vfs_statfs(mountPoint)->f_mntonname, usedMountPoint->savedAuthCacheTTL);
+            }
+       
+            usedMountPoint->authCacheDisableCount++;
+        }
+    }
+    RWLock_ReleaseExclusive(s_virtualizationRootsLock);
+}
+
+static void MountPointDecrementAuthCacheDisableCount_Locked(mount_t mountPoint)
+{
+    UsedMountPoint* usedMountPoint = s_usedMountPoints.Find(mountPoint);
+    if (nullptr == usedMountPoint)
+    {
+        KextLog_Note("MountPointDecrementAuthCacheDisableCount_Locked: mount point '%s' not found in table", vfs_statfs(mountPoint)->f_mntonname);
+    }
+    else
+    {
+        if (usedMountPoint->authCacheDisableCount < 1)
+        {
+            KextLog_Note("MountPointDecrementAuthCacheDisableCount: mount point '%s' already has use count of 0", vfs_statfs(mountPoint)->f_mntonname);
+        }
+        else
+        {
+            usedMountPoint->authCacheDisableCount--;
+            if (0 == usedMountPoint->authCacheDisableCount)
+            {
+                int savedTTL = usedMountPoint->savedAuthCacheTTL;
+                if (savedTTL == CACHED_RIGHT_INFINITE_TTL)
+                {
+                    KextLog_Info("MountPointDecrementAuthCacheDisableCount: resetting mount point '%s' to default auth cache behaviour",
+                        vfs_statfs(mountPoint)->f_mntonname);
+                    vfs_clearauthcache_ttl(mountPoint);
+                }
+                else
+                {
+                    KextLog_Info("MountPointDecrementAuthCacheDisableCount: resetting mount point '%s' TTL to %d",
+                        vfs_statfs(mountPoint)->f_mntonname, savedTTL);
+                    vfs_setauthcache_ttl(mountPoint, usedMountPoint->savedAuthCacheTTL);
+                }
+            
+                s_usedMountPoints.Remove(usedMountPoint);
+            }
+        }
+    }
 }
