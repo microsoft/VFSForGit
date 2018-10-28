@@ -157,7 +157,19 @@ VirtualizationRootHandle VirtualizationRoot_FindForVnode(
     
     VirtualizationRootHandle rootHandle = RootHandle_None;
     
-    vnode_get(vnode);
+    errno_t error = vnode_get(vnode);
+    if (error != 0)
+    {
+        const char* name = vnode_getname(vnode);
+        mount_t mount = vnode_mount(vnode);
+        vfsstatfs* vfsStat = mount != nullptr ? vfs_statfs(mount) : nullptr;
+        KextLog_FileError(vnode, "VirtualizationRoot_FindForVnode: vnode_get() failed (error = %d) on vnode we'd expect to be live; name = '%s', recycling = %s, mount point mounted at path '%s'", error, name ?: "[NULL]", vnode_isrecycled(vnode) ? "yes" : "no", vfsStat ? vfsStat->f_mntonname : "[NULL]");
+        if (name != nullptr)
+        {
+            vnode_putname(name);
+        }
+    }
+    
     // Search up the tree until we hit a known virtualization root or THE root of the file system
     while (RootHandle_None == rootHandle && NULLVP != vnode && !vnode_isvroot(vnode))
     {
@@ -173,6 +185,10 @@ VirtualizationRootHandle VirtualizationRoot_FindForVnode(
         }
         
         vnode_t parent = vnode_getparent(vnode);
+        if (NULLVP == parent)
+        {
+            KextLog_FileError(vnode, "VirtualizationRoot_FindForVnode: vnode_getparent returned nullptr on vnode that is not root of a mount point");
+        }
         vnode_put(vnode);
         vnode = parent;
     }
@@ -207,7 +223,19 @@ static VirtualizationRootHandle FindOrDetectRootAtVnode(vnode_t _Nonnull vnode, 
             
             char path[PrjFSMaxPath] = "";
             int pathLength = sizeof(path);
-            vn_getpath(vnode, path, &pathLength);
+            errno_t error = vn_getpath(vnode, path, &pathLength);
+            if (error != 0)
+            {
+                const char* name = vnode_getname(vnode);
+                mount_t mount = vnode_mount(vnode);
+                vfsstatfs* vfsStat = mount != nullptr ? vfs_statfs(mount) : nullptr;
+
+                KextLog_Error("FindOrDetectRootAtVnode: vn_getpath failed (error = %d) for vnode with name '%s', recycled: %s, on mount point mounted at '%s'", error, name ?: "[NULL]", vnode_isrecycled(vnode) ? "yes" : "no", vfsStat ? vfsStat->f_mntonname : "[NULL]");
+                if (name != nullptr)
+                {
+                    vnode_putname(name);
+                }
+            }
             
             RWLock_AcquireExclusive(s_virtualizationRootsLock);
             {
@@ -225,6 +253,10 @@ static VirtualizationRootHandle FindOrDetectRootAtVnode(vnode_t _Nonnull vnode, 
 
             }
             RWLock_ReleaseExclusive(s_virtualizationRootsLock);
+        }
+        else if (xattrResult.error != ENOATTR)
+        {
+            KextLog_FileError(vnode, "FindOrDetectRootAtVnode: Vnode_ReadXattr/mac_vnop_getxattr failed with errno %d", xattrResult.error);
         }
     }
     
@@ -370,7 +402,19 @@ VirtualizationRootResult VirtualizationRoot_RegisterProviderForPath(PrjFSProvide
             int virtualizationRootCanonicalPathLength = sizeof(virtualizationRootCanonicalPath);
             err = vn_getpath(virtualizationRootVNode, virtualizationRootCanonicalPath, &virtualizationRootCanonicalPathLength);
             
-            if (0 == err)
+            if (0 != err)
+            {
+                const char* name = vnode_getname(virtualizationRootVNode);
+                mount_t mount = vnode_mount(virtualizationRootVNode);
+                vfsstatfs* vfsStat = mount != nullptr ? vfs_statfs(mount) : nullptr;
+
+                KextLog_Error("VirtualizationRoot_RegisterProviderForPath: vn_getpath failed (error = %d) for vnode looked up from path '%s' with name '%s', recycled: %s, on mount point at '%s'", err, virtualizationRootPath, name ?: "[NULL]", vnode_isrecycled(virtualizationRootVNode) ? "yes" : "no", vfsStat ? vfsStat->f_mntonname : "[NULL]");
+                if (name != nullptr)
+                {
+                    vnode_putname(name);
+                }
+            }
+            else
             {
                 FsidInode vnodeIds = Vnode_GetFsidAndInode(virtualizationRootVNode, vfsContext);
                 uint32_t rootVid = vnode_vid(virtualizationRootVNode);

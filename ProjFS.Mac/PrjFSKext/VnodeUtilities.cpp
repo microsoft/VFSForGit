@@ -1,4 +1,5 @@
 #include "VnodeUtilities.hpp"
+#include "KextLog.hpp"
 #include "kernel-header-wrappers/vnode.h"
 #include "kernel-header-wrappers/mount.h"
 #include <sys/xattr.h>
@@ -12,7 +13,11 @@ FsidInode Vnode_GetFsidAndInode(vnode_t vnode, vfs_context_t context)
     // TODO: check this is correct for hardlinked files
     VATTR_WANTED(&attrs, va_fileid);
 
-    vnode_getattr(vnode, &attrs, context);
+    int errno = vnode_getattr(vnode, &attrs, context);
+    if (0 != errno)
+    {
+        KextLog_FileError(vnode, "Vnode_GetFsidAndInode: vnode_getattr failed with errno %d", errno);
+    }
     
     vfsstatfs* statfs = vfs_statfs(vnode_mount(vnode));
     return { statfs->f_fsid, attrs.va_fileid };
