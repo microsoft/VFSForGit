@@ -215,7 +215,7 @@ PrjFS_Result PrjFS_StartVirtualizationInstance(
         
         while (1)
         {
-            IODataQueueEntry* entry = IODataQueuePeek(dataQueue.queueMemory);
+            IODataQueueEntry* entry = DataQueue_Peek(dataQueue.queueMemory);
             if (nullptr == entry)
             {
                 // No more items in queue
@@ -226,13 +226,13 @@ PrjFS_Result PrjFS_StartVirtualizationInstance(
             if (messageSize < sizeof(Message))
             {
                 cerr << "Bad message size: got " << messageSize << " bytes, expected minimum of " << sizeof(Message) << ", skipping. Kernel/user version mismatch?\n";
-                IODataQueueDequeue(dataQueue.queueMemory, nullptr, nullptr);
+                DataQueue_Dequeue(dataQueue.queueMemory, nullptr, nullptr);
                 continue;
             }
             
             void* messageMemory = malloc(messageSize);
             uint32_t dequeuedSize = messageSize;
-            IOReturn result = IODataQueueDequeue(dataQueue.queueMemory, messageMemory, &dequeuedSize);
+            IOReturn result = DataQueue_Dequeue(dataQueue.queueMemory, messageMemory, &dequeuedSize);
             if (kIOReturnSuccess != result || dequeuedSize != messageSize)
             {
                 cerr << "Unexpected result dequeueing message - result 0x" << hex << result << " dequeued " << dequeuedSize << "/" << messageSize << " bytes\n";

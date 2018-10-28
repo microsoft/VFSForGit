@@ -44,7 +44,7 @@ int main(int argc, const char * argv[])
         
         while(true)
         {
-            IODataQueueEntry* entry = IODataQueuePeek(dataQueue.queueMemory);
+            IODataQueueEntry* entry = DataQueue_Peek(dataQueue.queueMemory);
             if(entry == nullptr)
             {
                 break;
@@ -65,7 +65,7 @@ int main(int argc, const char * argv[])
                 lineCount++;
             }
             
-            IODataQueueDequeue(dataQueue.queueMemory, nullptr, nullptr);
+            DataQueue_Dequeue(dataQueue.queueMemory, nullptr, nullptr);
         }
     });
     dispatch_resume(dataQueue.dispatchSource);

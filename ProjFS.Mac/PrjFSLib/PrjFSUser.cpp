@@ -3,6 +3,20 @@
 #include <IOKit/IOKitLib.h>
 #include <iostream>
 #include <mach/mach_port.h>
+#include <sys/utsname.h>
+#include <dlfcn.h>
+
+struct DarwinVersion
+{
+    unsigned long major, minor, revision;
+};
+
+typedef decltype(IODataQueueDequeue)* ioDataQueueDequeueFunctionPtr;
+static ioDataQueueDequeueFunctionPtr ioDataQueueDequeueFunction = nullptr;
+typedef decltype(IODataQueuePeek)* ioDataQueuePeekFunctionPtr;
+static ioDataQueuePeekFunctionPtr ioDataQueuePeekFunction = nullptr;
+
+static void InitDataQueueFunctions();
 
 
 io_connect_t PrjFSService_ConnectToDriver(enum PrjFSServiceUserClientType clientType)
@@ -122,3 +136,98 @@ CleanupAndFail:
     return false;
 }
 
+IOReturn DataQueue_Dequeue(IODataQueueMemory* dataQueue, void* data, uint32_t* dataSize)
+{
+    if (nullptr == ioDataQueueDequeueFunction)
+    {
+        InitDataQueueFunctions();
+    }
+    return ioDataQueueDequeueFunction(dataQueue, data, dataSize);
+}
+
+IODataQueueEntry* DataQueue_Peek(IODataQueueMemory* dataQueue)
+{
+    if (nullptr == ioDataQueuePeekFunction)
+    {
+        InitDataQueueFunctions();
+    }
+    return ioDataQueuePeekFunction(dataQueue);
+}
+
+
+static bool GetDarwinVersion(DarwinVersion& outVersion)
+{
+    utsname unameInfo = {};
+    if (0 != uname(&unameInfo))
+    {
+        return false;
+    }
+    
+    char* fieldEnd = nullptr;
+    unsigned long majorVersion = strtoul(unameInfo.release, &fieldEnd, 10);
+    if (nullptr == fieldEnd || *fieldEnd != '.')
+    {
+        return false;
+    }
+    
+    unsigned long minorVersion = strtoul(fieldEnd + 1, &fieldEnd, 10);
+    if (nullptr == fieldEnd || (*fieldEnd != '.' && *fieldEnd != '\0'))
+    {
+        return false;
+    }
+
+    outVersion.major = majorVersion;
+    outVersion.minor = minorVersion;
+    outVersion.revision = 0;
+
+    if (*fieldEnd != '\0')
+    {
+        unsigned long revision = strtoul(fieldEnd + 1, &fieldEnd, 10);
+        if (nullptr == fieldEnd || (*fieldEnd != '.' && *fieldEnd != '\0'))
+        {
+            return false;
+        }
+        outVersion.revision = revision;
+    }
+    
+    return true;
+}
+
+static void InitDataQueueFunctions()
+{
+    ioDataQueueDequeueFunction = &IODataQueueDequeue;
+    ioDataQueuePeekFunction = &IODataQueuePeek;
+    
+    DarwinVersion osVersion = {};
+    if (!GetDarwinVersion(osVersion))
+    {
+        return;
+    }
+    
+    if ((osVersion.major == 17 && osVersion.minor >= 7) // macOS 10.13.6+
+        || (osVersion.major == 18 && osVersion.minor == 0)) // macOS 10.14(.0) exactly
+    {
+        void* dataQueueLibrary = dlopen("libSharedDataQueue.dylib", RTLD_LAZY);
+        if (nullptr == dataQueueLibrary)
+        {
+            fprintf(stderr, "Error opening data queue client library: %s\n", dlerror());
+        }
+        else
+        {
+            void* sym = dlsym(dataQueueLibrary, "IODataQueueDequeue");
+            if (nullptr != sym)
+            {
+                ioDataQueueDequeueFunction = reinterpret_cast<ioDataQueueDequeueFunctionPtr>(sym);
+            }
+            
+            sym = dlsym(dataQueueLibrary, "IODataQueuePeek");
+            if (nullptr != sym)
+            {
+                ioDataQueuePeekFunction = reinterpret_cast<ioDataQueuePeekFunctionPtr>(sym);
+            }
+            
+            // Allow the dataQueueLibrary handle to leak; if we called dlclose(),
+            // the library would be unloaded, breaking our function pointers.
+        }
+    }
+}
