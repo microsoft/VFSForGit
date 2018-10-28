@@ -600,6 +600,13 @@ static int HandleFileOpOperation(
         if (!TryGetFileIsFlaggedAsInRoot(currentVnode, context, &fileFlaggedInRoot))
         {
             KextLog_Info("Failed to read attributes when handling FileOp operation. Path is %s", path);
+
+            const char* vnode_name = vnode_getname(currentVnode);
+            KextLog_Error("KAUTH_FILEOP_CLOSE: checking file flags failed. Path = '%s' Vnode name: %s, type %d, being recycled: %s",
+                path, vnode_name ?: "[NULL]", vnode_vtype(currentVnode), vnode_isrecycled(currentVnode) ? "yes" : "no");
+            if (vnode_name)
+                vnode_putname(vnode_name);
+            
             goto CleanupAndReturn;
         }
         
@@ -1052,7 +1059,7 @@ static bool TryReadVNodeFileFlags(vnode_t vn, vfs_context_t _Nonnull context, ui
         //   - Logging this error
         //   - Falling back on vnode lookup (or custom cache) to determine if file is in the root
         //   - Assuming files are empty if we can't read the flags
-        
+        KextLog_FileError(vn, "ReadVNodeFileFlags: GetVNodeAttributes failed with error %d; vnode type: %d, recycled: %s", err, vnode_vtype(vn), vnode_isrecycled(vn) ? "yes" : "no");
         return false;
     }
     
