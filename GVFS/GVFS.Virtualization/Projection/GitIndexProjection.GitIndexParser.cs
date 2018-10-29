@@ -2,6 +2,7 @@
 using GVFS.Common.Tracing;
 using GVFS.Virtualization.Background;
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 
@@ -23,9 +24,14 @@ namespace GVFS.Virtualization.Projection
             private GitIndexProjection projection;
 
             /// <summary>
-            /// A single GitIndexEntry instance used for parsing all entries in the index
+            /// A single GitIndexEntry instance used for parsing all entries in the index when building the projection
             /// </summary>
-            private GitIndexEntry resuableParsedIndexEntry = new GitIndexEntry();
+            private GitIndexEntry resuableProjectionBuildingIndexEntry = new GitIndexEntry(buildingNewProjection: true);
+
+            /// <summary>
+            /// A single GitIndexEntry instance used by the background task thread for parsing all entries in the index
+            /// </summary>
+            private GitIndexEntry resuableBackgroundTaskThreadIndexEntry = new GitIndexEntry(buildingNewProjection: false);
 
             public GitIndexParser(GitIndexProjection projection)
             {
@@ -44,7 +50,7 @@ namespace GVFS.Virtualization.Projection
             public static void ValidateIndex(ITracer tracer, Stream indexStream)
             {
                 GitIndexParser indexParser = new GitIndexParser(null);
-                FileSystemTaskResult result = indexParser.ParseIndex(tracer, indexStream, ValidateIndexEntry);
+                FileSystemTaskResult result = indexParser.ParseIndex(tracer, indexStream, indexParser.resuableProjectionBuildingIndexEntry, ValidateIndexEntry);
 
                 if (result != FileSystemTaskResult.Success)
                 {
@@ -61,22 +67,64 @@ namespace GVFS.Virtualization.Projection
                 }
 
                 this.projection.ClearProjectionCaches();
-                FileSystemTaskResult result = this.ParseIndex(tracer, indexStream, this.AddToProjection);
+                FileSystemTaskResult result = this.ParseIndex(
+                    tracer, 
+                    indexStream, 
+                    this.resuableProjectionBuildingIndexEntry, 
+                    this.AddIndexEntryToProjection);
+                
                 if (result != FileSystemTaskResult.Success)
                 {
                     // RebuildProjection should always result in FileSystemTaskResult.Success (or a thrown exception)
-                    throw new InvalidOperationException($"{nameof(RebuildProjection)}: {nameof(GitIndexParser.ParseIndex)} failed to {nameof(this.AddToProjection)}");
+                    throw new InvalidOperationException($"{nameof(RebuildProjection)}: {nameof(GitIndexParser.ParseIndex)} failed to {nameof(this.AddIndexEntryToProjection)}");
                 }
             }
 
-            public FileSystemTaskResult AddMissingModifiedFiles(ITracer tracer, Stream indexStream)
+            public FileSystemTaskResult AddMissingModifiedFilesAndRemoveThemFromPlaceholderList(
+                ITracer tracer,
+                Stream indexStream)
             {
                 if (this.projection == null)
                 {
-                    throw new InvalidOperationException($"{nameof(this.projection)} cannot be null when calling {nameof(AddMissingModifiedFiles)}");
+                    throw new InvalidOperationException($"{nameof(this.projection)} cannot be null when calling {nameof(AddMissingModifiedFilesAndRemoveThemFromPlaceholderList)}");
                 }
 
-                return this.ParseIndex(tracer, indexStream, this.AddToModifiedFiles);
+                Dictionary<string, PlaceholderListDatabase.PlaceholderData> filePlaceholders =
+                    this.projection.placeholderList.GetAllFileEntries();
+
+                tracer.RelatedEvent(
+                    EventLevel.Informational,
+                    $"{nameof(this.AddMissingModifiedFilesAndRemoveThemFromPlaceholderList)}_FilePlaceholderCount",
+                    new EventMetadata
+                    {
+                        { "FilePlaceholderCount", filePlaceholders.Count }
+                    });
+            
+                FileSystemTaskResult result = this.ParseIndex(
+                    tracer,
+                    indexStream,
+                    this.resuableBackgroundTaskThreadIndexEntry,
+                    (data) => this.AddEntryToModifiedPathsAndRemoveFromPlaceholdersIfNeeded(data, filePlaceholders));
+                
+                if (result != FileSystemTaskResult.Success)
+                {
+                    return result;
+                }
+
+                // Any paths that were not found in the index need to be added to ModifiedPaths
+                // and removed from the placeholder list
+                foreach (string path in filePlaceholders.Keys)
+                {
+                    result = this.projection.AddModifiedPath(path);
+                    if (result != FileSystemTaskResult.Success)
+                    {
+                        return result;
+                    }
+
+                    this.projection.RemoveFromPlaceholderList(path);
+                }
+
+                return FileSystemTaskResult.Success;
             }
 
             private static FileSystemTaskResult ValidateIndexEntry(GitIndexEntry data)
@@ -89,12 +137,12 @@ namespace GVFS.Virtualization.Projection
                 return FileSystemTaskResult.Success;
             }
 
-            private FileSystemTaskResult AddToProjection(GitIndexEntry data)
+            private FileSystemTaskResult AddIndexEntryToProjection(GitIndexEntry data)
             {
                 // Never want to project the common ancestor even if the skip worktree bit is on
                 if ((data.MergeState != MergeStage.CommonAncestor && data.SkipWorktree) || data.MergeState == MergeStage.Yours)
                 {
-                    data.ParsePath();
+                    data.BuildingProjection_ParsePath();
                     this.projection.AddItemFromIndexEntry(data);
                 }
                 else
@@ -105,21 +153,48 @@ namespace GVFS.Virtualization.Projection
                 return FileSystemTaskResult.Success;
             }
 
-            private FileSystemTaskResult AddToModifiedFiles(GitIndexEntry data)
+            /// <summary>
+            /// Adjusts the modifed paths and placeholders list for an index entry.
+            /// </summary>
+            /// <param name="gitIndexEntry">Index entry</param>
+            /// <param name="filePlaceholders">
+            /// Dictionary of file placeholders.  AddEntryToModifiedPathsAndRemoveFromPlaceholdersIfNeeded will
+            /// remove enties from filePlaceholders as they are found in the index.  After
+            /// AddEntryToModifiedPathsAndRemoveFromPlaceholdersIfNeeded is called for all entries in the index 
+            /// filePlaceholders will contain only those placeholders that are not in the index.
+            /// </param>
+            private FileSystemTaskResult AddEntryToModifiedPathsAndRemoveFromPlaceholdersIfNeeded(
+                GitIndexEntry gitIndexEntry,
+                Dictionary<string, PlaceholderListDatabase.PlaceholderData> filePlaceholders)
             {
-                if (!data.SkipWorktree)
+                gitIndexEntry.BackgroundTask_ParsePath();
+                string placeholderRelativePath = gitIndexEntry.BackgroundTask_GetPlatformRelativePath();
+
+                FileSystemTaskResult result = FileSystemTaskResult.Success;
+
+                if (!gitIndexEntry.SkipWorktree)
                 {
                     // A git command (e.g. 'git reset --mixed') may have cleared a file's skip worktree bit without
-                    // triggering an update to the projection.  Ensure this file is in GVFS's modified files database
-                    data.ParsePath();
-                    return this.projection.AddModifiedPath(data.GetFullPath());
+                    // triggering an update to the projection. If git cleared the skip-worktree bit then git will
+                    // be responsible for updating the file and we need to:
+                    //    - Ensure this file is in GVFS's modified files database
+                    //    - Remove this path from the placeholders list (if present)
+                    result = this.projection.AddModifiedPath(placeholderRelativePath);
+
+                    if (result == FileSystemTaskResult.Success)
+                    {
+                        if (filePlaceholders.Remove(placeholderRelativePath))
+                        {
+                            this.projection.RemoveFromPlaceholderList(placeholderRelativePath);
+                        }
+                    }
                 }
                 else
                 {
-                    data.ClearLastParent();
+                    filePlaceholders.Remove(placeholderRelativePath);
                 }
 
-                return FileSystemTaskResult.Success;
+                return result;
             }
 
             /// <summary>
@@ -135,7 +210,11 @@ namespace GVFS.Virtualization.Projection
             /// in TryIndexAction returning a FileSystemTaskResult other than Success.  All other actions result in success (or an exception in the
             /// case of a corrupt index)
             /// </remarks>
-            private FileSystemTaskResult ParseIndex(ITracer tracer, Stream indexStream, Func<GitIndexEntry, FileSystemTaskResult> entryAction)
+            private FileSystemTaskResult ParseIndex(
+                ITracer tracer, 
+                Stream indexStream, 
+                GitIndexEntry resuableParsedIndexEntry,
+                Func<GitIndexEntry, FileSystemTaskResult> entryAction)
             {
                 this.indexStream = indexStream;
                 this.indexStream.Position = 0;
@@ -165,7 +244,7 @@ namespace GVFS.Virtualization.Projection
                 SortedFolderEntries.InitializePools(tracer, entryCount);
                 LazyUTF8String.InitializePools(tracer, entryCount);
 
-                this.resuableParsedIndexEntry.ClearLastParent();
+                resuableParsedIndexEntry.ClearLastParent();
                 int previousPathLength = 0;
 
                 bool parseMode = GVFSPlatform.Instance.FileSystem.SupportsFileMode;
@@ -210,7 +289,7 @@ namespace GVFS.Virtualization.Projection
                                 throw new InvalidDataException($"Invalid file type {typeAndMode.Type:X} found in index");
                         }
                                     
-                        this.resuableParsedIndexEntry.TypeAndMode = typeAndMode;
+                        resuableParsedIndexEntry.TypeAndMode = typeAndMode;
 
                         this.Skip(12);
                     }
@@ -219,7 +298,7 @@ namespace GVFS.Virtualization.Projection
                         this.Skip(40);
                     }
 
-                    this.ReadSha(this.resuableParsedIndexEntry);
+                    this.ReadSha(resuableParsedIndexEntry);
 
                     ushort flags = this.ReadUInt16();
                     if (flags == 0)
@@ -227,24 +306,24 @@ namespace GVFS.Virtualization.Projection
                         throw new InvalidDataException("Invalid flags found in index");
                     }
 
-                    this.resuableParsedIndexEntry.MergeState = (MergeStage)((flags >> 12) & 3);
+                    resuableParsedIndexEntry.MergeState = (MergeStage)((flags >> 12) & 3);
                     bool isExtended = (flags & ExtendedBit) == ExtendedBit;
-                    this.resuableParsedIndexEntry.PathLength = (ushort)(flags & 0xFFF);
+                    resuableParsedIndexEntry.PathLength = (ushort)(flags & 0xFFF);
 
-                    this.resuableParsedIndexEntry.SkipWorktree = false;
+                    resuableParsedIndexEntry.SkipWorktree = false;
                     if (isExtended)
                     {
                         ushort extendedFlags = this.ReadUInt16();
-                        this.resuableParsedIndexEntry.SkipWorktree = (extendedFlags & SkipWorktreeBit) == SkipWorktreeBit;
+                        resuableParsedIndexEntry.SkipWorktree = (extendedFlags & SkipWorktreeBit) == SkipWorktreeBit;
                     }
 
                     int replaceLength = this.ReadReplaceLength();
-                    this.resuableParsedIndexEntry.ReplaceIndex = previousPathLength - replaceLength;
-                    int bytesToRead = this.resuableParsedIndexEntry.PathLength - this.resuableParsedIndexEntry.ReplaceIndex + 1;
-                    this.ReadPath(this.resuableParsedIndexEntry, this.resuableParsedIndexEntry.ReplaceIndex, bytesToRead);
-                    previousPathLength = this.resuableParsedIndexEntry.PathLength;
+                    resuableParsedIndexEntry.ReplaceIndex = previousPathLength - replaceLength;
+                    int bytesToRead = resuableParsedIndexEntry.PathLength - resuableParsedIndexEntry.ReplaceIndex + 1;
+                    this.ReadPath(resuableParsedIndexEntry, resuableParsedIndexEntry.ReplaceIndex, bytesToRead);
+                    previousPathLength = resuableParsedIndexEntry.PathLength;
 
-                    result = entryAction.Invoke(this.resuableParsedIndexEntry);
+                    result = entryAction.Invoke(resuableParsedIndexEntry);
                     if (result != FileSystemTaskResult.Success)
                     {
                         return result;

@@ -70,7 +70,7 @@ namespace GVFS.Platform.Mac
                     // It's possible that errors from a previous operation (e.g. write(2))
                     // are only reported in close().  We should *not* retry the close() if
                     // it fails since it may cause a re-used file descriptor from another
-                    // thrad to be closed.
+                    // thread to be closed.
 
                     int errno = Marshal.GetLastWin32Error();
                     EventMetadata metadata = this.CreateEventMetadata(errno);

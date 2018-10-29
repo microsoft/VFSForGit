@@ -5,7 +5,6 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
 {
     [TestFixture]
     [Category(Categories.GitCommands)]
-    [Category(Categories.MacTODO.M3)]
     public class ResetMixedTests : GitRepoTests
     {
         public ResetMixedTests() : base(enlistmentPerTest: true)
@@ -16,6 +15,15 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
         public void ResetMixed()
         {
             this.ValidateGitCommand("checkout " + GitRepoTests.ConflictTargetBranch);
+            this.ValidateGitCommand("reset --mixed HEAD~1");
+            this.FilesShouldMatchCheckoutOfTargetBranch();
+        }
+
+        [TestCase]
+        public void ResetMixedAfterPrefetch()
+        {
+            this.ValidateGitCommand("checkout " + GitRepoTests.ConflictTargetBranch);
+            this.Enlistment.Prefetch("--files * --hydrate");
             this.ValidateGitCommand("reset --mixed HEAD~1");
             this.FilesShouldMatchCheckoutOfTargetBranch();
         }

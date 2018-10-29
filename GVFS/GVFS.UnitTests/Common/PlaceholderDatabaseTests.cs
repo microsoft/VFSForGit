@@ -61,7 +61,7 @@ namespace GVFS.UnitTests.Common
         }
 
         [TestCase]
-        public void GetAllEntriesReturnsCorrectEntries()
+        public void GetAllEntriesAndPrepToWriteAllEntriesReturnsCorrectEntries()
         {
             ConfigurableFileSystem fs = new ConfigurableFileSystem();
             using (PlaceholderListDatabase dut1 = CreatePlaceholderListDatabase(fs, string.Empty))
@@ -75,12 +75,12 @@ namespace GVFS.UnitTests.Common
             string error;
             PlaceholderListDatabase dut2;
             PlaceholderListDatabase.TryCreate(null, MockEntryFileName, fs, out dut2, out error).ShouldEqual(true, error);
-            List<PlaceholderListDatabase.PlaceholderData> allData = dut2.GetAllEntries();
+            List<PlaceholderListDatabase.PlaceholderData> allData = dut2.GetAllEntriesAndPrepToWriteAllEntries();
             allData.Count.ShouldEqual(2);
         }
 
         [TestCase]
-        public void GetAllEntriesSplitsFilesAndFoldersCorrectly()
+        public void GetAllEntriesAndPrepToWriteAllEntriesSplitsFilesAndFoldersCorrectly()
         {
             ConfigurableFileSystem fs = new ConfigurableFileSystem();
             using (PlaceholderListDatabase dut1 = CreatePlaceholderListDatabase(fs, string.Empty))
@@ -98,7 +98,7 @@ namespace GVFS.UnitTests.Common
             PlaceholderListDatabase.TryCreate(null, MockEntryFileName, fs, out dut2, out error).ShouldEqual(true, error);
             List<PlaceholderListDatabase.PlaceholderData> fileData;
             List<PlaceholderListDatabase.PlaceholderData> folderData;
-            dut2.GetAllEntries(out fileData, out folderData);
+            dut2.GetAllEntriesAndPrepToWriteAllEntries(out fileData, out folderData);
             fileData.Count.ShouldEqual(2);
             folderData.Count.ShouldEqual(2);
             folderData.ShouldContain(
@@ -136,7 +136,7 @@ namespace GVFS.UnitTests.Common
 
             PlaceholderListDatabase dut = CreatePlaceholderListDatabase(fs, ExpectedGitIgnoreEntry);
             
-            List<PlaceholderListDatabase.PlaceholderData> existingEntries = dut.GetAllEntries();
+            List<PlaceholderListDatabase.PlaceholderData> existingEntries = dut.GetAllEntriesAndPrepToWriteAllEntries();
 
             dut.AddAndFlushFile(InputGitAttributesPath, InputGitAttributesSHA);
             
@@ -154,7 +154,7 @@ namespace GVFS.UnitTests.Common
 
             PlaceholderListDatabase dut = CreatePlaceholderListDatabase(fs, ExpectedTwoEntries);
 
-            List<PlaceholderListDatabase.PlaceholderData> existingEntries = dut.GetAllEntries();
+            List<PlaceholderListDatabase.PlaceholderData> existingEntries = dut.GetAllEntriesAndPrepToWriteAllEntries();
             
             dut.RemoveAndFlush(InputGitAttributesPath);
 

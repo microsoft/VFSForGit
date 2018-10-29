@@ -48,6 +48,13 @@ namespace GVFS.Common
             get { return this.parts != null; }
         }
 
+        public bool IsResetMixed()
+        {
+            return
+                this.IsResetSoftOrMixed() &&
+                !this.HasArgument("--soft");
+        }
+
         public bool IsResetSoftOrMixed()
         {
             return
