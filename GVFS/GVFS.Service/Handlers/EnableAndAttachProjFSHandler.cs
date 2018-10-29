@@ -130,7 +130,7 @@ namespace GVFS.Service.Handlers
 
             if (!string.IsNullOrEmpty(this.request.EnlistmentRoot))
             {
-                if (!ProjFSFilter.TryAttach(this.tracer, this.request.EnlistmentRoot, out errorMessage))
+                if (!ProjFSFilter.TryAttach(this.request.EnlistmentRoot, out errorMessage))
                 {
                     state = NamedPipeMessages.CompletionState.Failure;
                     this.tracer.RelatedError("Unable to attach filter to volume. Enlistment root: {0} \nError: {1} ", this.request.EnlistmentRoot, errorMessage);
