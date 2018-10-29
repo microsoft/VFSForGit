@@ -140,7 +140,7 @@
   </UsingTask>
 
   <PropertyGroup>
-    <GVFSSetupPath>$(BuildOutputDir)\GVFS.Installer\bin\x64\$(Configuration)\SetupGVFS.$(GVFSVersion).exe</GVFSSetupPath>
+    <GVFSSetupPath>$(BuildOutputDir)\GVFS.Installer.Windows\bin\x64\$(Configuration)\SetupGVFS.$(GVFSVersion).exe</GVFSSetupPath>
     <OutDir>$(BuildOutputDir)\GVFS.Build\</OutDir>
     <GitVersionConstantsPath>$(OutDir)GVFSConstants.GitVersion.cs</GitVersionConstantsPath>
     <G4WInstallBatPath>$(OutDir)InstallG4W.bat</G4WInstallBatPath>
