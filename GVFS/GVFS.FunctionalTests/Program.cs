@@ -1,6 +1,6 @@
 ﻿using GVFS.FunctionalTests.Tests;
-using GVFS.FunctionalTests.Tools;
 using GVFS.FunctionalTests.Tests.GitCommands;
+using GVFS.FunctionalTests.Tools;
 using GVFS.Tests;
 using System;
 using System.Collections.Generic;
@@ -59,7 +59,6 @@ namespace GVFS.FunctionalTests
                 {
                     GVFSTestConfig.FileSystemRunners = FileSystemRunners.FileSystemRunner.AllMacRunners;
                 }
-
             }
             else
             {
