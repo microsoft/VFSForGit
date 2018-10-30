@@ -6,7 +6,7 @@ using System.IO;
 
 namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
 {
-    [TestFixtureSource(typeof(FileSystemRunner), FileSystemRunner.TestRunners)]
+    [TestFixtureSource(typeof(FileSystemRunner), nameof(FileSystemRunner.Runners))]
     public class MoveRenameFolderTests : TestsWithEnlistmentPerFixture
     {       
         private const string TestFileContents =

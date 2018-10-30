@@ -1,14 +1,15 @@
 ﻿using GVFS.FunctionalTests.Tools;
+using GVFS.Tests;
 using GVFS.Tests.Should;
 using NUnit.Framework;
 
 namespace GVFS.FunctionalTests.Tests.GitCommands
 {
-    [TestFixtureSource(typeof(GitRepoTests), GitRepoTests.ValidateWorkingTree)]
+    [TestFixtureSource(typeof(DataSources), nameof(DataSources.AllBools))]
     [Category(Categories.GitCommands)]
     public class MergeConflictTests : GitRepoTests
     {
-        public MergeConflictTests(ValidateWorkingTreeOptions validateWorkingTree)
+        public MergeConflictTests(bool validateWorkingTree)
             : base(enlistmentPerTest: true, validateWorkingTree: validateWorkingTree)
         {
         }

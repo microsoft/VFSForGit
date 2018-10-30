@@ -13,8 +13,6 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
     [TestFixture]
     public abstract class GitRepoTests
     {
-        public const string ValidateWorkingTree = "WorkTreeValidation";
-
         protected const string ConflictSourceBranch = "FunctionalTests/20170206_Conflict_Source";
         protected const string ConflictTargetBranch = "FunctionalTests/20170206_Conflict_Target";
         protected const string NoConflictSourceBranch = "FunctionalTests/20170209_NoConflict_Source";
@@ -27,23 +25,11 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
         private bool enlistmentPerTest;
         private bool validateWorkingTree;
 
-        public GitRepoTests(bool enlistmentPerTest, ValidateWorkingTreeOptions validateWorkingTree)
+        public GitRepoTests(bool enlistmentPerTest, bool validateWorkingTree)
         {
             this.enlistmentPerTest = enlistmentPerTest;
-            this.validateWorkingTree = validateWorkingTree == ValidateWorkingTreeOptions.ValidateWorkingTree;
+            this.validateWorkingTree = validateWorkingTree;
             this.FileSystem = new SystemIORunner();
-        }
-
-        public enum ValidateWorkingTreeOptions
-        {
-            Invalid = 0,
-            DoNotValidateWorkingTree,
-            ValidateWorkingTree,
-        }
-
-        public static object[] WorkTreeValidation
-        {
-            get { return GVFSTestConfig.GitCommandTestWorkTreeValidation; }
         }
 
         public ControlGitRepo ControlGitRepo

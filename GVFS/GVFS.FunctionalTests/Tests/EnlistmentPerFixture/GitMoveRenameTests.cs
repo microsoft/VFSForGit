@@ -10,7 +10,7 @@ using System.Runtime.InteropServices;
 
 namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
 {
-    [TestFixtureSource(typeof(FileSystemRunner), FileSystemRunner.TestRunners)]
+    [TestFixtureSource(typeof(FileSystemRunner), nameof(FileSystemRunner.Runners))]
     [Category(Categories.GitCommands)]
     public class GitMoveRenameTests : TestsWithEnlistmentPerFixture
     {

@@ -1,5 +1,6 @@
 ﻿using GVFS.FunctionalTests.Should;
 using GVFS.FunctionalTests.Tools;
+using GVFS.Tests;
 using NUnit.Framework;
 using System.IO;
 using System.Runtime.InteropServices;
@@ -7,13 +8,13 @@ using System.Threading;
 
 namespace GVFS.FunctionalTests.Tests.GitCommands
 {
-    [TestFixtureSource(typeof(GitRepoTests), GitRepoTests.ValidateWorkingTree)]
+    [TestFixtureSource(typeof(DataSources), nameof(DataSources.AllBools))]
     [Category(Categories.GitCommands)]
     public class CreatePlaceholderTests : GitRepoTests
     {
         private static readonly string FileToRead = Path.Combine("GVFS", "GVFS", "Program.cs");
 
-        public CreatePlaceholderTests(ValidateWorkingTreeOptions validateWorkingTree) 
+        public CreatePlaceholderTests(bool validateWorkingTree) 
             : base(enlistmentPerTest: true, validateWorkingTree: validateWorkingTree)
         {
         }

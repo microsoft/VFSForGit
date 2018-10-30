@@ -1,14 +1,15 @@
 ﻿using GVFS.FunctionalTests.Should;
 using GVFS.FunctionalTests.Tools;
+using GVFS.Tests;
 using NUnit.Framework;
 
 namespace GVFS.FunctionalTests.Tests.GitCommands
 {
-    [TestFixtureSource(typeof(GitRepoTests), GitRepoTests.ValidateWorkingTree)]
+    [TestFixtureSource(typeof(DataSources), nameof(DataSources.AllBools))]
     [Category(Categories.GitCommands)]
     public class DeleteEmptyFolderTests : GitRepoTests
     {
-        public DeleteEmptyFolderTests(ValidateWorkingTreeOptions validateWorkingTree)
+        public DeleteEmptyFolderTests(bool validateWorkingTree)
             : base(enlistmentPerTest: true, validateWorkingTree: validateWorkingTree)
         {
         }

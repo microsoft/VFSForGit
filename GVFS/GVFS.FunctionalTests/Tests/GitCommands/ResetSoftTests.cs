@@ -1,12 +1,13 @@
-﻿using NUnit.Framework;
+﻿using GVFS.Tests;
+using NUnit.Framework;
 
 namespace GVFS.FunctionalTests.Tests.GitCommands
 {
-    [TestFixtureSource(typeof(GitRepoTests), GitRepoTests.ValidateWorkingTree)]
+    [TestFixtureSource(typeof(DataSources), nameof(DataSources.AllBools))]
     [Category(Categories.GitCommands)]
     public class ResetSoftTests : GitRepoTests
     {
-        public ResetSoftTests(ValidateWorkingTreeOptions validateWorkingTree)
+        public ResetSoftTests(bool validateWorkingTree)
             : base(enlistmentPerTest: true, validateWorkingTree: validateWorkingTree)
         {
         }

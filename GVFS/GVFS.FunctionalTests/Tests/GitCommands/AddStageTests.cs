@@ -1,15 +1,16 @@
 ﻿using GVFS.FunctionalTests.Tools;
+using GVFS.Tests;
 using NUnit.Framework;
 using System.IO;
 using System.Threading;
 
 namespace GVFS.FunctionalTests.Tests.GitCommands
 {
-    [TestFixtureSource(typeof(GitRepoTests), GitRepoTests.ValidateWorkingTree)]
+    [TestFixtureSource(typeof(DataSources), nameof(DataSources.AllBools))]
     [Category(Categories.GitCommands)]
     public class AddStageTests : GitRepoTests
     {
-        public AddStageTests(ValidateWorkingTreeOptions validateWorkingTree) 
+        public AddStageTests(bool validateWorkingTree) 
             : base(enlistmentPerTest: false, validateWorkingTree: validateWorkingTree)
         {
         }

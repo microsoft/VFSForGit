@@ -1,5 +1,4 @@
 ﻿using GVFS.FunctionalTests.Tests;
-using GVFS.FunctionalTests.Tests.GitCommands;
 using GVFS.FunctionalTests.Tools;
 using GVFS.Tests;
 using System;
@@ -44,13 +43,6 @@ namespace GVFS.FunctionalTests
             {
                 Console.WriteLine("Running the full suite of tests");
 
-                GVFSTestConfig.GitCommandTestWorkTreeValidation =
-                new object[]
-                {
-                    new object[] { GitRepoTests.ValidateWorkingTreeOptions.ValidateWorkingTree },
-                    new object[] { GitRepoTests.ValidateWorkingTreeOptions.DoNotValidateWorkingTree }
-                };
-
                 if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
                 {
                     GVFSTestConfig.FileSystemRunners = FileSystemRunners.FileSystemRunner.AllWindowsRunners;
@@ -64,11 +56,6 @@ namespace GVFS.FunctionalTests
             {
                 excludeCategories.Add(Categories.FullSuiteOnly);
                 GVFSTestConfig.FileSystemRunners = FileSystemRunners.FileSystemRunner.DefaultRunners;
-                GVFSTestConfig.GitCommandTestWorkTreeValidation = 
-                new object[] 
-                { 
-                    new object[] { GitRepoTests.ValidateWorkingTreeOptions.ValidateWorkingTree } 
-                };
             }
 
             if (runner.HasCustomArg("--windows-only"))

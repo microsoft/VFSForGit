@@ -8,7 +8,7 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
     public class RmTests : GitRepoTests
     {
         public RmTests()
-            : base(enlistmentPerTest: false, validateWorkingTree: ValidateWorkingTreeOptions.DoNotValidateWorkingTree)
+            : base(enlistmentPerTest: false, validateWorkingTree: false)
         {
         }
 

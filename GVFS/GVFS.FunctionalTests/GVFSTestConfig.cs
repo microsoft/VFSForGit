@@ -12,8 +12,6 @@ namespace GVFS.FunctionalTests
         
         public static object[] FileSystemRunners { get; set; }
 
-        public static object[] GitCommandTestWorkTreeValidation { get; set; }
-
         public static bool TestGVFSOnPath { get; set; }
 
         public static bool ReplaceInboxProjFS { get; set; }

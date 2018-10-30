@@ -1,5 +1,6 @@
 ﻿using GVFS.FunctionalTests.Should;
 using GVFS.FunctionalTests.Tools;
+using GVFS.Tests;
 using GVFS.Tests.Should;
 using Microsoft.Win32.SafeHandles;
 using NUnit.Framework;
@@ -11,11 +12,11 @@ using System.Threading.Tasks;
 
 namespace GVFS.FunctionalTests.Tests.GitCommands
 {
-    [TestFixtureSource(typeof(GitRepoTests), GitRepoTests.ValidateWorkingTree)]
+    [TestFixtureSource(typeof(DataSources), nameof(DataSources.AllBools))]
     [Category(Categories.GitCommands)]
     public class CheckoutTests : GitRepoTests
     {
-        public CheckoutTests(ValidateWorkingTreeOptions validateWorkingTree) 
+        public CheckoutTests(bool validateWorkingTree) 
             : base(enlistmentPerTest: true, validateWorkingTree: validateWorkingTree)
         {
         }

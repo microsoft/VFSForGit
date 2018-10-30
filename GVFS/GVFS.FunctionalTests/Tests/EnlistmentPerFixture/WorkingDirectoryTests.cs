@@ -13,7 +13,7 @@ using System.Text;
 
 namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
 {
-    [TestFixtureSource(typeof(FileSystemRunner), FileSystemRunner.TestRunners)]
+    [TestFixtureSource(typeof(FileSystemRunner), nameof(FileSystemRunner.Runners))]
     public class WorkingDirectoryTests : TestsWithEnlistmentPerFixture
     {
         public const string TestFileContents =
