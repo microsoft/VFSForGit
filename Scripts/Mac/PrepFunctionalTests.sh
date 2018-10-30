@@ -37,7 +37,7 @@ fi
 
 git-credential-manager install
 
-$VFS_SCRIPTDIR/InstallSharedDataQueueDylib.sh || exit 1
+$VFS_SCRIPTDIR/InstallSharedDataQueueStallWorkaround.sh || exit 1
 
 # If we're running on an agent where the PAT environment variable is set and a URL is passed into the script, add it to the keychain.
 PATURL=$1
