@@ -34,29 +34,27 @@ namespace GVFS.Platform.Windows
         private EventSource eventSource;
         private string enlistmentId;
         private string mountId;
+        private string ikey;
 
-        private ETWTelemetryEventListener(string providerName, string[] traitsList, string enlistmentId, string mountId) 
+        private ETWTelemetryEventListener(string providerName, string[] traitsList, string enlistmentId, string mountId, string ikey) 
             : base(EventLevel.Verbose, Keywords.Telemetry)
         {           
             this.eventSource = new EventSource(providerName, EventSourceSettings.EtwSelfDescribingEventFormat, traitsList);
             this.enlistmentId = enlistmentId;
             this.mountId = mountId;
+            this.ikey = ikey;
         }
 
         public static ETWTelemetryEventListener CreateTelemetryListenerIfEnabled(string gitBinRoot, string providerName, string enlistmentId, string mountId)
         {
             // This listener is disabled unless the user specifies the proper git config setting.
 
-            GitProcess.Result result = GitProcess.GetFromSystemConfig(gitBinRoot, GVFSConstants.GitConfig.GVFSTelemetryId);
-            if (result.HasErrors || string.IsNullOrEmpty(result.Output.TrimEnd('\r', '\n')))
+            string traits = GetConfigValue(gitBinRoot, GVFSConstants.GitConfig.GVFSTelemetryId);
+            if (!string.IsNullOrEmpty(traits))
             {
-                result = GitProcess.GetFromGlobalConfig(gitBinRoot, GVFSConstants.GitConfig.GVFSTelemetryId);
-            }
-
-            if (!result.HasErrors && !string.IsNullOrEmpty(result.Output.TrimEnd('\r', '\n')))
-            {
-                string[] traitsList = result.Output.TrimEnd('\r', '\n').Split('|');
-                return new ETWTelemetryEventListener(providerName, traitsList, enlistmentId, mountId);
+                string[] traitsList = traits.Split('|');
+                string ikey = GetConfigValue(gitBinRoot, GVFSConstants.GitConfig.IKey);
+                return new ETWTelemetryEventListener(providerName, traitsList, enlistmentId, mountId, ikey);
             }
             else
             {
@@ -85,16 +83,48 @@ namespace GVFS.Platform.Windows
             EventSourceOptions options = this.CreateOptions(level, keywords, opcode);
             EventSource.SetCurrentThreadActivityId(activityId);
 
-            if (jsonPayload != null)
+            if (string.IsNullOrEmpty(jsonPayload))
             {
-                JsonPayload payload = new JsonPayload(jsonPayload, this.enlistmentId, this.mountId);
+                jsonPayload = "{}";
+            }
+
+            if (string.IsNullOrEmpty(this.ikey))
+            {
+                var payload = new
+                {
+                    Json = jsonPayload,
+                    EnlistmentId = this.enlistmentId,
+                    MountId = this.mountId,
+                };
                 this.eventSource.Write(eventName, ref options, ref activityId, ref parentActivityId, ref payload);
             }
             else
             {
-                Payload payload = new Payload(this.enlistmentId, this.mountId);
+                var payload = new
+                {
+                    PartA_iKey = this.ikey,
+                    Json = jsonPayload,
+                    EnlistmentId = this.enlistmentId,
+                    MountId = this.mountId,
+                };
                 this.eventSource.Write(eventName, ref options, ref activityId, ref parentActivityId, ref payload);
             }
+        }
+
+        private static string GetConfigValue(string gitBinRoot, string configKey)
+        {
+            GitProcess.Result result = GitProcess.GetFromSystemConfig(gitBinRoot, configKey);
+            if (result.HasErrors || string.IsNullOrEmpty(result.Output.TrimEnd('\r', '\n')))
+            {
+                result = GitProcess.GetFromGlobalConfig(gitBinRoot, configKey);
+            }
+
+            if (result.HasErrors || string.IsNullOrEmpty(result.Output.TrimEnd('\r', '\n')))
+            {
+                return string.Empty;
+            }
+
+            return result.Output.TrimEnd('\r', '\n');
         }
 
         private EventSourceOptions CreateOptions(EventLevel level, Keywords keywords, EventOpcode opcode)
@@ -107,40 +137,6 @@ namespace GVFS.Platform.Windows
             options.Opcode = (Microsoft.Diagnostics.Tracing.EventOpcode)opcode;
 
             return options;
-        }
-        
-        [EventData]
-        public struct Payload
-        {
-            public Payload(string enlistmentId, string mountId)
-            {
-                this.EnlistmentId = enlistmentId;
-                this.MountId = mountId;
-            }
-
-            [EventField]
-            public string EnlistmentId { get; }
-            [EventField]
-            public string MountId { get; }
-        }
-
-        [EventData]
-        public struct JsonPayload
-        {
-            public JsonPayload(string payload, string enlistmentId, string mountId)
-            {
-                this.Json = payload;
-                this.EnlistmentId = enlistmentId;
-                this.MountId = mountId;
-            }
-
-            [EventField]
-            public string Json { get; }
-
-            [EventField]
-            public string EnlistmentId { get; }
-            [EventField]
-            public string MountId { get; }
         }
     }
 }
