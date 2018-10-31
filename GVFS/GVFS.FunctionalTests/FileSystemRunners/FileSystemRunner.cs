@@ -5,11 +5,6 @@ namespace GVFS.FunctionalTests.FileSystemRunners
 {
     public abstract class FileSystemRunner
     {
-        /// <summary>
-        /// String that identifies which list to use when running tests
-        /// </summary>
-        public const string TestRunners = "Runners";
-
         private static FileSystemRunner defaultRunner = new SystemIORunner();
 
         public static object[] AllWindowsRunners { get; } = 

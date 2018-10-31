@@ -20,12 +20,20 @@ namespace GVFS.FunctionalTests.Tools
         private const string LockHolderCommandName = @"GVFS.FunctionalTests.LockHolder";
         private const string LockHolderCommand = @"GVFS.FunctionalTests.LockHolder.exe";
 
+        private const string WindowsPathSeparator = "\\";
+        private const string GitPathSeparator = "/";
+
         private static string LockHolderCommandPath
         {
             get
             {
                 return Path.Combine(Settings.Default.CurrentDirectory, LockHolderCommand);
             }
+        }
+
+        public static string ConvertPathToGitFormat(string relativePath)
+        {
+            return relativePath.Replace(WindowsPathSeparator, GitPathSeparator);
         }
 
         public static void CheckGitCommand(string virtualRepoRoot, string command, params string[] expectedLinesInResult)

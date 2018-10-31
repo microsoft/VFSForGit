@@ -43,6 +43,8 @@ namespace GVFS.FunctionalTests
             {
                 Console.WriteLine("Running the full suite of tests");
 
+                GVFSTestConfig.GitRepoTestsValidateWorkTree = DataSources.AllBools;
+
                 if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
                 {
                     GVFSTestConfig.FileSystemRunners = FileSystemRunners.FileSystemRunner.AllWindowsRunners;
@@ -54,6 +56,12 @@ namespace GVFS.FunctionalTests
             }
             else
             {
+                GVFSTestConfig.GitRepoTestsValidateWorkTree = 
+                    new object[] 
+                    { 
+                        new object[] { true } 
+                    };
+            
                 excludeCategories.Add(Categories.FullSuiteOnly);
                 GVFSTestConfig.FileSystemRunners = FileSystemRunners.FileSystemRunner.DefaultRunners;
             }

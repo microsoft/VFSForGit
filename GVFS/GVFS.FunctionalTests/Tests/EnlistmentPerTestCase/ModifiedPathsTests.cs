@@ -40,7 +40,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerTestCase
                 $"A {FolderToDelete}/",
             };
 
-        [TestCaseSource(typeof(FileSystemRunner), FileSystemRunner.TestRunners)]
+        [TestCaseSource(typeof(FileSystemRunner), nameof(FileSystemRunner.Runners))]
         public void DeletedTempFileIsRemovedFromModifiedFiles(FileSystemRunner fileSystem)
         {
             string tempFile = this.CreateFile(fileSystem, "temp.txt");
@@ -50,7 +50,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerTestCase
             GVFSHelpers.ModifiedPathsShouldNotContain(this.Enlistment, fileSystem, "temp.txt");
         }
 
-        [TestCaseSource(typeof(FileSystemRunner), FileSystemRunner.TestRunners)]
+        [TestCaseSource(typeof(FileSystemRunner), nameof(FileSystemRunner.Runners))]
         public void DeletedTempFolderIsRemovedFromModifiedFiles(FileSystemRunner fileSystem)
         {
             string tempFolder = this.CreateDirectory(fileSystem, "Temp");
@@ -60,7 +60,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerTestCase
             GVFSHelpers.ModifiedPathsShouldNotContain(this.Enlistment, fileSystem, "Temp/");
         }
 
-        [TestCaseSource(typeof(FileSystemRunner), FileSystemRunner.TestRunners)]
+        [TestCaseSource(typeof(FileSystemRunner), nameof(FileSystemRunner.Runners))]
         public void DeletedTempFolderDeletesFilesFromModifiedFiles(FileSystemRunner fileSystem)
         {
             string tempFolder = this.CreateDirectory(fileSystem, "Temp");
@@ -75,7 +75,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerTestCase
         }
 
         [Category(Categories.MacTODO.NeedsRenameOldPath)]
-        [TestCaseSource(typeof(FileSystemRunner), FileSystemRunner.TestRunners)]
+        [TestCaseSource(typeof(FileSystemRunner), nameof(FileSystemRunner.Runners))]
         public void ModifiedPathsSavedAfterRemount(FileSystemRunner fileSystem)
         {
             string fileToAdd = this.Enlistment.GetVirtualPathTo(FileToAdd);
@@ -156,7 +156,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerTestCase
             }
         }
 
-        [TestCaseSource(typeof(FileSystemRunner), FileSystemRunner.TestRunners)]
+        [TestCaseSource(typeof(FileSystemRunner), nameof(FileSystemRunner.Runners))]
         public void ModifiedPathsCorrectAfterHardLinking(FileSystemRunner fileSystem)
         {
             string[] expectedModifiedFilesContentsAfterHardlinks =

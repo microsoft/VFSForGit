@@ -11,7 +11,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerTestCase
     [Category(Categories.FullSuiteOnly)]
     public class PersistedWorkingDirectoryTests : TestsWithEnlistmentPerTestCase
     {
-        [TestCaseSource(typeof(FileSystemRunner), FileSystemRunner.TestRunners)]
+        [TestCaseSource(typeof(FileSystemRunner), nameof(FileSystemRunner.Runners))]
         public void PersistedDirectoryLazyLoad(FileSystemRunner fileSystem)
         {
             string enumerateDirectoryName = Path.Combine("GVFS", "GVFS");
@@ -68,7 +68,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerTestCase
         /// test persistence, we want to save as much time in tests runs as possible by only
         /// remounting once.
         /// </summary>
-        [TestCaseSource(typeof(FileSystemRunner), FileSystemRunner.TestRunners)]
+        [TestCaseSource(typeof(FileSystemRunner), nameof(FileSystemRunner.Runners))]
         public void PersistedDirectoryTests(FileSystemRunner fileSystem)
         {
             // Delete File Setup

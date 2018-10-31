@@ -1,15 +1,16 @@
-using GVFS.FunctionalTests.Should;
+﻿using GVFS.FunctionalTests.Should;
 using NUnit.Framework;
 
 namespace GVFS.FunctionalTests.Tests.GitCommands
 {
-    [TestFixture]
+    [TestFixtureSource(typeof(GitRepoTests), nameof(GitRepoTests.ValidateWorkingTree))]
     [Category(Categories.GitCommands)]
     public class ResetHardTests : GitRepoTests
     {
         private const string ResetHardCommand = "reset --hard";
 
-        public ResetHardTests() : base(enlistmentPerTest: true)
+        public ResetHardTests(bool validateWorkingTree)
+            : base(enlistmentPerTest: true, validateWorkingTree: validateWorkingTree)
         {
         }
 

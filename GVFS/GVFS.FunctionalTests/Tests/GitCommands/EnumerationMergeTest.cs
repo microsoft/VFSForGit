@@ -2,7 +2,7 @@
 
 namespace GVFS.FunctionalTests.Tests.GitCommands
 {
-    [TestFixture]
+    [TestFixtureSource(typeof(GitRepoTests), nameof(GitRepoTests.ValidateWorkingTree))]
     [Category(Categories.GitCommands)]
     public class EnumerationMergeTest : GitRepoTests
     {
@@ -10,7 +10,8 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
         // enumeration when they don't fit in a user's buffer
         private const string EnumerationReproCommitish = "FunctionalTests/20170602";
 
-        public EnumerationMergeTest() : base(enlistmentPerTest: true)
+        public EnumerationMergeTest(bool validateWorkingTree) 
+            : base(enlistmentPerTest: true, validateWorkingTree: validateWorkingTree)
         {
         }
 
