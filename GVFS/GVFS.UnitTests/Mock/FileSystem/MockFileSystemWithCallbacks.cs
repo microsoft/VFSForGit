@@ -53,6 +53,10 @@ namespace GVFS.UnitTests.Mock.FileSystem
             throw new InvalidOperationException("DeleteDirectory has not been implemented.");
         }
 
+        public override void ConvertDirectoryToFull(string fullPath)
+        {
+        }
+
         public override void CreateDirectory(string path)
         {
         }

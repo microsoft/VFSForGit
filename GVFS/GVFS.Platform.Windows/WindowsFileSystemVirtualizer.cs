@@ -29,15 +29,6 @@ namespace GVFS.Platform.Windows
         private const int MaxBlobStreamBufferSize = 64 * 1024;
         private const int MinPrjLibThreads = 5;
 
-        // #define FILE_ATTRIBUTE_OFFLINE              0x00001000
-        private const int FileAttributeOffline = 0x00001000;
-
-        // #define FILE_ATTRIBUTE_RECALL_ON_DATA_ACCESS 0x00400000 // winnt
-        private const int FileAttributeRecallOnDataAccess = 0x00400000;
-
-        // #define IO_REPARSE_TAG_PROJFS                   (0x9000001CL)
-        private const uint IoReparseTagProjFS = 0x9000001C;
-
         private IVirtualizationInstance virtualizationInstance;
         private ConcurrentDictionary<Guid, ActiveEnumeration> activeEnumerations;
         private ConcurrentDictionary<int, CancellationTokenSource> activeCommands;
@@ -344,8 +335,10 @@ namespace GVFS.Platform.Windows
                     HResult result = this.CreatePlaceholders(virtualPath, projectedItems, "StartDirectoryEnumerationHandler");
                     if (result == HResult.Ok)
                     {
-                        this.ConvertDirectoryToFull(virtualPath);
+                        this.Context.FileSystem.ConvertDirectoryToFull(Path.Combine(this.Context.Enlistment.WorkingDirectoryRoot, virtualPath));
                     }
+
+                    return result;
                 }
 
                 CancellationTokenSource cancellationSource;
@@ -419,7 +412,7 @@ namespace GVFS.Platform.Windows
                     result = this.CreatePlaceholders(virtualPath, projectedItems, "StartDirectoryEnumerationAsyncHandler");
                     if (result == HResult.Ok)
                     {
-                        this.ConvertDirectoryToFull(virtualPath);
+                        this.Context.FileSystem.ConvertDirectoryToFull(Path.Combine(this.Context.Enlistment.WorkingDirectoryRoot, virtualPath));
                     }
                 }
             }
@@ -516,14 +509,6 @@ namespace GVFS.Platform.Windows
             this.FileSystemCallbacks.OnPlaceholderFolderExpanded(directoryRelativePath);
 
             return HResult.Ok;
-        }
-
-        private void ConvertDirectoryToFull(string relativePath)
-        {
-            string fullPath = Path.Combine(this.Context.Enlistment.WorkingDirectoryRoot, relativePath);
-            DirectoryInfo directoryInfo = new DirectoryInfo(fullPath);
-            directoryInfo.Attributes = directoryInfo.Attributes & (FileAttributes)~(FileAttributeOffline | FileAttributeRecallOnDataAccess);
-            NativeMethods.DeleteReparsePoint(fullPath, IoReparseTagProjFS);
         }
 
         private HResult EndDirectoryEnumerationHandler(Guid enumerationId)
