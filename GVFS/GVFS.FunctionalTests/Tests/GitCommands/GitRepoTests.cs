@@ -32,6 +32,14 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
             this.FileSystem = new SystemIORunner();
         }
 
+        public static object[] ValidateWorkingTree
+        {
+            get
+            {
+                return GVFSTestConfig.GitRepoTestsValidateWorkTree;
+            }
+        }
+
         public ControlGitRepo ControlGitRepo
         {
             get; private set;

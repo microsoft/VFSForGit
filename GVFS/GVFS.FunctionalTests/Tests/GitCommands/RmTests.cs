@@ -1,4 +1,5 @@
 ﻿using GVFS.FunctionalTests.Should;
+using GVFS.FunctionalTests.Tools;
 using NUnit.Framework;
 using System.IO;
 
@@ -18,14 +19,14 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
             this.ValidateGitCommand("status");
 
             // Validate that Scripts\RunUnitTests.bad is not on disk at all
-            string fileName = Path.Combine("Scripts", "RunUnitTests.bat");
+            string filePath = Path.Combine("Scripts", "RunUnitTests.bat");
 
             this.Enlistment.UnmountGVFS();
-            this.Enlistment.GetVirtualPathTo(fileName).ShouldNotExistOnDisk(this.FileSystem);
+            this.Enlistment.GetVirtualPathTo(filePath).ShouldNotExistOnDisk(this.FileSystem);
             this.Enlistment.MountGVFS();
                     
-            this.ValidateGitCommand("rm --dry-run " + fileName.Replace("\\", "/"));
-            this.FileContentsShouldMatch(fileName);
+            this.ValidateGitCommand("rm --dry-run " + GitHelpers.ConvertPathToGitFormat(filePath));
+            this.FileContentsShouldMatch(filePath);
         }
     }
 }

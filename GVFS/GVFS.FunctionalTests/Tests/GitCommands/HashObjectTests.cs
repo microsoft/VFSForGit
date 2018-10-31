@@ -20,18 +20,18 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
             this.ValidateGitCommand("status");
 
             // Validate that Scripts\RunUnitTests.bad is not on disk at all
-            string fileName = Path.Combine("Scripts", "RunUnitTests.bat");
+            string filePath = Path.Combine("Scripts", "RunUnitTests.bat");
 
             this.Enlistment.UnmountGVFS();
-            this.Enlistment.GetVirtualPathTo(fileName).ShouldNotExistOnDisk(this.FileSystem);
+            this.Enlistment.GetVirtualPathTo(filePath).ShouldNotExistOnDisk(this.FileSystem);
             this.Enlistment.MountGVFS();
 
             // TODO 1087312: Fix 'git hash-oject' so that it works for files that aren't on disk yet
             GitHelpers.InvokeGitAgainstGVFSRepo(
                 this.Enlistment.RepoRoot,
-                "hash-object " + fileName.Replace("\\", "/"));
+                "hash-object " + GitHelpers.ConvertPathToGitFormat(filePath));
 
-            this.FileContentsShouldMatch(fileName);
+            this.FileContentsShouldMatch(filePath);
         }
     }
 }

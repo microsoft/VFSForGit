@@ -64,7 +64,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
 
             this.Enlistment.MountGVFS();
             string expectedHooksPath = Path.Combine(this.Enlistment.RepoRoot, ".git", "hooks");
-            expectedHooksPath = expectedHooksPath.Replace("\\", "/");
+            expectedHooksPath = GitHelpers.ConvertPathToGitFormat(expectedHooksPath);
 
             GitProcess.Invoke(
                 this.Enlistment.RepoRoot, "config core.hookspath")

@@ -1,12 +1,11 @@
-﻿using GVFS.Tests;
-using GVFS.Tests.Should;
+﻿using GVFS.Tests.Should;
 using NUnit.Framework;
 using System.IO;
 using System.Threading;
 
 namespace GVFS.FunctionalTests.Tests.GitCommands
 {
-    [TestFixtureSource(typeof(DataSources), nameof(DataSources.AllBools))]
+    [TestFixtureSource(typeof(GitRepoTests), nameof(GitRepoTests.ValidateWorkingTree))]
     [Category(Categories.GitCommands)]
     public class StatusTests : GitRepoTests
     {

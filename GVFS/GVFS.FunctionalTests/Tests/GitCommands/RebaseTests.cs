@@ -1,9 +1,8 @@
-﻿using GVFS.Tests;
-using NUnit.Framework;
+﻿using NUnit.Framework;
 
 namespace GVFS.FunctionalTests.Tests.GitCommands
 {
-    [TestFixtureSource(typeof(DataSources), nameof(DataSources.AllBools))]
+    [TestFixtureSource(typeof(GitRepoTests), nameof(GitRepoTests.ValidateWorkingTree))]
     [Category(Categories.GitCommands)]
     public class RebaseTests : GitRepoTests
     {

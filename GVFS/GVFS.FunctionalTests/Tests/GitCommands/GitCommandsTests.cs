@@ -1,6 +1,5 @@
 ﻿using GVFS.FunctionalTests.Should;
 using GVFS.FunctionalTests.Tools;
-using GVFS.Tests;
 using GVFS.Tests.Should;
 using NUnit.Framework;
 using System;
@@ -9,7 +8,7 @@ using System.Runtime.CompilerServices;
 
 namespace GVFS.FunctionalTests.Tests.GitCommands
 {
-    [TestFixtureSource(typeof(DataSources), nameof(DataSources.AllBools))]
+    [TestFixtureSource(typeof(GitRepoTests), nameof(GitRepoTests.ValidateWorkingTree))]
     [Category(Categories.GitCommands)]
     public class GitCommandsTests : GitRepoTests
     {
