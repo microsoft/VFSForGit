@@ -500,8 +500,14 @@ static int HandleFileOpOperation(
             goto CleanupAndReturn;
         }
 
+        // We used to assert if we couldn't read the attributes of a file here.
+        // In practice, we always found that these panics were on accesses outside of a
+        // virtualization root, so we'll log as opposed to panicing.
         bool fileFlaggedInRoot;
-        assert(TryGetFileIsFlaggedAsInRoot(currentVnode, context, &fileFlaggedInRoot));
+        if (!TryGetFileIsFlaggedAsInRoot(currentVnode, context, &fileFlaggedInRoot))
+        {
+            KextLog_Info("Failed to read attributes when handling FileOp operation. Path is %s", path);
+        }
         
         if (fileFlaggedInRoot && KAUTH_FILEOP_CLOSE_MODIFIED != closeFlags)
         {
