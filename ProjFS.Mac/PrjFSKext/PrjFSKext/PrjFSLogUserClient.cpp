@@ -19,7 +19,7 @@ static const IOExternalMethodDispatch LogUserClientDispatch[] =
             .checkScalarInputCount =    0,
             .checkStructureInputSize =  0,
             .checkScalarOutputCount =   0,
-            .checkStructureOutputSize = Probe_Count * sizeof(PerfTracingProbe), // array of probes
+            .checkStructureOutputSize = PrjFSPerfCounter_Count * sizeof(PerfTracingProbe), // array of probes
         },
 };
 

@@ -135,7 +135,7 @@ kern_return_t VirtualizationRoots_Cleanup()
 
 VirtualizationRootHandle VirtualizationRoot_FindForVnode(vnode_t _Nonnull vnode, const FsidInode& vnodeFsidInode)
 {
-    ProfileSample functionSample(Probe_VirtualizationRoot_Find);
+//    ProfileSample functionSample(Probe_VirtualizationRoot_Find);
 
     VirtualizationRootHandle rootHandle = RootHandle_None;
     
@@ -143,7 +143,7 @@ VirtualizationRootHandle VirtualizationRoot_FindForVnode(vnode_t _Nonnull vnode,
     // Search up the tree until we hit a known virtualization root or THE root of the file system
     while (RootHandle_None == rootHandle && NULLVP != vnode && !vnode_isvroot(vnode))
     {
-        ProfileSample iterationSample(Probe_VirtualizationRoot_FindIteration);
+//        ProfileSample iterationSample(Probe_VirtualizationRoot_FindIteration);
 
         rootHandle = FindOrDetectRootAtVnode(vnode, vnodeFsidInode);
         // Note: if FindOrDetectRootAtVnode returns a "special" handle other

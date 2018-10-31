@@ -33,47 +33,4 @@ enum PrjFSServiceUserClientType
     UserClientType_Log,
 };
 
-enum PrjFS_PerfCounter : int32_t
-{
-    // Note: ensure that any changes to this list are reflected in the PerfCounterNames array of strings
-    
-    Probe_VnodeOp = 0,
-    Probe_FileOp,
-    Probe_Op_EarlyOut,
-    Probe_Op_NoVirtualizationRootFlag,
-    Probe_Op_EmptyFlag,
-    Probe_Op_DenyCrawler,
-    Probe_Op_Offline,
-    Probe_Op_Provider,
-    Probe_VnodeOp_PopulatePlaceholderDirectory,
-    Probe_VnodeOp_HydratePlaceholderFile,
-    
-    Probe_Op_IdentifySplit,
-    Probe_Op_VirtualizationRootFindSplit,
-        
-    Probe_ReadFileFlags,
-    
-    Probe_VirtualizationRoot_Find,
-    Probe_VirtualizationRoot_FindIteration,
-    
-    Probe_Count,
-    
-    Probe_None = -1
-};
-
-struct PerfTracingProbe
-{
-    _Atomic uint64_t numSamples1;
-    _Atomic uint64_t numSamples2;
-    // Units: Mach absolute time (squared for sumSquares)
-    // Sum of measured sample intervals
-    _Atomic uint64_t sum;
-    // Smallest encountered interval
-    _Atomic uint64_t min;
-    // Largest encountered interval
-    _Atomic uint64_t max;
-    // Sum-of-squares of measured time intervals (for stddev)
-    _Atomic __uint128_t sumSquares;
-};
-
 #endif /* PrjFSCommon_h */

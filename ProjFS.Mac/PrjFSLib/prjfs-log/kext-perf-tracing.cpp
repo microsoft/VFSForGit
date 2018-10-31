@@ -1,5 +1,6 @@
 #include "kext-perf-tracing.hpp"
 #include "../../PrjFSKext/public/PrjFSCommon.h"
+#include "../../PrjFSKext/public/PrjFSPerfCounter.h"
 #include "../../PrjFSKext/public/PrjFSLogClientShared.h"
 #include <mach/mach_time.h>
 #include <dispatch/dispatch.h>
@@ -14,25 +15,27 @@ static uint64_t nanosecondsFromAbsoluteTime(uint64_t machAbsoluteTime)
     return static_cast<__uint128_t>(machAbsoluteTime) * s_machTimebase.numer / s_machTimebase.denom;
 }
 
-static const char* const PerfCounterNames[Probe_Count] =
+static const char* const PerfCounterNames[PrjFSPerfCounter_Count] =
 {
-    [Probe_VnodeOp] = "VnodeOp",
-    [Probe_FileOp] = "FileOp",
-    [Probe_Op_EarlyOut] = "Op_EarlyOut",
-    [Probe_Op_NoVirtualizationRootFlag] = "Op_NoVirtualizationRootFlag",
-    [Probe_Op_EmptyFlag] = "Op_EmptyFlag",
-    [Probe_Op_DenyCrawler] = "Op_DenyCrawler",
-    [Probe_Op_Offline] = "Op_Offline",
-    [Probe_Op_Provider] = "Op_Provider",
-    [Probe_VnodeOp_PopulatePlaceholderDirectory] = "VnodeOp_PopulatePlaceholderDirectory",
-    [Probe_VnodeOp_HydratePlaceholderFile] = "VnodeOp_HydratePlaceholderFile",
-    
-    [Probe_Op_IdentifySplit] = "Op_IdentifySplit",
-    [Probe_Op_VirtualizationRootFindSplit] = "Op_VirtualizationRootFindSplit",
-    
-    [Probe_ReadFileFlags] = "Probe_ReadFileFlags",
-    [Probe_VirtualizationRoot_Find] = "VirtualizationRoot_Find",
-    [Probe_VirtualizationRoot_FindIteration] = "VirtualizationRoot_FindIteration",
+    [PrjFSPerfCounter_VnodeOp]                                      = "HandleVnodeOperation",
+    [PrjFSPerfCounter_ShouldHandleVnodeOp]                          = " |--ShouldHandleVnodeOpEvent",
+    [PrjFSPerfCounter_ShouldHandleVnodeOp_IsAllowedFileSystem]      = " |  |--VnodeIsOnAllowedFilesystem",
+    [PrjFSPerfCounter_ShouldHandleVnodeOp_ShouldIgnoreVnodeType]    = " |  |--ShouldIgnoreVnodeType",
+    [PrjFSPerfCounter_ShouldHandleVnodeOp_IgnoredVnodeType]         = " |  |  |--Ignored",
+    [PrjFSPerfCounter_ShouldHandleVnodeOp_ReadFileFlags]            = " |  |--TryReadVNodeFileFlags",
+    [PrjFSPerfCounter_ShouldHandleVnodeOp_NotInAnyRoot]             = " |  |--NotInAnyRoot",
+    [PrjFSPerfCounter_ShouldHandleVnodeOp_CheckFileSystemCrawler]   = " |  |--IsFileSystemCrawler",
+    [PrjFSPerfCounter_ShouldHandleVnodeOp_DeniedFileSystemCrawler]  = " |  |  |--Denied",
+    [PrjFSPerfCounter_ShouldHandleVnodeOp_FindVirtualizationRoot]   = " |  |--FindVirtualizationRoot",
+    [PrjFSPerfCounter_ShouldHandleVnodeOp_TemporaryDirectory]       = " |  | |--TemporaryDirectory",
+    [PrjFSPerfCounter_ShouldHandleVnodeOp_NoRootFound]              = " |  | |--NoRootFound",
+    [PrjFSPerfCounter_ShouldHandleVnodeOp_ProviderOffline]          = " |  | |--ProviderOffline",
+    [PrjFSPerfCounter_ShouldHandleVnodeOp_OriginatedByProvider]     = " |  | |--OriginatedByProvider",
+    [PrjFSPerfCounter_ShouldHandleVnodeOp_IsHandledEvent]           = " |  |--IsHandledEvent",
+    [PrjFSPerfCounter_VnodeOp_PreDelete]                            = " |--RaisePreDeleteEvent",
+    [PrjFSPerfCounter_VnodeOp_EnumerateDirectory]                   = " |--RaiseEnumerateDirectoryEvent",
+    [PrjFSPerfCounter_VnodeOp_RecursivelyEnumerateDirectory]        = " |--RaiseRecursivelyEnumerateEvent",
+    [PrjFSPerfCounter_VnodeOp_HydrateFile]                          = " |--RaiseHydrateFileEvent",
 };
 
 bool PrjFSLog_FetchAndPrintKextProfilingData(io_connect_t connection)
@@ -42,7 +45,7 @@ bool PrjFSLog_FetchAndPrintKextProfilingData(io_connect_t connection)
         mach_timebase_info(&s_machTimebase);
     });
     
-    PerfTracingProbe probes[Probe_Count];
+    PerfTracingProbe probes[PrjFSPerfCounter_Count];
     size_t out_size = sizeof(probes);
     IOReturn ret = IOConnectCallStructMethod(connection, LogSelector_FetchProfilingData, nullptr, 0, probes, &out_size);
     if (ret == kIOReturnUnsupported)
@@ -51,20 +54,34 @@ bool PrjFSLog_FetchAndPrintKextProfilingData(io_connect_t connection)
     }
     else if (ret == kIOReturnSuccess)
     {
-        for (unsigned i = 0; i < Probe_Count; ++i)
+        printf("   Counter                             [ Samples  ][Total time (ns)][Mean (ns)   ][Stddev (ns) ][Min (ns)][Max (ns)  ]\n");
+        printf("----------------------------------------------------------------------------------------------------------------------\n");
+        
+        for (unsigned i = 0; i < PrjFSPerfCounter_Count; ++i)
         {
-            double samples = probes[i].numSamples1;
-            double sum_abs = probes[i].sum;
-            double stddev_abs = samples > 1 ? sqrt((samples * probes[i].sumSquares - sum_abs * sum_abs) / (samples * (samples - 1))) : 0.0;
-
-            double sum_ns = nanosecondsFromAbsoluteTime(sum_abs);
-            double stddev_ns = nanosecondsFromAbsoluteTime(stddev_abs);
-            double mean_ns = samples > 0 ? sum_ns / samples : 0;
-            printf("%2u %40s  %8llu [%8llu] samples, total time: %15.0f ns, mean: %10.2f ns +/- %11.2f",
-                i, PerfCounterNames[i], probes[i].numSamples1, probes[i].numSamples2, sum_ns, mean_ns, stddev_ns);
+            double samples = probes[i].numSamples;
+            printf(
+                "%2u %-35s [%10llu]",
+                i,
+                PerfCounterNames[i],
+                probes[i].numSamples);
+            
             if (probes[i].min != UINT64_MAX)
             {
-                printf(", min: %7llu ns, max: %10llu ns\n",  nanosecondsFromAbsoluteTime(probes[i].min), nanosecondsFromAbsoluteTime(probes[i].max));
+                double sum_abs = probes[i].sum;
+                double stddev_abs = samples > 1 ? sqrt((samples * probes[i].sumSquares - sum_abs * sum_abs) / (samples * (samples - 1))) : 0.0;
+
+                double sum_ns = nanosecondsFromAbsoluteTime(sum_abs);
+                double stddev_ns = nanosecondsFromAbsoluteTime(stddev_abs);
+                double mean_ns = samples > 0 ? sum_ns / samples : 0;
+
+                printf(
+                    "[%15.0f][%12.0f][%12.0f][%8llu][%10llu]\n",
+                    sum_ns,
+                    mean_ns,
+                    stddev_ns,
+                    nanosecondsFromAbsoluteTime(probes[i].min),
+                    nanosecondsFromAbsoluteTime(probes[i].max));
             }
             else
             {
@@ -77,6 +94,9 @@ bool PrjFSLog_FetchAndPrintKextProfilingData(io_connect_t connection)
         fprintf(stderr, "fetching profiling data from kernel failed: 0x%x\n", ret);
         return false;
     }
+    
+    printf("\n");
     fflush(stdout);
+    
     return true;
 }

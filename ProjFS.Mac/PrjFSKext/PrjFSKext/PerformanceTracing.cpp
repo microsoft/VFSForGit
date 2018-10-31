@@ -3,19 +3,16 @@
 #include <stdatomic.h>
 #include <IOKit/IOUserClient.h>
 
-PerfTracingProbe profile_probes[Probe_Count];
+PerfTracingProbe profile_probes[PrjFSPerfCounter_Count];
+
+void InitProbe(PrjFSPerfCounter counter);
 
 void PerfTracing_Init()
 {
-    for (size_t i = 0; i < Probe_Count; ++i)
+    for (size_t i = 0; i < PrjFSPerfCounter_Count; ++i)
     {
-        PerfTracing_ProbeInit(&profile_probes[i]);
+        InitProbe((PrjFSPerfCounter)i);
     }
-}
-
-void PerfTracing_ProbeInit(PerfTracingProbe* probe)
-{
-    *probe = PerfTracingProbe{ .min = UINT64_MAX };
 }
 
 IOReturn PerfTracing_ExportDataUserClient(IOExternalMethodArguments* arguments)
@@ -33,31 +30,38 @@ IOReturn PerfTracing_ExportDataUserClient(IOExternalMethodArguments* arguments)
 #endif
 }
 
-void PerfTracing_RecordSample(PerfTracingProbe* probe, uint64_t startTime, uint64_t endTime)
+void PerfTracing_RecordSample(PrjFSPerfCounter counter, uint64_t startTime, uint64_t endTime)
 {
+    PerfTracingProbe* probe = &profile_probes[counter];
+    
     uint64_t interval = endTime - startTime;
     
-    atomic_fetch_add(&probe->numSamples1, 1);
-    atomic_fetch_add(&probe->sum, interval);
+    atomic_fetch_add(&probe->numSamples, 1);
     
-    __uint128_t intervalSquared = interval;
-    intervalSquared *= intervalSquared;
-    atomic_fetch_add(&probe->sumSquares, intervalSquared);
-    
-    // Update minimum sample if necessary
+    if (0 != interval)
     {
-        uint64_t oldMin = atomic_load(&probe->min);
-        while (interval < oldMin && !atomic_compare_exchange_weak(&probe->min, &oldMin, interval))
-        {}
-    }
+        atomic_fetch_add(&probe->sum, interval);
 
-    // Update maximum sample if necessary
-    {
-        uint64_t oldMax = atomic_load(&probe->max);
-        while (interval > oldMax && !atomic_compare_exchange_weak(&probe->max, &oldMax, interval))
-        {}
-    }
+        __uint128_t intervalSquared = interval * interval;
+        atomic_fetch_add(&probe->sumSquares, intervalSquared);
+        
+        // Update minimum sample if necessary
+        {
+            uint64_t oldMin = atomic_load(&probe->min);
+            while (interval < oldMin && !atomic_compare_exchange_weak(&probe->min, &oldMin, interval))
+            {}
+        }
 
-    atomic_fetch_add(&probe->numSamples2, 1);
+        // Update maximum sample if necessary
+        {
+            uint64_t oldMax = atomic_load(&probe->max);
+            while (interval > oldMax && !atomic_compare_exchange_weak(&probe->max, &oldMax, interval))
+            {}
+        }
+    }
 }
 
+void InitProbe(PrjFSPerfCounter counter)
+{
+    profile_probes[counter] = PerfTracingProbe{ .min = UINT64_MAX };
+}

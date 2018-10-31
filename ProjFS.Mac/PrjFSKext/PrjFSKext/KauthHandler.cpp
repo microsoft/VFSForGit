@@ -6,6 +6,7 @@
 #include <stdatomic.h>
 
 #include "PrjFSCommon.h"
+#include "PrjFSPerfCounter.h"
 #include "VirtualizationRoots.hpp"
 #include "VnodeUtilities.hpp"
 #include "KauthHandler.hpp"
@@ -59,10 +60,10 @@ static bool ShouldIgnoreVnodeType(vtype vnodeType, vnode_t vnode);
 
 static bool ShouldHandleVnodeOpEvent(
     // In params:
+    PerfTracer* perfTracer,
     vfs_context_t _Nonnull context,
     const vnode_t vnode,
     kauth_action_t action,
-    ProfileSample& operationSample,
 
     // Out params:
     VirtualizationRootHandle* root,
@@ -277,7 +278,8 @@ static int HandleVnodeOperation(
 {
     atomic_fetch_add(&s_numActiveKauthEvents, 1);
 
-    ProfileSample functionSample(Probe_VnodeOp);
+    PerfTracer perfTracer;
+    PerfSample vnodeOpFunctionSample(&perfTracer, PrjFSPerfCounter_VnodeOp);
     
     vfs_context_t _Nonnull context = reinterpret_cast<vfs_context_t>(arg0);
     vnode_t currentVnode =  reinterpret_cast<vnode_t>(arg1);
@@ -319,10 +321,10 @@ static int HandleVnodeOperation(
     }
 
     if (!ShouldHandleVnodeOpEvent(
+            &perfTracer,
             context,
             currentVnode,
             action,
-            functionSample,
             &root,
             &vnodeType,
             &currentVnodeFileFlags,
@@ -340,6 +342,8 @@ static int HandleVnodeOperation(
     
     if (isDeleteAction)
     {
+        PerfSample preDeleteSample(&perfTracer, PrjFSPerfCounter_VnodeOp_PreDelete);
+        
         if (!TrySendRequestAndWaitForResponse(
                 root,
                 isDirectory ?
@@ -369,15 +373,31 @@ static int HandleVnodeOperation(
                 KAUTH_VNODE_DELETE))
         {
             // Recursively expand directory on delete to ensure child placeholders are created before rename operations
-            if (isDeleteAction || FileFlagsBitIsSet(currentVnodeFileFlags, FileFlags_IsEmpty))
+            if (isDeleteAction)
             {
-                functionSample.SetProbe(Probe_VnodeOp_PopulatePlaceholderDirectory);
+                PerfSample recursivelyEnumerateSample(&perfTracer, PrjFSPerfCounter_VnodeOp_RecursivelyEnumerateDirectory);
 
                 if (!TrySendRequestAndWaitForResponse(
                         root,
-                        isDeleteAction ?
-                            MessageType_KtoU_RecursivelyEnumerateDirectory :
-                            MessageType_KtoU_EnumerateDirectory,
+                        MessageType_KtoU_RecursivelyEnumerateDirectory,
+                        currentVnode,
+                        vnodeFsidInode,
+                        vnodePath,
+                        pid,
+                        procname,
+                        &kauthResult,
+                        kauthError))
+                {
+                    goto CleanupAndReturn;
+                }
+            }
+            else if (FileFlagsBitIsSet(currentVnodeFileFlags, FileFlags_IsEmpty))
+            {
+                PerfSample enumerateDirectorySample(&perfTracer, PrjFSPerfCounter_VnodeOp_EnumerateDirectory);
+
+                if (!TrySendRequestAndWaitForResponse(
+                        root,
+                        MessageType_KtoU_EnumerateDirectory,
                         currentVnode,
                         vnodeFsidInode,
                         vnodePath,
@@ -406,7 +426,7 @@ static int HandleVnodeOperation(
         {
             if (FileFlagsBitIsSet(currentVnodeFileFlags, FileFlags_IsEmpty))
             {
-                functionSample.SetProbe(Probe_VnodeOp_HydratePlaceholderFile);
+                PerfSample enumerateDirectorySample(&perfTracer, PrjFSPerfCounter_VnodeOp_HydrateFile);
 
                 if (!TrySendRequestAndWaitForResponse(
                         root,
@@ -448,7 +468,7 @@ static int HandleFileOpOperation(
 {
     atomic_fetch_add(&s_numActiveKauthEvents, 1);
     
-    ProfileSample functionSample(Probe_FileOp);
+//    ProfileSample functionSample(Probe_FileOp);
 
     vfs_context_t _Nonnull context = vfs_context_create(NULL);
     vnode_t currentVnodeFromPath = NULLVP;
@@ -604,10 +624,10 @@ CleanupAndReturn:
 
 static bool ShouldHandleVnodeOpEvent(
     // In params:
+    PerfTracer* perfTracer,
     vfs_context_t _Nonnull context,
     const vnode_t vnode,
     kauth_action_t action,
-    ProfileSample& operationSample,
 
     // Out params:
     VirtualizationRootHandle* root,
@@ -619,26 +639,35 @@ static bool ShouldHandleVnodeOpEvent(
     int* kauthResult,
     int* kauthError)
 {
+    PerfSample handleVnodeSample(perfTracer, PrjFSPerfCounter_ShouldHandleVnodeOp);
+
     *kauthResult = KAUTH_RESULT_DEFER;
     *root = RootHandle_None;
     
-    if (!VirtualizationRoot_VnodeIsOnAllowedFilesystem(vnode))
     {
-        operationSample.SetProbe(Probe_Op_EarlyOut);
-        *kauthResult = KAUTH_RESULT_DEFER;
-        return false;
+        PerfSample isAllowedSample(perfTracer, PrjFSPerfCounter_ShouldHandleVnodeOp_IsAllowedFileSystem);
+        if (!VirtualizationRoot_VnodeIsOnAllowedFilesystem(vnode))
+        {
+            *kauthResult = KAUTH_RESULT_DEFER;
+            return false;
+        }
+    }
+
+    {
+        PerfSample shouldIgnoreSample(perfTracer, PrjFSPerfCounter_ShouldHandleVnodeOp_ShouldIgnoreVnodeType);
+        
+        *vnodeType = vnode_vtype(vnode);
+        if (ShouldIgnoreVnodeType(*vnodeType, vnode))
+        {
+            perfTracer->IncrementCount(PrjFSPerfCounter_ShouldHandleVnodeOp_IgnoredVnodeType);
+        
+            *kauthResult = KAUTH_RESULT_DEFER;
+            return false;
+        }
     }
     
-    *vnodeType = vnode_vtype(vnode);
-    if (ShouldIgnoreVnodeType(*vnodeType, vnode))
     {
-        operationSample.SetProbe(Probe_Op_EarlyOut);
-        *kauthResult = KAUTH_RESULT_DEFER;
-        return false;
-    }
-    
-    {
-        ProfileSample readflags(Probe_ReadFileFlags);
+        PerfSample readFlagsSample(perfTracer, PrjFSPerfCounter_ShouldHandleVnodeOp_ReadFileFlags);
         if (!TryReadVNodeFileFlags(vnode, context, vnodeFileFlags))
         {
             *kauthError = EBADF;
@@ -652,7 +681,8 @@ static bool ShouldHandleVnodeOpEvent(
         // This vnode is not part of ANY virtualization root, so exit now before doing any more work.
         // This gives us a cheap way to avoid adding overhead to IO outside of a virtualization root.
         
-        operationSample.SetProbe(Probe_Op_NoVirtualizationRootFlag);
+        perfTracer->IncrementCount(PrjFSPerfCounter_ShouldHandleVnodeOp_NotInAnyRoot);
+
         *kauthResult = KAUTH_RESULT_DEFER;
         return false;
     }
@@ -665,37 +695,40 @@ static bool ShouldHandleVnodeOpEvent(
         // This vnode is not yet hydrated, so do not allow a file system crawler to force hydration.
         // Once a vnode is hydrated, it's fine to allow crawlers to access those contents.
         
+        PerfSample crawlerSample(perfTracer, PrjFSPerfCounter_ShouldHandleVnodeOp_CheckFileSystemCrawler);
         if (IsFileSystemCrawler(procname))
         {
             // We must DENY file system crawlers rather than DEFER.
             // If we allow the crawler's access to succeed without hydrating, the kauth result will be cached and we won't
             // get called again, so we lose the opportunity to hydrate the file/directory and it will appear as though
             // it is missing its contents.
+
+            perfTracer->IncrementCount(PrjFSPerfCounter_ShouldHandleVnodeOp_DeniedFileSystemCrawler);
             
-            operationSample.SetProbe(Probe_Op_DenyCrawler);
             *kauthResult = KAUTH_RESULT_DENY;
             return false;
         }
-
-        operationSample.SetProbe(Probe_Op_EmptyFlag);
     }
-    
-    operationSample.TakeSplitSample(Probe_Op_IdentifySplit);
 
-    *vnodeFsidInode = Vnode_GetFsidAndInode(vnode, context);
-    *root = VirtualizationRoot_FindForVnode(vnode, *vnodeFsidInode);
-    
-    operationSample.TakeSplitSample(Probe_Op_VirtualizationRootFindSplit);
+    {
+        PerfSample findRootSample(perfTracer, PrjFSPerfCounter_ShouldHandleVnodeOp_FindVirtualizationRoot);
+        
+        *vnodeFsidInode = Vnode_GetFsidAndInode(vnode, context);
+        *root = VirtualizationRoot_FindForVnode(vnode, *vnodeFsidInode);
+    }
 
     if (RootHandle_ProviderTemporaryDirectory == *root)
     {
+        perfTracer->IncrementCount(PrjFSPerfCounter_ShouldHandleVnodeOp_TemporaryDirectory);
+    
         *kauthResult = KAUTH_RESULT_DEFER;
         return false;
     }
     else if (RootHandle_None == *root)
     {
         KextLog_FileNote(vnode, "No virtualization root found for file with set flag.");
-        
+        perfTracer->IncrementCount(PrjFSPerfCounter_ShouldHandleVnodeOp_NoRootFound);
+    
         *kauthResult = KAUTH_RESULT_DEFER;
         return false;
     }
@@ -704,6 +737,8 @@ static bool ShouldHandleVnodeOpEvent(
         // TODO(Mac): Protect files in the worktree from modification (and prevent
         // the creation of new files) when the provider is offline
         
+        perfTracer->IncrementCount(PrjFSPerfCounter_ShouldHandleVnodeOp_ProviderOffline);
+        
         *kauthResult = KAUTH_RESULT_DEFER;
         return false;
     }
@@ -711,11 +746,13 @@ static bool ShouldHandleVnodeOpEvent(
     // If the calling process is the provider, we must exit right away to avoid deadlocks
     if (VirtualizationRoot_PIDMatchesProvider(*root, *pid))
     {
-        operationSample.SetProbe(Probe_Op_Provider);
+        perfTracer->IncrementCount(PrjFSPerfCounter_ShouldHandleVnodeOp_OriginatedByProvider);
+        
         *kauthResult = KAUTH_RESULT_DEFER;
         return false;
     }
     
+    perfTracer->IncrementCount(PrjFSPerfCounter_ShouldHandleVnodeOp_IsHandledEvent);
     return true;
 }
 
@@ -946,6 +983,7 @@ static inline bool TryGetFileIsFlaggedAsInRoot(vnode_t vnode, vfs_context_t _Non
     *flaggedInRoot = FileFlagsBitIsSet(vnodeFileFlags, FileFlags_IsInVirtualizationRoot);
     return true;
 }
+
 static inline bool ActionBitIsSet(kauth_action_t action, kauth_action_t mask)
 {
     return action & mask;
