@@ -15,6 +15,15 @@ namespace GVFS.Common.FileSystem
         // Max FileSystemWatcher.InternalBufferSize is 64 KB
         private const int WatcherBufferSize = 64 * 1024;
 
+        // #define FILE_ATTRIBUTE_OFFLINE              0x00001000
+        private const int FileAttributeOffline = 0x00001000;
+
+        // #define FILE_ATTRIBUTE_RECALL_ON_DATA_ACCESS 0x00400000 // winnt
+        private const int FileAttributeRecallOnDataAccess = 0x00400000;
+
+        // #define IO_REPARSE_TAG_PROJFS                   (0x9000001CL)
+        private const uint IoReparseTagProjFS = 0x9000001C;
+
         public static void RecursiveDelete(string path)
         {
             if (!Directory.Exists(path))
@@ -101,6 +110,13 @@ namespace GVFS.Common.FileSystem
         public virtual void DeleteDirectory(string path, bool recursive = false)
         {
             RecursiveDelete(path);
+        }
+
+        public virtual void ConvertDirectoryToFull(string fullPath)
+        {
+            DirectoryInfo directoryInfo = new DirectoryInfo(fullPath);
+            directoryInfo.Attributes = directoryInfo.Attributes & (FileAttributes)~(FileAttributeOffline | FileAttributeRecallOnDataAccess);
+            NativeMethods.DeleteReparsePoint(fullPath, IoReparseTagProjFS);
         }
 
         public virtual bool IsSymLink(string path)

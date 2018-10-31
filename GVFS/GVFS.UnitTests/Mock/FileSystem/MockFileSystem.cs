@@ -160,6 +160,10 @@ namespace GVFS.UnitTests.Mock.FileSystem
             this.RootDirectory.DeleteDirectory(path);
         }
 
+        public override void ConvertDirectoryToFull(string fullPath)
+        {
+        }
+
         public override IEnumerable<DirectoryItemInfo> ItemsInDirectory(string path)
         {
             MockDirectory directory = this.RootDirectory.FindDirectory(path);
