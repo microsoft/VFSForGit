@@ -43,7 +43,7 @@ namespace GVFS.Platform.Windows
             Disabled = 4,
         }
 
-        public bool EnumerationExpandsDirectories { get; } = false;
+        public bool EnumerationExpandsDirectories { get; } = true;
 
         public string DriverLogFolderName { get; } = ProjFSFilter.ServiceName;
 
