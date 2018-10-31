@@ -15,12 +15,12 @@ enum PrjFSPerfCounter : int32_t
     PrjFSPerfCounter_ShouldHandleVnodeOp_NotInAnyRoot,
     PrjFSPerfCounter_ShouldHandleVnodeOp_CheckFileSystemCrawler,
     PrjFSPerfCounter_ShouldHandleVnodeOp_DeniedFileSystemCrawler,
-    PrjFSPerfCounter_ShouldHandleVnodeOp_FindVirtualizationRoot,
-    PrjFSPerfCounter_ShouldHandleVnodeOp_TemporaryDirectory,
-    PrjFSPerfCounter_ShouldHandleVnodeOp_NoRootFound,
-    PrjFSPerfCounter_ShouldHandleVnodeOp_ProviderOffline,
-    PrjFSPerfCounter_ShouldHandleVnodeOp_OriginatedByProvider,
-    PrjFSPerfCounter_ShouldHandleVnodeOp_IsHandledEvent,
+    
+    PrjFSPerfCounter_TryGetVirtualizationRoot,
+    PrjFSPerfCounter_TryGetVirtualizationRoot_TemporaryDirectory,
+    PrjFSPerfCounter_TryGetVirtualizationRoot_NoRootFound,
+    PrjFSPerfCounter_TryGetVirtualizationRoot_ProviderOffline,
+    PrjFSPerfCounter_TryGetVirtualizationRoot_OriginatedByProvider,
     
     PrjFSPerfCounter_VnodeOp_PreDelete,
     PrjFSPerfCounter_VnodeOp_EnumerateDirectory,

@@ -17,25 +17,24 @@ static uint64_t nanosecondsFromAbsoluteTime(uint64_t machAbsoluteTime)
 
 static const char* const PerfCounterNames[PrjFSPerfCounter_Count] =
 {
-    [PrjFSPerfCounter_VnodeOp]                                      = "HandleVnodeOperation",
-    [PrjFSPerfCounter_ShouldHandleVnodeOp]                          = " |--ShouldHandleVnodeOpEvent",
-    [PrjFSPerfCounter_ShouldHandleVnodeOp_IsAllowedFileSystem]      = " |  |--VnodeIsOnAllowedFilesystem",
-    [PrjFSPerfCounter_ShouldHandleVnodeOp_ShouldIgnoreVnodeType]    = " |  |--ShouldIgnoreVnodeType",
-    [PrjFSPerfCounter_ShouldHandleVnodeOp_IgnoredVnodeType]         = " |  |  |--Ignored",
-    [PrjFSPerfCounter_ShouldHandleVnodeOp_ReadFileFlags]            = " |  |--TryReadVNodeFileFlags",
-    [PrjFSPerfCounter_ShouldHandleVnodeOp_NotInAnyRoot]             = " |  |--NotInAnyRoot",
-    [PrjFSPerfCounter_ShouldHandleVnodeOp_CheckFileSystemCrawler]   = " |  |--IsFileSystemCrawler",
-    [PrjFSPerfCounter_ShouldHandleVnodeOp_DeniedFileSystemCrawler]  = " |  |  |--Denied",
-    [PrjFSPerfCounter_ShouldHandleVnodeOp_FindVirtualizationRoot]   = " |  |--FindVirtualizationRoot",
-    [PrjFSPerfCounter_ShouldHandleVnodeOp_TemporaryDirectory]       = " |  | |--TemporaryDirectory",
-    [PrjFSPerfCounter_ShouldHandleVnodeOp_NoRootFound]              = " |  | |--NoRootFound",
-    [PrjFSPerfCounter_ShouldHandleVnodeOp_ProviderOffline]          = " |  | |--ProviderOffline",
-    [PrjFSPerfCounter_ShouldHandleVnodeOp_OriginatedByProvider]     = " |  | |--OriginatedByProvider",
-    [PrjFSPerfCounter_ShouldHandleVnodeOp_IsHandledEvent]           = " |  |--IsHandledEvent",
-    [PrjFSPerfCounter_VnodeOp_PreDelete]                            = " |--RaisePreDeleteEvent",
-    [PrjFSPerfCounter_VnodeOp_EnumerateDirectory]                   = " |--RaiseEnumerateDirectoryEvent",
-    [PrjFSPerfCounter_VnodeOp_RecursivelyEnumerateDirectory]        = " |--RaiseRecursivelyEnumerateEvent",
-    [PrjFSPerfCounter_VnodeOp_HydrateFile]                          = " |--RaiseHydrateFileEvent",
+    [PrjFSPerfCounter_VnodeOp]                                          = "HandleVnodeOperation",
+    [PrjFSPerfCounter_ShouldHandleVnodeOp]                              = " |--ShouldHandleVnodeOpEvent",
+    [PrjFSPerfCounter_ShouldHandleVnodeOp_IsAllowedFileSystem]          = " |  |--VnodeIsOnAllowedFilesystem",
+    [PrjFSPerfCounter_ShouldHandleVnodeOp_ShouldIgnoreVnodeType]        = " |  |--ShouldIgnoreVnodeType",
+    [PrjFSPerfCounter_ShouldHandleVnodeOp_IgnoredVnodeType]             = " |  |  |--Ignored",
+    [PrjFSPerfCounter_ShouldHandleVnodeOp_ReadFileFlags]                = " |  |--TryReadVNodeFileFlags",
+    [PrjFSPerfCounter_ShouldHandleVnodeOp_NotInAnyRoot]                 = " |  |--NotInAnyRoot",
+    [PrjFSPerfCounter_ShouldHandleVnodeOp_CheckFileSystemCrawler]       = " |  |--IsFileSystemCrawler",
+    [PrjFSPerfCounter_ShouldHandleVnodeOp_DeniedFileSystemCrawler]      = " |  |  |--Denied",
+    [PrjFSPerfCounter_TryGetVirtualizationRoot]                         = " |--TryGetVirtualizationRoot",
+    [PrjFSPerfCounter_TryGetVirtualizationRoot_TemporaryDirectory]      = " | |--TemporaryDirectory",
+    [PrjFSPerfCounter_TryGetVirtualizationRoot_NoRootFound]             = " | |--NoRootFound",
+    [PrjFSPerfCounter_TryGetVirtualizationRoot_ProviderOffline]         = " | |--ProviderOffline",
+    [PrjFSPerfCounter_TryGetVirtualizationRoot_OriginatedByProvider]    = " | |--OriginatedByProvider",\
+    [PrjFSPerfCounter_VnodeOp_PreDelete]                                = " |--RaisePreDeleteEvent",
+    [PrjFSPerfCounter_VnodeOp_EnumerateDirectory]                       = " |--RaiseEnumerateDirectoryEvent",
+    [PrjFSPerfCounter_VnodeOp_RecursivelyEnumerateDirectory]            = " |--RaiseRecursivelyEnumerateEvent",
+    [PrjFSPerfCounter_VnodeOp_HydrateFile]                              = " |--RaiseHydrateFileEvent",
 };
 
 bool PrjFSLog_FetchAndPrintKextProfilingData(io_connect_t connection)
