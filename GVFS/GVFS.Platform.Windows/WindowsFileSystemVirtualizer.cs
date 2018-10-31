@@ -29,6 +29,15 @@ namespace GVFS.Platform.Windows
         private const int MaxBlobStreamBufferSize = 64 * 1024;
         private const int MinPrjLibThreads = 5;
 
+        // #define FILE_ATTRIBUTE_OFFLINE              0x00001000
+        private const int FileAttributeOffline = 0x00001000;
+
+        // #define FILE_ATTRIBUTE_RECALL_ON_DATA_ACCESS 0x00400000 // winnt
+        public const int FileAttributeRecallOnDataAccess = 0x00400000;
+
+        // #define IO_REPARSE_TAG_PROJFS                   (0x9000001CL)
+        public const uint IoReparseTagProjFS = 0x9000001C;
+
         private IVirtualizationInstance virtualizationInstance;
         private ConcurrentDictionary<Guid, ActiveEnumeration> activeEnumerations;
         private ConcurrentDictionary<int, CancellationTokenSource> activeCommands;
@@ -332,7 +341,11 @@ namespace GVFS.Platform.Windows
                         return HResult.InternalError;
                     }
 
-                    return HResult.Ok;
+                    HResult result = this.CreatePlaceholders(virtualPath, projectedItems, "StartDirectoryEnumerationHandler");
+                    if (result == HResult.Ok)
+                    {
+                        this.ConvertDirectoryToFull(virtualPath);
+                    }
                 }
 
                 CancellationTokenSource cancellationSource;
@@ -390,7 +403,8 @@ namespace GVFS.Platform.Windows
             HResult result;
             try
             {
-                ActiveEnumeration activeEnumeration = new ActiveEnumeration(this.FileSystemCallbacks.GitIndexProjection.GetProjectedItems(cancellationToken, blobSizesConnection, virtualPath));
+                List<ProjectedFileInfo> projectedItems = this.FileSystemCallbacks.GitIndexProjection.GetProjectedItems(cancellationToken, blobSizesConnection, virtualPath);
+                ActiveEnumeration activeEnumeration = new ActiveEnumeration(projectedItems);
 
                 if (!this.activeEnumerations.TryAdd(enumerationId, activeEnumeration))
                 {
@@ -402,7 +416,11 @@ namespace GVFS.Platform.Windows
                 }
                 else
                 {
-                    result = HResult.Ok;
+                    result = this.CreatePlaceholders(virtualPath, projectedItems, "StartDirectoryEnumerationAsyncHandler");
+                    if (result == HResult.Ok)
+                    {
+                        this.ConvertDirectoryToFull(virtualPath);
+                    }
                 }
             }
             catch (OperationCanceledException)
@@ -449,6 +467,63 @@ namespace GVFS.Platform.Windows
                 metadata.Add("activeEnumerationsUpdated", activeEnumerationsUpdated);                
                 this.Context.Tracer.RelatedEvent(EventLevel.Informational, $"{nameof(this.StartDirectoryEnumerationAsyncHandler)}_CommandAlreadyCanceled", metadata);                
             }
+        }
+
+        private HResult CreatePlaceholders(string directoryRelativePath, IEnumerable<ProjectedFileInfo> projectedItems, string triggeringProcessName)
+        {
+            foreach (ProjectedFileInfo fileInfo in projectedItems)
+            {
+                string childRelativePath = Path.Combine(directoryRelativePath, fileInfo.Name);
+
+                string sha;
+                FileSystemResult fileSystemResult;
+                if (fileInfo.IsFolder)
+                {
+                    sha = string.Empty;
+                    fileSystemResult = this.WritePlaceholderDirectory(childRelativePath);
+                }
+                else
+                {
+                    sha = fileInfo.Sha.ToString();
+                    fileSystemResult = this.WritePlaceholderFile(childRelativePath, fileInfo.Size, sha);
+                }
+
+                HResult result = (HResult)fileSystemResult.RawResult;
+                if (result != HResult.Ok)
+                {
+                    EventMetadata metadata = this.CreateEventMetadata(childRelativePath);
+                    metadata.Add("fileInfo.Name", fileInfo.Name);
+                    metadata.Add("fileInfo.Size", fileInfo.Size);
+                    metadata.Add("fileInfo.IsFolder", fileInfo.IsFolder);
+                    metadata.Add(nameof(sha), sha);
+                    this.Context.Tracer.RelatedError(metadata, $"{nameof(this.CreatePlaceholders)}: Write placeholder failed");
+
+                    return result;
+                }
+                else
+                {
+                    if (fileInfo.IsFolder)
+                    {
+                        this.FileSystemCallbacks.OnPlaceholderFolderCreated(childRelativePath);
+                    }
+                    else
+                    {
+                        this.FileSystemCallbacks.OnPlaceholderFileCreated(childRelativePath, sha, triggeringProcessName);
+                    }
+                }
+            }
+
+            this.FileSystemCallbacks.OnPlaceholderFolderExpanded(directoryRelativePath);
+
+            return HResult.Ok;
+        }
+
+        private void ConvertDirectoryToFull(string relativePath)
+        {
+            string fullPath = Path.Combine(this.Context.Enlistment.WorkingDirectoryRoot, relativePath);
+            DirectoryInfo directoryInfo = new DirectoryInfo(fullPath);
+            directoryInfo.Attributes = directoryInfo.Attributes & (FileAttributes)~(FileAttributeOffline | FileAttributeRecallOnDataAccess);
+            NativeMethods.DeleteReparsePoint(fullPath, )
         }
 
         private HResult EndDirectoryEnumerationHandler(Guid enumerationId)
