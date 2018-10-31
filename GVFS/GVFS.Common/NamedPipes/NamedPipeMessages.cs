@@ -137,6 +137,43 @@ namespace GVFS.Common.NamedPipes
             }
         }
 
+        public static class PostIndexChanged
+        {
+            public const string UpdateProjectionRequest = "UPD";
+            public const string SuccessResult = "S";
+            public const string FailureResult = "F";
+
+            public class Request
+            {
+                public Request(Message message)
+                {
+                    this.RequestSha = message.Body;
+                }
+
+                public string RequestSha { get; }
+
+                public Message CreateMessage()
+                {
+                    return new Message(UpdateProjectionRequest, this.RequestSha);
+                }
+            }
+
+            public class Response
+            {
+                public Response(string result)
+                {
+                    this.Result = result;
+                }
+
+                public string Result { get; }
+
+                public Message CreateMessage()
+                {
+                    return new Message(this.Result, null);
+                }
+            }
+        }
+
         public static class RunPostFetchJob
         {
             public const string PostFetchJob = "PostFetch";
