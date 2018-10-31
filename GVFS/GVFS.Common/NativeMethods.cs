@@ -13,6 +13,7 @@ namespace GVFS.Common
         private const uint IO_REPARSE_TAG_MOUNT_POINT = 0xA0000003;
         private const uint IO_REPARSE_TAG_SYMLINK = 0xA000000C;
         private const uint FSCTL_GET_REPARSE_POINT = 0x000900a8;
+        private const uint FSCTL_DELETE_REPARSE_POINT = 0x000900ac;
 
         private const int ReparseDataPathBufferLength = 1000;
 
@@ -146,12 +147,54 @@ namespace GVFS.Common
                 REPARSE_DATA_BUFFER reparseData = new REPARSE_DATA_BUFFER();
                 reparseData.ReparseDataLength = (4 * sizeof(ushort)) + ReparseDataPathBufferLength;
                 uint bytesReturned;
-                if (!DeviceIoControl(output, FSCTL_GET_REPARSE_POINT, IntPtr.Zero, 0, out reparseData, (uint)Marshal.SizeOf(reparseData), out bytesReturned, IntPtr.Zero))
+                if (!DeviceIoControlGetReparsePoint(
+                    output, 
+                    FSCTL_GET_REPARSE_POINT, 
+                    IntPtr.Zero, 
+                    0, 
+                    out reparseData, 
+                    (uint)Marshal.SizeOf(reparseData), 
+                    out bytesReturned, 
+                    IntPtr.Zero))
                 {
                     ThrowLastWin32Exception($"Failed to place reparse point for '{path}'");
                 }
 
                 return reparseData.ReparseTag == IO_REPARSE_TAG_SYMLINK || reparseData.ReparseTag == IO_REPARSE_TAG_MOUNT_POINT;
+            }
+        }
+
+        public static void DeleteReparsePoint(string path, uint reparseTag)
+        {
+            using (SafeFileHandle handle = CreateFile(
+                path,
+                FileAccess.FILE_WRITE_ATTRIBUTES,
+                FileShare.Read,
+                IntPtr.Zero,
+                FileMode.Open,
+                FileAttributes.FILE_FLAG_BACKUP_SEMANTICS | FileAttributes.FILE_FLAG_OPEN_REPARSE_POINT,
+                IntPtr.Zero))
+            {
+                if (handle.IsInvalid)
+                {
+                    ThrowLastWin32Exception($"Invalid handle for '{path}' as symlink");
+                }
+
+                REPARSE_GUID_DATA_BUFFER reparseData = new REPARSE_GUID_DATA_BUFFER();
+                reparseData.ReparseTag = reparseTag;
+                uint bytesReturned;
+                if (!DeviceIoControlDeleteReparsePoint(
+                    handle,
+                    FSCTL_DELETE_REPARSE_POINT,
+                    reparseData,
+                    (uint)Marshal.SizeOf(reparseData), 
+                    IntPtr.Zero, 
+                    0, 
+                    out bytesReturned, 
+                    IntPtr.Zero))
+                {
+                    ThrowLastWin32Exception($"Failed to remove reparse point for '{path}'");
+                }
             }
         }
 
@@ -201,8 +244,8 @@ namespace GVFS.Common
         private static extern bool GetVersionEx([In, Out] ref OSVersionInfo versionInfo);
 
         // For use with FSCTL_GET_REPARSE_POINT
-        [DllImport("Kernel32.dll", SetLastError = true, CharSet = CharSet.Unicode)]
-        private static extern bool DeviceIoControl(
+        [DllImport("Kernel32.dll", EntryPoint = "DeviceIoControl", SetLastError = true, CharSet = CharSet.Unicode)]
+        private static extern bool DeviceIoControlGetReparsePoint(
             SafeFileHandle hDevice,
             uint IoControlCode,
             [In] IntPtr InBuffer,
@@ -211,6 +254,18 @@ namespace GVFS.Common
             uint nOutBufferSize,
             out uint pBytesReturned,
             [In] IntPtr Overlapped);
+
+        // For use with FSCTL_DELETE_REPARSE_POINT
+        [DllImport("Kernel32.dll", EntryPoint = "DeviceIoControl", SetLastError = true, CharSet = CharSet.Unicode)]
+        private static extern bool DeviceIoControlDeleteReparsePoint(
+            SafeFileHandle hDevice,
+            uint IoControlCode,
+            [In] REPARSE_GUID_DATA_BUFFER InBuffer,
+            uint nInBufferSize,
+            IntPtr OutBuffer,
+            uint nOutBufferSize,
+            out uint pBytesReturned,
+            IntPtr Overlapped);
 
         [DllImport("kernel32.dll")]
         private static extern ulong GetTickCount64();
@@ -227,6 +282,21 @@ namespace GVFS.Common
             public ushort PrintNameLength;
             [MarshalAs(UnmanagedType.ByValArray, SizeConst = ReparseDataPathBufferLength)]
             public byte[] PathBuffer;
+        }
+
+        [StructLayout(LayoutKind.Sequential)]
+        private struct REPARSE_GUID_DATA_BUFFER
+        {
+            public uint ReparseTag;
+            public ushort ReparseDataLength;
+            public ushort Reserved;
+
+            // GUID data
+            public uint Data1;
+            public ushort Data2;
+            public ushort Data3;
+            [MarshalAs(UnmanagedType.ByValArray, SizeConst = 0x0008)]
+            public byte[] Data4;
         }
 
         [StructLayout(LayoutKind.Sequential)]

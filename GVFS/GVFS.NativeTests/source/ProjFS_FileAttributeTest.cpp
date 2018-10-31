@@ -97,6 +97,8 @@ bool ProjFS_FileAttributes(const char* virtualRootPath)
         TestFileAttribute(testRoot + "FileAttributes_READONLY", FILE_ATTRIBUTE_READONLY);
         TestFileAttribute(testRoot + "FileAttributes_SYSTEM", FILE_ATTRIBUTE_SYSTEM);
         TestFileAttribute(testRoot + "FileAttributes_TEMPORARY", FILE_ATTRIBUTE_TEMPORARY);
+
+        const int foo = REPARSE_GUID_DATA_BUFFER_HEADER_SIZE;
     }
     catch (TestException&)
     {

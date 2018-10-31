@@ -33,10 +33,10 @@ namespace GVFS.Platform.Windows
         private const int FileAttributeOffline = 0x00001000;
 
         // #define FILE_ATTRIBUTE_RECALL_ON_DATA_ACCESS 0x00400000 // winnt
-        public const int FileAttributeRecallOnDataAccess = 0x00400000;
+        private const int FileAttributeRecallOnDataAccess = 0x00400000;
 
         // #define IO_REPARSE_TAG_PROJFS                   (0x9000001CL)
-        public const uint IoReparseTagProjFS = 0x9000001C;
+        private const uint IoReparseTagProjFS = 0x9000001C;
 
         private IVirtualizationInstance virtualizationInstance;
         private ConcurrentDictionary<Guid, ActiveEnumeration> activeEnumerations;
@@ -523,7 +523,7 @@ namespace GVFS.Platform.Windows
             string fullPath = Path.Combine(this.Context.Enlistment.WorkingDirectoryRoot, relativePath);
             DirectoryInfo directoryInfo = new DirectoryInfo(fullPath);
             directoryInfo.Attributes = directoryInfo.Attributes & (FileAttributes)~(FileAttributeOffline | FileAttributeRecallOnDataAccess);
-            NativeMethods.DeleteReparsePoint(fullPath, )
+            NativeMethods.DeleteReparsePoint(fullPath, IoReparseTagProjFS);
         }
 
         private HResult EndDirectoryEnumerationHandler(Guid enumerationId)
