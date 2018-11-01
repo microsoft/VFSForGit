@@ -90,23 +90,12 @@ namespace GVFS.Platform.Windows
 
             if (string.IsNullOrEmpty(this.ikey))
             {
-                var payload = new
-                {
-                    Json = jsonPayload,
-                    EnlistmentId = this.enlistmentId,
-                    MountId = this.mountId,
-                };
+                Payload payload = new Payload(jsonPayload, this.enlistmentId, this.mountId);
                 this.eventSource.Write(eventName, ref options, ref activityId, ref parentActivityId, ref payload);
             }
             else
             {
-                var payload = new
-                {
-                    PartA_iKey = this.ikey,
-                    Json = jsonPayload,
-                    EnlistmentId = this.enlistmentId,
-                    MountId = this.mountId,
-                };
+                PayloadWithIKey payload = new PayloadWithIKey(jsonPayload, this.enlistmentId, this.mountId, this.ikey);
                 this.eventSource.Write(eventName, ref options, ref activityId, ref parentActivityId, ref payload);
             }
         }
@@ -137,6 +126,37 @@ namespace GVFS.Platform.Windows
             options.Opcode = (Microsoft.Diagnostics.Tracing.EventOpcode)opcode;
 
             return options;
+        }
+
+        [EventData]
+        private class Payload
+        {
+            public Payload(string jsonPayload, string enlistmentId, string mountId)
+            {
+                this.Json = jsonPayload;
+                this.EnlistmentId = enlistmentId;
+                this.MountId = mountId;
+            }
+
+            [EventField]
+            public string Json { get; }
+            [EventField]
+            public string EnlistmentId { get; }
+            [EventField]
+            public string MountId { get; }
+        }
+
+        [EventData]
+        private class PayloadWithIKey : Payload
+        {
+            public PayloadWithIKey(string jsonPayload, string enlistmentId, string mountId, string ikey)
+                : base(jsonPayload, enlistmentId, mountId)
+            {
+                this.PartA_iKey = ikey;
+            }
+
+            [EventField]
+            public string PartA_iKey { get; }
         }
     }
 }
