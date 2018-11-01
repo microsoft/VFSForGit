@@ -15,6 +15,7 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
         }
 
         [TestCase]
+        [Category(Categories.MacTODO.FlakyTest)] 
         public void MoveFileIntoDotGitDirectory()
         {
             string srcPath = @"Readme.md";
