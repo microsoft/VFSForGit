@@ -1142,6 +1142,7 @@ namespace GVFS.FunctionalTests.Windows.Windows.Tests
             ProjFS_MoveFileTest.ProjFS_MoveFile_VirtualToOutside(Path.GetDirectoryName(this.Enlistment.RepoRoot), this.Enlistment.RepoRoot).ShouldEqual(true);
         }
 
+        [Ignore("Disable this test until we can surface native test errors, see #454")]
         [TestCase]
         public void Native_ProjFS_MoveFile_PartialToOutside()
         {
