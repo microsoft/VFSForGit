@@ -92,7 +92,8 @@ namespace GVFS.Platform.Mac
 
         public override string GetOSVersionInformation()
         {
-            throw new NotImplementedException();
+            ProcessResult result = ProcessHelper.Run("sw_vers", args: string.Empty, redirectOutput: true);
+            return string.IsNullOrWhiteSpace(result.Output) ? result.Errors : result.Output;
         }
 
         public override Dictionary<string, string> GetPhysicalDiskInfo(string path)

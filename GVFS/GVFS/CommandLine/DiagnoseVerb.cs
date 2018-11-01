@@ -4,7 +4,6 @@ using GVFS.Common.FileSystem;
 using GVFS.Common.Git;
 using GVFS.Common.Http;
 using GVFS.Common.Tracing;
-using Microsoft.Win32;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -17,7 +16,8 @@ namespace GVFS.CommandLine
     public class DiagnoseVerb : GVFSVerb.ForExistingEnlistment
     {
         private const string DiagnoseVerbName = "diagnose";
-        private const string System32LogFilesRoot = @"%SystemRoot%\System32\LogFiles";
+        private const string WindowsExecutableExtension = ".exe";
+        private const string MacNamedPipeSocketName = "GVFS_NetCorePipe";
 
         private TextWriter diagnosticLogFileWriter;
 
@@ -90,13 +90,16 @@ namespace GVFS.CommandLine
                         // .gvfs
                         this.CopyAllFiles(enlistment.EnlistmentRoot, archiveFolderPath, GVFSConstants.DotGVFS.Root, copySubFolders: false);
 
-                        // filter
-                        this.FlushFilterLogBuffers();
-                        string system32LogFilesPath = Environment.ExpandEnvironmentVariables(System32LogFilesRoot);
+                        if (!GVFSPlatform.Instance.IsUnderConstruction)
+                        {
+                            // filter
+                            this.FlushFilterLogBuffers();
+                            string kernelLogsFolderPath = GVFSPlatform.Instance.KernelDriver.KernelLogsFolderPath;
 
-                        // This copy sometimes fails because the OS has an exclusive lock on the etl files. The error is not actionable
-                        // for the user so we don't write the error message to stdout, just to our own log file.
-                        this.CopyAllFiles(system32LogFilesPath, archiveFolderPath, GVFSPlatform.Instance.KernelDriver.DriverLogFolderName, copySubFolders: false, hideErrorsFromStdout: true);
+                            // This copy sometimes fails because the OS has an exclusive lock on the etl files. The error is not actionable
+                            // for the user so we don't write the error message to stdout, just to our own log file.
+                            this.CopyAllFiles(Path.GetDirectoryName(kernelLogsFolderPath), archiveFolderPath, Path.GetFileName(kernelLogsFolderPath), copySubFolders: false, hideErrorsFromStdout: true);
+                        }
 
                         // .git
                         this.CopyAllFiles(enlistment.WorkingDirectoryRoot, archiveFolderPath, GVFSConstants.DotGit.Root, copySubFolders: false);
@@ -117,25 +120,28 @@ namespace GVFS.CommandLine
                         // corrupt objects
                         this.CopyAllFiles(enlistment.DotGVFSRoot, Path.Combine(archiveFolderPath, GVFSConstants.DotGVFS.Root), GVFSConstants.DotGVFS.CorruptObjectsName, copySubFolders: false);
 
-                        // service
-                        this.CopyAllFiles(
-                            Paths.GetServiceDataRoot(string.Empty),
-                            archiveFolderPath,
-                            this.ServiceName,
-                            copySubFolders: true);
+                        if (!GVFSPlatform.Instance.IsUnderConstruction)
+                        {
+                            // service
+                            this.CopyAllFiles(
+                                Paths.GetServiceDataRoot(string.Empty),
+                                archiveFolderPath,
+                                this.ServiceName,
+                                copySubFolders: true);
 
-                        // upgrader
-                        this.CopyAllFiles(
-                            ProductUpgrader.GetUpgradesDirectoryPath(),
-                            archiveFolderPath,
-                            ProductUpgrader.LogDirectory,
-                            copySubFolders: true,
-                            targetFolderName: ProductUpgrader.UpgradeDirectoryName);
-                        this.LogDirectoryEnumeration(
-                            ProductUpgrader.GetUpgradesDirectoryPath(), 
-                            Path.Combine(archiveFolderPath, ProductUpgrader.UpgradeDirectoryName),
-                            ProductUpgrader.DownloadDirectory, 
-                            "downloaded-assets.txt");
+                            // upgrader
+                            this.CopyAllFiles(
+                                ProductUpgrader.GetUpgradesDirectoryPath(),
+                                archiveFolderPath,
+                                ProductUpgrader.LogDirectory,
+                                copySubFolders: true,
+                                targetFolderName: ProductUpgrader.UpgradeDirectoryName);
+                            this.LogDirectoryEnumeration(
+                                ProductUpgrader.GetUpgradesDirectoryPath(),
+                                Path.Combine(archiveFolderPath, ProductUpgrader.UpgradeDirectoryName),
+                                ProductUpgrader.DownloadDirectory,
+                                "downloaded-assets.txt");
+                        }
                      
                         return true;
                     },
@@ -390,7 +396,8 @@ namespace GVFS.CommandLine
                 try
                 {
                     string fileExtension = Path.GetExtension(fileName);
-                    if (!string.Equals(fileExtension, ".exe", StringComparison.OrdinalIgnoreCase))
+                    if (!string.Equals(fileExtension, WindowsExecutableExtension, StringComparison.OrdinalIgnoreCase) &&
+                        !string.Equals(fileName, MacNamedPipeSocketName, StringComparison.OrdinalIgnoreCase))
                     {
                         File.Copy(
                             Path.Combine(sourcePath, fileName),

@@ -6,7 +6,7 @@ namespace GVFS.Common.FileSystem
     public interface IKernelDriver
     {
         bool EnumerationExpandsDirectories { get; }
-        string DriverLogFolderName { get; }
+        string KernelLogsFolderPath { get; }
         bool IsSupported(string normalizedEnlistmentRootPath, out string warning, out string error);
         string FlushDriverLogs();
         bool TryPrepareFolderForCallbacks(string folderPath, out string error, out Exception exception);
