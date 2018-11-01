@@ -3,6 +3,10 @@
 #include <stdatomic.h>
 #include <IOKit/IOUserClient.h>
 
+#if PRJFS_PERFORMANCE_TRACING_ENABLE
+uint64_t PerfTracer::s_numTracers = 0;
+#endif
+
 static PerfTracingProbe profile_probes[PrjFSPerfCounter_Count];
 
 void InitProbe(PrjFSPerfCounter counter);

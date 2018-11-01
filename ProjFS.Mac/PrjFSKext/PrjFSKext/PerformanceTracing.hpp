@@ -14,30 +14,45 @@ IOReturn PerfTracing_ExportDataUserClient(IOExternalMethodArguments* arguments);
 
 class PerfTracer
 {
+private:
+#if PRJFS_PERFORMANCE_TRACING_ENABLE
+    static uint64_t s_numTracers;
+    bool isEnabled;
+#endif
+
 public:
-    inline void IncrementCount(PrjFSPerfCounter counter);
+    inline PerfTracer();
     inline bool IsEnabled();
+    inline void IncrementCount(PrjFSPerfCounter counter);
 };
 
-void PerfTracer::IncrementCount(PrjFSPerfCounter counter)
+inline PerfTracer::PerfTracer()
 {
 #if PRJFS_PERFORMANCE_TRACING_ENABLE
-    PerfTracing_RecordSample(counter, 0, 0);
+    // Set this value to N for a sampling rate of 1/N
+    const int sampleEveryNthTracer = 100;
+
+    uint64_t id = s_numTracers++;
+    this->isEnabled = (id % sampleEveryNthTracer == 0);
 #endif
 }
 
-bool PerfTracer::IsEnabled()
+inline bool PerfTracer::IsEnabled()
 {
 #if PRJFS_PERFORMANCE_TRACING_ENABLE
-    // TODO: in the constructor, decide if this tracer instance is enabled or not based on
-    // a desired sampling rate. We create one tracer instance per vnode/fileop callback,
-    // and that tracer instance is used to initialize all PerfSamples for the duration of that
-    // callback. So by performing the sampling calculation once per tracer, we will gather
-    // all or nothing of a sample set of callbacks, and therefore gather a representative
-    // view of the relative amounts of time spent on each sample
-    return true;
+    return this->isEnabled;
 #else
     return false;
+#endif
+}
+
+inline void PerfTracer::IncrementCount(PrjFSPerfCounter counter)
+{
+#if PRJFS_PERFORMANCE_TRACING_ENABLE
+    if (this->IsEnabled())
+    {
+        PerfTracing_RecordSample(counter, 0, 0);
+    }
 #endif
 }
 
@@ -55,7 +70,7 @@ public:
     inline ~PerfSample();
 };
 
-PerfSample::PerfSample(PerfTracer* perfTracer, PrjFSPerfCounter counter)
+inline PerfSample::PerfSample(PerfTracer* perfTracer, PrjFSPerfCounter counter)
 #if PRJFS_PERFORMANCE_TRACING_ENABLE
     :
     perfTracer(perfTracer),
@@ -65,7 +80,7 @@ PerfSample::PerfSample(PerfTracer* perfTracer, PrjFSPerfCounter counter)
 {
 }
 
-PerfSample::~PerfSample()
+inline PerfSample::~PerfSample()
 {
 #if PRJFS_PERFORMANCE_TRACING_ENABLE
     if (this->perfTracer->IsEnabled())
