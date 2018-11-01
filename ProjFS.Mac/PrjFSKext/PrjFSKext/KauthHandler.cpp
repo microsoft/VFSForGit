@@ -501,7 +501,11 @@ static int HandleFileOpOperation(
         }
 
         bool fileFlaggedInRoot;
-        assert(TryGetFileIsFlaggedAsInRoot(currentVnode, context, &fileFlaggedInRoot));
+        if (!TryGetFileIsFlaggedAsInRoot(currentVnode, context, &fileFlaggedInRoot))
+        {
+            KextLog_Info("Failed to read attributes when handling FileOp operation. Path is %s", path);
+            goto CleanupAndReturn;
+        }
         
         if (fileFlaggedInRoot && KAUTH_FILEOP_CLOSE_MODIFIED != closeFlags)
         {
