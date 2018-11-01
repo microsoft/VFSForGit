@@ -134,14 +134,15 @@ namespace GVFS.Mount
                 Console.Title = "GVFS " + ProcessHelper.GetCurrentProcessVersion() + " - " + this.enlistment.EnlistmentRoot;
 
                 this.tracer.RelatedEvent(
-                    EventLevel.Critical,
+                    EventLevel.Informational,
                     "Mount",
                     new EventMetadata
                     {
                         // Use TracingConstants.MessageKey.InfoMessage rather than TracingConstants.MessageKey.CriticalMessage
                         // as this message should not appear as an error
                         { TracingConstants.MessageKey.InfoMessage, "Virtual repo is ready" },
-                    });
+                    },
+                    Keywords.Telemetry);
 
                 this.currentState = MountState.Ready;
 
