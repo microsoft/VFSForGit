@@ -229,6 +229,20 @@ namespace GVFS.Virtualization.Projection
             this.indexParsingThread.Wait();
         }
 
+        public void AllowIndexToBeParsed()
+        {
+            // Inform the index parsing thread that git has indicated the index has changed,
+            // which means the projection needs to be updated to be correct before git proceeds
+            this.externalLockReleaseRequested.Set();
+
+            this.ClearNegativePathCacheIfPollutedByGit();
+            this.projectionParseComplete.Wait();
+
+            this.externalLockReleaseRequested.Reset();
+
+            this.ClearUpdatePlaceholderErrors();
+        }
+
         public NamedPipeMessages.ReleaseLock.Response TryReleaseExternalLock(int pid)
         {
             NamedPipeMessages.LockData externalHolder = this.context.Repository.GVFSLock.GetExternalHolder();

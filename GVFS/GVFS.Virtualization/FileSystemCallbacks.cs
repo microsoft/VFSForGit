@@ -353,6 +353,11 @@ namespace GVFS.Virtualization
             return metadata;
         }
 
+        public void UpdateIndexProjection()
+        {
+            this.GitIndexProjection.AllowIndexToBeParsed();
+        }
+
         public NamedPipeMessages.ReleaseLock.Response TryReleaseExternalLock(int pid)
         {
             return this.GitIndexProjection.TryReleaseExternalLock(pid);

@@ -3,7 +3,7 @@
 
 enum PostIndexChangedErrorReturnCode
 {
-	ErrorPostIndexChangedProtocol = ReturnCode::LastError + 1,
+    ErrorPostIndexChangedProtocol = ReturnCode::LastError + 1,
 };
 
 const int PIPE_BUFFER_SIZE = 1024;
@@ -12,7 +12,7 @@ int main(int argc, char *argv[])
 {
     if (argc != 3)
     {
-        die(PostIndexChangedErrorReturnCode::ErrorPostIndexChangedProtocol, "Invalid arguments");
+        die(ReturnCode::InvalidArgCount, "Invalid arguments");
     }
 
     if (strcmp(argv[1], "1") && strcmp(argv[1], "0"))
@@ -20,23 +20,33 @@ int main(int argc, char *argv[])
         die(PostIndexChangedErrorReturnCode::ErrorPostIndexChangedProtocol, "Invalid value passed for first argument");
     }
 
-	if (strcmp(argv[2], "1") && strcmp(argv[2], "0"))
-	{
-		die(PostIndexChangedErrorReturnCode::ErrorPostIndexChangedProtocol, "Invalid value passed for second argument");
-	}
+    if (strcmp(argv[2], "1") && strcmp(argv[2], "0"))
+    {
+        die(PostIndexChangedErrorReturnCode::ErrorPostIndexChangedProtocol, "Invalid value passed for second argument");
+    }
 
     DisableCRLFTranslationOnStdPipes();
 
     PATH_STRING pipeName(GetGVFSPipeName(argv[0]));
     PIPE_HANDLE pipeHandle = CreatePipeToGVFS(pipeName);
 
-    // Construct projection request message
+    // Construct index changed request message
+    // Format:  "UPD|<working directory updated flag><reset --mixed flag>"
+    // Example: "UPD|10"
+    // Example: "UPD|01"
     unsigned long bytesWritten;
-    unsigned long messageLength = 6;
+    const unsigned long messageLength = 7;
     int error = 0;
+    char request[messageLength];
+    if (snprintf(request, messageLength, "UPD|%s%s", argv[1], argv[2]) != messageLength - 1)
+    {
+        die(PostIndexChangedErrorReturnCode::ErrorPostIndexChangedProtocol, "Invalid value for message");
+    }
+
+    request[messageLength - 1] = 0x03;
     bool success = WriteToPipe(
         pipeHandle,
-        "MPL|1\x3",
+        request,
         messageLength,
         &bytesWritten,
         &error);
@@ -52,53 +62,21 @@ int main(int argc, char *argv[])
     char message[PIPE_BUFFER_SIZE + 1];
     unsigned long bytesRead;
     int lastError;
-    bool finishedReading = false;
-    bool firstRead = true;
-
-    do
-    {
-        char *pMessage = &message[0];
-
-        success = ReadFromPipe(
-            pipeHandle,
-            message,
-            PIPE_BUFFER_SIZE,
-            &bytesRead,
-            &lastError);
-
-        if (!success)
-        {
-            break;
-        }
-
-        messageLength = bytesRead;
-
-        if (firstRead)
-        {
-            firstRead = false;
-            if (message[0] != 'S')
-            {
-                message[bytesRead] = 0;
-                die(ReturnCode::PipeReadFailed, "Read response from pipe failed (%s)\n", message);
-            }
-
-            pMessage += 2;
-            messageLength -= 2;
-        }
-
-        if (*(pMessage + messageLength - 1) == '\x3')
-        {
-            finishedReading = true;
-            messageLength -= 1;
-        }
-
-        fwrite(pMessage, 1, messageLength, stdout);
-
-    } while (success && !finishedReading);
+    success = ReadFromPipe(
+        pipeHandle,
+        message,
+        PIPE_BUFFER_SIZE,
+        &bytesRead,
+        &lastError);
 
     if (!success)
     {
         die(ReturnCode::PipeReadFailed, "Read response from pipe failed (%d)\n", lastError);
+    }
+
+    if (message[0] != 'S')
+    {
+        die(ReturnCode::PipeReadFailed, "Read response from pipe failed (%s)\n", message);
     }
 
     return 0;

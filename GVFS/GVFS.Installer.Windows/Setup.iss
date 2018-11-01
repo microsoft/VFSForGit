@@ -14,6 +14,7 @@
 #define GVFSMountDir BuildOutputDir + "\GVFS.Mount.Windows\bin\" + PlatformAndConfiguration
 #define ReadObjectDir BuildOutputDir + "\GVFS.ReadObjectHook.Windows\bin\" + PlatformAndConfiguration
 #define VirtualFileSystemDir BuildOutputDir + "\GVFS.VirtualFileSystemHook.Windows\bin\" + PlatformAndConfiguration
+#define PostIndexChangedDir BuildOutputDir + "\GVFS.PostIndexChangedHook.Windows\bin\" + PlatformAndConfiguration
 #define GVFSUpgraderDir BuildOutputDir + "\GVFS.Upgrader\bin\" + PlatformAndConfiguration
 
 #define MyAppName "GVFS"
@@ -106,6 +107,10 @@ DestDir: "{app}"; Flags: ignoreversion; Source:"{#ReadObjectDir}\GVFS.ReadObject
 ; GVFS.VirtualFileSystemHook files
 DestDir: "{app}"; Flags: ignoreversion; Source:"{#VirtualFileSystemDir}\GVFS.VirtualFileSystemHook.pdb"
 DestDir: "{app}"; Flags: ignoreversion; Source:"{#VirtualFileSystemDir}\GVFS.VirtualFileSystemHook.exe"
+
+; GVFS.PostIndexChangedHook files
+DestDir: "{app}"; Flags: ignoreversion; Source:"{#PostIndexChangedDir}\GVFS.PostIndexChangedHook.pdb"
+DestDir: "{app}"; Flags: ignoreversion; Source:"{#PostIndexChangedDir}\GVFS.PostIndexChangedHook.exe"
 
 ; Cpp Dependencies
 DestDir: "{app}"; Flags: ignoreversion; Source:"{#VCRuntimeDir}\msvcp140.dll"
