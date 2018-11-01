@@ -78,6 +78,7 @@ namespace GVFS.FunctionalTests
                 excludeCategories.Add(Categories.MacTODO.NeedsRenameOldPath);
                 excludeCategories.Add(Categories.MacTODO.M3);
                 excludeCategories.Add(Categories.MacTODO.M4);
+                excludeCategories.Add(Categories.MacTODO.FlakyTest);
                 excludeCategories.Add(Categories.WindowsOnly);
             }
             else

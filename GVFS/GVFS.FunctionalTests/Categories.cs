@@ -26,6 +26,10 @@
 
             // Tests for GVFS features that are not required for correct git functionality
             public const string M4 = "M4_GVFSFeatures";
+
+            // Tests that have been flaky on build servers and need additional logging and\or
+            // investigation
+            public const string FlakyTest = "MacFlakyTest";
         }
     }
 }
