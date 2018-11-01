@@ -3,7 +3,7 @@
 #include <stdatomic.h>
 #include <IOKit/IOUserClient.h>
 
-PerfTracingProbe profile_probes[PrjFSPerfCounter_Count];
+static PerfTracingProbe profile_probes[PrjFSPerfCounter_Count];
 
 void InitProbe(PrjFSPerfCounter counter);
 

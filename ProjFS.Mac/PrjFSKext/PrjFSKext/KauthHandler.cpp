@@ -87,6 +87,7 @@ static bool TryGetVirtualizationRoot(
 
 static bool ShouldHandleFileOpEvent(
     // In params:
+    PerfTracer* perfTracer,
     vfs_context_t _Nonnull context,
     const vnode_t vnode,
     kauth_action_t action,
@@ -322,12 +323,16 @@ static int HandleVnodeOperation(
     bool isDeleteAction = false;
     bool isDirectory = false;
     
-    // TODO(Mac): Issue #271 - Reduce reliance on vn_getpath
-    // Call vn_getpath first when the cache is hottest to increase the chances
-    // of successfully getting the path
-    if (0 == vn_getpath(currentVnode, vnodePathBuffer, &vnodePathLength))
     {
-        vnodePath = vnodePathBuffer;
+        // TODO(Mac): Issue #271 - Reduce reliance on vn_getpath
+        PerfSample pathSample(&perfTracer, PrjFSPerfCounter_VnodeOp_GetPath);
+        
+        // Call vn_getpath first when the cache is hottest to increase the chances
+        // of successfully getting the path
+        if (0 == vn_getpath(currentVnode, vnodePathBuffer, &vnodePathLength))
+        {
+            vnodePath = vnodePathBuffer;
+        }
     }
 
     if (!ShouldHandleVnodeOpEvent(
@@ -495,7 +500,8 @@ static int HandleFileOpOperation(
 {
     atomic_fetch_add(&s_numActiveKauthEvents, 1);
     
-//    ProfileSample functionSample(Probe_FileOp);
+    PerfTracer perfTracer;
+    PerfSample fileOpSample(&perfTracer, PrjFSPerfCounter_FileOp);
 
     vfs_context_t _Nonnull context = vfs_context_create(NULL);
     vnode_t currentVnodeFromPath = NULLVP;
@@ -518,6 +524,7 @@ static int HandleFileOpOperation(
         FsidInode vnodeFsidInode;
         int pid;
         if (!ShouldHandleFileOpEvent(
+                &perfTracer,
                 context,
                 currentVnodeFromPath,
                 action,
@@ -531,30 +538,50 @@ static int HandleFileOpOperation(
         char procname[MAXCOMLEN + 1];
         proc_name(pid, procname, MAXCOMLEN + 1);
 
-        MessageType messageType;
         if (KAUTH_FILEOP_RENAME == action)
         {
-            messageType = vnode_isdir(currentVnodeFromPath) ? MessageType_KtoU_NotifyDirectoryRenamed : MessageType_KtoU_NotifyFileRenamed;
+            PerfSample renameSample(&perfTracer, PrjFSPerfCounter_FileOp_Renamed);
+            
+            MessageType messageType =
+                vnode_isdir(currentVnodeFromPath)
+                ? MessageType_KtoU_NotifyDirectoryRenamed
+                : MessageType_KtoU_NotifyFileRenamed;
+
+            int kauthResult;
+            int kauthError;
+            if (!TrySendRequestAndWaitForResponse(
+                    root,
+                    messageType,
+                    currentVnodeFromPath,
+                    vnodeFsidInode,
+                    newPath,
+                    pid,
+                    procname,
+                    &kauthResult,
+                    &kauthError))
+            {
+                goto CleanupAndReturn;
+            }
         }
         else
         {
-            messageType = MessageType_KtoU_NotifyFileHardLinkCreated;
-        }
-
-        int kauthResult;
-        int kauthError;
-        if (!TrySendRequestAndWaitForResponse(
-                root,
-                messageType,
-                currentVnodeFromPath,
-                vnodeFsidInode,
-                newPath,
-                pid,
-                procname,
-                &kauthResult,
-                &kauthError))
-        {
-            goto CleanupAndReturn;
+            PerfSample hardLinkSample(&perfTracer, PrjFSPerfCounter_FileOp_HardLinkCreated);
+        
+            int kauthResult;
+            int kauthError;
+            if (!TrySendRequestAndWaitForResponse(
+                    root,
+                    MessageType_KtoU_NotifyFileHardLinkCreated,
+                    currentVnodeFromPath,
+                    vnodeFsidInode,
+                    newPath,
+                    pid,
+                    procname,
+                    &kauthResult,
+                    &kauthError))
+            {
+                goto CleanupAndReturn;
+            }
         }
     }
     else if (KAUTH_FILEOP_CLOSE == action)
@@ -584,6 +611,7 @@ static int HandleFileOpOperation(
         FsidInode vnodeFsidInode;
         int pid;
         if (!ShouldHandleFileOpEvent(
+                &perfTracer,
                 context,
                 currentVnode,
                 action,
@@ -599,6 +627,8 @@ static int HandleFileOpOperation(
         
         if (fileFlaggedInRoot)
         {
+            PerfSample fileModifiedSample(&perfTracer, PrjFSPerfCounter_FileOp_FileModified);
+        
             int kauthResult;
             int kauthError;
             if (!TrySendRequestAndWaitForResponse(
@@ -617,6 +647,8 @@ static int HandleFileOpOperation(
         }
         else
         {
+            PerfSample fileCreatedSample(&perfTracer, PrjFSPerfCounter_FileOp_FileCreated);
+            
             int kauthResult;
             int kauthError;
             if (!TrySendRequestAndWaitForResponse(
@@ -697,19 +729,19 @@ static bool ShouldHandleVnodeOpEvent(
             *kauthResult = KAUTH_RESULT_DENY;
             return false;
         }
+
+        if (!FileFlagsBitIsSet(*vnodeFileFlags, FileFlags_IsInVirtualizationRoot))
+        {
+            // This vnode is not part of ANY virtualization root, so exit now before doing any more work.
+            // This gives us a cheap way to avoid adding overhead to IO outside of a virtualization root.
+            
+            perfTracer->IncrementCount(PrjFSPerfCounter_ShouldHandleVnodeOp_NotInAnyRoot);
+
+            *kauthResult = KAUTH_RESULT_DEFER;
+            return false;
+        }
     }
 
-    if (!FileFlagsBitIsSet(*vnodeFileFlags, FileFlags_IsInVirtualizationRoot))
-    {
-        // This vnode is not part of ANY virtualization root, so exit now before doing any more work.
-        // This gives us a cheap way to avoid adding overhead to IO outside of a virtualization root.
-        
-        perfTracer->IncrementCount(PrjFSPerfCounter_ShouldHandleVnodeOp_NotInAnyRoot);
-
-        *kauthResult = KAUTH_RESULT_DEFER;
-        return false;
-    }
-    
     *pid = GetPid(context);
     proc_name(*pid, procname, MAXCOMLEN + 1);
     
@@ -780,13 +812,17 @@ static bool TryGetVirtualizationRoot(
         return false;
     }
     
-    // If the calling process is the provider, we must exit right away to avoid deadlocks
-    if (VirtualizationRoot_PIDMatchesProvider(*root, pid))
     {
-        perfTracer->IncrementCount(PrjFSPerfCounter_TryGetVirtualizationRoot_OriginatedByProvider);
-        
-        *kauthResult = KAUTH_RESULT_DEFER;
-        return false;
+        PerfSample pidSample(perfTracer, PrjFSPerfCounter_TryGetVirtualizationRoot_CompareProviderPid);
+    
+        // If the calling process is the provider, we must exit right away to avoid deadlocks
+        if (VirtualizationRoot_PIDMatchesProvider(*root, pid))
+        {
+            perfTracer->IncrementCount(PrjFSPerfCounter_TryGetVirtualizationRoot_OriginatedByProvider);
+            
+            *kauthResult = KAUTH_RESULT_DEFER;
+            return false;
+        }
     }
     
     return true;
@@ -794,6 +830,7 @@ static bool TryGetVirtualizationRoot(
 
 static bool ShouldHandleFileOpEvent(
     // In params:
+    PerfTracer* perfTracer,
     vfs_context_t context,
     const vnode_t vnode,
     kauth_action_t action,
@@ -803,6 +840,8 @@ static bool ShouldHandleFileOpEvent(
     FsidInode* vnodeFsidInode,
     int* pid)
 {
+    PerfSample fileOpSample(perfTracer, PrjFSPerfCounter_ShouldHandleFileOp);
+
     *root = RootHandle_None;
 
     if (!VirtualizationRoot_VnodeIsOnAllowedFilesystem(vnode))
@@ -816,19 +855,29 @@ static bool ShouldHandleFileOpEvent(
         return false;
     }
     
-    *vnodeFsidInode = Vnode_GetFsidAndInode(vnode, context);
-    *root = VirtualizationRoot_FindForVnode(vnode, *vnodeFsidInode);
-    if (!VirtualizationRoot_IsValidRootHandle(*root))
     {
-        // This VNode is not part of a root
-        return false;
+        PerfSample findRootSample(perfTracer, PrjFSPerfCounter_ShouldHandleFileOp_FindVirtualizationRoot);
+        
+        *vnodeFsidInode = Vnode_GetFsidAndInode(vnode, context);
+        *root = VirtualizationRoot_FindForVnode(vnode, *vnodeFsidInode);
+        
+        if (!VirtualizationRoot_IsValidRootHandle(*root))
+        {
+            perfTracer->IncrementCount(PrjFSPerfCounter_ShouldHandleFileOp_NoRootFound);
+            return false;
+        }
     }
     
-    *pid = GetPid(context);
-    if (VirtualizationRoot_PIDMatchesProvider(*root, *pid))
     {
+        PerfSample pidSample(perfTracer, PrjFSPerfCounter_ShouldHandleFileOp_CompareProviderPid);
+    
         // If the calling process is the provider, we must exit right away to avoid deadlocks
-        return false;
+        *pid = GetPid(context);
+        if (VirtualizationRoot_PIDMatchesProvider(*root, *pid))
+        {
+            perfTracer->IncrementCount(PrjFSPerfCounter_ShouldHandleFileOp_OriginatedByProvider);
+            return false;
+        }
     }
     
     return true;

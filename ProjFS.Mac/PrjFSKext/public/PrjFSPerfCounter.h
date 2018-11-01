@@ -6,6 +6,7 @@ enum PrjFSPerfCounter : int32_t
     // Note: ensure that any changes to this list are reflected in the PerfCounterNames array of strings
     
     PrjFSPerfCounter_VnodeOp,
+    PrjFSPerfCounter_VnodeOp_GetPath,
     
     PrjFSPerfCounter_ShouldHandleVnodeOp,
     PrjFSPerfCounter_ShouldHandleVnodeOp_IsAllowedFileSystem,
@@ -20,6 +21,7 @@ enum PrjFSPerfCounter : int32_t
     PrjFSPerfCounter_TryGetVirtualizationRoot_TemporaryDirectory,
     PrjFSPerfCounter_TryGetVirtualizationRoot_NoRootFound,
     PrjFSPerfCounter_TryGetVirtualizationRoot_ProviderOffline,
+    PrjFSPerfCounter_TryGetVirtualizationRoot_CompareProviderPid,
     PrjFSPerfCounter_TryGetVirtualizationRoot_OriginatedByProvider,
     
     PrjFSPerfCounter_VnodeOp_PreDelete,
@@ -27,6 +29,19 @@ enum PrjFSPerfCounter : int32_t
     PrjFSPerfCounter_VnodeOp_RecursivelyEnumerateDirectory,
     PrjFSPerfCounter_VnodeOp_HydrateFile,
     
+    PrjFSPerfCounter_FileOp,
+
+    PrjFSPerfCounter_ShouldHandleFileOp,
+    PrjFSPerfCounter_ShouldHandleFileOp_FindVirtualizationRoot,
+    PrjFSPerfCounter_ShouldHandleFileOp_NoRootFound,
+    PrjFSPerfCounter_ShouldHandleFileOp_CompareProviderPid,
+    PrjFSPerfCounter_ShouldHandleFileOp_OriginatedByProvider,
+    
+    PrjFSPerfCounter_FileOp_Renamed,
+    PrjFSPerfCounter_FileOp_HardLinkCreated,
+    PrjFSPerfCounter_FileOp_FileModified,
+    PrjFSPerfCounter_FileOp_FileCreated,
+
     PrjFSPerfCounter_Count,
 };
 
