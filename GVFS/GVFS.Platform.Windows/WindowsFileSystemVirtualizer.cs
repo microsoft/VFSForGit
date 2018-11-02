@@ -912,9 +912,10 @@ namespace GVFS.Platform.Windows
 
                 if (byteOffset != 0)
                 {
-                    activity.RelatedError(metadata, "Invalid Parameter: byteOffset must be 0");
+                    metadata.Add(TracingConstants.MessageKey.InfoMessage, $"{nameof(GetFileStreamHandler)} ignoring file stream request with non-zero offset");
+                    activity.RelatedEvent(EventLevel.Informational, "GetFileStream_NonZeroOffset", metadata);
                     activity.Dispose();
-                    return HResult.InternalError;
+                    return HResult.Ok;
                 }
 
                 if (placeholderVersion != FileSystemVirtualizer.PlaceholderVersion)
@@ -1000,9 +1001,14 @@ namespace GVFS.Platform.Windows
                         if (blobLength != length)
                         {
                             requestMetadata.Add("blobLength", blobLength);
-                            activity.RelatedError(requestMetadata, $"{nameof(this.GetFileStreamHandlerAsyncHandler)}: Actual file length (blobLength) does not match requested length");
+                            requestMetadata.Add(
+                                TracingConstants.MessageKey.InfoMessage, 
+                                $"{nameof(this.GetFileStreamHandlerAsyncHandler)}: Actual file length (blobLength) does not match requested length");
 
-                            throw new GetFileStreamException(HResult.InternalError);
+                            activity.RelatedEvent(
+                                EventLevel.Informational,
+                                $"{nameof(this.GetFileStreamHandlerAsyncHandler)}_FileLengthMismatch", 
+                                requestMetadata);
                         }
 
                         byte[] buffer = new byte[Math.Min(MaxBlobStreamBufferSize, blobLength)];
@@ -1029,7 +1035,7 @@ namespace GVFS.Platform.Windows
                                     throw new GetFileStreamException("IOException while copying to unmanaged buffer: " + e.Message, (HResult)HResultExtensions.HResultFromNtStatus.FileNotAvailable);
                                 }
 
-                                long writeOffset = length - remainingData;
+                                long writeOffset = blobLength - remainingData;
 
                                 HResult writeResult = this.virtualizationInstance.WriteFile(streamGuid, targetBuffer, (ulong)writeOffset, bytesToCopy);
                                 remainingData -= bytesToCopy;
