@@ -30,7 +30,7 @@ inline PerfTracer::PerfTracer()
 {
 #if PRJFS_PERFORMANCE_TRACING_ENABLE
     // Set this value to N for a sampling rate of 1/N
-    const int sampleEveryNthTracer = 100;
+    const int sampleEveryNthTracer = 1;
 
     uint64_t id = s_numTracers++;
     this->isEnabled = (id % sampleEveryNthTracer == 0);

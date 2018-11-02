@@ -695,12 +695,12 @@ static bool ShouldHandleVnodeOpEvent(
     int* kauthResult,
     int* kauthError)
 {
-    PerfSample handleVnodeSample(perfTracer, PrjFSPerfCounter_ShouldHandleVnodeOp);
+    PerfSample handleVnodeSample(perfTracer, PrjFSPerfCounter_VnodeOp_ShouldHandle);
 
     *kauthResult = KAUTH_RESULT_DEFER;
     
     {
-        PerfSample isAllowedSample(perfTracer, PrjFSPerfCounter_ShouldHandleVnodeOp_IsAllowedFileSystem);
+        PerfSample isAllowedSample(perfTracer, PrjFSPerfCounter_VnodeOp_ShouldHandle_IsAllowedFileSystem);
         if (!VirtualizationRoot_VnodeIsOnAllowedFilesystem(vnode))
         {
             *kauthResult = KAUTH_RESULT_DEFER;
@@ -709,12 +709,12 @@ static bool ShouldHandleVnodeOpEvent(
     }
 
     {
-        PerfSample shouldIgnoreSample(perfTracer, PrjFSPerfCounter_ShouldHandleVnodeOp_ShouldIgnoreVnodeType);
+        PerfSample shouldIgnoreSample(perfTracer, PrjFSPerfCounter_VnodeOp_ShouldHandle_ShouldIgnoreVnodeType);
         
         *vnodeType = vnode_vtype(vnode);
         if (ShouldIgnoreVnodeType(*vnodeType, vnode))
         {
-            perfTracer->IncrementCount(PrjFSPerfCounter_ShouldHandleVnodeOp_IgnoredVnodeType);
+            perfTracer->IncrementCount(PrjFSPerfCounter_VnodeOp_ShouldHandle_IgnoredVnodeType);
         
             *kauthResult = KAUTH_RESULT_DEFER;
             return false;
@@ -722,7 +722,7 @@ static bool ShouldHandleVnodeOpEvent(
     }
     
     {
-        PerfSample readFlagsSample(perfTracer, PrjFSPerfCounter_ShouldHandleVnodeOp_ReadFileFlags);
+        PerfSample readFlagsSample(perfTracer, PrjFSPerfCounter_VnodeOp_ShouldHandle_ReadFileFlags);
         if (!TryReadVNodeFileFlags(vnode, context, vnodeFileFlags))
         {
             *kauthError = EBADF;
@@ -735,7 +735,7 @@ static bool ShouldHandleVnodeOpEvent(
             // This vnode is not part of ANY virtualization root, so exit now before doing any more work.
             // This gives us a cheap way to avoid adding overhead to IO outside of a virtualization root.
             
-            perfTracer->IncrementCount(PrjFSPerfCounter_ShouldHandleVnodeOp_NotInAnyRoot);
+            perfTracer->IncrementCount(PrjFSPerfCounter_VnodeOp_ShouldHandle_NotInAnyRoot);
 
             *kauthResult = KAUTH_RESULT_DEFER;
             return false;
@@ -750,7 +750,7 @@ static bool ShouldHandleVnodeOpEvent(
         // This vnode is not yet hydrated, so do not allow a file system crawler to force hydration.
         // Once a vnode is hydrated, it's fine to allow crawlers to access those contents.
         
-        PerfSample crawlerSample(perfTracer, PrjFSPerfCounter_ShouldHandleVnodeOp_CheckFileSystemCrawler);
+        PerfSample crawlerSample(perfTracer, PrjFSPerfCounter_VnodeOp_ShouldHandle_CheckFileSystemCrawler);
         if (IsFileSystemCrawler(procname))
         {
             // We must DENY file system crawlers rather than DEFER.
@@ -758,7 +758,7 @@ static bool ShouldHandleVnodeOpEvent(
             // get called again, so we lose the opportunity to hydrate the file/directory and it will appear as though
             // it is missing its contents.
 
-            perfTracer->IncrementCount(PrjFSPerfCounter_ShouldHandleVnodeOp_DeniedFileSystemCrawler);
+            perfTracer->IncrementCount(PrjFSPerfCounter_VnodeOp_ShouldHandle_DeniedFileSystemCrawler);
             
             *kauthResult = KAUTH_RESULT_DENY;
             return false;
@@ -781,14 +781,14 @@ static bool TryGetVirtualizationRoot(
     int* kauthResult,
     int* kauthError)
 {
-    PerfSample findRootSample(perfTracer, PrjFSPerfCounter_TryGetVirtualizationRoot);
+    PerfSample findRootSample(perfTracer, PrjFSPerfCounter_VnodeOp_GetVirtualizationRoot);
         
     *vnodeFsidInode = Vnode_GetFsidAndInode(vnode, context);
-    *root = VirtualizationRoot_FindForVnode(vnode, *vnodeFsidInode);
+    *root = VirtualizationRoot_FindForVnode(perfTracer, PrjFSPerfCounter_VnodeOp_FindRoot, vnode, *vnodeFsidInode);
 
     if (RootHandle_ProviderTemporaryDirectory == *root)
     {
-        perfTracer->IncrementCount(PrjFSPerfCounter_TryGetVirtualizationRoot_TemporaryDirectory);
+        perfTracer->IncrementCount(PrjFSPerfCounter_VnodeOp_GetVirtualizationRoot_TemporaryDirectory);
     
         *kauthResult = KAUTH_RESULT_DEFER;
         return false;
@@ -796,7 +796,7 @@ static bool TryGetVirtualizationRoot(
     else if (RootHandle_None == *root)
     {
         KextLog_FileNote(vnode, "No virtualization root found for file with set flag.");
-        perfTracer->IncrementCount(PrjFSPerfCounter_TryGetVirtualizationRoot_NoRootFound);
+        perfTracer->IncrementCount(PrjFSPerfCounter_VnodeOp_GetVirtualizationRoot_NoRootFound);
     
         *kauthResult = KAUTH_RESULT_DEFER;
         return false;
@@ -806,19 +806,19 @@ static bool TryGetVirtualizationRoot(
         // TODO(Mac): Protect files in the worktree from modification (and prevent
         // the creation of new files) when the provider is offline
         
-        perfTracer->IncrementCount(PrjFSPerfCounter_TryGetVirtualizationRoot_ProviderOffline);
+        perfTracer->IncrementCount(PrjFSPerfCounter_VnodeOp_GetVirtualizationRoot_ProviderOffline);
         
         *kauthResult = KAUTH_RESULT_DEFER;
         return false;
     }
     
     {
-        PerfSample pidSample(perfTracer, PrjFSPerfCounter_TryGetVirtualizationRoot_CompareProviderPid);
+        PerfSample pidSample(perfTracer, PrjFSPerfCounter_VnodeOp_GetVirtualizationRoot_CompareProviderPid);
     
         // If the calling process is the provider, we must exit right away to avoid deadlocks
         if (VirtualizationRoot_PIDMatchesProvider(*root, pid))
         {
-            perfTracer->IncrementCount(PrjFSPerfCounter_TryGetVirtualizationRoot_OriginatedByProvider);
+            perfTracer->IncrementCount(PrjFSPerfCounter_VnodeOp_GetVirtualizationRoot_OriginatedByProvider);
             
             *kauthResult = KAUTH_RESULT_DEFER;
             return false;
@@ -840,7 +840,7 @@ static bool ShouldHandleFileOpEvent(
     FsidInode* vnodeFsidInode,
     int* pid)
 {
-    PerfSample fileOpSample(perfTracer, PrjFSPerfCounter_ShouldHandleFileOp);
+    PerfSample fileOpSample(perfTracer, PrjFSPerfCounter_FileOp_ShouldHandle);
 
     *root = RootHandle_None;
 
@@ -856,26 +856,26 @@ static bool ShouldHandleFileOpEvent(
     }
     
     {
-        PerfSample findRootSample(perfTracer, PrjFSPerfCounter_ShouldHandleFileOp_FindVirtualizationRoot);
+        PerfSample findRootSample(perfTracer, PrjFSPerfCounter_FileOp_ShouldHandle_FindVirtualizationRoot);
         
         *vnodeFsidInode = Vnode_GetFsidAndInode(vnode, context);
-        *root = VirtualizationRoot_FindForVnode(vnode, *vnodeFsidInode);
+        *root = VirtualizationRoot_FindForVnode(perfTracer, PrjFSPerfCounter_FileOp_FindRoot, vnode, *vnodeFsidInode);
         
         if (!VirtualizationRoot_IsValidRootHandle(*root))
         {
-            perfTracer->IncrementCount(PrjFSPerfCounter_ShouldHandleFileOp_NoRootFound);
+            perfTracer->IncrementCount(PrjFSPerfCounter_FileOp_ShouldHandle_NoRootFound);
             return false;
         }
     }
     
     {
-        PerfSample pidSample(perfTracer, PrjFSPerfCounter_ShouldHandleFileOp_CompareProviderPid);
+        PerfSample pidSample(perfTracer, PrjFSPerfCounter_FileOp_ShouldHandle_CompareProviderPid);
     
         // If the calling process is the provider, we must exit right away to avoid deadlocks
         *pid = GetPid(context);
         if (VirtualizationRoot_PIDMatchesProvider(*root, *pid))
         {
-            perfTracer->IncrementCount(PrjFSPerfCounter_ShouldHandleFileOp_OriginatedByProvider);
+            perfTracer->IncrementCount(PrjFSPerfCounter_FileOp_ShouldHandle_OriginatedByProvider);
             return false;
         }
     }

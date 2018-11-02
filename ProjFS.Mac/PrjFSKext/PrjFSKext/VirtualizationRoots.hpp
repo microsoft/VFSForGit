@@ -2,6 +2,8 @@
 
 #include "FsidInode.h"
 #include "PrjFSClasses.hpp"
+#include "PrjFSPerfCounter.h"
+#include "PerformanceTracing.hpp"
 #include "kernel-header-wrappers/vnode.h"
 
 typedef int16_t VirtualizationRootHandle;
@@ -21,7 +23,11 @@ enum VirtualizationRootSpecialHandle : VirtualizationRootHandle
 kern_return_t VirtualizationRoots_Init(void);
 kern_return_t VirtualizationRoots_Cleanup(void);
 
-VirtualizationRootHandle VirtualizationRoot_FindForVnode(vnode_t _Nonnull vnode, const FsidInode& vnodeFsidInode);
+VirtualizationRootHandle VirtualizationRoot_FindForVnode(
+    PerfTracer* _Nonnull perfTracer,
+    PrjFSPerfCounter counter,
+    vnode_t _Nonnull vnode,
+    const FsidInode& vnodeFsidInode);
 
 struct VirtualizationRootResult
 {
