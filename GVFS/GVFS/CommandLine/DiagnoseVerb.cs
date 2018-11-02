@@ -94,7 +94,7 @@ namespace GVFS.CommandLine
                         {
                             // filter
                             this.FlushFilterLogBuffers();
-                            string kernelLogsFolderPath = GVFSPlatform.Instance.KernelDriver.KernelLogsFolderPath;
+                            string kernelLogsFolderPath = GVFSPlatform.Instance.KernelDriver.LogsFolderPath;
 
                             // This copy sometimes fails because the OS has an exclusive lock on the etl files. The error is not actionable
                             // for the user so we don't write the error message to stdout, just to our own log file.
@@ -120,7 +120,7 @@ namespace GVFS.CommandLine
                         // corrupt objects
                         this.CopyAllFiles(enlistment.DotGVFSRoot, Path.Combine(archiveFolderPath, GVFSConstants.DotGVFS.Root), GVFSConstants.DotGVFS.CorruptObjectsName, copySubFolders: false);
 
-                        if (!GVFSPlatform.Instance.IsUnderConstruction)
+                        if (GVFSPlatform.Instance.SupportsGVFSService)
                         {
                             // service
                             this.CopyAllFiles(
@@ -128,7 +128,10 @@ namespace GVFS.CommandLine
                                 archiveFolderPath,
                                 this.ServiceName,
                                 copySubFolders: true);
+                        }
 
+                        if (GVFSPlatform.Instance.SupportsGVFSUpgrade)
+                        {
                             // upgrader
                             this.CopyAllFiles(
                                 ProductUpgrader.GetUpgradesDirectoryPath(),
@@ -474,7 +477,7 @@ namespace GVFS.CommandLine
 
         private void FlushFilterLogBuffers()
         {
-            string errors = GVFSPlatform.Instance.KernelDriver.FlushDriverLogs();
+            string errors = GVFSPlatform.Instance.KernelDriver.FlushLogs();
             this.diagnosticLogFileWriter.WriteLine(errors);
         }
 
