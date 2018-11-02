@@ -239,8 +239,6 @@ namespace GVFS.Virtualization.Projection
             this.projectionParseComplete.Wait();
 
             this.externalLockReleaseRequested.Reset();
-
-            this.ClearUpdatePlaceholderErrors();
         }
 
         public NamedPipeMessages.ReleaseLock.Response TryReleaseExternalLock(int pid)
@@ -1121,8 +1119,6 @@ namespace GVFS.Virtualization.Projection
 
         private void UpdatePlaceholders()
         {
-            this.ClearUpdatePlaceholderErrors();
-
             List<PlaceholderListDatabase.PlaceholderData> placeholderFilesListCopy;
             List<PlaceholderListDatabase.PlaceholderData> placeholderFoldersListCopy;
             this.placeholderList.GetAllEntriesAndPrepToWriteAllEntries(out placeholderFilesListCopy, out placeholderFoldersListCopy);
