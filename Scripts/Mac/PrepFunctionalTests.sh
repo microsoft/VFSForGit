@@ -43,5 +43,6 @@ $VFS_SCRIPTDIR/InstallSharedDataQueueStallWorkaround.sh || exit 1
 PATURL=$1
 PAT=$2
 if [[ ! -z $PAT && ! -z $PATURL ]] ; then
+    security delete-generic-password -s "gcm4ml:git:$PATURL"
     security add-generic-password -a "Personal Access Token" -s "gcm4ml:git:$PATURL" -D Credential -w $PAT || exit 1
 fi
