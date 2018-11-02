@@ -140,9 +140,13 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
             ProcessResult midxResult = GitProcess.InvokeProcess(this.Enlistment.RepoRoot, "multi-pack-index verify --object-dir=\"" + objectDir + "\"");
             midxResult.ExitCode.ShouldEqual(0);
 
-            ProcessResult graphResult = GitProcess.InvokeProcess(this.Enlistment.RepoRoot, "commit-graph read --object-dir=\"" + objectDir + "\"");
-            graphResult.ExitCode.ShouldEqual(0);
-            graphResult.Output.ShouldContain("43475048"); // Header from commit-graph file.
+            // A commit graph is not always generated, but if it is, then we want to ensure it is in a good state
+            if (this.fileSystem.FileExists(Path.Combine(objectDir, "info", "commit-graph")))
+            {
+                ProcessResult graphResult = GitProcess.InvokeProcess(this.Enlistment.RepoRoot, "commit-graph read --object-dir=\"" + objectDir + "\"");
+                graphResult.ExitCode.ShouldEqual(0);
+                graphResult.Output.ShouldContain("43475048"); // Header from commit-graph file.
+            }
         }
     }
 }
