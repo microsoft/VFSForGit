@@ -252,11 +252,10 @@ namespace GVFS.Common.Prefetch.Git
 
             public static LsTreeEntry ParseFromLsTreeLine(string line)
             {
-                int blobIndex = line.IndexOf(DiffTreeResult.BlobMarker);
-                if (blobIndex >= 0)
+                if (DiffTreeResult.IsLsTreeLineOfType(line, DiffTreeResult.BlobMarker))
                 {
                     LsTreeEntry blobEntry = new LsTreeEntry();
-                    blobEntry.Sha = line.Substring(blobIndex + DiffTreeResult.BlobMarker.Length, GVFSConstants.ShaStringLength);
+                    blobEntry.Sha = line.Substring(DiffTreeResult.TypeMarkerStartIndex + DiffTreeResult.BlobMarker.Length, GVFSConstants.ShaStringLength);
                     blobEntry.Filename = GitPathConverter.ConvertPathOctetsToUtf8(line.Substring(line.LastIndexOf("\t") + 1).Trim('"'));
 
                     return blobEntry;

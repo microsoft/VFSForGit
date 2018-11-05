@@ -7,9 +7,10 @@ namespace GVFS.Common.Git
 {
     public class DiffTreeResult
     {
-        public const string TreeMarker = " tree ";
-        public const string BlobMarker = " blob ";
-        public const string CommitMarker = " commit ";
+        public const string TreeMarker = "tree ";
+        public const string BlobMarker = "blob ";
+
+        public const int TypeMarkerStartIndex = 7;
 
         private static readonly HashSet<string> ValidTreeModes = new HashSet<string>() { "040000" };
 
@@ -137,8 +138,7 @@ namespace GVFS.Common.Git
              */
 
             // Everything from ls-tree is an add.
-            int treeIndex = line.IndexOf(TreeMarker);
-            if (treeIndex >= 0)
+            if (IsLsTreeLineOfType(line, TreeMarker))
             {
                 DiffTreeResult treeAdd = new DiffTreeResult();
                 treeAdd.TargetIsDirectory = true;
@@ -149,12 +149,11 @@ namespace GVFS.Common.Git
             }
             else
             {
-                int blobIndex = line.IndexOf(BlobMarker);
-                if (blobIndex >= 0)
+                if (IsLsTreeLineOfType(line, BlobMarker))
                 {
                     DiffTreeResult blobAdd = new DiffTreeResult();
                     blobAdd.TargetIsSymLink = line.StartsWith("120000");
-                    blobAdd.TargetSha = line.Substring(blobIndex + BlobMarker.Length, GVFSConstants.ShaStringLength);
+                    blobAdd.TargetSha = line.Substring(TypeMarkerStartIndex + BlobMarker.Length, GVFSConstants.ShaStringLength);
                     blobAdd.TargetPath = ConvertPathToAbsoluteUtf8Path(repoRoot, line.Substring(line.LastIndexOf("\t") + 1));
                     blobAdd.Operation = DiffTreeResult.Operations.Add;
 
@@ -165,6 +164,16 @@ namespace GVFS.Common.Git
                     return null;
                 }
             }
+        }
+
+        public static bool IsLsTreeLineOfType(string line, string typeMarker)
+        {
+            if (line.Length <= TypeMarkerStartIndex + typeMarker.Length)
+            {
+                return false;
+            }
+
+            return line.IndexOf(typeMarker, TypeMarkerStartIndex, typeMarker.Length, StringComparison.OrdinalIgnoreCase) == TypeMarkerStartIndex;
         }
 
         private static string AppendPathSeparatorIfNeeded(string path)
