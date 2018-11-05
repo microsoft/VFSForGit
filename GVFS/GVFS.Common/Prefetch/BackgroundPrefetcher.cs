@@ -109,7 +109,10 @@ namespace GVFS.Common.Prefetch
 
                     if (!CommitPrefetcher.TryPrefetchCommitsAndTrees(activity, this.enlistment, this.fileSystem, this.gitObjects, out error))
                     {
-                        activity.RelatedError($"{TelemetryKey}: {nameof(CommitPrefetcher.TryPrefetchCommitsAndTrees)} failed with error '{error}'");
+                        activity.RelatedWarning(
+                            metadata: null, 
+                            message: $"{TelemetryKey}: {nameof(CommitPrefetcher.TryPrefetchCommitsAndTrees)} failed with error '{error}'", 
+                            keywords: Keywords.Telemetry);
                     }
                 }
             }
