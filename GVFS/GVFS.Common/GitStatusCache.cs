@@ -439,9 +439,10 @@ namespace GVFS.Common
                 metadata.Add("Area", EtwArea);
                 metadata.Add("Exception", ex.ToString());
 
-                this.context.Tracer.RelatedError(
+                this.context.Tracer.RelatedWarning(
                     metadata,
-                    string.Format("GitStatusCache encountered exception attempting to delete cache file at {0}.", this.serializedGitStatusFilePath));
+                    string.Format("GitStatusCache encountered exception attempting to delete cache file at {0}.", this.serializedGitStatusFilePath),
+                    Keywords.Telemetry);
 
                 return false;
             }
