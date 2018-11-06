@@ -35,7 +35,7 @@ struct VirtualizationRootResult
     errno_t error;
     VirtualizationRootHandle root;
 };
-VirtualizationRootResult VirtualizationRoot_RegisterProviderForPath(PrjFSProviderUserClient* _Nonnull userClient, pid_t clientPID, const char* _Nonnull virtualizationRootPath);
+VirtualizationRootResult VirtualizationRoot_RegisterProviderForPath(PrjFSProviderUserClient* _Nonnull userClient, pid_t clientPID, const char* _Nonnull virtualizationRootPath, const char* _Nonnull providerTemporaryDirectoryPath);
 void ActiveProvider_Disconnect(VirtualizationRootHandle rootHandle);
 
 struct Message;

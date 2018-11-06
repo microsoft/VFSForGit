@@ -223,6 +223,7 @@ namespace GVFS.Platform.Mac
 
             Result result = this.virtualizationInstance.StartVirtualizationInstance(
                 this.Context.Enlistment.WorkingDirectoryRoot,
+                this.Context.Enlistment.TempRoot,
                 threadCount);
 
             if (result != Result.Success)

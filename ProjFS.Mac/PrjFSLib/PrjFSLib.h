@@ -66,6 +66,7 @@ typedef struct
 
 extern "C" PrjFS_Result PrjFS_StartVirtualizationInstance(
     _In_    const char*                             virtualizationRootFullPath,
+    _In_    const char*                             temporaryDirectoryFullPath,
     _In_    PrjFS_Callbacks                         callbacks,
     _In_    unsigned int                            poolThreadCount);
 

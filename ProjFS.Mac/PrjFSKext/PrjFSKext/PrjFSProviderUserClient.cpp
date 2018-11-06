@@ -21,7 +21,7 @@ static const IOExternalMethodDispatch ProviderUserClientDispatch[] =
         {
             .function =                 &PrjFSProviderUserClient::registerVirtualizationRoot,
             .checkScalarInputCount =    0,
-            .checkStructureInputSize =  kIOUCVariableStructureSize, // null-terminated string: virtualisation root path
+            .checkStructureInputSize =  kIOUCVariableStructureSize, // null-terminated string: virtualization root path, temp path
             .checkScalarOutputCount =   1, // returned errno
             .checkStructureOutputSize = 0
         },
@@ -91,6 +91,33 @@ void PrjFSProviderUserClient::free()
     
     this->super::free();
 }
+
+static bool ExtractChainedInputStrings(const char* inputStringBuffer, size_t inputBufferSize, const char* strings[], size_t stringCount)
+ {
+     // Note that the variable naming in this function (and elsewhere) makes a
+     // distinction between "length" (excluding \0) and "size" (including '\0')
+     const char* pos = inputStringBuffer;
+     size_t remainingSize = inputBufferSize;
+     for (size_t i = 0; i < stringCount; ++i)
+     {
+         if (remainingSize < 1)
+         {
+             return false;
+         }
+         
+         const size_t nextStringLength = strnlen(pos, remainingSize);
+         if (nextStringLength >= remainingSize)
+         {
+             // Not correctly terminated
+             return false;
+         }
+         
+         strings[i] = pos;
+         pos += nextStringLength + 1;
+         remainingSize -= (nextStringLength + 1);
+     }
+     return true;
+ }
 
 // Called when the user process explicitly or implicitly (process death) closes
 // the connection.
@@ -219,9 +246,11 @@ IOReturn PrjFSProviderUserClient::registerVirtualizationRoot(
         &arguments->scalarOutput[0]);
 }
 
-IOReturn PrjFSProviderUserClient::registerVirtualizationRoot(const char* rootPath, size_t rootPathSize, uint64_t* outError)
+IOReturn PrjFSProviderUserClient::registerVirtualizationRoot(const char* inputStrings, size_t inputStringsSize, uint64_t* outError)
 {
-    if (rootPathSize == 0 || strnlen(rootPath, rootPathSize) != rootPathSize - 1)
+    // Note: outError only propagates back to user space if we return kIOReturnSuccess, so we do that even in error cases.
+    const char* paths[2] = {};
+    if (!ExtractChainedInputStrings(inputStrings, inputStringsSize, paths, 2))
     {
         *outError = EINVAL;
         return kIOReturnSuccess;
@@ -233,7 +262,7 @@ IOReturn PrjFSProviderUserClient::registerVirtualizationRoot(const char* rootPat
         return kIOReturnSuccess;
     }
     
-    VirtualizationRootResult result = VirtualizationRoot_RegisterProviderForPath(this, this->pid, rootPath);
+    VirtualizationRootResult result = VirtualizationRoot_RegisterProviderForPath(this, this->pid, paths[0], paths[1]);
     if (0 == result.error)
     {
         this->virtualizationRootHandle = result.root;

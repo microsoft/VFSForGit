@@ -30,6 +30,7 @@ namespace GVFS.Common
         {
             this.NamedPipeName = GVFSPlatform.Instance.GetNamedPipeName(this.EnlistmentRoot);
             this.DotGVFSRoot = Path.Combine(this.EnlistmentRoot, GVFSConstants.DotGVFS.Root);
+            this.TempRoot = Path.Combine(this.DotGVFSRoot, GVFSConstants.DotGVFS.TempRoot);
             this.GitStatusCacheFolder = Path.Combine(this.DotGVFSRoot, GVFSConstants.DotGVFS.GitStatusCache.Name);
             this.GitStatusCachePath = Path.Combine(this.DotGVFSRoot, GVFSConstants.DotGVFS.GitStatusCache.CachePath);
             this.GVFSLogsRoot = Path.Combine(this.EnlistmentRoot, GVFSConstants.DotGVFS.LogPath);
@@ -50,6 +51,8 @@ namespace GVFS.Common
         public string NamedPipeName { get; }
 
         public string DotGVFSRoot { get; }
+
+        public string TempRoot { get; }
 
         public string GVFSLogsRoot { get; }
 
@@ -209,6 +212,7 @@ namespace GVFS.Common
                 GVFSPlatform.Instance.InitializeEnlistmentACLs(this.EnlistmentRoot);
                 Directory.CreateDirectory(this.WorkingDirectoryRoot);
                 this.CreateHiddenDirectory(this.DotGVFSRoot);
+                this.CreateHiddenDirectory(this.TempRoot);
             }
             catch (IOException)
             {

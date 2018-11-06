@@ -99,7 +99,7 @@ static bool IsVirtualizationRoot(const char* fullPath);
 static void CombinePaths(const char* root, const char* relative, char (&combined)[PrjFSMaxPath]);
 
 static errno_t SendKernelMessageResponse(uint64_t messageId, MessageType responseType);
-static errno_t RegisterVirtualizationRootPath(const char* fullPath);
+static errno_t RegisterVirtualizationRootPath(const char* fullPath, const char* tempPath);
 
 static PrjFS_Result RecursivelyMarkAllChildrenAsInRoot(const char* fullDirectoryPath);
 
@@ -137,6 +137,7 @@ static void ReturnFileMutexIterator(FileMutexMap::iterator lockIterator);
 // State
 static io_connect_t s_kernelServiceConnection = IO_OBJECT_NULL;
 static string s_virtualizationRootFullPath;
+static string s_temporaryDirectoryFullPath;
 static PrjFS_Callbacks s_callbacks;
 static dispatch_queue_t s_messageQueueDispatchQueue;
 static dispatch_queue_t s_kernelRequestHandlingConcurrentQueue;
@@ -153,6 +154,7 @@ mutex s_fileLocksMutex;
 
 PrjFS_Result PrjFS_StartVirtualizationInstance(
     _In_    const char*                             virtualizationRootFullPath,
+    _In_    const char*                             temporaryDirectoryFullPath,
     _In_    PrjFS_Callbacks                         callbacks,
     _In_    unsigned int                            poolThreadCount)
 {
@@ -160,6 +162,7 @@ PrjFS_Result PrjFS_StartVirtualizationInstance(
     cout
         << "PrjFS_StartVirtualizationInstance("
         << virtualizationRootFullPath << ", "
+        << temporaryDirectoryFullPath << ", "
         << callbacks.EnumerateDirectory << ", "
         << callbacks.GetFileStream << ", "
         << callbacks.NotifyOperation << ", "
@@ -199,9 +202,11 @@ PrjFS_Result PrjFS_StartVirtualizationInstance(
     }
     
     s_virtualizationRootFullPath = virtualizationRootFullPath;
+    s_temporaryDirectoryFullPath = temporaryDirectoryFullPath;
     s_callbacks = callbacks;
     
-    errno_t error = RegisterVirtualizationRootPath(virtualizationRootFullPath);
+    // TODO(Mac): Validate temporaryDirectoryFullPath isn't a child of virtualizationRootFullPath
+    errno_t error = RegisterVirtualizationRootPath(virtualizationRootFullPath, temporaryDirectoryFullPath);
     if (error != 0)
     {
         cerr << "Registering virtualization root failed: " << error << ", " << strerror(error) << endl;
@@ -291,41 +296,50 @@ PrjFS_Result PrjFS_WritePlaceholderDirectory(
     cout << "PrjFS_WritePlaceholderDirectory(" << relativePath << ")" << endl;
 #endif
     
+    PrjFS_Result result = PrjFS_Result_Invalid;
+
     if (nullptr == relativePath)
     {
         return PrjFS_Result_EInvalidArgs;
     }
     
-    PrjFS_Result result = PrjFS_Result_Invalid;
-    char fullPath[PrjFSMaxPath];
-    CombinePaths(s_virtualizationRootFullPath.c_str(), relativePath, fullPath);
-
-    if (mkdir(fullPath, 0777))
+    char finalPath[PrjFSMaxPath];
+    CombinePaths(s_virtualizationRootFullPath.c_str(), relativePath, finalPath);
+    char* tempPath = strcat(strdup(s_temporaryDirectoryFullPath.c_str()), "/XXXXXX");
+    
+    tempPath = mkdtemp(tempPath);
+    if (nullptr == tempPath)
     {
-        switch(errno)
-        {
-            // TODO(Mac): Return more specific error codes for other failure scenarios
-            case ENOENT: // A component of the path prefix does not exist or path is an empty string
-                result = PrjFS_Result_EPathNotFound;
-                break;
-            default:
-                result = PrjFS_Result_EIOError;
-                break;
-        }
-        
         goto CleanupAndFail;
     }
     
-    if (!InitializeEmptyPlaceholder(fullPath))
+    if (!InitializeEmptyPlaceholder(finalPath))
     {
         result = PrjFS_Result_EIOError;
+        goto CleanupAndFail;
+    }
+    
+    if (chmod(tempPath, 0777))
+    {
+        goto CleanupAndFail;
+    }
+
+#ifdef DEBUG
+    std::cout
+    << "PrjFS_WritePlaceholderDirectory - Preparing to rename("
+    << tempPath << " ->"
+    << finalPath << ")"
+    << std::endl;
+#endif
+    
+    if (rename(tempPath, finalPath))
+    {
         goto CleanupAndFail;
     }
     
     return PrjFS_Result_Success;
     
 CleanupAndFail:
-    // TODO(Mac): cleanup the directory on disk if needed
     return result;
 }
 
@@ -354,27 +368,14 @@ PrjFS_Result PrjFS_WritePlaceholderFile(
     PrjFS_Result result = PrjFS_Result_Invalid;
     PrjFSFileXAttrData fileXattrData = {};
     
-    char fullPath[PrjFSMaxPath];
-    CombinePaths(s_virtualizationRootFullPath.c_str(), relativePath, fullPath);
+    char finalPath[PrjFSMaxPath];
+    CombinePaths(s_virtualizationRootFullPath.c_str(), relativePath, finalPath);
+    char* tempPath = strcat(strdup(s_temporaryDirectoryFullPath.c_str()), "/XXXXXX");
     
-    // Mode "wx" means:
-    //  - "w": Open for writing.  The stream is positioned at the beginning of the file.  Create the file if it does not exist.
-    //  - "x": If the file already exists, fopen() fails, and sets errno to EEXIST.
-    FILE* file = fopen(fullPath, "wx");
-    if (nullptr == file)
+    int tempFD = mkstemp(tempPath);
+    FILE* file = fdopen(tempFD, "wb");
+    if (!tempFD || nullptr == file)
     {
-        switch(errno)
-        {
-            // TODO(Mac): Return more specific error codes for other failure scenarios
-            case ENOENT: // A directory component in fullPath does not exist or is a dangling symbolic link.
-                result = PrjFS_Result_EPathNotFound;
-                break;
-            case EEXIST: // The file already exists
-            default:
-                result = PrjFS_Result_EIOError;
-                break;
-        }
-        
         goto CleanupAndFail;
     }
     
@@ -392,7 +393,7 @@ PrjFS_Result PrjFS_WritePlaceholderFile(
     memcpy(fileXattrData.contentId, contentId, PrjFS_PlaceholderIdLength);
     
     if (!InitializeEmptyPlaceholder(
-            fullPath,
+            tempPath,
             &fileXattrData,
             PrjFSFileXAttrName))
     {
@@ -401,25 +402,29 @@ PrjFS_Result PrjFS_WritePlaceholderFile(
     }
     
     // TODO(Mac): Only call chmod if fileMode is different than the default file mode
-    if (chmod(fullPath, fileMode))
+    if (chmod(tempPath, fileMode))
     {
         result = PrjFS_Result_EIOError;
         goto CleanupAndFail;
     }
 
+#ifdef DEBUG
+    std::cout
+    << "PrjFS_WritePlaceholderFile - Preparing to rename("
+    << tempPath << " ->"
+    << finalPath << ")"
+    << std::endl;
+#endif
+    
+    if (rename(tempPath, finalPath))
+    {
+        goto CleanupAndFail;
+    }
+    
     return PrjFS_Result_Success;
     
 CleanupAndFail:
-    if (nullptr != file)
-    {
-        // TODO(Mac) #234: we now have a partially created placeholder file. Should we delete it?
-        // A better pattern would likely be to create the file in a tmp location, fully initialize its state, then move it into the requested path
-        
-        fclose(file);
-        file = nullptr;
-    }
-    
-    return result;
+    return PrjFS_Result_EIOError;
 }
 
 PrjFS_Result PrjFS_WriteSymLink(
@@ -1188,18 +1193,25 @@ static errno_t SendKernelMessageResponse(uint64_t messageId, MessageType respons
     return callResult == kIOReturnSuccess ? 0 : EBADMSG;
 }
 
-static errno_t RegisterVirtualizationRootPath(const char* fullPath)
+static errno_t RegisterVirtualizationRootPath(const char* fullPath, const char* tempPath)
 {
     uint64_t error = EBADMSG;
     uint32_t output_count = 1;
+    
+    // Pass the two strings to kext in a single buffer, back-to-back.
     size_t pathSize = strlen(fullPath) + 1;
+    size_t tempPathSize = strlen(tempPath) + 1;
+    char methodInputBuffer[pathSize + tempPathSize];
+    memcpy(methodInputBuffer, fullPath, pathSize);
+    memcpy(methodInputBuffer + pathSize, tempPath, tempPathSize);
+    
     IOReturn callResult = IOConnectCallMethod(
-        s_kernelServiceConnection,
-        ProviderSelector_RegisterVirtualizationRootPath,
-        nullptr, 0, // no scalar inputs
-        fullPath, pathSize, // struct input
-        &error, &output_count, // scalar output
-        nullptr, nullptr); // no struct output
+                                              s_kernelServiceConnection,
+                                              ProviderSelector_RegisterVirtualizationRootPath,
+                                              nullptr, 0, // no scalar inputs
+                                              methodInputBuffer, pathSize + tempPathSize, // struct input
+                                              &error, &output_count, // scalar output
+                                              nullptr, nullptr); // no struct output
     assert(callResult == kIOReturnSuccess);
     return static_cast<errno_t>(error);
 }

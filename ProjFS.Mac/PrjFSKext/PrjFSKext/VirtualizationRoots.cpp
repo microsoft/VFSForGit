@@ -25,6 +25,10 @@ struct VirtualizationRoot
     vnode_t                     rootVNode;
     uint32_t                    rootVNodeVid;
     
+    // Active providers register a temporary staging directory where placeholder files and directories
+    // are prepared, and where events should normally be ignored.
+    vnode_t                     temporaryDirectoryVnode; // retained if not nullptr (vnode_get)
+    
     // Mount point ID + persistent, on-disk ID for the root directory, so we can
     // identify it if the vnode of an offline root gets recycled.
     fsid_t                      rootFsid;
@@ -48,7 +52,7 @@ static VirtualizationRootHandle FindRootAtVnode_Locked(vnode_t vnode, uint32_t v
 static VirtualizationRootHandle FindOrDetectRootAtVnode(vnode_t vnode, const FsidInode& vnodeFsidInode);
 
 static VirtualizationRootHandle FindUnusedIndex_Locked();
-static VirtualizationRootHandle InsertVirtualizationRoot_Locked(PrjFSProviderUserClient* userClient, pid_t clientPID, vnode_t vnode, uint32_t vid, FsidInode persistentIds, const char* path);
+static VirtualizationRootHandle InsertVirtualizationRoot_Locked(PrjFSProviderUserClient* userClient, pid_t clientPID, vnode_t vnode, uint32_t vid, FsidInode persistentIds, const char* path, vnode_t temporaryDirectory);
 
 bool VirtualizationRoot_IsOnline(VirtualizationRootHandle rootHandle)
 {
@@ -158,6 +162,10 @@ VirtualizationRootHandle VirtualizationRoot_FindForVnode(
         {
             break;
         }
+        else if (rootHandle == RootHandle_ProviderTemporaryDirectory)
+        {
+            break;
+        }
         
         vnode_t parent = vnode_getparent(vnode);
         vnode_put(vnode);
@@ -204,7 +212,7 @@ static VirtualizationRootHandle FindOrDetectRootAtVnode(vnode_t _Nonnull vnode, 
                 if (RootHandle_None == rootIndex)
                 {
                     // Insert new offline root
-                    rootIndex = InsertVirtualizationRoot_Locked(nullptr, 0, vnode, vid, vnodeFsidInode, path);
+                    rootIndex = InsertVirtualizationRoot_Locked(nullptr, 0, vnode, vid, vnodeFsidInode, path, NULLVP);
                     
                     // TODO: error handling
                     assert(rootIndex >= 0);
@@ -288,6 +296,11 @@ static VirtualizationRootHandle FindRootAtVnode_Locked(vnode_t vnode, uint32_t v
             return i;
         }
         
+        if (rootEntry.temporaryDirectoryVnode == vnode)
+        {
+            return RootHandle_ProviderTemporaryDirectory;
+        }
+
         if (FsidsAreEqual(rootEntry.rootFsid, fileId.fsid) && rootEntry.rootInode == fileId.inode)
         {
             // root vnode must be stale, update it
@@ -301,7 +314,7 @@ static VirtualizationRootHandle FindRootAtVnode_Locked(vnode_t vnode, uint32_t v
 }
 
 // Returns negative value if it failed, or inserted index on success
-static VirtualizationRootHandle InsertVirtualizationRoot_Locked(PrjFSProviderUserClient* userClient, pid_t clientPID, vnode_t vnode, uint32_t vid, FsidInode persistentIds, const char* path)
+static VirtualizationRootHandle InsertVirtualizationRoot_Locked(PrjFSProviderUserClient* userClient, pid_t clientPID, vnode_t vnode, uint32_t vid, FsidInode persistentIds, const char* path, vnode_t temporaryDirectory)
 {
     VirtualizationRootHandle rootIndex = FindUnusedIndexOrGrow_Locked();
     
@@ -319,6 +332,8 @@ static VirtualizationRootHandle InsertVirtualizationRoot_Locked(PrjFSProviderUse
         root->rootFsid = persistentIds.fsid;
         root->rootInode = persistentIds.inode;
         strlcpy(root->path, path, sizeof(root->path));
+
+        root->temporaryDirectoryVnode = temporaryDirectory;
     }
     
     return rootIndex;
@@ -329,25 +344,31 @@ static VirtualizationRootHandle InsertVirtualizationRoot_Locked(PrjFSProviderUse
 // ENOMEM:   Too many virtualization roots.
 // ENOTDIR:  Selected virtualization root path does not resolve to a directory.
 // EBUSY:    Already a provider for this virtualization root.
-// ENOENT:   Error returned by vnode_lookup.
-// Any error returned by the call to vn_getpath()
-VirtualizationRootResult VirtualizationRoot_RegisterProviderForPath(PrjFSProviderUserClient* userClient, pid_t clientPID, const char* virtualizationRootPath)
+// ENOENT,…: Error returned by vnode_lookup.
+VirtualizationRootResult VirtualizationRoot_RegisterProviderForPath(PrjFSProviderUserClient* userClient, pid_t clientPID, const char* virtualizationRootPath, const char* providerTemporaryDirectoryPath)
 {
     assert(nullptr != virtualizationRootPath);
     assert(nullptr != userClient);
     
     vnode_t virtualizationRootVNode = NULLVP;
+    vnode_t temporaryDirectoryVNode = NULLVP;
     vfs_context_t _Nonnull vfsContext = vfs_context_create(nullptr);
     
     VirtualizationRootHandle rootIndex = RootHandle_None;
     errno_t err = vnode_lookup(virtualizationRootPath, 0 /* flags */, &virtualizationRootVNode, vfsContext);
     if (0 == err)
     {
-        if (!VirtualizationRoot_VnodeIsOnAllowedFilesystem(virtualizationRootVNode))
+        err = vnode_lookup(virtualizationRootPath, 0 /* flags */, &temporaryDirectoryVNode, vfsContext);
+    }
+
+    if (0 == err)
+    {
+        if (!VirtualizationRoot_VnodeIsOnAllowedFilesystem(virtualizationRootVNode)
+            || vnode_mount(virtualizationRootVNode) != vnode_mount(temporaryDirectoryVNode))
         {
             err = ENODEV;
         }
-        else if (!vnode_isdir(virtualizationRootVNode))
+        else if (!vnode_isdir(virtualizationRootVNode) || !vnode_isdir(temporaryDirectoryVNode))
         {
             err = ENOTDIR;
         }
@@ -384,27 +405,39 @@ VirtualizationRootResult VirtualizationRoot_RegisterProviderForPath(PrjFSProvide
                     }
                     else
                     {
-                        rootIndex = InsertVirtualizationRoot_Locked(userClient, clientPID, virtualizationRootVNode, rootVid, vnodeIds, virtualizationRootCanonicalPath);
-                        if (rootIndex >= 0)
-                        {
-                            assert(rootIndex < s_maxVirtualizationRoots);
-                        
-                            virtualizationRootVNode = NULLVP; // prevent vnode_put later; active provider should hold vnode reference
-                        
-                            KextLog_Note("VirtualizationRoot_RegisterProviderForPath: new root not found in offline roots, inserted as new root with index %d. path '%s'", rootIndex, virtualizationRootCanonicalPath);
-                        }
-                        else
-                        {
-                            // TODO: scan the array for roots on mounts which have disappeared, or grow the array
-                            KextLog_Error("VirtualizationRoot_RegisterProviderForPath: failed to insert new root");
-                        }
+                        VirtualizationRoot& root = s_virtualizationRoots[rootIndex];
+                        root.providerUserClient = userClient;
+                        root.providerPid = clientPID;
+                        virtualizationRootVNode = NULLVP; // transfer ownership
+
+                        root.temporaryDirectoryVnode = temporaryDirectoryVNode;
+                        temporaryDirectoryVNode = NULLVP; // transfer ownership
                     }
                 }
-                RWLock_ReleaseExclusive(s_virtualizationRootsLock);
-                
-                if (0 == err)
+                else if (rootIndex == RootHandle_ProviderTemporaryDirectory)
                 {
-                    userClient->setProperty(PrjFSProviderPathKey, virtualizationRootCanonicalPath);
+                    err = EBUSY;
+                    rootIndex = RootHandle_None;
+                }
+                else
+                {
+                    rootIndex = InsertVirtualizationRoot_Locked(userClient, clientPID, virtualizationRootVNode, rootVid, vnodeIds, virtualizationRootPath, temporaryDirectoryVNode);
+                    if (rootIndex >= 0)
+                    {
+                        assert(rootIndex < s_maxVirtualizationRoots);
+                        VirtualizationRoot* root = &s_virtualizationRoots[rootIndex];
+                    
+                        strlcpy(root->path, virtualizationRootPath, sizeof(root->path));
+                        virtualizationRootVNode = NULLVP; // prevent vnode_put later; active provider should hold vnode reference
+                        temporaryDirectoryVNode = NULLVP; // inserting transferred ownership, prevents vnode_put later
+
+                        KextLog_Note("VirtualizationRoot_RegisterProviderForPath: new root not found in offline roots, inserted as new root with index %d. path '%s'", rootIndex, virtualizationRootPath);
+                    }
+                    else
+                    {
+                        // TODO: scan the array for roots on mounts which have disappeared, or grow the array
+                        KextLog_Error("VirtualizationRoot_RegisterProviderForPath: failed to insert new root");
+                    }
                 }
             }
         }
@@ -415,6 +448,11 @@ VirtualizationRootResult VirtualizationRoot_RegisterProviderForPath(PrjFSProvide
         vnode_put(virtualizationRootVNode);
     }
     
+    if (NULLVP != temporaryDirectoryVNode)
+    {
+        vnode_put(temporaryDirectoryVNode);
+    }
+
     if (rootIndex >= 0)
     {
         VirtualizationRoot* root = &s_virtualizationRoots[rootIndex];
@@ -440,6 +478,10 @@ void ActiveProvider_Disconnect(VirtualizationRootHandle rootIndex)
         vnode_put(root->rootVNode);
         root->providerPid = 0;
         
+        assert(NULLVP != root->temporaryDirectoryVnode);
+        vnode_put(root->temporaryDirectoryVnode);
+        root->temporaryDirectoryVnode = 0;
+
         root->providerUserClient = nullptr;
 
         RWLock_DropExclusiveToShared(s_virtualizationRootsLock);
