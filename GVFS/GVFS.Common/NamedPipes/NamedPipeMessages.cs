@@ -154,16 +154,16 @@ namespace GVFS.Common.NamedPipes
                     }
 
                     this.WorkingDirectoryUpdated = message.Body[0] == '1';
-                    this.WasResetMixed = message.Body[1] == '1';
+                    this.OnlyIndexUpdated = message.Body[1] == '1';
                 }
 
                 public bool WorkingDirectoryUpdated { get; }
 
-                public bool WasResetMixed { get; }
+                public bool OnlyIndexUpdated { get; }
 
                 public Message CreateMessage()
                 {
-                    string body = string.Format("{0}{1}", this.WorkingDirectoryUpdated ? "1" : "0", this.WasResetMixed ? "1" : "0");
+                    string body = string.Format("{0}{1}", this.WorkingDirectoryUpdated ? "1" : "0", this.OnlyIndexUpdated ? "1" : "0");
                     return new Message(UpdateProjectionRequest, body);
                 }
             }

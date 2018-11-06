@@ -386,23 +386,25 @@ namespace GVFS.Virtualization
                 };
 
                 this.context.Tracer.RelatedEvent(EventLevel.Warning, $"{nameof(this.OnIndexFileChange)}_NoLock", metadata);
+                this.newlyCreatedFileAndFolderPaths.Clear();
+                return;
             }
-            else if (this.GitCommandLeavesProjectionUnchanged(gitCommand))
-            {
-                if (this.GitCommandRequiresModifiedPathValidationAfterIndexChange(gitCommand))
-                {
-                    this.GitIndexProjection.InvalidateModifiedFiles();
-                    this.backgroundFileSystemTaskRunner.Enqueue(FileSystemTask.OnIndexWriteRequiringModifiedPathsValidation());
-                }
+        }
 
-                this.InvalidateGitStatusCache();
-            }
-            else
+        public void OnIndexFileChanged(bool workingDirectoryUpdated, bool onlyIndexUpdated)
+        {
+            if (workingDirectoryUpdated)
             {
                 this.GitIndexProjection.InvalidateProjection();
-                this.InvalidateGitStatusCache();
             }
 
+            if (onlyIndexUpdated)
+            {
+                this.GitIndexProjection.InvalidateModifiedFiles();
+                this.backgroundFileSystemTaskRunner.Enqueue(FileSystemTask.OnIndexWriteRequiringModifiedPathsValidation());
+            }
+
+            this.InvalidateGitStatusCache();
             this.newlyCreatedFileAndFolderPaths.Clear();
         }
 
