@@ -30,6 +30,7 @@ namespace MirrorProvider.Mac
 
             Result result = this.virtualizationInstance.StartVirtualizationInstance(
                 enlistment.SrcRoot,
+                enlistment.TempRoot,
                 poolThreadCount: (uint)Environment.ProcessorCount * 2);
 
             if (result == Result.Success)
