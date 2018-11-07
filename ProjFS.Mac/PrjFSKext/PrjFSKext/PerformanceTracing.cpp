@@ -46,7 +46,7 @@ void PerfTracing_RecordSample(PrjFSPerfCounter counter, uint64_t startTime, uint
     {
         atomic_fetch_add(&probe->sum, interval);
 
-        __uint128_t intervalSquared = interval * interval;
+        __uint128_t intervalSquared = static_cast<__uint128_t>(interval) * interval;
         atomic_fetch_add(&probe->sumSquares, intervalSquared);
         
         // Update minimum sample if necessary
