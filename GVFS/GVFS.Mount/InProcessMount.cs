@@ -254,7 +254,7 @@ namespace GVFS.Mount
                     this.HandleModifiedPathsListRequest(message, connection);
                     break;
 
-                case NamedPipeMessages.PostIndexChanged.UpdateProjectionRequest:
+                case NamedPipeMessages.PostIndexChanged.NotificationRequest:
                     this.HandlePostIndexChangedRequest(message, connection);
                     break;
 

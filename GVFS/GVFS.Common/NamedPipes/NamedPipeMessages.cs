@@ -140,7 +140,7 @@ namespace GVFS.Common.NamedPipes
 
         public static class PostIndexChanged
         {
-            public const string UpdateProjectionRequest = "UPD";
+            public const string NotificationRequest = "PICN";
             public const string SuccessResult = "S";
             public const string FailureResult = "F";
 
@@ -160,12 +160,6 @@ namespace GVFS.Common.NamedPipes
                 public bool WorkingDirectoryUpdated { get; }
 
                 public bool OnlyIndexUpdated { get; }
-
-                public Message CreateMessage()
-                {
-                    string body = string.Format("{0}{1}", this.WorkingDirectoryUpdated ? "1" : "0", this.OnlyIndexUpdated ? "1" : "0");
-                    return new Message(UpdateProjectionRequest, body);
-                }
             }
 
             public class Response

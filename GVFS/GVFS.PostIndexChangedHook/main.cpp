@@ -31,14 +31,15 @@ int main(int argc, char *argv[])
     PIPE_HANDLE pipeHandle = CreatePipeToGVFS(pipeName);
 
     // Construct index changed request message
-    // Format:  "UPD|<working directory updated flag><reset --mixed flag>"
-    // Example: "UPD|10"
-    // Example: "UPD|01"
+    // Format:  "PICN|<working directory updated flag><only index updated flag>"
+    // Example: "PICN|10"
+    // Example: "PICN|01"
+    // Example: "PICN|00"
     unsigned long bytesWritten;
-    const unsigned long messageLength = 7;
+    const unsigned long messageLength = 8;
     int error = 0;
     char request[messageLength];
-    if (snprintf(request, messageLength, "UPD|%s%s", argv[1], argv[2]) != messageLength - 1)
+    if (snprintf(request, messageLength, "PICN|%s%s", argv[1], argv[2]) != messageLength - 1)
     {
         die(PostIndexChangedErrorReturnCode::ErrorPostIndexChangedProtocol, "Invalid value for message");
     }
