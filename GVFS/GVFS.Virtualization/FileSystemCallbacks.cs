@@ -368,15 +368,14 @@ namespace GVFS.Virtualization
             return this.modifiedPaths.GetAllModifiedPaths();
         }
 
-        public virtual void OnIndexFileChange()
+        public virtual void CheckLockWhenIndexChanged()
         {
             string lockedGitCommand = this.context.Repository.GVFSLock.GetLockedGitCommand();
             GitCommandLineParser gitCommand = new GitCommandLineParser(lockedGitCommand);
             if (!gitCommand.IsValidGitCommand)
             {
                 // Something wrote to the index without holding the GVFS lock, so we invalidate the projection
-                this.GitIndexProjection.InvalidateProjection();
-                this.InvalidateGitStatusCache();
+                this.OnIndexFileChanged(workingDirectoryUpdated: true, onlyIndexUpdated: false);
 
                 // But this isn't something we expect to see, so log a warning
                 EventMetadata metadata = new EventMetadata
@@ -385,9 +384,7 @@ namespace GVFS.Virtualization
                     { TracingConstants.MessageKey.WarningMessage, "Index modified without git holding GVFS lock" },
                 };
 
-                this.context.Tracer.RelatedEvent(EventLevel.Warning, $"{nameof(this.OnIndexFileChange)}_NoLock", metadata);
-                this.newlyCreatedFileAndFolderPaths.Clear();
-                return;
+                this.context.Tracer.RelatedEvent(EventLevel.Warning, $"{nameof(this.CheckLockWhenIndexChanged)}_NoLock", metadata);
             }
         }
 
