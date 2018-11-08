@@ -402,7 +402,7 @@ of your enlistment's src folder.
                         GitProcess.Result checkoutResult = git.ForceCheckout("HEAD");
 
                         errorMessage = checkoutResult.Errors;
-                        return !checkoutResult.ExitCodeIsFailure;
+                        return checkoutResult.ExitCodeIsSuccess;
                     }
                 },
                 "Recreating git index",

@@ -769,7 +769,7 @@ namespace GVFS.Common.Git
                 activity.RelatedWarning(errorMetadata, result.Errors, Keywords.Telemetry);
             }
 
-            return !result.ExitCodeIsFailure;
+            return result.ExitCodeIsSuccess;
         }
 
         private void CleanupTempFile(ITracer activity, string fullPath)

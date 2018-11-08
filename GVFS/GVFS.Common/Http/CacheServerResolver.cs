@@ -126,7 +126,7 @@ namespace GVFS.Common.Http
             GitProcess.Result result = git.SetInLocalConfig(GVFSConstants.GitConfig.CacheServer, cache.Url, replaceAll: true);
 
             error = result.Errors;
-            return !result.ExitCodeIsFailure;
+            return result.ExitCodeIsSuccess;
         }
 
         private static string GetValueFromConfig(GitProcess git, string configName, bool localOnly)
@@ -136,7 +136,7 @@ namespace GVFS.Common.Http
                 ? git.GetFromLocalConfig(configName)
                 : git.GetFromConfig(configName);
 
-            if (!result.ExitCodeIsFailure)
+            if (result.ExitCodeIsSuccess)
             {
                 return result.Output.TrimEnd('\n');
             }

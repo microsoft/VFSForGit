@@ -360,7 +360,7 @@ namespace GVFS.Common
             }
 
             bool rebuildSucceeded = false;
-            if (!statusResult.ExitCodeIsFailure)
+            if (statusResult.ExitCodeIsSuccess)
             {
                 lock (this.cacheFileLock)
                 {

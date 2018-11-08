@@ -208,7 +208,7 @@ namespace GVFS.Common.Git
         public bool IsValidRepo()
         {
             Result result = this.InvokeGitAgainstDotGitFolder("rev-parse --show-toplevel");
-            return !result.ExitCodeIsFailure;
+            return result.ExitCodeIsSuccess;
         }
 
         public Result RevParse(string gitRef)
@@ -309,7 +309,7 @@ namespace GVFS.Common.Git
             try
             {
                 Result result = this.GetFromConfig(settingName, forceOutsideEnlistment, fileSystem);
-                if (!result.ExitCodeIsFailure)
+                if (result.ExitCodeIsSuccess)
                 {
                     value = result.Output;
                     return true;
@@ -445,7 +445,7 @@ namespace GVFS.Common.Git
             // If oldCommitResult doesn't fail, then the branch exists and update-ref will want the old sha
             Result oldCommitResult = this.RevParse(refToUpdate);
             string oldSha = string.Empty;
-            if (!oldCommitResult.ExitCodeIsFailure)
+            if (oldCommitResult.ExitCodeIsSuccess)
             {
                 oldSha = oldCommitResult.Output.TrimEnd('\n');
             }
@@ -710,9 +710,14 @@ namespace GVFS.Common.Git
             public string Errors { get; }
             public int ExitCode { get; }
 
+            public bool ExitCodeIsSuccess
+            {
+                get { return this.ExitCode == Result.SuccessCode; }
+            }
+
             public bool ExitCodeIsFailure
             {
-                get { return this.ExitCode != SuccessCode; }
+                get { return !this.ExitCodeIsSuccess; }
             }
         }
     }

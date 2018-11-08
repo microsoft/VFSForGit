@@ -204,7 +204,7 @@ namespace FastFetch
             uint valueCoreGvfs;
 
             // No errors getting the configuration and it is either "true" or numeric with the right bit set.
-            return !configCoreGvfs.ExitCodeIsFailure &&
+            return configCoreGvfs.ExitCodeIsSuccess &&
                 !string.IsNullOrEmpty(configCoreGvfs.Output) &&
                 (configCoreGvfs.Output.Equals("true", StringComparison.OrdinalIgnoreCase) ||
                 (uint.TryParse(configCoreGvfs.Output, out valueCoreGvfs) &&
