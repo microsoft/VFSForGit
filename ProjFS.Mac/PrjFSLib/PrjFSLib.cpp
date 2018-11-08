@@ -313,7 +313,7 @@ PrjFS_Result PrjFS_WritePlaceholderDirectory(
         goto CleanupAndFail;
     }
     
-    if (!InitializeEmptyPlaceholder(finalPath))
+    if (!InitializeEmptyPlaceholder(tempPath))
     {
         result = PrjFS_Result_EIOError;
         goto CleanupAndFail;
