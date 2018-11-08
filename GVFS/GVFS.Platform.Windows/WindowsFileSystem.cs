@@ -42,6 +42,17 @@ namespace GVFS.Platform.Windows
             return NativeFileReader.TryReadFirstByteOfFile(fileName, buffer);
         }
 
+        public bool IsExecutable(string fileName)
+        {
+            string fileExtension = Path.GetExtension(fileName);
+            return string.Equals(fileExtension, ".exe", StringComparison.OrdinalIgnoreCase);
+        }
+
+        public bool IsSocket(string fileName)
+        {
+            return false;
+        }
+
         private class NativeFileReader
         {
             private const uint GenericRead = 0x80000000;

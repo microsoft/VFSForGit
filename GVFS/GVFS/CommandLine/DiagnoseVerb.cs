@@ -16,8 +16,6 @@ namespace GVFS.CommandLine
     public class DiagnoseVerb : GVFSVerb.ForExistingEnlistment
     {
         private const string DiagnoseVerbName = "diagnose";
-        private const string WindowsExecutableExtension = ".exe";
-        private const string MacNamedPipeSocketName = "GVFS_NetCorePipe";
 
         private TextWriter diagnosticLogFileWriter;
 
@@ -398,9 +396,9 @@ namespace GVFS.CommandLine
                 string fileName = Path.GetFileName(filePath);
                 try
                 {
-                    string fileExtension = Path.GetExtension(fileName);
-                    if (!string.Equals(fileExtension, WindowsExecutableExtension, StringComparison.OrdinalIgnoreCase) &&
-                        !string.Equals(fileName, MacNamedPipeSocketName, StringComparison.OrdinalIgnoreCase))
+                    string sourceFilePath = Path.Combine(sourcePath, fileName);
+                    if (!GVFSPlatform.Instance.FileSystem.IsSocket(sourceFilePath) &&
+                        !GVFSPlatform.Instance.FileSystem.IsExecutable(sourceFilePath))
                     {
                         File.Copy(
                             Path.Combine(sourcePath, fileName),

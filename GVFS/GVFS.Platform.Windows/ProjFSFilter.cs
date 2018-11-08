@@ -320,7 +320,7 @@ namespace GVFS.Platform.Windows
             return false;
         }
 
-        public string FlushDriverLogs()
+        public string FlushLogs()
         {
             StringBuilder sb = new StringBuilder();
             try

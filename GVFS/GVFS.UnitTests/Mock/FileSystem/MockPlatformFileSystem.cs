@@ -38,5 +38,15 @@ namespace GVFS.UnitTests.Mock.FileSystem
         {
             throw new NotSupportedException();
         }
+
+        public bool IsExecutable(string fileName)
+        {
+            throw new NotSupportedException();
+        }
+
+        public bool IsSocket(string fileName)
+        {
+            throw new NotSupportedException();
+        }
     }
 }
