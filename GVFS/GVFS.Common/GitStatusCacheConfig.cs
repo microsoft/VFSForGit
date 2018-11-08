@@ -86,7 +86,7 @@ namespace GVFS.Common
             error = string.Empty;
 
             GitProcess.Result result = git.GetFromConfig(configName);
-            if (result.HasErrors)
+            if (result.ExitCodeIsFailure)
             {
                 if (result.Errors.Any())
                 {

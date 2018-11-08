@@ -315,7 +315,7 @@ namespace GVFS.Common.Prefetch
                 // * ensures the default refspec (remote.origin.fetch=+refs/heads/*:refs/remotes/origin/*) is removed which avoids some "git fetch/pull" failures
                 // * gives added "git fetch" performance since git will only fetch the branch provided in the refspec.
                 GitProcess.Result setResult = git.SetInLocalConfig(OriginRefMapSettingName, refSpec, replaceAll: true);
-                if (setResult.HasErrors)
+                if (setResult.ExitCodeIsFailure)
                 {
                     activity.RelatedError("Could not update ref spec to {0}: {1}", refSpec, setResult.Errors);
                     return false;
@@ -368,7 +368,7 @@ namespace GVFS.Common.Prefetch
                     result = gitProcess.UpdateBranchSha(refName, targetCommitish);
                 }
 
-                if (result.HasErrors)
+                if (result.ExitCodeIsFailure)
                 {
                     activity.RelatedError(result.Errors);
                     return false;

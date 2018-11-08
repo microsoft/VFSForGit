@@ -264,7 +264,7 @@ namespace GVFS.CommandLine
 
             GitProcess gitProcess = new GitProcess(enlistment);
             GitProcess.Result result = gitProcess.RevParse(GVFSConstants.DotGit.HeadName);
-            if (result.HasErrors)
+            if (result.ExitCodeIsFailure)
             {
                 tracer.RelatedError(result.Errors);
                 this.Output.WriteLine(result.Errors);

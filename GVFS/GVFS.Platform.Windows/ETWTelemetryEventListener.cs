@@ -103,12 +103,12 @@ namespace GVFS.Platform.Windows
         private static string GetConfigValue(string gitBinRoot, string configKey)
         {
             GitProcess.Result result = GitProcess.GetFromSystemConfig(gitBinRoot, configKey);
-            if (result.HasErrors || string.IsNullOrEmpty(result.Output.TrimEnd('\r', '\n')))
+            if (result.ExitCodeIsFailure || string.IsNullOrEmpty(result.Output.TrimEnd('\r', '\n')))
             {
                 result = GitProcess.GetFromGlobalConfig(gitBinRoot, configKey);
             }
 
-            if (result.HasErrors || string.IsNullOrEmpty(result.Output.TrimEnd('\r', '\n')))
+            if (result.ExitCodeIsFailure || string.IsNullOrEmpty(result.Output.TrimEnd('\r', '\n')))
             {
                 return string.Empty;
             }

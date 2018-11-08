@@ -158,7 +158,7 @@ of your enlistment's src folder.
 
                         GitProcess git = new GitProcess(enlistment);
                         statusResult = git.Status(allowObjectDownloads: false, useStatusCache: false);
-                        if (statusResult.HasErrors)
+                        if (statusResult.ExitCodeIsFailure)
                         {
                             return false;
                         }
@@ -180,7 +180,7 @@ of your enlistment's src folder.
                         this.WriteMessage(tracer, "Failed to run git status because the repo is not mounted");
                         this.WriteMessage(tracer, "Either mount first, or run with --no-status");
                     }
-                    else if (statusResult.HasErrors)
+                    else if (statusResult.ExitCodeIsFailure)
                     {
                         this.WriteMessage(tracer, "Failed to run git status: " + statusResult.Errors);
                     }
@@ -361,7 +361,7 @@ of your enlistment's src folder.
                         GVFSGitObjects gitObjects = new GVFSGitObjects(new GVFSContext(tracer, fileSystem, gitRepo, enlistment), objectRequestor);
 
                         GitProcess.Result revParseResult = enlistment.CreateGitProcess().RevParse("HEAD");
-                        if (revParseResult.HasErrors)
+                        if (revParseResult.ExitCodeIsFailure)
                         {
                             errorMessage = "Unable to determine HEAD commit id: " + revParseResult.Errors;
                             return false;
@@ -402,7 +402,7 @@ of your enlistment's src folder.
                         GitProcess.Result checkoutResult = git.ForceCheckout("HEAD");
 
                         errorMessage = checkoutResult.Errors;
-                        return !checkoutResult.HasErrors;
+                        return !checkoutResult.ExitCodeIsFailure;
                     }
                 },
                 "Recreating git index",

@@ -109,7 +109,7 @@ namespace GVFS.Common.Prefetch.Git
                         recursive: true,
                         showAllTrees: true);
 
-                    if (result.HasErrors)
+                    if (result.ExitCodeIsFailure)
                     {
                         this.HasFailures = true;
                         metadata.Add("Errors", result.Errors);
@@ -126,7 +126,7 @@ namespace GVFS.Common.Prefetch.Git
                         targetTreeSha,
                         line => this.EnqueueOperationsFromDiffTreeLine(this.tracer, this.enlistment.WorkingDirectoryRoot, line));
                     
-                    if (result.HasErrors)
+                    if (result.ExitCodeIsFailure)
                     {
                         this.HasFailures = true;
                         metadata.Add("Errors", result.Errors);

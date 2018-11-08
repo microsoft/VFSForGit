@@ -23,7 +23,7 @@ namespace GVFS.RepairJobs
         {
             GitProcess git = new GitProcess(this.Enlistment);
             GitProcess.Result result = git.GetOriginUrl();
-            if (result.HasErrors)
+            if (result.ExitCodeIsFailure)
             {
                 if (result.Errors.Length == 0)
                 {

@@ -326,7 +326,7 @@ namespace GVFS.Common.Git
             try
             {
                 GitProcess.Result result = new GitProcess(this.Enlistment).IndexPack(packfilePath, tempIdxPath);
-                if (result.HasErrors)
+                if (result.ExitCodeIsFailure)
                 {
                     Exception exception;
                     if (!this.fileSystem.TryDeleteFile(tempIdxPath, exception: out exception))
@@ -750,7 +750,7 @@ namespace GVFS.Common.Git
         {
             result = this.IndexPackFile(packFullPath);
 
-            if (result.HasErrors)
+            if (result.ExitCodeIsFailure)
             {
                 EventMetadata errorMetadata = CreateEventMetadata();
                 Exception exception;
@@ -769,7 +769,7 @@ namespace GVFS.Common.Git
                 activity.RelatedWarning(errorMetadata, result.Errors, Keywords.Telemetry);
             }
 
-            return !result.HasErrors;
+            return !result.ExitCodeIsFailure;
         }
 
         private void CleanupTempFile(ITracer activity, string fullPath)
@@ -884,7 +884,7 @@ namespace GVFS.Common.Git
             else
             {
                 GitProcess.Result result = this.TryAddPackFile(responseData.Stream, unpackObjects);
-                if (result.HasErrors)
+                if (result.ExitCodeIsFailure)
                 {
                     return new RetryWrapper<GitObjectsHttpRequestor.GitObjectTaskResult>.CallbackResult(new InvalidOperationException("Could not add pack file: " + result.Errors), shouldRetry: false);
                 }

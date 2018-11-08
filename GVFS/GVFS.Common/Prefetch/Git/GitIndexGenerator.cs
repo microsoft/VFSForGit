@@ -74,7 +74,7 @@ namespace GVFS.Common.Prefetch.Git
                     recursive: true,
                     showAllTrees: false);
 
-                if (result.HasErrors)
+                if (result.ExitCodeIsFailure)
                 {
                     this.tracer.RelatedError("LsTree failed during index generation: {0}", result.Errors);
                     this.HasFailures = true;

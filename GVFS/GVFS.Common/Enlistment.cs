@@ -35,7 +35,7 @@ namespace GVFS.Common
             else
             {
                 GitProcess.Result originResult = gitProcess.GetOriginUrl();
-                if (originResult.HasErrors)
+                if (originResult.ExitCodeIsFailure)
                 {
                     if (originResult.Errors.Length == 0)
                     {

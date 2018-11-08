@@ -468,7 +468,7 @@ You can specify a URL, a name of a configured cache server, or the special names
                 line => rootEntries.Add(DiffTreeResult.ParseFromLsTreeLine(line, repoRoot: string.Empty)),
                 recursive: false);
 
-            if (result.HasErrors)
+            if (result.ExitCodeIsFailure)
             {
                 error = "Error returned from ls-tree to find " + GVFSConstants.SpecialGitFiles.GitAttributes + " file: " + result.Errors;
                 return false;
@@ -564,14 +564,14 @@ You can specify a URL, a name of a configured cache server, or the special names
             tracer.RelatedEvent(EventLevel.Informational, "EnlistmentInfo", metadata, Keywords.Telemetry);
 
             GitProcess.Result configResult = git.SetInLocalConfig(GVFSConstants.GitConfig.EnlistmentId, RepoMetadata.Instance.EnlistmentId, replaceAll: true);
-            if (configResult.HasErrors)
+            if (configResult.ExitCodeIsFailure)
             {
                 string error = "Could not update config with enlistment id, error: " + configResult.Errors;
                 tracer.RelatedWarning(error);
             }
 
             configResult = git.SetInLocalConfig(GVFSConstants.GitConfig.MountId, mountId, replaceAll: true);
-            if (configResult.HasErrors)
+            if (configResult.ExitCodeIsFailure)
             {
                 string error = "Could not update config with mount id, error: " + configResult.Errors;
                 tracer.RelatedWarning(error);
@@ -605,7 +605,7 @@ You can specify a URL, a name of a configured cache server, or the special names
                         (isRequired && !existingSetting.HasValue(setting.Value)))
                     {
                         GitProcess.Result setConfigResult = git.SetInLocalConfig(setting.Key, setting.Value);
-                        if (setConfigResult.HasErrors)
+                        if (setConfigResult.ExitCodeIsFailure)
                         {
                             return false;
                         }

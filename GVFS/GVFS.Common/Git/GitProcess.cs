@@ -109,7 +109,7 @@ namespace GVFS.Common.Git
             Result result = gitProcess.InvokeGitOutsideEnlistment("--version");
             string version = result.Output;
 
-            if (result.HasErrors || !GitVersion.TryParseGitVersionCommandResult(version, out gitVersion))
+            if (result.ExitCodeIsFailure || !GitVersion.TryParseGitVersionCommandResult(version, out gitVersion))
             {
                 gitVersion = null;
                 error = "Unable to determine installed git version. " + version;
@@ -176,7 +176,7 @@ namespace GVFS.Common.Git
                     stdin => stdin.Write("url=" + repoUrl + "\n\n"),
                     parseStdOutLine: null);
 
-                if (gitCredentialOutput.HasErrors)
+                if (gitCredentialOutput.ExitCodeIsFailure)
                 {
                     EventMetadata errorData = new EventMetadata();
                     tracer.RelatedWarning(
@@ -208,7 +208,7 @@ namespace GVFS.Common.Git
         public bool IsValidRepo()
         {
             Result result = this.InvokeGitAgainstDotGitFolder("rev-parse --show-toplevel");
-            return !result.HasErrors;
+            return !result.ExitCodeIsFailure;
         }
 
         public Result RevParse(string gitRef)
@@ -257,7 +257,7 @@ namespace GVFS.Common.Git
         {
             string localParameter = localOnly ? "--local" : string.Empty;
             Result result = this.InvokeGitAgainstDotGitFolder("config --list " + localParameter);
-            if (result.HasErrors)
+            if (result.ExitCodeIsFailure)
             {
                 configSettings = null;
                 return false;
@@ -309,7 +309,7 @@ namespace GVFS.Common.Git
             try
             {
                 Result result = this.GetFromConfig(settingName, forceOutsideEnlistment, fileSystem);
-                if (!result.HasErrors)
+                if (!result.ExitCodeIsFailure)
                 {
                     value = result.Output;
                     return true;
@@ -445,7 +445,7 @@ namespace GVFS.Common.Git
             // If oldCommitResult doesn't fail, then the branch exists and update-ref will want the old sha
             Result oldCommitResult = this.RevParse(refToUpdate);
             string oldSha = string.Empty;
-            if (!oldCommitResult.HasErrors)
+            if (!oldCommitResult.ExitCodeIsFailure)
             {
                 oldSha = oldCommitResult.Output.TrimEnd('\n');
             }
@@ -699,20 +699,20 @@ namespace GVFS.Common.Git
             public const int SuccessCode = 0;
             public const int GenericFailureCode = 1;
 
-            public Result(string output, string errors, int returnCode)
+            public Result(string stdout, string stderr, int exitCode)
             {
-                this.Output = output;
-                this.Errors = errors;
-                this.ReturnCode = returnCode;
+                this.Output = stdout;
+                this.Errors = stderr;
+                this.ExitCode = exitCode;
             }
 
             public string Output { get; }
             public string Errors { get; }
-            public int ReturnCode { get; }
+            public int ExitCode { get; }
 
-            public bool HasErrors
+            public bool ExitCodeIsFailure
             {
-                get { return this.ReturnCode != SuccessCode; }
+                get { return this.ExitCode != SuccessCode; }
             }
         }
     }

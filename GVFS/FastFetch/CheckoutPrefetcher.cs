@@ -111,7 +111,7 @@ namespace FastFetch
                         string remoteBranch = refs.GetBranchRefPairs().Single().Key;
                         GitProcess git = new GitProcess(this.Enlistment);
                         GitProcess.Result result = git.SetUpstream(branchOrCommit, remoteBranch);
-                        if (result.HasErrors)
+                        if (result.ExitCodeIsFailure)
                         {
                             activity.RelatedError("Could not set upstream for {0} to {1}: {2}", branchOrCommit, remoteBranch, result.Errors);
                             this.HasFailures = true;
@@ -204,7 +204,7 @@ namespace FastFetch
             uint valueCoreGvfs;
 
             // No errors getting the configuration and it is either "true" or numeric with the right bit set.
-            return !configCoreGvfs.HasErrors &&
+            return !configCoreGvfs.ExitCodeIsFailure &&
                 !string.IsNullOrEmpty(configCoreGvfs.Output) &&
                 (configCoreGvfs.Output.Equals("true", StringComparison.OrdinalIgnoreCase) ||
                 (uint.TryParse(configCoreGvfs.Output, out valueCoreGvfs) &&
