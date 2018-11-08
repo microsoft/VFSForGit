@@ -86,16 +86,10 @@ namespace GVFS.Common
             error = string.Empty;
 
             GitProcess.Result result = git.GetFromConfig(configName);
-            if (result.ExitCodeIsFailure)
+            if (result.ExitCodeIsFailure && result.StderrContainsErrors())
             {
-                if (result.Errors.Any())
-                {
-                    error = "Error while reading '" + configName + "' from config: " + result.Errors;
-                    return false;
-                }
-
-                // Git returns non-zero for non-existent settings and errors.
-                return true;
+                error = "Error while reading '" + configName + "' from config: " + result.Errors;
+                return false;
             }
 
             string valueString = result.Output.TrimEnd('\n');
