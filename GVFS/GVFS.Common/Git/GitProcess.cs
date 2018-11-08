@@ -719,6 +719,18 @@ namespace GVFS.Common.Git
             {
                 get { return !this.ExitCodeIsSuccess; }
             }
+
+            public bool StderrContainsErrors()
+            {
+                if (!string.IsNullOrWhiteSpace(this.Errors))
+                {
+                    return !this.Errors
+                        .Split(new char[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries)
+                        .All(line => line.TrimStart().StartsWith("warning:", StringComparison.OrdinalIgnoreCase));
+                }
+
+                return false;
+            }
         }
     }
 }
