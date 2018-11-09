@@ -1,4 +1,55 @@
-###############################################################################
-# Do not normalize any line endings.
-###############################################################################
-* -text
+# Windows Batch file
+*.bat eol=crlf
+
+# NuGet, .NET config files
+*.config eol=crlf
+*.nuspec eol=crlf
+
+# Visual Studio files
+*.csproj eol=crlf
+*.filters eol=crlf
+*.props eol=crlf
+*.rc eol=crlf
+*.sln eol=crlf
+*.vcxproj eol=crlf
+
+# XCode/Mac stuff
+*.pbxproj eol=lf
+*.plist eol=lf
+*.xcscheme eol=lf
+*.xcsettings eol=lf
+*.xcworkspacedata eol=lf
+
+# StyleCop
+*.StyleCop eol=crlf
+
+# Git files
+*.gitattributes eol=lf
+*.gitignore eol=lf
+
+# C, C#, C++
+*.c eol=lf
+*.cpp eol=lf
+*.cs eol=lf
+*.h eol=lf
+*.hpp eol=lf
+
+# Shell scripts
+*.sh eol=lf
+
+# InnoSetup
+*.iss eol=lf
+
+# Text files
+*.md eol=lf
+*.txt eol=lf
+
+# Test data
+*.chk binary
+*.edb binary
+*.jfm binary
+*.jrs binary
+*.log binary
+
+# Icon
+*.ico binary
