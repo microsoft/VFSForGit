@@ -1,4 +1,4 @@
-﻿using GVFS.FunctionalTests.FileSystemRunners;
+using GVFS.FunctionalTests.FileSystemRunners;
 using GVFS.FunctionalTests.Should;
 using GVFS.Tests.Should;
 using Microsoft.Data.Sqlite;

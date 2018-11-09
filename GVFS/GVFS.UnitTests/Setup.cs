@@ -1,4 +1,4 @@
-﻿using GVFS.Common;
+using GVFS.Common;
 using GVFS.UnitTests.Mock.Common;
 using NUnit.Framework;
 

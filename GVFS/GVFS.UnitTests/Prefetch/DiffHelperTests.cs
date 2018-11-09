@@ -1,4 +1,4 @@
-﻿using GVFS.Common.Git;
+using GVFS.Common.Git;
 using GVFS.Common.Prefetch.Git;
 using GVFS.Tests;
 using GVFS.Tests.Should;

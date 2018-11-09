@@ -1,4 +1,4 @@
-﻿namespace GVFS.FunctionalTests
+namespace GVFS.FunctionalTests
 {
     public static class Categories
     {

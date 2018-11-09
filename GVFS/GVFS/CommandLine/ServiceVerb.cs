@@ -1,4 +1,4 @@
-﻿using CommandLine;
+using CommandLine;
 using GVFS.Common;
 using GVFS.Common.FileSystem;
 using GVFS.Common.NamedPipes;

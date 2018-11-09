@@ -1,4 +1,4 @@
-﻿using GVFS.FunctionalTests.FileSystemRunners;
+using GVFS.FunctionalTests.FileSystemRunners;
 using GVFS.FunctionalTests.Should;
 using GVFS.FunctionalTests.Tests.EnlistmentPerFixture;
 using GVFS.FunctionalTests.Tools;

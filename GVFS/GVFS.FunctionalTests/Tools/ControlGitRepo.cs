@@ -1,4 +1,4 @@
-﻿using GVFS.FunctionalTests.FileSystemRunners;
+using GVFS.FunctionalTests.FileSystemRunners;
 using System;
 using System.IO;
 using System.Runtime.InteropServices;

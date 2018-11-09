@@ -1,4 +1,4 @@
-﻿using ProjFS;
+using ProjFS;
 
 namespace GVFS.Platform.Windows
 {

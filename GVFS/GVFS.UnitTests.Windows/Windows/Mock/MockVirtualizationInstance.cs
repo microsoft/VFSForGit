@@ -1,4 +1,4 @@
-﻿using GVFS.Common;
+using GVFS.Common;
 using ProjFS;
 using System;
 using System.Collections.Generic;

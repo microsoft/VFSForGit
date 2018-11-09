@@ -1,4 +1,4 @@
-﻿using GVFS.Common.Http;
+using GVFS.Common.Http;
 using GVFS.Common.Tracing;
 using System;
 using System.Collections.Concurrent;

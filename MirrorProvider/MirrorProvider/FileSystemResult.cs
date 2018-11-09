@@ -1,4 +1,4 @@
-﻿namespace MirrorProvider
+namespace MirrorProvider
 {
     public enum FileSystemResult
     {

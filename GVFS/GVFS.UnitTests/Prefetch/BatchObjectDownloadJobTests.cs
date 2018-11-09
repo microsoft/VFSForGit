@@ -1,4 +1,4 @@
-﻿using GVFS.Common.Prefetch.Jobs;
+using GVFS.Common.Prefetch.Jobs;
 using GVFS.Tests.Should;
 using GVFS.UnitTests.Category;
 using GVFS.UnitTests.Mock.Common;

@@ -1,4 +1,4 @@
-﻿namespace GVFS.Common.Tracing
+namespace GVFS.Common.Tracing
 {
     public enum Keywords : long
     {

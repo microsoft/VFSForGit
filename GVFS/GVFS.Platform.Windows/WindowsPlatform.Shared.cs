@@ -1,4 +1,4 @@
-﻿using GVFS.Common;
+using GVFS.Common;
 using Microsoft.Win32.SafeHandles;
 using System;
 using System.Runtime.InteropServices;

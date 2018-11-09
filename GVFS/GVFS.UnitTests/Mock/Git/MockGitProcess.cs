@@ -1,4 +1,4 @@
-﻿using GVFS.Common.FileSystem;
+using GVFS.Common.FileSystem;
 using GVFS.Common.Git;
 using GVFS.Tests.Should;
 using GVFS.UnitTests.Mock.Common;

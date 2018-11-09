@@ -1,4 +1,4 @@
-﻿using GVFS.Common.Tracing;
+using GVFS.Common.Tracing;
 using GVFS.DiskLayoutUpgrades;
 using System.Collections.Generic;
 

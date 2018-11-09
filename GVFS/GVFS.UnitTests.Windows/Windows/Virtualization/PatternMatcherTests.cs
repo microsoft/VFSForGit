@@ -1,4 +1,4 @@
-﻿using GVFS.Platform.Windows;
+using GVFS.Platform.Windows;
 using GVFS.Tests.Should;
 using NUnit.Framework;
 using ProjFS;

@@ -1,4 +1,4 @@
-﻿using GVFS.Common.FileSystem;
+using GVFS.Common.FileSystem;
 using GVFS.Common.Http;
 using GVFS.Common.Tracing;
 using System;

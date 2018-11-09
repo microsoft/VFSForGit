@@ -1,4 +1,4 @@
-﻿using GVFS.Common.Git;
+using GVFS.Common.Git;
 using GVFS.Platform.Windows;
 using GVFS.Tests.Should;
 using GVFS.Virtualization.Projection;

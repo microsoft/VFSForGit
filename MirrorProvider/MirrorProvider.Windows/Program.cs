@@ -1,4 +1,4 @@
-﻿namespace MirrorProvider.Windows
+namespace MirrorProvider.Windows
 {
     class Program
     {

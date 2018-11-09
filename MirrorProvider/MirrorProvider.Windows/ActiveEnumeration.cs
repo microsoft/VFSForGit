@@ -1,4 +1,4 @@
-﻿using ProjFS;
+using ProjFS;
 using System.Collections.Generic;
 
 namespace MirrorProvider.Windows

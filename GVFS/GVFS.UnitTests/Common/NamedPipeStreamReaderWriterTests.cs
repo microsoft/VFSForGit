@@ -1,4 +1,4 @@
-﻿using GVFS.Common.NamedPipes;
+using GVFS.Common.NamedPipes;
 using GVFS.Tests.Should;
 using GVFS.UnitTests.Category;
 using NUnit.Framework;

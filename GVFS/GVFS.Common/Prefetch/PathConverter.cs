@@ -1,4 +1,4 @@
-﻿using System.IO;
+using System.IO;
 using GVFS.Common;
 
 namespace GVFS.Common.Prefetch

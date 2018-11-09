@@ -1,4 +1,4 @@
-﻿namespace MirrorProvider.Mac
+namespace MirrorProvider.Mac
 {
     class Program
     {

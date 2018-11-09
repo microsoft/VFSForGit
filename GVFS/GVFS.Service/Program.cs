@@ -1,4 +1,4 @@
-﻿using GVFS.Common;
+using GVFS.Common;
 using GVFS.Common.Tracing;
 using GVFS.PlatformLoader;
 using System;

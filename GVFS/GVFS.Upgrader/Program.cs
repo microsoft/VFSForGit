@@ -1,4 +1,4 @@
-﻿using GVFS.PlatformLoader;
+using GVFS.PlatformLoader;
 
 namespace GVFS.Upgrader
 {

@@ -1,4 +1,4 @@
-﻿using GVFS.Common.Git;
+using GVFS.Common.Git;
 using GVFS.Common.Http;
 using GVFS.Common.NetworkStreams;
 using GVFS.Common.Prefetch.Jobs.Data;

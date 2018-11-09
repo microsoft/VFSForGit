@@ -1,4 +1,4 @@
-﻿using GVFS.Common.NamedPipes;
+using GVFS.Common.NamedPipes;
 using GVFS.Common.Tracing;
 
 namespace GVFS.Service.Handlers

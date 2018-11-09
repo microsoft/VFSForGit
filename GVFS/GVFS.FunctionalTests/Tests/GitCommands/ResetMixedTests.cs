@@ -1,4 +1,4 @@
-﻿using GVFS.FunctionalTests.Should;
+using GVFS.FunctionalTests.Should;
 using NUnit.Framework;
 
 namespace GVFS.FunctionalTests.Tests.GitCommands

@@ -1,4 +1,4 @@
-﻿using GVFS.Common.NetworkStreams;
+using GVFS.Common.NetworkStreams;
 using GVFS.Tests.Should;
 using NUnit.Framework;
 using System;

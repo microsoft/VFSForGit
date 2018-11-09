@@ -1,4 +1,4 @@
-﻿using GVFS.Common.NamedPipes;
+using GVFS.Common.NamedPipes;
 using System;
 using System.Diagnostics;
 using System.Threading;

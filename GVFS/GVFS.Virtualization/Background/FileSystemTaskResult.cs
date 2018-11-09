@@ -1,4 +1,4 @@
-﻿namespace GVFS.Virtualization.Background
+namespace GVFS.Virtualization.Background
 {
     public enum FileSystemTaskResult
     {

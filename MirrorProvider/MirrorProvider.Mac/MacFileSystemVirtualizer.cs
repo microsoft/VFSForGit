@@ -1,4 +1,4 @@
-﻿using PrjFSLib.Mac;
+using PrjFSLib.Mac;
 using System;
 using System.IO;
 using System.Runtime.InteropServices;

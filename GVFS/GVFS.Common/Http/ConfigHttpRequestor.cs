@@ -1,4 +1,4 @@
-﻿using GVFS.Common.Tracing;
+using GVFS.Common.Tracing;
 using Newtonsoft.Json;
 using System;
 using System.Net;

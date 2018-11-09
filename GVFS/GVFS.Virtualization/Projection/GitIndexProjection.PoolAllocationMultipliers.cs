@@ -1,4 +1,4 @@
-﻿namespace GVFS.Virtualization.Projection
+namespace GVFS.Virtualization.Projection
 {
     public partial class GitIndexProjection
     {

@@ -1,4 +1,4 @@
-﻿using GVFS.Common.Git;
+using GVFS.Common.Git;
 
 namespace GVFS.Virtualization.Projection
 {

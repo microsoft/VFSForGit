@@ -1,4 +1,4 @@
-﻿namespace GVFS.Common.Tracing
+namespace GVFS.Common.Tracing
 {
     // Copied from Microsoft.Diagnostics.Tracing.EventLevel
     public enum EventLevel

@@ -1,4 +1,4 @@
-﻿namespace GVFS.FunctionalTests.Tools
+namespace GVFS.FunctionalTests.Tools
 {
     public class ProcessResult
     {

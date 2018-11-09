@@ -1,4 +1,4 @@
-﻿namespace GVFS.Common.Prefetch.Jobs.Data
+namespace GVFS.Common.Prefetch.Jobs.Data
 {
     public class IndexPackRequest
     {

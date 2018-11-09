@@ -1,4 +1,4 @@
-﻿namespace GVFS.Virtualization.FileSystem
+namespace GVFS.Virtualization.FileSystem
 {
     public enum FSResult
     {

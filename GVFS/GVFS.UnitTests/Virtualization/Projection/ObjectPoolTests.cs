@@ -1,4 +1,4 @@
-﻿using GVFS.Tests.Should;
+using GVFS.Tests.Should;
 using GVFS.UnitTests.Mock.Common;
 using GVFS.Virtualization.Projection;
 using NUnit.Framework;

@@ -1,4 +1,4 @@
-﻿using GVFS.Common.Tracing;
+using GVFS.Common.Tracing;
 using Microsoft.Win32.SafeHandles;
 using System;
 using System.IO;

@@ -1,4 +1,4 @@
-﻿using GVFS.Common;
+using GVFS.Common;
 using GVFS.Common.Git;
 using GVFS.Virtualization.Background;
 using GVFS.Virtualization.BlobSize;

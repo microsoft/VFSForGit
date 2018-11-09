@@ -1,4 +1,4 @@
-﻿using GVFS.DiskLayoutUpgrades;
+using GVFS.DiskLayoutUpgrades;
 using System;
 
 namespace GVFS.Common

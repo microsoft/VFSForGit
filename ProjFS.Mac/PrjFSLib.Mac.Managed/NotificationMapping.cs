@@ -1,4 +1,4 @@
-﻿namespace PrjFSLib.Mac
+namespace PrjFSLib.Mac
 {
     public class NotificationMapping
     {

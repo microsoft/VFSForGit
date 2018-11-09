@@ -1,4 +1,4 @@
-﻿using ProjFS;
+using ProjFS;
 using System;
 using System.Collections.Concurrent;
 using System.ComponentModel;

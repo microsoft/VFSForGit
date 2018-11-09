@@ -1,4 +1,4 @@
-﻿using GVFS.Common.Git;
+using GVFS.Common.Git;
 using GVFS.Common.Tracing;
 using GVFS.Virtualization.BlobSize;
 using System.Collections.Generic;

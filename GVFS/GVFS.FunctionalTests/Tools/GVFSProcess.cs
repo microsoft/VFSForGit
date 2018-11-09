@@ -1,4 +1,4 @@
-﻿using GVFS.Tests.Should;
+using GVFS.Tests.Should;
 using System.Diagnostics;
 
 namespace GVFS.FunctionalTests.Tools

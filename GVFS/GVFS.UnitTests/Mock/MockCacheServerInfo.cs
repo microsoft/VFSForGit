@@ -1,4 +1,4 @@
-﻿using GVFS.Common.Http;
+using GVFS.Common.Http;
 
 namespace GVFS.UnitTests.Mock
 {

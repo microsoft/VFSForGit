@@ -1,4 +1,4 @@
-﻿namespace GVFS.Common.Git
+namespace GVFS.Common.Git
 {
     public enum GitObjectContentType
     {

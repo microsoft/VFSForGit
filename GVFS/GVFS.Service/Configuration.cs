@@ -1,4 +1,4 @@
-﻿using GVFS.Common;
+using GVFS.Common;
 using System.IO;
 
 namespace GVFS.Service

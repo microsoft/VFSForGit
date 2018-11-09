@@ -1,4 +1,4 @@
-﻿using CommandLine;
+using CommandLine;
 using GVFS.Common;
 using System;
 using System.Collections.Generic;

@@ -1,4 +1,4 @@
-﻿using GVFS.Virtualization.Background;
+using GVFS.Virtualization.Background;
 using System;
 using System.Collections.Generic;
 

@@ -1,4 +1,4 @@
-﻿using GVFS.Common.Tracing;
+using GVFS.Common.Tracing;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Threading;

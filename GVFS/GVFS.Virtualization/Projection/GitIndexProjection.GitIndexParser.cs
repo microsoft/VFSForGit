@@ -1,4 +1,4 @@
-﻿using GVFS.Common;
+using GVFS.Common;
 using GVFS.Common.Tracing;
 using GVFS.Virtualization.Background;
 using System;

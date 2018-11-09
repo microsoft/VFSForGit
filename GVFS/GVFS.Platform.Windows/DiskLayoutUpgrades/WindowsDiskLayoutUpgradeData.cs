@@ -1,4 +1,4 @@
-﻿using GVFS.Common;
+using GVFS.Common;
 using GVFS.DiskLayoutUpgrades;
 using Microsoft.Isam.Esent.Collections.Generic;
 using System;

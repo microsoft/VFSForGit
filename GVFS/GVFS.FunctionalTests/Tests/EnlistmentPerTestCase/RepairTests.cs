@@ -1,4 +1,4 @@
-﻿using GVFS.FunctionalTests.Tools;
+using GVFS.FunctionalTests.Tools;
 using GVFS.Tests.Should;
 using NUnit.Framework;
 using System;

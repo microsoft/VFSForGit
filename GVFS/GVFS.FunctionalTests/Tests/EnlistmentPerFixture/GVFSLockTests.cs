@@ -1,4 +1,4 @@
-﻿using GVFS.FunctionalTests.FileSystemRunners;
+using GVFS.FunctionalTests.FileSystemRunners;
 using GVFS.FunctionalTests.Properties;
 using GVFS.FunctionalTests.Tools;
 using GVFS.Tests.Should;

@@ -1,4 +1,4 @@
-﻿using GVFS.Common;
+using GVFS.Common;
 using GVFS.Common.Prefetch.Git;
 using GVFS.Common.Tracing;
 using System.Collections.Generic;

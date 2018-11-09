@@ -1,4 +1,4 @@
-﻿using GVFS.Common;
+using GVFS.Common;
 using GVFS.PlatformLoader;
 using GVFS.Virtualization.Projection;
 using System;

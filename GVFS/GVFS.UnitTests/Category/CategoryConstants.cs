@@ -1,4 +1,4 @@
-﻿namespace GVFS.UnitTests.Category
+namespace GVFS.UnitTests.Category
 {
     public static class CategoryConstants
     {

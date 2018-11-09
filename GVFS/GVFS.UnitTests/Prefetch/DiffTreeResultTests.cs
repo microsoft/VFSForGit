@@ -1,4 +1,4 @@
-﻿using GVFS.Common.Git;
+using GVFS.Common.Git;
 using GVFS.Tests.Should;
 using GVFS.UnitTests.Category;
 using NUnit.Framework;

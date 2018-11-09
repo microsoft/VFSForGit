@@ -1,4 +1,4 @@
-﻿using GVFS.Common;
+using GVFS.Common;
 using GVFS.DiskLayoutUpgrades;
 
 namespace GVFS.Platform.Mac

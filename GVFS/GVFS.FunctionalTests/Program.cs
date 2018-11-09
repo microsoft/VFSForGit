@@ -1,4 +1,4 @@
-﻿using GVFS.FunctionalTests.Tests;
+using GVFS.FunctionalTests.Tests;
 using GVFS.FunctionalTests.Tools;
 using GVFS.Tests;
 using System;

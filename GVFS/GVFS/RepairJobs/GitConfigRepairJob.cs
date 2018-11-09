@@ -1,4 +1,4 @@
-﻿using GVFS.CommandLine;
+using GVFS.CommandLine;
 using GVFS.Common;
 using GVFS.Common.Git;
 using GVFS.Common.Tracing;

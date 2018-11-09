@@ -1,4 +1,4 @@
-﻿namespace GVFS.Common.FileSystem
+namespace GVFS.Common.FileSystem
 {
     public class DirectoryItemInfo
     {

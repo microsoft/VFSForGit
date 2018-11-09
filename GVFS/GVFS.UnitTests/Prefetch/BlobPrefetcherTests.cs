@@ -1,4 +1,4 @@
-﻿using GVFS.Common.Prefetch;
+using GVFS.Common.Prefetch;
 using GVFS.Tests.Should;
 using GVFS.UnitTests.Mock.FileSystem;
 using NUnit.Framework;

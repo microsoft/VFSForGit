@@ -1,4 +1,4 @@
-﻿namespace GVFS.Common
+namespace GVFS.Common
 {
     public class ProcessResult
     {

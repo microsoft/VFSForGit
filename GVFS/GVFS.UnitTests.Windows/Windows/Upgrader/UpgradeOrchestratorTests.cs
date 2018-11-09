@@ -1,4 +1,4 @@
-﻿using GVFS.Common;
+using GVFS.Common;
 using GVFS.Tests.Should;
 using GVFS.UnitTests.Windows.Mock.Upgrader;
 using GVFS.Upgrader;

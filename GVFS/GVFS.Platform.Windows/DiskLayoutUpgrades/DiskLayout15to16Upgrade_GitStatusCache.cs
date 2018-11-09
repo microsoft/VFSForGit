@@ -1,4 +1,4 @@
-﻿using GVFS.Common.Tracing;
+using GVFS.Common.Tracing;
 using GVFS.DiskLayoutUpgrades;
 
 namespace GVFS.Platform.Windows.DiskLayoutUpgrades

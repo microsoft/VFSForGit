@@ -1,4 +1,4 @@
-﻿using GVFS.Common.Http;
+using GVFS.Common.Http;
 using System;
 using System.Collections.Generic;
 using System.Linq;

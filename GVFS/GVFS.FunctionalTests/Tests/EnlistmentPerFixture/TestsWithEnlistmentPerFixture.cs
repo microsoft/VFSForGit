@@ -1,4 +1,4 @@
-﻿using GVFS.FunctionalTests.Tools;
+using GVFS.FunctionalTests.Tools;
 using NUnit.Framework;
 
 namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture

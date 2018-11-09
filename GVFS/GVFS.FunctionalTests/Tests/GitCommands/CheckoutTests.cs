@@ -1,4 +1,4 @@
-﻿using GVFS.FunctionalTests.Should;
+using GVFS.FunctionalTests.Should;
 using GVFS.FunctionalTests.Tools;
 using GVFS.Tests.Should;
 using Microsoft.Win32.SafeHandles;

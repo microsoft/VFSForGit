@@ -1,4 +1,4 @@
-﻿using GVFS.Virtualization.Projection;
+using GVFS.Virtualization.Projection;
 
 using System.Collections.Generic;
 

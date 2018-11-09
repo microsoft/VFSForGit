@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using GVFS.Common;
 using GVFS.Common.Git;
 using GVFS.Virtualization.FileSystem;
