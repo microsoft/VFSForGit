@@ -822,7 +822,6 @@ namespace GVFS.UnitTests.Windows.Virtualization
                     mockGVFSGitObjects.FileLength = fileLength;
 
                     MockTracer mockTracker = this.Repo.Context.Tracer as MockTracer;
-                    mockTracker.WaitRelatedEventName = "GetFileStreamHandlerAsyncHandler_OperationCancelled";
 
                     mockVirtualization.WriteFileReturnResult = HResult.InternalError;
                     mockVirtualization.OnGetFileStream(
@@ -837,6 +836,61 @@ namespace GVFS.UnitTests.Windows.Virtualization
                         triggeringProcessImageFileName: "UnitTest").ShouldEqual(HResult.Pending);
 
                     mockVirtualization.WaitForCompletionStatus().ShouldEqual(mockVirtualization.WriteFileReturnResult);
+                }
+                finally
+                {
+                    fileSystemCallbacks.Stop();
+                }
+            }
+        }
+
+        [TestCase]
+        [Category(CategoryConstants.ExceptionExpected)]
+        public void OnGetFileStreamHandlesFileClosed()
+        {
+            using (MockBackgroundFileSystemTaskRunner backgroundTaskRunner = new MockBackgroundFileSystemTaskRunner())
+            using (MockVirtualizationInstance mockVirtualization = new MockVirtualizationInstance())
+            using (MockGitIndexProjection gitIndexProjection = new MockGitIndexProjection(new[] { "test.txt" }))
+            using (WindowsFileSystemVirtualizer virtualizer = new WindowsFileSystemVirtualizer(this.Repo.Context, this.Repo.GitObjects, mockVirtualization, numWorkThreads))
+            using (FileSystemCallbacks fileSystemCallbacks = new FileSystemCallbacks(
+                this.Repo.Context,
+                this.Repo.GitObjects,
+                RepoMetadata.Instance,
+                new MockBlobSizes(),
+                gitIndexProjection,
+                backgroundFileSystemTaskRunner: backgroundTaskRunner,
+                fileSystemVirtualizer: virtualizer))
+            {
+                try
+                {
+                    string error;
+                    fileSystemCallbacks.TryStart(out error).ShouldEqual(true);
+
+                    Guid enumerationGuid = Guid.NewGuid();
+
+                    byte[] contentId = FileSystemVirtualizer.ConvertShaToContentId("0123456789012345678901234567890123456789");
+                    byte[] placeholderVersion = WindowsFileSystemVirtualizer.PlaceholderVersionId;
+
+                    uint fileLength = 100;
+                    MockGVFSGitObjects mockGVFSGitObjects = this.Repo.GitObjects as MockGVFSGitObjects;
+                    mockGVFSGitObjects.FileLength = fileLength;
+
+                    MockTracer mockTracker = this.Repo.Context.Tracer as MockTracer;
+
+                    mockVirtualization.WriteFileReturnResult = HResult.FileClosed;
+                    mockVirtualization.OnGetFileStream(
+                        commandId: 1,
+                        relativePath: "test.txt",
+                        byteOffset: 0,
+                        length: fileLength,
+                        streamGuid: Guid.NewGuid(),
+                        contentId: contentId,
+                        providerId: placeholderVersion,
+                        triggeringProcessId: 2,
+                        triggeringProcessImageFileName: "UnitTest").ShouldEqual(HResult.Pending);
+
+                    mockVirtualization.WaitForCompletionStatus().ShouldEqual(mockVirtualization.WriteFileReturnResult);
+                    mockTracker.RelatedErrorEvents.ShouldBeEmpty();
                 }
                 finally
                 {
