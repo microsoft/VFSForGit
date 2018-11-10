@@ -41,6 +41,11 @@ void* Memory_Alloc(uint32_t size)
     return OSMalloc(size, s_mallocTag);
 }
 
+void* Memory_AllocNoBlock(uint32_t size)
+{
+    return OSMalloc_noblock(size, s_mallocTag);
+}
+
 void Memory_Free(void* buffer, uint32_t size)
 {
     OSFree(buffer, size, s_mallocTag);

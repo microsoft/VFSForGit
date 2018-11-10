@@ -33,6 +33,8 @@
 /* Begin PBXFileReference section */
 		263E066C21667C11005F756A /* FsidInode.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = FsidInode.h; sourceTree = "<group>"; };
 		4A08829C20D80B8300E17FEE /* PrjFSXattrs.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = PrjFSXattrs.h; sourceTree = "<group>"; };
+		4A10DCA621973C260055FF6C /* AssociativeArray.hpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.h; path = AssociativeArray.hpp; sourceTree = "<group>"; };
+		4A10DCA7219740890055FF6C /* KextCppUtilities.hpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.h; path = KextCppUtilities.hpp; sourceTree = "<group>"; };
 		4A63CB0B20AB009000157B95 /* VnodeUtilities.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = VnodeUtilities.cpp; sourceTree = "<group>"; };
 		4A63CB0C20AB009000157B95 /* VnodeUtilities.hpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.h; path = VnodeUtilities.hpp; sourceTree = "<group>"; };
 		4A9D139B208F675500376182 /* PrjFSService.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = PrjFSService.cpp; sourceTree = "<group>"; };
@@ -133,6 +135,8 @@
 				4AE187A721203A890026AC68 /* PerformanceTracing.cpp */,
 				C6E9E116208BBB62004A5725 /* KauthHandler.hpp */,
 				C6E9E117208BBB62004A5725 /* KauthHandler.cpp */,
+				4A10DCA7219740890055FF6C /* KextCppUtilities.hpp */,
+				4A10DCA621973C260055FF6C /* AssociativeArray.hpp */,
 				C6BDD364208BC60400CB7E58 /* VirtualizationRoots.hpp */,
 				C6BDD365208BC60400CB7E58 /* VirtualizationRoots.cpp */,
 				C6BDD368208BC99100CB7E58 /* Locks.hpp */,
