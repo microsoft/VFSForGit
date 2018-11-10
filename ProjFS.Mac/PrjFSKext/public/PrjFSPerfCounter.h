@@ -44,7 +44,7 @@ enum PrjFSPerfCounter : int32_t
     PrjFSPerfCounter_Count,
 };
 
-struct PerfTracingProbe
+struct PrjFSPerfCounterResult
 {
     _Atomic uint64_t numSamples;
     

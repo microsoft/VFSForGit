@@ -30,9 +30,14 @@ inline PerfTracer::PerfTracer()
 {
 #if PRJFS_PERFORMANCE_TRACING_ENABLE
     // Set this value to N for a sampling rate of 1/N
-    const int sampleEveryNthTracer = 1;
+    const int sampleEveryNthTracer = 100;
 
+    // This increment is not thread-safe, and that is ok. If there is a race here, we will
+    // sometimes under-count and sometimes over-count, but it should all balance out.
+    // And if we want to capture every event, we can simply replace this logic with
+    // this->isEnabled = true;
     uint64_t id = s_numTracers++;
+
     this->isEnabled = (id % sampleEveryNthTracer == 0);
 #endif
 }

@@ -28,13 +28,13 @@ static const char* const PerfCounterNames[PrjFSPerfCounter_Count] =
     [PrjFSPerfCounter_VnodeOp_ShouldHandle_CheckFileSystemCrawler]          = " |  |--IsFileSystemCrawler",
     [PrjFSPerfCounter_VnodeOp_ShouldHandle_DeniedFileSystemCrawler]         = " |     |--Denied",
     [PrjFSPerfCounter_VnodeOp_GetVirtualizationRoot]                        = " |--TryGetVirtualizationRoot",
-    [PrjFSPerfCounter_VnodeOp_FindRoot]                                     = " | |--FindForVnode",
-    [PrjFSPerfCounter_VnodeOp_FindRoot_Iteration]                           = " |    |--inner_loop_iterations",
-    [PrjFSPerfCounter_VnodeOp_GetVirtualizationRoot_TemporaryDirectory]     = " | |--TemporaryDirectory",
-    [PrjFSPerfCounter_VnodeOp_GetVirtualizationRoot_NoRootFound]            = " | |--NoRootFound",
-    [PrjFSPerfCounter_VnodeOp_GetVirtualizationRoot_ProviderOffline]        = " | |--ProviderOffline",
-    [PrjFSPerfCounter_VnodeOp_GetVirtualizationRoot_CompareProviderPid]     = " | |--CompareProviderPid",
-    [PrjFSPerfCounter_VnodeOp_GetVirtualizationRoot_OriginatedByProvider]   = " |    |--OriginatedByProvider",
+    [PrjFSPerfCounter_VnodeOp_FindRoot]                                     = " |  |--FindForVnode",
+    [PrjFSPerfCounter_VnodeOp_FindRoot_Iteration]                           = " |  |  |--inner_loop_iterations",
+    [PrjFSPerfCounter_VnodeOp_GetVirtualizationRoot_TemporaryDirectory]     = " |  |--TemporaryDirectory",
+    [PrjFSPerfCounter_VnodeOp_GetVirtualizationRoot_NoRootFound]            = " |  |--NoRootFound",
+    [PrjFSPerfCounter_VnodeOp_GetVirtualizationRoot_ProviderOffline]        = " |  |--ProviderOffline",
+    [PrjFSPerfCounter_VnodeOp_GetVirtualizationRoot_CompareProviderPid]     = " |  |--CompareProviderPid",
+    [PrjFSPerfCounter_VnodeOp_GetVirtualizationRoot_OriginatedByProvider]   = " |     |--OriginatedByProvider",
     [PrjFSPerfCounter_VnodeOp_PreDelete]                                    = " |--RaisePreDeleteEvent",
     [PrjFSPerfCounter_VnodeOp_EnumerateDirectory]                           = " |--RaiseEnumerateDirectoryEvent",
     [PrjFSPerfCounter_VnodeOp_RecursivelyEnumerateDirectory]                = " |--RaiseRecursivelyEnumerateEvent",
@@ -60,9 +60,9 @@ bool PrjFSLog_FetchAndPrintKextProfilingData(io_connect_t connection)
         mach_timebase_info(&s_machTimebase);
     });
     
-    PerfTracingProbe probes[PrjFSPerfCounter_Count];
-    size_t out_size = sizeof(probes);
-    IOReturn ret = IOConnectCallStructMethod(connection, LogSelector_FetchProfilingData, nullptr, 0, probes, &out_size);
+    PrjFSPerfCounterResult counters[PrjFSPerfCounter_Count];
+    size_t out_size = sizeof(counters);
+    IOReturn ret = IOConnectCallStructMethod(connection, LogSelector_FetchProfilingData, nullptr, 0, counters, &out_size);
     if (ret == kIOReturnUnsupported)
     {
         return false;
@@ -74,29 +74,29 @@ bool PrjFSLog_FetchAndPrintKextProfilingData(io_connect_t connection)
         
         for (unsigned i = 0; i < PrjFSPerfCounter_Count; ++i)
         {
-            double samples = probes[i].numSamples;
+            double numSamples = counters[i].numSamples;
             printf(
                 "%2u %-35s [%10llu]",
                 i,
                 PerfCounterNames[i],
-                probes[i].numSamples);
+                counters[i].numSamples);
             
-            if (probes[i].min != UINT64_MAX)
+            if (counters[i].min != UINT64_MAX)
             {
-                double sum_abs = probes[i].sum;
-                double stddev_abs = samples > 1 ? sqrt((samples * probes[i].sumSquares - sum_abs * sum_abs) / (samples * (samples - 1))) : 0.0;
+                // The values on the counter are reported in units of mach absolute time
+                double sum = counters[i].sum;
+                double stddev = numSamples > 1 ? sqrt((numSamples * counters[i].sumSquares - sum * sum) / (numSamples * (numSamples - 1))) : 0.0;
 
-                double sum_ns = nanosecondsFromAbsoluteTime(sum_abs);
-                double stddev_ns = nanosecondsFromAbsoluteTime(stddev_abs);
-                double mean_ns = samples > 0 ? sum_ns / samples : 0;
+                uint64_t sumNS = nanosecondsFromAbsoluteTime(sum);
+                uint64_t meanNS = numSamples > 0 ? sumNS / numSamples : 0;
 
                 printf(
-                    "[%15.0f][%12.0f][%12.0f][%8llu][%10llu]\n",
-                    sum_ns,
-                    mean_ns,
-                    stddev_ns,
-                    nanosecondsFromAbsoluteTime(probes[i].min),
-                    nanosecondsFromAbsoluteTime(probes[i].max));
+                    "[%15llu][%12llu][%12llu][%8llu][%10llu]\n",
+                    sumNS,
+                    meanNS,
+                    nanosecondsFromAbsoluteTime(stddev),
+                    nanosecondsFromAbsoluteTime(counters[i].min),
+                    nanosecondsFromAbsoluteTime(counters[i].max));
             }
             else
             {
