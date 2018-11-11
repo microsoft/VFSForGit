@@ -1,4 +1,5 @@
 #include "PerformanceTracing.hpp"
+#include "KextLog.hpp"
 #include <sys/types.h>
 #include <stdatomic.h>
 #include <IOKit/IOUserClient.h>
@@ -22,8 +23,28 @@ void PerfTracing_Init()
 IOReturn PerfTracing_ExportDataUserClient(IOExternalMethodArguments* arguments)
 {
 #if PRJFS_PERFORMANCE_TRACING_ENABLE
+    // The buffer will come in either as a memory descriptor or direct pointer, depending on size
+    if (nullptr != arguments->structureOutputDescriptor)
+    {
+        IOMemoryDescriptor* structureOutput = arguments->structureOutputDescriptor;
+        if (sizeof(s_perfCounterResults) != structureOutput->getLength())
+        {
+            KextLog_Info("PerfTracing_ExportDataUserClient: structure output descriptor size %llu, expected %lu\n", structureOutput->getLength(), sizeof(s_perfCounterResults));
+            return kIOReturnBadArgument;
+        }
+        
+        IOReturn result = structureOutput->prepare(kIODirectionIn);
+        if (kIOReturnSuccess == result)
+        {
+            structureOutput->writeBytes(0 /* offset */, s_perfCounterResults, sizeof(s_perfCounterResults));
+            structureOutput->complete(kIODirectionIn);
+        }
+        return result;
+    }
+    
     if (arguments->structureOutput == nullptr || arguments->structureOutputSize != sizeof(s_perfCounterResults))
     {
+        KextLog_Info("PerfTracing_ExportDataUserClient: structure output size %u, expected %lu\n", arguments->structureOutputSize, sizeof(s_perfCounterResults));
         return kIOReturnBadArgument;
     }
     
