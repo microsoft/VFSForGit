@@ -1,6 +1,7 @@
 ﻿using GVFS.Common;
 using GVFS.Common.FileSystem;
 using Microsoft.Win32.SafeHandles;
+using System;
 using System.IO;
 using System.Runtime.InteropServices;
 
@@ -40,6 +41,17 @@ namespace GVFS.Platform.Windows
         public bool HydrateFile(string fileName, byte[] buffer)
         {
             return NativeFileReader.TryReadFirstByteOfFile(fileName, buffer);
+        }
+
+        public bool IsExecutable(string fileName)
+        {
+            string fileExtension = Path.GetExtension(fileName);
+            return string.Equals(fileExtension, ".exe", StringComparison.OrdinalIgnoreCase);
+        }
+
+        public bool IsSocket(string fileName)
+        {
+            return false;
         }
 
         private class NativeFileReader

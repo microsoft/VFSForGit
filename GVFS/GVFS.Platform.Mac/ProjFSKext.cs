@@ -12,7 +12,7 @@ namespace GVFS.Platform.Mac
     {
         public bool EnumerationExpandsDirectories { get; } = true;
 
-        public string DriverLogFolderName => throw new NotImplementedException();
+        public string LogsFolderPath => throw new NotImplementedException();
 
         public bool IsGVFSUpgradeSupported()
         {
@@ -41,7 +41,7 @@ namespace GVFS.Platform.Mac
             return true;
         }
 
-        public string FlushDriverLogs()
+        public string FlushLogs()
         {
             throw new NotImplementedException();
         }

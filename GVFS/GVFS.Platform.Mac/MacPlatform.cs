@@ -22,6 +22,7 @@ namespace GVFS.Platform.Mac
         public override IPlatformFileSystem FileSystem { get; } = new MacFileSystem();
         public override bool IsUnderConstruction { get; } = true;
         public override bool SupportsGVFSService { get; } = false;
+        public override bool SupportsGVFSUpgrade { get; } = false;
 
         public override void ConfigureVisualStudio(string gitBinPath, ITracer tracer)
         {
@@ -92,7 +93,8 @@ namespace GVFS.Platform.Mac
 
         public override string GetOSVersionInformation()
         {
-            throw new NotImplementedException();
+            ProcessResult result = ProcessHelper.Run("sw_vers", args: string.Empty, redirectOutput: true);
+            return string.IsNullOrWhiteSpace(result.Output) ? result.Errors : result.Output;
         }
 
         public override Dictionary<string, string> GetPhysicalDiskInfo(string path)

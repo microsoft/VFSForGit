@@ -23,6 +23,7 @@ namespace GVFS.Common
         public abstract IPlatformFileSystem FileSystem { get; }
         public virtual bool IsUnderConstruction { get; } = false;
         public virtual bool SupportsGVFSService { get; } = true;
+        public virtual bool SupportsGVFSUpgrade { get; } = true;
         public GVFSPlatformConstants Constants { get; }
 
         public static void Register(GVFSPlatform platform)

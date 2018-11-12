@@ -9,5 +9,8 @@
         bool TryGetNormalizedPath(string path, out string normalizedPath, out string errorMessage);
         void ChangeMode(string path, int mode);
         bool HydrateFile(string fileName, byte[] buffer);
+
+        bool IsExecutable(string filePath);
+        bool IsSocket(string filePath);
     }
 }

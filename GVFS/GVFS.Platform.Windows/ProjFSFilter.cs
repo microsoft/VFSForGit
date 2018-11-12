@@ -25,6 +25,8 @@ namespace GVFS.Platform.Windows
         private const string PrjFltAutoLoggerKey = "SYSTEM\\CurrentControlSet\\Control\\WMI\\Autologger\\Microsoft-Windows-ProjFS-Filter-Log";
         private const string PrjFltAutoLoggerStartValue = "Start";
 
+        private const string System32LogFilesRoot = @"%SystemRoot%\System32\LogFiles";
+
         // From "Autologger" section of prjflt.inf
         private const string FilterLoggerGuid = "ee4206ff-4a4d-452f-be56-6bd0ed272b44";
         private const string FilterLoggerSessionName = "Microsoft-Windows-ProjFS-Filter-Log";
@@ -45,7 +47,13 @@ namespace GVFS.Platform.Windows
 
         public bool EnumerationExpandsDirectories { get; } = false;
 
-        public string DriverLogFolderName { get; } = ProjFSFilter.ServiceName;
+        public string LogsFolderPath 
+        { 
+            get
+            {
+                return Path.Combine(Environment.ExpandEnvironmentVariables(System32LogFilesRoot), ProjFSFilter.ServiceName);
+            }
+        }
 
         public static bool TryAttach(string enlistmentRoot, out string errorMessage)
         {
@@ -312,7 +320,7 @@ namespace GVFS.Platform.Windows
             return false;
         }
 
-        public string FlushDriverLogs()
+        public string FlushLogs()
         {
             StringBuilder sb = new StringBuilder();
             try

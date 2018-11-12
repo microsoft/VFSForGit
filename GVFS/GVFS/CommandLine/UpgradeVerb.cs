@@ -61,9 +61,7 @@ namespace GVFS.CommandLine
 
         private bool TryInitializeUpgrader()
         {
-            OperatingSystem os_info = Environment.OSVersion;
-
-            if (os_info.Platform == PlatformID.Win32NT)
+            if (GVFSPlatform.Instance.SupportsGVFSUpgrade)
             {
                 if (this.upgrader == null)
                 {
@@ -82,7 +80,7 @@ namespace GVFS.CommandLine
             }
             else
             {
-                this.ReportInfoToConsole($"ERROR: {GVFSConstants.UpgradeVerbMessages.GVFSUpgrade} in only supported on Microsoft Windows Operating System.");
+                this.ReportInfoToConsole($"ERROR: {GVFSConstants.UpgradeVerbMessages.GVFSUpgrade} is not supported on this operating system.");
                 return false;
             }
         }
