@@ -11,7 +11,8 @@ IF NOT EXIST %nuget% (
 
 %nuget% restore %VFS_SRCDIR%\GVFS.sln || exit /b 1
 
-dotnet restore %VFS_SRCDIR%\GVFS\GVFS.Common\GVFS.Common.csproj || exit /b 1
-dotnet restore %VFS_SRCDIR%\GVFS\GVFS.Virtualization\GVFS.Virtualization.csproj || exit /b 1
+SET VCTargetsPath=C:\Program Files (x86)\MSBuild\Microsoft.Cpp\v4.0\V140
+dotnet restore %VFS_SRCDIR%\GVFS.sln /p:Configuration=%SolutionConfiguration% --packages %VFS_PACKAGESDIR% || exit /b 1
+
 
 ENDLOCAL

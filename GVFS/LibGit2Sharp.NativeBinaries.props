@@ -1,7 +1,7 @@
 ﻿<?xml version="1.0" encoding="utf-8"?>
 <Project xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
     <ItemGroup>
-        <None Condition="Exists('..\..\..\packages\LibGit2Sharp.NativeBinaries.1.0.165\runtimes\win7-x64\native\git2-1196807.dll')" Include="..\..\..\packages\LibGit2Sharp.NativeBinaries.1.0.165\runtimes\win7-x64\native\git2-1196807.dll">
+        <None Condition="Exists('..\..\..\packages\libgit2sharp.nativebinaries\1.0.165\runtimes\win7-x64\native\git2-1196807.dll')" Include="..\..\..\packages\libgit2sharp.nativebinaries\1.0.165\runtimes\win7-x64\native\git2-1196807.dll">
             <Link>git2.dll</Link>
             <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
         </None>
