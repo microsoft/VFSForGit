@@ -90,8 +90,8 @@ namespace GVFS.CommandLine
 
                         if (!GVFSPlatform.Instance.IsUnderConstruction)
                         {
-                            // filter
-                            this.FlushFilterLogBuffers();
+                            // driver
+                            this.FlushKernelDriverLogs();
                             string kernelLogsFolderPath = GVFSPlatform.Instance.KernelDriver.LogsFolderPath;
 
                             // This copy sometimes fails because the OS has an exclusive lock on the etl files. The error is not actionable
@@ -473,7 +473,7 @@ namespace GVFS.CommandLine
             }
         }
 
-        private void FlushFilterLogBuffers()
+        private void FlushKernelDriverLogs()
         {
             string errors = GVFSPlatform.Instance.KernelDriver.FlushLogs();
             this.diagnosticLogFileWriter.WriteLine(errors);

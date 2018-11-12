@@ -1,6 +1,7 @@
 ﻿using GVFS.Common;
 using GVFS.Common.FileSystem;
 using Microsoft.Win32.SafeHandles;
+using System;
 using System.IO;
 using System.Runtime.InteropServices;
 

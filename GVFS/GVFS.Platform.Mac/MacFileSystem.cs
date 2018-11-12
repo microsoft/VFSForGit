@@ -56,6 +56,12 @@ namespace GVFS.Platform.Mac
             return NativeStat.IsSock(statBuffer.Mode);
         }
 
+        [DllImport("libc", EntryPoint = "chmod", SetLastError = true)]
+        private static extern int Chmod(string pathname, int mode);
+
+        [DllImport("libc", EntryPoint = "rename", SetLastError = true)]
+        private static extern int Rename(string oldPath, string newPath);
+
         private NativeStat.StatBuffer StatFile(string fileName)
         {
             NativeStat.StatBuffer statBuffer = new NativeStat.StatBuffer();
@@ -66,12 +72,6 @@ namespace GVFS.Platform.Mac
 
             return statBuffer;
         }
-
-        [DllImport("libc", EntryPoint = "chmod", SetLastError = true)]
-        private static extern int Chmod(string pathname, int mode);
-
-        [DllImport("libc", EntryPoint = "rename", SetLastError = true)]
-        private static extern int Rename(string oldPath, string newPath);
 
         private static class NativeStat
         {
