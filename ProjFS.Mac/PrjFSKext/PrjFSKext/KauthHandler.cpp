@@ -91,6 +91,7 @@ typedef struct OutstandingMessage
     MessageHeader request;
     MessageType response;
     bool    receivedResponse;
+    VirtualizationRootHandle rootHandle;
     
     LIST_ENTRY(OutstandingMessage) _list_privates;
     
@@ -195,7 +196,7 @@ kern_return_t KauthHandler_Cleanup()
     return result;
 }
 
-void KauthHandler_HandleKernelMessageResponse(uint64_t messageId, MessageType responseType)
+void KauthHandler_HandleKernelMessageResponse(VirtualizationRootHandle providerVirtualizationRootHandle, uint64_t messageId, MessageType responseType)
 {
     switch (responseType)
     {
@@ -207,7 +208,7 @@ void KauthHandler_HandleKernelMessageResponse(uint64_t messageId, MessageType re
                 OutstandingMessage* outstandingMessage;
                 LIST_FOREACH(outstandingMessage, &s_outstandingMessages, _list_privates)
                 {
-                    if (outstandingMessage->request.messageId == messageId)
+                    if (outstandingMessage->request.messageId == messageId && outstandingMessage->rootHandle == providerVirtualizationRootHandle)
                     {
                         // Save the response for the blocked thread.
                         outstandingMessage->response = responseType;
@@ -237,11 +238,31 @@ void KauthHandler_HandleKernelMessageResponse(uint64_t messageId, MessageType re
         case MessageType_KtoU_NotifyFileRenamed:
         case MessageType_KtoU_NotifyDirectoryRenamed:
         case MessageType_KtoU_NotifyFileHardLinkCreated:
+        case MessageType_Response_Aborted:
             KextLog_Error("KauthHandler_HandleKernelMessageResponse: Unexpected responseType: %d", responseType);
             break;
     }
     
     return;
+}
+
+void KauthHandler_AbortOutstandingEventsForProvider(VirtualizationRootHandle providerVirtualizationRootHandle)
+{
+    // Mark all outstanding messages for this root as aborted and wake up the waiting threads
+    Mutex_Acquire(s_outstandingMessagesMutex);
+    {
+        OutstandingMessage* outstandingMessage;
+        LIST_FOREACH(outstandingMessage, &s_outstandingMessages, _list_privates)
+        {
+            if (outstandingMessage->rootHandle == providerVirtualizationRootHandle)
+            {
+                outstandingMessage->receivedResponse = true;
+                outstandingMessage->response = MessageType_Response_Aborted;
+                wakeup(outstandingMessage);
+            }
+        }
+    }
+    Mutex_Release(s_outstandingMessagesMutex);
 }
 
 // Private functions
@@ -753,8 +774,11 @@ static bool TrySendRequestAndWaitForResponse(
 {
     bool result = false;
     
-    OutstandingMessage message;
-    message.receivedResponse = false;
+    OutstandingMessage message =
+    {
+        .receivedResponse = false,
+        .rootHandle = root,
+    };
     
     if (nullptr == vnodePath)
     {
@@ -826,7 +850,7 @@ static bool TrySendRequestAndWaitForResponse(
             result = true;
             goto CleanupUnlockAndReturn;
         }
-        else
+        else // failure reported by provider or aborted due disconnected provider
         {
             // Default error code is EACCES. See errno.h for more codes.
             *kauthError = EAGAIN;

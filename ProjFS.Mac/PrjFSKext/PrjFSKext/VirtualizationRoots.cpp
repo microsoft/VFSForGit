@@ -9,6 +9,7 @@
 #include "Locks.hpp"
 #include "KextLog.hpp"
 #include "PrjFSProviderUserClient.hpp"
+#include "KauthHandler.hpp"
 #include "kernel-header-wrappers/mount.h"
 #include "VnodeUtilities.hpp"
 #include "PerformanceTracing.hpp"
@@ -423,7 +424,11 @@ void ActiveProvider_Disconnect(VirtualizationRootHandle rootIndex)
         
         root->providerUserClient = nullptr;
     }
-    RWLock_ReleaseExclusive(s_rwLock);
+    RWLock_DropExclusiveToShared(s_rwLock);
+    {
+        KauthHandler_AbortOutstandingEventsForProvider(rootIndex);
+    }
+    RWLock_ReleaseShared(s_rwLock);
 }
 
 errno_t ActiveProvider_SendMessage(VirtualizationRootHandle rootIndex, const Message message)
