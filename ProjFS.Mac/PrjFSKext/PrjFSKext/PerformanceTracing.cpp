@@ -80,6 +80,10 @@ void PerfTracing_RecordSample(PrjFSPerfCounter counter, uint64_t startTime, uint
             while (interval > oldMax && !atomic_compare_exchange_weak(&result->max, &oldMax, interval))
             {}
         }
+        
+        // integer log2 = most significant set bit
+        int intervalLog2 = 63 - __builtin_clzll(interval);
+        atomic_fetch_add(&result->sampleBuckets[intervalLog2], 1);
     }
 }
 

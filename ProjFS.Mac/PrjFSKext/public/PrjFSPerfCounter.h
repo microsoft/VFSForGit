@@ -44,6 +44,8 @@ enum PrjFSPerfCounter : int32_t
     PrjFSPerfCounter_Count,
 };
 
+constexpr unsigned int PrjFSPerfCounterBuckets = 64;
+
 struct PrjFSPerfCounterResult
 {
     _Atomic uint64_t numSamples;
@@ -52,6 +54,9 @@ struct PrjFSPerfCounterResult
     _Atomic uint64_t sum;
     _Atomic uint64_t min;
     _Atomic uint64_t max;
+    
+    // log-scale histogram buckets
+    _Atomic uint64_t sampleBuckets[PrjFSPerfCounterBuckets];
 };
 
 #endif /* PrjFSPerfCounter_h */
