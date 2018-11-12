@@ -76,7 +76,7 @@ namespace GVFS.Platform.Windows
                     while (size > 0)
                     {
                         uint toWrite = size < uint.MaxValue ? (uint)size : uint.MaxValue;
-                        if (!NativeWriteFile(fileHandle, data, toWrite, out written, IntPtr.Zero))
+                        if (!WriteFile(fileHandle, data, toWrite, out written, IntPtr.Zero))
                         {
                             throw new Win32Exception(Marshal.GetLastWin32Error());
                         }
@@ -132,7 +132,7 @@ namespace GVFS.Platform.Windows
 
         [DllImport("kernel32.dll")]
         [return: MarshalAs(UnmanagedType.Bool)]
-        private static unsafe extern bool NativeWriteFile(
+        private static unsafe extern bool WriteFile(
             SafeFileHandle file,
             byte* buffer,
             uint numberOfBytesToWrite,

@@ -47,6 +47,8 @@ namespace GVFS.FunctionalTests.Properties
                     string root = "/GVFS.FT";
                     EnlistmentRoot = Path.Combine(root, "test");
                     ControlGitRepoRoot = Path.Combine(root, "control");
+                    FastFetchRoot = Path.Combine(root, "FFtest");
+                    FastFetchControl = Path.Combine(root, "FFcontrol");
                     PathToGVFS = "gvfs";
                     PathToGit = "/usr/local/bin/git";
                     PathToBash = "/bin/bash";

@@ -4,7 +4,7 @@ CALL %~dp0\InitializeEnvironment.bat || EXIT /b 10
 IF "%1"=="" (SET "Configuration=Debug") ELSE (SET "Configuration=%1")
 
 SETLOCAL
-SET PATH=C:\Program Files\GVFS;C:\Program Files\Git\cmd;%PATH%
+SET PATH=C:\Program Files\GVFS;%VFS_PUBLISHDIR%\FastFetch;C:\Program Files\Git\cmd;%PATH%
 
 if not "%2"=="--test-gvfs-on-path" goto :startFunctionalTests
 
