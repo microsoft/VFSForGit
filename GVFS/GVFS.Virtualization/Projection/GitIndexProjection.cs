@@ -255,12 +255,7 @@ namespace GVFS.Virtualization.Projection
 
                 // Inform the index parsing thread that git has requested a release, which means all of git's updates to the
                 // index are complete and it's safe to start parsing it now
-                this.parseIndexRequested.Set();
-
-                this.ClearNegativePathCacheIfPollutedByGit();
-                this.projectionParseComplete.Wait();
-
-                this.parseIndexRequested.Reset();
+                this.AllowIndexToBeParsed();
 
                 ConcurrentHashSet<string> updateFailures = this.updatePlaceholderFailures;
                 ConcurrentHashSet<string> deleteFailures = this.deletePlaceholderFailures;
