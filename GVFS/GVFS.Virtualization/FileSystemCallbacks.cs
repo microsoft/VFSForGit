@@ -375,7 +375,7 @@ namespace GVFS.Virtualization
             if (!gitCommand.IsValidGitCommand)
             {
                 // Something wrote to the index without holding the GVFS lock, so we invalidate the projection
-                this.OnIndexFileChanged(workingDirectoryUpdated: true, onlyIndexUpdated: false);
+                this.OnIndexFileChanged(invalidateProjection: true, invalidateModifiedPaths: false);
 
                 // But this isn't something we expect to see, so log a warning
                 EventMetadata metadata = new EventMetadata
@@ -388,14 +388,14 @@ namespace GVFS.Virtualization
             }
         }
 
-        public void OnIndexFileChanged(bool workingDirectoryUpdated, bool onlyIndexUpdated)
+        public void OnIndexFileChanged(bool invalidateProjection, bool invalidateModifiedPaths)
         {
-            if (workingDirectoryUpdated)
+            if (invalidateProjection)
             {
                 this.GitIndexProjection.InvalidateProjection();
             }
 
-            if (onlyIndexUpdated)
+            if (invalidateModifiedPaths)
             {
                 this.GitIndexProjection.InvalidateModifiedFiles();
                 this.backgroundFileSystemTaskRunner.Enqueue(FileSystemTask.OnIndexWriteRequiringModifiedPathsValidation());
