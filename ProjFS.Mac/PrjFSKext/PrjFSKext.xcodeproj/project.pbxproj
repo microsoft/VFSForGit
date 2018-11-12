@@ -7,6 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		4A137BB52199A98800590D07 /* AssociativeArrayTests.mm in Sources */ = {isa = PBXBuildFile; fileRef = 4A137BB42199A98800590D07 /* AssociativeArrayTests.mm */; };
 		4A63CB0D20AB009000157B95 /* VnodeUtilities.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 4A63CB0B20AB009000157B95 /* VnodeUtilities.cpp */; };
 		4A63CB0E20AB009000157B95 /* VnodeUtilities.hpp in Headers */ = {isa = PBXBuildFile; fileRef = 4A63CB0C20AB009000157B95 /* VnodeUtilities.hpp */; };
 		4A9D139D208F675500376182 /* PrjFSService.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 4A9D139B208F675500376182 /* PrjFSService.cpp */; };
@@ -35,6 +36,9 @@
 		4A08829C20D80B8300E17FEE /* PrjFSXattrs.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = PrjFSXattrs.h; sourceTree = "<group>"; };
 		4A10DCA621973C260055FF6C /* AssociativeArray.hpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.h; path = AssociativeArray.hpp; sourceTree = "<group>"; };
 		4A10DCA7219740890055FF6C /* KextCppUtilities.hpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.h; path = KextCppUtilities.hpp; sourceTree = "<group>"; };
+		4A137BB22199A98700590D07 /* AssociativeArrayTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = AssociativeArrayTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		4A137BB42199A98800590D07 /* AssociativeArrayTests.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = AssociativeArrayTests.mm; sourceTree = "<group>"; };
+		4A137BB62199A98800590D07 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		4A63CB0B20AB009000157B95 /* VnodeUtilities.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = VnodeUtilities.cpp; sourceTree = "<group>"; };
 		4A63CB0C20AB009000157B95 /* VnodeUtilities.hpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.h; path = VnodeUtilities.hpp; sourceTree = "<group>"; };
 		4A9D139B208F675500376182 /* PrjFSService.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = PrjFSService.cpp; sourceTree = "<group>"; };
@@ -70,6 +74,13 @@
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
+		4A137BAF2199A98700590D07 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		C6C780AC207FC67200E7E054 /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
@@ -80,6 +91,15 @@
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
+		4A137BB32199A98800590D07 /* AssociativeArrayTests */ = {
+			isa = PBXGroup;
+			children = (
+				4A137BB42199A98800590D07 /* AssociativeArrayTests.mm */,
+				4A137BB62199A98800590D07 /* Info.plist */,
+			);
+			path = AssociativeArrayTests;
+			sourceTree = "<group>";
+		};
 		4AA0BA9820A44FFB00F33D1C /* kernel-header-wrappers */ = {
 			isa = PBXGroup;
 			children = (
@@ -108,6 +128,7 @@
 			children = (
 				C6BDD37B208C445C00CB7E58 /* public */,
 				C6C780B2207FC67200E7E054 /* PrjFSKext */,
+				4A137BB32199A98800590D07 /* AssociativeArrayTests */,
 				C6C780B1207FC67200E7E054 /* Products */,
 			);
 			indentWidth = 4;
@@ -119,6 +140,7 @@
 			isa = PBXGroup;
 			children = (
 				C6C780B0207FC67200E7E054 /* PrjFSKext.kext */,
+				4A137BB22199A98700590D07 /* AssociativeArrayTests.xctest */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -179,6 +201,23 @@
 /* End PBXHeadersBuildPhase section */
 
 /* Begin PBXNativeTarget section */
+		4A137BB12199A98700590D07 /* AssociativeArrayTests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 4A137BBA2199A98800590D07 /* Build configuration list for PBXNativeTarget "AssociativeArrayTests" */;
+			buildPhases = (
+				4A137BAE2199A98700590D07 /* Sources */,
+				4A137BAF2199A98700590D07 /* Frameworks */,
+				4A137BB02199A98700590D07 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = AssociativeArrayTests;
+			productName = AssociativeArrayTests;
+			productReference = 4A137BB22199A98700590D07 /* AssociativeArrayTests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
 		C6C780AF207FC67200E7E054 /* PrjFSKext */ = {
 			isa = PBXNativeTarget;
 			buildConfigurationList = C6C780B8207FC67200E7E054 /* Build configuration list for PBXNativeTarget "PrjFSKext" */;
@@ -207,6 +246,10 @@
 				LastUpgradeCheck = 0930;
 				ORGANIZATIONNAME = GVFS;
 				TargetAttributes = {
+					4A137BB12199A98700590D07 = {
+						CreatedOnToolsVersion = 9.4.1;
+						ProvisioningStyle = Manual;
+					};
 					C6C780AF207FC67200E7E054 = {
 						CreatedOnToolsVersion = 9.3;
 						ProvisioningStyle = Automatic;
@@ -226,11 +269,19 @@
 			projectRoot = "";
 			targets = (
 				C6C780AF207FC67200E7E054 /* PrjFSKext */,
+				4A137BB12199A98700590D07 /* AssociativeArrayTests */,
 			);
 		};
 /* End PBXProject section */
 
 /* Begin PBXResourcesBuildPhase section */
+		4A137BB02199A98700590D07 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		C6C780AE207FC67200E7E054 /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -259,6 +310,14 @@
 /* End PBXShellScriptBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
+		4A137BAE2199A98700590D07 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				4A137BB52199A98800590D07 /* AssociativeArrayTests.mm in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		C6C780AB207FC67200E7E054 /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -281,6 +340,51 @@
 /* End PBXSourcesBuildPhase section */
 
 /* Begin XCBuildConfiguration section */
+		4A137BB72199A98800590D07 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_IDENTITY = "-";
+				CODE_SIGN_STYLE = Manual;
+				COMBINE_HIDPI_IMAGES = YES;
+				DEVELOPMENT_TEAM = "";
+				INFOPLIST_FILE = AssociativeArrayTests/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/../Frameworks @loader_path/../Frameworks";
+				PRODUCT_BUNDLE_IDENTIFIER = io.gvfs.AssociativeArrayTests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				PROVISIONING_PROFILE_SPECIFIER = "";
+			};
+			name = Debug;
+		};
+		4A137BB82199A98800590D07 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_IDENTITY = "-";
+				CODE_SIGN_STYLE = Manual;
+				COMBINE_HIDPI_IMAGES = YES;
+				DEVELOPMENT_TEAM = "";
+				INFOPLIST_FILE = AssociativeArrayTests/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/../Frameworks @loader_path/../Frameworks";
+				PRODUCT_BUNDLE_IDENTIFIER = io.gvfs.AssociativeArrayTests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				PROVISIONING_PROFILE_SPECIFIER = "";
+			};
+			name = Release;
+		};
+		4A137BB92199A98800590D07 /* Profiling(Release) */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_IDENTITY = "-";
+				CODE_SIGN_STYLE = Manual;
+				COMBINE_HIDPI_IMAGES = YES;
+				DEVELOPMENT_TEAM = "";
+				INFOPLIST_FILE = AssociativeArrayTests/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/../Frameworks @loader_path/../Frameworks";
+				PRODUCT_BUNDLE_IDENTIFIER = io.gvfs.AssociativeArrayTests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				PROVISIONING_PROFILE_SPECIFIER = "";
+			};
+			name = "Profiling(Release)";
+		};
 		4A91E087215FA5FF0079FE1B /* Profiling(Release) */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
@@ -558,6 +662,16 @@
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
+		4A137BBA2199A98800590D07 /* Build configuration list for PBXNativeTarget "AssociativeArrayTests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				4A137BB72199A98800590D07 /* Debug */,
+				4A137BB82199A98800590D07 /* Release */,
+				4A137BB92199A98800590D07 /* Profiling(Release) */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
 		C6C780AA207FC67200E7E054 /* Build configuration list for PBXProject "PrjFSKext" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (

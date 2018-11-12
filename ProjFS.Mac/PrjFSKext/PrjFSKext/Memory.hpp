@@ -9,11 +9,13 @@ void* Memory_Alloc(uint32_t size);
 void* Memory_AllocNoBlock(uint32_t size);
 void Memory_Free(void* buffer, uint32_t size);
 
+#ifdef KERNEL
 // placement new (normally in the C++ standard libary, but we don't have one)
 inline void* operator new(size_t size, void* memory) noexcept
 {
     return memory;
 }
+#endif
 
 template <typename T>
 T* Memory_AllocArray(uint32_t arrayLength)
