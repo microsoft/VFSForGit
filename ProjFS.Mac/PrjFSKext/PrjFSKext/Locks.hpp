@@ -47,6 +47,7 @@ void RWLock_ReleaseShared(RWLock& rwLock);
 
 void RWLock_AcquireExclusive(RWLock& rwLock);
 void RWLock_ReleaseExclusive(RWLock& rwLock);
+void RWLock_DropExclusiveToShared(RWLock& rwLock);
 bool RWLock_AcquireSharedToExclusive(RWLock& rwLock);
 
 

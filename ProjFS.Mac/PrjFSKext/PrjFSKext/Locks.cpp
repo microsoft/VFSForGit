@@ -163,4 +163,20 @@ bool RWLock_AcquireSharedToExclusive(RWLock& rwLock)
     return success;
 }
 
+void RWLock_DropExclusiveToShared(RWLock& rwLock)
+{
+#if PRJFS_LOCK_CORRECTNESS_CHECKS
+    assert(rwLock.sharedOwnersCount == 0);
+    assert(rwLock.sharedOwnersXor == 0);
+    assert(rwLock.exclOwner == current_thread());
+    rwLock.exclOwner = nullptr;
+#endif
+    lck_rw_lock_exclusive_to_shared(rwLock.p);
+#if PRJFS_LOCK_CORRECTNESS_CHECKS
+    assert(rwLock.exclOwner == nullptr);
+    OSAddAtomic(1, &rwLock.sharedOwnersCount);
+    uint32_t lowBits = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(current_thread()));
+    OSBitXorAtomic(lowBits, &rwLock.sharedOwnersXor);
+#endif
+}
 
