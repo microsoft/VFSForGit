@@ -2,6 +2,7 @@
 #include <kern/locks.h>
 #include <kern/thread.h>
 #include <kern/assert.h>
+#include <kern/clock.h>
 #include <libkern/OSAtomic.h>
 
 #include "PrjFSCommon.h"
@@ -64,6 +65,14 @@ void Mutex_Acquire(Mutex mutex)
 void Mutex_Release(Mutex mutex)
 {
     lck_mtx_unlock(mutex.p);
+}
+
+void Mutex_Sleep(Mutex mutex, void* event, unsigned timeoutSeconds)
+{
+    uint64_t timeoutIntervalMachAbsolute, timeoutDeadline;
+    nanoseconds_to_absolutetime(NSEC_PER_SEC * timeoutSeconds, &timeoutIntervalMachAbsolute);
+    clock_absolutetime_interval_to_deadline(timeoutIntervalMachAbsolute, &timeoutDeadline);
+    lck_mtx_sleep_deadline(mutex.p, LCK_SLEEP_DEFAULT, event, THREAD_UNINT, timeoutDeadline);
 }
 
 // RWLock implementation functions

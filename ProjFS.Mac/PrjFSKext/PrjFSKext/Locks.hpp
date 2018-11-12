@@ -22,6 +22,8 @@ bool Mutex_IsValid(Mutex mutex);
 void Mutex_Acquire(Mutex mutex);
 void Mutex_Release(Mutex mutex);
 
+void Mutex_Sleep(Mutex mutex, void* event, unsigned timeoutSeconds);
+
 typedef struct __lck_rw_t__ lck_rw_t;
 struct thread;
 

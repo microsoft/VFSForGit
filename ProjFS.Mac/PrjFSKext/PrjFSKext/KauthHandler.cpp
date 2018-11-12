@@ -791,45 +791,51 @@ static bool TrySendRequestAndWaitForResponse(
     }
     Mutex_Release(s_outstandingMessagesMutex);
     
-    // TODO(Mac): Should we pass in the root directly, rather than root->index?
-    //            The index seems more like a private implementation detail.
-    if (!isShuttingDown && 0 != ActiveProvider_SendMessage(root, messageSpec))
+    if (isShuttingDown)
     {
-        // TODO: appropriately handle unresponsive providers
-        
-        *kauthResult = KAUTH_RESULT_DEFER;
-        goto CleanupAndReturn;
+        // Message never inserted into list, don't try to remove it on cleanup.
+        return false;
     }
     
-    while (!message.receivedResponse &&
-           !s_isShuttingDown)
-    {
-        Sleep(5, &message);
-    }
-    
-    if (s_isShuttingDown)
-    {
-        *kauthResult = KAUTH_RESULT_DENY;
-        goto CleanupAndReturn;
-    }
-
-    if (MessageType_Response_Success == message.response)
-    {
-        *kauthResult = KAUTH_RESULT_DEFER;
-        result = true;
-        goto CleanupAndReturn;
-    }
-    else
-    {
-        // Default error code is EACCES. See errno.h for more codes.
-        *kauthError = EAGAIN;
-        *kauthResult = KAUTH_RESULT_DENY;
-        goto CleanupAndReturn;
-    }
-    
-CleanupAndReturn:
+    errno_t sendError = ActiveProvider_SendMessage(root, messageSpec);
+   
     Mutex_Acquire(s_outstandingMessagesMutex);
     {
+        if (0 != sendError)
+        {
+            // TODO: appropriately handle unresponsive providers
+            *kauthResult = KAUTH_RESULT_DEFER;
+            goto CleanupUnlockAndReturn;
+        }
+    
+        while (!message.receivedResponse &&
+           !s_isShuttingDown)
+        {
+            Mutex_Sleep(s_outstandingMessagesMutex, &message, 5 /* seconds */);
+        }
+    
+        if (s_isShuttingDown)
+        {
+            *kauthResult = KAUTH_RESULT_DENY;
+            goto CleanupUnlockAndReturn;
+        }
+
+        if (MessageType_Response_Success == message.response)
+        {
+            *kauthResult = KAUTH_RESULT_DEFER;
+            result = true;
+            goto CleanupUnlockAndReturn;
+        }
+        else
+        {
+            // Default error code is EACCES. See errno.h for more codes.
+            *kauthError = EAGAIN;
+            *kauthResult = KAUTH_RESULT_DENY;
+            goto CleanupUnlockAndReturn;
+        }
+    
+CleanupUnlockAndReturn:
+
         LIST_REMOVE(&message, _list_privates);
     }
     Mutex_Release(s_outstandingMessagesMutex);
