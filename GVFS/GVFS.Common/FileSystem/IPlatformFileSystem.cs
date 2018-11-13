@@ -13,6 +13,6 @@ namespace GVFS.Common.FileSystem
         bool HydrateFile(string fileName, byte[] buffer);
         bool IsExecutable(string filePath);
         bool IsSocket(string filePath);
-        unsafe void WriteFile(ITracer tracer, byte* originalData, long originalSize, string destination);
+        unsafe void WriteFile(ITracer tracer, byte* originalData, long originalSize, string destination, string mode);
     }
 }

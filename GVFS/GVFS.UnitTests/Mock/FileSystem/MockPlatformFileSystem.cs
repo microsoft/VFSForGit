@@ -50,7 +50,7 @@ namespace GVFS.UnitTests.Mock.FileSystem
             throw new NotSupportedException();
         }
 
-        public unsafe void WriteFile(ITracer tracer, byte* originalData, long originalSize, string destination)
+        public unsafe void WriteFile(ITracer tracer, byte* originalData, long originalSize, string destination, string mode)
         {
             throw new NotSupportedException();
         }

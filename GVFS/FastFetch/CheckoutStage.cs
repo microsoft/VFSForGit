@@ -7,6 +7,7 @@ using GVFS.Common.Tracing;
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
@@ -262,13 +263,13 @@ namespace FastFetch
                     
                     Interlocked.Increment(ref this.shasReceived);
 
-                    HashSet<string> paths;
-                    if (this.diff.FileAddOperations.TryRemove(availableBlob, out paths))
+                    HashSet<Tuple<string, string>> modesAndPaths;
+                    if (this.diff.FileAddOperations.TryRemove(availableBlob, out modesAndPaths))
                     {
                         try
                         {
                             long written;
-                            if (!repo.TryCopyBlobToFile(availableBlob, paths, out written))
+                            if (!repo.TryCopyBlobToFile(availableBlob, modesAndPaths, out written))
                             {
                                 // TryCopyBlobTo emits an error event.
                                 this.HasFailures = true;
@@ -276,9 +277,9 @@ namespace FastFetch
 
                             Interlocked.Add(ref this.bytesWritten, written);
 
-                            foreach (string path in paths)
+                            foreach (Tuple<string, string> modeAndPath in modesAndPaths)
                             {
-                                this.AddedOrEditedLocalFiles.Add(path);
+                                this.AddedOrEditedLocalFiles.Add(modeAndPath.Item2);
 
                                 if (Interlocked.Increment(ref this.fileWriteCount) % NumOperationsPerStatus == 0)
                                 {

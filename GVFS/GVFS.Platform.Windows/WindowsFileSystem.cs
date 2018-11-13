@@ -59,7 +59,7 @@ namespace GVFS.Platform.Windows
             return false;
         }
 
-        public unsafe void WriteFile(ITracer tracer, byte* originalData, long originalSize, string destination)
+        public unsafe void WriteFile(ITracer tracer, byte* originalData, long originalSize, string destination, string mode /* ignored on windows */)
         {
             try
             {

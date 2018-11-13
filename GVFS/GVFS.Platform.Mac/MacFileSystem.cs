@@ -3,8 +3,10 @@ using GVFS.Common.FileSystem;
 using GVFS.Common.Tracing;
 using System;
 using System.ComponentModel;
+using System.Diagnostics;
 using System.IO;
 using System.Runtime.InteropServices;
+using System.Threading;
 
 namespace GVFS.Platform.Mac
 {
@@ -58,12 +60,14 @@ namespace GVFS.Platform.Mac
             return NativeStat.IsSock(statBuffer.Mode);
         }
 
-        public unsafe void WriteFile(ITracer tracer, byte* originalData, long originalSize, string destination)
+        public unsafe void WriteFile(ITracer tracer, byte* originalData, long originalSize, string destination, string mode)
         {
             int fileDescriptor = 1;
             try
             {
-                fileDescriptor = NativeFileReader.Open(destination, NativeFileReader.WriteOnly | NativeFileReader.Create);
+                // TODO(Nick): Should we move this conversion into DiffTreeResult?
+                ushort octalMode = Convert.ToUInt16(mode.Substring(3, 3), 8);
+                fileDescriptor = NativeFileReader.Open(destination, NativeFileReader.WriteOnly | NativeFileReader.Create, octalMode);
                 IntPtr result = Write(fileDescriptor, originalData, (IntPtr)originalSize);
                 if (result.ToInt32() == -1)
                 {
@@ -193,6 +197,9 @@ namespace GVFS.Platform.Mac
 
             [DllImport("libc", EntryPoint = "open", SetLastError = true)]
             public static extern int Open(string path, int flag);
+
+            [DllImport("libc", EntryPoint = "open", SetLastError = true)]
+            public static extern int Open(string path, int flag, int creationMode);
 
             [DllImport("libc", EntryPoint = "close", SetLastError = true)]
             public static extern int Close(int fd);
