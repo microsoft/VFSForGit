@@ -131,21 +131,17 @@ namespace GVFS.Common.Http
 
         private static string GetValueFromConfig(GitProcess git, string configName, bool localOnly)
         {
-            GitProcess.Result result =
+            GitProcess.ConfigResult result =
                 localOnly
                 ? git.GetFromLocalConfig(configName)
                 : git.GetFromConfig(configName);
 
-            if (result.ExitCodeIsSuccess)
+            if (!result.TryParseAsString(out string value, out string error))
             {
-                return result.Output.TrimEnd('\n');
-            }
-            else if (result.Errors.Any())
-            {
-                throw new InvalidRepoException("Error while reading '" + configName + "' from config: " + result.Errors);
+                throw new InvalidRepoException(error);
             }
 
-            return null;
+            return value;
         }
 
         private static string GetDeprecatedCacheConfigSettingName(Enlistment enlistment)

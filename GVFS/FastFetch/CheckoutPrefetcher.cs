@@ -200,14 +200,20 @@ namespace FastFetch
             const uint CoreGvfsUnsignedIndexFlag = 1;
 
             GitProcess git = new GitProcess(this.Enlistment);
-            GitProcess.Result configCoreGvfs = git.GetFromConfig("core.gvfs");
+            GitProcess.ConfigResult configCoreGvfs = git.GetFromConfig("core.gvfs");
+            string coreGvfs;
+            string error;
+            if (!configCoreGvfs.TryParseAsString(out coreGvfs, out error))
+            {
+                return false;
+            }
+
             uint valueCoreGvfs;
 
             // No errors getting the configuration and it is either "true" or numeric with the right bit set.
-            return configCoreGvfs.ExitCodeIsSuccess &&
-                !string.IsNullOrEmpty(configCoreGvfs.Output) &&
-                (configCoreGvfs.Output.Equals("true", StringComparison.OrdinalIgnoreCase) ||
-                (uint.TryParse(configCoreGvfs.Output, out valueCoreGvfs) &&
+            return !string.IsNullOrEmpty(coreGvfs) &&
+                (coreGvfs.Equals("true", StringComparison.OrdinalIgnoreCase) ||
+                (uint.TryParse(coreGvfs, out valueCoreGvfs) &&
                 ((valueCoreGvfs & CoreGvfsUnsignedIndexFlag) == CoreGvfsUnsignedIndexFlag)));
         }
     }

@@ -276,7 +276,7 @@ namespace GVFS.Common.Git
         /// otherwise it will run it from outside the enlistment.
         /// </param>
         /// <returns>The value found for the setting.</returns>
-        public virtual Result GetFromConfig(string settingName, bool forceOutsideEnlistment = false, PhysicalFileSystem fileSystem = null)
+        public virtual ConfigResult GetFromConfig(string settingName, bool forceOutsideEnlistment = false, PhysicalFileSystem fileSystem = null)
         {
             string command = string.Format("config {0}", settingName);
             fileSystem = fileSystem ?? new PhysicalFileSystem();
@@ -284,13 +284,13 @@ namespace GVFS.Common.Git
             // This method is called at clone time, so the physical repo may not exist yet.
             return
                 fileSystem.DirectoryExists(this.workingDirectoryRoot) && !forceOutsideEnlistment
-                    ? this.InvokeGitAgainstDotGitFolder(command)
-                    : this.InvokeGitOutsideEnlistment(command);
+                    ? new ConfigResult(this.InvokeGitAgainstDotGitFolder(command), settingName)
+                    : new ConfigResult(this.InvokeGitOutsideEnlistment(command), settingName);
         }
 
-        public Result GetFromLocalConfig(string settingName)
+        public ConfigResult GetFromLocalConfig(string settingName)
         {
-            return this.InvokeGitAgainstDotGitFolder("config --local " + settingName);
+            return new ConfigResult(this.InvokeGitAgainstDotGitFolder("config --local " + settingName), settingName);
         }
 
         /// <summary>
@@ -308,12 +308,8 @@ namespace GVFS.Common.Git
             value = null;
             try
             {
-                Result result = this.GetFromConfig(settingName, forceOutsideEnlistment, fileSystem);
-                if (result.ExitCodeIsSuccess)
-                {
-                    value = result.Output;
-                    return true;
-                }
+                ConfigResult result = this.GetFromConfig(settingName, forceOutsideEnlistment, fileSystem);
+                return result.TryParseAsString(out value, out string _);
             }
             catch
             {
@@ -322,9 +318,9 @@ namespace GVFS.Common.Git
             return false;
         }
 
-        public Result GetOriginUrl()
+        public ConfigResult GetOriginUrl()
         {
-            return this.InvokeGitAgainstDotGitFolder("config --local remote.origin.url");
+            return new ConfigResult(this.InvokeGitAgainstDotGitFolder("config --local remote.origin.url"), "remote.origin.url");
         }
 
         public Result DiffTree(string sourceTreeish, string targetTreeish, Action<string> onResult)
@@ -730,6 +726,68 @@ namespace GVFS.Common.Git
                 }
 
                 return false;
+            }
+        }
+
+        public class ConfigResult
+        {
+            private Result result;
+            private string configName;
+
+            public ConfigResult(Result result, string configName)
+            {
+                this.result = result;
+                this.configName = configName;
+            }
+
+            public bool TryParseAsString(out string value, out string error)
+            {
+                value = null;
+                error = string.Empty;
+
+                if (this.result.ExitCodeIsFailure && this.result.StderrContainsErrors())
+                {
+                    error = "Error while reading '" + this.configName + "' from config: " + this.result.Errors;
+                    return false;
+                }
+
+                if (this.result.ExitCodeIsSuccess)
+                {
+                    value = this.result.Output;
+                }
+
+                return true;
+            }
+
+            public bool TryParseAsInt(int defaultValue, int minValue, out int value, out string error)
+            {
+                value = defaultValue;
+                error = string.Empty;
+
+                if (!this.TryParseAsString(out string valueString, out error))
+                {
+                    return false;
+                }
+
+                if (string.IsNullOrWhiteSpace(valueString))
+                {
+                    // Use default value
+                    return true;
+                }
+
+                if (!int.TryParse(valueString, out value))
+                {
+                    error = string.Format("Misconfigured config setting {0}, could not parse value `{1}` as an int", this.configName, valueString);
+                    return false;
+                }
+
+                if (value < minValue)
+                {
+                    error = string.Format("Invalid value {0} for setting {1}, value must be greater than or equal to {2}", value, this.configName, minValue);
+                    return false;
+                }
+
+                return true;
             }
         }
     }

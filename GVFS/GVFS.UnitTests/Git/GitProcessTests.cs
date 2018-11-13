@@ -130,5 +130,91 @@ this is an error",
             result.ExitCodeIsFailure.ShouldBeTrue();
             result.StderrContainsErrors().ShouldBeFalse();
         }
+
+        [TestCase]
+        public void ConfigResult_TryParseAsString_NullWhenUnsetAndNoErrors()
+        {
+            GitProcess.ConfigResult result = new GitProcess.ConfigResult(
+                new GitProcess.Result(string.Empty, string.Empty, 1),
+                "settingName");
+
+            result.TryParseAsString(out string expectedValue, out string _).ShouldBeTrue();
+            expectedValue.ShouldBeNull();
+        }
+
+        [TestCase]
+        public void ConfigResult_TryParseAsString_FailsWhenErrors()
+        {
+            GitProcess.ConfigResult result = new GitProcess.ConfigResult(
+                new GitProcess.Result(string.Empty, "errors", 1),
+                "settingName");
+
+            result.TryParseAsString(out string expectedValue, out string _).ShouldBeFalse();
+        }
+
+        [TestCase]
+        public void ConfigResult_TryParseAsString_NullWhenUnsetAndWarnings()
+        {
+            GitProcess.ConfigResult result = new GitProcess.ConfigResult(
+                new GitProcess.Result(string.Empty, "warning: ignored", 1),
+                "settingName");
+
+            result.TryParseAsString(out string expectedValue, out string _).ShouldBeTrue();
+            expectedValue.ShouldBeNull();
+        }
+
+        [TestCase]
+        public void ConfigResult_TryParseAsString_PassesThroughErrors()
+        {
+            GitProcess.ConfigResult result = new GitProcess.ConfigResult(
+                new GitProcess.Result(string.Empty, "--local can only be used inside a git repository", 1),
+                "settingName");
+
+            result.TryParseAsString(out string expectedValue, out string error).ShouldBeFalse();
+            error.Contains("--local").ShouldBeTrue();
+        }
+
+        [TestCase]
+        public void ConfigResult_TryParseAsInt_FailsWithErrors()
+        {
+            GitProcess.ConfigResult result = new GitProcess.ConfigResult(
+                new GitProcess.Result(string.Empty, "errors", 1),
+                "settingName");
+
+            result.TryParseAsInt(0, -1, out int value, out string error).ShouldBeFalse();
+        }
+
+        [TestCase]
+        public void ConfigResult_TryParseAsInt_DefaultWhenUnset()
+        {
+            GitProcess.ConfigResult result = new GitProcess.ConfigResult(
+                new GitProcess.Result(string.Empty, string.Empty, 1),
+                "settingName");
+
+            result.TryParseAsInt(1, -1, out int value, out string error).ShouldBeTrue();
+            value.ShouldEqual(1);
+        }
+
+        [TestCase]
+        public void ConfigResult_TryParseAsInt_ParsesWhenNoError()
+        {
+            GitProcess.ConfigResult result = new GitProcess.ConfigResult(
+                new GitProcess.Result("32", string.Empty, 0),
+                "settingName");
+
+            result.TryParseAsInt(1, -1, out int value, out string error).ShouldBeTrue();
+            value.ShouldEqual(32);
+        }
+
+        [TestCase]
+        public void ConfigResult_TryParseAsInt_ParsesWhenNoWarnings()
+        {
+            GitProcess.ConfigResult result = new GitProcess.ConfigResult(
+                new GitProcess.Result("32", "warning: ignored", 0),
+                "settingName");
+
+            result.TryParseAsInt(1, -1, out int value, out string error).ShouldBeTrue();
+            value.ShouldEqual(32);
+        }
     }
 }
