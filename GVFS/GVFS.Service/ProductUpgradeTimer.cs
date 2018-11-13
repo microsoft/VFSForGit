@@ -7,7 +7,7 @@ using System.Threading;
 
 namespace GVFS.Service
 {
-    public class ProductUpgradeTimer
+    public class ProductUpgradeTimer : IDisposable
     {
         private static readonly TimeSpan TimeInterval = TimeSpan.FromDays(1);
         private JsonTracer tracer;
@@ -20,21 +20,36 @@ namespace GVFS.Service
 
         public void Start()
         {
-            Random random = new Random();
-            TimeSpan startTime = TimeSpan.Zero;
+            if (!GVFSEnlistment.IsUnattended(this.tracer))
+            {
+                TimeSpan startTime = TimeSpan.Zero;
 
-            this.tracer.RelatedInfo("Starting auto upgrade checks.");
-            this.timer = new Timer(
-                this.TimerCallback,
-                state: null,
-                dueTime: startTime,
-                period: TimeInterval);
+                this.tracer.RelatedInfo("Starting auto upgrade checks.");
+                this.timer = new Timer(
+                    this.TimerCallback,
+                    state: null,
+                    dueTime: startTime,
+                    period: TimeInterval);
+            }
+            else
+            {
+                this.tracer.RelatedInfo("No upgrade checks scheduled, GVFS is running in unattended mode.");
+            }
         }
 
         public void Stop()
         {
             this.tracer.RelatedInfo("Stopping auto upgrade checks");
-            this.timer.Dispose();
+            this.Dispose();
+        }
+
+        public void Dispose()
+        {
+            if (this.timer != null)
+            {
+                this.timer.Dispose();
+                this.timer = null;
+            }
         }
 
         private void TimerCallback(object unusedState)
