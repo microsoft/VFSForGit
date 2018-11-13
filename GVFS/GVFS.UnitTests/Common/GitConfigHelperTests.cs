@@ -104,6 +104,33 @@ section.empty=
         }
 
         [TestCase]
+        public void ParseSpaceSeparatedKeyValuesTest()
+        {
+      string input = @"
+core.gvfs true
+gc.auto 0
+section.key value1
+section.key  value2
+section.key  value3
+section.key   value4
+section.KEY value5" +
+"\nsection.empty ";
+
+      Dictionary<string, GitConfigSetting> result = GitConfigHelper.ParseKeyValues(input,' ');
+
+            result.Count.ShouldEqual(4);
+            result["core.gvfs"].Values.Single().ShouldEqual("true");
+            result["gc.auto"].Values.Single().ShouldEqual("0");
+            result["section.key"].Values.Count.ShouldEqual(5);
+            result["section.key"].Values.ShouldContain(v => v == "value1");
+            result["section.key"].Values.ShouldContain(v => v == "value2");
+            result["section.key"].Values.ShouldContain(v => v == "value3");
+            result["section.key"].Values.ShouldContain(v => v == "value4");
+            result["section.key"].Values.ShouldContain(v => v == "value5");
+            result["section.empty"].Values.Single().ShouldEqual(string.Empty);
+        }
+
+        [TestCase]
         public void GetSettingsTest()
         {
             string fileContents = @"

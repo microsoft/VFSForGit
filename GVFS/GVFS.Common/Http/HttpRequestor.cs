@@ -8,6 +8,8 @@ using System.Linq;
 using System.Net;
 using System.Net.Http;
 using System.Net.Http.Headers;
+using System.Security;
+using System.Security.Cryptography.X509Certificates;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
@@ -22,7 +24,14 @@ namespace GVFS.Common.Http
         private readonly ProductInfoHeaderValue userAgentHeader;
 
         private HttpClient client;
-        private GitAuthentication authentication;
+        private readonly GitAuthentication authentication;
+
+        private readonly Lazy<X509Store> store = new Lazy<X509Store>(() =>
+        {
+            var s = new X509Store();
+            s.Open(OpenFlags.OpenExistingOnly | OpenFlags.ReadOnly);
+            return s;
+        });
 
         static HttpRequestor()
         {
@@ -31,16 +40,76 @@ namespace GVFS.Common.Http
             availableConnections = new SemaphoreSlim(ServicePointManager.DefaultConnectionLimit);
         }
 
-        public HttpRequestor(ITracer tracer, RetryConfig retryConfig, GitAuthentication authentication)
+        protected HttpRequestor(ITracer tracer, RetryConfig retryConfig, Enlistment enlistment)
         {
-            this.client = new HttpClient(new HttpClientHandler() { UseDefaultCredentials = true });
-            this.client.Timeout = retryConfig.Timeout;
             this.RetryConfig = retryConfig;
-            this.authentication = authentication;
+
+            this.authentication = enlistment.Authentication;
 
             this.Tracer = tracer;
 
+            var httpClientHandler = new HttpClientHandler() { UseDefaultCredentials = true };
+            httpClientHandler.ClientCertificateOptions = ClientCertificateOption.Manual;
+#if DEBUG
+            // allow self-signed server certificates, while debugging
+            httpClientHandler.ServerCertificateCustomValidationCallback =
+                (httpRequestMessage, cert, cetChain, policyErrors) =>
+                {
+                    return true;
+                };
+#endif
+            if (!string.IsNullOrEmpty(enlistment.GitSslSettings.SslCertificate))
+            {
+                string certificatePassword = null;
+                if (enlistment.GitSslSettings.SslCertPasswordProtected)
+                {
+                    certificatePassword = LoadCertificatePassword(enlistment.GitSslSettings.SslCertificate, enlistment.CreateGitProcess());
+                }
+                var cert = LoadCertificate(enlistment.GitSslSettings.SslCertificate, certificatePassword);
+                if (cert != null)
+                {
+                    httpClientHandler.ClientCertificates.Add(cert);
+                }
+            }
+
+            this.client = new HttpClient(httpClientHandler)
+            {
+                Timeout = retryConfig.Timeout
+            };
+
             this.userAgentHeader = new ProductInfoHeaderValue(ProcessHelper.GetEntryClassName(), ProcessHelper.GetCurrentProcessVersion());
+        }
+
+        private string LoadCertificatePassword(string certId, GitProcess git)
+        {
+            if (git.TryGetCertificatePassword(this.Tracer, certId, out var password, out var error))
+            {
+                return password;
+            }
+
+            return null;
+        }
+
+        private X509Certificate2 LoadCertificate(string certId, string certificatePassword)
+        {
+            if (File.Exists(certId))
+            {
+                return new X509Certificate2(certId, certificatePassword);
+            }
+#if DEBUG
+            // Allow invalid (self-signed) client certificates while debugging
+            var onlyValidCertificates = false;
+#else
+            var onlyValidCertificates = true;
+#endif
+            var findResults = store.Value.Certificates.Find(X509FindType.FindBySubjectName, certId, onlyValidCertificates);
+            if (findResults?.Count > 0)
+            {
+                return findResults[0];
+            }
+
+            this.Tracer.RelatedError("Certificate {0} not found", certId);
+            return null;
         }
 
         public RetryConfig RetryConfig { get; }
@@ -58,6 +127,11 @@ namespace GVFS.Common.Http
             {
                 this.client.Dispose();
                 this.client = null;
+            }
+
+            if (store.IsValueCreated)
+            {
+                store.Value.Close();
             }
         }
 
@@ -83,7 +157,6 @@ namespace GVFS.Common.Http
             }
 
             HttpRequestMessage request = new HttpRequestMessage(httpMethod, requestUri);
-
             // By default, VSTS auth failures result in redirects to SPS to reauthenticate.
             // To provide more consistent behavior when using the GCM, have them send us 401s instead
             request.Headers.Add("X-TFS-FedAuthRedirect", "Suppress");
@@ -196,6 +269,16 @@ namespace GVFS.Common.Http
                     HttpStatusCode.RequestTimeout,
                     new GitObjectsHttpException(HttpStatusCode.RequestTimeout, errorMessage),
                     shouldRetry: true,
+                    message: response,
+                    onResponseDisposed: () => availableConnections.Release());
+            }
+            catch (HttpRequestException httpRequestException) when (httpRequestException.InnerException is System.Security.Authentication.AuthenticationException)
+            {
+                // This exception is thrown on OSX, when user declines to give permission to access certificate
+                gitEndPointResponseData = new GitEndPointResponseData(
+                    HttpStatusCode.Unauthorized,
+                    httpRequestException.InnerException,
+                    shouldRetry: false,
                     message: response,
                     onResponseDisposed: () => availableConnections.Release());
             }

@@ -12,7 +12,7 @@ namespace GVFS.Common.Http
         private readonly string repoUrl;
 
         public ConfigHttpRequestor(ITracer tracer, Enlistment enlistment, RetryConfig retryConfig)
-            : base(tracer, retryConfig, enlistment.Authentication)
+            : base(tracer, retryConfig, enlistment)
         {
             this.repoUrl = enlistment.RepoUrl;
         }
@@ -89,6 +89,11 @@ namespace GVFS.Common.Http
                 httpStatus = httpException.StatusCode;
                 errorMessage = httpException.Message;
             }
+
+            this.Tracer.RelatedError(new EventMetadata
+            {
+                {"Exception", output.Error}
+            }, "TryQueryGVFSConfig failed");
 
             return false;
         }

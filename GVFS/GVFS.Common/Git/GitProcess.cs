@@ -164,6 +164,58 @@ namespace GVFS.Common.Git
                 null);
         }
 
+        /// <summary>
+        /// Input for certificate crednetials looks like
+        /// <code> protocol=cert
+        /// path=[http.sslCert value]
+        /// username =</code>
+        /// </summary>
+        public virtual bool TryGetCertificatePassword(
+            ITracer tracer,
+            string certificatePath,
+            out string password,
+            out string errorMessage)
+        {
+            password = null;
+            errorMessage = null;
+
+            using (ITracer activity = tracer.StartActivity("TryGetCertificatePassword", EventLevel.Informational))
+            {
+                Result gitCredentialOutput = this.InvokeGitAgainstDotGitFolder(
+                    "credential fill",
+                    stdin => stdin.Write("protocol=cert\npath=" + certificatePath + "\nusername=\n\n"),
+                    parseStdOutLine: null);
+
+                if (gitCredentialOutput.HasErrors)
+                {
+                    EventMetadata errorData = new EventMetadata();
+                    tracer.RelatedWarning(
+                        errorData,
+                        "Git could not get credentials: " + gitCredentialOutput.Errors,
+                        Keywords.Network | Keywords.Telemetry);
+                    errorMessage = gitCredentialOutput.Errors;
+
+                    return false;
+                }
+
+                password = ParseValue(gitCredentialOutput.Output, "password=");
+
+                bool success = password != null;
+
+                EventMetadata metadata = new EventMetadata
+                {
+                    { "Success", success }
+                };
+                if (!success)
+                {
+                    metadata.Add("Output", gitCredentialOutput.Output);
+                }
+
+                activity.Stop(metadata);
+                return success;
+            }
+        }
+
         public virtual bool TryGetCredentials(
             ITracer tracer,
             string repoUrl,
@@ -257,6 +309,18 @@ namespace GVFS.Common.Git
                  replaceAll ? "--replace-all " : string.Empty,
                  settingName,
                  value));
+        }
+
+        public bool TryGetConfigUrlMatch(string section, string repositoryUrl, out Dictionary<string, GitConfigSetting> configSettings)
+        {
+            Result result = this.InvokeGitAgainstDotGitFolder($"config --get-urlmatch {section} {repositoryUrl}");
+            if (result.HasErrors)
+            {
+                configSettings = null;
+                return false;
+            }
+            configSettings = GitConfigHelper.ParseKeyValues(result.Output, ' ');
+            return true;
         }
 
         public bool TryGetAllConfig(bool localOnly, out Dictionary<string, GitConfigSetting> configSettings)
