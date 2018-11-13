@@ -26,8 +26,10 @@ namespace PrjFSLib.Linux
         }
 
         public virtual Result StartVirtualizationInstance(
+            string storageRootFullPath,
             string virtualizationRootFullPath,
-            uint poolThreadCount)
+            uint poolThreadCount,
+            out IntPtr mountHandle)
         {
             Interop.Callbacks callbacks = new Interop.Callbacks
             {
@@ -36,15 +38,23 @@ namespace PrjFSLib.Linux
                 OnNotifyOperation = this.preventGCOnNotifyOperationDelegate = new NotifyOperationCallback(this.OnNotifyOperation),
             };
 
-            return Interop.PrjFSLib.StartVirtualizationInstance(
+            IntPtr newMountHandle = IntPtr.Zero;
+
+            Result result = Interop.PrjFSLib.StartVirtualizationInstance(
+                storageRootFullPath,
                 virtualizationRootFullPath,
                 callbacks,
-                poolThreadCount);
+                poolThreadCount,
+                ref newMountHandle);
+
+            mountHandle = newMountHandle;
+            return result;
         }
 
-        public virtual Result StopVirtualizationInstance()
+        public virtual void StopVirtualizationInstance(
+            IntPtr mountHandle)
         {
-            throw new NotImplementedException();
+            Interop.PrjFSLib.StopVirtualizationInstance(mountHandle);
         }
 
         public virtual Result WriteFileContents(
