@@ -423,9 +423,9 @@ void ActiveProvider_Disconnect(VirtualizationRootHandle rootIndex)
         root->providerPid = 0;
         
         root->providerUserClient = nullptr;
-    }
-    RWLock_DropExclusiveToShared(s_virtualizationRootsLock);
-    {
+
+        RWLock_DropExclusiveToShared(s_virtualizationRootsLock);
+
         KauthHandler_AbortOutstandingEventsForProvider(rootIndex);
     }
     RWLock_ReleaseShared(s_virtualizationRootsLock);

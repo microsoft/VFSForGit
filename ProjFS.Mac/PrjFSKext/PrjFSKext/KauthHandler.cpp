@@ -86,16 +86,16 @@ static bool ShouldHandleFileOpEvent(
     int* pid);
 
 // Structs
-typedef struct OutstandingMessage
+struct OutstandingMessage
 {
-    MessageHeader request;
-    MessageType response;
-    bool    receivedResponse;
-    VirtualizationRootHandle rootHandle;
+    MessageHeader                  request;
+    MessageType                    response;
+    bool                           receivedResponse;
+    VirtualizationRootHandle       rootHandle;
     
     LIST_ENTRY(OutstandingMessage) _list_privates;
     
-} OutstandingMessage;
+};
 
 // State
 static kauth_listener_t s_vnodeListener = nullptr;
@@ -850,7 +850,7 @@ static bool TrySendRequestAndWaitForResponse(
             result = true;
             goto CleanupUnlockAndReturn;
         }
-        else // failure reported by provider or aborted due disconnected provider
+        else
         {
             // Default error code is EACCES. See errno.h for more codes.
             *kauthError = EAGAIN;
