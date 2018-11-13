@@ -69,7 +69,7 @@ namespace GVFS.Hooks
                             RunLockRequest(args, unattended, ReleaseGVFSLock);
                         }
 
-                        RunPostCommands(args);
+                        RunPostCommands(args, unattended);
                         break;
 
                     default:
@@ -95,9 +95,12 @@ namespace GVFS.Hooks
             }
         }
 
-        private static void RunPostCommands(string[] args)
+        private static void RunPostCommands(string[] args, bool unattended)
         {
-            RemindUpgradeAvailable();
+            if (!unattended)
+            {
+                RemindUpgradeAvailable();
+            }
         }
 
         private static void RemindUpgradeAvailable()
