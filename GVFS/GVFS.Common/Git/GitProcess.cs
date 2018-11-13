@@ -731,8 +731,8 @@ namespace GVFS.Common.Git
 
         public class ConfigResult
         {
-            private Result result;
-            private string configName;
+            private readonly Result result;
+            private readonly string configName;
 
             public ConfigResult(Result result, string configName)
             {
