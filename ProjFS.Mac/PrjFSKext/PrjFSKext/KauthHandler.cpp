@@ -43,7 +43,7 @@ static inline bool ActionBitIsSet(kauth_action_t action, kauth_action_t mask);
 
 static bool IsFileSystemCrawler(char* procname);
 
-static void Sleep(int seconds, void* channel);
+static void Sleep(int seconds, void* channel, Mutex* _Nullable mutex);
 static bool TrySendRequestAndWaitForResponse(
     VirtualizationRootHandle root,
     MessageType messageType,
@@ -835,7 +835,7 @@ static bool TrySendRequestAndWaitForResponse(
         while (!message.receivedResponse &&
            !s_isShuttingDown)
         {
-            Mutex_Sleep(s_outstandingMessagesMutex, &message, 5 /* seconds */);
+            Sleep(5, &message, &s_outstandingMessagesMutex);
         }
     
         if (s_isShuttingDown)
@@ -892,17 +892,17 @@ static void AbortAllOutstandingEvents()
     // https://developer.apple.com/library/archive/samplecode/KauthORama/Listings/KauthORama_c.html#//apple_ref/doc/uid/DTS10003633-KauthORama_c-DontLinkElementID_3
     do
     {
-        Sleep(1, NULL);
+        Sleep(1, nullptr, nullptr);
     } while (atomic_load(&s_numActiveKauthEvents) > 0);
 }
 
-static void Sleep(int seconds, void* channel)
+static void Sleep(int seconds, void* channel, Mutex* _Nullable mutex)
 {
     struct timespec timeout;
     timeout.tv_sec  = seconds;
     timeout.tv_nsec = 0;
     
-    msleep(channel, nullptr, PUSER, "io.gvfs.PrjFSKext.Sleep", &timeout);
+    msleep(channel, nullptr != mutex ? mutex->p : nullptr, PUSER, "io.gvfs.PrjFSKext.Sleep", &timeout);
 }
 
 static int GetPid(vfs_context_t _Nonnull context)
