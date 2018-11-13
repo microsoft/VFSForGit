@@ -37,7 +37,10 @@ namespace MirrorProvider
             else
             {
                 Console.WriteLine("Virtualization instance failed to start: " + error);
+                return;
             }
+
+            fileSystemVirtualizer.Stop();
         }
     }
 }

@@ -20,6 +20,10 @@ namespace MirrorProvider
             return true;
         }
 
+        public virtual void Stop()
+        {
+        }
+
         protected string GetFullPathInMirror(string relativePath)
         {
             return Path.Combine(this.Enlistment.MirrorRoot, relativePath);

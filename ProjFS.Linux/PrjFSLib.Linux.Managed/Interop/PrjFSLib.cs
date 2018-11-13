@@ -12,9 +12,15 @@ namespace PrjFSLib.Linux.Interop
         // TODO(Linux): revise library functions for Linux
         [DllImport(PrjFSLibPath, EntryPoint = "PrjFS_StartVirtualizationInstance")]
         public static extern Result StartVirtualizationInstance(
+            string storageRootFullPath,
             string virtualizationRootFullPath,
             Callbacks callbacks,
-            uint poolThreadCount);
+            uint poolThreadCount,
+            ref IntPtr mountHandlePtr);
+
+        [DllImport(PrjFSLibPath, EntryPoint = "PrjFS_StopVirtualizationInstance")]
+        public static extern void StopVirtualizationInstance(
+            IntPtr mountHandle);
 
         [DllImport(PrjFSLibPath, EntryPoint = "PrjFS_ConvertDirectoryToVirtualizationRoot")]
         public static extern Result ConvertDirectoryToVirtualizationRoot(
