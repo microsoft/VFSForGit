@@ -29,7 +29,9 @@ typedef enum
     // Responses
     MessageType_Response_Success,
     MessageType_Response_Fail,
-    MessageType_Response_Aborted,
+    
+    // Other message outcomes
+    MessageType_Result_Aborted,
     
 } MessageType;
 

@@ -1160,7 +1160,7 @@ static inline PrjFS_NotificationType KUMessageTypeToNotificationType(MessageType
         case MessageType_KtoU_HydrateFile:
         case MessageType_Response_Success:
         case MessageType_Response_Fail:
-        case MessageType_Response_Aborted:
+        case MessageType_Result_Aborted:
             return PrjFS_NotificationType_Invalid;
     }
 }

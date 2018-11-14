@@ -89,8 +89,8 @@ static bool ShouldHandleFileOpEvent(
 struct OutstandingMessage
 {
     MessageHeader                  request;
-    MessageType                    response;
-    bool                           receivedResponse;
+    MessageType                    result;
+    bool                           receivedResult;
     VirtualizationRootHandle       rootHandle;
     
     LIST_ENTRY(OutstandingMessage) _list_privates;
@@ -211,8 +211,8 @@ void KauthHandler_HandleKernelMessageResponse(VirtualizationRootHandle providerV
                     if (outstandingMessage->request.messageId == messageId && outstandingMessage->rootHandle == providerVirtualizationRootHandle)
                     {
                         // Save the response for the blocked thread.
-                        outstandingMessage->response = responseType;
-                        outstandingMessage->receivedResponse = true;
+                        outstandingMessage->result = responseType;
+                        outstandingMessage->receivedResult = true;
                         
                         wakeup(outstandingMessage);
                         
@@ -238,7 +238,7 @@ void KauthHandler_HandleKernelMessageResponse(VirtualizationRootHandle providerV
         case MessageType_KtoU_NotifyFileRenamed:
         case MessageType_KtoU_NotifyDirectoryRenamed:
         case MessageType_KtoU_NotifyFileHardLinkCreated:
-        case MessageType_Response_Aborted:
+        case MessageType_Result_Aborted:
             KextLog_Error("KauthHandler_HandleKernelMessageResponse: Unexpected responseType: %d", responseType);
             break;
     }
@@ -256,8 +256,8 @@ void KauthHandler_AbortOutstandingEventsForProvider(VirtualizationRootHandle pro
         {
             if (outstandingMessage->rootHandle == providerVirtualizationRootHandle)
             {
-                outstandingMessage->receivedResponse = true;
-                outstandingMessage->response = MessageType_Response_Aborted;
+                outstandingMessage->receivedResult = true;
+                outstandingMessage->result = MessageType_Result_Aborted;
                 wakeup(outstandingMessage);
             }
         }
@@ -776,7 +776,7 @@ static bool TrySendRequestAndWaitForResponse(
     
     OutstandingMessage message =
     {
-        .receivedResponse = false,
+        .receivedResult = false,
         .rootHandle = root,
     };
     
@@ -825,7 +825,7 @@ static bool TrySendRequestAndWaitForResponse(
         }
         else
         {
-            while (!message.receivedResponse &&
+            while (!message.receivedResult &&
                    !s_isShuttingDown)
             {
                 Sleep(5, &message, &s_outstandingMessagesMutex);
@@ -835,7 +835,7 @@ static bool TrySendRequestAndWaitForResponse(
             {
                 *kauthResult = KAUTH_RESULT_DENY;
             }
-            else if (MessageType_Response_Success == message.response)
+            else if (MessageType_Response_Success == message.result)
             {
                 *kauthResult = KAUTH_RESULT_DEFER;
                 result = true;
