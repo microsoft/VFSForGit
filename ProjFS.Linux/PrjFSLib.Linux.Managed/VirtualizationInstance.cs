@@ -38,16 +38,15 @@ namespace PrjFSLib.Linux
                 OnNotifyOperation = this.preventGCOnNotifyOperationDelegate = new NotifyOperationCallback(this.OnNotifyOperation),
             };
 
-            IntPtr newMountHandle = IntPtr.Zero;
+            mountHandle = IntPtr.Zero;
 
             Result result = Interop.PrjFSLib.StartVirtualizationInstance(
                 storageRootFullPath,
                 virtualizationRootFullPath,
                 callbacks,
                 poolThreadCount,
-                ref newMountHandle);
+                ref mountHandle);
 
-            mountHandle = newMountHandle;
             return result;
         }
 
