@@ -150,7 +150,7 @@ namespace GVFS.Common.NamedPipes
                 {
                     if (message.Body.Length != 2)
                     {
-                        throw new InvalidOperationException($"Invalid PostIndexChanged message. Expected at least 2 characters, got: {message.Body.Length} from message: '{message.Body}'");
+                        throw new InvalidOperationException($"Invalid PostIndexChanged message. Expected 2 characters, got: {message.Body.Length} from message: '{message.Body}'");
                     }
 
                     this.WorkingDirectoryUpdated = message.Body[0] == '1';
