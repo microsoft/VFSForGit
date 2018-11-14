@@ -135,11 +135,12 @@ kern_return_t VirtualizationRoots_Cleanup()
 
 VirtualizationRootHandle VirtualizationRoot_FindForVnode(
     PerfTracer* _Nonnull perfTracer,
-    PrjFSPerfCounter baseCounter,
+    PrjFSPerfCounter functionCounter,
+    PrjFSPerfCounter innerLoopCounter,
     vnode_t _Nonnull vnode,
     const FsidInode& vnodeFsidInode)
 {
-    PerfSample findForVnodeSample(perfTracer, baseCounter);
+    PerfSample findForVnodeSample(perfTracer, functionCounter);
     
     VirtualizationRootHandle rootHandle = RootHandle_None;
     
@@ -147,7 +148,7 @@ VirtualizationRootHandle VirtualizationRoot_FindForVnode(
     // Search up the tree until we hit a known virtualization root or THE root of the file system
     while (RootHandle_None == rootHandle && NULLVP != vnode && !vnode_isvroot(vnode))
     {
-        PerfSample iterationSample(perfTracer, (PrjFSPerfCounter)(baseCounter + 1));
+        PerfSample iterationSample(perfTracer, innerLoopCounter);
 
         rootHandle = FindOrDetectRootAtVnode(vnode, vnodeFsidInode);
         

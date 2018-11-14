@@ -69,8 +69,8 @@ bool PrjFSLog_FetchAndPrintKextProfilingData(io_connect_t connection)
     }
     else if (ret == kIOReturnSuccess)
     {
-        printf("   Counter                             [ Samples  ][Total time (ns)][Mean (ns)   ][Stddev (ns) ][Min (ns)][Max (ns)  ]\n");
-        printf("----------------------------------------------------------------------------------------------------------------------\n");
+        printf("   Counter                             [ Samples  ][Total time (ns)][Mean (ns) ][Min (ns)  ][Max (ns)  ]\n");
+        printf("--------------------------------------------------------------------------------------------------------\n");
         
         for (unsigned i = 0; i < PrjFSPerfCounter_Count; ++i)
         {
@@ -85,16 +85,14 @@ bool PrjFSLog_FetchAndPrintKextProfilingData(io_connect_t connection)
             {
                 // The values on the counter are reported in units of mach absolute time
                 double sum = counters[i].sum;
-                double stddev = numSamples > 1 ? sqrt((numSamples * counters[i].sumSquares - sum * sum) / (numSamples * (numSamples - 1))) : 0.0;
 
                 uint64_t sumNS = nanosecondsFromAbsoluteTime(sum);
                 uint64_t meanNS = numSamples > 0 ? sumNS / numSamples : 0;
 
                 printf(
-                    "[%15llu][%12llu][%12llu][%8llu][%10llu]\n",
+                    "[%15llu][%10llu][%10llu][%10llu]\n",
                     sumNS,
                     meanNS,
-                    nanosecondsFromAbsoluteTime(stddev),
                     nanosecondsFromAbsoluteTime(counters[i].min),
                     nanosecondsFromAbsoluteTime(counters[i].max));
             }

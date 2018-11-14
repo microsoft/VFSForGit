@@ -48,15 +48,10 @@ struct PrjFSPerfCounterResult
 {
     _Atomic uint64_t numSamples;
     
-    // Units: Mach absolute time (squared for sumSquares)
-    // Sum of measured sample intervals
+    // Units: Mach absolute time
     _Atomic uint64_t sum;
-    // Smallest encountered interval
     _Atomic uint64_t min;
-    // Largest encountered interval
     _Atomic uint64_t max;
-    // Sum-of-squares of measured time intervals (for stddev)
-    _Atomic __uint128_t sumSquares;
 };
 
 #endif /* PrjFSPerfCounter_h */

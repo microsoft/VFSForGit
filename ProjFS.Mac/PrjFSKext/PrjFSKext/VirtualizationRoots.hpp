@@ -25,7 +25,8 @@ kern_return_t VirtualizationRoots_Cleanup(void);
 
 VirtualizationRootHandle VirtualizationRoot_FindForVnode(
     PerfTracer* _Nonnull perfTracer,
-    PrjFSPerfCounter counter,
+    PrjFSPerfCounter functionCounter,
+    PrjFSPerfCounter innerLoopCounter,
     vnode_t _Nonnull vnode,
     const FsidInode& vnodeFsidInode);
 
