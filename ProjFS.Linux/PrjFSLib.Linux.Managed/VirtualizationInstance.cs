@@ -32,7 +32,7 @@ namespace PrjFSLib.Linux
             string virtualizationRootFullPath,
             uint poolThreadCount)
         {
-            if (mountHandle != IntPtr.Zero)
+            if (this.mountHandle != IntPtr.Zero)
             {
                 throw new InvalidOperationException();
             }
@@ -57,6 +57,7 @@ namespace PrjFSLib.Linux
         public virtual void StopVirtualizationInstance()
         {
             Interop.PrjFSLib.StopVirtualizationInstance(this.mountHandle);
+            this.mountHandle = IntPtr.Zero;
         }
 
         public virtual Result WriteFileContents(
