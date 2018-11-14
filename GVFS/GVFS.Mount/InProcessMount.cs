@@ -357,7 +357,7 @@ namespace GVFS.Mount
             }
             else
             {
-                this.fileSystemCallbacks.OnIndexFileChanged(request.WorkingDirectoryUpdated, request.OnlyIndexUpdated);
+                this.fileSystemCallbacks.OnIndexFileChanged(request.WorkingDirectoryUpdated, request.SkipWorktreeBitsUpdated);
                 this.fileSystemCallbacks.UpdateIndexProjection();
                 response = new NamedPipeMessages.PostIndexChanged.Response(NamedPipeMessages.PostIndexChanged.SuccessResult);
             }

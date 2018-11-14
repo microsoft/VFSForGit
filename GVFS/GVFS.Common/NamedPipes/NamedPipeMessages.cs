@@ -154,12 +154,12 @@ namespace GVFS.Common.NamedPipes
                     }
 
                     this.WorkingDirectoryUpdated = message.Body[0] == '1';
-                    this.OnlyIndexUpdated = message.Body[1] == '1';
+                    this.SkipWorktreeBitsUpdated = message.Body[1] == '1';
                 }
 
                 public bool WorkingDirectoryUpdated { get; }
 
-                public bool OnlyIndexUpdated { get; }
+                public bool SkipWorktreeBitsUpdated { get; }
             }
 
             public class Response

@@ -31,7 +31,7 @@ int main(int argc, char *argv[])
     PIPE_HANDLE pipeHandle = CreatePipeToGVFS(pipeName);
 
     // Construct index changed request message
-    // Format:  "PICN|<working directory updated flag><only index updated flag>"
+    // Format:  "PICN|<working directory updated flag><skipworktree bits updated flag>"
     // Example: "PICN|10"
     // Example: "PICN|01"
     // Example: "PICN|00"
