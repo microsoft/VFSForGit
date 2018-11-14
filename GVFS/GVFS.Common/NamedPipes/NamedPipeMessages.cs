@@ -153,13 +153,13 @@ namespace GVFS.Common.NamedPipes
                         throw new InvalidOperationException($"Invalid PostIndexChanged message. Expected 2 characters, got: {message.Body.Length} from message: '{message.Body}'");
                     }
 
-                    this.WorkingDirectoryUpdated = message.Body[0] == '1';
-                    this.SkipWorktreeBitsUpdated = message.Body[1] == '1';
+                    this.UpdatedWorkingDirectory = message.Body[0] == '1';
+                    this.UpdatedSkipWorktreeBits = message.Body[1] == '1';
                 }
 
-                public bool WorkingDirectoryUpdated { get; }
+                public bool UpdatedWorkingDirectory { get; }
 
-                public bool SkipWorktreeBitsUpdated { get; }
+                public bool UpdatedSkipWorktreeBits { get; }
             }
 
             public class Response
