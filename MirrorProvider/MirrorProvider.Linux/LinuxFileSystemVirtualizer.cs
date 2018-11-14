@@ -9,7 +9,6 @@ namespace MirrorProvider.Linux
     public class LinuxFileSystemVirtualizer : FileSystemVirtualizer
     {
         private VirtualizationInstance virtualizationInstance = new VirtualizationInstance();
-        private IntPtr mountHandle = IntPtr.Zero;
 
         public override bool TryConvertVirtualizationRoot(string directory, out string error)
         {
@@ -36,8 +35,7 @@ namespace MirrorProvider.Linux
             Result result = this.virtualizationInstance.StartVirtualizationInstance(
                 storageRoot,
                 enlistment.SrcRoot,
-                poolThreadCount: (uint)Environment.ProcessorCount * 2,
-                mountHandle: out this.mountHandle);
+                poolThreadCount: (uint)Environment.ProcessorCount * 2);
 
             if (result == Result.Success)
             {
@@ -52,8 +50,7 @@ namespace MirrorProvider.Linux
 
         public override void Stop()
         {
-            this.virtualizationInstance.StopVirtualizationInstance(
-                this.mountHandle);
+            this.virtualizationInstance.StopVirtualizationInstance();
         }
 
         private Result OnEnumerateDirectory(
