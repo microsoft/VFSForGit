@@ -16,6 +16,7 @@ namespace GVFS.Common
         private string gitVersion;
         private string gvfsVersion;
         private string gvfsHooksVersion;
+        private GitProcess gitProcess;
 
         // New enlistment
         public GVFSEnlistment(string enlistmentRoot, string repoUrl, string gitBinPath, string gvfsHooksRoot, GitAuthentication authentication)
@@ -218,6 +219,16 @@ namespace GVFS.Common
             return true;
         }
 
+        public string GetMountId()
+        {
+            return this.GetId(GVFSConstants.GitConfig.MountId);
+        }
+
+        public string GetEnlistmentId()
+        {
+            return this.GetId(GVFSConstants.GitConfig.EnlistmentId);
+        }
+
         private void SetOnce<T>(T value, ref T valueToSet)
         {
             if (valueToSet != null)
@@ -237,6 +248,29 @@ namespace GVFS.Common
         {
             DirectoryInfo dir = Directory.CreateDirectory(path);
             dir.Attributes = FileAttributes.Hidden;
+        }
+
+        private string GetId(string key)
+        {
+            GitProcess.ConfigResult configResult = this.GetGitProcess().GetFromLocalConfig(key);
+            string value;
+            string error;
+            if (!configResult.TryParseAsString(out value, out error, defaultValue: string.Empty))
+            {
+                return value.Trim();
+            }
+
+            return string.Empty;
+        }
+
+        private GitProcess GetGitProcess()
+        {
+            if (this.gitProcess == null)
+            {
+                this.gitProcess = new GitProcess(this);
+            }
+
+            return this.gitProcess;
         }
     }
 }

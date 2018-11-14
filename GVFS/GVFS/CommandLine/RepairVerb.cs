@@ -95,7 +95,7 @@ To actually execute any necessary repair(s), run 'gvfs repair --confirm'
 
             this.Output.WriteLine();
 
-            using (JsonTracer tracer = new JsonTracer(GVFSConstants.GVFSEtwProviderName, "RepairVerb"))
+            using (JsonTracer tracer = new JsonTracer(GVFSConstants.GVFSEtwProviderName, "RepairVerb", enlistment.GetEnlistmentId(), mountId: null))
             {
                 tracer.AddLogFileEventListener(
                     GVFSEnlistment.GetNewGVFSLogFileName(enlistment.GVFSLogsRoot, GVFSConstants.LogFileTypes.Repair),
