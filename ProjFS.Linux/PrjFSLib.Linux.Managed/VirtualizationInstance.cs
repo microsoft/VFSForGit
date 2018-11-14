@@ -32,6 +32,11 @@ namespace PrjFSLib.Linux
             string virtualizationRootFullPath,
             uint poolThreadCount)
         {
+            if (mountHandle != IntPtr.Zero)
+            {
+                throw new InvalidOperationException();
+            }
+
             Interop.Callbacks callbacks = new Interop.Callbacks
             {
                 OnEnumerateDirectory = this.OnEnumerateDirectory,
