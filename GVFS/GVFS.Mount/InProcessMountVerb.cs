@@ -130,13 +130,13 @@ namespace GVFS.Mount
 
             GitProcess git = new GitProcess(enlistment);
             GitProcess.ConfigResult configResult = git.GetFromLocalConfig(GVFSConstants.GitConfig.EnlistmentId);
-            if (configResult.TryParseAsString(out enlistmentId, out string _))
+            if (configResult.TryParseAsString(out enlistmentId, out string _, defaultValue: string.Empty))
             {
                 enlistmentId = enlistmentId.Trim();
             }
 
             configResult = git.GetFromLocalConfig(GVFSConstants.GitConfig.MountId);
-            if (configResult.TryParseAsString(out mountId, out string _))
+            if (configResult.TryParseAsString(out mountId, out string _, defaultValue: string.Empty))
             {
                 mountId = mountId.Trim();
             }

@@ -740,9 +740,9 @@ namespace GVFS.Common.Git
                 this.configName = configName;
             }
 
-            public bool TryParseAsString(out string value, out string error)
+            public bool TryParseAsString(out string value, out string error, string defaultValue = null)
             {
-                value = null;
+                value = defaultValue;
                 error = string.Empty;
 
                 if (this.result.ExitCodeIsFailure && this.result.StderrContainsErrors())
@@ -753,7 +753,7 @@ namespace GVFS.Common.Git
 
                 if (this.result.ExitCodeIsSuccess)
                 {
-                    value = this.result.Output;
+                    value = this.result.Output?.TrimEnd('\n');
                 }
 
                 return true;

@@ -132,7 +132,7 @@ this is an error",
         }
 
         [TestCase]
-        public void ConfigResult_TryParseAsString_NullWhenUnsetAndNoErrors()
+        public void ConfigResult_TryParseAsString_DefaultIsNull()
         {
             GitProcess.ConfigResult result = new GitProcess.ConfigResult(
                 new GitProcess.Result(string.Empty, string.Empty, 1),
@@ -175,6 +175,28 @@ this is an error",
         }
 
         [TestCase]
+        public void ConfigResult_TryParseAsString_RespectsDefaultOnFailure()
+        {
+            GitProcess.ConfigResult result = new GitProcess.ConfigResult(
+                new GitProcess.Result(string.Empty, string.Empty, 1),
+                "settingName");
+
+            result.TryParseAsString(out string expectedValue, out string _, "default").ShouldBeTrue();
+            expectedValue.ShouldEqual("default");
+        }
+
+        [TestCase]
+        public void ConfigResult_TryParseAsString_OverridesDefaultOnSuccess()
+        {
+            GitProcess.ConfigResult result = new GitProcess.ConfigResult(
+                new GitProcess.Result("expected", string.Empty, 0),
+                "settingName");
+
+            result.TryParseAsString(out string expectedValue, out string _, "default").ShouldBeTrue();
+            expectedValue.ShouldEqual("expected");
+        }
+
+        [TestCase]
         public void ConfigResult_TryParseAsInt_FailsWithErrors()
         {
             GitProcess.ConfigResult result = new GitProcess.ConfigResult(
@@ -207,10 +229,21 @@ this is an error",
         }
 
         [TestCase]
-        public void ConfigResult_TryParseAsInt_ParsesWhenNoWarnings()
+        public void ConfigResult_TryParseAsInt_ParsesWhenWarnings()
         {
             GitProcess.ConfigResult result = new GitProcess.ConfigResult(
                 new GitProcess.Result("32", "warning: ignored", 0),
+                "settingName");
+
+            result.TryParseAsInt(1, -1, out int value, out string error).ShouldBeTrue();
+            value.ShouldEqual(32);
+        }
+
+        [TestCase]
+        public void ConfigResult_TryParseAsInt_ParsesWhenOutputIncludesWhitespace()
+        {
+            GitProcess.ConfigResult result = new GitProcess.ConfigResult(
+                new GitProcess.Result("\n\t 32\t\r\n", "warning: ignored", 0),
                 "settingName");
 
             result.TryParseAsInt(1, -1, out int value, out string error).ShouldBeTrue();
