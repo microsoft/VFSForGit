@@ -7,6 +7,8 @@ namespace PrjFSLib.Linux
     {
         public const int PlaceholderIdLength = Interop.PrjFSLib.PlaceholderIdLength;
 
+        private IntPtr mountHandle = IntPtr.Zero;
+
         // We must hold a reference to the delegate to prevent garbage collection
         private NotifyOperationCallback preventGCOnNotifyOperationDelegate;
 
@@ -28,8 +30,7 @@ namespace PrjFSLib.Linux
         public virtual Result StartVirtualizationInstance(
             string storageRootFullPath,
             string virtualizationRootFullPath,
-            uint poolThreadCount,
-            out IntPtr mountHandle)
+            uint poolThreadCount)
         {
             Interop.Callbacks callbacks = new Interop.Callbacks
             {
@@ -38,22 +39,19 @@ namespace PrjFSLib.Linux
                 OnNotifyOperation = this.preventGCOnNotifyOperationDelegate = new NotifyOperationCallback(this.OnNotifyOperation),
             };
 
-            mountHandle = IntPtr.Zero;
-
             Result result = Interop.PrjFSLib.StartVirtualizationInstance(
                 storageRootFullPath,
                 virtualizationRootFullPath,
                 callbacks,
                 poolThreadCount,
-                ref mountHandle);
+                ref this.mountHandle);
 
             return result;
         }
 
-        public virtual void StopVirtualizationInstance(
-            IntPtr mountHandle)
+        public virtual void StopVirtualizationInstance()
         {
-            Interop.PrjFSLib.StopVirtualizationInstance(mountHandle);
+            Interop.PrjFSLib.StopVirtualizationInstance(this.mountHandle);
         }
 
         public virtual Result WriteFileContents(
