@@ -803,23 +803,16 @@ static bool TrySendRequestAndWaitForResponse(
         procname,
         relativePath);
 
-    bool isShuttingDown = false;
-    Mutex_Acquire(s_outstandingMessagesMutex);
+    if (s_isShuttingDown)
     {
-        // Only read s_isShuttingDown once so we either insert & send message, or neither.
-        isShuttingDown = s_isShuttingDown;
-        if (!isShuttingDown)
-        {
-            LIST_INSERT_HEAD(&s_outstandingMessages, &message, _list_privates);
-        }
-    }
-    Mutex_Release(s_outstandingMessagesMutex);
-    
-    if (isShuttingDown)
-    {
-        // Message never inserted into list, don't try to remove it on cleanup.
         return false;
     }
+    
+    Mutex_Acquire(s_outstandingMessagesMutex);
+    {
+        LIST_INSERT_HEAD(&s_outstandingMessages, &message, _list_privates);
+    }
+    Mutex_Release(s_outstandingMessagesMutex);
     
     errno_t sendError = ActiveProvider_SendMessage(root, messageSpec);
    
@@ -829,37 +822,32 @@ static bool TrySendRequestAndWaitForResponse(
         {
             // TODO: appropriately handle unresponsive providers
             *kauthResult = KAUTH_RESULT_DEFER;
-            goto CleanupUnlockAndReturn;
-        }
-    
-        while (!message.receivedResponse &&
-           !s_isShuttingDown)
-        {
-            Sleep(5, &message, &s_outstandingMessagesMutex);
-        }
-    
-        if (s_isShuttingDown)
-        {
-            *kauthResult = KAUTH_RESULT_DENY;
-            goto CleanupUnlockAndReturn;
-        }
-
-        if (MessageType_Response_Success == message.response)
-        {
-            *kauthResult = KAUTH_RESULT_DEFER;
-            result = true;
-            goto CleanupUnlockAndReturn;
         }
         else
         {
-            // Default error code is EACCES. See errno.h for more codes.
-            *kauthError = EAGAIN;
-            *kauthResult = KAUTH_RESULT_DENY;
-            goto CleanupUnlockAndReturn;
+            while (!message.receivedResponse &&
+                   !s_isShuttingDown)
+            {
+                Sleep(5, &message, &s_outstandingMessagesMutex);
+            }
+        
+            if (s_isShuttingDown)
+            {
+                *kauthResult = KAUTH_RESULT_DENY;
+            }
+            else if (MessageType_Response_Success == message.response)
+            {
+                *kauthResult = KAUTH_RESULT_DEFER;
+                result = true;
+            }
+            else
+            {
+                // Default error code is EACCES. See errno.h for more codes.
+                *kauthError = EAGAIN;
+                *kauthResult = KAUTH_RESULT_DENY;
+            }
         }
-    
-CleanupUnlockAndReturn:
-
+        
         LIST_REMOVE(&message, _list_privates);
     }
     Mutex_Release(s_outstandingMessagesMutex);
