@@ -33,7 +33,7 @@ namespace GVFS.UnitTests.Mock.FileSystem
 
         public int OnFileRenamedCallCount { get; set; }
         public int OnFolderRenamedCallCount { get; set; }
-        public int CheckLockWhenIndexChangedCallCount { get; set; }
+        public int OnIndexFileChangeCallCount { get; set; }
         public int OnLogsHeadChangeCallCount { get; set; }
 
         public override void OnFileRenamed(string oldRelativePath, string newRelativePath)
@@ -46,9 +46,9 @@ namespace GVFS.UnitTests.Mock.FileSystem
             this.OnFolderRenamedCallCount++;
         }
 
-        public override void CheckLockWhenIndexChanged()
+        public override void OnIndexFileChange()
         {
-            this.CheckLockWhenIndexChangedCallCount++;
+            this.OnIndexFileChangeCallCount++;
         }
 
         public override void OnLogsHeadChange()
@@ -59,7 +59,7 @@ namespace GVFS.UnitTests.Mock.FileSystem
         public void ResetCalls()
         {
             this.OnFileRenamedCallCount = 0;
-            this.CheckLockWhenIndexChangedCallCount = 0;
+            this.OnIndexFileChangeCallCount = 0;
             this.OnLogsHeadChangeCallCount = 0;
             this.OnFolderRenamedCallCount = 0;
         }

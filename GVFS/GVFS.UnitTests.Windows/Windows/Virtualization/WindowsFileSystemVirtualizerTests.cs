@@ -527,7 +527,7 @@ namespace GVFS.UnitTests.Windows.Virtualization
 
                     NotificationType notificationType = NotificationType.UseExistingMask;
                     mockVirtualization.OnNotifyFileRenamed("test.txt", Path.Combine(".git", "test.txt"), isDirectory: false, notificationMask: ref notificationType);
-                    fileSystemCallbacks.CheckLockWhenIndexChangedCallCount.ShouldEqual(0);
+                    fileSystemCallbacks.OnIndexFileChangeCallCount.ShouldEqual(0);
                     fileSystemCallbacks.OnLogsHeadChangeCallCount.ShouldEqual(0);
                     fileSystemCallbacks.OnFileRenamedCallCount.ShouldEqual(1);
                     fileSystemCallbacks.OnFolderRenamedCallCount.ShouldEqual(0);
@@ -536,7 +536,7 @@ namespace GVFS.UnitTests.Windows.Virtualization
                     // We don't expect something to rename something from outside the .gitdir to the .git\index, but this
                     // verifies that we behave as expected in case that happens
                     mockVirtualization.OnNotifyFileRenamed("test.txt", Path.Combine(".git", "index"), isDirectory: false, notificationMask: ref notificationType);
-                    fileSystemCallbacks.CheckLockWhenIndexChangedCallCount.ShouldEqual(1);
+                    fileSystemCallbacks.OnIndexFileChangeCallCount.ShouldEqual(1);
                     fileSystemCallbacks.OnLogsHeadChangeCallCount.ShouldEqual(0);
                     fileSystemCallbacks.OnFileRenamedCallCount.ShouldEqual(1);
                     fileSystemCallbacks.OnFolderRenamedCallCount.ShouldEqual(0);
@@ -545,7 +545,7 @@ namespace GVFS.UnitTests.Windows.Virtualization
                     // We don't expect something to rename something from outside the .gitdir to the .git\logs\HEAD, but this
                     // verifies that we behave as expected in case that happens
                     mockVirtualization.OnNotifyFileRenamed("test.txt", Path.Combine(".git", "logs\\HEAD"), isDirectory: false, notificationMask: ref notificationType);
-                    fileSystemCallbacks.CheckLockWhenIndexChangedCallCount.ShouldEqual(0);
+                    fileSystemCallbacks.OnIndexFileChangeCallCount.ShouldEqual(0);
                     fileSystemCallbacks.OnLogsHeadChangeCallCount.ShouldEqual(1);
                     fileSystemCallbacks.OnFileRenamedCallCount.ShouldEqual(1);
                     fileSystemCallbacks.OnFolderRenamedCallCount.ShouldEqual(0);
@@ -580,7 +580,7 @@ namespace GVFS.UnitTests.Windows.Virtualization
 
                     NotificationType notificationType = NotificationType.UseExistingMask;
                     mockVirtualization.OnNotifyFileRenamed(Path.Combine(".git", "test.txt"), "test2.txt", isDirectory: false, notificationMask: ref notificationType);
-                    fileSystemCallbacks.CheckLockWhenIndexChangedCallCount.ShouldEqual(0);
+                    fileSystemCallbacks.OnIndexFileChangeCallCount.ShouldEqual(0);
                     fileSystemCallbacks.OnLogsHeadChangeCallCount.ShouldEqual(0);
                     fileSystemCallbacks.OnFileRenamedCallCount.ShouldEqual(1);
                     fileSystemCallbacks.OnFolderRenamedCallCount.ShouldEqual(0);
@@ -614,14 +614,14 @@ namespace GVFS.UnitTests.Windows.Virtualization
 
                     NotificationType notificationType = NotificationType.UseExistingMask;
                     mockVirtualization.OnNotifyFileRenamed("test.txt", "test2.txt", isDirectory: false, notificationMask: ref notificationType);
-                    fileSystemCallbacks.CheckLockWhenIndexChangedCallCount.ShouldEqual(0);
+                    fileSystemCallbacks.OnIndexFileChangeCallCount.ShouldEqual(0);
                     fileSystemCallbacks.OnLogsHeadChangeCallCount.ShouldEqual(0);
                     fileSystemCallbacks.OnFileRenamedCallCount.ShouldEqual(1);
                     fileSystemCallbacks.OnFolderRenamedCallCount.ShouldEqual(0);
                     fileSystemCallbacks.ResetCalls();
 
                     mockVirtualization.OnNotifyFileRenamed("test_folder_src", "test_folder_dst", isDirectory: true, notificationMask: ref notificationType);
-                    fileSystemCallbacks.CheckLockWhenIndexChangedCallCount.ShouldEqual(0);
+                    fileSystemCallbacks.OnIndexFileChangeCallCount.ShouldEqual(0);
                     fileSystemCallbacks.OnLogsHeadChangeCallCount.ShouldEqual(0);
                     fileSystemCallbacks.OnFileRenamedCallCount.ShouldEqual(0);
                     fileSystemCallbacks.OnFolderRenamedCallCount.ShouldEqual(1);

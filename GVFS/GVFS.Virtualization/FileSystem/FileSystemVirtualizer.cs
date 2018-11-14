@@ -157,7 +157,7 @@ namespace GVFS.Virtualization.FileSystem
         {
             if (relativePath.Equals(GVFSConstants.DotGit.Index, StringComparison.OrdinalIgnoreCase))
             {
-                this.FileSystemCallbacks.CheckLockWhenIndexChanged();
+                this.FileSystemCallbacks.OnIndexFileChange();
             }
             else if (relativePath.Equals(GVFSConstants.DotGit.Logs.Head, StringComparison.OrdinalIgnoreCase))
             {
