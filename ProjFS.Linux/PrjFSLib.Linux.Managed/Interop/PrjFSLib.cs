@@ -16,7 +16,7 @@ namespace PrjFSLib.Linux.Interop
             string virtualizationRootFullPath,
             Callbacks callbacks,
             uint poolThreadCount,
-            ref IntPtr mountHandlePtr);
+            ref IntPtr mountHandle);
 
         [DllImport(PrjFSLibPath, EntryPoint = "PrjFS_StopVirtualizationInstance")]
         public static extern void StopVirtualizationInstance(
