@@ -13,7 +13,7 @@ namespace GVFS.Common.FileSystem
     public static class HooksInstaller
     {
         private static readonly string ExecutingDirectory;
-        private static readonly HookData[] Hooks = new[]
+        private static readonly HookData[] NativeHooks = new[]
         {
             new HookData(GVFSConstants.DotGit.Hooks.ReadObjectName, GVFSConstants.DotGit.Hooks.ReadObjectPath, GVFSPlatform.Instance.Constants.GVFSReadObjectHookExecutableName),
             new HookData(GVFSConstants.DotGit.Hooks.VirtualFileSystemName, GVFSConstants.DotGit.Hooks.VirtualFileSystemPath, GVFSPlatform.Instance.Constants.GVFSVirtualFileSystemHookExecutableName),
@@ -54,7 +54,7 @@ namespace GVFS.Common.FileSystem
             error = string.Empty;
             try
             {
-                foreach (HookData hook in Hooks)
+                foreach (HookData hook in NativeHooks)
                 {
                     string installedHookPath = Path.Combine(ExecutingDirectory, hook.ExecutableName);
                     string targetHookPath = Path.Combine(context.Enlistment.WorkingDirectoryRoot, hook.Path + GVFSPlatform.Instance.Constants.ExecutableExtension);
@@ -89,7 +89,7 @@ namespace GVFS.Common.FileSystem
         public static bool TryUpdateHooks(GVFSContext context, out string errorMessage)
         {
             errorMessage = string.Empty;
-            foreach (HookData hook in Hooks)
+            foreach (HookData hook in NativeHooks)
             {
                 if (!TryUpdateHook(context, hook, out errorMessage))
                 {
