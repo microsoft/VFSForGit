@@ -111,14 +111,6 @@ For example, if someone downloads a second large prefetch pack when prefetching
 for the first time in 31 days, then that large prefetch pack is referenced and
 all older prefetch packs are "stale" and not referenced by the multi-pack-index.
 
-We can extend the `git multi-pack-index` builtin to delete pack-files that have
-no objects referenced by the multi-pack-index. This should happen at the same
-time as we update the multi-pack-index since we don't want to have this list of
-pack-files in the multi-pack-index if they don't exist. We also don't want to
-remove them from the multi-pack-index while the pack-files still exist, because
-then a Git process will start referencing those pack-files in the `packed_git`
-linked list.
-
 ### Repack the prefetch pack-files
 
 We can reduce the number of prefetch packs and improve file locality by
@@ -127,12 +119,16 @@ combining prefetch packs into new "repacked" pack-files. Use `git show-index
 in the prefetch packs and pipe that output to `git pack-objects -q
 <object-dir>/pack/repacked-<timestamp>`.
 
-We should refrain from packing the most-recent prefetch packs, as we don't want
-to get in the way of the prefetch machinery for determining the most-recent
-timestamp. We could, however, start repacking the prefetch packs from
-oldest-to-newest, stopping in the most-recent week, or when the prefetch packs
-are large enough to satisfy a batch. Some stopping conditions could include
-"pack-file size is above 1GB".
+### (Do both in one `git` command!)
+
+Instead of having VFS for Git manage several `git` processes and piping I/O
+around, we should implement `multi-pack-index`-aware repack into `git repack`.
+This is already [part of the design doc for `multi-pack-index`](https://github.com/git/git/blob/master/Documentation/technical/multi-pack-index.txt#L86-L93).
+
+With this in mind, we will want to ensure we can control the batch size from
+the command-line arguments to `git repack` or through config options. This will
+mean the `CleanupPrefetchPackAction.Execute()` implementation should be a simple
+call to `git`.
 
 Scheduling Actions
 ------------------
@@ -230,18 +226,26 @@ triggered by the background prefetch _and_ a `gvfs prefetch --commits` command.
 
 To combine this into the `ActionRunner` structure, I propose the following:
 
-1. The post-fetch job becomes the "cache update action" (it updates the
-   multi-pack-index and commit-graph files in the cache), and stores an
-   (initially `null`) list of strings for the prefetch pack-files to use in the `git commit-graph write`
-   command.
-2. `IsReady(time)` returns `true` when the pack-file list is non-null.
-3. When the mount process gets a post-fetch job request, it sends the pack-files
-   to the `ActionRunner`, which sends them to the cache update action.
-   The `ActionRunner` then triggers a maintenance task ahead of schedule.
+* The post-fetch job is split into two actions: `WriteMultiPackIndexAction`
+  and `WriteCommitGraphAction`. These actions run after the `PrefetchAction`.
 
-There is an unresolved question in the design above: what happens when the
-maintenance task is already running? In my current thought, we should expect
-this to be the case, because the background prefetch is part of that task, and
-it sends the message to the in-process mount, so is still running when the
-task is happening. One way to resolve this is to have the cache update action
-be the very last action run during the maintenance task. **Thoughts?**
+* `IsReady(time)` inspects the list of prefetch packs and compares their
+  modified times against the modified time of the `multi-pack-index` file or
+  `commit-graph` file.
+
+There are two special cases to keep in mind here:
+
+* **No Cache Server:** We previously did not run the background prefetch
+  when no cache server exists, but the post-fetch job would run in the
+  background. We should run the `ActionRunner` in the background for these
+  customers, but have the `IsReady` method return false for the
+  `PrefetchAction` if we have no cache server. This avoids running prefetch
+  and overloading the central server while also keeping the `multi-pack-index`
+  and `commit-graph` up-to-date.
+
+* **Unattended Mode:**  We previously did not run the background prefetch
+  in unattneded mode, but the post-fetch job would run in the background. I
+  propose we don't run _anything_ in the background and instead run the
+  `WriteMultiPackIndexAction` and `WriteCommitGraphAction` at the end of
+  the prefetch. In unattended mode, we will not start the background thread
+  for the `ActionRunner`.
