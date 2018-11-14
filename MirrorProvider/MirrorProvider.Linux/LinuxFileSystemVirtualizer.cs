@@ -23,7 +23,7 @@ namespace MirrorProvider.Linux
 
         public override bool TryStartVirtualizationInstance(Enlistment enlistment, out string error)
         {
-            string storageRoot = Path.Combine(enlistment.DotMirrorRoot, "src");
+            string storageRoot = Path.Combine(enlistment.DotMirrorRoot, "lower");
 
             Directory.CreateDirectory(storageRoot);
 
