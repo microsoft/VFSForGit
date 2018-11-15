@@ -319,6 +319,7 @@ namespace GVFS.Common.Git
                 configSettings = null;
                 return false;
             }
+
             configSettings = GitConfigHelper.ParseKeyValues(result.Output, ' ');
             return true;
         }

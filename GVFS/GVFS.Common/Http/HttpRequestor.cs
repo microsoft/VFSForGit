@@ -23,7 +23,6 @@ namespace GVFS.Common.Http
 
         private readonly ProductInfoHeaderValue userAgentHeader;
 
-        private HttpClient client;
         private readonly GitAuthentication authentication;
 
         private readonly Lazy<X509Store> store = new Lazy<X509Store>(() =>
@@ -32,6 +31,8 @@ namespace GVFS.Common.Http
             s.Open(OpenFlags.OpenExistingOnly | OpenFlags.ReadOnly);
             return s;
         });
+
+        private HttpClient client;
 
         static HttpRequestor()
         {
@@ -63,9 +64,10 @@ namespace GVFS.Common.Http
                 string certificatePassword = null;
                 if (enlistment.GitSslSettings.SslCertPasswordProtected)
                 {
-                    certificatePassword = LoadCertificatePassword(enlistment.GitSslSettings.SslCertificate, enlistment.CreateGitProcess());
+                    certificatePassword = this.LoadCertificatePassword(enlistment.GitSslSettings.SslCertificate, enlistment.CreateGitProcess());
                 }
-                var cert = LoadCertificate(enlistment.GitSslSettings.SslCertificate, certificatePassword);
+
+                var cert = this.LoadCertificate(enlistment.GitSslSettings.SslCertificate, certificatePassword);
                 if (cert != null)
                 {
                     httpClientHandler.ClientCertificates.Add(cert);
@@ -78,38 +80,6 @@ namespace GVFS.Common.Http
             };
 
             this.userAgentHeader = new ProductInfoHeaderValue(ProcessHelper.GetEntryClassName(), ProcessHelper.GetCurrentProcessVersion());
-        }
-
-        private string LoadCertificatePassword(string certId, GitProcess git)
-        {
-            if (git.TryGetCertificatePassword(this.Tracer, certId, out var password, out var error))
-            {
-                return password;
-            }
-
-            return null;
-        }
-
-        private X509Certificate2 LoadCertificate(string certId, string certificatePassword)
-        {
-            if (File.Exists(certId))
-            {
-                return new X509Certificate2(certId, certificatePassword);
-            }
-#if DEBUG
-            // Allow invalid (self-signed) client certificates while debugging
-            var onlyValidCertificates = false;
-#else
-            var onlyValidCertificates = true;
-#endif
-            var findResults = store.Value.Certificates.Find(X509FindType.FindBySubjectName, certId, onlyValidCertificates);
-            if (findResults?.Count > 0)
-            {
-                return findResults[0];
-            }
-
-            this.Tracer.RelatedError("Certificate {0} not found", certId);
-            return null;
         }
 
         public RetryConfig RetryConfig { get; }
@@ -129,9 +99,9 @@ namespace GVFS.Common.Http
                 this.client = null;
             }
 
-            if (store.IsValueCreated)
+            if (this.store.IsValueCreated)
             {
-                store.Value.Close();
+                this.store.Value.Close();
             }
         }
 
@@ -157,6 +127,7 @@ namespace GVFS.Common.Http
             }
 
             HttpRequestMessage request = new HttpRequestMessage(httpMethod, requestUri);
+
             // By default, VSTS auth failures result in redirects to SPS to reauthenticate.
             // To provide more consistent behavior when using the GCM, have them send us 401s instead
             request.Headers.Add("X-TFS-FedAuthRedirect", "Suppress");
@@ -336,6 +307,38 @@ namespace GVFS.Common.Http
             }
 
             return string.Empty;
+        }
+
+        private string LoadCertificatePassword(string certId, GitProcess git)
+        {
+            if (git.TryGetCertificatePassword(this.Tracer, certId, out var password, out var error))
+            {
+                return password;
+            }
+
+            return null;
+        }
+
+        private X509Certificate2 LoadCertificate(string certId, string certificatePassword)
+        {
+            if (File.Exists(certId))
+            {
+                return new X509Certificate2(certId, certificatePassword);
+            }
+#if DEBUG
+            // Allow invalid (self-signed) client certificates while debugging
+            var onlyValidCertificates = false;
+#else
+            var onlyValidCertificates = true;
+#endif
+            var findResults = this.store.Value.Certificates.Find(X509FindType.FindBySubjectName, certId, onlyValidCertificates);
+            if (findResults?.Count > 0)
+            {
+                return findResults[0];
+            }
+
+            this.Tracer.RelatedError("Certificate {0} not found", certId);
+            return null;
         }
     }
 }
