@@ -43,7 +43,7 @@ static inline bool ActionBitIsSet(kauth_action_t action, kauth_action_t mask);
 
 static bool IsFileSystemCrawler(char* procname);
 
-static void Sleep(int seconds, void* channel);
+static void Sleep(int seconds, void* channel, Mutex* _Nullable mutex);
 static bool TrySendRequestAndWaitForResponse(
     VirtualizationRootHandle root,
     MessageType messageType,
@@ -86,15 +86,16 @@ static bool ShouldHandleFileOpEvent(
     int* pid);
 
 // Structs
-typedef struct OutstandingMessage
+struct OutstandingMessage
 {
-    MessageHeader request;
-    MessageType response;
-    bool    receivedResponse;
+    MessageHeader                  request;
+    MessageType                    result;
+    bool                           receivedResult;
+    VirtualizationRootHandle       rootHandle;
     
     LIST_ENTRY(OutstandingMessage) _list_privates;
     
-} OutstandingMessage;
+};
 
 // State
 static kauth_listener_t s_vnodeListener = nullptr;
@@ -195,7 +196,7 @@ kern_return_t KauthHandler_Cleanup()
     return result;
 }
 
-void KauthHandler_HandleKernelMessageResponse(uint64_t messageId, MessageType responseType)
+void KauthHandler_HandleKernelMessageResponse(VirtualizationRootHandle providerVirtualizationRootHandle, uint64_t messageId, MessageType responseType)
 {
     switch (responseType)
     {
@@ -207,11 +208,11 @@ void KauthHandler_HandleKernelMessageResponse(uint64_t messageId, MessageType re
                 OutstandingMessage* outstandingMessage;
                 LIST_FOREACH(outstandingMessage, &s_outstandingMessages, _list_privates)
                 {
-                    if (outstandingMessage->request.messageId == messageId)
+                    if (outstandingMessage->request.messageId == messageId && outstandingMessage->rootHandle == providerVirtualizationRootHandle)
                     {
                         // Save the response for the blocked thread.
-                        outstandingMessage->response = responseType;
-                        outstandingMessage->receivedResponse = true;
+                        outstandingMessage->result = responseType;
+                        outstandingMessage->receivedResult = true;
                         
                         wakeup(outstandingMessage);
                         
@@ -237,11 +238,31 @@ void KauthHandler_HandleKernelMessageResponse(uint64_t messageId, MessageType re
         case MessageType_KtoU_NotifyFileRenamed:
         case MessageType_KtoU_NotifyDirectoryRenamed:
         case MessageType_KtoU_NotifyFileHardLinkCreated:
+        case MessageType_Result_Aborted:
             KextLog_Error("KauthHandler_HandleKernelMessageResponse: Unexpected responseType: %d", responseType);
             break;
     }
     
     return;
+}
+
+void KauthHandler_AbortOutstandingEventsForProvider(VirtualizationRootHandle providerVirtualizationRootHandle)
+{
+    // Mark all outstanding messages for this root as aborted and wake up the waiting threads
+    Mutex_Acquire(s_outstandingMessagesMutex);
+    {
+        OutstandingMessage* outstandingMessage;
+        LIST_FOREACH(outstandingMessage, &s_outstandingMessages, _list_privates)
+        {
+            if (outstandingMessage->rootHandle == providerVirtualizationRootHandle)
+            {
+                outstandingMessage->receivedResult = true;
+                outstandingMessage->result = MessageType_Result_Aborted;
+                wakeup(outstandingMessage);
+            }
+        }
+    }
+    Mutex_Release(s_outstandingMessagesMutex);
 }
 
 // Private functions
@@ -753,8 +774,11 @@ static bool TrySendRequestAndWaitForResponse(
 {
     bool result = false;
     
-    OutstandingMessage message;
-    message.receivedResponse = false;
+    OutstandingMessage message =
+    {
+        .receivedResult = false,
+        .rootHandle = root,
+    };
     
     if (nullptr == vnodePath)
     {
@@ -779,57 +803,51 @@ static bool TrySendRequestAndWaitForResponse(
         procname,
         relativePath);
 
-    bool isShuttingDown = false;
+    if (s_isShuttingDown)
+    {
+        return false;
+    }
+    
     Mutex_Acquire(s_outstandingMessagesMutex);
     {
-        // Only read s_isShuttingDown once so we either insert & send message, or neither.
-        isShuttingDown = s_isShuttingDown;
-        if (!isShuttingDown)
-        {
-            LIST_INSERT_HEAD(&s_outstandingMessages, &message, _list_privates);
-        }
+        LIST_INSERT_HEAD(&s_outstandingMessages, &message, _list_privates);
     }
     Mutex_Release(s_outstandingMessagesMutex);
     
-    // TODO(Mac): Should we pass in the root directly, rather than root->index?
-    //            The index seems more like a private implementation detail.
-    if (!isShuttingDown && 0 != ActiveProvider_SendMessage(root, messageSpec))
-    {
-        // TODO: appropriately handle unresponsive providers
-        
-        *kauthResult = KAUTH_RESULT_DEFER;
-        goto CleanupAndReturn;
-    }
-    
-    while (!message.receivedResponse &&
-           !s_isShuttingDown)
-    {
-        Sleep(5, &message);
-    }
-    
-    if (s_isShuttingDown)
-    {
-        *kauthResult = KAUTH_RESULT_DENY;
-        goto CleanupAndReturn;
-    }
-
-    if (MessageType_Response_Success == message.response)
-    {
-        *kauthResult = KAUTH_RESULT_DEFER;
-        result = true;
-        goto CleanupAndReturn;
-    }
-    else
-    {
-        // Default error code is EACCES. See errno.h for more codes.
-        *kauthError = EAGAIN;
-        *kauthResult = KAUTH_RESULT_DENY;
-        goto CleanupAndReturn;
-    }
-    
-CleanupAndReturn:
+    errno_t sendError = ActiveProvider_SendMessage(root, messageSpec);
+   
     Mutex_Acquire(s_outstandingMessagesMutex);
     {
+        if (0 != sendError)
+        {
+            // TODO: appropriately handle unresponsive providers
+            *kauthResult = KAUTH_RESULT_DEFER;
+        }
+        else
+        {
+            while (!message.receivedResult &&
+                   !s_isShuttingDown)
+            {
+                Sleep(5, &message, &s_outstandingMessagesMutex);
+            }
+        
+            if (s_isShuttingDown)
+            {
+                *kauthResult = KAUTH_RESULT_DENY;
+            }
+            else if (MessageType_Response_Success == message.result)
+            {
+                *kauthResult = KAUTH_RESULT_DEFER;
+                result = true;
+            }
+            else
+            {
+                // Default error code is EACCES. See errno.h for more codes.
+                *kauthError = EAGAIN;
+                *kauthResult = KAUTH_RESULT_DENY;
+            }
+        }
+        
         LIST_REMOVE(&message, _list_privates);
     }
     Mutex_Release(s_outstandingMessagesMutex);
@@ -862,17 +880,17 @@ static void AbortAllOutstandingEvents()
     // https://developer.apple.com/library/archive/samplecode/KauthORama/Listings/KauthORama_c.html#//apple_ref/doc/uid/DTS10003633-KauthORama_c-DontLinkElementID_3
     do
     {
-        Sleep(1, NULL);
+        Sleep(1, nullptr, nullptr);
     } while (atomic_load(&s_numActiveKauthEvents) > 0);
 }
 
-static void Sleep(int seconds, void* channel)
+static void Sleep(int seconds, void* channel, Mutex* _Nullable mutex)
 {
     struct timespec timeout;
     timeout.tv_sec  = seconds;
     timeout.tv_nsec = 0;
     
-    msleep(channel, nullptr, PUSER, "io.gvfs.PrjFSKext.Sleep", &timeout);
+    msleep(channel, nullptr != mutex ? mutex->p : nullptr, PUSER, "io.gvfs.PrjFSKext.Sleep", &timeout);
 }
 
 static int GetPid(vfs_context_t _Nonnull context)

@@ -186,7 +186,7 @@ IOReturn PrjFSProviderUserClient::kernelMessageResponse(
 
 IOReturn PrjFSProviderUserClient::kernelMessageResponse(uint64_t messageId, MessageType responseType)
 {
-    KauthHandler_HandleKernelMessageResponse(messageId, responseType);
+    KauthHandler_HandleKernelMessageResponse(this->virtualizationRootHandle, messageId, responseType);
     return kIOReturnSuccess;
 }
 
