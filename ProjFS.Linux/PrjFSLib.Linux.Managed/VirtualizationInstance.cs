@@ -44,14 +44,12 @@ namespace PrjFSLib.Linux
                 OnNotifyOperation = this.preventGCOnNotifyOperationDelegate = new NotifyOperationCallback(this.OnNotifyOperation),
             };
 
-            Result result = Interop.PrjFSLib.StartVirtualizationInstance(
+            return Interop.PrjFSLib.StartVirtualizationInstance(
                 storageRootFullPath,
                 virtualizationRootFullPath,
                 callbacks,
                 poolThreadCount,
                 ref this.mountHandle);
-
-            return result;
         }
 
         public virtual void StopVirtualizationInstance()
