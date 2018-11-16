@@ -88,19 +88,25 @@ namespace GVFS.Common.Git
             return new GitProcess(enlistment).InvokeGitOutsideEnlistment("init \"" + enlistment.WorkingDirectoryRoot + "\"");
         }
 
-        public static Result GetFromGlobalConfig(string gitBinPath, string settingName)
+        public static ConfigResult GetFromGlobalConfig(string gitBinPath, string settingName)
         {
-            return new GitProcess(gitBinPath, workingDirectoryRoot: null, gvfsHooksRoot: null).InvokeGitOutsideEnlistment("config --global " + settingName);
+            return new ConfigResult(
+                new GitProcess(gitBinPath, workingDirectoryRoot: null, gvfsHooksRoot: null).InvokeGitOutsideEnlistment("config --global " + settingName),
+                settingName);
         }
 
-        public static Result GetFromSystemConfig(string gitBinPath, string settingName)
+        public static ConfigResult GetFromSystemConfig(string gitBinPath, string settingName)
         {
-            return new GitProcess(gitBinPath, workingDirectoryRoot: null, gvfsHooksRoot: null).InvokeGitOutsideEnlistment("config --system " + settingName);
+            return new ConfigResult(
+                new GitProcess(gitBinPath, workingDirectoryRoot: null, gvfsHooksRoot: null).InvokeGitOutsideEnlistment("config --system " + settingName),
+                settingName);
         }
 
-        public static Result GetFromFileConfig(string gitBinPath, string configFile, string settingName)
+        public static ConfigResult GetFromFileConfig(string gitBinPath, string configFile, string settingName)
         {
-            return new GitProcess(gitBinPath, workingDirectoryRoot: null, gvfsHooksRoot: null).InvokeGitOutsideEnlistment("config --file " + configFile + " " + settingName);
+            return new ConfigResult(
+                new GitProcess(gitBinPath, workingDirectoryRoot: null, gvfsHooksRoot: null).InvokeGitOutsideEnlistment("config --file " + configFile + " " + settingName),
+                settingName);
         }
 
         public static bool TryGetVersion(string gitBinPath, out GitVersion gitVersion, out string error)
@@ -255,16 +261,17 @@ namespace GVFS.Common.Git
 
         public bool TryGetAllConfig(bool localOnly, out Dictionary<string, GitConfigSetting> configSettings)
         {
+            configSettings = null;
             string localParameter = localOnly ? "--local" : string.Empty;
-            Result result = this.InvokeGitAgainstDotGitFolder("config --list " + localParameter);
-            if (result.ExitCodeIsFailure)
+            ConfigResult result = new ConfigResult(this.InvokeGitAgainstDotGitFolder("config --list " + localParameter), "--list");
+
+            if (result.TryParseAsString(out string output, out string _, string.Empty))
             {
-                configSettings = null;
-                return false;
+                configSettings = GitConfigHelper.ParseKeyValues(output);
+                return true;
             }
 
-            configSettings = GitConfigHelper.ParseKeyValues(result.Output);
-            return true;
+            return false;
         }
 
         /// <summary>
