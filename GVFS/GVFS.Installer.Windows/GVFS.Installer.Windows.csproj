@@ -8,8 +8,8 @@
     <ProjectGuid>{3AB4FB1F-9E23-4CD8-BFAC-8A2221C8F893}</ProjectGuid>
     <OutputType>Library</OutputType>
     <AppDesignerFolder>Properties</AppDesignerFolder>
-    <RootNamespace>GVFS.Installer</RootNamespace>
-    <AssemblyName>GVFS.Installer</AssemblyName>
+    <RootNamespace>GVFS.Installer.Windows</RootNamespace>
+    <AssemblyName>GVFS.Installer.Windows</AssemblyName>
     <TargetFrameworkVersion>v4.6.1</TargetFrameworkVersion>
     <FileAlignment>512</FileAlignment>
     <NuGetPackageImportStamp>
