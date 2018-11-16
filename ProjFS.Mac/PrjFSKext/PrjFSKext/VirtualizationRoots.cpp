@@ -133,20 +133,26 @@ kern_return_t VirtualizationRoots_Cleanup()
     return KERN_FAILURE;
 }
 
-VirtualizationRootHandle VirtualizationRoot_FindForVnode(vnode_t _Nonnull vnode, const FsidInode& vnodeFsidInode)
+VirtualizationRootHandle VirtualizationRoot_FindForVnode(
+    PerfTracer* _Nonnull perfTracer,
+    PrjFSPerfCounter functionCounter,
+    PrjFSPerfCounter innerLoopCounter,
+    vnode_t _Nonnull vnode,
+    const FsidInode& vnodeFsidInode)
 {
-    ProfileSample functionSample(Probe_VirtualizationRoot_Find);
-
+    PerfSample findForVnodeSample(perfTracer, functionCounter);
+    
     VirtualizationRootHandle rootHandle = RootHandle_None;
     
     vnode_get(vnode);
     // Search up the tree until we hit a known virtualization root or THE root of the file system
     while (RootHandle_None == rootHandle && NULLVP != vnode && !vnode_isvroot(vnode))
     {
-        ProfileSample iterationSample(Probe_VirtualizationRoot_FindIteration);
+        PerfSample iterationSample(perfTracer, innerLoopCounter);
 
         rootHandle = FindOrDetectRootAtVnode(vnode, vnodeFsidInode);
-        // Note: if FindOrDetectRootAtVnode returns a "special" handle other
+        
+        // If FindOrDetectRootAtVnode returned a "special" handle other
         // than RootHandle_None, we want to stop the search and return that.
         if (rootHandle != RootHandle_None)
         {
@@ -290,6 +296,7 @@ static VirtualizationRootHandle FindRootAtVnode_Locked(vnode_t vnode, uint32_t v
             return i;
         }
     }
+    
     return RootHandle_None;
 }
 
@@ -322,7 +329,7 @@ static VirtualizationRootHandle InsertVirtualizationRoot_Locked(PrjFSProviderUse
 // ENOMEM:   Too many virtualization roots.
 // ENOTDIR:  Selected virtualization root path does not resolve to a directory.
 // EBUSY:    Already a provider for this virtualization root.
-// ENOENT,…: Error returned by vnode_lookup.
+// ENOENT:   Error returned by vnode_lookup.
 VirtualizationRootResult VirtualizationRoot_RegisterProviderForPath(PrjFSProviderUserClient* userClient, pid_t clientPID, const char* virtualizationRootPath)
 {
     assert(nullptr != virtualizationRootPath);

@@ -62,6 +62,7 @@
 		C6C780B5207FC67200E7E054 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		C6C780CB207FD02400E7E054 /* KextLog.hpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.h; path = KextLog.hpp; sourceTree = "<group>"; };
 		C6C780CC207FD02400E7E054 /* KextLog.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = KextLog.cpp; sourceTree = "<group>"; };
+		C6CC01BF21837FFA002C5A74 /* PrjFSPerfCounter.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = PrjFSPerfCounter.h; sourceTree = "<group>"; };
 		C6E9E116208BBB62004A5725 /* KauthHandler.hpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.h; path = KauthHandler.hpp; sourceTree = "<group>"; };
 		C6E9E117208BBB62004A5725 /* KauthHandler.cpp */ = {isa = PBXFileReference; indentWidth = 4; lastKnownFileType = sourcecode.cpp.cpp; path = KauthHandler.cpp; sourceTree = "<group>"; tabWidth = 4; usesTabs = 0; };
 /* End PBXFileReference section */
@@ -91,6 +92,7 @@
 			children = (
 				C6BDD36C208BCAC300CB7E58 /* PrjFSCommon.h */,
 				4ABB734520BED11500DC0D17 /* PrjFSLogClientShared.h */,
+				C6CC01BF21837FFA002C5A74 /* PrjFSPerfCounter.h */,
 				4ABB734C20C1A65B00DC0D17 /* PrjFSProviderClientShared.h */,
 				4A08829C20D80B8300E17FEE /* PrjFSXattrs.h */,
 				C6BDD37A208C2FD700CB7E58 /* Message.h */,
