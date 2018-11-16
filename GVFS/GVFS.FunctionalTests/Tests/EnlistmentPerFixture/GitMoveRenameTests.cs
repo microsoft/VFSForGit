@@ -172,7 +172,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
                     { "GIT_TRACE_PERFORMANCE", "1" },
                     { "git_trace", "1" },
                 },
-                cleanErrors: false);
+                removeWaitingMessages: false);
             result.Output.ShouldContain("* FunctionalTests");
             result.Errors.ShouldNotContain(ignoreCase: true, unexpectedSubstrings: "exception");
             result.Errors.ShouldContain("trace.c:", "git command:");
