@@ -68,5 +68,24 @@ namespace GVFS.Common
         {
             return path.Replace(Path.DirectorySeparatorChar, GVFSConstants.GitPathSeparator);
         }
+
+        public static string MakeRelative(string rootPath, string path)
+        {
+            // Ensure trailing slash on the rootPath
+            if (rootPath.Length > 0 && rootPath.Last() != Path.DirectorySeparatorChar)
+            {
+                rootPath += Path.DirectorySeparatorChar;
+            }
+
+            Uri rootUri = new Uri(rootPath, UriKind.Absolute);
+            Uri pathUri = new Uri(path, UriKind.Absolute);
+
+            Uri relativeUri = rootUri.MakeRelativeUri(pathUri);
+
+            string relativePath = relativeUri.ToString();
+
+            // Convert to native path separators
+            return relativePath.Replace(Path.AltDirectorySeparatorChar, Path.DirectorySeparatorChar);
+        }
     }
 }

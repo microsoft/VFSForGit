@@ -1,14 +1,13 @@
 ﻿using GVFS.Common;
-using GVFS.Common.Git;
 using GVFS.Common.Tracing;
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.IO;
-using System.Linq;
 
 namespace GVFS.RepairJobs
 {
-    public class GitHeadRepairJob : RepairJob
+    public class GitHeadRepairJob : GitRefsRepairJob
     {
         public GitHeadRepairJob(ITracer tracer, TextWriter output, GVFSEnlistment enlistment) 
             : base(tracer, output, enlistment)
@@ -19,10 +18,10 @@ namespace GVFS.RepairJobs
         {
             get { return @".git\HEAD"; }
         }
-        
+
         public override IssueType HasIssue(List<string> messages)
         {
-            if (TryParseHead(this.Enlistment, messages))
+            if (base.HasIssue(messages) == IssueType.None)
             {
                 return IssueType.None;
             }
@@ -31,114 +30,49 @@ namespace GVFS.RepairJobs
             {
                 return IssueType.CantFix;
             }
-            
+
             return IssueType.Fixable;
         }
 
-        /// <summary>
-        /// Fixes the HEAD using the reflog to find the last SHA.
-        /// We detach HEAD as a side-effect of repair.
-        /// </summary>
         public override FixResult TryFixIssues(List<string> messages)
         {
-            string error;
-            RefLogEntry refLog;
-            if (!TryReadLastRefLogEntry(this.Enlistment, GVFSConstants.DotGit.HeadName, out refLog, out error))
+            FixResult result = base.TryFixIssues(messages);
+
+            if (result == FixResult.Success)
             {
-                this.Tracer.RelatedError(error);
-                messages.Add(error);
-                return FixResult.Failure;
+                var newHeadSha = this.GetHeadRefSha();
+
+                this.Tracer.RelatedEvent(
+                    EventLevel.Informational,
+                    "MovedHead",
+                    new EventMetadata
+                    {
+                        { "DestinationCommit", newHeadSha }
+                    });
+
+                messages.Add("As a result of the repair, 'git status' will now complain that HEAD is detached");
+                messages.Add("You can fix this by creating a branch using 'git checkout -b <branchName>'");
             }
 
-            try
-            {
-                string refPath = Path.Combine(this.Enlistment.WorkingDirectoryRoot, GVFSConstants.DotGit.Head);
-                File.WriteAllText(refPath, refLog.TargetSha);
-            }
-            catch (IOException ex)
-            {
-                EventMetadata metadata = new EventMetadata();
-                this.Tracer.RelatedError(metadata, "Failed to write HEAD: " + ex.ToString());
-                return FixResult.Failure;
-            }
-
-            this.Tracer.RelatedEvent(
-                EventLevel.Informational,
-                "MovedHead",
-                new EventMetadata
-                {
-                    { "DestinationCommit", refLog.TargetSha }
-                });
-
-            messages.Add("As a result of the repair, 'git status' will now complain that HEAD is detached");
-            messages.Add("You can fix this by creating a branch using 'git checkout -b <branchName>'");
-
-            return FixResult.Success;
+            return result;
         }
 
-        /// <summary>
-        /// 'git ref-log' doesn't work if the repo is corrupted, so parsing reflogs seems like the only solution.
-        /// </summary>
-        /// <param name="fullSymbolicRef">A full symbolic ref name. eg. HEAD, refs/remotes/origin/HEAD, refs/heads/master</param>
-        private static bool TryReadLastRefLogEntry(Enlistment enlistment, string fullSymbolicRef, out RefLogEntry refLog, out string error)
+        protected override IEnumerable<string> GetRefs()
         {
-            string refLogPath = Path.Combine(enlistment.WorkingDirectoryRoot, GVFSConstants.DotGit.Logs.Root, fullSymbolicRef);
-            if (!File.Exists(refLogPath))
-            {
-                refLog = null;
-                error = "Could not find reflog for ref '" + fullSymbolicRef + "'";
-                return false;
-            }
-
-            try
-            {
-                string refLogContents = File.ReadLines(refLogPath).Last();
-                if (!RefLogEntry.TryParse(refLogContents, out refLog))
-                {
-                    error = "Last ref log entry for " + fullSymbolicRef + " is unparsable.";
-                    return false;
-                }
-            }
-            catch (IOException ex)
-            {
-                refLog = null;
-                error = "IOException while reading reflog '" + refLogPath + "': " + ex.Message;
-                return false;
-            }
-
-            error = null;
-            return true;
+            return new[] { GVFSConstants.DotGit.HeadName };
         }
-        
-        private static bool TryParseHead(Enlistment enlistment, List<string> messages)
+
+        protected override bool IsValidRefContents(string fullSymbolicRef, string refContents)
         {
-            string refPath = Path.Combine(enlistment.WorkingDirectoryRoot, GVFSConstants.DotGit.Head);
-            if (!File.Exists(refPath))
-            {
-                messages.Add("Could not find ref file for '" + GVFSConstants.DotGit.Head + "'");
-                return false;
-            }
+            Debug.Assert(fullSymbolicRef == GVFSConstants.DotGit.HeadName, "Only expecting to be called with the HEAD ref");
 
-            string refContents;
-            try
-            {
-                refContents = File.ReadAllText(refPath).Trim();
-            }
-            catch (IOException ex)
-            {
-                messages.Add("IOException while reading .git\\HEAD: " + ex.Message);
-                return false;
-            }
-
-            const string MinimallyValidRef = "ref: refs/";
-            if (refContents.StartsWith(MinimallyValidRef, StringComparison.OrdinalIgnoreCase) ||
-                SHA1Util.IsValidShaFormat(refContents))
+            const string MinimallyValidHeadRef = "ref: refs/";
+            if (refContents.StartsWith(MinimallyValidHeadRef, StringComparison.OrdinalIgnoreCase))
             {
                 return true;
             }
 
-            messages.Add("Invalid contents found in '" + GVFSConstants.DotGit.Head + "': " + refContents);
-            return false;
+            return base.IsValidRefContents(fullSymbolicRef, refContents);
         }
 
         private bool CanBeRepaired(List<string> messages)
@@ -181,6 +115,18 @@ namespace GVFS.RepairJobs
             }
 
             return true;
+        }
+
+        private string GetHeadRefSha()
+        {
+            string headRefFilePath = Path.Combine(this.Enlistment.WorkingDirectoryRoot, GVFSConstants.DotGit.Head);
+
+            var contents = File.ReadAllText(headRefFilePath);
+            var sha = contents.Trim();
+
+            Debug.Assert(SHA1Util.IsValidShaFormat(sha), "Fix to HEAD ref should have written a valid SHA");
+
+            return sha;
         }
     }
 }

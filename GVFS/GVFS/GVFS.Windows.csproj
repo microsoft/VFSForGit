@@ -85,8 +85,10 @@
     <Compile Include="RepairJobs\BackgroundOperationDatabaseRepairJob.cs" />
     <Compile Include="RepairJobs\BlobSizeDatabaseRepairJob.cs" />
     <Compile Include="RepairJobs\GitHeadRepairJob.cs" />
+    <Compile Include="RepairJobs\GitHeadsRepairJob.cs" />
     <Compile Include="RepairJobs\GitIndexRepairJob.cs" />
     <Compile Include="RepairJobs\GitConfigRepairJob.cs" />
+    <Compile Include="RepairJobs\GitRefsRepairJob.cs" />
     <Compile Include="RepairJobs\PlaceholderDatabaseRepairJob.cs" />
     <Compile Include="RepairJobs\RepairJob.cs" />
     <Compile Include="RepairJobs\RepoMetadataDatabaseRepairJob.cs" />
