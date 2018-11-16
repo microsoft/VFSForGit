@@ -29,8 +29,10 @@ echo "Downloaded Git $GITVERSION"
 $VFS_SCRIPTDIR/GenerateGitVersionConstants.sh "$GITPATH" $BUILDDIR || exit 1
 
 # If we're building the Profiling(Release) configuration, remove Profiling() for building .NET code
+# Additionally, build a Release copy of the native code so we can successfully build a 'Release' configuration installer
 if [ "$CONFIGURATION" == "Profiling(Release)" ]; then
   CONFIGURATION=Release
+  $VFS_SRCDIR/ProjFS.Mac/Scripts/Build.sh $CONFIGURATION || exit 1
 fi
 
 # /warnasmessage:MSB4011. Reference: https://bugzilla.xamarin.com/show_bug.cgi?id=58564
