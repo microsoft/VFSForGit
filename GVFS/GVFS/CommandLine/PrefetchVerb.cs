@@ -1,5 +1,6 @@
 ﻿using CommandLine;
 using GVFS.Common;
+using GVFS.Common.Cleanup;
 using GVFS.Common.FileSystem;
 using GVFS.Common.Git;
 using GVFS.Common.Http;
@@ -211,13 +212,13 @@ namespace GVFS.CommandLine
 
             if (this.Verbose)
             {
-                success = CommitPrefetcher.TryPrefetchCommitsAndTrees(tracer, enlistment, fileSystem, gitObjects, out error);
+                success = new PrefetchStep(context, gitObjects).TryPrefetchCommitsAndTrees(out error);
             }
             else
             {
                 success = this.ShowStatusWhileRunning(
-                    () => CommitPrefetcher.TryPrefetchCommitsAndTrees(tracer, enlistment, fileSystem, gitObjects, out error),
-                    "Fetching commits and trees " + this.GetCacheServerDisplay(cacheServer, enlistment.RepoUrl));
+                    () => new PrefetchStep(context, gitObjects).TryPrefetchCommitsAndTrees(out error),
+                "Fetching commits and trees " + this.GetCacheServerDisplay(cacheServer, enlistment.RepoUrl));
             }
 
             if (!success)

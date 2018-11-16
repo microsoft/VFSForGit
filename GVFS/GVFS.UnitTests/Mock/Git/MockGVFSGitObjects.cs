@@ -61,7 +61,7 @@ namespace GVFS.UnitTests.Mock.Git
             return Array.Empty<string>();
         }
 
-        public override GitProcess.Result IndexPackFile(string packfilePath)
+        public override GitProcess.Result IndexPackFile(string packfilePath, GitProcess process)
         {
             return new GitProcess.Result("mocked", null, 0);
         }

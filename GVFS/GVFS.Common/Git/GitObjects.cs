@@ -317,7 +317,7 @@ namespace GVFS.Common.Git
             return result;
         }
 
-        public virtual GitProcess.Result IndexPackFile(string packfilePath)
+        public virtual GitProcess.Result IndexPackFile(string packfilePath, GitProcess gitProcess)
         {
             string tempIdxPath = Path.ChangeExtension(packfilePath, TempIdxExtension);
             string idxPath = Path.ChangeExtension(packfilePath, ".idx");
@@ -325,7 +325,12 @@ namespace GVFS.Common.Git
             Exception indexPackException = null;
             try
             {
-                GitProcess.Result result = new GitProcess(this.Enlistment).IndexPack(packfilePath, tempIdxPath);
+                if (gitProcess == null)
+                {
+                    gitProcess = new GitProcess(this.Enlistment);
+                }
+
+                GitProcess.Result result = gitProcess.IndexPack(packfilePath, tempIdxPath);
                 if (result.ExitCodeIsFailure)
                 {
                     Exception exception;
@@ -748,7 +753,7 @@ namespace GVFS.Common.Git
             string packFullPath,
             out GitProcess.Result result)
         {
-            result = this.IndexPackFile(packFullPath);
+            result = this.IndexPackFile(packFullPath, gitProcess: null);
 
             if (result.ExitCodeIsFailure)
             {

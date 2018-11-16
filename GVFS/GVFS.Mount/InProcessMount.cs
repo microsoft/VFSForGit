@@ -1,9 +1,9 @@
 ﻿using GVFS.Common;
+using GVFS.Common.Cleanup;
 using GVFS.Common.FileSystem;
 using GVFS.Common.Git;
 using GVFS.Common.Http;
 using GVFS.Common.NamedPipes;
-using GVFS.Common.Prefetch;
 using GVFS.Common.Tracing;
 using GVFS.PlatformLoader;
 using GVFS.Virtualization;
@@ -29,7 +29,8 @@ namespace GVFS.Mount
         private FileSystemCallbacks fileSystemCallbacks;
         private GVFSEnlistment enlistment;
         private ITracer tracer;
-        private BackgroundPrefetcher prefetcher;
+        private GitCleanupQueue cleanupQueue;
+        private GitCleanupScheduler cleanupScheduler;
 
         private CacheServerInfo cacheServer;
         private RetryConfig retryConfig;
@@ -414,7 +415,7 @@ namespace GVFS.Mount
             if (this.currentState == MountState.Ready)
             {
                 List<string> packIndexes = JsonConvert.DeserializeObject<List<string>>(message.Body);
-                this.fileSystemCallbacks.LaunchPostFetchJob(packIndexes);
+                this.cleanupQueue.Enqueue(new PostFetchCleanupStep(this.context, this.gitObjects, packIndexes));
 
                 response = new NamedPipeMessages.RunPostFetchJob.Response(NamedPipeMessages.RunPostFetchJob.QueuedResult);
             }
@@ -516,7 +517,8 @@ namespace GVFS.Mount
             }
 
             this.fileSystemCallbacks = this.CreateOrReportAndExit(() => new FileSystemCallbacks(this.context, this.gitObjects, RepoMetadata.Instance, virtualizer, gitStatusCache), "Failed to create src folder callback listener");
-            this.prefetcher = this.CreateOrReportAndExit(() => new BackgroundPrefetcher(this.tracer, this.enlistment, this.context.FileSystem, this.gitObjects), "Failed to start background prefetcher");
+            this.cleanupQueue = this.CreateOrReportAndExit(() => new GitCleanupQueue(this.context), "Failed to start cleanup queue");
+            this.cleanupScheduler = this.CreateOrReportAndExit(() => new GitCleanupScheduler(this.context, this.gitObjects, this.cleanupQueue), "Failed to start cleanup scheduler");
 
             int majorVersion;
             int minorVersion;
@@ -547,17 +549,20 @@ namespace GVFS.Mount
 
             this.heartbeat = new HeartbeatThread(this.tracer, this.fileSystemCallbacks);
             this.heartbeat.Start();
-
-            // Launch a background job to compute the multi-pack-index. Will do nothing if up-to-date.
-            this.fileSystemCallbacks.LaunchPostFetchJob(packIndexes: new List<string>());
         }
 
         private void UnmountAndStopWorkingDirectoryCallbacks()
         {
-            if (this.prefetcher != null)
+            if (this.cleanupScheduler != null)
             {
-                this.prefetcher.Dispose();
-                this.prefetcher = null;
+                this.cleanupScheduler.Dispose();
+                this.cleanupScheduler = null;
+            }
+
+            if (this.cleanupQueue != null)
+            {
+                this.cleanupQueue.Stop();
+                this.cleanupQueue = null;
             }
 
             if (this.heartbeat != null)
