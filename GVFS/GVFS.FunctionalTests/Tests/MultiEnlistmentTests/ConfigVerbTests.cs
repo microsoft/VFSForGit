@@ -17,6 +17,11 @@ namespace GVFS.FunctionalTests.Tests.MultiEnlistmentTests
         private const string FloatSettingKey = "functionalTest_Float";
         private const string RegularStringSettingKey = "functionalTest_RegularString";
         private const string SpacedStringSettingKey = "functionalTest_SpacedString";
+        private const string SpacesOnlyStringSettingKey = "functionalTest_SpacesOnlyString";
+        private const string EmptyStringSettingKey = "functionalTest_EmptyString";
+        private const string NonExistentSettingKey = "functionalTest_NonExistentSetting";
+
+        private const int GenericErrorExitCode = 3;
 
         private readonly Dictionary<string, string> initialSettings = new Dictionary<string, string>()
         {
@@ -72,6 +77,33 @@ namespace GVFS.FunctionalTests.Tests.MultiEnlistmentTests
         }
 
         [TestCase, Order(5)]
+        public void AddSpaceValueSetting()
+        {
+            string writeSpacesValue = "     ";
+            this.WriteSetting(SpacesOnlyStringSettingKey, writeSpacesValue);
+
+            string readSpacesValue = this.ReadSetting($"{SpacesOnlyStringSettingKey}");
+            readSpacesValue.TrimEnd(Environment.NewLine.ToCharArray()).ShouldEqual(writeSpacesValue);
+        }
+
+        [TestCase, Order(6)]
+        public void AddNullValueSetting()
+        {
+            string writeEmptyValue = string.Empty;
+            this.WriteSetting(EmptyStringSettingKey, writeEmptyValue, GenericErrorExitCode);
+
+            string readEmptyValue = this.ReadSetting(EmptyStringSettingKey, GenericErrorExitCode);
+            readEmptyValue.ShouldBeEmpty();
+        }
+
+        [TestCase, Order(7)]
+        public void ReadNonExistentSetting()
+        {
+            string nonExistentValue = this.ReadSetting(NonExistentSettingKey, GenericErrorExitCode);
+            nonExistentValue.ShouldBeEmpty();
+        }
+
+        [TestCase, Order(8)]
         public void DeleteSettings()
         {
             this.DeleteSettings(this.updateSettings);
@@ -116,14 +148,24 @@ namespace GVFS.FunctionalTests.Tests.MultiEnlistmentTests
         {
             foreach (KeyValuePair<string, string> setting in settings)
             {
-                this.RunConfigCommand($"{setting.Key} \"{setting.Value}\"");
+                this.WriteSetting(setting.Key, setting.Value);
             }
         }
 
-        private string RunConfigCommand(string argument)
+        private void WriteSetting(string key, string value, int expectedExitCode = 0)
+        {
+            this.RunConfigCommand($"{key} \"{value}\"", expectedExitCode);
+        }
+
+        private string ReadSetting(string key, int expectedExitCode = 0)
+        {
+            return this.RunConfigCommand($"{key}", expectedExitCode);
+        }
+
+        private string RunConfigCommand(string argument, int expectedExitCode = 0)
         {
             ProcessResult result = ProcessHelper.Run(GVFSTestConfig.PathToGVFS, $"config {argument}");
-            result.ExitCode.ShouldEqual(0, result.Errors);
+            result.ExitCode.ShouldEqual(expectedExitCode, result.Errors);
 
             return result.Output;
         }

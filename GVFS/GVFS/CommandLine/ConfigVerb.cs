@@ -93,11 +93,12 @@ namespace GVFS.CommandLine
                 else
                 {
                     string valueRead = null;
-                    if (!this.localConfig.TryGetConfig(this.Key, out valueRead, out error))
+                    if (!this.localConfig.TryGetConfig(this.Key, out valueRead, out error) ||
+                        string.IsNullOrEmpty(valueRead))
                     {
                         this.ReportErrorAndExit(error);
                     }
-                    else if (!string.IsNullOrEmpty(valueRead))
+                    else
                     {
                         Console.WriteLine(valueRead);
                     }
