@@ -1038,8 +1038,8 @@ namespace GVFS.Platform.Windows
                                 {
                                     switch (writeResult)
                                     {
-                                        case (HResult)HResultExtensions.HResultFromNtStatus.FileClosed:
-                                            // StatusFileClosed is expected, and occurs when an application closes a file handle before OnGetFileStream
+                                        case HResult.FileClosed:
+                                            // HResult.FileClosed is expected, and occurs when an application closes a file handle before OnGetFileStream
                                             // is complete
                                             break;
 
