@@ -28,5 +28,4 @@ verify >nul
 del c:\Windows\System32\drivers\PrjFlt.sys
 
 :runInstallers
-call %VFS_OUTPUTDIR%\GVFS.Build\InstallG4W.bat
-call %VFS_OUTPUTDIR%\GVFS.Build\InstallGVFS.bat
+call %VFS_OUTPUTDIR%\GVFS.Build\InstallProduct.bat
