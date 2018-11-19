@@ -50,6 +50,42 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerTestCase
         }
 
         [TestCase]
+        public void FixesCorruptHeadsSha()
+        {
+            const string InvalidRefContents = "0000";
+
+            string branch1Name = "testBranch1";
+            string branch2Name = "test/branch/number2";
+            string branchStartSha = this.Enlistment.GetRevParse("HEAD");
+
+            this.Enlistment.CreateBranch(branch1Name, branchStartSha);
+            this.Enlistment.CreateBranch(branch2Name, branchStartSha);
+            this.Enlistment.UnmountGVFS();
+
+            string branch1RefFilePath = Path.Combine(this.Enlistment.RepoRoot, ".git", "refs", "heads", branch1Name);
+            string branch2RefFilePath = Path.Combine(this.Enlistment.RepoRoot, ".git", "refs", "heads", branch2Name);
+            File.WriteAllText(branch1RefFilePath, InvalidRefContents);
+            File.WriteAllText(branch2RefFilePath, InvalidRefContents);
+            this.Enlistment.TryMountGVFS().ShouldEqual(true, "GVFS should continue to mount when a refs are corrupt");
+            this.Enlistment.UnmountGVFS();
+
+            // Repair without confirm should not fix
+            this.Enlistment.Repair(confirm: false);
+            string ref1Content = File.ReadAllText(branch1RefFilePath).Trim();
+            string ref2Content = File.ReadAllText(branch2RefFilePath).Trim();
+            ref1Content.ShouldEqual(InvalidRefContents, "Repair without confirm should not fix");
+            ref2Content.ShouldEqual(InvalidRefContents, "Repair without confirm should not fix");
+
+            // Repair with confirm should fix
+            this.Enlistment.Repair(confirm: true);
+            ref1Content = File.ReadAllText(branch1RefFilePath).Trim();
+            ref2Content = File.ReadAllText(branch1RefFilePath).Trim();
+            ref1Content.ShouldEqual(branchStartSha, "Repair with confirm should fix");
+            ref2Content.ShouldEqual(branchStartSha, "Repair with confirm should fix");
+            this.Enlistment.TryMountGVFS().ShouldEqual(true, "GVFS should mount when a corrupt refs have been fixed");
+        }
+
+        [TestCase]
         public void FixesMissingGitIndex()
         {
             this.Enlistment.UnmountGVFS();
@@ -151,7 +187,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerTestCase
 
             this.Enlistment.Repair(confirm: true);
             ProcessResult result = GitProcess.InvokeProcess(this.Enlistment.RepoRoot, "remote add origin " + this.Enlistment.RepoUrl);
-            result.ExitCode.ShouldEqual(0, result.Errors);            
+            result.ExitCode.ShouldEqual(0, result.Errors);
             this.Enlistment.MountGVFS();
         }
 

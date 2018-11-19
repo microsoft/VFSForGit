@@ -19,7 +19,7 @@ namespace GVFS.FunctionalTests.Tools
         private static readonly string ZeroBackgroundOperations = "Background operations: 0" + Environment.NewLine;
 
         private GVFSProcess gvfsProcess;
-        
+
         private GVFSFunctionalTestEnlistment(string pathToGVFS, string enlistmentRoot, string repoUrl, string commitish, string localCacheRoot = null)
         {
             this.EnlistmentRoot = enlistmentRoot;
@@ -44,7 +44,7 @@ namespace GVFS.FunctionalTests.Tools
             this.LocalCacheRoot = localCacheRoot;
             this.gvfsProcess = new GVFSProcess(pathToGVFS, this.EnlistmentRoot, this.LocalCacheRoot);
         }
-        
+
         public string EnlistmentRoot
         {
             get; private set;
@@ -178,6 +178,20 @@ namespace GVFS.FunctionalTests.Tools
             {
                 File.ReadAllBytes(rootGitIgnorePath);
             }
+        }
+
+        public void CreateBranch(string branchName, string sha)
+        {
+            ProcessResult result = GitProcess.InvokeProcess(this.RepoRoot, $"branch {branchName} {sha}");
+            result.ExitCode.ShouldEqual(0, $"Failed to create branch {branchName} at {sha}");
+        }
+
+        public string GetRevParse(string @ref)
+        {
+            ProcessResult result = GitProcess.InvokeProcess(this.RepoRoot, $"rev-parse {@ref}");
+            result.ExitCode.ShouldEqual(0, $"Failed to get commit for ref '{@ref}'");
+            string refSha = result.Output.Trim();
+            return refSha;
         }
 
         public void MountGVFS()
