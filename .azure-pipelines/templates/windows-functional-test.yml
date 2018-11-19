@@ -1,0 +1,34 @@
+steps:
+
+  - task: DownloadBuildArtifacts@0
+    displayName: Download functional test enlistment
+    inputs:
+      buildType: current
+      downloadType: specific
+      artifactName: FunctionalTests_$(platformFriendlyName)_$(configuration)
+      downloadPath: $(Build.BinariesDirectory)
+
+  - script: $(Build.BinariesDirectory)/FunctionalTests_$(platformFriendlyName)_$(configuration)/src/Scripts/ReinstallGVFS.bat $(configuration)
+    displayName: Run VFSForGit and G4W installers
+
+  - script: git config --global credential.interactive never
+    displayName: Disable interactive auth
+
+  - script: cmdkey /generic:LegacyGeneric:target=git:https://gvfs.visualstudio.com /user:"Agent PAT" /password:$(VFSForGitOrgCodePat)
+    displayName: Save agent password is credential store
+
+  - script: cmdkey /generic:LegacyGeneric:target=git:https://gvfs.visualstudio.com/ci/_git/ForTests /user:"Agent PAT" /password:$(VFSForGitOrgCodePat)
+    displayName: Save agent password in credential store for useHttpPath
+
+  - script: $(Build.BinariesDirectory)/FunctionalTests_$(platformFriendlyName)_$(configuration)/src/Scripts/RunFunctionalTests.bat $(configuration) --test-gvfs-on-path --replace-inbox-projfs
+    displayName: Run functional tests
+
+  - task: PublishTestResults@2
+    displayName: Publish functional test results
+    inputs:
+      testRunner: NUnit
+      testResultsFiles: "**\\TestResult*.xml"
+      searchFolder: $(System.DefaultWorkingDirectory)
+      testRunTitle: Windows $(configuration) Functional Tests
+      publishRunAttachments: true
+    condition: succeededOrFailed()
