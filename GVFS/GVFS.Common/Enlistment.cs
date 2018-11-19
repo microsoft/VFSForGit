@@ -34,18 +34,18 @@ namespace GVFS.Common
             }
             else
             {
-                GitProcess.Result originResult = gitProcess.GetOriginUrl();
-                if (originResult.HasErrors)
+                GitProcess.ConfigResult originResult = gitProcess.GetOriginUrl();
+                if (!originResult.TryParseAsString(out string originUrl, out string error))
                 {
-                    if (originResult.Errors.Length == 0)
-                    {
-                        throw new InvalidRepoException("Could not get origin url. remote 'origin' is not configured for this repo.'");
-                    }
-
-                    throw new InvalidRepoException("Could not get origin url. git error: " + originResult.Errors);
+                    throw new InvalidRepoException("Could not get origin url. git error: " + error);
                 }
 
-                this.RepoUrl = originResult.Output.Trim();
+                if (originUrl == null)
+                {
+                    throw new InvalidRepoException("Could not get origin url. remote 'origin' is not configured for this repo.'");
+                }
+
+                this.RepoUrl = originUrl.Trim();
             }
             
             this.Authentication = authentication ?? new GitAuthentication(gitProcess, this.RepoUrl);

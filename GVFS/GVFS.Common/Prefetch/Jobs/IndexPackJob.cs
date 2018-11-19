@@ -44,7 +44,7 @@ namespace GVFS.Common.Prefetch.Jobs
                 using (ITracer activity = this.tracer.StartActivity(IndexPackAreaPath, EventLevel.Informational, Keywords.Telemetry, metadata))
                 {
                     GitProcess.Result result = this.gitObjects.IndexTempPackFile(request.TempPackFile);
-                    if (result.HasErrors)
+                    if (result.ExitCodeIsFailure)
                     {
                         EventMetadata errorMetadata = new EventMetadata();
                         errorMetadata.Add("RequestId", request.DownloadRequest.RequestId);

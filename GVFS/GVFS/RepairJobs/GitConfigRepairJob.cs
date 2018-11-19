@@ -22,15 +22,12 @@ namespace GVFS.RepairJobs
         public override IssueType HasIssue(List<string> messages)
         {
             GitProcess git = new GitProcess(this.Enlistment);
-            GitProcess.Result result = git.GetOriginUrl();
-            if (result.HasErrors)
+            GitProcess.ConfigResult originResult = git.GetOriginUrl();
+            string error;
+            string originUrl;
+            if (!originResult.TryParseAsString(out originUrl, out error))
             {
-                if (result.Errors.Length == 0)
-                {
-                    messages.Add("Remote 'origin' is not configured for this repo. You can fix this by running 'git remote add origin <repourl>'");
-                    return IssueType.CantFix;
-                }
-                else if (result.Errors.Contains("--local"))
+                if (error.Contains("--local"))
                 {
                     // example error: '--local can only be used inside a git repository'
                     // Corrupting the git config does not cause git to not recognize the current folder as "not a git repository".
@@ -39,8 +36,14 @@ namespace GVFS.RepairJobs
                     return IssueType.CantFix;
                 }
 
-                messages.Add("Could not read origin url: " + result.Errors);
+                messages.Add("Could not read origin url: " + error);
                 return IssueType.Fixable;
+            }
+
+            if (originUrl == null)
+            {
+                messages.Add("Remote 'origin' is not configured for this repo. You can fix this by running 'git remote add origin <repourl>'");
+                return IssueType.CantFix;
             }
 
             // We've validated the repo URL, so now make sure we can authenticate
@@ -57,7 +60,7 @@ namespace GVFS.RepairJobs
                 {
                     messages.Add("Authentication failed. Run 'gvfs log' for more info.");
                     messages.Add(".git\\config is valid and remote 'origin' is set, but may have a typo:");
-                    messages.Add(result.Output.Trim());
+                    messages.Add(originUrl.Trim());
                     return IssueType.CantFix;
                 }
             }

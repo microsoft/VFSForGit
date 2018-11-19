@@ -541,7 +541,7 @@ namespace GVFS.CommandLine
             GitProcess git = new GitProcess(enlistment);
             string originBranchName = "origin/" + branch;
             GitProcess.Result createBranchResult = git.CreateBranchWithUpstream(branch, originBranchName);
-            if (createBranchResult.HasErrors)
+            if (createBranchResult.ExitCodeIsFailure)
             {
                 return new Result("Unable to create branch '" + originBranchName + "': " + createBranchResult.Errors + "\r\n" + createBranchResult.Output);
             }
@@ -565,7 +565,7 @@ namespace GVFS.CommandLine
             }
 
             GitProcess.Result forceCheckoutResult = git.ForceCheckout(branch);
-            if (forceCheckoutResult.HasErrors && forceCheckoutResult.Errors.IndexOf("unable to read tree") > 0)
+            if (forceCheckoutResult.ExitCodeIsFailure && forceCheckoutResult.Errors.IndexOf("unable to read tree") > 0)
             {
                 // It is possible to have the above TryDownloadCommit() fail because we
                 // already have the commit and root tree we intend to check out, but
@@ -589,7 +589,7 @@ namespace GVFS.CommandLine
                 forceCheckoutResult = git.ForceCheckout(branch);
             }
 
-            if (forceCheckoutResult.HasErrors)
+            if (forceCheckoutResult.ExitCodeIsFailure)
             {
                 string[] errorLines = forceCheckoutResult.Errors.Split('\n');
                 StringBuilder checkoutErrors = new StringBuilder();
@@ -677,7 +677,7 @@ git %*
         {
             string repoPath = enlistmentToInit.WorkingDirectoryRoot;
             GitProcess.Result initResult = GitProcess.Init(enlistmentToInit);
-            if (initResult.HasErrors)
+            if (initResult.ExitCodeIsFailure)
             {
                 string error = string.Format("Could not init repo at to {0}: {1}", repoPath, initResult.Errors);
                 tracer.RelatedError(error);
@@ -685,7 +685,7 @@ git %*
             }
 
             GitProcess.Result remoteAddResult = new GitProcess(enlistmentToInit).RemoteAdd("origin", enlistmentToInit.RepoUrl);
-            if (remoteAddResult.HasErrors)
+            if (remoteAddResult.ExitCodeIsFailure)
             {
                 string error = string.Format("Could not add remote to {0}: {1}", repoPath, remoteAddResult.Errors);
                 tracer.RelatedError(error);

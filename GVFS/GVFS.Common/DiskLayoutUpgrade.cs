@@ -181,7 +181,7 @@ namespace GVFS.DiskLayoutUpgrades
             foreach (string key in configSettings.Keys)
             {
                 GitProcess.Result result = git.SetInLocalConfig(key, configSettings[key]);
-                if (result.HasErrors)
+                if (result.ExitCodeIsFailure)
                 {
                     tracer.RelatedError("Could not set git config setting {0}. Error: {1}", key, result.Errors);
                     return false;

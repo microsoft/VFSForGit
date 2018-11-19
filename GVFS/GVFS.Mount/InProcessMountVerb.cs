@@ -129,16 +129,16 @@ namespace GVFS.Mount
             string mountId = null;
 
             GitProcess git = new GitProcess(enlistment);
-            GitProcess.Result configResult = git.GetFromLocalConfig(GVFSConstants.GitConfig.EnlistmentId);
-            if (!configResult.HasErrors)
+            GitProcess.ConfigResult configResult = git.GetFromLocalConfig(GVFSConstants.GitConfig.EnlistmentId);
+            if (configResult.TryParseAsString(out enlistmentId, out string _, defaultValue: string.Empty))
             {
-                enlistmentId = configResult.Output.Trim();
+                enlistmentId = enlistmentId.Trim();
             }
 
             configResult = git.GetFromLocalConfig(GVFSConstants.GitConfig.MountId);
-            if (!configResult.HasErrors)
+            if (configResult.TryParseAsString(out mountId, out string _, defaultValue: string.Empty))
             {
-                mountId = configResult.Output.Trim();
+                mountId = mountId.Trim();
             }
 
             JsonTracer tracer = new JsonTracer(GVFSConstants.GVFSEtwProviderName, "GVFSMount", enlistmentId: enlistmentId, mountId: mountId);

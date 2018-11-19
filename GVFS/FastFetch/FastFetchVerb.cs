@@ -191,7 +191,7 @@ namespace FastFetch
             if (string.IsNullOrWhiteSpace(commitish))
             {
                 GitProcess.Result result = new GitProcess(enlistment).GetCurrentBranchName();
-                if (result.HasErrors || string.IsNullOrWhiteSpace(result.Output))
+                if (result.ExitCodeIsFailure || string.IsNullOrWhiteSpace(result.Output))
                 {
                     Console.WriteLine("Could not retrieve current branch name: " + result.Errors);
                     return ExitFailure;

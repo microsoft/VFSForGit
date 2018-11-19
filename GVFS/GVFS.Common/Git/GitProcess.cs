@@ -88,19 +88,25 @@ namespace GVFS.Common.Git
             return new GitProcess(enlistment).InvokeGitOutsideEnlistment("init \"" + enlistment.WorkingDirectoryRoot + "\"");
         }
 
-        public static Result GetFromGlobalConfig(string gitBinPath, string settingName)
+        public static ConfigResult GetFromGlobalConfig(string gitBinPath, string settingName)
         {
-            return new GitProcess(gitBinPath, workingDirectoryRoot: null, gvfsHooksRoot: null).InvokeGitOutsideEnlistment("config --global " + settingName);
+            return new ConfigResult(
+                new GitProcess(gitBinPath, workingDirectoryRoot: null, gvfsHooksRoot: null).InvokeGitOutsideEnlistment("config --global " + settingName),
+                settingName);
         }
 
-        public static Result GetFromSystemConfig(string gitBinPath, string settingName)
+        public static ConfigResult GetFromSystemConfig(string gitBinPath, string settingName)
         {
-            return new GitProcess(gitBinPath, workingDirectoryRoot: null, gvfsHooksRoot: null).InvokeGitOutsideEnlistment("config --system " + settingName);
+            return new ConfigResult(
+                new GitProcess(gitBinPath, workingDirectoryRoot: null, gvfsHooksRoot: null).InvokeGitOutsideEnlistment("config --system " + settingName),
+                settingName);
         }
 
-        public static Result GetFromFileConfig(string gitBinPath, string configFile, string settingName)
+        public static ConfigResult GetFromFileConfig(string gitBinPath, string configFile, string settingName)
         {
-            return new GitProcess(gitBinPath, workingDirectoryRoot: null, gvfsHooksRoot: null).InvokeGitOutsideEnlistment("config --file " + configFile + " " + settingName);
+            return new ConfigResult(
+                new GitProcess(gitBinPath, workingDirectoryRoot: null, gvfsHooksRoot: null).InvokeGitOutsideEnlistment("config --file " + configFile + " " + settingName),
+                settingName);
         }
 
         public static bool TryGetVersion(string gitBinPath, out GitVersion gitVersion, out string error)
@@ -109,7 +115,7 @@ namespace GVFS.Common.Git
             Result result = gitProcess.InvokeGitOutsideEnlistment("--version");
             string version = result.Output;
 
-            if (result.HasErrors || !GitVersion.TryParseGitVersionCommandResult(version, out gitVersion))
+            if (result.ExitCodeIsFailure || !GitVersion.TryParseGitVersionCommandResult(version, out gitVersion))
             {
                 gitVersion = null;
                 error = "Unable to determine installed git version. " + version;
@@ -176,7 +182,7 @@ namespace GVFS.Common.Git
                     stdin => stdin.Write("url=" + repoUrl + "\n\n"),
                     parseStdOutLine: null);
 
-                if (gitCredentialOutput.HasErrors)
+                if (gitCredentialOutput.ExitCodeIsFailure)
                 {
                     EventMetadata errorData = new EventMetadata();
                     tracer.RelatedWarning(
@@ -208,7 +214,7 @@ namespace GVFS.Common.Git
         public bool IsValidRepo()
         {
             Result result = this.InvokeGitAgainstDotGitFolder("rev-parse --show-toplevel");
-            return !result.HasErrors;
+            return result.ExitCodeIsSuccess;
         }
 
         public Result RevParse(string gitRef)
@@ -255,16 +261,17 @@ namespace GVFS.Common.Git
 
         public bool TryGetAllConfig(bool localOnly, out Dictionary<string, GitConfigSetting> configSettings)
         {
+            configSettings = null;
             string localParameter = localOnly ? "--local" : string.Empty;
-            Result result = this.InvokeGitAgainstDotGitFolder("config --list " + localParameter);
-            if (result.HasErrors)
+            ConfigResult result = new ConfigResult(this.InvokeGitAgainstDotGitFolder("config --list " + localParameter), "--list");
+
+            if (result.TryParseAsString(out string output, out string _, string.Empty))
             {
-                configSettings = null;
-                return false;
+                configSettings = GitConfigHelper.ParseKeyValues(output);
+                return true;
             }
 
-            configSettings = GitConfigHelper.ParseKeyValues(result.Output);
-            return true;
+            return false;
         }
 
         /// <summary>
@@ -276,7 +283,7 @@ namespace GVFS.Common.Git
         /// otherwise it will run it from outside the enlistment.
         /// </param>
         /// <returns>The value found for the setting.</returns>
-        public virtual Result GetFromConfig(string settingName, bool forceOutsideEnlistment = false, PhysicalFileSystem fileSystem = null)
+        public virtual ConfigResult GetFromConfig(string settingName, bool forceOutsideEnlistment = false, PhysicalFileSystem fileSystem = null)
         {
             string command = string.Format("config {0}", settingName);
             fileSystem = fileSystem ?? new PhysicalFileSystem();
@@ -284,13 +291,13 @@ namespace GVFS.Common.Git
             // This method is called at clone time, so the physical repo may not exist yet.
             return
                 fileSystem.DirectoryExists(this.workingDirectoryRoot) && !forceOutsideEnlistment
-                    ? this.InvokeGitAgainstDotGitFolder(command)
-                    : this.InvokeGitOutsideEnlistment(command);
+                    ? new ConfigResult(this.InvokeGitAgainstDotGitFolder(command), settingName)
+                    : new ConfigResult(this.InvokeGitOutsideEnlistment(command), settingName);
         }
 
-        public Result GetFromLocalConfig(string settingName)
+        public ConfigResult GetFromLocalConfig(string settingName)
         {
-            return this.InvokeGitAgainstDotGitFolder("config --local " + settingName);
+            return new ConfigResult(this.InvokeGitAgainstDotGitFolder("config --local " + settingName), settingName);
         }
 
         /// <summary>
@@ -308,12 +315,8 @@ namespace GVFS.Common.Git
             value = null;
             try
             {
-                Result result = this.GetFromConfig(settingName, forceOutsideEnlistment, fileSystem);
-                if (!result.HasErrors)
-                {
-                    value = result.Output;
-                    return true;
-                }
+                ConfigResult result = this.GetFromConfig(settingName, forceOutsideEnlistment, fileSystem);
+                return result.TryParseAsString(out value, out string _);
             }
             catch
             {
@@ -322,9 +325,9 @@ namespace GVFS.Common.Git
             return false;
         }
 
-        public Result GetOriginUrl()
+        public ConfigResult GetOriginUrl()
         {
-            return this.InvokeGitAgainstDotGitFolder("config --local remote.origin.url");
+            return new ConfigResult(this.InvokeGitAgainstDotGitFolder("config --local remote.origin.url"), "remote.origin.url");
         }
 
         public Result DiffTree(string sourceTreeish, string targetTreeish, Action<string> onResult)
@@ -445,7 +448,7 @@ namespace GVFS.Common.Git
             // If oldCommitResult doesn't fail, then the branch exists and update-ref will want the old sha
             Result oldCommitResult = this.RevParse(refToUpdate);
             string oldSha = string.Empty;
-            if (!oldCommitResult.HasErrors)
+            if (oldCommitResult.ExitCodeIsSuccess)
             {
                 oldSha = oldCommitResult.Output.TrimEnd('\n');
             }
@@ -699,20 +702,99 @@ namespace GVFS.Common.Git
             public const int SuccessCode = 0;
             public const int GenericFailureCode = 1;
 
-            public Result(string output, string errors, int returnCode)
+            public Result(string stdout, string stderr, int exitCode)
             {
-                this.Output = output;
-                this.Errors = errors;
-                this.ReturnCode = returnCode;
+                this.Output = stdout;
+                this.Errors = stderr;
+                this.ExitCode = exitCode;
             }
 
             public string Output { get; }
             public string Errors { get; }
-            public int ReturnCode { get; }
+            public int ExitCode { get; }
 
-            public bool HasErrors
+            public bool ExitCodeIsSuccess
             {
-                get { return this.ReturnCode != SuccessCode; }
+                get { return this.ExitCode == Result.SuccessCode; }
+            }
+
+            public bool ExitCodeIsFailure
+            {
+                get { return !this.ExitCodeIsSuccess; }
+            }
+
+            public bool StderrContainsErrors()
+            {
+                if (!string.IsNullOrWhiteSpace(this.Errors))
+                {
+                    return !this.Errors
+                        .Split(new char[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries)
+                        .All(line => line.TrimStart().StartsWith("warning:", StringComparison.OrdinalIgnoreCase));
+                }
+
+                return false;
+            }
+        }
+
+        public class ConfigResult
+        {
+            private readonly Result result;
+            private readonly string configName;
+
+            public ConfigResult(Result result, string configName)
+            {
+                this.result = result;
+                this.configName = configName;
+            }
+
+            public bool TryParseAsString(out string value, out string error, string defaultValue = null)
+            {
+                value = defaultValue;
+                error = string.Empty;
+
+                if (this.result.ExitCodeIsFailure && this.result.StderrContainsErrors())
+                {
+                    error = "Error while reading '" + this.configName + "' from config: " + this.result.Errors;
+                    return false;
+                }
+
+                if (this.result.ExitCodeIsSuccess)
+                {
+                    value = this.result.Output?.TrimEnd('\n');
+                }
+
+                return true;
+            }
+
+            public bool TryParseAsInt(int defaultValue, int minValue, out int value, out string error)
+            {
+                value = defaultValue;
+                error = string.Empty;
+
+                if (!this.TryParseAsString(out string valueString, out error))
+                {
+                    return false;
+                }
+
+                if (string.IsNullOrWhiteSpace(valueString))
+                {
+                    // Use default value
+                    return true;
+                }
+
+                if (!int.TryParse(valueString, out value))
+                {
+                    error = string.Format("Misconfigured config setting {0}, could not parse value `{1}` as an int", this.configName, valueString);
+                    return false;
+                }
+
+                if (value < minValue)
+                {
+                    error = string.Format("Invalid value {0} for setting {1}, value must be greater than or equal to {2}", value, this.configName, minValue);
+                    return false;
+                }
+
+                return true;
             }
         }
     }

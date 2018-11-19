@@ -605,7 +605,7 @@ namespace GVFS.Virtualization
 
                         GitProcess.Result result = this.postFetchGitProcess.WriteMultiPackIndex(this.context.Enlistment.GitObjectsRoot);
 
-                        if (!this.stopping && result.HasErrors)
+                        if (!this.stopping && result.ExitCodeIsFailure)
                         {
                             this.context.Tracer.RelatedWarning(
                                 metadata: null,
@@ -637,7 +637,7 @@ namespace GVFS.Virtualization
 
                         GitProcess.Result result = this.postFetchGitProcess.WriteCommitGraph(this.context.Enlistment.GitObjectsRoot, packIndexes);
 
-                        if (!this.stopping && result.HasErrors)
+                        if (!this.stopping && result.ExitCodeIsFailure)
                         {
                             this.context.Tracer.RelatedWarning(
                                 metadata: null,

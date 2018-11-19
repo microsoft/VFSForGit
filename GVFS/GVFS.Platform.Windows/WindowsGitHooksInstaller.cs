@@ -43,7 +43,7 @@ namespace GVFS.Platform.Windows
             string filename;
             string[] defaultHooksLines = { };
 
-            if (configProcess.TryGetFromConfig(configSettingName, forceOutsideEnlistment: true, value: out filename))
+            if (configProcess.TryGetFromConfig(configSettingName, forceOutsideEnlistment: true, value: out filename) && filename != null)
             {
                 filename = filename.Trim(' ', '\n');
                 defaultHooksLines = File.ReadAllLines(filename);

@@ -102,18 +102,17 @@ namespace GVFS.Platform.Windows
 
         private static string GetConfigValue(string gitBinRoot, string configKey)
         {
-            GitProcess.Result result = GitProcess.GetFromSystemConfig(gitBinRoot, configKey);
-            if (result.HasErrors || string.IsNullOrEmpty(result.Output.TrimEnd('\r', '\n')))
+            string value = string.Empty;
+            string error;
+
+            GitProcess.ConfigResult result = GitProcess.GetFromSystemConfig(gitBinRoot, configKey);
+            if (!result.TryParseAsString(out value, out error, defaultValue: string.Empty) || string.IsNullOrWhiteSpace(value))
             {
                 result = GitProcess.GetFromGlobalConfig(gitBinRoot, configKey);
+                result.TryParseAsString(out value, out error, defaultValue: string.Empty);
             }
 
-            if (result.HasErrors || string.IsNullOrEmpty(result.Output.TrimEnd('\r', '\n')))
-            {
-                return string.Empty;
-            }
-
-            return result.Output.TrimEnd('\r', '\n');
+            return value.TrimEnd('\r', '\n');
         }
 
         private EventSourceOptions CreateOptions(EventLevel level, Keywords keywords, EventOpcode opcode)

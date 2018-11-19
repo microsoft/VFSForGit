@@ -86,7 +86,7 @@ namespace GVFS.Common.Prefetch
                     metadata.Add("idxPath", idxPath);
                     metadata.Add("timestamp", timestamp);
                     GitProcess.Result indexResult = gitObjects.IndexPackFile(packPath);
-                    if (indexResult.HasErrors)
+                    if (indexResult.ExitCodeIsFailure)
                     {
                         firstBadPack = i;
 
