@@ -206,7 +206,7 @@ namespace GVFS.Common.Git
                 EventMetadata metadata = new EventMetadata
                 {
                     { "Success", success },
-                    {"CertificatePath", certificatePath}
+                    { "CertificatePath", certificatePath }
                 };
 
                 if (!success)

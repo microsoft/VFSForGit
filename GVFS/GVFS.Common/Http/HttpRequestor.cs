@@ -59,15 +59,15 @@ namespace GVFS.Common.Http
                     return true;
                 };
 #endif
-            if (!string.IsNullOrEmpty(authentication.GitSslSettings.SslCertificate))
+            if (!string.IsNullOrEmpty(this.authentication.GitSslSettings.SslCertificate))
             {
                 string certificatePassword = null;
-                if (authentication.GitSslSettings.SslCertPasswordProtected)
+                if (this.authentication.GitSslSettings.SslCertPasswordProtected)
                 {
-                    certificatePassword = this.LoadCertificatePassword(authentication.GitSslSettings.SslCertificate, enlistment.CreateGitProcess());
+                    certificatePassword = this.LoadCertificatePassword(this.authentication.GitSslSettings.SslCertificate, enlistment.CreateGitProcess());
                 }
 
-                var cert = this.LoadCertificate(authentication.GitSslSettings.SslCertificate, certificatePassword);
+                var cert = this.LoadCertificate(this.authentication.GitSslSettings.SslCertificate, certificatePassword);
                 if (cert != null)
                 {
                     httpClientHandler.ClientCertificateOptions = ClientCertificateOption.Manual;
@@ -338,13 +338,13 @@ namespace GVFS.Common.Http
             }
 #if DEBUG
             // Allow invalid (self-signed) client certificates while debugging
-            const bool onlyValidCertificates = false;
+            const bool OnlyValidCertificates = false;
 #else
-            const bool onlyValidCertificates = true;
+            const bool OnlyValidCertificates = true;
 #endif
             try
             {
-                var findResults = this.store.Value.Certificates.Find(X509FindType.FindBySubjectName, certId, onlyValidCertificates);
+                var findResults = this.store.Value.Certificates.Find(X509FindType.FindBySubjectName, certId, OnlyValidCertificates);
                 if (findResults?.Count > 0)
                 {
                     return findResults[0];
