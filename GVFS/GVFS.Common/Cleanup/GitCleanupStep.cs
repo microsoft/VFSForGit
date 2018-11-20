@@ -137,7 +137,7 @@ namespace GVFS.Common.Cleanup
 
                 GitProcess.Result result = work.Invoke(this.GitProcess);
 
-                if (!this.Stopping && result?.HasErrors == true)
+                if (!this.Stopping && result?.ExitCodeIsFailure == true)
                 {
                     this.Context.Tracer.RelatedWarning(
                         metadata: null,

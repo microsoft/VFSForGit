@@ -125,12 +125,13 @@ namespace GVFS.UnitTests.Cleanup
             GVFSContext context = new GVFSContext(tracer, fileSystem, null, enlistment);
             GitObjects gitObjects = new MockPhysicalGitObjects(tracer, null, null, null);
 
-            WatchForStopStep watchForStop = new WatchForStopStep(context, gitObjects);
             GitCleanupQueue queue = new GitCleanupQueue(context);
 
-            queue.Enqueue(watchForStop);
-            queue.Stop();
+            // This step stops the queue after the step is started,
+            // then checks if Stop() was called.
+            WatchForStopStep watchForStop = new WatchForStopStep(queue, context, gitObjects);
 
+            queue.Enqueue(watchForStop);
             queue.WaitForStepsToFinish();
             watchForStop.SawStopping.ShouldBeTrue();
 
@@ -177,10 +178,13 @@ namespace GVFS.UnitTests.Cleanup
 
         private class WatchForStopStep : GitCleanupStep
         {
-            public WatchForStopStep(GVFSContext context, GitObjects gitObjects)
+            public WatchForStopStep(GitCleanupQueue queue, GVFSContext context, GitObjects gitObjects)
                 : base(context, gitObjects)
             {
+                this.Queue = queue;
             }
+
+            public GitCleanupQueue Queue { get; set; }
 
             public bool SawStopping { get; private set; }
 
@@ -188,13 +192,9 @@ namespace GVFS.UnitTests.Cleanup
 
             protected override void RunGitAction()
             {
-                do
-                {
-                    Thread.Sleep(10);
-                }
-                while (!this.Stopping);
+                this.Queue.Stop();
 
-                this.SawStopping = true;
+                this.SawStopping = this.Stopping;
             }
         }
 

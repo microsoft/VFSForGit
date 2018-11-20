@@ -1,9 +1,11 @@
 ﻿using GVFS.Common;
 using GVFS.Common.Cleanup;
+using GVFS.Common.FileSystem;
 using GVFS.Common.Git;
 using GVFS.Common.Tracing;
 using GVFS.Tests.Should;
 using GVFS.UnitTests.Mock.Common;
+using GVFS.UnitTests.Mock.FileSystem;
 using NUnit.Framework;
 
 namespace GVFS.UnitTests.Cleanup
@@ -16,9 +18,10 @@ namespace GVFS.UnitTests.Cleanup
         {
             ITracer tracer = new MockTracer();
             GVFSEnlistment enlistment = new MockGVFSEnlistment();
+            PhysicalFileSystem fileSystem = new MockFileSystem(new MockDirectory(enlistment.EnlistmentRoot, null, null));
 
-            GVFSContext context = new GVFSContext(tracer, null, null, null);
-            GitObjects gitObjects = new MockPhysicalGitObjects(tracer, null, null, null);
+            GVFSContext context = new GVFSContext(tracer, fileSystem, null, enlistment);
+            GitObjects gitObjects = new MockPhysicalGitObjects(tracer, fileSystem, enlistment, null);
 
             CheckMethodStep step = new CheckMethodStep(context, gitObjects);
             step.Execute();
@@ -31,9 +34,10 @@ namespace GVFS.UnitTests.Cleanup
         {
             ITracer tracer = new MockTracer();
             GVFSEnlistment enlistment = new MockGVFSEnlistment();
+            PhysicalFileSystem fileSystem = new MockFileSystem(new MockDirectory(enlistment.EnlistmentRoot, null, null));
 
-            GVFSContext context = new GVFSContext(tracer, null, null, null);
-            GitObjects gitObjects = new MockPhysicalGitObjects(tracer, null, null, null);
+            GVFSContext context = new GVFSContext(tracer, fileSystem, null, enlistment);
+            GitObjects gitObjects = new MockPhysicalGitObjects(tracer, fileSystem, enlistment, null);
 
             CheckMethodStep step = new CheckMethodStep(context, gitObjects);
 
@@ -48,9 +52,10 @@ namespace GVFS.UnitTests.Cleanup
         {
             ITracer tracer = new MockTracer();
             GVFSEnlistment enlistment = new MockGVFSEnlistment();
+            PhysicalFileSystem fileSystem = new MockFileSystem(new MockDirectory(enlistment.EnlistmentRoot, null, null));
 
-            GVFSContext context = new GVFSContext(tracer, null, null, null);
-            GitObjects gitObjects = new MockPhysicalGitObjects(tracer, null, null, null);
+            GVFSContext context = new GVFSContext(tracer, fileSystem, null, enlistment);
+            GitObjects gitObjects = new MockPhysicalGitObjects(tracer, fileSystem, enlistment, null);
 
             CheckStopStep step = new CheckStopStep(context, gitObjects);
 
