@@ -23,6 +23,14 @@ namespace GVFS.CommandLine
         {
         }
 
+        [Option(
+            'p',
+            "path",
+            Default = null,
+            Required = false,
+            HelpText = "Path to copy created zip file to")]
+        public string PathToCopyTo { get; set; }
+
         protected override string VerbName
         {
             get { return DiagnoseVerbName; }
@@ -37,7 +45,8 @@ namespace GVFS.CommandLine
                 Directory.CreateDirectory(diagnosticsRoot);
             }
 
-            string archiveFolderPath = Path.Combine(diagnosticsRoot, "gvfs_" + DateTime.Now.ToString("yyyyMMdd_HHmmss"));
+            string diagnoseDirectory = "gvfs_" + DateTime.Now.ToString("yyyyMMdd_HHmmss");
+            string archiveFolderPath = Path.Combine(diagnosticsRoot, diagnoseDirectory);
             Directory.CreateDirectory(archiveFolderPath);
 
             using (FileStream diagnosticLogFile = new FileStream(Path.Combine(archiveFolderPath, "diagnostics.log"), FileMode.CreateNew))
@@ -143,7 +152,7 @@ namespace GVFS.CommandLine
                                 ProductUpgrader.DownloadDirectory,
                                 "downloaded-assets.txt");
                         }
-                     
+
                         return true;
                     },
                     "Copying logs");
@@ -171,6 +180,44 @@ namespace GVFS.CommandLine
             this.Output.WriteLine();
             this.Output.WriteLine("Diagnostics complete. All of the gathered info, as well as all of the output above, is captured in");
             this.Output.WriteLine(zipFilePath);
+
+            if (!string.IsNullOrEmpty(this.PathToCopyTo))
+            {
+                this.Output.WriteLine();
+                this.ShowStatusWhileRunning(
+                () =>
+                {
+                    try
+                    {
+                        if (!Directory.Exists(this.PathToCopyTo))
+                        {
+                            Directory.CreateDirectory(this.PathToCopyTo);
+                        }
+
+                        string copyToPath = Path.Combine(this.PathToCopyTo, diagnoseDirectory + ".zip");
+                        File.Copy(zipFilePath, copyToPath);
+                        this.Output.WriteLine();
+                        this.Output.WriteLine(
+                           string.Format(
+                           "{0} has been copied to {1}.",
+                           zipFilePath,
+                           copyToPath));
+                    }
+                    catch (Exception e)
+                    {
+                        this.Output.WriteLine(
+                            string.Format(
+                            "Failed to copy {0} to {1} due to exception {2}.",
+                            zipFilePath,
+                            this.PathToCopyTo,
+                            e));
+                    }
+
+                    return true;
+                },
+                "Copying zip file",
+                suppressGvfsLogMessage: true);
+            }
         }
 
         private void WriteMessage(string message, bool skipStdout = false)
