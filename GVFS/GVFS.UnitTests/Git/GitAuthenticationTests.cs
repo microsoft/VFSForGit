@@ -9,6 +9,8 @@ namespace GVFS.UnitTests.Git
     [TestFixture]
     public class GitAuthenticationTests
     {
+        private const string CertificatePath = "certificatePath";
+
         [TestCase]
         public void AuthShouldBackoffAfterFirstRetryFailure()
         {
@@ -177,18 +179,16 @@ namespace GVFS.UnitTests.Git
             GitAuthentication dut = new GitAuthentication(gitProcess, "mock://repoUrl");
 
             dut.GitSslSettings.ShouldNotEqual(default(GitSslSettings), "GitSslSettings should be inititalized");
-            dut.GitSslSettings.SslCertificate.ShouldEqual(certificatePath);
+            dut.GitSslSettings.SslCertificate.ShouldEqual(CertificatePath);
             dut.GitSslSettings.SslCertPasswordProtected.ShouldBeTrue();
         }
-
-        private const string certificatePath = "certificatePath";
 
         private MockGitProcess GetGitProcess()
         {
             MockGitProcess gitProcess = new MockGitProcess();
             gitProcess.SetExpectedCommandResult("config gvfs.FunctionalTests.UserName", () => new GitProcess.Result(string.Empty, string.Empty, GitProcess.Result.GenericFailureCode));
             gitProcess.SetExpectedCommandResult("config gvfs.FunctionalTests.Password", () => new GitProcess.Result(string.Empty, string.Empty, GitProcess.Result.GenericFailureCode));
-            gitProcess.SetExpectedCommandResult("config --get-urlmatch http mock://repoUrl", () => new GitProcess.Result($"http.sslCert {certificatePath}\nhttp.sslCertPasswordProtected true\n\n", string.Empty, GitProcess.Result.SuccessCode));
+            gitProcess.SetExpectedCommandResult("config --get-urlmatch http mock://repoUrl", () => new GitProcess.Result($"http.sslCert {CertificatePath}\nhttp.sslCertPasswordProtected true\n\n", string.Empty, GitProcess.Result.SuccessCode));
 
             int revocations = 0;
             gitProcess.SetExpectedCommandResult(
