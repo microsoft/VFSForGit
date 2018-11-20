@@ -10,30 +10,20 @@ namespace GVFS.Common.Git
 
         public GitSslSettings(IDictionary<string, GitConfigSetting> configSettings)
         {
+            this.SslCertificate = null;
+            this.SslCertPasswordProtected = false;
+
             if (configSettings != null)
             {
                 if (configSettings.TryGetValue(GitConfigSetting.SslCert, out var sslCerts))
                 {
                     this.SslCertificate = sslCerts.Values.Single();
                 }
-                else
-                {
-                    this.SslCertificate = default(string);
-                }
 
                 if (configSettings.TryGetValue(GitConfigSetting.SslCertPasswordProtected, out var isSslCertPasswordProtected))
                 {
                     this.SslCertPasswordProtected = isSslCertPasswordProtected.Values.Select(bool.Parse).Single();
                 }
-                else
-                {
-                    this.SslCertPasswordProtected = false;
-                }
-            }
-            else
-            {
-                this.SslCertificate = default(string);
-                this.SslCertPasswordProtected = default(bool);
             }
         }
     }

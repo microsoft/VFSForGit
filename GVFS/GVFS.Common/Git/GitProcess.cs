@@ -165,7 +165,7 @@ namespace GVFS.Common.Git
         }
 
         /// <summary>
-        /// Input for certificate crednetials looks like
+        /// Input for certificate credentials looks like
         /// <code> protocol=cert
         /// path=[http.sslCert value]
         /// username =</code>
@@ -186,9 +186,10 @@ namespace GVFS.Common.Git
                     stdin => stdin.Write("protocol=cert\npath=" + certificatePath + "\nusername=\n\n"),
                     parseStdOutLine: null);
 
-                if (gitCredentialOutput.HasErrors)
+                if (gitCredentialOutput.ExitCodeIsFailure)
                 {
                     EventMetadata errorData = new EventMetadata();
+                    errorData.Add("CertificatePath", certificatePath);
                     tracer.RelatedWarning(
                         errorData,
                         "Git could not get credentials: " + gitCredentialOutput.Errors,
@@ -204,8 +205,10 @@ namespace GVFS.Common.Git
 
                 EventMetadata metadata = new EventMetadata
                 {
-                    { "Success", success }
+                    { "Success", success },
+                    {"CertificatePath", certificatePath}
                 };
+
                 if (!success)
                 {
                     metadata.Add("Output", gitCredentialOutput.Output);
@@ -314,7 +317,7 @@ namespace GVFS.Common.Git
         public bool TryGetConfigUrlMatch(string section, string repositoryUrl, out Dictionary<string, GitConfigSetting> configSettings)
         {
             Result result = this.InvokeGitAgainstDotGitFolder($"config --get-urlmatch {section} {repositoryUrl}");
-            if (result.HasErrors)
+            if (result.ExitCodeIsFailure)
             {
                 configSettings = null;
                 return false;

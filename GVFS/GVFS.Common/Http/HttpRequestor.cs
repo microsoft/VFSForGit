@@ -9,6 +9,7 @@ using System.Net;
 using System.Net.Http;
 using System.Net.Http.Headers;
 using System.Security;
+using System.Security.Cryptography;
 using System.Security.Cryptography.X509Certificates;
 using System.Text;
 using System.Threading;
@@ -27,7 +28,7 @@ namespace GVFS.Common.Http
 
         private readonly Lazy<X509Store> store = new Lazy<X509Store>(() =>
         {
-            var s = new X509Store();
+            X509Store s = new X509Store();
             s.Open(OpenFlags.OpenExistingOnly | OpenFlags.ReadOnly);
             return s;
         });
@@ -50,7 +51,6 @@ namespace GVFS.Common.Http
             this.Tracer = tracer;
 
             var httpClientHandler = new HttpClientHandler() { UseDefaultCredentials = true };
-            httpClientHandler.ClientCertificateOptions = ClientCertificateOption.Manual;
 #if DEBUG
             // allow self-signed server certificates, while debugging
             httpClientHandler.ServerCertificateCustomValidationCallback =
@@ -70,6 +70,7 @@ namespace GVFS.Common.Http
                 var cert = this.LoadCertificate(enlistment.GitSslSettings.SslCertificate, certificatePassword);
                 if (cert != null)
                 {
+                    httpClientHandler.ClientCertificateOptions = ClientCertificateOption.Manual;
                     httpClientHandler.ClientCertificates.Add(cert);
                 }
             }
@@ -323,18 +324,38 @@ namespace GVFS.Common.Http
         {
             if (File.Exists(certId))
             {
-                return new X509Certificate2(certId, certificatePassword);
+                try
+                {
+                    return new X509Certificate2(certId, certificatePassword);
+                }
+                catch (CryptographicException cryptEx)
+                {
+                    EventMetadata metadata = new EventMetadata();
+                    metadata.Add("Exception", cryptEx);
+                    this.Tracer.RelatedError(metadata, "Error, while loading certificate from disk");
+                    return null;
+                }
             }
 #if DEBUG
             // Allow invalid (self-signed) client certificates while debugging
-            var onlyValidCertificates = false;
+            const bool onlyValidCertificates = false;
 #else
-            var onlyValidCertificates = true;
+            const bool onlyValidCertificates = true;
 #endif
-            var findResults = this.store.Value.Certificates.Find(X509FindType.FindBySubjectName, certId, onlyValidCertificates);
-            if (findResults?.Count > 0)
+            try
             {
-                return findResults[0];
+                var findResults = this.store.Value.Certificates.Find(X509FindType.FindBySubjectName, certId, onlyValidCertificates);
+                if (findResults?.Count > 0)
+                {
+                    return findResults[0];
+                }
+            }
+            catch (CryptographicException cryptEx)
+            {
+                EventMetadata metadata = new EventMetadata();
+                metadata.Add("Exception", cryptEx);
+                this.Tracer.RelatedError(metadata, "Error, while searching for certificate in store");
+                return null;
             }
 
             this.Tracer.RelatedError("Certificate {0} not found", certId);
