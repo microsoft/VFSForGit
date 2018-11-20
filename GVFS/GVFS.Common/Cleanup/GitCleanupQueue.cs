@@ -32,7 +32,19 @@ namespace GVFS.Common.Cleanup
                 {
                     this.thread = new Thread(() => this.RunQueue());
                     this.thread.IsBackground = true;
-                    this.thread.Start();
+
+                    try
+                    {
+                        this.thread.Start();
+                    }
+                    catch (ThreadStateException e)
+                    {
+                        this.LogError(nameof(GitCleanupQueue), nameof(this.Enqueue), e);
+                    }
+                    catch (OutOfMemoryException e)
+                    {
+                        this.LogError(nameof(GitCleanupQueue), nameof(this.Enqueue), e);
+                    }
                 }
             }
         }
@@ -119,7 +131,7 @@ namespace GVFS.Common.Cleanup
             }
         }
 
-        private void LogErrorAndExit(string telemetryKey, string methodName, Exception exception)
+        private void LogError(string telemetryKey, string methodName, Exception exception)
         {
             EventMetadata metadata = new EventMetadata();
             metadata.Add("Method", methodName);
@@ -129,6 +141,11 @@ namespace GVFS.Common.Cleanup
                 metadata: metadata,
                 message: telemetryKey + ": Unexpected Exception while running cleanup steps (fatal): " + exception.Message,
                 keywords: Keywords.Telemetry);
+        }
+
+        private void LogErrorAndExit(string telemetryKey, string methodName, Exception exception)
+        {
+            this.LogError(telemetryKey, methodName, exception);
             Environment.Exit((int)ReturnCode.GenericError);
         }
     }
