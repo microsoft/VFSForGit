@@ -29,11 +29,14 @@ namespace GVFS.Common.Cleanup
 
         public void ScheduleRecurringCleanupSteps()
         {
-            this.prefetchStepTimer = new Timer(
+            if (!this.context.Unattended && this.gitObjects.IsUsingCacheServer())
+            {
+                this.prefetchStepTimer = new Timer(
                 (state) => this.queue.Enqueue(new PrefetchStep(this.context, this.gitObjects)),
                 state: null,
                 dueTime: this.prefetchPeriod,
                 period: this.prefetchPeriod);
+            }
         }
     }
 }
