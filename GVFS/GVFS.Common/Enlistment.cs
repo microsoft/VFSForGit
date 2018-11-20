@@ -49,15 +49,6 @@ namespace GVFS.Common
             }
 
             this.Authentication = authentication ?? new GitAuthentication(gitProcess, this.RepoUrl);
-
-            if (gitProcess.TryGetConfigUrlMatch("http", this.RepoUrl, out var configSettings))
-            {
-                this.GitSslSettings = new GitSslSettings(configSettings);
-            }
-            else
-            {
-                this.GitSslSettings = new GitSslSettings();
-            }
         }
 
         public string EnlistmentRoot { get; }
@@ -68,7 +59,6 @@ namespace GVFS.Common
         public abstract string GitPackRoot { get; protected set; }
         public string RepoUrl { get; }
         public bool FlushFileBuffersForPacks { get; }
-        public GitSslSettings GitSslSettings { get; }
 
         public string GitBinPath { get; }
         public string GVFSHooksRoot { get; }

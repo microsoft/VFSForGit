@@ -59,15 +59,15 @@ namespace GVFS.Common.Http
                     return true;
                 };
 #endif
-            if (!string.IsNullOrEmpty(enlistment.GitSslSettings.SslCertificate))
+            if (!string.IsNullOrEmpty(authentication.GitSslSettings.SslCertificate))
             {
                 string certificatePassword = null;
-                if (enlistment.GitSslSettings.SslCertPasswordProtected)
+                if (authentication.GitSslSettings.SslCertPasswordProtected)
                 {
-                    certificatePassword = this.LoadCertificatePassword(enlistment.GitSslSettings.SslCertificate, enlistment.CreateGitProcess());
+                    certificatePassword = this.LoadCertificatePassword(authentication.GitSslSettings.SslCertificate, enlistment.CreateGitProcess());
                 }
 
-                var cert = this.LoadCertificate(enlistment.GitSslSettings.SslCertificate, certificatePassword);
+                var cert = this.LoadCertificate(authentication.GitSslSettings.SslCertificate, certificatePassword);
                 if (cert != null)
                 {
                     httpClientHandler.ClientCertificateOptions = ClientCertificateOption.Manual;

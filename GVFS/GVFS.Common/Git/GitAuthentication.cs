@@ -25,7 +25,18 @@ namespace GVFS.Common.Git
         {
             this.git = git;
             this.repoUrl = repoUrl;
+
+            if (git.TryGetConfigUrlMatch("http", this.repoUrl, out var configSettings))
+            {
+                this.GitSslSettings = new GitSslSettings(configSettings);
+            }
+            else
+            {
+                this.GitSslSettings = new GitSslSettings();
+            }
         }
+
+        public GitSslSettings GitSslSettings { get; }
 
         public bool IsBackingOff
         {
