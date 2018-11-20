@@ -223,9 +223,10 @@ namespace GVFS.Common.NamedPipes
                     EventMetadata metadata = new EventMetadata();
                     metadata.Add("ExceptionMessage", e.Message);
                     metadata.Add("StackTrace", e.StackTrace);
-                    this.tracer.RelatedError(
+                    this.tracer.RelatedWarning(
                         metadata: metadata,
-                        message: $"Error reading message from NamedPipe: {e.Message}");
+                        message: $"Error reading message from NamedPipe: {e.Message}",
+                        keywords: Keywords.Telemetry);
 
                     return null;
                 }
