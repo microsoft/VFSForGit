@@ -91,6 +91,21 @@ namespace GVFS.Common.Git
                 this.Tracer.RelatedEvent(EventLevel.Informational, nameof(this.DeleteStaleTempPrefetchPackAndIdxs), metadata);
             }
         }
+        
+        public virtual void DeleteTemporaryFiles()
+        {
+            string[] temporaryFiles = this.fileSystem.GetFiles(Path.Combine(this.Enlistment.GitPackRoot, GitObjects.TempPackFolder), "tmp_");
+            foreach (string temporaryFilePath in temporaryFiles)
+            {
+                EventMetadata metadata = CreateEventMetadata();
+                metadata.Add(nameof(temporaryFilePath), temporaryFilePath);
+                metadata.Add(TracingConstants.MessageKey.InfoMessage, @"Deleting temporary file");
+
+                this.fileSystem.TryDeleteFile(temporaryFilePath, metadataKey: nameof(temporaryFilePath), metadata: metadata);
+
+                this.Tracer.RelatedEvent(EventLevel.Informational, nameof(this.DeleteTemporaryFiles), metadata);
+            }
+        }
 
         public virtual bool TryDownloadPrefetchPacks(long latestTimestamp, out List<string> packIndexes)
         {

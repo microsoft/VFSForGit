@@ -36,6 +36,7 @@ namespace GVFS.Common.Cleanup
                 long maxGoodTimeStamp;
 
                 this.GitObjects.DeleteStaleTempPrefetchPackAndIdxs();
+                this.GitObjects.DeleteTemporaryFiles();
 
                 if (!this.TryGetMaxGoodPrefetchTimestamp(out maxGoodTimeStamp, out error))
                 {
