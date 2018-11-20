@@ -125,23 +125,7 @@ namespace GVFS.Mount
 
         private JsonTracer CreateTracer(GVFSEnlistment enlistment, EventLevel verbosity, Keywords keywords)
         {
-            string enlistmentId = null;
-            string mountId = null;
-
-            GitProcess git = new GitProcess(enlistment);
-            GitProcess.ConfigResult configResult = git.GetFromLocalConfig(GVFSConstants.GitConfig.EnlistmentId);
-            if (configResult.TryParseAsString(out enlistmentId, out string _, defaultValue: string.Empty))
-            {
-                enlistmentId = enlistmentId.Trim();
-            }
-
-            configResult = git.GetFromLocalConfig(GVFSConstants.GitConfig.MountId);
-            if (configResult.TryParseAsString(out mountId, out string _, defaultValue: string.Empty))
-            {
-                mountId = mountId.Trim();
-            }
-
-            JsonTracer tracer = new JsonTracer(GVFSConstants.GVFSEtwProviderName, "GVFSMount", enlistmentId: enlistmentId, mountId: mountId);
+            JsonTracer tracer = new JsonTracer(GVFSConstants.GVFSEtwProviderName, "GVFSMount", enlistment.GetEnlistmentId(), enlistment.GetMountId());
             tracer.AddLogFileEventListener(
                 GVFSEnlistment.GetNewGVFSLogFileName(enlistment.GVFSLogsRoot, GVFSConstants.LogFileTypes.MountProcess),
                 verbosity,
