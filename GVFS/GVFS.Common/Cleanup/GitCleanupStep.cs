@@ -1,5 +1,4 @@
-﻿using GVFS.Common.FileSystem;
-using GVFS.Common.Git;
+﻿using GVFS.Common.Git;
 using GVFS.Common.Tracing;
 using System;
 using System.IO;
@@ -123,25 +122,6 @@ namespace GVFS.Common.Cleanup
 
         protected abstract void RunGitAction();
 
-        protected bool HasNewerPrefetchPack(DateTime time)
-        {
-            foreach (DirectoryItemInfo info in this.Context.FileSystem.ItemsInDirectory(this.Context.Enlistment.GitPackRoot))
-            {
-                if (info.Name.EndsWith(".pack"))
-                {
-                    DateTime packTime = this.Context.FileSystem
-                                                    .GetFileProperties(info.FullName)
-                                                    .LastWriteTimeUTC;
-                    if (packTime.CompareTo(time) > 0)
-                    {
-                        return true;
-                    }
-                }
-            }
-
-            return false;
-        }
-
         protected GitProcess.Result RunGitCommand(Func<GitProcess, GitProcess.Result> work)
         {
             using (ITracer activity = this.Context.Tracer.StartActivity("RunGitCommand", EventLevel.Informational, Keywords.Telemetry, metadata: null))
@@ -157,7 +137,7 @@ namespace GVFS.Common.Cleanup
 
                 GitProcess.Result result = work.Invoke(this.GitProcess);
 
-                if (!this.Stopping && result.HasErrors)
+                if (!this.Stopping && result?.HasErrors == true)
                 {
                     this.Context.Tracer.RelatedWarning(
                         metadata: null,
