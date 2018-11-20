@@ -53,7 +53,7 @@ namespace GVFS.Common
 
         public abstract InProcEventListener CreateTelemetryListenerIfEnabled(string providerName, string enlistmentId, string mountId);
 
-        public abstract Dictionary<string, string> GetPhysicalDiskInfo(string path);
+        public abstract Dictionary<string, string> GetPhysicalDiskInfo(string path, bool sizeStatsOnly);
 
         public abstract bool IsConsoleOutputRedirectedToFile();
         public abstract bool TryGetGVFSEnlistmentRoot(string directory, out string enlistmentRoot, out string errorMessage);

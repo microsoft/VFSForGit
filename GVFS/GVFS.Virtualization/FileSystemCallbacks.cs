@@ -344,6 +344,11 @@ namespace GVFS.Virtualization
             }
 
             metadata.Add(nameof(RepoMetadata.Instance.EnlistmentId), RepoMetadata.Instance.EnlistmentId);
+            metadata.Add(
+                "PhysicalDiskInfo", 
+                GVFSPlatform.Instance.GetPhysicalDiskInfo(
+                    this.context.Enlistment.WorkingDirectoryRoot,
+                    sizeStatsOnly: true));
 
             return metadata;
         }
