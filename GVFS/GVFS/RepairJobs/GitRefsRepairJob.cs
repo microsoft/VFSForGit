@@ -1,4 +1,5 @@
-﻿using GVFS.Common;
+﻿using System;
+using GVFS.Common;
 using GVFS.Common.Git;
 using GVFS.Common.Tracing;
 using System.Collections.Generic;
@@ -34,15 +35,17 @@ namespace GVFS.RepairJobs
         /// </summary>
         public override FixResult TryFixIssues(List<string> messages)
         {
-            IEnumerable<string> badRefs = this.GetRefs().Where(x => !this.TryParseRef(x));
-
             int numFailures = 0;
 
-            foreach (string badRef in badRefs)
+            foreach (string @ref in this.GetRefs())
             {
-                if (!this.TryWriteRefFromLog(badRef, messages))
+                // We should only attempt to fix bad refs
+                if (!this.TryParseRef(@ref))
                 {
-                    numFailures++;
+                    if (!this.TryWriteRefFromLog(@ref, messages))
+                    {
+                        numFailures++;
+                    }
                 }
             }
 
@@ -69,6 +72,14 @@ namespace GVFS.RepairJobs
         /// <param name="refContents">Contents of the ref file</param>
         protected virtual bool IsValidRefContents(string fullSymbolicRef, string refContents)
         {
+            // Check for symbolic references
+            const string MinimallyValidHeadRef = "ref: refs/";
+            if (refContents.StartsWith(MinimallyValidHeadRef, StringComparison.OrdinalIgnoreCase))
+            {
+                return true;
+            }
+
+            // Otherwise check for raw commit-style references
             return SHA1Util.IsValidShaFormat(refContents);
         }
 

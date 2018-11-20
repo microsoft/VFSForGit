@@ -69,23 +69,54 @@ namespace GVFS.Common
             return path.Replace(Path.DirectorySeparatorChar, GVFSConstants.GitPathSeparator);
         }
 
-        public static string MakeRelative(string rootPath, string path)
+        public static string GetRelativePath(string relativeTo, string path)
         {
-            // Ensure trailing slash on the rootPath
-            if (rootPath.Length > 0 && rootPath.Last() != Path.DirectorySeparatorChar)
+            if (!Path.IsPathRooted(relativeTo))
             {
-                rootPath += Path.DirectorySeparatorChar;
+                throw new ArgumentException("Path must be absolute.", nameof(relativeTo));
             }
 
-            Uri rootUri = new Uri(rootPath, UriKind.Absolute);
+            if (!Path.IsPathRooted(path))
+            {
+                throw new ArgumentException("Path must be absolute.", nameof(path));
+            }
+
+            // Normalize paths
+            relativeTo = Path.GetFullPath(relativeTo);
+            path = Path.GetFullPath(path);
+
+            // Handle calculation of relative paths to self
+            if (StringComparer.OrdinalIgnoreCase.Equals(relativeTo, path))
+            {
+                return ".";
+            }
+
+            // For UNIX style paths we must prepend the "file://" scheme explicitly to create a System.Uri
+            const char UnixPathRoot = '/';
+            if (relativeTo.Length > 0 && relativeTo[0] == UnixPathRoot)
+            {
+                relativeTo = $"{Uri.UriSchemeFile}://{relativeTo}";
+            }
+
+            if (path.Length > 0 && path[0] == UnixPathRoot)
+            {
+                path = $"{Uri.UriSchemeFile}://{path}";
+            }
+
+            Uri relativeToUri = new Uri(relativeTo, UriKind.Absolute);
             Uri pathUri = new Uri(path, UriKind.Absolute);
 
-            Uri relativeUri = rootUri.MakeRelativeUri(pathUri);
+            Uri relativeUri = relativeToUri.MakeRelativeUri(pathUri);
 
             string relativePath = relativeUri.ToString();
 
+            // Decode/un-escape characters (e.g, "%20" back to " ")
+            relativePath = Uri.UnescapeDataString(relativePath);
+
             // Convert to native path separators
-            return relativePath.Replace(Path.AltDirectorySeparatorChar, Path.DirectorySeparatorChar);
+            relativePath = relativePath.Replace(Path.AltDirectorySeparatorChar, Path.DirectorySeparatorChar);
+
+            return relativePath;
         }
     }
 }

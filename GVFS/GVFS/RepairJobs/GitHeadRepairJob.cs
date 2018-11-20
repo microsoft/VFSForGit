@@ -62,19 +62,6 @@ namespace GVFS.RepairJobs
             return new[] { GVFSConstants.DotGit.HeadName };
         }
 
-        protected override bool IsValidRefContents(string fullSymbolicRef, string refContents)
-        {
-            Debug.Assert(fullSymbolicRef == GVFSConstants.DotGit.HeadName, "Only expecting to be called with the HEAD ref");
-
-            const string MinimallyValidHeadRef = "ref: refs/";
-            if (refContents.StartsWith(MinimallyValidHeadRef, StringComparison.OrdinalIgnoreCase))
-            {
-                return true;
-            }
-
-            return base.IsValidRefContents(fullSymbolicRef, refContents);
-        }
-
         private bool CanBeRepaired(List<string> messages)
         {
             Func<string, string> createErrorMessage = operation => string.Format("Can't repair HEAD while a {0} operation is in progress", operation);

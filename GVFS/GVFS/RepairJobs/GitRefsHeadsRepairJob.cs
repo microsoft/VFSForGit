@@ -6,9 +6,9 @@ using GVFS.Common.Tracing;
 
 namespace GVFS.RepairJobs
 {
-    public class GitHeadsRepairJob : GitRefsRepairJob
+    public class GitRefsHeadsRepairJob : GitRefsRepairJob
     {
-        public GitHeadsRepairJob(ITracer tracer, TextWriter output, GVFSEnlistment enlistment)
+        public GitRefsHeadsRepairJob(ITracer tracer, TextWriter output, GVFSEnlistment enlistment)
             : base(tracer, output, enlistment)
         {
         }
@@ -21,10 +21,10 @@ namespace GVFS.RepairJobs
         protected override IEnumerable<string> GetRefs()
         {
             string refsHeadsPath = Path.Combine(this.Enlistment.WorkingDirectoryRoot, GVFSConstants.DotGit.Refs.Heads.RootFolder);
-            string dotGitPath = Path.Combine(this.Enlistment.WorkingDirectoryRoot, GVFSConstants.DotGit.Root);
+            string dotGitPath = Path.Combine(this.Enlistment.WorkingDirectoryRoot, GVFSConstants.DotGit.Root) + Path.DirectorySeparatorChar;
 
             return Directory.EnumerateFiles(refsHeadsPath, "*", SearchOption.AllDirectories)
-                .Select(x => Paths.MakeRelative(dotGitPath, x));
+                .Select(x => Paths.GetRelativePath(dotGitPath, x));
         }
     }
 }

@@ -180,20 +180,6 @@ namespace GVFS.FunctionalTests.Tools
             }
         }
 
-        public void CreateBranch(string branchName, string sha)
-        {
-            ProcessResult result = GitProcess.InvokeProcess(this.RepoRoot, $"branch {branchName} {sha}");
-            result.ExitCode.ShouldEqual(0, $"Failed to create branch {branchName} at {sha}");
-        }
-
-        public string GetRevParse(string @ref)
-        {
-            ProcessResult result = GitProcess.InvokeProcess(this.RepoRoot, $"rev-parse {@ref}");
-            result.ExitCode.ShouldEqual(0, $"Failed to get commit for ref '{@ref}'");
-            string refSha = result.Output.Trim();
-            return refSha;
-        }
-
         public void MountGVFS()
         {
             this.gvfsProcess.Mount();

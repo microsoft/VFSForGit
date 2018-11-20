@@ -123,7 +123,7 @@ To actually execute any necessary repair(s), run 'gvfs repair --confirm'
 
                 // Repair .git folder files
                 jobs.Add(new GitHeadRepairJob(tracer, this.Output, enlistment));
-                jobs.Add(new GitHeadsRepairJob(tracer, this.Output, enlistment));
+                jobs.Add(new GitRefsHeadsRepairJob(tracer, this.Output, enlistment));
                 jobs.Add(new GitIndexRepairJob(tracer, this.Output, enlistment));
                 jobs.Add(new GitConfigRepairJob(tracer, this.Output, enlistment));
 
