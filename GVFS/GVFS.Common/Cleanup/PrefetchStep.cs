@@ -24,8 +24,13 @@ namespace GVFS.Common.Cleanup
 
         public override string TelemetryKey => "PrefetchStep";
 
-        public bool TryPrefetchCommitsAndTrees(out string error)
+        public bool TryPrefetchCommitsAndTrees(out string error, GitProcess gitProcess = null)
         {
+            if (gitProcess == null)
+            {
+                gitProcess = new GitProcess(this.Context.Enlistment);
+            }
+
             List<string> packIndexes;
             using (FileBasedLock prefetchLock = GVFSPlatform.Instance.CreateFileBasedLock(
                 this.Context.FileSystem,
@@ -43,8 +48,7 @@ namespace GVFS.Common.Cleanup
                     return false;
                 }
 
-                // TODO: this step needs to be inlined so we can make it interruptible!
-                if (!GitObjects.TryDownloadPrefetchPacks(maxGoodTimeStamp, out packIndexes))
+                if (!this.GitObjects.TryDownloadPrefetchPacks(gitProcess, maxGoodTimeStamp, out packIndexes))
                 {
                     error = "Failed to download prefetch packs";
                     return false;
@@ -62,7 +66,7 @@ namespace GVFS.Common.Cleanup
         protected override void RunGitAction()
         {
             long last;
-            string error;
+            string error = null;
 
             if (!this.TryGetMaxGoodPrefetchTimestamp(out last, out error))
             {
@@ -79,7 +83,13 @@ namespace GVFS.Common.Cleanup
                 return;
             }
 
-            if (!this.TryPrefetchCommitsAndTrees(out error))
+            this.RunGitCommand(process =>
+            {
+                this.TryPrefetchCommitsAndTrees(out error, process);
+                return null;
+            });
+
+            if (!string.IsNullOrEmpty(error))
             {
                 this.Context.Tracer.RelatedWarning(
                     metadata: null,

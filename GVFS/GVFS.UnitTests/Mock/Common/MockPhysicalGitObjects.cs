@@ -36,7 +36,7 @@ namespace GVFS.UnitTests.Mock.Common
             }
         }
 
-        public override GitProcess.Result IndexTempPackFile(string tempPackPath)
+        public override GitProcess.Result IndexTempPackFile(string tempPackPath, GitProcess gitProcess = null)
         {
             return new GitProcess.Result(string.Empty, "TestFailure", GitProcess.Result.GenericFailureCode);
         }
