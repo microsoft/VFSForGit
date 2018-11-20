@@ -159,7 +159,7 @@ namespace GVFS.FunctionalTests.Windows.Tests
         private void GitCommandWaitsForLock(string gitWorkingDirectory)
         {
             ManualResetEventSlim resetEvent = GitHelpers.AcquireGVFSLock(this.Enlistment, out _, resetTimeout: 3000);
-            ProcessResult statusWait = GitHelpers.InvokeGitAgainstGVFSRepo(gitWorkingDirectory, "status", cleanErrors: false);
+            ProcessResult statusWait = GitHelpers.InvokeGitAgainstGVFSRepo(gitWorkingDirectory, "status", removeWaitingMessages: false);
             statusWait.Errors.ShouldContain(ExpectedStatusWaitingText);
             resetEvent.Set();
             this.Enlistment.WaitForBackgroundOperations();

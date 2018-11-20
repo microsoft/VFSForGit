@@ -54,7 +54,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
             int pid;
             GitHelpers.AcquireGVFSLock(this.Enlistment, out pid, resetTimeout: 3000);
 
-            ProcessResult statusWait = GitHelpers.InvokeGitAgainstGVFSRepo(this.Enlistment.RepoRoot, "status", cleanErrors: false);
+            ProcessResult statusWait = GitHelpers.InvokeGitAgainstGVFSRepo(this.Enlistment.RepoRoot, "status", removeWaitingMessages: false);
             statusWait.Errors.ShouldContain(ExpectedStatusWaitingText);
         }
 
@@ -67,7 +67,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
             int pid;
             GitHelpers.AcquireGVFSLock(this.Enlistment, out pid, resetTimeout: 3000);
             GitHelpers.CheckGitCommandAgainstGVFSRepo(this.Enlistment.RepoRoot, "config --local alias." + alias + " status");
-            ProcessResult statusWait = GitHelpers.InvokeGitAgainstGVFSRepo(this.Enlistment.RepoRoot, alias, cleanErrors: false);
+            ProcessResult statusWait = GitHelpers.InvokeGitAgainstGVFSRepo(this.Enlistment.RepoRoot, alias, removeWaitingMessages: false);
             statusWait.Errors.ShouldContain(ExpectedStatusWaitingText);
         }
 
@@ -83,7 +83,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
             ProcessResult statusWait = GitHelpers.InvokeGitAgainstGVFSRepo(
                 Path.Combine(this.Enlistment.RepoRoot, "GVFS"),
                 alias + " origin/FunctionalTests/RebaseTestsSource_20170208",
-                cleanErrors: false);
+                removeWaitingMessages: false);
             statusWait.Errors.ShouldContain(ExpectedStatusWaitingText);
             GitHelpers.CheckGitCommandAgainstGVFSRepo(this.Enlistment.RepoRoot, "rebase --abort");
         }
@@ -100,7 +100,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
             newFilePath.ShouldNotExistOnDisk(this.fileSystem);
             this.fileSystem.WriteAllText(newFilePath, "New file contents");
 
-            ProcessResult statusWait = GitHelpers.InvokeGitAgainstGVFSRepo(this.Enlistment.RepoRoot, "status", cleanErrors: false);
+            ProcessResult statusWait = GitHelpers.InvokeGitAgainstGVFSRepo(this.Enlistment.RepoRoot, "status", removeWaitingMessages: false);
 
             // Validate that GVFS still reports that the git command is holding the lock
             statusWait.Errors.ShouldContain(ExpectedStatusWaitingText);
@@ -129,7 +129,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
                 }
             }
 
-            ProcessResult statusWait = GitHelpers.InvokeGitAgainstGVFSRepo(this.Enlistment.RepoRoot, "status", cleanErrors: false);
+            ProcessResult statusWait = GitHelpers.InvokeGitAgainstGVFSRepo(this.Enlistment.RepoRoot, "status", removeWaitingMessages: false);
 
             // There should not be any errors - in particular, there should not be
             // an error about "Waiting for GVFS.FunctionalTests.LockHolder"

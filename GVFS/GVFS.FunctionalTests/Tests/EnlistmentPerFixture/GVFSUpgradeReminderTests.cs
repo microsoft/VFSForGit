@@ -38,8 +38,8 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
             for (int count = 0; count < 50; count++)
             {
                 ProcessResult result = GitHelpers.InvokeGitAgainstGVFSRepo(
-                this.Enlistment.RepoRoot,
-                "status");
+                    this.Enlistment.RepoRoot,
+                    "status");
 
                 string.IsNullOrEmpty(result.Errors).ShouldBeTrue();
             }
@@ -54,8 +54,10 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
             for (int count = 0; count < 50; count++)
             {
                 ProcessResult result = GitHelpers.InvokeGitAgainstGVFSRepo(
-                this.Enlistment.RepoRoot,
-                "status");
+                    this.Enlistment.RepoRoot,
+                    "status",
+                    removeWaitingMessages: true,
+                    removeUpgradeMessages: false);
 
                 if (!string.IsNullOrEmpty(result.Errors))
                 {
