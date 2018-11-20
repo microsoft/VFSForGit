@@ -46,7 +46,14 @@ dotnet restore $VFS_SRCDIR/GVFS.sln /p:Configuration=$CONFIGURATION.Mac --packag
 dotnet build $VFS_SRCDIR/GVFS.sln --runtime osx-x64 --framework netcoreapp2.1 --configuration $CONFIGURATION.Mac /maxcpucount:1 /warnasmessage:MSB4011 || exit 1
 
 NATIVEDIR=$VFS_SRCDIR/GVFS/GVFS.Native.Mac
-xcodebuild -configuration $CONFIGURATION -workspace $NATIVEDIR/GVFS.Native.Mac.xcworkspace build -scheme GVFS.Native.Mac -derivedDataPath $VFS_OUTPUTDIR/GVFS.Native.Mac || exit 1
+if [ -z "$DEVELOPMENT_TEAM" ]
+then
+    echo "DEVELOPMENT_TEAM environment variable not set, using from project..."
+    xcodebuild -configuration $CONFIGURATION -workspace $NATIVEDIR/GVFS.Native.Mac.xcworkspace build -scheme GVFS.Native.Mac -derivedDataPath $VFS_OUTPUTDIR/GVFS.Native.Mac || exit 1
+else
+    echo "DEVELOPMENT_TEAM environment variable is set to $DEVELOPMENT_TEAM, passing to xcodebuild..."
+    xcodebuild -configuration $CONFIGURATION -workspace $NATIVEDIR/GVFS.Native.Mac.xcworkspace build -scheme GVFS.Native.Mac -derivedDataPath $VFS_OUTPUTDIR/GVFS.Native.Mac DEVELOPMENT_TEAM=$DEVELOPMENT_TEAM || exit 1
+fi
 
 if [ ! -d $VFS_PUBLISHDIR ]; then
   mkdir $VFS_PUBLISHDIR || exit 1
