@@ -11,9 +11,9 @@ namespace GVFS.Common.Git
 
         public GitSslSettings()
         {
-            SslCertificate = null;
-            SslCertPasswordProtected = false;
-            SslVerify = true;
+            this.SslCertificate = null;
+            this.SslCertPasswordProtected = false;
+            this.SslVerify = true;
         }
 
         public GitSslSettings(IDictionary<string, GitConfigSetting> configSettings) : this()

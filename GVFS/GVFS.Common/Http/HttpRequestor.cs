@@ -52,7 +52,7 @@ namespace GVFS.Common.Http
 
             var httpClientHandler = new HttpClientHandler() { UseDefaultCredentials = true };
 
-            if(!this.authentication.GitSslSettings.SslVerify)
+            if (!this.authentication.GitSslSettings.SslVerify)
             {
                 httpClientHandler.ServerCertificateCustomValidationCallback =
                     (httpRequestMessage, cert, cetChain, policyErrors) =>
@@ -69,7 +69,7 @@ namespace GVFS.Common.Http
                     certificatePassword = this.LoadCertificatePassword(this.authentication.GitSslSettings.SslCertificate, enlistment.CreateGitProcess());
                 }
 
-                var cert = this.LoadCertificate(this.authentication.GitSslSettings.SslCertificate, certificatePassword,this.authentication.GitSslSettings.SslVerify);
+                var cert = this.LoadCertificate(this.authentication.GitSslSettings.SslCertificate, certificatePassword, this.authentication.GitSslSettings.SslVerify);
                 if (cert != null)
                 {
                     httpClientHandler.ClientCertificateOptions = ClientCertificateOption.Manual;
@@ -328,8 +328,8 @@ namespace GVFS.Common.Http
             {
                 try
                 {
-                    var cert =  new X509Certificate2(certId, certificatePassword);
-                    if(onlyLoadValidCertificateFromStore && cert != null && !cert.Verify())
+                    var cert = new X509Certificate2(certId, certificatePassword);
+                    if (onlyLoadValidCertificateFromStore && cert != null && !cert.Verify())
                     {
                         return null;
                     }
