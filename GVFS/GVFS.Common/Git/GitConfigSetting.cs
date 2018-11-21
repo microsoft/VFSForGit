@@ -10,6 +10,7 @@ namespace GVFS.Common.Git
 
         public const string SslCert = "http.sslcert";
         public const string SslKey = "http.sslkey";
+        public const string SslVerify = "http.sslverify";
         public const string SslCertPasswordProtected = "http.sslcertpasswordprotected";
 
         public GitConfigSetting(string name, params string[] values)

@@ -51,14 +51,16 @@ namespace GVFS.Common.Http
             this.Tracer = tracer;
 
             var httpClientHandler = new HttpClientHandler() { UseDefaultCredentials = true };
-#if DEBUG
-            // allow self-signed server certificates, while debugging
-            httpClientHandler.ServerCertificateCustomValidationCallback =
-                (httpRequestMessage, cert, cetChain, policyErrors) =>
-                {
-                    return true;
-                };
-#endif
+
+            if(!this.authentication.GitSslSettings.SslVerify)
+            {
+                httpClientHandler.ServerCertificateCustomValidationCallback =
+                    (httpRequestMessage, cert, cetChain, policyErrors) =>
+                    {
+                        return true;
+                    };
+            }
+
             if (!string.IsNullOrEmpty(this.authentication.GitSslSettings.SslCertificate))
             {
                 string certificatePassword = null;
@@ -67,7 +69,7 @@ namespace GVFS.Common.Http
                     certificatePassword = this.LoadCertificatePassword(this.authentication.GitSslSettings.SslCertificate, enlistment.CreateGitProcess());
                 }
 
-                var cert = this.LoadCertificate(this.authentication.GitSslSettings.SslCertificate, certificatePassword);
+                var cert = this.LoadCertificate(this.authentication.GitSslSettings.SslCertificate, certificatePassword,this.authentication.GitSslSettings.SslVerify);
                 if (cert != null)
                 {
                     httpClientHandler.ClientCertificateOptions = ClientCertificateOption.Manual;
@@ -320,13 +322,19 @@ namespace GVFS.Common.Http
             return null;
         }
 
-        private X509Certificate2 LoadCertificate(string certId, string certificatePassword)
+        private X509Certificate2 LoadCertificate(string certId, string certificatePassword, bool onlyLoadValidCertificateFromStore)
         {
             if (File.Exists(certId))
             {
                 try
                 {
-                    return new X509Certificate2(certId, certificatePassword);
+                    var cert =  new X509Certificate2(certId, certificatePassword);
+                    if(onlyLoadValidCertificateFromStore && cert != null && !cert.Verify())
+                    {
+                        return null;
+                    }
+
+                    return cert;
                 }
                 catch (CryptographicException cryptEx)
                 {
@@ -336,15 +344,10 @@ namespace GVFS.Common.Http
                     return null;
                 }
             }
-#if DEBUG
-            // Allow invalid (self-signed) client certificates while debugging
-            const bool OnlyValidCertificates = false;
-#else
-            const bool OnlyValidCertificates = true;
-#endif
+
             try
             {
-                var findResults = this.store.Value.Certificates.Find(X509FindType.FindBySubjectName, certId, OnlyValidCertificates);
+                var findResults = this.store.Value.Certificates.Find(X509FindType.FindBySubjectName, certId, onlyLoadValidCertificateFromStore);
                 if (findResults?.Count > 0)
                 {
                     return findResults[0];
