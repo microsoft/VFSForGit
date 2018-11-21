@@ -28,10 +28,10 @@ steps:
       publishRunAttachments: true
 
   - script: $(Build.Repository.LocalPath)\Scripts\CI\CreateBuildDrop.bat $(configuration) $(Build.ArtifactStagingDirectory)\Tests
-    displayName: Stage functional tests enlistment
+    displayName: Create functional test drop.
 
   - task: PublishBuildArtifacts@1
-    displayName: Publish functional test enlistment
+    displayName: Publish functional test drop artifact.
     inputs:
       pathtoPublish: $(Build.ArtifactStagingDirectory)\Tests
       artifactName: "FunctionalTests_$(platformFriendlyName)_$(configuration)"

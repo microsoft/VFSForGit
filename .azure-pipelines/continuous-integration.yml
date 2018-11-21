@@ -15,8 +15,8 @@ jobs:
     strategy:
       maxParallel: 2
       matrix:
-        #debug:
-        #  configuration: Debug
+        debug:
+          configuration: Debug
         release:
           configuration: Release
     pool:
@@ -30,8 +30,8 @@ jobs:
     strategy:
       maxParallel: 2
       matrix:
-        #debug:
-        #  configuration: Debug
+        debug:
+          configuration: Debug
         release:
           configuration: Release
     pool:
@@ -49,5 +49,5 @@ jobs:
     dependsOn: Build_Windows
     condition: succeeded()
     steps:
-    - checkout: none # We'll get the test enlistment from Build_Windows job
+    - checkout: none # We'll get the build drop from Build_Windows job
     - template: templates/windows-functional-test.yml

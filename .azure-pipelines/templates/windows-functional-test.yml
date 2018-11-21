@@ -1,7 +1,7 @@
 steps:
 
   - task: DownloadBuildArtifacts@0
-    displayName: Download functional test enlistment
+    displayName: Download functional test drop
     inputs:
       buildType: current
       downloadType: specific
@@ -13,12 +13,6 @@ steps:
 
   - script: git config --global credential.interactive never
     displayName: Disable interactive auth
-
-  - script: cmdkey /generic:LegacyGeneric:target=git:https://gvfs.visualstudio.com /user:"Agent PAT" /password:$(VFSForGitOrgCodePat)
-    displayName: Save agent password is credential store
-
-  - script: cmdkey /generic:LegacyGeneric:target=git:https://gvfs.visualstudio.com/ci/_git/ForTests /user:"Agent PAT" /password:$(VFSForGitOrgCodePat)
-    displayName: Save agent password in credential store for useHttpPath
 
   - script: $(Build.BinariesDirectory)/FunctionalTests_$(platformFriendlyName)_$(configuration)/src/Scripts/RunFunctionalTests.bat $(configuration) --test-gvfs-on-path --replace-inbox-projfs
     displayName: Run functional tests
