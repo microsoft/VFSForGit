@@ -19,9 +19,9 @@ namespace GVFS.RepairJobs
         {
             int numBadRefs = 0;
 
-            foreach (string @ref in this.GetRefs())
+            foreach (string gitRef in this.GetRefs())
             {
-                if (!this.TryParseRef(@ref, messages))
+                if (!this.TryParseRef(gitRef, messages))
                 {
                     numBadRefs++;
                 }
@@ -37,12 +37,12 @@ namespace GVFS.RepairJobs
         {
             int numFailures = 0;
 
-            foreach (string @ref in this.GetRefs())
+            foreach (string gitRef in this.GetRefs())
             {
                 // We should only attempt to fix bad refs
-                if (!this.TryParseRef(@ref))
+                if (!this.TryParseRef(gitRef))
                 {
-                    if (!this.TryWriteRefFromLog(@ref, messages))
+                    if (!this.TryWriteRefFromLog(gitRef, messages))
                     {
                         numFailures++;
                     }

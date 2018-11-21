@@ -19,7 +19,7 @@ namespace GVFS.FunctionalTests.Tools
         private static readonly string ZeroBackgroundOperations = "Background operations: 0" + Environment.NewLine;
 
         private GVFSProcess gvfsProcess;
-
+        
         private GVFSFunctionalTestEnlistment(string pathToGVFS, string enlistmentRoot, string repoUrl, string commitish, string localCacheRoot = null)
         {
             this.EnlistmentRoot = enlistmentRoot;
@@ -44,7 +44,7 @@ namespace GVFS.FunctionalTests.Tools
             this.LocalCacheRoot = localCacheRoot;
             this.gvfsProcess = new GVFSProcess(pathToGVFS, this.EnlistmentRoot, this.LocalCacheRoot);
         }
-
+        
         public string EnlistmentRoot
         {
             get; private set;

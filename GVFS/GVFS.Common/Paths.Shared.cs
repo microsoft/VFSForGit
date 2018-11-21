@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 
@@ -69,54 +70,27 @@ namespace GVFS.Common
             return path.Replace(Path.DirectorySeparatorChar, GVFSConstants.GitPathSeparator);
         }
 
-        public static string GetRelativePath(string relativeTo, string path)
+        public static IEnumerable<string> GetFilesRecursive(string rootDirectory)
         {
-            if (!Path.IsPathRooted(relativeTo))
+            return GetFilesRecursive(new DirectoryInfo(rootDirectory), string.Empty);
+        }
+
+        private static IEnumerable<string> GetFilesRecursive(DirectoryInfo directory, string prefix)
+        {
+            foreach (FileInfo file in directory.GetFiles())
             {
-                throw new ArgumentException("Path must be absolute.", nameof(relativeTo));
+                yield return Path.Combine(prefix, file.Name);
             }
 
-            if (!Path.IsPathRooted(path))
+            foreach (DirectoryInfo childDirectory in directory.GetDirectories())
             {
-                throw new ArgumentException("Path must be absolute.", nameof(path));
+                string childPrefix = Path.Combine(prefix, childDirectory.Name);
+
+                foreach (string childFileName in GetFilesRecursive(childDirectory, childPrefix))
+                {
+                    yield return childFileName;
+                }
             }
-
-            // Normalize paths
-            relativeTo = Path.GetFullPath(relativeTo);
-            path = Path.GetFullPath(path);
-
-            // Handle calculation of relative paths to self
-            if (StringComparer.OrdinalIgnoreCase.Equals(relativeTo, path))
-            {
-                return ".";
-            }
-
-            // For UNIX style paths we must prepend the "file://" scheme explicitly to create a System.Uri
-            const char UnixPathRoot = '/';
-            if (relativeTo.Length > 0 && relativeTo[0] == UnixPathRoot)
-            {
-                relativeTo = $"{Uri.UriSchemeFile}://{relativeTo}";
-            }
-
-            if (path.Length > 0 && path[0] == UnixPathRoot)
-            {
-                path = $"{Uri.UriSchemeFile}://{path}";
-            }
-
-            Uri relativeToUri = new Uri(relativeTo, UriKind.Absolute);
-            Uri pathUri = new Uri(path, UriKind.Absolute);
-
-            Uri relativeUri = relativeToUri.MakeRelativeUri(pathUri);
-
-            string relativePath = relativeUri.ToString();
-
-            // Decode/un-escape characters (e.g, "%20" back to " ")
-            relativePath = Uri.UnescapeDataString(relativePath);
-
-            // Convert to native path separators
-            relativePath = relativePath.Replace(Path.AltDirectorySeparatorChar, Path.DirectorySeparatorChar);
-
-            return relativePath;
         }
     }
 }

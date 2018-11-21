@@ -1,4 +1,8 @@
-﻿using GVFS.Common;
+﻿using System;
+using System.Collections.Generic;
+using System.IO;
+using System.Linq;
+using GVFS.Common;
 using GVFS.Tests.Should;
 using NUnit.Framework;
 using System.Runtime.InteropServices;
@@ -37,55 +41,43 @@ namespace GVFS.UnitTests.Common
             doubleTransformedPath.ShouldEqual(expectedGitPath);
         }
 
-        [TestCase(@"C:\", @"C:\a\b\c\file.txt", @"a\b\c\file.txt")]
-        [TestCase(@"C:\a\", @"C:\a\b\c\file.txt", @"b\c\file.txt")]
-        [TestCase(@"C:\a\b\", @"C:\a\b\c\file.txt", @"c\file.txt")]
-        [TestCase(@"C:\a\b\c\", @"C:\a\b\c\file.txt", @"file.txt")]
-        [TestCase(@"C:\a\d\e\", @"C:\a\b\c\file.txt", @"..\..\b\c\file.txt")]
-        [TestCase(@"C:\a\b\..\b\d\", @"C:\a\b\c\..\c\file.txt", @"..\c\file.txt")]
-        [TestCase(@"C:\a\", @"C:\a\b\c\", @"b\c\")]
-        [TestCase(@"C:\a\b\c\file.txt", @"C:\a\b\c\file.txt", @".")]
-        [TestCase(@"C:\a\b\c\", @"C:\a\b\c\", @".")]
-        [TestCase(@"Z:\a\b\", @"C:\a\b\c\file.txt", @"C:\a\b\c\file.txt")]
-        [TestCase(@"C:\a\spacey dir\", @"C:\a\spacey dir\c\spacey file.txt", @"c\spacey file.txt")]
-        public void GetRelativePath_Windows(string relativeTo, string path, string expected)
+        [TestCase]
+        public void GetFilesRecursive()
         {
-            var actual = Paths.GetRelativePath(relativeTo, path);
+            string rootDirectory = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N"));
 
-            // If we're running on non-Windows the relative path is returned with platform-
-            // native path separators, even if a Windows-style path was passed in.
-            // Convert it back to the Windows-style separator "\".
-            if (!RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+            List<string> expectedFiles = new List<string>
             {
-                actual = actual.Replace(UnixPathSeparator, WindowsPathSeparator);
-            }
+                "file1.txt",
+                "file2.txt",
+                "a/file1.txt",
+                "a/file2.txt",
+                "a/b/file1.txt",
+                "a/b/file2.txt",
+                "a/b/c/file1.txt",
+                "a/b/c/file2.txt",
+                "a/b/c/d/file1.txt",
+                "a/b/c/d/file2.txt"
+            };
 
-            actual.ShouldEqual(expected);
+            CreateEmptyFiles(rootDirectory, expectedFiles);
+
+            List<string> actualFiles = Paths.GetFilesRecursive(rootDirectory).ToList();
+
+            CollectionAssert.AreEquivalent(expectedFiles, actualFiles);
         }
 
-        [TestCase(@"/", @"/a/b/c/file.txt", @"a/b/c/file.txt")]
-        [TestCase(@"/a/", @"/a/b/c/file.txt", @"b/c/file.txt")]
-        [TestCase(@"/a/b/", @"/a/b/c/file.txt", @"c/file.txt")]
-        [TestCase(@"/a/b/c/", @"/a/b/c/file.txt", @"file.txt")]
-        [TestCase(@"/a/d/e/", @"/a/b/c/file.txt", @"../../b/c/file.txt")]
-        [TestCase(@"/a/b/../b/d/", @"/a/b/c/../c/file.txt", @"../c/file.txt")]
-        [TestCase(@"/a/", @"/a/b/c/", @"b/c/")]
-        [TestCase(@"/a/b/c/file.txt", @"/a/b/c/file.txt", @".")]
-        [TestCase(@"/a/b/c/", @"/a/b/c/", @".")]
-        [TestCase(@"/a/spacey dir/", @"/a/spacey dir/c/spacey file.txt", @"c/spacey file.txt")]
-        public void GetRelativePath_Unix(string relativeTo, string path, string expected)
+        private static void CreateEmptyFiles(string rootDirectory, IEnumerable<string> files)
         {
-            var actual = Paths.GetRelativePath(relativeTo, path);
-
-            // If we're running on Windows the relative path is returned with platform-
-            // native path separators, even if a UNIX-style path was passed in.
-            // Convert it back to the UNIX-style separator "/".
-            if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+            foreach (string file in files)
             {
-                actual = actual.Replace(WindowsPathSeparator, UnixPathSeparator);
-            }
+                string fullFilePath = Path.Combine(rootDirectory, file);
 
-            actual.ShouldEqual(expected);
+                string parentDirectory = Path.GetDirectoryName(fullFilePath);
+                Directory.CreateDirectory(parentDirectory);
+
+                File.WriteAllText(fullFilePath, null);
+            }
         }
     }
 }

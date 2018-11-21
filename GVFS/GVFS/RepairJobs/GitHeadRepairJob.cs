@@ -40,7 +40,10 @@ namespace GVFS.RepairJobs
 
             if (result == FixResult.Success)
             {
-                var newHeadSha = this.GetHeadRefSha();
+                // Read the new SHA1 commit ID in the HEAD ref
+                string headRefFilePath = Path.Combine(this.Enlistment.WorkingDirectoryRoot, GVFSConstants.DotGit.Head);
+                string contents = File.ReadAllText(headRefFilePath);
+                string newHeadSha = contents.Trim();
 
                 this.Tracer.RelatedEvent(
                     EventLevel.Informational,
@@ -102,18 +105,6 @@ namespace GVFS.RepairJobs
             }
 
             return true;
-        }
-
-        private string GetHeadRefSha()
-        {
-            string headRefFilePath = Path.Combine(this.Enlistment.WorkingDirectoryRoot, GVFSConstants.DotGit.Head);
-
-            var contents = File.ReadAllText(headRefFilePath);
-            var sha = contents.Trim();
-
-            Debug.Assert(SHA1Util.IsValidShaFormat(sha), "Fix to HEAD ref should have written a valid SHA");
-
-            return sha;
         }
     }
 }
