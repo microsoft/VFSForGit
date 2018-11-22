@@ -48,20 +48,6 @@
                ReferencedContainer = "container:PrjFSLib/PrjFSLib.xcodeproj">
             </BuildableReference>
          </BuildActionEntry>
-         <BuildActionEntry
-            buildForTesting = "YES"
-            buildForRunning = "YES"
-            buildForProfiling = "NO"
-            buildForArchiving = "NO"
-            buildForAnalyzing = "YES">
-            <BuildableReference
-               BuildableIdentifier = "primary"
-               BlueprintIdentifier = "4A137BB12199A98700590D07"
-               BuildableName = "AssociativeArrayTests.xctest"
-               BlueprintName = "AssociativeArrayTests"
-               ReferencedContainer = "container:PrjFSKext/PrjFSKext.xcodeproj">
-            </BuildableReference>
-         </BuildActionEntry>
       </BuildActionEntries>
    </BuildAction>
    <TestAction
