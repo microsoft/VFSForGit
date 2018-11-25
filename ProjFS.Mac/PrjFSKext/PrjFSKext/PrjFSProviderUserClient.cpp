@@ -118,13 +118,20 @@ IOReturn PrjFSProviderUserClient::clientMemoryForType(
     {
     case ProviderMemoryType_MessageQueue:
         {
-            IOMemoryDescriptor* queueMemory = this->dataQueueMemory;
-            if (queueMemory != nullptr)
+            IOMemoryDescriptor* queueMemory;
+            
+            Mutex_Acquire(this->dataQueueWriterMutex);
             {
-                queueMemory->retain(); // Matched internally in IOUserClient
-                *memory = queueMemory;
-                return kIOReturnSuccess;
+                queueMemory = this->dataQueueMemory;
+                if (queueMemory != nullptr)
+                {
+                    queueMemory->retain(); // Matched internally in IOUserClient
+                }
             }
+            Mutex_Release(this->dataQueueWriterMutex);
+            
+            *memory = queueMemory;
+            return nullptr == queueMemory ? kIOReturnError : kIOReturnSuccess;
         }
         break;
     }
@@ -139,13 +146,18 @@ IOReturn PrjFSProviderUserClient::registerNotificationPort(
 {
     if (type == ProviderPortType_MessageQueue)
     {
-        assert(nullptr != this->dataQueue);
         if(port == MACH_PORT_NULL)
         {
             return kIOReturnError;
         }
+
+        Mutex_Acquire(this->dataQueueWriterMutex);
+        {
+            assert(nullptr != this->dataQueue);
+            this->dataQueue->setNotificationPort(port);
+        }
+        Mutex_Release(this->dataQueueWriterMutex);
         
-        this->dataQueue->setNotificationPort(port);
         return kIOReturnSuccess;
     }
     else
