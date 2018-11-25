@@ -251,6 +251,7 @@ void KauthHandler_HandleKernelMessageResponse(VirtualizationRootHandle providerV
         case MessageType_KtoU_NotifyDirectoryRenamed:
         case MessageType_KtoU_NotifyFileHardLinkCreated:
         case MessageType_Result_Aborted:
+        default:
             KextLog_Error("KauthHandler_HandleKernelMessageResponse: Unexpected responseType: %d", responseType);
             break;
     }
@@ -1116,16 +1117,10 @@ static bool ShouldIgnoreVnodeType(vtype vnodeType, vnode_t vnode)
         return false;
     case VSTR:
     case VCPLX:
-        {
-            char vnodePath[PrjFSMaxPath];
-            int vnodePathLength = PrjFSMaxPath;
-            vn_getpath(vnode, vnodePath, &vnodePathLength);
-            KextLog_Info("vnode with type %s encountered, path %s", vnodeType == VSTR ? "VSTR" : "VCPLX", vnodePath);
-            
-            return false;
-        }
+        KextLog_FileInfo(vnode, "vnode with type %s encountered", vnodeType == VSTR ? "VSTR" : "VCPLX");
+        return false;
     default:
-        KextLog_Info("vnode with unknown type %d encountered", vnodeType);
+        KextLog_FileInfo(vnode, "vnode with unknown type %d encountered", vnodeType);
         return false;
     }
 }
