@@ -486,12 +486,23 @@ bool VirtualizationRoot_VnodeIsOnAllowedFilesystem(vnode_t vnode)
 
 static const char* GetRelativePath(const char* path, const char* root)
 {
-    assert(strlen(path) >= strlen(root));
+    size_t rootLength = strlen(root);
+    size_t pathLength = strlen(path);
+    if (pathLength < rootLength || 0 != memcmp(path, root, rootLength))
+    {
+        KextLog_Error("GetRelativePath: root path '%s' is not a prefix of path '%s'\n", root, path);
+        return nullptr;
+    }
     
-    const char* relativePath = path + strlen(root);
+    const char* relativePath = path + rootLength;
     if (relativePath[0] == '/')
     {
         relativePath++;
+    }
+    else if (rootLength > 0 && root[rootLength - 1] != '/' && pathLength > rootLength)
+    {
+        KextLog_Error("GetRelativePath: root path '%s' is not a parent directory of path '%s' (just a string prefix)\n", root, path);
+        return nullptr;
     }
     
     return relativePath;
