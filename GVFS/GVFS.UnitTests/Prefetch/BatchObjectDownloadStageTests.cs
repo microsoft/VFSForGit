@@ -1,4 +1,4 @@
-﻿using GVFS.Common.Prefetch.Jobs;
+﻿using GVFS.Common.Prefetch.Pipeline;
 using GVFS.Tests.Should;
 using GVFS.UnitTests.Category;
 using GVFS.UnitTests.Mock.Common;
@@ -10,7 +10,7 @@ using System.Collections.Concurrent;
 namespace GVFS.UnitTests.Prefetch
 {
     [TestFixture]
-    public class BatchObjectDownloadJobTests
+    public class BatchObjectDownloadStageTests
     {
         private const int MaxParallel = 1;
         private const int ChunkSize = 2;
@@ -53,7 +53,7 @@ namespace GVFS.UnitTests.Prefetch
             MockGVFSEnlistment enlistment = new MockGVFSEnlistment();
             MockBatchHttpGitObjects httpObjects = new MockBatchHttpGitObjects(tracer, enlistment, objectResolver);
 
-            BatchObjectDownloadJob dut = new BatchObjectDownloadJob(
+            BatchObjectDownloadStage dut = new BatchObjectDownloadStage(
                 MaxParallel,
                 ChunkSize,
                 input,

@@ -3,9 +3,9 @@ using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Threading;
 
-namespace GVFS.Common.Prefetch.Jobs
+namespace GVFS.Common.Prefetch.Pipeline
 {
-    public class ReadFilesJob : Job
+    public class HydrateFilesStage : PrefetchPipelineStage
     {
         private readonly ConcurrentDictionary<string, HashSet<string>> blobIdToPaths;
         private readonly BlockingCollection<string> availableBlobs;
@@ -13,7 +13,7 @@ namespace GVFS.Common.Prefetch.Jobs
         private ITracer tracer;
         private int readFileCount;
 
-        public ReadFilesJob(int maxThreads, ConcurrentDictionary<string, HashSet<string>> blobIdToPaths, BlockingCollection<string> availableBlobs, ITracer tracer)
+        public HydrateFilesStage(int maxThreads, ConcurrentDictionary<string, HashSet<string>> blobIdToPaths, BlockingCollection<string> availableBlobs, ITracer tracer)
             : base(maxThreads)
         {
             this.blobIdToPaths = blobIdToPaths;

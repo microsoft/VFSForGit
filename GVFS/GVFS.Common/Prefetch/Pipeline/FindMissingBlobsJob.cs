@@ -3,14 +3,14 @@ using GVFS.Common.Tracing;
 using System.Collections.Concurrent;
 using System.Threading;
 
-namespace GVFS.Common.Prefetch.Jobs
+namespace GVFS.Common.Prefetch.Pipeline
 {
     /// <summary>
     /// Takes in search requests, searches each tree as requested, outputs blocks of missing blob shas.
     /// </summary>
-    public class FindMissingBlobsJob : Job
+    public class FindMissingBlobsStage : PrefetchPipelineStage
     {
-        private const string AreaPath = nameof(FindMissingBlobsJob);
+        private const string AreaPath = nameof(FindMissingBlobsStage);
         private const string TreeSearchAreaPath = "TreeSearch";
 
         private ITracer tracer;
@@ -22,7 +22,7 @@ namespace GVFS.Common.Prefetch.Jobs
 
         private ConcurrentHashSet<string> alreadyFoundBlobIds;
 
-        public FindMissingBlobsJob(
+        public FindMissingBlobsStage(
             int maxParallel,
             BlockingCollection<string> requiredBlobs,
             BlockingCollection<string> availableBlobs,

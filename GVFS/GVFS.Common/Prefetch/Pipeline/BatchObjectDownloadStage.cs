@@ -1,7 +1,7 @@
 ﻿using GVFS.Common.Git;
 using GVFS.Common.Http;
 using GVFS.Common.NetworkStreams;
-using GVFS.Common.Prefetch.Jobs.Data;
+using GVFS.Common.Prefetch.Pipeline.Data;
 using GVFS.Common.Tracing;
 using System;
 using System.Collections.Concurrent;
@@ -10,14 +10,14 @@ using System.IO;
 using System.Linq;
 using System.Threading;
 
-namespace GVFS.Common.Prefetch.Jobs
+namespace GVFS.Common.Prefetch.Pipeline
 {
     /// <summary>
     /// Takes in blocks of object shas, downloads object shas as a pack or loose object, outputs pack locations (if applicable).
     /// </summary>
-    public class BatchObjectDownloadJob : Job
+    public class BatchObjectDownloadStage : PrefetchPipelineStage
     {
-        private const string AreaPath = "BatchObjectDownloadJob";
+        private const string AreaPath = nameof(BatchObjectDownloadStage);
         private const string DownloadAreaPath = "Download";
         
         private static readonly TimeSpan HeartBeatPeriod = TimeSpan.FromSeconds(20);
@@ -34,7 +34,7 @@ namespace GVFS.Common.Prefetch.Jobs
 
         private long bytesDownloaded = 0;
 
-        public BatchObjectDownloadJob(
+        public BatchObjectDownloadStage(
             int maxParallel,
             int chunkSize,
             BlockingCollection<string> missingBlobs,

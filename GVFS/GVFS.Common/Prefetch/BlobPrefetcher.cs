@@ -2,7 +2,7 @@
 using GVFS.Common.Git;
 using GVFS.Common.Http;
 using GVFS.Common.Prefetch.Git;
-using GVFS.Common.Prefetch.Jobs;
+using GVFS.Common.Prefetch.Pipeline;
 using GVFS.Common.Tracing;
 using System;
 using System.Collections.Concurrent;
@@ -240,7 +240,7 @@ namespace GVFS.Common.Prefetch
             if (readFilesAfterDownload)
             {
                 // Call synchronously to ensure that blobEnumerator.FileAddOperations
-                // is completely populated when ReadFilesJob starts
+                // is completely populated when fileHydrator starts
                 performDiff();
             }
             else
@@ -250,17 +250,17 @@ namespace GVFS.Common.Prefetch
 
             BlockingCollection<string> availableBlobs = new BlockingCollection<string>();
 
-            FindMissingBlobsJob blobFinder = new FindMissingBlobsJob(this.SearchThreadCount, blobEnumerator.RequiredBlobs, availableBlobs, this.Tracer, this.Enlistment);
-            BatchObjectDownloadJob downloader = new BatchObjectDownloadJob(this.DownloadThreadCount, this.ChunkSize, blobFinder.MissingBlobs, availableBlobs, this.Tracer, this.Enlistment, this.ObjectRequestor, this.GitObjects);
-            IndexPackJob packIndexer = new IndexPackJob(this.IndexThreadCount, downloader.AvailablePacks, availableBlobs, this.Tracer, this.GitObjects);
-            ReadFilesJob readFiles = new ReadFilesJob(Environment.ProcessorCount * 2, blobEnumerator.FileAddOperations, availableBlobs, this.Tracer);
+            FindMissingBlobsStage blobFinder = new FindMissingBlobsStage(this.SearchThreadCount, blobEnumerator.RequiredBlobs, availableBlobs, this.Tracer, this.Enlistment);
+            BatchObjectDownloadStage downloader = new BatchObjectDownloadStage(this.DownloadThreadCount, this.ChunkSize, blobFinder.MissingBlobs, availableBlobs, this.Tracer, this.Enlistment, this.ObjectRequestor, this.GitObjects);
+            IndexPackStage packIndexer = new IndexPackStage(this.IndexThreadCount, downloader.AvailablePacks, availableBlobs, this.Tracer, this.GitObjects);
+            HydrateFilesStage fileHydrator = new HydrateFilesStage(Environment.ProcessorCount * 2, blobEnumerator.FileAddOperations, availableBlobs, this.Tracer);
             
             blobFinder.Start();
             downloader.Start();
 
             if (readFilesAfterDownload)
             {
-                readFiles.Start();
+                fileHydrator.Start();
             }
 
             // If indexing happens during searching, searching progressively gets slower, so wait on searching before indexing.
@@ -279,13 +279,13 @@ namespace GVFS.Common.Prefetch
 
             if (readFilesAfterDownload)
             {
-                readFiles.WaitForCompletion();
-                this.HasFailures |= readFiles.HasFailures;
+                fileHydrator.WaitForCompletion();
+                this.HasFailures |= fileHydrator.HasFailures;
             }
 
             matchedBlobCount = blobFinder.AvailableBlobCount + blobFinder.MissingBlobCount;
             downloadedBlobCount = blobFinder.MissingBlobCount;
-            readFileCount = readFiles.ReadFileCount;
+            readFileCount = fileHydrator.ReadFileCount;
 
             if (!this.SkipConfigUpdate && !this.HasFailures)
             {

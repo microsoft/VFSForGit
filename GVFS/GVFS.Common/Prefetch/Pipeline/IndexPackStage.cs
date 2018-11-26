@@ -1,14 +1,14 @@
 ﻿using GVFS.Common.Git;
-using GVFS.Common.Prefetch.Jobs.Data;
+using GVFS.Common.Prefetch.Pipeline.Data;
 using GVFS.Common.Tracing;
 using System.Collections.Concurrent;
 using System.Threading;
 
-namespace GVFS.Common.Prefetch.Jobs
+namespace GVFS.Common.Prefetch.Pipeline
 {
-    public class IndexPackJob : Job
+    public class IndexPackStage : PrefetchPipelineStage
     {
-        private const string AreaPath = "IndexPackJob";
+        private const string AreaPath = nameof(IndexPackStage);
         private const string IndexPackAreaPath = "IndexPack";
 
         private readonly BlockingCollection<IndexPackRequest> availablePacks;
@@ -18,7 +18,7 @@ namespace GVFS.Common.Prefetch.Jobs
 
         private long shasIndexed = 0;
 
-        public IndexPackJob(
+        public IndexPackStage(
             int maxParallel,
             BlockingCollection<IndexPackRequest> availablePacks,
             BlockingCollection<string> availableBlobs,

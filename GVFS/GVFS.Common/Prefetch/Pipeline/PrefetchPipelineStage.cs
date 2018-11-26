@@ -1,14 +1,14 @@
 ﻿using System;
 using System.Threading;
 
-namespace GVFS.Common.Prefetch.Jobs
+namespace GVFS.Common.Prefetch.Pipeline
 {
-    public abstract class Job
+    public abstract class PrefetchPipelineStage
     {
         private int maxParallel;
         private Thread[] workers;
 
-        public Job(int maxParallel)
+        public PrefetchPipelineStage(int maxParallel)
         {
             this.maxParallel = maxParallel;
         }

@@ -3,7 +3,7 @@ using GVFS.Common.Git;
 using GVFS.Common.Http;
 using GVFS.Common.Prefetch;
 using GVFS.Common.Prefetch.Git;
-using GVFS.Common.Prefetch.Jobs;
+using GVFS.Common.Prefetch.Pipeline;
 using GVFS.Common.Tracing;
 using System;
 using System.Collections.Generic;
@@ -69,10 +69,10 @@ namespace FastFetch
             // Configure pipeline
             // Checkout uses DiffHelper when running checkout.Start(), which we use instead of LsTreeHelper
             // Checkout diff output => FindMissingBlobs => BatchDownload => IndexPack => Checkout available blobs
-            CheckoutJob checkout = new CheckoutJob(this.checkoutThreadCount, this.FolderList, commitToFetch, this.Tracer, this.Enlistment, this.forceCheckout);
-            FindMissingBlobsJob blobFinder = new FindMissingBlobsJob(this.SearchThreadCount, checkout.RequiredBlobs, checkout.AvailableBlobShas, this.Tracer, this.Enlistment);
-            BatchObjectDownloadJob downloader = new BatchObjectDownloadJob(this.DownloadThreadCount, this.ChunkSize, blobFinder.MissingBlobs, checkout.AvailableBlobShas, this.Tracer, this.Enlistment, this.ObjectRequestor, this.GitObjects);
-            IndexPackJob packIndexer = new IndexPackJob(this.IndexThreadCount, downloader.AvailablePacks, checkout.AvailableBlobShas, this.Tracer, this.GitObjects);
+            CheckoutStage checkout = new CheckoutStage(this.checkoutThreadCount, this.FolderList, commitToFetch, this.Tracer, this.Enlistment, this.forceCheckout);
+            FindMissingBlobsStage blobFinder = new FindMissingBlobsStage(this.SearchThreadCount, checkout.RequiredBlobs, checkout.AvailableBlobShas, this.Tracer, this.Enlistment);
+            BatchObjectDownloadStage downloader = new BatchObjectDownloadStage(this.DownloadThreadCount, this.ChunkSize, blobFinder.MissingBlobs, checkout.AvailableBlobShas, this.Tracer, this.Enlistment, this.ObjectRequestor, this.GitObjects);
+            IndexPackStage packIndexer = new IndexPackStage(this.IndexThreadCount, downloader.AvailablePacks, checkout.AvailableBlobShas, this.Tracer, this.GitObjects);
 
             // Start pipeline
             downloader.Start();
