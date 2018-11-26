@@ -231,14 +231,14 @@ namespace GVFS.Common.Prefetch
 
             BlockingCollection<string> availableBlobs = new BlockingCollection<string>();
 
+            ////
             // First create the pipeline
             //
             //  diff ---> blobFinder ---> downloader ---> packIndexer
             //    |           |              |                 |
             //     ------------------------------------------------------> fileHydrator
-            //
-            //
-           
+            ////
+            
             // diff
             //  Inputs:
             //      * files/folders
