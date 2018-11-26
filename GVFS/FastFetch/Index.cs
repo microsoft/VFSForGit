@@ -7,10 +7,12 @@ using System.Linq;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
+using GVFS.Common;
+using GVFS.Common.Prefetch;
 using GVFS.Common.Prefetch.Git;
 using GVFS.Common.Tracing;
 
-namespace GVFS.Common.Prefetch
+namespace FastFetch
 {
     public class Index
     {
