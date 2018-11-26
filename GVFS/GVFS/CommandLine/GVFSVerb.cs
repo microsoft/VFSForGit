@@ -5,6 +5,7 @@ using GVFS.Common.Git;
 using GVFS.Common.Http;
 using GVFS.Common.NamedPipes;
 using GVFS.Common.Tracing;
+using Newtonsoft.Json;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -23,9 +24,9 @@ namespace GVFS.CommandLine
         {
             this.Output = Console.Out;
             this.ReturnCode = ReturnCode.Success;
-            this.ServiceName = GVFSConstants.Service.ServiceName;
             this.validateOriginURL = validateOrigin;
-
+            this.ServiceName = GVFSConstants.Service.ServiceName;
+            this.StartedByService = false;
             this.Unattended = GVFSEnlistment.IsUnattended(tracer: null);
 
             this.InitializeDefaultParameterValues();
@@ -34,11 +35,36 @@ namespace GVFS.CommandLine
         public abstract string EnlistmentRootPathParameter { get; set; }
 
         [Option(
-            GVFSConstants.VerbParameters.Mount.ServiceName,
-            Default = GVFSConstants.Service.ServiceName,
+            GVFSConstants.VerbParameters.InternalUseOnly,
             Required = false,
             HelpText = "This parameter is reserved for internal use.")]
+        public string InternalParameters
+        {
+            set
+            {
+                if (!string.IsNullOrEmpty(value))
+                {
+                    try
+                    {
+                        InternalVerbParameters mountInternal = InternalVerbParameters.FromJson(value);
+                        if (!string.IsNullOrEmpty(mountInternal.ServiceName))
+                        {
+                            this.ServiceName = mountInternal.ServiceName;
+                        }
+
+                        this.StartedByService = mountInternal.StartedByService;
+                    }
+                    catch (JsonReaderException e)
+                    {
+                        this.ReportErrorAndExit("Failed to parse InternalParameters: {0}.\n {1}", value, e);
+                    }                    
+                }
+            }
+        }
+
         public string ServiceName { get; set; }
+
+        public bool StartedByService { get; set; }
 
         public bool Unattended { get; private set; }
 

@@ -288,7 +288,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
 
             // TODO: 865304 Use app.config instead of --internal* arguments
             ProcessStartInfo processInfo = new ProcessStartInfo(GVFSTestConfig.PathToGVFS);
-            processInfo.Arguments = "mount --internal_use_only_service_name " + GVFSServiceProcess.TestServiceName;
+            processInfo.Arguments = "mount " + TestConstants.InternalUseOnlyFlag + " " + GVFSHelpers.GetInternalParameter();
             processInfo.WindowStyle = ProcessWindowStyle.Hidden;
             processInfo.WorkingDirectory = string.IsNullOrEmpty(mountWorkingDirectory) ? enlistmentRoot : mountWorkingDirectory;
             processInfo.UseShellExecute = false;

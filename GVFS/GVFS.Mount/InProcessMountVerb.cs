@@ -47,6 +47,14 @@ namespace GVFS.Mount
             HelpText = "Show the debug window.  By default, all output is written to a log file and no debug window is shown.")]
         public bool ShowDebugWindow { get; set; }
 
+        [Option(
+            's',
+            GVFSConstants.VerbParameters.Mount.StartedByService,
+            Default = "false",
+            Required = false,
+            HelpText = "Service initiated mount.")]
+        public string StartedByService { get; set; }
+
         [Value(
                 0,
                 Required = true,
@@ -80,6 +88,7 @@ namespace GVFS.Mount
                 {
                     { "IsElevated", GVFSPlatform.Instance.IsElevated() },
                     { nameof(this.EnlistmentRootPathParameter), this.EnlistmentRootPathParameter },
+                    { nameof(this.StartedByService), this.StartedByService },
                 });
 
             AppDomain.CurrentDomain.UnhandledException += (object sender, UnhandledExceptionEventArgs e) =>

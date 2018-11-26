@@ -94,7 +94,7 @@ namespace GVFS.FunctionalTests.Tools
         {
             ProcessStartInfo processInfo = null;
             processInfo = new ProcessStartInfo(this.pathToGVFS);
-            processInfo.Arguments = args + " --internal_use_only_service_name " + GVFSServiceProcess.TestServiceName;
+            processInfo.Arguments = args + " " + TestConstants.InternalUseOnlyFlag + " " + GVFSHelpers.GetInternalParameter();
 
             processInfo.WindowStyle = ProcessWindowStyle.Hidden;
             processInfo.UseShellExecute = false;

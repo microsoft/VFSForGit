@@ -133,6 +133,11 @@ namespace GVFS.FunctionalTests.Tools
             }
         }
 
+        public static string GetInternalParameter()
+        {
+            return $"\"{{\\\"ServiceName\\\":\\\"{GVFSServiceProcess.TestServiceName}\\\",\\\"StartedByService\\\":false}}\"";
+        }
+
         private static string GetModifiedPathsContents(GVFSFunctionalTestEnlistment enlistment, FileSystemRunner fileSystem)
         {
             enlistment.WaitForBackgroundOperations();

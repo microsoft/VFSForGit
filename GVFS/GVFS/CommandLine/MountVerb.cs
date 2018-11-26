@@ -274,7 +274,9 @@ namespace GVFS.CommandLine
                     ParamPrefix + GVFSConstants.VerbParameters.Mount.Verbosity,
                     this.Verbosity,
                     ParamPrefix + GVFSConstants.VerbParameters.Mount.Keywords,
-                    this.KeywordsCsv
+                    this.KeywordsCsv,
+                    ParamPrefix + GVFSConstants.VerbParameters.Mount.StartedByService,
+                    this.StartedByService.ToString()
                 });
 
             if (GVFSPlatform.Instance.IsUnderConstruction)

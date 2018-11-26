@@ -208,9 +208,11 @@ namespace GVFS.Common
 
         public static class VerbParameters
         {
+                public const string InternalUseOnly = "internal_use_only";
+
             public static class Mount
             {
-                public const string ServiceName = "internal_use_only_service_name";
+                public const string StartedByService = "StartedByService";
                 public const string Verbosity = "verbosity";
                 public const string Keywords = "keywords";
                 public const string DebugWindow = "debug-window";

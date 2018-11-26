@@ -214,11 +214,11 @@ namespace GVFS.FunctionalTests.Windows.Tests
             string mountCommand;
             if (enlistmentPath != null)
             {
-                mountCommand = $"mount \"{enlistmentPath}\" --internal_use_only_service_name {GVFSServiceProcess.TestServiceName}";
+                mountCommand = $"mount \"{enlistmentPath}\" {TestConstants.InternalUseOnlyFlag} {GVFSHelpers.GetInternalParameter()}";
             }
             else
             {
-                mountCommand = $"mount --internal_use_only_service_name {GVFSServiceProcess.TestServiceName}";
+                mountCommand = $"mount {TestConstants.InternalUseOnlyFlag} {GVFSHelpers.GetInternalParameter()}";
             }
 
             ProcessStartInfo startInfo = new ProcessStartInfo(GVFSTestConfig.PathToGVFS);

@@ -58,7 +58,10 @@ namespace GVFS.Service
 
         private bool CallGVFSMount(string repoRoot)
         {
-            return this.CurrentUser.RunAs(Configuration.Instance.GVFSLocation, "mount " + repoRoot);
+            InternalVerbParameters mountInternal = new InternalVerbParameters(serviceName: null, startedByService: true);
+            return this.CurrentUser.RunAs(
+                Configuration.Instance.GVFSLocation,
+                $"mount {repoRoot} --{GVFSConstants.VerbParameters.InternalUseOnly} {mountInternal.ToJson()}");
         }
     }
 }
