@@ -1,7 +1,8 @@
-﻿using System;
+﻿using GVFS.Common;
+using System;
 using System.IO;
 
-namespace GVFS.Common.Prefetch
+namespace FastFetch
 {
     public class GitEnlistment : Enlistment
     {

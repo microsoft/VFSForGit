@@ -60,6 +60,7 @@
     <Compile Include="CheckoutPrefetcher.cs" />
     <Compile Include="FastFetchVerb.cs" />
     <Compile Include="..\GVFS.PlatformLoader\PlatformLoader.Windows.cs" />
+    <Compile Include="GitEnlistment.cs" />
     <Compile Include="Index.cs" />
     <Compile Include="Program.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
