@@ -95,7 +95,7 @@ namespace GVFS.Common.Git
         
         public virtual void DeleteTemporaryFiles()
         {
-            string[] temporaryFiles = this.fileSystem.GetFiles(Path.Combine(this.Enlistment.GitPackRoot), "tmp_*");
+            string[] temporaryFiles = this.fileSystem.GetFiles(this.Enlistment.GitPackRoot, "tmp_*");
             foreach (string temporaryFilePath in temporaryFiles)
             {
                 EventMetadata metadata = CreateEventMetadata();

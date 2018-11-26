@@ -10,10 +10,11 @@ namespace GVFS.Common.Cleanup
         public const string ObjectCacheLock = "git-cleanup-step.lock";
         private readonly object gitProcessLock = new object();
 
-        public GitCleanupStep(GVFSContext context, GitObjects gitObjects)
+        public GitCleanupStep(GVFSContext context, GitObjects gitObjects, bool requireCacheLock = false)
         {
             this.Context = context;
             this.GitObjects = gitObjects;
+            this.RequireCacheLock = requireCacheLock;
         }
 
         public abstract string TelemetryKey { get; }
@@ -22,6 +23,7 @@ namespace GVFS.Common.Cleanup
         protected GitObjects GitObjects { get; }
         protected GitProcess GitProcess { get; private set; }
         protected bool Stopping { get; private set; }
+        protected bool RequireCacheLock { get; }
 
         public static bool TryStopGitProcess(ITracer tracer, GitProcess process)
         {
@@ -52,28 +54,25 @@ namespace GVFS.Common.Cleanup
         {
             try
             {
-                using (FileBasedLock cacheLock = GVFSPlatform.Instance.CreateFileBasedLock(
-                    this.Context.FileSystem,
-                    this.Context.Tracer,
-                    Path.Combine(this.Context.Enlistment.GitObjectsRoot, ObjectCacheLock)))
+                if (this.RequireCacheLock)
                 {
-                    if (!cacheLock.TryAcquireLock())
+                    using (FileBasedLock cacheLock = GVFSPlatform.Instance.CreateFileBasedLock(
+                        this.Context.FileSystem,
+                        this.Context.Tracer,
+                        Path.Combine(this.Context.Enlistment.GitObjectsRoot, ObjectCacheLock)))
                     {
-                        this.Context.Tracer.RelatedInfo(this.TelemetryKey + ": Skipping work since another process holds the lock");
-                        return;
-                    }
-
-                    lock (this.gitProcessLock)
-                    {
-                        if (this.Stopping)
+                        if (!cacheLock.TryAcquireLock())
                         {
+                            this.Context.Tracer.RelatedInfo(this.TelemetryKey + ": Skipping work since another process holds the lock");
                             return;
                         }
 
-                        this.GitProcess = new GitProcess(this.Context.Enlistment);
+                        this.CreateProcessAndRun();
                     }
-
-                    this.RunGitAction();
+                }
+                else
+                {
+                    this.CreateProcessAndRun();
                 }
             }
             catch (IOException e)
@@ -120,8 +119,13 @@ namespace GVFS.Common.Cleanup
             }
         }
 
+        /// <summary>
+        /// Implement this method to perform a cleanup step. If the object-cache lock is required
+        /// (as specified by <see cref="RequireCacheLock"/>), then this step is not run unless we
+        /// hold the lock.
+        /// </summary>
         protected abstract void RunGitAction();
-
+        
         protected GitProcess.Result RunGitCommand(Func<GitProcess, GitProcess.Result> work)
         {
             using (ITracer activity = this.Context.Tracer.StartActivity("RunGitCommand", EventLevel.Informational, Keywords.Telemetry, metadata: null))
@@ -160,6 +164,21 @@ namespace GVFS.Common.Cleanup
                 metadata: metadata,
                 message: telemetryKey + ": Unexpected Exception while running a cleanup step: " + exception.Message,
                 keywords: Keywords.Telemetry);
+        }
+
+        private void CreateProcessAndRun()
+        {
+            lock (this.gitProcessLock)
+            {
+                if (this.Stopping)
+                {
+                    return;
+                }
+
+                this.GitProcess = new GitProcess(this.Context.Enlistment);
+            }
+
+            this.RunGitAction();
         }
 
         private EventMetadata CreateEventMetadata(Exception e = null)

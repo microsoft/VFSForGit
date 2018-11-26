@@ -125,8 +125,8 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
         [Category(Categories.MacTODO.M4)]
         public void PrefetchCleansUpPackDir()
         {
-            string multiPackIndexLockFile = Path.Combine(this.Enlistment.GetObjectRoot(this.fileSystem), "pack", MultiPackIndexLock);
-            string oldGitTempFile = Path.Combine(this.Enlistment.GetObjectRoot(this.fileSystem), "pack", "tmp_midx_XXXX");
+            string multiPackIndexLockFile = Path.Combine(this.Enlistment.GetPackRoot(this.fileSystem),  MultiPackIndexLock);
+            string oldGitTempFile = Path.Combine(this.Enlistment.GetPackRoot(this.fileSystem), "tmp_midx_XXXX");
 
             this.fileSystem.WriteAllText(multiPackIndexLockFile, this.Enlistment.EnlistmentRoot);
             this.fileSystem.WriteAllText(oldGitTempFile, this.Enlistment.EnlistmentRoot);
@@ -146,7 +146,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
         private void PostFetchCleanupStepShouldComplete()
         {
             string objectDir = this.Enlistment.GetObjectRoot(this.fileSystem);
-            string postFetchLock = Path.Combine(objectDir, "post-fetch.lock");
+            string objectCacheLock = Path.Combine(objectDir, "git-cleanup-step.lock");
 
             // Wait first, to hopefully ensure the background thread has
             // started before we check for the lock file.
@@ -154,7 +154,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
             {
                 Thread.Sleep(500);
             }
-            while (this.fileSystem.FileExists(postFetchLock));
+            while (this.fileSystem.FileExists(objectCacheLock));
 
             ProcessResult midxResult = GitProcess.InvokeProcess(this.Enlistment.RepoRoot, "multi-pack-index verify --object-dir=\"" + objectDir + "\"");
             midxResult.ExitCode.ShouldEqual(0);

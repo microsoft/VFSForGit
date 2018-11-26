@@ -75,7 +75,7 @@ namespace GVFS.Common.Cleanup
         }
 
         /// <summary>
-        /// This method is used for test purposes only.
+        /// This method is public for test purposes only.
         /// </summary>
         public bool EnlistmentRootReady()
         {

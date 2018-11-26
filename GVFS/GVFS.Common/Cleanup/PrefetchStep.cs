@@ -17,8 +17,8 @@ namespace GVFS.Common.Cleanup
         private const string PrefetchCommitsAndTreesLock = "prefetch-commits-trees.lock";
         private readonly TimeSpan timeBetweenPrefetches = TimeSpan.FromMinutes(70);
 
-        public PrefetchStep(GVFSContext context, GitObjects gitObjects)
-            : base(context, gitObjects)
+        public PrefetchStep(GVFSContext context, GitObjects gitObjects, bool requireCacheLock)
+            : base(context, gitObjects, requireCacheLock)
         {
         }
 
@@ -55,10 +55,7 @@ namespace GVFS.Common.Cleanup
                 }
             }
 
-            if (packIndexes?.Count > 0)
-            {
-                this.TrySchedulePostFetchJob(packIndexes);
-            }
+            this.TrySchedulePostFetchJob(packIndexes);
 
             return true;
         }

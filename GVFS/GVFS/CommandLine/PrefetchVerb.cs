@@ -212,12 +212,12 @@ namespace GVFS.CommandLine
 
             if (this.Verbose)
             {
-                success = new PrefetchStep(context, gitObjects).TryPrefetchCommitsAndTrees(out error);
+                success = new PrefetchStep(context, gitObjects, requireCacheLock: false).TryPrefetchCommitsAndTrees(out error);
             }
             else
             {
                 success = this.ShowStatusWhileRunning(
-                    () => new PrefetchStep(context, gitObjects).TryPrefetchCommitsAndTrees(out error),
+                    () => new PrefetchStep(context, gitObjects, requireCacheLock: false).TryPrefetchCommitsAndTrees(out error),
                 "Fetching commits and trees " + this.GetCacheServerDisplay(cacheServer, enlistment.RepoUrl));
             }
 
