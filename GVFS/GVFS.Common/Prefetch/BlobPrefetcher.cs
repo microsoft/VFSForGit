@@ -166,22 +166,22 @@ namespace GVFS.Common.Prefetch
         {
             int matchedBlobCount;
             int downloadedBlobCount;
-            int readFileCount;
+            int hydratedFileCount;
             
-            this.PrefetchWithStats(branchOrCommit, isBranch, false, out matchedBlobCount, out downloadedBlobCount, out readFileCount);
+            this.PrefetchWithStats(branchOrCommit, isBranch, false, out matchedBlobCount, out downloadedBlobCount, out hydratedFileCount);
         }
 
         public void PrefetchWithStats(
             string branchOrCommit,
             bool isBranch,
-            bool readFilesAfterDownload,
+            bool hydrateFilesAfterDownload,
             out int matchedBlobCount,
             out int downloadedBlobCount,
-            out int readFileCount)
+            out int hydratedFileCount)
         {
             matchedBlobCount = 0;
             downloadedBlobCount = 0;
-            readFileCount = 0;
+            hydratedFileCount = 0;
 
             if (string.IsNullOrWhiteSpace(branchOrCommit))
             {
@@ -255,7 +255,7 @@ namespace GVFS.Common.Prefetch
             //      * availableBlobs (out param): Locally available blob ids (shared between `blobFinder`, `downloader`, and `packIndexer`, all add blob ids to the list as they are locally available)
             //      * MissingBlobs (property): Blob ids that are missing and need to be downloaded
             //      * AvailableBlobs (property): Same as availableBlobs
-            FindMissingBlobsStage blobFinder = new FindMissingBlobsStage(this.SearchThreadCount, diff.RequiredBlobs, availableBlobs, this.Tracer, this.Enlistment);
+            FindBlobsStage blobFinder = new FindBlobsStage(this.SearchThreadCount, diff.RequiredBlobs, availableBlobs, this.Tracer, this.Enlistment);
 
             // downloader
             //  Inputs:
@@ -270,7 +270,7 @@ namespace GVFS.Common.Prefetch
             //  Inputs:
             //      * availablePacks (in param): Packfiles that have completed downloading from output of `downloader`
             //  Outputs:
-            //      * availableBlobs (out param): Blobs that have completed downloading and indexing ((shared between `blobFinder`, `downloader`, and `packIndexer`, all add blob ids to the list as they are locally available)
+            //      * availableBlobs (out param): Blobs that have completed downloading and indexing (shared between `blobFinder`, `downloader`, and `packIndexer`, all add blob ids to the list as they are locally available)
             IndexPackStage packIndexer = new IndexPackStage(this.IndexThreadCount, downloader.AvailablePacks, availableBlobs, this.Tracer, this.GitObjects);
 
             // fileHydrator
@@ -289,9 +289,9 @@ namespace GVFS.Common.Prefetch
                 this.HasFailures |= diff.HasFailures;
             };
 
-            if (readFilesAfterDownload)
+            if (hydrateFilesAfterDownload)
             {
-                // Call synchronously to ensure that blobEnumerator.FileAddOperations
+                // Call synchronously to ensure that diff.FileAddOperations
                 // is completely populated when fileHydrator starts
                 performDiff();
             }
@@ -303,7 +303,7 @@ namespace GVFS.Common.Prefetch
             blobFinder.Start();
             downloader.Start();
 
-            if (readFilesAfterDownload)
+            if (hydrateFilesAfterDownload)
             {
                 fileHydrator.Start();
             }
@@ -322,7 +322,7 @@ namespace GVFS.Common.Prefetch
 
             availableBlobs.CompleteAdding();
 
-            if (readFilesAfterDownload)
+            if (hydrateFilesAfterDownload)
             {
                 fileHydrator.WaitForCompletion();
                 this.HasFailures |= fileHydrator.HasFailures;
@@ -330,7 +330,7 @@ namespace GVFS.Common.Prefetch
 
             matchedBlobCount = blobFinder.AvailableBlobCount + blobFinder.MissingBlobCount;
             downloadedBlobCount = blobFinder.MissingBlobCount;
-            readFileCount = fileHydrator.ReadFileCount;
+            hydratedFileCount = fileHydrator.ReadFileCount;
 
             if (!this.SkipConfigUpdate && !this.HasFailures)
             {

@@ -8,10 +8,9 @@ namespace GVFS.Common.Prefetch.Pipeline
     /// <summary>
     /// Takes in search requests, searches each tree as requested, outputs blocks of missing blob shas.
     /// </summary>
-    public class FindMissingBlobsStage : PrefetchPipelineStage
+    public class FindBlobsStage : PrefetchPipelineStage
     {
-        private const string AreaPath = nameof(FindMissingBlobsStage);
-        private const string TreeSearchAreaPath = "TreeSearch";
+        private const string AreaPath = nameof(FindBlobsStage);
 
         private ITracer tracer;
         private Enlistment enlistment;
@@ -22,7 +21,7 @@ namespace GVFS.Common.Prefetch.Pipeline
 
         private ConcurrentHashSet<string> alreadyFoundBlobIds;
 
-        public FindMissingBlobsStage(
+        public FindBlobsStage(
             int maxParallel,
             BlockingCollection<string> requiredBlobs,
             BlockingCollection<string> availableBlobs,
