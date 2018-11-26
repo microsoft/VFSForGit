@@ -1,4 +1,5 @@
-﻿using System.IO;
+﻿using GVFS.Common.Git;
+using System.IO;
 using System.Text;
 
 namespace GVFS.Common.Prefetch.Git
