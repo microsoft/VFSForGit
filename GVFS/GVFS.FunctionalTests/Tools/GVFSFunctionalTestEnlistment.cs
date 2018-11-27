@@ -145,16 +145,7 @@ namespace GVFS.FunctionalTests.Tools
         {
             TestResultsHelper.OutputGVFSLogs(this);
 
-            if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
-            {
-                // Use cmd.exe to delete the enlistment as it properly handles tombstones and reparse points
-                CmdRunner.DeleteDirectoryWithUnlimitedRetries(this.EnlistmentRoot);
-            }
-            else
-            {
-                // TODO(Mac): Figure out why the call to DeleteDirectoryWithRetry is not returning
-                // BashRunner.DeleteDirectoryWithRetry(this.EnlistmentRoot);
-            }
+            RepositoryHelpers.DeleteTestRepository(this.EnlistmentRoot);
         }
 
         public void CloneAndMount(bool skipPrefetch)

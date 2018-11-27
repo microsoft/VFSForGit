@@ -3,10 +3,8 @@ using GVFS.Common.Tracing;
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
-using System.Diagnostics;
 using System.IO;
 using System.Linq;
-using System.Threading;
 
 namespace GVFS.Common.Prefetch.Git
 {
@@ -41,7 +39,7 @@ namespace GVFS.Common.Prefetch.Git
 
             this.DirectoryOperations = new ConcurrentQueue<DiffTreeResult>();
             this.FileDeleteOperations = new ConcurrentQueue<string>();
-            this.FileAddOperations = new ConcurrentDictionary<string, HashSet<Tuple<string, string>>>(StringComparer.OrdinalIgnoreCase);
+            this.FileAddOperations = new ConcurrentDictionary<string, HashSet<PathWithMode>>(StringComparer.OrdinalIgnoreCase);
             this.RequiredBlobs = new BlockingCollection<string>();
         }
 
@@ -56,7 +54,7 @@ namespace GVFS.Common.Prefetch.Git
         /// <summary>
         /// Mapping from available sha to filenames where blob should be written
         /// </summary>
-        public ConcurrentDictionary<string, HashSet<Tuple<string, string>>> FileAddOperations { get; }
+        public ConcurrentDictionary<string, HashSet<PathWithMode>> FileAddOperations { get; }
 
         /// <summary>
         /// Blobs required to perform a checkout of the destination
@@ -371,9 +369,9 @@ namespace GVFS.Common.Prefetch.Git
             // Each filepath should be case-insensitive unique. If there are duplicates, only the last parsed one should remain.
             if (!this.filesAdded.Add(operation.TargetPath))
             {
-                foreach (KeyValuePair<string, HashSet<Tuple<string, string>>> kvp in this.FileAddOperations)
+                foreach (KeyValuePair<string, HashSet<PathWithMode>> kvp in this.FileAddOperations)
                 {
-                    if (kvp.Value.Any(m => m.Item2 == operation.TargetPath))
+                    if (kvp.Value.Any(m => m.Path == operation.TargetPath))
                     {
                         break;
                     }
@@ -388,13 +386,12 @@ namespace GVFS.Common.Prefetch.Git
                 activity.RelatedEvent(EventLevel.Warning, "CaseConflict", metadata);
             }
 
-            // TODO(Nick): Write EqualityComparison for HashSet<Tuple<string,string>>
             this.FileAddOperations.AddOrUpdate(
                 operation.TargetSha,
-                new HashSet<Tuple<string, string>> { new Tuple<string, string>(operation.TargetMode, operation.TargetPath) },
+                new HashSet<PathWithMode> { new PathWithMode(operation.TargetMode, operation.TargetPath) },
                 (key, oldValue) =>
                 {
-                    oldValue.Add(new Tuple<string, string>(operation.TargetMode, operation.TargetPath));
+                    oldValue.Add(new PathWithMode(operation.TargetMode, operation.TargetPath));
                     return oldValue;
                 });
 

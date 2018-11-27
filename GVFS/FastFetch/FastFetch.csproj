@@ -3,12 +3,13 @@
   <Import Project="..\LibGit2Sharp.NativeBinaries.props" />
   <PropertyGroup>
     <OutputType>Exe</OutputType>
-    <AssemblyName>fastfetch</AssemblyName>
+    <AssemblyName>FastFetch</AssemblyName>
     <TargetFramework>netcoreapp2.1</TargetFramework>
     <Platforms>x64</Platforms>
     <RunTimeIdentifiers>osx-x64;win-x64</RunTimeIdentifiers>
     <TargetLatestRuntimePatch>true</TargetLatestRuntimePatch>
     <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
   </PropertyGroup>
 
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
@@ -18,6 +19,11 @@
     <Version>$(GVFSVersion)</Version>
   </PropertyGroup>
 
+  <PropertyGroup Condition="'$(MSBuildRuntimeType)' == 'Core'">
+    <IsOSX Condition="'$([System.Runtime.InteropServices.RuntimeInformation]::IsOSPlatform($([System.Runtime.InteropServices.OSPlatform]::OSX)))' == 'true'">true</IsOSX>
+    <IsLinux Condition="'$([System.Runtime.InteropServices.RuntimeInformation]::IsOSPlatform($([System.Runtime.InteropServices.OSPlatform]::Linux)))' == 'true'">true</IsLinux>
+  </PropertyGroup>
+  
   <ItemGroup>
     <ProjectReference Include="..\GVFS.Common\GVFS.Common.csproj" />
     <ProjectReference Include="..\GVFS.Virtualization\GVFS.Virtualization.csproj" />

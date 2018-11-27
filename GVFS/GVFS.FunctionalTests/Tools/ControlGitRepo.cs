@@ -67,18 +67,5 @@ namespace GVFS.FunctionalTests.Tools
         {
             GitProcess.Invoke(this.RootPath, "fetch origin " + commitish);
         }
-
-        public void Delete()
-        {
-            if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
-            {
-                CmdRunner.DeleteDirectoryWithUnlimitedRetries(this.RootPath);
-            }
-            else
-            {
-                // TODO(Mac): See if we can use BashRunner.DeleteDirectoryWithRetry on Windows as well
-                BashRunner.DeleteDirectoryWithUnlimitedRetries(this.RootPath);
-            }
-        }
     }
 }

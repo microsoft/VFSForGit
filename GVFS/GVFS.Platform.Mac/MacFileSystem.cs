@@ -3,10 +3,8 @@ using GVFS.Common.FileSystem;
 using GVFS.Common.Tracing;
 using System;
 using System.ComponentModel;
-using System.Diagnostics;
 using System.IO;
 using System.Runtime.InteropServices;
-using System.Threading;
 
 namespace GVFS.Platform.Mac
 {
@@ -33,7 +31,7 @@ namespace GVFS.Platform.Mac
             File.Copy(existingFileName, newFileName);
         }
 
-        public void ChangeMode(string path, int mode)
+        public void ChangeMode(string path, ushort mode)
         {
            Chmod(path, mode);
         }
@@ -60,23 +58,24 @@ namespace GVFS.Platform.Mac
             return NativeStat.IsSock(statBuffer.Mode);
         }
 
-        public unsafe void WriteFile(ITracer tracer, byte* originalData, long originalSize, string destination, string mode)
+        public unsafe void WriteFile(ITracer tracer, byte* originalData, long originalSize, string destination, ushort mode)
         {
-            int fileDescriptor = 1;
+            int fileDescriptor = -1;
             try
             {
-                // TODO(Nick): Should we move this conversion into DiffTreeResult?
-                ushort octalMode = Convert.ToUInt16(mode.Substring(3, 3), 8);
-                fileDescriptor = NativeFileReader.Open(destination, NativeFileReader.WriteOnly | NativeFileReader.Create, octalMode);
-                IntPtr result = Write(fileDescriptor, originalData, (IntPtr)originalSize);
-                if (result.ToInt32() == -1)
+                fileDescriptor = NativeFileReader.Open(destination, NativeFileReader.WriteOnly | NativeFileReader.Create, mode);
+                if (fileDescriptor != -1)
                 {
-                    throw new Win32Exception(Marshal.GetLastWin32Error());
+                    IntPtr result = Write(fileDescriptor, originalData, (IntPtr)originalSize);
+                    if (result.ToInt32() == -1)
+                    {
+                        throw new Win32Exception(Marshal.GetLastWin32Error());
+                    }
                 }
             }
-            catch
+            catch (Win32Exception e)
             {
-                tracer.RelatedError("Error writing file {0}. ERRNO: {1}", destination, Marshal.GetLastWin32Error());
+                tracer.RelatedError("Error writing file {0}. Win32Exception: {1}", destination, e);
                 throw;
             }
             finally
@@ -86,7 +85,7 @@ namespace GVFS.Platform.Mac
         }
 
         [DllImport("libc", EntryPoint = "chmod", SetLastError = true)]
-        private static extern int Chmod(string pathname, int mode);
+        private static extern int Chmod(string pathname, ushort mode);
 
         [DllImport("libc", EntryPoint = "rename", SetLastError = true)]
         private static extern int Rename(string oldPath, string newPath);
@@ -180,12 +179,15 @@ namespace GVFS.Platform.Mac
 
             public static bool TryReadFirstByteOfFile(string fileName, byte[] buffer)
             {
-                int fileDescriptor = 1;
-                bool readStatus;
+                int fileDescriptor = -1;
+                bool readStatus = false;
                 try
                 {
                     fileDescriptor = Open(fileName, ReadOnly);
-                    readStatus = TryReadOneByte(fileDescriptor, buffer);
+                    if (fileDescriptor != -1)
+                    {
+                        readStatus = TryReadOneByte(fileDescriptor, buffer);
+                    }
                 }
                 finally
                 {

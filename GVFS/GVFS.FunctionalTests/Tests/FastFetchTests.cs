@@ -46,27 +46,13 @@ namespace GVFS.FunctionalTests.Tests
         [TearDown]
         public void TearDownTests()
         {
-            if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
-            {
-                CmdRunner.DeleteDirectoryWithUnlimitedRetries(this.fastFetchRepoRoot);
-            }
-            else
-            {
-                BashRunner.DeleteDirectoryWithUnlimitedRetries(this.fastFetchRepoRoot);
-            }
+            RepositoryHelpers.DeleteTestRepository(this.fastFetchRepoRoot);
         }
 
         [OneTimeTearDown]
         public void DeleteControlRepo()
         {
-            if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
-            {
-                CmdRunner.DeleteDirectoryWithUnlimitedRetries(this.fastFetchRepoRoot);
-            }
-            else
-            {
-                BashRunner.DeleteDirectoryWithUnlimitedRetries(this.fastFetchRepoRoot);
-            }
+            RepositoryHelpers.DeleteTestRepository(this.fastFetchControlRoot);
         }
         
         [TestCase]

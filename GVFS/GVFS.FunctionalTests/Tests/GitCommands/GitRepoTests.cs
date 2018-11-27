@@ -157,7 +157,7 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
 
             if (this.ControlGitRepo != null)
             {
-                this.ControlGitRepo.Delete();
+                RepositoryHelpers.DeleteTestRepository(this.ControlGitRepo.RootPath);
             }
         }
 

@@ -6,7 +6,6 @@ using System;
 using System.ComponentModel;
 using System.IO;
 using System.Runtime.InteropServices;
-using static GVFS.Common.Git.LibGit2Repo;
 
 namespace GVFS.Platform.Windows
 {
@@ -34,7 +33,7 @@ namespace GVFS.Platform.Windows
             NativeMethods.CreateHardLink(newFileName, existingFileName);
         }
 
-        public void ChangeMode(string path, int mode)
+        public void ChangeMode(string path, ushort mode)
         {
         }
 
@@ -59,7 +58,7 @@ namespace GVFS.Platform.Windows
             return false;
         }
 
-        public unsafe void WriteFile(ITracer tracer, byte* originalData, long originalSize, string destination, string mode /* ignored on windows */)
+        public unsafe void WriteFile(ITracer tracer, byte* originalData, long originalSize, string destination, ushort mode /* ignored on windows */)
         {
             try
             {
@@ -130,7 +129,7 @@ namespace GVFS.Platform.Windows
             [MarshalAs(UnmanagedType.U4)] FileAttributes flagsAndAttributes,
             IntPtr templateFile);
 
-        [DllImport("kernel32.dll")]
+        [DllImport("kernel32.dll", SetLastError = true)]
         [return: MarshalAs(UnmanagedType.Bool)]
         private static unsafe extern bool WriteFile(
             SafeFileHandle file,

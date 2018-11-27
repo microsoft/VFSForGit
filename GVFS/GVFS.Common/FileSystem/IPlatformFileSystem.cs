@@ -9,10 +9,10 @@ namespace GVFS.Common.FileSystem
         void MoveAndOverwriteFile(string sourceFileName, string destinationFilename);
         void CreateHardLink(string newLinkFileName, string existingFileName);
         bool TryGetNormalizedPath(string path, out string normalizedPath, out string errorMessage);
-        void ChangeMode(string path, int mode);
+        void ChangeMode(string path, ushort mode);
         bool HydrateFile(string fileName, byte[] buffer);
         bool IsExecutable(string filePath);
         bool IsSocket(string filePath);
-        unsafe void WriteFile(ITracer tracer, byte* originalData, long originalSize, string destination, string mode);
+        unsafe void WriteFile(ITracer tracer, byte* originalData, long originalSize, string destination, ushort mode);
     }
 }

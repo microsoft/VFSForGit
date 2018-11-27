@@ -23,7 +23,7 @@ namespace GVFS.UnitTests.Mock.FileSystem
             throw new NotSupportedException();
         }
 
-        public void ChangeMode(string path, int mode)
+        public void ChangeMode(string path, ushort mode)
         {
             throw new NotSupportedException();
         }
@@ -50,7 +50,7 @@ namespace GVFS.UnitTests.Mock.FileSystem
             throw new NotSupportedException();
         }
 
-        public unsafe void WriteFile(ITracer tracer, byte* originalData, long originalSize, string destination, string mode)
+        public unsafe void WriteFile(ITracer tracer, byte* originalData, long originalSize, string destination, ushort mode)
         {
             throw new NotSupportedException();
         }

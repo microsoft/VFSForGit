@@ -1,4 +1,5 @@
-﻿using GVFS.Common.Tracing;
+﻿using GVFS.Common.Prefetch.Git;
+using GVFS.Common.Tracing;
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
@@ -8,7 +9,7 @@ namespace GVFS.Common.Prefetch.Pipeline
 {
     public class HydrateFilesStage : PrefetchPipelineStage
     {
-        private readonly ConcurrentDictionary<string, HashSet<Tuple<string, string>>> blobIdToPaths;
+        private readonly ConcurrentDictionary<string, HashSet<PathWithMode>> blobIdToPaths;
         private readonly BlockingCollection<string> availableBlobs;
 
         private ITracer tracer;
@@ -39,10 +40,9 @@ namespace GVFS.Common.Prefetch.Pipeline
                 string blobId;
                 while (this.availableBlobs.TryTake(out blobId, Timeout.Infinite))
                 {
-                    foreach (Tuple<string, string> modeAndPath in this.blobIdToPaths[blobId])
+                    foreach (PathWithMode modeAndPath in this.blobIdToPaths[blobId])
                     {
-                        string path = modeAndPath.Item2;
-                        bool succeeded = GVFSPlatform.Instance.FileSystem.HydrateFile(path, buffer);
+                        bool succeeded = GVFSPlatform.Instance.FileSystem.HydrateFile(modeAndPath.Path, buffer);
                         if (succeeded)
                         {
                             Interlocked.Increment(ref this.readFileCount);
@@ -50,7 +50,7 @@ namespace GVFS.Common.Prefetch.Pipeline
                         }
                         else
                         {
-                            activity.RelatedError("Failed to read " + path);
+                            activity.RelatedError("Failed to read " + modeAndPath.Path);
 
                             failedFilesCurrentThread++;
                             this.HasFailures = true;
