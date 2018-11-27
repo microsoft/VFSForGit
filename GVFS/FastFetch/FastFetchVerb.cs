@@ -349,6 +349,7 @@ namespace FastFetch
                     tracer,
                     enlistment,
                     objectRequestor,
+                    null,
                     this.ChunkSize,
                     this.SearchThreadCount,
                     this.DownloadThreadCount,

@@ -228,16 +228,25 @@ namespace GVFS.CommandLine
 
         private void PrefetchBlobs(ITracer tracer, GVFSEnlistment enlistment, GitObjectsHttpRequestor blobRequestor, CacheServerInfo cacheServer)
         {
+            string error;
+            FileBasedDictionary<string, string> lastPrefetchArgs;
+
+            FileBasedDictionary<string, string>.TryCreate(
+                tracer,
+                Path.Combine(enlistment.DotGVFSRoot, "LastBlobPrefetch.dat"),
+                new PhysicalFileSystem(),
+                out lastPrefetchArgs,
+                out error);
             BlobPrefetcher blobPrefetcher = new BlobPrefetcher(
                 tracer,
                 enlistment,
                 blobRequestor,
+                lastPrefetchArgs,
                 ChunkSize,
                 SearchThreadCount,
                 DownloadThreadCount,
                 IndexThreadCount);
 
-            string error;
             if (!BlobPrefetcher.TryLoadFolderList(enlistment, this.Folders, this.FoldersListFile, blobPrefetcher.FolderList, out error))
             {
                 this.ReportErrorAndExit(tracer, error);
@@ -251,7 +260,7 @@ namespace GVFS.CommandLine
             if (blobPrefetcher.FolderList.Count == 0 &&
                 blobPrefetcher.FileList.Count == 0)
             {
-                this.ReportErrorAndExit(tracer, "Did you mean to fetch all blobs? If so, specify `--files *` to confirm.");
+                this.ReportErrorAndExit(tracer, "Did you mean to fetch all blobs? If so, specify `--files '*'` to confirm.");
             }
 
             if (this.HydrateFiles)
