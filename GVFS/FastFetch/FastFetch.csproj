@@ -56,12 +56,15 @@
     <Compile Include="$(BuildOutputDir)\CommonAssemblyVersion.cs">
       <Link>CommonAssemblyVersion.cs</Link>
     </Compile>
-    <Compile Include="CheckoutJob.cs" />
+    <Compile Include="CheckoutStage.cs" />
     <Compile Include="CheckoutPrefetcher.cs" />
     <Compile Include="FastFetchVerb.cs" />
     <Compile Include="..\GVFS.PlatformLoader\PlatformLoader.Windows.cs" />
+    <Compile Include="GitEnlistment.cs" />
+    <Compile Include="Index.cs" />
     <Compile Include="Program.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
+    <Compile Include="WorkingTree.cs" />
   </ItemGroup>
   <ItemGroup>
     <None Include="App.config" />

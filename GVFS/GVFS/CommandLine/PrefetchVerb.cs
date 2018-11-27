@@ -274,7 +274,7 @@ namespace GVFS.CommandLine
 
             int matchedBlobCount = 0;
             int downloadedBlobCount = 0;
-            int readFileCount = 0;
+            int hydratedFileCount = 0;
 
             string headCommitId = result.Output;
             Func<bool> doPrefetch =
@@ -285,10 +285,10 @@ namespace GVFS.CommandLine
                         blobPrefetcher.PrefetchWithStats(
                             headCommitId.Trim(),
                             isBranch: false,
-                            readFilesAfterDownload: this.HydrateFiles,
+                            hydrateFilesAfterDownload: this.HydrateFiles,
                             matchedBlobCount: out matchedBlobCount,
                             downloadedBlobCount: out downloadedBlobCount,
-                            readFileCount: out readFileCount);
+                            hydratedFileCount: out hydratedFileCount);
                         return !blobPrefetcher.HasFailures;
                     }
                     catch (BlobPrefetcher.FetchException e)
@@ -324,7 +324,7 @@ namespace GVFS.CommandLine
                 Console.WriteLine("  Downloaded:       " + downloadedBlobCount);
                 if (this.HydrateFiles)
                 {
-                    Console.WriteLine("  Hydrated files:   " + readFileCount);
+                    Console.WriteLine("  Hydrated files:   " + hydratedFileCount);
                 }
             }
         }

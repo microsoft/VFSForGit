@@ -7,10 +7,11 @@ using System.Linq;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
-using GVFS.Common.Prefetch.Git;
+using GVFS.Common;
+using GVFS.Common.Git;
 using GVFS.Common.Tracing;
 
-namespace GVFS.Common.Prefetch
+namespace FastFetch
 {
     public class Index
     {
@@ -159,6 +160,16 @@ namespace GVFS.Common.Prefetch
             }
         }
 
+        private static string FromWindowsFullPathToGitRelativePath(string path, string repoRoot)
+        {
+            return path.Substring(repoRoot.Length).TrimStart(Path.DirectorySeparatorChar).Replace(Path.DirectorySeparatorChar, GVFSConstants.GitPathSeparator);
+        }
+
+        private static string FromGitRelativePathToWindowsFullPath(string path, string repoRoot)
+        {
+            return Path.Combine(repoRoot, path.Replace(GVFSConstants.GitPathSeparator, Path.DirectorySeparatorChar));
+        }
+
         private MemoryMappedFile GetMemoryMappedFile()
         {
             return MemoryMappedFile.CreateFromFile(this.updatedIndexPath, FileMode.Open);
@@ -176,7 +187,7 @@ namespace GVFS.Common.Prefetch
                     {
                         foreach (FileInfo file in files)
                         {
-                            string gitPath = file.FullName.FromWindowsFullPathToGitRelativePath(this.repoRoot);
+                            string gitPath = FromWindowsFullPathToGitRelativePath(file.FullName, this.repoRoot);
                             long offset;
                             if (this.indexEntryOffsets.TryGetValue(gitPath, out offset))
                             {
@@ -202,7 +213,7 @@ namespace GVFS.Common.Prefetch
                     addedOrEditedLocalFiles,
                     (localPath) =>
                     {
-                        string gitPath = localPath.FromWindowsFullPathToGitRelativePath(this.repoRoot);
+                        string gitPath = FromWindowsFullPathToGitRelativePath(localPath, this.repoRoot);
                         long offset;
                         if (this.indexEntryOffsets.TryGetValue(gitPath, out offset))
                         {
@@ -253,7 +264,7 @@ namespace GVFS.Common.Prefetch
                             }
                             else if (shouldAlsoTryPopulateFromDisk)
                             {
-                                string localPath = currentIndexFilename.FromGitRelativePathToWindowsFullPath(this.repoRoot);
+                                string localPath = FromGitRelativePathToWindowsFullPath(currentIndexFilename, this.repoRoot);
                                 if (TryUpdateEntryFromDisk(indexView, localPath, entry.Value))
                                 {
                                     Interlocked.Increment(ref updatedEntriesFromDisk);

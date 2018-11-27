@@ -2,7 +2,7 @@
 using GVFS.Common.Git;
 using GVFS.Common.Http;
 using GVFS.Common.Prefetch.Git;
-using GVFS.Common.Prefetch.Jobs;
+using GVFS.Common.Prefetch.Pipeline;
 using GVFS.Common.Tracing;
 using System;
 using System.Collections.Concurrent;
@@ -166,22 +166,22 @@ namespace GVFS.Common.Prefetch
         {
             int matchedBlobCount;
             int downloadedBlobCount;
-            int readFileCount;
+            int hydratedFileCount;
             
-            this.PrefetchWithStats(branchOrCommit, isBranch, false, out matchedBlobCount, out downloadedBlobCount, out readFileCount);
+            this.PrefetchWithStats(branchOrCommit, isBranch, false, out matchedBlobCount, out downloadedBlobCount, out hydratedFileCount);
         }
 
         public void PrefetchWithStats(
             string branchOrCommit,
             bool isBranch,
-            bool readFilesAfterDownload,
+            bool hydrateFilesAfterDownload,
             out int matchedBlobCount,
             out int downloadedBlobCount,
-            out int readFileCount)
+            out int hydratedFileCount)
         {
             matchedBlobCount = 0;
             downloadedBlobCount = 0;
-            readFileCount = 0;
+            hydratedFileCount = 0;
 
             if (string.IsNullOrWhiteSpace(branchOrCommit))
             {
@@ -229,18 +229,70 @@ namespace GVFS.Common.Prefetch
                 }
             }
 
-            DiffHelper blobEnumerator = new DiffHelper(this.Tracer, this.Enlistment, this.FileList, this.FolderList, includeSymLinks: false);
+            BlockingCollection<string> availableBlobs = new BlockingCollection<string>();
+
+            ////
+            // First create the pipeline
+            //
+            //  diff ---> blobFinder ---> downloader ---> packIndexer
+            //    |           |              |                 |
+            //     ------------------------------------------------------> fileHydrator
+            ////
+            
+            // diff
+            //  Inputs:
+            //      * files/folders
+            //      * commit id
+            //  Outputs:
+            //      * RequiredBlobs (property): Blob ids required to satisfy desired paths
+            //      * FileAddOperations (property): Repo-relative paths corresponding to those blob ids
+            DiffHelper diff = new DiffHelper(this.Tracer, this.Enlistment, this.FileList, this.FolderList, includeSymLinks: false);
+
+            // blobFinder 
+            //  Inputs:
+            //      * requiredBlobs (in param): Blob ids from output of `diff`
+            //  Outputs:
+            //      * availableBlobs (out param): Locally available blob ids (shared between `blobFinder`, `downloader`, and `packIndexer`, all add blob ids to the list as they are locally available)
+            //      * MissingBlobs (property): Blob ids that are missing and need to be downloaded
+            //      * AvailableBlobs (property): Same as availableBlobs
+            FindBlobsStage blobFinder = new FindBlobsStage(this.SearchThreadCount, diff.RequiredBlobs, availableBlobs, this.Tracer, this.Enlistment);
+
+            // downloader
+            //  Inputs:
+            //      * missingBlobs (in param): Blob ids from output of `blobFinder`
+            //  Outputs:
+            //      * availableBlobs (out param): Loose objects that have completed downloading (shared between `blobFinder`, `downloader`, and `packIndexer`, all add blob ids to the list as they are locally available)
+            //      * AvailableObjects (property): Same as availableBlobs
+            //      * AvailablePacks (property): Packfiles that have completed downloading
+            BatchObjectDownloadStage downloader = new BatchObjectDownloadStage(this.DownloadThreadCount, this.ChunkSize, blobFinder.MissingBlobs, availableBlobs, this.Tracer, this.Enlistment, this.ObjectRequestor, this.GitObjects);
+
+            // packIndexer
+            //  Inputs:
+            //      * availablePacks (in param): Packfiles that have completed downloading from output of `downloader`
+            //  Outputs:
+            //      * availableBlobs (out param): Blobs that have completed downloading and indexing (shared between `blobFinder`, `downloader`, and `packIndexer`, all add blob ids to the list as they are locally available)
+            IndexPackStage packIndexer = new IndexPackStage(this.IndexThreadCount, downloader.AvailablePacks, availableBlobs, this.Tracer, this.GitObjects);
+
+            // fileHydrator
+            //  Inputs:
+            //      * blobIdsToPaths (in param): paths of all blob ids that need to be hydrated from output of `diff`
+            //      * availableBlobs (in param): blobs id that are available locally, from whatever source
+            //  Outputs:
+            //      * Hydrated files on disk.
+            HydrateFilesStage fileHydrator = new HydrateFilesStage(Environment.ProcessorCount * 2, diff.FileAddOperations, availableBlobs, this.Tracer);
+
+            // All the stages of the pipeline are created and wired up, now kick them off in the proper sequence
 
             ThreadStart performDiff = () =>
             {
-                blobEnumerator.PerformDiff(previousCommit, commitToFetch);
-                this.HasFailures |= blobEnumerator.HasFailures;
+                diff.PerformDiff(previousCommit, commitToFetch);
+                this.HasFailures |= diff.HasFailures;
             };
 
-            if (readFilesAfterDownload)
+            if (hydrateFilesAfterDownload)
             {
-                // Call synchronously to ensure that blobEnumerator.FileAddOperations
-                // is completely populated when ReadFilesJob starts
+                // Call synchronously to ensure that diff.FileAddOperations
+                // is completely populated when fileHydrator starts
                 performDiff();
             }
             else
@@ -248,19 +300,12 @@ namespace GVFS.Common.Prefetch
                 new Thread(performDiff).Start();
             }
 
-            BlockingCollection<string> availableBlobs = new BlockingCollection<string>();
-
-            FindMissingBlobsJob blobFinder = new FindMissingBlobsJob(this.SearchThreadCount, blobEnumerator.RequiredBlobs, availableBlobs, this.Tracer, this.Enlistment);
-            BatchObjectDownloadJob downloader = new BatchObjectDownloadJob(this.DownloadThreadCount, this.ChunkSize, blobFinder.MissingBlobs, availableBlobs, this.Tracer, this.Enlistment, this.ObjectRequestor, this.GitObjects);
-            IndexPackJob packIndexer = new IndexPackJob(this.IndexThreadCount, downloader.AvailablePacks, availableBlobs, this.Tracer, this.GitObjects);
-            ReadFilesJob readFiles = new ReadFilesJob(Environment.ProcessorCount * 2, blobEnumerator.FileAddOperations, availableBlobs, this.Tracer);
-            
             blobFinder.Start();
             downloader.Start();
 
-            if (readFilesAfterDownload)
+            if (hydrateFilesAfterDownload)
             {
-                readFiles.Start();
+                fileHydrator.Start();
             }
 
             // If indexing happens during searching, searching progressively gets slower, so wait on searching before indexing.
@@ -277,15 +322,15 @@ namespace GVFS.Common.Prefetch
 
             availableBlobs.CompleteAdding();
 
-            if (readFilesAfterDownload)
+            if (hydrateFilesAfterDownload)
             {
-                readFiles.WaitForCompletion();
-                this.HasFailures |= readFiles.HasFailures;
+                fileHydrator.WaitForCompletion();
+                this.HasFailures |= fileHydrator.HasFailures;
             }
 
             matchedBlobCount = blobFinder.AvailableBlobCount + blobFinder.MissingBlobCount;
             downloadedBlobCount = blobFinder.MissingBlobCount;
-            readFileCount = readFiles.ReadFileCount;
+            hydratedFileCount = fileHydrator.ReadFileCount;
 
             if (!this.SkipConfigUpdate && !this.HasFailures)
             {

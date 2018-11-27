@@ -1,7 +1,7 @@
 ﻿using System.Collections.Generic;
 using System.Threading;
 
-namespace GVFS.Common.Prefetch.Jobs.Data
+namespace GVFS.Common.Prefetch.Pipeline.Data
 {
     public class BlobDownloadRequest
     {

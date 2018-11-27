@@ -2,7 +2,7 @@
 using System.IO;
 using System.Security.Cryptography;
 
-namespace GVFS.Common.Prefetch
+namespace GVFS.Common.Git
 {
     public class HashingStream : Stream
     {

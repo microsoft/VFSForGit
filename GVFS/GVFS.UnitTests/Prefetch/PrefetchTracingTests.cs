@@ -1,5 +1,5 @@
-﻿using GVFS.Common.Prefetch.Jobs;
-using GVFS.Common.Prefetch.Jobs.Data;
+﻿using GVFS.Common.Prefetch.Pipeline;
+using GVFS.Common.Prefetch.Pipeline.Data;
 using GVFS.Common.Tracing;
 using GVFS.Tests.Should;
 using GVFS.UnitTests.Mock.Common;
@@ -28,7 +28,7 @@ namespace GVFS.UnitTests.Prefetch
                 input.Add(FakeSha);
                 input.CompleteAdding();
 
-                BatchObjectDownloadJob dut = new BatchObjectDownloadJob(1, 1, input, new BlockingCollection<string>(), tracer, enlistment, httpGitObjects, gitObjects);
+                BatchObjectDownloadStage dut = new BatchObjectDownloadStage(1, 1, input, new BlockingCollection<string>(), tracer, enlistment, httpGitObjects, gitObjects);
                 dut.Start();
                 dut.WaitForCompletion();
 
@@ -54,7 +54,7 @@ namespace GVFS.UnitTests.Prefetch
                 input.Add(FakeSha);
                 input.CompleteAdding();
 
-                BatchObjectDownloadJob dut = new BatchObjectDownloadJob(1, 1, input, new BlockingCollection<string>(), tracer, enlistment, httpGitObjects, gitObjects);
+                BatchObjectDownloadStage dut = new BatchObjectDownloadStage(1, 1, input, new BlockingCollection<string>(), tracer, enlistment, httpGitObjects, gitObjects);
                 dut.Start();
                 dut.WaitForCompletion();
 
@@ -81,7 +81,7 @@ namespace GVFS.UnitTests.Prefetch
                 input.Add(new IndexPackRequest("mock:\\path\\packFileName", downloadRequest));
                 input.CompleteAdding();
 
-                IndexPackJob dut = new IndexPackJob(1, input, new BlockingCollection<string>(), tracer, gitObjects);
+                IndexPackStage dut = new IndexPackStage(1, input, new BlockingCollection<string>(), tracer, gitObjects);
                 dut.Start();
                 dut.WaitForCompletion();
             }

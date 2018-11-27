@@ -2,7 +2,7 @@
 using GVFS.Common.FileSystem;
 using GVFS.Common.Git;
 using GVFS.Common.Prefetch.Git;
-using GVFS.Common.Prefetch.Jobs;
+using GVFS.Common.Prefetch.Pipeline;
 using GVFS.Common.Tracing;
 using System;
 using System.Collections.Concurrent;
@@ -13,9 +13,9 @@ using System.Threading.Tasks;
 
 namespace FastFetch
 {
-    public class CheckoutJob : Job
+    public class CheckoutStage : PrefetchPipelineStage
     {
-        private const string AreaPath = nameof(CheckoutJob);
+        private const string AreaPath = nameof(CheckoutStage);
         private const int NumOperationsPerStatus = 10000;
         
         private ITracer tracer;
@@ -34,8 +34,8 @@ namespace FastFetch
         // Checkout requires synchronization between the delete/directory/add stages, so control the parallelization
         private int maxParallel;
 
-        public CheckoutJob(int maxParallel, IEnumerable<string> folderList, string targetCommitSha, ITracer tracer, Enlistment enlistment, bool forceCheckout)
-            : base(1)
+        public CheckoutStage(int maxParallel, IEnumerable<string> folderList, string targetCommitSha, ITracer tracer, Enlistment enlistment, bool forceCheckout)
+            : base(maxParallel: 1)
         {
             this.tracer = tracer.StartActivity(AreaPath, EventLevel.Informational, Keywords.Telemetry, metadata: null);
             this.enlistment = enlistment;
@@ -45,7 +45,7 @@ namespace FastFetch
             this.AvailableBlobShas = new BlockingCollection<string>();
 
             // Keep track of how parallel we're expected to be later during DoWork
-            // Note that '1' is passed to the Job base object, forcing DoWork to be single threaded
+            // Note that '1' is passed to the base object, forcing DoWork to be single threaded
             // This allows us to control the synchronization between stages by doing the parallization ourselves
             this.maxParallel = maxParallel;
         }

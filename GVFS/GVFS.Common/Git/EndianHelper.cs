@@ -1,4 +1,4 @@
-﻿namespace GVFS.Common.Prefetch.Git
+﻿namespace GVFS.Common.Git
 {
     public static class EndianHelper
     {

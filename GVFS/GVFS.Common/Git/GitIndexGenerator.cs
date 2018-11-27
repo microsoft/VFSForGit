@@ -1,6 +1,4 @@
-﻿using GVFS.Common;
-using GVFS.Common.Git;
-using GVFS.Common.Tracing;
+﻿using GVFS.Common.Tracing;
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
@@ -8,7 +6,7 @@ using System.IO;
 using System.Text;
 using System.Threading;
 
-namespace GVFS.Common.Prefetch.Git
+namespace GVFS.Common.Git
 {
     public class GitIndexGenerator
     {
