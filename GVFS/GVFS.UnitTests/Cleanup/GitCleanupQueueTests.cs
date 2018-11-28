@@ -15,6 +15,8 @@ namespace GVFS.UnitTests.Cleanup
     [TestFixture]
     public class GitCleanupQueueTests
     {
+        private int maxWaitTime = 500;
+
         [TestCase]
         public void GitCleanupQueueEnlistmentRootReady()
         {
@@ -50,7 +52,6 @@ namespace GVFS.UnitTests.Cleanup
         [TestCase]
         public void GitCleanupQueueHandlesTwoJobs()
         {
-            int currentStep = 0;
             ITracer tracer = new MockTracer();
             GVFSEnlistment enlistment = new MockGVFSEnlistment();
 
@@ -64,28 +65,16 @@ namespace GVFS.UnitTests.Cleanup
             GVFSContext context = new GVFSContext(tracer, fileSystem, null, enlistment);
             GitObjects gitObjects = new MockPhysicalGitObjects(tracer, null, null, null);
 
-            TestGitCleanupStep step1 = new TestGitCleanupStep(
-                () =>
-                {
-                    currentStep = (currentStep == 0) ? 1 : -1;
-                },
-                context,
-                gitObjects);
-            TestGitCleanupStep step2 = new TestGitCleanupStep(
-                () =>
-                {
-                    currentStep = (currentStep == 1) ? 2 : -2;
-                },
-                context,
-                gitObjects);
+            TestGitCleanupStep step1 = new TestGitCleanupStep(context, gitObjects);
+            TestGitCleanupStep step2 = new TestGitCleanupStep(context, gitObjects);
 
             GitCleanupQueue queue = new GitCleanupQueue(context);
 
             queue.Enqueue(step1);
             queue.Enqueue(step2);
-            queue.WaitForStepsToFinish();
 
-            currentStep.ShouldEqual(2);
+            Assert.IsTrue(step1.EventTriggered.WaitOne(this.maxWaitTime) 
+                && step2.EventTriggered.WaitOne(this.maxWaitTime));
         }
 
         [TestCase]
@@ -132,15 +121,15 @@ namespace GVFS.UnitTests.Cleanup
             WatchForStopStep watchForStop = new WatchForStopStep(queue, context, gitObjects);
 
             queue.Enqueue(watchForStop);
-            queue.WaitForStepsToFinish();
+            Assert.IsTrue(watchForStop.EventTriggered.WaitOne(this.maxWaitTime));
             watchForStop.SawStopping.ShouldBeTrue();
 
             // Ensure we don't start a job after the Stop() call
-            WatchForStartStep watchForStart = new WatchForStartStep(context, gitObjects);
+            TestGitCleanupStep watchForStart = new TestGitCleanupStep(context, gitObjects);
             queue.Enqueue(watchForStart);
-            queue.WaitForStepsToFinish();
 
-            watchForStart.Started.ShouldBeFalse();
+            // This only ensure the event didn't happen within maxWaitTime
+            Assert.IsFalse(watchForStart.EventTriggered.WaitOne(this.maxWaitTime));
         }
 
         public class ReadyFileSystem : PhysicalFileSystem
@@ -160,19 +149,19 @@ namespace GVFS.UnitTests.Cleanup
 
         public class TestGitCleanupStep : GitCleanupStep
         {
-            private Action action;
-
-            public TestGitCleanupStep(Action action, GVFSContext context, GitObjects gitObjects)
+            public TestGitCleanupStep(GVFSContext context, GitObjects gitObjects)
                 : base(context, gitObjects)
             {
-                this.action = action;
+                this.EventTriggered = new ManualResetEvent(initialState: false);
             }
+
+            public ManualResetEvent EventTriggered { get; set; }
 
             public override string TelemetryKey => "TestGitCleanupStep";
 
             protected override void RunGitAction()
             {
-                this.action.Invoke();
+                this.EventTriggered.Set();
             }
         }
 
@@ -182,11 +171,14 @@ namespace GVFS.UnitTests.Cleanup
                 : base(context, gitObjects)
             {
                 this.Queue = queue;
+                this.EventTriggered = new ManualResetEvent(false);
             }
 
             public GitCleanupQueue Queue { get; set; }
 
             public bool SawStopping { get; private set; }
+
+            public ManualResetEvent EventTriggered { get; private set; }
 
             public override string TelemetryKey => "WatchForStopStep";
 
@@ -195,23 +187,8 @@ namespace GVFS.UnitTests.Cleanup
                 this.Queue.Stop();
 
                 this.SawStopping = this.Stopping;
-            }
-        }
 
-        private class WatchForStartStep : GitCleanupStep
-        {
-            public WatchForStartStep(GVFSContext context, GitObjects gitObjects)
-                : base(context, gitObjects)
-            {
-            }
-
-            public bool Started { get; private set; }
-
-            public override string TelemetryKey => "WatchForStopStep";
-
-            protected override void RunGitAction()
-            {
-                this.Started = true;
+                this.EventTriggered.Set();
             }
         }
     }

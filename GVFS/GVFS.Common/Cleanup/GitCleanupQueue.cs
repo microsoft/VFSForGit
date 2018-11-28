@@ -8,70 +8,28 @@ namespace GVFS.Common.Cleanup
 {
     public class GitCleanupQueue
     {
-        private readonly object threadLock = new object();
-        private readonly object currentStepLock = new object();
         private GVFSContext context;
-        private ConcurrentQueue<GitCleanupStep> queue;
-        private Thread thread;
+        private BlockingCollection<GitCleanupStep> queue = new BlockingCollection<GitCleanupStep>();
+        private CancellationTokenSource cancellationToken = new CancellationTokenSource();
         private GitCleanupStep currentStep;
-        private bool stopping;
 
         public GitCleanupQueue(GVFSContext context)
         {
             this.context = context;
-            this.queue = new ConcurrentQueue<GitCleanupStep>();
+            Thread cleanupWorker = new Thread(() => this.RunQueue());
+            cleanupWorker.Name = "CleanupWorker";
+            cleanupWorker.Start();
         }
 
         public void Enqueue(GitCleanupStep step)
         {
-            this.queue.Enqueue(step);
-
-            lock (this.threadLock)
-            {
-                if (this.thread == null)
-                {
-                    this.thread = new Thread(() => this.RunQueue());
-                    this.thread.IsBackground = true;
-
-                    try
-                    {
-                        this.thread.Start();
-                    }
-                    catch (ThreadStateException e)
-                    {
-                        this.LogError(nameof(GitCleanupQueue), nameof(this.Enqueue), e);
-                    }
-                    catch (OutOfMemoryException e)
-                    {
-                        this.LogError(nameof(GitCleanupQueue), nameof(this.Enqueue), e);
-                    }
-                }
-            }
+            this.queue.Add(step);
         }
 
         public void Stop()
         {
-            this.stopping = true;
-
-            GitCleanupStep stepToStop;
-
-            lock (this.currentStepLock)
-            {
-                stepToStop = this.currentStep;
-            }
-
-            if (stepToStop != null)
-            {
-                stepToStop.Stop();
-            }
-        }
-
-        /// <summary>
-        /// This method is used for test purposes only.
-        /// </summary>
-        public void WaitForStepsToFinish()
-        {
-            this.thread?.Join();
+            this.cancellationToken.Cancel();
+            this.currentStep?.Stop();
         }
 
         /// <summary>
@@ -97,40 +55,30 @@ namespace GVFS.Common.Cleanup
         {
             while (true)
             {
-                lock (this.threadLock)
+                try
                 {
-                    if (this.queue.Count == 0
-                        || !this.EnlistmentRootReady())
-                    {
-                        this.thread = null;
-                        return;
-                    }
+                    this.queue.TryTake(out this.currentStep, Timeout.Infinite, this.cancellationToken.Token);
                 }
-
-                lock (this.currentStepLock)
+                catch (OperationCanceledException)
                 {
-                    this.queue.TryDequeue(out this.currentStep);
-                }
-
-                if (this.stopping || this.currentStep == null)
-                {
-                    this.thread = null;
+                    // Only gets thrown when stop is requested
                     return;
                 }
 
-                try
+                if (this.EnlistmentRootReady())
                 {
-                    this.currentStep.Execute();
+                    try
+                    {
+                        this.currentStep.Execute();
+                    }
+                    catch (Exception e)
+                    {
+                        this.LogErrorAndExit(
+                            telemetryKey: nameof(GitCleanupQueue),
+                            methodName: nameof(this.RunQueue),
+                            exception: e);
+                    }                   
                 }
-                catch (Exception e)
-                {
-                    this.LogErrorAndExit(
-                        telemetryKey: nameof(GitCleanupQueue),
-                        methodName: nameof(this.RunQueue),
-                        exception: e);
-                }
-
-                this.currentStep = null;
             }
         }
 

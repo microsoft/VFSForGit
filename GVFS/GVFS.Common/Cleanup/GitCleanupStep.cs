@@ -52,6 +52,11 @@ namespace GVFS.Common.Cleanup
 
         public void Execute()
         {
+            if (this.Stopping)
+            {
+                return;
+            }
+
             try
             {
                 if (this.RequireCacheLock)
