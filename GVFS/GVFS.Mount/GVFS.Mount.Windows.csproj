@@ -76,6 +76,9 @@
     <Compile Include="$(BuildOutputDir)\CommonAssemblyVersion.cs">
       <Link>CommonAssemblyVersion.cs</Link>
     </Compile>
+    <Compile Include="..\GVFS.PlatformLoader\PlatformLoader.FileSystemVirtualizer.Windows.cs">
+      <Link>PlatformLoader.FileSystemVirtualizer.Windows.cs</Link>
+    </Compile>
     <Compile Include="..\GVFS.PlatformLoader\PlatformLoader.Windows.cs">
       <Link>PlatformLoader.Windows.cs</Link>
     </Compile>

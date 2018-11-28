@@ -145,7 +145,16 @@ namespace GVFS.FunctionalTests.Tools
         {
             TestResultsHelper.OutputGVFSLogs(this);
 
-            RepositoryHelpers.DeleteTestRepository(this.EnlistmentRoot);
+            // TODO(Mac): Figure out why the call to DieleteDirectoryWithRetry is not returning.
+            // Once this is resolved, we can replace this duplicated code with RepositoryHelpers.DeleteTestDirectory
+            if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+            {
+                CmdRunner.DeleteDirectoryWithUnlimitedRetries(this.EnlistmentRoot);
+            }
+            else
+            {
+                // BashRunner.DeleteDirectoryWithUnlimitedRetries(this.EnlistmentRoot);
+            }
         }
 
         public void CloneAndMount(bool skipPrefetch)

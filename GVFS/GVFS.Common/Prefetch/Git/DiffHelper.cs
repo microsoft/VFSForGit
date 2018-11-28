@@ -388,10 +388,10 @@ namespace GVFS.Common.Prefetch.Git
 
             this.FileAddOperations.AddOrUpdate(
                 operation.TargetSha,
-                new HashSet<PathWithMode> { new PathWithMode(operation.TargetMode, operation.TargetPath) },
+                new HashSet<PathWithMode> { new PathWithMode(operation.TargetPath, operation.TargetMode) },
                 (key, oldValue) =>
                 {
-                    oldValue.Add(new PathWithMode(operation.TargetMode, operation.TargetPath));
+                    oldValue.Add(new PathWithMode(operation.TargetPath, operation.TargetMode));
                     return oldValue;
                 });
 

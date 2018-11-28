@@ -1,14 +1,32 @@
-﻿namespace GVFS.Common.Prefetch.Git
+﻿using System;
+
+namespace GVFS.Common.Prefetch.Git
 {
     public class PathWithMode
     {
-        public PathWithMode(ushort mode, string path)
+        public PathWithMode(string path, ushort mode)
         {
-            this.Mode = mode;
             this.Path = path;
+            this.Mode = mode;
         }
 
-        public ushort Mode { get; set; }
-        public string Path { get; set; }
+        public ushort Mode { get; }
+        public string Path { get; }
+
+        public override bool Equals(object obj)
+        {
+            PathWithMode x = obj as PathWithMode;
+            if (x.Path.Equals(this.Path, StringComparison.OrdinalIgnoreCase))
+            {
+                return true;
+            }
+
+            return false;
+        }
+
+        public override int GetHashCode()
+        {
+            return StringComparer.OrdinalIgnoreCase.GetHashCode(this.Path);
+        }
     }
 }

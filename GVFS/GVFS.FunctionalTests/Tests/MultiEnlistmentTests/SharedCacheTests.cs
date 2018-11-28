@@ -135,7 +135,7 @@ namespace GVFS.FunctionalTests.Tests.MultiEnlistmentTests
 
             string objectsRoot = GVFSHelpers.GetPersistedGitObjectsRoot(enlistment1.DotGVFSRoot).ShouldNotBeNull();
             objectsRoot.ShouldBeADirectory(this.fileSystem);
-            RepositoryHelpers.DeleteTestRepository(objectsRoot);
+            RepositoryHelpers.DeleteTestDirectory(objectsRoot);
 
             string metadataPath = Path.Combine(this.localCachePath, "mapping.dat");
             metadataPath.ShouldBeAFile(this.fileSystem);
@@ -175,7 +175,7 @@ namespace GVFS.FunctionalTests.Tests.MultiEnlistmentTests
                 try
                 {
                     // Delete objectsRoot rather than this.localCachePath as the blob sizes database cannot be deleted while GVFS is mounted
-                    RepositoryHelpers.DeleteTestRepository(objectsRoot);
+                    RepositoryHelpers.DeleteTestDirectory(objectsRoot);
                     Thread.Sleep(100);
                 }
                 catch (IOException)
@@ -215,7 +215,7 @@ namespace GVFS.FunctionalTests.Tests.MultiEnlistmentTests
             mappingFileContents.Length.ShouldNotEqual(0, "mapping.dat should not be empty");
 
             // Delete the git objects root folder, mount should re-create it and the mapping.dat file should not change
-            RepositoryHelpers.DeleteTestRepository(objectsRoot);
+            RepositoryHelpers.DeleteTestDirectory(objectsRoot);
 
             enlistment.MountGVFS();
 
@@ -242,7 +242,7 @@ namespace GVFS.FunctionalTests.Tests.MultiEnlistmentTests
             mappingFileContents.Length.ShouldNotEqual(0, "mapping.dat should not be empty");
 
             // Delete the local cache folder, mount should re-create it and generate a new mapping file and local cache key
-            RepositoryHelpers.DeleteTestRepository(enlistment.LocalCacheRoot);
+            RepositoryHelpers.DeleteTestDirectory(enlistment.LocalCacheRoot);
 
             enlistment.MountGVFS();
 
@@ -289,7 +289,7 @@ namespace GVFS.FunctionalTests.Tests.MultiEnlistmentTests
         // localCacheParentPath can be deleted (as the SQLite blob sizes database cannot be deleted while GVFS is mounted) 
         protected override void OnTearDownEnlistmentsDeleted()
         {
-            RepositoryHelpers.DeleteTestRepository(this.localCacheParentPath);
+            RepositoryHelpers.DeleteTestDirectory(this.localCacheParentPath);
         }
 
         private GVFSFunctionalTestEnlistment CloneAndMountEnlistment(string branch = null)

@@ -262,13 +262,13 @@ namespace FastFetch
                     
                     Interlocked.Increment(ref this.shasReceived);
 
-                    HashSet<PathWithMode> modesAndPaths;
-                    if (this.diff.FileAddOperations.TryRemove(availableBlob, out modesAndPaths))
+                    HashSet<PathWithMode> paths;
+                    if (this.diff.FileAddOperations.TryRemove(availableBlob, out paths))
                     {
                         try
                         {
                             long written;
-                            if (!repo.TryCopyBlobToFile(availableBlob, modesAndPaths, out written))
+                            if (!repo.TryCopyBlobToFile(availableBlob, paths, out written))
                             {
                                 // TryCopyBlobTo emits an error event.
                                 this.HasFailures = true;
@@ -276,7 +276,7 @@ namespace FastFetch
 
                             Interlocked.Add(ref this.bytesWritten, written);
 
-                            foreach (PathWithMode modeAndPath in modesAndPaths)
+                            foreach (PathWithMode modeAndPath in paths)
                             {
                                 this.AddedOrEditedLocalFiles.Add(modeAndPath.Path);
 

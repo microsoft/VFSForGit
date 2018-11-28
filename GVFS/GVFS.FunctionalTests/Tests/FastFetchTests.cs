@@ -21,12 +21,13 @@ namespace GVFS.FunctionalTests.Tests
     {
         private readonly string fastFetchRepoRoot = Settings.Default.FastFetchRoot;
         private readonly string fastFetchControlRoot = Settings.Default.FastFetchControl;
+        private readonly string fastFetchBaseRoot = Settings.Default.FastFetchBaseRoot;
 
         [OneTimeSetUp]
         public void InitControlRepo()
         {
             Directory.CreateDirectory(this.fastFetchControlRoot);
-            GitProcess.Invoke(this.fastFetchControlRoot, "clone -b " + Settings.Default.Commitish + " " + GVFSTestConfig.RepoToClone + " " + this.fastFetchControlRoot);
+            GitProcess.Invoke(this.fastFetchBaseRoot, "clone -b " + Settings.Default.Commitish + " " + GVFSTestConfig.RepoToClone + " " + this.fastFetchControlRoot);
         }
 
         [SetUp]
@@ -46,13 +47,13 @@ namespace GVFS.FunctionalTests.Tests
         [TearDown]
         public void TearDownTests()
         {
-            RepositoryHelpers.DeleteTestRepository(this.fastFetchRepoRoot);
+            RepositoryHelpers.DeleteTestDirectory(this.fastFetchRepoRoot);
         }
 
         [OneTimeTearDown]
         public void DeleteControlRepo()
         {
-            RepositoryHelpers.DeleteTestRepository(this.fastFetchControlRoot);
+            RepositoryHelpers.DeleteTestDirectory(this.fastFetchControlRoot);
         }
         
         [TestCase]
@@ -483,10 +484,7 @@ namespace GVFS.FunctionalTests.Tests
             if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
             {
                 fastfetch = Path.Combine(Settings.Default.CurrentDirectory, "netcoreapp2.1", "fastfetch.dll");
-                if (!File.Exists(fastfetch))
-                {
-                    fastfetch = "fastfetch.dll";
-                }
+                File.Exists(fastfetch).ShouldBeTrue();
             }
             else
             {
