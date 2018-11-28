@@ -159,25 +159,31 @@ namespace GVFS.Common.Prefetch
         {
             if (lastPrefetchArgs != null &&
                 lastPrefetchArgs.TryGetValue(PrefetchArgs.CommitId, out string lastCommitId) &&
-                lastPrefetchArgs.TryGetValue(PrefetchArgs.Files, out string filesString) &&
-                lastPrefetchArgs.TryGetValue(PrefetchArgs.Folders, out string foldersString) &&
-                lastPrefetchArgs.TryGetValue(PrefetchArgs.Hydrate, out string hydrateString))
+                lastPrefetchArgs.TryGetValue(PrefetchArgs.Files, out string lastFilesString) &&
+                lastPrefetchArgs.TryGetValue(PrefetchArgs.Folders, out string lastFoldersString) &&
+                lastPrefetchArgs.TryGetValue(PrefetchArgs.Hydrate, out string lastHydrateString))
             {
+                string newFilesString = JsonConvert.SerializeObject(files);
+                string newFoldersString = JsonConvert.SerializeObject(folders);
                 bool isNoop =
-                    lastCommitId == commitId &&
-                    hydrateString == hydrateFilesAfterDownload.ToString() &&
-                    JsonConvert.SerializeObject(files) == filesString &&
-                    JsonConvert.SerializeObject(folders) == foldersString;
+                    commitId == lastCommitId &&
+                    hydrateFilesAfterDownload.ToString() == lastHydrateString &&
+                    newFilesString == lastFilesString &&
+                    newFoldersString == lastFoldersString;
 
                 tracer.RelatedEvent(
                     EventLevel.Informational,
                     "BlobPrefetcher.IsNoopPrefetch", 
                     new EventMetadata
                     {
-                        { PrefetchArgs.CommitId, lastCommitId },
-                        { PrefetchArgs.Files, filesString },
-                        { PrefetchArgs.Folders, foldersString },
-                        { PrefetchArgs.Hydrate, hydrateString },
+                        { "Last" + PrefetchArgs.CommitId, lastCommitId },
+                        { "Last" + PrefetchArgs.Files, lastFilesString },
+                        { "Last" + PrefetchArgs.Folders, lastFoldersString },
+                        { "Last" + PrefetchArgs.Hydrate, lastHydrateString },
+                        { "New" + PrefetchArgs.CommitId, commitId },
+                        { "New" + PrefetchArgs.Files, newFilesString },
+                        { "New" + PrefetchArgs.Folders, newFoldersString },
+                        { "New" + PrefetchArgs.Hydrate, hydrateFilesAfterDownload.ToString() },
                         { "Result", isNoop },
                     });
 
@@ -402,10 +408,6 @@ namespace GVFS.Common.Prefetch
             {
                 this.SavePrefetchArgs(commitToFetch, hydrateFilesAfterDownload);
             }
-            else
-            {
-                this.SavePrefetchArgs(null, false);
-            }
         }
 
         protected bool UpdateRefSpec(ITracer tracer, Enlistment enlistment, string branchOrCommit, GitRefs refs)
@@ -536,28 +538,14 @@ namespace GVFS.Common.Prefetch
         {
             if (this.lastPrefetchArgs != null)
             {
-                if (targetCommit != null)
-                {
-                    this.lastPrefetchArgs.SetValuesAndFlush(
-                        new[]
-                        {
-                            new KeyValuePair<string, string>(PrefetchArgs.CommitId, targetCommit),
-                            new KeyValuePair<string, string>(PrefetchArgs.Files, JsonConvert.SerializeObject(this.FileList)),
-                            new KeyValuePair<string, string>(PrefetchArgs.Folders, JsonConvert.SerializeObject(this.FolderList)),
-                            new KeyValuePair<string, string>(PrefetchArgs.Hydrate, hydrate.ToString()),
-                        });
-                }
-                else
-                {
-                    this.lastPrefetchArgs.SetValuesAndFlush(
-                        new[]
-                        {
-                            new KeyValuePair<string, string>(PrefetchArgs.CommitId, string.Empty),
-                            new KeyValuePair<string, string>(PrefetchArgs.Files, string.Empty),
-                            new KeyValuePair<string, string>(PrefetchArgs.Folders, string.Empty),
-                            new KeyValuePair<string, string>(PrefetchArgs.Hydrate, string.Empty),
-                        });
-                }
+                this.lastPrefetchArgs.SetValuesAndFlush(
+                    new[]
+                    {
+                        new KeyValuePair<string, string>(PrefetchArgs.CommitId, targetCommit),
+                        new KeyValuePair<string, string>(PrefetchArgs.Files, JsonConvert.SerializeObject(this.FileList)),
+                        new KeyValuePair<string, string>(PrefetchArgs.Folders, JsonConvert.SerializeObject(this.FolderList)),
+                        new KeyValuePair<string, string>(PrefetchArgs.Hydrate, hydrate.ToString()),
+                    });
             }
         }
 

@@ -274,12 +274,15 @@ namespace GVFS.CommandLine
         {
             string error;
             
-            FileBasedDictionary<string, string>.TryCreate(
-                tracer,
-                Path.Combine(enlistment.DotGVFSRoot, "LastBlobPrefetch.dat"),
-                new PhysicalFileSystem(),
-                out lastPrefetchArgs,
-                out error);
+            if (!FileBasedDictionary<string, string>.TryCreate(
+                    tracer,
+                    Path.Combine(enlistment.DotGVFSRoot, "LastBlobPrefetch.dat"),
+                    new PhysicalFileSystem(),
+                    out lastPrefetchArgs,
+                    out error))
+            {
+                tracer.RelatedWarning("Unable to warn last prefetch args: " + error);
+            }
 
             filesList = new List<string>();
             foldersList = new List<string>();
