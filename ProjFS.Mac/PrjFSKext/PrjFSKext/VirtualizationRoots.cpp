@@ -176,6 +176,10 @@ VirtualizationRootHandle VirtualizationRoot_FindForVnode(
         }
         
         vnode_t parent = vnode_getparent(vnode);
+        if (nullptr == parent)
+        {
+            KextLog_FileNote(vnode, "VirtualizationRoot_FindForVnode: vnode_getparent returned nullptr on vnode that is not root of a mount point");
+        }
         vnode_put(vnode);
         vnode = parent;
     }
@@ -228,6 +232,10 @@ static VirtualizationRootHandle FindOrDetectRootAtVnode(vnode_t _Nonnull vnode, 
 
             }
             RWLock_ReleaseExclusive(s_virtualizationRootsLock);
+        }
+        else if (xattrResult.error != ENOATTR)
+        {
+            KextLog_FileNote(vnode, "FindOrDetectRootAtVnode: Vnode_ReadXattr/mac_vnop_getxattr failed with errno %d", xattrResult.error);
         }
     }
     

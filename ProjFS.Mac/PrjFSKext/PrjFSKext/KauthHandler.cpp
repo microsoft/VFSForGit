@@ -15,6 +15,7 @@
 #include "Locks.hpp"
 #include "PrjFSProviderUserClient.hpp"
 #include "PerformanceTracing.hpp"
+#include "kernel-header-wrappers/mount.h"
 
 // Function prototypes
 static int HandleVnodeOperation(
@@ -330,9 +331,20 @@ static int HandleVnodeOperation(
         
         // Call vn_getpath first when the cache is hottest to increase the chances
         // of successfully getting the path
-        if (0 == vn_getpath(currentVnode, vnodePathBuffer, &vnodePathLength))
+        int error = vn_getpath(currentVnode, vnodePathBuffer, &vnodePathLength);
+        if (0 == error)
         {
             vnodePath = vnodePathBuffer;
+        }
+        else
+        {
+            const char* name = vnode_getname(currentVnode);
+            mount_t mount = vnode_mount(currentVnode);
+            vfsstatfs* vfsStat = mount != nullptr ? vfs_statfs(mount) : nullptr;
+
+            KextLog_Error("HandleVnodeOperation: vn_getpath failed for vnode %p, name '%s', recycled: %s, mount %p mounted at '%s'", currentVnode, name ?: "[NULL]", vnode_isrecycled(currentVnode) ? "yes" : "no", mount, vfsStat ? vfsStat->f_mntonname : "[NULL]");
+            if (name != nullptr)
+                vnode_putname(name);
         }
     }
 
@@ -518,6 +530,7 @@ static int HandleFileOpOperation(
         errno_t toErr = vnode_lookup(newPath, 0 /* flags */, &currentVnodeFromPath, context);
         if (0 != toErr)
         {
+            KextLog_Note("HandleFileOpOperation: vnode_lookup failed, errno %d for path '%s'", toErr, newPath);
             goto CleanupAndReturn;
         }
         
