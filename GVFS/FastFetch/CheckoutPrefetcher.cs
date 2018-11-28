@@ -33,7 +33,6 @@ namespace FastFetch
                     tracer,
                     enlistment,
                     objectRequestor,
-                    null,
                     chunkSize,
                     searchThreadCount,
                     downloadThreadCount,

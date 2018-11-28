@@ -39,6 +39,20 @@ namespace GVFS.Common.Prefetch
             ITracer tracer,
             Enlistment enlistment,
             GitObjectsHttpRequestor objectRequestor,
+            int chunkSize,
+            int searchThreadCount,
+            int downloadThreadCount,
+            int indexThreadCount)
+            : this(tracer, enlistment, objectRequestor, null, null, null, chunkSize, searchThreadCount, downloadThreadCount, indexThreadCount)
+        {
+        }
+
+        public BlobPrefetcher(
+            ITracer tracer,
+            Enlistment enlistment,
+            GitObjectsHttpRequestor objectRequestor,
+            List<string> fileList,
+            List<string> folderList,
             FileBasedDictionary<string, string> lastPrefetchArgs,
             int chunkSize,
             int searchThreadCount,
@@ -54,8 +68,8 @@ namespace GVFS.Common.Prefetch
             this.ObjectRequestor = objectRequestor;
 
             this.GitObjects = new PrefetchGitObjects(tracer, enlistment, this.ObjectRequestor);
-            this.FileList = new List<string>();
-            this.FolderList = new List<string>();
+            this.FileList = fileList ?? new List<string>();
+            this.FolderList = folderList ?? new List<string>();
 
             this.lastPrefetchArgs = lastPrefetchArgs;
 
@@ -133,6 +147,44 @@ namespace GVFS.Common.Prefetch
 
             error = null;
             return true;
+        }
+
+        public static bool IsNoopPrefetch(
+            ITracer tracer,
+            FileBasedDictionary<string, string> lastPrefetchArgs,
+            string commitId,
+            List<string> files,
+            List<string> folders,
+            bool hydrateFilesAfterDownload)
+        {
+            if (lastPrefetchArgs != null &&
+                lastPrefetchArgs.TryGetValue(PrefetchArgs.CommitId, out string lastCommitId) &&
+                lastPrefetchArgs.TryGetValue(PrefetchArgs.Files, out string filesString) &&
+                lastPrefetchArgs.TryGetValue(PrefetchArgs.Folders, out string foldersString) &&
+                lastPrefetchArgs.TryGetValue(PrefetchArgs.Hydrate, out string hydrateString))
+            {
+                bool isNoop =
+                    lastCommitId == commitId &&
+                    hydrateString == hydrateFilesAfterDownload.ToString() &&
+                    JsonConvert.SerializeObject(files) == filesString &&
+                    JsonConvert.SerializeObject(folders) == foldersString;
+
+                tracer.RelatedEvent(
+                    EventLevel.Informational,
+                    "BlobPrefetcher.IsNoopPrefetch", 
+                    new EventMetadata
+                    {
+                        { PrefetchArgs.CommitId, lastCommitId },
+                        { PrefetchArgs.Files, filesString },
+                        { PrefetchArgs.Folders, foldersString },
+                        { PrefetchArgs.Hydrate, hydrateString },
+                        { "Result", isNoop },
+                    });
+
+                return isNoop;
+            }
+
+            return false;
         }
 
         public static void AppendToNewlineSeparatedFile(string filename, string newContent)
@@ -231,17 +283,6 @@ namespace GVFS.Common.Prefetch
                     this.HasFailures = true;
                     return;
                 }
-            }
-
-            // TODO: make this a separate public method so that the caller can exit even earlier. Right now we're still wasting time
-            //       on auth and config even when we know there will be nothing to do
-            // TODO: always log the details from the last prefetch, to enable debugging of unexpected behaviors
-            if (this.IsNoopPrefetch(commitToFetch, hydrateFilesAfterDownload))
-            {
-                // TODO: prevent the CLI output from saying 0 matched/already cached
-
-                this.Tracer.RelatedInfo("This prefetch matches the last successful one, so there's nothing new to download");
-                return;
             }
             
             BlockingCollection<string> availableBlobs = new BlockingCollection<string>();
@@ -489,24 +530,6 @@ namespace GVFS.Common.Prefetch
         private bool IsSymbolicRef(string targetCommitish)
         {
             return targetCommitish.StartsWith("refs/", StringComparison.OrdinalIgnoreCase);
-        }
-
-        private bool IsNoopPrefetch(string targetCommit, bool hydrate)
-        {
-            if (this.lastPrefetchArgs != null &&
-                this.lastPrefetchArgs.TryGetValue(PrefetchArgs.CommitId, out string lastCommitId) &&
-                this.lastPrefetchArgs.TryGetValue(PrefetchArgs.Files, out string filesString) &&
-                this.lastPrefetchArgs.TryGetValue(PrefetchArgs.Folders, out string foldersString) &&
-                this.lastPrefetchArgs.TryGetValue(PrefetchArgs.Hydrate, out string hydrateString))
-            {
-                return
-                    lastCommitId == targetCommit &&
-                    hydrateString == hydrate.ToString() &&
-                    JsonConvert.SerializeObject(this.FileList) == filesString &&
-                    JsonConvert.SerializeObject(this.FolderList) == foldersString;
-            }
-
-            return false;
         }
 
         private void SavePrefetchArgs(string targetCommit, bool hydrate)
