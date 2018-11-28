@@ -1100,8 +1100,8 @@ static bool TryReadVNodeFileFlags(vnode_t vn, vfs_context_t _Nonnull context, ui
     }
     
     assert(VATTR_IS_SUPPORTED(&attributes, va_flags));
-     *flags = attributes.va_flags;
-     return true;
+    *flags = attributes.va_flags;
+    return true;
 }
 
 static inline bool FileFlagsBitIsSet(uint32_t fileFlags, uint32_t bit)
