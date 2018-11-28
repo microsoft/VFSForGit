@@ -52,11 +52,6 @@ namespace GVFS.Common.Cleanup
 
         public void Execute()
         {
-            if (this.Stopping)
-            {
-                return;
-            }
-
             try
             {
                 if (this.RequireCacheLock)
@@ -99,9 +94,10 @@ namespace GVFS.Common.Cleanup
 
         public void Stop()
         {
-            this.Stopping = true;
             lock (this.gitProcessLock)
             {
+                this.Stopping = true;
+
                 GitProcess process = this.GitProcess;
 
                 if (process != null)
