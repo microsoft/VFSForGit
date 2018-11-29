@@ -113,6 +113,11 @@ namespace GVFS.Common
                 get { return "GVFS.VirtualFileSystemHook" + this.ExecutableExtension; }
             }
 
+            public string GVFSPostIndexChangedHookExecutableName
+            {
+                get { return "GVFS.PostIndexChangedHook" + this.ExecutableExtension; }
+            }
+
             public string MountExecutableName
             {
                 get { return "GVFS.Mount" + this.ExecutableExtension; }

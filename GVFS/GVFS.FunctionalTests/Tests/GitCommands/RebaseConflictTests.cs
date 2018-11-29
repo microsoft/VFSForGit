@@ -12,7 +12,6 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
         }
 
         [TestCase]
-        [Category(Categories.MacTODO.M3)]
         public void RebaseConflict()
         {
             this.ValidateGitCommand("checkout " + GitRepoTests.ConflictTargetBranch);
@@ -21,7 +20,15 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
         }
 
         [TestCase]
-        [Ignore("The file system is correct but getting 'refusing to lose untracked file at Test_ConflictTests\\ModifiedFiles\\ChangeInTargetDeleteInSource.txt'")]
+        public void RebaseConflictWithPrefetch()
+        {
+            this.ValidateGitCommand("checkout " + GitRepoTests.ConflictTargetBranch);
+            this.Enlistment.Prefetch("--files * --hydrate");
+            this.RunGitCommand("rebase " + GitRepoTests.ConflictSourceBranch);
+            this.FilesShouldMatchAfterConflict();
+        }
+
+        [TestCase]
         public void RebaseConflictWithFileReads()
         {
             this.ValidateGitCommand("checkout " + GitRepoTests.ConflictTargetBranch);
@@ -31,7 +38,6 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
         }
 
         [TestCase]
-        [Category(Categories.MacTODO.M3)]
         public void RebaseConflict_ThenAbort()
         {
             this.ValidateGitCommand("checkout " + GitRepoTests.ConflictTargetBranch);
@@ -41,7 +47,6 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
         }
 
         [TestCase]
-        [Category(Categories.MacTODO.M3)]
         public void RebaseConflict_ThenSkip()
         {
             this.ValidateGitCommand("checkout " + GitRepoTests.ConflictTargetBranch);
@@ -51,7 +56,6 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
         }
 
         [TestCase]
-        [Category(Categories.MacTODO.M3)]
         public void RebaseConflict_RemoveDeletedTheirsFile()
         {
             this.ValidateGitCommand("checkout " + GitRepoTests.ConflictTargetBranch);
@@ -60,7 +64,6 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
         }
 
         [TestCase]
-        [Category(Categories.MacTODO.M3)]
         public void RebaseConflict_AddThenContinue()
         {
             this.ValidateGitCommand("checkout " + GitRepoTests.ConflictTargetBranch);

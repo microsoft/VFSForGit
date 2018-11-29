@@ -353,6 +353,12 @@ namespace GVFS.Virtualization
             return metadata;
         }
 
+        public void ForceIndexProjectionUpdate(bool invalidateProjection, bool invalidateModifiedPaths)
+        {
+            this.InvalidateState(invalidateProjection, invalidateModifiedPaths);
+            this.GitIndexProjection.WaitForProjectionUpdate();
+        }
+
         public NamedPipeMessages.ReleaseLock.Response TryReleaseExternalLock(int pid)
         {
             return this.GitIndexProjection.TryReleaseExternalLock(pid);
@@ -370,8 +376,7 @@ namespace GVFS.Virtualization
             if (!gitCommand.IsValidGitCommand)
             {
                 // Something wrote to the index without holding the GVFS lock, so we invalidate the projection
-                this.GitIndexProjection.InvalidateProjection();
-                this.InvalidateGitStatusCache();
+                this.InvalidateState(invalidateProjection: true, invalidateModifiedPaths: false);
 
                 // But this isn't something we expect to see, so log a warning
                 EventMetadata metadata = new EventMetadata
@@ -382,23 +387,6 @@ namespace GVFS.Virtualization
 
                 this.context.Tracer.RelatedEvent(EventLevel.Warning, $"{nameof(this.OnIndexFileChange)}_NoLock", metadata);
             }
-            else if (this.GitCommandLeavesProjectionUnchanged(gitCommand))
-            {
-                if (this.GitCommandRequiresModifiedPathValidationAfterIndexChange(gitCommand))
-                {
-                    this.GitIndexProjection.InvalidateModifiedFiles();
-                    this.backgroundFileSystemTaskRunner.Enqueue(FileSystemTask.OnIndexWriteRequiringModifiedPathsValidation());
-                }
-
-                this.InvalidateGitStatusCache();
-            }
-            else
-            {
-                this.GitIndexProjection.InvalidateProjection();
-                this.InvalidateGitStatusCache();
-            }
-
-            this.newlyCreatedFileAndFolderPaths.Clear();
         }
 
         public void InvalidateGitStatusCache()
@@ -575,6 +563,23 @@ namespace GVFS.Virtualization
                 this.postFetchJobThread.IsBackground = true;
                 this.postFetchJobThread.Start();
             }
+        }
+
+        private void InvalidateState(bool invalidateProjection, bool invalidateModifiedPaths)
+        {
+            if (invalidateProjection)
+            {
+                this.GitIndexProjection.InvalidateProjection();
+            }
+
+            if (invalidateModifiedPaths)
+            {
+                this.GitIndexProjection.InvalidateModifiedFiles();
+                this.backgroundFileSystemTaskRunner.Enqueue(FileSystemTask.OnIndexWriteRequiringModifiedPathsValidation());
+            }
+
+            this.InvalidateGitStatusCache();
+            this.newlyCreatedFileAndFolderPaths.Clear();
         }
 
         private void PostFetchJob(List<string> packIndexes)

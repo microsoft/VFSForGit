@@ -254,6 +254,10 @@ namespace GVFS.Mount
                     this.HandleModifiedPathsListRequest(message, connection);
                     break;
 
+                case NamedPipeMessages.PostIndexChanged.NotificationRequest:
+                    this.HandlePostIndexChangedRequest(message, connection);
+                    break;
+
                 case NamedPipeMessages.RunPostFetchJob.PostFetchJob:
                     this.HandlePostFetchJobRequest(message, connection);
                     break;
@@ -336,6 +340,27 @@ namespace GVFS.Mount
             }
 
             NamedPipeMessages.ReleaseLock.Response response = this.fileSystemCallbacks.TryReleaseExternalLock(request.RequestData.PID);
+            connection.TrySendResponse(response.CreateMessage());
+        }
+
+        private void HandlePostIndexChangedRequest(NamedPipeMessages.Message message, NamedPipeServer.Connection connection)
+        {
+            NamedPipeMessages.PostIndexChanged.Response response;
+            NamedPipeMessages.PostIndexChanged.Request request = new NamedPipeMessages.PostIndexChanged.Request(message);
+            if (request == null)
+            {
+                response = new NamedPipeMessages.PostIndexChanged.Response(NamedPipeMessages.UnknownRequest);
+            }
+            else if (this.currentState != MountState.Ready)
+            {
+                response = new NamedPipeMessages.PostIndexChanged.Response(NamedPipeMessages.MountNotReadyResult);
+            }
+            else
+            {
+                this.fileSystemCallbacks.ForceIndexProjectionUpdate(request.UpdatedWorkingDirectory, request.UpdatedSkipWorktreeBits);
+                response = new NamedPipeMessages.PostIndexChanged.Response(NamedPipeMessages.PostIndexChanged.SuccessResult);
+            }
+
             connection.TrySendResponse(response.CreateMessage());
         }
 
