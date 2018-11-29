@@ -281,7 +281,7 @@ namespace GVFS.CommandLine
                     out lastPrefetchArgs,
                     out error))
             {
-                tracer.RelatedWarning("Unable to warn last prefetch args: " + error);
+                tracer.RelatedWarning("Unable to load last prefetch args: " + error);
             }
 
             filesList = new List<string>();
