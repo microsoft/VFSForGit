@@ -352,50 +352,55 @@ VirtualizationRootResult VirtualizationRoot_RegisterProviderForPath(PrjFSProvide
         }
         else
         {
-            FsidInode vnodeIds = Vnode_GetFsidAndInode(virtualizationRootVNode, vfsContext);
-            uint32_t rootVid = vnode_vid(virtualizationRootVNode);
+            char virtualizationRootCanonicalPath[PrjFSMaxPath] = "";
+            int virtualizationRootCanonicalPathLength = sizeof(virtualizationRootCanonicalPath);
+            err = vn_getpath(virtualizationRootVNode, virtualizationRootCanonicalPath, &virtualizationRootCanonicalPathLength);
             
-            RWLock_AcquireExclusive(s_virtualizationRootsLock);
+            if (0 == err)
             {
-                rootIndex = FindRootAtVnode_Locked(virtualizationRootVNode, rootVid, vnodeIds);
-                if (rootIndex >= 0)
+                FsidInode vnodeIds = Vnode_GetFsidAndInode(virtualizationRootVNode, vfsContext);
+                uint32_t rootVid = vnode_vid(virtualizationRootVNode);
+                
+                RWLock_AcquireExclusive(s_virtualizationRootsLock);
                 {
-                    // Reattaching to existing root
-                    if (nullptr != s_virtualizationRoots[rootIndex].providerUserClient)
-                    {
-                        // Only one provider per root
-                        err = EBUSY;
-                        rootIndex = RootHandle_None;
-                    }
-                    else
-                    {
-                        VirtualizationRoot& root = s_virtualizationRoots[rootIndex];
-                        root.providerUserClient = userClient;
-                        root.providerPid = clientPID;
-                        virtualizationRootVNode = NULLVP; // transfer ownership
-                    }
-                }
-                else
-                {
-                    rootIndex = InsertVirtualizationRoot_Locked(userClient, clientPID, virtualizationRootVNode, rootVid, vnodeIds, virtualizationRootPath);
+                    rootIndex = FindRootAtVnode_Locked(virtualizationRootVNode, rootVid, vnodeIds);
                     if (rootIndex >= 0)
                     {
-                        assert(rootIndex < s_maxVirtualizationRoots);
-                        VirtualizationRoot* root = &s_virtualizationRoots[rootIndex];
-                    
-                        strlcpy(root->path, virtualizationRootPath, sizeof(root->path));
-                        virtualizationRootVNode = NULLVP; // prevent vnode_put later; active provider should hold vnode reference
-                    
-                        KextLog_Note("VirtualizationRoot_RegisterProviderForPath: new root not found in offline roots, inserted as new root with index %d. path '%s'", rootIndex, virtualizationRootPath);
+                        // Reattaching to existing root
+                        if (nullptr != s_virtualizationRoots[rootIndex].providerUserClient)
+                        {
+                            // Only one provider per root
+                            err = EBUSY;
+                            rootIndex = RootHandle_None;
+                        }
+                        else
+                        {
+                            VirtualizationRoot& root = s_virtualizationRoots[rootIndex];
+                            root.providerUserClient = userClient;
+                            root.providerPid = clientPID;
+                            virtualizationRootVNode = NULLVP; // transfer ownership
+                        }
                     }
                     else
                     {
-                        // TODO: scan the array for roots on mounts which have disappeared, or grow the array
-                        KextLog_Error("VirtualizationRoot_RegisterProviderForPath: failed to insert new root");
+                        rootIndex = InsertVirtualizationRoot_Locked(userClient, clientPID, virtualizationRootVNode, rootVid, vnodeIds, virtualizationRootCanonicalPath);
+                        if (rootIndex >= 0)
+                        {
+                            assert(rootIndex < s_maxVirtualizationRoots);
+                        
+                            virtualizationRootVNode = NULLVP; // prevent vnode_put later; active provider should hold vnode reference
+                        
+                            KextLog_Note("VirtualizationRoot_RegisterProviderForPath: new root not found in offline roots, inserted as new root with index %d. path '%s'", rootIndex, virtualizationRootPath);
+                        }
+                        else
+                        {
+                            // TODO: scan the array for roots on mounts which have disappeared, or grow the array
+                            KextLog_Error("VirtualizationRoot_RegisterProviderForPath: failed to insert new root");
+                        }
                     }
                 }
+                RWLock_ReleaseExclusive(s_virtualizationRootsLock);
             }
-            RWLock_ReleaseExclusive(s_virtualizationRootsLock);
         }
     }
     
