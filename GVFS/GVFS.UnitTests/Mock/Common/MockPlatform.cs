@@ -66,9 +66,9 @@ namespace GVFS.UnitTests.Mock.Common
             throw new NotSupportedException();
         }
 
-        public override Dictionary<string, string> GetPhysicalDiskInfo(string path)
+        public override Dictionary<string, string> GetPhysicalDiskInfo(string path, bool sizeStatsOnly)
         {
-            throw new NotSupportedException();
+            return new Dictionary<string, string>();
         }
 
         public override void InitializeEnlistmentACLs(string enlistmentPath)

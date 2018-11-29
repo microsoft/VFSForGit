@@ -141,12 +141,13 @@ namespace GVFS.UnitTests.Virtualization
                 eventLevel.ShouldEqual(EventLevel.Informational);
 
                 // "ModifiedPathsCount" should be 1 because ".gitattributes" is always present
-                metadata.Count.ShouldEqual(5);
+                metadata.Count.ShouldEqual(6);
                 metadata.ShouldContain("ProcessName1", "GVFS.UnitTests.exe");
                 metadata.ShouldContain("ProcessCount1", 1);
                 metadata.ShouldContain("ModifiedPathsCount", 1);
                 metadata.ShouldContain("PlaceholderCount", 1);
                 metadata.ShouldContain(nameof(RepoMetadata.Instance.EnlistmentId), RepoMetadata.Instance.EnlistmentId);
+                metadata.ContainsKey("PhysicalDiskInfo").ShouldBeTrue();
 
                 // Create more placeholders
                 fileSystemCallbacks.OnPlaceholderFileCreated("test.txt", "2222233333444445555566666777778888899999", "GVFS.UnitTests.exe2");
@@ -156,7 +157,7 @@ namespace GVFS.UnitTests.Virtualization
                 metadata = fileSystemCallbacks.GetMetadataForHeartBeat(ref eventLevel);
                 eventLevel.ShouldEqual(EventLevel.Informational);
 
-                metadata.Count.ShouldEqual(5);
+                metadata.Count.ShouldEqual(6);
 
                 // Only processes that have created placeholders since the last heartbeat should be named
                 metadata.ShouldContain("ProcessName1", "GVFS.UnitTests.exe2");
@@ -164,6 +165,7 @@ namespace GVFS.UnitTests.Virtualization
                 metadata.ShouldContain("ModifiedPathsCount", 1);
                 metadata.ShouldContain("PlaceholderCount", 3);
                 metadata.ShouldContain(nameof(RepoMetadata.Instance.EnlistmentId), RepoMetadata.Instance.EnlistmentId);
+                metadata.ContainsKey("PhysicalDiskInfo").ShouldBeTrue();
             }
         }
 

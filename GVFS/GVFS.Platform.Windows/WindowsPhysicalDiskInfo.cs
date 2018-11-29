@@ -54,7 +54,7 @@ namespace GVFS.Platform.Windows
         /// the given pathname.  For example, whether the drive is an SSD or HDD.
         /// </summary>
         /// <returns>A dictionary of platform-specific keywords and values.</returns>
-        public static Dictionary<string, string> GetPhysicalDiskInfo(string path)
+        public static Dictionary<string, string> GetPhysicalDiskInfo(string path, bool sizeStatsOnly)
         {
             // Use the WMI APIs to get details about the physical disk associated with the given path.
             // Some of these fields are avilable using normal classes, such as System.IO.DriveInfo:
@@ -96,46 +96,14 @@ namespace GVFS.Platform.Windows
                 ManagementScope scope = new ManagementScope(@"\\.\root\microsoft\windows\storage");
                 scope.Connect();
 
-                string queryVolumeString = $"SELECT DriveType,FileSystem,FileSystemLabel,Size,SizeRemaining FROM MSFT_Volume WHERE DriveLetter=\"{driveLetter}\"";
-                ManagementBaseObject mbo = GetFirstRecord(scope, queryVolumeString);
-                if (mbo != null)
+                DiskSizeStatistics(scope, driveLetter, ref result);
+
+                if (sizeStatsOnly)
                 {
-                    result.Add("VolumeDriveType", GetMapValue(MapDriveType, FetchValue(mbo, "DriveType")));
-                    result.Add("VolumeFileSystem", FetchValue(mbo, "FileSystem"));
-                    result.Add("VolumeFileSystemLabel", FetchValue(mbo, "FileSystemLabel"));
-                    result.Add("VolumeSize", FetchValue(mbo, "Size"));
-                    result.Add("VolumeSizeRemaining", FetchValue(mbo, "SizeRemaining"));
+                    return result;
                 }
 
-                string queryPartitionString = $"SELECT DiskNumber FROM MSFT_Partition WHERE DriveLetter=\"{driveLetter}\"";
-                mbo = GetFirstRecord(scope, queryPartitionString);
-                if (mbo != null)
-                {
-                    string diskNumber = FetchValue(mbo, "DiskNumber");
-                    result.Add("DiskNumber", diskNumber);
-
-                    if (diskNumber.Length > 0)
-                    {
-                        string queryDiskString = $"SELECT Model,IsBoot,IsSystem,SerialNumber FROM MSFT_Disk WHERE Number=\"{diskNumber}\"";
-                        mbo = GetFirstRecord(scope, queryDiskString);
-                        if (mbo != null)
-                        {
-                            result.Add("DiskModel", FetchValue(mbo, "Model"));
-                            result.Add("DiskIsSystem", FetchValue(mbo, "IsSystem"));
-                            result.Add("DiskIsBoot", FetchValue(mbo, "IsBoot"));
-                            result.Add("DiskSerialNumber", FetchValue(mbo, "SerialNumber"));
-                        }
-
-                        string queryPhysicalDiskString = $"SELECT MediaType,BusType,SpindleSpeed FROM MSFT_PhysicalDisk WHERE DeviceId=\"{diskNumber}\"";
-                        mbo = GetFirstRecord(scope, queryPhysicalDiskString);
-                        if (mbo != null)
-                        {
-                            result.Add("PhysicalMediaType", GetMapValue(MapMediaType, FetchValue(mbo, "MediaType")));
-                            result.Add("PhysicalBusType", GetMapValue(MapBusType, FetchValue(mbo, "BusType")));
-                            result.Add("PhysicalSpindleSpeed", FetchValue(mbo, "SpindleSpeed"));
-                        }
-                    }
-                }
+                DiskTypeInfo(scope, driveLetter, ref result);
             }
             catch (Exception e)
             {
@@ -143,6 +111,53 @@ namespace GVFS.Platform.Windows
             }
 
             return result;
+        }
+
+        private static void DiskSizeStatistics(ManagementScope scope, char driveLetter, ref Dictionary<string, string> result)
+        {
+            string queryVolumeString = $"SELECT DriveType,FileSystem,FileSystemLabel,Size,SizeRemaining FROM MSFT_Volume WHERE DriveLetter=\"{driveLetter}\"";
+            ManagementBaseObject mbo = GetFirstRecord(scope, queryVolumeString);
+            if (mbo != null)
+            {
+                result.Add("VolumeDriveType", GetMapValue(MapDriveType, FetchValue(mbo, "DriveType")));
+                result.Add("VolumeFileSystem", FetchValue(mbo, "FileSystem"));
+                result.Add("VolumeFileSystemLabel", FetchValue(mbo, "FileSystemLabel"));
+                result.Add("VolumeSize", FetchValue(mbo, "Size"));
+                result.Add("VolumeSizeRemaining", FetchValue(mbo, "SizeRemaining"));
+            }
+        }
+
+        private static void DiskTypeInfo(ManagementScope scope, char driveLetter, ref Dictionary<string, string> result)
+        {
+            string queryPartitionString = $"SELECT DiskNumber FROM MSFT_Partition WHERE DriveLetter=\"{driveLetter}\"";
+            ManagementBaseObject mbo = GetFirstRecord(scope, queryPartitionString);
+            if (mbo != null)
+            {
+                string diskNumber = FetchValue(mbo, "DiskNumber");
+                result.Add("DiskNumber", diskNumber);
+
+                if (diskNumber.Length > 0)
+                {
+                    string queryDiskString = $"SELECT Model,IsBoot,IsSystem,SerialNumber FROM MSFT_Disk WHERE Number=\"{diskNumber}\"";
+                    mbo = GetFirstRecord(scope, queryDiskString);
+                    if (mbo != null)
+                    {
+                        result.Add("DiskModel", FetchValue(mbo, "Model"));
+                        result.Add("DiskIsSystem", FetchValue(mbo, "IsSystem"));
+                        result.Add("DiskIsBoot", FetchValue(mbo, "IsBoot"));
+                        result.Add("DiskSerialNumber", FetchValue(mbo, "SerialNumber"));
+                    }
+
+                    string queryPhysicalDiskString = $"SELECT MediaType,BusType,SpindleSpeed FROM MSFT_PhysicalDisk WHERE DeviceId=\"{diskNumber}\"";
+                    mbo = GetFirstRecord(scope, queryPhysicalDiskString);
+                    if (mbo != null)
+                    {
+                        result.Add("PhysicalMediaType", GetMapValue(MapMediaType, FetchValue(mbo, "MediaType")));
+                        result.Add("PhysicalBusType", GetMapValue(MapBusType, FetchValue(mbo, "BusType")));
+                        result.Add("PhysicalSpindleSpeed", FetchValue(mbo, "SpindleSpeed"));
+                    }
+                }
+            }
         }
 
         private static string FetchValue(ManagementBaseObject mbo, string key)

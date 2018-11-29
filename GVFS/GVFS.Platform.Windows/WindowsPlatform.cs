@@ -252,7 +252,7 @@ namespace GVFS.Platform.Windows
             return identity.User.Value;
         }
 
-        public override Dictionary<string, string> GetPhysicalDiskInfo(string path) => WindowsPhysicalDiskInfo.GetPhysicalDiskInfo(path);
+        public override Dictionary<string, string> GetPhysicalDiskInfo(string path, bool sizeStatsOnly) => WindowsPhysicalDiskInfo.GetPhysicalDiskInfo(path, sizeStatsOnly);
 
         public override bool IsConsoleOutputRedirectedToFile()
         {

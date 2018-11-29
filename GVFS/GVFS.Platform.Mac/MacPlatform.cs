@@ -97,7 +97,7 @@ namespace GVFS.Platform.Mac
             return string.IsNullOrWhiteSpace(result.Output) ? result.Errors : result.Output;
         }
 
-        public override Dictionary<string, string> GetPhysicalDiskInfo(string path)
+        public override Dictionary<string, string> GetPhysicalDiskInfo(string path, bool sizeStatsOnly)
         {
             // TODO(Mac): Collect disk information
             Dictionary<string, string> result = new Dictionary<string, string>();
