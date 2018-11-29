@@ -47,6 +47,8 @@ namespace GVFS.UnitTests.Cleanup
 
             fileSystem.Paths.Add(enlistment.GitObjectsRoot);
             queue.EnlistmentRootReady().ShouldBeTrue();
+
+            queue.Stop();
         }
 
         [TestCase]
@@ -75,6 +77,8 @@ namespace GVFS.UnitTests.Cleanup
 
             Assert.IsTrue(step1.EventTriggered.WaitOne(this.maxWaitTime) 
                 && step2.EventTriggered.WaitOne(this.maxWaitTime));
+
+            queue.Stop();
         }
 
         [TestCase]
@@ -130,6 +134,8 @@ namespace GVFS.UnitTests.Cleanup
 
             // This only ensure the event didn't happen within maxWaitTime
             Assert.IsFalse(watchForStart.EventTriggered.WaitOne(this.maxWaitTime));
+
+            queue.Stop();
         }
 
         public class ReadyFileSystem : PhysicalFileSystem
