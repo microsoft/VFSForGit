@@ -45,3 +45,11 @@ bool VirtualizationRoot_IsOnline(VirtualizationRootHandle rootHandle);
 bool VirtualizationRoot_PIDMatchesProvider(VirtualizationRootHandle rootHandle, pid_t pid);
 bool VirtualizationRoot_IsValidRootHandle(VirtualizationRootHandle rootHandle);
 const char* _Nonnull VirtualizationRoot_GetRootRelativePath(VirtualizationRootHandle rootHandle, const char* _Nonnull path);
+
+// Refreshes the stored path for the specified virtualization root, which should have an active provider.
+// Returns:
+// 0: Path was successfully refreshed
+// -1: Root vnode path was successfully checked, but did not need refreshing
+// EPIPE: Provider has disconnected
+// Other errno: error returned by vn_getpath()
+errno_t VirtualizationRoot_RefreshRootPath(VirtualizationRootHandle root);

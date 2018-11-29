@@ -941,7 +941,62 @@ static bool TrySendRequestAndWaitForResponse(
         return false;
     }
     
+    char* vnodePathBuffer = nullptr;
     const char* relativePath = VirtualizationRoot_GetRootRelativePath(root, vnodePath);
+    while (nullptr == relativePath)
+    {
+        errno_t error = VirtualizationRoot_RefreshRootPath(root);
+        if (error == EPIPE)
+        {
+            // Provider has since disconnected, sending message would fail anyway.
+            *kauthResult = KAUTH_RESULT_DEFER;
+            return false;
+        }
+        else if (error > 0)
+        {
+            return false;
+        }
+        else
+        {
+            if (0 == error)
+            {
+                relativePath = VirtualizationRoot_GetRootRelativePath(root, vnodePath);
+                if (nullptr != relativePath)
+                {
+                    break;
+                }
+            }
+            
+            if (nullptr == vnodePathBuffer)
+            {
+                vnodePathBuffer = static_cast<char*>(__builtin_alloca(PrjFSMaxPath));
+            }
+            
+            int pathLength = PrjFSMaxPath;
+            error = vn_getpath(vnode, vnodePathBuffer, &pathLength);
+            if (0 == error)
+            {
+                if (0 == strncmp(vnodePath, vnodePathBuffer, PrjFSMaxPath))
+                {
+                    KextLog_Error("Neither root path nor vnode path needed updating, but root path is still not a prefix of vnode's (%s)", vnodePath);
+                    break;
+                }
+                else
+                {
+                    vnodePath = vnodePathBuffer;
+                    relativePath = VirtualizationRoot_GetRootRelativePath(root, vnodePath);
+                }
+            }
+            else
+            {
+                // TODO
+                KextLog_Error("Getting path for vnode failed, error = %d", error);
+                break;
+            }
+        }
+        
+    
+    }
     
     int nextMessageId = OSIncrementAtomic(&s_nextMessageId);
     

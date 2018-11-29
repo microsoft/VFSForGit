@@ -563,6 +563,63 @@ const char* VirtualizationRoot_GetRootRelativePath(VirtualizationRootHandle root
     return relativePath;
 }
 
+errno_t VirtualizationRoot_RefreshRootPath(VirtualizationRootHandle rootIndex)
+{
+    assert(rootIndex >= 0);
+
+    vnode_t rootVnode = nullptr;
+    RWLock_AcquireShared(s_virtualizationRootsLock);
+    {
+        assert(rootIndex < s_maxVirtualizationRoots);
+        
+        VirtualizationRoot& root = s_virtualizationRoots[rootIndex];
+        assert(root.inUse);
+        if (nullptr != root.providerUserClient)
+        {
+            rootVnode = s_virtualizationRoots[rootIndex].rootVNode;
+            vnode_get(rootVnode);
+        }
+    }
+    RWLock_ReleaseShared(s_virtualizationRootsLock);
+
+    if (nullptr == rootVnode)
+    {
+        return EPIPE;
+    }
+    
+    char newRootPath[PrjFSMaxPath] = "";
+    int newRootPathLength = sizeof(newRootPath);
+    errno_t error = vn_getpath(rootVnode, newRootPath, &newRootPathLength);
+    if (0 != error)
+    {
+        KextLog_Error("VirtualizationRoot_RefreshRootPath: failed to get path (vn_getpath) for root %u vnode, error %d", rootIndex, error);
+        return error;
+    }
+    
+    RWLock_AcquireExclusive(s_virtualizationRootsLock);
+    {
+        VirtualizationRoot& root = s_virtualizationRoots[rootIndex];
+        if (nullptr == root.providerUserClient)
+        {
+            error = EPIPE;
+        }
+        else if (0 == strncmp(newRootPath, root.path, sizeof(newRootPath)))
+        {
+            error = -1;
+        }
+        else
+        {
+            strlcpy(root.path, newRootPath, sizeof(root.path));
+            error = 0;
+        }
+    }
+    RWLock_ReleaseExclusive(s_virtualizationRootsLock);
+
+    vnode_put(rootVnode);
+    return error;
+}
+
+
 static bool UsedMountPoint_MountEquals(const mount_t& mountPoint, const UsedMountPoint& usage)
 {
     return mountPoint == usage.mountPoint;
