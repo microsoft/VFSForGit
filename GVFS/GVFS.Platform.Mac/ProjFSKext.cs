@@ -10,6 +10,8 @@ namespace GVFS.Platform.Mac
 {
     public class ProjFSKext : IKernelDriver
     {
+        private const string DriverName = "io.gvfs.PrjFSKext";
+
         public bool EnumerationExpandsDirectories { get; } = true;
 
         public string LogsFolderPath => throw new NotImplementedException();
@@ -48,8 +50,15 @@ namespace GVFS.Platform.Mac
 
         public bool IsReady(JsonTracer tracer, string enlistmentRoot, out string error)
         {
-            error = null;
-            return true;
+            ProcessResult loadedKexts = ProcessHelper.Run("kextstat", args: "-b " + DriverName, redirectOutput: true);
+            if (loadedKexts.Output.Contains(DriverName))
+            {
+                error = null;
+                return true;
+            }
+
+            error = DriverName + " is not loaded. Make sure the driver is loaded and try again.";
+            return false;
         }
 
         public bool TryPrepareFolderForCallbacks(string folderPath, out string error, out Exception exception)

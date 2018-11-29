@@ -117,8 +117,10 @@ namespace GVFS.CommandLine
 
                 if (!GVFSPlatform.Instance.KernelDriver.IsReady(tracer, enlistment.EnlistmentRoot, out errorMessage))
                 {
-                    tracer.RelatedEvent(
-                        EventLevel.Informational,
+                    if (GVFSPlatform.Instance.SupportsGVFSService)
+                    {
+                        tracer.RelatedEvent(
+                            EventLevel.Informational,
                             $"{nameof(MountVerb)}_{nameof(this.Execute)}_EnablingKernelDriverViaService",
                             new EventMetadata
                             {
@@ -126,10 +128,23 @@ namespace GVFS.CommandLine
                                 { TracingConstants.MessageKey.InfoMessage, "Service will retry" }
                             });
 
-                    if (!this.ShowStatusWhileRunning(
-                        () => { return this.TryEnableAndAttachPrjFltThroughService(enlistment.EnlistmentRoot, out errorMessage); },
-                        $"Attaching ProjFS to volume"))
+                        if (!this.ShowStatusWhileRunning(
+                            () => { return this.TryEnableAndAttachPrjFltThroughService(enlistment.EnlistmentRoot, out errorMessage); },
+                            $"Attaching ProjFS to volume"))
+                        {
+                            this.ReportErrorAndExit(tracer, ReturnCode.FilterError, errorMessage);
+                        }
+                    }
+                    else
                     {
+                        tracer.RelatedEvent(
+                            EventLevel.Informational,
+                            $"{nameof(MountVerb)}_{nameof(this.Execute)}",
+                            new EventMetadata
+                            {
+                                { "KernelDriver.IsReady_Error", errorMessage },
+                            });
+
                         this.ReportErrorAndExit(tracer, ReturnCode.FilterError, errorMessage);
                     }
                 }
