@@ -98,12 +98,19 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
         public void PrefetchAll()
         {
             this.ExpectBlobCount(this.Enlistment.Prefetch("--files *"), 494);
-            this.ExpectBlobCount(this.Enlistment.Prefetch("--folders /"), 494);
             this.ExpectBlobCount(this.Enlistment.Prefetch($"--folders {Path.DirectorySeparatorChar}"), 494);
         }
 
-        // TODO(Mac): Handle that lock files are not deleted on Mac, they are simply unlocked
         [TestCase, Order(10)]
+        public void NoopPrefetch()
+        {
+            this.ExpectBlobCount(this.Enlistment.Prefetch("--files *"), 494);
+
+            this.Enlistment.Prefetch("--files *").ShouldContain("Nothing new to prefetch.");
+        }
+
+        // TODO(Mac): Handle that lock files are not deleted on Mac, they are simply unlocked
+        [TestCase, Order(11)]
         [Category(Categories.MacTODO.M4)]
         public void PrefetchCleansUpStalePrefetchLock()
         {

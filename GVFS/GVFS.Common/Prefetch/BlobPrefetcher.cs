@@ -4,6 +4,7 @@ using GVFS.Common.Http;
 using GVFS.Common.Prefetch.Git;
 using GVFS.Common.Prefetch.Pipeline;
 using GVFS.Common.Tracing;
+using Newtonsoft.Json;
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
@@ -32,10 +33,27 @@ namespace GVFS.Common.Prefetch
         private const string AreaPath = nameof(BlobPrefetcher);
         private static string pathSeparatorString = Path.DirectorySeparatorChar.ToString();
 
+        private FileBasedDictionary<string, string> lastPrefetchArgs;
+
         public BlobPrefetcher(
             ITracer tracer,
             Enlistment enlistment,
             GitObjectsHttpRequestor objectRequestor,
+            int chunkSize,
+            int searchThreadCount,
+            int downloadThreadCount,
+            int indexThreadCount)
+            : this(tracer, enlistment, objectRequestor, null, null, null, chunkSize, searchThreadCount, downloadThreadCount, indexThreadCount)
+        {
+        }
+
+        public BlobPrefetcher(
+            ITracer tracer,
+            Enlistment enlistment,
+            GitObjectsHttpRequestor objectRequestor,
+            List<string> fileList,
+            List<string> folderList,
+            FileBasedDictionary<string, string> lastPrefetchArgs,
             int chunkSize,
             int searchThreadCount,
             int downloadThreadCount,
@@ -50,8 +68,10 @@ namespace GVFS.Common.Prefetch
             this.ObjectRequestor = objectRequestor;
 
             this.GitObjects = new PrefetchGitObjects(tracer, enlistment, this.ObjectRequestor);
-            this.FileList = new List<string>();
-            this.FolderList = new List<string>();
+            this.FileList = fileList ?? new List<string>();
+            this.FolderList = folderList ?? new List<string>();
+
+            this.lastPrefetchArgs = lastPrefetchArgs;
 
             // We never want to update config settings for a GVFSEnlistment
             this.SkipConfigUpdate = enlistment is GVFSEnlistment;
@@ -127,6 +147,50 @@ namespace GVFS.Common.Prefetch
 
             error = null;
             return true;
+        }
+
+        public static bool IsNoopPrefetch(
+            ITracer tracer,
+            FileBasedDictionary<string, string> lastPrefetchArgs,
+            string commitId,
+            List<string> files,
+            List<string> folders,
+            bool hydrateFilesAfterDownload)
+        {
+            if (lastPrefetchArgs != null &&
+                lastPrefetchArgs.TryGetValue(PrefetchArgs.CommitId, out string lastCommitId) &&
+                lastPrefetchArgs.TryGetValue(PrefetchArgs.Files, out string lastFilesString) &&
+                lastPrefetchArgs.TryGetValue(PrefetchArgs.Folders, out string lastFoldersString) &&
+                lastPrefetchArgs.TryGetValue(PrefetchArgs.Hydrate, out string lastHydrateString))
+            {
+                string newFilesString = JsonConvert.SerializeObject(files);
+                string newFoldersString = JsonConvert.SerializeObject(folders);
+                bool isNoop =
+                    commitId == lastCommitId &&
+                    hydrateFilesAfterDownload.ToString() == lastHydrateString &&
+                    newFilesString == lastFilesString &&
+                    newFoldersString == lastFoldersString;
+
+                tracer.RelatedEvent(
+                    EventLevel.Informational,
+                    "BlobPrefetcher.IsNoopPrefetch", 
+                    new EventMetadata
+                    {
+                        { "Last" + PrefetchArgs.CommitId, lastCommitId },
+                        { "Last" + PrefetchArgs.Files, lastFilesString },
+                        { "Last" + PrefetchArgs.Folders, lastFoldersString },
+                        { "Last" + PrefetchArgs.Hydrate, lastHydrateString },
+                        { "New" + PrefetchArgs.CommitId, commitId },
+                        { "New" + PrefetchArgs.Files, newFilesString },
+                        { "New" + PrefetchArgs.Folders, newFoldersString },
+                        { "New" + PrefetchArgs.Hydrate, hydrateFilesAfterDownload.ToString() },
+                        { "Result", isNoop },
+                    });
+
+                return isNoop;
+            }
+
+            return false;
         }
 
         public static void AppendToNewlineSeparatedFile(string filename, string newContent)
@@ -211,10 +275,8 @@ namespace GVFS.Common.Prefetch
 
             this.DownloadMissingCommit(commitToFetch, this.GitObjects);
 
-            // Configure pipeline
-            // LsTreeHelper output => FindMissingBlobs => BatchDownload => IndexPack
+            // For FastFetch only, examine the shallow file to determine the previous commit that had been fetched
             string shallowFile = Path.Combine(this.Enlistment.WorkingDirectoryRoot, GVFSConstants.DotGit.Shallow);
-
             string previousCommit = null;
 
             // Use the shallow file to find a recent commit to diff against to try and reduce the number of SHAs to check.
@@ -228,7 +290,7 @@ namespace GVFS.Common.Prefetch
                     return;
                 }
             }
-
+            
             BlockingCollection<string> availableBlobs = new BlockingCollection<string>();
 
             ////
@@ -340,6 +402,11 @@ namespace GVFS.Common.Prefetch
                 {
                     this.HasFailures |= !this.UpdateRefSpec(this.Tracer, this.Enlistment, branchOrCommit, refs);
                 }
+            }
+
+            if (!this.HasFailures)
+            {
+                this.SavePrefetchArgs(commitToFetch, hydrateFilesAfterDownload);
             }
         }
 
@@ -467,12 +534,35 @@ namespace GVFS.Common.Prefetch
             return targetCommitish.StartsWith("refs/", StringComparison.OrdinalIgnoreCase);
         }
 
+        private void SavePrefetchArgs(string targetCommit, bool hydrate)
+        {
+            if (this.lastPrefetchArgs != null)
+            {
+                this.lastPrefetchArgs.SetValuesAndFlush(
+                    new[]
+                    {
+                        new KeyValuePair<string, string>(PrefetchArgs.CommitId, targetCommit),
+                        new KeyValuePair<string, string>(PrefetchArgs.Files, JsonConvert.SerializeObject(this.FileList)),
+                        new KeyValuePair<string, string>(PrefetchArgs.Folders, JsonConvert.SerializeObject(this.FolderList)),
+                        new KeyValuePair<string, string>(PrefetchArgs.Hydrate, hydrate.ToString()),
+                    });
+            }
+        }
+
         public class FetchException : Exception
         {
             public FetchException(string format, params object[] args)
                 : base(string.Format(format, args))
             {
             }
+        }
+
+        private static class PrefetchArgs
+        {
+            public const string CommitId = "CommitId";
+            public const string Files = "Files";
+            public const string Folders = "Folders";
+            public const string Hydrate = "Hydrate";
         }
     }
 }

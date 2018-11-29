@@ -28,7 +28,15 @@ namespace FastFetch
             int indexThreadCount,
             int checkoutThreadCount,
             bool allowIndexMetadataUpdateFromWorkingTree,
-            bool forceCheckout) : base(tracer, enlistment, objectRequestor, chunkSize, searchThreadCount, downloadThreadCount, indexThreadCount)
+            bool forceCheckout) 
+                : base(
+                    tracer,
+                    enlistment,
+                    objectRequestor,
+                    chunkSize,
+                    searchThreadCount,
+                    downloadThreadCount,
+                    indexThreadCount)
         {
             this.checkoutThreadCount = checkoutThreadCount;
             this.allowIndexMetadataUpdateFromWorkingTree = allowIndexMetadataUpdateFromWorkingTree;
