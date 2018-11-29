@@ -356,7 +356,7 @@ namespace GVFS.Virtualization
         public void ForceIndexProjectionUpdate(bool invalidateProjection, bool invalidateModifiedPaths)
         {
             this.InvalidateState(invalidateProjection, invalidateModifiedPaths);
-            this.GitIndexProjection.UpdateProjection();
+            this.GitIndexProjection.WaitForProjectionUpdate();
         }
 
         public NamedPipeMessages.ReleaseLock.Response TryReleaseExternalLock(int pid)

@@ -64,7 +64,6 @@ namespace GVFS.Virtualization.Projection
         private BackgroundFileSystemTaskRunner backgroundFileSystemTaskRunner;
         private ReaderWriterLockSlim projectionReadWriteLock;
         private ManualResetEventSlim projectionParseComplete;
-        private ManualResetEventSlim parseIndexRequested;
 
         private volatile bool projectionInvalid;
 
@@ -107,7 +106,6 @@ namespace GVFS.Virtualization.Projection
 
             this.projectionReadWriteLock = new ReaderWriterLockSlim();
             this.projectionParseComplete = new ManualResetEventSlim(initialState: false);
-            this.parseIndexRequested = new ManualResetEventSlim(initialState: false);
             this.wakeUpIndexParsingThread = new AutoResetEvent(initialState: false);
             this.projectionIndexBackupPath = Path.Combine(this.context.Enlistment.DotGVFSRoot, ProjectionIndexBackupName);
             this.indexPath = Path.Combine(this.context.Enlistment.WorkingDirectoryRoot, GVFSConstants.DotGit.Index);
@@ -229,16 +227,9 @@ namespace GVFS.Virtualization.Projection
             this.indexParsingThread.Wait();
         }
 
-        public void UpdateProjection()
+        public void WaitForProjectionUpdate()
         {
-            // Inform the index parsing thread that the index has changed,
-            // which means the projection needs to be updated to be correct before git proceeds
-            this.parseIndexRequested.Set();
-
-            this.ClearNegativePathCacheIfPollutedByGit();
             this.projectionParseComplete.Wait();
-
-            this.parseIndexRequested.Reset();
         }
 
         public NamedPipeMessages.ReleaseLock.Response TryReleaseExternalLock(int pid)
@@ -253,9 +244,7 @@ namespace GVFS.Virtualization.Projection
                 this.context.Tracer.RelatedEvent(EventLevel.Informational, "ReleaseExternalLockRequested", null);
                 this.context.Repository.GVFSLock.Stats.RecordReleaseExternalLockRequested();
 
-                // Inform the index parsing thread that git has requested a release, which means all of git's updates to the
-                // index are complete and it's safe to start parsing it now
-                this.UpdateProjection();
+                this.ClearNegativePathCacheIfPollutedByGit();
 
                 ConcurrentHashSet<string> updateFailures = this.updatePlaceholderFailures;
                 ConcurrentHashSet<string> deleteFailures = this.deletePlaceholderFailures;
@@ -596,12 +585,6 @@ namespace GVFS.Virtualization.Projection
                 {
                     this.projectionParseComplete.Dispose();
                     this.projectionParseComplete = null;
-                }
-
-                if (this.parseIndexRequested != null)
-                {
-                    this.parseIndexRequested.Dispose();
-                    this.parseIndexRequested = null;
                 }
 
                 if (this.wakeUpIndexParsingThread != null)
@@ -996,17 +979,9 @@ namespace GVFS.Virtualization.Projection
                 {
                     this.wakeUpIndexParsingThread.WaitOne();
 
-                    while (this.context.Repository.GVFSLock.GetExternalHolder() != null)
+                    if (this.isStopping)
                     {
-                        if (this.parseIndexRequested.Wait(ParseIndexRequestTimeoutMs))
-                        {
-                            break;
-                        }
-
-                        if (this.isStopping)
-                        {
-                            return;
-                        }
+                        return;
                     }
 
                     this.projectionReadWriteLock.EnterWriteLock();
