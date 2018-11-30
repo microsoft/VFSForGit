@@ -1,6 +1,7 @@
 ﻿using GVFS.Common;
 using Microsoft.Win32.SafeHandles;
 using System;
+using System.Diagnostics;
 using System.Runtime.InteropServices;
 using System.Security.Principal;
 
@@ -47,9 +48,23 @@ namespace GVFS.Platform.Windows
                     {
                         return true;
                     }
-                }
 
-                return false;
+                    return false;
+                }
+                else
+                {
+                    // The process.IsInvalid may be true when the mount process doesn't have access to call
+                    // OpenProcess for the specified processId. Fallback to slow way of finding process.
+                    try
+                    {
+                        Process.GetProcessById(processId);
+                        return true;
+                    }
+                    catch (ArgumentException)
+                    {
+                        return false;
+                    }
+                }
             }
         }
 
