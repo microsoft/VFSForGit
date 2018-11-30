@@ -398,6 +398,11 @@ VirtualizationRootResult VirtualizationRoot_RegisterProviderForPath(PrjFSProvide
                             KextLog_Error("VirtualizationRoot_RegisterProviderForPath: failed to insert new root");
                         }
                     }
+                    
+                    if (0 == err)
+                    {
+                        userClient->setProperty(PrjFSProviderPathKey, virtualizationRootCanonicalPath);
+                    }
                 }
                 RWLock_ReleaseExclusive(s_virtualizationRootsLock);
             }
