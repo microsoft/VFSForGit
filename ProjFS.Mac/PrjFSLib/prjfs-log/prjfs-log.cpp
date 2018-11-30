@@ -106,6 +106,7 @@ static void ProcessLogMessagesOnConnection(io_connect_t connection, io_service_t
     uint64_t timeOffsetMS = NanosecondsFromAbsoluteTime(mach_absolute_time() - s_machStartTime) / NSEC_PER_MSEC;
     printf("(0x%x: %5d: %5llu.%03llu) START: Processing log messages from service with ID 0x%llx\n",
         connection, logState->lineCount, timeOffsetMS / 1000u, timeOffsetMS % 1000u, prjfsServiceEntryID);
+    fflush(stdout);
     ++logState->lineCount;
     
     dispatch_source_set_event_handler(logState->dataQueue.dispatchSource, ^{
@@ -140,6 +141,8 @@ static void ProcessLogMessagesOnConnection(io_connect_t connection, io_service_t
             
             DataQueue_Dequeue(logState->dataQueue.queueMemory, nullptr, nullptr);
         }
+        
+        fflush(stdout);
     });
     dispatch_resume(logState->dataQueue.dispatchSource);
 
@@ -156,6 +159,7 @@ static void ProcessLogMessagesOnConnection(io_connect_t connection, io_service_t
         {
             uint64_t timeOffsetMS = NanosecondsFromAbsoluteTime(mach_absolute_time() - s_machStartTime) / NSEC_PER_MSEC;
             printf("(0x%x: %5d: %5llu.%03llu) STOP: service with ID 0x%llx has terminated\n", connection, logState->lineCount, timeOffsetMS / 1000u, timeOffsetMS % 1000u, prjfsServiceEntryID);
+            fflush(stdout);
             logState->lineCount++;
 
             DataQueue_Dispose(&logState->dataQueue, connection, LogMemoryType_MessageQueue);
