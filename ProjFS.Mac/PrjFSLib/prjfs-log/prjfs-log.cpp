@@ -70,6 +70,7 @@ static void ProcessLogMessagesOnConnection(io_connect_t connection, io_service_t
     printf("(0x%x: %5d: %5llu.%03llu) START: Processing log messages from service with ID 0x%llx\n",
         connection, lineCount, 0ull, 0ull, prjfsServiceEntryID);
     ++lineCount;
+    fflush(stdout);
     
     dispatch_source_set_event_handler(dataQueue.dispatchSource, ^{
         struct {
@@ -103,6 +104,8 @@ static void ProcessLogMessagesOnConnection(io_connect_t connection, io_service_t
             
             DataQueue_Dequeue(dataQueue.queueMemory, nullptr, nullptr);
         }
+        
+        fflush(stdout);
     });
     dispatch_resume(dataQueue.dispatchSource);
 
