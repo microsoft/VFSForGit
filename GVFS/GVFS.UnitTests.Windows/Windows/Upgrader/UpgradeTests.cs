@@ -30,8 +30,8 @@ namespace GVFS.UnitTests.Windows.Upgrader
             this.PrerunChecker.Reset();
             this.Upgrader.PretendNewReleaseAvailableAtRemote(
                 upgradeVersion: NewerThanLocalVersion,
-                remoteRing: ProductUpgrader.RingType.Slow);
-            this.Upgrader.LocalRingConfig = ProductUpgrader.RingType.Slow;
+                remoteRing: GitHubReleasesUpgrader.RingType.Slow);
+            this.Upgrader.LocalRingConfig = GitHubReleasesUpgrader.RingType.Slow;
         }
 
         [TestCase]
@@ -41,7 +41,7 @@ namespace GVFS.UnitTests.Windows.Upgrader
             this.ConfigureRunAndVerify(
                 configure: () =>
                 {
-                    this.Upgrader.LocalRingConfig = ProductUpgrader.RingType.None;
+                    this.Upgrader.LocalRingConfig = GitHubReleasesUpgrader.RingType.None;
                 },
                 expectedReturn: ReturnCode.Success,
                 expectedOutput: new List<string>
@@ -60,7 +60,7 @@ namespace GVFS.UnitTests.Windows.Upgrader
             this.ConfigureRunAndVerify(
                 configure: () =>
                 {
-                    this.Upgrader.LocalRingConfig = GVFS.Common.ProductUpgrader.RingType.Invalid;
+                    this.Upgrader.LocalRingConfig = GitHubReleasesUpgrader.RingType.Invalid;
                 },
                 expectedReturn: ReturnCode.GenericError,
                 expectedOutput: new List<string>

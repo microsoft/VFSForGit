@@ -7,7 +7,7 @@ using System.IO;
 
 namespace GVFS.UnitTests.Windows.Mock.Upgrader
 {
-    public class MockProductUpgrader : ProductUpgrader
+    public class MockProductUpgrader : GitHubReleasesUpgrader
     {
         private string expectedGVFSAssetName;
         private string expectedGitAssetName;
@@ -100,7 +100,7 @@ namespace GVFS.UnitTests.Windows.Mock.Upgrader
             return true;
         }
 
-        public override bool TryLoadRingConfig(out string error)
+        protected override bool TryLoadRingConfig(out string error)
         {
             this.Ring = this.LocalRingConfig;
 

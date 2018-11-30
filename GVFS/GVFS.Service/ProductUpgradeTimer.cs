@@ -67,7 +67,7 @@ namespace GVFS.Service
         {
             using (ITracer activity = this.tracer.StartActivity("Checking for product upgrades.", EventLevel.Informational))
             {
-                ProductUpgrader productUpgrader = new ProductUpgrader(ProcessHelper.GetCurrentProcessVersion(), this.tracer);
+                ProductUpgraderBase productUpgrader = ProductUpgraderBase.LoadUpgrader(this.tracer);
                 Version newerVersion = null;
                 string detailedError = null;
                 if (!productUpgrader.TryGetNewerVersion(out newerVersion, out detailedError))
