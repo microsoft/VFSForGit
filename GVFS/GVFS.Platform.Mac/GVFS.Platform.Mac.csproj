@@ -3,14 +3,18 @@
   <PropertyGroup>
     <TargetFrameworks>netcoreapp2.1;netstandard2.0</TargetFrameworks>
     <Platforms>x64</Platforms>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
   </PropertyGroup>
+
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
     <Version>$(GVFSVersion)</Version>
-    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <Version>$(GVFSVersion)</Version>
-    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="'$(Version)' == ''">
+    <Version>$(GVFSVersion)</Version>
   </PropertyGroup>
 
   <ItemGroup>
