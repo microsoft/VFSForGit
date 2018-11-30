@@ -13,16 +13,17 @@ namespace GVFS.Common
         private readonly PhysicalFileSystem fileSystem;
         private FileBasedDictionary<string, string> allSettings;
         
-        public LocalGVFSConfig()
+        public LocalGVFSConfig(FileBasedDictionary<string, string> settings = null)
         {
             string servicePath = Paths.GetServiceDataRoot(GVFSConstants.Service.ServiceName);
             string gvfsDirectory = Path.GetDirectoryName(servicePath);
 
             this.configFile = Path.Combine(gvfsDirectory, FileName);
             this.fileSystem = new PhysicalFileSystem();
+            this.allSettings = settings;
         }
 
-        public bool TryGetAllConfig(out Dictionary<string, string> allConfig, out string error)
+        public virtual bool TryGetAllConfig(out Dictionary<string, string> allConfig, out string error)
         {
             Dictionary<string, string> configCopy = null;
             if (!this.TryPerformAction(
@@ -38,7 +39,7 @@ namespace GVFS.Common
             return true;
         }
 
-        public bool TryGetConfig(
+        public virtual bool TryGetConfig(
             string name, 
             out string value, 
             out string error)
@@ -57,7 +58,7 @@ namespace GVFS.Common
             return true;
         }
 
-        public bool TrySetConfig(
+        public virtual bool TrySetConfig(
             string name, 
             string value, 
             out string error)
@@ -73,7 +74,7 @@ namespace GVFS.Common
             return true;
         }
 
-        public bool TryRemoveConfig(string name, out string error)
+        public virtual bool TryRemoveConfig(string name, out string error)
         {
             if (!this.TryPerformAction(
                 () => this.allSettings.RemoveAndFlush(name),
@@ -90,7 +91,7 @@ namespace GVFS.Common
         {
             if (!this.TryLoadSettings(out error))
             {
-                error = $"Error loading config settings.";
+                error = $"Error loading config settings. {error}";
                 return false;
             }
 

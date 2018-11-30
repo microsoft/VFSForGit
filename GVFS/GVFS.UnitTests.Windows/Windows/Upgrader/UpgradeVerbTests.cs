@@ -36,9 +36,10 @@ namespace GVFS.UnitTests.Windows.Upgrader
             this.ConfigureRunAndVerify(
                 configure: () =>
                 {
+                    this.SetUpgradeRing("Slow");
                     this.Upgrader.PretendNewReleaseAvailableAtRemote(
                         upgradeVersion: NewerThanLocalVersion,
-                        remoteRing: ProductUpgrader.RingType.Slow);
+                        remoteRing: GitHubUpgrader.GitHubUpgraderConfig.RingType.Slow);
                 },
                 expectedReturn: ReturnCode.Success,
                 expectedOutput: new List<string>
@@ -55,9 +56,10 @@ namespace GVFS.UnitTests.Windows.Upgrader
             this.ConfigureRunAndVerify(
                 configure: () =>
                 {
+                    this.SetUpgradeRing("Slow");
                     this.Upgrader.PretendNewReleaseAvailableAtRemote(
                         upgradeVersion: OlderThanLocalVersion,
-                        remoteRing: ProductUpgrader.RingType.Slow);
+                        remoteRing: GitHubUpgrader.GitHubUpgraderConfig.RingType.Slow);
                 },
                 expectedReturn: ReturnCode.Success,
                 expectedOutput: new List<string>
@@ -74,6 +76,7 @@ namespace GVFS.UnitTests.Windows.Upgrader
             this.ConfigureRunAndVerify(
                 configure: () =>
                 {
+                    this.SetUpgradeRing("Slow");
                     this.upgradeVerb.Confirmed = true;
                     this.PrerunChecker.SetCommandToRerun("`gvfs upgrade --confirm`");
                 },
@@ -109,6 +112,7 @@ namespace GVFS.UnitTests.Windows.Upgrader
             this.ConfigureRunAndVerify(
                 configure: () =>
                 {
+                    this.SetUpgradeRing("Slow");
                     this.Upgrader.SetFailOnAction(MockProductUpgrader.ActionType.CopyTools);
                     this.upgradeVerb.Confirmed = true;
                     this.PrerunChecker.SetCommandToRerun("`gvfs upgrade --confirm`");
