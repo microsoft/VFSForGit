@@ -39,6 +39,8 @@ namespace GVFS.Common
         public static class LocalGVFSConfig
         {
             public const string UpgradeRing = "upgrade.ring";
+            public const string UpgradeFeedName = "upgrade.feedname";
+            public const string UpgradeFeedUrl = "upgrade.feedurl";
         }
 
         public static class GitStatusCache
