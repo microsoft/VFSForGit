@@ -342,7 +342,7 @@ static int HandleVnodeOperation(
             mount_t mount = vnode_mount(currentVnode);
             vfsstatfs* vfsStat = mount != nullptr ? vfs_statfs(mount) : nullptr;
 
-            KextLog_Error("HandleVnodeOperation: vn_getpath failed for vnode %p, name '%s', recycled: %s, mount %p mounted at '%s'", currentVnode, name ?: "[NULL]", vnode_isrecycled(currentVnode) ? "yes" : "no", mount, vfsStat ? vfsStat->f_mntonname : "[NULL]");
+            KextLog_Error("HandleVnodeOperation: vn_getpath failed for vnode %p, error = %d, name '%s', recycled: %s, mount %p mounted at '%s'", currentVnode, error, name ?: "[NULL]", vnode_isrecycled(currentVnode) ? "yes" : "no", mount, vfsStat ? vfsStat->f_mntonname : "[NULL]");
             if (name != nullptr)
                 vnode_putname(name);
         }
