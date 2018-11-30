@@ -13,6 +13,8 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
     public class PrefetchVerbTests : TestsWithEnlistmentPerFixture
     {
         private const string PrefetchCommitsAndTreesLock = "prefetch-commits-trees.lock";
+        private const string CommitGraphLock = "commit-graph.lock";
+        private const string MultiPackIndexLock = "multi-pack-index.lock";
 
         private FileSystemRunner fileSystem;
 
@@ -115,15 +117,32 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
         public void PrefetchCleansUpStalePrefetchLock()
         {
             this.Enlistment.Prefetch("--commits");
-            this.PostFetchJobShouldComplete();
+            this.PostFetchStepShouldComplete();
             string prefetchCommitsLockFile = Path.Combine(this.Enlistment.GetObjectRoot(this.fileSystem), "pack", PrefetchCommitsAndTreesLock);
             prefetchCommitsLockFile.ShouldNotExistOnDisk(this.fileSystem);
             this.fileSystem.WriteAllText(prefetchCommitsLockFile, this.Enlistment.EnlistmentRoot);
             prefetchCommitsLockFile.ShouldBeAFile(this.fileSystem);
 
             this.Enlistment.Prefetch("--commits");
-            this.PostFetchJobShouldComplete();
+            this.PostFetchStepShouldComplete();
             prefetchCommitsLockFile.ShouldNotExistOnDisk(this.fileSystem);
+        }
+
+        [TestCase, Order(11)]
+        [Category(Categories.MacTODO.M4)]
+        public void PrefetchCleansUpPackDir()
+        {
+            string multiPackIndexLockFile = Path.Combine(this.Enlistment.GetPackRoot(this.fileSystem),  MultiPackIndexLock);
+            string oldGitTempFile = Path.Combine(this.Enlistment.GetPackRoot(this.fileSystem), "tmp_midx_XXXX");
+
+            this.fileSystem.WriteAllText(multiPackIndexLockFile, this.Enlistment.EnlistmentRoot);
+            this.fileSystem.WriteAllText(oldGitTempFile, this.Enlistment.EnlistmentRoot);
+
+            this.Enlistment.Prefetch("--commits");
+            oldGitTempFile.ShouldNotExistOnDisk(this.fileSystem);
+
+            this.PostFetchStepShouldComplete();
+            multiPackIndexLockFile.ShouldNotExistOnDisk(this.fileSystem);
         }
 
         private void ExpectBlobCount(string output, int expectedCount)
@@ -131,10 +150,10 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
             output.ShouldContain("Matched blobs:    " + expectedCount);
         }
 
-        private void PostFetchJobShouldComplete()
+        private void PostFetchStepShouldComplete()
         {
             string objectDir = this.Enlistment.GetObjectRoot(this.fileSystem);
-            string postFetchLock = Path.Combine(objectDir, "post-fetch.lock");
+            string objectCacheLock = Path.Combine(objectDir, "git-maintenance-step.lock");
 
             // Wait first, to hopefully ensure the background thread has
             // started before we check for the lock file.
@@ -142,7 +161,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
             {
                 Thread.Sleep(500);
             }
-            while (this.fileSystem.FileExists(postFetchLock));
+            while (this.fileSystem.FileExists(objectCacheLock));
 
             ProcessResult midxResult = GitProcess.InvokeProcess(this.Enlistment.RepoRoot, "multi-pack-index verify --object-dir=\"" + objectDir + "\"");
             midxResult.ExitCode.ShouldEqual(0);

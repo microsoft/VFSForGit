@@ -49,11 +49,14 @@ namespace GVFS.UnitTests.Mock.Common
         {
             this.RelatedInfoEvents.Add(string.Format(format, args));
         }
-        
+
         public void RelatedWarning(EventMetadata metadata, string message)
         {
-            metadata[TracingConstants.MessageKey.WarningMessage] = message;
-            this.RelatedWarningEvents.Add(JsonConvert.SerializeObject(metadata));
+            if (metadata != null)
+            {
+                metadata[TracingConstants.MessageKey.WarningMessage] = message;
+                this.RelatedWarningEvents.Add(JsonConvert.SerializeObject(metadata));
+            }
         }
 
         public void RelatedWarning(EventMetadata metadata, string message, Keywords keyword)
@@ -70,7 +73,7 @@ namespace GVFS.UnitTests.Mock.Common
         {
             this.RelatedWarningEvents.Add(string.Format(format, args));
         }
-        
+
         public void RelatedError(EventMetadata metadata, string message)
         {
             metadata[TracingConstants.MessageKey.ErrorMessage] = message;

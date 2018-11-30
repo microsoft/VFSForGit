@@ -47,9 +47,10 @@ namespace GVFS.Common.Git
             const bool PreferLooseObjects = false;
             IEnumerable<string> objectIds = new[] { commitSha };
 
+            GitProcess gitProcess = new GitProcess(this.Enlistment);
             RetryWrapper<GitObjectsHttpRequestor.GitObjectTaskResult>.InvocationResult output = this.GitObjectRequestor.TryDownloadObjects(
                 objectIds,
-                onSuccess: (tryCount, response) => this.TrySavePackOrLooseObject(objectIds, PreferLooseObjects, response),
+                onSuccess: (tryCount, response) => this.TrySavePackOrLooseObject(objectIds, PreferLooseObjects, response, gitProcess),
                 onFailure: (eArgs) =>
                 {
                     EventMetadata metadata = CreateEventMetadata(eArgs.Error);
@@ -82,7 +83,7 @@ namespace GVFS.Common.Git
                 metadata.Add("stalePackPath", stalePackPath);
                 metadata.Add("staleIdxPath", staleIdxPath);
                 metadata.Add("staleTempIdxPath", staleTempIdxPath);
-                metadata.Add(TracingConstants.MessageKey.InfoMessage, @"Deleting stale temp pack and\or idx file");
+                metadata.Add(TracingConstants.MessageKey.InfoMessage, "Deleting stale temp pack and/or idx file");
 
                 this.fileSystem.TryDeleteFile(staleTempIdxPath, metadataKey: nameof(staleTempIdxPath), metadata: metadata);
                 this.fileSystem.TryDeleteFile(staleIdxPath, metadataKey: nameof(staleIdxPath), metadata: metadata);
@@ -91,8 +92,23 @@ namespace GVFS.Common.Git
                 this.Tracer.RelatedEvent(EventLevel.Informational, nameof(this.DeleteStaleTempPrefetchPackAndIdxs), metadata);
             }
         }
+        
+        public virtual void DeleteTemporaryFiles()
+        {
+            string[] temporaryFiles = this.fileSystem.GetFiles(this.Enlistment.GitPackRoot, "tmp_*");
+            foreach (string temporaryFilePath in temporaryFiles)
+            {
+                EventMetadata metadata = CreateEventMetadata();
+                metadata.Add(nameof(temporaryFilePath), temporaryFilePath);
+                metadata.Add(TracingConstants.MessageKey.InfoMessage, "Deleting temporary file");
 
-        public virtual bool TryDownloadPrefetchPacks(long latestTimestamp, out List<string> packIndexes)
+                this.fileSystem.TryDeleteFile(temporaryFilePath, metadataKey: nameof(temporaryFilePath), metadata: metadata);
+
+                this.Tracer.RelatedEvent(EventLevel.Informational, nameof(this.DeleteTemporaryFiles), metadata);
+            }
+        }
+
+        public virtual bool TryDownloadPrefetchPacks(GitProcess gitProcess, long latestTimestamp, out List<string> packIndexes)
         {
             EventMetadata metadata = CreateEventMetadata();
             metadata.Add("latestTimestamp", latestTimestamp);
@@ -105,7 +121,7 @@ namespace GVFS.Common.Git
                 List<string> innerPackIndexes = null;
                 RetryWrapper<GitObjectsHttpRequestor.GitObjectTaskResult>.InvocationResult result = this.GitObjectRequestor.TrySendProtocolRequest(
                     requestId: requestId,
-                    onSuccess: (tryCount, response) => this.DeserializePrefetchPacks(response, ref latestTimestamp, ref bytesDownloaded, ref innerPackIndexes),
+                    onSuccess: (tryCount, response) => this.DeserializePrefetchPacks(response, ref latestTimestamp, ref bytesDownloaded, ref innerPackIndexes, gitProcess),
                     onFailure: RetryWrapper<GitObjectsHttpRequestor.GitObjectTaskResult>.StandardErrorHandler(activity, requestId, "TryDownloadPrefetchPacks"),
                     method: HttpMethod.Get,
                     endPointGenerator: () => new Uri(
@@ -275,7 +291,7 @@ namespace GVFS.Common.Git
             return true;
         }
 
-        public virtual GitProcess.Result IndexTempPackFile(string tempPackPath)
+        public virtual GitProcess.Result IndexTempPackFile(string tempPackPath, GitProcess gitProcess = null)
         {
             string packfilePath = GetRandomPackName(this.Enlistment.GitPackRoot);
 
@@ -313,11 +329,11 @@ namespace GVFS.Common.Git
 
             // TryBuildIndex will delete the pack file if indexing fails
             GitProcess.Result result;
-            this.TryBuildIndex(this.Tracer, packfilePath, out result);
+            this.TryBuildIndex(this.Tracer, packfilePath, out result, gitProcess);
             return result;
         }
 
-        public virtual GitProcess.Result IndexPackFile(string packfilePath)
+        public virtual GitProcess.Result IndexPackFile(string packfilePath, GitProcess gitProcess)
         {
             string tempIdxPath = Path.ChangeExtension(packfilePath, TempIdxExtension);
             string idxPath = Path.ChangeExtension(packfilePath, ".idx");
@@ -325,7 +341,12 @@ namespace GVFS.Common.Git
             Exception indexPackException = null;
             try
             {
-                GitProcess.Result result = new GitProcess(this.Enlistment).IndexPack(packfilePath, tempIdxPath);
+                if (gitProcess == null)
+                {
+                    gitProcess = new GitProcess(this.Enlistment);
+                }
+
+                GitProcess.Result result = gitProcess.IndexPack(packfilePath, tempIdxPath);
                 if (result.ExitCodeIsFailure)
                 {
                     Exception exception;
@@ -586,7 +607,8 @@ namespace GVFS.Common.Git
            GitEndPointResponseData response,
            ref long latestTimestamp,
            ref long bytesDownloaded,
-           ref List<string> packIndexes)
+           ref List<string> packIndexes,
+           GitProcess gitProcess)
         {
             if (packIndexes == null)
             {
@@ -634,7 +656,7 @@ namespace GVFS.Common.Git
                     if (pack.IndexStream == null)
                     {
                         GitProcess.Result result;
-                        if (!this.TryBuildIndex(activity, packTempPath, out result))
+                        if (!this.TryBuildIndex(activity, packTempPath, out result, gitProcess))
                         {
                             if (packFlushTask != null)
                             {
@@ -663,7 +685,7 @@ namespace GVFS.Common.Git
 
                             // Try to build the index manually, then retry the prefetch
                             GitProcess.Result result;
-                            if (this.TryBuildIndex(activity, packTempPath, out result))
+                            if (this.TryBuildIndex(activity, packTempPath, out result, gitProcess))
                             {
                                 // If we were able to recreate the failed index
                                 // we can start the prefetch at the next timestamp
@@ -746,9 +768,10 @@ namespace GVFS.Common.Git
         private bool TryBuildIndex(
             ITracer activity,
             string packFullPath,
-            out GitProcess.Result result)
+            out GitProcess.Result result,
+            GitProcess gitProcess)
         {
-            result = this.IndexPackFile(packFullPath);
+            result = this.IndexPackFile(packFullPath, gitProcess);
 
             if (result.ExitCodeIsFailure)
             {
@@ -856,7 +879,11 @@ namespace GVFS.Common.Git
             }
         }
 
-        private RetryWrapper<GitObjectsHttpRequestor.GitObjectTaskResult>.CallbackResult TrySavePackOrLooseObject(IEnumerable<string> objectShas, bool unpackObjects, GitEndPointResponseData responseData)
+        private RetryWrapper<GitObjectsHttpRequestor.GitObjectTaskResult>.CallbackResult TrySavePackOrLooseObject(
+                                                                                                IEnumerable<string> objectShas, 
+                                                                                                bool unpackObjects,
+                                                                                                GitEndPointResponseData responseData,
+                                                                                                GitProcess gitProcess)
         {
             if (responseData.ContentType == GitObjectContentType.LooseObject)
             {
@@ -883,7 +910,7 @@ namespace GVFS.Common.Git
             }
             else
             {
-                GitProcess.Result result = this.TryAddPackFile(responseData.Stream, unpackObjects);
+                GitProcess.Result result = this.TryAddPackFile(responseData.Stream, unpackObjects, gitProcess);
                 if (result.ExitCodeIsFailure)
                 {
                     return new RetryWrapper<GitObjectsHttpRequestor.GitObjectTaskResult>.CallbackResult(new InvalidOperationException("Could not add pack file: " + result.Errors), shouldRetry: false);
@@ -893,7 +920,7 @@ namespace GVFS.Common.Git
             return new RetryWrapper<GitObjectsHttpRequestor.GitObjectTaskResult>.CallbackResult(new GitObjectsHttpRequestor.GitObjectTaskResult(true));
         }
 
-        private GitProcess.Result TryAddPackFile(Stream contents, bool unpackObjects)
+        private GitProcess.Result TryAddPackFile(Stream contents, bool unpackObjects, GitProcess gitProcess)
         {
             GitProcess.Result result;
 
@@ -906,7 +933,7 @@ namespace GVFS.Common.Git
             else
             {
                 string tempPackPath = this.WriteTempPackFile(contents);
-                return this.IndexTempPackFile(tempPackPath);
+                return this.IndexTempPackFile(tempPackPath, gitProcess);
             }
 
             return result;
