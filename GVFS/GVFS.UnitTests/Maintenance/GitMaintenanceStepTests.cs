@@ -67,13 +67,13 @@ namespace GVFS.UnitTests.Maintenance
         public class CheckMethodStep : GitMaintenanceStep
         {
             public CheckMethodStep(GVFSContext context, GitObjects gitObjects)
-                : base(context, gitObjects)
+                : base(context, gitObjects, requireObjectCacheLock: true)
             {
             }
 
             public bool SawWorkInvoked { get; set; }
 
-            public override string TelemetryKey => "CheckMethodStep";
+            public override string Area => "CheckMethodStep";
 
             protected override void RunGitAction()
             {
@@ -88,13 +88,13 @@ namespace GVFS.UnitTests.Maintenance
         public class CheckStopStep : GitMaintenanceStep
         {
             public CheckStopStep(GVFSContext context, GitObjects gitObjects)
-                : base(context, gitObjects)
+                : base(context, gitObjects, requireObjectCacheLock: true)
             {
             }
 
             public bool SawWorkInvoked { get; set; }
 
-            public override string TelemetryKey => "CheckMethodStep";
+            public override string Area => "CheckMethodStep";
 
             protected override void RunGitAction()
             {

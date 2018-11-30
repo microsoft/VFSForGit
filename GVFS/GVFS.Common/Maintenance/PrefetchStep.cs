@@ -22,7 +22,7 @@ namespace GVFS.Common.Maintenance
         {
         }
 
-        public override string TelemetryKey => "PrefetchStep";
+        public override string Area => "PrefetchStep";
 
         public bool TryPrefetchCommitsAndTrees(out string error, GitProcess gitProcess = null)
         {
@@ -32,12 +32,15 @@ namespace GVFS.Common.Maintenance
             }
 
             List<string> packIndexes;
+
+            // We take our own lock here to keep background and foreground prefetches
+            // from running at the same time.
             using (FileBasedLock prefetchLock = GVFSPlatform.Instance.CreateFileBasedLock(
                 this.Context.FileSystem,
                 this.Context.Tracer,
                 Path.Combine(this.Context.Enlistment.GitPackRoot, PrefetchCommitsAndTreesLock)))
             {
-                this.WaitUntilLockIsAcquired(this.Context.Tracer, prefetchLock);
+                WaitUntilLockIsAcquired(this.Context.Tracer, prefetchLock);
                 long maxGoodTimeStamp;
 
                 this.GitObjects.DeleteStaleTempPrefetchPackAndIdxs();
@@ -76,7 +79,7 @@ namespace GVFS.Common.Maintenance
 
             if (now <= lastDateTime + this.timeBetweenPrefetches)
             {
-                this.Context.Tracer.RelatedInfo(this.TelemetryKey + ": Skipping prefetch since most-recent prefetch ({0}) is too close to now ({1})", lastDateTime, now);
+                this.Context.Tracer.RelatedInfo(this.Area + ": Skipping prefetch since most-recent prefetch ({0}) is too close to now ({1})", lastDateTime, now);
                 return;
             }
 
@@ -89,9 +92,42 @@ namespace GVFS.Common.Maintenance
             if (!string.IsNullOrEmpty(error))
             {
                 this.Context.Tracer.RelatedWarning(
-                    metadata: null,
-                    message: $"{this.TelemetryKey}: {nameof(this.TryPrefetchCommitsAndTrees)} failed with error '{error}'",
+                    metadata: this.CreateEventMetadata(),
+                    message: $"{this.Area}: {nameof(this.TryPrefetchCommitsAndTrees)} failed with error '{error}'",
                     keywords: Keywords.Telemetry);
+            }
+        }
+
+        private static long? GetTimestamp(string packName)
+        {
+            string filename = Path.GetFileName(packName);
+            if (!filename.StartsWith(GVFSConstants.PrefetchPackPrefix))
+            {
+                return null;
+            }
+
+            string[] parts = filename.Split('-');
+            long parsed;
+            if (parts.Length > 1 && long.TryParse(parts[1], out parsed))
+            {
+                return parsed;
+            }
+
+            return null;
+        }
+
+        private static void WaitUntilLockIsAcquired(ITracer tracer, FileBasedLock fileBasedLock)
+        {
+            int attempt = 0;
+            while (!fileBasedLock.TryAcquireLock())
+            {
+                Thread.Sleep(LockWaitTimeMs);
+                ++attempt;
+                if (attempt == WaitingOnLockLogThreshold)
+                {
+                    attempt = 0;
+                    tracer.RelatedInfo("WaitUntilLockIsAcquired: Waiting to acquire prefetch lock");
+                }
             }
         }
 
@@ -101,8 +137,8 @@ namespace GVFS.Common.Maintenance
 
             string[] packs = GitObjects.ReadPackFileNames(this.Context.Enlistment.GitPackRoot, GVFSConstants.PrefetchPackPrefix);
             List<PrefetchPackInfo> orderedPacks = packs
-                .Where(pack => this.GetTimestamp(pack).HasValue)
-                .Select(pack => new PrefetchPackInfo(this.GetTimestamp(pack).Value, pack))
+                .Where(pack => GetTimestamp(pack).HasValue)
+                .Select(pack => new PrefetchPackInfo(GetTimestamp(pack).Value, pack))
                 .OrderBy(packInfo => packInfo.Timestamp)
                 .ToList();
 
@@ -116,7 +152,7 @@ namespace GVFS.Common.Maintenance
                 string idxPath = Path.ChangeExtension(packPath, ".idx");
                 if (!this.Context.FileSystem.FileExists(idxPath))
                 {
-                    EventMetadata metadata = new EventMetadata();
+                    EventMetadata metadata = this.CreateEventMetadata();
                     metadata.Add("pack", packPath);
                     metadata.Add("idxPath", idxPath);
                     metadata.Add("timestamp", timestamp);
@@ -158,7 +194,7 @@ namespace GVFS.Common.Maintenance
                 // Before we delete _any_ pack-files, we need to delete the multi-pack-index, which
                 // may refer to those packs.
 
-                EventMetadata metadata = new EventMetadata();
+                EventMetadata metadata = this.CreateEventMetadata();
                 string midxPath = Path.Combine(this.Context.Enlistment.GitPackRoot, "multi-pack-index");
                 metadata.Add("path", midxPath);
                 metadata.Add(TracingConstants.MessageKey.InfoMessage, $"{nameof(TryGetMaxGoodPrefetchTimestamp)} deleting multi-pack-index");
@@ -177,7 +213,7 @@ namespace GVFS.Common.Maintenance
                     string packPath = orderedPacks[i].Path;
                     string idxPath = Path.ChangeExtension(packPath, ".idx");
 
-                    metadata = new EventMetadata();
+                    metadata = this.CreateEventMetadata();
                     metadata.Add("path", idxPath);
                     metadata.Add(TracingConstants.MessageKey.InfoMessage, $"{nameof(TryGetMaxGoodPrefetchTimestamp)} deleting bad idx file");
                     this.Context.Tracer.RelatedEvent(EventLevel.Informational, $"{nameof(TryGetMaxGoodPrefetchTimestamp)}_DeleteBadIdx", metadata);
@@ -188,7 +224,7 @@ namespace GVFS.Common.Maintenance
                         return false;
                     }
 
-                    metadata = new EventMetadata();
+                    metadata = this.CreateEventMetadata();
                     metadata.Add("path", packPath);
                     metadata.Add(TracingConstants.MessageKey.InfoMessage, $"{nameof(TryGetMaxGoodPrefetchTimestamp)} deleting bad pack file");
                     this.Context.Tracer.RelatedEvent(EventLevel.Informational, $"{nameof(TryGetMaxGoodPrefetchTimestamp)}_DeleteBadPack", metadata);
@@ -219,7 +255,7 @@ namespace GVFS.Common.Maintenance
                 if (!pipeClient.Connect())
                 {
                     this.Context.Tracer.RelatedWarning(
-                        metadata: null,
+                        metadata: this.CreateEventMetadata(),
                         message: "Failed to connect to GVFS.Mount process. Skipping post-fetch job request.",
                         keywords: Keywords.Telemetry);
                     return false;
@@ -238,7 +274,7 @@ namespace GVFS.Common.Maintenance
                     else
                     {
                         this.Context.Tracer.RelatedWarning(
-                            metadata: null,
+                            metadata: this.CreateEventMetadata(),
                             message: "Requested post-fetch job failed to respond",
                             keywords: Keywords.Telemetry);
                     }
@@ -246,46 +282,13 @@ namespace GVFS.Common.Maintenance
                 else
                 {
                     this.Context.Tracer.RelatedWarning(
-                        metadata: null,
+                        metadata: this.CreateEventMetadata(),
                         message: "Message to named pipe failed to send, skipping post-fetch job request.",
                         keywords: Keywords.Telemetry);
                 }
             }
 
             return false;
-        }
-
-        private long? GetTimestamp(string packName)
-        {
-            string filename = Path.GetFileName(packName);
-            if (!filename.StartsWith(GVFSConstants.PrefetchPackPrefix))
-            {
-                return null;
-            }
-
-            string[] parts = filename.Split('-');
-            long parsed;
-            if (parts.Length > 1 && long.TryParse(parts[1], out parsed))
-            {
-                return parsed;
-            }
-
-            return null;
-        }
-
-        private void WaitUntilLockIsAcquired(ITracer tracer, FileBasedLock fileBasedLock)
-        {
-            int attempt = 0;
-            while (!fileBasedLock.TryAcquireLock())
-            {
-                Thread.Sleep(LockWaitTimeMs);
-                ++attempt;
-                if (attempt == WaitingOnLockLogThreshold)
-                {
-                    attempt = 0;
-                    tracer.RelatedInfo("WaitUntilLockIsAcquired: Waiting to acquire prefetch lock");
-                }
-            }
         }
 
         private class PrefetchPackInfo

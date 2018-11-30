@@ -29,7 +29,6 @@ namespace GVFS.Mount
         private FileSystemCallbacks fileSystemCallbacks;
         private GVFSEnlistment enlistment;
         private ITracer tracer;
-        private GitMaintenanceQueue maintenanceQueue;
         private GitMaintenanceScheduler maintenanceScheduler;
 
         private CacheServerInfo cacheServer;
@@ -415,7 +414,7 @@ namespace GVFS.Mount
             if (this.currentState == MountState.Ready)
             {
                 List<string> packIndexes = JsonConvert.DeserializeObject<List<string>>(message.Body);
-                this.maintenanceQueue.Enqueue(new PostFetchStep(this.context, this.gitObjects, packIndexes));
+                this.maintenanceScheduler.EnqueueOneTimeStep(new PostFetchStep(this.context, this.gitObjects, packIndexes));
 
                 response = new NamedPipeMessages.RunPostFetchJob.Response(NamedPipeMessages.RunPostFetchJob.QueuedResult);
             }
@@ -517,8 +516,7 @@ namespace GVFS.Mount
             }
 
             this.fileSystemCallbacks = this.CreateOrReportAndExit(() => new FileSystemCallbacks(this.context, this.gitObjects, RepoMetadata.Instance, virtualizer, gitStatusCache), "Failed to create src folder callback listener");
-            this.maintenanceQueue = this.CreateOrReportAndExit(() => new GitMaintenanceQueue(this.context), "Failed to start maintenance queue");
-            this.maintenanceScheduler = this.CreateOrReportAndExit(() => new GitMaintenanceScheduler(this.context, this.gitObjects, this.maintenanceQueue), "Failed to start maintenance scheduler");
+            this.maintenanceScheduler = this.CreateOrReportAndExit(() => new GitMaintenanceScheduler(this.context, this.gitObjects), "Failed to start maintenance scheduler");
 
             int majorVersion;
             int minorVersion;
@@ -558,13 +556,7 @@ namespace GVFS.Mount
                 this.maintenanceScheduler.Dispose();
                 this.maintenanceScheduler = null;
             }
-
-            if (this.maintenanceQueue != null)
-            {
-                this.maintenanceQueue.Stop();
-                this.maintenanceQueue = null;
-            }
-
+            
             if (this.heartbeat != null)
             {
                 this.heartbeat.Stop();

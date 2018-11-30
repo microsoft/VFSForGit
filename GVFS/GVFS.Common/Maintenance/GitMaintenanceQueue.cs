@@ -18,16 +18,25 @@ namespace GVFS.Common.Maintenance
             this.context = context;
             Thread worker = new Thread(() => this.RunQueue());
             worker.Name = "MaintenanceWorker";
+            worker.IsBackground = true;
             worker.Start();
         }
 
         public void Enqueue(GitMaintenanceStep step)
         {
-            this.queue.Add(step);
+            try
+            {
+                this.queue?.Add(step);
+            }
+            catch (InvalidOperationException)
+            {
+                // We called queue.CompleteAdding()
+            }
         }
 
         public void Stop()
         {
+            this.queue?.CompleteAdding();
             this.cancellationToken.Cancel();
             this.currentStep?.Stop();
         }
@@ -62,6 +71,8 @@ namespace GVFS.Common.Maintenance
                 catch (OperationCanceledException)
                 {
                     // Only gets thrown when stop is requested
+                    this.queue.Dispose();
+                    this.queue = null;
                     return;
                 }
 
@@ -74,15 +85,15 @@ namespace GVFS.Common.Maintenance
                     catch (Exception e)
                     {
                         this.LogErrorAndExit(
-                            telemetryKey: nameof(GitMaintenanceQueue),
+                            area: nameof(GitMaintenanceQueue),
                             methodName: nameof(this.RunQueue),
                             exception: e);
-                    }                   
+                    }
                 }
             }
         }
 
-        private void LogError(string telemetryKey, string methodName, Exception exception)
+        private void LogError(string area, string methodName, Exception exception)
         {
             EventMetadata metadata = new EventMetadata();
             metadata.Add("Method", methodName);
@@ -90,13 +101,13 @@ namespace GVFS.Common.Maintenance
             metadata.Add("StackTrace", exception.StackTrace);
             this.context.Tracer.RelatedError(
                 metadata: metadata,
-                message: telemetryKey + ": Unexpected Exception while running maintenance steps (fatal): " + exception.Message,
+                message: area + ": Unexpected Exception while running maintenance steps (fatal): " + exception.Message,
                 keywords: Keywords.Telemetry);
         }
 
-        private void LogErrorAndExit(string telemetryKey, string methodName, Exception exception)
+        private void LogErrorAndExit(string area, string methodName, Exception exception)
         {
-            this.LogError(telemetryKey, methodName, exception);
+            this.LogError(area, methodName, exception);
             Environment.Exit((int)ReturnCode.GenericError);
         }
     }

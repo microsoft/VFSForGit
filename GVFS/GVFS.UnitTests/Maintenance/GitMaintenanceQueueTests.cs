@@ -155,14 +155,14 @@ namespace GVFS.UnitTests.Maintenance
         public class TestGitMaintenanceStep : GitMaintenanceStep
         {
             public TestGitMaintenanceStep(GVFSContext context, GitObjects gitObjects)
-                : base(context, gitObjects)
+                : base(context, gitObjects, requireObjectCacheLock: true)
             {
                 this.EventTriggered = new ManualResetEvent(initialState: false);
             }
 
             public ManualResetEvent EventTriggered { get; set; }
 
-            public override string TelemetryKey => "TestGitMaintenanceStep";
+            public override string Area => "TestGitMaintenanceStep";
 
             protected override void RunGitAction()
             {
@@ -173,7 +173,7 @@ namespace GVFS.UnitTests.Maintenance
         private class WatchForStopStep : GitMaintenanceStep
         {
             public WatchForStopStep(GitMaintenanceQueue queue, GVFSContext context, GitObjects gitObjects)
-                : base(context, gitObjects)
+                : base(context, gitObjects, requireObjectCacheLock: true)
             {
                 this.Queue = queue;
                 this.EventTriggered = new ManualResetEvent(false);
@@ -185,7 +185,7 @@ namespace GVFS.UnitTests.Maintenance
 
             public ManualResetEvent EventTriggered { get; private set; }
 
-            public override string TelemetryKey => "WatchForStopStep";
+            public override string Area => "WatchForStopStep";
 
             protected override void RunGitAction()
             {

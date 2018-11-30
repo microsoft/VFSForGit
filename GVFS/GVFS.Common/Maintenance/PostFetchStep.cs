@@ -12,12 +12,12 @@ namespace GVFS.Common.Maintenance
         private List<string> packIndexes;
 
         public PostFetchStep(GVFSContext context, GitObjects gitObjects, List<string> packIndexes)
-            : base(context, gitObjects)
+            : base(context, gitObjects, requireObjectCacheLock: true)
         {
             this.packIndexes = packIndexes;
         }
 
-        public override string TelemetryKey => "PostFetchMaintenanceStep";
+        public override string Area => "PostFetchMaintenanceStep";
 
         protected override void RunGitAction()
         {
@@ -31,7 +31,7 @@ namespace GVFS.Common.Maintenance
 
             if (this.packIndexes == null || this.packIndexes.Count == 0)
             {
-                this.Context.Tracer.RelatedInfo(this.TelemetryKey + ": Skipping commit-graph write due to no new packfiles");
+                this.Context.Tracer.RelatedInfo(this.Area + ": Skipping commit-graph write due to no new packfiles");
                 return;
             }
 

@@ -83,7 +83,7 @@ namespace GVFS.Common.Git
                 metadata.Add("stalePackPath", stalePackPath);
                 metadata.Add("staleIdxPath", staleIdxPath);
                 metadata.Add("staleTempIdxPath", staleTempIdxPath);
-                metadata.Add(TracingConstants.MessageKey.InfoMessage, @"Deleting stale temp pack and\or idx file");
+                metadata.Add(TracingConstants.MessageKey.InfoMessage, "Deleting stale temp pack and/or idx file");
 
                 this.fileSystem.TryDeleteFile(staleTempIdxPath, metadataKey: nameof(staleTempIdxPath), metadata: metadata);
                 this.fileSystem.TryDeleteFile(staleIdxPath, metadataKey: nameof(staleIdxPath), metadata: metadata);
@@ -100,7 +100,7 @@ namespace GVFS.Common.Git
             {
                 EventMetadata metadata = CreateEventMetadata();
                 metadata.Add(nameof(temporaryFilePath), temporaryFilePath);
-                metadata.Add(TracingConstants.MessageKey.InfoMessage, @"Deleting temporary file");
+                metadata.Add(TracingConstants.MessageKey.InfoMessage, "Deleting temporary file");
 
                 this.fileSystem.TryDeleteFile(temporaryFilePath, metadataKey: nameof(temporaryFilePath), metadata: metadata);
 

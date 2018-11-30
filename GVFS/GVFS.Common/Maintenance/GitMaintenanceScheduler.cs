@@ -12,17 +12,23 @@ namespace GVFS.Common.Maintenance
         private GitObjects gitObjects;
         private GitMaintenanceQueue queue;
 
-        public GitMaintenanceScheduler(GVFSContext context, GitObjects gitObjects, GitMaintenanceQueue queue)
+        public GitMaintenanceScheduler(GVFSContext context, GitObjects gitObjects)
         {
             this.context = context;
             this.gitObjects = gitObjects;
-            this.queue = queue;
+            this.queue = new GitMaintenanceQueue(context);
 
             this.ScheduleRecurringSteps();
         }
 
+        public void EnqueueOneTimeStep(GitMaintenanceStep step)
+        {
+            this.queue.Enqueue(step);
+        }
+
         public void Dispose()
         {
+            this.queue.Stop();
             this.prefetchStepTimer?.Dispose();
             this.prefetchStepTimer = null;
         }
