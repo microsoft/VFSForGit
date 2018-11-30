@@ -11,6 +11,14 @@ struct DarwinVersion
     unsigned long major, minor, revision;
 };
 
+struct PrjFSService_WatchContext
+{
+    std::function<void(io_service_t, io_connect_t, PrjFSService_WatchContext*)> discoveryCallback;
+    io_iterator_t notificationIterator;
+    PrjFSServiceUserClientType clientType;
+};
+
+
 typedef decltype(IODataQueueDequeue)* ioDataQueueDequeueFunctionPtr;
 static ioDataQueueDequeueFunctionPtr ioDataQueueDequeueFunction = nullptr;
 typedef decltype(IODataQueuePeek)* ioDataQueuePeekFunctionPtr;
@@ -18,21 +26,8 @@ static ioDataQueuePeekFunctionPtr ioDataQueuePeekFunction = nullptr;
 
 static void InitDataQueueFunctions();
 
-
-io_connect_t PrjFSService_ConnectToDriver(enum PrjFSServiceUserClientType clientType)
+bool PrjFSServiceValidateVersion(io_service_t prjfsService)
 {
-    CFDictionaryRef matchDict = IOServiceMatching(PrjFSServiceClass);
-    io_service_t prjfsService = IOServiceGetMatchingService(kIOMasterPortDefault, matchDict); // matchDict consumed
-
-    io_connect_t connection = IO_OBJECT_NULL;
-    
-    if (prjfsService == IO_OBJECT_NULL)
-    {
-        std::cerr << "Failed to find instance of service class " PrjFSServiceClass << std::endl;
-        return IO_OBJECT_NULL;
-    }
-    
-    // Check kernel's interface version matches ours or we're asking for trouble
     CFTypeRef kextVersionObj = IORegistryEntryCreateCFProperty(prjfsService, CFSTR(PrjFSKextVersionKey), kCFAllocatorDefault, 0);
     CFStringRef kextVersionString;
     if (nullptr == kextVersionObj || CFStringGetTypeID() != CFGetTypeID(kextVersionObj))
@@ -48,34 +43,101 @@ io_connect_t PrjFSService_ConnectToDriver(enum PrjFSServiceUserClientType client
         std::cerr << "PrjFS kernel service interface version mismatch. Kernel: " << kextVersion << ", this library expects: " << PrjFSKextVersion << std::endl;
         goto CleanupAndFail;
     }
-    else
-    {
-        CFRelease(kextVersionString);
-        
-        // Version matches, connect to kernel service
-        kern_return_t result = IOServiceOpen(prjfsService, mach_task_self(), clientType, &connection);
-        IOObjectRelease(prjfsService);
-        if (kIOReturnSuccess != result || IO_OBJECT_NULL == connection)
-        {
-            std::cerr << "Failed to open connection to kernel service: 0x" << std::hex << result << ", connection 0x" << std::hex << connection << std::endl;
-            connection = IO_OBJECT_NULL;
-        }
-    }
     
-    return connection;
+    CFRelease(kextVersionString);
+    
+    return true;
 
 CleanupAndFail:
-    if (IO_OBJECT_NULL != prjfsService)
-    {
-        IOObjectRelease(prjfsService);
-    }
-    
     if (nullptr != kextVersionObj)
     {
         CFRelease(kextVersionObj);
     }
     
-    return IO_OBJECT_NULL;
+    return false;
+}
+
+io_connect_t PrjFSService_ConnectToDriver(enum PrjFSServiceUserClientType clientType)
+{
+    CFDictionaryRef matchDict = IOServiceMatching(PrjFSServiceClass);
+    io_service_t prjfsService = IOServiceGetMatchingService(kIOMasterPortDefault, matchDict); // matchDict consumed
+
+    io_connect_t connection = IO_OBJECT_NULL;
+    
+    if (prjfsService == IO_OBJECT_NULL)
+    {
+        std::cerr << "Failed to find instance of service class " PrjFSServiceClass << std::endl;
+        return IO_OBJECT_NULL;
+    }
+    
+    // Check kernel's interface version matches ours or we're asking for trouble
+    if (!PrjFSServiceValidateVersion(prjfsService))
+    {
+        IOObjectRelease(prjfsService);
+        return IO_OBJECT_NULL;
+    }
+
+    kern_return_t result = IOServiceOpen(prjfsService, mach_task_self(), clientType, &connection);
+    IOObjectRelease(prjfsService);
+    if (kIOReturnSuccess != result || IO_OBJECT_NULL == connection)
+    {
+        std::cerr << "Failed to open connection to kernel service: 0x" << std::hex << result << ", connection 0x" << std::hex << connection << std::endl;
+        connection = IO_OBJECT_NULL;
+    }
+
+    return connection;
+}
+
+static void ServiceMatched(
+    void* refcon,
+    io_iterator_t iterator)
+{
+    PrjFSService_WatchContext* context = static_cast<PrjFSService_WatchContext*>(refcon);
+    
+    while (io_service_t prjfsService = IOIteratorNext(context->notificationIterator))
+    {
+        io_connect_t connection = IO_OBJECT_NULL;
+        if (PrjFSServiceValidateVersion(prjfsService))
+        {
+            IOServiceOpen(prjfsService, mach_task_self(), context->clientType, &connection);
+        }
+        
+        context->discoveryCallback(prjfsService, connection, context);
+        
+        IOObjectRelease(prjfsService);
+    }
+}
+
+PrjFSService_WatchContext* PrjFSService_WatchForServiceAndConnect(
+    IONotificationPortRef notificationPort,
+    enum PrjFSServiceUserClientType clientType,
+    std::function<void(io_service_t, io_connect_t, PrjFSService_WatchContext*)> discoveryCallback)
+{
+    CFDictionaryRef matchDict = IOServiceMatching(PrjFSServiceClass);
+    PrjFSService_WatchContext* context = new PrjFSService_WatchContext { std::move(discoveryCallback), IO_OBJECT_NULL, clientType };
+    IOReturn result = IOServiceAddMatchingNotification(
+        notificationPort,
+        kIOMatchedNotification,
+        matchDict, // dictionary is consumed, no CFRelease needed
+        ServiceMatched,
+        context,
+        &context->notificationIterator);
+    if (kIOReturnSuccess == result)
+    {
+        ServiceMatched(context, context->notificationIterator);
+        return context;
+    }
+    else
+    {
+        delete context;
+        return nullptr;
+    }
+}
+
+void PrjFSService_StopWatching(PrjFSService_WatchContext* context)
+{
+    IOObjectRelease(context->notificationIterator);
+    delete context;
 }
 
 bool PrjFSService_DataQueueInit(
