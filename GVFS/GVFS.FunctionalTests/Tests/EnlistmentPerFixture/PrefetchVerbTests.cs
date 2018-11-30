@@ -110,14 +110,14 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
         public void PrefetchCleansUpStalePrefetchLock()
         {
             this.Enlistment.Prefetch("--commits");
-            this.PostFetchCleanupStepShouldComplete();
+            this.PostFetchStepShouldComplete();
             string prefetchCommitsLockFile = Path.Combine(this.Enlistment.GetObjectRoot(this.fileSystem), "pack", PrefetchCommitsAndTreesLock);
             prefetchCommitsLockFile.ShouldNotExistOnDisk(this.fileSystem);
             this.fileSystem.WriteAllText(prefetchCommitsLockFile, this.Enlistment.EnlistmentRoot);
             prefetchCommitsLockFile.ShouldBeAFile(this.fileSystem);
 
             this.Enlistment.Prefetch("--commits");
-            this.PostFetchCleanupStepShouldComplete();
+            this.PostFetchStepShouldComplete();
             prefetchCommitsLockFile.ShouldNotExistOnDisk(this.fileSystem);
         }
 
@@ -134,7 +134,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
             this.Enlistment.Prefetch("--commits");
             oldGitTempFile.ShouldNotExistOnDisk(this.fileSystem);
 
-            this.PostFetchCleanupStepShouldComplete();
+            this.PostFetchStepShouldComplete();
             multiPackIndexLockFile.ShouldNotExistOnDisk(this.fileSystem);
         }
 
@@ -143,10 +143,10 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
             output.ShouldContain("Matched blobs:    " + expectedCount);
         }
 
-        private void PostFetchCleanupStepShouldComplete()
+        private void PostFetchStepShouldComplete()
         {
             string objectDir = this.Enlistment.GetObjectRoot(this.fileSystem);
-            string objectCacheLock = Path.Combine(objectDir, "git-cleanup-step.lock");
+            string objectCacheLock = Path.Combine(objectDir, "git-maintenance-step.lock");
 
             // Wait first, to hopefully ensure the background thread has
             // started before we check for the lock file.

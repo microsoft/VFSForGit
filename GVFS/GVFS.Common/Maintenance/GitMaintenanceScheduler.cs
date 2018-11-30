@@ -2,23 +2,23 @@
 using System;
 using System.Threading;
 
-namespace GVFS.Common.Cleanup
+namespace GVFS.Common.Maintenance
 {
-    public class GitCleanupScheduler : IDisposable
+    public class GitMaintenanceScheduler : IDisposable
     {
         private readonly TimeSpan prefetchPeriod = TimeSpan.FromMinutes(15);
         private Timer prefetchStepTimer;
         private GVFSContext context;
         private GitObjects gitObjects;
-        private GitCleanupQueue queue;
+        private GitMaintenanceQueue queue;
 
-        public GitCleanupScheduler(GVFSContext context, GitObjects gitObjects, GitCleanupQueue queue)
+        public GitMaintenanceScheduler(GVFSContext context, GitObjects gitObjects, GitMaintenanceQueue queue)
         {
             this.context = context;
             this.gitObjects = gitObjects;
             this.queue = queue;
 
-            this.ScheduleRecurringCleanupSteps();
+            this.ScheduleRecurringSteps();
         }
 
         public void Dispose()
@@ -27,7 +27,7 @@ namespace GVFS.Common.Cleanup
             this.prefetchStepTimer = null;
         }
 
-        public void ScheduleRecurringCleanupSteps()
+        public void ScheduleRecurringSteps()
         {
             if (!this.context.Unattended && this.gitObjects.IsUsingCacheServer())
             {

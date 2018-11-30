@@ -1,24 +1,23 @@
 ﻿using GVFS.Common;
-using GVFS.Common.Cleanup;
 using GVFS.Common.FileSystem;
 using GVFS.Common.Git;
+using GVFS.Common.Maintenance;
 using GVFS.Common.Tracing;
 using GVFS.Tests.Should;
 using GVFS.UnitTests.Mock.Common;
 using NUnit.Framework;
-using System;
 using System.Collections.Generic;
 using System.Threading;
 
-namespace GVFS.UnitTests.Cleanup
+namespace GVFS.UnitTests.Maintenance
 {
     [TestFixture]
-    public class GitCleanupQueueTests
+    public class GitMaintenanceQueueTests
     {
         private int maxWaitTime = 500;
 
         [TestCase]
-        public void GitCleanupQueueEnlistmentRootReady()
+        public void GitMaintenanceQueueEnlistmentRootReady()
         {
             ITracer tracer = new MockTracer();
             GVFSEnlistment enlistment = new MockGVFSEnlistment();
@@ -33,7 +32,7 @@ namespace GVFS.UnitTests.Cleanup
             GVFSContext context = new GVFSContext(tracer, fileSystem, null, enlistment);
             GitObjects gitObjects = new MockPhysicalGitObjects(tracer, null, null, null);
 
-            GitCleanupQueue queue = new GitCleanupQueue(context);
+            GitMaintenanceQueue queue = new GitMaintenanceQueue(context);
             queue.EnlistmentRootReady().ShouldBeTrue();
 
             fileSystem.Paths.Remove(enlistment.EnlistmentRoot);
@@ -52,7 +51,7 @@ namespace GVFS.UnitTests.Cleanup
         }
 
         [TestCase]
-        public void GitCleanupQueueHandlesTwoJobs()
+        public void GitMaintenanceQueueHandlesTwoJobs()
         {
             ITracer tracer = new MockTracer();
             GVFSEnlistment enlistment = new MockGVFSEnlistment();
@@ -67,22 +66,22 @@ namespace GVFS.UnitTests.Cleanup
             GVFSContext context = new GVFSContext(tracer, fileSystem, null, enlistment);
             GitObjects gitObjects = new MockPhysicalGitObjects(tracer, null, null, null);
 
-            TestGitCleanupStep step1 = new TestGitCleanupStep(context, gitObjects);
-            TestGitCleanupStep step2 = new TestGitCleanupStep(context, gitObjects);
+            TestGitMaintenanceStep step1 = new TestGitMaintenanceStep(context, gitObjects);
+            TestGitMaintenanceStep step2 = new TestGitMaintenanceStep(context, gitObjects);
 
-            GitCleanupQueue queue = new GitCleanupQueue(context);
+            GitMaintenanceQueue queue = new GitMaintenanceQueue(context);
 
             queue.Enqueue(step1);
             queue.Enqueue(step2);
 
-            Assert.IsTrue(step1.EventTriggered.WaitOne(this.maxWaitTime) 
+            Assert.IsTrue(step1.EventTriggered.WaitOne(this.maxWaitTime)
                 && step2.EventTriggered.WaitOne(this.maxWaitTime));
 
             queue.Stop();
         }
 
         [TestCase]
-        public void GitCleanupQueueStopSuceedsWhenQueueIsEmpty()
+        public void GitMaintenanceQueueStopSuceedsWhenQueueIsEmpty()
         {
             ITracer tracer = new MockTracer();
             GVFSEnlistment enlistment = new MockGVFSEnlistment();
@@ -96,14 +95,14 @@ namespace GVFS.UnitTests.Cleanup
 
             GVFSContext context = new GVFSContext(tracer, fileSystem, null, enlistment);
             GitObjects gitObjects = new MockPhysicalGitObjects(tracer, null, null, null);
-            
-            GitCleanupQueue queue = new GitCleanupQueue(context);
-            
+
+            GitMaintenanceQueue queue = new GitMaintenanceQueue(context);
+
             queue.Stop();
         }
 
         [TestCase]
-        public void GitCleanupQueueStopsJob()
+        public void GitMaintenanceQueueStopsJob()
         {
             ITracer tracer = new MockTracer();
             GVFSEnlistment enlistment = new MockGVFSEnlistment();
@@ -118,7 +117,7 @@ namespace GVFS.UnitTests.Cleanup
             GVFSContext context = new GVFSContext(tracer, fileSystem, null, enlistment);
             GitObjects gitObjects = new MockPhysicalGitObjects(tracer, null, null, null);
 
-            GitCleanupQueue queue = new GitCleanupQueue(context);
+            GitMaintenanceQueue queue = new GitMaintenanceQueue(context);
 
             // This step stops the queue after the step is started,
             // then checks if Stop() was called.
@@ -129,7 +128,7 @@ namespace GVFS.UnitTests.Cleanup
             watchForStop.SawStopping.ShouldBeTrue();
 
             // Ensure we don't start a job after the Stop() call
-            TestGitCleanupStep watchForStart = new TestGitCleanupStep(context, gitObjects);
+            TestGitMaintenanceStep watchForStart = new TestGitMaintenanceStep(context, gitObjects);
             queue.Enqueue(watchForStart);
 
             // This only ensure the event didn't happen within maxWaitTime
@@ -153,9 +152,9 @@ namespace GVFS.UnitTests.Cleanup
             }
         }
 
-        public class TestGitCleanupStep : GitCleanupStep
+        public class TestGitMaintenanceStep : GitMaintenanceStep
         {
-            public TestGitCleanupStep(GVFSContext context, GitObjects gitObjects)
+            public TestGitMaintenanceStep(GVFSContext context, GitObjects gitObjects)
                 : base(context, gitObjects)
             {
                 this.EventTriggered = new ManualResetEvent(initialState: false);
@@ -163,7 +162,7 @@ namespace GVFS.UnitTests.Cleanup
 
             public ManualResetEvent EventTriggered { get; set; }
 
-            public override string TelemetryKey => "TestGitCleanupStep";
+            public override string TelemetryKey => "TestGitMaintenanceStep";
 
             protected override void RunGitAction()
             {
@@ -171,16 +170,16 @@ namespace GVFS.UnitTests.Cleanup
             }
         }
 
-        private class WatchForStopStep : GitCleanupStep
+        private class WatchForStopStep : GitMaintenanceStep
         {
-            public WatchForStopStep(GitCleanupQueue queue, GVFSContext context, GitObjects gitObjects)
+            public WatchForStopStep(GitMaintenanceQueue queue, GVFSContext context, GitObjects gitObjects)
                 : base(context, gitObjects)
             {
                 this.Queue = queue;
                 this.EventTriggered = new ManualResetEvent(false);
             }
 
-            public GitCleanupQueue Queue { get; set; }
+            public GitMaintenanceQueue Queue { get; set; }
 
             public bool SawStopping { get; private set; }
 

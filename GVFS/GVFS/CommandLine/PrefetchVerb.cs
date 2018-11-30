@@ -1,9 +1,9 @@
 ﻿using CommandLine;
 using GVFS.Common;
-using GVFS.Common.Cleanup;
 using GVFS.Common.FileSystem;
 using GVFS.Common.Git;
 using GVFS.Common.Http;
+using GVFS.Common.Maintenance;
 using GVFS.Common.Prefetch;
 using GVFS.Common.Tracing;
 using System;

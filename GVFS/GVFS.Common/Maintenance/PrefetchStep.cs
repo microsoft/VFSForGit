@@ -7,9 +7,9 @@ using System.IO;
 using System.Linq;
 using System.Threading;
 
-namespace GVFS.Common.Cleanup
+namespace GVFS.Common.Maintenance
 {
-    public class PrefetchStep : GitCleanupStep
+    public class PrefetchStep : GitMaintenanceStep
     {
         private const int IoFailureRetryDelayMS = 50;
         private const int LockWaitTimeMs = 100;

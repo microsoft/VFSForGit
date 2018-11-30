@@ -4,24 +4,24 @@ using System.Collections.Concurrent;
 using System.IO;
 using System.Threading;
 
-namespace GVFS.Common.Cleanup
+namespace GVFS.Common.Maintenance
 {
-    public class GitCleanupQueue
+    public class GitMaintenanceQueue
     {
         private GVFSContext context;
-        private BlockingCollection<GitCleanupStep> queue = new BlockingCollection<GitCleanupStep>();
+        private BlockingCollection<GitMaintenanceStep> queue = new BlockingCollection<GitMaintenanceStep>();
         private CancellationTokenSource cancellationToken = new CancellationTokenSource();
-        private GitCleanupStep currentStep;
+        private GitMaintenanceStep currentStep;
 
-        public GitCleanupQueue(GVFSContext context)
+        public GitMaintenanceQueue(GVFSContext context)
         {
             this.context = context;
-            Thread cleanupWorker = new Thread(() => this.RunQueue());
-            cleanupWorker.Name = "CleanupWorker";
-            cleanupWorker.Start();
+            Thread worker = new Thread(() => this.RunQueue());
+            worker.Name = "MaintenanceWorker";
+            worker.Start();
         }
 
-        public void Enqueue(GitCleanupStep step)
+        public void Enqueue(GitMaintenanceStep step)
         {
             this.queue.Add(step);
         }
@@ -74,7 +74,7 @@ namespace GVFS.Common.Cleanup
                     catch (Exception e)
                     {
                         this.LogErrorAndExit(
-                            telemetryKey: nameof(GitCleanupQueue),
+                            telemetryKey: nameof(GitMaintenanceQueue),
                             methodName: nameof(this.RunQueue),
                             exception: e);
                     }                   
@@ -90,7 +90,7 @@ namespace GVFS.Common.Cleanup
             metadata.Add("StackTrace", exception.StackTrace);
             this.context.Tracer.RelatedError(
                 metadata: metadata,
-                message: telemetryKey + ": Unexpected Exception while running cleanup steps (fatal): " + exception.Message,
+                message: telemetryKey + ": Unexpected Exception while running maintenance steps (fatal): " + exception.Message,
                 keywords: Keywords.Telemetry);
         }
 

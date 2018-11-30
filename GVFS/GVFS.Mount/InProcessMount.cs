@@ -1,8 +1,8 @@
 ﻿using GVFS.Common;
-using GVFS.Common.Cleanup;
 using GVFS.Common.FileSystem;
 using GVFS.Common.Git;
 using GVFS.Common.Http;
+using GVFS.Common.Maintenance;
 using GVFS.Common.NamedPipes;
 using GVFS.Common.Tracing;
 using GVFS.PlatformLoader;
@@ -29,8 +29,8 @@ namespace GVFS.Mount
         private FileSystemCallbacks fileSystemCallbacks;
         private GVFSEnlistment enlistment;
         private ITracer tracer;
-        private GitCleanupQueue cleanupQueue;
-        private GitCleanupScheduler cleanupScheduler;
+        private GitMaintenanceQueue maintenanceQueue;
+        private GitMaintenanceScheduler maintenanceScheduler;
 
         private CacheServerInfo cacheServer;
         private RetryConfig retryConfig;
@@ -415,7 +415,7 @@ namespace GVFS.Mount
             if (this.currentState == MountState.Ready)
             {
                 List<string> packIndexes = JsonConvert.DeserializeObject<List<string>>(message.Body);
-                this.cleanupQueue.Enqueue(new PostFetchCleanupStep(this.context, this.gitObjects, packIndexes));
+                this.maintenanceQueue.Enqueue(new PostFetchStep(this.context, this.gitObjects, packIndexes));
 
                 response = new NamedPipeMessages.RunPostFetchJob.Response(NamedPipeMessages.RunPostFetchJob.QueuedResult);
             }
@@ -517,8 +517,8 @@ namespace GVFS.Mount
             }
 
             this.fileSystemCallbacks = this.CreateOrReportAndExit(() => new FileSystemCallbacks(this.context, this.gitObjects, RepoMetadata.Instance, virtualizer, gitStatusCache), "Failed to create src folder callback listener");
-            this.cleanupQueue = this.CreateOrReportAndExit(() => new GitCleanupQueue(this.context), "Failed to start cleanup queue");
-            this.cleanupScheduler = this.CreateOrReportAndExit(() => new GitCleanupScheduler(this.context, this.gitObjects, this.cleanupQueue), "Failed to start cleanup scheduler");
+            this.maintenanceQueue = this.CreateOrReportAndExit(() => new GitMaintenanceQueue(this.context), "Failed to start maintenance queue");
+            this.maintenanceScheduler = this.CreateOrReportAndExit(() => new GitMaintenanceScheduler(this.context, this.gitObjects, this.maintenanceQueue), "Failed to start maintenance scheduler");
 
             int majorVersion;
             int minorVersion;
@@ -553,16 +553,16 @@ namespace GVFS.Mount
 
         private void UnmountAndStopWorkingDirectoryCallbacks()
         {
-            if (this.cleanupScheduler != null)
+            if (this.maintenanceScheduler != null)
             {
-                this.cleanupScheduler.Dispose();
-                this.cleanupScheduler = null;
+                this.maintenanceScheduler.Dispose();
+                this.maintenanceScheduler = null;
             }
 
-            if (this.cleanupQueue != null)
+            if (this.maintenanceQueue != null)
             {
-                this.cleanupQueue.Stop();
-                this.cleanupQueue = null;
+                this.maintenanceQueue.Stop();
+                this.maintenanceQueue = null;
             }
 
             if (this.heartbeat != null)

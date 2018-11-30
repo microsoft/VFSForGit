@@ -1,20 +1,20 @@
 ﻿using GVFS.Common;
-using GVFS.Common.Cleanup;
 using GVFS.Common.FileSystem;
 using GVFS.Common.Git;
+using GVFS.Common.Maintenance;
 using GVFS.Common.Tracing;
 using GVFS.Tests.Should;
 using GVFS.UnitTests.Mock.Common;
 using GVFS.UnitTests.Mock.FileSystem;
 using NUnit.Framework;
 
-namespace GVFS.UnitTests.Cleanup
+namespace GVFS.UnitTests.Maintenance
 {
     [TestFixture]
-    public class GitCleanupStepTests
+    public class GitMaintenanceStepTests
     {
         [TestCase]
-        public void GitCleanupStepRunsGitAction()
+        public void GitMaintenanceStepRunsGitAction()
         {
             ITracer tracer = new MockTracer();
             GVFSEnlistment enlistment = new MockGVFSEnlistment();
@@ -30,7 +30,7 @@ namespace GVFS.UnitTests.Cleanup
         }
 
         [TestCase]
-        public void GitCleanupStepSkipsGitActionAfterStop()
+        public void GitMaintenanceStepSkipsGitActionAfterStop()
         {
             ITracer tracer = new MockTracer();
             GVFSEnlistment enlistment = new MockGVFSEnlistment();
@@ -48,7 +48,7 @@ namespace GVFS.UnitTests.Cleanup
         }
 
         [TestCase]
-        public void GitCleanupStepSkipsRunGitCommandAfterStop()
+        public void GitMaintenanceStepSkipsRunGitCommandAfterStop()
         {
             ITracer tracer = new MockTracer();
             GVFSEnlistment enlistment = new MockGVFSEnlistment();
@@ -64,7 +64,7 @@ namespace GVFS.UnitTests.Cleanup
             step.SawWorkInvoked.ShouldBeFalse();
         }
 
-        public class CheckMethodStep : GitCleanupStep
+        public class CheckMethodStep : GitMaintenanceStep
         {
             public CheckMethodStep(GVFSContext context, GitObjects gitObjects)
                 : base(context, gitObjects)
@@ -85,7 +85,7 @@ namespace GVFS.UnitTests.Cleanup
             }
         }
 
-        public class CheckStopStep : GitCleanupStep
+        public class CheckStopStep : GitMaintenanceStep
         {
             public CheckStopStep(GVFSContext context, GitObjects gitObjects)
                 : base(context, gitObjects)

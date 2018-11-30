@@ -3,21 +3,21 @@ using GVFS.Common.Tracing;
 using System.Collections.Generic;
 using System.IO;
 
-namespace GVFS.Common.Cleanup
+namespace GVFS.Common.Maintenance
 {
-    public class PostFetchCleanupStep : GitCleanupStep
+    public class PostFetchStep : GitMaintenanceStep
     {
         private const string CommitGraphLock = "commit-graph.lock";
         private const string MultiPackIndexLock = "multi-pack-index.lock";
         private List<string> packIndexes;
 
-        public PostFetchCleanupStep(GVFSContext context, GitObjects gitObjects, List<string> packIndexes)
+        public PostFetchStep(GVFSContext context, GitObjects gitObjects, List<string> packIndexes)
             : base(context, gitObjects)
         {
             this.packIndexes = packIndexes;
         }
 
-        public override string TelemetryKey => "PostFetchCleanupStep";
+        public override string TelemetryKey => "PostFetchMaintenanceStep";
 
         protected override void RunGitAction()
         {

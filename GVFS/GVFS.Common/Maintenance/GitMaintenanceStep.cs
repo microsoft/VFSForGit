@@ -3,14 +3,14 @@ using GVFS.Common.Tracing;
 using System;
 using System.IO;
 
-namespace GVFS.Common.Cleanup
+namespace GVFS.Common.Maintenance
 {
-    public abstract class GitCleanupStep
+    public abstract class GitMaintenanceStep
     {
-        public const string ObjectCacheLock = "git-cleanup-step.lock";
+        public const string ObjectCacheLock = "git-maintenance-step.lock";
         private readonly object gitProcessLock = new object();
 
-        public GitCleanupStep(GVFSContext context, GitObjects gitObjects, bool requireCacheLock = false)
+        public GitMaintenanceStep(GVFSContext context, GitObjects gitObjects, bool requireCacheLock = false)
         {
             this.Context = context;
             this.GitObjects = gitObjects;
@@ -121,7 +121,7 @@ namespace GVFS.Common.Cleanup
         }
 
         /// <summary>
-        /// Implement this method to perform a cleanup step. If the object-cache lock is required
+        /// Implement this method to perform a maintenance step. If the object-cache lock is required
         /// (as specified by <see cref="RequireCacheLock"/>), then this step is not run unless we
         /// hold the lock.
         /// </summary>
@@ -163,7 +163,7 @@ namespace GVFS.Common.Cleanup
             metadata.Add("StackTrace", exception.StackTrace);
             this.Context.Tracer.RelatedWarning(
                 metadata: metadata,
-                message: telemetryKey + ": Unexpected Exception while running a cleanup step: " + exception.Message,
+                message: telemetryKey + ": Unexpected Exception while running a maintenance step: " + exception.Message,
                 keywords: Keywords.Telemetry);
         }
 
