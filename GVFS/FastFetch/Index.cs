@@ -217,7 +217,7 @@ namespace FastFetch
                         long offset;
                         if (this.indexEntryOffsets.TryGetValue(gitPath, out offset))
                         {
-                            if (TryUpdateEntryFromDisk(indexView, localPath, offset))
+                            if (this.TryUpdateEntryFromDisk(indexView, localPath, offset))
                             {
                                 Interlocked.Increment(ref updatedEntriesFromDisk);
                             }
@@ -265,7 +265,7 @@ namespace FastFetch
                             else if (shouldAlsoTryPopulateFromDisk)
                             {
                                 string localPath = FromGitRelativePathToWindowsFullPath(currentIndexFilename, this.repoRoot);
-                                if (TryUpdateEntryFromDisk(indexView, localPath, entry.Value))
+                                if (this.TryUpdateEntryFromDisk(indexView, localPath, entry.Value))
                                 {
                                     Interlocked.Increment(ref updatedEntriesFromDisk);
                                 }

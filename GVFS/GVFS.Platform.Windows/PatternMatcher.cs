@@ -162,7 +162,6 @@ namespace GVFS.Platform.Windows
             // the only component that calls this method is FileSystemWatcher and
             // it will never pass a name that contains a wildcard.
 
-
             //
             //  Also special case expressions of the form *X.  With this and the prior
             //  case we have covered virtually all normal queries.
@@ -170,10 +169,11 @@ namespace GVFS.Platform.Windows
             if (expression[0] == '*' && expression.IndexOf('*', 1) == -1)
             {
                 int rightLength = expression.Length - 1;
+
                 // if name is shorter that the stuff to the right of * in expression, we don't
                 // need to do the string compare, otherwise we compare rightlength characters
                 // and the end of both strings.
-                if (name.Length >= rightLength && String.Compare(expression, 1, name, name.Length - rightLength, rightLength, StringComparison.OrdinalIgnoreCase) == 0)
+                if (name.Length >= rightLength && string.Compare(expression, 1, name, name.Length - rightLength, rightLength, StringComparison.OrdinalIgnoreCase) == 0)
                 {
                     return true;
                 }
@@ -266,7 +266,6 @@ namespace GVFS.Platform.Windows
 
                 while (srcCount < matchesCount)
                 {
-
                     //
                     //  We have to carry on our expression analysis as far as possible
                     //  for each character of name, so we loop here until the
@@ -372,7 +371,6 @@ namespace GVFS.Platform.Windows
                             }
                             else
                             {
-
                                 //
                                 //  We are at a period.  We can only match zero
                                 //  characters (ie. the epsilon transition).
@@ -397,7 +395,6 @@ namespace GVFS.Platform.Windows
                         //
                         if (exprChar == ANSI_DOS_QM)
                         {
-
                             if (nameFinished || (nameChar == '.'))
                             {
                                 continue;
@@ -413,7 +410,6 @@ namespace GVFS.Platform.Windows
                         //
                         if (exprChar == DOS_DOT)
                         {
-
                             if (nameFinished)
                             {
                                 continue;
@@ -461,7 +457,6 @@ namespace GVFS.Platform.Windows
                         break;
                     }
 
-
                     //
                     //  Prevent duplication in the destination array.
                     //
@@ -480,6 +475,7 @@ namespace GVFS.Platform.Windows
                             {
                                 srcCount += 1;
                             }
+
                             previousDestCount += 1;
                         }
                     }

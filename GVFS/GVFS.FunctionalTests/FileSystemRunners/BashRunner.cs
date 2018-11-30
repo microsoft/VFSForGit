@@ -293,7 +293,7 @@ namespace GVFS.FunctionalTests.FileSystemRunners
                     checkArgument = "-h";
                     break;
                 default:
-                    Assert.Fail($"{nameof(FileExistsOnDisk)} does not support {nameof(FileType)} {type}");
+                    Assert.Fail($"{nameof(this.FileExistsOnDisk)} does not support {nameof(FileType)} {type}");
                     break;
             }
 

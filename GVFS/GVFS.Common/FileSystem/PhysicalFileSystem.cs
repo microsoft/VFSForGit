@@ -348,7 +348,7 @@ namespace GVFS.Common.FileSystem
                             metadata.Add("path", path);
                             metadata.Add("failureCount", failureCount + 1);
                             metadata.Add("maxRetries", maxRetries);
-                            tracer.RelatedWarning(metadata, $"{nameof(TryWaitForDelete)}: Failed to delete file.");
+                            tracer.RelatedWarning(metadata, $"{nameof(this.TryWaitForDelete)}: Failed to delete file.");
                         }
 
                         return false;
@@ -362,7 +362,7 @@ namespace GVFS.Common.FileSystem
                             metadata.Add("path", path);
                             metadata.Add("failureCount", failureCount + 1);
                             metadata.Add("maxRetries", maxRetries);
-                            tracer.RelatedWarning(metadata, $"{nameof(TryWaitForDelete)}: Failed to delete file, retrying ...");
+                            tracer.RelatedWarning(metadata, $"{nameof(this.TryWaitForDelete)}: Failed to delete file, retrying ...");
                         }
                     }
 

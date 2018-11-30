@@ -73,15 +73,15 @@ namespace GVFS.FunctionalTests.Windows.Tests
         [TestCase]
         public void GVFSStatusWorksFromJunction()
         {
-            string enlistmentRootjunctionLink = Path.Combine(this.junctionsRoot, $"{nameof(GVFSStatusWorksFromJunction)}_ToEnlistmentRoot");
+            string enlistmentRootjunctionLink = Path.Combine(this.junctionsRoot, $"{nameof(this.GVFSStatusWorksFromJunction)}_ToEnlistmentRoot");
             this.CreateJunction(enlistmentRootjunctionLink, this.Enlistment.EnlistmentRoot);
             this.RepoStatusShouldBeMounted(workingDirectory: enlistmentRootjunctionLink);
 
-            string junctionLink = Path.Combine(this.junctionsRoot, $"{nameof(GVFSStatusWorksFromJunction)}_ToRepoRoot");
+            string junctionLink = Path.Combine(this.junctionsRoot, $"{nameof(this.GVFSStatusWorksFromJunction)}_ToRepoRoot");
             this.CreateJunction(junctionLink, this.Enlistment.RepoRoot);
             this.RepoStatusShouldBeMounted(workingDirectory: junctionLink);
 
-            junctionLink = Path.Combine(this.junctionsRoot, $"{nameof(GVFSStatusWorksFromJunction)}_ToSubFolder");
+            junctionLink = Path.Combine(this.junctionsRoot, $"{nameof(this.GVFSStatusWorksFromJunction)}_ToSubFolder");
             string subFolderPath = this.Enlistment.GetVirtualPathTo("GVFS");
             this.CreateJunction(junctionLink, subFolderPath);
             this.RepoStatusShouldBeMounted(workingDirectory: junctionLink);
@@ -113,19 +113,19 @@ namespace GVFS.FunctionalTests.Windows.Tests
         [TestCase]
         public void GVFSMountWorksFromJunction()
         {
-            string enlistmentRootjunctionLink = Path.Combine(this.junctionsRoot, $"{nameof(GVFSMountWorksFromJunction)}_ToEnlistmentRoot");
+            string enlistmentRootjunctionLink = Path.Combine(this.junctionsRoot, $"{nameof(this.GVFSMountWorksFromJunction)}_ToEnlistmentRoot");
             this.CreateJunction(enlistmentRootjunctionLink, this.Enlistment.EnlistmentRoot);
             this.Enlistment.UnmountGVFS();
             this.MountGVFS(workingDirectory: enlistmentRootjunctionLink);
 
-            string junctionLink = Path.Combine(this.junctionsRoot, $"{nameof(GVFSMountWorksFromJunction)}_ToRepoRoot");
+            string junctionLink = Path.Combine(this.junctionsRoot, $"{nameof(this.GVFSMountWorksFromJunction)}_ToRepoRoot");
             this.CreateJunction(junctionLink, this.Enlistment.RepoRoot);
             this.Enlistment.UnmountGVFS();
             this.MountGVFS(workingDirectory: junctionLink);
 
             string subFolderPath = this.Enlistment.GetVirtualPathTo("GVFS");
             subFolderPath.ShouldBeADirectory(this.fileSystem);
-            junctionLink = Path.Combine(this.junctionsRoot, $"{nameof(GVFSMountWorksFromJunction)}_ToSubFolder");
+            junctionLink = Path.Combine(this.junctionsRoot, $"{nameof(this.GVFSMountWorksFromJunction)}_ToSubFolder");
             this.CreateJunction(junctionLink, subFolderPath);
             this.Enlistment.UnmountGVFS();
             this.MountGVFS(workingDirectory: junctionLink);
@@ -147,11 +147,11 @@ namespace GVFS.FunctionalTests.Windows.Tests
         [TestCase]
         public void GitCommandInJunctionToSubfolderWaitsWhileAnotherIsRunning()
         {
-            string junctionLink = Path.Combine(this.junctionsRoot, $"{nameof(GitCommandInJunctionToSubfolderWaitsWhileAnotherIsRunning)}_ToEnlistmentRoot");
+            string junctionLink = Path.Combine(this.junctionsRoot, $"{nameof(this.GitCommandInJunctionToSubfolderWaitsWhileAnotherIsRunning)}_ToEnlistmentRoot");
             this.CreateJunction(junctionLink, this.Enlistment.EnlistmentRoot);
             this.GitCommandWaitsForLock(Path.Combine(junctionLink, "src"));
 
-            junctionLink = Path.Combine(this.junctionsRoot, $"{nameof(GitCommandInJunctionToSubfolderWaitsWhileAnotherIsRunning)}_ToRepoRoot");
+            junctionLink = Path.Combine(this.junctionsRoot, $"{nameof(this.GitCommandInJunctionToSubfolderWaitsWhileAnotherIsRunning)}_ToRepoRoot");
             this.CreateJunction(junctionLink, this.Enlistment.RepoRoot);
             this.GitCommandWaitsForLock(junctionLink);
         }
