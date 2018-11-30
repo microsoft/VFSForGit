@@ -15,6 +15,8 @@
 // Name of property on the main PrjFS IOService indicating the kext version, to be checked by user space
 #define PrjFSKextVersionKey "io.gvfs.PrjFSKext.Version"
 
+#define PrjFSProviderPathKey "io.gvfs.PrjFSKext.ProviderUserClient.Path"
+
 typedef enum
 {
     FileFlags_Invalid = 0,
