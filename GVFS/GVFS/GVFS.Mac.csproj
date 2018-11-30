@@ -21,9 +21,4 @@
     <ProjectReference Include="..\GVFS.Virtualization\GVFS.Virtualization.csproj" />
     <ProjectReference Include="..\GVFS.Mount\GVFS.Mount.Mac.csproj" />
   </ItemGroup>
-
-  <ItemGroup>
-    <PackageReference Include="StyleCop.Error.MSBuild" Version="1.0.0" Condition="'$(OS)' == 'Windows_NT'" />
-    <PackageReference Include="StyleCop.MSBuild" Version="5.0.0" Condition="'$(OS)' == 'Windows_NT'" />
-  </ItemGroup>
 </Project>

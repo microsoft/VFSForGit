@@ -14,7 +14,5 @@
 
   <ItemGroup>
     <PackageReference Include="NUnitLite" Version="3.10.1" />
-    <PackageReference Include="StyleCop.Error.MSBuild" Version="1.0.0" Condition="'$(OS)' == 'Windows_NT'" />
-    <PackageReference Include="StyleCop.MSBuild" Version="5.0.0" Condition="'$(OS)' == 'Windows_NT'" />
   </ItemGroup>
 </Project>

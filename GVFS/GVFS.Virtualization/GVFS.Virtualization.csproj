@@ -14,8 +14,6 @@
   <ItemGroup>
     <PackageReference Include="Microsoft.Data.Sqlite" Version="2.0.0" />
     <PackageReference Include="Newtonsoft.Json" Version="11.0.2" />
-    <PackageReference Include="StyleCop.Error.MSBuild" Version="1.0.0" Condition="'$(OS)' == 'Windows_NT'" />
-    <PackageReference Include="StyleCop.MSBuild" Version="5.0.0" Condition="'$(OS)' == 'Windows_NT'" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\GVFS.Common\GVFS.Common.csproj" />
