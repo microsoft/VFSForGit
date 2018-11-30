@@ -10,7 +10,6 @@ namespace GVFS.Common.Maintenance
     {
         private GVFSContext context;
         private BlockingCollection<GitMaintenanceStep> queue = new BlockingCollection<GitMaintenanceStep>();
-        private CancellationTokenSource cancellationToken = new CancellationTokenSource();
         private GitMaintenanceStep currentStep;
 
         public GitMaintenanceQueue(GVFSContext context)
@@ -37,7 +36,6 @@ namespace GVFS.Common.Maintenance
         public void Stop()
         {
             this.queue?.CompleteAdding();
-            this.cancellationToken.Cancel();
             this.currentStep?.Stop();
         }
 
@@ -64,13 +62,10 @@ namespace GVFS.Common.Maintenance
         {
             while (true)
             {
-                try
+                if (!this.queue.TryTake(out this.currentStep, Timeout.Infinite)
+                    || this.queue.IsAddingCompleted)
                 {
-                    this.queue.TryTake(out this.currentStep, Timeout.Infinite, this.cancellationToken.Token);
-                }
-                catch (OperationCanceledException)
-                {
-                    // Only gets thrown when stop is requested
+                    // A stop was requested
                     this.queue.Dispose();
                     this.queue = null;
                     return;
