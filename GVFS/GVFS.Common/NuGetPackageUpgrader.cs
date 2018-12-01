@@ -20,16 +20,20 @@ namespace GVFS.Common
             string currentVersion,
             ITracer tracer,
             string feedUrl,
+            string feedName,
             string downloadFolder,
             string personalAccessToken)
             : base(currentVersion, tracer)
         {
             this.FeedUrl = feedUrl;
+            this.FeedName = feedName;
             this.DownloadFolder = downloadFolder;
             this.PersonalAccessToken = personalAccessToken;
         }
 
         private string FeedUrl { get; set; }
+
+        private string FeedName { get; set; }
 
         private string DownloadFolder { get; set; }
 
@@ -62,7 +66,7 @@ namespace GVFS.Common
             newVersion = null;
             errorMessage = null;
 
-            IList<IPackageSearchMetadata> queryResults = this.QueryFeed("GVFS.Installers.Custom").GetAwaiter().GetResult();
+            IList<IPackageSearchMetadata> queryResults = this.QueryFeed(this.FeedName).GetAwaiter().GetResult();
 
             // Find the latest package
             IPackageSearchMetadata highestVersion = null;

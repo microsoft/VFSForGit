@@ -56,23 +56,31 @@ namespace GVFS.Common
 
         public static ProductUpgraderBase LoadUpgrader(ITracer tracer, out string error)
         {
-            string upgradeFeedUrl;
-            string error;
+            error = null;
             LocalGVFSConfig localConfig = new LocalGVFSConfig();
             ProductUpgraderBase upgrader;
 
+            string upgradeFeedUrl;
+            string upgradeFeedName;
             if (localConfig.TryGetConfig(GVFSConstants.LocalGVFSConfig.UpgradeFeedUrl, out upgradeFeedUrl, out error))
-            {                
+            {
                 // If upgrade feed url has been specified, then load NuGet Upgrader
+                if (!localConfig.TryGetConfig(GVFSConstants.LocalGVFSConfig.UpgradeFeedName, out upgradeFeedName, out error))
+                {
+                    return null;
+                }
+
                 upgrader = new NuGetPackageUpgrader(
                     ProcessHelper.GetCurrentProcessVersion(),
                     tracer,
                     upgradeFeedUrl,
+                    upgradeFeedName
                     GetAssetDownloadsPath(),
                     string.Empty);
             }
             else
             {
+                error = null;
                 upgrader = new GitHubReleasesUpgrader(ProcessHelper.GetCurrentProcessVersion(), tracer);
             }
 
