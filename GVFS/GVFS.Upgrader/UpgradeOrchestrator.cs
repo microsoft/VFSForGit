@@ -46,7 +46,9 @@ namespace GVFS.Upgrader
 
             this.tracer = jsonTracer;
             this.preRunChecker = new InstallerPreRunChecker(this.tracer, GVFSConstants.UpgradeVerbMessages.GVFSUpgradeConfirm);
-            this.upgrader = ProductUpgraderBase.LoadUpgrader(this.tracer);
+
+            string errorMessage;
+            this.upgrader = ProductUpgraderBase.LoadUpgrader(this.tracer, out errorMessage);
             this.output = Console.Out;
             this.input = Console.In;
             this.mount = false;

@@ -54,7 +54,7 @@ namespace GVFS.Common
         protected PhysicalFileSystem FileSystem { get; set; }
         protected ITracer Tracer { get; set; }
 
-        public static ProductUpgraderBase LoadUpgrader(ITracer tracer)
+        public static ProductUpgraderBase LoadUpgrader(ITracer tracer, out string error)
         {
             string upgradeFeedUrl;
             string error;
