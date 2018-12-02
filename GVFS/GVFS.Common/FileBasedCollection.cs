@@ -171,11 +171,7 @@ namespace GVFS.Common
             lock (this.fileLock)
             {
                 string line = this.FormatAddLine(value);
-                if (synchronizedAction != null)
-                {
-                    synchronizedAction();
-                }
-
+                synchronizedAction?.Invoke();
                 this.WriteToDisk(line);
             }
         }
