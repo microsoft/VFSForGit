@@ -122,8 +122,8 @@ To actually execute any necessary repair(s), run 'gvfs repair --confirm'
                 jobs.Add(new BlobSizeDatabaseRepairJob(tracer, this.Output, enlistment));
 
                 // Repair .git folder files
+                jobs.Add(new GitLocalBranchesRepairJob(tracer, this.Output, enlistment));
                 jobs.Add(new GitHeadRepairJob(tracer, this.Output, enlistment));
-                jobs.Add(new GitRefsHeadsRepairJob(tracer, this.Output, enlistment));
                 jobs.Add(new GitIndexRepairJob(tracer, this.Output, enlistment));
                 jobs.Add(new GitConfigRepairJob(tracer, this.Output, enlistment));
 
