@@ -69,7 +69,7 @@ namespace GVFS.RepairJobs
         }
 
         /// <summary>
-        /// Get the list of full symbolic references to inspect for and correct issues.
+        /// Get the list of full symbolic references to inspect for and correct issues, e.g., HEAD, or refs/heads/foobar.
         /// </summary>
         protected abstract IEnumerable<string> GetRefs();
 
@@ -127,7 +127,7 @@ namespace GVFS.RepairJobs
             string refPath = Path.Combine(this.Enlistment.WorkingDirectoryRoot, GVFSConstants.DotGit.Root, fullSymbolicRef);
             if (!File.Exists(refPath))
             {
-                messages?.Add($"Could not find ref file for '{fullSymbolicRef}'");
+                messages?.Add($"Could not find ref file for '{fullSymbolicRef}' at '{refPath}'");
                 return false;
             }
 

@@ -1,5 +1,6 @@
 ﻿using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using GVFS.Common;
 using GVFS.Common.Tracing;
 
@@ -21,7 +22,10 @@ namespace GVFS.RepairJobs
         {
             string refsHeadsPath = Path.Combine(this.Enlistment.WorkingDirectoryRoot, GVFSConstants.DotGit.Refs.Heads.RootFolder);
 
-            return GetRecursiveRelativeFilePaths(refsHeadsPath);
+            IEnumerable<string> refsHeads = GetRecursiveRelativeFilePaths(refsHeadsPath);
+
+            // Make sure we prepend "refs/heads" to the local branch name to get the full symbolic ref (relative to .git/)
+            return refsHeads.Select(x => Path.Combine(GVFSConstants.DotGit.Refs.Name, GVFSConstants.DotGit.Refs.Heads.Name, x));
         }
 
         private static IEnumerable<string> GetRecursiveRelativeFilePaths(string rootDirectory)

@@ -191,11 +191,15 @@ namespace GVFS.Common
 
             public static class Refs
             {
-                public static readonly string Root = Path.Combine(DotGit.Root, "refs");
+                public const string Name = "refs";
+
+                public static readonly string Root = Path.Combine(DotGit.Root, Refs.Name);
 
                 public static class Heads
                 {
-                    public static readonly string Root = Path.Combine(DotGit.Refs.Root, "heads");
+                    public const string Name = "heads";
+
+                    public static readonly string Root = Path.Combine(DotGit.Refs.Root, Heads.Name);
                     public static readonly string RootFolder = Heads.Root + Path.DirectorySeparatorChar;
                 }
             }
