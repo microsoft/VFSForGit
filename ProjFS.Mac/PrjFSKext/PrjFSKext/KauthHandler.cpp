@@ -279,6 +279,30 @@ void KauthHandler_AbortOutstandingEventsForProvider(VirtualizationRootHandle pro
     Mutex_Release(s_outstandingMessagesMutex);
 }
 
+static void UseMainForkIfNamedStream(
+    // In+out params:
+    vnode_t& vnode,
+    // Out params:
+    bool&    putVnodeWhenDone)
+{
+    // A lot of our file checks such as attribute tests behave oddly if the vnode
+    // refers to a named fork/stream; apply the logic as if the vnode operation was
+    // occurring on the file itself. (/path/to/file/..namedfork/rsrc)
+    if (vnode_isnamedstream(vnode))
+    {
+        vnode_t mainFileFork = vnode_getparent(vnode);
+        assert(NULLVP != mainFileFork);
+        
+        if (putVnodeWhenDone)
+        {
+            vnode_put(vnode);
+        }
+        
+        vnode = mainFileFork;
+        putVnodeWhenDone = true;
+    }
+}
+
 // Private functions
 static int HandleVnodeOperation(
     kauth_cred_t    credential,
@@ -301,16 +325,7 @@ static int HandleVnodeOperation(
     int kauthResult = KAUTH_RESULT_DEFER;
     bool putVnodeWhenDone = false;
 
-    // A lot of our file checks such as attribute tests behave oddly if the vnode
-    // refers to a named fork/stream; apply the logic as if the vnode operation was
-    // occurring on the file itself. (/path/to/file/..namedfork/rsrc)
-    if (vnode_isnamedstream(currentVnode))
-    {
-        vnode_t mainFileFork = vnode_getparent(currentVnode);
-        assert(NULLVP != mainFileFork);
-        currentVnode = mainFileFork;
-        putVnodeWhenDone = true;
-    }
+    UseMainForkIfNamedStream(currentVnode, putVnodeWhenDone);
 
     const char* vnodePath = nullptr;
     char vnodePathBuffer[PrjFSMaxPath];
@@ -517,7 +532,8 @@ static int HandleFileOpOperation(
     PerfSample fileOpSample(&perfTracer, PrjFSPerfCounter_FileOp);
 
     vfs_context_t _Nonnull context = vfs_context_create(NULL);
-    vnode_t currentVnodeFromPath = NULLVP;
+    vnode_t currentVnode = NULLVP;
+    bool    putCurrentVnode = false;
 
     if (KAUTH_FILEOP_RENAME == action ||
         KAUTH_FILEOP_LINK == action)
@@ -527,12 +543,14 @@ static int HandleFileOpOperation(
         
         // TODO(Mac): We need to handle failures to lookup the vnode.  If we fail to lookup the vnode
         // it's possible that we'll miss notifications
-        errno_t toErr = vnode_lookup(newPath, 0 /* flags */, &currentVnodeFromPath, context);
+        errno_t toErr = vnode_lookup(newPath, 0 /* flags */, &currentVnode, context);
         if (0 != toErr)
         {
             KextLog_Note("HandleFileOpOperation: vnode_lookup failed, errno %d for path '%s'", toErr, newPath);
             goto CleanupAndReturn;
         }
+        
+        putCurrentVnode = true;
         
         VirtualizationRootHandle root = RootHandle_None;
         FsidInode vnodeFsidInode;
@@ -540,7 +558,7 @@ static int HandleFileOpOperation(
         if (!ShouldHandleFileOpEvent(
                 &perfTracer,
                 context,
-                currentVnodeFromPath,
+                currentVnode,
                 action,
                 &root,
                 &vnodeFsidInode,
@@ -557,7 +575,7 @@ static int HandleFileOpOperation(
             PerfSample renameSample(&perfTracer, PrjFSPerfCounter_FileOp_Renamed);
             
             MessageType messageType =
-                vnode_isdir(currentVnodeFromPath)
+                vnode_isdir(currentVnode)
                 ? MessageType_KtoU_NotifyDirectoryRenamed
                 : MessageType_KtoU_NotifyFileRenamed;
 
@@ -566,7 +584,7 @@ static int HandleFileOpOperation(
             if (!TrySendRequestAndWaitForResponse(
                     root,
                     messageType,
-                    currentVnodeFromPath,
+                    currentVnode,
                     vnodeFsidInode,
                     newPath,
                     pid,
@@ -586,7 +604,7 @@ static int HandleFileOpOperation(
             if (!TrySendRequestAndWaitForResponse(
                     root,
                     MessageType_KtoU_NotifyFileHardLinkCreated,
-                    currentVnodeFromPath,
+                    currentVnode,
                     vnodeFsidInode,
                     newPath,
                     pid,
@@ -600,7 +618,8 @@ static int HandleFileOpOperation(
     }
     else if (KAUTH_FILEOP_CLOSE == action)
     {
-        vnode_t currentVnode = reinterpret_cast<vnode_t>(arg0);
+        currentVnode = reinterpret_cast<vnode_t>(arg0);
+        putCurrentVnode = false;
         const char* path = reinterpret_cast<const char*>(arg1);
         int closeFlags = static_cast<int>(arg2);
         
@@ -608,6 +627,8 @@ static int HandleFileOpOperation(
         {
             goto CleanupAndReturn;
         }
+        
+        UseMainForkIfNamedStream(currentVnode, putCurrentVnode);
 
         bool fileFlaggedInRoot;
         if (!TryGetFileIsFlaggedAsInRoot(currentVnode, context, &fileFlaggedInRoot))
@@ -689,9 +710,9 @@ static int HandleFileOpOperation(
     }
     
 CleanupAndReturn:    
-    if (NULLVP != currentVnodeFromPath)
+    if (NULLVP != currentVnode && putCurrentVnode)
     {
-        vnode_put(currentVnodeFromPath);
+        vnode_put(currentVnode);
     }
     
     vfs_context_rele(context);
