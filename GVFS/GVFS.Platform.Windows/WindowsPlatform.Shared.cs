@@ -37,7 +37,7 @@ namespace GVFS.Platform.Windows
             }
         }
 
-        public static bool IsProcessActiveImplementation(int processId)
+        public static bool IsProcessActiveImplementation(int processId, bool tryGetProcessById)
         {
             using (SafeFileHandle process = NativeMethods.OpenProcess(NativeMethods.ProcessAccessFlags.QueryLimitedInformation, false, processId))
             {
@@ -48,10 +48,8 @@ namespace GVFS.Platform.Windows
                     {
                         return true;
                     }
-
-                    return false;
                 }
-                else
+                else if (tryGetProcessById)
                 {
                     // The process.IsInvalid may be true when the mount process doesn't have access to call
                     // OpenProcess for the specified processId. Fallback to slow way of finding process.
@@ -65,6 +63,8 @@ namespace GVFS.Platform.Windows
                         return false;
                     }
                 }
+
+                return false;
             }
         }
 

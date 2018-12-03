@@ -171,7 +171,7 @@ namespace GVFS.Platform.Windows
 
         public override bool IsProcessActive(int processId)
         {
-            return WindowsPlatform.IsProcessActiveImplementation(processId);
+            return WindowsPlatform.IsProcessActiveImplementation(processId, tryGetProcessById: true);
         }
 
         public override void IsServiceInstalledAndRunning(string name, out bool installed, out bool running)
