@@ -550,6 +550,9 @@ static int HandleFileOpOperation(
             goto CleanupAndReturn;
         }
         
+        // Don't expect named stream here as they can't be directly hardlinked or renamed, only the main fork can
+        assert(!vnode_isnamedstream(currentVnode));
+        
         putCurrentVnode = true;
         
         VirtualizationRootHandle root = RootHandle_None;
