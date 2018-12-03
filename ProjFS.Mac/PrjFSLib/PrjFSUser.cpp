@@ -80,7 +80,7 @@ io_connect_t PrjFSService_ConnectToDriver(enum PrjFSServiceUserClientType client
     IOObjectRelease(prjfsService);
     if (kIOReturnSuccess != result || IO_OBJECT_NULL == connection)
     {
-        std::cerr << "Failed to open connection to kernel service: 0x" << std::hex << result << ", connection 0x" << std::hex << connection << std::endl;
+        std::cerr << "Failed to open connection to kernel service; error: 0x" << std::hex << result << ", connection 0x" << std::hex << connection << std::endl;
         connection = IO_OBJECT_NULL;
     }
 
@@ -98,7 +98,11 @@ static void ServiceMatched(
         io_connect_t connection = IO_OBJECT_NULL;
         if (PrjFSService_ValidateVersion(prjfsService))
         {
-            IOServiceOpen(prjfsService, mach_task_self(), context->clientType, &connection);
+            kern_return_t result = IOServiceOpen(prjfsService, mach_task_self(), context->clientType, &connection);
+            if (result != kIOReturnSuccess)
+            {
+                std::cerr << "Failed to open connection to kernel service; error: 0x" << std::hex << result << ", connection 0x" << std::hex << connection << std::endl;
+            }
         }
         
         context->discoveryCallback(prjfsService, connection, context);
