@@ -69,17 +69,13 @@ namespace GVFS.RepairJobs
         }
 
         /// <summary>
-        /// Get the list of full symbolic references (eg. HEAD, refs/remotes/origin/HEAD, refs/heads/master)
-        /// to inspect for and correct issues.
+        /// Get the list of full symbolic references to inspect for and correct issues.
         /// </summary>
-        /// <returns></returns>
         protected abstract IEnumerable<string> GetRefs();
 
         /// <summary>
         /// Check if the contents of a reference is valid.
         /// </summary>
-        /// <param name="fullSymbolicRef">A full symbolic ref name. eg. HEAD, refs/remotes/origin/HEAD, refs/heads/master</param>
-        /// <param name="refContents">Contents of the ref file</param>
         protected virtual bool IsValidRefContents(string fullSymbolicRef, string refContents)
         {
             // Check for symbolic references
@@ -96,7 +92,6 @@ namespace GVFS.RepairJobs
         /// <summary>
         /// 'git ref-log' doesn't work if the repo is corrupted, so parsing reflogs seems like the only solution.
         /// </summary>
-        /// <param name="fullSymbolicRef">A full symbolic ref name. eg. HEAD, refs/remotes/origin/HEAD, refs/heads/master</param>
         private static bool TryReadLastRefLogEntry(Enlistment enlistment, string fullSymbolicRef, out RefLogEntry refLog, out string error)
         {
             string refLogPath = Path.Combine(enlistment.WorkingDirectoryRoot, GVFSConstants.DotGit.Logs.Root, fullSymbolicRef);
