@@ -12,11 +12,6 @@ namespace GVFS.UnitTests.Common
     [TestFixture]
     public class PathsTests
     {
-        // Cannot use the System.IO.Path.(Alt)DirectorySeparatorChar field because
-        // this is different depending on the platform the tests are being run on.
-        private const char WindowsPathSeparator = '\\';
-        private const char UnixPathSeparator = '/';
-
         [TestCase]
         public void CanConvertOSPathToGitFormat()
         {
