@@ -27,7 +27,17 @@ namespace GVFS.RepairJobs
                 }
             }
 
-            return numBadRefs > 0 ? IssueType.Fixable : IssueType.None;
+            if (numBadRefs == 0)
+            {
+                return IssueType.None;
+            }
+
+            if (!this.CanBeRepaired(messages))
+            {
+                return IssueType.CantFix;
+            }
+
+            return IssueType.Fixable;
         }
 
         /// <summary>
@@ -169,6 +179,48 @@ namespace GVFS.RepairJobs
                 this.Tracer.RelatedError(metadata, $"Failed to write {fullSymbolicRef}: {ex}");
                 return false;
             }
+        }
+
+        private bool CanBeRepaired(List<string> messages)
+        {
+            Func<string, string> createErrorMessage = operation => string.Format("Can't repair while a {0} operation is in progress", operation);
+
+            string rebasePath = Path.Combine(this.Enlistment.WorkingDirectoryRoot, GVFSConstants.DotGit.RebaseApply);
+            if (Directory.Exists(rebasePath))
+            {
+                messages.Add(createErrorMessage("rebase"));
+                return false;
+            }
+
+            string mergeHeadPath = Path.Combine(this.Enlistment.WorkingDirectoryRoot, GVFSConstants.DotGit.MergeHead);
+            if (File.Exists(mergeHeadPath))
+            {
+                messages.Add(createErrorMessage("merge"));
+                return false;
+            }
+
+            string bisectStartPath = Path.Combine(this.Enlistment.WorkingDirectoryRoot, GVFSConstants.DotGit.BisectStart);
+            if (File.Exists(bisectStartPath))
+            {
+                messages.Add(createErrorMessage("bisect"));
+                return false;
+            }
+
+            string cherrypickHeadPath = Path.Combine(this.Enlistment.WorkingDirectoryRoot, GVFSConstants.DotGit.CherryPickHead);
+            if (File.Exists(cherrypickHeadPath))
+            {
+                messages.Add(createErrorMessage("cherry-pick"));
+                return false;
+            }
+
+            string revertHeadPath = Path.Combine(this.Enlistment.WorkingDirectoryRoot, GVFSConstants.DotGit.RevertHead);
+            if (File.Exists(revertHeadPath))
+            {
+                messages.Add(createErrorMessage("revert"));
+                return false;
+            }
+
+            return true;
         }
     }
 }
