@@ -1,13 +1,13 @@
 ﻿using GVFS.Common.Git;
 using System;
+using System.Collections.Generic;
 using System.Threading;
 
 namespace GVFS.Common.Maintenance
 {
     public class GitMaintenanceScheduler : IDisposable
     {
-        private readonly TimeSpan prefetchPeriod = TimeSpan.FromMinutes(15);
-        private Timer prefetchStepTimer;
+        private List<Timer> stepTimers;
         private GVFSContext context;
         private GitObjects gitObjects;
         private GitMaintenanceQueue queue;
@@ -16,6 +16,7 @@ namespace GVFS.Common.Maintenance
         {
             this.context = context;
             this.gitObjects = gitObjects;
+            this.stepTimers = new List<Timer>();
             this.queue = new GitMaintenanceQueue(context);
 
             this.ScheduleRecurringSteps();
@@ -29,20 +30,33 @@ namespace GVFS.Common.Maintenance
         public void Dispose()
         {
             this.queue.Stop();
-            this.prefetchStepTimer?.Dispose();
-            this.prefetchStepTimer = null;
+
+            foreach (Timer timer in this.stepTimers)
+            {
+                timer?.Dispose();
+            }
+
+            this.stepTimers = null;
         }
 
         public void ScheduleRecurringSteps()
         {
-            if (!this.context.Unattended && this.gitObjects.IsUsingCacheServer())
+            if (this.context.Unattended)
             {
-                this.prefetchStepTimer = new Timer(
-                (state) => this.queue.Enqueue(new PrefetchStep(this.context, this.gitObjects, requireCacheLock: true)),
-                state: null,
-                dueTime: this.prefetchPeriod,
-                period: this.prefetchPeriod);
+                return;
             }
+
+            if (this.gitObjects.IsUsingCacheServer())
+            {
+                TimeSpan prefetchPeriod = TimeSpan.FromMinutes(15);
+                this.stepTimers.Add(new Timer(
+                    (state) => this.queue.Enqueue(new PrefetchStep(this.context, this.gitObjects, requireCacheLock: true)),
+                    state: null,
+                    dueTime: prefetchPeriod,
+                    period: prefetchPeriod));
+            }
+
+            // TODO: Schedule more mainenance steps here.
         }
     }
 }
