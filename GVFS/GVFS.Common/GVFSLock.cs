@@ -149,10 +149,7 @@ namespace GVFS.Common
             // In this code path, we don't care if the process terminated without releasing the lock. The calling code
             // is asking us about this lock so that it can determine if git was the cause of certain IO events. Even
             // if the git process has terminated, the answer to that question does not change.
-
-            bool externalHolderTerminatedWithoutReleasingLock;
-            NamedPipeMessages.LockData currentHolder = this.currentLockHolder.GetExternalHolder(
-                out externalHolderTerminatedWithoutReleasingLock);
+            NamedPipeMessages.LockData currentHolder = this.currentLockHolder.GetExternalHolder();
 
             if (currentHolder != null)
             {
@@ -221,9 +218,7 @@ namespace GVFS.Common
                     }
 
                     // We don't care if the process has already terminated. We're just trying to record the info for the last holder.
-                    bool externalHolderTerminatedWithoutReleasingLock;
-                    NamedPipeMessages.LockData previousExternalHolder = this.currentLockHolder.GetExternalHolder(
-                        out externalHolderTerminatedWithoutReleasingLock);
+                    NamedPipeMessages.LockData previousExternalHolder = this.currentLockHolder.GetExternalHolder();
 
                     if (previousExternalHolder == null)
                     {
@@ -387,6 +382,11 @@ namespace GVFS.Common
             {
                 this.IsGVFS = false;
                 this.externalLockHolder = null;
+            }
+
+            public NamedPipeMessages.LockData GetExternalHolder()
+            {
+                return this.externalLockHolder;
             }
 
             public NamedPipeMessages.LockData GetExternalHolder(out bool externalHolderTerminatedWithoutReleasingLock)
