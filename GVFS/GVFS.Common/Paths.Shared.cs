@@ -69,28 +69,5 @@ namespace GVFS.Common
         {
             return path.Replace(Path.DirectorySeparatorChar, GVFSConstants.GitPathSeparator);
         }
-
-        public static IEnumerable<string> GetFilesRecursive(string rootDirectory)
-        {
-            return GetFilesRecursive(new DirectoryInfo(rootDirectory), string.Empty);
-        }
-
-        private static IEnumerable<string> GetFilesRecursive(DirectoryInfo directory, string prefix)
-        {
-            foreach (FileInfo file in directory.GetFiles())
-            {
-                yield return Path.Combine(prefix, file.Name);
-            }
-
-            foreach (DirectoryInfo childDirectory in directory.GetDirectories())
-            {
-                string childPrefix = Path.Combine(prefix, childDirectory.Name);
-
-                foreach (string childFileName in GetFilesRecursive(childDirectory, childPrefix))
-                {
-                    yield return childFileName;
-                }
-            }
-        }
     }
 }

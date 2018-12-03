@@ -35,44 +35,5 @@ namespace GVFS.UnitTests.Common
             string doubleTransformedPath = Paths.ConvertPathToGitFormat(actualTransformedPath);
             doubleTransformedPath.ShouldEqual(expectedGitPath);
         }
-
-        [TestCase]
-        public void GetFilesRecursive()
-        {
-            string rootDirectory = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N"));
-
-            List<string> expectedFiles = new List<string>
-            {
-                "file1.txt",
-                "file2.txt",
-                "a/file1.txt",
-                "a/file2.txt",
-                "a/b/file1.txt",
-                "a/b/file2.txt",
-                "a/b/c/file1.txt",
-                "a/b/c/file2.txt",
-                "a/b/c/d/file1.txt",
-                "a/b/c/d/file2.txt"
-            };
-
-            CreateEmptyFiles(rootDirectory, expectedFiles);
-
-            List<string> actualFiles = Paths.GetFilesRecursive(rootDirectory).ToList();
-
-            CollectionAssert.AreEquivalent(expectedFiles, actualFiles);
-        }
-
-        private static void CreateEmptyFiles(string rootDirectory, IEnumerable<string> files)
-        {
-            foreach (string file in files)
-            {
-                string fullFilePath = Path.Combine(rootDirectory, file);
-
-                string parentDirectory = Path.GetDirectoryName(fullFilePath);
-                Directory.CreateDirectory(parentDirectory);
-
-                File.WriteAllText(fullFilePath, null);
-            }
-        }
     }
 }
