@@ -54,29 +54,41 @@ namespace GVFS.Common
         protected PhysicalFileSystem FileSystem { get; set; }
         protected ITracer Tracer { get; set; }
 
-        public static ProductUpgraderBase LoadUpgrader(ITracer tracer, out string error)
+        public static ProductUpgraderBase LoadUpgrader(string gitBinPath, ITracer tracer, out string error)
         {
             error = null;
             LocalGVFSConfig localConfig = new LocalGVFSConfig();
             ProductUpgraderBase upgrader;
 
             string upgradeFeedUrl;
-            string upgradeFeedName;
+            string upgradePackageFeedName;
+            string upgradeFeedUrlForCredentials;
             if (localConfig.TryGetConfig(GVFSConstants.LocalGVFSConfig.UpgradeFeedUrl, out upgradeFeedUrl, out error))
             {
                 // If upgrade feed url has been specified, then load NuGet Upgrader
-                if (!localConfig.TryGetConfig(GVFSConstants.LocalGVFSConfig.UpgradeFeedName, out upgradeFeedName, out error))
+                if (!localConfig.TryGetConfig(GVFSConstants.LocalGVFSConfig.UpgradeFeedPackageName, out upgradePackageFeedName, out error))
                 {
                     return null;
                 }
+
+                if (!localConfig.TryGetConfig(GVFSConstants.LocalGVFSConfig.UpgradeFeedCredentialUrl, out upgradeFeedUrlForCredentials, out error))
+                {
+                    return null;
+                }
+
+                GitProcess gitProcess = new GitProcess(gitBinPath, null, null);
+                GitAuthentication auth = new GitAuthentication(gitProcess, upgradeFeedUrlForCredentials);
+
+                string credential;
+                auth.TryGetCredentials(tracer, out credential, out error);
 
                 upgrader = new NuGetPackageUpgrader(
                     ProcessHelper.GetCurrentProcessVersion(),
                     tracer,
                     upgradeFeedUrl,
-                    upgradeFeedName
+                    upgradePackageFeedName,
                     GetAssetDownloadsPath(),
-                    string.Empty);
+                    credential);
             }
             else
             {

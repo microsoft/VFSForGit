@@ -67,8 +67,8 @@ namespace GVFS.Service
         {
             using (ITracer activity = this.tracer.StartActivity("Checking for product upgrades.", EventLevel.Informational))
             {
-                string errorMessage;
-                ProductUpgraderBase productUpgrader = ProductUpgraderBase.LoadUpgrader(this.tracer, out errorMessage);
+                string error;
+                ProductUpgraderBase productUpgrader = ProductUpgraderBase.LoadUpgrader(GVFSPlatform.Instance.GitInstallation.GetInstalledGitBinPath(), this.tracer, out error);
                 Version newerVersion = null;
                 string detailedError = null;
                 if (!productUpgrader.TryGetNewerVersion(out newerVersion, out detailedError))

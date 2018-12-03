@@ -48,7 +48,7 @@ namespace GVFS.Upgrader
             this.preRunChecker = new InstallerPreRunChecker(this.tracer, GVFSConstants.UpgradeVerbMessages.GVFSUpgradeConfirm);
 
             string errorMessage;
-            this.upgrader = ProductUpgraderBase.LoadUpgrader(this.tracer, out errorMessage);
+            this.upgrader = ProductUpgraderBase.LoadUpgrader(GVFSPlatform.Instance.GitInstallation.GetInstalledGitBinPath(), this.tracer, out errorMessage);
             this.output = Console.Out;
             this.input = Console.In;
             this.mount = false;
