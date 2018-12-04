@@ -9,6 +9,8 @@ namespace GVFS.Common
 {
     public static class ProcessHelper
     {
+        private static string currentProcessVersion = null;
+
         public static ProcessResult Run(string programName, string args, bool redirectOutput = true)
         {
             ProcessStartInfo processInfo = new ProcessStartInfo(programName);
@@ -44,9 +46,14 @@ namespace GVFS.Common
 
         public static string GetCurrentProcessVersion()
         {
-            Assembly assembly = Assembly.GetExecutingAssembly();
-            FileVersionInfo fileVersionInfo = FileVersionInfo.GetVersionInfo(assembly.Location);
-            return fileVersionInfo.ProductVersion;
+            if (currentProcessVersion == null)
+            {
+                Assembly assembly = Assembly.GetExecutingAssembly();
+                FileVersionInfo fileVersionInfo = FileVersionInfo.GetVersionInfo(assembly.Location);
+                currentProcessVersion = fileVersionInfo.ProductVersion;
+            }
+
+            return currentProcessVersion;
         }
         
         public static bool IsDevelopmentVersion()
