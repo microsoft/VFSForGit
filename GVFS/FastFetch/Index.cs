@@ -1,4 +1,7 @@
-﻿using System;
+﻿using GVFS.Common;
+using GVFS.Common.Git;
+using GVFS.Common.Tracing;
+using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.IO;
@@ -7,9 +10,6 @@ using System.Linq;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
-using GVFS.Common;
-using GVFS.Common.Git;
-using GVFS.Common.Tracing;
 
 namespace FastFetch
 {
@@ -160,12 +160,12 @@ namespace FastFetch
             }
         }
 
-        private static string FromWindowsFullPathToGitRelativePath(string path, string repoRoot)
+        private static string FromDotnetFullPathToGitRelativePath(string path, string repoRoot)
         {
             return path.Substring(repoRoot.Length).TrimStart(Path.DirectorySeparatorChar).Replace(Path.DirectorySeparatorChar, GVFSConstants.GitPathSeparator);
         }
 
-        private static string FromGitRelativePathToWindowsFullPath(string path, string repoRoot)
+        private static string FromGitRelativePathToDotnetFullPath(string path, string repoRoot)
         {
             return Path.Combine(repoRoot, path.Replace(GVFSConstants.GitPathSeparator, Path.DirectorySeparatorChar));
         }
@@ -187,7 +187,7 @@ namespace FastFetch
                     {
                         foreach (FileInfo file in files)
                         {
-                            string gitPath = FromWindowsFullPathToGitRelativePath(file.FullName, this.repoRoot);
+                            string gitPath = FromDotnetFullPathToGitRelativePath(file.FullName, this.repoRoot);
                             long offset;
                             if (this.indexEntryOffsets.TryGetValue(gitPath, out offset))
                             {
@@ -213,7 +213,7 @@ namespace FastFetch
                     addedOrEditedLocalFiles,
                     (localPath) =>
                     {
-                        string gitPath = FromWindowsFullPathToGitRelativePath(localPath, this.repoRoot);
+                        string gitPath = FromDotnetFullPathToGitRelativePath(localPath, this.repoRoot);
                         long offset;
                         if (this.indexEntryOffsets.TryGetValue(gitPath, out offset))
                         {
@@ -264,7 +264,7 @@ namespace FastFetch
                             }
                             else if (shouldAlsoTryPopulateFromDisk)
                             {
-                                string localPath = FromGitRelativePathToWindowsFullPath(currentIndexFilename, this.repoRoot);
+                                string localPath = FromGitRelativePathToDotnetFullPath(currentIndexFilename, this.repoRoot);
                                 if (this.TryUpdateEntryFromDisk(indexView, localPath, entry.Value))
                                 {
                                     Interlocked.Increment(ref updatedEntriesFromDisk);
@@ -556,12 +556,12 @@ namespace FastFetch
             {
                 get
                 {
-                    return this.ToWindowsTime(this.CtimeSeconds, this.CtimeNanosecondFraction);
+                    return this.ToDotnetTime(this.CtimeSeconds, this.CtimeNanosecondFraction);
                 }
 
                 set
                 {
-                    IndexEntryTime time = this.ToUnixTime(value);
+                    IndexEntryTime time = this.ToGitTime(value);
                     this.CtimeSeconds = time.Seconds;
                     this.CtimeNanosecondFraction = time.NanosecondFraction;
                 }
@@ -597,12 +597,12 @@ namespace FastFetch
             {
                 get
                 {
-                    return this.ToWindowsTime(this.MtimeSeconds, this.MtimeNanosecondFraction);
+                    return this.ToDotnetTime(this.MtimeSeconds, this.MtimeNanosecondFraction);
                 }
 
                 set
                 {
-                    IndexEntryTime times = this.ToUnixTime(value);
+                    IndexEntryTime times = this.ToGitTime(value);
                     this.MtimeSeconds = times.Seconds;
                     this.MtimeNanosecondFraction = times.NanosecondFraction;
                 }
@@ -667,7 +667,7 @@ namespace FastFetch
                 this.indexView.Write(this.Offset + (long)fromOffset, EndianHelper.Swap(data));
             }
 
-            private IndexEntryTime ToUnixTime(DateTime datetime)
+            private IndexEntryTime ToGitTime(DateTime datetime)
             {
                 if (datetime > UnixEpoch)
                 {
@@ -684,7 +684,7 @@ namespace FastFetch
                 }
             }
 
-            private DateTime ToWindowsTime(uint seconds, uint nanosecondFraction)
+            private DateTime ToDotnetTime(uint seconds, uint nanosecondFraction)
             {
                 DateTime time = UnixEpoch.AddSeconds(seconds).AddMilliseconds(nanosecondFraction / 1000000);
                 return time;

@@ -9,6 +9,7 @@ namespace GVFS.FunctionalTests.Tools
         {
             if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
             {
+                // Use cmd.exe to delete the enlistment as it properly handles tombstones and reparse points
                 CmdRunner.DeleteDirectoryWithUnlimitedRetries(repoPath);
             }
             else

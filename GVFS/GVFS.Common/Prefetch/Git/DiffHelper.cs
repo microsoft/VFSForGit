@@ -371,7 +371,8 @@ namespace GVFS.Common.Prefetch.Git
             {
                 foreach (KeyValuePair<string, HashSet<PathWithMode>> kvp in this.FileAddOperations)
                 {
-                    if (kvp.Value.Any(m => m.Path == operation.TargetPath))
+                    PathWithMode tempPathWithMode = new PathWithMode(operation.TargetPath, 0x0000);
+                    if (kvp.Value.Remove(tempPathWithMode))
                     {
                         break;
                     }

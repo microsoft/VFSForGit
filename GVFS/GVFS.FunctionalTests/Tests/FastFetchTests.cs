@@ -484,13 +484,13 @@ namespace GVFS.FunctionalTests.Tests
             if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
             {
                 fastfetch = Path.Combine(Settings.Default.CurrentDirectory, "netcoreapp2.1", "fastfetch.dll");
-                File.Exists(fastfetch).ShouldBeTrue();
             }
             else
             {
                 fastfetch = Path.Combine(Settings.Default.CurrentDirectory, "fastfetch.dll");
             }
 
+            File.Exists(fastfetch).ShouldBeTrue();
             Console.WriteLine($"Using {fastfetch}");
 
             ProcessStartInfo processInfo = new ProcessStartInfo("dotnet");

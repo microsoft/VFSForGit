@@ -14,6 +14,8 @@ namespace GVFS.Common.Git
 
         private static readonly HashSet<string> ValidTreeModes = new HashSet<string>() { "040000" };
 
+        private const ushort SymLinkFileIndexEntry = 0xA000;
+
         public enum Operations
         {
             Unknown,
@@ -92,7 +94,7 @@ namespace GVFS.Common.Git
 
             if (!result.TargetIsDirectory)
             {
-                result.TargetIsSymLink = parts[1] == "120000";
+                result.TargetIsSymLink = result.TargetMode == SymLinkFileIndexEntry;
             }
 
             result.SourceSha = parts[2];
@@ -157,8 +159,8 @@ namespace GVFS.Common.Git
                 if (IsLsTreeLineOfType(line, BlobMarker))
                 {
                     DiffTreeResult blobAdd = new DiffTreeResult();
-                    blobAdd.TargetIsSymLink = line.StartsWith("120000");
                     blobAdd.TargetMode = Convert.ToUInt16(line.Substring(0, 6), 8);
+                    blobAdd.TargetIsSymLink = blobAdd.TargetMode == SymLinkFileIndexEntry;
                     blobAdd.TargetSha = line.Substring(TypeMarkerStartIndex + BlobMarker.Length, GVFSConstants.ShaStringLength);
                     blobAdd.TargetPath = ConvertPathToAbsoluteUtf8Path(repoRoot, line.Substring(line.LastIndexOf("\t") + 1));
                     blobAdd.Operation = DiffTreeResult.Operations.Add;

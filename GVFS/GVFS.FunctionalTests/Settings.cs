@@ -39,8 +39,8 @@ namespace GVFS.FunctionalTests.Properties
 
                     ControlGitRepoRoot = @"C:\Repos\GVFSFunctionalTests\ControlRepo";
                     FastFetchBaseRoot = @"C:\Repos\GVFSFunctionalTests\FastFetch";
-                    FastFetchRoot = @"C:\Repos\GVFSFunctionalTests\FastFetch\Test";
-                    FastFetchControl = @"C:\Repos\GVFSFunctionalTests\FastFetch\Control";
+                    FastFetchRoot = Path.Combine(FastFetchBaseRoot, "test");
+                    FastFetchControl = Path.Combine(FastFetchBaseRoot, "control");
                     PathToGVFSService = @"GVFS.Service.exe";
                     BinaryFileNameExtension = ".exe";
                 }
