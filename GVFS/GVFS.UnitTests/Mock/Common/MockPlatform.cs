@@ -26,6 +26,8 @@ namespace GVFS.UnitTests.Mock.Common
 
         public override IPlatformFileSystem FileSystem { get; } = new MockPlatformFileSystem();
 
+        public HashSet<int> ActiveProcesses { get; } = new HashSet<int>();
+
         public override void ConfigureVisualStudio(string gitBinPath, ITracer tracer)
         {
             throw new NotSupportedException();
@@ -88,7 +90,7 @@ namespace GVFS.UnitTests.Mock.Common
 
         public override bool IsProcessActive(int processId)
         {
-            throw new NotSupportedException();
+            return this.ActiveProcesses.Contains(processId);
         }
 
         public override void IsServiceInstalledAndRunning(string name, out bool installed, out bool running)
