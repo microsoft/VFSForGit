@@ -103,6 +103,7 @@ namespace GVFS.CommandLine
             Dictionary<string, string> requiredSettings = new Dictionary<string, string>
             {
                 { "am.keepcr", "true" },
+                { "checkout.optimizenewbranch", "true" },
                 { "core.autocrlf", "false" },
                 { "core.commitGraph", "true" },
                 { "core.fscache", "true" },
@@ -123,11 +124,13 @@ namespace GVFS.CommandLine
                 { "diff.autoRefreshIndex", "false" },
                 { "gc.auto", "0" },
                 { "gui.gcwarning", "false" },
+                { "index.threads", "true" },
                 { "index.version", "4" },
                 { "merge.stat", "false" },
                 { "merge.renames", "false" },
                 { "pack.useBitmaps", "false" },
                 { "receive.autogc", "false" },
+                { "reset.quiet", "true" },
                 { "status.deserializePath", gitStatusCachePath },
             };
 
