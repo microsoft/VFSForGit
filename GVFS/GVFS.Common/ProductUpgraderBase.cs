@@ -58,7 +58,7 @@ namespace GVFS.Common
         {
             error = null;
             LocalGVFSConfig localConfig = new LocalGVFSConfig();
-            ProductUpgraderBase upgrader;
+            ProductUpgraderBase upgrader = null;
 
             string upgradeFeedUrl;
             string upgradePackageFeedName;
@@ -79,16 +79,19 @@ namespace GVFS.Common
                 GitProcess gitProcess = new GitProcess(gitBinPath, null, null);
                 GitAuthentication auth = new GitAuthentication(gitProcess, upgradeFeedUrlForCredentials);
 
-                string credential;
-                auth.TryGetCredentials(tracer, out credential, out error);
+                if (auth.TryInitializeAndRequireAuth(tracer, out error))
+                {
+                    string token;
+                    auth.TryGetCredentials(tracer, out string _, out token, out error);
 
-                upgrader = new NuGetPackageUpgrader(
-                    ProcessHelper.GetCurrentProcessVersion(),
-                    tracer,
-                    upgradeFeedUrl,
-                    upgradePackageFeedName,
-                    GetAssetDownloadsPath(),
-                    credential);
+                    upgrader = new NuGetPackageUpgrader(
+                        ProcessHelper.GetCurrentProcessVersion(),
+                        tracer,
+                        upgradeFeedUrl,
+                        upgradePackageFeedName,
+                        GetAssetDownloadsPath(),
+                        token);
+                }
             }
             else
             {

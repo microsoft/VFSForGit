@@ -102,7 +102,7 @@ namespace GVFS.Common
             Exception e;
             bool success = this.TryDeleteDirectory(ProductUpgraderBase.GetTempPath(), out e);
 
-            this.UnzpiPackageToTempLocation();
+            this.UnzipPackageToTempLocation();
 
             this.Manifest = new NuGetPackageManifest();
             this.Manifest.Read(Path.Combine(this.ExtractedPath, "install-manifest.txt"));
@@ -170,8 +170,8 @@ namespace GVFS.Common
 
             var packageMetadataResource = await sourceRepository.GetResourceAsync<PackageMetadataResource>();
             var cacheContext = new SourceCacheContext();
-            /// cacheContext.DirectDownload = true;
-            /// cacheContext.NoCache = true;
+            cacheContext.DirectDownload = true;
+            cacheContext.NoCache = true;
             IList<IPackageSearchMetadata> queryResults = (await packageMetadataResource.GetMetadataAsync(packageId, true, true, cacheContext, new Logger(), CancellationToken.None)).ToList();
             return queryResults;
         }
@@ -200,7 +200,7 @@ namespace GVFS.Common
             return downloadPath;
         }
 
-        private void UnzpiPackageToTempLocation()
+        private void UnzipPackageToTempLocation()
         {
             this.ExtractedPath = ProductUpgraderBase.GetTempPath();
 
