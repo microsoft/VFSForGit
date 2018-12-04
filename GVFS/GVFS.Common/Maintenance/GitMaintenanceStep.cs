@@ -54,14 +54,14 @@ namespace GVFS.Common.Maintenance
             {
                 this.Context.Tracer.RelatedWarning(
                     metadata: this.CreateEventMetadata(e),
-                    message: this.Area + ": IOException while running action: " + e.Message,
+                    message: "IOException while running action: " + e.Message,
                     keywords: Keywords.Telemetry);
             }
             catch (Exception e)
             {
                 this.Context.Tracer.RelatedError(
                     metadata: this.CreateEventMetadata(e),
-                    message: this.Area + ": Exception while running action: " + e.Message,
+                    message: "Exception while running action: " + e.Message,
                     keywords: Keywords.Telemetry);
                 Environment.Exit((int)ReturnCode.GenericError);
             }
@@ -100,7 +100,7 @@ namespace GVFS.Common.Maintenance
         /// (as specified by <see cref="RequireObjectCacheLock"/>), then this step is not run unless we
         /// hold the lock.
         /// </summary>
-        protected abstract void RunGitAction();
+        protected abstract void PerformMaintenance();
 
         protected GitProcess.Result RunGitCommand(Func<GitProcess, GitProcess.Result> work)
         {
@@ -130,17 +130,6 @@ namespace GVFS.Common.Maintenance
             }
         }
 
-        protected void LogWarning(string telemetryKey, string methodName, Exception exception)
-        {
-            EventMetadata metadata = this.CreateEventMetadata(exception);
-            metadata.Add("Method", methodName);
-            metadata.Add("StackTrace", exception.StackTrace);
-            this.Context.Tracer.RelatedWarning(
-                metadata: metadata,
-                message: telemetryKey + ": Unexpected Exception while running a maintenance step: " + exception.Message,
-                keywords: Keywords.Telemetry);
-        }
-
         protected EventMetadata CreateEventMetadata(Exception e = null)
         {
             EventMetadata metadata = new EventMetadata();
@@ -166,7 +155,7 @@ namespace GVFS.Common.Maintenance
                 this.GitProcess = new GitProcess(this.Context.Enlistment);
             }
 
-            this.RunGitAction();
+            this.PerformMaintenance();
         }
     }
 }

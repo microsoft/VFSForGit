@@ -63,7 +63,7 @@ namespace GVFS.Common.Maintenance
             return true;
         }
 
-        protected override void RunGitAction()
+        protected override void PerformMaintenance()
         {
             long last;
             string error = null;
@@ -93,7 +93,7 @@ namespace GVFS.Common.Maintenance
             {
                 this.Context.Tracer.RelatedWarning(
                     metadata: this.CreateEventMetadata(),
-                    message: $"{this.Area}: {nameof(this.TryPrefetchCommitsAndTrees)} failed with error '{error}'",
+                    message: $"{nameof(this.TryPrefetchCommitsAndTrees)} failed with error '{error}'",
                     keywords: Keywords.Telemetry);
             }
         }

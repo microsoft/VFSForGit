@@ -24,7 +24,7 @@ namespace GVFS.Common.Maintenance
 
         public void EnqueueOneTimeStep(GitMaintenanceStep step)
         {
-            this.queue.Enqueue(step);
+            this.queue.TryEnqueue(step);
         }
 
         public void Dispose()
@@ -39,7 +39,7 @@ namespace GVFS.Common.Maintenance
             this.stepTimers = null;
         }
 
-        public void ScheduleRecurringSteps()
+        private void ScheduleRecurringSteps()
         {
             if (this.context.Unattended)
             {
@@ -50,13 +50,11 @@ namespace GVFS.Common.Maintenance
             {
                 TimeSpan prefetchPeriod = TimeSpan.FromMinutes(15);
                 this.stepTimers.Add(new Timer(
-                    (state) => this.queue.Enqueue(new PrefetchStep(this.context, this.gitObjects, requireCacheLock: true)),
+                    (state) => this.queue.TryEnqueue(new PrefetchStep(this.context, this.gitObjects, requireCacheLock: true)),
                     state: null,
                     dueTime: prefetchPeriod,
                     period: prefetchPeriod));
             }
-
-            // TODO: Schedule more mainenance steps here.
         }
     }
 }

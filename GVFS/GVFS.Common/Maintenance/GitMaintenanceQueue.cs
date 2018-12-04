@@ -21,16 +21,19 @@ namespace GVFS.Common.Maintenance
             worker.Start();
         }
 
-        public void Enqueue(GitMaintenanceStep step)
+        public bool TryEnqueue(GitMaintenanceStep step)
         {
             try
             {
                 this.queue?.Add(step);
+                return true;
             }
             catch (InvalidOperationException)
             {
                 // We called queue.CompleteAdding()
             }
+
+            return false;
         }
 
         public void Stop()
@@ -91,6 +94,7 @@ namespace GVFS.Common.Maintenance
         private void LogError(string area, string methodName, Exception exception)
         {
             EventMetadata metadata = new EventMetadata();
+            metadata.Add("Area", area);
             metadata.Add("Method", methodName);
             metadata.Add("ExceptionMessage", exception.Message);
             metadata.Add("StackTrace", exception.StackTrace);

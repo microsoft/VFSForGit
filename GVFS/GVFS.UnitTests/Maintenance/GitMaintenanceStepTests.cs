@@ -13,17 +13,15 @@ namespace GVFS.UnitTests.Maintenance
     [TestFixture]
     public class GitMaintenanceStepTests
     {
+        private GVFSContext context;
+        private GitObjects gitObjects;
+
         [TestCase]
         public void GitMaintenanceStepRunsGitAction()
         {
-            ITracer tracer = new MockTracer();
-            GVFSEnlistment enlistment = new MockGVFSEnlistment();
-            PhysicalFileSystem fileSystem = new MockFileSystem(new MockDirectory(enlistment.EnlistmentRoot, null, null));
+            this.TestSetup();
 
-            GVFSContext context = new GVFSContext(tracer, fileSystem, null, enlistment);
-            GitObjects gitObjects = new MockPhysicalGitObjects(tracer, fileSystem, enlistment, null);
-
-            CheckMethodStep step = new CheckMethodStep(context, gitObjects);
+            CheckMethodStep step = new CheckMethodStep(this.context, this.gitObjects);
             step.Execute();
 
             step.SawWorkInvoked.ShouldBeTrue();
@@ -32,14 +30,9 @@ namespace GVFS.UnitTests.Maintenance
         [TestCase]
         public void GitMaintenanceStepSkipsGitActionAfterStop()
         {
-            ITracer tracer = new MockTracer();
-            GVFSEnlistment enlistment = new MockGVFSEnlistment();
-            PhysicalFileSystem fileSystem = new MockFileSystem(new MockDirectory(enlistment.EnlistmentRoot, null, null));
+            this.TestSetup();
 
-            GVFSContext context = new GVFSContext(tracer, fileSystem, null, enlistment);
-            GitObjects gitObjects = new MockPhysicalGitObjects(tracer, fileSystem, enlistment, null);
-
-            CheckMethodStep step = new CheckMethodStep(context, gitObjects);
+            CheckMethodStep step = new CheckMethodStep(this.context, this.gitObjects);
 
             step.Stop();
             step.Execute();
@@ -50,18 +43,23 @@ namespace GVFS.UnitTests.Maintenance
         [TestCase]
         public void GitMaintenanceStepSkipsRunGitCommandAfterStop()
         {
-            ITracer tracer = new MockTracer();
-            GVFSEnlistment enlistment = new MockGVFSEnlistment();
-            PhysicalFileSystem fileSystem = new MockFileSystem(new MockDirectory(enlistment.EnlistmentRoot, null, null));
+            this.TestSetup();
 
-            GVFSContext context = new GVFSContext(tracer, fileSystem, null, enlistment);
-            GitObjects gitObjects = new MockPhysicalGitObjects(tracer, fileSystem, enlistment, null);
-
-            CheckStopStep step = new CheckStopStep(context, gitObjects);
+            CheckStopStep step = new CheckStopStep(this.context, this.gitObjects);
 
             step.Execute();
 
             step.SawWorkInvoked.ShouldBeFalse();
+        }
+
+        private void TestSetup()
+        {
+            ITracer tracer = new MockTracer();
+            GVFSEnlistment enlistment = new MockGVFSEnlistment();
+            PhysicalFileSystem fileSystem = new MockFileSystem(new MockDirectory(enlistment.EnlistmentRoot, null, null));
+
+            this.context = new GVFSContext(tracer, fileSystem, null, enlistment);
+            this.gitObjects = new MockPhysicalGitObjects(tracer, fileSystem, enlistment, null);
         }
 
         public class CheckMethodStep : GitMaintenanceStep
@@ -75,7 +73,7 @@ namespace GVFS.UnitTests.Maintenance
 
             public override string Area => "CheckMethodStep";
 
-            protected override void RunGitAction()
+            protected override void PerformMaintenance()
             {
                 this.RunGitCommand(process =>
                 {
@@ -96,7 +94,7 @@ namespace GVFS.UnitTests.Maintenance
 
             public override string Area => "CheckMethodStep";
 
-            protected override void RunGitAction()
+            protected override void PerformMaintenance()
             {
                 this.Stop();
                 this.RunGitCommand(process =>

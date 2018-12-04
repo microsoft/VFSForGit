@@ -19,7 +19,7 @@ namespace GVFS.Common.Maintenance
 
         public override string Area => "PostFetchMaintenanceStep";
 
-        protected override void RunGitAction()
+        protected override void PerformMaintenance()
         {
             using (ITracer activity = this.Context.Tracer.StartActivity("TryWriteMultiPackIndex", EventLevel.Informational, Keywords.Telemetry, metadata: null))
             {

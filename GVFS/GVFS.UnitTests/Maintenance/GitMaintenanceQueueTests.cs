@@ -15,36 +15,29 @@ namespace GVFS.UnitTests.Maintenance
     public class GitMaintenanceQueueTests
     {
         private int maxWaitTime = 500;
+        private ReadyFileSystem fileSystem;
+        private GVFSEnlistment enlistment;
+        private GVFSContext context;
+        private GitObjects gitObjects;
 
         [TestCase]
         public void GitMaintenanceQueueEnlistmentRootReady()
         {
-            ITracer tracer = new MockTracer();
-            GVFSEnlistment enlistment = new MockGVFSEnlistment();
+            this.TestSetup();
 
-            // We need to have the EnlistmentRoot and GitObjectsRoot available for jobs to run
-            ReadyFileSystem fileSystem = new ReadyFileSystem(new string[]
-            {
-                enlistment.EnlistmentRoot,
-                enlistment.GitObjectsRoot
-            });
-
-            GVFSContext context = new GVFSContext(tracer, fileSystem, null, enlistment);
-            GitObjects gitObjects = new MockPhysicalGitObjects(tracer, null, null, null);
-
-            GitMaintenanceQueue queue = new GitMaintenanceQueue(context);
+            GitMaintenanceQueue queue = new GitMaintenanceQueue(this.context);
             queue.EnlistmentRootReady().ShouldBeTrue();
 
-            fileSystem.Paths.Remove(enlistment.EnlistmentRoot);
+            this.fileSystem.Paths.Remove(this.enlistment.EnlistmentRoot);
             queue.EnlistmentRootReady().ShouldBeFalse();
 
-            fileSystem.Paths.Remove(enlistment.GitObjectsRoot);
+            this.fileSystem.Paths.Remove(this.enlistment.GitObjectsRoot);
             queue.EnlistmentRootReady().ShouldBeFalse();
 
-            fileSystem.Paths.Add(enlistment.EnlistmentRoot);
+            this.fileSystem.Paths.Add(this.enlistment.EnlistmentRoot);
             queue.EnlistmentRootReady().ShouldBeFalse();
 
-            fileSystem.Paths.Add(enlistment.GitObjectsRoot);
+            this.fileSystem.Paths.Add(this.enlistment.GitObjectsRoot);
             queue.EnlistmentRootReady().ShouldBeTrue();
 
             queue.Stop();
@@ -53,88 +46,77 @@ namespace GVFS.UnitTests.Maintenance
         [TestCase]
         public void GitMaintenanceQueueHandlesTwoJobs()
         {
-            ITracer tracer = new MockTracer();
-            GVFSEnlistment enlistment = new MockGVFSEnlistment();
+            this.TestSetup();
 
-            // We need to have the EnlistmentRoot and GitObjectsRoot available for jobs to run
-            ReadyFileSystem fileSystem = new ReadyFileSystem(new string[]
-            {
-                enlistment.EnlistmentRoot,
-                enlistment.GitObjectsRoot
-            });
+            TestGitMaintenanceStep step1 = new TestGitMaintenanceStep(this.context, this.gitObjects);
+            TestGitMaintenanceStep step2 = new TestGitMaintenanceStep(this.context, this.gitObjects);
 
-            GVFSContext context = new GVFSContext(tracer, fileSystem, null, enlistment);
-            GitObjects gitObjects = new MockPhysicalGitObjects(tracer, null, null, null);
+            GitMaintenanceQueue queue = new GitMaintenanceQueue(this.context);
 
-            TestGitMaintenanceStep step1 = new TestGitMaintenanceStep(context, gitObjects);
-            TestGitMaintenanceStep step2 = new TestGitMaintenanceStep(context, gitObjects);
+            queue.TryEnqueue(step1);
+            queue.TryEnqueue(step2);
 
-            GitMaintenanceQueue queue = new GitMaintenanceQueue(context);
-
-            queue.Enqueue(step1);
-            queue.Enqueue(step2);
-
-            Assert.IsTrue(step1.EventTriggered.WaitOne(this.maxWaitTime)
-                && step2.EventTriggered.WaitOne(this.maxWaitTime));
+            step1.EventTriggered.WaitOne(this.maxWaitTime).ShouldBeTrue();
+            step2.EventTriggered.WaitOne(this.maxWaitTime).ShouldBeTrue();
 
             queue.Stop();
+
+            step1.NumberOfExecutions.ShouldEqual(1);
+            step2.NumberOfExecutions.ShouldEqual(1);
         }
 
         [TestCase]
         public void GitMaintenanceQueueStopSuceedsWhenQueueIsEmpty()
         {
-            ITracer tracer = new MockTracer();
-            GVFSEnlistment enlistment = new MockGVFSEnlistment();
+            this.TestSetup();
 
-            // We need to have the EnlistmentRoot and GitObjectsRoot available for jobs to run
-            ReadyFileSystem fileSystem = new ReadyFileSystem(new string[]
-            {
-                enlistment.EnlistmentRoot,
-                enlistment.GitObjectsRoot
-            });
-
-            GVFSContext context = new GVFSContext(tracer, fileSystem, null, enlistment);
-            GitObjects gitObjects = new MockPhysicalGitObjects(tracer, null, null, null);
-
-            GitMaintenanceQueue queue = new GitMaintenanceQueue(context);
+            GitMaintenanceQueue queue = new GitMaintenanceQueue(this.context);
 
             queue.Stop();
+
+            TestGitMaintenanceStep step = new TestGitMaintenanceStep(this.context, this.gitObjects);
+            queue.TryEnqueue(step).ShouldEqual(false);
         }
 
         [TestCase]
         public void GitMaintenanceQueueStopsJob()
         {
-            ITracer tracer = new MockTracer();
-            GVFSEnlistment enlistment = new MockGVFSEnlistment();
+            this.TestSetup();
 
-            // We need to have the EnlistmentRoot and GitObjectsRoot available for jobs to run
-            ReadyFileSystem fileSystem = new ReadyFileSystem(new string[]
-            {
-                enlistment.EnlistmentRoot,
-                enlistment.GitObjectsRoot
-            });
-
-            GVFSContext context = new GVFSContext(tracer, fileSystem, null, enlistment);
-            GitObjects gitObjects = new MockPhysicalGitObjects(tracer, null, null, null);
-
-            GitMaintenanceQueue queue = new GitMaintenanceQueue(context);
+            GitMaintenanceQueue queue = new GitMaintenanceQueue(this.context);
 
             // This step stops the queue after the step is started,
             // then checks if Stop() was called.
-            WatchForStopStep watchForStop = new WatchForStopStep(queue, context, gitObjects);
+            WatchForStopStep watchForStop = new WatchForStopStep(queue, this.context, this.gitObjects);
 
-            queue.Enqueue(watchForStop);
+            queue.TryEnqueue(watchForStop);
             Assert.IsTrue(watchForStop.EventTriggered.WaitOne(this.maxWaitTime));
             watchForStop.SawStopping.ShouldBeTrue();
 
             // Ensure we don't start a job after the Stop() call
-            TestGitMaintenanceStep watchForStart = new TestGitMaintenanceStep(context, gitObjects);
-            queue.Enqueue(watchForStart);
+            TestGitMaintenanceStep watchForStart = new TestGitMaintenanceStep(this.context, this.gitObjects);
+            queue.TryEnqueue(watchForStart).ShouldBeTrue();
 
-            // This only ensure the event didn't happen within maxWaitTime
+            // This only ensures the event didn't happen within maxWaitTime
             Assert.IsFalse(watchForStart.EventTriggered.WaitOne(this.maxWaitTime));
 
             queue.Stop();
+        }
+
+        private void TestSetup()
+        {
+            ITracer tracer = new MockTracer();
+            this.enlistment = new MockGVFSEnlistment();
+
+            // We need to have the EnlistmentRoot and GitObjectsRoot available for jobs to run
+            this.fileSystem = new ReadyFileSystem(new string[]
+            {
+                this.enlistment.EnlistmentRoot,
+                this.enlistment.GitObjectsRoot
+            });
+
+            this.context = new GVFSContext(tracer, this.fileSystem, null, this.enlistment);
+            this.gitObjects = new MockPhysicalGitObjects(tracer, this.fileSystem, this.enlistment, null);
         }
 
         public class ReadyFileSystem : PhysicalFileSystem
@@ -161,11 +143,13 @@ namespace GVFS.UnitTests.Maintenance
             }
 
             public ManualResetEvent EventTriggered { get; set; }
+            public int NumberOfExecutions { get; set; }
 
             public override string Area => "TestGitMaintenanceStep";
 
-            protected override void RunGitAction()
+            protected override void PerformMaintenance()
             {
+                this.NumberOfExecutions++;
                 this.EventTriggered.Set();
             }
         }
@@ -187,7 +171,7 @@ namespace GVFS.UnitTests.Maintenance
 
             public override string Area => "WatchForStopStep";
 
-            protected override void RunGitAction()
+            protected override void PerformMaintenance()
             {
                 this.Queue.Stop();
 
