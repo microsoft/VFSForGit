@@ -2,8 +2,8 @@
 using GVFS.Common.FileSystem;
 using GVFS.Common.Git;
 using GVFS.Common.Http;
+using GVFS.Common.Maintenance;
 using GVFS.Common.NamedPipes;
-using GVFS.Common.Prefetch;
 using GVFS.Common.Tracing;
 using GVFS.PlatformLoader;
 using GVFS.Virtualization;
@@ -29,7 +29,7 @@ namespace GVFS.Mount
         private FileSystemCallbacks fileSystemCallbacks;
         private GVFSEnlistment enlistment;
         private ITracer tracer;
-        private BackgroundPrefetcher prefetcher;
+        private GitMaintenanceScheduler maintenanceScheduler;
 
         private CacheServerInfo cacheServer;
         private RetryConfig retryConfig;
@@ -439,7 +439,7 @@ namespace GVFS.Mount
             if (this.currentState == MountState.Ready)
             {
                 List<string> packIndexes = JsonConvert.DeserializeObject<List<string>>(message.Body);
-                this.fileSystemCallbacks.LaunchPostFetchJob(packIndexes);
+                this.maintenanceScheduler.EnqueueOneTimeStep(new PostFetchStep(this.context, this.gitObjects, packIndexes));
 
                 response = new NamedPipeMessages.RunPostFetchJob.Response(NamedPipeMessages.RunPostFetchJob.QueuedResult);
             }
@@ -541,7 +541,7 @@ namespace GVFS.Mount
             }
 
             this.fileSystemCallbacks = this.CreateOrReportAndExit(() => new FileSystemCallbacks(this.context, this.gitObjects, RepoMetadata.Instance, virtualizer, gitStatusCache), "Failed to create src folder callback listener");
-            this.prefetcher = this.CreateOrReportAndExit(() => new BackgroundPrefetcher(this.tracer, this.enlistment, this.context.FileSystem, this.gitObjects), "Failed to start background prefetcher");
+            this.maintenanceScheduler = this.CreateOrReportAndExit(() => new GitMaintenanceScheduler(this.context, this.gitObjects), "Failed to start maintenance scheduler");
 
             int majorVersion;
             int minorVersion;
@@ -572,19 +572,16 @@ namespace GVFS.Mount
 
             this.heartbeat = new HeartbeatThread(this.tracer, this.fileSystemCallbacks);
             this.heartbeat.Start();
-
-            // Launch a background job to compute the multi-pack-index. Will do nothing if up-to-date.
-            this.fileSystemCallbacks.LaunchPostFetchJob(packIndexes: new List<string>());
         }
 
         private void UnmountAndStopWorkingDirectoryCallbacks()
         {
-            if (this.prefetcher != null)
+            if (this.maintenanceScheduler != null)
             {
-                this.prefetcher.Dispose();
-                this.prefetcher = null;
+                this.maintenanceScheduler.Dispose();
+                this.maintenanceScheduler = null;
             }
-
+            
             if (this.heartbeat != null)
             {
                 this.heartbeat.Stop();

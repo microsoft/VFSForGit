@@ -19,10 +19,6 @@ namespace GVFS.Virtualization
     public class FileSystemCallbacks : IDisposable, IHeartBeatMetadataProvider
     {
         private const string EtwArea = nameof(FileSystemCallbacks);
-        private const string PostFetchLock = "post-fetch.lock";
-        private const string CommitGraphLock = "commit-graph.lock";
-        private const string MultiPackIndexLock = "multi-pack-index.lock";
-        private const string PostFetchTelemetryKey = "post-fetch";
 
         private static readonly GitCommandLineParser.Verbs LeavesProjectionUnchangedVerbs =
             GitCommandLineParser.Verbs.AddOrStage |
@@ -40,10 +36,6 @@ namespace GVFS.Virtualization
         private BackgroundFileSystemTaskRunner backgroundFileSystemTaskRunner;
         private FileSystemVirtualizer fileSystemVirtualizer;
         private FileProperties logsHeadFileProperties;
-        private Thread postFetchJobThread;
-        private GitProcess postFetchGitProcess;
-        private object postFetchJobLock;
-        private bool stopping;
 
         private GitStatusCache gitStatusCache;
         private bool enableGitStatusCache;
@@ -72,7 +64,6 @@ namespace GVFS.Virtualization
             GitStatusCache gitStatusCache = null)
         {
             this.logsHeadFileProperties = null;
-            this.postFetchJobLock = new object();
 
             this.context = context;
             this.gitObjects = gitObjects;
@@ -197,29 +188,6 @@ namespace GVFS.Virtualization
 
         public void Stop()
         {
-            this.stopping = true;
-            lock (this.postFetchJobLock)
-            {
-                GitProcess process = this.postFetchGitProcess;
-                if (process != null)
-                {
-                    if (process.TryKillRunningProcess())
-                    {
-                        this.context.Tracer.RelatedEvent(
-                            EventLevel.Informational,
-                            PostFetchTelemetryKey + ": killed background Git process during " + nameof(this.Stop),
-                            metadata: null);
-                    }
-                    else
-                    {
-                        this.context.Tracer.RelatedEvent(
-                            EventLevel.Informational,
-                            PostFetchTelemetryKey + ": failed to kill background Git process during " + nameof(this.Stop),
-                            metadata: null);
-                    }
-                }
-            }
-
             // Shutdown the GitStatusCache before other
             // components that it depends on.
             this.gitStatusCache.Shutdown();
@@ -543,28 +511,6 @@ namespace GVFS.Virtualization
             return properties;
         }
 
-        public void LaunchPostFetchJob(List<string> packIndexes)
-        {
-            lock (this.postFetchJobLock)
-            {
-                if (this.postFetchJobThread?.IsAlive == true)
-                {
-                    this.context.Tracer.RelatedWarning("Dropping post-fetch job since previous job is still running");
-                    return;
-                }
-
-                if (this.stopping)
-                {
-                    this.context.Tracer.RelatedWarning("Dropping post-fetch job since attempting to unmount");
-                    return;
-                }
-
-                this.postFetchJobThread = new Thread(() => this.PostFetchJob(packIndexes));
-                this.postFetchJobThread.IsBackground = true;
-                this.postFetchJobThread.Start();
-            }
-        }
-
         private void InvalidateState(bool invalidateProjection, bool invalidateModifiedPaths)
         {
             if (invalidateProjection)
@@ -580,99 +526,6 @@ namespace GVFS.Virtualization
 
             this.InvalidateGitStatusCache();
             this.newlyCreatedFileAndFolderPaths.Clear();
-        }
-
-        private void PostFetchJob(List<string> packIndexes)
-        {
-            try
-            {
-                using (FileBasedLock postFetchFileLock = GVFSPlatform.Instance.CreateFileBasedLock(
-                    this.context.FileSystem,
-                    this.context.Tracer,
-                    Path.Combine(this.context.Enlistment.GitObjectsRoot, PostFetchLock)))
-                {
-                    if (!postFetchFileLock.TryAcquireLock())
-                    {
-                        this.context.Tracer.RelatedInfo(PostFetchTelemetryKey + ": Skipping post-fetch work since another process holds the lock");
-                        return;
-                    }
-
-                    this.postFetchGitProcess = new GitProcess(this.context.Enlistment);
-
-                    using (ITracer activity = this.context.Tracer.StartActivity("TryWriteMultiPackIndex", EventLevel.Informational, Keywords.Telemetry, metadata: null))
-                    {
-                        string midxLockFile = Path.Combine(this.context.Enlistment.GitPackRoot, MultiPackIndexLock);
-                        this.context.FileSystem.TryDeleteFile(midxLockFile);
-
-                        if (this.stopping)
-                        {
-                            this.context.Tracer.RelatedWarning(
-                                metadata: null,
-                                message: PostFetchTelemetryKey + ": Not launching 'git multi-pack-index' because the mount is stopping",
-                                keywords: Keywords.Telemetry);
-                            return;
-                        }
-
-                        GitProcess.Result result = this.postFetchGitProcess.WriteMultiPackIndex(this.context.Enlistment.GitObjectsRoot);
-
-                        if (!this.stopping && result.ExitCodeIsFailure)
-                        {
-                            this.context.Tracer.RelatedWarning(
-                                metadata: null,
-                                message: PostFetchTelemetryKey + ": Failed to generate multi-pack-index for new packfiles:" + result.Errors,
-                                keywords: Keywords.Telemetry);
-                            return;
-                        }
-                    }
-
-                    if (packIndexes == null || packIndexes.Count == 0)
-                    {
-                        this.context.Tracer.RelatedInfo(PostFetchTelemetryKey + ": Skipping commit-graph write due to no new packfiles");
-                        return;
-                    }
-
-                    using (ITracer activity = this.context.Tracer.StartActivity("TryWriteGitCommitGraph", EventLevel.Informational, Keywords.Telemetry, metadata: null))
-                    {
-                        string graphLockFile = Path.Combine(this.context.Enlistment.GitObjectsRoot, "info", CommitGraphLock);
-                        this.context.FileSystem.TryDeleteFile(graphLockFile);
-
-                        if (this.stopping)
-                        {
-                            this.context.Tracer.RelatedWarning(
-                                metadata: null,
-                                message: PostFetchTelemetryKey + ": Not launching 'git commit-graph' because the mount is stopping",
-                                keywords: Keywords.Telemetry);
-                            return;
-                        }
-
-                        GitProcess.Result result = this.postFetchGitProcess.WriteCommitGraph(this.context.Enlistment.GitObjectsRoot, packIndexes);
-
-                        if (!this.stopping && result.ExitCodeIsFailure)
-                        {
-                            this.context.Tracer.RelatedWarning(
-                                metadata: null,
-                                message: PostFetchTelemetryKey + ": Failed to generate commit-graph for new packfiles:" + result.Errors,
-                                keywords: Keywords.Telemetry);
-                            return;
-                        }
-                    }
-                }
-            }
-            catch (IOException e)
-            {
-                this.context.Tracer.RelatedWarning(
-                    metadata: this.CreateEventMetadata(null, e),
-                    message: PostFetchTelemetryKey + ": IOException while running post-fetch job: " + e.Message,
-                    keywords: Keywords.Telemetry);
-            }
-            catch (Exception e)
-            {
-                this.context.Tracer.RelatedError(
-                    metadata: this.CreateEventMetadata(null, e),
-                    message: PostFetchTelemetryKey + ": Exception while running post-fetch job: " + e.Message,
-                    keywords: Keywords.Telemetry);
-                Environment.Exit((int)ReturnCode.GenericError);
-            }
         }
 
         private bool GitCommandLeavesProjectionUnchanged(GitCommandLineParser gitCommand)
