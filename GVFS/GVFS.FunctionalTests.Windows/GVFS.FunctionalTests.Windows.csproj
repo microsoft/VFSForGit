@@ -181,7 +181,7 @@
     <PostBuildEvent>
       xcopy /Y $(BuildOutputDir)\GVFS.Windows\bin\$(Platform)\$(Configuration)\* $(TargetDir)
       xcopy /Y $(BuildOutputDir)\GVFS.Windows\bin\$(Platform)\$(Configuration)\$(Platform)\* $(TargetDir)
-      xcopy /Y $(BuildOutputDir)\GVFS.Service\bin\$(Platform)\$(Configuration)\* $(TargetDir)
+      xcopy /Y $(BuildOutputDir)\GVFS.Service.Windows\bin\$(Platform)\$(Configuration)\* $(TargetDir)
       xcopy /Y $(BuildOutputDir)\GVFS.Mount.Windows\bin\$(Platform)\$(Configuration)\* $(TargetDir)
       xcopy /Y $(BuildOutputDir)\FastFetch\bin\$(Platform)\$(Configuration)\* $(TargetDir)
       xcopy /Y $(BuildOutputDir)\GVFS.NativeTests\bin\$(Platform)\$(Configuration)\* $(TargetDir)

@@ -158,7 +158,7 @@
       <Project>{4ce404e7-d3fc-471c-993c-64615861ea63}</Project>
       <Name>GVFS.Platform.Windows</Name>
     </ProjectReference>
-    <ProjectReference Include="..\GVFS.Service\GVFS.Service.csproj">
+    <ProjectReference Include="..\GVFS.Service\GVFS.Service.Windows.csproj">
       <Project>{b8c1dfba-cafd-4f7e-a1a3-e11907b5467b}</Project>
       <Name>GVFS.Service</Name>
     </ProjectReference>

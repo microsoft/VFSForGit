@@ -1,7 +1,6 @@
 ﻿using GVFS.Common;
 using GVFS.Common.NamedPipes;
 using GVFS.Common.Tracing;
-using GVFS.Platform.Windows;
 using System.Collections.Generic;
 using System.Linq;
 
@@ -69,8 +68,7 @@ namespace GVFS.Service.Handlers
 
         private bool IsValidRepo(string repoRoot)
         {
-            WindowsGitInstallation windowsGitInstallation = new WindowsGitInstallation();
-            string gitBinPath = windowsGitInstallation.GetInstalledGitBinPath();
+            string gitBinPath = GVFSPlatform.Instance.GitInstallation.GetInstalledGitBinPath();
             string hooksPath = ProcessHelper.WhereDirectory(GVFSPlatform.Instance.Constants.GVFSHooksExecutableName);
             GVFSEnlistment enlistment = null;
 
