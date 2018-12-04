@@ -1,5 +1,4 @@
 ﻿using GVFS.Common.FileSystem;
-using GVFS.Common.Tracing;
 using System;
 
 namespace GVFS.UnitTests.Mock.FileSystem
@@ -46,11 +45,6 @@ namespace GVFS.UnitTests.Mock.FileSystem
         }
 
         public bool IsSocket(string fileName)
-        {
-            throw new NotSupportedException();
-        }
-
-        public unsafe void WriteFile(ITracer tracer, byte* originalData, long originalSize, string destination, ushort mode)
         {
             throw new NotSupportedException();
         }

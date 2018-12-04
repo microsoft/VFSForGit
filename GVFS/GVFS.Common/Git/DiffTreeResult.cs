@@ -12,9 +12,9 @@ namespace GVFS.Common.Git
 
         public const int TypeMarkerStartIndex = 7;
 
-        private static readonly HashSet<string> ValidTreeModes = new HashSet<string>() { "040000" };
-
         private const ushort SymLinkFileIndexEntry = 0xA000;
+
+        private static readonly HashSet<string> ValidTreeModes = new HashSet<string>() { "040000" };
 
         public enum Operations
         {

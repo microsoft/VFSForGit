@@ -250,7 +250,7 @@ namespace FastFetch
 
         private void HandleAllFileAddOperations()
         {
-            using (PrefetchLibGit2Repo repo = new PrefetchLibGit2Repo(this.tracer, this.enlistment.WorkingDirectoryRoot))
+            using (FastFetchLibGit2Repo repo = new FastFetchLibGit2Repo(this.tracer, this.enlistment.WorkingDirectoryRoot))
             {
                 string availableBlob;
                 while (this.AvailableBlobShas.TryTake(out availableBlob, Timeout.Infinite))

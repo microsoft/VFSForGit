@@ -1,14 +1,16 @@
 ﻿using GVFS.Common.Git;
+using GVFS.Common.Prefetch.Git;
 using GVFS.Common.Tracing;
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Runtime.InteropServices;
 
-namespace GVFS.Common.Prefetch.Git
+namespace FastFetch
 {
-    public class PrefetchLibGit2Repo : LibGit2Repo
+    public class FastFetchLibGit2Repo : LibGit2Repo
     {
-        public PrefetchLibGit2Repo(ITracer tracer, string repoPath)
+        public FastFetchLibGit2Repo(ITracer tracer, string repoPath)
             : base(tracer, repoPath)
         {
         }
@@ -38,7 +40,18 @@ namespace GVFS.Common.Prefetch.Git
 
                             foreach (PathWithMode destination in destinations)
                             {
-                                GVFSPlatform.Instance.FileSystem.WriteFile(this.Tracer, originalData, originalSize, destination.Path, destination.Mode);
+                                if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+                                {
+                                    NativeWindowsMethods.WriteFile(this.Tracer, originalData, originalSize, destination.Path, destination.Mode);
+                                }
+                                else if (RuntimeInformation.IsOSPlatform(OSPlatform.OSX))
+                                {
+                                    NativeMacMethods.WriteFile(this.Tracer, originalData, originalSize, destination.Path, destination.Mode);
+                                }
+                                else
+                                {
+                                    throw new PlatformNotSupportedException();
+                                }
                             }
 
                             bytesWritten = originalSize * destinations.Count();

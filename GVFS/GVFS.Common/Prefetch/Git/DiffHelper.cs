@@ -80,7 +80,7 @@ namespace GVFS.Common.Prefetch.Git
         {
             string targetTreeSha;
             string headTreeSha;
-            using (PrefetchLibGit2Repo repo = new PrefetchLibGit2Repo(this.tracer, this.enlistment.WorkingDirectoryRoot))
+            using (LibGit2Repo repo = new LibGit2Repo(this.tracer, this.enlistment.WorkingDirectoryRoot))
             {
                 targetTreeSha = repo.GetTreeSha(targetCommitSha);
                 headTreeSha = repo.GetTreeSha("HEAD");

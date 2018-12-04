@@ -1,4 +1,4 @@
-<Project Sdk="Microsoft.NET.Sdk">
+﻿<Project Sdk="Microsoft.NET.Sdk">
   <Import Project="..\GVFS.Build\GVFS.cs.props" />
   <Import Project="..\LibGit2Sharp.NativeBinaries.props" />
   <PropertyGroup>
@@ -10,6 +10,7 @@
     <TargetLatestRuntimePatch>true</TargetLatestRuntimePatch>
     <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
   </PropertyGroup>
 
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
