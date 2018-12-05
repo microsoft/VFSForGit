@@ -377,7 +377,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
         private void PostFetchJobShouldComplete()
         {
             string objectDir = this.Enlistment.GetObjectRoot(this.fileSystem);
-            string postFetchLock = Path.Combine(objectDir, "post-fetch.lock");
+            string postFetchLock = Path.Combine(objectDir, "git-maintenance-step.lock");
 
             while (this.fileSystem.FileExists(postFetchLock))
             {
