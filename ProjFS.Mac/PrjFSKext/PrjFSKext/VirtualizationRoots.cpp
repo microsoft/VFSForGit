@@ -330,6 +330,7 @@ static VirtualizationRootHandle InsertVirtualizationRoot_Locked(PrjFSProviderUse
 // ENOTDIR:  Selected virtualization root path does not resolve to a directory.
 // EBUSY:    Already a provider for this virtualization root.
 // ENOENT:   Error returned by vnode_lookup.
+// Any error returned by the call to vn_getpath()
 VirtualizationRootResult VirtualizationRoot_RegisterProviderForPath(PrjFSProviderUserClient* userClient, pid_t clientPID, const char* virtualizationRootPath)
 {
     assert(nullptr != virtualizationRootPath);
@@ -352,50 +353,60 @@ VirtualizationRootResult VirtualizationRoot_RegisterProviderForPath(PrjFSProvide
         }
         else
         {
-            FsidInode vnodeIds = Vnode_GetFsidAndInode(virtualizationRootVNode, vfsContext);
-            uint32_t rootVid = vnode_vid(virtualizationRootVNode);
+            char virtualizationRootCanonicalPath[PrjFSMaxPath] = "";
+            int virtualizationRootCanonicalPathLength = sizeof(virtualizationRootCanonicalPath);
+            err = vn_getpath(virtualizationRootVNode, virtualizationRootCanonicalPath, &virtualizationRootCanonicalPathLength);
             
-            RWLock_AcquireExclusive(s_virtualizationRootsLock);
+            if (0 == err)
             {
-                rootIndex = FindRootAtVnode_Locked(virtualizationRootVNode, rootVid, vnodeIds);
-                if (rootIndex >= 0)
+                FsidInode vnodeIds = Vnode_GetFsidAndInode(virtualizationRootVNode, vfsContext);
+                uint32_t rootVid = vnode_vid(virtualizationRootVNode);
+                
+                RWLock_AcquireExclusive(s_virtualizationRootsLock);
                 {
-                    // Reattaching to existing root
-                    if (nullptr != s_virtualizationRoots[rootIndex].providerUserClient)
-                    {
-                        // Only one provider per root
-                        err = EBUSY;
-                        rootIndex = RootHandle_None;
-                    }
-                    else
-                    {
-                        VirtualizationRoot& root = s_virtualizationRoots[rootIndex];
-                        root.providerUserClient = userClient;
-                        root.providerPid = clientPID;
-                        virtualizationRootVNode = NULLVP; // transfer ownership
-                    }
-                }
-                else
-                {
-                    rootIndex = InsertVirtualizationRoot_Locked(userClient, clientPID, virtualizationRootVNode, rootVid, vnodeIds, virtualizationRootPath);
+                    rootIndex = FindRootAtVnode_Locked(virtualizationRootVNode, rootVid, vnodeIds);
                     if (rootIndex >= 0)
                     {
-                        assert(rootIndex < s_maxVirtualizationRoots);
-                        VirtualizationRoot* root = &s_virtualizationRoots[rootIndex];
-                    
-                        strlcpy(root->path, virtualizationRootPath, sizeof(root->path));
-                        virtualizationRootVNode = NULLVP; // prevent vnode_put later; active provider should hold vnode reference
-                    
-                        KextLog_Note("VirtualizationRoot_RegisterProviderForPath: new root not found in offline roots, inserted as new root with index %d. path '%s'", rootIndex, virtualizationRootPath);
+                        // Reattaching to existing root
+                        if (nullptr != s_virtualizationRoots[rootIndex].providerUserClient)
+                        {
+                            // Only one provider per root
+                            err = EBUSY;
+                            rootIndex = RootHandle_None;
+                        }
+                        else
+                        {
+                            VirtualizationRoot& root = s_virtualizationRoots[rootIndex];
+                            root.providerUserClient = userClient;
+                            root.providerPid = clientPID;
+                            virtualizationRootVNode = NULLVP; // transfer ownership
+                        }
                     }
                     else
                     {
-                        // TODO: scan the array for roots on mounts which have disappeared, or grow the array
-                        KextLog_Error("VirtualizationRoot_RegisterProviderForPath: failed to insert new root");
+                        rootIndex = InsertVirtualizationRoot_Locked(userClient, clientPID, virtualizationRootVNode, rootVid, vnodeIds, virtualizationRootCanonicalPath);
+                        if (rootIndex >= 0)
+                        {
+                            assert(rootIndex < s_maxVirtualizationRoots);
+                        
+                            virtualizationRootVNode = NULLVP; // prevent vnode_put later; active provider should hold vnode reference
+                        
+                            KextLog_Note("VirtualizationRoot_RegisterProviderForPath: new root not found in offline roots, inserted as new root with index %d. path '%s'", rootIndex, virtualizationRootCanonicalPath);
+                        }
+                        else
+                        {
+                            // TODO: scan the array for roots on mounts which have disappeared, or grow the array
+                            KextLog_Error("VirtualizationRoot_RegisterProviderForPath: failed to insert new root");
+                        }
                     }
                 }
+                RWLock_ReleaseExclusive(s_virtualizationRootsLock);
+                
+                if (0 == err)
+                {
+                    userClient->setProperty(PrjFSProviderPathKey, virtualizationRootCanonicalPath);
+                }
             }
-            RWLock_ReleaseExclusive(s_virtualizationRootsLock);
         }
     }
     
@@ -486,12 +497,23 @@ bool VirtualizationRoot_VnodeIsOnAllowedFilesystem(vnode_t vnode)
 
 static const char* GetRelativePath(const char* path, const char* root)
 {
-    assert(strlen(path) >= strlen(root));
+    size_t rootLength = strlen(root);
+    size_t pathLength = strlen(path);
+    if (pathLength < rootLength || 0 != memcmp(path, root, rootLength))
+    {
+        KextLog_Error("GetRelativePath: root path '%s' is not a prefix of path '%s'\n", root, path);
+        return nullptr;
+    }
     
-    const char* relativePath = path + strlen(root);
+    const char* relativePath = path + rootLength;
     if (relativePath[0] == '/')
     {
         relativePath++;
+    }
+    else if (rootLength > 0 && root[rootLength - 1] != '/' && pathLength > rootLength)
+    {
+        KextLog_Error("GetRelativePath: root path '%s' is not a parent directory of path '%s' (just a string prefix)\n", root, path);
+        return nullptr;
     }
     
     return relativePath;

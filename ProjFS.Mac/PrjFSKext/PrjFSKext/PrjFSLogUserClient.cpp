@@ -90,17 +90,22 @@ IOReturn PrjFSLogUserClient::clientClose()
 
 IOReturn PrjFSLogUserClient::clientMemoryForType(UInt32 type, IOOptionBits* options, IOMemoryDescriptor** memory)
 {
-    if (type == LogMemoryType_MessageQueue)
+    if (LogMemoryType_MessageQueue == type)
     {
-        IOMemoryDescriptor* queueMemory = this->dataQueueMemory;
-        if (queueMemory != nullptr)
-        {
-            queueMemory->retain();
-            *memory = queueMemory;
-            return kIOReturnSuccess;
-        }
+        IOMemoryDescriptor* queueMemory;
         
-        return kIOReturnError;
+        Mutex_Acquire(this->dataQueueWriterMutex);
+        {
+            queueMemory = this->dataQueueMemory;
+            if (queueMemory != nullptr)
+            {
+                queueMemory->retain();
+            }
+        }
+        Mutex_Release(this->dataQueueWriterMutex);
+        
+        *memory = queueMemory;
+        return nullptr == queueMemory ? kIOReturnError : kIOReturnSuccess;
     }
     
     return this->super::clientMemoryForType(type, options, memory);
@@ -110,13 +115,18 @@ IOReturn PrjFSLogUserClient::registerNotificationPort(mach_port_t port, UInt32 t
 {
     if (type == LogPortType_MessageQueue)
     {
-        assert(nullptr != this->dataQueue);
         if (port == MACH_PORT_NULL)
         {
             return kIOReturnError;
         }
-        
-        this->dataQueue->setNotificationPort(port);
+
+        Mutex_Acquire(this->dataQueueWriterMutex);
+        {
+            assert(nullptr != this->dataQueue);
+            this->dataQueue->setNotificationPort(port);
+        }
+        Mutex_Release(this->dataQueueWriterMutex);
+
         return kIOReturnSuccess;
     }
     else
