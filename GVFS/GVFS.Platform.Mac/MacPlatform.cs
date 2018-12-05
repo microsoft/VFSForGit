@@ -85,7 +85,7 @@ namespace GVFS.Platform.Mac
             return pipe;
         }
 
-        public override InProcEventListener CreateTelemetryListenerIfEnabled(string providerName, string enlistmentId, string mountId)
+        public override EventListener CreatePlatformTelemetryListener(string providerName, string enlistmentId, string mountId)
         {
             return null;
         }
@@ -116,6 +116,11 @@ namespace GVFS.Platform.Mac
         public override string GetNamedPipeName(string enlistmentRoot)
         {
             return MacPlatform.GetNamedPipeNameImplementation(enlistmentRoot);
+        }
+
+        public override string GetTelemetryNamedPipeName()
+        {
+            return MacPlatform.GetTelemetryNamedPipeNameImplementation();
         }
 
         public override bool IsConsoleOutputRedirectedToFile()

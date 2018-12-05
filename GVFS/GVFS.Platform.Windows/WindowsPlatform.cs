@@ -73,9 +73,9 @@ namespace GVFS.Platform.Windows
             return true;
         }
 
-        public override InProcEventListener CreateTelemetryListenerIfEnabled(string providerName, string enlistmentId, string mountId)
+        public override EventListener CreatePlatformTelemetryListener(string providerName, string enlistmentId, string mountId)
         {
-            return ETWTelemetryEventListener.CreateTelemetryListenerIfEnabled(
+            return ETWTelemetryEventListener.CreateIfEnabled(
                 this.GitInstallation.GetInstalledGitBinPath(),
                 providerName,
                 enlistmentId,
@@ -196,6 +196,11 @@ namespace GVFS.Platform.Windows
         public override string GetNamedPipeName(string enlistmentRoot)
         {
             return WindowsPlatform.GetNamedPipeNameImplementation(enlistmentRoot);
+        }
+
+        public override string GetTelemetryNamedPipeName()
+        {
+            return WindowsPlatform.GetTelemetryNamedPipeNameImplementation();
         }
 
         public override void ConfigureVisualStudio(string gitBinPath, ITracer tracer)

@@ -3,12 +3,12 @@ using System.Text;
 
 namespace GVFS.Common.Tracing
 {
-    public abstract class InProcEventListener : IDisposable
+    public abstract class EventListener : IDisposable
     {
         private EventLevel maxVerbosity;
         private Keywords keywordFilter;
 
-        public InProcEventListener(EventLevel maxVerbosity, Keywords keywordFilter)
+        public EventListener(EventLevel maxVerbosity, Keywords keywordFilter)
         {
             this.maxVerbosity = maxVerbosity;
             this.keywordFilter = keywordFilter;

@@ -3,7 +3,7 @@ using System.IO;
 
 namespace GVFS.Common.Tracing
 {
-    public class LogFileEventListener : InProcEventListener
+    public class LogFileEventListener : EventListener
     {
         private FileStream logFile;
         private TextWriter writer;

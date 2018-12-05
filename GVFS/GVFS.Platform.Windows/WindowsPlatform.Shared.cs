@@ -73,6 +73,11 @@ namespace GVFS.Platform.Windows
             return "GVFS_" + enlistmentRoot.ToUpper().Replace(':', '_');
         }
 
+        public static string GetTelemetryNamedPipeNameImplementation()
+        {
+            return "vfs";
+        }
+
         public static bool IsConsoleOutputRedirectedToFileImplementation()
         {
             return FileType.Disk == GetFileType(GetStdHandle(StdHandle.Stdout));

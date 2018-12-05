@@ -10,7 +10,7 @@ namespace GVFS.Common.Tracing
     {
         public const string NetworkErrorEventName = "NetworkError";
 
-        private List<InProcEventListener> listeners = new List<InProcEventListener>();
+        private List<EventListener> listeners = new List<EventListener>();
 
         private string activityName;
         private Guid parentActivityId;
@@ -35,7 +35,7 @@ namespace GVFS.Common.Tracing
 
         public JsonTracer(string providerName, Guid providerActivityId, string activityName, string enlistmentId, string mountId, bool disableTelemetry = false)
             : this(
-                  new List<InProcEventListener>(),
+                  new List<EventListener>(),
                   providerActivityId,
                   activityName,
                   EventLevel.Informational,
@@ -43,15 +43,22 @@ namespace GVFS.Common.Tracing
         {
             if (!disableTelemetry)
             {
-                InProcEventListener telemetryListener = GVFSPlatform.Instance.CreateTelemetryListenerIfEnabled(providerName, enlistmentId, mountId);
-                if (telemetryListener != null)
+                string gitBinRoot = GVFSPlatform.Instance.GitInstallation.GetInstalledGitBinPath();
+                EventListener commonListener = TelemetryDaemonEventListener.CreateIfEnabled(gitBinRoot, providerName, enlistmentId, mountId);
+                if (commonListener != null)
                 {
-                    this.listeners.Add(telemetryListener);
+                    this.listeners.Add(commonListener);
+                }
+
+                EventListener platformListener = GVFSPlatform.Instance.CreatePlatformTelemetryListener(providerName, enlistmentId, mountId);
+                if (platformListener != null)
+                {
+                    this.listeners.Add(platformListener);
                 }
             }
         }
 
-        private JsonTracer(List<InProcEventListener> listeners, Guid parentActivityId, string activityName, EventLevel startStopLevel, Keywords startStopKeywords)
+        private JsonTracer(List<EventListener> listeners, Guid parentActivityId, string activityName, EventLevel startStopLevel, Keywords startStopKeywords)
         {
             this.listeners = listeners;
             this.parentActivityId = parentActivityId;
@@ -70,7 +77,7 @@ namespace GVFS.Common.Tracing
             }
         }
 
-        public void AddInProcEventListener(InProcEventListener listener)
+        public void AddInProcEventListener(EventListener listener)
         {
             this.listeners.Add(listener);
         }
@@ -97,7 +104,7 @@ namespace GVFS.Common.Tracing
             // If we have no parent, then we are the root tracer and should dispose our eventsource.
             if (this.parentActivityId == Guid.Empty)
             {
-                foreach (InProcEventListener listener in this.listeners)
+                foreach (EventListener listener in this.listeners)
                 {
                     listener.Dispose();
                 }
@@ -270,7 +277,7 @@ namespace GVFS.Common.Tracing
                 throw new ObjectDisposedException(nameof(JsonTracer));
             }
 
-            foreach (InProcEventListener listener in this.listeners)
+            foreach (EventListener listener in this.listeners)
             {
                 listener.RecordMessage(eventName, this.activityId, this.parentActivityId, level, keywords, opcode, jsonPayload);
             }

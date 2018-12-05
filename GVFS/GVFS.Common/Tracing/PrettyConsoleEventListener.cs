@@ -8,7 +8,7 @@ namespace GVFS.Common.Tracing
     ///   that matches the verbosity level it is given.  At the moment, this means only messages
     ///   with an "ErrorMessage" attribute will get displayed.
     /// </summary>
-    public class PrettyConsoleEventListener : InProcEventListener
+    public class PrettyConsoleEventListener : EventListener
     {
         private static object consoleLock = new object();
 

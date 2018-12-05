@@ -4,7 +4,7 @@ using System.Collections.Generic;
 
 namespace GVFS.UnitTests.Mock.Common.Tracing
 {
-    public class MockListener : InProcEventListener
+    public class MockListener : EventListener
     {
         public MockListener(EventLevel maxVerbosity, Keywords keywordFilter)
             : base(maxVerbosity, keywordFilter)

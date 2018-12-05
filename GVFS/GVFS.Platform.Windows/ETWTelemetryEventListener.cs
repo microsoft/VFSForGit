@@ -5,6 +5,7 @@ using Microsoft.Diagnostics.Tracing;
 using System;
 
 using EventLevel = GVFS.Common.Tracing.EventLevel;
+using EventListener = GVFS.Common.Tracing.EventListener;
 using EventOpcode = GVFS.Common.Tracing.EventOpcode;
 
 namespace GVFS.Platform.Windows
@@ -27,7 +28,7 @@ namespace GVFS.Platform.Windows
     ///   * This will cause GVFS to write its telemetry events to local ETW, but nothing will get uploaded
     ///   * Write your own tool to scrape the local ETW events and analyze the data
     /// </summary>
-    public class ETWTelemetryEventListener : InProcEventListener
+    public class ETWTelemetryEventListener : EventListener
     {
         private const long MeasureKeyword = 0x400000000000;
 
@@ -45,7 +46,7 @@ namespace GVFS.Platform.Windows
             this.ikey = ikey;
         }
 
-        public static ETWTelemetryEventListener CreateTelemetryListenerIfEnabled(string gitBinRoot, string providerName, string enlistmentId, string mountId)
+        public static ETWTelemetryEventListener CreateIfEnabled(string gitBinRoot, string providerName, string enlistmentId, string mountId)
         {
             // This listener is disabled unless the user specifies the proper git config setting.
 
