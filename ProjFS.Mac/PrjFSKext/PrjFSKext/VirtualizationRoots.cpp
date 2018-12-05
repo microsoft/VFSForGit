@@ -330,6 +330,7 @@ static VirtualizationRootHandle InsertVirtualizationRoot_Locked(PrjFSProviderUse
 // ENOTDIR:  Selected virtualization root path does not resolve to a directory.
 // EBUSY:    Already a provider for this virtualization root.
 // ENOENT:   Error returned by vnode_lookup.
+// Any error returned by the call to vn_getpath()
 VirtualizationRootResult VirtualizationRoot_RegisterProviderForPath(PrjFSProviderUserClient* userClient, pid_t clientPID, const char* virtualizationRootPath)
 {
     assert(nullptr != virtualizationRootPath);
@@ -390,7 +391,7 @@ VirtualizationRootResult VirtualizationRoot_RegisterProviderForPath(PrjFSProvide
                         
                             virtualizationRootVNode = NULLVP; // prevent vnode_put later; active provider should hold vnode reference
                         
-                            KextLog_Note("VirtualizationRoot_RegisterProviderForPath: new root not found in offline roots, inserted as new root with index %d. path '%s'", rootIndex, virtualizationRootPath);
+                            KextLog_Note("VirtualizationRoot_RegisterProviderForPath: new root not found in offline roots, inserted as new root with index %d. path '%s'", rootIndex, virtualizationRootCanonicalPath);
                         }
                         else
                         {
@@ -398,13 +399,13 @@ VirtualizationRootResult VirtualizationRoot_RegisterProviderForPath(PrjFSProvide
                             KextLog_Error("VirtualizationRoot_RegisterProviderForPath: failed to insert new root");
                         }
                     }
-                    
-                    if (0 == err)
-                    {
-                        userClient->setProperty(PrjFSProviderPathKey, virtualizationRootCanonicalPath);
-                    }
                 }
                 RWLock_ReleaseExclusive(s_virtualizationRootsLock);
+                
+                if (0 == err)
+                {
+                    userClient->setProperty(PrjFSProviderPathKey, virtualizationRootCanonicalPath);
+                }
             }
         }
     }
