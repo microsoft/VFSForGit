@@ -291,13 +291,12 @@ static void UseMainForkIfNamedStream(
         vnode_t mainFileFork = vnode_getparent(vnode);
         assert(NULLVP != mainFileFork);
         
-        if (putVnodeWhenDone)
-        {
-            vnode_put(vnode);
-        }
-        
         vnode = mainFileFork;
         putVnodeWhenDone = true;
+    }
+    else
+    {
+        putVnodeWhenDone = false;
     }
 }
 
