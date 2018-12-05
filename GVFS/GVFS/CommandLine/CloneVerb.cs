@@ -82,8 +82,6 @@ namespace GVFS.CommandLine
         {
             int exitCode = 0;
 
-            // TODO(Mac): limit the length of the enlistment root based on the length constraints imposed by named pipes
-
             this.ValidatePathParameter(this.EnlistmentRootPathParameter);
             this.ValidatePathParameter(this.LocalCacheRoot);
 
