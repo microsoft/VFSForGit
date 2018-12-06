@@ -24,6 +24,7 @@ namespace GVFS.Common
         public virtual bool IsUnderConstruction { get; } = false;
         public virtual bool SupportsGVFSService { get; } = true;
         public virtual bool SupportsGVFSUpgrade { get; } = true;
+        public virtual bool SupportsGVFSConfig { get; } = true;
         public GVFSPlatformConstants Constants { get; }
 
         public static void Register(GVFSPlatform platform)
