@@ -290,12 +290,6 @@ namespace GVFS.CommandLine
                     this.StartedByService.ToString()
                 });
 
-            if (GVFSPlatform.Instance.IsUnderConstruction)
-            {
-                // TODO(Mac): figure out the timing issue here on connecting to the pipe
-                System.Threading.Thread.Sleep(TimeSpan.FromSeconds(1));
-            }
-
             return GVFSEnlistment.WaitUntilMounted(enlistment.EnlistmentRoot, this.Unattended, out errorMessage);
         }
 
