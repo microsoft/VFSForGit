@@ -204,13 +204,13 @@ namespace GVFS.CommandLine
                         RepoMetadata.Shutdown();
                     }
                 }
-            }
 
-            if (!this.ShowStatusWhileRunning(
-                () => { return this.TryMount(enlistment, mountExecutableLocation, out errorMessage); },
-                "Mounting"))
-            {
-                this.ReportErrorAndExit(errorMessage);
+                if (!this.ShowStatusWhileRunning(
+                    () => { return this.TryMount(tracer, enlistment, mountExecutableLocation, out errorMessage); },
+                    "Mounting"))
+                {
+                    this.ReportErrorAndExit(errorMessage);
+                }
             }
 
             if (!this.Unattended &&
@@ -267,7 +267,7 @@ namespace GVFS.CommandLine
             return true;
         }
 
-        private bool TryMount(GVFSEnlistment enlistment, string mountExecutableLocation, out string errorMessage)
+        private bool TryMount(ITracer tracer, GVFSEnlistment enlistment, string mountExecutableLocation, out string errorMessage)
         {
             if (!GVFSVerb.TrySetRequiredGitConfigSettings(enlistment))
             {
@@ -278,6 +278,7 @@ namespace GVFS.CommandLine
             const string ParamPrefix = "--";
 
             GVFSPlatform.Instance.StartBackgroundProcess(
+                tracer,
                 mountExecutableLocation,
                 new[]
                 {

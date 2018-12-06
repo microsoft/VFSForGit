@@ -103,7 +103,7 @@ namespace GVFS.UnitTests.Mock.Common
             throw new NotSupportedException();
         }
 
-        public override void StartBackgroundProcess(string programName, string[] args)
+        public override void StartBackgroundProcess(ITracer tracer, string programName, string[] args)
         {
             throw new NotSupportedException();
         }

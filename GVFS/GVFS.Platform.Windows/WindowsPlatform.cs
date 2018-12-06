@@ -130,17 +130,28 @@ namespace GVFS.Platform.Windows
             return sb.ToString();
         }
 
-        public override void StartBackgroundProcess(string programName, string[] args)
+        public override void StartBackgroundProcess(ITracer tracer, string programName, string[] args)
         {
-            ProcessStartInfo processInfo = new ProcessStartInfo(
-                programName, 
-                string.Join(" ", args.Select(arg => arg.Contains(' ') ? "\"" + arg + "\"" : arg)));
-            processInfo.WindowStyle = ProcessWindowStyle.Hidden;
+            string programArguments = string.Empty;
+            try
+            {
+                programArguments = string.Join(" ", args.Select(arg => arg.Contains(' ') ? "\"" + arg + "\"" : arg));
+                ProcessStartInfo processInfo = new ProcessStartInfo(programName, programArguments);
+                processInfo.WindowStyle = ProcessWindowStyle.Hidden;
 
-            Process executingProcess = new Process();
-            executingProcess.StartInfo = processInfo;
-
-            executingProcess.Start();
+                Process executingProcess = new Process();
+                executingProcess.StartInfo = processInfo;
+                executingProcess.Start();
+            }
+            catch (Exception ex)
+            {
+                EventMetadata metadata = new EventMetadata();
+                metadata.Add(nameof(programName), programName);
+                metadata.Add(nameof(programArguments), programArguments);
+                metadata.Add("Exception", ex.ToString());
+                tracer.RelatedError(metadata, "Failed to start background process.");
+                throw;
+            }
         }
 
         public override NamedPipeServerStream CreatePipeByName(string pipeName)
