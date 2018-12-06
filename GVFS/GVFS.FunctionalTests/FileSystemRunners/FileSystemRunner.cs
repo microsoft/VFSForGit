@@ -65,6 +65,7 @@ namespace GVFS.FunctionalTests.FileSystemRunners
 
         public abstract void CreateEmptyFile(string path);
         public abstract void CreateHardLink(string newLinkFilePath, string existingFilePath);
+        public abstract void ChangeMode(string path, int mode);
 
         /// <summary>
         /// Write the specified contents to the specified file.  By calling this method the caller is

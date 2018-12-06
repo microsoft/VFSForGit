@@ -189,11 +189,26 @@ namespace GVFS.FunctionalTests.FileSystemRunners
             this.ShouldFail<IOException>(() => { this.ReadAllText(path); });
         }
 
+        public override void ChangeMode(string path, int mode)
+        {
+            if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+            {
+                throw new NotSupportedException();
+            }
+            else
+            {
+                Chmod(path, mode).ShouldEqual(0, $"Failed to chmod: {Marshal.GetLastWin32Error()}");
+            }
+        }
+
         [DllImport("kernel32", SetLastError = true)]
         private static extern bool MoveFileEx(string existingFileName, string newFileName, int flags);
 
         [DllImport("libc", EntryPoint = "link", SetLastError = true)]
         private static extern int MacCreateHardLink(string oldPath, string newPath);
+
+        [DllImport("libc", EntryPoint = "chmod", SetLastError = true)]
+        private static extern int Chmod(string pathname, int mode);
 
         [DllImport("kernel32.dll", EntryPoint = "CreateHardLink", SetLastError = true, CharSet = CharSet.Unicode)]
         private static extern bool WindowsCreateHardLink(

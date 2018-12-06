@@ -200,6 +200,11 @@ namespace GVFS.FunctionalTests.FileSystemRunners
             this.DeleteDirectory(path).ShouldContain(fileUsedByAnotherProcessMessage);
         }
 
+        public override void ChangeMode(string path, int mode)
+        {
+            throw new System.NotSupportedException();
+        }
+
         protected override string RunProcess(string command, string workingDirectory = "", string errorMsgDelimeter = "")
         {
             return base.RunProcess("-NoProfile " + command, workingDirectory, errorMsgDelimeter);

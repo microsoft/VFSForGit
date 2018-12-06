@@ -209,6 +209,14 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
                 args);
         }
 
+        protected void ChangeMode(string filePath, int mode)
+        {
+            string virtualFile = Path.Combine(this.Enlistment.RepoRoot, filePath);
+            string controlFile = Path.Combine(this.ControlGitRepo.RootPath, filePath);
+            this.FileSystem.ChangeMode(virtualFile, mode);
+            this.FileSystem.ChangeMode(controlFile, mode);
+        }
+
         protected void CreateEmptyFile()
         {
             string filePath = Path.GetRandomFileName() + "emptyFile.txt";

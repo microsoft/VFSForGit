@@ -273,6 +273,14 @@ namespace GVFS.FunctionalTests.FileSystemRunners
             this.DeleteDirectory(path);
         }
 
+        public override void ChangeMode(string path, int mode)
+        {
+            string octalMode = Convert.ToString(mode, 8);
+            string bashPath = this.ConvertWinPathToBashPath(path);
+            string command = $"-c \"chmod {octalMode} {bashPath}\"";
+            this.RunProcess(command);
+        }
+
         public override void DeleteDirectory_ShouldBeBlockedByProcess(string path)
         {
             Assert.Fail("Unlike the other runners, bash.exe does not check folder handle before recusively deleting");
