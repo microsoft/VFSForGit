@@ -145,6 +145,33 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
             multiPackIndexLockFile.ShouldNotExistOnDisk(this.fileSystem);
         }
 
+        [TestCase, Order(12)]
+        public void PrefetchFilesFromFileListFile()
+        {
+            try
+            {
+                File.WriteAllLines("fileList",new []{
+                    Path.Combine("GVFS", "GVFS", "Program.cs"),
+                    Path.Combine("GVFS", "GVFS.FunctionalTests", "GVFS.FunctionalTests.csproj")
+                });
+                this.ExpectBlobCount(this.Enlistment.Prefetch("--files-list fileList"), 2);
+            }
+            finally
+            {
+                File.Delete("fileList");
+            }
+        }
+
+        [TestCase, Order(13)]
+        public void PrefetchFilesFromFileListStdIn()
+        {
+            var input = string.Join("\n",new []{
+                Path.Combine("GVFS", "GVFS", "packages.config"),
+                Path.Combine("GVFS", "GVFS.FunctionalTests", "App.config")
+            });
+            this.ExpectBlobCount(this.Enlistment.Prefetch("--files-list stdin", standardInput: input), 2);
+        }
+
         private void ExpectBlobCount(string output, int expectedCount)
         {
             output.ShouldContain("Matched blobs:    " + expectedCount);
