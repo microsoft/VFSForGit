@@ -177,10 +177,7 @@ namespace GVFS.CommandLine
 
                         cacheServer = this.ResolveCacheServer(tracer, cacheServer, cacheServerResolver, serverGVFSConfig);
 
-                        if (!GVFSPlatform.Instance.IsUnderConstruction)
-                        {
-                            this.ValidateClientVersions(tracer, enlistment, serverGVFSConfig, showWarnings: true);
-                        }
+                        this.ValidateClientVersions(tracer, enlistment, serverGVFSConfig, showWarnings: true);
                        
                         this.ShowStatusWhileRunning(
                             () =>

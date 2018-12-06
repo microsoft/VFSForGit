@@ -34,11 +34,6 @@ namespace GVFS.CommandLine
 
         public override void Execute()
         {
-            if (GVFSPlatform.Instance.IsUnderConstruction)
-            {
-                this.SkipLock = true;
-            }
-            
             this.ValidatePathParameter(this.EnlistmentRootPathParameter);
 
             string errorMessage;

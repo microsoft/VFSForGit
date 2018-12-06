@@ -336,11 +336,8 @@ namespace GVFS.CommandLine
 
         protected void ValidateClientVersions(ITracer tracer, GVFSEnlistment enlistment, ServerGVFSConfig gvfsConfig, bool showWarnings)
         {
-            if (!GVFSPlatform.Instance.IsUnderConstruction)
-            {
-                this.CheckGitVersion(tracer, enlistment, out string gitVersion);
-                enlistment.SetGitVersion(gitVersion);
-            }
+            this.CheckGitVersion(tracer, enlistment, out string gitVersion);
+            enlistment.SetGitVersion(gitVersion);
 
             this.GetGVFSHooksPathAndCheckVersion(tracer, out string hooksVersion);
             enlistment.SetGVFSHooksVersion(hooksVersion);
