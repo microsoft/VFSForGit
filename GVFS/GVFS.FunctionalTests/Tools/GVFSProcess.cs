@@ -99,7 +99,7 @@ namespace GVFS.FunctionalTests.Tools
             processInfo.WindowStyle = ProcessWindowStyle.Hidden;
             processInfo.UseShellExecute = false;
             processInfo.RedirectStandardOutput = true;
-            if(standardInput != null)
+            if (standardInput != null)
             {
                 processInfo.RedirectStandardInput = true;
             }
@@ -111,11 +111,12 @@ namespace GVFS.FunctionalTests.Tools
 
             using (Process process = Process.Start(processInfo))
             {
-                if(standardInput != null)
+                if (standardInput != null)
                 {
                     process.StandardInput.Write(standardInput);
                     process.StandardInput.Close();
                 }
+
                 string result = process.StandardOutput.ReadToEnd();
                 process.WaitForExit();
 

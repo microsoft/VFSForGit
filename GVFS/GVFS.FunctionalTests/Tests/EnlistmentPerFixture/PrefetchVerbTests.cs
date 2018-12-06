@@ -150,10 +150,14 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
         {
             try
             {
-                File.WriteAllLines("fileList",new []{
-                    Path.Combine("GVFS", "GVFS", "Program.cs"),
-                    Path.Combine("GVFS", "GVFS.FunctionalTests", "GVFS.FunctionalTests.csproj")
-                });
+                File.WriteAllLines(
+                    "fileList",
+                    new[]
+                    {
+                        Path.Combine("GVFS", "GVFS", "Program.cs"),
+                        Path.Combine("GVFS", "GVFS.FunctionalTests", "GVFS.FunctionalTests.csproj")
+                    });
+
                 this.ExpectBlobCount(this.Enlistment.Prefetch("--files-list fileList"), 2);
             }
             finally
@@ -165,10 +169,14 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
         [TestCase, Order(13)]
         public void PrefetchFilesFromFileListStdIn()
         {
-            var input = string.Join("\n",new []{
-                Path.Combine("GVFS", "GVFS", "packages.config"),
-                Path.Combine("GVFS", "GVFS.FunctionalTests", "App.config")
-            });
+            var input = string.Join(
+                "\n",
+                new[]
+                {
+                    Path.Combine("GVFS", "GVFS", "packages.config"),
+                    Path.Combine("GVFS", "GVFS.FunctionalTests", "App.config")
+                });
+
             this.ExpectBlobCount(this.Enlistment.Prefetch("--files-list stdin", standardInput: input), 2);
         }
 
