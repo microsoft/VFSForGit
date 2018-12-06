@@ -91,72 +91,28 @@ namespace GVFS.Common.Prefetch
 
         public static bool TryLoadFileList(Enlistment enlistment, string filesInput, string filesListFile, List<string> fileListOutput, out string error)
             {
-            return TryLoadFileOrFolderList(enlistment, filesInput, filesListFile, false, fileListOutput, s =>
+            return TryLoadFileOrFolderList(
+                enlistment,
+                filesInput,
+                filesListFile,
+                false,
+                fileListOutput,
+                s =>
                 {
-              if (s.IndexOf('*', 1) != -1)
-                {
-                return "Only prefix wildcards are supported. Invalid entry: " + s;
-                }
+                    if (s.IndexOf('*', 1) != -1)
+                    {
+                        return "Only prefix wildcards are supported. Invalid entry: " + s;
+                    }
 
-              if (s.EndsWith(GVFSConstants.GitPathSeparatorString) ||
-                  s.EndsWith(pathSeparatorString))
-            {
-                return "Folders are not allowed in the file list. Invalid entry: " + s;
-            }
+                    if (s.EndsWith(GVFSConstants.GitPathSeparatorString) ||
+                        s.EndsWith(pathSeparatorString))
+                    {
+                    return "Folders are not allowed in the file list. Invalid entry: " + s;
+                    }
 
-              return null;
-            }
-            , out error);
-        }
-
-        private static bool TryLoadFileOrFolderList(Enlistment enlistment, string valueString, string listFileName, bool isFolder, List<string> output, Func<string, string> elementValidationFunction, out string error)
-        {
-            output.AddRange(
-                valueString.Split(new[] { ';' }, StringSplitOptions.RemoveEmptyEntries)
-                .Select(path => BlobPrefetcher.ToAbsolutePath(enlistment, path, isFolder: isFolder)));
-
-            if (!string.IsNullOrWhiteSpace(listFileName))
-            {
-                IEnumerable<string> linesFromFile = null;
-                if (File.Exists(listFileName))
-                {
-                    linesFromFile = File.ReadAllLines(listFileName);
-                }
-                else if(listFileName == StdInFileName)
-            {
-                    linesFromFile = Console.In
-                        .ReadToEnd()
-                        .Split('\n', StringSplitOptions.RemoveEmptyEntries)
-                        .Select(x => x.Trim())
-                        .Where(x => !string.IsNullOrWhiteSpace(x));
-                }
-                else
-                {
-                    error = string.Format("Could not find '{0}' list file.", listFileName);
-                    return false;
-                }
-
-                IEnumerable<string> allLines = linesFromFile
-                        .Select(line => line.Trim())
-                        .Where(line => !string.IsNullOrEmpty(line))
-                        .Where(line => !line.StartsWith(GVFSConstants.GitCommentSign.ToString()))
-                        .Select(path => BlobPrefetcher.ToAbsolutePath(enlistment, path, isFolder: isFolder));
-
-                    output.AddRange(allLines);
-            }
-
-            output.RemoveAll(string.IsNullOrWhiteSpace);
-
-            string[] errorArray = output.Select(elementValidationFunction).Where(s => !string.IsNullOrWhiteSpace(s)).ToArray();
-
-            if(errorArray != null && errorArray.Length > 0)
-                {
-                error = string.Join('\n', errorArray);
-                    return false;
-            }
-
-            error = null;
-            return true;
+                    return null;
+                },
+                out error);
         }
 
         public static bool IsNoopPrefetch(
@@ -183,7 +139,7 @@ namespace GVFS.Common.Prefetch
 
                 tracer.RelatedEvent(
                     EventLevel.Informational,
-                    "BlobPrefetcher.IsNoopPrefetch", 
+                    "BlobPrefetcher.IsNoopPrefetch",
                     new EventMetadata
                     {
                         { "Last" + PrefetchArgs.CommitId, lastCommitId },
@@ -241,7 +197,7 @@ namespace GVFS.Common.Prefetch
             int matchedBlobCount;
             int downloadedBlobCount;
             int hydratedFileCount;
-            
+
             this.PrefetchWithStats(branchOrCommit, isBranch, false, out matchedBlobCount, out downloadedBlobCount, out hydratedFileCount);
         }
 
@@ -300,7 +256,7 @@ namespace GVFS.Common.Prefetch
                     return;
                 }
             }
-            
+
             BlockingCollection<string> availableBlobs = new BlockingCollection<string>();
 
             ////
@@ -310,7 +266,7 @@ namespace GVFS.Common.Prefetch
             //    |           |              |                 |
             //     ------------------------------------------------------> fileHydrator
             ////
-            
+
             // diff
             //  Inputs:
             //      * files/folders
@@ -320,7 +276,7 @@ namespace GVFS.Common.Prefetch
             //      * FileAddOperations (property): Repo-relative paths corresponding to those blob ids
             DiffHelper diff = new DiffHelper(this.Tracer, this.Enlistment, this.FileList, this.FolderList, includeSymLinks: false);
 
-            // blobFinder 
+            // blobFinder
             //  Inputs:
             //      * requiredBlobs (in param): Blob ids from output of `diff`
             //  Outputs:
@@ -523,9 +479,59 @@ namespace GVFS.Common.Prefetch
             }
         }
 
+        private static bool TryLoadFileOrFolderList(Enlistment enlistment, string valueString, string listFileName, bool isFolder, List<string> output, Func<string, string> elementValidationFunction, out string error)
+        {
+            output.AddRange(
+                valueString.Split(new[] { ';' }, StringSplitOptions.RemoveEmptyEntries)
+                .Select(path => BlobPrefetcher.ToAbsolutePath(enlistment, path, isFolder: isFolder)));
+
+            if (!string.IsNullOrWhiteSpace(listFileName))
+            {
+                IEnumerable<string> linesFromFile = null;
+                if (File.Exists(listFileName))
+                {
+                    linesFromFile = File.ReadAllLines(listFileName);
+                }
+                else if (listFileName == StdInFileName)
+            {
+                    linesFromFile = Console.In
+                        .ReadToEnd()
+                        .Split(new char[] { '\n' }, StringSplitOptions.RemoveEmptyEntries)
+                        .Select(x => x.Trim())
+                        .Where(x => !string.IsNullOrWhiteSpace(x));
+                }
+                else
+                {
+                    error = string.Format("Could not find '{0}' list file.", listFileName);
+                    return false;
+                }
+
+                IEnumerable<string> allLines = linesFromFile
+                        .Select(line => line.Trim())
+                        .Where(line => !string.IsNullOrEmpty(line))
+                        .Where(line => !line.StartsWith(GVFSConstants.GitCommentSign.ToString()))
+                        .Select(path => BlobPrefetcher.ToAbsolutePath(enlistment, path, isFolder: isFolder));
+
+                    output.AddRange(allLines);
+            }
+
+            output.RemoveAll(string.IsNullOrWhiteSpace);
+
+            string[] errorArray = output.Select(elementValidationFunction).Where(s => !string.IsNullOrWhiteSpace(s)).ToArray();
+
+            if (errorArray != null && errorArray.Length > 0)
+                {
+                error = string.Join('\n', errorArray);
+                    return false;
+            }
+
+            error = null;
+            return true;
+        }
+
         private static string ToAbsolutePath(Enlistment enlistment, string path, bool isFolder)
         {
-            string absolute = 
+            string absolute =
                 path.StartsWith("*")
                 ? path
                 : Path.Combine(enlistment.WorkingDirectoryRoot, path.Replace(GVFSConstants.GitPathSeparator, Path.DirectorySeparatorChar).TrimStart(Path.DirectorySeparatorChar));
