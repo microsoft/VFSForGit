@@ -10,9 +10,10 @@ namespace GVFS.Common
 {
     public abstract class GVFSPlatform
     {
-        public GVFSPlatform(string executableExtension, string installerExtension)
+        public GVFSPlatform(string executableExtension, string installerExtension, UnderConstructionFlags underConstruction)
         {
             this.Constants = new GVFSPlatformConstants(executableExtension, installerExtension);
+            this.UnderConstruction = underConstruction;
         }
 
         public static GVFSPlatform Instance { get; private set; }
@@ -21,12 +22,9 @@ namespace GVFS.Common
         public abstract IGitInstallation GitInstallation { get; }
         public abstract IDiskLayoutUpgradeData DiskLayoutUpgrade { get; }
         public abstract IPlatformFileSystem FileSystem { get; }
-        public virtual bool SupportsGVFSService { get; } = true;
-        public virtual bool SupportsGVFSUpgrade { get; } = true;
-        public virtual bool SupportsGVFSConfig { get; } = true;
-        public virtual bool SupportsKernelLogs { get; } = true;
-        public virtual bool UsesGitHooksLoader { get; } = false;
+
         public GVFSPlatformConstants Constants { get; }
+        public UnderConstructionFlags UnderConstruction { get; }
 
         public static void Register(GVFSPlatform platform)
         {
@@ -129,6 +127,24 @@ namespace GVFS.Common
             {
                 get { return "GVFS.Upgrader" + this.ExecutableExtension;  }
             }
+        }
+
+        public class UnderConstructionFlags
+        {
+            public UnderConstructionFlags(
+                bool supportsGVFSService = true,
+                bool supportsGVFSUpgrade = true,
+                bool supportsGVFSConfig = true,
+                bool supportsKernelLogs = true,
+                bool usesGitHooksLoader = false)
+            {
+            }
+
+            public bool SupportsGVFSService { get; }
+            public bool SupportsGVFSUpgrade { get; }
+            public bool SupportsGVFSConfig { get; }
+            public bool SupportsKernelLogs { get; }
+            public bool UsesGitHooksLoader { get; }
         }
     }
 }

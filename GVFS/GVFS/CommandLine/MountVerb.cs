@@ -117,7 +117,7 @@ namespace GVFS.CommandLine
 
                 if (!GVFSPlatform.Instance.KernelDriver.IsReady(tracer, enlistment.EnlistmentRoot, out errorMessage))
                 {
-                    if (GVFSPlatform.Instance.SupportsGVFSService)
+                    if (GVFSPlatform.Instance.UnderConstruction.SupportsGVFSService)
                     {
                         tracer.RelatedEvent(
                             EventLevel.Informational,
@@ -214,7 +214,7 @@ namespace GVFS.CommandLine
             }
 
             if (!this.Unattended &&
-                GVFSPlatform.Instance.SupportsGVFSService)
+                GVFSPlatform.Instance.UnderConstruction.SupportsGVFSService)
             {
                 if (!this.ShowStatusWhileRunning(
                     () => { return this.RegisterMount(enlistment, out errorMessage); },

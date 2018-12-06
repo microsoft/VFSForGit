@@ -24,7 +24,10 @@ namespace GVFS.Platform.Windows
         private const string BuildLabExRegistryValue = "BuildLabEx";
 
         public WindowsPlatform()
-            : base(executableExtension: ".exe", installerExtension: ".exe")
+            : base(
+                executableExtension: ".exe", 
+                installerExtension: ".exe",
+                underConstruction: new UnderConstructionFlags(usesGitHooksLoader: true))
         {
         }
 
@@ -32,8 +35,6 @@ namespace GVFS.Platform.Windows
         public override IGitInstallation GitInstallation { get; } = new WindowsGitInstallation();
         public override IDiskLayoutUpgradeData DiskLayoutUpgrade { get; } = new WindowsDiskLayoutUpgradeData();
         public override IPlatformFileSystem FileSystem { get; } = new WindowsFileSystem();
-
-        public override bool UsesGitHooksLoader { get; } = true;
 
         public static string GetStringFromRegistry(string key, string valueName)
         {

@@ -46,7 +46,7 @@ namespace GVFS.CommandLine
 
         public override void Execute()
         {
-            if (!GVFSPlatform.Instance.SupportsGVFSConfig)
+            if (!GVFSPlatform.Instance.UnderConstruction.SupportsGVFSConfig)
             {
                 this.ReportErrorAndExit("`gvfs config` is not yet implemented on this operating system.");
             }

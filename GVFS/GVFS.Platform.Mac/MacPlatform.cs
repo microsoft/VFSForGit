@@ -12,7 +12,14 @@ namespace GVFS.Platform.Mac
     public partial class MacPlatform : GVFSPlatform
     {
         public MacPlatform()
-            : base(executableExtension: string.Empty, installerExtension: ".dmg")
+            : base(
+                executableExtension: string.Empty,
+                installerExtension: ".dmg",
+                underConstruction: new UnderConstructionFlags(
+                    supportsGVFSService: false,
+                    supportsGVFSUpgrade: false,
+                    supportsGVFSConfig: false,
+                    supportsKernelLogs: false))
         {
         }
 
@@ -20,10 +27,6 @@ namespace GVFS.Platform.Mac
         public override IGitInstallation GitInstallation { get; } = new MacGitInstallation();
         public override IDiskLayoutUpgradeData DiskLayoutUpgrade { get; } = new MacDiskLayoutUpgradeData();
         public override IPlatformFileSystem FileSystem { get; } = new MacFileSystem();
-        public override bool SupportsGVFSService { get; } = false;
-        public override bool SupportsGVFSUpgrade { get; } = false;
-        public override bool SupportsGVFSConfig { get; } = false;
-        public override bool SupportsKernelLogs { get; } = false;
 
         public override void ConfigureVisualStudio(string gitBinPath, ITracer tracer)
         {

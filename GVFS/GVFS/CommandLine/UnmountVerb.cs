@@ -59,7 +59,7 @@ namespace GVFS.CommandLine
 
             if (!this.Unattended && 
                 !this.SkipUnregister &&
-                GVFSPlatform.Instance.SupportsGVFSService)
+                GVFSPlatform.Instance.UnderConstruction.SupportsGVFSService)
             {
                 if (!this.ShowStatusWhileRunning(
                     () => { return this.UnregisterRepo(root, out errorMessage); },

@@ -61,7 +61,7 @@ namespace GVFS.CommandLine
 
         private bool TryInitializeUpgrader()
         {
-            if (GVFSPlatform.Instance.SupportsGVFSUpgrade)
+            if (GVFSPlatform.Instance.UnderConstruction.SupportsGVFSUpgrade)
             {
                 if (this.upgrader == null)
                 {
