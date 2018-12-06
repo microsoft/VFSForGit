@@ -25,6 +25,7 @@ namespace GVFS.Common
         public virtual bool SupportsGVFSService { get; } = true;
         public virtual bool SupportsGVFSUpgrade { get; } = true;
         public virtual bool SupportsGVFSConfig { get; } = true;
+        public virtual bool UsesGitHooksLoader { get; } = false;
         public GVFSPlatformConstants Constants { get; }
 
         public static void Register(GVFSPlatform platform)
