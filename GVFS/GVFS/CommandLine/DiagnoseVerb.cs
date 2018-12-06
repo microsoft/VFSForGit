@@ -88,7 +88,7 @@ namespace GVFS.CommandLine
                         // .gvfs
                         this.CopyAllFiles(enlistment.EnlistmentRoot, archiveFolderPath, GVFSConstants.DotGVFS.Root, copySubFolders: false);
 
-                        if (!GVFSPlatform.Instance.IsUnderConstruction)
+                        if (!GVFSPlatform.Instance.SupportsKernelLogs)
                         {
                             // driver
                             this.FlushKernelDriverLogs();

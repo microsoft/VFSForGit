@@ -21,10 +21,10 @@ namespace GVFS.Common
         public abstract IGitInstallation GitInstallation { get; }
         public abstract IDiskLayoutUpgradeData DiskLayoutUpgrade { get; }
         public abstract IPlatformFileSystem FileSystem { get; }
-        public virtual bool IsUnderConstruction { get; } = false;
         public virtual bool SupportsGVFSService { get; } = true;
         public virtual bool SupportsGVFSUpgrade { get; } = true;
         public virtual bool SupportsGVFSConfig { get; } = true;
+        public virtual bool SupportsKernelLogs { get; } = true;
         public virtual bool UsesGitHooksLoader { get; } = false;
         public GVFSPlatformConstants Constants { get; }
 
