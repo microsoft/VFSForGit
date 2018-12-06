@@ -11,13 +11,14 @@ namespace FastFetch
         public const int WriteOnly = 0x0001;
 
         public const int Create = 0x0200;
+        public const int Truncate = 0x0400;
 
         public static unsafe void WriteFile(ITracer tracer, byte* originalData, long originalSize, string destination, ushort mode)
         {
             int fileDescriptor = -1;
             try
             {
-                fileDescriptor = Open(destination, WriteOnly | Create, mode);
+                fileDescriptor = Open(destination, WriteOnly | Create | Truncate, mode);
                 if (fileDescriptor != -1)
                 {
                     IntPtr result = Write(fileDescriptor, originalData, (IntPtr)originalSize);

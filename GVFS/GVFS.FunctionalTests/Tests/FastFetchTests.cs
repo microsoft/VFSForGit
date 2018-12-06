@@ -190,7 +190,6 @@ namespace GVFS.FunctionalTests.Tests
         }
 
         [TestCase]
-        [Category(Categories.MacTODO.M4)]
         public void CanUpdateIndex()
         {
             // Testing index versions 2, 3 and 4.  Not bothering to test version 1; it's not in use anymore.
@@ -217,34 +216,57 @@ namespace GVFS.FunctionalTests.Tests
                 .WithDeepStructure(FileSystemRunner.DefaultRunner, this.fastFetchControlRoot);
         }
 
+        // Each file listed in in ls-files --debug outputs a structure that looks like so 
+        //  nuget.config
+        //  ctime: 1540245129:777055100
+        //  mtime: 1541723805:620569300
+        //  dev: 0 ino: 0
+        //  uid: 0 gid: 0
+        //  size: 617 flags: 0
+        //
+        // The index that FastFetch crafts fills the dev/ino/uid/gid fields of the index with 0 for speed
+        // Git for Windows writes these fields out as 0, but once a Unix version of Git writes out the index,
+        // they get filled with actual values. This breaks our Index comparison logic, so we'll remove these 
+        // fields as they don't have meaning for what we're seeking to test here.
+        public string RemoveUnixEntriesFromLsFilesOutput(string gitOutput)
+        {
+            string[] splitOutput = gitOutput.Split(new[] { Environment.NewLine }, StringSplitOptions.None);
+            splitOutput = splitOutput.Where(x => !x.StartsWith("  dev:") && !x.StartsWith("  uid:")).ToArray();
+            return string.Concat(splitOutput);
+        }
+
         public void CanUpdateIndex(int indexVersion, bool indexSigningOff)
         {
             // Initialize the repo
             GitProcess.Invoke(this.fastFetchRepoRoot, "config --local --add core.gvfs " + (indexSigningOff ? 1 : 0));
             this.CanFetchAndCheckoutBranchIntoEmptyGitRepo();
             string lsfilesAfterFirstFetch = GitProcess.Invoke(this.fastFetchRepoRoot, "ls-files --debug");
+            lsfilesAfterFirstFetch = this.RemoveUnixEntriesFromLsFilesOutput(lsfilesAfterFirstFetch);
             lsfilesAfterFirstFetch.ShouldBeNonEmpty();
 
             // Reset the index and use 'git status' to get baseline.
             GitProcess.Invoke(this.fastFetchRepoRoot, $"-c index.version={indexVersion} read-tree HEAD");
             string lsfilesBeforeStatus = GitProcess.Invoke(this.fastFetchRepoRoot, "ls-files --debug");
+            lsfilesBeforeStatus = this.RemoveUnixEntriesFromLsFilesOutput(lsfilesBeforeStatus);
             lsfilesBeforeStatus.ShouldBeNonEmpty();
 
             GitProcess.Invoke(this.fastFetchRepoRoot, "status");
             string lsfilesAfterStatus = GitProcess.Invoke(this.fastFetchRepoRoot, "ls-files --debug");
+            lsfilesAfterStatus = this.RemoveUnixEntriesFromLsFilesOutput(lsfilesAfterStatus);
             lsfilesAfterStatus.ShouldBeNonEmpty();
             lsfilesAfterStatus.ShouldNotBeSameAs(lsfilesBeforeStatus, "Ensure 'git status' updates index");
 
             // Reset the index and use fastfetch to update the index. Compare against 'git status' baseline.
             GitProcess.Invoke(this.fastFetchRepoRoot, $"-c index.version= {indexVersion} read-tree HEAD");
             ProcessResult fastFetchResult = this.RunFastFetch("--checkout --Allow-index-metadata-update-from-working-tree");
-            Trace.WriteLine(fastFetchResult.Output); // Written to log file for manual investigation
             string lsfilesAfterUpdate = GitProcess.Invoke(this.fastFetchRepoRoot, "ls-files --debug");
+            lsfilesAfterUpdate = this.RemoveUnixEntriesFromLsFilesOutput(lsfilesAfterUpdate);
             lsfilesAfterUpdate.ShouldEqual(lsfilesAfterStatus, "git status and fastfetch didn't result in the same index");
 
             // Don't reset the index and use 'git status' to update again.  Should be same results.
             this.RunFastFetch("--checkout --Allow-index-metadata-update-from-working-tree");
             string lsfilesAfterUpdate2 = GitProcess.Invoke(this.fastFetchRepoRoot, "ls-files --debug");
+            lsfilesAfterUpdate2 = this.RemoveUnixEntriesFromLsFilesOutput(lsfilesAfterUpdate2);
             lsfilesAfterUpdate2.ShouldEqual(lsfilesAfterUpdate, "Incremental update should not change index");
 
             // Verify that the final results are the same as the intial fetch results
@@ -252,7 +274,6 @@ namespace GVFS.FunctionalTests.Tests
         }
         
         [TestCase]
-        [Category(Categories.MacTODO.M4)]
         public void IncrementalChangesLeaveGoodStatus()
         {
             // Specific commits taken from branch  FunctionalTests/20170206_Conflict_Source
