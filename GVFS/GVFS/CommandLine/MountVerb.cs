@@ -276,10 +276,6 @@ namespace GVFS.CommandLine
             }
 
             const string ParamPrefix = "--";
-            if (GVFSPlatform.Instance.IsUnderConstruction)
-            {
-                mountExecutableLocation = Path.Combine(ProcessHelper.GetCurrentProcessLocation(), "gvfs.mount");
-            }
 
             GVFSPlatform.Instance.StartBackgroundProcess(
                 mountExecutableLocation,
