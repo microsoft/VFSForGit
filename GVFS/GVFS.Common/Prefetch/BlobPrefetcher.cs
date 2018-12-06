@@ -521,7 +521,7 @@ namespace GVFS.Common.Prefetch
 
             if (errorArray != null && errorArray.Length > 0)
                 {
-                error = string.Join('\n', errorArray);
+                error = string.Join("\n", errorArray);
                     return false;
             }
 
