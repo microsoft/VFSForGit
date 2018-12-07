@@ -73,7 +73,7 @@ namespace GVFS.Common.Http
                         this.Tracer.RelatedWarning(
                             new EventMetadata
                             {
-                                {"SslCertificate", this.authentication.GitSslSettings.SslCertificate}
+                                { "SslCertificate", this.authentication.GitSslSettings.SslCertificate }
                             },
                             "Git config indicates, that certificate is password protected, but retrieved password was null or empty!");
                     }
