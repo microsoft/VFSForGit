@@ -1036,10 +1036,10 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
         public void UpdateIndexCannotModifySkipWorktreeBit()
         {
             ProcessResult result = GitHelpers.InvokeGitAgainstGVFSRepo(this.Enlistment.RepoRoot, "update-index --skip-worktree Readme.md");
-            result.Errors.ShouldContain("Modifying the skip worktree bit is not supported on a GVFS repo");
+            result.ExitCode.ShouldNotEqual(0);
 
             result = GitHelpers.InvokeGitAgainstGVFSRepo(this.Enlistment.RepoRoot, "update-index --no-skip-worktree Readme.md");
-            result.Errors.ShouldContain("Modifying the skip worktree bit is not supported on a GVFS repo");
+            result.ExitCode.ShouldNotEqual(0);
         }
 
         [TestCase]
