@@ -8,10 +8,10 @@ namespace GVFS.Common.Git
         public const string CoreVirtualFileSystemName = "core.virtualfilesystem";
         public const string CredentialUseHttpPath = "credential.useHttpPath";
 
-        public const string SslCert = "http.sslcert";
-        public const string SslKey = "http.sslkey";
-        public const string SslVerify = "http.sslverify";
-        public const string SslCertPasswordProtected = "http.sslcertpasswordprotected";
+        public const string HttpSslCert = "http.sslcert";
+        public const string HttpSslKey = "http.sslkey";
+        public const string HttpSslVerify = "http.sslverify";
+        public const string HttpSslCertPasswordProtected = "http.sslcertpasswordprotected";
 
         public GitConfigSetting(string name, params string[] values)
         {

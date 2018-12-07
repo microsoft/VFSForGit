@@ -20,17 +20,17 @@ namespace GVFS.Common.Git
         {
             if (configSettings != null)
             {
-                if (configSettings.TryGetValue(GitConfigSetting.SslCert, out var sslCerts))
+                if (configSettings.TryGetValue(GitConfigSetting.HttpSslCert, out var sslCerts))
                 {
                     this.SslCertificate = sslCerts.Values.Single();
                 }
 
-                if (configSettings.TryGetValue(GitConfigSetting.SslCertPasswordProtected, out var isSslCertPasswordProtected))
+                if (configSettings.TryGetValue(GitConfigSetting.HttpSslCertPasswordProtected, out var isSslCertPasswordProtected))
                 {
                     this.SslCertPasswordProtected = isSslCertPasswordProtected.Values.Select(bool.Parse).Single();
                 }
 
-                if (configSettings.TryGetValue(GitConfigSetting.SslVerify, out var sslVerify))
+                if (configSettings.TryGetValue(GitConfigSetting.HttpSslVerify, out var sslVerify))
                 {
                     this.SslVerify = sslVerify.Values.Select(bool.Parse).Single();
                 }
