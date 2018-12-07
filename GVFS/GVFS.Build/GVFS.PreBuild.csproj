@@ -162,7 +162,6 @@
   <ItemDefinitionGroup>
     <ApplicationNeedsManifest>
       <Visible>false</Visible>
-      <OutputFile>$(BuildOutputDir)\%(Identity).exe.manifest</OutputFile>
     </ApplicationNeedsManifest>
   </ItemDefinitionGroup>
 
@@ -203,6 +202,6 @@
           Inputs="$(RestoreTimestampPath);@(GeneratedPackageConfig);$(MSBuildThisFileFullPath);$(MSBuildProjectFullPath);$(MSBuildThisFileDirectory)GenerateVersionInfo.cs;$(MSBuildThisFileDirectory)GenerateApplicationManifests.cs"
           Outputs="$(AssemblyVersionPath);$(VersionHeaderPath);@(ApplicationNeedsManifest->'%(OutputFile)')">
     <GenerateVersionInfo Version="$(GVFSVersion)" AssemblyVersion="$(AssemblyVersionPath)" VersionHeader="$(VersionHeaderPath)" />
-    <GenerateApplicationManifests Version="$(GVFSVersion)" ApplicationName="@(ApplicationNeedsManifest)" ManifestPath="@(ApplicationNeedsManifest->'%(OutputFile)')" />  
+    <GenerateApplicationManifests Version="$(GVFSVersion)" ApplicationName="@(ApplicationNeedsManifest)" ManifestPath="$(BuildOutputDir)\@(ApplicationNeedsManifest).exe.manifest" />  
   </Target>
 </Project>
