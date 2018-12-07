@@ -63,6 +63,7 @@ static bool ShouldHandleVnodeOpEvent(
     PerfTracer* perfTracer,
     vfs_context_t _Nonnull context,
     const vnode_t vnode,
+    kauth_action_t action,
 
     // Out params:
     vtype* vnodeType,
@@ -354,6 +355,7 @@ static int HandleVnodeOperation(
             &perfTracer,
             context,
             currentVnode,
+            action,
             &vnodeType,
             &currentVnodeFileFlags,
             &pid,
@@ -710,6 +712,7 @@ static bool ShouldHandleVnodeOpEvent(
     PerfTracer* perfTracer,
     vfs_context_t _Nonnull context,
     const vnode_t vnode,
+    kauth_action_t action,
 
     // Out params:
     vtype* vnodeType,
@@ -722,6 +725,17 @@ static bool ShouldHandleVnodeOpEvent(
     PerfSample handleVnodeSample(perfTracer, PrjFSPerfCounter_VnodeOp_ShouldHandle);
 
     *kauthResult = KAUTH_RESULT_DEFER;
+    
+    if (ActionBitIsSet(action, KAUTH_VNODE_ACCESS))
+    {
+      // From kauth.h:
+      //    "The KAUTH_VNODE_ACCESS bit is passed to the callback if the authorisation
+      //    request in progress is advisory, rather than authoritative.  Listeners
+      //    performing consequential work (i.e. not strictly checking authorisation)
+      //    may test this flag to avoid performing unnecessary work."
+      
+        return false;
+    }
     
     {
         PerfSample isAllowedSample(perfTracer, PrjFSPerfCounter_VnodeOp_ShouldHandle_IsAllowedFileSystem);
