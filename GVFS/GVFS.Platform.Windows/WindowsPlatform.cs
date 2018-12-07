@@ -27,7 +27,7 @@ namespace GVFS.Platform.Windows
             : base(
                 executableExtension: ".exe", 
                 installerExtension: ".exe",
-                underConstruction: new UnderConstructionFlags(usesGitHooksLoader: true))
+                underConstruction: new UnderConstructionFlags(requiresDeprecatedGitHooksLoader: true))
         {
         }
 

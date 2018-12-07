@@ -1070,7 +1070,7 @@ You can specify a URL, a name of a configured cache server, or the special names
                 }
 
                 string hooksPath = null;
-                if (GVFSPlatform.Instance.UnderConstruction.UsesGitHooksLoader)
+                if (GVFSPlatform.Instance.UnderConstruction.RequiresDeprecatedGitHooksLoader)
                 {
                     // On Windows, the soon-to-be deprecated GitHooksLoader tries to call out to the hooks process without
                     // its full path, so we have to pass the path along to our background git processes via the PATH
