@@ -19,7 +19,7 @@ namespace GVFS.Common.Maintenance
 
         public override string Area => "PostFetchMaintenanceStep";
 
-        protected override void PerformMaintenance()
+        protected override bool PerformMaintenance()
         {
             using (ITracer activity = this.Context.Tracer.StartActivity("TryWriteMultiPackIndex", EventLevel.Informational, Keywords.Telemetry, metadata: null))
             {
@@ -32,7 +32,7 @@ namespace GVFS.Common.Maintenance
             if (this.packIndexes == null || this.packIndexes.Count == 0)
             {
                 this.Context.Tracer.RelatedInfo(this.Area + ": Skipping commit-graph write due to no new packfiles");
-                return;
+                return true;
             }
 
             using (ITracer activity = this.Context.Tracer.StartActivity("TryWriteGitCommitGraph", EventLevel.Informational, Keywords.Telemetry, metadata: null))
@@ -42,6 +42,8 @@ namespace GVFS.Common.Maintenance
 
                 this.RunGitCommand((process) => process.WriteCommitGraph(this.Context.Enlistment.GitObjectsRoot, this.packIndexes));
             }
+
+            return true;
         }
     }
 }

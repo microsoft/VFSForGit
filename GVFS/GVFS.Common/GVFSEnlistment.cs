@@ -202,6 +202,11 @@ namespace GVFS.Common
             this.BlobSizesRoot = blobSizesRoot;
         }
 
+        public void InitializeGitObjects(string gitObjectsRoot)
+        {
+            this.InitializeCachePaths(localCacheRoot: null, gitObjectsRoot: gitObjectsRoot, blobSizesRoot: null);
+        }
+
         public bool TryCreateEnlistmentFolders()
         {
             try

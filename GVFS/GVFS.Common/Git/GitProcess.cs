@@ -32,6 +32,7 @@ namespace GVFS.Common.Git
         private string gitBinPath;
         private string workingDirectoryRoot;
         private string dotGitRoot;
+        private string gitObjectsRoot;
         private string gvfsHooksRoot;
         private Process executingProcess;
         private bool stopping;
@@ -62,11 +63,11 @@ namespace GVFS.Common.Git
         }
 
         public GitProcess(Enlistment enlistment)
-            : this(enlistment.GitBinPath, enlistment.WorkingDirectoryRoot, enlistment.GVFSHooksRoot)
+            : this(enlistment.GitBinPath, enlistment.WorkingDirectoryRoot, enlistment.GVFSHooksRoot, enlistment.GitObjectsRoot)
         {
         }
 
-        public GitProcess(string gitBinPath, string workingDirectoryRoot, string gvfsHooksRoot)
+        public GitProcess(string gitBinPath, string workingDirectoryRoot, string gvfsHooksRoot, string gitObjectsRoot = null)
         {
             if (string.IsNullOrWhiteSpace(gitBinPath))
             {
@@ -76,6 +77,7 @@ namespace GVFS.Common.Git
             this.gitBinPath = gitBinPath;
             this.workingDirectoryRoot = workingDirectoryRoot;
             this.gvfsHooksRoot = gvfsHooksRoot;
+            this.gitObjectsRoot = gitObjectsRoot;
 
             if (this.workingDirectoryRoot != null)
             {
@@ -461,6 +463,11 @@ namespace GVFS.Common.Git
             return this.InvokeGitAgainstDotGitFolder("read-tree " + treeIsh);
         }
 
+        public Result PrunePacked()
+        {
+            return this.InvokeGitAgainstDotGitFolder("prune-packed -q");
+        }
+
         public Process GetGitProcess(string command, string workingDirectory, string dotGitDirectory, bool useReadObjectHook, bool redirectStandardError)
         {
             ProcessStartInfo processInfo = new ProcessStartInfo(this.gitBinPath);
@@ -504,6 +511,11 @@ namespace GVFS.Common.Git
                     ";",
                     this.gitBinPath,
                     this.gvfsHooksRoot ?? string.Empty);
+
+            if (this.gitObjectsRoot != null)
+            {
+                processInfo.EnvironmentVariables["GIT_OBJECT_DIRECTORY"] = this.gitObjectsRoot;
+            }
 
             if (!useReadObjectHook)
             {

@@ -63,7 +63,7 @@ namespace GVFS.Common.Maintenance
             return true;
         }
 
-        protected override void PerformMaintenance()
+        protected override bool PerformMaintenance()
         {
             long last;
             string error = null;
@@ -71,7 +71,7 @@ namespace GVFS.Common.Maintenance
             if (!this.TryGetMaxGoodPrefetchTimestamp(out last, out error))
             {
                 this.Context.Tracer.RelatedError(error);
-                return;
+                return false;
             }
 
             DateTime lastDateTime = EpochConverter.FromUnixEpochSeconds(last);
@@ -80,7 +80,7 @@ namespace GVFS.Common.Maintenance
             if (now <= lastDateTime + this.timeBetweenPrefetches)
             {
                 this.Context.Tracer.RelatedInfo(this.Area + ": Skipping prefetch since most-recent prefetch ({0}) is too close to now ({1})", lastDateTime, now);
-                return;
+                return false;
             }
 
             this.RunGitCommand(process =>
@@ -96,6 +96,8 @@ namespace GVFS.Common.Maintenance
                     message: $"{nameof(this.TryPrefetchCommitsAndTrees)} failed with error '{error}'",
                     keywords: Keywords.Telemetry);
             }
+
+            return true;
         }
 
         private static long? GetTimestamp(string packName)

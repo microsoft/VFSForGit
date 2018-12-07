@@ -147,10 +147,11 @@ namespace GVFS.UnitTests.Maintenance
 
             public override string Area => "TestGitMaintenanceStep";
 
-            protected override void PerformMaintenance()
+            protected override bool PerformMaintenance()
             {
                 this.NumberOfExecutions++;
                 this.EventTriggered.Set();
+                return true;
             }
         }
 
@@ -171,13 +172,15 @@ namespace GVFS.UnitTests.Maintenance
 
             public override string Area => "WatchForStopStep";
 
-            protected override void PerformMaintenance()
+            protected override bool PerformMaintenance()
             {
                 this.Queue.Stop();
 
                 this.SawStopping = this.Stopping;
 
                 this.EventTriggered.Set();
+
+                return true;
             }
         }
     }

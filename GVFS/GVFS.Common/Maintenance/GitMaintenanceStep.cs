@@ -25,7 +25,7 @@ namespace GVFS.Common.Maintenance
         protected bool Stopping { get; private set; }
         protected bool RequireObjectCacheLock { get; }
 
-        public void Execute()
+        public bool Execute()
         {
             try
             {
@@ -39,15 +39,15 @@ namespace GVFS.Common.Maintenance
                         if (!cacheLock.TryAcquireLock())
                         {
                             this.Context.Tracer.RelatedInfo(this.Area + ": Skipping work since another process holds the lock");
-                            return;
+                            return false;
                         }
 
-                        this.CreateProcessAndRun();
+                        return this.CreateProcessAndRun();
                     }
                 }
                 else
                 {
-                    this.CreateProcessAndRun();
+                    return this.CreateProcessAndRun();
                 }
             }
             catch (IOException e)
@@ -65,6 +65,8 @@ namespace GVFS.Common.Maintenance
                     keywords: Keywords.Telemetry);
                 Environment.Exit((int)ReturnCode.GenericError);
             }
+
+            return true;
         }
 
         public void Stop()
@@ -100,7 +102,7 @@ namespace GVFS.Common.Maintenance
         /// (as specified by <see cref="RequireObjectCacheLock"/>), then this step is not run unless we
         /// hold the lock.
         /// </summary>
-        protected abstract void PerformMaintenance();
+        protected abstract bool PerformMaintenance();
 
         protected GitProcess.Result RunGitCommand(Func<GitProcess, GitProcess.Result> work)
         {
@@ -143,19 +145,19 @@ namespace GVFS.Common.Maintenance
             return metadata;
         }
 
-        private void CreateProcessAndRun()
+        private bool CreateProcessAndRun()
         {
             lock (this.gitProcessLock)
             {
                 if (this.Stopping)
                 {
-                    return;
+                    return false;
                 }
 
                 this.GitProcess = new GitProcess(this.Context.Enlistment);
             }
 
-            this.PerformMaintenance();
+            return this.PerformMaintenance();
         }
     }
 }

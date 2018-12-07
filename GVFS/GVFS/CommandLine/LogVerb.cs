@@ -57,6 +57,7 @@ namespace GVFS.CommandLine
                 this.DisplayMostRecent(gvfsLogsRoot, GVFSConstants.LogFileTypes.Prefetch);
                 this.DisplayMostRecent(gvfsLogsRoot, GVFSConstants.LogFileTypes.Dehydrate);
                 this.DisplayMostRecent(gvfsLogsRoot, GVFSConstants.LogFileTypes.Repair);
+                this.DisplayMostRecent(gvfsLogsRoot, GVFSConstants.LogFileTypes.Maintenance);
 
                 string serviceLogsRoot = Paths.GetServiceLogsPath(this.ServiceName);
                 this.DisplayMostRecent(serviceLogsRoot, GVFSConstants.LogFileTypes.Service);

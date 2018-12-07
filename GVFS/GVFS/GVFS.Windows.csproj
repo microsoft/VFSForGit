@@ -79,6 +79,7 @@
     </Compile>
     <Compile Include="CommandLine\CacheServerVerb.cs" />
     <Compile Include="CommandLine\CloneVerb.cs" />
+    <Compile Include="CommandLine\MaintenanceVerb.cs" />
     <Compile Include="CommandLine\ConfigVerb.cs" />
     <Compile Include="CommandLine\DehydrateVerb.cs" />
     <Compile Include="CommandLine\DiagnoseVerb.cs" />

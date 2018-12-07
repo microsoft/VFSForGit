@@ -73,13 +73,15 @@ namespace GVFS.UnitTests.Maintenance
 
             public override string Area => "CheckMethodStep";
 
-            protected override void PerformMaintenance()
+            protected override bool PerformMaintenance()
             {
                 this.RunGitCommand(process =>
                 {
                     this.SawWorkInvoked = true;
                     return null;
                 });
+
+                return true;
             }
         }
 
@@ -94,7 +96,7 @@ namespace GVFS.UnitTests.Maintenance
 
             public override string Area => "CheckMethodStep";
 
-            protected override void PerformMaintenance()
+            protected override bool PerformMaintenance()
             {
                 this.Stop();
                 this.RunGitCommand(process =>
@@ -102,6 +104,8 @@ namespace GVFS.UnitTests.Maintenance
                     this.SawWorkInvoked = true;
                     return null;
                 });
+
+                return true;
             }
         }
     }
