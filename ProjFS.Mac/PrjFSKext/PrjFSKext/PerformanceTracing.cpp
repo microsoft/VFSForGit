@@ -10,7 +10,8 @@ uint64_t PerfTracer::s_numTracers = 0;
 
 static PrjFSPerfCounterResult s_perfCounterResults[PrjFSPerfCounter_Count];
 
-void InitProbe(PrjFSPerfCounter counter);
+static void InitProbe(PrjFSPerfCounter counter);
+static int Log2(unsigned long long nonZeroValue);
 
 void PerfTracing_Init()
 {
@@ -81,13 +82,22 @@ void PerfTracing_RecordSample(PrjFSPerfCounter counter, uint64_t startTime, uint
             {}
         }
         
-        // integer log2 = most significant set bit
-        int intervalLog2 = 63 - __builtin_clzll(interval);
+        int intervalLog2 = Log2(interval);
         atomic_fetch_add(&result->sampleBuckets[intervalLog2], 1);
     }
 }
 
-void InitProbe(PrjFSPerfCounter counter)
+static void InitProbe(PrjFSPerfCounter counter)
 {
     s_perfCounterResults[counter] = PrjFSPerfCounterResult{ .min = UINT64_MAX };
+}
+
+// Computes the floor of the base-2 logarithm of the provided positive integer.
+// The __builtin_clzll() function counts the number of 0 bits until the most
+// significant 1 bit in the argument. For log2, the position of this most
+// significant 1 bit counting from the least significant bit is needed.
+static int Log2(unsigned long long nonZeroValue)
+{
+    static const int maxBitIndex = sizeof(nonZeroValue) * CHAR_BIT - 1;
+    return maxBitIndex - __builtin_clzll(nonZeroValue);
 }
