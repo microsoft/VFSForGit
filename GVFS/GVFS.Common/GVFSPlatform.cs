@@ -120,7 +120,7 @@ namespace GVFS.Common
 
             public string MountExecutableName
             {
-                get { return "gvfs.mount" + this.ExecutableExtension; }
+                get { return "GVFS.Mount" + this.ExecutableExtension; }
             }
 
             public string GVFSUpgraderExecutableName
