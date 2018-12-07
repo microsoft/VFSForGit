@@ -336,11 +336,8 @@ namespace GVFS.CommandLine
 
         protected void ValidateClientVersions(ITracer tracer, GVFSEnlistment enlistment, ServerGVFSConfig gvfsConfig, bool showWarnings)
         {
-            if (!GVFSPlatform.Instance.IsUnderConstruction)
-            {
-                this.CheckGitVersion(tracer, enlistment, out string gitVersion);
-                enlistment.SetGitVersion(gitVersion);
-            }
+            this.CheckGitVersion(tracer, enlistment, out string gitVersion);
+            enlistment.SetGitVersion(gitVersion);
 
             this.GetGVFSHooksPathAndCheckVersion(tracer, out string hooksVersion);
             enlistment.SetGVFSHooksVersion(hooksVersion);
@@ -1072,13 +1069,15 @@ You can specify a URL, a name of a configured cache server, or the special names
                     this.ReportErrorAndExit("Error: " + GVFSConstants.GitIsNotInstalledError);
                 }
 
-                string hooksPath;
-                if (GVFSPlatform.Instance.IsUnderConstruction)
+                string hooksPath = null;
+                if (GVFSPlatform.Instance.UnderConstruction.RequiresDeprecatedGitHooksLoader)
                 {
-                    hooksPath = "hooksUnderConstruction";
-                }
-                else
-                {
+                    // On Windows, the soon-to-be deprecated GitHooksLoader tries to call out to the hooks process without
+                    // its full path, so we have to pass the path along to our background git processes via the PATH
+                    // environment variable. On Mac this is not needed because we just copy our own hook directly into
+                    // the .git/hooks folder, and once Windows does the same, this hooksPath can be removed (from here
+                    // and all the classes that handle it on the way to GitProcess)
+
                     hooksPath = ProcessHelper.WhereDirectory(GVFSPlatform.Instance.Constants.GVFSHooksExecutableName);
                     if (hooksPath == null)
                     {

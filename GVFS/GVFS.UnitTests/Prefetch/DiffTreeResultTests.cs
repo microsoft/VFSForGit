@@ -178,9 +178,8 @@ namespace GVFS.UnitTests.Prefetch
         }
 
         [TestCase]
-        [Ignore("This test should be updated to properly throw an exception on MacOS (it currently depends on OS specific Path.Combine behavior) or reworked.")]
-        
-        // TODO(Mac) This needs to be cleaned up
+
+        [Category(CategoryConstants.ExceptionExpected)]
         public void ParseFromDiffTreeLine_TwoPathLine()
         {
             Assert.Throws<ArgumentException>(() => DiffTreeResult.ParseFromDiffTreeLine(TwoPathLineFromDiffTree, RepoRoot));

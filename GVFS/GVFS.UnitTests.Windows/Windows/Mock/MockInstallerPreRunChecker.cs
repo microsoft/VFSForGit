@@ -1,11 +1,7 @@
-﻿using GVFS.Common;
-using GVFS.Common.Git;
-using GVFS.Common.Tracing;
-using GVFS.UnitTests.Windows.Upgrader;
+﻿using GVFS.Common.Tracing;
 using GVFS.Upgrader;
 using System;
 using System.Collections.Generic;
-using System.IO;
 
 namespace GVFS.UnitTests.Windows.Mock.Upgrader
 {
@@ -112,9 +108,7 @@ namespace GVFS.UnitTests.Windows.Mock.Upgrader
 
         private bool FakedResultOfCheck(FailOnCheckType checkType)
         {
-            bool result = this.failOnCheck.HasFlag(checkType) ? false : true;
-
-            return result;
+            return !this.failOnCheck.HasFlag(checkType);
         }
     }
 }

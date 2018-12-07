@@ -11,22 +11,22 @@ namespace GVFS.UnitTests.Windows.Upgrader
     [TestFixture]
     public class UpgradeVerbTests : UpgradeTests
     {
-        private MockProcessLauncher ProcessWrapper { get; set; }
-        private UpgradeVerb UpgradeVerb { get; set; }
+        private MockProcessLauncher processLauncher;
+        private UpgradeVerb upgradeVerb;
 
         [SetUp]
         public override void Setup()
         {
             base.Setup();
 
-            this.ProcessWrapper = new MockProcessLauncher(exitCode: 0, hasExited: true, startResult: true);
-            this.UpgradeVerb = new UpgradeVerb(
+            this.processLauncher = new MockProcessLauncher(exitCode: 0, hasExited: true, startResult: true);
+            this.upgradeVerb = new UpgradeVerb(
                 this.Upgrader,
                 this.Tracer,
                 this.PrerunChecker,
-                this.ProcessWrapper,
+                this.processLauncher,
                 this.Output);
-            this.UpgradeVerb.Confirmed = false;
+            this.upgradeVerb.Confirmed = false;
             this.PrerunChecker.SetCommandToRerun("`gvfs upgrade`");
         }
 
@@ -74,7 +74,7 @@ namespace GVFS.UnitTests.Windows.Upgrader
             this.ConfigureRunAndVerify(
                 configure: () =>
                 {
-                    this.UpgradeVerb.Confirmed = true;
+                    this.upgradeVerb.Confirmed = true;
                     this.PrerunChecker.SetCommandToRerun("`gvfs upgrade --confirm`");
                 },
                 expectedReturn: ReturnCode.Success,
@@ -85,7 +85,7 @@ namespace GVFS.UnitTests.Windows.Upgrader
                 },
                 expectedErrors:null);
 
-            this.ProcessWrapper.IsLaunched.ShouldBeTrue();
+            this.processLauncher.IsLaunched.ShouldBeTrue();
         }
 
         [TestCase]
@@ -110,7 +110,7 @@ namespace GVFS.UnitTests.Windows.Upgrader
                 configure: () =>
                 {
                     this.Upgrader.SetFailOnAction(MockProductUpgrader.ActionType.CopyTools);
-                    this.UpgradeVerb.Confirmed = true;
+                    this.upgradeVerb.Confirmed = true;
                     this.PrerunChecker.SetCommandToRerun("`gvfs upgrade --confirm`");
                 },
                 expectedReturn: ReturnCode.GenericError,
@@ -130,7 +130,7 @@ namespace GVFS.UnitTests.Windows.Upgrader
             this.ConfigureRunAndVerify(
                 configure: () =>
                 {
-                    this.UpgradeVerb.Confirmed = true;
+                    this.upgradeVerb.Confirmed = true;
                     this.PrerunChecker.SetReturnFalseOnCheck(MockInstallerPrerunChecker.FailOnCheckType.ProjFSEnabled);
                 },
                 expectedReturn: ReturnCode.GenericError,
@@ -152,7 +152,7 @@ namespace GVFS.UnitTests.Windows.Upgrader
             this.ConfigureRunAndVerify(
                 configure: () =>
                 {
-                    this.UpgradeVerb.Confirmed = true;
+                    this.upgradeVerb.Confirmed = true;
                     this.PrerunChecker.SetReturnTrueOnCheck(MockInstallerPrerunChecker.FailOnCheckType.IsServiceInstalledAndNotRunning);
                 },
                 expectedReturn: ReturnCode.GenericError,
@@ -174,7 +174,7 @@ namespace GVFS.UnitTests.Windows.Upgrader
             this.ConfigureRunAndVerify(
                 configure: () =>
                 {
-                    this.UpgradeVerb.Confirmed = true;
+                    this.upgradeVerb.Confirmed = true;
                     this.PrerunChecker.SetReturnFalseOnCheck(MockInstallerPrerunChecker.FailOnCheckType.IsElevated);
                 },
                 expectedReturn: ReturnCode.GenericError,
@@ -195,7 +195,7 @@ namespace GVFS.UnitTests.Windows.Upgrader
             this.ConfigureRunAndVerify(
                 configure: () =>
                 {
-                    this.UpgradeVerb.Confirmed = true;
+                    this.upgradeVerb.Confirmed = true;
                     this.PrerunChecker.SetReturnTrueOnCheck(MockInstallerPrerunChecker.FailOnCheckType.UnattendedMode);
                 },
                 expectedReturn: ReturnCode.GenericError,
@@ -209,21 +209,18 @@ namespace GVFS.UnitTests.Windows.Upgrader
                 });
         }
 
-        protected override void RunUpgrade()
+        protected override ReturnCode RunUpgrade()
         {
             try
             {
-                this.UpgradeVerb.Execute();
+                this.upgradeVerb.Execute();
             }
             catch (GVFSVerb.VerbAbortedException)
             {
                 // ignore. exceptions are expected while simulating some failures.
             }
-        }
 
-        protected override ReturnCode ExitCode()
-        {
-            return this.UpgradeVerb.ReturnCode;
+            return this.upgradeVerb.ReturnCode;
         }
     }
 }

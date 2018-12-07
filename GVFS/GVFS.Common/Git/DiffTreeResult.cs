@@ -75,7 +75,8 @@ namespace GVFS.Common.Git
             // Take the mode, sha, operation part and split on a space then add the paths that were split on a tab to the end
             parts = parts[0].Split(' ').Concat(parts.Skip(1)).ToArray();
 
-            if (parts.Length != 6)
+            if (parts.Length != 6 ||
+                parts[5].Contains('\t'))
             {
                 // Look at file history to see how -C -M with 7 parts could be handled
                 throw new ArgumentException($"diff-tree lines should have 6 parts unless passed -C or -M which this method doesn't handle", nameof(line));

@@ -24,7 +24,10 @@ namespace GVFS.Platform.Windows
         private const string BuildLabExRegistryValue = "BuildLabEx";
 
         public WindowsPlatform()
-            : base(executableExtension: ".exe", installerExtension: ".exe")
+            : base(
+                executableExtension: ".exe", 
+                installerExtension: ".exe",
+                underConstruction: new UnderConstructionFlags(requiresDeprecatedGitHooksLoader: true))
         {
         }
 

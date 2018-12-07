@@ -117,7 +117,7 @@ namespace GVFS.CommandLine
 
                 if (!GVFSPlatform.Instance.KernelDriver.IsReady(tracer, enlistment.EnlistmentRoot, out errorMessage))
                 {
-                    if (GVFSPlatform.Instance.SupportsGVFSService)
+                    if (GVFSPlatform.Instance.UnderConstruction.SupportsGVFSService)
                     {
                         tracer.RelatedEvent(
                             EventLevel.Informational,
@@ -214,7 +214,7 @@ namespace GVFS.CommandLine
             }
 
             if (!this.Unattended &&
-                GVFSPlatform.Instance.SupportsGVFSService)
+                GVFSPlatform.Instance.UnderConstruction.SupportsGVFSService)
             {
                 if (!this.ShowStatusWhileRunning(
                     () => { return this.RegisterMount(enlistment, out errorMessage); },
@@ -276,10 +276,6 @@ namespace GVFS.CommandLine
             }
 
             const string ParamPrefix = "--";
-            if (GVFSPlatform.Instance.IsUnderConstruction)
-            {
-                mountExecutableLocation = Path.Combine(ProcessHelper.GetCurrentProcessLocation(), "gvfs.mount");
-            }
 
             GVFSPlatform.Instance.StartBackgroundProcess(
                 mountExecutableLocation,
@@ -293,12 +289,6 @@ namespace GVFS.CommandLine
                     ParamPrefix + GVFSConstants.VerbParameters.Mount.StartedByService,
                     this.StartedByService.ToString()
                 });
-
-            if (GVFSPlatform.Instance.IsUnderConstruction)
-            {
-                // TODO(Mac): figure out the timing issue here on connecting to the pipe
-                System.Threading.Thread.Sleep(TimeSpan.FromSeconds(1));
-            }
 
             return GVFSEnlistment.WaitUntilMounted(enlistment.EnlistmentRoot, this.Unattended, out errorMessage);
         }

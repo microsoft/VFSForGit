@@ -94,9 +94,7 @@ namespace GVFS.UnitTests.Windows.Upgrader
                 });
         }
 
-        protected abstract void RunUpgrade();
-
-        protected abstract ReturnCode ExitCode();
+        protected abstract ReturnCode RunUpgrade();
 
         protected void ConfigureRunAndVerify(
             Action configure,
@@ -106,22 +104,20 @@ namespace GVFS.UnitTests.Windows.Upgrader
         {
             configure();
 
-            this.RunUpgrade();
-
-            this.ExitCode().ShouldEqual(expectedReturn);
+            this.RunUpgrade().ShouldEqual(expectedReturn);
 
             if (expectedOutput != null)
             {
                 this.Output.AllLines.ShouldContain(
-                expectedOutput,
-                (line, expectedLine) => { return line.Contains(expectedLine); });
+                    expectedOutput,
+                    (line, expectedLine) => { return line.Contains(expectedLine); });
             }
 
             if (expectedErrors != null)
             {
                 this.Tracer.RelatedErrorEvents.ShouldContain(
-                expectedErrors,
-                (error, expectedError) => { return error.Contains(expectedError); });
+                    expectedErrors,
+                    (error, expectedError) => { return error.Contains(expectedError); });
             }
         }
     }

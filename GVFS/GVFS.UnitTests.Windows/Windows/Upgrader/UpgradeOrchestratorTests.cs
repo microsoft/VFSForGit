@@ -10,14 +10,14 @@ namespace GVFS.UnitTests.Windows.Upgrader
     [TestFixture]
     public class UpgradeOrchestratorTests : UpgradeTests
     {
-        private UpgradeOrchestrator Orchestrator { get; set; }
+        private UpgradeOrchestrator orchestrator;
 
         [SetUp]
         public override void Setup()
         {
             base.Setup();
 
-            this.Orchestrator = new UpgradeOrchestrator(
+            this.orchestrator = new UpgradeOrchestrator(
                 this.Upgrader,
                 this.Tracer,
                 this.PrerunChecker,
@@ -29,8 +29,7 @@ namespace GVFS.UnitTests.Windows.Upgrader
         [TestCase]
         public void UpgradeNoError()
         {
-            this.Orchestrator.Execute();
-            this.Orchestrator.ExitCode.ShouldEqual(ReturnCode.Success);
+            this.RunUpgrade().ShouldEqual(ReturnCode.Success);
             this.Tracer.RelatedErrorEvents.ShouldBeEmpty();
         }
 
@@ -114,9 +113,7 @@ namespace GVFS.UnitTests.Windows.Upgrader
         [TestCase]
         public void GitInstallationArgs()
         {
-            this.Orchestrator.Execute();
-
-            this.Orchestrator.ExitCode.ShouldEqual(ReturnCode.Success);
+            this.RunUpgrade().ShouldEqual(ReturnCode.Success);
 
             Dictionary<string, string> gitInstallerInfo;
             this.Upgrader.InstallerArgs.ShouldBeNonEmpty();
@@ -149,9 +146,7 @@ namespace GVFS.UnitTests.Windows.Upgrader
         [TestCase]
         public void GVFSInstallationArgs()
         {
-           this.Orchestrator.Execute();
-
-            this.Orchestrator.ExitCode.ShouldEqual(ReturnCode.Success);
+            this.RunUpgrade().ShouldEqual(ReturnCode.Success);
 
             Dictionary<string, string> gitInstallerInfo;
             this.Upgrader.InstallerArgs.ShouldBeNonEmpty();
@@ -236,14 +231,10 @@ namespace GVFS.UnitTests.Windows.Upgrader
                 });
         }
 
-        protected override void RunUpgrade()
+        protected override ReturnCode RunUpgrade()
         {
-            this.Orchestrator.Execute();
-        }
-
-        protected override ReturnCode ExitCode()
-        {
-            return this.Orchestrator.ExitCode;
+            this.orchestrator.Execute();
+            return this.orchestrator.ExitCode;
         }
     }
 }

@@ -10,9 +10,10 @@ namespace GVFS.Common
 {
     public abstract class GVFSPlatform
     {
-        public GVFSPlatform(string executableExtension, string installerExtension)
+        public GVFSPlatform(string executableExtension, string installerExtension, UnderConstructionFlags underConstruction)
         {
             this.Constants = new GVFSPlatformConstants(executableExtension, installerExtension);
+            this.UnderConstruction = underConstruction;
         }
 
         public static GVFSPlatform Instance { get; private set; }
@@ -21,10 +22,9 @@ namespace GVFS.Common
         public abstract IGitInstallation GitInstallation { get; }
         public abstract IDiskLayoutUpgradeData DiskLayoutUpgrade { get; }
         public abstract IPlatformFileSystem FileSystem { get; }
-        public virtual bool IsUnderConstruction { get; } = false;
-        public virtual bool SupportsGVFSService { get; } = true;
-        public virtual bool SupportsGVFSUpgrade { get; } = true;
+
         public GVFSPlatformConstants Constants { get; }
+        public UnderConstructionFlags UnderConstruction { get; }
 
         public static void Register(GVFSPlatform platform)
         {
@@ -127,6 +127,29 @@ namespace GVFS.Common
             {
                 get { return "GVFS.Upgrader" + this.ExecutableExtension;  }
             }
+        }
+
+        public class UnderConstructionFlags
+        {
+            public UnderConstructionFlags(
+                bool supportsGVFSService = true,
+                bool supportsGVFSUpgrade = true,
+                bool supportsGVFSConfig = true,
+                bool supportsKernelLogs = true,
+                bool requiresDeprecatedGitHooksLoader = false)
+            {
+                this.SupportsGVFSService = supportsGVFSService;
+                this.SupportsGVFSUpgrade = supportsGVFSUpgrade;
+                this.SupportsGVFSConfig = supportsGVFSConfig;
+                this.SupportsKernelLogs = supportsKernelLogs;
+                this.RequiresDeprecatedGitHooksLoader = requiresDeprecatedGitHooksLoader;
+            }
+
+            public bool SupportsGVFSService { get; }
+            public bool SupportsGVFSUpgrade { get; }
+            public bool SupportsGVFSConfig { get; }
+            public bool SupportsKernelLogs { get; }
+            public bool RequiresDeprecatedGitHooksLoader { get; }
         }
     }
 }

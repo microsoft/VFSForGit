@@ -53,7 +53,7 @@ namespace GVFS.Platform.Mac
             byte** argvPtr = null,
             byte** envpPtr = null)
         {
-            // TODO(Mac): log errors here to a log file
+            // TODO(Mac): Issue #583, log errors here to a log file
 
             int fdin = Open("/dev/null", (int)NetCoreMethods.OpenFlags.O_RDONLY);
             int fdout = Open("/dev/null", (int)NetCoreMethods.OpenFlags.O_WRONLY);

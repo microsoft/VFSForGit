@@ -18,7 +18,6 @@ namespace GVFS.Platform.Mac
 
         public bool IsGVFSUpgradeSupported()
         {
-            // TODO(Mac)
             return false;
         }
 
