@@ -79,6 +79,9 @@ namespace GVFS.Service
                 if (newerVersion == null)
                 {
                     // Already up-to-date
+                    // Make sure there a no asset installers remaining in the Downloads directory. This can happen if user
+                    // upgraded by manually downloading and running asset installers.
+                    productUpgrader.DeletePreviousDownloads();
                     errorMessage = null;
                     return true;
                 }

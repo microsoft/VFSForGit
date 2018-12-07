@@ -5,6 +5,7 @@ using NUnit.Framework;
 using System;
 using System.IO;
 using System.Linq;
+using System.Threading;
 
 namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
 {
@@ -16,6 +17,8 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
     {
         private const string GVFSInstallerName = "VFSForGit.1.0.18234.1.exe";
         private const string GitInstallerName = "Git-2.17.1.gvfs.2.5.g2962052-64-bit.exe";
+        private const string UpgradeRingKey = "upgrade.ring";
+        private const string AlwaysUpToDateRing = "None";
 
         private string upgradeDirectory;
         private FileSystemRunner fileSystem;
@@ -49,28 +52,15 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
         public void RemindWhenUpgradeAvailable()
         {
             this.CreateUpgradeInstallers();
-
-            string errors = string.Empty;
-            for (int count = 0; count < 50; count++)
-            {
-                ProcessResult result = GitHelpers.InvokeGitAgainstGVFSRepo(
-                    this.Enlistment.RepoRoot,
-                    "status",
-                    removeWaitingMessages: true,
-                    removeUpgradeMessages: false);
-
-                if (!string.IsNullOrEmpty(result.Errors))
-                {
-                    errors += result.Errors;
-                }
-            }
-
-            errors.ShouldContain(new string[] 
-                {
-                    "A new version of GVFS is available."
-                });
-
+            this.ReminderMessagingEnabled().ShouldBeTrue();
             this.EmptyDownloadDirectory();
+        }
+
+        [TestCase]
+        public void NoReminderForLeftOverDownloads()
+        {
+            this.VerifyServiceRestartStopsReminder();
+            this.VerifyUpgradeVerbStopsReminder();
         }
 
         private void EmptyDownloadDirectory()
@@ -96,6 +86,78 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
             this.fileSystem.CreateEmptyFile(gitInstallerPath);
             this.fileSystem.FileExists(gvfsInstallerPath).ShouldBeTrue();
             this.fileSystem.FileExists(gitInstallerPath).ShouldBeTrue();
+        }
+
+        private void SetUpgradeRing(string value)
+        {
+            this.RunGVFS($"config {UpgradeRingKey} {value}");
+        }
+
+        private string RunUpgradeCommand()
+        {
+            return this.RunGVFS("upgrade");
+        }
+
+        private string RunGVFS(string argument)
+        {
+            ProcessResult result = ProcessHelper.Run(GVFSTestConfig.PathToGVFS, argument);
+            result.ExitCode.ShouldEqual(0, result.Errors);
+
+            return result.Output;
+        }
+
+        private void RestartService()
+        {
+            GVFSServiceProcess.StopService();
+            GVFSServiceProcess.StartService();
+        }
+
+        private bool ReminderMessagingEnabled()
+        {
+            for (int count = 0; count < 50; count++)
+            {
+                ProcessResult result = GitHelpers.InvokeGitAgainstGVFSRepo(
+                this.Enlistment.RepoRoot,
+                "status",
+                removeWaitingMessages:true,
+                removeUpgradeMessages:false);
+
+                if (!string.IsNullOrEmpty(result.Errors) &&
+                    result.Errors.Contains("A new version of GVFS is available."))
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        private void VerifyServiceRestartStopsReminder()
+        {
+            this.CreateUpgradeInstallers();
+            this.ReminderMessagingEnabled().ShouldBeTrue();
+            this.SetUpgradeRing(AlwaysUpToDateRing);
+            this.RestartService();
+
+            // Wait for sometime so service can detect product is up-to-date and delete left over downloads
+            TimeSpan timeToWait = TimeSpan.FromMinutes(1);
+            bool reminderMessagingEnabled = true;
+            while ((reminderMessagingEnabled = this.ReminderMessagingEnabled()) && timeToWait > TimeSpan.Zero)
+            {
+                Thread.Sleep(TimeSpan.FromSeconds(5));
+                timeToWait = timeToWait.Subtract(TimeSpan.FromSeconds(5));
+            }
+
+            reminderMessagingEnabled.ShouldBeFalse();
+        }
+
+        private void VerifyUpgradeVerbStopsReminder()
+        {
+            this.SetUpgradeRing(AlwaysUpToDateRing);
+            this.CreateUpgradeInstallers();
+            this.ReminderMessagingEnabled().ShouldBeTrue();
+            this.RunUpgradeCommand();
+            this.ReminderMessagingEnabled().ShouldBeFalse();
         }
     }
 }

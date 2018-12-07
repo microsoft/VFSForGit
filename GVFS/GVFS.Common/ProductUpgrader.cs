@@ -301,6 +301,18 @@ namespace GVFS.Common
             return false;
         }
 
+        public void DeletePreviousDownloads()
+        {
+            try
+            {
+                this.fileSystem.DeleteDirectory(GetAssetDownloadsPath());
+            }
+            catch (Exception ex)
+            {
+                this.TraceException(ex, nameof(this.DeletePreviousDownloads), $"Could not remove directory: {GetAssetDownloadsPath()}");
+            }
+        }
+
         protected virtual bool TryDeleteDownloadedAsset(Asset asset, out Exception exception)
         {
             return this.fileSystem.TryDeleteFile(asset.LocalPath, out exception);
