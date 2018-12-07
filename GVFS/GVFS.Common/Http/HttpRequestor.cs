@@ -67,6 +67,16 @@ namespace GVFS.Common.Http
                 if (this.authentication.GitSslSettings.SslCertPasswordProtected)
                 {
                     certificatePassword = this.LoadCertificatePassword(this.authentication.GitSslSettings.SslCertificate, enlistment.CreateGitProcess());
+
+                    if (string.IsNullOrEmpty(certificatePassword))
+                    {
+                        this.Tracer.RelatedWarning(
+                            new EventMetadata
+                            {
+                                {"SslCertificate", this.authentication.GitSslSettings.SslCertificate}
+                            },
+                            "Git config indicates, that certificate is password protected, but retrieved password was null or empty!");
+                    }
                 }
 
                 var cert = this.LoadCertificate(this.authentication.GitSslSettings.SslCertificate, certificatePassword, this.authentication.GitSslSettings.SslVerify);
@@ -324,6 +334,13 @@ namespace GVFS.Common.Http
 
         private X509Certificate2 LoadCertificate(string certId, string certificatePassword, bool onlyLoadValidCertificateFromStore)
         {
+            EventMetadata metadata = new EventMetadata
+            {
+                { "certId", certId },
+                { "isPasswordSpecified", string.IsNullOrEmpty(certificatePassword) },
+                { "shouldVerify", onlyLoadValidCertificateFromStore }
+            };
+
             if (File.Exists(certId))
             {
                 try
@@ -331,6 +348,7 @@ namespace GVFS.Common.Http
                     var cert = new X509Certificate2(certId, certificatePassword);
                     if (onlyLoadValidCertificateFromStore && cert != null && !cert.Verify())
                     {
+                        this.Tracer.RelatedWarning(metadata, "Certficate was found, but is invalid.");
                         return null;
                     }
 
@@ -338,7 +356,6 @@ namespace GVFS.Common.Http
                 }
                 catch (CryptographicException cryptEx)
                 {
-                    EventMetadata metadata = new EventMetadata();
                     metadata.Add("Exception", cryptEx);
                     this.Tracer.RelatedError(metadata, "Error, while loading certificate from disk");
                     return null;
@@ -355,7 +372,6 @@ namespace GVFS.Common.Http
             }
             catch (CryptographicException cryptEx)
             {
-                EventMetadata metadata = new EventMetadata();
                 metadata.Add("Exception", cryptEx);
                 this.Tracer.RelatedError(metadata, "Error, while searching for certificate in store");
                 return null;
