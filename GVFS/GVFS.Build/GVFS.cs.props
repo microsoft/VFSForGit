@@ -10,7 +10,8 @@
   </PropertyGroup>
   
   <PropertyGroup>
-      <CodeAnalysisRuleSet>$(MSBuildThisFileDirectory)\GVFS.ruleset</CodeAnalysisRuleSet>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <CodeAnalysisRuleSet>$(MSBuildThisFileDirectory)\GVFS.ruleset</CodeAnalysisRuleSet>
   </PropertyGroup>
 
   <PropertyGroup>
