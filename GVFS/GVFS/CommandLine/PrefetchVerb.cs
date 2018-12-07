@@ -45,8 +45,22 @@ namespace GVFS.CommandLine
             "folders-list",
             Required = false,
             Default = "",
-            HelpText = "A file containing line-delimited list of folders to fetch. Wildcards are not supported. Specify \"stdin\" for stdin")]
+            HelpText = "A file containing line-delimited list of folders to fetch. Wildcards are not supported")]
         public string FoldersListFile { get; set; }
+
+        [Option(
+            "stdin-files-list",
+            Required = false,
+            Default = false,
+            HelpText = "Specify this flag to load file list from stdin. Same format as when loading from file")]
+        public bool FilesFromStdIn { get; set; }
+
+        [Option(
+            "stdin-folders-list",
+            Required = false,
+            Default = false,
+            HelpText = "Specify this flag to load folder list from stdin. Same format as when loading from file")]
+        public bool FoldersFromStdIn { get; set; }
 
         [Option(
             "files-list",
@@ -149,7 +163,7 @@ namespace GVFS.CommandLine
                         FileBasedDictionary<string, string> lastPrefetchArgs;
 
                         this.LoadBlobPrefetchArgs(tracer, enlistment, out headCommitId, out filesList, out foldersList, out lastPrefetchArgs);
-                        
+
                         if (BlobPrefetcher.IsNoopPrefetch(tracer, lastPrefetchArgs, headCommitId, filesList, foldersList, this.HydrateFiles))
                         {
                             Console.WriteLine("All requested files are already available. Nothing new to prefetch.");
@@ -282,7 +296,7 @@ namespace GVFS.CommandLine
             out FileBasedDictionary<string, string> lastPrefetchArgs)
         {
             string error;
-            
+
             if (!FileBasedDictionary<string, string>.TryCreate(
                     tracer,
                     Path.Combine(enlistment.DotGVFSRoot, "LastBlobPrefetch.dat"),
@@ -296,12 +310,12 @@ namespace GVFS.CommandLine
             filesList = new List<string>();
             foldersList = new List<string>();
 
-            if (!BlobPrefetcher.TryLoadFileList(enlistment, this.Files, this.FileListFile, filesList, out error))
+            if (!BlobPrefetcher.TryLoadFileList(enlistment, this.Files, this.FileListFile, this.FilesFromStdIn, filesList, out error))
             {
                 this.ReportErrorAndExit(tracer, error);
             }
 
-            if (!BlobPrefetcher.TryLoadFolderList(enlistment, this.Folders, this.FoldersListFile, foldersList, out error))
+            if (!BlobPrefetcher.TryLoadFolderList(enlistment, this.Folders, this.FoldersListFile, this.FoldersFromStdIn, foldersList, out error))
             {
                 this.ReportErrorAndExit(tracer, error);
             }

@@ -3,6 +3,7 @@ using GVFS.FunctionalTests.Should;
 using GVFS.FunctionalTests.Tools;
 using GVFS.Tests.Should;
 using NUnit.Framework;
+using System;
 using System.IO;
 using System.Threading;
 
@@ -132,7 +133,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
         [Category(Categories.MacTODO.M4)]
         public void PrefetchCleansUpPackDir()
         {
-            string multiPackIndexLockFile = Path.Combine(this.Enlistment.GetPackRoot(this.fileSystem),  MultiPackIndexLock);
+            string multiPackIndexLockFile = Path.Combine(this.Enlistment.GetPackRoot(this.fileSystem), MultiPackIndexLock);
             string oldGitTempFile = Path.Combine(this.Enlistment.GetPackRoot(this.fileSystem), "tmp_midx_XXXX");
 
             this.fileSystem.WriteAllText(multiPackIndexLockFile, this.Enlistment.EnlistmentRoot);
@@ -170,14 +171,14 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
         public void PrefetchFilesFromFileListStdIn()
         {
             var input = string.Join(
-                "\n",
+                Environment.NewLine,
                 new[]
                 {
                     Path.Combine("GVFS", "GVFS", "packages.config"),
                     Path.Combine("GVFS", "GVFS.FunctionalTests", "App.config")
                 });
 
-            this.ExpectBlobCount(this.Enlistment.Prefetch("--files-list stdin", standardInput: input), 2);
+            this.ExpectBlobCount(this.Enlistment.Prefetch("--stdin-files-list", standardInput: input), 2);
         }
 
         private void ExpectBlobCount(string output, int expectedCount)

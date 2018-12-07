@@ -84,20 +84,21 @@ namespace GVFS.Common.Prefetch
 
         public List<string> FolderList { get; }
 
-        public static bool TryLoadFolderList(Enlistment enlistment, string foldersInput, string folderListFile, List<string> folderListOutput, out string error)
+        public static bool TryLoadFolderList(Enlistment enlistment, string foldersInput, string folderListFile, bool readListFromStdIn, List<string> folderListOutput, out string error)
         {
-            return TryLoadFileOrFolderList(enlistment, foldersInput, folderListFile, true, folderListOutput, s => s.Contains("*") ? "Wildcards are not supported for folders. Invalid entry: " + s : null, out error);
+            return TryLoadFileOrFolderList(enlistment, foldersInput, folderListFile, isFolder: true, readListFromStdIn: readListFromStdIn, output: folderListOutput, elementValidationFunction: s => s.Contains("*") ? "Wildcards are not supported for folders. Invalid entry: " + s : null, error: out error);
         }
 
-        public static bool TryLoadFileList(Enlistment enlistment, string filesInput, string filesListFile, List<string> fileListOutput, out string error)
-            {
+        public static bool TryLoadFileList(Enlistment enlistment, string filesInput, string filesListFile, bool readListFromStdIn, List<string> fileListOutput, out string error)
+        {
             return TryLoadFileOrFolderList(
                 enlistment,
                 filesInput,
                 filesListFile,
-                false,
-                fileListOutput,
-                s =>
+                readListFromStdIn: readListFromStdIn,
+                isFolder: false,
+                output: fileListOutput,
+                elementValidationFunction: s =>
                 {
                     if (s.IndexOf('*', 1) != -1)
                     {
@@ -107,12 +108,12 @@ namespace GVFS.Common.Prefetch
                     if (s.EndsWith(GVFSConstants.GitPathSeparatorString) ||
                         s.EndsWith(pathSeparatorString))
                     {
-                    return "Folders are not allowed in the file list. Invalid entry: " + s;
+                        return "Folders are not allowed in the file list. Invalid entry: " + s;
                     }
 
                     return null;
                 },
-                out error);
+                error: out error);
         }
 
         public static bool IsNoopPrefetch(
@@ -479,50 +480,68 @@ namespace GVFS.Common.Prefetch
             }
         }
 
-        private static bool TryLoadFileOrFolderList(Enlistment enlistment, string valueString, string listFileName, bool isFolder, List<string> output, Func<string, string> elementValidationFunction, out string error)
+        private static IEnumerable<string> GetFilesFromParameter(string valueString)
         {
-            output.AddRange(
-                valueString.Split(new[] { ';' }, StringSplitOptions.RemoveEmptyEntries)
-                .Select(path => BlobPrefetcher.ToAbsolutePath(enlistment, path, isFolder: isFolder)));
+            return valueString.Split(new[] { ';' }, StringSplitOptions.RemoveEmptyEntries);
+        }
 
-            if (!string.IsNullOrWhiteSpace(listFileName))
+        private static IEnumerable<string> GetFilesFromFile(string fileName, out string error)
+        {
+            error = null;
+            if (string.IsNullOrWhiteSpace(fileName))
             {
-                IEnumerable<string> linesFromFile = null;
-                if (File.Exists(listFileName))
-                {
-                    linesFromFile = File.ReadAllLines(listFileName);
-                }
-                else if (listFileName == StdInFileName)
-            {
-                    linesFromFile = Console.In
-                        .ReadToEnd()
-                        .Split(new char[] { '\n' }, StringSplitOptions.RemoveEmptyEntries)
-                        .Select(x => x.Trim())
-                        .Where(x => !string.IsNullOrWhiteSpace(x));
-                }
-                else
-                {
-                    error = string.Format("Could not find '{0}' list file.", listFileName);
-                    return false;
-                }
-
-                IEnumerable<string> allLines = linesFromFile
-                        .Select(line => line.Trim())
-                        .Where(line => !string.IsNullOrEmpty(line))
-                        .Where(line => !line.StartsWith(GVFSConstants.GitCommentSign.ToString()))
-                        .Select(path => BlobPrefetcher.ToAbsolutePath(enlistment, path, isFolder: isFolder));
-
-                    output.AddRange(allLines);
+                return Enumerable.Empty<string>();
             }
 
-            output.RemoveAll(string.IsNullOrWhiteSpace);
+            if (!File.Exists(fileName))
+            {
+                error = string.Format("Could not find '{0}' list file.", fileName);
+                return Enumerable.Empty<string>();
+            }
 
-            string[] errorArray = output.Select(elementValidationFunction).Where(s => !string.IsNullOrWhiteSpace(s)).ToArray();
+            return File.ReadAllLines(fileName)
+                        .Select(line => line.Trim());
+        }
+
+        private static IEnumerable<string> GetFilesFromStdin(bool shouldRead)
+        {
+            if (!shouldRead)
+            {
+                yield break;
+            }
+
+            string line;
+            while ((line = Console.In.ReadLine()) != null)
+            {
+                yield return line.Trim();
+            }
+        }
+
+        private static bool TryLoadFileOrFolderList(Enlistment enlistment, string valueString, string listFileName, bool readListFromStdIn, bool isFolder, List<string> output, Func<string, string> elementValidationFunction, out string error)
+        {
+            output.AddRange(
+                GetFilesFromParameter(valueString)
+                .Union(GetFilesFromFile(listFileName, out string fileReadError))
+                .Union(GetFilesFromStdin(readListFromStdIn))
+                .Where(path => !path.StartsWith(GVFSConstants.GitCommentSign.ToString()))
+                .Where(path => !string.IsNullOrWhiteSpace(path))
+                .Select(path => BlobPrefetcher.ToAbsolutePath(enlistment, path, isFolder: isFolder)));
+
+            if (!string.IsNullOrWhiteSpace(fileReadError))
+            {
+                error = fileReadError;
+                return false;
+            }
+
+            string[] errorArray = output
+                .Select(elementValidationFunction)
+                .Where(s => !string.IsNullOrWhiteSpace(s))
+                .ToArray();
 
             if (errorArray != null && errorArray.Length > 0)
-                {
+            {
                 error = string.Join("\n", errorArray);
-                    return false;
+                return false;
             }
 
             error = null;
