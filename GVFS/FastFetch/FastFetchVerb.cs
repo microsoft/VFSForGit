@@ -122,13 +122,6 @@ namespace FastFetch
         public string FolderListFile { get; set; }
 
         [Option(
-            "stdin-folders-list",
-            Required = false,
-            Default = false,
-            HelpText = "Specify this flag to load folder list from stdin. Same format as when loading from file.")]
-        public bool FoldersFromStdIn { get; set; }
-
-        [Option(
             "Allow-index-metadata-update-from-working-tree",
             Required = false,
             Default = false,
@@ -249,7 +242,7 @@ namespace FastFetch
 
                 RetryConfig retryConfig = new RetryConfig(this.MaxAttempts, TimeSpan.FromMinutes(RetryConfig.FetchAndCloneTimeoutMinutes));
                 BlobPrefetcher prefetcher = this.GetFolderPrefetcher(tracer, enlistment, cacheServer, retryConfig);
-                if (!BlobPrefetcher.TryLoadFolderList(enlistment, this.FolderList, this.FolderListFile, this.FoldersFromStdIn, prefetcher.FolderList, out error))
+                if (!BlobPrefetcher.TryLoadFolderList(enlistment, this.FolderList, this.FolderListFile, false, prefetcher.FolderList, out error))
                 {
                     tracer.RelatedError(error);
                     Console.WriteLine(error);
