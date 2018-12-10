@@ -251,7 +251,6 @@ namespace GVFS.FunctionalTests.Windows.Windows.Tests
                     randAccessor.CanRead.ShouldEqual(true);
 
                     for (int i = 0; i < size; ++i)
-
                     {
                         ((char)randAccessor.ReadByte(i)).ShouldEqual(contents[i]);
                     }

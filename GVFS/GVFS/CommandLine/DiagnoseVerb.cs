@@ -317,7 +317,7 @@ namespace GVFS.CommandLine
                     lines.Add($"Contents of {folder}:");
                     foreach (FileInfo file in packDirectory.EnumerateFiles())
                     {
-                        lines.Add($"{file.Name,-70} {file.Length,16}");
+                        lines.Add($"{file.Name, -70} {file.Length, 16}");
                     }
                 }
 
@@ -363,7 +363,7 @@ namespace GVFS.CommandLine
                         {
                             countFolders++;
                             int numObjects = directory.EnumerateFiles().Count();
-                            lines.Add($"{directory.Name} : {numObjects,7} objects");
+                            lines.Add($"{directory.Name} : {numObjects, 7} objects");
                             countLoose += numObjects;
                         }
                     }

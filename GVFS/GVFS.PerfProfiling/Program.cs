@@ -9,7 +9,7 @@ using System.Linq;
 
 namespace GVFS.PerfProfiling
 {
-    class Program
+    internal class Program
     {
         [Flags]
         private enum TestsToRun
@@ -20,7 +20,7 @@ namespace GVFS.PerfProfiling
             All = -1,
         }
 
-        static void Main(string[] args)
+        private static void Main(string[] args)
         {
             GVFSPlatformLoader.Initialize();
             string enlistmentRootPath = @"M:\OS";
@@ -131,7 +131,7 @@ namespace GVFS.PerfProfiling
                 byteCount = byteCount / Divisor;
             }
 
-            return (isNegative ? "-" : "") + byteCount.ToString("N0") + unitStrings[unitIndex];
+            return (isNegative ? "-" : string.Empty) + byteCount.ToString("N0") + unitStrings[unitIndex];
         }
     }
 }

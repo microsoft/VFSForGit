@@ -31,13 +31,13 @@ namespace GVFS.Upgrader
                 if (this.IsUnattended())
                 {
                     consoleError = $"{GVFSConstants.UpgradeVerbMessages.GVFSUpgrade} is not supported in unattended mode";
-                    this.tracer.RelatedError($"{nameof(TryRunPreUpgradeChecks)}: {consoleError}");
+                    this.tracer.RelatedError($"{nameof(this.TryRunPreUpgradeChecks)}: {consoleError}");
                     return false;
                 }
                 
                 if (!this.IsGVFSUpgradeAllowed(out consoleError))
                 {
-                    this.tracer.RelatedError($"{nameof(TryRunPreUpgradeChecks)}: {consoleError}");
+                    this.tracer.RelatedError($"{nameof(this.TryRunPreUpgradeChecks)}: {consoleError}");
                     return false;
                 }
 
@@ -65,7 +65,7 @@ namespace GVFS.Upgrader
             {
                 if (!this.TryRunGVFSWithArgs("service --unmount-all", out consoleError))
                 {
-                    this.tracer.RelatedError($"{nameof(TryUnmountAllGVFSRepos)}: {consoleError}");
+                    this.tracer.RelatedError($"{nameof(this.TryUnmountAllGVFSRepos)}: {consoleError}");
                     return false;
                 }
 
@@ -94,7 +94,7 @@ namespace GVFS.Upgrader
                         Environment.NewLine,
                         "Blocking processes are running.",
                         $"Run {this.CommandToRerun} again after quitting these processes - " + string.Join(", ", processList.ToArray()));
-                    this.tracer.RelatedError($"{nameof(TryUnmountAllGVFSRepos)}: {consoleError}");
+                    this.tracer.RelatedError($"{nameof(this.TryUnmountAllGVFSRepos)}: {consoleError}");
                     return false;
                 }
 

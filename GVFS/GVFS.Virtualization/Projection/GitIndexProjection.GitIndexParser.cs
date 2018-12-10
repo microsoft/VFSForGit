@@ -63,7 +63,7 @@ namespace GVFS.Virtualization.Projection
             {
                 if (this.projection == null)
                 {
-                    throw new InvalidOperationException($"{nameof(this.projection)} cannot be null when calling {nameof(RebuildProjection)}");
+                    throw new InvalidOperationException($"{nameof(this.projection)} cannot be null when calling {nameof(this.RebuildProjection)}");
                 }
 
                 this.projection.ClearProjectionCaches();
@@ -76,7 +76,7 @@ namespace GVFS.Virtualization.Projection
                 if (result != FileSystemTaskResult.Success)
                 {
                     // RebuildProjection should always result in FileSystemTaskResult.Success (or a thrown exception)
-                    throw new InvalidOperationException($"{nameof(RebuildProjection)}: {nameof(GitIndexParser.ParseIndex)} failed to {nameof(this.AddIndexEntryToProjection)}");
+                    throw new InvalidOperationException($"{nameof(this.RebuildProjection)}: {nameof(GitIndexParser.ParseIndex)} failed to {nameof(this.AddIndexEntryToProjection)}");
                 }
             }
 
@@ -86,7 +86,7 @@ namespace GVFS.Virtualization.Projection
             {
                 if (this.projection == null)
                 {
-                    throw new InvalidOperationException($"{nameof(this.projection)} cannot be null when calling {nameof(AddMissingModifiedFilesAndRemoveThemFromPlaceholderList)}");
+                    throw new InvalidOperationException($"{nameof(this.projection)} cannot be null when calling {nameof(this.AddMissingModifiedFilesAndRemoveThemFromPlaceholderList)}");
                 }
 
                 Dictionary<string, PlaceholderListDatabase.PlaceholderData> filePlaceholders =

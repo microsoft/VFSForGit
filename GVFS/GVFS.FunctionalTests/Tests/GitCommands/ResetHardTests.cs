@@ -17,7 +17,7 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
         [TestCase]
         public void VerifyResetHardDeletesEmptyFolders()
         {
-            ControlGitRepo.Fetch("FunctionalTests/20170202_RenameTestMergeTarget");
+            this.ControlGitRepo.Fetch("FunctionalTests/20170202_RenameTestMergeTarget");
             this.ValidateGitCommand("checkout FunctionalTests/20170202_RenameTestMergeTarget");
             this.ValidateGitCommand("reset --hard HEAD~1");
             this.ShouldNotExistOnDisk("Test_EPF_GitCommandsTestOnlyFileFolder");

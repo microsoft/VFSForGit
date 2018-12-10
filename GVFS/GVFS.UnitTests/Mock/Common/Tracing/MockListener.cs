@@ -6,12 +6,12 @@ namespace GVFS.UnitTests.Mock.Common.Tracing
 {
     public class MockListener : InProcEventListener
     {
-        public readonly List<string> EventNamesRead = new List<string>();
-
         public MockListener(EventLevel maxVerbosity, Keywords keywordFilter)
             : base(maxVerbosity, keywordFilter)
         {
         }
+
+        public List<string> EventNamesRead { get; set; } = new List<string>();
 
         protected override void RecordMessageInternal(string eventName, Guid activityId, Guid parentActivityId, EventLevel level, Keywords keywords, EventOpcode opcode, string jsonPayload)
         {

@@ -1225,7 +1225,7 @@ namespace GVFS.Virtualization.Projection
                             }
                             catch (Exception e)
                             {
-                                this.LogErrorAndExit(nameof(ProcessListOnThreads) + " background thread caught unhandled exception, exiting process", e);
+                                this.LogErrorAndExit(nameof(this.ProcessListOnThreads) + " background thread caught unhandled exception, exiting process", e);
                             }
                         });
 
@@ -1736,7 +1736,7 @@ namespace GVFS.Virtualization.Projection
                     catch (Exception e)
                     {
                         EventMetadata metadata = CreateEventMetadata(e);
-                        this.context.Tracer.RelatedWarning(metadata, $"{nameof(BuildProjection)}: Exception thrown by {nameof(GitIndexParser.RebuildProjection)}");
+                        this.context.Tracer.RelatedWarning(metadata, $"{nameof(this.BuildProjection)}: Exception thrown by {nameof(GitIndexParser.RebuildProjection)}");
 
                         this.SetProjectionInvalid(true);
                         throw;
