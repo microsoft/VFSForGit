@@ -106,7 +106,7 @@ namespace FastFetch
             Required = false,
             HelpText = "Sets the path and filename for git.exe if it isn't expected to be on %PATH%.")]
         public string GitBinPath { get; set; }
-        
+
         [Option(
             "folders",
             Required = false,
@@ -120,6 +120,13 @@ namespace FastFetch
             Default = "",
             HelpText = "A file containing line-delimited list of folders to fetch")]
         public string FolderListFile { get; set; }
+
+        [Option(
+            "stdin-folders-list",
+            Required = false,
+            Default = false,
+            HelpText = "Specify this flag to load folder list from stdin. Same format as when loading from file.")]
+        public bool FoldersFromStdIn { get; set; }
 
         [Option(
             "Allow-index-metadata-update-from-working-tree",
@@ -172,7 +179,7 @@ namespace FastFetch
                 Console.WriteLine("Cannot use --force-checkout option without --checkout option.");
                 return ExitFailure;
             }
-            
+
             this.SearchThreadCount = this.SearchThreadCount > 0 ? this.SearchThreadCount : Environment.ProcessorCount;
             this.DownloadThreadCount = this.DownloadThreadCount > 0 ? this.DownloadThreadCount : Math.Min(Environment.ProcessorCount, MaxDefaultDownloadThreads);
             this.IndexThreadCount = this.IndexThreadCount > 0 ? this.IndexThreadCount : Environment.ProcessorCount;
@@ -186,7 +193,7 @@ namespace FastFetch
                 Console.WriteLine("Must be run within a git repo");
                 return ExitFailure;
             }
-            
+
             string commitish = this.Commit ?? this.Branch;
             if (string.IsNullOrWhiteSpace(commitish))
             {
@@ -239,10 +246,10 @@ namespace FastFetch
                     Console.WriteLine(error);
                     return ExitFailure;
                 }
-                
+
                 RetryConfig retryConfig = new RetryConfig(this.MaxAttempts, TimeSpan.FromMinutes(RetryConfig.FetchAndCloneTimeoutMinutes));
                 BlobPrefetcher prefetcher = this.GetFolderPrefetcher(tracer, enlistment, cacheServer, retryConfig);
-                if (!BlobPrefetcher.TryLoadFolderList(enlistment, this.FolderList, this.FolderListFile, prefetcher.FolderList, out error))
+                if (!BlobPrefetcher.TryLoadFolderList(enlistment, this.FolderList, this.FolderListFile, this.FoldersFromStdIn, prefetcher.FolderList, out error))
                 {
                     tracer.RelatedError(error);
                     Console.WriteLine(error);
