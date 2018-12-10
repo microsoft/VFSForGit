@@ -231,7 +231,9 @@ namespace GVFS.FunctionalTests.Tests
         public string RemoveUnixEntriesFromLsFilesOutput(string gitOutput)
         {
             string[] splitOutput = gitOutput.Split(new[] { Environment.NewLine }, StringSplitOptions.None);
+            System.Console.WriteLine("Original output: {0}", splitOutput);
             splitOutput = splitOutput.Where(x => !x.StartsWith("  dev:") && !x.StartsWith("  uid:")).ToArray();
+            System.Console.WriteLine(splitOutput);
             return string.Concat(splitOutput);
         }
 

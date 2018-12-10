@@ -38,6 +38,7 @@ namespace FastFetch
                 Close(fileDescriptor);
             }
         }
+
         [DllImport("libc", EntryPoint = "open", SetLastError = true)]
         public static extern int Open(string path, int flag, int creationMode);
 
