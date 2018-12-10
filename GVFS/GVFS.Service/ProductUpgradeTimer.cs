@@ -57,17 +57,24 @@ namespace GVFS.Service
             string errorMessage = null;
 
             InstallerPreRunChecker prerunChecker = new InstallerPreRunChecker(this.tracer, string.Empty);
-            if (prerunChecker.TryRunPreUpgradeChecks(out string _) && !this.TryDownloadUpgrade(out errorMessage))
+            ProductUpgrader productUpgrader = new ProductUpgrader(ProcessHelper.GetCurrentProcessVersion(), this.tracer);
+            if (prerunChecker.TryRunPreUpgradeChecks(out string _) && this.TryDownloadUpgrade(productUpgrader, out errorMessage))
+            {
+                return;
+            }
+
+            productUpgrader.CleanupDownloadDirectory();
+
+            if (errorMessage != null)
             {
                 this.tracer.RelatedError(errorMessage);
             }
         }
 
-        private bool TryDownloadUpgrade(out string errorMessage)
+        private bool TryDownloadUpgrade(ProductUpgrader productUpgrader, out string errorMessage)
         {
             using (ITracer activity = this.tracer.StartActivity("Checking for product upgrades.", EventLevel.Informational))
             {
-                ProductUpgrader productUpgrader = new ProductUpgrader(ProcessHelper.GetCurrentProcessVersion(), this.tracer);
                 Version newerVersion = null;
                 string detailedError = null;
                 if (!productUpgrader.TryGetNewerVersion(out newerVersion, out detailedError))
@@ -81,7 +88,7 @@ namespace GVFS.Service
                     // Already up-to-date
                     // Make sure there a no asset installers remaining in the Downloads directory. This can happen if user
                     // upgraded by manually downloading and running asset installers.
-                    productUpgrader.DeletePreviousDownloads();
+                    productUpgrader.CleanupDownloadDirectory();
                     errorMessage = null;
                     return true;
                 }

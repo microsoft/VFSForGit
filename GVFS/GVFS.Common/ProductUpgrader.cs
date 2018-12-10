@@ -301,7 +301,7 @@ namespace GVFS.Common
             return false;
         }
 
-        public void DeletePreviousDownloads()
+        public void CleanupDownloadDirectory()
         {
             try
             {
@@ -309,7 +309,7 @@ namespace GVFS.Common
             }
             catch (Exception ex)
             {
-                this.TraceException(ex, nameof(this.DeletePreviousDownloads), $"Could not remove directory: {GetAssetDownloadsPath()}");
+                this.TraceException(ex, nameof(this.CleanupDownloadDirectory), $"Could not remove directory: {GetAssetDownloadsPath()}");
             }
         }
 
