@@ -130,7 +130,6 @@ namespace GVFS.CommandLine
                 { "merge.renames", "false" },
                 { "pack.useBitmaps", "false" },
                 { "receive.autogc", "false" },
-                { "reset.quiet", "true" },
                 { "status.deserializePath", gitStatusCachePath },
             };
 
