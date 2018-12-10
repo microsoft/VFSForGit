@@ -115,7 +115,7 @@ namespace GVFS.CommandLine
                 this.tracer.RelatedInfo($"{nameof(this.TryRunProductUpgrade)}: {GVFSConstants.UpgradeVerbMessages.NoneRingConsoleAlert}");
                 this.ReportInfoToConsole(ring == ProductUpgrader.RingType.None ? GVFSConstants.UpgradeVerbMessages.NoneRingConsoleAlert : GVFSConstants.UpgradeVerbMessages.NoRingConfigConsoleAlert);
                 this.ReportInfoToConsole(GVFSConstants.UpgradeVerbMessages.SetUpgradeRingCommand);
-                this.upgrader.DeletePreviousDownloads();
+                this.upgrader.CleanupDownloadDirectory();
                 return true;
             }
                         
@@ -132,7 +132,7 @@ namespace GVFS.CommandLine
 
                 // Make sure there a no asset installers remaining in the Downloads directory. This can happen if user
                 // upgraded by manually downloading and running asset installers.
-                this.upgrader.DeletePreviousDownloads();
+                this.upgrader.CleanupDownloadDirectory();
                 return true;
             }
 
