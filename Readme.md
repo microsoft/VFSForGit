@@ -61,7 +61,7 @@ Note that VFS for Git on Mac is under active development.
 
 * If you still do not have the `dotnet` cli `>= v2.1.300` installed [manually install it]. You can check what version you have with `dotnet --version`.(https://www.microsoft.com/net/download/dotnet-core/2.1)
 
-* If you're using `Xcode` for the first time, you may have to login to `Xcode` with your Apple ID to generate a codesigning certificate. You can do this by launching `Xcode.app`, opening the `PrjFS.xcworkspace` and trying to build. You can find the signing options in the General tab of the project's settings.
+* If you're using `Xcode` for the first time, you may have to login to `Xcode` with your Apple ID to generate a codesigning certificate. You can do this by launching `Xcode.app`, opening the `PrjFS.xcworkspace` and trying to build. You can find the signing options in the General tab of the project's settings. Instead of updating all the projects with your development team ID, you can set it via environment variable `DEVELOPMENT_TEAM`.
 
 * Create a `VFSForGit` directory and Clone VFSForGit into a directory called `src` inside it:
   ```
