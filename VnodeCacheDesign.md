@@ -14,7 +14,7 @@ PrjFSKext will cache the following information for each `vnode_t` pointer:
 
 - The `vnode_t` itself
 - The vnode's `uint32_t` vid (vnode generation number)
-- A `uint32_t` virtualization\cache generation number (hereby referred to as `vrgid`).  If a cache entry's `vrgid` does not match its roots it means that all entries for that root have been invalidated and the `VirtualizationRootHandle` in the cache entry is no longer valid.  There will also be a global `vrgid`  for all vnodes that are not inside of any virtualization roots.
+- A `uint16_t` virtualization\cache generation number (hereby referred to as `vrgid`).  If a cache entry's `vrgid` does not match its roots it means that all entries for that root have been invalidated and the `VirtualizationRootHandle` in the cache entry is no longer valid.  There will also be a global `vrgid`  for all vnodes that are not inside of any virtualization roots.
 - `VirtualizationRootHandle` for the vnode (or `RootHandle_None` if the vnode is not in a root).  **NOTE** This assumes that `VirtualizationRootHandle`  are not recycled as VFS4G instances are unmounted\remounted.
 
 ### Hash Table
@@ -27,7 +27,7 @@ Index collisions will be handled using open addressing.  The exact technique (e.
 
 #### Size
 
-The hash table will be a fixed size of length `desiredvnodes`.
+The hash table will be a fixed size that is some percent larger than the value of `desiredvnodes` (exact percentage is still TBD).
 
 #### Hash Function
 
@@ -72,7 +72,7 @@ Directory renames are a special case because all of the directory's children may
 
 - If the rename is within the same virtualization root: All entries in the cache are still valid.
 
-- If the rename source and target are outside of any virutalization roots: All entries in the cache are still valid.
+- If the rename source and target are outside of any virtualization roots: All entries in the cache are still valid.
 
 - If the rename moves a directory out of a virtualization root: Increase that root's `vrgid` (thereby invalidating all entries in the cache for that root)
 
@@ -82,7 +82,7 @@ Directory renames are a special case because all of the directory's children may
 
 *File renames*
 
-When a file is renamed PrjFSKext will update its `VirtualizationRootHandle` and\or `vid` as needed.
+When a file is renamed PrjFSKext will update its `VirtualizationRootHandle` as needed.
 
 ## Future Enhancements
 
