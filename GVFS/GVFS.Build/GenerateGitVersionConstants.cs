@@ -20,6 +20,9 @@ namespace GVFS.PreBuild
         [Output]
         public string LatestInstaller { get; set; }
 
+        [Output]
+        public string LatestInstallerFilename { get; set; }
+
         public override bool Execute()
         {
             this.Log.LogMessage(MessageImportance.High, "Creating constants for Git package " + this.GitPackageVersion);
@@ -36,11 +39,11 @@ namespace GVFS.PreBuild
             }
 
             this.LatestInstaller = Path.GetFullPath(Directory.EnumerateFiles(installerDirectory).Single());
-            string installer = Path.GetFileName(this.LatestInstaller);
+            this.LatestInstallerFilename = Path.GetFileName(this.LatestInstaller);
             GitVersion version;
-            if (!GitVersion.TryParseInstallerName(installer, out version))
+            if (!GitVersion.TryParseInstallerName(this.LatestInstallerFilename, out version))
             {
-                this.Log.LogError("Unable to parse git version: " + installer);
+                this.Log.LogError("Unable to parse git version: " + this.LatestInstallerFilename);
                 return false;
             }
 

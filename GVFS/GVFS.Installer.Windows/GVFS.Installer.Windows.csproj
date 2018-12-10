@@ -48,6 +48,7 @@
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
   <Target Name="CreateInstaller" BeforeTargets="Build;SignFiles">
     <Exec Command="$(PackagesDir)\Tools.InnoSetup.5.5.9\tools\ISCC.exe /DPlatformAndConfiguration=$(Platform)\$(Configuration) /DProjFSPackage=$(ProjFSPackage) /DBuildOutputDir=$(BuildOutputDir) /DPackagesDir=$(PackagesDir) /DGVFSVersion=$(GVFSVersion) Setup.iss /O$(OutputPath)" />
+    <Copy SourceFiles="$(OutputPath)SetupGVFS.$(GVFSVersion).exe" DestinationFiles="$(BuildOutputDir)\GVFS.Build\SetupGVFS.$(GVFSVersion).exe" />
   </Target>
   <Target Name="Clean">
     <RemoveDir Directories="$(BuildOutputDir)\$(MSBuildProjectName)" />
