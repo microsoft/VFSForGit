@@ -1,7 +1,10 @@
 ﻿using GVFS.Common.Http;
 using GVFS.Common.Tracing;
 using System;
+using System.Collections.Generic;
 using System.Net;
+using System.Net.Http;
+using System.Security.Cryptography.X509Certificates;
 using System.Text;
 
 namespace GVFS.Common.Git
@@ -26,17 +29,15 @@ namespace GVFS.Common.Git
             this.git = git;
             this.repoUrl = repoUrl;
 
-            if (git.TryGetConfigUrlMatch("http", this.repoUrl, out var configSettings))
+            if (git.TryGetConfigUrlMatch("http", this.repoUrl, out Dictionary<string, GitConfigSetting> configSettings))
             {
-                this.GitSslSettings = new GitSslSettings(configSettings);
+                this.GitSsl = new GitSsl(configSettings);
             }
             else
             {
-                this.GitSslSettings = new GitSslSettings();
+                this.GitSsl = new GitSsl();
             }
         }
-
-        public GitSslSettings GitSslSettings { get; }
 
         public bool IsBackingOff
         {
@@ -47,6 +48,8 @@ namespace GVFS.Common.Git
         }
 
         public bool IsAnonymous { get; private set; } = true;
+
+        private GitSsl GitSsl { get; }
 
         public void ConfirmCredentialsWorked(string usedCredential)
         {
@@ -161,6 +164,44 @@ namespace GVFS.Common.Git
             }
 
             return false;
+        }
+
+        public void SetupSslIfNeeded(ITracer tracer, HttpClientHandler httpClientHandler, GitProcess gitProcess)
+        {
+            if (!string.IsNullOrEmpty(this.GitSsl.SslCertificate))
+            {
+                string certificatePassword = null;
+                if (this.GitSsl.SslCertPasswordProtected)
+                {
+                    certificatePassword = this.GitSsl.GetCertificatePassword(tracer, gitProcess);
+
+                    if (string.IsNullOrEmpty(certificatePassword))
+                    {
+                        tracer.RelatedWarning(
+                            new EventMetadata
+                            {
+                                { "SslCertificate", this.GitSsl.SslCertificate }
+                            },
+                            "Git config indicates, that certificate is password protected, but retrieved password was null or empty!");
+                    }
+                }
+
+                X509Certificate2 cert = this.GitSsl.LoadCertificate(tracer, certificatePassword, this.GitSsl.SslVerify);
+                if (cert != null)
+                {
+                    if (!this.GitSsl.SslVerify)
+                    {
+                        httpClientHandler.ServerCertificateCustomValidationCallback =
+                            (httpRequestMessage, c, cetChain, policyErrors) =>
+                            {
+                                return true;
+                            };
+                    }
+
+                    httpClientHandler.ClientCertificateOptions = ClientCertificateOption.Manual;
+                    httpClientHandler.ClientCertificates.Add(cert);
+                }
+            }
         }
 
         private bool TryAnonymousQuery(ITracer tracer, Enlistment enlistment, out bool isAnonymous)

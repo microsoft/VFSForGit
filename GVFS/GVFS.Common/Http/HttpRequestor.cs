@@ -8,9 +8,6 @@ using System.Linq;
 using System.Net;
 using System.Net.Http;
 using System.Net.Http.Headers;
-using System.Security;
-using System.Security.Cryptography;
-using System.Security.Cryptography.X509Certificates;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
@@ -25,13 +22,6 @@ namespace GVFS.Common.Http
         private readonly ProductInfoHeaderValue userAgentHeader;
 
         private readonly GitAuthentication authentication;
-
-        private readonly Lazy<X509Store> store = new Lazy<X509Store>(() =>
-        {
-            X509Store s = new X509Store();
-            s.Open(OpenFlags.OpenExistingOnly | OpenFlags.ReadOnly);
-            return s;
-        });
 
         private HttpClient client;
 
@@ -50,42 +40,9 @@ namespace GVFS.Common.Http
 
             this.Tracer = tracer;
 
-            var httpClientHandler = new HttpClientHandler() { UseDefaultCredentials = true };
+            HttpClientHandler httpClientHandler = new HttpClientHandler() { UseDefaultCredentials = true };
 
-            if (!this.authentication.GitSslSettings.SslVerify)
-            {
-                httpClientHandler.ServerCertificateCustomValidationCallback =
-                    (httpRequestMessage, cert, cetChain, policyErrors) =>
-                    {
-                        return true;
-                    };
-            }
-
-            if (!string.IsNullOrEmpty(this.authentication.GitSslSettings.SslCertificate))
-            {
-                string certificatePassword = null;
-                if (this.authentication.GitSslSettings.SslCertPasswordProtected)
-                {
-                    certificatePassword = this.LoadCertificatePassword(this.authentication.GitSslSettings.SslCertificate, enlistment.CreateGitProcess());
-
-                    if (string.IsNullOrEmpty(certificatePassword))
-                    {
-                        this.Tracer.RelatedWarning(
-                            new EventMetadata
-                            {
-                                { "SslCertificate", this.authentication.GitSslSettings.SslCertificate }
-                            },
-                            "Git config indicates, that certificate is password protected, but retrieved password was null or empty!");
-                    }
-                }
-
-                var cert = this.LoadCertificate(this.authentication.GitSslSettings.SslCertificate, certificatePassword, this.authentication.GitSslSettings.SslVerify);
-                if (cert != null)
-                {
-                    httpClientHandler.ClientCertificateOptions = ClientCertificateOption.Manual;
-                    httpClientHandler.ClientCertificates.Add(cert);
-                }
-            }
+            this.authentication.SetupSslIfNeeded(this.Tracer, httpClientHandler, enlistment.CreateGitProcess());
 
             this.client = new HttpClient(httpClientHandler)
             {
@@ -110,11 +67,6 @@ namespace GVFS.Common.Http
             {
                 this.client.Dispose();
                 this.client = null;
-            }
-
-            if (this.store.IsValueCreated)
-            {
-                this.store.Value.Close();
             }
         }
 
@@ -320,65 +272,6 @@ namespace GVFS.Common.Http
             }
 
             return string.Empty;
-        }
-
-        private string LoadCertificatePassword(string certId, GitProcess git)
-        {
-            if (git.TryGetCertificatePassword(this.Tracer, certId, out var password, out var error))
-            {
-                return password;
-            }
-
-            return null;
-        }
-
-        private X509Certificate2 LoadCertificate(string certId, string certificatePassword, bool onlyLoadValidCertificateFromStore)
-        {
-            EventMetadata metadata = new EventMetadata
-            {
-                { "certId", certId },
-                { "isPasswordSpecified", string.IsNullOrEmpty(certificatePassword) },
-                { "shouldVerify", onlyLoadValidCertificateFromStore }
-            };
-
-            if (File.Exists(certId))
-            {
-                try
-                {
-                    var cert = new X509Certificate2(certId, certificatePassword);
-                    if (onlyLoadValidCertificateFromStore && cert != null && !cert.Verify())
-                    {
-                        this.Tracer.RelatedWarning(metadata, "Certficate was found, but is invalid.");
-                        return null;
-                    }
-
-                    return cert;
-                }
-                catch (CryptographicException cryptEx)
-                {
-                    metadata.Add("Exception", cryptEx);
-                    this.Tracer.RelatedError(metadata, "Error, while loading certificate from disk");
-                    return null;
-                }
-            }
-
-            try
-            {
-                var findResults = this.store.Value.Certificates.Find(X509FindType.FindBySubjectName, certId, onlyLoadValidCertificateFromStore);
-                if (findResults?.Count > 0)
-                {
-                    return findResults[0];
-                }
-            }
-            catch (CryptographicException cryptEx)
-            {
-                metadata.Add("Exception", cryptEx);
-                this.Tracer.RelatedError(metadata, "Error, while searching for certificate in store");
-                return null;
-            }
-
-            this.Tracer.RelatedError("Certificate {0} not found", certId);
-            return null;
         }
     }
 }

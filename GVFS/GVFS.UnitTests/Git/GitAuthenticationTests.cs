@@ -170,19 +170,6 @@ namespace GVFS.UnitTests.Git
             thread2Auth.ShouldEqual(thread1Auth, "The second thread stomp the first threads good auth string");
         }
 
-        [TestCase]
-        public void FillSslSettings()
-        {
-            MockTracer tracer = new MockTracer();
-            MockGitProcess gitProcess = this.GetGitProcess();
-
-            GitAuthentication dut = new GitAuthentication(gitProcess, "mock://repoUrl");
-
-            dut.GitSslSettings.ShouldNotEqual(default(GitSslSettings), "GitSslSettings should be inititalized");
-            dut.GitSslSettings.SslCertificate.ShouldEqual(CertificatePath);
-            dut.GitSslSettings.SslCertPasswordProtected.ShouldBeTrue();
-        }
-
         private MockGitProcess GetGitProcess()
         {
             MockGitProcess gitProcess = new MockGitProcess();
