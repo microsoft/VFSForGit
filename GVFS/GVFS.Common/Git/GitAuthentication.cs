@@ -186,7 +186,7 @@ namespace GVFS.Common.Git
                     }
                 }
 
-                X509Certificate2 cert = this.GitSsl.LoadCertificate(tracer, certificatePassword, this.GitSsl.SslVerify);
+                X509Certificate2 cert = this.GitSsl.GetCertificate(tracer, certificatePassword, this.GitSsl.SslVerify);
                 if (cert != null)
                 {
                     if (!this.GitSsl.SslVerify)

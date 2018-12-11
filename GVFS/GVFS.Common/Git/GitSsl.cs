@@ -59,7 +59,7 @@ namespace GVFS.Common.Git
             return null;
         }
 
-        public X509Certificate2 LoadCertificate(ITracer tracer, string certificatePassword, bool onlyLoadValidCertificateFromStore)
+        public X509Certificate2 GetCertificate(ITracer tracer, string certificatePassword, bool onlyLoadValidCertificateFromStore)
         {
             EventMetadata metadata = new EventMetadata
             {
