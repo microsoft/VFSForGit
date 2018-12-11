@@ -209,7 +209,7 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
                 args);
         }
 
-        protected void ChangeMode(string filePath, int mode)
+        protected void ChangeMode(string filePath, ushort mode)
         {
             string virtualFile = Path.Combine(this.Enlistment.RepoRoot, filePath);
             string controlFile = Path.Combine(this.ControlGitRepo.RootPath, filePath);

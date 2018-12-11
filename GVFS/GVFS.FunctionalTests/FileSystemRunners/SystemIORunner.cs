@@ -189,7 +189,7 @@ namespace GVFS.FunctionalTests.FileSystemRunners
             this.ShouldFail<IOException>(() => { this.ReadAllText(path); });
         }
 
-        public override void ChangeMode(string path, int mode)
+        public override void ChangeMode(string path, ushort mode)
         {
             if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
             {
@@ -208,7 +208,7 @@ namespace GVFS.FunctionalTests.FileSystemRunners
         private static extern int MacCreateHardLink(string oldPath, string newPath);
 
         [DllImport("libc", EntryPoint = "chmod", SetLastError = true)]
-        private static extern int Chmod(string pathname, int mode);
+        private static extern int Chmod(string pathname, ushort mode);
 
         [DllImport("kernel32.dll", EntryPoint = "CreateHardLink", SetLastError = true, CharSet = CharSet.Unicode)]
         private static extern bool WindowsCreateHardLink(

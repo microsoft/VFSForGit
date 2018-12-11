@@ -273,7 +273,7 @@ namespace GVFS.FunctionalTests.FileSystemRunners
             this.DeleteDirectory(path);
         }
 
-        public override void ChangeMode(string path, int mode)
+        public override void ChangeMode(string path, ushort mode)
         {
             string octalMode = Convert.ToString(mode, 8);
             string bashPath = this.ConvertWinPathToBashPath(path);
