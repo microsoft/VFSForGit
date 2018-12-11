@@ -15,12 +15,13 @@ namespace GVFS.Common.Prefetch.Git
 
         public override bool Equals(object obj)
         {
-            if (obj == null)
+            PathWithMode x = obj as PathWithMode;
+            
+            if (x == null)
             {
                 return false;
             }
 
-            PathWithMode x = obj as PathWithMode;
             if (x.Path.Equals(this.Path, StringComparison.OrdinalIgnoreCase))
             {
                 return true;

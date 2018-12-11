@@ -1,8 +1,6 @@
 ﻿using GVFS.Common;
 using GVFS.Common.FileSystem;
-using GVFS.Common.Tracing;
 using System;
-using System.ComponentModel;
 using System.IO;
 using System.Runtime.InteropServices;
 
