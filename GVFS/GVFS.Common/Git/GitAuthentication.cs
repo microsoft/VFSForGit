@@ -168,10 +168,10 @@ namespace GVFS.Common.Git
 
         public void SetupSslIfNeeded(ITracer tracer, HttpClientHandler httpClientHandler, GitProcess gitProcess)
         {
-            if (!string.IsNullOrEmpty(this.GitSsl.SslCertificate))
+            if (!string.IsNullOrEmpty(this.GitSsl.CertificatePathOrSubjectCommonName))
             {
                 string certificatePassword = null;
-                if (this.GitSsl.SslCertPasswordProtected)
+                if (this.GitSsl.IsCertificatePasswordProtected)
                 {
                     certificatePassword = this.GitSsl.GetCertificatePassword(tracer, gitProcess);
 
@@ -180,16 +180,16 @@ namespace GVFS.Common.Git
                         tracer.RelatedWarning(
                             new EventMetadata
                             {
-                                { "SslCertificate", this.GitSsl.SslCertificate }
+                                { "SslCertificate", this.GitSsl.CertificatePathOrSubjectCommonName }
                             },
                             "Git config indicates, that certificate is password protected, but retrieved password was null or empty!");
                     }
                 }
 
-                X509Certificate2 cert = this.GitSsl.GetCertificate(tracer, certificatePassword, this.GitSsl.SslVerify);
+                X509Certificate2 cert = this.GitSsl.GetCertificate(tracer, certificatePassword, this.GitSsl.ShouldVerify);
                 if (cert != null)
                 {
-                    if (!this.GitSsl.SslVerify)
+                    if (!this.GitSsl.ShouldVerify)
                     {
                         httpClientHandler.ServerCertificateCustomValidationCallback =
                             (httpRequestMessage, c, cetChain, policyErrors) =>

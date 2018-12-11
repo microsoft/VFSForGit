@@ -10,9 +10,9 @@ namespace GVFS.Common.Git
 {
     public class GitSsl : IDisposable
     {
-        public readonly string SslCertificate;
-        public readonly bool SslCertPasswordProtected;
-        public readonly bool SslVerify;
+        public readonly string CertificatePathOrSubjectCommonName;
+        public readonly bool IsCertificatePasswordProtected;
+        public readonly bool ShouldVerify;
 
         private readonly Lazy<X509Store> store = new Lazy<X509Store>(() =>
         {
@@ -23,9 +23,9 @@ namespace GVFS.Common.Git
 
         public GitSsl()
         {
-            this.SslCertificate = null;
-            this.SslCertPasswordProtected = false;
-            this.SslVerify = true;
+            this.CertificatePathOrSubjectCommonName = null;
+            this.IsCertificatePasswordProtected = false;
+            this.ShouldVerify = true;
         }
 
         public GitSsl(IDictionary<string, GitConfigSetting> configSettings) : this()
@@ -34,24 +34,24 @@ namespace GVFS.Common.Git
             {
                 if (configSettings.TryGetValue(GitConfigSetting.HttpSslCert, out GitConfigSetting sslCerts))
                 {
-                    this.SslCertificate = sslCerts.Values.Single();
+                    this.CertificatePathOrSubjectCommonName = sslCerts.Values.Single();
                 }
 
                 if (configSettings.TryGetValue(GitConfigSetting.HttpSslCertPasswordProtected, out GitConfigSetting isSslCertPasswordProtected))
                 {
-                    this.SslCertPasswordProtected = isSslCertPasswordProtected.Values.Select(bool.Parse).Single();
+                    this.IsCertificatePasswordProtected = isSslCertPasswordProtected.Values.Select(bool.Parse).Single();
                 }
 
                 if (configSettings.TryGetValue(GitConfigSetting.HttpSslVerify, out GitConfigSetting sslVerify))
                 {
-                    this.SslVerify = sslVerify.Values.Select(bool.Parse).Single();
+                    this.ShouldVerify = sslVerify.Values.Select(bool.Parse).Single();
                 }
             }
         }
 
         public string GetCertificatePassword(ITracer tracer, GitProcess git)
         {
-            if (git.TryGetCertificatePassword(tracer, this.SslCertificate, out string password, out string error))
+            if (git.TryGetCertificatePassword(tracer, this.CertificatePathOrSubjectCommonName, out string password, out string error))
             {
                 return password;
             }
@@ -63,16 +63,16 @@ namespace GVFS.Common.Git
         {
             EventMetadata metadata = new EventMetadata
             {
-                { "certId", this.SslCertificate },
+                { "certId", this.CertificatePathOrSubjectCommonName },
                 { "isPasswordSpecified", string.IsNullOrEmpty(certificatePassword) },
                 { "shouldVerify", onlyLoadValidCertificateFromStore }
             };
 
-            if (File.Exists(this.SslCertificate))
+            if (File.Exists(this.CertificatePathOrSubjectCommonName))
             {
                 try
                 {
-                    X509Certificate2 cert = new X509Certificate2(this.SslCertificate, certificatePassword);
+                    X509Certificate2 cert = new X509Certificate2(this.CertificatePathOrSubjectCommonName, certificatePassword);
                     if (onlyLoadValidCertificateFromStore && cert != null && !cert.Verify())
                     {
                         tracer.RelatedWarning(metadata, "Certficate was found, but is invalid.");
@@ -91,7 +91,7 @@ namespace GVFS.Common.Git
 
             try
             {
-                X509Certificate2Collection findResults = this.store.Value.Certificates.Find(X509FindType.FindBySubjectName, this.SslCertificate, onlyLoadValidCertificateFromStore);
+                X509Certificate2Collection findResults = this.store.Value.Certificates.Find(X509FindType.FindBySubjectName, this.CertificatePathOrSubjectCommonName, onlyLoadValidCertificateFromStore);
                 if (findResults?.Count > 0)
                 {
                     return findResults[0];
@@ -104,7 +104,7 @@ namespace GVFS.Common.Git
                 return null;
             }
 
-            tracer.RelatedError("Certificate {0} not found", this.SslCertificate);
+            tracer.RelatedError("Certificate {0} not found", this.CertificatePathOrSubjectCommonName);
             return null;
         }
 
