@@ -558,6 +558,18 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
             this.CommitChangesSwitchBranchSwitchBack(fileSystemAction: this.MoveFolder);
         }
 
+        // MacOnly because Windows does not support file mode
+        [TestCase]
+        [Category(Categories.MacOnly)]
+        public void UpdateFileModeOnly()
+        {
+            const string TestFileName = "test-file-mode";
+            this.CreateFile("#!/bin/bash\n", TestFileName);
+            this.ChangeMode(TestFileName, Convert.ToUInt16("755", 8));
+            this.ValidateGitCommand($"add {TestFileName}");
+            this.ValidateGitCommand($"ls-files --stage {TestFileName}");
+        }
+
         [TestCase]
         public void AddFileCommitThenDeleteAndCommit()
         {

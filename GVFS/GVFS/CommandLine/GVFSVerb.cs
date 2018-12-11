@@ -113,7 +113,7 @@ namespace GVFS.CommandLine
                 { "core.safecrlf", "false" },
                 { "core.untrackedCache", "false" },
                 { "core.repositoryformatversion", "0" },
-                { "core.filemode", "false" },
+                { "core.filemode", GVFSPlatform.Instance.FileSystem.SupportsFileMode ? "true" : "false" },
                 { "core.bare", "false" },
                 { "core.logallrefupdates", "true" },
                 { GitConfigSetting.CoreVirtualizeObjectsName, "true" },

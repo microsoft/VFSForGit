@@ -223,5 +223,10 @@ namespace GVFS.FunctionalTests.FileSystemRunners
         {
             this.DeleteDirectory(path).ShouldContain(fileUsedByAnotherProcessMessage);
         }
+
+        public override void ChangeMode(string path, ushort mode)
+        {
+            throw new NotSupportedException();
+        }
     }
 }
