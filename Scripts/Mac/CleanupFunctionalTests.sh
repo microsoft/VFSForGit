@@ -7,10 +7,6 @@ pkill -9 -l prjfs-log
 
 $VFS_SRCDIR/ProjFS.Mac/Scripts/UnloadPrjFSKext.sh
 
-sudo rm -r /GVFS.FT
-
-PATURL=$1
-if [[ -z $PATURL ]] ; then
-    exit 1
+if [ -d /GVFS.FT ]; then
+    sudo rm -r /GVFS.FT
 fi
-security delete-generic-password -s "gcm4ml:git:$PATURL"

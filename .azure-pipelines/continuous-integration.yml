@@ -51,3 +51,16 @@ jobs:
     steps:
     - checkout: none # We'll get the build drop from Build_Windows job
     - template: templates/windows-functional-test.yml
+
+  - job: FunctionalTests_macOS
+    timeoutInMinutes: 240
+    variables:
+      platformFriendlyName: macOS
+      configuration: Release
+    pool:
+     name: MacFunctionalTests
+    dependsOn: Build_macOS
+    condition: succeeded()
+    steps:
+      - checkout: none # Use the drop from Build_macOS job
+      - template: templates/macos-functional-test.yml
