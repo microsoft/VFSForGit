@@ -91,7 +91,7 @@ static bool InitializeEmptyPlaceholder(const char* fullPath);
 template<typename TPlaceholder> static bool InitializeEmptyPlaceholder(const char* fullPath, TPlaceholder* data, const char* xattrName);
 static bool AddXAttr(const char* fullPath, const char* name, const void* value, size_t size);
 static bool GetXAttr(const char* fullPath, const char* name, size_t size, _Out_ void* value);
-static bool RemoveXAttr(const char* fullPath, const char* name);
+static bool RemoveXAttr(const char* fullPath, const char* name, _Out_ int* error);
 
 static inline PrjFS_NotificationType KUMessageTypeToNotificationType(MessageType kuNotificationType);
 
@@ -263,7 +263,7 @@ PrjFS_Result PrjFS_ConvertDirectoryToVirtualizationRoot(
         return PrjFS_Result_EInvalidArgs;
     }
     
-    // TODO: walk entire parent chain to root and all child directories to leaf nodes, to make sure we find no other virtualization roots.
+    // TODO(Mac): walk entire parent chain to root and all child directories to leaf nodes, to make sure we find no other virtualization roots.
     // It is not allowed to have nested virtualization roots.
 
     if (IsBitSetInFileFlags(virtualizationRootFullPath, FileFlags_IsInVirtualizationRoot) ||
@@ -325,7 +325,7 @@ PrjFS_Result PrjFS_WritePlaceholderDirectory(
     return PrjFS_Result_Success;
     
 CleanupAndFail:
-    // TODO: cleanup the directory on disk if needed
+    // TODO(Mac): cleanup the directory on disk if needed
     return result;
 }
 
@@ -412,7 +412,7 @@ PrjFS_Result PrjFS_WritePlaceholderFile(
 CleanupAndFail:
     if (nullptr != file)
     {
-        // TODO: we now have a partially created placeholder file. Should we delete it?
+        // TODO(Mac) #234: we now have a partially created placeholder file. Should we delete it?
         // A better pattern would likely be to create the file in a tmp location, fully initialize its state, then move it into the requested path
         
         fclose(file);
@@ -869,18 +869,18 @@ static PrjFS_Result HandleHydrateFileRequest(const MessageHeader* request, const
             request->procname,
             &fileHandle);
         
-        // TODO: once we support async callbacks, we'll need to save off the fileHandle if the result is Pending
+        // TODO(Mac): once we support async callbacks, we'll need to save off the fileHandle if the result is Pending
         
         if (fclose(fileHandle.file))
         {
-            // TODO: under what conditions can fclose fail? How do we recover?
+            // TODO(Mac): under what conditions can fclose fail? How do we recover?
             result = PrjFS_Result_EIOError;
             goto CleanupAndReturn;
         }
         
         if (PrjFS_Result_Success == result)
         {
-            // TODO: validate that the total bytes written match the size that was reported on the placeholder in the first place
+            // TODO(Mac): validate that the total bytes written match the size that was reported on the placeholder in the first place
             // Potential bugs if we don't:
             //  * The provider writes fewer bytes than expected. The hydrated is left with extra padding up to the original reported size.
             //  * The provider writes more bytes than expected. The write succeeds, but whatever tool originally opened the file may have already
@@ -888,7 +888,7 @@ static PrjFS_Result HandleHydrateFileRequest(const MessageHeader* request, const
             
             if (!SetBitInFileFlags(fullPath, FileFlags_IsEmpty, false))
             {
-                // TODO: how should we handle this scenario where the provider thinks it succeeded, but we were unable to
+                // TODO(Mac): how should we handle this scenario where the provider thinks it succeeded, but we were unable to
                 // update placeholder metadata?
                 result = PrjFS_Result_EIOError;
             }
@@ -964,7 +964,11 @@ static PrjFS_Result HandleFileNotification(
     {
         // PrjFS_NotificationType_FileModified is a post-modified FileOp event (that cannot be stopped
         // by the provider) and so there's no need to check the result of the call to NotifyOperation
-        RemoveXAttr(fullPath, PrjFSFileXAttrName);
+        int error;
+        if (!RemoveXAttr(fullPath, PrjFSFileXAttrName, &error))
+        {
+            // TODO(Mac) #395: Log error (if the error is something other than ENOATTR).
+        }
     }
     
     return result;
@@ -1111,7 +1115,7 @@ static bool GetXAttr(const char* fullPath, const char* name, size_t size, _Out_ 
 {
     if (getxattr(fullPath, name, value, size, 0, 0) == size)
     {
-        // TODO: also validate the magic number and format version.
+        // TODO(Mac): also validate the magic number and format version.
         // It's easy to check their expected values, but we will need to decide what to do if they are incorrect.
 
         return true;
@@ -1120,10 +1124,13 @@ static bool GetXAttr(const char* fullPath, const char* name, size_t size, _Out_ 
     return false;
 }
 
-static bool RemoveXAttr(const char* fullPath, const char* name)
+static bool RemoveXAttr(const char* fullPath, const char* name, _Out_ int* error)
 {
+    *error = 0;
+    
     if (removexattr(fullPath, name, XATTR_NOFOLLOW))
     {
+        *error = errno;
         return false;
     }
 
