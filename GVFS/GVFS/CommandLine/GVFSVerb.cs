@@ -100,6 +100,9 @@ namespace GVFS.CommandLine
 
             // These settings are required for normal GVFS functionality.
             // They will override any existing local configuration values.
+            //
+            // IMPORTANT! These must parallel the settings in ControlGitRepo:Initialize
+            //
             Dictionary<string, string> requiredSettings = new Dictionary<string, string>
             {
                 { "am.keepcr", "true" },
@@ -131,6 +134,7 @@ namespace GVFS.CommandLine
                 { "pack.useBitmaps", "false" },
                 { "rebase.useBuiltin", "false" },
                 { "receive.autogc", "false" },
+                { "reset.quiet", "true" },
                 { "status.deserializePath", gitStatusCachePath },
             };
 
