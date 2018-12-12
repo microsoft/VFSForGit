@@ -9,18 +9,11 @@ using GVFS.Common.Tracing;
 
 namespace GVFS.Common.Git
 {
-    public class GitSsl : IDisposable
+    public class GitSsl
     {
         public readonly string CertificatePathOrSubjectCommonName;
         public readonly bool IsCertificatePasswordProtected;
         public readonly bool ShouldVerify;
-
-        private readonly Lazy<X509Store> store = new Lazy<X509Store>(() =>
-        {
-            X509Store s = new X509Store();
-            s.Open(OpenFlags.OpenExistingOnly | OpenFlags.ReadOnly);
-            return s;
-        });
 
         public GitSsl()
         {
@@ -81,64 +74,6 @@ namespace GVFS.Common.Git
             return result;
         }
 
-        private X509Certificate2 GetCertificateFromFile(ITracer tracer, EventMetadata metadata, string certificatePassword, bool onlyLoadValidCertificateFromStore)
-        {
-            if (File.Exists(this.CertificatePathOrSubjectCommonName))
-            {
-                try
-                {
-                    X509Certificate2 cert = new X509Certificate2(this.CertificatePathOrSubjectCommonName, certificatePassword);
-                    if (onlyLoadValidCertificateFromStore && cert != null && !cert.Verify())
-                    {
-                        tracer.RelatedWarning(metadata, "Certficate was found, but is invalid.");
-                        return null;
-                    }
-
-                    return cert;
-                }
-                catch (CryptographicException cryptEx)
-                {
-                    metadata.Add("Exception", cryptEx);
-                    tracer.RelatedError(metadata, "Error, while loading certificate from disk");
-                    return null;
-                }
-            }
-
-            return null;
-        }
-
-        private X509Certificate2 GetCertificateFromStore(ITracer tracer, EventMetadata metadata, bool onlyLoadValidCertificateFromStore)
-        {
-            try
-            {
-                X509Certificate2Collection findResults = this.store.Value.Certificates.Find(X509FindType.FindBySubjectName, this.CertificatePathOrSubjectCommonName, onlyLoadValidCertificateFromStore);
-                if (findResults?.Count > 0)
-                {
-                    LogCertificateCounts(tracer, metadata, findResults.OfType<X509Certificate2>(), "Found {0} certificates by provided name. Matching DNs: {1}");
-
-                    X509Certificate2[] certsWithMatchingCns = findResults
-                        .OfType<X509Certificate2>()
-                        .Where(x => x.HasPrivateKey && Regex.IsMatch(x.Subject, string.Format("(^|,\\s?)CN={0}(,|$)", this.CertificatePathOrSubjectCommonName))) // We only want certificates, that have private keys, as we need them. We also want a complete CN match
-                        .OrderByDescending(x => x.Verify()) // Ordering by validity in a descending order will bring valid certificates to the beginning
-                        .ThenBy(x => x.NotBefore) // We take the one, that was issued earliest, first
-                        .ThenByDescending(x => x.NotAfter) // We then take the one, that is valid for the longest period
-                        .ToArray();
-
-                    LogCertificateCounts(tracer, metadata, certsWithMatchingCns, "Found {0} certificates with a private key and an exact CN match. DNs (sorted by priority, will take first): {1}");
-
-                    return certsWithMatchingCns.FirstOrDefault();
-                }
-            }
-            catch (CryptographicException cryptEx)
-            {
-                metadata.Add("Exception", cryptEx);
-                tracer.RelatedError(metadata, "Error, while searching for certificate in store");
-                return null;
-            }
-
-            return null;
-        }
-
         private static void LogCertificateCounts(ITracer tracer, EventMetadata metadata, IEnumerable<X509Certificate2> certificates, string messageTemplate)
         {
             Action<EventMetadata, string> loggingFunction;
@@ -167,12 +102,70 @@ namespace GVFS.Common.Git
                         certificates.Select(x => x.Subject))));
         }
 
-        public void Dispose()
+        private X509Certificate2 GetCertificateFromFile(ITracer tracer, EventMetadata metadata, string certificatePassword, bool onlyLoadValidCertificateFromStore)
         {
-            if (this.store.IsValueCreated)
+            if (File.Exists(this.CertificatePathOrSubjectCommonName))
             {
-                this.store.Value.Dispose();
+                try
+                {
+                    X509Certificate2 cert = new X509Certificate2(this.CertificatePathOrSubjectCommonName, certificatePassword);
+                    if (onlyLoadValidCertificateFromStore && cert != null && !cert.Verify())
+                    {
+                        tracer.RelatedWarning(metadata, "Certficate was found, but is invalid.");
+                        return null;
+                    }
+
+                    return cert;
+                }
+                catch (CryptographicException cryptEx)
+                {
+                    metadata.Add("Exception", cryptEx);
+                    tracer.RelatedError(metadata, "Error, while loading certificate from disk");
+                    return null;
+                }
             }
+
+            return null;
+        }
+
+        private X509Certificate2 GetCertificateFromStore(ITracer tracer, EventMetadata metadata, bool onlyLoadValidCertificateFromStore)
+        {
+            X509Store store = null;
+            try
+            {
+                store = new X509Store();
+                store.Open(OpenFlags.OpenExistingOnly | OpenFlags.ReadOnly);
+
+                X509Certificate2Collection findResults = store.Certificates.Find(X509FindType.FindBySubjectName, this.CertificatePathOrSubjectCommonName, onlyLoadValidCertificateFromStore);
+                if (findResults?.Count > 0)
+                {
+                    LogCertificateCounts(tracer, metadata, findResults.OfType<X509Certificate2>(), "Found {0} certificates by provided name. Matching DNs: {1}");
+
+                    X509Certificate2[] certsWithMatchingCns = findResults
+                        .OfType<X509Certificate2>()
+                        .Where(x => x.HasPrivateKey && Regex.IsMatch(x.Subject, string.Format("(^|,\\s?)CN={0}(,|$)", this.CertificatePathOrSubjectCommonName))) // We only want certificates, that have private keys, as we need them. We also want a complete CN match
+                        .OrderByDescending(x => x.Verify()) // Ordering by validity in a descending order will bring valid certificates to the beginning
+                        .ThenBy(x => x.NotBefore) // We take the one, that was issued earliest, first
+                        .ThenByDescending(x => x.NotAfter) // We then take the one, that is valid for the longest period
+                        .ToArray();
+
+                    LogCertificateCounts(tracer, metadata, certsWithMatchingCns, "Found {0} certificates with a private key and an exact CN match. DNs (sorted by priority, will take first): {1}");
+
+                    return certsWithMatchingCns.FirstOrDefault();
+                }
+            }
+            catch (CryptographicException cryptEx)
+            {
+                metadata.Add("Exception", cryptEx);
+                tracer.RelatedError(metadata, "Error, while searching for certificate in store");
+                return null;
+            }
+            finally
+            {
+                store.Dispose();
+            }
+
+            return null;
         }
     }
 }
