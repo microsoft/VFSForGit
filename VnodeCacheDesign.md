@@ -19,7 +19,7 @@ PrjFSKext will cache the following information for each `vnode_t` pointer:
 
 ### Hash Table
 
-The data for each vnode will be stored in a fixed-size hash table with the `vnode_t` pointer serving as the key.
+The data for each vnode will be stored in a hash table with the `vnode_t` pointer serving as the key.
 
 #### Collision Handling
 
@@ -27,7 +27,7 @@ Index collisions will be handled using open addressing.  The exact technique (e.
 
 #### Size
 
-The hash table will be a fixed size that is some percent larger than the value of `desiredvnodes` (exact percentage is still TBD).
+The hash table will start with a size that is some percent larger than the value of `desiredvnodes` (exact percentage is still TBD).  Expanding the size of the hash table could be costly, and its initial size should be large enough to make growing the hash table a rare occurrence.
 
 #### Hash Function
 
