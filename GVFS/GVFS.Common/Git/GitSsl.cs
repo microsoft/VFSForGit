@@ -62,7 +62,7 @@ namespace GVFS.Common.Git
                 { "shouldVerify", onlyLoadValidCertificateFromStore }
             };
 
-            var result =
+            X509Certificate2 result =
                 this.GetCertificateFromFile(tracer, metadata, certificatePassword, onlyLoadValidCertificateFromStore) ??
                 this.GetCertificateFromStore(tracer, metadata, onlyLoadValidCertificateFromStore);
 
