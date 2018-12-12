@@ -36,7 +36,7 @@ namespace GVFS.Common
             GVFSPlatform.Instance = platform;
         }
 
-        public abstract void StartBackgroundProcess(string programName, string[] args);
+        public abstract void StartBackgroundProcess(ITracer tracer, string programName, string[] args);
         public abstract bool IsProcessActive(int processId);
         public abstract void IsServiceInstalledAndRunning(string name, out bool installed, out bool running);
         public abstract string GetNamedPipeName(string enlistmentRoot);

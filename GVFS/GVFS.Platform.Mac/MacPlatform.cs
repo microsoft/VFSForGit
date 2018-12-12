@@ -66,9 +66,9 @@ namespace GVFS.Platform.Mac
             throw new NotImplementedException();
         }
 
-        public override void StartBackgroundProcess(string programName, string[] args)
+        public override void StartBackgroundProcess(ITracer tracer, string programName, string[] args)
         {
-            ProcessLauncher.StartBackgroundProcess(programName, args);
+            ProcessLauncher.StartBackgroundProcess(tracer, programName, args);
         }
 
         public override NamedPipeServerStream CreatePipeByName(string pipeName)
