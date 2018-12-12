@@ -120,8 +120,18 @@ namespace GVFS.Common.Tracing
 
         public virtual void RelatedInfo(string format, params object[] args)
         {
-            EventMetadata metadata = new EventMetadata();
-            metadata.Add(TracingConstants.MessageKey.InfoMessage, string.Format(format, args));
+            this.RelatedInfo(string.Format(format, args));
+        }
+
+        public virtual void RelatedInfo(string message)
+        {
+            this.RelatedInfo(new EventMetadata(), message);
+        }
+
+        public virtual void RelatedInfo(EventMetadata metadata, string message)
+        {
+            metadata = metadata ?? new EventMetadata();
+            metadata.Add(TracingConstants.MessageKey.InfoMessage, message);
             this.RelatedEvent(EventLevel.Informational, "Information", metadata);
         }
 

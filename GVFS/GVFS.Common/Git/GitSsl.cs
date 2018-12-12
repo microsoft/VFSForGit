@@ -4,6 +4,7 @@ using System.IO;
 using System.Linq;
 using System.Security.Cryptography;
 using System.Security.Cryptography.X509Certificates;
+using System.Text.RegularExpressions;
 using GVFS.Common.Tracing;
 
 namespace GVFS.Common.Git
@@ -63,11 +64,25 @@ namespace GVFS.Common.Git
         {
             EventMetadata metadata = new EventMetadata
             {
-                { "certId", this.CertificatePathOrSubjectCommonName },
+                { "CertificatePathOrSubjectCommonName", this.CertificatePathOrSubjectCommonName },
                 { "isPasswordSpecified", string.IsNullOrEmpty(certificatePassword) },
                 { "shouldVerify", onlyLoadValidCertificateFromStore }
             };
 
+            var result =
+                this.GetCertificateFromFile(tracer, metadata, certificatePassword, onlyLoadValidCertificateFromStore) ??
+                this.GetCertificateFromStore(tracer, metadata, onlyLoadValidCertificateFromStore);
+
+            if (result == null)
+            {
+                tracer.RelatedError("Certificate {0} not found", this.CertificatePathOrSubjectCommonName);
+            }
+
+            return result;
+        }
+
+        private X509Certificate2 GetCertificateFromFile(ITracer tracer, EventMetadata metadata, string certificatePassword, bool onlyLoadValidCertificateFromStore)
+        {
             if (File.Exists(this.CertificatePathOrSubjectCommonName))
             {
                 try
@@ -89,12 +104,29 @@ namespace GVFS.Common.Git
                 }
             }
 
+            return null;
+        }
+
+        private X509Certificate2 GetCertificateFromStore(ITracer tracer, EventMetadata metadata, bool onlyLoadValidCertificateFromStore)
+        {
             try
             {
                 X509Certificate2Collection findResults = this.store.Value.Certificates.Find(X509FindType.FindBySubjectName, this.CertificatePathOrSubjectCommonName, onlyLoadValidCertificateFromStore);
                 if (findResults?.Count > 0)
                 {
-                    return findResults[0];
+                    LogCertificateCounts(tracer, metadata, findResults.OfType<X509Certificate2>(), "Found {0} certificates by provided name. Matching DNs: {1}");
+
+                    X509Certificate2[] certsWithMatchingCns = findResults
+                        .OfType<X509Certificate2>()
+                        .Where(x => x.HasPrivateKey && Regex.IsMatch(x.Subject, string.Format("(^|,\\s?)CN={0}(,|$)", this.CertificatePathOrSubjectCommonName))) // We only want certificates, that have private keys, as we need them. We also want a complete CN match
+                        .OrderByDescending(x => x.Verify()) // Ordering by validity in a descending order will bring valid certificates to the beginning
+                        .ThenBy(x => x.NotBefore) // We take the one, that was issued earliest, first
+                        .ThenByDescending(x => x.NotAfter) // We then take the one, that is valid for the longest period
+                        .ToArray();
+
+                    LogCertificateCounts(tracer, metadata, certsWithMatchingCns, "Found {0} certificates with a private key and an exact CN match. DNs (sorted by priority, will take first): {1}");
+
+                    return certsWithMatchingCns.FirstOrDefault();
                 }
             }
             catch (CryptographicException cryptEx)
@@ -104,8 +136,35 @@ namespace GVFS.Common.Git
                 return null;
             }
 
-            tracer.RelatedError("Certificate {0} not found", this.CertificatePathOrSubjectCommonName);
             return null;
+        }
+
+        private static void LogCertificateCounts(ITracer tracer, EventMetadata metadata, IEnumerable<X509Certificate2> certificates, string messageTemplate)
+        {
+            Action<EventMetadata, string> loggingFunction;
+            int numberOfCertificates = certificates.Count();
+
+            switch (numberOfCertificates)
+            {
+                case 0:
+                    loggingFunction = tracer.RelatedError;
+                    break;
+                case 1:
+                    loggingFunction = tracer.RelatedInfo;
+                    break;
+                default:
+                    loggingFunction = tracer.RelatedWarning;
+                    break;
+            }
+
+            loggingFunction(
+                metadata,
+                string.Format(
+                    messageTemplate,
+                    numberOfCertificates,
+                    string.Join(
+                        Environment.NewLine,
+                        certificates.Select(x => x.Subject))));
         }
 
         public void Dispose()
