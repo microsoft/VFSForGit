@@ -87,6 +87,10 @@
       <Project>{4ce404e7-d3fc-471c-993c-64615861ea63}</Project>
       <Name>GVFS.Platform.Windows</Name>
     </ProjectReference>
+    <ProjectReference Include="..\GVFS.Virtualization\GVFS.Virtualization.csproj"> 
+      <Project>{f468b05a-95e5-46bc-8c67-b80a78527b7d}</Project> 
+      <Name>GVFS.Virtualization</Name> 
+    </ProjectReference>
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
 </Project>

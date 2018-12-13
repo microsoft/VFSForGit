@@ -3,6 +3,7 @@ using Microsoft.Win32.SafeHandles;
 using System;
 using System.ComponentModel;
 using System.IO;
+using System.IO.MemoryMappedFiles;
 using System.Runtime.InteropServices;
 
 namespace FastFetch
@@ -43,6 +44,32 @@ namespace FastFetch
                 tracer.RelatedError("Exception writing {0}: {1}", destination, e);
                 throw;
             }
+        }
+
+        public static bool StatAndUpdateIndexForFile(string path, MemoryMappedViewAccessor indexView, long offset)
+        {
+            try
+            {
+                FileInfo file = new FileInfo(path);
+                if (file.Exists)
+                {
+                    Index.IndexEntry indexEntry = new Index.IndexEntry(indexView, offset);
+                    indexEntry.Mtime = file.LastWriteTimeUtc;
+                    indexEntry.Ctime = file.CreationTimeUtc;
+                    indexEntry.Size = (uint)file.Length;
+                    return true;
+                }
+            }
+            catch (System.Security.SecurityException)
+            {
+                // Skip these.
+            }
+            catch (System.UnauthorizedAccessException)
+            {
+                // Skip these.
+            }
+
+            return false;
         }
 
         private static SafeFileHandle OpenForWrite(ITracer tracer, string fileName)

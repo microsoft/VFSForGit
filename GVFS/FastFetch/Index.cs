@@ -191,11 +191,10 @@ namespace FastFetch
                             long offset;
                             if (this.indexEntryOffsets.TryGetValue(gitPath, out offset))
                             {
-                                IndexEntry indexEntry = new IndexEntry(indexView, offset);
-                                indexEntry.Mtime = file.LastWriteTimeUtc;
-                                indexEntry.Ctime = file.CreationTimeUtc;
-                                indexEntry.Size = (uint)file.Length;
-                                Interlocked.Increment(ref updatedEntries);
+                                if (NativeWindowsMethods.StatAndUpdateIndexForFile(gitPath, indexView, offset))
+                                {
+                                    Interlocked.Increment(ref updatedEntries);
+                                }
                             }
                         }
                     });
@@ -217,7 +216,7 @@ namespace FastFetch
                         long offset;
                         if (this.indexEntryOffsets.TryGetValue(gitPath, out offset))
                         {
-                            if (this.TryUpdateEntryFromDisk(indexView, localPath, offset))
+                            if (NativeWindowsMethods.StatAndUpdateIndexForFile(localPath, indexView, offset))
                             {
                                 Interlocked.Increment(ref updatedEntriesFromDisk);
                             }
@@ -257,6 +256,10 @@ namespace FastFetch
                                     currentIndexEntry.CtimeNanosecondFraction = otherIndexEntry.CtimeNanosecondFraction;
                                     currentIndexEntry.MtimeSeconds = otherIndexEntry.MtimeSeconds;
                                     currentIndexEntry.MtimeNanosecondFraction = otherIndexEntry.MtimeNanosecondFraction;
+                                    currentIndexEntry.Dev = otherIndexEntry.Dev;
+                                    currentIndexEntry.Ino = otherIndexEntry.Ino;
+                                    currentIndexEntry.Uid = otherIndexEntry.Uid;
+                                    currentIndexEntry.Gid = otherIndexEntry.Gid;
                                     currentIndexEntry.Size = otherIndexEntry.Size;
 
                                     Interlocked.Increment(ref updatedEntriesFromOtherIndex);
@@ -265,7 +268,8 @@ namespace FastFetch
                             else if (shouldAlsoTryPopulateFromDisk)
                             {
                                 string localPath = FromGitRelativePathToDotnetFullPath(currentIndexFilename, this.repoRoot);
-                                if (this.TryUpdateEntryFromDisk(indexView, localPath, entry.Value))
+
+                                if (NativeWindowsMethods.StatAndUpdateIndexForFile(localPath, indexView, entry.Value))
                                 {
                                     Interlocked.Increment(ref updatedEntriesFromDisk);
                                 }
@@ -285,32 +289,6 @@ namespace FastFetch
                 Keywords.Telemetry);
 
             return (updatedEntriesFromOtherIndex > 0) || (updatedEntriesFromDisk > 0);
-        }
-
-        private bool TryUpdateEntryFromDisk(MemoryMappedViewAccessor indexView, string localPath, long offset)
-        {
-            try
-            {
-                FileInfo file = new FileInfo(localPath);
-                if (file.Exists)
-                {
-                    IndexEntry indexEntry = new IndexEntry(indexView, offset);
-                    indexEntry.Mtime = file.LastWriteTimeUtc;
-                    indexEntry.Ctime = file.CreationTimeUtc;
-                    indexEntry.Size = (uint)file.Length;
-                    return true;
-                }
-            }
-            catch (System.Security.SecurityException)
-            {
-                // Skip these.
-            }
-            catch (System.UnauthorizedAccessException)
-            {
-                // Skip these.
-            }
-
-            return false;
         }
 
         private void MoveUpdatedIndexToFinalLocation(bool shouldSignIndex)
@@ -497,7 +475,7 @@ namespace FastFetch
         /// <summary>
         /// Private helper class to read/write specific values from a Git Index entry based on offset in a view.
         /// </summary>
-        private class IndexEntry
+        internal class IndexEntry
         {
             private const long UnixEpochMilliseconds = 116444736000000000;
             private static readonly DateTime UnixEpoch = new DateTime(1970, 1, 1, 0, 0, 0, DateTimeKind.Utc);
@@ -519,6 +497,10 @@ namespace FastFetch
                 ctimeNanoseconds = 4,
                 mtimeSeconds = 8,
                 mtimeNanoseconds = 12,
+                dev = 16,
+                ino = 20,
+                uid = 28,
+                gid = 32,
                 filesize = 36,
                 flags = 80,
                 extendedFlags = 82,
@@ -618,6 +600,58 @@ namespace FastFetch
                 set
                 {
                     this.WriteUInt32(EntryOffsets.filesize, value);
+                }
+            }
+
+            public uint Dev
+            {
+                get
+                {
+                    return this.ReadUInt32(EntryOffsets.dev);
+                }
+
+                set
+                {
+                    this.WriteUInt32(EntryOffsets.dev, value);
+                }
+            }
+
+            public uint Ino
+            {
+                get
+                {
+                    return this.ReadUInt32(EntryOffsets.ino);
+                }
+
+                set
+                {
+                    this.WriteUInt32(EntryOffsets.ino, value);
+                }
+            }
+
+            public uint Uid
+            {
+                get
+                {
+                    return this.ReadUInt32(EntryOffsets.uid);
+                }
+
+                set
+                {
+                    this.WriteUInt32(EntryOffsets.uid, value);
+                }
+            }
+
+            public uint Gid
+            {
+                get
+                {
+                    return this.ReadUInt32(EntryOffsets.gid);
+                }
+
+                set
+                {
+                    this.WriteUInt32(EntryOffsets.gid, value);
                 }
             }
 

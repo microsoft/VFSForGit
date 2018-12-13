@@ -20,9 +20,6 @@
     <Compile Include="..\GVFS.PlatformLoader\PlatformLoader.Mac.cs">
       <Link>PlatformLoader.Mac.cs</Link>
     </Compile>
-    <Compile Include="..\GVFS.PlatformLoader\PlatformLoader.FileSystemVirtualizer.Mac.cs">
-      <Link>PlatformLoader.FileSystemVirtualizer.Mac.cs</Link>
-    </Compile>
   </ItemGroup>
   
   <ItemGroup>
