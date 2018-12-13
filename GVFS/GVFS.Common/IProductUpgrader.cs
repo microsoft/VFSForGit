@@ -3,6 +3,15 @@ using System;
 
 namespace GVFS.Common
 {
+    /// <summary>
+    /// Delegate to wrap install action steps in.
+    /// This can be used to report the beginning / end of each install step.
+    /// </summary>
+    /// <param name="method">The method to run inside wrapper</param>
+    /// <param name="message">The message to display</param>
+    /// <returns></returns>
+    public delegate bool InstallActionWrapper(Func<bool> method, string message);
+
     public interface IProductUpgrader
     {
         bool CanRunUsingCurrentConfig(
@@ -18,9 +27,7 @@ namespace GVFS.Common
 
         bool TryDownloadNewestVersion(out string errorMessage);
 
-        bool TryRunGitInstaller(out bool installationSucceeded, out string error);
-
-        bool TryRunGVFSInstaller(out bool installationSucceeded, out string error);
+        bool TryRunInstaller(InstallActionWrapper installActionWrapper, out string error);
 
         bool TryCleanup(out string error);
 

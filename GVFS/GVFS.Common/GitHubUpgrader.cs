@@ -40,6 +40,7 @@ namespace GVFS.Common
             };
 
         private Version installedVersion;
+        private Version newestVersion;
         private Release newestRelease;
         private PhysicalFileSystem fileSystem;
         private ITracer tracer;
@@ -158,6 +159,7 @@ namespace GVFS.Common
                         releaseVersion > this.installedVersion)
                     {
                         newVersion = releaseVersion;
+                        this.newestVersion = releaseVersion;
                         this.newestRelease = nextRelease;
                         consoleMessage = $"New GVFS version {newVersion.ToString()} available in ring {this.Config.UpgradeRing}.";
                         break;
@@ -230,28 +232,46 @@ namespace GVFS.Common
             return true;
         }
 
-        public bool TryRunGitInstaller(out bool installationSucceeded, out string error)
+        public bool TryRunInstaller(InstallActionWrapper installActionWrapper, out string error)
         {
+            string localError;
+
+            this.TryGetGitVersion(out GitVersion newGitVersion, out localError);
+
+            if (!installActionWrapper(
+                 () =>
+                 {
+                     if (!this.TryInstallGitUpgrade(newGitVersion, out localError))
+                     {
+                         return false;
+                     }
+
+                     return true;
+                 },
+                $"Installing Git version: {newGitVersion}"))
+            {
+                error = localError;
+                return false;
+            }
+
+            if (!installActionWrapper(
+                 () =>
+                 {
+                     if (!this.TryInstallGVFSUpgrade(this.newestVersion, out localError))
+                     {
+                         return false;
+                     }
+
+                     return true;
+                 },
+                $"Installing GVFS version: {this.newestVersion}"))
+            {
+                error = localError;
+                return false;
+            }
+
             error = null;
-            installationSucceeded = false;
-
-            int exitCode = 0;
-            bool launched = this.TryRunInstallerForAsset(GitAssetId, out exitCode, out error);
-            installationSucceeded = exitCode == 0;
-
-            return launched;
-        }
-
-        public bool TryRunGVFSInstaller(out bool installationSucceeded, out string error)
-        {
-            error = null;
-            installationSucceeded = false;
-
-            int exitCode = 0;
-            bool launched = this.TryRunInstallerForAsset(GVFSAssetId, out exitCode, out error);
-            installationSucceeded = exitCode == 0 || exitCode == RepoMountFailureExitCode;
-
-            return launched;
+            return true;
         }
 
         // TrySetupToolsDirectory -
@@ -440,6 +460,74 @@ namespace GVFS.Common
 
             exception = null;
             return true;
+        }
+
+        private bool TryInstallGitUpgrade(GitVersion version, out string consoleError)
+        {
+            bool installSuccess = false;
+            using (ITracer activity = this.tracer.StartActivity(
+                $"{nameof(this.TryInstallGitUpgrade)}({version.ToString()})",
+                EventLevel.Informational))
+            {
+                if (!this.TryRunGitInstaller(out installSuccess, out consoleError) ||
+                    !installSuccess)
+                {
+                    EventMetadata metadata = new EventMetadata();
+                    metadata.Add("Upgrade Step", nameof(this.TryInstallGitUpgrade));
+                    this.tracer.RelatedError(metadata, $"{nameof(this.TryRunGitInstaller)} failed. {consoleError}");
+                    return false;
+                }
+
+                activity.RelatedInfo("Successfully installed Git version: " + version.ToString());
+            }
+
+            return installSuccess;
+        }
+
+        private bool TryInstallGVFSUpgrade(Version version, out string consoleError)
+        {
+            bool installSuccess = false;
+            using (ITracer activity = this.tracer.StartActivity(
+                $"{nameof(this.TryInstallGVFSUpgrade)}({version.ToString()})",
+                EventLevel.Informational))
+            {
+                if (!this.TryRunGVFSInstaller(out installSuccess, out consoleError) ||
+                !installSuccess)
+                {
+                    EventMetadata metadata = new EventMetadata();
+                    metadata.Add("Upgrade Step", nameof(this.TryInstallGVFSUpgrade));
+                    this.tracer.RelatedError(metadata, $"{nameof(this.TryRunGVFSInstaller)} failed. {consoleError}");
+                    return false;
+                }
+
+                activity.RelatedInfo("Successfully installed GVFS version: " + version.ToString());
+            }
+
+            return installSuccess;
+        }
+
+        private bool TryRunGitInstaller(out bool installationSucceeded, out string error)
+        {
+            error = null;
+            installationSucceeded = false;
+
+            int exitCode = 0;
+            bool launched = this.TryRunInstallerForAsset(GitAssetId, out exitCode, out error);
+            installationSucceeded = exitCode == 0;
+
+            return launched;
+        }
+
+        private bool TryRunGVFSInstaller(out bool installationSucceeded, out string error)
+        {
+            error = null;
+            installationSucceeded = false;
+
+            int exitCode = 0;
+            bool launched = this.TryRunInstallerForAsset(GVFSAssetId, out exitCode, out error);
+            installationSucceeded = exitCode == 0 || exitCode == RepoMountFailureExitCode;
+
+            return launched;
         }
 
         private bool TryRunInstallerForAsset(string assetId, out int installerExitCode, out string error)
