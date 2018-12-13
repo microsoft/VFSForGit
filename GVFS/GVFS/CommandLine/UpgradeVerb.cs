@@ -13,12 +13,12 @@ namespace GVFS.CommandLine
     {
         private const string UpgradeVerbName = "upgrade";
         private ITracer tracer;
-        private ProductUpgrader upgrader;
+        private IProductUpgrader upgrader;
         private InstallerPreRunChecker prerunChecker;
         private ProcessLauncher processLauncher;
 
         public UpgradeVerb(
-            ProductUpgrader upgrader,
+            IProductUpgrader upgrader,
             ITracer tracer,
             InstallerPreRunChecker prerunChecker,
             ProcessLauncher processWrapper,
@@ -110,7 +110,7 @@ namespace GVFS.CommandLine
             string consoleMessage;
             if (!this.upgrader.CanRunUsingCurrentConfig(out isError, out consoleMessage, out error))
             {
-                ProductUpgrader.CleanupDownloadDirectory(this.tracer);
+                this.upgrader.CleanupDownloadDirectory();
 
                 if (isError)
                 {
@@ -135,7 +135,7 @@ namespace GVFS.CommandLine
             {
                 // Make sure there a no asset installers remaining in the Downloads directory. This can happen if user
                 // upgraded by manually downloading and running asset installers.
-                ProductUpgrader.CleanupDownloadDirectory(this.tracer);
+                this.upgrader.CleanupDownloadDirectory();
                 this.ReportInfoToConsole(upgradeAvailableMessage);
                 return true;
             }
