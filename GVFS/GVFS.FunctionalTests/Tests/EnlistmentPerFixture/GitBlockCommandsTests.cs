@@ -1,25 +1,13 @@
-﻿using GVFS.FunctionalTests.FileSystemRunners;
-using GVFS.FunctionalTests.Should;
-using GVFS.FunctionalTests.Tools;
+﻿using GVFS.FunctionalTests.Tools;
 using GVFS.Tests.Should;
 using NUnit.Framework;
-using System;
-using System.Collections.Generic;
-using System.IO;
-using System.Runtime.InteropServices;
 
 namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
 {
-    [TestFixtureSource(typeof(FileSystemRunner), nameof(FileSystemRunner.Runners))]
+    [TestFixture]
     [Category(Categories.GitCommands)]
     public class GitBlockCommandsTests : TestsWithEnlistmentPerFixture
     {
-        private FileSystemRunner fileSystem;
-        public GitBlockCommandsTests(FileSystemRunner fileSystem)
-        {
-            this.fileSystem = fileSystem;
-        }
-
         [TestCase]
         public void GitBlockCommands()
         {
