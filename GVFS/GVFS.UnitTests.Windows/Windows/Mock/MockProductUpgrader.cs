@@ -16,7 +16,7 @@ namespace GVFS.UnitTests.Windows.Mock.Upgrader
         public MockProductUpgrader(
             string currentVersion,
             ITracer tracer,
-            GitHubUpgraderConfig config) : base(currentVersion, tracer, config, verifier: null)
+            GitHubUpgraderConfig config) : base(currentVersion, tracer, config)
         {
             this.DownloadedFiles = new List<string>();
             this.InstallerArgs = new Dictionary<string, Dictionary<string, string>>();

@@ -57,7 +57,7 @@ namespace GVFS.Service
         {
             string errorMessage = null;
             InstallerPreRunChecker prerunChecker = new InstallerPreRunChecker(this.tracer, string.Empty);
-            ProductUpgrader productUpgrader = ProductUpgrader.CreateUpgrader(this.tracer, out errorMessage);
+            IProductUpgrader productUpgrader = ProductUpgrader.CreateUpgrader(this.tracer, out errorMessage);
 
             if (productUpgrader != null)
             {
@@ -66,7 +66,7 @@ namespace GVFS.Service
                     return;
                 }
 
-                ProductUpgrader.CleanupDownloadDirectory(this.tracer);
+                productUpgrader.CleanupDownloadDirectory();
             }
 
             if (errorMessage != null)
@@ -75,7 +75,7 @@ namespace GVFS.Service
             }
         }
 
-        private bool TryDownloadUpgrade(ProductUpgrader productUpgrader, out string errorMessage)
+        private bool TryDownloadUpgrade(IProductUpgrader productUpgrader, out string errorMessage)
         {
             using (ITracer activity = this.tracer.StartActivity("Checking for product upgrades.", EventLevel.Informational))
             {
@@ -92,7 +92,7 @@ namespace GVFS.Service
                     // Already up-to-date
                     // Make sure there a no asset installers remaining in the Downloads directory. This can happen if user
                     // upgraded by manually downloading and running asset installers.
-                    ProductUpgrader.CleanupDownloadDirectory(this.tracer);
+                    productUpgrader.CleanupDownloadDirectory();
                     errorMessage = null;
                     return true;
                 }
@@ -110,11 +110,11 @@ namespace GVFS.Service
             }
         }
 
-        private void CleanupDownloadsDirectory(ProductUpgrader productUpgrader)
+        private void CleanupDownloadsDirectory(IProductUpgrader productUpgrader)
         {
             if (productUpgrader != null)
             {
-                ProductUpgrader.CleanupDownloadDirectory(this.tracer);
+                productUpgrader.CleanupDownloadDirectory();
                 return;
             }
 

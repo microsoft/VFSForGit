@@ -10,7 +10,7 @@ namespace GVFS.Upgrader
     {
         private const EventLevel DefaultEventLevel = EventLevel.Informational;
 
-        private ProductUpgrader upgrader;
+        private IProductUpgrader upgrader;
         private ITracer tracer;
         private InstallerPreRunChecker preRunChecker;
         private TextWriter output;
@@ -18,7 +18,7 @@ namespace GVFS.Upgrader
         private bool mount;
 
         public UpgradeOrchestrator(
-            ProductUpgrader upgrader,
+            IProductUpgrader upgrader,
             ITracer tracer,
             InstallerPreRunChecker preRunChecker,
             TextReader input,
@@ -135,7 +135,7 @@ namespace GVFS.Upgrader
 
             if (!this.upgrader.CanRunUsingCurrentConfig(out isError, out consoleMessage, out error))
             {
-                ProductUpgrader.CleanupDownloadDirectory(this.tracer);
+                this.upgrader.CleanupDownloadDirectory();
                 this.output.WriteLine(consoleMessage);
 
                 if (isError)
