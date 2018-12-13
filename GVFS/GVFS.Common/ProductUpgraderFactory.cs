@@ -13,6 +13,12 @@ namespace GVFS.Common
             ITracer tracer,
             out string error)
         {
+            newUpgrader = NuGetUpgrader.Create(tracer, out error);
+            if (newUpgrader != null)
+            {
+                return true;
+            }
+
             newUpgrader = GitHubUpgrader.Create(tracer, out error);
             if (newUpgrader == null)
             {
