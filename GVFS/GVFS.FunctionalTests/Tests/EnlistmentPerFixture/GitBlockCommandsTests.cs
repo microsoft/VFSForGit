@@ -20,87 +20,38 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
             this.fileSystem = fileSystem;
         }
 
-        [TestCase, Order(1)]
-        public void GitFsck()
+        [TestCase]
+        public void GitBlockCommands()
         {
-            ProcessResult result = GitHelpers.InvokeGitAgainstGVFSRepo(
-                this.Enlistment.RepoRoot,
-                "fsck");
-            result.ExitCode.ShouldNotEqual(0, result.Errors);
+            this.CommandBlocked("fsck");
+            this.CommandBlocked("gc");
+            this.CommandNotBlocked("gc --auto");
+            this.CommandBlocked("prune");
+            this.CommandBlocked("prune");
+            this.CommandBlocked("repack");
+            this.CommandBlocked("submodule");
+            this.CommandBlocked("submodule status");
+            this.CommandBlocked("update-index --index-version 2");
+            this.CommandBlocked("update-index --skip-worktree");
+            this.CommandBlocked("update-index --no-skip-worktree");
+            this.CommandBlocked("update-index --split-index");
+            this.CommandBlocked("worktree list");
         }
 
-        [TestCase, Order(2)]
-        public void GitGc()
+        private void CommandBlocked(string command)
         {
             ProcessResult result = GitHelpers.InvokeGitAgainstGVFSRepo(
                 this.Enlistment.RepoRoot,
-                "gc");
-            result.ExitCode.ShouldNotEqual(0, result.Errors);
-            result = GitHelpers.InvokeGitAgainstGVFSRepo(
-                this.Enlistment.RepoRoot,
-                "gc --auto");
-            result.ExitCode.ShouldEqual(0, result.Errors);
+                command);
+            result.ExitCode.ShouldNotEqual(0, $"Command {command} not blocked when it should be.  Errors: {result.Errors}");
         }
 
-        [TestCase, Order(3)]
-        public void GitPrune()
+        private void CommandNotBlocked(string command)
         {
             ProcessResult result = GitHelpers.InvokeGitAgainstGVFSRepo(
                 this.Enlistment.RepoRoot,
-                "prune");
-            result.ExitCode.ShouldNotEqual(0, result.Errors);
-        }
-
-        [TestCase, Order(4)]
-        public void GitRepack()
-        {
-            ProcessResult result = GitHelpers.InvokeGitAgainstGVFSRepo(
-                this.Enlistment.RepoRoot,
-                "repack");
-            result.ExitCode.ShouldNotEqual(0, result.Errors);
-        }
-
-        [TestCase, Order(5)]
-        public void GitSubmodule()
-        {
-            ProcessResult result = GitHelpers.InvokeGitAgainstGVFSRepo(
-                this.Enlistment.RepoRoot,
-                "submodule");
-            result.ExitCode.ShouldNotEqual(0, result.Errors);
-            result = GitHelpers.InvokeGitAgainstGVFSRepo(
-                this.Enlistment.RepoRoot,
-                "submodule status");
-            result.ExitCode.ShouldNotEqual(0, result.Errors);
-        }
-
-        [TestCase, Order(6)]
-        public void GitUpdateIndex()
-        {
-            ProcessResult result = GitHelpers.InvokeGitAgainstGVFSRepo(
-                this.Enlistment.RepoRoot,
-                "update-index --index-version 2");
-            result.ExitCode.ShouldNotEqual(0, result.Errors);
-            result = GitHelpers.InvokeGitAgainstGVFSRepo(
-                this.Enlistment.RepoRoot,
-                "update-index --skip-worktree");
-            result.ExitCode.ShouldNotEqual(0, result.Errors);
-            result = GitHelpers.InvokeGitAgainstGVFSRepo(
-                this.Enlistment.RepoRoot,
-                "update-index --no-skip-worktree");
-            result.ExitCode.ShouldNotEqual(0, result.Errors);
-            result = GitHelpers.InvokeGitAgainstGVFSRepo(
-                this.Enlistment.RepoRoot,
-                "update-index --split-index");
-            result.ExitCode.ShouldNotEqual(0, result.Errors);
-        }
-
-        [TestCase, Order(7)]
-        public void GitWorktree()
-        {
-            ProcessResult result = GitHelpers.InvokeGitAgainstGVFSRepo(
-                this.Enlistment.RepoRoot,
-                "worktree list");
-            result.ExitCode.ShouldNotEqual(0, result.Errors);
+                command);
+            result.ExitCode.ShouldEqual(0, $"Command {command}  blocked when it should not be.  Errors: {result.Errors}");
         }
     }
 }

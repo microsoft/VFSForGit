@@ -1033,16 +1033,6 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
         }
 
         [TestCase]
-        public void UpdateIndexCannotModifySkipWorktreeBit()
-        {
-            ProcessResult result = GitHelpers.InvokeGitAgainstGVFSRepo(this.Enlistment.RepoRoot, "update-index --skip-worktree Readme.md");
-            result.ExitCode.ShouldNotEqual(0);
-
-            result = GitHelpers.InvokeGitAgainstGVFSRepo(this.Enlistment.RepoRoot, "update-index --no-skip-worktree Readme.md");
-            result.ExitCode.ShouldNotEqual(0);
-        }
-
-        [TestCase]
         public void BlameTest()
         {
             this.ValidateGitCommand("blame Readme.md");
