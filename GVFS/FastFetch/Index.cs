@@ -48,7 +48,6 @@ namespace FastFetch
 
         private Dictionary<string, long> indexEntryOffsets;
         private uint entryCount;
-        private bool isUnixOS;
 
         /// <summary>
         /// Creates a new Index object to parse the specified index file
@@ -74,8 +73,6 @@ namespace FastFetch
             }
 
             this.versionMarkerFile = Path.Combine(this.repoRoot, GVFSConstants.DotGit.Root, ".fastfetch", "VersionMarker");
-
-            this.isUnixOS = RuntimeInformation.IsOSPlatform(OSPlatform.OSX) || RuntimeInformation.IsOSPlatform(OSPlatform.Linux);
         }
 
         public uint IndexVersion { get; private set; }
@@ -195,19 +192,9 @@ namespace FastFetch
                             long offset;
                             if (this.indexEntryOffsets.TryGetValue(gitPath, out offset))
                             {
-                                if (!this.isUnixOS)
+                                if (NativeMethods.StatAndUpdateIndexForFile(gitPath, indexView, offset))
                                 {
-                                    if (NativeWindowsMethods.StatAndUpdateIndexForFile(gitPath, indexView, offset))
-                                    {
-                                        Interlocked.Increment(ref updatedEntries);
-                                    }
-                                }
-                                else
-                                {
-                                    if (NativeUnixMethods.StatAndUpdateIndexForFile(gitPath, indexView, offset))
-                                    {
-                                        Interlocked.Increment(ref updatedEntries);
-                                    }
+                                    Interlocked.Increment(ref updatedEntries);
                                 }
                             }
                         }
@@ -230,19 +217,9 @@ namespace FastFetch
                         long offset;
                         if (this.indexEntryOffsets.TryGetValue(gitPath, out offset))
                         {
-                            if (!this.isUnixOS)
+                            if (NativeMethods.StatAndUpdateIndexForFile(gitPath, indexView, offset))
                             {
-                                if (NativeWindowsMethods.StatAndUpdateIndexForFile(gitPath, indexView, offset))
-                                {
-                                    Interlocked.Increment(ref updatedEntriesFromDisk);
-                                }
-                            }
-                            else
-                            {
-                                if (NativeUnixMethods.StatAndUpdateIndexForFile(gitPath, indexView, offset))
-                                {
-                                    Interlocked.Increment(ref updatedEntriesFromDisk);
-                                }
+                                Interlocked.Increment(ref updatedEntriesFromDisk);
                             }
                         }
                     });
@@ -293,19 +270,9 @@ namespace FastFetch
                             {
                                 string localPath = FromGitRelativePathToDotnetFullPath(currentIndexFilename, this.repoRoot);
 
-                                if (!this.isUnixOS)
+                                if (NativeMethods.StatAndUpdateIndexForFile(localPath, indexView, entry.Value))
                                 {
-                                    if (NativeWindowsMethods.StatAndUpdateIndexForFile(localPath, indexView, entry.Value))
-                                    {
-                                        Interlocked.Increment(ref updatedEntriesFromDisk);
-                                    }
-                                }
-                                else
-                                {
-                                    if (NativeUnixMethods.StatAndUpdateIndexForFile(localPath, indexView, entry.Value))
-                                    {
-                                        Interlocked.Increment(ref updatedEntriesFromDisk);
-                                    }
+                                    Interlocked.Increment(ref updatedEntriesFromDisk);
                                 }
                             }
                         }

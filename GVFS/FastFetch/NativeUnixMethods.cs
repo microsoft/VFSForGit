@@ -6,7 +6,7 @@ using System.Runtime.InteropServices;
 
 namespace FastFetch
 {
-    public class NativeUnixMethods
+    public class NativeUnixMethods 
     {
         public const int ReadOnly = 0x0000;
         public const int WriteOnly = 0x0001;
@@ -14,6 +14,7 @@ namespace FastFetch
         public const int Create = 0x0200;
         public const int Truncate = 0x0400;
         private const int InvalidFileDescriptor = -1;
+
         public static unsafe void WriteFile(ITracer tracer, byte* originalData, long originalSize, string destination, ushort mode)
         {
             int fileDescriptor = InvalidFileDescriptor;
