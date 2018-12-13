@@ -10,9 +10,12 @@ namespace FastFetch
 {
     public class FastFetchLibGit2Repo : LibGit2Repo
     {
+        private bool isUnixOS;
+
         public FastFetchLibGit2Repo(ITracer tracer, string repoPath)
             : base(tracer, repoPath)
         {
+            this.isUnixOS = RuntimeInformation.IsOSPlatform(OSPlatform.OSX) || RuntimeInformation.IsOSPlatform(OSPlatform.Linux);
         }
 
         public virtual bool TryCopyBlobToFile(string sha, IEnumerable<PathWithMode> destinations, out long bytesWritten)
@@ -40,17 +43,13 @@ namespace FastFetch
 
                             foreach (PathWithMode destination in destinations)
                             {
-                                if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+                                if (!this.isUnixOS)
                                 {
                                     NativeWindowsMethods.WriteFile(this.Tracer, originalData, originalSize, destination.Path, destination.Mode);
                                 }
-                                else if (RuntimeInformation.IsOSPlatform(OSPlatform.OSX))
-                                {
-                                    NativeMacMethods.WriteFile(this.Tracer, originalData, originalSize, destination.Path, destination.Mode);
-                                }
                                 else
                                 {
-                                    throw new PlatformNotSupportedException();
+                                    NativeUnixMethods.WriteFile(this.Tracer, originalData, originalSize, destination.Path, destination.Mode);
                                 }
                             }
 

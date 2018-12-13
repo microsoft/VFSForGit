@@ -5,21 +5,21 @@ using System.Runtime.InteropServices;
 
 namespace FastFetch
 {
-    public class NativeMacMethods
+    public class NativeUnixMethods
     {
         public const int ReadOnly = 0x0000;
         public const int WriteOnly = 0x0001;
 
         public const int Create = 0x0200;
         public const int Truncate = 0x0400;
-
+        private const int InvalidFileDescriptor = -1;
         public static unsafe void WriteFile(ITracer tracer, byte* originalData, long originalSize, string destination, ushort mode)
         {
-            int fileDescriptor = -1;
+            int fileDescriptor = InvalidFileDescriptor;
             try
             {
                 fileDescriptor = Open(destination, WriteOnly | Create | Truncate, mode);
-                if (fileDescriptor != -1)
+                if (fileDescriptor != InvalidFileDescriptor)
                 {
                     IntPtr result = Write(fileDescriptor, originalData, (IntPtr)originalSize);
                     if (result.ToInt32() == -1)
@@ -38,9 +38,9 @@ namespace FastFetch
                 Close(fileDescriptor);
             }
         }
-
+        
         [DllImport("libc", EntryPoint = "open", SetLastError = true)]
-        public static extern int Open(string path, int flag, int creationMode);
+        public static extern int Open(string path, int flag, ushort creationMode);
 
         [DllImport("libc", EntryPoint = "close", SetLastError = true)]
         public static extern int Close(int fd);

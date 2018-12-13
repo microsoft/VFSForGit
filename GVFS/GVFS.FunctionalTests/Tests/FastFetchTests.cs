@@ -231,9 +231,7 @@ namespace GVFS.FunctionalTests.Tests
         public string RemoveUnixEntriesFromLsFilesOutput(string gitOutput)
         {
             string[] splitOutput = gitOutput.Split(new[] { Environment.NewLine }, StringSplitOptions.None);
-            System.Console.WriteLine("Original output: {0}", splitOutput);
             splitOutput = splitOutput.Where(x => !x.StartsWith("  dev:") && !x.StartsWith("  uid:")).ToArray();
-            System.Console.WriteLine(splitOutput);
             return string.Concat(splitOutput);
         }
 
@@ -506,18 +504,18 @@ namespace GVFS.FunctionalTests.Tests
             string fastfetch;
             if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
             {
-                fastfetch = Path.Combine(Settings.Default.CurrentDirectory, "netcoreapp2.1", "fastfetch.dll");
+                fastfetch = Path.Combine(Settings.Default.CurrentDirectory, "netcoreapp2.1", "fastfetch.exe");
             }
             else
             {
-                fastfetch = Path.Combine(Settings.Default.CurrentDirectory, "fastfetch.dll");
+                fastfetch = Path.Combine(Settings.Default.CurrentDirectory, "fastfetch");
             }
 
             File.Exists(fastfetch).ShouldBeTrue();
             Console.WriteLine($"Using {fastfetch}");
 
-            ProcessStartInfo processInfo = new ProcessStartInfo("dotnet");
-            processInfo.Arguments = $"{fastfetch} {args}";
+            ProcessStartInfo processInfo = new ProcessStartInfo(fastfetch);
+            processInfo.Arguments = $"{args}";
             processInfo.WorkingDirectory = this.fastFetchRepoRoot;
             processInfo.UseShellExecute = false;
             processInfo.RedirectStandardOutput = true;
