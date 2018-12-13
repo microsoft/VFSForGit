@@ -310,12 +310,12 @@ namespace GVFS.CommandLine
             filesList = new List<string>();
             foldersList = new List<string>();
 
-            if (!BlobPrefetcher.TryLoadFileList(enlistment, this.Files, this.FileListFile, this.FilesFromStdIn, filesList, out error))
+            if (!BlobPrefetcher.TryLoadFileList(enlistment, this.Files, this.FileListFile, filesList, readListFromStdIn: this.FilesFromStdIn, error: out error))
             {
                 this.ReportErrorAndExit(tracer, error);
             }
 
-            if (!BlobPrefetcher.TryLoadFolderList(enlistment, this.Folders, this.FoldersListFile, this.FoldersFromStdIn, foldersList, out error))
+            if (!BlobPrefetcher.TryLoadFolderList(enlistment, this.Folders, this.FoldersListFile, foldersList, readListFromStdIn: this.FoldersFromStdIn, error: out error))
             {
                 this.ReportErrorAndExit(tracer, error);
             }

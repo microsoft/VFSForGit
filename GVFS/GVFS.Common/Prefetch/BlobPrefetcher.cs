@@ -84,12 +84,12 @@ namespace GVFS.Common.Prefetch
 
         public List<string> FolderList { get; }
 
-        public static bool TryLoadFolderList(Enlistment enlistment, string foldersInput, string folderListFile, bool readListFromStdIn, List<string> folderListOutput, out string error)
+        public static bool TryLoadFolderList(Enlistment enlistment, string foldersInput, string folderListFile, List<string> folderListOutput, bool readListFromStdIn, out string error)
         {
             return TryLoadFileOrFolderList(enlistment, foldersInput, folderListFile, isFolder: true, readListFromStdIn: readListFromStdIn, output: folderListOutput, elementValidationFunction: s => s.Contains("*") ? "Wildcards are not supported for folders. Invalid entry: " + s : null, error: out error);
         }
 
-        public static bool TryLoadFileList(Enlistment enlistment, string filesInput, string filesListFile, bool readListFromStdIn, List<string> fileListOutput, out string error)
+        public static bool TryLoadFileList(Enlistment enlistment, string filesInput, string filesListFile, List<string> fileListOutput, bool readListFromStdIn, out string error)
         {
             return TryLoadFileOrFolderList(
                 enlistment,
