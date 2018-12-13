@@ -11,14 +11,13 @@ namespace GVFS.Common.Git
 {
     public class GitSsl
     {
-        public readonly string CertificatePathOrSubjectCommonName;
-        public readonly bool IsCertificatePasswordProtected;
-        public readonly bool ShouldVerify;
+        private readonly string certificatePathOrSubjectCommonName;
+        private readonly bool isCertificatePasswordProtected;
 
         public GitSsl()
         {
-            this.CertificatePathOrSubjectCommonName = null;
-            this.IsCertificatePasswordProtected = false;
+            this.certificatePathOrSubjectCommonName = null;
+            this.isCertificatePasswordProtected = false;
             this.ShouldVerify = true;
         }
 
@@ -28,12 +27,12 @@ namespace GVFS.Common.Git
             {
                 if (configSettings.TryGetValue(GitConfigSetting.HttpSslCert, out GitConfigSetting sslCerts))
                 {
-                    this.CertificatePathOrSubjectCommonName = sslCerts.Values.Single();
+                    this.certificatePathOrSubjectCommonName = sslCerts.Values.Single();
                 }
 
                 if (configSettings.TryGetValue(GitConfigSetting.HttpSslCertPasswordProtected, out GitConfigSetting isSslCertPasswordProtected))
                 {
-                    this.IsCertificatePasswordProtected = isSslCertPasswordProtected.Values.Select(bool.Parse).Single();
+                    this.isCertificatePasswordProtected = isSslCertPasswordProtected.Values.Select(bool.Parse).Single();
                 }
 
                 if (configSettings.TryGetValue(GitConfigSetting.HttpSslVerify, out GitConfigSetting sslVerify))
@@ -43,9 +42,11 @@ namespace GVFS.Common.Git
             }
         }
 
+        public bool ShouldVerify { get; }
+
         public string GetCertificatePassword(ITracer tracer, GitProcess git)
         {
-            if (git.TryGetCertificatePassword(tracer, this.CertificatePathOrSubjectCommonName, out string password, out string error))
+            if (git.TryGetCertificatePassword(tracer, this.certificatePathOrSubjectCommonName, out string password, out string error))
             {
                 return password;
             }
@@ -53,28 +54,33 @@ namespace GVFS.Common.Git
             return null;
         }
 
-        public X509Certificate2 GetCertificate(ITracer tracer, string certificatePassword, bool onlyLoadValidCertificateFromStore)
+        public X509Certificate2 GetCertificate(ITracer tracer, GitProcess gitProcess)
         {
+            if (string.IsNullOrEmpty(this.certificatePathOrSubjectCommonName))
+            {
+                return null;
+            }
+
             EventMetadata metadata = new EventMetadata
             {
-                { "CertificatePathOrSubjectCommonName", this.CertificatePathOrSubjectCommonName },
-                { "isPasswordSpecified", string.IsNullOrEmpty(certificatePassword) },
-                { "shouldVerify", onlyLoadValidCertificateFromStore }
+                { "CertificatePathOrSubjectCommonName", this.certificatePathOrSubjectCommonName },
+                { "IsCertificatePasswordProtected", this.isCertificatePasswordProtected },
+                { "ShouldVerify", this.ShouldVerify }
             };
 
             X509Certificate2 result =
-                this.GetCertificateFromFile(tracer, metadata, certificatePassword, onlyLoadValidCertificateFromStore) ??
-                this.GetCertificateFromStore(tracer, metadata, onlyLoadValidCertificateFromStore);
+                this.GetCertificateFromFile(tracer, metadata, gitProcess) ??
+                this.GetCertificateFromStore(tracer, metadata);
 
             if (result == null)
             {
-                tracer.RelatedError("Certificate {0} not found", this.CertificatePathOrSubjectCommonName);
+                tracer.RelatedError("Certificate {0} not found", this.certificatePathOrSubjectCommonName);
             }
 
             return result;
         }
 
-        private static void LogCertificateCounts(ITracer tracer, EventMetadata metadata, IEnumerable<X509Certificate2> certificates, string messageTemplate)
+        private static void LogWithAppropriateLevel(ITracer tracer, EventMetadata metadata, IEnumerable<X509Certificate2> certificates, string logMessage)
         {
             Action<EventMetadata, string> loggingFunction;
             int numberOfCertificates = certificates.Count();
@@ -94,22 +100,42 @@ namespace GVFS.Common.Git
 
             loggingFunction(
                 metadata,
-                string.Format(
-                    messageTemplate,
-                    numberOfCertificates,
-                    string.Join(
-                        Environment.NewLine,
-                        certificates.Select(x => x.Subject))));
+                logMessage);
         }
 
-        private X509Certificate2 GetCertificateFromFile(ITracer tracer, EventMetadata metadata, string certificatePassword, bool onlyLoadValidCertificateFromStore)
+        private static string GetSubjectNameLineForLogging(IEnumerable<X509Certificate2> certificates)
         {
-            if (File.Exists(this.CertificatePathOrSubjectCommonName))
+            return string.Join(
+                        Environment.NewLine,
+                        certificates.Select(x => x.Subject));
+        }
+
+        private X509Certificate2 GetCertificateFromFile(ITracer tracer, EventMetadata metadata, GitProcess gitProcess)
+        {
+            string certificatePassword = null;
+            if (this.isCertificatePasswordProtected)
+            {
+                certificatePassword = this.GetCertificatePassword(tracer, gitProcess);
+
+                if (string.IsNullOrEmpty(certificatePassword))
+                {
+                    tracer.RelatedWarning(
+                        new EventMetadata
+                        {
+                                { "SslCertificate", this.certificatePathOrSubjectCommonName }
+                        },
+                        "Git config indicates, that certificate is password protected, but retrieved password was null or empty!");
+                }
+
+                metadata.Add("isPasswordSpecified", string.IsNullOrEmpty(certificatePassword));
+            }
+
+            if (File.Exists(this.certificatePathOrSubjectCommonName))
             {
                 try
                 {
-                    X509Certificate2 cert = new X509Certificate2(this.CertificatePathOrSubjectCommonName, certificatePassword);
-                    if (onlyLoadValidCertificateFromStore && cert != null && !cert.Verify())
+                    X509Certificate2 cert = new X509Certificate2(this.certificatePathOrSubjectCommonName, certificatePassword);
+                    if (this.ShouldVerify && cert != null && !cert.Verify())
                     {
                         tracer.RelatedWarning(metadata, "Certficate was found, but is invalid.");
                         return null;
@@ -128,41 +154,52 @@ namespace GVFS.Common.Git
             return null;
         }
 
-        private X509Certificate2 GetCertificateFromStore(ITracer tracer, EventMetadata metadata, bool onlyLoadValidCertificateFromStore)
+        private X509Certificate2 GetCertificateFromStore(ITracer tracer, EventMetadata metadata)
         {
-            X509Store store = null;
             try
             {
-                store = new X509Store();
-                store.Open(OpenFlags.OpenExistingOnly | OpenFlags.ReadOnly);
-
-                X509Certificate2Collection findResults = store.Certificates.Find(X509FindType.FindBySubjectName, this.CertificatePathOrSubjectCommonName, onlyLoadValidCertificateFromStore);
-                if (findResults?.Count > 0)
+                using (X509Store store = new X509Store())
                 {
-                    LogCertificateCounts(tracer, metadata, findResults.OfType<X509Certificate2>(), "Found {0} certificates by provided name. Matching DNs: {1}");
+                    store.Open(OpenFlags.OpenExistingOnly | OpenFlags.ReadOnly);
 
-                    X509Certificate2[] certsWithMatchingCns = findResults
-                        .OfType<X509Certificate2>()
-                        .Where(x => x.HasPrivateKey && Regex.IsMatch(x.Subject, string.Format("(^|,\\s?)CN={0}(,|$)", this.CertificatePathOrSubjectCommonName))) // We only want certificates, that have private keys, as we need them. We also want a complete CN match
-                        .OrderByDescending(x => x.Verify()) // Ordering by validity in a descending order will bring valid certificates to the beginning
-                        .ThenBy(x => x.NotBefore) // We take the one, that was issued earliest, first
-                        .ThenByDescending(x => x.NotAfter) // We then take the one, that is valid for the longest period
-                        .ToArray();
+                    X509Certificate2Collection findResults = store.Certificates.Find(X509FindType.FindBySubjectName, this.certificatePathOrSubjectCommonName, this.ShouldVerify);
+                    if (findResults?.Count > 0)
+                    {
+                        LogWithAppropriateLevel(
+                            tracer,
+                            metadata,
+                            findResults.OfType<X509Certificate2>(),
+                            string.Format(
+                                "Found {0} certificates by provided name. Matching DNs: {1}",
+                                findResults.Count,
+                                GetSubjectNameLineForLogging(findResults.OfType<X509Certificate2>())));
 
-                    LogCertificateCounts(tracer, metadata, certsWithMatchingCns, "Found {0} certificates with a private key and an exact CN match. DNs (sorted by priority, will take first): {1}");
+                        X509Certificate2[] certsWithMatchingCns = findResults
+                            .OfType<X509Certificate2>()
+                            .Where(x => x.HasPrivateKey && Regex.IsMatch(x.Subject, string.Format("(^|,\\s?)CN={0}(,|$)", this.certificatePathOrSubjectCommonName))) // We only want certificates, that have private keys, as we need them. We also want a complete CN match
+                            .OrderByDescending(x => x.Verify()) // Ordering by validity in a descending order will bring valid certificates to the beginning
+                            .ThenBy(x => x.NotBefore) // We take the one, that was issued earliest, first
+                            .ThenByDescending(x => x.NotAfter) // We then take the one, that is valid for the longest period
+                            .ToArray();
 
-                    return certsWithMatchingCns.FirstOrDefault();
+                        LogWithAppropriateLevel(
+                            tracer,
+                            metadata,
+                            certsWithMatchingCns,
+                            string.Format(
+                                "Found {0} certificates with a private key and an exact CN match. DNs (sorted by priority, will take first): {1}",
+                                certsWithMatchingCns.Length,
+                                GetSubjectNameLineForLogging(certsWithMatchingCns)));
+
+                        return certsWithMatchingCns.FirstOrDefault();
+                    }
                 }
             }
             catch (CryptographicException cryptEx)
             {
-                metadata.Add("Exception", cryptEx);
+                metadata.Add("Exception", cryptEx.ToString());
                 tracer.RelatedError(metadata, "Error, while searching for certificate in store");
                 return null;
-            }
-            finally
-            {
-                store.Dispose();
             }
 
             return null;

@@ -168,39 +168,20 @@ namespace GVFS.Common.Git
 
         public void SetupSslIfNeeded(ITracer tracer, HttpClientHandler httpClientHandler, GitProcess gitProcess)
         {
-            if (!string.IsNullOrEmpty(this.GitSsl.CertificatePathOrSubjectCommonName))
+            X509Certificate2 cert = this.GitSsl.GetCertificate(tracer, gitProcess);
+            if (cert != null)
             {
-                string certificatePassword = null;
-                if (this.GitSsl.IsCertificatePasswordProtected)
+                if (!this.GitSsl.ShouldVerify)
                 {
-                    certificatePassword = this.GitSsl.GetCertificatePassword(tracer, gitProcess);
-
-                    if (string.IsNullOrEmpty(certificatePassword))
-                    {
-                        tracer.RelatedWarning(
-                            new EventMetadata
-                            {
-                                { "SslCertificate", this.GitSsl.CertificatePathOrSubjectCommonName }
-                            },
-                            "Git config indicates, that certificate is password protected, but retrieved password was null or empty!");
-                    }
+                    httpClientHandler.ServerCertificateCustomValidationCallback =
+                        (httpRequestMessage, c, cetChain, policyErrors) =>
+                        {
+                            return true;
+                        };
                 }
 
-                X509Certificate2 cert = this.GitSsl.GetCertificate(tracer, certificatePassword, this.GitSsl.ShouldVerify);
-                if (cert != null)
-                {
-                    if (!this.GitSsl.ShouldVerify)
-                    {
-                        httpClientHandler.ServerCertificateCustomValidationCallback =
-                            (httpRequestMessage, c, cetChain, policyErrors) =>
-                            {
-                                return true;
-                            };
-                    }
-
-                    httpClientHandler.ClientCertificateOptions = ClientCertificateOption.Manual;
-                    httpClientHandler.ClientCertificates.Add(cert);
-                }
+                httpClientHandler.ClientCertificateOptions = ClientCertificateOption.Manual;
+                httpClientHandler.ClientCertificates.Add(cert);
             }
         }
 
