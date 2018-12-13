@@ -44,6 +44,9 @@ namespace GVFS.FunctionalTests.Tools
                 commitish == null ? Properties.Settings.Default.Commitish : commitish);
         }
 
+        //
+        // IMPORTANT! These must parallel the settings in GVFSVerb:TrySetRequiredGitConfigSettings
+        //
         public void Initialize()
         {
             Directory.CreateDirectory(this.RootPath);
@@ -54,6 +57,7 @@ namespace GVFS.FunctionalTests.Tools
             GitProcess.Invoke(this.RootPath, "config advice.statusUoption false");
             GitProcess.Invoke(this.RootPath, "config core.abbrev 40");
             GitProcess.Invoke(this.RootPath, "config rebase.useBuiltin false");
+            GitProcess.Invoke(this.RootPath, "config reset.quiet true");
             GitProcess.Invoke(this.RootPath, "config status.aheadbehind false");
             GitProcess.Invoke(this.RootPath, "config user.name \"Functional Test User\"");
             GitProcess.Invoke(this.RootPath, "config user.email \"functional@test.com\"");
