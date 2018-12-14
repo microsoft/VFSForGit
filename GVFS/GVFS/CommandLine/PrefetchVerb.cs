@@ -128,8 +128,8 @@ namespace GVFS.CommandLine
                     metadata.Add("Folders", this.Folders);
                     metadata.Add("FileListFile", this.FilesListFile);
                     metadata.Add("FoldersListFile", this.FoldersListFile);
-                    metadata.Add(nameof(FilesFromStdIn, this.FilesFromStdIn);
-                    metadata.Add(namoef(FoldersFromStdIn), this.FoldersFromStdIn);
+                    metadata.Add("FilesFromStdIn", this.FilesFromStdIn);
+                    metadata.Add("FoldersFromStdIn", this.FoldersFromStdIn);
                     metadata.Add("HydrateFiles", this.HydrateFiles);
                     tracer.RelatedEvent(EventLevel.Informational, "PerformPrefetch", metadata);
 
@@ -137,7 +137,10 @@ namespace GVFS.CommandLine
                     {
                         if (!string.IsNullOrWhiteSpace(this.Files) ||
                             !string.IsNullOrWhiteSpace(this.Folders) ||
-                            !string.IsNullOrWhiteSpace(this.FoldersListFile))
+                            !string.IsNullOrWhiteSpace(this.FoldersListFile) ||
+                            !string.IsNullOrWhiteSpace(this.FilesListFile) ||
+                            this.FilesFromStdIn ||
+                            this.FoldersFromStdIn)
                         {
                             this.ReportErrorAndExit(tracer, "You cannot prefetch commits and blobs at the same time.");
                         }

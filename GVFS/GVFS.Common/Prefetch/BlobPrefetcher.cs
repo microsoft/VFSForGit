@@ -16,7 +16,6 @@ namespace GVFS.Common.Prefetch
 {
     public class BlobPrefetcher
     {
-        public const string StdInFileName = "stdin";
         protected const string RefsHeadsGitPath = "refs/heads/";
 
         protected readonly Enlistment Enlistment;
@@ -86,7 +85,18 @@ namespace GVFS.Common.Prefetch
 
         public static bool TryLoadFolderList(Enlistment enlistment, string foldersInput, string folderListFile, List<string> folderListOutput, bool readListFromStdIn, out string error)
         {
-            return TryLoadFileOrFolderList(enlistment, foldersInput, folderListFile, isFolder: true, readListFromStdIn: readListFromStdIn, output: folderListOutput, elementValidationFunction: s => s.Contains("*") ? "Wildcards are not supported for folders. Invalid entry: " + s : null, error: out error);
+            return TryLoadFileOrFolderList(
+                    enlistment,
+                    foldersInput,
+                    folderListFile,
+                    isFolder: true,
+                    readListFromStdIn: readListFromStdIn,
+                    output: folderListOutput,
+                    elementValidationFunction: s =>
+                        s.Contains("*") ?
+                            "Wildcards are not supported for folders. Invalid entry: " + s :
+                            null,
+                    error: out error);
         }
 
         public static bool TryLoadFileList(Enlistment enlistment, string filesInput, string filesListFile, List<string> fileListOutput, bool readListFromStdIn, out string error)
@@ -480,7 +490,7 @@ namespace GVFS.Common.Prefetch
             }
         }
 
-        private static IEnumerable<string> GetFilesFromParameter(string valueString)
+        private static IEnumerable<string> GetFilesFromVerbParameter(string valueString)
         {
             return valueString.Split(new[] { ';' }, StringSplitOptions.RemoveEmptyEntries);
         }
@@ -520,7 +530,7 @@ namespace GVFS.Common.Prefetch
         private static bool TryLoadFileOrFolderList(Enlistment enlistment, string valueString, string listFileName, bool readListFromStdIn, bool isFolder, List<string> output, Func<string, string> elementValidationFunction, out string error)
         {
             output.AddRange(
-                GetFilesFromParameter(valueString)
+                GetFilesFromVerbParameter(valueString)
                 .Union(GetFilesFromFile(listFileName, out string fileReadError))
                 .Union(GetFilesFromStdin(readListFromStdIn))
                 .Where(path => !path.StartsWith(GVFSConstants.GitCommentSign.ToString()))
