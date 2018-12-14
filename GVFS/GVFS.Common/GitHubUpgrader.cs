@@ -79,7 +79,8 @@ namespace GVFS.Common
             {
                 upgrader = new GitHubUpgrader(
                     ProcessHelper.GetCurrentProcessVersion(),
-                    tracer);
+                    tracer,
+                    gitHubUpgraderConfig);
             }
 
             return upgrader;
@@ -269,6 +270,8 @@ namespace GVFS.Common
                 error = localError;
                 return false;
             }
+
+            this.LogVersionInfo(this.newestVersion, newGitVersion, "Newly Installed Version");
 
             error = null;
             return true;
@@ -614,6 +617,18 @@ namespace GVFS.Common
             }
 
             return false;
+        }
+
+        private void LogVersionInfo(
+            Version gvfsVersion,
+            GitVersion gitVersion,
+            string message)
+        {
+            EventMetadata metadata = new EventMetadata();
+            metadata.Add(nameof(gvfsVersion), gvfsVersion.ToString());
+            metadata.Add(nameof(gitVersion), gitVersion.ToString());
+
+            this.tracer.RelatedEvent(EventLevel.Informational, message, metadata);
         }
 
         public class GitHubUpgraderConfig

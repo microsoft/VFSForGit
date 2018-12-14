@@ -128,7 +128,6 @@ namespace GVFS.Upgrader
             newVersion = null;
 
             Version newGVFSVersion = null;
-            GitVersion newGitVersion = null;
             string error = null;
             string consoleMessage;
             bool isError;
@@ -199,8 +198,6 @@ namespace GVFS.Upgrader
             {
                 return false;
             }
-
-            this.LogVersionInfo(newGVFSVersion, newGitVersion, "Newly Installed Version");
 
             newVersion = newGVFSVersion;
             consoleError = null;
@@ -313,18 +310,6 @@ namespace GVFS.Upgrader
             }
 
             return true;
-        }
-
-        private void LogVersionInfo(
-            Version gvfsVersion,
-            GitVersion gitVersion,
-            string message)
-        {
-            EventMetadata metadata = new EventMetadata();
-            metadata.Add(nameof(gvfsVersion), gvfsVersion.ToString());
-            metadata.Add(nameof(gitVersion), gitVersion.ToString());
-
-            this.tracer.RelatedEvent(EventLevel.Informational, message, metadata);
         }
 
         private void LogInstalledVersionInfo()
