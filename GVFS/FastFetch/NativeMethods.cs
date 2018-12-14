@@ -10,25 +10,25 @@ namespace FastFetch
 
         public static unsafe void WriteFile(ITracer tracer, byte* originalData, long originalSize, string destination, ushort mode)
         {
-            if (!isUnixOS)
-            {
-                NativeWindowsMethods.WriteFile(tracer, originalData, originalSize, destination, mode);
-            }
-            else
+            if (isUnixOS)
             {
                 NativeUnixMethods.WriteFile(tracer, originalData, originalSize, destination, mode);
             }
+            else
+            {
+                NativeWindowsMethods.WriteFile(tracer, originalData, originalSize, destination);
+            }
         }
 
-        public static bool StatAndUpdateIndexForFile(string path, MemoryMappedViewAccessor indexView, long offset)
+        public static bool TryStatFileAndUpdateIndex(ITracer tracer, string path, MemoryMappedViewAccessor indexView, long offset)
         {
-            if (!isUnixOS)
+            if (isUnixOS)
             {
-                return NativeWindowsMethods.StatAndUpdateIndexForFile(path, indexView, offset);
+                return NativeUnixMethods.StatAndUpdateIndexForFile(tracer, path, indexView, offset);
             }
             else
             {
-                return NativeUnixMethods.StatAndUpdateIndexForFile(path, indexView, offset);
+                return NativeWindowsMethods.StatAndUpdateIndexForFile(tracer, path, indexView, offset);
             }
         }
     }

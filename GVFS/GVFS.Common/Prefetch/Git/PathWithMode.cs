@@ -22,12 +22,7 @@ namespace GVFS.Common.Prefetch.Git
                 return false;
             }
 
-            if (x.Path.Equals(this.Path, StringComparison.OrdinalIgnoreCase))
-            {
-                return true;
-            }
-
-            return false;
+            return x.Path.Equals(this.Path, StringComparison.OrdinalIgnoreCase);
         }
 
         public override int GetHashCode()

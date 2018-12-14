@@ -12,7 +12,7 @@ namespace FastFetch
     {
         private const int AccessDeniedWin32Error = 5;
 
-        public static unsafe void WriteFile(ITracer tracer, byte* originalData, long originalSize, string destination, ushort mode /* ignored on windows */)
+        public static unsafe void WriteFile(ITracer tracer, byte* originalData, long originalSize, string destination)
         {
             try
             {
@@ -41,12 +41,15 @@ namespace FastFetch
             }
             catch (Exception e)
             {
-                tracer.RelatedError("Exception writing {0}: {1}", destination, e);
+                EventMetadata metadata = new EventMetadata();
+                metadata.Add("destination", destination);
+                metadata.Add("exception", e.ToString());
+                tracer.RelatedError(metadata, "Error writing file.");
                 throw;
             }
         }
 
-        public static bool StatAndUpdateIndexForFile(string path, MemoryMappedViewAccessor indexView, long offset)
+        public static bool StatAndUpdateIndexForFile(ITracer tracer, string path, MemoryMappedViewAccessor indexView, long offset)
         {
             try
             {
@@ -69,6 +72,9 @@ namespace FastFetch
                 // Skip these.
             }
 
+            EventMetadata metadata = new EventMetadata();
+            metadata.Add("path", path);
+            tracer.RelatedError(metadata, "Error stat-ing file.");
             return false;
         }
 

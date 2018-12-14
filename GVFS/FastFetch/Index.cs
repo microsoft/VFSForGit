@@ -192,7 +192,7 @@ namespace FastFetch
                             long offset;
                             if (this.indexEntryOffsets.TryGetValue(gitPath, out offset))
                             {
-                                if (NativeMethods.StatAndUpdateIndexForFile(gitPath, indexView, offset))
+                                if (NativeMethods.TryStatFileAndUpdateIndex(this.tracer, gitPath, indexView, offset))
                                 {
                                     Interlocked.Increment(ref updatedEntries);
                                 }
@@ -217,9 +217,13 @@ namespace FastFetch
                         long offset;
                         if (this.indexEntryOffsets.TryGetValue(gitPath, out offset))
                         {
-                            if (NativeMethods.StatAndUpdateIndexForFile(gitPath, indexView, offset))
+                            if (NativeMethods.TryStatFileAndUpdateIndex(this.tracer, gitPath, indexView, offset))
                             {
                                 Interlocked.Increment(ref updatedEntriesFromDisk);
+                            }
+                            else
+                            {
+                                this.tracer.RelatedError("Failed to update file information from disk for file {0}", gitPath);
                             }
                         }
                     });
@@ -270,7 +274,7 @@ namespace FastFetch
                             {
                                 string localPath = FromGitRelativePathToDotnetFullPath(currentIndexFilename, this.repoRoot);
 
-                                if (NativeMethods.StatAndUpdateIndexForFile(localPath, indexView, entry.Value))
+                                if (NativeMethods.TryStatFileAndUpdateIndex(this.tracer, localPath, indexView, entry.Value))
                                 {
                                     Interlocked.Increment(ref updatedEntriesFromDisk);
                                 }

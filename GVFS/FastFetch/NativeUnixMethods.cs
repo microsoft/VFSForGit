@@ -32,7 +32,10 @@ namespace FastFetch
             }
             catch (Win32Exception e)
             {
-                tracer.RelatedError("Error writing file {0}. Win32Exception: {1}", destination, e);
+                EventMetadata metadata = new EventMetadata();
+                metadata.Add("destination", destination);
+                metadata.Add("exception", e.ToString());
+                tracer.RelatedError(metadata, "Error writing file.");
                 throw;
             }
             finally
@@ -41,20 +44,31 @@ namespace FastFetch
             }
         }
 
-        public static bool StatAndUpdateIndexForFile(string path, MemoryMappedViewAccessor indexView, long offset)
+        public static bool StatAndUpdateIndexForFile(ITracer tracer, string path, MemoryMappedViewAccessor indexView, long offset)
         {
-            NativeStat.StatBuffer st = StatFile(path);
-            Index.IndexEntry indexEntry = new Index.IndexEntry(indexView, offset);
-            indexEntry.MtimeSeconds = (uint)st.MTimespec.Sec;
-            indexEntry.MtimeNanosecondFraction = (uint)st.MTimespec.Nsec;
-            indexEntry.CtimeSeconds = (uint)st.CTimespec.Sec;
-            indexEntry.CtimeNanosecondFraction = (uint)st.CTimespec.Nsec;
-            indexEntry.Size = (uint)st.Size;
-            indexEntry.Dev = (uint)st.Dev;
-            indexEntry.Ino = (uint)st.Ino;
-            indexEntry.Uid = st.UID;
-            indexEntry.Gid = st.GID;
-            return true;
+            try
+            {
+                NativeStat.StatBuffer st = StatFile(path);
+                Index.IndexEntry indexEntry = new Index.IndexEntry(indexView, offset);
+                indexEntry.MtimeSeconds = (uint)st.MTimespec.Sec;
+                indexEntry.MtimeNanosecondFraction = (uint)st.MTimespec.Nsec;
+                indexEntry.CtimeSeconds = (uint)st.CTimespec.Sec;
+                indexEntry.CtimeNanosecondFraction = (uint)st.CTimespec.Nsec;
+                indexEntry.Size = (uint)st.Size;
+                indexEntry.Dev = (uint)st.Dev;
+                indexEntry.Ino = (uint)st.Ino;
+                indexEntry.Uid = st.UID;
+                indexEntry.Gid = st.GID;
+                return true;
+            }
+            catch (Win32Exception e)
+            {
+                EventMetadata metadata = new EventMetadata();
+                metadata.Add("path", path);
+                metadata.Add("exception", e.ToString());
+                tracer.RelatedError(metadata, "Error stat-ing file.");
+                return false;
+            }
         }
 
         [DllImport("libc", EntryPoint = "open", SetLastError = true)]
@@ -79,32 +93,6 @@ namespace FastFetch
 
         private static class NativeStat
         {
-            // #define  S_IFMT      0170000     /* [XSI] type of file mask */
-            private static readonly ushort IFMT = Convert.ToUInt16("170000", 8);
-
-            // #define  S_IFSOCK    0140000     /* [XSI] socket */
-            private static readonly ushort IFSOCK = Convert.ToUInt16("0140000", 8);
-
-            // #define S_IXUSR     0000100     /* [XSI] X for owner */
-            private static readonly ushort IXUSR = Convert.ToUInt16("100", 8);
-
-            // #define S_IXGRP     0000010     /* [XSI] X for group */
-            private static readonly ushort IXGRP = Convert.ToUInt16("10", 8);
-
-            // #define S_IXOTH     0000001     /* [XSI] X for other */
-            private static readonly ushort IXOTH = Convert.ToUInt16("1", 8);
-
-            public static bool IsSock(ushort mode)
-            {
-                // #define  S_ISSOCK(m) (((m) & S_IFMT) == S_IFSOCK)    /* socket */
-                return (mode & IFMT) == IFSOCK;
-            }
-
-            public static bool IsExecutable(ushort mode)
-            {
-                return (mode & (IXUSR | IXGRP | IXOTH)) != 0;
-            }
-
             [DllImport("libc", EntryPoint = "stat$INODE64", SetLastError = true)]
             public static extern int Stat(string path, [Out] out StatBuffer statBuffer);
 
