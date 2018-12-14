@@ -29,7 +29,7 @@ namespace GVFS.Common.Git
 
             this.RepoHandle = repoHandle;
         }
-        
+
         protected LibGit2Repo()
         {
         }
@@ -141,7 +141,7 @@ namespace GVFS.Common.Git
 
             return false;
         }
-        
+
         public virtual bool TryCopyBlob(string sha, Action<Stream, long> writeAction)
         {
             IntPtr objHandle;
@@ -159,12 +159,12 @@ namespace GVFS.Common.Git
                         case Native.ObjectTypes.Blob:
                             byte* originalData = Native.Blob.GetRawContent(objHandle);
                             long originalSize = Native.Blob.GetRawSize(objHandle);
-                            
+
                             // TODO 938696: UnmanagedMemoryStream marshals content even for CopyTo
                             // If GetRawContent changed to return IntPtr and ProjFS changed WriteBuffer to expose an IntPtr,
                             // We could probably pinvoke memcpy and avoid marshalling.
                             using (Stream mem = new UnmanagedMemoryStream(originalData, originalSize))
-                            { 
+                            {
                                 writeAction(mem, originalSize);
                             }
 

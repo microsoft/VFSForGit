@@ -31,7 +31,7 @@ namespace GVFS.UnitTests.Mock.Git
         {
             throw new NotImplementedException();
         }
-        
+
         public override RetryWrapper<GitObjectTaskResult>.InvocationResult TryDownloadObjects(
             Func<IEnumerable<string>> objectIdGenerator,
             Func<int, GitEndPointResponseData, RetryWrapper<GitObjectTaskResult>.CallbackResult> onSuccess,
@@ -105,7 +105,7 @@ namespace GVFS.UnitTests.Mock.Git
 
             return new RetryWrapper<GitObjectTaskResult>.InvocationResult(this.RetryConfig.MaxAttempts, null);
         }
-        
+
         private byte[] SHA1BytesFromString(string s)
         {
             s.Length.ShouldEqual(40);

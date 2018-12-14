@@ -21,7 +21,7 @@ namespace GVFS.UnitTests.Prefetch
         }
 
         public bool IncludeSymLinks { get; set; }
-        
+
         // Make two commits. The first should look like this:
         // recursiveDelete
         // recursiveDelete/subfolder
@@ -45,7 +45,7 @@ namespace GVFS.UnitTests.Prefetch
         // eg. recursiveDelete should run "rmdir /s/q recursiveDelete"
         // eg. folderToBeFile should be deleted and replaced with a file of the same name
         // Note that each childFile.txt should have unique contents, but is only a placeholder to force git to add a folder.
-        // 
+        //
         // Then to generate the diffs, run:
         // git diff-tree -r -t Head~1 Head > forward.txt
         // git diff-tree -r -t Head Head ~1 > backward.txt
@@ -68,7 +68,7 @@ namespace GVFS.UnitTests.Prefetch
             // Includes children of: Recursive delete folder, deleted folder, renamed folder, and folder => file
             diffForwards.TotalFileDeletes.ShouldEqual(8);
 
-            // Folder created, folder edited, folder deleted, folder renamed (add + delete), 
+            // Folder created, folder edited, folder deleted, folder renamed (add + delete),
             // folder => file, file => folder, recursive delete (top-level only)
             diffForwards.DirectoryOperations.Count.ShouldEqual(8);
 
@@ -94,7 +94,7 @@ namespace GVFS.UnitTests.Prefetch
             // Also includes, the children of: Folder added, folder renamed, file => folder
             diffBackwards.TotalFileDeletes.ShouldEqual(7);
 
-            // Folder created, folder edited, folder deleted, folder renamed (add + delete), 
+            // Folder created, folder edited, folder deleted, folder renamed (add + delete),
             // folder => file, file => folder, recursive delete (include subfolder)
             diffBackwards.TotalDirectoryOperations.ShouldEqual(9);
         }
@@ -107,13 +107,13 @@ namespace GVFS.UnitTests.Prefetch
             MockTracer tracer = new MockTracer();
             DiffHelper diffBackwards = new DiffHelper(tracer, new Mock.Common.MockGVFSEnlistment(), new List<string>(), new List<string>(), includeSymLinks: this.IncludeSymLinks);
             diffBackwards.ParseDiffFile(GetDataPath("caseChange.txt"), "xx:\\fakeRepo");
-            
+
             diffBackwards.RequiredBlobs.Count.ShouldEqual(2);
             diffBackwards.FileAddOperations.Sum(list => list.Value.Count).ShouldEqual(2);
 
             diffBackwards.FileDeleteOperations.Count.ShouldEqual(0);
             diffBackwards.TotalFileDeletes.ShouldEqual(0);
-            
+
             diffBackwards.DirectoryOperations.ShouldNotContain(entry => entry.Operation == DiffTreeResult.Operations.Delete);
             diffBackwards.TotalDirectoryOperations.ShouldEqual(3);
         }

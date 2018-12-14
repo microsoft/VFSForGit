@@ -34,7 +34,7 @@ namespace GVFS.UnitTests.Mock.FileSystem
 
             return this.OnOpenFileStream(path, fileMode, fileAccess);
         }
-        
+
         public override void WriteAllText(string path, string contents)
         {
         }

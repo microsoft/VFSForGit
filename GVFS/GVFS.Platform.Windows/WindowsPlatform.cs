@@ -25,7 +25,7 @@ namespace GVFS.Platform.Windows
 
         public WindowsPlatform()
             : base(
-                executableExtension: ".exe", 
+                executableExtension: ".exe",
                 installerExtension: ".exe",
                 underConstruction: new UnderConstructionFlags(requiresDeprecatedGitHooksLoader: true))
         {
@@ -85,7 +85,7 @@ namespace GVFS.Platform.Windows
         public override void InitializeEnlistmentACLs(string enlistmentPath)
         {
             // The following permissions are typically present on deskop and missing on Server
-            //                  
+            //
             //   ACCESS_ALLOWED_ACE_TYPE: NT AUTHORITY\Authenticated Users
             //          [OBJECT_INHERIT_ACE]
             //          [CONTAINER_INHERIT_ACE]
@@ -248,7 +248,7 @@ namespace GVFS.Platform.Windows
 
             string gitHooksloaderPath = Path.Combine(executingDirectory, GVFSConstants.DotGit.Hooks.LoaderExecutable);
             if (!HooksInstaller.TryHooksInstallationAction(
-                () => HooksInstaller.CopyHook(context, gitHooksloaderPath, commandHookPath + GVFSPlatform.Instance.Constants.ExecutableExtension), 
+                () => HooksInstaller.CopyHook(context, gitHooksloaderPath, commandHookPath + GVFSPlatform.Instance.Constants.ExecutableExtension),
                 out errorMessage))
             {
                 errorMessage = "Failed to copy " + GVFSConstants.DotGit.Hooks.LoaderExecutable + " to " + commandHookPath + GVFSPlatform.Instance.Constants.ExecutableExtension + "\n" + errorMessage;
@@ -256,7 +256,7 @@ namespace GVFS.Platform.Windows
             }
 
             if (!HooksInstaller.TryHooksInstallationAction(
-                () => WindowsGitHooksInstaller.CreateHookCommandConfig(context, hookName, commandHookPath), 
+                () => WindowsGitHooksInstaller.CreateHookCommandConfig(context, hookName, commandHookPath),
                 out errorMessage))
             {
                 errorMessage = "Failed to create " + commandHookPath + GVFSConstants.GitConfig.HooksExtension + "\n" + errorMessage;

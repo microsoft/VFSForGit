@@ -13,7 +13,7 @@ namespace GVFS.UnitTests.Mock.FileSystem
         {
             this.FullName = fullName;
             this.Name = Path.GetFileName(this.FullName);
-            
+
             this.FileProperties = FileProperties.DefaultFile;
 
             this.contentStream = new ReusableMemoryStream(contents);
@@ -30,10 +30,10 @@ namespace GVFS.UnitTests.Mock.FileSystem
                 // The underlying content stream is the correct/true source of the file length
                 // Create a new copy of the properties to make sure the length is set correctly.
                 FileProperties newProperties = new FileProperties(
-                    this.fileProperties.FileAttributes, 
-                    this.fileProperties.CreationTimeUTC, 
-                    this.fileProperties.LastAccessTimeUTC, 
-                    this.fileProperties.LastWriteTimeUTC, 
+                    this.fileProperties.FileAttributes,
+                    this.fileProperties.CreationTimeUTC,
+                    this.fileProperties.LastAccessTimeUTC,
+                    this.fileProperties.LastWriteTimeUTC,
                     this.contentStream.Length);
 
                 this.fileProperties = newProperties;

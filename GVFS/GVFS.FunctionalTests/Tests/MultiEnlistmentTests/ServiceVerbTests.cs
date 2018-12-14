@@ -88,8 +88,8 @@ namespace GVFS.FunctionalTests.Tests.MultiEnlistmentTests
         private void RunServiceCommandAndCheckOutput(string argument, string[] expectedRepoRoots, string[] unexpectedRepoRoots = null)
         {
             GVFSProcess gvfsProcess = new GVFSProcess(
-                GVFSTestConfig.PathToGVFS, 
-                enlistmentRoot: null, 
+                GVFSTestConfig.PathToGVFS,
+                enlistmentRoot: null,
                 localCacheRoot: null);
 
             string result = gvfsProcess.RunServiceVerb(argument);

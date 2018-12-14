@@ -55,7 +55,7 @@ namespace GVFS.Platform.Mac
 
         private static unsafe void RunChildProcess(
             ITracer tracer,
-            string programName, 
+            string programName,
             byte** argvPtr = null,
             byte** envpPtr = null)
         {

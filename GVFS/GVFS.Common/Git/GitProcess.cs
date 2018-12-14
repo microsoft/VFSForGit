@@ -419,7 +419,7 @@ namespace GVFS.Common.Git
 
         /// <summary>
         /// Write a new multi-pack-index (MIDX) in the specified pack directory.
-        /// 
+        ///
         /// If no new packfiles are found, then this is a no-op.
         /// </summary>
         public Result WriteMultiPackIndex(string objectDir)

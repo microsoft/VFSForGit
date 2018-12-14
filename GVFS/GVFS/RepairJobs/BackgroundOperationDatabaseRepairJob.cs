@@ -21,7 +21,7 @@ namespace GVFS.RepairJobs
         {
             get { return "Background Operation Database"; }
         }
-        
+
         public override IssueType HasIssue(List<string> messages)
         {
             string error;
@@ -39,7 +39,7 @@ namespace GVFS.RepairJobs
 
             return IssueType.None;
         }
-        
+
         public override FixResult TryFixIssues(List<string> messages)
         {
             return FixResult.Failure;

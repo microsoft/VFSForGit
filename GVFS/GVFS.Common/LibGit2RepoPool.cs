@@ -10,7 +10,7 @@ namespace GVFS.Common
     {
         private const int TryAddTimeoutMilliseconds = 10;
         private const int TryTakeTimeoutMilliseconds = Timeout.Infinite;
-        
+
         private readonly BlockingCollection<LibGit2Repo> pool;
         private readonly ITracer tracer;
 
@@ -34,7 +34,7 @@ namespace GVFS.Common
             this.pool.CompleteAdding();
             this.CleanUpPool();
         }
-        
+
         public bool TryInvoke<TResult>(Func<LibGit2Repo, TResult> function, out TResult result)
         {
             LibGit2Repo repo = null;

@@ -25,7 +25,7 @@ namespace GVFS.Platform.Windows
         /// <param name="lockPath">Path to lock file</param>
         /// <param name="signature">Text to write in lock file</param>
         /// <remarks>
-        /// GVFS keeps an exclusive write handle open to lock files that it creates with FileBasedLock.  This means that 
+        /// GVFS keeps an exclusive write handle open to lock files that it creates with FileBasedLock.  This means that
         /// FileBasedLock still ensures exclusivity when the lock file is used only for coordination between multiple GVFS processes.
         /// </remarks>
         public WindowsFileBasedLock(

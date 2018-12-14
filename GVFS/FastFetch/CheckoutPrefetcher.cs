@@ -28,7 +28,7 @@ namespace FastFetch
             int indexThreadCount,
             int checkoutThreadCount,
             bool allowIndexMetadataUpdateFromWorkingTree,
-            bool forceCheckout) 
+            bool forceCheckout)
                 : base(
                     tracer,
                     enlistment,
@@ -142,9 +142,9 @@ namespace FastFetch
                     if (!indexGen.HasFailures)
                     {
                         Index newIndex = new Index(
-                            this.Enlistment.EnlistmentRoot, 
+                            this.Enlistment.EnlistmentRoot,
                             this.Tracer,
-                            Path.Combine(this.Enlistment.DotGitRoot, GVFSConstants.DotGit.IndexName), 
+                            Path.Combine(this.Enlistment.DotGitRoot, GVFSConstants.DotGit.IndexName),
                             readOnly: false);
 
                         // Update from disk only if the caller says it is ok via command line
@@ -155,7 +155,7 @@ namespace FastFetch
                 }
             }
         }
-        
+
         /// <summary>
         /// * Updates local branch (N/A for checkout to detached HEAD)
         /// * Updates HEAD
@@ -179,7 +179,7 @@ namespace FastFetch
 
             base.UpdateRefs(branchOrCommit, isBranch, refs);
         }
-        
+
         private Index GetSourceIndex()
         {
             string indexPath = Path.Combine(this.Enlistment.DotGitRoot, GVFSConstants.DotGit.IndexName);
@@ -193,7 +193,7 @@ namespace FastFetch
                 this.Tracer.RelatedEvent(EventLevel.Informational, "CreateBackup", new EventMetadata() { { "BackupIndexName", backupIndexPath } });
                 File.Delete(backupIndexPath);
                 File.Move(indexPath, backupIndexPath);
-                
+
                 Index output = new Index(this.Enlistment.EnlistmentRoot, this.Tracer, backupIndexPath, readOnly: true);
                 output.Parse();
                 return output;

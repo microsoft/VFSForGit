@@ -19,13 +19,13 @@ namespace GVFS.FunctionalTests.Tools
         private static readonly string ZeroBackgroundOperations = "Background operations: 0" + Environment.NewLine;
 
         private GVFSProcess gvfsProcess;
-        
+
         private GVFSFunctionalTestEnlistment(string pathToGVFS, string enlistmentRoot, string repoUrl, string commitish, string localCacheRoot = null)
         {
             this.EnlistmentRoot = enlistmentRoot;
             this.RepoUrl = repoUrl;
             this.Commitish = commitish;
-            
+
             if (localCacheRoot == null)
             {
                 if (GVFSTestConfig.NoSharedCache)
@@ -44,7 +44,7 @@ namespace GVFS.FunctionalTests.Tools
             this.LocalCacheRoot = localCacheRoot;
             this.gvfsProcess = new GVFSProcess(pathToGVFS, this.EnlistmentRoot, this.LocalCacheRoot);
         }
-        
+
         public string EnlistmentRoot
         {
             get; private set;
@@ -54,7 +54,7 @@ namespace GVFS.FunctionalTests.Tools
         {
             get; private set;
         }
-        
+
         public string LocalCacheRoot { get; }
 
         public string RepoRoot
@@ -121,18 +121,18 @@ namespace GVFS.FunctionalTests.Tools
             Path.Combine(this.LocalCacheRoot, "mapping.dat").ShouldBeAFile(fileSystem);
 
             HashSet<string> allowedFileNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
-            { 
-                "mapping.dat", 
+            {
+                "mapping.dat",
                 "mapping.dat.lock" // mapping.dat.lock can be present, but doesn't have to be present
             };
 
-            this.LocalCacheRoot.ShouldBeADirectory(fileSystem).WithFiles().ShouldNotContain(f => !allowedFileNames.Contains(f.Name)); 
-                                                                                            
+            this.LocalCacheRoot.ShouldBeADirectory(fileSystem).WithFiles().ShouldNotContain(f => !allowedFileNames.Contains(f.Name));
+
             DirectoryInfo[] directories = this.LocalCacheRoot.ShouldBeADirectory(fileSystem).WithDirectories().ToArray();
             directories.Length.ShouldEqual(
-                1, 
+                1,
                 this.LocalCacheRoot + " is expected to have only one folder. Actual folders: " + string.Join<DirectoryInfo>(",", directories));
-            
+
             return Path.Combine(directories[0].FullName, "gitObjects");
         }
 
@@ -278,7 +278,7 @@ namespace GVFS.FunctionalTests.Tools
                 objectHash.Substring(0, 2),
                 objectHash.Substring(2));
         }
-        
+
         private static GVFSFunctionalTestEnlistment CloneAndMount(string pathToGvfs, string enlistmentRoot, string commitish, string localCacheRoot, bool skipPrefetch = false)
         {
             GVFSFunctionalTestEnlistment enlistment = new GVFSFunctionalTestEnlistment(

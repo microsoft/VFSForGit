@@ -38,7 +38,7 @@ namespace GVFS.Common
                 "System.Net.Http.dll",
                 "Newtonsoft.Json.dll"
             };
-        
+
         private Version installedVersion;
         private Release newestRelease;
         private PhysicalFileSystem fileSystem;
@@ -63,9 +63,9 @@ namespace GVFS.Common
             // Invalid - User has set an incorrect ring
             // NoConfig - User has Not set any ring yet
             // None - User has set a valid "None" ring
-            // (Fast should be greater than Slow, 
+            // (Fast should be greater than Slow,
             //  Slow should be greater than None, None greater than Invalid.)
-            // This is required for the correct implementation of Ring based 
+            // This is required for the correct implementation of Ring based
             // upgrade logic.
             Invalid = 0,
             NoConfig = None - 1,
@@ -75,7 +75,7 @@ namespace GVFS.Common
         }
 
         public RingType Ring { get; protected set; }
-        
+
         public bool TryGetNewerVersion(
             out Version newVersion,
             out string errorMessage)
@@ -87,7 +87,7 @@ namespace GVFS.Common
             {
                 return false;
             }
-            
+
             if (this.TryFetchReleases(out releases, out errorMessage))
             {
                 foreach (Release nextRelease in releases)
@@ -114,7 +114,7 @@ namespace GVFS.Common
         {
             gitVersion = null;
             error = null;
-            
+
             foreach (Asset asset in this.newestRelease.Assets)
             {
                 if (asset.Name.StartsWith(GitInstallerFileNamePrefix) &&
@@ -142,7 +142,7 @@ namespace GVFS.Common
                 {
                     continue;
                 }
-                                
+
                 if (!this.TryDownloadAsset(asset, out errorMessage))
                 {
                     errorMessage = $"Could not download {(isGVFSAsset ? GVFSAssetId : GitAssetId)} installer. {errorMessage}";
@@ -194,7 +194,7 @@ namespace GVFS.Common
         // Reason why this is needed - When GVFS.Upgrader.exe is run from C:\ProgramFiles\GVFS folder
         // upgrade installer that is downloaded and run will fail. This is because it cannot overwrite
         // C:\ProgramFiles\GVFS\GVFS.Upgrader.exe that is running. Moving GVFS.Upgrader.exe along with
-        // its dependencies to a temporary location inside ProgramData and running GVFS.Upgrader.exe 
+        // its dependencies to a temporary location inside ProgramData and running GVFS.Upgrader.exe
         // from this temporary location helps avoid this problem.
         public virtual bool TrySetupToolsDirectory(out string upgraderToolPath, out string error)
         {
@@ -216,8 +216,8 @@ namespace GVFS.Common
                     catch (UnauthorizedAccessException e)
                     {
                         error = string.Join(
-                            Environment.NewLine, 
-                            "File copy error - " + e.Message, 
+                            Environment.NewLine,
+                            "File copy error - " + e.Message,
                             $"Make sure you have write permissions to directory {rootDirectoryPath} and run {GVFSConstants.UpgradeVerbMessages.GVFSUpgradeConfirm} again.");
                         this.TraceException(e, nameof(this.TrySetupToolsDirectory), $"Error copying {toolPath} to {destinationPath}.");
                         break;
@@ -266,7 +266,7 @@ namespace GVFS.Common
             error = null;
             return true;
         }
-        
+
         public virtual bool TryLoadRingConfig(out string error)
         {
             string gitPath = GVFSPlatform.Instance.GitInstallation.GetInstalledGitBinPath();
@@ -295,7 +295,7 @@ namespace GVFS.Common
 
                 error = "Invalid upgrade ring `" + ringConfig + "` specified in gvfs config." + Environment.NewLine;
             }
-            
+
             error += GVFSConstants.UpgradeVerbMessages.SetUpgradeRingCommand;
             this.Ring = RingType.Invalid;
             return false;

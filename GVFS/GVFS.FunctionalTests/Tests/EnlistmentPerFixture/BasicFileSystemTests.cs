@@ -166,16 +166,16 @@ namespace GVFS.FunctionalTests.Tests.LongRunningEnlistment
                 FileAttributes attributesLessProjFS = attributes & (FileAttributes)~(FileAttributeSparseFile | FileAttributeReparsePoint | FileAttributeRecallOnDataAccess);
 
                 attributesLessProjFS.ShouldEqual(
-                    FileAttributes.Hidden, 
+                    FileAttributes.Hidden,
                     $"Attributes (ignoring ProjFS attributes) do not match, expected: {FileAttributes.Hidden} actual: {attributesLessProjFS}");
-                
+
                 ++retryCount;
                 Thread.Sleep(500);
 
                 info.Refresh();
                 attributes = info.Attributes & ~FileAttributes.Archive;
             }
-                   
+
             attributes.ShouldEqual(FileAttributes.Hidden, $"Attributes do not match, expected: {FileAttributes.Hidden} actual: {attributes}");
         }
 
@@ -242,7 +242,7 @@ namespace GVFS.FunctionalTests.Tests.LongRunningEnlistment
             FileInfo fileInfo = new FileInfo(virtualFilePath);
             fileInfo.Attributes = FileAttributes.ReadOnly;
             virtualFilePath.ShouldBeAFile(fileSystem).WithAttribute(FileAttributes.ReadOnly);
-            
+
             // Clear read only
             fileInfo.Attributes = FileAttributes.Normal;
             virtualFilePath.ShouldBeAFile(fileSystem).WithoutAttribute(FileAttributes.ReadOnly);

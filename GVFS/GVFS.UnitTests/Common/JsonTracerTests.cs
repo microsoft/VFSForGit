@@ -64,7 +64,7 @@ namespace GVFS.UnitTests.Common
                 tracer.RelatedEvent(EventLevel.Verbose, "ShouldAlsoReceive", metadata: null);
                 listener.EventNamesRead.ShouldContain(name => name.Equals("ShouldAlsoReceive"));
             }
-             
+
             // None filters everything out (including events marked as none)
             using (JsonTracer tracer = new JsonTracer("Microsoft-GVFS-Test", "EventsAreFilteredByKeyword3", disableTelemetry: true))
             using (MockListener listener = new MockListener(EventLevel.Verbose, Keywords.None))

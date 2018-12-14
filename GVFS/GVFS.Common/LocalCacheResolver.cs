@@ -12,7 +12,7 @@ namespace GVFS.Common
     {
         public const string DefaultGVFSCacheFolderName = ".gvfsCache";
 
-        private const string EtwArea = nameof(LocalCacheResolver);        
+        private const string EtwArea = nameof(LocalCacheResolver);
         private const string MappingFile = "mapping.dat";
         private const string MappingVersionKey = "GVFS_LocalCache_MappingVersion";
         private const string CurrentMappingDataVersion = "1";
@@ -43,11 +43,11 @@ namespace GVFS.Common
         }
 
         public bool TryGetLocalCacheKeyFromLocalConfigOrRemoteCacheServers(
-            ITracer tracer, 
+            ITracer tracer,
             ServerGVFSConfig serverGVFSConfig,
-            CacheServerInfo currentCacheServer, 
+            CacheServerInfo currentCacheServer,
             string localCacheRoot,
-            out string localCacheKey, 
+            out string localCacheKey,
             out string errorMessage)
         {
             if (serverGVFSConfig == null)
@@ -65,8 +65,8 @@ namespace GVFS.Common
                 this.fileSystem.CreateDirectory(localCacheRoot);
 
                 using (FileBasedLock mappingLock = GVFSPlatform.Instance.CreateFileBasedLock(
-                    this.fileSystem, 
-                    tracer, 
+                    this.fileSystem,
+                    tracer,
                     lockPath))
                 {
                     if (!this.TryAcquireLockWithRetries(tracer, mappingLock))
@@ -193,8 +193,8 @@ namespace GVFS.Common
         private bool TryGetLocalCacheKeyFromRemoteCacheServers(
             ITracer tracer,
             ServerGVFSConfig serverGVFSConfig,
-            CacheServerInfo currentCacheServer, 
-            FileBasedDictionary<string, string> mappingFile, 
+            CacheServerInfo currentCacheServer,
+            FileBasedDictionary<string, string> mappingFile,
             out string localCacheKey,
             out string error)
         {
@@ -202,7 +202,7 @@ namespace GVFS.Common
             localCacheKey = null;
 
             try
-            { 
+            {
                 if (this.TryFindExistingLocalCacheKey(mappingFile, serverGVFSConfig.CacheServers, out localCacheKey))
                 {
                     EventMetadata metadata = CreateEventMetadata();
@@ -294,7 +294,7 @@ namespace GVFS.Common
 
             return false;
         }
-        
+
         private string ToMappingKey(string url)
         {
             return url.ToLowerInvariant();

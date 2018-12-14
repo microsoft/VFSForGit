@@ -205,7 +205,7 @@ namespace GVFS.Service
             this.serviceThread = new Thread(this.Run);
 
             this.serviceThread.Start();
-        }        
+        }
 
         private void HandleRequest(ITracer tracer, string request, NamedPipeServer.Connection connection)
         {
@@ -290,7 +290,7 @@ namespace GVFS.Service
         /// <summary>
         /// To work around a behavior in ProjFS where notification masks on files that have been opened in virtualization instance are not invalidated
         /// when the virtualization instance is restarted, GVFS waits until after there has been a reboot before enabling the GitStatusCache.
-        /// GVFS.Service signals that there has been a reboot since installing a version of GVFS that supports the GitStatusCache via 
+        /// GVFS.Service signals that there has been a reboot since installing a version of GVFS that supports the GitStatusCache via
         /// the existence of the file "EnableGitStatusCacheToken.dat" in {CommonApplicationData}\GVFS\GVFS.Service
         /// (i.e. ProgramData\GVFS\GVFS.Service\EnableGitStatusCacheToken.dat on Windows).
         /// </summary>
@@ -351,8 +351,8 @@ namespace GVFS.Service
         private void EnableAccessToAuthenticatedUsers(string rootDirectory)
         {
             // GVFS Config is written to a temporary file and then renamed to its final destination.
-            // For this rename operation to succeed, user needs to have delete permission on the 
-            // destination file, in case it is pre-existing. If the pre-existing file was created 
+            // For this rename operation to succeed, user needs to have delete permission on the
+            // destination file, in case it is pre-existing. If the pre-existing file was created
             // by a different user, then the delete will fail.
             // Reference: https://stackoverflow.com/questions/22107812/privileges-owner-issue-when-writing-in-c-programdata
             // This work around allows safe write to succeed in C:\ProgramData directory.

@@ -46,7 +46,7 @@ namespace GVFS.Common.Http
         public RetryConfig RetryConfig { get; }
 
         protected ITracer Tracer { get; }
-        
+
         public static long GetNewRequestId()
         {
             return Interlocked.Increment(ref requestCount);
@@ -61,7 +61,7 @@ namespace GVFS.Common.Http
             }
         }
 
-        protected GitEndPointResponseData SendRequest(            
+        protected GitEndPointResponseData SendRequest(
             long requestId,
             Uri requestUri,
             HttpMethod httpMethod,
@@ -77,7 +77,7 @@ namespace GVFS.Common.Http
                 return new GitEndPointResponseData(
                     HttpStatusCode.Unauthorized,
                     new GitObjectsHttpException(HttpStatusCode.Unauthorized, errorMessage),
-                    shouldRetry: true, 
+                    shouldRetry: true,
                     message: null,
                     onResponseDisposed: null);
             }
@@ -118,7 +118,7 @@ namespace GVFS.Common.Http
             HttpResponseMessage response = null;
 
             try
-            {               
+            {
                 requestStopwatch.Restart();
 
                 try
@@ -142,8 +142,8 @@ namespace GVFS.Common.Http
                     Stream responseStream = response.Content.ReadAsStreamAsync().GetAwaiter().GetResult();
 
                     gitEndPointResponseData = new GitEndPointResponseData(
-                        response.StatusCode, 
-                        contentType, 
+                        response.StatusCode,
+                        contentType,
                         responseStream,
                         message: response,
                         onResponseDisposed: () => availableConnections.Release());
@@ -193,8 +193,8 @@ namespace GVFS.Common.Http
                 errorMessage = string.Format("Request to {0} timed out", requestUri);
 
                 gitEndPointResponseData = new GitEndPointResponseData(
-                    HttpStatusCode.RequestTimeout, 
-                    new GitObjectsHttpException(HttpStatusCode.RequestTimeout, errorMessage), 
+                    HttpStatusCode.RequestTimeout,
+                    new GitObjectsHttpException(HttpStatusCode.RequestTimeout, errorMessage),
                     shouldRetry: true,
                     message: response,
                     onResponseDisposed: () => availableConnections.Release());
@@ -202,8 +202,8 @@ namespace GVFS.Common.Http
             catch (WebException ex)
             {
                 gitEndPointResponseData = new GitEndPointResponseData(
-                    HttpStatusCode.InternalServerError, 
-                    ex, 
+                    HttpStatusCode.InternalServerError,
+                    ex,
                     shouldRetry: true,
                     message: response,
                     onResponseDisposed: () => availableConnections.Release());
@@ -214,7 +214,7 @@ namespace GVFS.Common.Http
                 responseMetadata.Add("responseWaitTimeMS", $"{responseWaitTime.TotalMilliseconds:F4}");
 
                 this.Tracer.RelatedEvent(EventLevel.Informational, "NetworkResponse", responseMetadata);
-                
+
                 if (gitEndPointResponseData == null)
                 {
                     // If gitEndPointResponseData is null there was an unhandled exception
@@ -229,7 +229,7 @@ namespace GVFS.Common.Http
 
             return gitEndPointResponseData;
         }
-        
+
         private static bool ShouldRetry(HttpStatusCode statusCode)
         {
             // Retry timeout, Unauthorized, and 5xx errors
@@ -249,7 +249,7 @@ namespace GVFS.Common.Http
             IEnumerable<string> values;
             if (headers.TryGetValues(headerName, out values))
             {
-                return values.First();                
+                return values.First();
             }
 
             return string.Empty;

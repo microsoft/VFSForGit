@@ -8,7 +8,7 @@ namespace GVFS.Common.NamedPipes
     /// Define messages used to communicate via the named-pipe in GVFS.
     /// </summary>
     /// <remarks>
-    /// This class is defined as partial so that GVFS.Hooks 
+    /// This class is defined as partial so that GVFS.Hooks
     /// can compile the portions of it that it cares about (see LockedNamedPipeMessages).
     /// </remarks>
     public static partial class NamedPipeMessages

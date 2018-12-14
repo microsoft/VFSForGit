@@ -6,7 +6,7 @@ using System;
 namespace GVFS.UnitTests.Mock.Virtualization.BlobSize
 {
     public class MockBlobSizes : BlobSizes
-    { 
+    {
         public MockBlobSizes()
             : base("mock:\\blobSizeDatabase", fileSystem: null, tracer: new MockTracer())
         {

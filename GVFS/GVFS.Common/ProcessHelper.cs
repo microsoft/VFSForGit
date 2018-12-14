@@ -35,7 +35,7 @@ namespace GVFS.Common
             Assembly assembly = Assembly.GetEntryAssembly();
             if (assembly == null)
             {
-                // The PR build tests doesn't produce an entry assembly because it is run from unmanaged code, 
+                // The PR build tests doesn't produce an entry assembly because it is run from unmanaged code,
                 // so we'll fall back on using this assembly. This should never ever happen for a normal exe invocation.
                 assembly = Assembly.GetExecutingAssembly();
             }
@@ -54,7 +54,7 @@ namespace GVFS.Common
 
             return currentProcessVersion;
         }
-        
+
         public static bool IsDevelopmentVersion()
         {
             Version currentVersion = new Version(ProcessHelper.GetCurrentProcessVersion());
@@ -70,7 +70,7 @@ namespace GVFS.Common
                 return null;
             }
 
-            string firstPath = 
+            string firstPath =
                 string.IsNullOrWhiteSpace(result.Output)
                 ? null
                 : result.Output.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries).FirstOrDefault();

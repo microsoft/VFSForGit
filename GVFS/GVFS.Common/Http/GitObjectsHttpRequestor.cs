@@ -15,7 +15,7 @@ namespace GVFS.Common.Http
     {
         private static readonly MediaTypeWithQualityHeaderValue CustomLooseObjectsHeader
             = new MediaTypeWithQualityHeaderValue(GVFSConstants.MediaTypes.CustomLooseObjectsMediaType);
-        
+
         private Enlistment enlistment;
 
         private DateTime nextCacheServerAttemptTime = DateTime.Now;
@@ -26,7 +26,7 @@ namespace GVFS.Common.Http
             this.enlistment = enlistment;
             this.CacheServer = cacheServer;
         }
-        
+
         public CacheServerInfo CacheServer { get; private set; }
 
         public virtual List<GitObjectSize> QueryForFileSizes(IEnumerable<string> objectIds, CancellationToken cancellationToken)
@@ -88,7 +88,7 @@ namespace GVFS.Common.Http
 
             return requestTask.Result ?? new List<GitObjectSize>(0);
         }
-        
+
         public virtual GitRefs QueryInfoRefs(string branch)
         {
             long requestId = HttpRequestor.GetNewRequestId();
@@ -128,7 +128,7 @@ namespace GVFS.Common.Http
 
             return output.Result;
         }
-        
+
         public virtual RetryWrapper<GitObjectTaskResult>.InvocationResult TryDownloadLooseObject(
             string objectId,
             bool retryOnFailure,
@@ -228,7 +228,7 @@ namespace GVFS.Common.Http
                 method,
                 endPoint,
                 cancellationToken,
-                () => requestBody,                
+                () => requestBody,
                 acceptType,
                 retryOnFailure);
         }
@@ -240,7 +240,7 @@ namespace GVFS.Common.Http
             HttpMethod method,
             Uri endPoint,
             CancellationToken cancellationToken,
-            Func<string> requestBodyGenerator,            
+            Func<string> requestBodyGenerator,
             MediaTypeWithQualityHeaderValue acceptType = null,
             bool retryOnFailure = true)
         {
@@ -268,7 +268,7 @@ namespace GVFS.Common.Http
             bool retryOnFailure = true)
         {
             RetryWrapper<GitObjectTaskResult> retrier = new RetryWrapper<GitObjectTaskResult>(
-                retryOnFailure ? this.RetryConfig.MaxAttempts : 1, 
+                retryOnFailure ? this.RetryConfig.MaxAttempts : 1,
                 cancellationToken);
             if (onFailure != null)
             {

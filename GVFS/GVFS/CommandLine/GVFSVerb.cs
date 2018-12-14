@@ -67,7 +67,7 @@ namespace GVFS.CommandLine
                     catch (JsonReaderException e)
                     {
                         this.ReportErrorAndExit("Failed to parse InternalParameters: {0}.\n {1}", value, e);
-                    }                    
+                    }
                 }
             }
         }
@@ -350,7 +350,7 @@ namespace GVFS.CommandLine
             }
 
             return serverGVFSConfig;
-        }        
+        }
 
         protected void ValidateClientVersions(ITracer tracer, GVFSEnlistment enlistment, ServerGVFSConfig gvfsConfig, bool showWarnings)
         {

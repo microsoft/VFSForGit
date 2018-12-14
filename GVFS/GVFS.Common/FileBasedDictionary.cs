@@ -13,26 +13,26 @@ namespace GVFS.Common
 
         private FileBasedDictionary(
             ITracer tracer,
-            PhysicalFileSystem fileSystem, 
-            string dataFilePath, 
-            IEqualityComparer<TKey> keyComparer) 
+            PhysicalFileSystem fileSystem,
+            string dataFilePath,
+            IEqualityComparer<TKey> keyComparer)
             : base(tracer, fileSystem, dataFilePath, collectionAppendsDirectlyToFile: false)
         {
             this.data = new ConcurrentDictionary<TKey, TValue>(keyComparer);
         }
 
         public static bool TryCreate(
-            ITracer tracer, 
-            string dictionaryPath, 
+            ITracer tracer,
+            string dictionaryPath,
             PhysicalFileSystem fileSystem,
-            out FileBasedDictionary<TKey, TValue> output, 
+            out FileBasedDictionary<TKey, TValue> output,
             out string error,
             IEqualityComparer<TKey> keyComparer = null)
         {
             output = new FileBasedDictionary<TKey, TValue>(
-                tracer, 
-                fileSystem, 
-                dictionaryPath, 
+                tracer,
+                fileSystem,
+                dictionaryPath,
                 keyComparer ?? EqualityComparer<TKey>.Default);
 
             if (!output.TryLoadFromDisk<TKey, TValue>(

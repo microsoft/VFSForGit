@@ -10,7 +10,7 @@ namespace GVFS.RepairJobs
 {
     public class GitHeadRepairJob : RepairJob
     {
-        public GitHeadRepairJob(ITracer tracer, TextWriter output, GVFSEnlistment enlistment) 
+        public GitHeadRepairJob(ITracer tracer, TextWriter output, GVFSEnlistment enlistment)
             : base(tracer, output, enlistment)
         {
         }
@@ -19,7 +19,7 @@ namespace GVFS.RepairJobs
         {
             get { return @".git\HEAD"; }
         }
-        
+
         public override IssueType HasIssue(List<string> messages)
         {
             if (TryParseHead(this.Enlistment, messages))
@@ -31,7 +31,7 @@ namespace GVFS.RepairJobs
             {
                 return IssueType.CantFix;
             }
-            
+
             return IssueType.Fixable;
         }
 
@@ -109,7 +109,7 @@ namespace GVFS.RepairJobs
             error = null;
             return true;
         }
-        
+
         private static bool TryParseHead(Enlistment enlistment, List<string> messages)
         {
             string refPath = Path.Combine(enlistment.WorkingDirectoryRoot, GVFSConstants.DotGit.Head);

@@ -8,7 +8,7 @@ namespace GVFS.Common
     public class GVFSContext : IDisposable
     {
         private bool disposedValue = false;
-        
+
         public GVFSContext(ITracer tracer, PhysicalFileSystem fileSystem, GitRepo repository, GVFSEnlistment enlistment)
         {
             this.Tracer = tracer;

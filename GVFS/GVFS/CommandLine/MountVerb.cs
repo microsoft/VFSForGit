@@ -69,7 +69,7 @@ namespace GVFS.CommandLine
                     }
                 }
             }
-            
+
             if (!DiskLayoutUpgrade.TryRunAllUpgrades(enlistmentRoot))
             {
                 this.ReportErrorAndExit("Failed to upgrade repo disk layout. " + ConsoleHelper.GetGVFSLogMessage(enlistmentRoot));
@@ -230,7 +230,7 @@ namespace GVFS.CommandLine
             errorMessage = string.Empty;
             mountExecutableLocation = string.Empty;
 
-            // We have to parse these parameters here to make sure they are valid before 
+            // We have to parse these parameters here to make sure they are valid before
             // handing them to the background process which cannot tell the user when they are bad
             EventLevel verbosity;
             Keywords keywords;
@@ -295,7 +295,7 @@ namespace GVFS.CommandLine
         }
 
         private bool RegisterMount(GVFSEnlistment enlistment, out string errorMessage)
-        {   
+        {
             errorMessage = string.Empty;
 
             NamedPipeMessages.RegisterRepoRequest request = new NamedPipeMessages.RegisterRepoRequest();

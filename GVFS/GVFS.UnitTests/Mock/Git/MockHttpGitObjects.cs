@@ -50,9 +50,9 @@ namespace GVFS.UnitTests.Mock.Git
         }
 
         public override RetryWrapper<GitObjectTaskResult>.InvocationResult TryDownloadObjects(
-            Func<IEnumerable<string>> objectIdGenerator, 
-            Func<int, GitEndPointResponseData, RetryWrapper<GitObjectTaskResult>.CallbackResult> onSuccess, 
-            Action<RetryWrapper<GitObjectTaskResult>.ErrorEventArgs> onFailure, 
+            Func<IEnumerable<string>> objectIdGenerator,
+            Func<int, GitEndPointResponseData, RetryWrapper<GitObjectTaskResult>.CallbackResult> onSuccess,
+            Action<RetryWrapper<GitObjectTaskResult>.ErrorEventArgs> onFailure,
             bool preferBatchedLooseObjects)
         {
             return this.TryDownloadObjects(objectIdGenerator(), onSuccess, onFailure, preferBatchedLooseObjects);
@@ -87,7 +87,7 @@ namespace GVFS.UnitTests.Mock.Git
                 {
                     RetryWrapper<GitObjectTaskResult>.CallbackResult result = onSuccess(1, response);
                     return new RetryWrapper<GitObjectTaskResult>.InvocationResult(1, true, result.Result);
-                }                
+                }
             }
 
             if (onFailure != null)

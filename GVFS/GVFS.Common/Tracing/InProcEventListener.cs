@@ -17,14 +17,14 @@ namespace GVFS.Common.Tracing
         public virtual void Dispose()
         {
         }
-        
+
         public void RecordMessage(string eventName, Guid activityId, Guid parentActivityId, EventLevel level, Keywords keywords, EventOpcode opcode, string jsonPayload)
         {
             if (!this.IsEnabled(level, keywords))
             {
                 return;
             }
-            
+
             this.RecordMessageInternal(eventName, activityId, parentActivityId, level, keywords, opcode, jsonPayload);
         }
 
@@ -52,7 +52,7 @@ namespace GVFS.Common.Tracing
             {
                 message.Append(" " + jsonPayload);
             }
-            
+
             return message.ToString();
         }
 

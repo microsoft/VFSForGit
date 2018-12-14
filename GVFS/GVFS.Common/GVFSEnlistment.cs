@@ -116,7 +116,7 @@ namespace GVFS.Common
         public static string GetNewGVFSLogFileName(string logsRoot, string logFileType)
         {
             return Enlistment.GetNewLogFileName(
-                logsRoot, 
+                logsRoot,
                 "gvfs_" + logFileType);
         }
 
@@ -188,7 +188,7 @@ namespace GVFS.Common
         public void InitializeCachePathsFromKey(string localCacheRoot, string localCacheKey)
         {
             this.InitializeCachePaths(
-                localCacheRoot, 
+                localCacheRoot,
                 Path.Combine(localCacheRoot, localCacheKey, GitObjectCacheName),
                 Path.Combine(localCacheRoot, localCacheKey, BlobSizesCacheName));
         }

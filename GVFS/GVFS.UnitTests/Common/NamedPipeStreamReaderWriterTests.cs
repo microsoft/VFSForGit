@@ -79,7 +79,7 @@ namespace GVFS.UnitTests.Common
             string readMessage = this.streamReader.ReadMessage();
             readMessage.ShouldEqual(message, "The message read from the stream reader is not the same as the message that was sent.");
         }
-        
+
         private void TestTransmitMessages(string[] messages)
         {
             long pos = this.ReadStreamPosition();
@@ -88,7 +88,7 @@ namespace GVFS.UnitTests.Common
             {
                 this.streamWriter.WriteMessage(message);
             }
-            
+
             this.SetStreamPosition(pos);
 
             foreach (string message in messages)

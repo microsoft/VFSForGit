@@ -9,7 +9,7 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
     [Category(Categories.GitCommands)]
     public class HashObjectTests : GitRepoTests
     {
-        public HashObjectTests() 
+        public HashObjectTests()
             : base(enlistmentPerTest: false, validateWorkingTree: false)
         {
         }

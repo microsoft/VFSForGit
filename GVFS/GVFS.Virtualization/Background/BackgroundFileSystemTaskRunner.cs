@@ -177,7 +177,7 @@ namespace GVFS.Virtualization.Background
                     int tasksProcessed = 0;
                     while (this.backgroundTasks.TryPeek(out backgroundTask))
                     {
-                        if (tasksProcessed % LogUpdateTaskThreshold == 0 && 
+                        if (tasksProcessed % LogUpdateTaskThreshold == 0 &&
                             (tasksProcessed >= LogUpdateTaskThreshold || this.backgroundTasks.Count >= LogUpdateTaskThreshold))
                         {
                             this.LogTaskProcessingStatus(tasksProcessed);
@@ -194,7 +194,7 @@ namespace GVFS.Virtualization.Background
                         FileSystemTaskResult callbackResult = this.callback(backgroundTask);
                         switch (callbackResult)
                         {
-                            case FileSystemTaskResult.Success:                                
+                            case FileSystemTaskResult.Success:
                                 this.backgroundTasks.DequeueAndFlush(backgroundTask);
                                 ++tasksProcessed;
                                 break;

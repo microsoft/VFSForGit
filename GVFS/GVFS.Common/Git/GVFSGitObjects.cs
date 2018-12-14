@@ -14,7 +14,7 @@ namespace GVFS.Common.Git
         private static readonly TimeSpan NegativeCacheTTL = TimeSpan.FromSeconds(30);
 
         private ConcurrentDictionary<string, DateTime> objectNegativeCache;
-        
+
         public GVFSGitObjects(GVFSContext context, GitObjectsHttpRequestor objectRequestor)
             : base(context.Tracer, context.Enlistment, objectRequestor, context.FileSystem)
         {
@@ -34,13 +34,13 @@ namespace GVFS.Common.Git
         protected GVFSContext Context { get; private set; }
 
         public virtual bool TryCopyBlobContentStream(
-            string sha, 
+            string sha,
             CancellationToken cancellationToken,
             RequestSource requestSource,
             Action<Stream, long> writeAction)
         {
             RetryWrapper<bool> retrier = new RetryWrapper<bool>(this.GitObjectRequestor.RetryConfig.MaxAttempts, cancellationToken);
-            retrier.OnFailure += 
+            retrier.OnFailure +=
                 errorArgs =>
                 {
                     EventMetadata metadata = new EventMetadata();
@@ -63,7 +63,7 @@ namespace GVFS.Common.Git
                         this.Tracer.RelatedError(metadata, message);
                     }
                 };
-            
+
             RetryWrapper<bool>.InvocationResult invokeResult = retrier.Invoke(
                 tryCount =>
                 {
@@ -106,9 +106,9 @@ namespace GVFS.Common.Git
         }
 
         private DownloadAndSaveObjectResult TryDownloadAndSaveObject(
-            string objectId, 
-            CancellationToken cancellationToken, 
-            RequestSource requestSource, 
+            string objectId,
+            CancellationToken cancellationToken,
+            RequestSource requestSource,
             bool retryOnFailure)
         {
             if (objectId == GVFSConstants.AllZeroSha)

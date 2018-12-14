@@ -143,7 +143,7 @@ namespace GVFS.Common.Http
         }
 
         /// <summary>
-        /// Convert from a string-based Content-Type to <see cref="GitObjectsHttpRequestor.ContentType"/> 
+        /// Convert from a string-based Content-Type to <see cref="GitObjectsHttpRequestor.ContentType"/>
         /// </summary>
         private static GitObjectContentType MapContentType(string contentType)
         {

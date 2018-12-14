@@ -67,7 +67,7 @@ namespace GVFS.Mount
         {
             this.currentState = MountState.Mounting;
 
-            // We must initialize repo metadata before starting the pipe server so it 
+            // We must initialize repo metadata before starting the pipe server so it
             // can immediately handle status requests
             string error;
             if (!RepoMetadata.TryInitialize(this.tracer, this.enlistment.DotGVFSRoot, out error))
@@ -581,7 +581,7 @@ namespace GVFS.Mount
                 this.maintenanceScheduler.Dispose();
                 this.maintenanceScheduler = null;
             }
-            
+
             if (this.heartbeat != null)
             {
                 this.heartbeat.Stop();

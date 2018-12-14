@@ -11,8 +11,8 @@ namespace FastFetch
     [Verb("fastfetch", HelpText = "Fast-fetch a branch")]
     public class FastFetchVerb
     {
-        // Testing has shown that more than 16 download threads does not improve 
-        // performance even with 56 core machines with 40G NICs. More threads does 
+        // Testing has shown that more than 16 download threads does not improve
+        // performance even with 56 core machines with 40G NICs. More threads does
         // create more load on the servers as they have to handle extra connections.
         private const int MaxDefaultDownloadThreads = 16;
 

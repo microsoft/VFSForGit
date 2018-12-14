@@ -16,7 +16,7 @@ namespace GVFS.Common
 
         private const char PathTerminator = '\0';
 
-        // This list holds placeholder entries that are created between calls to 
+        // This list holds placeholder entries that are created between calls to
         // GetAllEntriesAndPrepToWriteAllEntries and WriteAllEntriesAndFlush.
         //
         //    Example:
@@ -25,20 +25,20 @@ namespace GVFS.Common
         //       2) VFS4G starts the work to update placeholders
         //       3) VFS4G calls GetAllEntriesAndPrepToWriteAllEntries
         //       4) VFS4G starts updating placeholders
-        //       5) Some application reads a pure-virtual file (creating a new placeholder) while VFS4G is updating existing placeholders. 
+        //       5) Some application reads a pure-virtual file (creating a new placeholder) while VFS4G is updating existing placeholders.
         //          That new placeholder is added to placeholderChangesWhileRebuildingList.
-        //       6) VFS4G completes updating the placeholders and calls WriteAllEntriesAndFlush. 
+        //       6) VFS4G completes updating the placeholders and calls WriteAllEntriesAndFlush.
         //          Note: this list does *not* include the placeholders created in step 5, as the were not included in GetAllEntries.
         //       7) WriteAllEntriesAndFlush writes *both* the entires in placeholderDataEntries and those that were passed in as the parameter.
         //
         // This scenario is covered in the unit test PlaceholderDatabaseTests.HandlesRaceBetweenAddAndWriteAllEntries
         //
         // Because of this list, callers must always call WriteAllEntries after calling GetAllEntriesAndPrepToWriteAllEntries.
-        // 
+        //
         // This list must always be accessed from inside one of FileBasedCollection's synchronizedAction callbacks because
         // there is race potential between creating the queue, adding to the queue, and writing to the data file.
         private List<PlaceholderDataEntry> placeholderChangesWhileRebuildingList;
-        
+
         private PlaceholderListDatabase(ITracer tracer, PhysicalFileSystem fileSystem, string dataFilePath)
             : base(tracer, fileSystem, dataFilePath, collectionAppendsDirectlyToFile: true)
         {
@@ -208,7 +208,7 @@ namespace GVFS.Common
         {
             try
             {
-                Dictionary<string, PlaceholderListDatabase.PlaceholderData> filePlaceholdersFromDiskByPath = 
+                Dictionary<string, PlaceholderListDatabase.PlaceholderData> filePlaceholdersFromDiskByPath =
                     new Dictionary<string, PlaceholderListDatabase.PlaceholderData>(Math.Max(1, this.EstimatedCount), StringComparer.Ordinal);
 
                 string error;
@@ -358,7 +358,7 @@ namespace GVFS.Common
 
             public bool IsFolder
             {
-                get 
+                get
                 {
                     return this.Sha == PartialFolderValue || this.IsExpandedFolder;
                 }

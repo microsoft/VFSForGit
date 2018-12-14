@@ -19,12 +19,12 @@ namespace GVFS.Service.UI
         private const string ServiceAppId = "GVFS";
 
         private readonly ITracer tracer;
-        
+
         public GVFSServiceUI(ITracer tracer)
         {
             this.tracer = tracer;
         }
-        
+
         public static void Main(string[] args)
         {
             GVFSPlatformLoader.Initialize();
@@ -35,7 +35,7 @@ namespace GVFS.Service.UI
                     Environment.GetEnvironmentVariable("LocalAppData"),
                     GVFSConstants.Service.UIName,
                     "serviceUI.log");
-                
+
                 tracer.AddLogFileEventListener(logLocation, EventLevel.Informational, Keywords.Any);
                 GVFSServiceUI process = new GVFSServiceUI(tracer);
                 process.Start(args);
@@ -60,7 +60,7 @@ namespace GVFS.Service.UI
                 this.tracer.RelatedInfo("{0} stop detected -- exiting UI.", GVFSConstants.Service.ServiceName);
             }
         }
-        
+
         private void HandleRequest(ITracer tracer, string request, NamedPipeServer.Connection connection)
         {
             try

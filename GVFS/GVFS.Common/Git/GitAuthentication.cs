@@ -135,7 +135,7 @@ namespace GVFS.Common.Git
             this.isInitialized = true;
             return true;
         }
-        
+
         public bool TryInitializeAndRequireAuth(ITracer tracer, out string errorMessage)
         {
             if (this.isInitialized)

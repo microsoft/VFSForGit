@@ -174,7 +174,7 @@ namespace GVFS.FunctionalTests.Windows.Tests
 
             // Placeholder database file should only have file placeholders
             this.fileSystem.WriteAllText(
-                placeholderDatabasePath, 
+                placeholderDatabasePath,
                 string.Join(Environment.NewLine, lines.Where(x => !x.EndsWith(TestConstants.PartialFolderPlaceholderDatabaseValue))) + Environment.NewLine);
 
             GVFSHelpers.SaveDiskLayoutVersion(this.Enlistment.DotGVFSRoot, "12", "1");
@@ -201,9 +201,9 @@ namespace GVFS.FunctionalTests.Windows.Tests
 
             // Update the placeholder file so that folders have an all zero SHA
             this.fileSystem.WriteAllText(
-                placeholderDatabasePath, 
+                placeholderDatabasePath,
                 string.Join(
-                    Environment.NewLine, 
+                    Environment.NewLine,
                     lines.Select(x => x.Replace(TestConstants.PartialFolderPlaceholderDatabaseValue, TestConstants.AllZeroSha))) + Environment.NewLine);
 
             GVFSHelpers.SaveDiskLayoutVersion(this.Enlistment.DotGVFSRoot, "16", "0");

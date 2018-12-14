@@ -9,10 +9,10 @@ namespace GVFS.Common
         /// .NET default buffer size <see cref="Stream.CopyTo"/> uses as of 8/30/16
         /// </summary>
         public const int DefaultCopyBufferSize = 81920;
-                
+
         /// <summary>
         /// Copies all bytes from the source stream to the destination stream.  This is an exact copy
-        /// of Stream.CopyTo(), but can uses the supplied buffer instead of allocating a new one. 
+        /// of Stream.CopyTo(), but can uses the supplied buffer instead of allocating a new one.
         /// </summary>
         /// <remarks>
         /// As of .NET 4.6, each call to Stream.CopyTo() allocates a new 80K byte[] buffer, which
@@ -49,7 +49,7 @@ namespace GVFS.Common
         }
 
         /// <summary>
-        /// Call <see cref="Stream.Read"/> until either <paramref name="count"/> bytes are read or 
+        /// Call <see cref="Stream.Read"/> until either <paramref name="count"/> bytes are read or
         /// the end of <paramref name="stream"/> is reached.
         /// </summary>
         /// <param name="buf">Buffer to read bytes into.</param>

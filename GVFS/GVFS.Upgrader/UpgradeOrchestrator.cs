@@ -18,7 +18,7 @@ namespace GVFS.Upgrader
         private bool mount;
 
         public UpgradeOrchestrator(
-            ProductUpgrader upgrader, 
+            ProductUpgrader upgrader,
             ITracer tracer,
             InstallerPreRunChecker preRunChecker,
             TextReader input,
@@ -141,7 +141,7 @@ namespace GVFS.Upgrader
                 consoleError = null;
                 loaded = true;
             }
-            
+
             ring = this.upgrader.Ring;
             return loaded;
         }
@@ -241,7 +241,7 @@ namespace GVFS.Upgrader
             consoleError = null;
             return true;
         }
-        
+
         private bool TryMountRepositories(out string consoleError)
         {
             string errorMessage = string.Empty;
@@ -326,14 +326,14 @@ namespace GVFS.Upgrader
 
                 activity.RelatedInfo("Successfully checked for new release. {0}", newestVersion);
             }
-            
+
             return true;
         }
 
         private bool TryDownloadUpgrade(Version version, out string consoleError)
         {
             using (ITracer activity = this.tracer.StartActivity(
-                $"{nameof(this.TryDownloadUpgrade)}({version.ToString()})", 
+                $"{nameof(this.TryDownloadUpgrade)}({version.ToString()})",
                 EventLevel.Informational))
             {
                 if (!this.upgrader.TryDownloadNewestVersion(out consoleError))
@@ -356,7 +356,7 @@ namespace GVFS.Upgrader
             using (ITracer activity = this.tracer.StartActivity(
                 $"{nameof(this.TryInstallGitUpgrade)}({version.ToString()})",
                 EventLevel.Informational))
-            {                
+            {
                 if (!this.upgrader.TryRunGitInstaller(out installSuccess, out consoleError) ||
                     !installSuccess)
                 {

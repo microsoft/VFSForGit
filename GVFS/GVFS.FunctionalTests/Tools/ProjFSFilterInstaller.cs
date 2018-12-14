@@ -56,7 +56,7 @@ namespace GVFS.FunctionalTests.Tools
 
         private static void StartService(string serviceName)
         {
-            ProcessResult result = ProcessHelper.Run("sc.exe", $"start {serviceName}");            
+            ProcessResult result = ProcessHelper.Run("sc.exe", $"start {serviceName}");
             Console.WriteLine($"sc start {serviceName} Output: {result.Output}");
             Console.WriteLine($"sc start {serviceName} Errors: {result.Errors}");
             result.ExitCode.ShouldEqual(0, $"Failed to start {serviceName}");
@@ -76,7 +76,7 @@ namespace GVFS.FunctionalTests.Tools
 
         private static void DisableAndRemoveInboxProjFS()
         {
-            ProcessResult disableFeatureResult = CallPowershellCommand("Disable-WindowsOptionalFeature -Online -FeatureName " + OptionalFeatureName + " -Remove");            
+            ProcessResult disableFeatureResult = CallPowershellCommand("Disable-WindowsOptionalFeature -Online -FeatureName " + OptionalFeatureName + " -Remove");
             Console.WriteLine($"Disable ProjfS Output: {disableFeatureResult.Output}");
             Console.WriteLine($"Disable ProjfS Errors: {disableFeatureResult.Errors}");
             disableFeatureResult.ExitCode.ShouldEqual(0, "Error when disabling ProjFS");
@@ -97,7 +97,7 @@ namespace GVFS.FunctionalTests.Tools
         {
             string installPathPrjflt = Path.Combine(PrjfltInfInstallFolder, PrjfltSysName);
             string system32Prjflt = Path.Combine(System32DriversPath, PrjfltSysName);
-            ProcessResult result = ProcessHelper.Run("fc.exe", $"/b \"{installPathPrjflt}\" \"{system32Prjflt}\"");            
+            ProcessResult result = ProcessHelper.Run("fc.exe", $"/b \"{installPathPrjflt}\" \"{system32Prjflt}\"");
             result.ExitCode.ShouldEqual(0, $"fc failed to validate prjflt.sys");
             result.Output.ShouldContain("no differences encountered");
         }

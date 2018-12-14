@@ -97,8 +97,8 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
             this.Enlistment.GetVirtualPathTo(existingFilename).ShouldBeAFile(this.fileSystem);
 
             GitHelpers.CheckGitCommandAgainstGVFSRepo(
-                this.Enlistment.RepoRoot, 
-                "add " + existingFilename, 
+                this.Enlistment.RepoRoot,
+                "add " + existingFilename,
                 new string[] { });
 
             // Status should be correct
@@ -132,8 +132,8 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
             this.Enlistment.GetVirtualPathTo(existingFilename).ShouldBeAFile(this.fileSystem);
 
             GitHelpers.CheckGitCommandAgainstGVFSRepo(
-                this.Enlistment.RepoRoot, 
-                "reset HEAD " + existingFilename, 
+                this.Enlistment.RepoRoot,
+                "reset HEAD " + existingFilename,
                 new string[] { });
 
             GitHelpers.CheckGitCommandAgainstGVFSRepo(
@@ -183,7 +183,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
         {
             string filename = "GitStatusAfterRenameFileIntoRepo.cs";
 
-            // Create the test file in this.Enlistment.EnlistmentRoot as it's outside of src 
+            // Create the test file in this.Enlistment.EnlistmentRoot as it's outside of src
             // and is cleaned up when the functional tests run
             string filePath = Path.Combine(this.Enlistment.EnlistmentRoot, filename);
 
@@ -207,7 +207,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
         {
             string existingFilename = Path.Combine("Test_EPF_MoveRenameFileTests", "ChangeUnhydratedFileName", "Program.cs");
 
-            // Move the test file to this.Enlistment.EnlistmentRoot as it's outside of src 
+            // Move the test file to this.Enlistment.EnlistmentRoot as it's outside of src
             // and is cleaned up when the functional tests run
             this.fileSystem.MoveFile(this.Enlistment.GetVirtualPathTo(existingFilename), Path.Combine(this.Enlistment.EnlistmentRoot, "Program.cs"));
             this.Enlistment.GetVirtualPathTo(existingFilename).ShouldNotExistOnDisk(this.fileSystem);
@@ -223,7 +223,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
         {
             string folderName = "GitStatusAfterRenameFolderIntoRepo";
 
-            // Create the test folder in this.Enlistment.EnlistmentRoot as it's outside of src 
+            // Create the test folder in this.Enlistment.EnlistmentRoot as it's outside of src
             // and is cleaned up when the functional tests run
             string folderPath = Path.Combine(this.Enlistment.EnlistmentRoot, folderName);
 

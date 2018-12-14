@@ -6,7 +6,7 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
     [Category(Categories.GitCommands)]
     public class CherryPickConflictTests : GitRepoTests
     {
-        public CherryPickConflictTests(bool validateWorkingTree) 
+        public CherryPickConflictTests(bool validateWorkingTree)
             : base(enlistmentPerTest: true, validateWorkingTree: validateWorkingTree)
         {
         }

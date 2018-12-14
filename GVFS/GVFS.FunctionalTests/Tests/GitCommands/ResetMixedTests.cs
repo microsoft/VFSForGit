@@ -39,7 +39,7 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
             // command will not report modified and deleted files
             this.RunGitCommand("checkout -b tests/functional/ResetMixedAndCheckoutNewBranch");
             this.FilesShouldMatchCheckoutOfTargetBranch();
-            this.ValidateGitCommand("status");            
+            this.ValidateGitCommand("status");
         }
 
         [TestCase]
@@ -83,7 +83,7 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
             this.ValidateGitCommand("checkout " + GitRepoTests.ConflictTargetBranch);
             this.ValidateGitCommand("reset --mixed HEAD~1");
 
-            // This will reset all the files except the files that were added 
+            // This will reset all the files except the files that were added
             // and are untracked to make sure we error out with those using sparse-checkout
             this.ValidateGitCommand("checkout -f");
             this.ValidateGitCommand("checkout " + GitRepoTests.ConflictSourceBranch);

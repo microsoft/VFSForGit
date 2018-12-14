@@ -105,9 +105,9 @@ namespace GVFS.Hooks
 
         private static void RemindUpgradeAvailable()
         {
-            // The idea is to generate a random number between 0 and 100. To make 
-            // sure that the reminder is displayed only 10% of the times a git 
-            // command is run, check that the random number is between 0 and 10, 
+            // The idea is to generate a random number between 0 and 100. To make
+            // sure that the reminder is displayed only 10% of the times a git
+            // command is run, check that the random number is between 0 and 10,
             // which will have a probability of 10/100 == 10%.
             int reminderFrequency = 10;
             int randomValue = random.Next(0, 100);
@@ -172,7 +172,7 @@ namespace GVFS.Hooks
         }
 
         private static void RunLockRequest(string[] args, bool unattended, LockRequestDelegate requestToRun)
-        { 
+        {
             try
             {
                 if (ShouldLock(args))
@@ -292,7 +292,7 @@ namespace GVFS.Hooks
                     }
                 },
                 gvfsEnlistmentRoot: null,
-                waitingMessage: "Waiting for GVFS to parse index and update placeholder files", 
+                waitingMessage: "Waiting for GVFS to parse index and update placeholder files",
                 spinnerDelay: PostCommandSpinnerDelayMs);
         }
 

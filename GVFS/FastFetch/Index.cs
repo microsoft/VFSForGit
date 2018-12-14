@@ -36,13 +36,13 @@ namespace FastFetch
 
         // Location of the version marker file
         private readonly string versionMarkerFile;
-        
+
         private readonly bool readOnly;
 
         // Index paths
         private readonly string indexPath;
         private readonly string updatedIndexPath;
-        
+
         private readonly ITracer tracer;
         private readonly string repoRoot;
 
@@ -83,9 +83,9 @@ namespace FastFetch
         ///     1) If there was an index in place when this object was constructed, then:
         ///      a) Copy all valid entries (below) from the previous index to the new index
         ///      b) Conditionally (below) get times/sizes from the working tree for files not updated from the previous index
-        ///     
+        ///
         ///     2) If there was no index in place, conditionally populate all entries from disk
-        ///     
+        ///
         /// Conditions:
         /// - Working tree is only searched if allowUpdateFromWorkingTree is specified
         /// - A valid entry is an entry that exist and has a non-zero creation time (ctime)
@@ -107,7 +107,7 @@ namespace FastFetch
                 this.Parse();
 
                 bool anyEntriesUpdated = false;
-                
+
                 using (MemoryMappedFile mmf = this.GetMemoryMappedFile())
                 using (MemoryMappedViewAccessor indexView = mmf.CreateViewAccessor())
                 {
@@ -149,7 +149,7 @@ namespace FastFetch
                 }
             }
         }
-        
+
         public void Parse()
         {
             using (ITracer activity = this.tracer.StartActivity("ParseIndex", EventLevel.Informational, Keywords.Telemetry, new EventMetadata() { { "Index", this.updatedIndexPath } }))
@@ -232,7 +232,7 @@ namespace FastFetch
             this.tracer.RelatedEvent(EventLevel.Informational, "UpdateIndexFileInformation", new EventMetadata() { { "UpdatedFromDisk", updatedEntriesFromDisk } }, Keywords.Telemetry);
             return updatedEntriesFromDisk > 0;
         }
-        
+
         private bool UpdateFileInformationForAllEntries(MemoryMappedViewAccessor indexView, Index otherIndex, bool shouldAlsoTryPopulateFromDisk)
         {
             long updatedEntriesFromOtherIndex = 0;
@@ -424,7 +424,7 @@ namespace FastFetch
                 {
                     // Examine only the things we're not skipping...
                     // Potential Future Perf Optimization: Perform this work on multiple threads.  If we take the first byte and % by number of threads,
-                    // we can ensure that all entries for a given folder end up in the same dictionary              
+                    // we can ensure that all entries for a given folder end up in the same dictionary
                     string path = Encoding.UTF8.GetString(pathBuffer, 0, pathLength);
                     this.indexEntryOffsets[path] = entryOffset;
                 }
@@ -680,7 +680,7 @@ namespace FastFetch
                     return (this.Flags & Index.ExtendedBit) == Index.ExtendedBit;
                 }
             }
-            
+
             public static bool HasInitializedCTimeEntry(MemoryMappedViewAccessor indexView, long offset)
             {
                 return EndianHelper.Swap(indexView.ReadUInt32(offset + (long)EntryOffsets.ctimeSeconds)) != 0;

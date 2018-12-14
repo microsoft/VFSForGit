@@ -305,7 +305,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
         }
 
         private class MountSubfolders
-        {            
+        {
             public const string MountFolders = "Folders";
             private static object[] mountFolders =
             {

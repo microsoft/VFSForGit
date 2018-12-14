@@ -6,7 +6,7 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
     [Category(Categories.GitCommands)]
     public class UpdateRefTests : GitRepoTests
     {
-        public UpdateRefTests(bool validateWorkingTree) 
+        public UpdateRefTests(bool validateWorkingTree)
             : base(enlistmentPerTest: true, validateWorkingTree: validateWorkingTree)
         {
         }

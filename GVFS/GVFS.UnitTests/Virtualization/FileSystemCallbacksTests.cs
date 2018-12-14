@@ -247,9 +247,9 @@ namespace GVFS.UnitTests.Virtualization
                 fileSystemVirtualizer: null))
             {
                 this.CallbackSchedulesBackgroundTask(
-                    backgroundTaskRunner, 
-                    (path) => fileSystemCallbacks.OnFileConvertedToFull(path), 
-                    "OnFileConvertedToFull.txt", 
+                    backgroundTaskRunner,
+                    (path) => fileSystemCallbacks.OnFileConvertedToFull(path),
+                    "OnFileConvertedToFull.txt",
                     FileSystemTask.OperationType.OnFileConvertedToFull);
 
                 this.CallbackSchedulesBackgroundTask(
@@ -360,9 +360,9 @@ namespace GVFS.UnitTests.Virtualization
         }
 
         private void CallbackSchedulesBackgroundTask(
-            MockBackgroundFileSystemTaskRunner backgroundTaskRunner, 
-            Action<string> callback, 
-            string path, 
+            MockBackgroundFileSystemTaskRunner backgroundTaskRunner,
+            Action<string> callback,
+            string path,
             FileSystemTask.OperationType operationType)
         {
             callback(path);

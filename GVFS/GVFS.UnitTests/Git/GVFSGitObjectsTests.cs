@@ -48,9 +48,9 @@ namespace GVFS.UnitTests.Git
                 GVFSGitObjects dut = this.CreateTestableGVFSGitObjects(httpObjects, fileSystem);
 
                 dut.TryCopyBlobContentStream(
-                    ValidTestObjectFileContents, 
+                    ValidTestObjectFileContents,
                     new CancellationToken(),
-                    GVFSGitObjects.RequestSource.FileStreamCallback, 
+                    GVFSGitObjects.RequestSource.FileStreamCallback,
                     (stream, length) => Assert.Fail("Should not be able to call copy stream callback"))
                     .ShouldEqual(false);
             }
@@ -155,7 +155,7 @@ namespace GVFS.UnitTests.Git
 
         private class MockHttpGitObjects : GitObjectsHttpRequestor
         {
-            public MockHttpGitObjects() 
+            public MockHttpGitObjects()
                 : this(new MockGVFSEnlistment())
             {
             }
@@ -198,10 +198,10 @@ namespace GVFS.UnitTests.Git
                 bool preferBatchedLooseObjects)
             {
                 using (GitEndPointResponseData response = new GitEndPointResponseData(
-                    HttpStatusCode.OK, 
-                    this.MediaType, 
-                    this.InputStream, 
-                    message: null, 
+                    HttpStatusCode.OK,
+                    this.MediaType,
+                    this.InputStream,
+                    message: null,
                     onResponseDisposed: null))
                 {
                     onSuccess(0, response);

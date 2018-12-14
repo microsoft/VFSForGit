@@ -218,7 +218,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
             this.VerifyWorktreeBit(fileToRenameEntry, LsFilesStatus.SkipWorktree);
 
             this.fileSystem.MoveFile(
-                this.Enlistment.GetVirtualPathTo(fileToRenameEntry), 
+                this.Enlistment.GetVirtualPathTo(fileToRenameEntry),
                 this.Enlistment.GetVirtualPathTo(fileToRenameTargetEntry));
             this.Enlistment.WaitForBackgroundOperations();
 

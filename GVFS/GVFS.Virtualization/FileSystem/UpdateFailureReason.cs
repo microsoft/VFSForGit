@@ -1,7 +1,7 @@
 ﻿using System;
 
 namespace GVFS.Virtualization.FileSystem
-{    
+{
     [Flags]
     public enum UpdateFailureReason : uint
     {

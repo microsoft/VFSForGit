@@ -57,7 +57,7 @@ namespace GVFS.FunctionalTests.Tests
         {
             RepositoryHelpers.DeleteTestDirectory(this.fastFetchControlRoot);
         }
-        
+
         [TestCase]
         public void CanFetchIntoEmptyGitRepoAndCheckoutWithGit()
         {
@@ -90,7 +90,7 @@ namespace GVFS.FunctionalTests.Tests
 
             this.fastFetchRepoRoot.ShouldBeADirectory(FileSystemRunner.DefaultRunner);
             List<string> dirs = Directory.EnumerateFileSystemEntries(this.fastFetchRepoRoot).ToList();
-            dirs.SequenceEqual(new[] 
+            dirs.SequenceEqual(new[]
             {
                 Path.Combine(this.fastFetchRepoRoot, ".git"),
                 Path.Combine(this.fastFetchRepoRoot, "GVFS"),
@@ -125,7 +125,7 @@ namespace GVFS.FunctionalTests.Tests
                 .ShouldEqual(345);
             this.AllFetchedFilePathsShouldPassCheck(path => path.StartsWith("GVFS", StringComparison.OrdinalIgnoreCase));
 
-            // Run a second time in the same repo on the same branch with more folders. 
+            // Run a second time in the same repo on the same branch with more folders.
             this.RunFastFetch($"--checkout --folders \"/GVFS;/Scripts\" -b {Settings.Default.Commitish} --force-checkout");
             dirs = Directory.EnumerateFileSystemEntries(this.fastFetchRepoRoot).ToList();
             dirs.SequenceEqual(new[]
@@ -213,7 +213,7 @@ namespace GVFS.FunctionalTests.Tests
             this.RunFastFetch("--checkout -b " + Settings.Default.Commitish);
 
             this.CurrentBranchShouldEqual(Settings.Default.Commitish);
-            
+
             this.fastFetchRepoRoot.ShouldBeADirectory(FileSystemRunner.DefaultRunner)
                 .WithDeepStructure(FileSystemRunner.DefaultRunner, this.fastFetchControlRoot);
         }
@@ -250,7 +250,7 @@ namespace GVFS.FunctionalTests.Tests
             // Verify that the final results are the same as the intial fetch results
             lsfilesAfterUpdate2.ShouldEqual(lsfilesAfterFirstFetch, "Incremental update should not change index");
         }
-        
+
         [TestCase]
         public void IncrementalChangesLeaveGoodStatus()
         {
@@ -274,7 +274,7 @@ namespace GVFS.FunctionalTests.Tests
 
             // There must be modified files in these commits.  Modified files must
             // be updated with valid metadata (times, sizes) or 'git status' will
-            // show them as modified when they were not actually modified. 
+            // show them as modified when they were not actually modified.
             Regex.IsMatch(changes, @"^M\s", RegexOptions.Multiline).ShouldEqual(true, "Data does not meet requirements");
         }
 
@@ -283,7 +283,7 @@ namespace GVFS.FunctionalTests.Tests
         {
             this.RunFastFetch("--checkout -b " + Settings.Default.Commitish);
             this.CurrentBranchShouldEqual(Settings.Default.Commitish);
-            
+
             // Switch to another branch
             this.RunFastFetch("--checkout -b FunctionalTests/20170602");
             this.CurrentBranchShouldEqual("FunctionalTests/20170602");
@@ -291,7 +291,7 @@ namespace GVFS.FunctionalTests.Tests
             // And back
             this.RunFastFetch("--checkout -b " + Settings.Default.Commitish);
             this.CurrentBranchShouldEqual(Settings.Default.Commitish);
-            
+
             this.fastFetchRepoRoot.ShouldBeADirectory(FileSystemRunner.DefaultRunner)
                 .WithDeepStructure(FileSystemRunner.DefaultRunner, this.fastFetchControlRoot);
         }
@@ -301,7 +301,7 @@ namespace GVFS.FunctionalTests.Tests
         {
             this.RunFastFetch("--checkout -b " + Settings.Default.Commitish);
             this.CurrentBranchShouldEqual(Settings.Default.Commitish);
-            
+
             this.RunFastFetch(" -b " + Settings.Default.Commitish).Output.ShouldContain("\"TotalMissingObjects\":0");
             this.RunFastFetch("--checkout -b " + Settings.Default.Commitish).Output.ShouldContain("\"RequiredBlobsCount\":0");
 
@@ -316,7 +316,7 @@ namespace GVFS.FunctionalTests.Tests
             // The delta between these two is the same as the UnitTest "caseChange.txt" data file.
             this.RunFastFetch("--checkout -c b3ddcf43b997cba3fbf9d2341b297e22bf48601a");
             this.RunFastFetch("--checkout -c e637c874f6a914ae83cd5668bcdd07293fef961d");
-            
+
             GitProcess.Invoke(this.fastFetchControlRoot, "checkout e637c874f6a914ae83cd5668bcdd07293fef961d");
 
             try
@@ -510,12 +510,12 @@ namespace GVFS.FunctionalTests.Tests
             processInfo.UseShellExecute = false;
             processInfo.RedirectStandardOutput = true;
             processInfo.RedirectStandardError = true;
-            
+
             ProcessResult result = ProcessHelper.Run(processInfo);
 
             return result;
         }
-        
+
         private string GetShaFromLsLine(string line)
         {
             string output = line.Substring(line.LastIndexOf('\t') - 40, 40);

@@ -57,7 +57,7 @@ namespace GVFS.CommandLine
                 this.ReportErrorAndExit(errorMessage);
             }
 
-            if (!this.Unattended && 
+            if (!this.Unattended &&
                 !this.SkipUnregister &&
                 GVFSPlatform.Instance.UnderConstruction.SupportsGVFSService)
             {
@@ -216,9 +216,9 @@ namespace GVFS.CommandLine
                     string result = null;
                     if (!GVFSLock.TryAcquireGVFSLockForProcess(
                             this.Unattended,
-                            pipeClient, 
-                            "gvfs unmount", 
-                            currentProcess.Id, 
+                            pipeClient,
+                            "gvfs unmount",
+                            currentProcess.Id,
                             GVFSPlatform.Instance.IsElevated(),
                             isConsoleOutputRedirectedToFile: GVFSPlatform.Instance.IsConsoleOutputRedirectedToFile(),
                             checkAvailabilityOnly: false,

@@ -135,11 +135,11 @@ namespace GVFS.UnitTests.Common
             fs.ExpectedFiles.Add(MockEntryFileName + ".tmp", new ReusableMemoryStream(string.Empty));
 
             PlaceholderListDatabase dut = CreatePlaceholderListDatabase(fs, ExpectedGitIgnoreEntry);
-            
+
             List<PlaceholderListDatabase.PlaceholderData> existingEntries = dut.GetAllEntriesAndPrepToWriteAllEntries();
 
             dut.AddAndFlushFile(InputGitAttributesPath, InputGitAttributesSHA);
-            
+
             dut.WriteAllEntriesAndFlush(existingEntries);
             fs.ExpectedFiles[MockEntryFileName].ReadAsString().ShouldEqual(ExpectedTwoEntries);
         }
@@ -155,7 +155,7 @@ namespace GVFS.UnitTests.Common
             PlaceholderListDatabase dut = CreatePlaceholderListDatabase(fs, ExpectedTwoEntries);
 
             List<PlaceholderListDatabase.PlaceholderData> existingEntries = dut.GetAllEntriesAndPrepToWriteAllEntries();
-            
+
             dut.RemoveAndFlush(InputGitAttributesPath);
 
             dut.WriteAllEntriesAndFlush(existingEntries);

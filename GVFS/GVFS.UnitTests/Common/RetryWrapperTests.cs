@@ -59,7 +59,7 @@ namespace GVFS.UnitTests.Common
             Assert.Throws<OperationCanceledException>(
                 () =>
                 {
-                    RetryWrapper<bool>.InvocationResult output = dut.Invoke(tryCount => 
+                    RetryWrapper<bool>.InvocationResult output = dut.Invoke(tryCount =>
                     {
                         ++actualTries;
                         return new RetryWrapper<bool>.CallbackResult(true);

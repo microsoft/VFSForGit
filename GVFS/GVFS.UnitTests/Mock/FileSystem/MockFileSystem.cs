@@ -62,7 +62,7 @@ namespace GVFS.UnitTests.Mock.FileSystem
 
             this.RootDirectory.RemoveFile(path);
         }
-        
+
         public override void MoveAndOverwriteFile(string sourcePath, string destinationPath)
         {
             if (sourcePath == null || destinationPath == null)
@@ -220,7 +220,7 @@ namespace GVFS.UnitTests.Mock.FileSystem
         }
 
         public override void SetAttributes(string path, FileAttributes fileAttributes)
-        {            
+        {
         }
 
         public override void MoveFile(string sourcePath, string targetPath)

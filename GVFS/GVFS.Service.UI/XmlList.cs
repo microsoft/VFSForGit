@@ -17,7 +17,7 @@ namespace GVFS.Service.UI
         {
             throw new NotImplementedException();
         }
-        
+
         public void WriteXml(XmlWriter writer)
         {
             XmlSerializerNamespaces ns = new XmlSerializerNamespaces();

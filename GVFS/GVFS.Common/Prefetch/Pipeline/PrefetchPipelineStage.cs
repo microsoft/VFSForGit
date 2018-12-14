@@ -12,7 +12,7 @@ namespace GVFS.Common.Prefetch.Pipeline
         {
             this.maxParallel = maxParallel;
         }
-        
+
         public bool HasFailures { get; protected set; }
 
         public void Start()
@@ -21,7 +21,7 @@ namespace GVFS.Common.Prefetch.Pipeline
             {
                 throw new InvalidOperationException("Cannot call start twice");
             }
-            
+
             this.DoBeforeWork();
 
             this.workers = new Thread[this.maxParallel];

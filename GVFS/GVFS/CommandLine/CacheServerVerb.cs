@@ -12,7 +12,7 @@ namespace GVFS.CommandLine
     public class CacheServerVerb : GVFSVerb.ForExistingEnlistment
     {
         private const string CacheVerbName = "cache-server";
-        
+
         [Option(
             "set",
             Default = null,
@@ -22,7 +22,7 @@ namespace GVFS.CommandLine
 
         [Option("get", Required = false, HelpText = "Outputs the current cache server information. This is the default.")]
         public bool OutputCurrentInfo { get; set; }
-        
+
         [Option(
             "list",
             Required = false,
@@ -33,7 +33,7 @@ namespace GVFS.CommandLine
         {
             get { return CacheVerbName; }
         }
-        
+
         protected override void Execute(GVFSEnlistment enlistment)
         {
             this.BlockEmptyCacheServerUrl(this.CacheToSet);

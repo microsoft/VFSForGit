@@ -48,7 +48,7 @@ namespace GVFS.UnitTests.Mock
         {
             // noop
         }
-        
+
         public string ReadAsString()
         {
             return Encoding.UTF8.GetString(this.contents, 0, (int)this.length);

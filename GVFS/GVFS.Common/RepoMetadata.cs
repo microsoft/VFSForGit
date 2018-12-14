@@ -10,7 +10,7 @@ namespace GVFS.Common
     {
         private FileBasedDictionary<string, string> repoMetadata;
         private ITracer tracer;
-        
+
         private RepoMetadata(ITracer tracer)
         {
             this.tracer = tracer;
@@ -60,7 +60,7 @@ namespace GVFS.Common
             else
             {
                 Instance = new RepoMetadata(tracer);
-                if (!FileBasedDictionary<string, string>.TryCreate(   
+                if (!FileBasedDictionary<string, string>.TryCreate(
                     tracer,
                     dictionaryPath,
                     fileSystem,
@@ -70,7 +70,7 @@ namespace GVFS.Common
                     return false;
                 }
             }
-            
+
             error = null;
             return true;
         }
@@ -96,7 +96,7 @@ namespace GVFS.Common
                 DiskLayoutVersion.CurrentMajorVersion,
                 DiskLayoutVersion.CurrentMinorVersion);
         }
-        
+
         public bool TryGetOnDiskLayoutVersion(out int majorVersion, out int minorVersion, out string error)
         {
             majorVersion = 0;
@@ -169,7 +169,7 @@ namespace GVFS.Common
         {
             return this.HasEntry(Keys.PlaceholdersNeedUpdate);
         }
-        
+
         public void SetProjectionInvalidAndPlaceholdersNeedUpdate()
         {
             this.repoMetadata.SetValuesAndFlush(
@@ -297,7 +297,7 @@ namespace GVFS.Common
 
             return false;
         }
-        
+
         public static class Keys
         {
             public const string ProjectionInvalid = "ProjectionInvalid";

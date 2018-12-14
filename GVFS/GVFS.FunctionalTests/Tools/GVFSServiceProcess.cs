@@ -61,7 +61,7 @@ namespace GVFS.FunctionalTests.Tools
         {
             ServiceController testService = ServiceController.GetServices().SingleOrDefault(service => service.ServiceName == TestServiceName);
             testService.ShouldNotBeNull($"{TestServiceName} does not exist as a service");
-            
+
             using (ServiceController controller = new ServiceController(TestServiceName))
             {
                 controller.Start(new[] { ServiceNameArgument });
@@ -121,7 +121,7 @@ namespace GVFS.FunctionalTests.Tools
             else
             {
                 return Path.Combine(
-                    Properties.Settings.Default.CurrentDirectory, 
+                    Properties.Settings.Default.CurrentDirectory,
                     Properties.Settings.Default.PathToGVFSService);
             }
         }

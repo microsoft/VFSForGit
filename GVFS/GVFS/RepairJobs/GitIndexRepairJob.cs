@@ -9,7 +9,7 @@ namespace GVFS.RepairJobs
     public class GitIndexRepairJob : RepairJob
     {
         private readonly string indexPath;
-        
+
         public GitIndexRepairJob(ITracer tracer, TextWriter output, GVFSEnlistment enlistment)
             : base(tracer, output, enlistment)
         {

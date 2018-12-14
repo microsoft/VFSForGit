@@ -8,9 +8,9 @@ using System.Threading.Tasks;
 namespace GVFS.Common
 {
     public class RetryWrapper<T>
-    {        
+    {
         private const float MaxBackoffInSeconds = 300; // 5 minutes
-        private readonly int maxAttempts;        
+        private readonly int maxAttempts;
         private readonly double exponentialBackoffBase;
         private readonly CancellationToken cancellationToken;
 
@@ -56,7 +56,7 @@ namespace GVFS.Common
                     tracer.RelatedError(metadata, message, Keywords.Network);
                 }
             };
-        }        
+        }
 
         public InvocationResult Invoke(Func<int, CallbackResult> toInvoke)
         {
