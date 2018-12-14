@@ -17,7 +17,11 @@ namespace GVFS.Common.Git
         public GitSsl()
         {
             this.certificatePathOrSubjectCommonName = null;
+
             this.isCertificatePasswordProtected = false;
+
+            // True by default, both to have good default security settings and to match git behavior.
+            // https://git-scm.com/docs/git-config#git-config-httpsslVerify
             this.ShouldVerify = true;
         }
 
@@ -27,32 +31,26 @@ namespace GVFS.Common.Git
             {
                 if (configSettings.TryGetValue(GitConfigSetting.HttpSslCert, out GitConfigSetting sslCerts))
                 {
-                    this.certificatePathOrSubjectCommonName = sslCerts.Values.Single();
+                    this.certificatePathOrSubjectCommonName = sslCerts.Values.Last();
                 }
 
                 if (configSettings.TryGetValue(GitConfigSetting.HttpSslCertPasswordProtected, out GitConfigSetting isSslCertPasswordProtected))
                 {
-                    this.isCertificatePasswordProtected = isSslCertPasswordProtected.Values.Select(bool.Parse).Single();
+                    this.isCertificatePasswordProtected = isSslCertPasswordProtected.Values.Select(bool.Parse).Last();
                 }
 
                 if (configSettings.TryGetValue(GitConfigSetting.HttpSslVerify, out GitConfigSetting sslVerify))
                 {
-                    this.ShouldVerify = sslVerify.Values.Select(bool.Parse).Single();
+                    this.ShouldVerify = sslVerify.Values.Select(bool.Parse).Last();
                 }
             }
         }
 
+        /// <summary>
+        /// Gets a value indicating whether SSL certificates being loaded should be verified. Also used to determine, whether client should verify server SSL certificate. True by default.
+        /// </summary>
+        /// <value><c>true</c> if should verify SSL certificates; otherwise, <c>false</c>.</value>
         public bool ShouldVerify { get; }
-
-        public string GetCertificatePassword(ITracer tracer, GitProcess git)
-        {
-            if (git.TryGetCertificatePassword(tracer, this.certificatePathOrSubjectCommonName, out string password, out string error))
-            {
-                return password;
-            }
-
-            return null;
-        }
 
         public X509Certificate2 GetCertificate(ITracer tracer, GitProcess gitProcess)
         {
@@ -74,7 +72,7 @@ namespace GVFS.Common.Git
 
             if (result == null)
             {
-                tracer.RelatedError("Certificate {0} not found", this.certificatePathOrSubjectCommonName);
+                tracer.RelatedError(metadata, $"Certificate {this.certificatePathOrSubjectCommonName} not found");
             }
 
             return result;
@@ -82,25 +80,20 @@ namespace GVFS.Common.Git
 
         private static void LogWithAppropriateLevel(ITracer tracer, EventMetadata metadata, IEnumerable<X509Certificate2> certificates, string logMessage)
         {
-            Action<EventMetadata, string> loggingFunction;
             int numberOfCertificates = certificates.Count();
 
             switch (numberOfCertificates)
             {
                 case 0:
-                    loggingFunction = tracer.RelatedError;
+                    tracer.RelatedError(metadata, logMessage);
                     break;
                 case 1:
-                    loggingFunction = tracer.RelatedInfo;
+                    tracer.RelatedInfo(metadata, logMessage);
                     break;
                 default:
-                    loggingFunction = tracer.RelatedWarning;
+                    tracer.RelatedWarning(metadata, logMessage);
                     break;
             }
-
-            loggingFunction(
-                metadata,
-                logMessage);
         }
 
         private static string GetSubjectNameLineForLogging(IEnumerable<X509Certificate2> certificates)
@@ -108,6 +101,16 @@ namespace GVFS.Common.Git
             return string.Join(
                         Environment.NewLine,
                         certificates.Select(x => x.Subject));
+        }
+
+        private string GetCertificatePassword(ITracer tracer, GitProcess git)
+        {
+            if (git.TryGetCertificatePassword(tracer, this.certificatePathOrSubjectCommonName, out string password, out string error))
+            {
+                return password;
+            }
+
+            return null;
         }
 
         private X509Certificate2 GetCertificateFromFile(ITracer tracer, EventMetadata metadata, GitProcess gitProcess)
@@ -120,10 +123,7 @@ namespace GVFS.Common.Git
                 if (string.IsNullOrEmpty(certificatePassword))
                 {
                     tracer.RelatedWarning(
-                        new EventMetadata
-                        {
-                                { "SslCertificate", this.certificatePathOrSubjectCommonName }
-                        },
+                        metadata,
                         "Git config indicates, that certificate is password protected, but retrieved password was null or empty!");
                 }
 
@@ -145,7 +145,7 @@ namespace GVFS.Common.Git
                 }
                 catch (CryptographicException cryptEx)
                 {
-                    metadata.Add("Exception", cryptEx);
+                    metadata.Add("Exception", cryptEx.ToString());
                     tracer.RelatedError(metadata, "Error, while loading certificate from disk");
                     return null;
                 }

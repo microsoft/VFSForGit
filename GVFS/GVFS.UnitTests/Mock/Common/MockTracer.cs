@@ -54,7 +54,7 @@ namespace GVFS.UnitTests.Mock.Common
         public void RelatedInfo(EventMetadata metadata, string message)
         {
             metadata[TracingConstants.MessageKey.InfoMessage] = message;
-            this.RelatedWarningEvents.Add(JsonConvert.SerializeObject(metadata));
+            this.RelatedInfoEvents.Add(JsonConvert.SerializeObject(metadata));
         }
 
         public void RelatedInfo(string format, params object[] args)

@@ -1,4 +1,5 @@
 ﻿using GVFS.Common.Git;
+using GVFS.Tests;
 using GVFS.Tests.Should;
 using GVFS.UnitTests.Mock.Common;
 using GVFS.UnitTests.Mock.Git;
@@ -6,10 +7,17 @@ using NUnit.Framework;
 
 namespace GVFS.UnitTests.Git
 {
-    [TestFixture]
+    [TestFixtureSource(typeof(DataSources), nameof(DataSources.AllBools))]
     public class GitAuthenticationTests
     {
         private const string CertificatePath = "certificatePath";
+
+        private readonly bool sslSettingsPresent;
+
+        public GitAuthenticationTests(bool sslSettingsPresent)
+        {
+            this.sslSettingsPresent = sslSettingsPresent;
+        }
 
         [TestCase]
         public void AuthShouldBackoffAfterFirstRetryFailure()
@@ -175,7 +183,15 @@ namespace GVFS.UnitTests.Git
             MockGitProcess gitProcess = new MockGitProcess();
             gitProcess.SetExpectedCommandResult("config gvfs.FunctionalTests.UserName", () => new GitProcess.Result(string.Empty, string.Empty, GitProcess.Result.GenericFailureCode));
             gitProcess.SetExpectedCommandResult("config gvfs.FunctionalTests.Password", () => new GitProcess.Result(string.Empty, string.Empty, GitProcess.Result.GenericFailureCode));
-            gitProcess.SetExpectedCommandResult("config --get-urlmatch http mock://repoUrl", () => new GitProcess.Result($"http.sslCert {CertificatePath}\nhttp.sslCertPasswordProtected true\n\n", string.Empty, GitProcess.Result.SuccessCode));
+
+            if (this.sslSettingsPresent)
+            {
+                gitProcess.SetExpectedCommandResult("config --get-urlmatch http mock://repoUrl", () => new GitProcess.Result($"http.sslCert {CertificatePath}\nhttp.sslCertPasswordProtected true\n\n", string.Empty, GitProcess.Result.SuccessCode));
+            }
+            else
+            {
+                gitProcess.SetExpectedCommandResult("config --get-urlmatch http mock://repoUrl", () => new GitProcess.Result(string.Empty, string.Empty, GitProcess.Result.SuccessCode));
+            }
 
             int revocations = 0;
             gitProcess.SetExpectedCommandResult(

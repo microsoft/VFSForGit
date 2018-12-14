@@ -42,7 +42,7 @@ namespace GVFS.Common.Http
 
             HttpClientHandler httpClientHandler = new HttpClientHandler() { UseDefaultCredentials = true };
 
-            this.authentication.SetupSslIfNeeded(this.Tracer, httpClientHandler, enlistment.CreateGitProcess());
+            this.authentication.ConfigureHttpClientHandlerSslIfNeeded(this.Tracer, httpClientHandler, enlistment.CreateGitProcess());
 
             this.client = new HttpClient(httpClientHandler)
             {

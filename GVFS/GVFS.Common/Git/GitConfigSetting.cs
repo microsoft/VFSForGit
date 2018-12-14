@@ -9,7 +9,6 @@ namespace GVFS.Common.Git
         public const string CredentialUseHttpPath = "credential.useHttpPath";
 
         public const string HttpSslCert = "http.sslcert";
-        public const string HttpSslKey = "http.sslkey";
         public const string HttpSslVerify = "http.sslverify";
         public const string HttpSslCertPasswordProtected = "http.sslcertpasswordprotected";
 

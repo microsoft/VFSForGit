@@ -90,12 +90,15 @@ namespace GVFS.Common.Http
                 errorMessage = httpException.Message;
             }
 
-            this.Tracer.RelatedError(
-                new EventMetadata
-                {
-                    { "Exception", output.Error }
-                },
-                "TryQueryGVFSConfig failed");
+            if (logErrors)
+            {
+                this.Tracer.RelatedError(
+                    new EventMetadata
+                    {
+                    { "Exception", output.Error.ToString() }
+                    },
+                    $"{nameof(this.TryQueryGVFSConfig)} failed");
+            }
 
             return false;
         }

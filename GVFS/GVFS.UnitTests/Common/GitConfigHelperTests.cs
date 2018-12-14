@@ -106,7 +106,7 @@ section.empty=
         [TestCase]
         public void ParseSpaceSeparatedKeyValuesTest()
         {
-      string input = @"
+            string input = @"
 core.gvfs true
 gc.auto 0
 section.key value1
@@ -116,7 +116,7 @@ section.key   value4
 section.KEY value5" +
 "\nsection.empty ";
 
-      Dictionary<string, GitConfigSetting> result = GitConfigHelper.ParseKeyValues(input, ' ');
+            Dictionary<string, GitConfigSetting> result = GitConfigHelper.ParseKeyValues(input, ' ');
 
             result.Count.ShouldEqual(4);
             result["core.gvfs"].Values.Single().ShouldEqual("true");

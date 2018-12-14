@@ -33,10 +33,6 @@ namespace GVFS.Common.Git
             {
                 this.GitSsl = new GitSsl(configSettings);
             }
-            else
-            {
-                this.GitSsl = new GitSsl();
-            }
         }
 
         public bool IsBackingOff
@@ -166,12 +162,12 @@ namespace GVFS.Common.Git
             return false;
         }
 
-        public void SetupSslIfNeeded(ITracer tracer, HttpClientHandler httpClientHandler, GitProcess gitProcess)
+        public void ConfigureHttpClientHandlerSslIfNeeded(ITracer tracer, HttpClientHandler httpClientHandler, GitProcess gitProcess)
         {
-            X509Certificate2 cert = this.GitSsl.GetCertificate(tracer, gitProcess);
+            X509Certificate2 cert = this.GitSsl?.GetCertificate(tracer, gitProcess);
             if (cert != null)
             {
-                if (!this.GitSsl.ShouldVerify)
+                if (this.GitSsl != null && !this.GitSsl.ShouldVerify)
                 {
                     httpClientHandler.ServerCertificateCustomValidationCallback =
                         (httpRequestMessage, c, cetChain, policyErrors) =>
