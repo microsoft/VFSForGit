@@ -49,7 +49,7 @@ namespace FastFetch
             }
         }
 
-        public static bool StatAndUpdateIndexForFile(ITracer tracer, string path, MemoryMappedViewAccessor indexView, long offset)
+        public static bool TryStatFileAndUpdateIndex(ITracer tracer, string path, MemoryMappedViewAccessor indexView, long offset)
         {
             try
             {
@@ -72,9 +72,6 @@ namespace FastFetch
                 // Skip these.
             }
 
-            EventMetadata metadata = new EventMetadata();
-            metadata.Add("path", path);
-            tracer.RelatedError(metadata, "Error stat-ing file.");
             return false;
         }
 

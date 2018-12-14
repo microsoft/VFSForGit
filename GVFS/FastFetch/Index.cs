@@ -223,7 +223,7 @@ namespace FastFetch
                             }
                             else
                             {
-                                this.tracer.RelatedError("Failed to update file information from disk for file {0}", gitPath);
+                                this.tracer.RelatedError($"{nameof(this.UpdateFileInformationFromDiskForFiles)}: Failed to update file information from disk for file {0}", gitPath);
                             }
                         }
                     });

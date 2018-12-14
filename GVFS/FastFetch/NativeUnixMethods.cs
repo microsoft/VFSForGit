@@ -44,7 +44,7 @@ namespace FastFetch
             }
         }
 
-        public static bool StatAndUpdateIndexForFile(ITracer tracer, string path, MemoryMappedViewAccessor indexView, long offset)
+        public static bool TryStatFileAndUpdateIndex(ITracer tracer, string path, MemoryMappedViewAccessor indexView, long offset)
         {
             try
             {

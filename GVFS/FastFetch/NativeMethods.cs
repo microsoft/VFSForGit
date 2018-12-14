@@ -24,11 +24,11 @@ namespace FastFetch
         {
             if (isUnixOS)
             {
-                return NativeUnixMethods.StatAndUpdateIndexForFile(tracer, path, indexView, offset);
+                return NativeUnixMethods.TryStatFileAndUpdateIndex(tracer, path, indexView, offset);
             }
             else
             {
-                return NativeWindowsMethods.StatAndUpdateIndexForFile(tracer, path, indexView, offset);
+                return NativeWindowsMethods.TryStatFileAndUpdateIndex(tracer, path, indexView, offset);
             }
         }
     }
