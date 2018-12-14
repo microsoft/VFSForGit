@@ -67,7 +67,7 @@ namespace GVFS.CommandLine
             Required = false,
             Default = "",
             HelpText = "A file containing line-delimited list of files to fetch. Wildcards are supported.")]
-        public string FileListFile { get; set; }
+        public string FilesListFile { get; set; }
 
         [Option(
             "hydrate",
@@ -126,8 +126,10 @@ namespace GVFS.CommandLine
                     metadata.Add("Commits", this.Commits);
                     metadata.Add("Files", this.Files);
                     metadata.Add("Folders", this.Folders);
-                    metadata.Add("FileListFile", this.FileListFile);
+                    metadata.Add("FileListFile", this.FilesListFile);
                     metadata.Add("FoldersListFile", this.FoldersListFile);
+                    metadata.Add(nameof(FilesFromStdIn, this.FilesFromStdIn);
+                    metadata.Add(namoef(FoldersFromStdIn), this.FoldersFromStdIn);
                     metadata.Add("HydrateFiles", this.HydrateFiles);
                     tracer.RelatedEvent(EventLevel.Informational, "PerformPrefetch", metadata);
 
@@ -310,7 +312,7 @@ namespace GVFS.CommandLine
             filesList = new List<string>();
             foldersList = new List<string>();
 
-            if (!BlobPrefetcher.TryLoadFileList(enlistment, this.Files, this.FileListFile, filesList, readListFromStdIn: this.FilesFromStdIn, error: out error))
+            if (!BlobPrefetcher.TryLoadFileList(enlistment, this.Files, this.FilesListFile, filesList, readListFromStdIn: this.FilesFromStdIn, error: out error))
             {
                 this.ReportErrorAndExit(tracer, error);
             }
