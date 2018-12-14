@@ -19,6 +19,8 @@ namespace GVFS.FunctionalTests.Tests
     [Category(Categories.MacTODO.M4)]
     public class FastFetchTests
     {
+        private const string LsTreeTypeInPathBranchName = "FunctionalTests/20181105_LsTreeTypeInPath";
+
         private readonly string fastFetchRepoRoot = Settings.Default.FastFetchRoot;
         private readonly string fastFetchControlRoot = Settings.Default.FastFetchControl;
 
@@ -411,6 +413,18 @@ namespace GVFS.FunctionalTests.Tests
                 .ShouldNotExistOnDisk(FileSystemRunner.DefaultRunner);
             Path.Combine(this.fastFetchRepoRoot, "d\\c")
                 .ShouldNotExistOnDisk(FileSystemRunner.DefaultRunner);
+        }
+
+        [TestCase]
+        public void CanFetchPathsWithLsTreeTypes()
+        {
+            this.RunFastFetch("--checkout -b " + LsTreeTypeInPathBranchName);
+            Path.Combine(this.fastFetchRepoRoot, "Test_LsTree_Issues", "file with tree in name.txt")
+                .ShouldBeAFile(FileSystemRunner.DefaultRunner).WithContents("File with \" tree \" in name caused issues with ls tree diff logic.");
+            Path.Combine(this.fastFetchRepoRoot, "Test_LsTree_Issues", "directory with blob in path")
+                .ShouldBeADirectory(FileSystemRunner.DefaultRunner);
+            Path.Combine(this.fastFetchRepoRoot, "Test_LsTree_Issues", "directory with blob in path", "file with tree in name.txt")
+                .ShouldBeAFile(FileSystemRunner.DefaultRunner).WithContents("File with \" tree \" in name caused issues with ls tree diff logic. This is another example.");
         }
 
         private void AllFetchedFilePathsShouldPassCheck(Func<string, bool> checkPath)
