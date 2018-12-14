@@ -45,35 +45,35 @@ namespace GVFS.CommandLine
             "folders-list",
             Required = false,
             Default = "",
-            HelpText = "A file containing line-delimited list of folders to fetch. Wildcards are not supported")]
+            HelpText = "A file containing line-delimited list of folders to fetch. Wildcards are not supported.")]
         public string FoldersListFile { get; set; }
 
         [Option(
             "stdin-files-list",
             Required = false,
             Default = false,
-            HelpText = "Specify this flag to load file list from stdin. Same format as when loading from file")]
+            HelpText = "Specify this flag to load file list from stdin. Same format as when loading from file.")]
         public bool FilesFromStdIn { get; set; }
 
         [Option(
             "stdin-folders-list",
             Required = false,
             Default = false,
-            HelpText = "Specify this flag to load folder list from stdin. Same format as when loading from file")]
+            HelpText = "Specify this flag to load folder list from stdin. Same format as when loading from file.")]
         public bool FoldersFromStdIn { get; set; }
 
         [Option(
             "files-list",
             Required = false,
             Default = "",
-            HelpText = "A file containing line-delimited list of files to fetch. Wildcards are supported. Specify \"stdin\" for stdin")]
+            HelpText = "A file containing line-delimited list of files to fetch. Wildcards are supported.")]
         public string FileListFile { get; set; }
 
         [Option(
             "hydrate",
             Required = false,
             Default = false,
-            HelpText = "Specify this flag to also hydrate files in the working directory")]
+            HelpText = "Specify this flag to also hydrate files in the working directory.")]
         public bool HydrateFiles { get; set; }
 
         [Option(
@@ -88,7 +88,7 @@ namespace GVFS.CommandLine
             "verbose",
             Required = false,
             Default = false,
-            HelpText = "Show all outputs on the console in addition to writing them to a log file")]
+            HelpText = "Show all outputs on the console in addition to writing them to a log file.")]
         public bool Verbose { get; set; }
 
         public bool SkipVersionCheck { get; set; }
