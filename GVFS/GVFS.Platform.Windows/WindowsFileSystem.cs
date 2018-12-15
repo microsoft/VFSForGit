@@ -29,7 +29,7 @@ namespace GVFS.Platform.Windows
             NativeMethods.CreateHardLink(newFileName, existingFileName);
         }
 
-        public void ChangeMode(string path, int mode)
+        public void ChangeMode(string path, ushort mode)
         {
         }
 

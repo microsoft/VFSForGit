@@ -250,7 +250,7 @@ namespace FastFetch
 
         private void HandleAllFileAddOperations()
         {
-            using (PrefetchLibGit2Repo repo = new PrefetchLibGit2Repo(this.tracer, this.enlistment.WorkingDirectoryRoot))
+            using (FastFetchLibGit2Repo repo = new FastFetchLibGit2Repo(this.tracer, this.enlistment.WorkingDirectoryRoot))
             {
                 string availableBlob;
                 while (this.AvailableBlobShas.TryTake(out availableBlob, Timeout.Infinite))
@@ -262,7 +262,7 @@ namespace FastFetch
                     
                     Interlocked.Increment(ref this.shasReceived);
 
-                    HashSet<string> paths;
+                    HashSet<PathWithMode> paths;
                     if (this.diff.FileAddOperations.TryRemove(availableBlob, out paths))
                     {
                         try
@@ -276,9 +276,9 @@ namespace FastFetch
 
                             Interlocked.Add(ref this.bytesWritten, written);
 
-                            foreach (string path in paths)
+                            foreach (PathWithMode modeAndPath in paths)
                             {
-                                this.AddedOrEditedLocalFiles.Add(path);
+                                this.AddedOrEditedLocalFiles.Add(modeAndPath.Path);
 
                                 if (Interlocked.Increment(ref this.fileWriteCount) % NumOperationsPerStatus == 0)
                                 {

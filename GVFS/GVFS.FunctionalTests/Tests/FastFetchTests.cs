@@ -9,6 +9,7 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
+using System.Runtime.InteropServices;
 using System.Text.RegularExpressions;
 
 namespace GVFS.FunctionalTests.Tests
@@ -16,19 +17,19 @@ namespace GVFS.FunctionalTests.Tests
     [TestFixture]
     [Category(Categories.FastFetch)]
     [Category(Categories.FullSuiteOnly)]
-    [Category(Categories.MacTODO.M4)]
     public class FastFetchTests
     {
         private const string LsTreeTypeInPathBranchName = "FunctionalTests/20181105_LsTreeTypeInPath";
 
         private readonly string fastFetchRepoRoot = Settings.Default.FastFetchRoot;
         private readonly string fastFetchControlRoot = Settings.Default.FastFetchControl;
+        private readonly string fastFetchBaseRoot = Settings.Default.FastFetchBaseRoot;
 
         [OneTimeSetUp]
         public void InitControlRepo()
         {
             Directory.CreateDirectory(this.fastFetchControlRoot);
-            GitProcess.Invoke("C:\\", "clone -b " + Settings.Default.Commitish + " " + GVFSTestConfig.RepoToClone + " " + this.fastFetchControlRoot);
+            GitProcess.Invoke(this.fastFetchBaseRoot, "clone -b " + Settings.Default.Commitish + " " + GVFSTestConfig.RepoToClone + " " + this.fastFetchControlRoot);
         }
 
         [SetUp]
@@ -48,13 +49,13 @@ namespace GVFS.FunctionalTests.Tests
         [TearDown]
         public void TearDownTests()
         {
-            CmdRunner.DeleteDirectoryWithUnlimitedRetries(this.fastFetchRepoRoot);
+            RepositoryHelpers.DeleteTestDirectory(this.fastFetchRepoRoot);
         }
 
         [OneTimeTearDown]
         public void DeleteControlRepo()
         {
-            CmdRunner.DeleteDirectoryWithUnlimitedRetries(this.fastFetchControlRoot);
+            RepositoryHelpers.DeleteTestDirectory(this.fastFetchControlRoot);
         }
         
         [TestCase]
@@ -154,7 +155,8 @@ namespace GVFS.FunctionalTests.Tests
         [TestCase]
         public void FastFetchFolderWithOnlyOneFile()
         {
-            this.RunFastFetch("--checkout --folders \"GVFS\\GVFS\\Properties\" -b " + Settings.Default.Commitish);
+            string folderPath = Path.Combine("GVFS", "GVFS", "Properties");
+            this.RunFastFetch("--checkout --folders " + folderPath + " -b " + Settings.Default.Commitish);
 
             this.CurrentBranchShouldEqual(Settings.Default.Commitish);
 
@@ -237,7 +239,6 @@ namespace GVFS.FunctionalTests.Tests
             // Reset the index and use fastfetch to update the index. Compare against 'git status' baseline.
             GitProcess.Invoke(this.fastFetchRepoRoot, $"-c index.version= {indexVersion} read-tree HEAD");
             ProcessResult fastFetchResult = this.RunFastFetch("--checkout --Allow-index-metadata-update-from-working-tree");
-            Trace.WriteLine(fastFetchResult.Output); // Written to log file for manual investigation
             string lsfilesAfterUpdate = GitProcess.Invoke(this.fastFetchRepoRoot, "ls-files --debug");
             lsfilesAfterUpdate.ShouldEqual(lsfilesAfterStatus, "git status and fastfetch didn't result in the same index");
 
@@ -339,7 +340,7 @@ namespace GVFS.FunctionalTests.Tests
             // renamed:    foo.cpp\foo.cpp -> foo.cpp
             //   where the top level "foo.cpp" is a folder with a file, then becomes just a file
             //   note that folder\file names picked illustrate a real example
-            Path.Combine(this.fastFetchRepoRoot, "foo.cpp\\foo.cpp")
+            Path.Combine(this.fastFetchRepoRoot, "foo.cpp", "foo.cpp")
                 .ShouldBeAFile(FileSystemRunner.DefaultRunner);
 
             // Delta of interest - Check initial state
@@ -347,7 +348,7 @@ namespace GVFS.FunctionalTests.Tests
             //   where a\a contains "file contents one"
             //   and b contains "file contents two"
             //   This tests two types of renames crossing into each other
-            Path.Combine(this.fastFetchRepoRoot, "a\\a")
+            Path.Combine(this.fastFetchRepoRoot, "a", "a")
                 .ShouldBeAFile(FileSystemRunner.DefaultRunner).WithContents("file contents one");
             Path.Combine(this.fastFetchRepoRoot, "b")
                 .ShouldBeAFile(FileSystemRunner.DefaultRunner).WithContents("file contents two");
@@ -357,9 +358,9 @@ namespace GVFS.FunctionalTests.Tests
             //   where c\c contains "file contents c"
             //   and d\d contains "file contents d"
             //   This tests two types of renames crossing into each other
-            Path.Combine(this.fastFetchRepoRoot, "c\\c")
+            Path.Combine(this.fastFetchRepoRoot, "c", "c")
                 .ShouldBeAFile(FileSystemRunner.DefaultRunner).WithContents("file contents c");
-            Path.Combine(this.fastFetchRepoRoot, "d\\d")
+            Path.Combine(this.fastFetchRepoRoot, "d", "d")
                 .ShouldBeAFile(FileSystemRunner.DefaultRunner).WithContents("file contents d");
 
             // Now switch to second branch, part2 and verify transitions
@@ -379,13 +380,13 @@ namespace GVFS.FunctionalTests.Tests
 
             // Delta of interest - Verify change
             // renamed:    c\c <-> d\c && d\d <-> c\d
-            Path.Combine(this.fastFetchRepoRoot, "c\\d")
+            Path.Combine(this.fastFetchRepoRoot, "c", "d")
                 .ShouldBeAFile(FileSystemRunner.DefaultRunner).WithContents("file contents d");
-            Path.Combine(this.fastFetchRepoRoot, "d\\c")
+            Path.Combine(this.fastFetchRepoRoot, "d", "c")
                 .ShouldBeAFile(FileSystemRunner.DefaultRunner).WithContents("file contents c");
-            Path.Combine(this.fastFetchRepoRoot, "c\\c")
+            Path.Combine(this.fastFetchRepoRoot, "c", "c")
                 .ShouldNotExistOnDisk(FileSystemRunner.DefaultRunner);
-            Path.Combine(this.fastFetchRepoRoot, "d\\d")
+            Path.Combine(this.fastFetchRepoRoot, "d", "d")
                 .ShouldNotExistOnDisk(FileSystemRunner.DefaultRunner);
 
             // And back again
@@ -393,25 +394,25 @@ namespace GVFS.FunctionalTests.Tests
 
             // Delta of interest - Final validation
             // renamed:    foo.cpp\foo.cpp -> foo.cpp
-            Path.Combine(this.fastFetchRepoRoot, "foo.cpp\\foo.cpp")
+            Path.Combine(this.fastFetchRepoRoot, "foo.cpp", "foo.cpp")
                 .ShouldBeAFile(FileSystemRunner.DefaultRunner);
 
             // Delta of interest - Final validation
             // renamed:    a\a <-> b && b <-> a
-            Path.Combine(this.fastFetchRepoRoot, "a\\a")
+            Path.Combine(this.fastFetchRepoRoot, "a", "a")
                 .ShouldBeAFile(FileSystemRunner.DefaultRunner).WithContents("file contents one");
             Path.Combine(this.fastFetchRepoRoot, "b")
                 .ShouldBeAFile(FileSystemRunner.DefaultRunner).WithContents("file contents two");
 
             // Delta of interest - Final validation
             // renamed:    c\c <-> d\c && d\d <-> c\d
-            Path.Combine(this.fastFetchRepoRoot, "c\\c")
+            Path.Combine(this.fastFetchRepoRoot, "c", "c")
                 .ShouldBeAFile(FileSystemRunner.DefaultRunner).WithContents("file contents c");
-            Path.Combine(this.fastFetchRepoRoot, "d\\d")
+            Path.Combine(this.fastFetchRepoRoot, "d", "d")
                 .ShouldBeAFile(FileSystemRunner.DefaultRunner).WithContents("file contents d");
-            Path.Combine(this.fastFetchRepoRoot, "c\\d")
+            Path.Combine(this.fastFetchRepoRoot, "c", "d")
                 .ShouldNotExistOnDisk(FileSystemRunner.DefaultRunner);
-            Path.Combine(this.fastFetchRepoRoot, "d\\c")
+            Path.Combine(this.fastFetchRepoRoot, "d", "c")
                 .ShouldNotExistOnDisk(FileSystemRunner.DefaultRunner);
         }
 
@@ -490,16 +491,21 @@ namespace GVFS.FunctionalTests.Tests
         {
             args = args + " --verbose";
 
-            string fastfetch = Path.Combine(Settings.Default.CurrentDirectory, "fastfetch.exe");
-            if (!File.Exists(fastfetch))
+            string fastfetch;
+            if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
             {
-                fastfetch = "fastfetch.exe";
+                fastfetch = Path.Combine(Settings.Default.CurrentDirectory, "netcoreapp2.1", "fastfetch.dll");
+            }
+            else
+            {
+                fastfetch = Path.Combine(Settings.Default.CurrentDirectory, "fastfetch.dll");
             }
 
+            File.Exists(fastfetch).ShouldBeTrue();
             Console.WriteLine($"Using {fastfetch}");
 
-            ProcessStartInfo processInfo = new ProcessStartInfo(fastfetch);
-            processInfo.Arguments = args;
+            ProcessStartInfo processInfo = new ProcessStartInfo("dotnet");
+            processInfo.Arguments = $"{fastfetch} {args}";
             processInfo.WorkingDirectory = this.fastFetchRepoRoot;
             processInfo.UseShellExecute = false;
             processInfo.RedirectStandardOutput = true;

@@ -51,7 +51,7 @@ namespace GVFS.Platform.Mac
             File.WriteAllText(
                 commandHookPath,
                 $"#!/bin/sh\n{gvfsHooksPath} {hookName} \"$@\"");
-            GVFSPlatform.Instance.FileSystem.ChangeMode(commandHookPath, Convert.ToInt32("755", 8));
+            GVFSPlatform.Instance.FileSystem.ChangeMode(commandHookPath, Convert.ToUInt16("755", 8));
 
             return true;
         }

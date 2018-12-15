@@ -497,7 +497,7 @@ namespace GVFS.Common.Prefetch
 
             using (ITracer activity = this.Tracer.StartActivity("DownloadTrees", EventLevel.Informational, Keywords.Telemetry, startMetadata))
             {
-                using (PrefetchLibGit2Repo repo = new PrefetchLibGit2Repo(this.Tracer, this.Enlistment.WorkingDirectoryRoot))
+                using (LibGit2Repo repo = new LibGit2Repo(this.Tracer, this.Enlistment.WorkingDirectoryRoot))
                 {
                     if (!repo.ObjectExists(commitSha))
                     {

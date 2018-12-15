@@ -1,4 +1,6 @@
-﻿using GVFS.Common.Tracing;
+﻿using GVFS.Common.Prefetch.Git;
+using GVFS.Common.Tracing;
+using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Threading;
@@ -7,13 +9,13 @@ namespace GVFS.Common.Prefetch.Pipeline
 {
     public class HydrateFilesStage : PrefetchPipelineStage
     {
-        private readonly ConcurrentDictionary<string, HashSet<string>> blobIdToPaths;
+        private readonly ConcurrentDictionary<string, HashSet<PathWithMode>> blobIdToPaths;
         private readonly BlockingCollection<string> availableBlobs;
 
         private ITracer tracer;
         private int readFileCount;
 
-        public HydrateFilesStage(int maxThreads, ConcurrentDictionary<string, HashSet<string>> blobIdToPaths, BlockingCollection<string> availableBlobs, ITracer tracer)
+        public HydrateFilesStage(int maxThreads, ConcurrentDictionary<string, HashSet<PathWithMode>> blobIdToPaths, BlockingCollection<string> availableBlobs, ITracer tracer)
             : base(maxThreads)
         {
             this.blobIdToPaths = blobIdToPaths;
@@ -38,9 +40,9 @@ namespace GVFS.Common.Prefetch.Pipeline
                 string blobId;
                 while (this.availableBlobs.TryTake(out blobId, Timeout.Infinite))
                 {
-                    foreach (string path in this.blobIdToPaths[blobId])
+                    foreach (PathWithMode modeAndPath in this.blobIdToPaths[blobId])
                     {
-                        bool succeeded = GVFSPlatform.Instance.FileSystem.HydrateFile(path, buffer);
+                        bool succeeded = GVFSPlatform.Instance.FileSystem.HydrateFile(modeAndPath.Path, buffer);
                         if (succeeded)
                         {
                             Interlocked.Increment(ref this.readFileCount);
@@ -48,7 +50,7 @@ namespace GVFS.Common.Prefetch.Pipeline
                         }
                         else
                         {
-                            activity.RelatedError("Failed to read " + path);
+                            activity.RelatedError("Failed to read " + modeAndPath.Path);
 
                             failedFilesCurrentThread++;
                             this.HasFailures = true;

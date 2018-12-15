@@ -29,7 +29,7 @@ namespace GVFS.Platform.Mac
             File.Copy(existingFileName, newFileName);
         }
 
-        public void ChangeMode(string path, int mode)
+        public void ChangeMode(string path, ushort mode)
         {
            Chmod(path, mode);
         }
@@ -57,7 +57,7 @@ namespace GVFS.Platform.Mac
         }
 
         [DllImport("libc", EntryPoint = "chmod", SetLastError = true)]
-        private static extern int Chmod(string pathname, int mode);
+        private static extern int Chmod(string pathname, ushort mode);
 
         [DllImport("libc", EntryPoint = "rename", SetLastError = true)]
         private static extern int Rename(string oldPath, string newPath);
@@ -141,16 +141,22 @@ namespace GVFS.Platform.Mac
 
         private class NativeFileReader
         {
-            private const int ReadOnly = 0x0000;
+            public const int ReadOnly = 0x0000;
+            public const int WriteOnly = 0x0001;
+
+            public const int Create = 0x0200;
 
             public static bool TryReadFirstByteOfFile(string fileName, byte[] buffer)
             {
-                int fileDescriptor = 1;
-                bool readStatus;
+                int fileDescriptor = -1;
+                bool readStatus = false;
                 try
                 {
                     fileDescriptor = Open(fileName, ReadOnly);
-                    readStatus = TryReadOneByte(fileDescriptor, buffer);
+                    if (fileDescriptor != -1)
+                    {
+                        readStatus = TryReadOneByte(fileDescriptor, buffer);
+                    }
                 }
                 finally
                 {
@@ -159,6 +165,15 @@ namespace GVFS.Platform.Mac
 
                 return readStatus;
             }
+
+            [DllImport("libc", EntryPoint = "open", SetLastError = true)]
+            public static extern int Open(string path, int flag);
+
+            [DllImport("libc", EntryPoint = "close", SetLastError = true)]
+            public static extern int Close(int fd);
+
+            [DllImport("libc", EntryPoint = "read", SetLastError = true)]
+            public static extern int Read(int fd, [Out] byte[] buf, int count);
 
             private static bool TryReadOneByte(int fileDescriptor, byte[] buffer)
             {
@@ -171,15 +186,6 @@ namespace GVFS.Platform.Mac
 
                 return true;
             }
-
-            [DllImport("libc", EntryPoint = "open", SetLastError = true)]
-            private static extern int Open(string path, int flag);
-
-            [DllImport("libc", EntryPoint = "close", SetLastError = true)]
-            private static extern int Close(int fd);
-
-            [DllImport("libc", EntryPoint = "read", SetLastError = true)]
-            private static extern int Read(int fd, [Out] byte[] buf, int count);
         }
     }
 }

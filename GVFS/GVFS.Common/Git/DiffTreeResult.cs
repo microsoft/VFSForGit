@@ -12,6 +12,8 @@ namespace GVFS.Common.Git
 
         public const int TypeMarkerStartIndex = 7;
 
+        private const ushort SymLinkFileIndexEntry = 0xA000;
+
         private static readonly HashSet<string> ValidTreeModes = new HashSet<string>() { "040000" };
 
         public enum Operations
@@ -33,6 +35,8 @@ namespace GVFS.Common.Git
         public string TargetPath { get; set; }
         public string SourceSha { get; set; }
         public string TargetSha { get; set; }
+        public ushort SourceMode { get; set; }
+        public ushort TargetMode { get; set; }
 
         public static DiffTreeResult ParseFromDiffTreeLine(string line, string repoRoot)
         {
@@ -85,10 +89,12 @@ namespace GVFS.Common.Git
             DiffTreeResult result = new DiffTreeResult();
             result.SourceIsDirectory = ValidTreeModes.Contains(parts[0]);
             result.TargetIsDirectory = ValidTreeModes.Contains(parts[1]);
+            result.SourceMode = Convert.ToUInt16(parts[0], 8);
+            result.TargetMode = Convert.ToUInt16(parts[1], 8);
 
             if (!result.TargetIsDirectory)
             {
-                result.TargetIsSymLink = parts[1] == "120000";
+                result.TargetIsSymLink = result.TargetMode == SymLinkFileIndexEntry;
             }
 
             result.SourceSha = parts[2];
@@ -153,7 +159,8 @@ namespace GVFS.Common.Git
                 if (IsLsTreeLineOfType(line, BlobMarker))
                 {
                     DiffTreeResult blobAdd = new DiffTreeResult();
-                    blobAdd.TargetIsSymLink = line.StartsWith("120000");
+                    blobAdd.TargetMode = Convert.ToUInt16(line.Substring(0, 6), 8);
+                    blobAdd.TargetIsSymLink = blobAdd.TargetMode == SymLinkFileIndexEntry;
                     blobAdd.TargetSha = line.Substring(TypeMarkerStartIndex + BlobMarker.Length, GVFSConstants.ShaStringLength);
                     blobAdd.TargetPath = ConvertPathToAbsoluteUtf8Path(repoRoot, line.Substring(line.LastIndexOf("\t") + 1));
                     blobAdd.Operation = DiffTreeResult.Operations.Add;

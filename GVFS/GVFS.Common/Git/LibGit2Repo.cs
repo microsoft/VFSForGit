@@ -216,20 +216,6 @@ namespace GVFS.Common.Git
                 return Marshal.PtrToStructure<GitOid>(oidPtr);
             }
 
-            [DllImport("kernel32.dll", CharSet = CharSet.Auto, SetLastError = true)]
-            public static extern SafeFileHandle CreateFile(
-                [MarshalAs(UnmanagedType.LPTStr)] string filename,
-                [MarshalAs(UnmanagedType.U4)] FileAccess access,
-                [MarshalAs(UnmanagedType.U4)] FileShare share,
-                IntPtr securityAttributes, // optional SECURITY_ATTRIBUTES struct or IntPtr.Zero
-                [MarshalAs(UnmanagedType.U4)] FileMode creationDisposition,
-                [MarshalAs(UnmanagedType.U4)] FileAttributes flagsAndAttributes,
-                IntPtr templateFile);
-
-            [DllImport("kernel32.dll")]
-            [return: MarshalAs(UnmanagedType.Bool)]
-            public static unsafe extern bool WriteFile(SafeFileHandle file, byte* buffer, uint numberOfBytesToWrite, out uint numberOfBytesWritten, IntPtr overlapped);
-
             [DllImport(Git2NativeLibName, EntryPoint = "git_libgit2_init")]
             public static extern void Init();
 

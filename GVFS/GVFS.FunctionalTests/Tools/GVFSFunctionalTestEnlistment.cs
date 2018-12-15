@@ -145,6 +145,8 @@ namespace GVFS.FunctionalTests.Tools
         {
             TestResultsHelper.OutputGVFSLogs(this);
 
+            // TODO(Mac): Figure out why the call to DeleteDirectoryWithRetry is not returning.
+            // Once this is resolved, we can replace this duplicated code with RepositoryHelpers.DeleteTestDirectory
             if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
             {
                 // Use cmd.exe to delete the enlistment as it properly handles tombstones and reparse points
@@ -152,8 +154,7 @@ namespace GVFS.FunctionalTests.Tools
             }
             else
             {
-                // TODO(Mac): Figure out why the call to DeleteDirectoryWithRetry is not returning
-                // BashRunner.DeleteDirectoryWithRetry(this.EnlistmentRoot);
+                // BashRunner.DeleteDirectoryWithUnlimitedRetries(this.EnlistmentRoot);
             }
         }
 
