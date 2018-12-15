@@ -201,7 +201,11 @@ namespace GVFS.Platform.Windows
         public override void ConfigureVisualStudio(string gitBinPath, ITracer tracer)
         {
             const string GitBinPathEnd = "\\cmd\\git.exe";
-            const string GitVSRegistryKeyName = "HKEY_CURRENT_USER\\Software\\Microsoft\\VSCommon\\15.0\\TeamFoundation\\GitSourceControl";
+            string[] gitVSRegistryKeyNames =
+            {
+                "HKEY_CURRENT_USER\\Software\\Microsoft\\VSCommon\\15.0\\TeamFoundation\\GitSourceControl",
+                "HKEY_CURRENT_USER\\Software\\Microsoft\\VSCommon\\16.0\\TeamFoundation\\GitSourceControl"
+            };
             const string GitVSRegistryValueName = "GitPath";
 
             if (!gitBinPath.EndsWith(GitBinPathEnd))
@@ -214,7 +218,10 @@ namespace GVFS.Platform.Windows
             }
 
             string regKeyValue = gitBinPath.Substring(0, gitBinPath.Length - GitBinPathEnd.Length);
-            Registry.SetValue(GitVSRegistryKeyName, GitVSRegistryValueName, regKeyValue);
+            foreach (string registryKeyName in gitVSRegistryKeyNames)
+            {
+                Registry.SetValue(registryKeyName, GitVSRegistryValueName, regKeyValue);
+            }
         }
 
         public override bool TryGetGVFSHooksPathAndVersion(out string hooksPath, out string hooksVersion, out string error)
