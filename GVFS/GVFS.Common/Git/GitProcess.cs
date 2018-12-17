@@ -461,7 +461,16 @@ namespace GVFS.Common.Git
             return this.InvokeGitAgainstDotGitFolder("read-tree " + treeIsh);
         }
 
-        public Process GetGitProcess(string command, string workingDirectory, string dotGitDirectory, bool useReadObjectHook, bool redirectStandardError)
+        public Result PrunePacked(string gitObjectDirectory)
+        {
+            return this.InvokeGitAgainstDotGitFolder(
+                "prune-packed -q", 
+                writeStdIn: null,
+                parseStdOutLine: null,
+                gitObjectsDirectory: gitObjectDirectory);
+        }
+
+        public Process GetGitProcess(string command, string workingDirectory, string dotGitDirectory, bool useReadObjectHook, bool redirectStandardError, string gitObjectsDirectory)
         {
             ProcessStartInfo processInfo = new ProcessStartInfo(this.gitBinPath);
             processInfo.WorkingDirectory = workingDirectory;
@@ -505,6 +514,11 @@ namespace GVFS.Common.Git
                     this.gitBinPath,
                     this.gvfsHooksRoot ?? string.Empty);
 
+            if (gitObjectsDirectory != null)
+            {
+                processInfo.EnvironmentVariables["GIT_OBJECT_DIRECTORY"] = gitObjectsDirectory;
+            }
+
             if (!useReadObjectHook)
             {
                 command = "-c " + GitConfigSetting.CoreVirtualizeObjectsName + "=false " + command;
@@ -529,7 +543,8 @@ namespace GVFS.Common.Git
             bool useReadObjectHook,
             Action<StreamWriter> writeStdIn,
             Action<string> parseStdOutLine,
-            int timeoutMs)
+            int timeoutMs,
+            string gitObjectsDirectory = null)
         {
             if (failedToSetEncoding && writeStdIn != null)
             {
@@ -541,7 +556,7 @@ namespace GVFS.Common.Git
                 // From https://msdn.microsoft.com/en-us/library/system.diagnostics.process.standardoutput.aspx
                 // To avoid deadlocks, use asynchronous read operations on at least one of the streams.
                 // Do not perform a synchronous read to the end of both redirected streams.
-                using (this.executingProcess = this.GetGitProcess(command, workingDirectory, dotGitDirectory, useReadObjectHook, redirectStandardError: true))
+                using (this.executingProcess = this.GetGitProcess(command, workingDirectory, dotGitDirectory, useReadObjectHook, redirectStandardError: true, gitObjectsDirectory: gitObjectsDirectory))
                 {
                     StringBuilder output = new StringBuilder();
                     StringBuilder errors = new StringBuilder();
@@ -682,7 +697,8 @@ namespace GVFS.Common.Git
         private Result InvokeGitAgainstDotGitFolder(
             string command,
             Action<StreamWriter> writeStdIn,
-            Action<string> parseStdOutLine)
+            Action<string> parseStdOutLine,
+            string gitObjectsDirectory = null)
         {
             // This git command should not need/use the working directory of the repo.
             // Run git.exe in Environment.SystemDirectory to ensure the git.exe process
@@ -694,7 +710,8 @@ namespace GVFS.Common.Git
                 useReadObjectHook: false,
                 writeStdIn: writeStdIn,
                 parseStdOutLine: parseStdOutLine,
-                timeoutMs: -1);
+                timeoutMs: -1,
+                gitObjectsDirectory: gitObjectsDirectory);
         }
 
         public class Result

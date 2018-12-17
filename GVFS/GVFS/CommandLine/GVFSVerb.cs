@@ -52,6 +52,11 @@ namespace GVFS.CommandLine
                             this.ServiceName = mountInternal.ServiceName;
                         }
 
+                        if (!string.IsNullOrEmpty(mountInternal.MaintenanceJob))
+                        {
+                            this.MaintenanceJob = mountInternal.MaintenanceJob;
+                        }
+
                         this.StartedByService = mountInternal.StartedByService;
                     }
                     catch (JsonReaderException e)
@@ -63,6 +68,8 @@ namespace GVFS.CommandLine
         }
 
         public string ServiceName { get; set; }
+
+        public string MaintenanceJob { get; set; }
 
         public bool StartedByService { get; set; }
 

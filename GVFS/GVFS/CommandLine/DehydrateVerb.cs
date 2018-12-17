@@ -3,6 +3,7 @@ using GVFS.Common;
 using GVFS.Common.FileSystem;
 using GVFS.Common.Git;
 using GVFS.Common.Http;
+using GVFS.Common.Maintenance;
 using GVFS.Common.NamedPipes;
 using GVFS.Common.Tracing;
 using GVFS.DiskLayoutUpgrades;
@@ -57,6 +58,28 @@ namespace GVFS.CommandLine
                         { "NamedPipeName", enlistment.NamedPipeName },
                         { nameof(this.EnlistmentRootPathParameter), this.EnlistmentRootPathParameter },
                     });
+
+                // This is only intended to be run by functional tests
+                if (this.MaintenanceJob != null)
+                {
+                    this.WriteMessage(tracer, "Running LooseObject Step");
+                    this.InitializeLocalCacheAndObjectsPaths(tracer, enlistment, retryConfig: null, serverGVFSConfig: null, cacheServer: null);
+                    PhysicalFileSystem fileSystem = new PhysicalFileSystem();
+                    GitRepo gitRepo = new GitRepo(
+                            tracer,
+                            enlistment,
+                            fileSystem);
+                    switch (this.MaintenanceJob)
+                    {
+                        case "LooseObjects":
+                            (new LooseObjectsStep(new GVFSContext(tracer, fileSystem, gitRepo, enlistment), requireCacheLock: true, forceRun: true)).Execute();
+                            break;
+
+                        default:
+                            this.ReportErrorAndExit($"Unknown maintenance job requested: {this.MaintenanceJob}");
+                            break;
+                    }
+                }
 
                 if (!this.Confirmed)
                 {

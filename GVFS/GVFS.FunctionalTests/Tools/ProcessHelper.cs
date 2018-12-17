@@ -1,4 +1,5 @@
 ﻿using System.Diagnostics;
+using System.IO;
 
 namespace GVFS.FunctionalTests.Tools
 {
@@ -17,7 +18,7 @@ namespace GVFS.FunctionalTests.Tools
             return Run(startInfo);
         }
 
-        public static ProcessResult Run(ProcessStartInfo processInfo, string errorMsgDelimeter = "\r\n", object executionLock = null)
+        public static ProcessResult Run(ProcessStartInfo processInfo, string errorMsgDelimeter = "\r\n", object executionLock = null, Stream inputStream = null)
         {
             using (Process executingProcess = new Process())
             {
@@ -40,21 +41,26 @@ namespace GVFS.FunctionalTests.Tools
                 {
                     lock (executionLock)
                     {
-                        output = StartProcess(executingProcess);
+                        output = StartProcess(executingProcess, inputStream);
                     }
                 }
                 else
                 {
-                    output = StartProcess(executingProcess);
+                    output = StartProcess(executingProcess, inputStream);
                 }
 
                 return new ProcessResult(output.ToString(), errors.ToString(), executingProcess.ExitCode);
             }
         }
 
-        private static string StartProcess(Process executingProcess)
+        private static string StartProcess(Process executingProcess, Stream inputStream = null)
         {
             executingProcess.Start();
+
+            if (inputStream != null)
+            {
+                inputStream.CopyTo(executingProcess.StandardInput.BaseStream);
+            }
 
             if (executingProcess.StartInfo.RedirectStandardError)
             {
