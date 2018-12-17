@@ -56,6 +56,7 @@ namespace GVFS.FunctionalTests.Tools
             GitProcess.Invoke(this.RootPath, "config merge.renames false");
             GitProcess.Invoke(this.RootPath, "config advice.statusUoption false");
             GitProcess.Invoke(this.RootPath, "config core.abbrev 40");
+            GitProcess.Invoke(this.RootPath, "config pack.useSparse true");
             GitProcess.Invoke(this.RootPath, "config reset.quiet true");
             GitProcess.Invoke(this.RootPath, "config status.aheadbehind false");
             GitProcess.Invoke(this.RootPath, "config user.name \"Functional Test User\"");
