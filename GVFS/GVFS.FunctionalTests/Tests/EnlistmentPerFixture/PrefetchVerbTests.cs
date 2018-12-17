@@ -5,6 +5,7 @@ using GVFS.Tests.Should;
 using NUnit.Framework;
 using System;
 using System.IO;
+using System.Linq;
 using System.Threading;
 
 namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
@@ -14,7 +15,6 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
     public class PrefetchVerbTests : TestsWithEnlistmentPerFixture
     {
         private const string PrefetchCommitsAndTreesLock = "prefetch-commits-trees.lock";
-        private const string CommitGraphLock = "commit-graph.lock";
         private const string MultiPackIndexLock = "multi-pack-index.lock";
         private const string LsTreeTypeInPathBranchName = "FunctionalTests/20181105_LsTreeTypeInPath";
 
@@ -125,6 +125,13 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
             this.fileSystem.WriteAllText(prefetchCommitsLockFile, this.Enlistment.EnlistmentRoot);
             prefetchCommitsLockFile.ShouldBeAFile(this.fileSystem);
 
+            this.fileSystem
+                .EnumerateDirectory(this.Enlistment.GetPackRoot(this.fileSystem))
+                .Split()
+                .Where(file => string.Equals(Path.GetExtension(file), ".keep", StringComparison.OrdinalIgnoreCase))
+                .Count()
+                .ShouldEqual(1, "Incorrect number of .keep files in pack directory");
+
             this.Enlistment.Prefetch("--commits");
             this.PostFetchStepShouldComplete();
             prefetchCommitsLockFile.ShouldNotExistOnDisk(this.fileSystem);
@@ -136,12 +143,15 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
         {
             string multiPackIndexLockFile = Path.Combine(this.Enlistment.GetPackRoot(this.fileSystem), MultiPackIndexLock);
             string oldGitTempFile = Path.Combine(this.Enlistment.GetPackRoot(this.fileSystem), "tmp_midx_XXXX");
+            string oldKeepFile = Path.Combine(this.Enlistment.GetPackRoot(this.fileSystem), "prefetch-00000000-HASH.keep");
 
             this.fileSystem.WriteAllText(multiPackIndexLockFile, this.Enlistment.EnlistmentRoot);
             this.fileSystem.WriteAllText(oldGitTempFile, this.Enlistment.EnlistmentRoot);
+            this.fileSystem.WriteAllText(oldKeepFile, this.Enlistment.EnlistmentRoot);
 
             this.Enlistment.Prefetch("--commits");
             oldGitTempFile.ShouldNotExistOnDisk(this.fileSystem);
+            oldKeepFile.ShouldNotExistOnDisk(this.fileSystem);
 
             this.PostFetchStepShouldComplete();
             multiPackIndexLockFile.ShouldNotExistOnDisk(this.fileSystem);

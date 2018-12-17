@@ -59,8 +59,18 @@ namespace GVFS.FunctionalTests.Tools
         {
             return this.CallGVFS(
                 "dehydrate \"" + this.enlistmentRoot + "\"",
-                failOnError: false,
+                failOnError: true,
                 internalParameter: GVFSHelpers.GetInternalParameter("\\\"LooseObjects\\\""));
+        }
+
+        public string PackfileMaintenanceStep(long? batchSize)
+        {
+            string sizeString = batchSize.HasValue ? $"\\\"{batchSize.Value}\\\"" : "null";
+            string internalParameter = GVFSHelpers.GetInternalParameter("\\\"PackfileMaintenance\\\"", sizeString);
+            return this.CallGVFS(
+                "dehydrate \"" + this.enlistmentRoot + "\"",
+                failOnError: true,
+                internalParameter: internalParameter);
         }
 
         public string Diagnose()

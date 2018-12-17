@@ -57,6 +57,11 @@ namespace GVFS.CommandLine
                             this.MaintenanceJob = mountInternal.MaintenanceJob;
                         }
 
+                        if (!string.IsNullOrEmpty(mountInternal.PackfileMaintenanceBatchSize))
+                        {
+                            this.PackfileMaintenanceBatchSize = mountInternal.PackfileMaintenanceBatchSize;
+                        }
+
                         this.StartedByService = mountInternal.StartedByService;
                     }
                     catch (JsonReaderException e)
@@ -70,6 +75,8 @@ namespace GVFS.CommandLine
         public string ServiceName { get; set; }
 
         public string MaintenanceJob { get; set; }
+
+        public string PackfileMaintenanceBatchSize { get; set; }
 
         public bool StartedByService { get; set; }
 

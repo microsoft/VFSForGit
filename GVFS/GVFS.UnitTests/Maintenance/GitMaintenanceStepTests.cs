@@ -1,6 +1,5 @@
 ﻿using GVFS.Common;
 using GVFS.Common.FileSystem;
-using GVFS.Common.Git;
 using GVFS.Common.Maintenance;
 using GVFS.Common.Tracing;
 using GVFS.Tests.Should;
@@ -14,14 +13,13 @@ namespace GVFS.UnitTests.Maintenance
     public class GitMaintenanceStepTests
     {
         private GVFSContext context;
-        private GitObjects gitObjects;
 
         [TestCase]
         public void GitMaintenanceStepRunsGitAction()
         {
             this.TestSetup();
 
-            CheckMethodStep step = new CheckMethodStep(this.context, this.gitObjects);
+            CheckMethodStep step = new CheckMethodStep(this.context);
             step.Execute();
 
             step.SawWorkInvoked.ShouldBeTrue();
@@ -32,7 +30,7 @@ namespace GVFS.UnitTests.Maintenance
         {
             this.TestSetup();
 
-            CheckMethodStep step = new CheckMethodStep(this.context, this.gitObjects);
+            CheckMethodStep step = new CheckMethodStep(this.context);
 
             step.Stop();
             step.Execute();
@@ -45,7 +43,7 @@ namespace GVFS.UnitTests.Maintenance
         {
             this.TestSetup();
 
-            CheckStopStep step = new CheckStopStep(this.context, this.gitObjects);
+            CheckStopStep step = new CheckStopStep(this.context);
 
             step.Execute();
 
@@ -59,13 +57,12 @@ namespace GVFS.UnitTests.Maintenance
             PhysicalFileSystem fileSystem = new MockFileSystem(new MockDirectory(enlistment.EnlistmentRoot, null, null));
 
             this.context = new GVFSContext(tracer, fileSystem, null, enlistment);
-            this.gitObjects = new MockPhysicalGitObjects(tracer, fileSystem, enlistment, null);
         }
 
         public class CheckMethodStep : GitMaintenanceStep
         {
-            public CheckMethodStep(GVFSContext context, GitObjects gitObjects)
-                : base(context, gitObjects, requireObjectCacheLock: true)
+            public CheckMethodStep(GVFSContext context)
+                : base(context, requireObjectCacheLock: true)
             {
             }
 
@@ -85,8 +82,8 @@ namespace GVFS.UnitTests.Maintenance
 
         public class CheckStopStep : GitMaintenanceStep
         {
-            public CheckStopStep(GVFSContext context, GitObjects gitObjects)
-                : base(context, gitObjects, requireObjectCacheLock: true)
+            public CheckStopStep(GVFSContext context)
+                : base(context, requireObjectCacheLock: true)
             {
             }
 

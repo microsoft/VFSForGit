@@ -48,8 +48,8 @@ namespace GVFS.UnitTests.Maintenance
         {
             this.TestSetup();
 
-            TestGitMaintenanceStep step1 = new TestGitMaintenanceStep(this.context, this.gitObjects);
-            TestGitMaintenanceStep step2 = new TestGitMaintenanceStep(this.context, this.gitObjects);
+            TestGitMaintenanceStep step1 = new TestGitMaintenanceStep(this.context);
+            TestGitMaintenanceStep step2 = new TestGitMaintenanceStep(this.context);
 
             GitMaintenanceQueue queue = new GitMaintenanceQueue(this.context);
 
@@ -74,7 +74,7 @@ namespace GVFS.UnitTests.Maintenance
 
             queue.Stop();
 
-            TestGitMaintenanceStep step = new TestGitMaintenanceStep(this.context, this.gitObjects);
+            TestGitMaintenanceStep step = new TestGitMaintenanceStep(this.context);
             queue.TryEnqueue(step).ShouldEqual(false);
         }
 
@@ -87,14 +87,14 @@ namespace GVFS.UnitTests.Maintenance
 
             // This step stops the queue after the step is started,
             // then checks if Stop() was called.
-            WatchForStopStep watchForStop = new WatchForStopStep(queue, this.context, this.gitObjects);
+            WatchForStopStep watchForStop = new WatchForStopStep(queue, this.context);
 
             queue.TryEnqueue(watchForStop);
             Assert.IsTrue(watchForStop.EventTriggered.WaitOne(this.maxWaitTime));
             watchForStop.SawStopping.ShouldBeTrue();
 
             // Ensure we don't start a job after the Stop() call
-            TestGitMaintenanceStep watchForStart = new TestGitMaintenanceStep(this.context, this.gitObjects);
+            TestGitMaintenanceStep watchForStart = new TestGitMaintenanceStep(this.context);
             queue.TryEnqueue(watchForStart).ShouldBeFalse();
 
             // This only ensures the event didn't happen within maxWaitTime
@@ -136,8 +136,8 @@ namespace GVFS.UnitTests.Maintenance
 
         public class TestGitMaintenanceStep : GitMaintenanceStep
         {
-            public TestGitMaintenanceStep(GVFSContext context, GitObjects gitObjects)
-                : base(context, gitObjects, requireObjectCacheLock: true)
+            public TestGitMaintenanceStep(GVFSContext context)
+                : base(context, requireObjectCacheLock: true)
             {
                 this.EventTriggered = new ManualResetEvent(initialState: false);
             }
@@ -156,8 +156,8 @@ namespace GVFS.UnitTests.Maintenance
 
         private class WatchForStopStep : GitMaintenanceStep
         {
-            public WatchForStopStep(GitMaintenanceQueue queue, GVFSContext context, GitObjects gitObjects)
-                : base(context, gitObjects, requireObjectCacheLock: true)
+            public WatchForStopStep(GitMaintenanceQueue queue, GVFSContext context)
+                : base(context, requireObjectCacheLock: true)
             {
                 this.Queue = queue;
                 this.EventTriggered = new ManualResetEvent(false);

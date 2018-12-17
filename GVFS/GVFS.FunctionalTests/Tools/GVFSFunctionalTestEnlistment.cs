@@ -217,6 +217,11 @@ namespace GVFS.FunctionalTests.Tools
             return this.gvfsProcess.LooseObjectStep();
         }
 
+        public string PackfileMaintenanceStep(long? batchSize = null)
+        {
+            return this.gvfsProcess.PackfileMaintenanceStep(batchSize);
+        }
+
         public string Status(string trace = null)
         {
             return this.gvfsProcess.Status(trace);

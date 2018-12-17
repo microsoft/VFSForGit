@@ -1,4 +1,5 @@
-﻿using GVFS.Common.Git;
+﻿using GVFS.Common.FileSystem;
+using GVFS.Common.Git;
 using GVFS.Common.NamedPipes;
 using GVFS.Common.Tracing;
 using System;
@@ -17,12 +18,15 @@ namespace GVFS.Common.Maintenance
         private const string PrefetchCommitsAndTreesLock = "prefetch-commits-trees.lock";
         private readonly TimeSpan timeBetweenPrefetches = TimeSpan.FromMinutes(70);
 
-        public PrefetchStep(GVFSContext context, GitObjects gitObjects, bool requireCacheLock)
-            : base(context, gitObjects, requireCacheLock)
+        public PrefetchStep(GVFSContext context, GitObjects gitObjects, bool requireCacheLock = true)
+            : base(context, requireCacheLock)
         {
+            this.GitObjects = gitObjects;
         }
 
         public override string Area => "PrefetchStep";
+
+        protected GitObjects GitObjects { get; }
 
         public bool TryPrefetchCommitsAndTrees(out string error, GitProcess gitProcess = null)
         {
@@ -56,6 +60,8 @@ namespace GVFS.Common.Maintenance
                     error = "Failed to download prefetch packs";
                     return false;
                 }
+
+                this.UpdateKeepPacks();
             }
 
             this.TrySchedulePostFetchJob(packIndexes);
@@ -289,6 +295,58 @@ namespace GVFS.Common.Maintenance
             }
 
             return false;
+        }
+
+        /// <summary>
+        /// Ensure the prefetch pack with most-recent timestamp has an associated
+        /// ".keep" file. This prevents any Git command from deleting the pack.
+        ///
+        /// Delete the previous ".keep" file(s) so that pack can be deleted when they
+        /// are not the most-recent pack.
+        /// </summary>
+        private void UpdateKeepPacks()
+        {
+            if (!this.TryGetMaxGoodPrefetchTimestamp(out long maxGoodTimeStamp, out string error))
+            {
+                return;
+            }
+
+            string prefix = $"prefetch-{maxGoodTimeStamp}-";
+
+            DirectoryItemInfo info = this.Context
+                                         .FileSystem
+                                         .ItemsInDirectory(this.Context.Enlistment.GitPackRoot)
+                                         .Where(item => item.Name.StartsWith(prefix)
+                                                        && string.Equals(Path.GetExtension(item.Name), ".pack", StringComparison.OrdinalIgnoreCase))
+                                         .FirstOrDefault();
+            if (info == null)
+            {
+                this.Context.Tracer.RelatedWarning(this.CreateEventMetadata(), $"Could not find latest prefetch pack, starting with {prefix}");
+                return;
+            }
+
+            string newKeepFile = Path.ChangeExtension(info.FullName, ".keep");
+
+            try
+            {
+                this.Context.FileSystem.WriteAllText(newKeepFile, string.Empty);
+
+                foreach (string keepFile in this.Context
+                                         .FileSystem
+                                         .ItemsInDirectory(this.Context.Enlistment.GitPackRoot)
+                                         .Where(item => item.Name.EndsWith(".keep"))
+                                         .Select(item => item.FullName))
+                {
+                    if (!keepFile.Equals(newKeepFile))
+                    {
+                        this.Context.FileSystem.TryDeleteFile(keepFile);
+                    }
+                }
+            }
+            catch (IOException e)
+            {
+                this.Context.Tracer.RelatedWarning(this.CreateEventMetadata(e), "Exception while managing '.keep' files");
+            }
         }
 
         private class PrefetchPackInfo
