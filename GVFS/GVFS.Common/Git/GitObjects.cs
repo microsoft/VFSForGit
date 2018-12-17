@@ -44,7 +44,7 @@ namespace GVFS.Common.Git
 
         public static bool IsLooseObjectsDirectory(string value)
         {
-            return value.Length == 2 && !value.Any(c => !Uri.IsHexDigit(c));
+            return value.Length == 2 && value.All(c => Uri.IsHexDigit(c));
         }
 
         public virtual bool TryDownloadCommit(string commitSha)

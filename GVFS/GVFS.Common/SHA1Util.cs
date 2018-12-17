@@ -9,7 +9,7 @@ namespace GVFS.Common
     {
         public static bool IsValidShaFormat(string sha)
         {
-            return sha.Length == 40 && !sha.Any(c => !Uri.IsHexDigit(c));
+            return sha.Length == 40 && sha.All(c => Uri.IsHexDigit(c));
         }
 
         public static string SHA1HashStringForUTF8String(string s)

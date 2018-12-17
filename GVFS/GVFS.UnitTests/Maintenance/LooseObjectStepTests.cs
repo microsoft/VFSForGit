@@ -111,10 +111,10 @@ namespace GVFS.UnitTests.Maintenance
                 new List<MockFile>()
                 {
                      new MockFile(Path.Combine(enlistment.GitObjectsRoot, "F1", "test1"), string.Empty),
-                     new MockFile(Path.Combine(enlistment.GitObjectsRoot, "F2", "test2"), string.Empty)
+                     new MockFile(Path.Combine(enlistment.GitObjectsRoot, "F1", "test2"), string.Empty)
                 });
 
-            // Create NonHex Folder 2 with 2 Files
+            // Create NonHex Folder with 4 Files
             MockDirectory nonhex = new MockDirectory(
                 Path.Combine(enlistment.GitObjectsRoot, "ZZ"), 
                 null, 

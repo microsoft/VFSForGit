@@ -70,6 +70,7 @@ namespace GVFS.Common.Maintenance
                     int afterCount = this.CountLooseObjects();
 
                     EventMetadata metadata = new EventMetadata();
+                    metadata.Add("GitObjectsRoot", this.Context.Enlistment.GitObjectsRoot);
                     metadata.Add("StartingCount", beforeCount);
                     metadata.Add("EndingCount", afterCount);
                     metadata.Add("RemovedCount", beforeCount - afterCount);
