@@ -41,9 +41,6 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
-    <Compile Include="$(BuildOutputDir)\CommonAssemblyVersion.cs">
-      <Link>CommonAssemblyVersion.cs</Link>
-    </Compile>
     <!--
     Files from GVFS.Common included as links here to prevent adding
     project reference. The project reference leads to performance degradation

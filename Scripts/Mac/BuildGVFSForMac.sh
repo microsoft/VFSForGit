@@ -33,6 +33,9 @@ if [ "$CONFIGURATION" == "Profiling(Release)" ]; then
   CONFIGURATION=Release
 fi
 
+echo 'Generating CommonAssemblyVersion.cs...'
+$VFS_SCRIPTDIR/GenerateCommonAssemblyVersion.sh || exit 1
+
 # /warnasmessage:MSB4011. Reference: https://bugzilla.xamarin.com/show_bug.cgi?id=58564
 # Visual Studio Mac does not support explicit import of Sdks. GVFS.Installer.Mac.csproj
 # does need this ability to override "Build" and "Publish" targets. As a workaround the 

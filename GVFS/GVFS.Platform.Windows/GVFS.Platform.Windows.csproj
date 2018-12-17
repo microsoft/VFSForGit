@@ -65,9 +65,6 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
-    <Compile Include="$(BuildOutputDir)\CommonAssemblyVersion.cs">
-      <Link>CommonAssemblyVersion.cs</Link>
-    </Compile>
     <Compile Include="DiskLayoutUpgrades\DiskLayout10to11Upgrade_NewOperationType.cs" />
     <Compile Include="DiskLayoutUpgrades\DiskLayout11to12Upgrade_SharedLocalCache.cs" />
     <Compile Include="DiskLayoutUpgrades\DiskLayout12to13Upgrade_FolderPlaceholder.cs" />

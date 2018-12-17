@@ -57,9 +57,6 @@
     <Compile Include="Data\VisualData.cs" />
     <Compile Include="Program.cs" />
     <Compile Include="Data\ToastData.cs" />
-    <Compile Include="$(BuildOutputDir)\CommonAssemblyVersion.cs">
-      <Link>CommonAssemblyVersion.cs</Link>
-    </Compile>
     <Compile Include="XmlList.cs" />
   </ItemGroup>
   <ItemGroup>

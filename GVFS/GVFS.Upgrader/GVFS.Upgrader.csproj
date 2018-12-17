@@ -46,9 +46,6 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
-    <Compile Include="..\..\..\BuildOutput\CommonAssemblyVersion.cs">
-      <Link>CommonAssemblyVersion.cs</Link>
-    </Compile>
     <Compile Include="..\GVFS.PlatformLoader\PlatformLoader.Windows.cs">
       <Link>PlatformLoader.Windows.cs</Link>
     </Compile>

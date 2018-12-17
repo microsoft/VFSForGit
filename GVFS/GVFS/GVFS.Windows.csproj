@@ -70,9 +70,6 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
-    <Compile Include="$(BuildOutputDir)\CommonAssemblyVersion.cs">
-      <Link>CommonAssemblyVersion.cs</Link>
-    </Compile>
     <Compile Include="CommandLine\CacheServerVerb.cs" />
     <Compile Include="CommandLine\CloneVerb.cs" />
     <Compile Include="CommandLine\ConfigVerb.cs" />
