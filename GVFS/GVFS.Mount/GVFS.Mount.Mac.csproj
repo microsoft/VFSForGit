@@ -23,6 +23,12 @@
   </ItemGroup>
   
   <ItemGroup>
+    <Compile Include="$(BuildOutputDir)\CommonAssemblyVersion.cs">
+      <Link>CommonAssemblyVersion.cs</Link>
+    </Compile>
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="..\GVFS.Platform.Mac\GVFS.Platform.Mac.csproj" />
   </ItemGroup>
 
