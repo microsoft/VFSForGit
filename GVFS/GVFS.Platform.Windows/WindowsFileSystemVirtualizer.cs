@@ -333,7 +333,7 @@ namespace GVFS.Platform.Windows
                     }
 
                     HResult result = this.CreatePlaceholders(virtualPath, projectedItems, "StartDirectoryEnumerationHandler");
-                    if (result == HResult.Ok)
+                    if (result == HResult.Ok && virtualPath != string.Empty)
                     {
                         this.Context.FileSystem.ConvertDirectoryToFull(Path.Combine(this.Context.Enlistment.WorkingDirectoryRoot, virtualPath));
                     }
@@ -410,7 +410,7 @@ namespace GVFS.Platform.Windows
                 else
                 {
                     result = this.CreatePlaceholders(virtualPath, projectedItems, "StartDirectoryEnumerationAsyncHandler");
-                    if (result == HResult.Ok)
+                    if (result == HResult.Ok && virtualPath != string.Empty)
                     {
                         this.Context.FileSystem.ConvertDirectoryToFull(Path.Combine(this.Context.Enlistment.WorkingDirectoryRoot, virtualPath));
                     }
@@ -555,60 +555,7 @@ namespace GVFS.Platform.Windows
                     return HResult.InternalError;
                 }
 
-                if (restartScan)
-                {
-                    activeEnumeration.RestartEnumeration(filterFileName);
-                }
-                else
-                {
-                    activeEnumeration.TrySaveFilterString(filterFileName);
-                }
-
-                bool entryAdded = false;
-
-                HResult result = HResult.Ok;
-                while (activeEnumeration.IsCurrentValid)
-                {
-                    ProjectedFileInfo fileInfo = activeEnumeration.Current;
-                    FileProperties properties = this.FileSystemCallbacks.GetLogsHeadFileProperties();
-
-                    result = results.Add(
-                        fileName: fileInfo.Name,
-                        fileSize: (ulong)(fileInfo.IsFolder ? 0 : fileInfo.Size),
-                        isDirectory: fileInfo.IsFolder,
-                        fileAttributes: fileInfo.IsFolder ? (uint)NativeMethods.FileAttributes.FILE_ATTRIBUTE_DIRECTORY : (uint)NativeMethods.FileAttributes.FILE_ATTRIBUTE_ARCHIVE,
-                        creationTime: properties.CreationTimeUTC,
-                        lastAccessTime: properties.LastAccessTimeUTC,
-                        lastWriteTime: properties.LastWriteTimeUTC,
-                        changeTime: properties.LastWriteTimeUTC);
-
-                    if (result == HResult.Ok)
-                    {
-                        entryAdded = true;
-                        activeEnumeration.MoveNext();
-                    }
-                    else if (result == HResult.InsufficientBuffer)
-                    {
-                        if (entryAdded)
-                        {
-                            result = HResult.Ok;
-                        }
-
-                        break;
-                    }
-                    else
-                    {
-                        EventMetadata metadata = this.CreateEventMetadata(enumerationId);
-                        metadata.Add(nameof(result), result);
-                        this.Context.Tracer.RelatedWarning(
-                            metadata,
-                            nameof(this.GetDirectoryEnumerationHandler) + " unexpected statusCode when adding results to enumeration buffer");
-
-                        break;
-                    }
-                }
-
-                return result;
+                return HResult.Ok;
             }
             catch (Win32Exception e)
             {
