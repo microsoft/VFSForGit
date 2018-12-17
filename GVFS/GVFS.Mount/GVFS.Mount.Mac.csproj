@@ -6,7 +6,6 @@
     <TargetFramework>netcoreapp2.1</TargetFramework>
     <Platforms>x64</Platforms>
     <RunTimeIdentifiers>osx-x64</RunTimeIdentifiers>
-    <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
   </PropertyGroup>
 
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
@@ -22,12 +21,6 @@
     </Compile>
   </ItemGroup>
   
-  <ItemGroup>
-    <Compile Include="$(BuildOutputDir)\CommonAssemblyVersion.cs">
-      <Link>CommonAssemblyVersion.cs</Link>
-    </Compile>
-  </ItemGroup>
-
   <ItemGroup>
     <ProjectReference Include="..\GVFS.Platform.Mac\GVFS.Platform.Mac.csproj" />
   </ItemGroup>

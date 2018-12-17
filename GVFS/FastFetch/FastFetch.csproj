@@ -8,7 +8,6 @@
     <Platforms>x64</Platforms>
     <RunTimeIdentifiers>osx-x64;win-x64</RunTimeIdentifiers>
     <TargetLatestRuntimePatch>true</TargetLatestRuntimePatch>
-    <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
   </PropertyGroup>
@@ -41,12 +40,6 @@
     <ProjectReference Include="..\GVFS.Platform.Windows\GVFS.Platform.Windows.csproj" />
     <Compile Include="..\GVFS.PlatformLoader\PlatformLoader.Windows.cs">
       <Link>PlatformLoader.Windows.cs</Link>
-    </Compile>
-  </ItemGroup>
-
-  <ItemGroup>
-    <Compile Include="$(BuildOutputDir)\CommonAssemblyVersion.cs">
-      <Link>CommonAssemblyVersion.cs</Link>
     </Compile>
   </ItemGroup>
 

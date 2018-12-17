@@ -5,7 +5,6 @@
     <Platforms>x64</Platforms>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <TargetLatestRuntimePatch>true</TargetLatestRuntimePatch>
-    <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
     <Version>$(GVFSVersion)</Version>
@@ -14,12 +13,6 @@
     <Version>$(GVFSVersion)</Version>
   </PropertyGroup>
 
-    <ItemGroup>
-    <Compile Include="$(BuildOutputDir)\CommonAssemblyVersion.cs">
-      <Link>CommonAssemblyVersion.cs</Link>
-    </Compile>
-  </ItemGroup>
-  
   <ItemGroup>
     <PackageReference Include="Microsoft.Data.Sqlite" Version="2.0.0" />
     <PackageReference Include="Newtonsoft.Json" Version="11.0.2" />
