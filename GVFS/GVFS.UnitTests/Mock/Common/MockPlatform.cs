@@ -14,7 +14,7 @@ namespace GVFS.UnitTests.Mock.Common
     public class MockPlatform : GVFSPlatform
     {
         public MockPlatform()
-            : base(executableExtension: ".mockexe", installerExtension: ".mockexe")
+            : base(executableExtension: ".mockexe", installerExtension: ".mockexe", underConstruction: new UnderConstructionFlags())
         {
         }
 
@@ -25,6 +25,8 @@ namespace GVFS.UnitTests.Mock.Common
         public override IDiskLayoutUpgradeData DiskLayoutUpgrade => throw new NotSupportedException();
 
         public override IPlatformFileSystem FileSystem { get; } = new MockPlatformFileSystem();
+
+        public HashSet<int> ActiveProcesses { get; } = new HashSet<int>();
 
         public override void ConfigureVisualStudio(string gitBinPath, ITracer tracer)
         {
@@ -88,7 +90,7 @@ namespace GVFS.UnitTests.Mock.Common
 
         public override bool IsProcessActive(int processId)
         {
-            throw new NotSupportedException();
+            return this.ActiveProcesses.Contains(processId);
         }
 
         public override void IsServiceInstalledAndRunning(string name, out bool installed, out bool running)
@@ -101,7 +103,7 @@ namespace GVFS.UnitTests.Mock.Common
             throw new NotSupportedException();
         }
 
-        public override void StartBackgroundProcess(string programName, string[] args)
+        public override void StartBackgroundProcess(ITracer tracer, string programName, string[] args)
         {
             throw new NotSupportedException();
         }

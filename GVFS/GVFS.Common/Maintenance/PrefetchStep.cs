@@ -135,7 +135,7 @@ namespace GVFS.Common.Maintenance
         {
             this.Context.FileSystem.CreateDirectory(this.Context.Enlistment.GitPackRoot);
 
-            string[] packs = GitObjects.ReadPackFileNames(this.Context.Enlistment.GitPackRoot, GVFSConstants.PrefetchPackPrefix);
+            string[] packs = this.GitObjects.ReadPackFileNames(this.Context.Enlistment.GitPackRoot, GVFSConstants.PrefetchPackPrefix);
             List<PrefetchPackInfo> orderedPacks = packs
                 .Where(pack => GetTimestamp(pack).HasValue)
                 .Select(pack => new PrefetchPackInfo(GetTimestamp(pack).Value, pack))
@@ -169,15 +169,15 @@ namespace GVFS.Common.Maintenance
                         firstBadPack = i;
 
                         metadata.Add("Errors", indexResult.Errors);
-                        this.Context.Tracer.RelatedWarning(metadata, $"{nameof(TryGetMaxGoodPrefetchTimestamp)}: Found pack file that's missing idx file, and failed to regenerate idx");
+                        this.Context.Tracer.RelatedWarning(metadata, $"{nameof(this.TryGetMaxGoodPrefetchTimestamp)}: Found pack file that's missing idx file, and failed to regenerate idx");
                         break;
                     }
                     else
                     {
                         maxGoodTimestamp = timestamp;
 
-                        metadata.Add(TracingConstants.MessageKey.InfoMessage, $"{nameof(TryGetMaxGoodPrefetchTimestamp)}: Found pack file that's missing idx file, and regenerated idx");
-                        this.Context.Tracer.RelatedEvent(EventLevel.Informational, $"{nameof(TryGetMaxGoodPrefetchTimestamp)}_RebuildIdx", metadata);
+                        metadata.Add(TracingConstants.MessageKey.InfoMessage, $"{nameof(this.TryGetMaxGoodPrefetchTimestamp)}: Found pack file that's missing idx file, and regenerated idx");
+                        this.Context.Tracer.RelatedEvent(EventLevel.Informational, $"{nameof(this.TryGetMaxGoodPrefetchTimestamp)}_RebuildIdx", metadata);
                     }
                 }
                 else
@@ -197,8 +197,8 @@ namespace GVFS.Common.Maintenance
                 EventMetadata metadata = this.CreateEventMetadata();
                 string midxPath = Path.Combine(this.Context.Enlistment.GitPackRoot, "multi-pack-index");
                 metadata.Add("path", midxPath);
-                metadata.Add(TracingConstants.MessageKey.InfoMessage, $"{nameof(TryGetMaxGoodPrefetchTimestamp)} deleting multi-pack-index");
-                this.Context.Tracer.RelatedEvent(EventLevel.Informational, $"{nameof(TryGetMaxGoodPrefetchTimestamp)}_DeleteMultiPack_index", metadata);
+                metadata.Add(TracingConstants.MessageKey.InfoMessage, $"{nameof(this.TryGetMaxGoodPrefetchTimestamp)} deleting multi-pack-index");
+                this.Context.Tracer.RelatedEvent(EventLevel.Informational, $"{nameof(this.TryGetMaxGoodPrefetchTimestamp)}_DeleteMultiPack_index", metadata);
 
                 if (!this.Context.FileSystem.TryWaitForDelete(this.Context.Tracer, midxPath, IoFailureRetryDelayMS, MaxDeleteRetries, RetryLoggingThreshold))
                 {
@@ -215,8 +215,8 @@ namespace GVFS.Common.Maintenance
 
                     metadata = this.CreateEventMetadata();
                     metadata.Add("path", idxPath);
-                    metadata.Add(TracingConstants.MessageKey.InfoMessage, $"{nameof(TryGetMaxGoodPrefetchTimestamp)} deleting bad idx file");
-                    this.Context.Tracer.RelatedEvent(EventLevel.Informational, $"{nameof(TryGetMaxGoodPrefetchTimestamp)}_DeleteBadIdx", metadata);
+                    metadata.Add(TracingConstants.MessageKey.InfoMessage, $"{nameof(this.TryGetMaxGoodPrefetchTimestamp)} deleting bad idx file");
+                    this.Context.Tracer.RelatedEvent(EventLevel.Informational, $"{nameof(this.TryGetMaxGoodPrefetchTimestamp)}_DeleteBadIdx", metadata);
 
                     if (!this.Context.FileSystem.TryWaitForDelete(this.Context.Tracer, idxPath, IoFailureRetryDelayMS, MaxDeleteRetries, RetryLoggingThreshold))
                     {
@@ -226,8 +226,8 @@ namespace GVFS.Common.Maintenance
 
                     metadata = this.CreateEventMetadata();
                     metadata.Add("path", packPath);
-                    metadata.Add(TracingConstants.MessageKey.InfoMessage, $"{nameof(TryGetMaxGoodPrefetchTimestamp)} deleting bad pack file");
-                    this.Context.Tracer.RelatedEvent(EventLevel.Informational, $"{nameof(TryGetMaxGoodPrefetchTimestamp)}_DeleteBadPack", metadata);
+                    metadata.Add(TracingConstants.MessageKey.InfoMessage, $"{nameof(this.TryGetMaxGoodPrefetchTimestamp)} deleting bad pack file");
+                    this.Context.Tracer.RelatedEvent(EventLevel.Informational, $"{nameof(this.TryGetMaxGoodPrefetchTimestamp)}_DeleteBadPack", metadata);
 
                     if (!this.Context.FileSystem.TryWaitForDelete(this.Context.Tracer, packPath, IoFailureRetryDelayMS, MaxDeleteRetries, RetryLoggingThreshold))
                     {

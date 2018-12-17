@@ -1,0 +1,30 @@
+steps:
+
+  - task: DotNetCoreInstaller@0
+    displayName: Use .NET Core SDK 2.1.301
+    inputs:
+      packageType: sdk
+      version: '2.1.301'
+
+  - task: InstallAppleCertificate@2
+    displayName: Install kext certificate
+    inputs:
+      certSecureFile: PrjFSKextAug272018.p12
+      certPwd: $(PrjFSKextCertPassword)
+      keychain: temp
+
+  - script: Scripts/Mac/BuildGVFSForMac.sh $(configuration)
+    displayName: Build VFSForGit $(configuration)
+
+  - script: MirrorProvider/Scripts/Mac/Build.sh $(configuration)
+    displayName: Build MirrorProvider $(configuration)
+
+  - task: PublishTestResults@2
+    displayName: Publish test results
+    inputs:
+      testRunner: NUnit
+      testResultsFiles: '**/TestResult.xml'
+      searchFolder: $(System.DefaultWorkingDirectory)
+      testRunTitle: Mac $(configuration) Unit Tests
+      publishRunAttachments: true
+    condition: succeededOrFailed()

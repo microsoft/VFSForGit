@@ -82,8 +82,6 @@ namespace GVFS.CommandLine
         {
             int exitCode = 0;
 
-            // TODO(Mac): limit the length of the enlistment root based on the length constraints imposed by named pipes
-
             this.ValidatePathParameter(this.EnlistmentRootPathParameter);
             this.ValidatePathParameter(this.LocalCacheRoot);
 
@@ -179,10 +177,7 @@ namespace GVFS.CommandLine
 
                         cacheServer = this.ResolveCacheServer(tracer, cacheServer, cacheServerResolver, serverGVFSConfig);
 
-                        if (!GVFSPlatform.Instance.IsUnderConstruction)
-                        {
-                            this.ValidateClientVersions(tracer, enlistment, serverGVFSConfig, showWarnings: true);
-                        }
+                        this.ValidateClientVersions(tracer, enlistment, serverGVFSConfig, showWarnings: true);
                        
                         this.ShowStatusWhileRunning(
                             () =>

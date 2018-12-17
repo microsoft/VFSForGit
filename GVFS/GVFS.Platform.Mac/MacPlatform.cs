@@ -12,7 +12,14 @@ namespace GVFS.Platform.Mac
     public partial class MacPlatform : GVFSPlatform
     {
         public MacPlatform()
-            : base(executableExtension: string.Empty, installerExtension: ".dmg")
+            : base(
+                executableExtension: string.Empty,
+                installerExtension: ".dmg",
+                underConstruction: new UnderConstructionFlags(
+                    supportsGVFSService: false,
+                    supportsGVFSUpgrade: false,
+                    supportsGVFSConfig: false,
+                    supportsKernelLogs: false))
         {
         }
 
@@ -20,9 +27,6 @@ namespace GVFS.Platform.Mac
         public override IGitInstallation GitInstallation { get; } = new MacGitInstallation();
         public override IDiskLayoutUpgradeData DiskLayoutUpgrade { get; } = new MacDiskLayoutUpgradeData();
         public override IPlatformFileSystem FileSystem { get; } = new MacFileSystem();
-        public override bool IsUnderConstruction { get; } = true;
-        public override bool SupportsGVFSService { get; } = false;
-        public override bool SupportsGVFSUpgrade { get; } = false;
 
         public override void ConfigureVisualStudio(string gitBinPath, ITracer tracer)
         {
@@ -47,7 +51,7 @@ namespace GVFS.Platform.Mac
             File.WriteAllText(
                 commandHookPath,
                 $"#!/bin/sh\n{gvfsHooksPath} {hookName} \"$@\"");
-            GVFSPlatform.Instance.FileSystem.ChangeMode(commandHookPath, Convert.ToInt32("755", 8));
+            GVFSPlatform.Instance.FileSystem.ChangeMode(commandHookPath, Convert.ToUInt16("755", 8));
 
             return true;
         }
@@ -62,9 +66,9 @@ namespace GVFS.Platform.Mac
             throw new NotImplementedException();
         }
 
-        public override void StartBackgroundProcess(string programName, string[] args)
+        public override void StartBackgroundProcess(ITracer tracer, string programName, string[] args)
         {
-            ProcessLauncher.StartBackgroundProcess(programName, args);
+            ProcessLauncher.StartBackgroundProcess(tracer, programName, args);
         }
 
         public override NamedPipeServerStream CreatePipeByName(string pipeName)

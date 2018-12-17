@@ -12,6 +12,8 @@ namespace GVFS.Common.Git
 
         public const int TypeMarkerStartIndex = 7;
 
+        private const ushort SymLinkFileIndexEntry = 0xA000;
+
         private static readonly HashSet<string> ValidTreeModes = new HashSet<string>() { "040000" };
 
         public enum Operations
@@ -33,6 +35,8 @@ namespace GVFS.Common.Git
         public string TargetPath { get; set; }
         public string SourceSha { get; set; }
         public string TargetSha { get; set; }
+        public ushort SourceMode { get; set; }
+        public ushort TargetMode { get; set; }
 
         public static DiffTreeResult ParseFromDiffTreeLine(string line, string repoRoot)
         {
@@ -75,7 +79,8 @@ namespace GVFS.Common.Git
             // Take the mode, sha, operation part and split on a space then add the paths that were split on a tab to the end
             parts = parts[0].Split(' ').Concat(parts.Skip(1)).ToArray();
 
-            if (parts.Length != 6)
+            if (parts.Length != 6 ||
+                parts[5].Contains('\t'))
             {
                 // Look at file history to see how -C -M with 7 parts could be handled
                 throw new ArgumentException($"diff-tree lines should have 6 parts unless passed -C or -M which this method doesn't handle", nameof(line));
@@ -84,10 +89,12 @@ namespace GVFS.Common.Git
             DiffTreeResult result = new DiffTreeResult();
             result.SourceIsDirectory = ValidTreeModes.Contains(parts[0]);
             result.TargetIsDirectory = ValidTreeModes.Contains(parts[1]);
+            result.SourceMode = Convert.ToUInt16(parts[0], 8);
+            result.TargetMode = Convert.ToUInt16(parts[1], 8);
 
             if (!result.TargetIsDirectory)
             {
-                result.TargetIsSymLink = parts[1] == "120000";
+                result.TargetIsSymLink = result.TargetMode == SymLinkFileIndexEntry;
             }
 
             result.SourceSha = parts[2];
@@ -152,7 +159,8 @@ namespace GVFS.Common.Git
                 if (IsLsTreeLineOfType(line, BlobMarker))
                 {
                     DiffTreeResult blobAdd = new DiffTreeResult();
-                    blobAdd.TargetIsSymLink = line.StartsWith("120000");
+                    blobAdd.TargetMode = Convert.ToUInt16(line.Substring(0, 6), 8);
+                    blobAdd.TargetIsSymLink = blobAdd.TargetMode == SymLinkFileIndexEntry;
                     blobAdd.TargetSha = line.Substring(TypeMarkerStartIndex + BlobMarker.Length, GVFSConstants.ShaStringLength);
                     blobAdd.TargetPath = ConvertPathToAbsoluteUtf8Path(repoRoot, line.Substring(line.LastIndexOf("\t") + 1));
                     blobAdd.Operation = DiffTreeResult.Operations.Add;

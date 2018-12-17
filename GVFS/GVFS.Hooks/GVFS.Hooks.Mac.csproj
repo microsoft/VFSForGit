@@ -100,8 +100,10 @@
       <Link>Mac\MacPlatform.Shared.cs</Link>
     </Compile>
   </ItemGroup>
+  
   <ItemGroup>
-    <PackageReference Include="StyleCop.Error.MSBuild" Version="1.0.0" Condition="'$(OS)' == 'Windows_NT'" />
-    <PackageReference Include="StyleCop.MSBuild" Version="5.0.0" Condition="'$(OS)' == 'Windows_NT'" />
+    <PackageReference Include="StyleCop.Analyzers" Version="1.0.2">
+      <PrivateAssets>all</PrivateAssets>
+    </PackageReference>
   </ItemGroup>
 </Project>

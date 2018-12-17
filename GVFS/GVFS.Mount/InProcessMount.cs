@@ -334,7 +334,7 @@ namespace GVFS.Mount
 
             if (request.RequestData == null)
             {
-                this.tracer.RelatedError($"{nameof(HandleReleaseLockRequest)} received invalid lock request with body '{messageBody}'");
+                this.tracer.RelatedError($"{nameof(this.HandleReleaseLockRequest)} received invalid lock request with body '{messageBody}'");
                 this.UnmountAndStopWorkingDirectoryCallbacks();
                 Environment.Exit((int)ReturnCode.NullRequestData);
             }

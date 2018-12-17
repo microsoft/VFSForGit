@@ -133,43 +133,8 @@ namespace GVFS.Hooks
             string command = GetGitCommand(args);
             switch (command)
             {
-                case "update-index":
-                    if (ContainsArg(args, "--split-index") ||
-                        ContainsArg(args, "--no-split-index"))
-                    {
-                        ExitWithError("Split index is not supported on a GVFS repo");
-                    }
-
-                    if (ContainsArg(args, "--index-version"))
-                    {
-                        ExitWithError("Changing the index version is not supported on a GVFS repo");
-                    }
-
-                    if (ContainsArg(args, "--skip-worktree") || 
-                        ContainsArg(args, "--no-skip-worktree"))
-                    {
-                        ExitWithError("Modifying the skip worktree bit is not supported on a GVFS repo");
-                    }
-
-                    break;
-
-                case "fsck":
-                case "gc":
-                case "prune":
-                case "repack":
-                    ExitWithError("'git " + command + "' is not supported on a GVFS repo");
-                    break;
-
-                case "submodule":
-                    ExitWithError("Submodule operations are not supported on a GVFS repo");
-                    break;
-
                 case "status":
                     VerifyRenameDetectionSettings(args);
-                    break;
-
-                case "worktree":
-                    ExitWithError("Worktree operations are not supported on a GVFS repo");
                     break;
 
                 case "gui":

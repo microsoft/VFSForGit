@@ -39,7 +39,7 @@ namespace GVFS.Common.Prefetch.Git
 
             this.DirectoryOperations = new ConcurrentQueue<DiffTreeResult>();
             this.FileDeleteOperations = new ConcurrentQueue<string>();
-            this.FileAddOperations = new ConcurrentDictionary<string, HashSet<string>>(StringComparer.OrdinalIgnoreCase);
+            this.FileAddOperations = new ConcurrentDictionary<string, HashSet<PathWithMode>>(StringComparer.OrdinalIgnoreCase);
             this.RequiredBlobs = new BlockingCollection<string>();
         }
 
@@ -54,7 +54,7 @@ namespace GVFS.Common.Prefetch.Git
         /// <summary>
         /// Mapping from available sha to filenames where blob should be written
         /// </summary>
-        public ConcurrentDictionary<string, HashSet<string>> FileAddOperations { get; }
+        public ConcurrentDictionary<string, HashSet<PathWithMode>> FileAddOperations { get; }
 
         /// <summary>
         /// Blobs required to perform a checkout of the destination
@@ -80,7 +80,7 @@ namespace GVFS.Common.Prefetch.Git
         {
             string targetTreeSha;
             string headTreeSha;
-            using (PrefetchLibGit2Repo repo = new PrefetchLibGit2Repo(this.tracer, this.enlistment.WorkingDirectoryRoot))
+            using (LibGit2Repo repo = new LibGit2Repo(this.tracer, this.enlistment.WorkingDirectoryRoot))
             {
                 targetTreeSha = repo.GetTreeSha(targetCommitSha);
                 headTreeSha = repo.GetTreeSha("HEAD");
@@ -369,9 +369,10 @@ namespace GVFS.Common.Prefetch.Git
             // Each filepath should be case-insensitive unique. If there are duplicates, only the last parsed one should remain.
             if (!this.filesAdded.Add(operation.TargetPath))
             {
-                foreach (KeyValuePair<string, HashSet<string>> kvp in this.FileAddOperations)
+                foreach (KeyValuePair<string, HashSet<PathWithMode>> kvp in this.FileAddOperations)
                 {
-                    if (kvp.Value.Remove(operation.TargetPath))
+                    PathWithMode tempPathWithMode = new PathWithMode(operation.TargetPath, 0x0000);
+                    if (kvp.Value.Remove(tempPathWithMode))
                     {
                         break;
                     }
@@ -388,10 +389,10 @@ namespace GVFS.Common.Prefetch.Git
 
             this.FileAddOperations.AddOrUpdate(
                 operation.TargetSha,
-                new HashSet<string>(StringComparer.OrdinalIgnoreCase) { operation.TargetPath },
+                new HashSet<PathWithMode> { new PathWithMode(operation.TargetPath, operation.TargetMode) },
                 (key, oldValue) =>
                 {
-                    oldValue.Add(operation.TargetPath);
+                    oldValue.Add(new PathWithMode(operation.TargetPath, operation.TargetMode));
                     return oldValue;
                 });
 

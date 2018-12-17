@@ -1,4 +1,5 @@
-﻿using GVFS.Common.Prefetch.Git;
+﻿using GVFS.Common.Git;
+using GVFS.Common.Prefetch.Git;
 using GVFS.Common.Tracing;
 using System.Collections.Concurrent;
 using System.Threading;
@@ -54,7 +55,7 @@ namespace GVFS.Common.Prefetch.Pipeline
         protected override void DoWork()
         {
             string blobId;
-            using (PrefetchLibGit2Repo repo = new PrefetchLibGit2Repo(this.tracer, this.enlistment.WorkingDirectoryRoot))
+            using (LibGit2Repo repo = new LibGit2Repo(this.tracer, this.enlistment.WorkingDirectoryRoot))
             {
                 while (this.requiredBlobs.TryTake(out blobId, Timeout.Infinite))
                 {

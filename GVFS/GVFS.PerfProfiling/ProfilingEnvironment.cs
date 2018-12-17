@@ -8,7 +8,7 @@ using GVFS.Virtualization;
 
 namespace GVFS.PerfProfiling
 {
-    class ProfilingEnvironment
+    internal class ProfilingEnvironment
     {
         public ProfilingEnvironment(string enlistmentRootPath)
         {

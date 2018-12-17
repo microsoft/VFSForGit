@@ -22,7 +22,7 @@ namespace GVFS.UnitTests.Mock.FileSystem
             throw new NotSupportedException();
         }
 
-        public void ChangeMode(string path, int mode)
+        public void ChangeMode(string path, ushort mode)
         {
             throw new NotSupportedException();
         }

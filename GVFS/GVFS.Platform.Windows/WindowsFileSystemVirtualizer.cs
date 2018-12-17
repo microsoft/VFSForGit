@@ -763,7 +763,7 @@ namespace GVFS.Platform.Windows
                     metadata.Add(TracingConstants.MessageKey.InfoMessage, nameof(this.GetPlaceholderInformationAsyncHandler) + ": Operation cancelled");
                     this.Context.Tracer.RelatedEvent(
                         EventLevel.Informational, 
-                        $"{nameof(this.GetPlaceholderInformationAsyncHandler)}_{nameof(FileSystemCallbacks.GitIndexProjection.GetProjectedFileInfo)}_Cancelled", 
+                        $"{nameof(this.GetPlaceholderInformationAsyncHandler)}_{nameof(this.FileSystemCallbacks.GitIndexProjection.GetProjectedFileInfo)}_Cancelled", 
                         metadata);
                     return;
                 }
@@ -877,13 +877,13 @@ namespace GVFS.Platform.Windows
             {
                 if (contentId == null)
                 {
-                    this.Context.Tracer.RelatedError($"{nameof(GetFileStreamHandler)} called with null contentId, path: " + virtualPath);
+                    this.Context.Tracer.RelatedError($"{nameof(this.GetFileStreamHandler)} called with null contentId, path: " + virtualPath);
                     return HResult.InternalError;
                 }
 
                 if (providerId == null)
                 {
-                    this.Context.Tracer.RelatedError($"{nameof(GetFileStreamHandler)} called with null epochId, path: " + virtualPath);
+                    this.Context.Tracer.RelatedError($"{nameof(this.GetFileStreamHandler)} called with null epochId, path: " + virtualPath);
                     return HResult.InternalError;
                 }
 
@@ -904,7 +904,7 @@ namespace GVFS.Platform.Windows
 
                 if (!this.FileSystemCallbacks.IsMounted)
                 {
-                    metadata.Add(TracingConstants.MessageKey.InfoMessage, $"{nameof(GetFileStreamHandler)} failed, mount has not yet completed");
+                    metadata.Add(TracingConstants.MessageKey.InfoMessage, $"{nameof(this.GetFileStreamHandler)} failed, mount has not yet completed");
                     activity.RelatedEvent(EventLevel.Informational, "GetFileStream_MountNotComplete", metadata);
                     activity.Dispose();
                     return (HResult)HResultExtensions.HResultFromNtStatus.DeviceNotReady;
@@ -1008,7 +1008,7 @@ namespace GVFS.Platform.Windows
                         byte[] buffer = new byte[Math.Min(MaxBlobStreamBufferSize, blobLength)];
                         long remainingData = blobLength;
 
-                        using (WriteBuffer targetBuffer = virtualizationInstance.CreateWriteBuffer((uint)buffer.Length))
+                        using (WriteBuffer targetBuffer = this.virtualizationInstance.CreateWriteBuffer((uint)buffer.Length))
                         {
                             while (remainingData > 0)
                             {

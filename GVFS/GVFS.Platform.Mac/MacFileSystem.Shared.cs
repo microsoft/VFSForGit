@@ -1,8 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Text;
-
-namespace GVFS.Platform.Mac
+﻿namespace GVFS.Platform.Mac
 {
     public partial class MacFileSystem
     {

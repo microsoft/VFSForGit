@@ -157,7 +157,7 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
 
             if (this.ControlGitRepo != null)
             {
-                this.ControlGitRepo.Delete();
+                RepositoryHelpers.DeleteTestDirectory(this.ControlGitRepo.RootPath);
             }
         }
 
@@ -207,6 +207,14 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
                 this.ControlGitRepo,
                 command,
                 args);
+        }
+
+        protected void ChangeMode(string filePath, ushort mode)
+        {
+            string virtualFile = Path.Combine(this.Enlistment.RepoRoot, filePath);
+            string controlFile = Path.Combine(this.ControlGitRepo.RootPath, filePath);
+            this.FileSystem.ChangeMode(virtualFile, mode);
+            this.FileSystem.ChangeMode(controlFile, mode);
         }
 
         protected void CreateEmptyFile()

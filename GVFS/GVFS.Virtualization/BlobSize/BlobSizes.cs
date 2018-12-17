@@ -253,7 +253,7 @@ namespace GVFS.Virtualization.BlobSize
                             metadata.Add(nameof(failCount), failCount);
                             this.tracer.RelatedEvent(
                                 EventLevel.Informational,
-                                $"{nameof(FlushDbThreadMain)}_{nameof(BlobSizesDatabaseWriter.TryAddSizes)}_SucceededAfterFailing",
+                                $"{nameof(this.FlushDbThreadMain)}_{nameof(BlobSizesDatabaseWriter.TryAddSizes)}_SucceededAfterFailing",
                                 metadata);
                         }
                     }

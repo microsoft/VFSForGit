@@ -24,7 +24,10 @@ namespace GVFS.Platform.Windows
         private const string BuildLabExRegistryValue = "BuildLabEx";
 
         public WindowsPlatform()
-            : base(executableExtension: ".exe", installerExtension: ".exe")
+            : base(
+                executableExtension: ".exe", 
+                installerExtension: ".exe",
+                underConstruction: new UnderConstructionFlags(requiresDeprecatedGitHooksLoader: true))
         {
         }
 
@@ -127,17 +130,28 @@ namespace GVFS.Platform.Windows
             return sb.ToString();
         }
 
-        public override void StartBackgroundProcess(string programName, string[] args)
+        public override void StartBackgroundProcess(ITracer tracer, string programName, string[] args)
         {
-            ProcessStartInfo processInfo = new ProcessStartInfo(
-                programName, 
-                string.Join(" ", args.Select(arg => arg.Contains(' ') ? "\"" + arg + "\"" : arg)));
-            processInfo.WindowStyle = ProcessWindowStyle.Hidden;
+            string programArguments = string.Empty;
+            try
+            {
+                programArguments = string.Join(" ", args.Select(arg => arg.Contains(' ') ? "\"" + arg + "\"" : arg));
+                ProcessStartInfo processInfo = new ProcessStartInfo(programName, programArguments);
+                processInfo.WindowStyle = ProcessWindowStyle.Hidden;
 
-            Process executingProcess = new Process();
-            executingProcess.StartInfo = processInfo;
-
-            executingProcess.Start();
+                Process executingProcess = new Process();
+                executingProcess.StartInfo = processInfo;
+                executingProcess.Start();
+            }
+            catch (Exception ex)
+            {
+                EventMetadata metadata = new EventMetadata();
+                metadata.Add(nameof(programName), programName);
+                metadata.Add(nameof(programArguments), programArguments);
+                metadata.Add("Exception", ex.ToString());
+                tracer.RelatedError(metadata, "Failed to start background process.");
+                throw;
+            }
         }
 
         public override NamedPipeServerStream CreatePipeByName(string pipeName)
@@ -168,7 +182,7 @@ namespace GVFS.Platform.Windows
 
         public override bool IsProcessActive(int processId)
         {
-            return WindowsPlatform.IsProcessActiveImplementation(processId);
+            return WindowsPlatform.IsProcessActiveImplementation(processId, tryGetProcessById: true);
         }
 
         public override void IsServiceInstalledAndRunning(string name, out bool installed, out bool running)
@@ -187,7 +201,11 @@ namespace GVFS.Platform.Windows
         public override void ConfigureVisualStudio(string gitBinPath, ITracer tracer)
         {
             const string GitBinPathEnd = "\\cmd\\git.exe";
-            const string GitVSRegistryKeyName = "HKEY_CURRENT_USER\\Software\\Microsoft\\VSCommon\\15.0\\TeamFoundation\\GitSourceControl";
+            string[] gitVSRegistryKeyNames =
+            {
+                "HKEY_CURRENT_USER\\Software\\Microsoft\\VSCommon\\15.0\\TeamFoundation\\GitSourceControl",
+                "HKEY_CURRENT_USER\\Software\\Microsoft\\VSCommon\\16.0\\TeamFoundation\\GitSourceControl"
+            };
             const string GitVSRegistryValueName = "GitPath";
 
             if (!gitBinPath.EndsWith(GitBinPathEnd))
@@ -200,7 +218,10 @@ namespace GVFS.Platform.Windows
             }
 
             string regKeyValue = gitBinPath.Substring(0, gitBinPath.Length - GitBinPathEnd.Length);
-            Registry.SetValue(GitVSRegistryKeyName, GitVSRegistryValueName, regKeyValue);
+            foreach (string registryKeyName in gitVSRegistryKeyNames)
+            {
+                Registry.SetValue(registryKeyName, GitVSRegistryValueName, regKeyValue);
+            }
         }
 
         public override bool TryGetGVFSHooksPathAndVersion(out string hooksPath, out string hooksVersion, out string error)

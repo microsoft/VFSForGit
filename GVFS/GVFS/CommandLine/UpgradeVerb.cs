@@ -61,7 +61,7 @@ namespace GVFS.CommandLine
 
         private bool TryInitializeUpgrader()
         {
-            if (GVFSPlatform.Instance.SupportsGVFSUpgrade)
+            if (GVFSPlatform.Instance.UnderConstruction.SupportsGVFSUpgrade)
             {
                 if (this.upgrader == null)
                 {
@@ -115,6 +115,7 @@ namespace GVFS.CommandLine
                 this.tracer.RelatedInfo($"{nameof(this.TryRunProductUpgrade)}: {GVFSConstants.UpgradeVerbMessages.NoneRingConsoleAlert}");
                 this.ReportInfoToConsole(ring == ProductUpgrader.RingType.None ? GVFSConstants.UpgradeVerbMessages.NoneRingConsoleAlert : GVFSConstants.UpgradeVerbMessages.NoRingConfigConsoleAlert);
                 this.ReportInfoToConsole(GVFSConstants.UpgradeVerbMessages.SetUpgradeRingCommand);
+                this.upgrader.CleanupDownloadDirectory();
                 return true;
             }
                         
@@ -128,9 +129,13 @@ namespace GVFS.CommandLine
             if (newestVersion == null)
             {
                 this.ReportInfoToConsole($"Great news, you're all caught up on upgrades in the {this.upgrader.Ring} ring!");
+
+                // Make sure there a no asset installers remaining in the Downloads directory. This can happen if user
+                // upgraded by manually downloading and running asset installers.
+                this.upgrader.CleanupDownloadDirectory();
                 return true;
             }
-            
+
             string upgradeAvailableMessage = $"New GVFS version {newestVersion.ToString()} available in ring {ring}";
             if (this.Confirmed)
             {

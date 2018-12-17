@@ -4,6 +4,10 @@
     <OutputType>Exe</OutputType>
     <TargetFramework>netcoreapp2.1</TargetFramework>
     <Platforms>x64</Platforms>
+    <!-- see https://github.com/NuGet/Home/issues/4837 for reference to CopyLocalLockFileAssemblies -->
+    <CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>
+    <TargetLatestRuntimePatch>true</TargetLatestRuntimePatch>
+    <RuntimeIdentifiers>win-x64;osx-x64</RuntimeIdentifiers>
   </PropertyGroup>
 
   <PropertyGroup>
@@ -21,8 +25,9 @@
     <PackageReference Include="Microsoft.Data.Sqlite" Version="2.0.0" />
     <PackageReference Include="Newtonsoft.Json" Version="11.0.2" />
     <PackageReference Include="NUnitLite" Version="3.10.1" />
-    <PackageReference Include="StyleCop.Error.MSBuild" Version="1.0.0" Condition="'$(OS)' == 'Windows_NT'" />
-    <PackageReference Include="StyleCop.MSBuild" Version="5.0.0" Condition="'$(OS)' == 'Windows_NT'" />
+    <PackageReference Include="StyleCop.Analyzers" Version="1.0.2">
+      <PrivateAssets>all</PrivateAssets>
+    </PackageReference>
     <PackageReference Include="System.ServiceProcess.ServiceController" Version="4.5.0" />
   </ItemGroup>
 

@@ -88,7 +88,7 @@ namespace GVFS.CommandLine
                         // .gvfs
                         this.CopyAllFiles(enlistment.EnlistmentRoot, archiveFolderPath, GVFSConstants.DotGVFS.Root, copySubFolders: false);
 
-                        if (!GVFSPlatform.Instance.IsUnderConstruction)
+                        if (GVFSPlatform.Instance.UnderConstruction.SupportsKernelLogs)
                         {
                             // driver
                             this.FlushKernelDriverLogs();
@@ -118,7 +118,7 @@ namespace GVFS.CommandLine
                         // corrupt objects
                         this.CopyAllFiles(enlistment.DotGVFSRoot, Path.Combine(archiveFolderPath, GVFSConstants.DotGVFS.Root), GVFSConstants.DotGVFS.CorruptObjectsName, copySubFolders: false);
 
-                        if (GVFSPlatform.Instance.SupportsGVFSService)
+                        if (GVFSPlatform.Instance.UnderConstruction.SupportsGVFSService)
                         {
                             // service
                             this.CopyAllFiles(
@@ -128,7 +128,7 @@ namespace GVFS.CommandLine
                                 copySubFolders: true);
                         }
 
-                        if (GVFSPlatform.Instance.SupportsGVFSUpgrade)
+                        if (GVFSPlatform.Instance.UnderConstruction.SupportsGVFSUpgrade)
                         {
                             // upgrader
                             this.CopyAllFiles(
@@ -317,7 +317,7 @@ namespace GVFS.CommandLine
                     lines.Add($"Contents of {folder}:");
                     foreach (FileInfo file in packDirectory.EnumerateFiles())
                     {
-                        lines.Add($"{file.Name,-70} {file.Length,16}");
+                        lines.Add($"{file.Name, -70} {file.Length, 16}");
                     }
                 }
 
@@ -363,7 +363,7 @@ namespace GVFS.CommandLine
                         {
                             countFolders++;
                             int numObjects = directory.EnumerateFiles().Count();
-                            lines.Add($"{directory.Name} : {numObjects,7} objects");
+                            lines.Add($"{directory.Name} : {numObjects, 7} objects");
                             countLoose += numObjects;
                         }
                     }

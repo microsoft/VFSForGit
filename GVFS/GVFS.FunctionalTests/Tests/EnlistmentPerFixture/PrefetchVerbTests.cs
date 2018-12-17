@@ -16,6 +16,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
         private const string PrefetchCommitsAndTreesLock = "prefetch-commits-trees.lock";
         private const string CommitGraphLock = "commit-graph.lock";
         private const string MultiPackIndexLock = "multi-pack-index.lock";
+        private const string LsTreeTypeInPathBranchName = "FunctionalTests/20181105_LsTreeTypeInPath";
 
         private FileSystemRunner fileSystem;
 
@@ -197,6 +198,13 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
                 });
 
             this.ExpectBlobCount(this.Enlistment.Prefetch("--stdin-folders-list", standardInput: input), 279);
+        }
+
+        public void PrefetchPathsWithLsTreeTypeInPath()
+        {
+            ProcessResult checkoutResult = GitProcess.InvokeProcess(this.Enlistment.RepoRoot, "checkout " + LsTreeTypeInPathBranchName);
+
+            this.ExpectBlobCount(this.Enlistment.Prefetch("--files *"), 496);
         }
 
         private void ExpectBlobCount(string output, int expectedCount)

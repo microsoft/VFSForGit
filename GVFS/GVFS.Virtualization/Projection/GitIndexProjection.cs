@@ -683,7 +683,7 @@ namespace GVFS.Virtualization.Projection
                 {
                     // TODO(Mac): The line below causes a conversion from LazyUTF8String to .NET string.
                     // Measure the perf and memory overhead of performing this conversion, and determine if we need
-                    // a way to keep the path as LazyUTF8String[]
+                    // a way to keep the path as LazyUTF8String
                     this.nonDefaultFileTypesAndModes.Add(indexEntry.BuildingProjection_GetGitRelativePath(), indexEntry.TypeAndMode);
                 }
             }
@@ -1225,7 +1225,7 @@ namespace GVFS.Virtualization.Projection
                             }
                             catch (Exception e)
                             {
-                                this.LogErrorAndExit(nameof(ProcessListOnThreads) + " background thread caught unhandled exception, exiting process", e);
+                                this.LogErrorAndExit(nameof(this.ProcessListOnThreads) + " background thread caught unhandled exception, exiting process", e);
                             }
                         });
 
@@ -1685,7 +1685,6 @@ namespace GVFS.Virtualization.Projection
             PlaceholderListDatabase.PlaceholderData placeholder, 
             out string gitPath)
         {
-            // TODO(Mac) This can be optimized if needed
             gitPath = placeholder.Path.TrimStart(Path.DirectorySeparatorChar).Replace(Path.DirectorySeparatorChar, GVFSConstants.GitPathSeparator);
             if (deleteOperation)
             {
@@ -1737,7 +1736,7 @@ namespace GVFS.Virtualization.Projection
                     catch (Exception e)
                     {
                         EventMetadata metadata = CreateEventMetadata(e);
-                        this.context.Tracer.RelatedWarning(metadata, $"{nameof(BuildProjection)}: Exception thrown by {nameof(GitIndexParser.RebuildProjection)}");
+                        this.context.Tracer.RelatedWarning(metadata, $"{nameof(this.BuildProjection)}: Exception thrown by {nameof(GitIndexParser.RebuildProjection)}");
 
                         this.SetProjectionInvalid(true);
                         throw;

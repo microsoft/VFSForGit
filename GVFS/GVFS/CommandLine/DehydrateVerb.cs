@@ -281,7 +281,7 @@ of your enlistment's src folder.
 
                     // ... backup the .gvfs hydration-related data structures...
                     string databasesFolder = Path.Combine(enlistment.DotGVFSRoot, GVFSConstants.DotGVFS.Databases.Name);
-                    if (!TryBackupFilesInFolder(tracer, databasesFolder, backupDatabases, searchPattern: "*", filenamesToSkip: "RepoMetadata.dat"))
+                    if (!this.TryBackupFilesInFolder(tracer, databasesFolder, backupDatabases, searchPattern: "*", filenamesToSkip: "RepoMetadata.dat"))
                     {
                         return false;
                     }
@@ -306,7 +306,7 @@ of your enlistment's src folder.
                     }
 
                     // ... backup all .git\*.lock files
-                    if (!TryBackupFilesInFolder(tracer, enlistment.DotGitRoot, backupGit, searchPattern: "*.lock"))
+                    if (!this.TryBackupFilesInFolder(tracer, enlistment.DotGitRoot, backupGit, searchPattern: "*.lock"))
                     {
                         return false;
                     }

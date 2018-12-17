@@ -117,7 +117,7 @@ namespace GVFS.CommandLine
 
                 if (!GVFSPlatform.Instance.KernelDriver.IsReady(tracer, enlistment.EnlistmentRoot, out errorMessage))
                 {
-                    if (GVFSPlatform.Instance.SupportsGVFSService)
+                    if (GVFSPlatform.Instance.UnderConstruction.SupportsGVFSService)
                     {
                         tracer.RelatedEvent(
                             EventLevel.Informational,
@@ -204,17 +204,17 @@ namespace GVFS.CommandLine
                         RepoMetadata.Shutdown();
                     }
                 }
-            }
 
-            if (!this.ShowStatusWhileRunning(
-                () => { return this.TryMount(enlistment, mountExecutableLocation, out errorMessage); },
-                "Mounting"))
-            {
-                this.ReportErrorAndExit(errorMessage);
+                if (!this.ShowStatusWhileRunning(
+                    () => { return this.TryMount(tracer, enlistment, mountExecutableLocation, out errorMessage); },
+                    "Mounting"))
+                {
+                    this.ReportErrorAndExit(errorMessage);
+                }
             }
 
             if (!this.Unattended &&
-                GVFSPlatform.Instance.SupportsGVFSService)
+                GVFSPlatform.Instance.UnderConstruction.SupportsGVFSService)
             {
                 if (!this.ShowStatusWhileRunning(
                     () => { return this.RegisterMount(enlistment, out errorMessage); },
@@ -267,7 +267,7 @@ namespace GVFS.CommandLine
             return true;
         }
 
-        private bool TryMount(GVFSEnlistment enlistment, string mountExecutableLocation, out string errorMessage)
+        private bool TryMount(ITracer tracer, GVFSEnlistment enlistment, string mountExecutableLocation, out string errorMessage)
         {
             if (!GVFSVerb.TrySetRequiredGitConfigSettings(enlistment))
             {
@@ -276,12 +276,9 @@ namespace GVFS.CommandLine
             }
 
             const string ParamPrefix = "--";
-            if (GVFSPlatform.Instance.IsUnderConstruction)
-            {
-                mountExecutableLocation = Path.Combine(ProcessHelper.GetCurrentProcessLocation(), "gvfs.mount");
-            }
 
             GVFSPlatform.Instance.StartBackgroundProcess(
+                tracer,
                 mountExecutableLocation,
                 new[]
                 {
@@ -293,12 +290,6 @@ namespace GVFS.CommandLine
                     ParamPrefix + GVFSConstants.VerbParameters.Mount.StartedByService,
                     this.StartedByService.ToString()
                 });
-
-            if (GVFSPlatform.Instance.IsUnderConstruction)
-            {
-                // TODO(Mac): figure out the timing issue here on connecting to the pipe
-                System.Threading.Thread.Sleep(TimeSpan.FromSeconds(1));
-            }
 
             return GVFSEnlistment.WaitUntilMounted(enlistment.EnlistmentRoot, this.Unattended, out errorMessage);
         }

@@ -558,6 +558,18 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
             this.CommitChangesSwitchBranchSwitchBack(fileSystemAction: this.MoveFolder);
         }
 
+        // MacOnly because Windows does not support file mode
+        [TestCase]
+        [Category(Categories.MacOnly)]
+        public void UpdateFileModeOnly()
+        {
+            const string TestFileName = "test-file-mode";
+            this.CreateFile("#!/bin/bash\n", TestFileName);
+            this.ChangeMode(TestFileName, Convert.ToUInt16("755", 8));
+            this.ValidateGitCommand($"add {TestFileName}");
+            this.ValidateGitCommand($"ls-files --stage {TestFileName}");
+        }
+
         [TestCase]
         public void AddFileCommitThenDeleteAndCommit()
         {
@@ -1012,22 +1024,12 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
         [TestCase]
         public void RenameOnlyFileInFolder()
         {
-            ControlGitRepo.Fetch("FunctionalTests/20170202_RenameTestMergeTarget");
-            ControlGitRepo.Fetch("FunctionalTests/20170202_RenameTestMergeSource");
+            this.ControlGitRepo.Fetch("FunctionalTests/20170202_RenameTestMergeTarget");
+            this.ControlGitRepo.Fetch("FunctionalTests/20170202_RenameTestMergeSource");
 
             this.ValidateGitCommand("checkout FunctionalTests/20170202_RenameTestMergeTarget");
             this.FileSystem.ReadAllText(this.Enlistment.GetVirtualPathTo("Test_EPF_GitCommandsTestOnlyFileFolder", "file.txt"));
             this.ValidateGitCommand("merge origin/FunctionalTests/20170202_RenameTestMergeSource");
-        }
-
-        [TestCase]
-        public void UpdateIndexCannotModifySkipWorktreeBit()
-        {
-            ProcessResult result = GitHelpers.InvokeGitAgainstGVFSRepo(this.Enlistment.RepoRoot, "update-index --skip-worktree Readme.md");
-            result.Errors.ShouldContain("Modifying the skip worktree bit is not supported on a GVFS repo");
-
-            result = GitHelpers.InvokeGitAgainstGVFSRepo(this.Enlistment.RepoRoot, "update-index --no-skip-worktree Readme.md");
-            result.Errors.ShouldContain("Modifying the skip worktree bit is not supported on a GVFS repo");
         }
 
         [TestCase]

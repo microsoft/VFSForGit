@@ -36,7 +36,6 @@
   <ItemGroup>
     <FilesToSign Include="
       $(BuildOutputDir)\GitHooksLoader\bin\$(Platform)\$(Configuration)\GitHooksLoader.exe;
-      $(BuildOutputDir)\FastFetch\bin\$(Platform)\$(Configuration)\FastFetch.exe;
       $(BuildOutputDir)\GVFS.Common\bin\$(Platform)\$(Configuration)\netstandard2.0\GVFS.Common.dll;
       $(BuildOutputDir)\GVFS.GVFlt\bin\$(Platform)\$(Configuration)\GVFS.GVFlt.dll;
       $(BuildOutputDir)\GVFS.Hooks.Windows\bin\$(Platform)\$(Configuration)\GVFS.Hooks.exe;

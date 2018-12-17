@@ -8,6 +8,7 @@ namespace GVFS.Common.Maintenance
 {
     public class GitMaintenanceQueue
     {
+        private readonly object queueLock = new object();
         private GVFSContext context;
         private BlockingCollection<GitMaintenanceStep> queue = new BlockingCollection<GitMaintenanceStep>();
         private GitMaintenanceStep currentStep;
@@ -25,8 +26,16 @@ namespace GVFS.Common.Maintenance
         {
             try
             {
-                this.queue?.Add(step);
-                return true;
+                lock (this.queueLock)
+                {
+                    if (this.queue == null)
+                    {
+                        return false;
+                    }
+
+                    this.queue.Add(step);
+                    return true;
+                }
             }
             catch (InvalidOperationException)
             {
@@ -38,7 +47,11 @@ namespace GVFS.Common.Maintenance
 
         public void Stop()
         {
-            this.queue?.CompleteAdding();
+            lock (this.queueLock)
+            {
+                this.queue?.CompleteAdding();
+            }
+
             this.currentStep?.Stop();
         }
 
@@ -65,13 +78,18 @@ namespace GVFS.Common.Maintenance
         {
             while (true)
             {
+                // We cannot take the lock here, as TryTake is blocking.
+                // However, this is the place to set 'this.queue' to null.
                 if (!this.queue.TryTake(out this.currentStep, Timeout.Infinite)
                     || this.queue.IsAddingCompleted)
                 {
-                    // A stop was requested
-                    this.queue.Dispose();
-                    this.queue = null;
-                    return;
+                    lock (this.queueLock)
+                    {
+                        // A stop was requested
+                        this.queue?.Dispose();
+                        this.queue = null;
+                        return;
+                    }
                 }
 
                 if (this.EnlistmentRootReady())

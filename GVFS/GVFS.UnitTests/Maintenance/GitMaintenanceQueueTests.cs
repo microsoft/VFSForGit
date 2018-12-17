@@ -95,7 +95,7 @@ namespace GVFS.UnitTests.Maintenance
 
             // Ensure we don't start a job after the Stop() call
             TestGitMaintenanceStep watchForStart = new TestGitMaintenanceStep(this.context, this.gitObjects);
-            queue.TryEnqueue(watchForStart).ShouldBeTrue();
+            queue.TryEnqueue(watchForStart).ShouldBeFalse();
 
             // This only ensures the event didn't happen within maxWaitTime
             Assert.IsFalse(watchForStart.EventTriggered.WaitOne(this.maxWaitTime));

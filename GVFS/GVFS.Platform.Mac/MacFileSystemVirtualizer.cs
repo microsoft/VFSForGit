@@ -289,7 +289,7 @@ namespace GVFS.Platform.Mac
                                 metadata.Add("bufferContents", Encoding.UTF8.GetString(buffer));
                                 this.Context.Tracer.RelatedError(metadata, $"{nameof(this.TryGetSymLinkTarget)}: SymLink target exceeds buffer size");
 
-                                throw new GetSymLinkTargetException("SymLink target exceeds buffer size");;
+                                throw new GetSymLinkTargetException("SymLink target exceeds buffer size");
                             }
                         }
                     }))
@@ -500,7 +500,7 @@ namespace GVFS.Platform.Mac
                             EventMetadata metadata = new EventMetadata();
                             metadata.Add("Area", this.EtwArea);
                             metadata.Add(TracingConstants.MessageKey.WarningMessage, "Blocked index delete outside the lock");
-                            this.Context.Tracer.RelatedEvent(EventLevel.Warning, $"{nameof(OnPreDelete)}_BlockedIndexDelete", metadata);
+                            this.Context.Tracer.RelatedEvent(EventLevel.Warning, $"{nameof(this.OnPreDelete)}_BlockedIndexDelete", metadata);
 
                             return Result.EAccessDenied;
                         }

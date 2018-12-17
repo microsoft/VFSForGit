@@ -34,11 +34,6 @@ namespace GVFS.CommandLine
 
         public override void Execute()
         {
-            if (GVFSPlatform.Instance.IsUnderConstruction)
-            {
-                this.SkipLock = true;
-            }
-            
             this.ValidatePathParameter(this.EnlistmentRootPathParameter);
 
             string errorMessage;
@@ -64,7 +59,7 @@ namespace GVFS.CommandLine
 
             if (!this.Unattended && 
                 !this.SkipUnregister &&
-                GVFSPlatform.Instance.SupportsGVFSService)
+                GVFSPlatform.Instance.UnderConstruction.SupportsGVFSService)
             {
                 if (!this.ShowStatusWhileRunning(
                     () => { return this.UnregisterRepo(root, out errorMessage); },

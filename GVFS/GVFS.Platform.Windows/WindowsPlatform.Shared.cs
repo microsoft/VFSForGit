@@ -1,6 +1,7 @@
 ﻿using GVFS.Common;
 using Microsoft.Win32.SafeHandles;
 using System;
+using System.Diagnostics;
 using System.Runtime.InteropServices;
 using System.Security.Principal;
 
@@ -36,7 +37,7 @@ namespace GVFS.Platform.Windows
             }
         }
 
-        public static bool IsProcessActiveImplementation(int processId)
+        public static bool IsProcessActiveImplementation(int processId, bool tryGetProcessById)
         {
             using (SafeFileHandle process = NativeMethods.OpenProcess(NativeMethods.ProcessAccessFlags.QueryLimitedInformation, false, processId))
             {
@@ -46,6 +47,20 @@ namespace GVFS.Platform.Windows
                     if (NativeMethods.GetExitCodeProcess(process, out exitCode) && exitCode == StillActive)
                     {
                         return true;
+                    }
+                }
+                else if (tryGetProcessById)
+                {
+                    // The process.IsInvalid may be true when the mount process doesn't have access to call
+                    // OpenProcess for the specified processId. Fallback to slow way of finding process.
+                    try
+                    {
+                        Process.GetProcessById(processId);
+                        return true;
+                    }
+                    catch (ArgumentException)
+                    {
+                        return false;
                     }
                 }
 

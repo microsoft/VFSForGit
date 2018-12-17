@@ -1,5 +1,4 @@
-﻿using GVFS.Common;
-using GVFS.Common.Git;
+﻿using GVFS.Common.Git;
 using System.IO;
 
 namespace GVFS.Platform.Mac
@@ -15,13 +14,12 @@ namespace GVFS.Platform.Mac
                 return File.Exists(gitBinPath);
             }
 
-            // TODO(Mac): Use 'which' to find git (like the Windows platform uses "where")
             return this.GetInstalledGitBinPath() != null;
         }
 
         public string GetInstalledGitBinPath()
         {
-            // TODO(Mac): Handle alternate install locations
+            // TODO(Mac): Use 'which' to find git (like the Windows platform uses "where")
             string gitBinPath = $"/usr/local/bin/{GitProcessName}";
             if (File.Exists(gitBinPath))
             {

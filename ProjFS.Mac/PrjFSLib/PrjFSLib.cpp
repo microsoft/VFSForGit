@@ -89,9 +89,9 @@ static bool IsBitSetInFileFlags(const char* fullPath, uint32_t bit);
 
 static bool InitializeEmptyPlaceholder(const char* fullPath);
 template<typename TPlaceholder> static bool InitializeEmptyPlaceholder(const char* fullPath, TPlaceholder* data, const char* xattrName);
-static bool AddXAttr(const char* fullPath, const char* name, const void* value, size_t size);
-static bool GetXAttr(const char* fullPath, const char* name, size_t size, _Out_ void* value);
-static bool RemoveXAttr(const char* fullPath, const char* name);
+static errno_t AddXAttr(const char* fullPath, const char* name, const void* value, size_t size);
+static bool TryGetXAttr(const char* fullPath, const char* name, size_t expectedSize, _Out_ void* value);
+static errno_t RemoveXAttrWithoutFollowingLinks(const char* fullPath, const char* name);
 
 static inline PrjFS_NotificationType KUMessageTypeToNotificationType(MessageType kuNotificationType);
 
@@ -263,7 +263,7 @@ PrjFS_Result PrjFS_ConvertDirectoryToVirtualizationRoot(
         return PrjFS_Result_EInvalidArgs;
     }
     
-    // TODO: walk entire parent chain to root and all child directories to leaf nodes, to make sure we find no other virtualization roots.
+    // TODO(Mac): walk entire parent chain to root and all child directories to leaf nodes, to make sure we find no other virtualization roots.
     // It is not allowed to have nested virtualization roots.
 
     if (IsBitSetInFileFlags(virtualizationRootFullPath, FileFlags_IsInVirtualizationRoot) ||
@@ -325,7 +325,7 @@ PrjFS_Result PrjFS_WritePlaceholderDirectory(
     return PrjFS_Result_Success;
     
 CleanupAndFail:
-    // TODO: cleanup the directory on disk if needed
+    // TODO(Mac): cleanup the directory on disk if needed
     return result;
 }
 
@@ -412,7 +412,7 @@ PrjFS_Result PrjFS_WritePlaceholderFile(
 CleanupAndFail:
     if (nullptr != file)
     {
-        // TODO: we now have a partially created placeholder file. Should we delete it?
+        // TODO(Mac) #234: we now have a partially created placeholder file. Should we delete it?
         // A better pattern would likely be to create the file in a tmp location, fully initialize its state, then move it into the requested path
         
         fclose(file);
@@ -551,7 +551,7 @@ PrjFS_Result PrjFS_DeleteFile(
     {
         // TODO(Mac): Determine if we need a similar check for directories as well
         PrjFSFileXAttrData xattrData = {};
-        if (!GetXAttr(fullPath, PrjFSFileXAttrName, sizeof(PrjFSFileXAttrData), &xattrData))
+        if (!TryGetXAttr(fullPath, PrjFSFileXAttrName, sizeof(PrjFSFileXAttrData), &xattrData))
         {
             *failureCause = PrjFS_UpdateFailureCause_FullFile;
             return PrjFS_Result_EVirtualizationInvalidOperation;
@@ -818,7 +818,7 @@ static PrjFS_Result HandleHydrateFileRequest(const MessageHeader* request, const
     CombinePaths(s_virtualizationRootFullPath.c_str(), relativePath, fullPath);
     
     PrjFSFileXAttrData xattrData = {};
-    if (!GetXAttr(fullPath, PrjFSFileXAttrName, sizeof(PrjFSFileXAttrData), &xattrData))
+    if (!TryGetXAttr(fullPath, PrjFSFileXAttrName, sizeof(PrjFSFileXAttrData), &xattrData))
     {
         return PrjFS_Result_EIOError;
     }
@@ -869,18 +869,18 @@ static PrjFS_Result HandleHydrateFileRequest(const MessageHeader* request, const
             request->procname,
             &fileHandle);
         
-        // TODO: once we support async callbacks, we'll need to save off the fileHandle if the result is Pending
+        // TODO(Mac): once we support async callbacks, we'll need to save off the fileHandle if the result is Pending
         
         if (fclose(fileHandle.file))
         {
-            // TODO: under what conditions can fclose fail? How do we recover?
+            // TODO(Mac): under what conditions can fclose fail? How do we recover?
             result = PrjFS_Result_EIOError;
             goto CleanupAndReturn;
         }
         
         if (PrjFS_Result_Success == result)
         {
-            // TODO: validate that the total bytes written match the size that was reported on the placeholder in the first place
+            // TODO(Mac): validate that the total bytes written match the size that was reported on the placeholder in the first place
             // Potential bugs if we don't:
             //  * The provider writes fewer bytes than expected. The hydrated is left with extra padding up to the original reported size.
             //  * The provider writes more bytes than expected. The write succeeds, but whatever tool originally opened the file may have already
@@ -888,7 +888,7 @@ static PrjFS_Result HandleHydrateFileRequest(const MessageHeader* request, const
             
             if (!SetBitInFileFlags(fullPath, FileFlags_IsEmpty, false))
             {
-                // TODO: how should we handle this scenario where the provider thinks it succeeded, but we were unable to
+                // TODO(Mac): how should we handle this scenario where the provider thinks it succeeded, but we were unable to
                 // update placeholder metadata?
                 result = PrjFS_Result_EIOError;
             }
@@ -947,7 +947,7 @@ static PrjFS_Result HandleFileNotification(
 #endif
     
     PrjFSFileXAttrData xattrData = {};
-    bool partialFile = GetXAttr(fullPath, PrjFSFileXAttrName, sizeof(PrjFSFileXAttrData), &xattrData);
+    bool partialFile = TryGetXAttr(fullPath, PrjFSFileXAttrName, sizeof(PrjFSFileXAttrData), &xattrData);
 
     PrjFS_Result result = s_callbacks.NotifyOperation(
         0 /* commandId */,
@@ -964,7 +964,13 @@ static PrjFS_Result HandleFileNotification(
     {
         // PrjFS_NotificationType_FileModified is a post-modified FileOp event (that cannot be stopped
         // by the provider) and so there's no need to check the result of the call to NotifyOperation
-        RemoveXAttr(fullPath, PrjFSFileXAttrName);
+        errno_t result = RemoveXAttrWithoutFollowingLinks(fullPath, PrjFSFileXAttrName);
+        if (0 != result)
+        {
+            // TODO(Mac) #395: Log error
+            // Note that it's expected that RemoveXAttrWithoutFollowingLinks return ENOATTR if
+            // another thread has removed the attribute
+        }
     }
     
     return result;
@@ -1035,9 +1041,15 @@ static bool InitializeEmptyPlaceholder(const char* fullPath, TPlaceholder* data,
         data->header.formatVersion = PlaceholderFormatVersion;
         
         static_assert(is_pod<TPlaceholder>(), "TPlaceholder must be a POD struct");
-        if (AddXAttr(fullPath, xattrName, data, sizeof(TPlaceholder)))
+        
+        errno_t result = AddXAttr(fullPath, xattrName, data, sizeof(TPlaceholder));
+        if (0 == result)
         {
             return true;
+        }
+        else
+        {
+            // TODO(Mac) #395: Log result
         }
     }
     
@@ -1047,7 +1059,7 @@ static bool InitializeEmptyPlaceholder(const char* fullPath, TPlaceholder* data,
 static bool IsVirtualizationRoot(const char* fullPath)
 {
     PrjFSVirtualizationRootXAttrData data = {};
-    if (GetXAttr(fullPath, PrjFSVirtualizationRootXAttrName, sizeof(PrjFSVirtualizationRootXAttrData), &data))
+    if (TryGetXAttr(fullPath, PrjFSVirtualizationRootXAttrName, sizeof(PrjFSVirtualizationRootXAttrData), &data))
     {
         return true;
     }
@@ -1097,37 +1109,37 @@ static bool IsBitSetInFileFlags(const char* fullPath, uint32_t bit)
     return fileAttributes.st_flags & bit;
 }
 
-static bool AddXAttr(const char* fullPath, const char* name, const void* value, size_t size)
+static errno_t AddXAttr(const char* fullPath, const char* name, const void* value, size_t size)
 {
-    if (setxattr(fullPath, name, value, size, 0, 0))
+    if (0 != setxattr(fullPath, name, value, size, 0, 0))
+    {
+        return errno;
+    }
+    
+    return 0;
+}
+
+static bool TryGetXAttr(const char* fullPath, const char* name, size_t expectedSize, _Out_ void* value)
+{
+    if (expectedSize != getxattr(fullPath, name, value, expectedSize, 0, 0))
     {
         return false;
     }
     
-    return true;
-}
-
-static bool GetXAttr(const char* fullPath, const char* name, size_t size, _Out_ void* value)
-{
-    if (getxattr(fullPath, name, value, size, 0, 0) == size)
-    {
-        // TODO: also validate the magic number and format version.
-        // It's easy to check their expected values, but we will need to decide what to do if they are incorrect.
-
-        return true;
-    }
+    // TODO(Mac): also validate the magic number and format version.
+    // It's easy to check their expected values, but we will need to decide what to do if they are incorrect.
     
-    return false;
+    return true;
 }
 
-static bool RemoveXAttr(const char* fullPath, const char* name)
+static errno_t RemoveXAttrWithoutFollowingLinks(const char* fullPath, const char* name)
 {
-    if (removexattr(fullPath, name, XATTR_NOFOLLOW))
+    if (0 != removexattr(fullPath, name, XATTR_NOFOLLOW))
     {
-        return false;
+        return errno;
     }
 
-    return true;
+    return 0;
 }
 
 static inline PrjFS_NotificationType KUMessageTypeToNotificationType(MessageType kuNotificationType)

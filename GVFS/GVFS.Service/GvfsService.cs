@@ -335,7 +335,7 @@ namespace GVFS.Service
             {
                 // Do not crash the service if there is an error here. Service is still healthy, but we
                 // might not create file indicating that it is OK to use GitStatusCache.
-                this.tracer.RelatedError($"{nameof(CheckEnableGitStatusCacheTokenFile)}: Unable to determine GVFS installation time or write EnableGitStatusCacheToken file due to exception. Exception: {ex.ToString()}");
+                this.tracer.RelatedError($"{nameof(this.CheckEnableGitStatusCacheTokenFile)}: Unable to determine GVFS installation time or write EnableGitStatusCacheToken file due to exception. Exception: {ex.ToString()}");
             }
         }
 

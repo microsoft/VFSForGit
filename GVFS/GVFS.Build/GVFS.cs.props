@@ -8,6 +8,11 @@
     <IntermediateOutputPath>$(BuildOutputDir)\$(MSBuildProjectName)\obj\$(Platform)\$(Configuration)\</IntermediateOutputPath>
     <IntDir>$(BuildOutputDir)\$(MSBuildProjectName)\intermediate\$(Platform)\$(Configuration)\</IntDir>
   </PropertyGroup>
+  
+  <PropertyGroup>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <CodeAnalysisRuleSet>$(MSBuildThisFileDirectory)\GVFS.ruleset</CodeAnalysisRuleSet>
+  </PropertyGroup>
 
   <PropertyGroup>
     <DefaultItemExcludes>$(DefaultItemExcludes);StyleCop.Cache;TestResults.xml</DefaultItemExcludes>
