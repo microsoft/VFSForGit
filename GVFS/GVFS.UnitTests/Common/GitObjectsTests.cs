@@ -10,15 +10,15 @@ namespace GVFS.UnitTests.Common
         [TestCase]
         public void IsLooseObjectsDirectory()
         {
-            GitObjects.IsLooseObjectsDirectory("BB").ShouldEqual(true);
-            GitObjects.IsLooseObjectsDirectory("bb").ShouldEqual(true);
-            GitObjects.IsLooseObjectsDirectory("A7").ShouldEqual(true);
-            GitObjects.IsLooseObjectsDirectory("55").ShouldEqual(true);
-            GitObjects.IsLooseObjectsDirectory("K7").ShouldEqual(false);
-            GitObjects.IsLooseObjectsDirectory("A-").ShouldEqual(false);
-            GitObjects.IsLooseObjectsDirectory("?B").ShouldEqual(false);
-            GitObjects.IsLooseObjectsDirectory("BBB").ShouldEqual(false);
-            GitObjects.IsLooseObjectsDirectory("B-B").ShouldEqual(false);
+            GitObjects.IsLooseObjectsDirectory("BB").ShouldBeTrue();
+            GitObjects.IsLooseObjectsDirectory("bb").ShouldBeTrue();
+            GitObjects.IsLooseObjectsDirectory("A7").ShouldBeTrue();
+            GitObjects.IsLooseObjectsDirectory("55").ShouldBeTrue();
+            GitObjects.IsLooseObjectsDirectory("K7").ShouldBeFalse();
+            GitObjects.IsLooseObjectsDirectory("A-").ShouldBeFalse();
+            GitObjects.IsLooseObjectsDirectory("?B").ShouldBeFalse();
+            GitObjects.IsLooseObjectsDirectory("BBB").ShouldBeFalse();
+            GitObjects.IsLooseObjectsDirectory("B-B").ShouldBeFalse();
         }
     }
 }

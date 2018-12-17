@@ -1,4 +1,5 @@
-﻿using System.Linq;
+﻿using System;
+using System.Linq;
 using System.Security.Cryptography;
 using System.Text;
 
@@ -8,7 +9,7 @@ namespace GVFS.Common
     {
         public static bool IsValidShaFormat(string sha)
         {
-            return sha.Length == 40 && !sha.Any(c => !(c >= '0' && c <= '9') && !(c >= 'a' && c <= 'f') && !(c >= 'A' && c <= 'F'));
+            return sha.Length == 40 && !sha.Any(c => !Uri.IsHexDigit(c));
         }
 
         public static string SHA1HashStringForUTF8String(string s)

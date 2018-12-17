@@ -60,7 +60,7 @@ namespace GVFS.Common.Maintenance
                         IEnumerable<int> processIds = this.RunningGitProcessIds();
                         if (processIds.Any())
                         {
-                            activity.RelatedWarning($"Skipping {nameof(LooseObjectsStep)} due to git pids {0}", string.Join(",", processIds), Keywords.Telemetry);
+                            activity.RelatedWarning($"Skipping {nameof(LooseObjectsStep)} due to git pids {string.Join(",", processIds)}", Keywords.Telemetry);
                             return;
                         }
                     }
