@@ -34,15 +34,9 @@ namespace GVFS.Common.Git
                     this.certificatePathOrSubjectCommonName = sslCerts.Values.Last();
                 }
 
-                if (configSettings.TryGetValue(GitConfigSetting.HttpSslCertPasswordProtected, out GitConfigSetting isSslCertPasswordProtected))
-                {
-                    this.isCertificatePasswordProtected = isSslCertPasswordProtected.Values.Select(bool.Parse).Last();
-                }
+                this.isCertificatePasswordProtected = SetBoolSettingOrThrow(configSettings, GitConfigSetting.HttpSslCertPasswordProtected, this.isCertificatePasswordProtected);
 
-                if (configSettings.TryGetValue(GitConfigSetting.HttpSslVerify, out GitConfigSetting sslVerify))
-                {
-                    this.ShouldVerify = sslVerify.Values.Select(bool.Parse).Last();
-                }
+                this.ShouldVerify = SetBoolSettingOrThrow(configSettings, GitConfigSetting.HttpSslVerify, this.ShouldVerify);
             }
         }
 
@@ -76,6 +70,23 @@ namespace GVFS.Common.Git
             }
 
             return result;
+        }
+
+        private static bool SetBoolSettingOrThrow(IDictionary<string, GitConfigSetting> configSettings, string settingName, bool currentValue)
+        {
+            if (configSettings.TryGetValue(settingName, out GitConfigSetting settingValues))
+            {
+                try
+                {
+                    return settingValues.Values.Select(bool.Parse).Last();
+                }
+                catch (FormatException)
+                {
+                    throw new InvalidRepoException($"{settingName} git setting did not have a bool-parsable value. Found: {string.Join(" ", settingValues.Values)}");
+                }
+            }
+
+            return currentValue;
         }
 
         private static void LogWithAppropriateLevel(ITracer tracer, EventMetadata metadata, IEnumerable<X509Certificate2> certificates, string logMessage)
