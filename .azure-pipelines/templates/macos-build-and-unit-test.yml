@@ -28,3 +28,15 @@ steps:
       testRunTitle: Mac $(configuration) Unit Tests
       publishRunAttachments: true
     condition: succeededOrFailed()
+
+  - script: Scripts/Mac/CI/CreateBuildDrop.sh $(configuration) $(Build.ArtifactStagingDirectory)/Tests
+    displayName: Create functional test drop.
+
+  - task: PublishBuildArtifacts@1
+    displayName: Publish functional test drop artifact.
+    inputs:
+      pathtoPublish: $(Build.ArtifactStagingDirectory)/Tests
+      artifactName: "FunctionalTests_$(platformFriendlyName)_$(configuration)"
+      parallel: true
+      parallelCount: 8
+    condition: succeededOrFailed()

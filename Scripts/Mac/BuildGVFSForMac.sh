@@ -63,5 +63,15 @@ dotnet publish $VFS_SRCDIR/GVFS.sln /p:Configuration=$CONFIGURATION.Mac /p:Platf
 echo 'Copying Git installer to the output directory...'
 $VFS_SCRIPTDIR/PublishGit.sh $GITPATH || exit 1
 
+echo 'Installing shared data queue stall workaround...'
+# We'll generate a temporary project if and only if we don't find the correct dylib already in place.
+BUILDDIR=$VFS_OUTPUTDIR/GVFS.Build
+if [ ! -e $BUILDDIR/libSharedDataQueue.dylib ]; then
+  cp $VFS_SRCDIR/nuget.config $BUILDDIR
+  dotnet new classlib -n Restore.SharedDataQueueStallWorkaround -o $BUILDDIR --force
+  dotnet add $BUILDDIR/Restore.SharedDataQueueStallWorkaround.csproj package --package-directory $VFS_PACKAGESDIR SharedDataQueueStallWorkaround --version '1.0.0'
+  cp $VFS_PACKAGESDIR/shareddataqueuestallworkaround/1.0.0/libSharedDataQueue.dylib $BUILDDIR/libSharedDataQueue.dylib
+fi
+
 echo 'Running VFS for Git unit tests...'
 $VFS_PUBLISHDIR/GVFS.UnitTests || exit 1
