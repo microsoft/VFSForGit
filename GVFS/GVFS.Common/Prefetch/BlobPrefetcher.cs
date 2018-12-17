@@ -83,70 +83,47 @@ namespace GVFS.Common.Prefetch
 
         public List<string> FolderList { get; }
 
-        public static bool TryLoadFolderList(Enlistment enlistment, string foldersInput, string folderListFile, List<string> folderListOutput, out string error)
+        public static bool TryLoadFolderList(Enlistment enlistment, string foldersInput, string folderListFile, List<string> folderListOutput, bool readListFromStdIn, out string error)
         {
-            folderListOutput.AddRange(
-                foldersInput.Split(new[] { ';' }, StringSplitOptions.RemoveEmptyEntries)
-                .Select(path => BlobPrefetcher.ToAbsolutePath(enlistment, path, isFolder: true)));
-
-            if (!string.IsNullOrWhiteSpace(folderListFile))
-            {
-                if (File.Exists(folderListFile))
-                {
-                    IEnumerable<string> allLines = File.ReadAllLines(folderListFile)
-                        .Select(line => line.Trim())
-                        .Where(line => !string.IsNullOrEmpty(line))
-                        .Where(line => !line.StartsWith(GVFSConstants.GitCommentSign.ToString()))
-                        .Select(path => BlobPrefetcher.ToAbsolutePath(enlistment, path, isFolder: true));
-
-                    folderListOutput.AddRange(allLines);
-                }
-                else
-                {
-                    error = string.Format("Could not find '{0}' for folder list.", folderListFile);
-                    return false;
-                }
-            }
-
-            folderListOutput.RemoveAll(string.IsNullOrWhiteSpace);
-
-            foreach (string folder in folderListOutput)
-            {
-                if (folder.Contains("*"))
-                {
-                    error = "Wildcards are not supported for folders. Invalid entry: " + folder;
-                    return false;
-                }
-            }
-
-            error = null;
-            return true;
+            return TryLoadFileOrFolderList(
+                    enlistment,
+                    foldersInput,
+                    folderListFile,
+                    isFolder: true,
+                    readListFromStdIn: readListFromStdIn,
+                    output: folderListOutput,
+                    elementValidationFunction: s =>
+                        s.Contains("*") ?
+                            "Wildcards are not supported for folders. Invalid entry: " + s :
+                            null,
+                    error: out error);
         }
 
-        public static bool TryLoadFileList(Enlistment enlistment, string filesInput, List<string> fileListOutput, out string error)
+        public static bool TryLoadFileList(Enlistment enlistment, string filesInput, string filesListFile, List<string> fileListOutput, bool readListFromStdIn, out string error)
         {
-            fileListOutput.AddRange(
-                filesInput.Split(new[] { ';' }, StringSplitOptions.RemoveEmptyEntries)
-                .Select(path => BlobPrefetcher.ToAbsolutePath(enlistment, path, isFolder: false)));
-
-            foreach (string file in fileListOutput)
-            {
-                if (file.IndexOf('*', 1) != -1)
+            return TryLoadFileOrFolderList(
+                enlistment,
+                filesInput,
+                filesListFile,
+                readListFromStdIn: readListFromStdIn,
+                isFolder: false,
+                output: fileListOutput,
+                elementValidationFunction: s =>
                 {
-                    error = "Only prefix wildcards are supported. Invalid entry: " + file;
-                    return false;
-                }
+                    if (s.IndexOf('*', 1) != -1)
+                    {
+                        return "Only prefix wildcards are supported. Invalid entry: " + s;
+                    }
 
-                if (file.EndsWith(GVFSConstants.GitPathSeparatorString) ||
-                    file.EndsWith(pathSeparatorString))
-                {
-                    error = "Folders are not allowed in the file list. Invalid entry: " + file;
-                    return false;
-                }
-            }
+                    if (s.EndsWith(GVFSConstants.GitPathSeparatorString) ||
+                        s.EndsWith(pathSeparatorString))
+                    {
+                        return "Folders are not allowed in the file list. Invalid entry: " + s;
+                    }
 
-            error = null;
-            return true;
+                    return null;
+                },
+                error: out error);
         }
 
         public static bool IsNoopPrefetch(
@@ -173,7 +150,7 @@ namespace GVFS.Common.Prefetch
 
                 tracer.RelatedEvent(
                     EventLevel.Informational,
-                    "BlobPrefetcher.IsNoopPrefetch", 
+                    "BlobPrefetcher.IsNoopPrefetch",
                     new EventMetadata
                     {
                         { "Last" + PrefetchArgs.CommitId, lastCommitId },
@@ -231,7 +208,7 @@ namespace GVFS.Common.Prefetch
             int matchedBlobCount;
             int downloadedBlobCount;
             int hydratedFileCount;
-            
+
             this.PrefetchWithStats(branchOrCommit, isBranch, false, out matchedBlobCount, out downloadedBlobCount, out hydratedFileCount);
         }
 
@@ -290,7 +267,7 @@ namespace GVFS.Common.Prefetch
                     return;
                 }
             }
-            
+
             BlockingCollection<string> availableBlobs = new BlockingCollection<string>();
 
             ////
@@ -300,7 +277,7 @@ namespace GVFS.Common.Prefetch
             //    |           |              |                 |
             //     ------------------------------------------------------> fileHydrator
             ////
-            
+
             // diff
             //  Inputs:
             //      * files/folders
@@ -310,7 +287,7 @@ namespace GVFS.Common.Prefetch
             //      * FileAddOperations (property): Repo-relative paths corresponding to those blob ids
             DiffHelper diff = new DiffHelper(this.Tracer, this.Enlistment, this.FileList, this.FolderList, includeSymLinks: false);
 
-            // blobFinder 
+            // blobFinder
             //  Inputs:
             //      * requiredBlobs (in param): Blob ids from output of `diff`
             //  Outputs:
@@ -513,9 +490,77 @@ namespace GVFS.Common.Prefetch
             }
         }
 
+        private static IEnumerable<string> GetFilesFromVerbParameter(string valueString)
+        {
+            return valueString.Split(new[] { ';' }, StringSplitOptions.RemoveEmptyEntries);
+        }
+
+        private static IEnumerable<string> GetFilesFromFile(string fileName, out string error)
+        {
+            error = null;
+            if (string.IsNullOrWhiteSpace(fileName))
+            {
+                return Enumerable.Empty<string>();
+            }
+
+            if (!File.Exists(fileName))
+            {
+                error = string.Format("Could not find '{0}' list file.", fileName);
+                return Enumerable.Empty<string>();
+            }
+
+            return File.ReadAllLines(fileName)
+                        .Select(line => line.Trim());
+        }
+
+        private static IEnumerable<string> GetFilesFromStdin(bool shouldRead)
+        {
+            if (!shouldRead)
+            {
+                yield break;
+            }
+
+            string line;
+            while ((line = Console.In.ReadLine()) != null)
+            {
+                yield return line.Trim();
+            }
+        }
+
+        private static bool TryLoadFileOrFolderList(Enlistment enlistment, string valueString, string listFileName, bool readListFromStdIn, bool isFolder, List<string> output, Func<string, string> elementValidationFunction, out string error)
+        {
+            output.AddRange(
+                GetFilesFromVerbParameter(valueString)
+                .Union(GetFilesFromFile(listFileName, out string fileReadError))
+                .Union(GetFilesFromStdin(readListFromStdIn))
+                .Where(path => !path.StartsWith(GVFSConstants.GitCommentSign.ToString()))
+                .Where(path => !string.IsNullOrWhiteSpace(path))
+                .Select(path => BlobPrefetcher.ToAbsolutePath(enlistment, path, isFolder: isFolder)));
+
+            if (!string.IsNullOrWhiteSpace(fileReadError))
+            {
+                error = fileReadError;
+                return false;
+            }
+
+            string[] errorArray = output
+                .Select(elementValidationFunction)
+                .Where(s => !string.IsNullOrWhiteSpace(s))
+                .ToArray();
+
+            if (errorArray != null && errorArray.Length > 0)
+            {
+                error = string.Join("\n", errorArray);
+                return false;
+            }
+
+            error = null;
+            return true;
+        }
+
         private static string ToAbsolutePath(Enlistment enlistment, string path, bool isFolder)
         {
-            string absolute = 
+            string absolute =
                 path.StartsWith("*")
                 ? path
                 : Path.Combine(enlistment.WorkingDirectoryRoot, path.Replace(GVFSConstants.GitPathSeparator, Path.DirectorySeparatorChar).TrimStart(Path.DirectorySeparatorChar));

@@ -49,10 +49,31 @@ namespace GVFS.CommandLine
         public string FoldersListFile { get; set; }
 
         [Option(
+            "stdin-files-list",
+            Required = false,
+            Default = false,
+            HelpText = "Specify this flag to load file list from stdin. Same format as when loading from file.")]
+        public bool FilesFromStdIn { get; set; }
+
+        [Option(
+            "stdin-folders-list",
+            Required = false,
+            Default = false,
+            HelpText = "Specify this flag to load folder list from stdin. Same format as when loading from file.")]
+        public bool FoldersFromStdIn { get; set; }
+
+        [Option(
+            "files-list",
+            Required = false,
+            Default = "",
+            HelpText = "A file containing line-delimited list of files to fetch. Wildcards are supported.")]
+        public string FilesListFile { get; set; }
+
+        [Option(
             "hydrate",
             Required = false,
             Default = false,
-            HelpText = "Specify this flag to also hydrate files in the working directory")]
+            HelpText = "Specify this flag to also hydrate files in the working directory.")]
         public bool HydrateFiles { get; set; }
 
         [Option(
@@ -67,7 +88,7 @@ namespace GVFS.CommandLine
             "verbose",
             Required = false,
             Default = false,
-            HelpText = "Show all outputs on the console in addition to writing them to a log file")]
+            HelpText = "Show all outputs on the console in addition to writing them to a log file.")]
         public bool Verbose { get; set; }
 
         public bool SkipVersionCheck { get; set; }
@@ -105,7 +126,10 @@ namespace GVFS.CommandLine
                     metadata.Add("Commits", this.Commits);
                     metadata.Add("Files", this.Files);
                     metadata.Add("Folders", this.Folders);
+                    metadata.Add("FileListFile", this.FilesListFile);
                     metadata.Add("FoldersListFile", this.FoldersListFile);
+                    metadata.Add("FilesFromStdIn", this.FilesFromStdIn);
+                    metadata.Add("FoldersFromStdIn", this.FoldersFromStdIn);
                     metadata.Add("HydrateFiles", this.HydrateFiles);
                     tracer.RelatedEvent(EventLevel.Informational, "PerformPrefetch", metadata);
 
@@ -113,7 +137,10 @@ namespace GVFS.CommandLine
                     {
                         if (!string.IsNullOrWhiteSpace(this.Files) ||
                             !string.IsNullOrWhiteSpace(this.Folders) ||
-                            !string.IsNullOrWhiteSpace(this.FoldersListFile))
+                            !string.IsNullOrWhiteSpace(this.FoldersListFile) ||
+                            !string.IsNullOrWhiteSpace(this.FilesListFile) ||
+                            this.FilesFromStdIn ||
+                            this.FoldersFromStdIn)
                         {
                             this.ReportErrorAndExit(tracer, "You cannot prefetch commits and blobs at the same time.");
                         }
@@ -141,7 +168,7 @@ namespace GVFS.CommandLine
                         FileBasedDictionary<string, string> lastPrefetchArgs;
 
                         this.LoadBlobPrefetchArgs(tracer, enlistment, out headCommitId, out filesList, out foldersList, out lastPrefetchArgs);
-                        
+
                         if (BlobPrefetcher.IsNoopPrefetch(tracer, lastPrefetchArgs, headCommitId, filesList, foldersList, this.HydrateFiles))
                         {
                             Console.WriteLine("All requested files are already available. Nothing new to prefetch.");
@@ -274,7 +301,7 @@ namespace GVFS.CommandLine
             out FileBasedDictionary<string, string> lastPrefetchArgs)
         {
             string error;
-            
+
             if (!FileBasedDictionary<string, string>.TryCreate(
                     tracer,
                     Path.Combine(enlistment.DotGVFSRoot, "LastBlobPrefetch.dat"),
@@ -288,12 +315,12 @@ namespace GVFS.CommandLine
             filesList = new List<string>();
             foldersList = new List<string>();
 
-            if (!BlobPrefetcher.TryLoadFileList(enlistment, this.Files, filesList, out error))
+            if (!BlobPrefetcher.TryLoadFileList(enlistment, this.Files, this.FilesListFile, filesList, readListFromStdIn: this.FilesFromStdIn, error: out error))
             {
                 this.ReportErrorAndExit(tracer, error);
             }
 
-            if (!BlobPrefetcher.TryLoadFolderList(enlistment, this.Folders, this.FoldersListFile, foldersList, out error))
+            if (!BlobPrefetcher.TryLoadFolderList(enlistment, this.Folders, this.FoldersListFile, foldersList, readListFromStdIn: this.FoldersFromStdIn, error: out error))
             {
                 this.ReportErrorAndExit(tracer, error);
             }

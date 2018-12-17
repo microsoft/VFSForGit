@@ -42,9 +42,9 @@ namespace GVFS.FunctionalTests.Tools
             return this.IsEnlistmentMounted();
         }
 
-        public string Prefetch(string args, bool failOnError)
+        public string Prefetch(string args, bool failOnError, string standardInput = null)
         {
-            return this.CallGVFS("prefetch \"" + this.enlistmentRoot + "\" " + args, failOnError);
+            return this.CallGVFS("prefetch \"" + this.enlistmentRoot + "\" " + args, failOnError, standardInput: standardInput);
         }
 
         public void Repair(bool confirm)
@@ -90,7 +90,7 @@ namespace GVFS.FunctionalTests.Tools
             return this.CallGVFS("service " + argument, failOnError: true);
         }
 
-        private string CallGVFS(string args, bool failOnError = false, string trace = null)
+        private string CallGVFS(string args, bool failOnError = false, string trace = null, string standardInput = null)
         {
             ProcessStartInfo processInfo = null;
             processInfo = new ProcessStartInfo(this.pathToGVFS);
@@ -99,6 +99,10 @@ namespace GVFS.FunctionalTests.Tools
             processInfo.WindowStyle = ProcessWindowStyle.Hidden;
             processInfo.UseShellExecute = false;
             processInfo.RedirectStandardOutput = true;
+            if (standardInput != null)
+            {
+                processInfo.RedirectStandardInput = true;
+            }
 
             if (trace != null)
             {
@@ -107,6 +111,12 @@ namespace GVFS.FunctionalTests.Tools
 
             using (Process process = Process.Start(processInfo))
             {
+                if (standardInput != null)
+                {
+                    process.StandardInput.Write(standardInput);
+                    process.StandardInput.Close();
+                }
+
                 string result = process.StandardOutput.ReadToEnd();
                 process.WaitForExit();
 
