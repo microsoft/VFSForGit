@@ -3,6 +3,10 @@ CALL %~dp0\InitializeEnvironment.bat || EXIT /b 10
 
 SETLOCAL
 
+IF "%1"=="" (SET "Configuration=Debug") ELSE (SET "Configuration=%1")
+ 
+SET SolutionConfiguration=%Configuration%.Windows
+
 SET nuget="%VFS_TOOLSDIR%\nuget.exe"
 IF NOT EXIST %nuget% (
   mkdir %nuget%\..
