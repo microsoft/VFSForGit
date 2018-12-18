@@ -182,7 +182,7 @@
           Outputs="$(RestoreTimestampPath)"
           DependsOnTargets="GVFSPreBuild"
           Condition="'$(OS)' == 'Windows_NT'">
-    <Exec Command="call $(MSBuildThisFileDirectory)..\..\Scripts\RestorePackages.bat"
+    <Exec Command="call $(MSBuildThisFileDirectory)..\..\Scripts\RestorePackages.bat $(Configuration)"
           WorkingDirectory="$(MSBuildThisFileDirectory)../../" />
     <Touch Files="$(RestoreTimestampPath)" AlwaysCreate="true" />
   </Target>
