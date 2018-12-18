@@ -359,7 +359,7 @@ namespace GVFS.CommandLine
 
                     foreach (DirectoryInfo directory in objectDirectory.EnumerateDirectories())
                     {
-                        if (directory.Name.Length == 2)
+                        if (GitObjects.IsLooseObjectsDirectory(directory.Name))
                         {
                             countFolders++;
                             int numObjects = directory.EnumerateFiles().Count();

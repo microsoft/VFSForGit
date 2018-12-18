@@ -133,9 +133,9 @@ namespace GVFS.FunctionalTests.Tools
             }
         }
 
-        public static string GetInternalParameter()
+        public static string GetInternalParameter(string maintenanceJob = "null")
         {
-            return $"\"{{\\\"ServiceName\\\":\\\"{GVFSServiceProcess.TestServiceName}\\\",\\\"StartedByService\\\":false}}\"";
+            return $"\"{{\\\"ServiceName\\\":\\\"{GVFSServiceProcess.TestServiceName}\\\",\\\"StartedByService\\\":false,\\\"MaintenanceJob\\\":{maintenanceJob}}}\"";
         }
 
         private static string GetModifiedPathsContents(GVFSFunctionalTestEnlistment enlistment, FileSystemRunner fileSystem)

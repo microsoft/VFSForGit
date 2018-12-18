@@ -212,6 +212,11 @@ namespace GVFS.FunctionalTests.Tools
             return this.gvfsProcess.Diagnose();
         }
 
+        public string LooseObjectStep()
+        {
+            return this.gvfsProcess.LooseObjectStep();
+        }
+
         public string Status(string trace = null)
         {
             return this.gvfsProcess.Status(trace);

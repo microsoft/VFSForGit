@@ -42,6 +42,11 @@ namespace GVFS.Common.Git
             Error
         }
 
+        public static bool IsLooseObjectsDirectory(string value)
+        {
+            return value.Length == 2 && value.All(c => Uri.IsHexDigit(c));
+        }
+
         public virtual bool TryDownloadCommit(string commitSha)
         {
             const bool PreferLooseObjects = false;

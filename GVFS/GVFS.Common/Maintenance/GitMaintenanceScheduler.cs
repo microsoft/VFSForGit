@@ -7,6 +7,10 @@ namespace GVFS.Common.Maintenance
 {
     public class GitMaintenanceScheduler : IDisposable
     {
+        private readonly TimeSpan looseObjectsDueTime = TimeSpan.FromMinutes(5);
+        private readonly TimeSpan looseObjectsPeriod = TimeSpan.FromHours(6);
+        private readonly TimeSpan prefetchPeriod = TimeSpan.FromMinutes(15);
+
         private List<Timer> stepTimers;
         private GVFSContext context;
         private GitObjects gitObjects;
@@ -52,8 +56,14 @@ namespace GVFS.Common.Maintenance
                 this.stepTimers.Add(new Timer(
                     (state) => this.queue.TryEnqueue(new PrefetchStep(this.context, this.gitObjects, requireCacheLock: true)),
                     state: null,
-                    dueTime: prefetchPeriod,
-                    period: prefetchPeriod));
+                    dueTime: this.prefetchPeriod,
+                    period: this.prefetchPeriod));
+
+                this.stepTimers.Add(new Timer(
+                    (state) => this.queue.TryEnqueue(new LooseObjectsStep(this.context, requireCacheLock: true)),
+                    state: null,
+                    dueTime: this.looseObjectsDueTime,
+                    period: this.looseObjectsPeriod));
             }
         }
     }

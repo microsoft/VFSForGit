@@ -165,27 +165,38 @@ namespace GVFS.UnitTests.Mock.FileSystem
             MockDirectory directory = this.RootDirectory.FindDirectory(path);
             directory.ShouldNotBeNull();
 
+            foreach (MockDirectory subDirectory in directory.Directories.Values)
+            {
+                yield return new DirectoryItemInfo()
+                {
+                    Name = subDirectory.Name,
+                    FullName = subDirectory.FullName,
+                    IsDirectory = true
+                };
+            }
+
+            foreach (MockFile file in directory.Files.Values)
+            {
+                yield return new DirectoryItemInfo()
+                {
+                    FullName = file.FullName,
+                    Name = file.Name,
+                    IsDirectory = false,
+                    Length = file.FileProperties.Length
+                };
+            }
+        }
+
+        public override IEnumerable<string> EnumerateDirectories(string path)
+        {
+            MockDirectory directory = this.RootDirectory.FindDirectory(path);
+            directory.ShouldNotBeNull();
+
             if (directory != null)
             {
                 foreach (MockDirectory subDirectory in directory.Directories.Values)
                 {
-                    yield return new DirectoryItemInfo()
-                    {
-                        Name = subDirectory.Name,
-                        FullName = subDirectory.FullName,
-                        IsDirectory = true
-                    };
-                }
-
-                foreach (MockFile file in directory.Files.Values)
-                {
-                    yield return new DirectoryItemInfo()
-                    {
-                        FullName = file.FullName,
-                        Name = file.Name,
-                        IsDirectory = false,
-                        Length = file.FileProperties.Length
-                    };
+                    yield return subDirectory.Name;
                 }
             }
         }
@@ -226,7 +237,21 @@ namespace GVFS.UnitTests.Mock.FileSystem
 
         public override string[] GetFiles(string directoryPath, string mask)
         {
-            throw new NotImplementedException();
+            if (!mask.Equals("*"))
+            {
+                throw new NotImplementedException();
+            }
+
+            MockDirectory directory = this.RootDirectory.FindDirectory(directoryPath);
+            directory.ShouldNotBeNull();
+
+            List<string> files = new List<string>();
+            foreach (MockFile file in directory.Files.Values)
+            {
+                files.Add(file.FullName);
+            }
+
+            return files.ToArray();
         }
 
         private Stream CreateAndOpenFileStream(string path)

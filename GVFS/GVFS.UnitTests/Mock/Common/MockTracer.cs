@@ -18,6 +18,7 @@ namespace GVFS.UnitTests.Mock.Common
             this.RelatedErrorEvents = new List<string>();
         }
 
+        public MockTracer StartActivityTracer { get; private set; }
         public string WaitRelatedEventName { get; set; }
 
         public List<string> RelatedInfoEvents { get; }
@@ -97,17 +98,18 @@ namespace GVFS.UnitTests.Mock.Common
 
         public ITracer StartActivity(string activityName, EventLevel level)
         {
-            return new MockTracer();
+            return this.StartActivity(activityName, level, metadata: null);
         }
 
         public ITracer StartActivity(string activityName, EventLevel level, EventMetadata metadata)
         {
-            return new MockTracer();
+            return this.StartActivity(activityName, level, Keywords.None, metadata);
         }
 
         public ITracer StartActivity(string activityName, EventLevel level, Keywords startStopKeywords, EventMetadata metadata)
         {
-            return new MockTracer();
+            this.StartActivityTracer = new MockTracer();
+            return this.StartActivityTracer;
         }
 
         public TimeSpan Stop(EventMetadata metadata)

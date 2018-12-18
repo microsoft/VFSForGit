@@ -55,6 +55,14 @@ namespace GVFS.FunctionalTests.Tools
                 failOnError: true);
         }
 
+        public string LooseObjectStep()
+        {
+            return this.CallGVFS(
+                "dehydrate \"" + this.enlistmentRoot + "\"",
+                failOnError: false,
+                internalParameter: GVFSHelpers.GetInternalParameter("\\\"LooseObjects\\\""));
+        }
+
         public string Diagnose()
         {
             return this.CallGVFS("diagnose \"" + this.enlistmentRoot + "\"");
@@ -90,11 +98,17 @@ namespace GVFS.FunctionalTests.Tools
             return this.CallGVFS("service " + argument, failOnError: true);
         }
 
-        private string CallGVFS(string args, bool failOnError = false, string trace = null, string standardInput = null)
+        private string CallGVFS(string args, bool failOnError = false, string trace = null, string standardInput = null, string internalParameter = null)
         {
             ProcessStartInfo processInfo = null;
             processInfo = new ProcessStartInfo(this.pathToGVFS);
-            processInfo.Arguments = args + " " + TestConstants.InternalUseOnlyFlag + " " + GVFSHelpers.GetInternalParameter();
+
+            if (internalParameter == null)
+            {
+                internalParameter = GVFSHelpers.GetInternalParameter();
+            }
+
+            processInfo.Arguments = args + " " + TestConstants.InternalUseOnlyFlag + " " + internalParameter;
 
             processInfo.WindowStyle = ProcessWindowStyle.Hidden;
             processInfo.UseShellExecute = false;
