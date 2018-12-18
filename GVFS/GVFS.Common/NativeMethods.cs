@@ -1,5 +1,6 @@
 ﻿using Microsoft.Win32.SafeHandles;
 using System;
+using System.ComponentModel;
 using System.IO;
 using System.Runtime.InteropServices;
 using System.Text;
@@ -157,7 +158,7 @@ namespace GVFS.Common
                     out bytesReturned, 
                     IntPtr.Zero))
                 {
-                    ThrowLastWin32Exception($"Failed to place reparse point for '{path}'");
+                    ThrowLastWin32Exception($"Failed to get reparse point for '{path}'");
                 }
 
                 return reparseData.ReparseTag == IO_REPARSE_TAG_SYMLINK || reparseData.ReparseTag == IO_REPARSE_TAG_MOUNT_POINT;
@@ -168,7 +169,7 @@ namespace GVFS.Common
         {
             using (SafeFileHandle handle = CreateFile(
                 path,
-                FileAccess.FILE_WRITE_ATTRIBUTES,
+                FileAccess.FILE_READ_ATTRIBUTES | FileAccess.FILE_WRITE_ATTRIBUTES,
                 FileShare.Read,
                 IntPtr.Zero,
                 FileMode.Open,
@@ -180,20 +181,36 @@ namespace GVFS.Common
                     ThrowLastWin32Exception($"Invalid handle for '{path}' as symlink");
                 }
 
-                REPARSE_GUID_DATA_BUFFER reparseData = new REPARSE_GUID_DATA_BUFFER();
-                reparseData.ReparseTag = reparseTag;
+                REPARSE_GUID_DATA_BUFFER reparseGuidData = new REPARSE_GUID_DATA_BUFFER();
+                reparseGuidData.ReparseTag = reparseTag;
                 uint bytesReturned;
                 if (!DeviceIoControlDeleteReparsePoint(
                     handle,
                     FSCTL_DELETE_REPARSE_POINT,
-                    reparseData,
-                    (uint)Marshal.SizeOf(reparseData), 
+                    reparseGuidData,
+                    (uint)Marshal.SizeOf(reparseGuidData), 
                     IntPtr.Zero, 
                     0, 
                     out bytesReturned, 
                     IntPtr.Zero))
                 {
-                    ThrowLastWin32Exception($"Failed to remove reparse point for '{path}'");
+                    int deleteError = Marshal.GetLastWin32Error();
+
+                    // Check if something else has already deleted the reparse point
+                    REPARSE_DATA_BUFFER reparseData = new REPARSE_DATA_BUFFER();
+                    reparseData.ReparseDataLength = (4 * sizeof(ushort)) + ReparseDataPathBufferLength;
+                    if (DeviceIoControlGetReparsePoint(
+                        handle,
+                        FSCTL_GET_REPARSE_POINT,
+                        IntPtr.Zero,
+                        0,
+                        out reparseData,
+                        (uint)Marshal.SizeOf(reparseData),
+                        out bytesReturned,
+                        IntPtr.Zero))
+                    {
+                        throw new Win32Exception(deleteError, "Reparse data still present");
+                    }
                 }
             }
         }
