@@ -13,7 +13,7 @@ struct DarwinVersion
 
 struct PrjFSService_WatchContext
 {
-    std::function<void(io_service_t, io_connect_t, PrjFSService_WatchContext*)> discoveryCallback;
+    std::function<void(io_service_t, io_connect_t, bool, IOReturn, PrjFSService_WatchContext*)> discoveryCallback;
     io_iterator_t notificationIterator;
     PrjFSServiceUserClientType clientType;
 };
@@ -96,16 +96,14 @@ static void ServiceMatched(
     while (io_service_t prjfsService = IOIteratorNext(context->notificationIterator))
     {
         io_connect_t connection = IO_OBJECT_NULL;
-        if (PrjFSService_ValidateVersion(prjfsService))
+        IOReturn result = kIOReturnError;
+        bool serviceVersionMatches = PrjFSService_ValidateVersion(prjfsService);
+        if (serviceVersionMatches)
         {
-            kern_return_t result = IOServiceOpen(prjfsService, mach_task_self(), context->clientType, &connection);
-            if (result != kIOReturnSuccess)
-            {
-                std::cerr << "Failed to open connection to kernel service; error: 0x" << std::hex << result << ", connection 0x" << std::hex << connection << std::endl;
-            }
+            result = IOServiceOpen(prjfsService, mach_task_self(), context->clientType, &connection);
         }
         
-        context->discoveryCallback(prjfsService, connection, context);
+        context->discoveryCallback(prjfsService, connection, !serviceVersionMatches, result, context);
         
         IOObjectRelease(prjfsService);
     }
@@ -114,7 +112,7 @@ static void ServiceMatched(
 PrjFSService_WatchContext* PrjFSService_WatchForServiceAndConnect(
     IONotificationPortRef notificationPort,
     enum PrjFSServiceUserClientType clientType,
-    std::function<void(io_service_t, io_connect_t, PrjFSService_WatchContext*)> discoveryCallback)
+    std::function<void(io_service_t, io_connect_t, bool serviceVersionMismatch, IOReturn connectResult, PrjFSService_WatchContext*)> discoveryCallback)
 {
     CFDictionaryRef matchDict = IOServiceMatching(PrjFSServiceClass);
     PrjFSService_WatchContext* context = new PrjFSService_WatchContext { std::move(discoveryCallback), IO_OBJECT_NULL, clientType };

@@ -27,11 +27,15 @@ int main(int argc, const char * argv[])
 
     PrjFSService_WatchContext* watchContext = PrjFSService_WatchForServiceAndConnect(
         s_notificationPort, UserClientType_Log,
-        [](io_service_t service, io_connect_t connection, PrjFSService_WatchContext* context)
+        [](io_service_t service, io_connect_t connection, bool serviceVersionMismatch, IOReturn connectResult, PrjFSService_WatchContext* context)
         {
             if (connection != IO_OBJECT_NULL)
             {
                 ProcessLogMessagesOnConnection(connection, service);
+            }
+            else
+            {
+                std::cerr << "Failed to connect to matched kernel service; result = 0x" << std::hex << connectResult << std::endl;
             }
         });
     if (nullptr == watchContext)

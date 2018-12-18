@@ -22,7 +22,7 @@ struct PrjFSService_WatchContext;
 PrjFSService_WatchContext* PrjFSService_WatchForServiceAndConnect(
     struct IONotificationPort* notificationPort,
     enum PrjFSServiceUserClientType clientType,
-    std::function<void(io_service_t, io_connect_t, PrjFSService_WatchContext*)> discoveryCallback);
+    std::function<void(io_service_t, io_connect_t, bool serviceVersionMismatch, IOReturn connectResult, PrjFSService_WatchContext*)> discoveryCallback);
 void PrjFSService_StopWatching(PrjFSService_WatchContext* context);
 bool PrjFSService_ValidateVersion(io_service_t prjfsService);
 
