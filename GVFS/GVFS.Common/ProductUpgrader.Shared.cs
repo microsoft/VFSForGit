@@ -9,10 +9,10 @@ namespace GVFS.Common
         public const string UpgradeDirectoryName = "GVFS.Upgrade";
         public const string LogDirectory = "Logs";
         public const string DownloadDirectory = "Downloads";
+        public const string GVFSInstallerFileNamePrefix = "SetupGVFS";
+        public const string VFSForGitInstallerFileNamePrefix = "VFSForGit";
 
-        private const string RootDirectory = UpgradeDirectoryName;
-        private const string GVFSInstallerFileNamePrefix = "SetupGVFS";
-        private const string VFSForGitInstallerFileNamePrefix = "VFSForGit";
+        protected const string RootDirectory = UpgradeDirectoryName;
 
         public static bool IsLocalUpgradeAvailable(string installerExtension)
         {
@@ -51,7 +51,7 @@ namespace GVFS.Common
             return Path.Combine(Paths.GetServiceDataRoot(RootDirectory), LogDirectory);
         }
 
-        private static string GetAssetDownloadsPath()
+        public static string GetAssetDownloadsPath()
         {
             return Path.Combine(
                 Paths.GetServiceDataRoot(RootDirectory),

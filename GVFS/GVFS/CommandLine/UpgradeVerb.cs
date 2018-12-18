@@ -13,12 +13,12 @@ namespace GVFS.CommandLine
     {
         private const string UpgradeVerbName = "upgrade";
         private ITracer tracer;
-        private ProductUpgrader upgrader;
+        private IProductUpgrader upgrader;
         private InstallerPreRunChecker prerunChecker;
         private ProcessLauncher processLauncher;
 
         public UpgradeVerb(
-            ProductUpgrader upgrader,
+            IProductUpgrader upgrader,
             ITracer tracer,
             InstallerPreRunChecker prerunChecker,
             ProcessLauncher processWrapper,
@@ -52,14 +52,15 @@ namespace GVFS.CommandLine
         public override void Execute()
         {
             ReturnCode exitCode = ReturnCode.Success;
-            if (!this.TryInitializeUpgrader() || !this.TryRunProductUpgrade())
+            string error;
+            if (!this.TryInitializeUpgrader(out error) || !this.TryRunProductUpgrade())
             {
                 exitCode = ReturnCode.GenericError;
-                this.ReportErrorAndExit(this.tracer, exitCode, string.Empty);
+                this.ReportErrorAndExit(this.tracer, exitCode, error);
             }
         }
 
-        private bool TryInitializeUpgrader()
+        private bool TryInitializeUpgrader(out string error)
         {
             if (GVFSPlatform.Instance.UnderConstruction.SupportsGVFSUpgrade)
             {
@@ -73,14 +74,18 @@ namespace GVFS.CommandLine
 
                     this.tracer = jsonTracer;
                     this.prerunChecker = new InstallerPreRunChecker(this.tracer, this.Confirmed ? GVFSConstants.UpgradeVerbMessages.GVFSUpgradeConfirm : GVFSConstants.UpgradeVerbMessages.GVFSUpgrade);
-                    this.upgrader = new ProductUpgrader(ProcessHelper.GetCurrentProcessVersion(), this.tracer);
+                    this.upgrader = ProductUpgrader.CreateUpgrader(this.tracer, out error);
+                }
+                else
+                {
+                    error = null;
                 }
 
-                return true;
+                return this.upgrader != null;
             }
             else
             {
-                this.ReportInfoToConsole($"ERROR: {GVFSConstants.UpgradeVerbMessages.GVFSUpgrade} is not supported on this operating system.");
+                error = $"ERROR: {GVFSConstants.UpgradeVerbMessages.GVFSUpgrade} is not supported on this operating system.";
                 return false;
             }
         }
@@ -91,7 +96,6 @@ namespace GVFS.CommandLine
             string error = null;
             string cannotInstallReason = null;
             Version newestVersion = null;
-            ProductUpgrader.RingType ring = ProductUpgrader.RingType.Invalid;
 
             bool isInstallable = this.TryCheckUpgradeInstallable(out cannotInstallReason);
             if (this.Confirmed && !isInstallable)
@@ -102,24 +106,25 @@ namespace GVFS.CommandLine
                 return false;
             }
 
-            if (!this.TryLoadUpgradeRing(out ring, out error))
+            bool isError;
+            string consoleMessage;
+            if (!this.upgrader.CanRunUsingCurrentConfig(out isError, out consoleMessage, out error))
             {
-                this.tracer.RelatedError($"{nameof(this.TryRunProductUpgrade)}: Could not load upgrade ring. {error}");
-                this.ReportInfoToConsole(GVFSConstants.UpgradeVerbMessages.InvalidRingConsoleAlert);
-                this.Output.WriteLine(errorOutputFormat, error);
-                return false;
-            }
-
-            if (ring == ProductUpgrader.RingType.None || ring == ProductUpgrader.RingType.NoConfig)
-            {
-                this.tracer.RelatedInfo($"{nameof(this.TryRunProductUpgrade)}: {GVFSConstants.UpgradeVerbMessages.NoneRingConsoleAlert}");
-                this.ReportInfoToConsole(ring == ProductUpgrader.RingType.None ? GVFSConstants.UpgradeVerbMessages.NoneRingConsoleAlert : GVFSConstants.UpgradeVerbMessages.NoRingConfigConsoleAlert);
-                this.ReportInfoToConsole(GVFSConstants.UpgradeVerbMessages.SetUpgradeRingCommand);
                 this.upgrader.CleanupDownloadDirectory();
+
+                if (isError)
+                {
+                    this.Output.WriteLine(errorOutputFormat, error);
+                    this.tracer.RelatedError($"{nameof(this.TryRunProductUpgrade)}: Upgrade checks failed. {error}");
+                    return false;
+                }
+
+                this.ReportInfoToConsole(consoleMessage);
                 return true;
             }
 
-            if (!this.TryRunUpgradeChecks(out newestVersion, out error))
+            string upgradeAvailableMessage;
+            if (!this.TryRunUpgradeChecks(out newestVersion, out upgradeAvailableMessage, out error))
             {
                 this.Output.WriteLine(errorOutputFormat, error);
                 this.tracer.RelatedError($"{nameof(this.TryRunProductUpgrade)}: Upgrade checks failed. {error}");
@@ -128,15 +133,13 @@ namespace GVFS.CommandLine
 
             if (newestVersion == null)
             {
-                this.ReportInfoToConsole($"Great news, you're all caught up on upgrades in the {this.upgrader.Ring} ring!");
-
                 // Make sure there a no asset installers remaining in the Downloads directory. This can happen if user
                 // upgraded by manually downloading and running asset installers.
                 this.upgrader.CleanupDownloadDirectory();
+                this.ReportInfoToConsole(upgradeAvailableMessage);
                 return true;
             }
 
-            string upgradeAvailableMessage = $"New GVFS version {newestVersion.ToString()} available in ring {ring}";
             if (this.Confirmed)
             {
                 this.ReportInfoToConsole(upgradeAvailableMessage);
@@ -167,42 +170,28 @@ namespace GVFS.CommandLine
             return true;
         }
 
-        private bool TryLoadUpgradeRing(out ProductUpgrader.RingType ring, out string consoleError)
-        {
-            bool loaded = false;
-            if (!this.upgrader.TryLoadRingConfig(out consoleError))
-            {
-                this.tracer.RelatedError($"{nameof(this.TryLoadUpgradeRing)} failed. {consoleError}");
-            }
-            else
-            {
-                consoleError = null;
-                loaded = true;
-            }
-
-            ring = this.upgrader.Ring;
-            return loaded;
-        }
-
         private bool TryRunUpgradeChecks(
             out Version latestVersion,
-            out string consoleError)
+            out string consoleMessage,
+            out string error)
         {
             bool upgradeCheckSuccess = false;
             string errorMessage = null;
+            string userMessage = null;
             Version version = null;
 
             this.ShowStatusWhileRunning(
                 () =>
                 {
-                    upgradeCheckSuccess = this.TryCheckUpgradeAvailable(out version, out errorMessage);
+                    upgradeCheckSuccess = this.TryCheckUpgradeAvailable(out version, out userMessage, out errorMessage);
                     return upgradeCheckSuccess;
                 },
                  "Checking for GVFS upgrades",
                 suppressGvfsLogMessage: true);
 
             latestVersion = version;
-            consoleError = errorMessage;
+            consoleMessage = userMessage;
+            error = errorMessage;
 
             return upgradeCheckSuccess;
         }
@@ -275,17 +264,19 @@ namespace GVFS.CommandLine
 
         private bool TryCheckUpgradeAvailable(
             out Version latestVersion,
-            out string consoleError)
+            out string consoleMessage,
+            out string error)
         {
             latestVersion = null;
-            consoleError = null;
+            consoleMessage = null;
+            error = null;
 
             using (ITracer activity = this.tracer.StartActivity(nameof(this.TryCheckUpgradeAvailable), EventLevel.Informational))
             {
                 bool checkSucceeded = false;
                 Version version = null;
 
-                checkSucceeded = this.upgrader.TryGetNewerVersion(out version, out consoleError);
+                checkSucceeded = this.upgrader.TryGetNewerVersion(out version, out consoleMessage, out error);
                 if (!checkSucceeded)
                 {
                     return false;

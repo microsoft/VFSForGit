@@ -12,7 +12,7 @@ using System.Runtime.Serialization.Json;
 
 namespace GVFS.Common
 {
-    public partial class ProductUpgrader
+    public class GitHubUpgrader : IProductUpgrader
     {
         private const string GitHubReleaseURL = @"https://api.github.com/repos/microsoft/vfsforgit/releases";
         private const string JSONMediaType = @"application/vnd.github.v3+json";
@@ -40,68 +40,136 @@ namespace GVFS.Common
             };
 
         private Version installedVersion;
+        private Version newestVersion;
         private Release newestRelease;
         private PhysicalFileSystem fileSystem;
         private ITracer tracer;
 
-        public ProductUpgrader(
+        public GitHubUpgrader(
             string currentVersion,
-            ITracer tracer)
+            ITracer tracer,
+            GitHubUpgraderConfig upgraderConfig)
+            : this(currentVersion, tracer)
+        {
+            this.Config = upgraderConfig;
+        }
+
+        public GitHubUpgrader(string currentVersion, ITracer tracer)
         {
             this.installedVersion = new Version(currentVersion);
             this.fileSystem = new PhysicalFileSystem();
-            this.Ring = RingType.Invalid;
             this.tracer = tracer;
 
-            string upgradesDirectoryPath = GetUpgradesDirectoryPath();
+            string upgradesDirectoryPath = ProductUpgrader.GetUpgradesDirectoryPath();
             this.fileSystem.CreateDirectory(upgradesDirectoryPath);
         }
 
-        public enum RingType
+        public GitHubUpgraderConfig Config { get; private set; }
+
+        public static GitHubUpgrader Create(
+            ITracer tracer,
+            out bool isEnabled,
+            out bool isConfigured)
         {
-            // The values here should be ascending.
-            // Invalid - User has set an incorrect ring
-            // NoConfig - User has Not set any ring yet
-            // None - User has set a valid "None" ring
-            // (Fast should be greater than Slow,
-            //  Slow should be greater than None, None greater than Invalid.)
-            // This is required for the correct implementation of Ring based
-            // upgrade logic.
-            Invalid = 0,
-            NoConfig = None - 1,
-            None = 10,
-            Slow = None + 1,
-            Fast = Slow + 1,
+            GitHubUpgrader upgrader = null;
+            LocalGVFSConfig localConfig = new LocalGVFSConfig();
+            GitHubUpgraderConfig gitHubUpgraderConfig = new GitHubUpgraderConfig(tracer, localConfig);
+
+            if (gitHubUpgraderConfig.TryLoad(out isEnabled, out isConfigured, out string error))
+            {
+                upgrader = new GitHubUpgrader(
+                    ProcessHelper.GetCurrentProcessVersion(),
+                    tracer,
+                    gitHubUpgraderConfig);
+            }
+
+            return upgrader;
         }
 
-        public RingType Ring { get; protected set; }
+        public bool Initialize(out string errorMessage)
+        {
+            errorMessage = null;
+            return true;
+        }
+
+        public bool CanRunUsingCurrentConfig(
+            out bool isConfigError, 
+            out string consoleMessage,
+            out string errorMessage)
+        {
+            if (this.Config.UpgradeRing == GitHubUpgraderConfig.RingType.None)
+            {
+                isConfigError = false;
+                consoleMessage = GVFSConstants.UpgradeVerbMessages.NoneRingConsoleAlert + Environment.NewLine + GVFSConstants.UpgradeVerbMessages.SetUpgradeRingCommand;
+                errorMessage = null;
+                return false;
+            }
+
+            if (this.Config.UpgradeRing == GitHubUpgraderConfig.RingType.NoConfig)
+            {
+                isConfigError = false;
+                consoleMessage = GVFSConstants.UpgradeVerbMessages.NoRingConfigConsoleAlert + Environment.NewLine + GVFSConstants.UpgradeVerbMessages.SetUpgradeRingCommand;
+                errorMessage = null;
+                return false;
+            }
+
+            if (this.Config.UpgradeRing == GitHubUpgraderConfig.RingType.Invalid)
+            {
+                string ring;
+                string error;
+                if (!this.Config.LocalConfig.TryGetConfig(GVFSConstants.LocalGVFSConfig.UpgradeRing, out ring, out error))
+                {
+                    ring = "invalid";
+                }
+
+                consoleMessage = null;
+                errorMessage = $"Invalid upgrade ring `{ring}` specified in gvfs config." + Environment.NewLine + GVFSConstants.UpgradeVerbMessages.SetUpgradeRingCommand;
+                isConfigError = true;
+                return false;
+            }
+
+            isConfigError = false;
+            consoleMessage = null;
+            errorMessage = null;
+            return true;
+        }
 
         public bool TryGetNewerVersion(
             out Version newVersion,
+            out string consoleMessage,
             out string errorMessage)
         {
             List<Release> releases;
 
             newVersion = null;
-            if (this.Ring == RingType.Invalid && !this.TryLoadRingConfig(out errorMessage))
+            consoleMessage = null;
+            bool isConfigError;
+            if (!this.CanRunUsingCurrentConfig(out isConfigError, out consoleMessage, out errorMessage))
             {
-                return false;
+                return !isConfigError;
             }
 
             if (this.TryFetchReleases(out releases, out errorMessage))
             {
                 foreach (Release nextRelease in releases)
                 {
-                    Version releaseVersion;
+                    Version releaseVersion = null;
 
-                    if (nextRelease.Ring <= this.Ring &&
+                    if (nextRelease.Ring <= this.Config.UpgradeRing &&
                         nextRelease.TryParseVersion(out releaseVersion) &&
                         releaseVersion > this.installedVersion)
                     {
                         newVersion = releaseVersion;
+                        this.newestVersion = releaseVersion;
                         this.newestRelease = nextRelease;
+                        consoleMessage = $"New GVFS version {newVersion.ToString()} available in ring {this.Config.UpgradeRing}.";
                         break;
                     }
+                }
+                
+                if (newVersion == null)
+                {
+                    consoleMessage = $"Great news, you're all caught up on upgrades in the {this.Config.UpgradeRing} ring!";
                 }
 
                 return true;
@@ -112,7 +180,6 @@ namespace GVFS.Common
 
         public bool TryGetGitVersion(out GitVersion gitVersion, out string error)
         {
-            gitVersion = null;
             error = null;
 
             foreach (Asset asset in this.newestRelease.Assets)
@@ -125,6 +192,7 @@ namespace GVFS.Common
             }
 
             error = "Could not find Git version info in newest release";
+            gitVersion = null;
 
             return false;
         }
@@ -142,7 +210,7 @@ namespace GVFS.Common
                 {
                     continue;
                 }
-
+				
                 if (!this.TryDownloadAsset(asset, out errorMessage))
                 {
                     errorMessage = $"Could not download {(isGVFSAsset ? GVFSAssetId : GitAssetId)} installer. {errorMessage}";
@@ -165,28 +233,48 @@ namespace GVFS.Common
             return true;
         }
 
-        public bool TryRunGitInstaller(out bool installationSucceeded, out string error)
+        public bool TryRunInstaller(InstallActionWrapper installActionWrapper, out string error)
         {
+            string localError;
+
+            this.TryGetGitVersion(out GitVersion newGitVersion, out localError);
+
+            if (!installActionWrapper(
+                 () =>
+                 {
+                     if (!this.TryInstallGitUpgrade(newGitVersion, out localError))
+                     {
+                         return false;
+                     }
+
+                     return true;
+                 },
+                $"Installing Git version: {newGitVersion}"))
+            {
+                error = localError;
+                return false;
+            }
+
+            if (!installActionWrapper(
+                 () =>
+                 {
+                     if (!this.TryInstallGVFSUpgrade(this.newestVersion, out localError))
+                     {
+                         return false;
+                     }
+
+                     return true;
+                 },
+                $"Installing GVFS version: {this.newestVersion}"))
+            {
+                error = localError;
+                return false;
+            }
+
+            this.LogVersionInfo(this.newestVersion, newGitVersion, "Newly Installed Version");
+
             error = null;
-            installationSucceeded = false;
-
-            int exitCode = 0;
-            bool launched = this.TryRunInstallerForAsset(GitAssetId, out exitCode, out error);
-            installationSucceeded = exitCode == 0;
-
-            return launched;
-        }
-
-        public bool TryRunGVFSInstaller(out bool installationSucceeded, out string error)
-        {
-            error = null;
-            installationSucceeded = false;
-
-            int exitCode = 0;
-            bool launched = this.TryRunInstallerForAsset(GVFSAssetId, out exitCode, out error);
-            installationSucceeded = exitCode == 0 || exitCode == RepoMountFailureExitCode;
-
-            return launched;
+            return true;
         }
 
         // TrySetupToolsDirectory -
@@ -267,49 +355,15 @@ namespace GVFS.Common
             return true;
         }
 
-        public virtual bool TryLoadRingConfig(out string error)
-        {
-            string gitPath = GVFSPlatform.Instance.GitInstallation.GetInstalledGitBinPath();
-            LocalGVFSConfig localConfig = new LocalGVFSConfig();
-
-            string ringConfig = null;
-            if (localConfig.TryGetConfig(GVFSConstants.LocalGVFSConfig.UpgradeRing, out ringConfig, out error))
-            {
-                RingType ringType;
-
-                if (Enum.TryParse(ringConfig, ignoreCase: true, result: out ringType) &&
-                    Enum.IsDefined(typeof(RingType), ringType) &&
-                    ringType != RingType.Invalid)
-                {
-                    this.Ring = ringType;
-                    error = null;
-                    return true;
-                }
-
-                if (string.IsNullOrEmpty(ringConfig))
-                {
-                    this.Ring = RingType.NoConfig;
-                    error = null;
-                    return true;
-                }
-
-                error = "Invalid upgrade ring `" + ringConfig + "` specified in gvfs config." + Environment.NewLine;
-            }
-
-            error += GVFSConstants.UpgradeVerbMessages.SetUpgradeRingCommand;
-            this.Ring = RingType.Invalid;
-            return false;
-        }
-
         public void CleanupDownloadDirectory()
         {
             try
             {
-                this.fileSystem.DeleteDirectory(GetAssetDownloadsPath());
+                this.fileSystem.DeleteDirectory(ProductUpgrader.GetAssetDownloadsPath());
             }
             catch (Exception ex)
             {
-                this.TraceException(ex, nameof(this.CleanupDownloadDirectory), $"Could not remove directory: {GetAssetDownloadsPath()}");
+                this.TraceException(ex, nameof(this.CleanupDownloadDirectory), $"Could not remove directory: {ProductUpgrader.GetAssetDownloadsPath()}");
             }
         }
 
@@ -322,9 +376,9 @@ namespace GVFS.Common
         {
             errorMessage = null;
 
-            string downloadPath = GetAssetDownloadsPath();
+            string downloadPath = ProductUpgrader.GetAssetDownloadsPath();
             Exception exception;
-            if (!ProductUpgrader.TryCreateDirectory(downloadPath, out exception))
+            if (!GitHubUpgrader.TryCreateDirectory(downloadPath, out exception))
             {
                 errorMessage = exception.Message;
                 this.TraceException(exception, nameof(this.TryDownloadAsset), $"Error creating download directory {downloadPath}.");
@@ -411,6 +465,74 @@ namespace GVFS.Common
             return true;
         }
 
+        private bool TryInstallGitUpgrade(GitVersion version, out string consoleError)
+        {
+            bool installSuccess = false;
+            using (ITracer activity = this.tracer.StartActivity(
+                $"{nameof(this.TryInstallGitUpgrade)}({version.ToString()})",
+                EventLevel.Informational))
+            {
+                if (!this.TryRunGitInstaller(out installSuccess, out consoleError) ||
+                    !installSuccess)
+                {
+                    EventMetadata metadata = new EventMetadata();
+                    metadata.Add("Upgrade Step", nameof(this.TryInstallGitUpgrade));
+                    this.tracer.RelatedError(metadata, $"{nameof(this.TryRunGitInstaller)} failed. {consoleError}");
+                    return false;
+                }
+
+                activity.RelatedInfo("Successfully installed Git version: " + version.ToString());
+            }
+
+            return installSuccess;
+        }
+
+        private bool TryInstallGVFSUpgrade(Version version, out string consoleError)
+        {
+            bool installSuccess = false;
+            using (ITracer activity = this.tracer.StartActivity(
+                $"{nameof(this.TryInstallGVFSUpgrade)}({version.ToString()})",
+                EventLevel.Informational))
+            {
+                if (!this.TryRunGVFSInstaller(out installSuccess, out consoleError) ||
+                !installSuccess)
+                {
+                    EventMetadata metadata = new EventMetadata();
+                    metadata.Add("Upgrade Step", nameof(this.TryInstallGVFSUpgrade));
+                    this.tracer.RelatedError(metadata, $"{nameof(this.TryRunGVFSInstaller)} failed. {consoleError}");
+                    return false;
+                }
+
+                activity.RelatedInfo("Successfully installed GVFS version: " + version.ToString());
+            }
+
+            return installSuccess;
+        }
+
+        private bool TryRunGitInstaller(out bool installationSucceeded, out string error)
+        {
+            error = null;
+            installationSucceeded = false;
+
+            int exitCode = 0;
+            bool launched = this.TryRunInstallerForAsset(GitAssetId, out exitCode, out error);
+            installationSucceeded = exitCode == 0;
+
+            return launched;
+        }
+
+        private bool TryRunGVFSInstaller(out bool installationSucceeded, out string error)
+        {
+            error = null;
+            installationSucceeded = false;
+
+            int exitCode = 0;
+            bool launched = this.TryRunInstallerForAsset(GVFSAssetId, out exitCode, out error);
+            installationSucceeded = exitCode == 0 || exitCode == RepoMountFailureExitCode;
+
+            return launched;
+        }
+
         private bool TryRunInstallerForAsset(string assetId, out int installerExitCode, out string error)
         {
             error = null;
@@ -421,7 +543,7 @@ namespace GVFS.Common
             string installerArgs;
             if (this.TryGetLocalInstallerPath(assetId, out path, out installerArgs))
             {
-                string logFilePath = GVFSEnlistment.GetNewLogFileName(GetLogDirectoryPath(), Path.GetFileNameWithoutExtension(path));
+                string logFilePath = GVFSEnlistment.GetNewLogFileName(ProductUpgrader.GetLogDirectoryPath(), Path.GetFileNameWithoutExtension(path));
                 string args = installerArgs + " /Log=" + logFilePath;
                 this.RunInstaller(path, args, out installerExitCode, out error);
 
@@ -476,7 +598,7 @@ namespace GVFS.Common
 
         private bool IsGVFSAsset(Asset asset)
         {
-            return this.AssetInstallerNameCompare(asset, GVFSInstallerFileNamePrefix, VFSForGitInstallerFileNamePrefix);
+            return this.AssetInstallerNameCompare(asset, ProductUpgrader.GVFSInstallerFileNamePrefix, ProductUpgrader.VFSForGitInstallerFileNamePrefix);
         }
 
         private bool IsGitAsset(Asset asset)
@@ -495,6 +617,86 @@ namespace GVFS.Common
             }
 
             return false;
+        }
+
+        private void LogVersionInfo(
+            Version gvfsVersion,
+            GitVersion gitVersion,
+            string message)
+        {
+            EventMetadata metadata = new EventMetadata();
+            metadata.Add(nameof(gvfsVersion), gvfsVersion.ToString());
+            metadata.Add(nameof(gitVersion), gitVersion.ToString());
+
+            this.tracer.RelatedEvent(EventLevel.Informational, message, metadata);
+        }
+
+        public class GitHubUpgraderConfig
+        {
+            public GitHubUpgraderConfig(ITracer tracer, LocalGVFSConfig localGVFSConfig)
+            {
+                this.Tracer = tracer;
+                this.LocalConfig = localGVFSConfig;
+            }
+
+            public enum RingType
+            {
+                // The values here should be ascending.
+                // Invalid - User has set an incorrect ring
+                // NoConfig - User has Not set any ring yet
+                // None - User has set a valid "None" ring
+                // (Fast should be greater than Slow,
+                //  Slow should be greater than None, None greater than Invalid.)
+                // This is required for the correct implementation of Ring based
+                // upgrade logic.
+                Invalid = 0,
+                NoConfig = None - 1,
+                None = 10,
+                Slow = None + 1,
+                Fast = Slow + 1,
+            }
+
+            public RingType UpgradeRing { get; private set; }
+            public LocalGVFSConfig LocalConfig { get; private set; }
+            private ITracer Tracer { get; set; }
+
+            public bool TryLoad(out bool isEnabled, out bool isConfigured, out string error)
+            {
+                isEnabled = false;
+                isConfigured = false;
+
+                string ringConfig = null;
+                if (this.LocalConfig.TryGetConfig(GVFSConstants.LocalGVFSConfig.UpgradeRing, out ringConfig, out error))
+                {
+                    RingType ringType;
+                    if (Enum.TryParse(ringConfig, ignoreCase: true, result: out ringType) &&
+                        Enum.IsDefined(typeof(RingType), ringType) &&
+                        ringType != RingType.Invalid)
+                    {
+                        this.UpgradeRing = ringType;
+                        isEnabled = true;
+                        isConfigured = true;
+                    }
+                    else
+                    {
+                        if (!string.IsNullOrEmpty(ringConfig))
+                        {
+                            isEnabled = true;
+                            this.UpgradeRing = RingType.Invalid;
+                        }
+                        else
+                        {
+                            this.UpgradeRing = RingType.NoConfig;
+                        }
+                    }
+
+                    return true;
+                }
+
+                error = "Could not read GVFS Config." + Environment.NewLine;
+                error += GVFSConstants.UpgradeVerbMessages.SetUpgradeRingCommand;
+                return false;
+            }
         }
 
         [DataContract(Name = "asset")]
@@ -529,11 +731,11 @@ namespace GVFS.Common
             public List<Asset> Assets { get; set; }
 
             [IgnoreDataMember]
-            public RingType Ring
+            public GitHubUpgraderConfig.RingType Ring
             {
                 get
                 {
-                    return this.PreRelease == true ? RingType.Fast : RingType.Slow;
+                    return this.PreRelease == true ? GitHubUpgraderConfig.RingType.Fast : GitHubUpgraderConfig.RingType.Slow;
                 }
             }
 
