@@ -17,6 +17,7 @@ namespace GVFS.UnitTests.Maintenance
     public class LooseObjectStepTests
     {
         private const string PrunePackedCommand = "prune-packed -q";
+        private const string PackCommand = @"pack-objects mock:\path\.git\objects\pack\from-loose --non-empty -q";
         private MockTracer tracer;
         private MockGitProcess gitProcess;
         private GVFSContext context;
@@ -32,8 +33,9 @@ namespace GVFS.UnitTests.Maintenance
             this.tracer.StartActivityTracer.RelatedErrorEvents.Count.ShouldEqual(0);
             this.tracer.StartActivityTracer.RelatedWarningEvents.Count.ShouldEqual(0);
             List<string> commands = this.gitProcess.CommandsRun;
-            commands.Count.ShouldEqual(1);
+            commands.Count.ShouldEqual(2);
             commands[0].ShouldEqual(PrunePackedCommand);
+            commands[1].ShouldEqual(PackCommand);
         }
 
         [TestCase]
@@ -61,19 +63,49 @@ namespace GVFS.UnitTests.Maintenance
             this.tracer.StartActivityTracer.RelatedErrorEvents.Count.ShouldEqual(0);
             this.tracer.StartActivityTracer.RelatedWarningEvents.Count.ShouldEqual(0);
             List<string> commands = this.gitProcess.CommandsRun;
-            commands.Count.ShouldEqual(1);
+            commands.Count.ShouldEqual(2);
             commands[0].ShouldEqual(PrunePackedCommand);
+            commands[1].ShouldEqual(PackCommand);
+        }
+
+        [TestCase]
+        public void LooseObjectsLimitPackCount()
+        {
+            this.TestSetup(DateTime.UtcNow.AddDays(-7));
+
+            // Verify no limit
+            LooseObjectsStep step1 = new LooseObjectsStep(this.context, requireCacheLock: false, forceRun: false);
+            step1.PackLooseObjects(new StreamWriter(new MemoryStream()));
+            step1.LooseObjectsPutIntoPackFile.ShouldEqual(3);
+
+            // Verify with limit
+            LooseObjectsStep step2 = new LooseObjectsStep(this.context, requireCacheLock: false, forceRun: false);
+            step2.MaxLooseObjectsInPack = 2;
+            step2.PackLooseObjects(new StreamWriter(new MemoryStream()));
+            step2.LooseObjectsPutIntoPackFile.ShouldEqual(2);
         }
 
         [TestCase]
         public void LooseObjectsCount()
         {
-            this.TestSetup(DateTime.Now.AddDays(-7));
+            this.TestSetup(DateTime.UtcNow.AddDays(-7));
 
             LooseObjectsStep step = new LooseObjectsStep(this.context, requireCacheLock: false, forceRun: false);
             int count = step.CountLooseObjects();
 
             count.ShouldEqual(3);
+        }
+
+        [TestCase]
+        public void LooseObjectId()
+        {
+            this.TestSetup(DateTime.UtcNow.AddDays(-7));
+
+            LooseObjectsStep step = new LooseObjectsStep(this.context, requireCacheLock: false, forceRun: false);
+            string directoryName = "AB";
+            string fileName = "830bb79cd4fadb2e73e780e452dc71db909001";
+            string objectId = step.GetLooseObjectId(directoryName, Path.Combine(this.context.Enlistment.GitObjectsRoot, directoryName, fileName));
+            objectId.ShouldEqual(directoryName + fileName);
         }
 
         private void TestSetup(DateTime lastRun)
@@ -84,6 +116,9 @@ namespace GVFS.UnitTests.Maintenance
             this.gitProcess = new MockGitProcess();
             this.gitProcess.SetExpectedCommandResult(
                 PrunePackedCommand,
+                () => new GitProcess.Result(string.Empty, string.Empty, GitProcess.Result.SuccessCode));
+            this.gitProcess.SetExpectedCommandResult(
+                PackCommand,
                 () => new GitProcess.Result(string.Empty, string.Empty, GitProcess.Result.SuccessCode));
 
             // Create enlistment using git process
