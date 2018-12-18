@@ -16,7 +16,7 @@ namespace GVFS.Common
     {
         bool CanRunUsingCurrentConfig(out bool isConfigError, out string message);
 
-        bool Initialize(out string errorMessage);
+        bool TryInitialize(out string errorMessage);
 
         bool TryGetNewerVersion(out Version newVersion, out string message);
 

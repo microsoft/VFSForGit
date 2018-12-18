@@ -45,10 +45,7 @@ namespace GVFS.Upgrader
                 Keywords.Any);
 
             this.tracer = jsonTracer;
-            this.preRunChecker = new InstallerPreRunChecker(this.tracer, GVFSConstants.UpgradeVerbMessages.GVFSUpgradeConfirm);
-
-            string errorMessage;
-            this.upgrader = ProductUpgrader.CreateUpgrader(this.tracer, out errorMessage);
+            this.preRunChecker = new InstallerPreRunChecker(this.tracer, GVFSConstants.UpgradeVerbMessages.GVFSUpgradeConfirm);            
             this.output = Console.Out;
             this.input = Console.In;
             this.mount = false;
@@ -120,7 +117,13 @@ namespace GVFS.Upgrader
 
         private bool TryInitialize(out string errorMessage)
         {
-            return this.upgrader.Initialize(out errorMessage);
+            IProductUpgrader upgrader;
+            if (this.upgrader == null && !ProductUpgrader.TryCreateUpgrader(out upgrader, this.tracer, out errorMessage))
+            {
+                return false;
+            }
+
+            return this.upgrader.TryInitialize(out errorMessage);
         }
 
         private bool TryRunUpgrade(out Version newVersion, out string consoleError)
@@ -137,7 +140,7 @@ namespace GVFS.Upgrader
                 if (isError)
                 {
                     consoleError = error;
-                    this.tracer.RelatedError($"{nameof(this.TryRunUpgrade)}: Upgrade checks failed. {error}");
+                    this.tracer.RelatedError($"{nameof(this.TryRunUpgrade)}: Run upgrade failed. {error}");
                     return false;
                 }
                 else
@@ -303,6 +306,7 @@ namespace GVFS.Upgrader
                 {
                     EventMetadata metadata = new EventMetadata();
                     metadata.Add("Upgrade Step", nameof(this.TryDownloadUpgrade));
+                    metadata.Add("Version", version.ToString());
                     this.tracer.RelatedError(metadata, $"{nameof(this.upgrader.TryDownloadNewestVersion)} failed. {consoleError}");
                     return false;
                 }

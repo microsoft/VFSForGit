@@ -8,33 +8,34 @@ namespace GVFS.Common
 {
     public partial class ProductUpgrader
     {
-        public static IProductUpgrader CreateUpgrader(ITracer tracer, out string error)
+        public static bool TryCreateUpgrader(out IProductUpgrader newUpgrader, ITracer tracer, out string error)
         {
             IProductUpgrader upgrader;
             bool isEnabled;
             bool isConfigured;
-            error = string.Empty;
 
-            upgrader = GitHubUpgrader.Create(tracer, out isEnabled, out isConfigured);
+            newUpgrader = null;
+            upgrader = GitHubUpgrader.Create(tracer, out isEnabled, out isConfigured, out error);
             if (upgrader != null)
             {
-                return upgrader;
+                newUpgrader = upgrader;
+                return true;
             }
 
             if (isEnabled && !isConfigured)
             {
                 // Upgrader is enabled in LocalGVFSConfig. But one or more of the upgrade 
-                // config settings are either missing or set incorreclty.
-                return null;
+                // config settings are either missing or set incorrectly.
+                return false;
             }
 
             if (tracer != null)
             {
-                tracer.RelatedError($"{nameof(CreateUpgrader)}: Could not create upgrader. {error}");
+                tracer.RelatedError($"{nameof(TryCreateUpgrader)}: Could not create upgrader. {error}");
             }
 
             error = GVFSConstants.UpgradeVerbMessages.InvalidRingConsoleAlert + Environment.NewLine + Environment.NewLine + "Error: " + error;
-            return null;
+            return false;
         }
     }
 }

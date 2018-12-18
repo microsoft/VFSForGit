@@ -75,7 +75,12 @@ namespace GVFS.CommandLine
 
                     this.tracer = jsonTracer;
                     this.prerunChecker = new InstallerPreRunChecker(this.tracer, this.Confirmed ? GVFSConstants.UpgradeVerbMessages.GVFSUpgradeConfirm : GVFSConstants.UpgradeVerbMessages.GVFSUpgrade);
-                    this.upgrader = ProductUpgrader.CreateUpgrader(this.tracer, out error);
+
+                    IProductUpgrader upgrader;
+                    if (ProductUpgrader.TryCreateUpgrader(out upgrader, this.tracer, out error))
+                    {
+                        this.upgrader = upgrader;
+                    }
                 }
 
                 return this.upgrader != null;

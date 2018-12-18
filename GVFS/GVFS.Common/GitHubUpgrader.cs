@@ -69,13 +69,14 @@ namespace GVFS.Common
         public static GitHubUpgrader Create(
             ITracer tracer,
             out bool isEnabled,
-            out bool isConfigured)
+            out bool isConfigured,
+            out string error)
         {
             GitHubUpgrader upgrader = null;
             LocalGVFSConfig localConfig = new LocalGVFSConfig();
             GitHubUpgraderConfig gitHubUpgraderConfig = new GitHubUpgraderConfig(tracer, localConfig);
 
-            if (gitHubUpgraderConfig.TryLoad(out isEnabled, out isConfigured, out string error))
+            if (gitHubUpgraderConfig.TryLoad(out isEnabled, out isConfigured, out error))
             {
                 upgrader = new GitHubUpgrader(
                     ProcessHelper.GetCurrentProcessVersion(),
@@ -86,7 +87,7 @@ namespace GVFS.Common
             return upgrader;
         }
 
-        public bool Initialize(out string errorMessage)
+        public bool TryInitialize(out string errorMessage)
         {
             errorMessage = null;
             return true;
@@ -112,19 +113,15 @@ namespace GVFS.Common
             {
                 string ring;
                 string error;
-                string prefix;
-                if (!this.Config.LocalConfig.TryGetConfig(GVFSConstants.LocalGVFSConfig.UpgradeRing, out ring, out error))
+                string prefix = string.Empty;
+                if (this.Config.LocalConfig.TryGetConfig(GVFSConstants.LocalGVFSConfig.UpgradeRing, out ring, out error))
                 {
-                    prefix = $"Invalid upgrade ring specified in gvfs config.";
-                }
-                else
-                {
-                    prefix = $"Invalid upgrade ring `{ring}` specified in gvfs config.";
+                    prefix = $" Invalid upgrade ring `{ring}` specified in gvfs config. ";
                 }
 
                 EventMetadata metadata = new EventMetadata();
                 metadata.Add("Upgrade Step", nameof(this.CanRunUsingCurrentConfig));
-                this.tracer.RelatedError(metadata, $"{nameof(this.CanRunUsingCurrentConfig)} failed. {prefix}. {error}");
+                this.tracer.RelatedError(metadata, $"{nameof(this.CanRunUsingCurrentConfig)} failed.{prefix}{error}");
 
                 message = prefix + Environment.NewLine + GVFSConstants.UpgradeVerbMessages.SetUpgradeRingCommand;
                 isConfigError = true;

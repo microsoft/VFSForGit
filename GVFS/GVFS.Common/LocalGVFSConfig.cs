@@ -12,15 +12,14 @@ namespace GVFS.Common
         private readonly string configFile;
         private readonly PhysicalFileSystem fileSystem;
         private FileBasedDictionary<string, string> allSettings;
-
-        public LocalGVFSConfig(FileBasedDictionary<string, string> settings = null)
+        
+        public LocalGVFSConfig()
         {
             string servicePath = Paths.GetServiceDataRoot(GVFSConstants.Service.ServiceName);
             string gvfsDirectory = Path.GetDirectoryName(servicePath);
 
             this.configFile = Path.Combine(gvfsDirectory, FileName);
             this.fileSystem = new PhysicalFileSystem();
-            this.allSettings = settings;
         }
 
         public virtual bool TryGetAllConfig(out Dictionary<string, string> allConfig, out string error)

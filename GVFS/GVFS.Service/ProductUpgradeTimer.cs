@@ -57,9 +57,9 @@ namespace GVFS.Service
         {
             string errorMessage = null;
             InstallerPreRunChecker prerunChecker = new InstallerPreRunChecker(this.tracer, string.Empty);
-            IProductUpgrader productUpgrader = ProductUpgrader.CreateUpgrader(this.tracer, out errorMessage);
+            IProductUpgrader productUpgrader;
 
-            if (productUpgrader != null)
+            if (ProductUpgrader.TryCreateUpgrader(out productUpgrader, this.tracer, out errorMessage))
             {
                 if (prerunChecker.TryRunPreUpgradeChecks(out string _) && this.TryDownloadUpgrade(productUpgrader, out errorMessage))
                 {
