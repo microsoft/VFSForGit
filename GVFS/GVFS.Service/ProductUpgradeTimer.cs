@@ -1,4 +1,5 @@
 ﻿using GVFS.Common;
+using GVFS.Common.FileSystem;
 using GVFS.Common.Tracing;
 using GVFS.Upgrader;
 using System;
@@ -55,15 +56,18 @@ namespace GVFS.Service
         private void TimerCallback(object unusedState)
         {
             string errorMessage = null;
-
             InstallerPreRunChecker prerunChecker = new InstallerPreRunChecker(this.tracer, string.Empty);
-            ProductUpgrader productUpgrader = new ProductUpgrader(ProcessHelper.GetCurrentProcessVersion(), this.tracer);
-            if (prerunChecker.TryRunPreUpgradeChecks(out string _) && this.TryDownloadUpgrade(productUpgrader, out errorMessage))
-            {
-                return;
-            }
+            IProductUpgrader productUpgrader = ProductUpgrader.CreateUpgrader(this.tracer, out errorMessage);
 
-            productUpgrader.CleanupDownloadDirectory();
+            if (productUpgrader != null)
+            {
+                if (prerunChecker.TryRunPreUpgradeChecks(out string _) && this.TryDownloadUpgrade(productUpgrader, out errorMessage))
+                {
+                    return;
+                }
+
+                productUpgrader.CleanupDownloadDirectory();
+            }
 
             if (errorMessage != null)
             {
@@ -71,13 +75,13 @@ namespace GVFS.Service
             }
         }
 
-        private bool TryDownloadUpgrade(ProductUpgrader productUpgrader, out string errorMessage)
+        private bool TryDownloadUpgrade(IProductUpgrader productUpgrader, out string errorMessage)
         {
             using (ITracer activity = this.tracer.StartActivity("Checking for product upgrades.", EventLevel.Informational))
             {
                 Version newerVersion = null;
                 string detailedError = null;
-                if (!productUpgrader.TryGetNewerVersion(out newerVersion, out detailedError))
+                if (!productUpgrader.TryGetNewerVersion(out newerVersion, out string _, out detailedError))
                 {
                     errorMessage = "Could not fetch new version info. " + detailedError;
                     return false;
@@ -103,6 +107,25 @@ namespace GVFS.Service
                     errorMessage = "Could not download product upgrade. " + detailedError;
                     return false;
                 }
+            }
+        }
+
+        private void CleanupDownloadsDirectory(IProductUpgrader productUpgrader)
+        {
+            if (productUpgrader != null)
+            {
+                productUpgrader.CleanupDownloadDirectory();
+                return;
+            }
+
+            try
+            {
+                PhysicalFileSystem fileSystem = new PhysicalFileSystem();
+                fileSystem.DeleteDirectory(ProductUpgrader.GetAssetDownloadsPath());
+            }
+            catch (Exception ex)
+            {
+                this.tracer.RelatedError($"Unable to delete upgrade downloads directory {ProductUpgrader.GetAssetDownloadsPath()}. {ex.ToString()}");
             }
         }
     }
