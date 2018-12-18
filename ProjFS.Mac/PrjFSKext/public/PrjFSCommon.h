@@ -6,7 +6,6 @@
 
 #define PrjFSMaxPath            1024
 #define PrjFSKextBundleId       "io.gvfs.PrjFSKext"
-#define PrjFSKernelControlName  "io.gvfs.PrjFSKext.ctl"
 
 #define PrjFSServiceClass       "io_gvfs_PrjFS"
 
