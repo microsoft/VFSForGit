@@ -12,7 +12,8 @@ namespace GVFS.Common.Maintenance
     public class LooseObjectsStep : GitMaintenanceStep
     {
         public const string LooseObjectsLastRunFileName = "loose-objects.time";
-        private readonly bool forceRun;
+        public int LooseObjectsPutIntoPackFile = 0;
+        private readonly bool forceRun;        
 
         public LooseObjectsStep(GVFSContext context, bool requireCacheLock, bool forceRun = false)
             : base(context, gitObjects: null, requireObjectCacheLock: requireCacheLock)
@@ -22,24 +23,61 @@ namespace GVFS.Common.Maintenance
 
         public override string Area => nameof(LooseObjectsStep);
 
+        public virtual int MaxLooseObjectsInPack => 1000;
+
         protected override string LastRunTimeFilePath => Path.Combine(this.Context.Enlistment.GitObjectsRoot, "info", LooseObjectsLastRunFileName);
         protected override TimeSpan TimeBetweenRuns => TimeSpan.FromDays(7);
 
         public int CountLooseObjects()
         {
             int count = 0;
-            
+
             foreach (string directoryPath in this.Context.FileSystem.EnumerateDirectories(this.Context.Enlistment.GitObjectsRoot))
             {
                 string directoryName = directoryPath.TrimEnd(Path.DirectorySeparatorChar).Split(Path.DirectorySeparatorChar).Last();
 
                 if (GitObjects.IsLooseObjectsDirectory(directoryName))
-                {                    
+                {
                     count += this.Context.FileSystem.GetFiles(Path.Combine(this.Context.Enlistment.GitObjectsRoot, directoryPath), "*").Count();
                 }
             }
 
             return count;
+        }
+
+        public void PackLooseObjects(StreamWriter streamWriter)
+        {
+            // Find looseObjects
+            foreach (string directoryPath in this.Context.FileSystem.EnumerateDirectories(this.Context.Enlistment.GitObjectsRoot))
+            {
+                string directoryName = directoryPath.TrimEnd(Path.DirectorySeparatorChar).Split(Path.DirectorySeparatorChar).Last();
+
+                if (GitObjects.IsLooseObjectsDirectory(directoryName))
+                {
+                    string[] looseObjectFileNamesInDir = this.Context.FileSystem.GetFiles(Path.Combine(this.Context.Enlistment.GitObjectsRoot, directoryPath), "*");
+
+                    foreach (string file in looseObjectFileNamesInDir)
+                    {
+                        if (this.LooseObjectsPutIntoPackFile == this.MaxLooseObjectsInPack)
+                        {
+                            return;
+                        }
+
+                        this.LooseObjectsPutIntoPackFile++;
+                        streamWriter.Write(this.GetLooseObjectGuid(directoryName, file) + "\n");
+                    }
+                }
+            }
+        }
+
+        public string GetLooseObjectGuid(string directoryName, string filePath)
+        {
+            return directoryName + Path.GetFileName(filePath);
+        }
+
+        public void CreateLooseObjectsPackFile()
+        {
+            GitProcess.Result result = this.RunGitCommand((process) => process.PackObjects("from-loose", this.Context.Enlistment.GitObjectsRoot, this.PackLooseObjects));
         }
 
         protected override void PerformMaintenance()
@@ -65,15 +103,18 @@ namespace GVFS.Common.Maintenance
                         }
                     }
 
-                    int beforeCount = this.CountLooseObjects();
+                    int beforeLooseObjectsCount = this.CountLooseObjects();
                     GitProcess.Result result = this.RunGitCommand((process) => process.PrunePacked(this.Context.Enlistment.GitObjectsRoot));
-                    int afterCount = this.CountLooseObjects();
+                    int afterLooseObjectsCount = this.CountLooseObjects();
+
+                    this.CreateLooseObjectsPackFile();
 
                     EventMetadata metadata = new EventMetadata();
                     metadata.Add("GitObjectsRoot", this.Context.Enlistment.GitObjectsRoot);
-                    metadata.Add("StartingCount", beforeCount);
-                    metadata.Add("EndingCount", afterCount);
-                    metadata.Add("RemovedCount", beforeCount - afterCount);
+                    metadata.Add("StartingCount", beforeLooseObjectsCount);
+                    metadata.Add("EndingCount", afterLooseObjectsCount);
+                    metadata.Add("RemovedCount", beforeLooseObjectsCount - afterLooseObjectsCount);
+                    metadata.Add(nameof(this.LooseObjectsPutIntoPackFile), this.LooseObjectsPutIntoPackFile);
                     activity.RelatedEvent(EventLevel.Informational, this.Area, metadata, Keywords.Telemetry);
 
                     this.SaveLastRunTimeToFile();
