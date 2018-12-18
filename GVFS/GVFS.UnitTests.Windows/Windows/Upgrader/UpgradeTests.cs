@@ -19,19 +19,25 @@ namespace GVFS.UnitTests.Windows.Upgrader
         protected MockTextWriter Output { get; private set; }
         protected MockInstallerPrerunChecker PrerunChecker { get; private set; }
         protected MockProductUpgrader Upgrader { get; private set; }
+        protected MockLocalGVFSConfig LocalConfig { get; private set; }
 
         public virtual void Setup()
         {
             this.Tracer = new MockTracer();
             this.Output = new MockTextWriter();
             this.PrerunChecker = new MockInstallerPrerunChecker(this.Tracer);
-            this.Upgrader = new MockProductUpgrader(LocalGVFSVersion, this.Tracer);
+            this.LocalConfig = new MockLocalGVFSConfig();
 
+            this.Upgrader = new MockProductUpgrader(
+                LocalGVFSVersion, 
+                this.Tracer, 
+                new GitHubUpgrader.GitHubUpgraderConfig(this.Tracer, this.LocalConfig));
+     
             this.PrerunChecker.Reset();
             this.Upgrader.PretendNewReleaseAvailableAtRemote(
                 upgradeVersion: NewerThanLocalVersion,
-                remoteRing: ProductUpgrader.RingType.Slow);
-            this.Upgrader.LocalRingConfig = ProductUpgrader.RingType.Slow;
+                remoteRing: GitHubUpgrader.GitHubUpgraderConfig.RingType.Slow);
+            this.SetUpgradeRing("Slow");
         }
 
         [TestCase]
@@ -41,7 +47,7 @@ namespace GVFS.UnitTests.Windows.Upgrader
             this.ConfigureRunAndVerify(
                 configure: () =>
                 {
-                    this.Upgrader.LocalRingConfig = ProductUpgrader.RingType.None;
+                    this.SetUpgradeRing("None");
                 },
                 expectedReturn: ReturnCode.Success,
                 expectedOutput: new List<string>
@@ -60,7 +66,7 @@ namespace GVFS.UnitTests.Windows.Upgrader
             this.ConfigureRunAndVerify(
                 configure: () =>
                 {
-                    this.Upgrader.LocalRingConfig = GVFS.Common.ProductUpgrader.RingType.Invalid;
+                    this.SetUpgradeRing("Invalid");
                 },
                 expectedReturn: ReturnCode.GenericError,
                 expectedOutput: new List<string>
@@ -81,6 +87,7 @@ namespace GVFS.UnitTests.Windows.Upgrader
             this.ConfigureRunAndVerify(
                 configure: () =>
                 {
+                    this.SetUpgradeRing("Fast");
                     this.Upgrader.SetFailOnAction(MockProductUpgrader.ActionType.FetchReleaseInfo);
                 },
                 expectedReturn: ReturnCode.GenericError,
@@ -119,6 +126,48 @@ namespace GVFS.UnitTests.Windows.Upgrader
                     expectedErrors,
                     (error, expectedError) => { return error.Contains(expectedError); });
             }
+        }
+
+        protected void SetUpgradeRing(string ringName)
+        {
+            GitHubUpgrader.GitHubUpgraderConfig.RingType ring;
+            if (!Enum.TryParse<GitHubUpgrader.GitHubUpgraderConfig.RingType>(ringName, ignoreCase: true, result: out ring))
+            {
+                ring = GitHubUpgrader.GitHubUpgraderConfig.RingType.Invalid;
+            }
+
+            string error;
+            if (ring == GitHubUpgrader.GitHubUpgraderConfig.RingType.Slow ||
+                ring == GitHubUpgrader.GitHubUpgraderConfig.RingType.Fast ||
+                ring == GitHubUpgrader.GitHubUpgraderConfig.RingType.None)
+            {
+                this.LocalConfig.TrySetConfig("upgrade.ring", ringName, out error);
+                this.VerifyConfig(ring, isEnabled: true, isConfigured: true);
+                return;
+            }
+
+            if (ring == GitHubUpgrader.GitHubUpgraderConfig.RingType.Invalid)
+            {
+                this.LocalConfig.TrySetConfig("upgrade.ring", ringName, out error);
+                this.VerifyConfig(ring, isEnabled: true, isConfigured: false);
+                return;
+            }
+        }
+
+        protected void VerifyConfig(
+            GVFS.Common.GitHubUpgrader.GitHubUpgraderConfig.RingType ring,
+            bool isEnabled,
+            bool isConfigured)
+        {
+            bool enabled;
+            bool configured;
+            string error;
+            this.Upgrader.Config.TryLoad(out enabled, out configured, out error);
+
+            Assert.AreEqual(ring, this.Upgrader.Config.UpgradeRing);
+            enabled.ShouldEqual(isEnabled);
+            configured.ShouldEqual(isConfigured);
+            error.ShouldBeNull();
         }
     }
 }
