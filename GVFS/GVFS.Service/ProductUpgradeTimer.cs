@@ -81,7 +81,13 @@ namespace GVFS.Service
             {
                 Version newerVersion = null;
                 string detailedError = null;
-                if (!productUpgrader.TryGetNewerVersion(out newerVersion, out string _, out detailedError))
+                bool isError;
+                if (!productUpgrader.CanRunUsingCurrentConfig(out isError, out errorMessage))
+                {
+                    return !isError;
+                }
+
+                if (!productUpgrader.TryGetNewerVersion(out newerVersion, out detailedError))
                 {
                     errorMessage = "Could not fetch new version info. " + detailedError;
                     return false;
@@ -107,25 +113,6 @@ namespace GVFS.Service
                     errorMessage = "Could not download product upgrade. " + detailedError;
                     return false;
                 }
-            }
-        }
-
-        private void CleanupDownloadsDirectory(IProductUpgrader productUpgrader)
-        {
-            if (productUpgrader != null)
-            {
-                productUpgrader.CleanupDownloadDirectory();
-                return;
-            }
-
-            try
-            {
-                PhysicalFileSystem fileSystem = new PhysicalFileSystem();
-                fileSystem.DeleteDirectory(ProductUpgrader.GetAssetDownloadsPath());
-            }
-            catch (Exception ex)
-            {
-                this.tracer.RelatedError($"Unable to delete upgrade downloads directory {ProductUpgrader.GetAssetDownloadsPath()}. {ex.ToString()}");
             }
         }
     }

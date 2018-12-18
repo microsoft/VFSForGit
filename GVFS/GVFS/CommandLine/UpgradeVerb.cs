@@ -64,6 +64,7 @@ namespace GVFS.CommandLine
         {
             if (GVFSPlatform.Instance.UnderConstruction.SupportsGVFSUpgrade)
             {
+                error = null;
                 if (this.upgrader == null)
                 {
                     JsonTracer jsonTracer = new JsonTracer(GVFSConstants.GVFSEtwProviderName, "UpgradeVerb");
@@ -75,10 +76,6 @@ namespace GVFS.CommandLine
                     this.tracer = jsonTracer;
                     this.prerunChecker = new InstallerPreRunChecker(this.tracer, this.Confirmed ? GVFSConstants.UpgradeVerbMessages.GVFSUpgradeConfirm : GVFSConstants.UpgradeVerbMessages.GVFSUpgrade);
                     this.upgrader = ProductUpgrader.CreateUpgrader(this.tracer, out error);
-                }
-                else
-                {
-                    error = null;
                 }
 
                 return this.upgrader != null;
@@ -93,7 +90,7 @@ namespace GVFS.CommandLine
         private bool TryRunProductUpgrade()
         {
             string errorOutputFormat = Environment.NewLine + "ERROR: {0}";
-            string error = null;
+            string message = null;
             string cannotInstallReason = null;
             Version newestVersion = null;
 
@@ -107,27 +104,25 @@ namespace GVFS.CommandLine
             }
 
             bool isError;
-            string consoleMessage;
-            if (!this.upgrader.CanRunUsingCurrentConfig(out isError, out consoleMessage, out error))
+            if (!this.upgrader.CanRunUsingCurrentConfig(out isError, out message))
             {
                 this.upgrader.CleanupDownloadDirectory();
 
                 if (isError)
                 {
-                    this.Output.WriteLine(errorOutputFormat, error);
-                    this.tracer.RelatedError($"{nameof(this.TryRunProductUpgrade)}: Upgrade checks failed. {error}");
+                    this.Output.WriteLine(errorOutputFormat, message);
+                    this.tracer.RelatedError($"{nameof(this.TryRunProductUpgrade)}: Upgrade checks failed. {message}");
                     return false;
                 }
 
-                this.ReportInfoToConsole(consoleMessage);
+                this.ReportInfoToConsole(message);
                 return true;
             }
 
-            string upgradeAvailableMessage;
-            if (!this.TryRunUpgradeChecks(out newestVersion, out upgradeAvailableMessage, out error))
+            if (!this.TryRunUpgradeChecks(out newestVersion, out message))
             {
-                this.Output.WriteLine(errorOutputFormat, error);
-                this.tracer.RelatedError($"{nameof(this.TryRunProductUpgrade)}: Upgrade checks failed. {error}");
+                this.Output.WriteLine(errorOutputFormat, message);
+                this.tracer.RelatedError($"{nameof(this.TryRunProductUpgrade)}: Upgrade checks failed. {message}");
                 return false;
             }
 
@@ -136,35 +131,35 @@ namespace GVFS.CommandLine
                 // Make sure there a no asset installers remaining in the Downloads directory. This can happen if user
                 // upgraded by manually downloading and running asset installers.
                 this.upgrader.CleanupDownloadDirectory();
-                this.ReportInfoToConsole(upgradeAvailableMessage);
+                this.ReportInfoToConsole(message);
                 return true;
             }
 
             if (this.Confirmed)
             {
-                this.ReportInfoToConsole(upgradeAvailableMessage);
+                this.ReportInfoToConsole(message);
 
                 if (!isInstallable)
                 {
-                    this.tracer.RelatedError($"{nameof(this.TryRunProductUpgrade)}: {error}");
-                    this.Output.WriteLine(errorOutputFormat, error);
+                    this.tracer.RelatedError($"{nameof(this.TryRunProductUpgrade)}: {message}");
+                    this.Output.WriteLine(errorOutputFormat, message);
                     return false;
                 }
 
-                if (!this.TryRunInstaller(out error))
+                if (!this.TryRunInstaller(out message))
                 {
-                    this.tracer.RelatedError($"{nameof(this.TryRunProductUpgrade)}: Could not launch upgrade tool. {error}");
-                    this.Output.WriteLine(errorOutputFormat, "Could not launch upgrade tool. " + error);
+                    this.tracer.RelatedError($"{nameof(this.TryRunProductUpgrade)}: Could not launch upgrade tool. {message}");
+                    this.Output.WriteLine(errorOutputFormat, "Could not launch upgrade tool. " + message);
                     return false;
                 }
             }
             else
             {
-                string message = string.Join(
+                string advisoryMessage = string.Join(
                         Environment.NewLine,
                         GVFSConstants.UpgradeVerbMessages.UnmountRepoWarning,
                         GVFSConstants.UpgradeVerbMessages.UpgradeInstallAdvice);
-                this.ReportInfoToConsole(upgradeAvailableMessage + Environment.NewLine + Environment.NewLine + message + Environment.NewLine);
+                this.ReportInfoToConsole(message + Environment.NewLine + Environment.NewLine + advisoryMessage + Environment.NewLine);
             }
 
             return true;
@@ -172,25 +167,22 @@ namespace GVFS.CommandLine
 
         private bool TryRunUpgradeChecks(
             out Version latestVersion,
-            out string consoleMessage,
             out string error)
         {
             bool upgradeCheckSuccess = false;
             string errorMessage = null;
-            string userMessage = null;
             Version version = null;
 
             this.ShowStatusWhileRunning(
                 () =>
                 {
-                    upgradeCheckSuccess = this.TryCheckUpgradeAvailable(out version, out userMessage, out errorMessage);
+                    upgradeCheckSuccess = this.TryCheckUpgradeAvailable(out version, out errorMessage);
                     return upgradeCheckSuccess;
                 },
                  "Checking for GVFS upgrades",
                 suppressGvfsLogMessage: true);
 
             latestVersion = version;
-            consoleMessage = userMessage;
             error = errorMessage;
 
             return upgradeCheckSuccess;
@@ -264,11 +256,9 @@ namespace GVFS.CommandLine
 
         private bool TryCheckUpgradeAvailable(
             out Version latestVersion,
-            out string consoleMessage,
             out string error)
         {
             latestVersion = null;
-            consoleMessage = null;
             error = null;
 
             using (ITracer activity = this.tracer.StartActivity(nameof(this.TryCheckUpgradeAvailable), EventLevel.Informational))
@@ -276,7 +266,7 @@ namespace GVFS.CommandLine
                 bool checkSucceeded = false;
                 Version version = null;
 
-                checkSucceeded = this.upgrader.TryGetNewerVersion(out version, out consoleMessage, out error);
+                checkSucceeded = this.upgrader.TryGetNewerVersion(out version, out error);
                 if (!checkSucceeded)
                 {
                     return false;

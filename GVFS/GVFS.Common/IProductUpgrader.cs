@@ -14,14 +14,11 @@ namespace GVFS.Common
 
     public interface IProductUpgrader
     {
-        bool CanRunUsingCurrentConfig(
-            out bool isConfigError,
-            out string consoleMessage,
-            out string errorMessage);
+        bool CanRunUsingCurrentConfig(out bool isConfigError, out string message);
 
         bool Initialize(out string errorMessage);
 
-        bool TryGetNewerVersion(out Version newVersion, out string consoleMessage, out string errorMessage);
+        bool TryGetNewerVersion(out Version newVersion, out string message);
 
         bool TryGetGitVersion(out GitVersion gitVersion, out string error);
 

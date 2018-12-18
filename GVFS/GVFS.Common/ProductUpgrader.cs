@@ -14,15 +14,17 @@ namespace GVFS.Common
             bool isEnabled;
             bool isConfigured;
             error = string.Empty;
-            
-            if ((upgrader = GitHubUpgrader.Create(tracer, out isEnabled, out isConfigured)) != null)
+
+            upgrader = GitHubUpgrader.Create(tracer, out isEnabled, out isConfigured);
+            if (upgrader != null)
             {
                 return upgrader;
             }
 
             if (isEnabled && !isConfigured)
             {
-                // Configuration error
+                // Upgrader is enabled in LocalGVFSConfig. But one or more of the upgrade 
+                // config settings are either missing or set incorreclty.
                 return null;
             }
 

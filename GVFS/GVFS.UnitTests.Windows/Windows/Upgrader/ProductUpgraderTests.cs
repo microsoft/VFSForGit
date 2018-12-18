@@ -113,9 +113,8 @@ namespace GVFS.UnitTests.Windows.Upgrader
                 remoteRing);
 
             Version newVersion;
-            string errorMessage;
-            string consoleMessage;
-            this.Upgrader.TryGetNewerVersion(out newVersion, out consoleMessage, out errorMessage).ShouldEqual(expectedReturn);
+            string message;
+            this.Upgrader.TryGetNewerVersion(out newVersion, out message).ShouldEqual(expectedReturn);
 
             if (string.IsNullOrEmpty(expectedUpgradeVersion))
             {

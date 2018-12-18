@@ -92,24 +92,19 @@ namespace GVFS.Common
             return true;
         }
 
-        public bool CanRunUsingCurrentConfig(
-            out bool isConfigError, 
-            out string consoleMessage,
-            out string errorMessage)
+        public bool CanRunUsingCurrentConfig(out bool isConfigError, out string message)
         {
             if (this.Config.UpgradeRing == GitHubUpgraderConfig.RingType.None)
             {
                 isConfigError = false;
-                consoleMessage = GVFSConstants.UpgradeVerbMessages.NoneRingConsoleAlert + Environment.NewLine + GVFSConstants.UpgradeVerbMessages.SetUpgradeRingCommand;
-                errorMessage = null;
+                message = GVFSConstants.UpgradeVerbMessages.NoneRingConsoleAlert + Environment.NewLine + GVFSConstants.UpgradeVerbMessages.SetUpgradeRingCommand;
                 return false;
             }
 
             if (this.Config.UpgradeRing == GitHubUpgraderConfig.RingType.NoConfig)
             {
                 isConfigError = false;
-                consoleMessage = GVFSConstants.UpgradeVerbMessages.NoRingConfigConsoleAlert + Environment.NewLine + GVFSConstants.UpgradeVerbMessages.SetUpgradeRingCommand;
-                errorMessage = null;
+                message = GVFSConstants.UpgradeVerbMessages.NoRingConfigConsoleAlert + Environment.NewLine + GVFSConstants.UpgradeVerbMessages.SetUpgradeRingCommand;
                 return false;
             }
 
@@ -117,39 +112,38 @@ namespace GVFS.Common
             {
                 string ring;
                 string error;
+                string prefix;
                 if (!this.Config.LocalConfig.TryGetConfig(GVFSConstants.LocalGVFSConfig.UpgradeRing, out ring, out error))
                 {
-                    ring = "invalid";
+                    prefix = $"Invalid upgrade ring specified in gvfs config.";
+                }
+                else
+                {
+                    prefix = $"Invalid upgrade ring `{ring}` specified in gvfs config.";
                 }
 
-                consoleMessage = null;
-                errorMessage = $"Invalid upgrade ring `{ring}` specified in gvfs config." + Environment.NewLine + GVFSConstants.UpgradeVerbMessages.SetUpgradeRingCommand;
+                EventMetadata metadata = new EventMetadata();
+                metadata.Add("Upgrade Step", nameof(this.CanRunUsingCurrentConfig));
+                this.tracer.RelatedError(metadata, $"{nameof(this.CanRunUsingCurrentConfig)} failed. {prefix}. {error}");
+
+                message = prefix + Environment.NewLine + GVFSConstants.UpgradeVerbMessages.SetUpgradeRingCommand;
                 isConfigError = true;
                 return false;
             }
 
             isConfigError = false;
-            consoleMessage = null;
-            errorMessage = null;
+            message = null;
             return true;
         }
 
         public bool TryGetNewerVersion(
             out Version newVersion,
-            out string consoleMessage,
-            out string errorMessage)
+            out string message)
         {
             List<Release> releases;
 
             newVersion = null;
-            consoleMessage = null;
-            bool isConfigError;
-            if (!this.CanRunUsingCurrentConfig(out isConfigError, out consoleMessage, out errorMessage))
-            {
-                return !isConfigError;
-            }
-
-            if (this.TryFetchReleases(out releases, out errorMessage))
+            if (this.TryFetchReleases(out releases, out message))
             {
                 foreach (Release nextRelease in releases)
                 {
@@ -162,14 +156,14 @@ namespace GVFS.Common
                         newVersion = releaseVersion;
                         this.newestVersion = releaseVersion;
                         this.newestRelease = nextRelease;
-                        consoleMessage = $"New GVFS version {newVersion.ToString()} available in ring {this.Config.UpgradeRing}.";
+                        message = $"New GVFS version {newVersion.ToString()} available in ring {this.Config.UpgradeRing}.";
                         break;
                     }
                 }
                 
                 if (newVersion == null)
                 {
-                    consoleMessage = $"Great news, you're all caught up on upgrades in the {this.Config.UpgradeRing} ring!";
+                    message = $"Great news, you're all caught up on upgrades in the {this.Config.UpgradeRing} ring!";
                 }
 
                 return true;
@@ -528,7 +522,7 @@ namespace GVFS.Common
 
             int exitCode = 0;
             bool launched = this.TryRunInstallerForAsset(GVFSAssetId, out exitCode, out error);
-            installationSucceeded = exitCode == 0 || exitCode == RepoMountFailureExitCode;
+            installationSucceeded = exitCode == 0;
 
             return launched;
         }

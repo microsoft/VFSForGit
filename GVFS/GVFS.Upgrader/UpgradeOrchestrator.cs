@@ -129,19 +129,20 @@ namespace GVFS.Upgrader
 
             Version newGVFSVersion = null;
             string error = null;
-            string consoleMessage;
             bool isError;
-
-            if (!this.upgrader.CanRunUsingCurrentConfig(out isError, out consoleMessage, out error))
+            if (!this.upgrader.CanRunUsingCurrentConfig(out isError, out error))
             {
                 this.upgrader.CleanupDownloadDirectory();
-                this.output.WriteLine(consoleMessage);
 
                 if (isError)
                 {
                     consoleError = error;
                     this.tracer.RelatedError($"{nameof(this.TryRunUpgrade)}: Upgrade checks failed. {error}");
                     return false;
+                }
+                else
+                {
+                    this.output.WriteLine(error);
                 }
 
                 consoleError = null;
@@ -271,7 +272,7 @@ namespace GVFS.Upgrader
 
             using (ITracer activity = this.tracer.StartActivity(nameof(this.TryCheckIfUpgradeAvailable), EventLevel.Informational))
             {
-                if (!this.upgrader.TryGetNewerVersion(out newestVersion, out string _, out consoleError))
+                if (!this.upgrader.TryGetNewerVersion(out newestVersion, out consoleError))
                 {
                     EventMetadata metadata = new EventMetadata();
                     metadata.Add("Upgrade Step", nameof(this.TryCheckIfUpgradeAvailable));
