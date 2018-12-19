@@ -138,15 +138,16 @@ namespace GVFS.UnitTests.Maintenance
             this.gitProcess.SetExpectedCommandResult(
                 PrunePackedCommand,
                 () => new GitProcess.Result(string.Empty, string.Empty, GitProcess.Result.SuccessCode));
-            this.gitProcess.SetExpectedCommandResult(
-                this.packCommand,
-                () => new GitProcess.Result(string.Empty, string.Empty, GitProcess.Result.SuccessCode));
 
             // Create enlistment using git process
             GVFSEnlistment enlistment = new MockGVFSEnlistment(this.gitProcess);
 
             string packPrefix = Path.Combine(enlistment.GitPackRoot, "from-loose");
             this.packCommand = $"pack-objects {packPrefix} --non-empty -q";
+
+            this.gitProcess.SetExpectedCommandResult(
+                this.packCommand,
+                () => new GitProcess.Result(string.Empty, string.Empty, GitProcess.Result.SuccessCode));
 
             // Create a last run time file
             MockFile timeFile = new MockFile(Path.Combine(enlistment.GitObjectsRoot, "info", LooseObjectsStep.LooseObjectsLastRunFileName), lastRunTime);
