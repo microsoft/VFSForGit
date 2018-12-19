@@ -64,12 +64,11 @@ namespace GVFS.Common.Maintenance
                     {
                         string[] looseObjectFileNamesInDir = this.Context.FileSystem.GetFiles(directoryItemInfo.FullName, "*");
 
-                        foreach (string file in looseObjectFileNamesInDir)
+                        foreach (string filePath in looseObjectFileNamesInDir)
                         {
-                            string objectId = this.GetLooseObjectId(directoryName, file);
-                            if (!SHA1Util.IsValidShaFormat(objectId))
+                            if (!this.TryGetLooseObjectId(directoryName, filePath, out string objectId))
                             {
-                                this.Context.Tracer.RelatedWarning($"Skippin invalid ObjectId {objectId}", Keywords.Telemetry);
+                                this.Context.Tracer.RelatedWarning($"Invalid ObjectId {objectId} using directory {directoryName} and path {filePath}");
                                 continue;
                             }
 
@@ -87,9 +86,15 @@ namespace GVFS.Common.Maintenance
             }
         }
 
-        public string GetLooseObjectId(string directoryName, string filePath)
+        public bool TryGetLooseObjectId(string directoryName, string filePath, out string objectId)
         {
-            return directoryName + Path.GetFileName(filePath);
+            objectId = directoryName + Path.GetFileName(filePath);
+            if (!SHA1Util.IsValidShaFormat(objectId))
+            {
+                return false;
+            }
+
+            return true;
         }
 
         public void CreateLooseObjectsPackFile()

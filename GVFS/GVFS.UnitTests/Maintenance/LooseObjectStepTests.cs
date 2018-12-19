@@ -125,8 +125,20 @@ namespace GVFS.UnitTests.Maintenance
             LooseObjectsStep step = new LooseObjectsStep(this.context, requireCacheLock: false, forceRun: false);
             string directoryName = "AB";
             string fileName = "830bb79cd4fadb2e73e780e452dc71db909001";
-            string objectId = step.GetLooseObjectId(directoryName, Path.Combine(this.context.Enlistment.GitObjectsRoot, directoryName, fileName));
+            Assert.IsTrue(
+                step.TryGetLooseObjectId(
+                    directoryName, 
+                    Path.Combine(this.context.Enlistment.GitObjectsRoot, directoryName, fileName), 
+                    out string objectId));
             objectId.ShouldEqual(directoryName + fileName);
+
+            directoryName = "AB";
+            fileName = "BAD_FILE_NAME";
+            Assert.IsFalse(
+                step.TryGetLooseObjectId(
+                    directoryName,
+                    Path.Combine(this.context.Enlistment.GitObjectsRoot, directoryName, fileName),
+                    out objectId));
         }
 
         private void TestSetup(DateTime lastRun)

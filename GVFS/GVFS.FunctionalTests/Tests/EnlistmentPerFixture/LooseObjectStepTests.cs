@@ -26,15 +26,19 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
         private string PackRoot => this.Enlistment.GetPackRoot(this.fileSystem);
         private string TempPackRoot=> Path.Combine(this.PackRoot, TempPackFolder);
 
-        [TestCase]
-        public void RemoveLooseObjectsInPackFiles()
+        [SetUp]
+        public void DeleteLooseObjectsAndMovePackFiles()
         {
             // Delete/Move any starting loose objects and packfiles
             this.DeleteFiles(this.GetLooseObjectFiles());
             this.MovePackFilesToTemp();
             Assert.AreEqual(0, this.GetLooseObjectFiles().Count);
             Assert.AreEqual(0, this.CountPackFiles());
+        }
 
+        [TestCase]
+        public void RemoveLooseObjectsInPackFiles()
+        {
             // Copy and expand one pack
             this.ExpandOneTempPack(copyPackBackToPackDirectory: true);
             Assert.AreNotEqual(0, this.GetLooseObjectFiles().Count);
@@ -50,12 +54,6 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
         [TestCase]
         public void PutLooseObjectsInPackFiles()
         {
-            // Delete/Move any starting loose objects and packfiles
-            this.DeleteFiles(this.GetLooseObjectFiles());
-            this.MovePackFilesToTemp();
-            Assert.AreEqual(0, this.GetLooseObjectFiles().Count);
-            Assert.AreEqual(0, this.CountPackFiles());
-
             // Expand one pack, and verify we have loose objects
             this.ExpandOneTempPack(copyPackBackToPackDirectory: false);
             int loooseObjectCount = this.GetLooseObjectFiles().Count();
@@ -77,12 +75,6 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
         [TestCase]
         public void NoLooseObjectsDoesNothing()
         {
-            // Delete/Move any starting loose objects and packfiles
-            this.DeleteFiles(this.GetLooseObjectFiles());
-            this.MovePackFilesToTemp();
-            Assert.AreEqual(0, this.GetLooseObjectFiles().Count);
-            Assert.AreEqual(0, this.CountPackFiles());
-
             this.Enlistment.LooseObjectStep();
 
             Assert.AreEqual(0, this.GetLooseObjectFiles().Count);
@@ -115,9 +107,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
 
         private int CountPackFiles()
         {
-            return Directory.GetFiles(this.PackRoot)
-                .Where(file => string.Equals(Path.GetExtension(file), ".pack", System.StringComparison.OrdinalIgnoreCase))
-                .Count();
+            return Directory.GetFiles(this.PackRoot, "*.pack").Length;
         }
 
         private void MovePackFilesToTemp()
