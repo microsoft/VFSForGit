@@ -49,6 +49,8 @@ namespace GVFS.Common.Maintenance
 
         public void PackLooseObjects(StreamWriter streamWriter)
         {
+            this.LooseObjectsPutIntoPackFile = 0;
+
             // Find loose Objects
             foreach (DirectoryItemInfo directoryItemInfo in this.Context.FileSystem.ItemsInDirectory(this.Context.Enlistment.GitObjectsRoot))
             {
@@ -58,15 +60,22 @@ namespace GVFS.Common.Maintenance
 
                     if (GitObjects.IsLooseObjectsDirectory(directoryName))
                     {
-                        string[] looseObjectFileNamesInDir = this.Context.FileSystem.GetFiles(Path.Combine(directoryItemInfo.FullName), "*");
+                        string[] looseObjectFileNamesInDir = this.Context.FileSystem.GetFiles(directoryItemInfo.FullName, "*");
 
                         foreach (string file in looseObjectFileNamesInDir)
                         {
+                            string objectId = this.GetLooseObjectId(directoryName, file);
+                            if (!SHA1Util.IsValidShaFormat(objectId))
+                            {
+                                this.Context.Tracer.RelatedWarning($"Skippin invalid ObjectId {objectId}", Keywords.Telemetry);
+                                continue;
+                            }
+
                             this.LooseObjectsPutIntoPackFile++;
-                            streamWriter.Write(this.GetLooseObjectId(directoryName, file) + "\n");
+                            streamWriter.Write(objectId + "\n");
 
                             // Stop when we hit the limit.  The next run will pack more files.
-                            if (this.LooseObjectsPutIntoPackFile == this.MaxLooseObjectsInPack)
+                            if (this.LooseObjectsPutIntoPackFile >= this.MaxLooseObjectsInPack)
                             {
                                 return;
                             }
@@ -125,8 +134,7 @@ namespace GVFS.Common.Maintenance
                     metadata.Add("EndingCount", afterLooseObjectsCount);
                     metadata.Add("RemovedCount", beforeLooseObjectsCount - afterLooseObjectsCount);
                     metadata.Add("LooseObjectsPutIntoPackFile", this.LooseObjectsPutIntoPackFile);
-                    activity.RelatedEvent(EventLevel.Informational, this.Area, metadata, Keywords.Telemetry);
-
+                    activity.RelatedEvent(EventLevel.Informational, $"{this.Area}_{nameof(this.PerformMaintenance)}", metadata, Keywords.Telemetry);
                     this.SaveLastRunTimeToFile();
                 }
                 catch (Exception e)

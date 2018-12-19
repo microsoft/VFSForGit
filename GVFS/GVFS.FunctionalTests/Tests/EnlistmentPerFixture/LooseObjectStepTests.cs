@@ -74,6 +74,21 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
             Assert.AreEqual(1, this.CountPackFiles());
         }
 
+        [TestCase]
+        public void NoLooseObjectsDoesNothing()
+        {
+            // Delete/Move any starting loose objects and packfiles
+            this.DeleteFiles(this.GetLooseObjectFiles());
+            this.MovePackFilesToTemp();
+            Assert.AreEqual(0, this.GetLooseObjectFiles().Count);
+            Assert.AreEqual(0, this.CountPackFiles());
+
+            this.Enlistment.LooseObjectStep();
+
+            Assert.AreEqual(0, this.GetLooseObjectFiles().Count);
+            Assert.AreEqual(0, this.CountPackFiles());
+        }
+
         private List<string> GetLooseObjectFiles()
         {
             List<string> looseObjectFiles = new List<string>();
