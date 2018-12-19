@@ -44,12 +44,19 @@ public:
     
     virtual IOReturn clientClose() override;
 
+    // IOService methods:
+    virtual void stop(IOService* provider) override;
+
     // OSObject methods:
     virtual void free() override;
 
 
     void sendMessage(const void* message, uint32_t size);
 
+private:
+    void cleanupProviderRegistration();
+
+public:
     // External methods:
     static IOReturn registerVirtualizationRoot(
         OSObject* target,

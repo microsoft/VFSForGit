@@ -80,6 +80,16 @@ CleanupAndFail:
     return false;
 }
 
+void PrjFSProviderUserClient::stop(IOService* provider)
+{
+    // On the code path of process dying or disconnecting, the following is unnecessary,
+    // but if the kext is unloaded with providers attached, clientClose() will never be
+    // called on them so we do the cleanup here.
+    this->cleanupProviderRegistration();
+    
+    this->super::stop(provider);
+}
+
 void PrjFSProviderUserClient::free()
 {
     OSSafeReleaseNULL(this->dataQueueMemory);
@@ -96,15 +106,20 @@ void PrjFSProviderUserClient::free()
 // the connection.
 IOReturn PrjFSProviderUserClient::clientClose()
 {
+    this->cleanupProviderRegistration();
+    
+    this->terminate(0);
+    return kIOReturnSuccess;
+}
+
+void PrjFSProviderUserClient::cleanupProviderRegistration()
+{
     VirtualizationRootHandle root = this->virtualizationRootHandle;
     this->virtualizationRootHandle = RootHandle_None;
     if (RootHandle_None != root)
     {
         ActiveProvider_Disconnect(root);
     }
-    
-    this->terminate(0);
-    return kIOReturnSuccess;
 }
 
 // Called when user process requests memory-mapping of kernel data
