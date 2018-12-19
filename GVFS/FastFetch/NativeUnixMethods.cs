@@ -14,19 +14,33 @@ namespace FastFetch
         public const int Create = 0x0200;
         public const int Truncate = 0x0400;
         private const int InvalidFileDescriptor = -1;
+        private const ushort SymLinkMode = 0xA000;
 
         public static unsafe void WriteFile(ITracer tracer, byte* originalData, long originalSize, string destination, ushort mode)
         {
             int fileDescriptor = InvalidFileDescriptor;
             try
             {
-                fileDescriptor = Open(destination, WriteOnly | Create | Truncate, mode);
-                if (fileDescriptor != InvalidFileDescriptor)
+                if (mode == SymLinkMode)
                 {
-                    IntPtr result = Write(fileDescriptor, originalData, (IntPtr)originalSize);
-                    if (result.ToInt32() == -1)
+                    string linkLocation = Marshal.PtrToStringUTF8(new IntPtr(originalData));
+                    int result = CreateSymLink(linkLocation, destination);
+                    if (result == -1)
                     {
+                        tracer.RelatedInfo("Failed to create symlink({0},{1})", linkLocation, destination);
                         throw new Win32Exception(Marshal.GetLastWin32Error());
+                    }
+                }
+                else
+                {
+                    fileDescriptor = Open(destination, WriteOnly | Create | Truncate, mode);
+                    if (fileDescriptor != InvalidFileDescriptor)
+                    {
+                        IntPtr result = Write(fileDescriptor, originalData, (IntPtr)originalSize);
+                        if (result.ToInt32() == -1)
+                        {
+                            throw new Win32Exception(Marshal.GetLastWin32Error());
+                        }
                     }
                 }
             }
@@ -79,6 +93,9 @@ namespace FastFetch
 
         [DllImport("libc", EntryPoint = "write", SetLastError = true)]
         private static unsafe extern IntPtr Write(int fileDescriptor, void* buf, IntPtr count);
+
+        [DllImport("libc", EntryPoint = "symlink", SetLastError = true)]
+        private static extern int CreateSymLink(string sourcePath, string destinationPath);
 
         private static NativeStat.StatBuffer StatFile(string fileName)
         {
