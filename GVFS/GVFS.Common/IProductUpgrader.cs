@@ -9,7 +9,7 @@ namespace GVFS.Common
     /// </summary>
     /// <param name="method">The method to run inside wrapper</param>
     /// <param name="message">The message to display</param>
-    /// <returns></returns>
+    /// <returns>success or failure return from the method run.</returns>
     public delegate bool InstallActionWrapper(Func<bool> method, string message);
 
     public interface IProductUpgrader

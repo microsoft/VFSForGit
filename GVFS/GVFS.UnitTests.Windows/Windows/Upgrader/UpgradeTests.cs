@@ -18,7 +18,7 @@ namespace GVFS.UnitTests.Windows.Upgrader
         protected MockTracer Tracer { get; private set; }
         protected MockTextWriter Output { get; private set; }
         protected MockInstallerPrerunChecker PrerunChecker { get; private set; }
-        protected MockProductUpgrader Upgrader { get; private set; }
+        protected MockGitHubUpgrader Upgrader { get; private set; }
         protected MockLocalGVFSConfig LocalConfig { get; private set; }
 
         public virtual void Setup()
@@ -28,7 +28,7 @@ namespace GVFS.UnitTests.Windows.Upgrader
             this.PrerunChecker = new MockInstallerPrerunChecker(this.Tracer);
             this.LocalConfig = new MockLocalGVFSConfig();
 
-            this.Upgrader = new MockProductUpgrader(
+            this.Upgrader = new MockGitHubUpgrader(
                 LocalGVFSVersion, 
                 this.Tracer, 
                 new GitHubUpgrader.GitHubUpgraderConfig(this.Tracer, this.LocalConfig));
@@ -88,7 +88,7 @@ namespace GVFS.UnitTests.Windows.Upgrader
                 configure: () =>
                 {
                     this.SetUpgradeRing("Fast");
-                    this.Upgrader.SetFailOnAction(MockProductUpgrader.ActionType.FetchReleaseInfo);
+                    this.Upgrader.SetFailOnAction(MockGitHubUpgrader.ActionType.FetchReleaseInfo);
                 },
                 expectedReturn: ReturnCode.GenericError,
                 expectedOutput: new List<string>

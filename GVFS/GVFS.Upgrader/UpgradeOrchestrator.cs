@@ -57,14 +57,13 @@ namespace GVFS.Upgrader
         public void Execute()
         {
             string error = null;
-
             string mountError = null;
+            Version newVersion = null;
 
             if (this.TryInitialize(out error))
             {
                 try
                 {
-                    Version newVersion = null;
                     if (!this.TryRunUpgrade(out newVersion, out error))
                     {
                         this.ExitCode = ReturnCode.GenericError;
@@ -93,7 +92,10 @@ namespace GVFS.Upgrader
             }
             else
             {
-                this.output.WriteLine($"{Environment.NewLine}Upgrade completed successfully{(string.IsNullOrEmpty(mountError) ? "." : ", but one or more repositories will need to be mounted manually.")}");
+                if (newVersion != null)
+                {
+                    this.output.WriteLine($"{Environment.NewLine}Upgrade completed successfully{(string.IsNullOrEmpty(mountError) ? "." : ", but one or more repositories will need to be mounted manually.")}");
+                }
             }
 
             if (this.input == Console.In)
@@ -117,10 +119,15 @@ namespace GVFS.Upgrader
 
         private bool TryInitialize(out string errorMessage)
         {
-            IProductUpgrader upgrader;
-            if (this.upgrader == null && !ProductUpgrader.TryCreateUpgrader(out upgrader, this.tracer, out errorMessage))
+            if (this.upgrader == null)
             {
-                return false;
+                IProductUpgrader upgrader;
+                if (!ProductUpgrader.TryCreateUpgrader(out upgrader, this.tracer, out errorMessage))
+                {
+                    return false;
+                }
+
+                this.upgrader = upgrader;
             }
 
             return this.upgrader.TryInitialize(out errorMessage);

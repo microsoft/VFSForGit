@@ -113,7 +113,7 @@ namespace GVFS.UnitTests.Windows.Upgrader
                 configure: () =>
                 {
                     this.SetUpgradeRing("Slow");
-                    this.Upgrader.SetFailOnAction(MockProductUpgrader.ActionType.CopyTools);
+                    this.Upgrader.SetFailOnAction(MockGitHubUpgrader.ActionType.CopyTools);
                     this.upgradeVerb.Confirmed = true;
                     this.PrerunChecker.SetCommandToRerun("`gvfs upgrade --confirm`");
                 },

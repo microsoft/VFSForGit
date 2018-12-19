@@ -78,7 +78,7 @@ namespace GVFS.UnitTests.Windows.Upgrader
             this.ConfigureRunAndVerify(
                 configure: () =>
                 {
-                    this.Upgrader.SetFailOnAction(MockProductUpgrader.ActionType.GVFSDownload);
+                    this.Upgrader.SetFailOnAction(MockGitHubUpgrader.ActionType.GVFSDownload);
                 },
                 expectedReturn: ReturnCode.GenericError,
                 expectedOutput: new List<string>
@@ -97,7 +97,7 @@ namespace GVFS.UnitTests.Windows.Upgrader
             this.ConfigureRunAndVerify(
                 configure: () =>
                 {
-                    this.Upgrader.SetFailOnAction(MockProductUpgrader.ActionType.GitDownload);
+                    this.Upgrader.SetFailOnAction(MockGitHubUpgrader.ActionType.GitDownload);
                 },
                 expectedReturn: ReturnCode.GenericError,
                 expectedOutput: new List<string>
@@ -130,7 +130,7 @@ namespace GVFS.UnitTests.Windows.Upgrader
             this.ConfigureRunAndVerify(
                 configure: () =>
                 {
-                    this.Upgrader.SetFailOnAction(MockProductUpgrader.ActionType.GitInstall);
+                    this.Upgrader.SetFailOnAction(MockGitHubUpgrader.ActionType.GitInstall);
                 },
                 expectedReturn: ReturnCode.GenericError,
                 expectedOutput: new List<string>
@@ -163,7 +163,7 @@ namespace GVFS.UnitTests.Windows.Upgrader
             this.ConfigureRunAndVerify(
                 configure: () =>
                 {
-                    this.Upgrader.SetFailOnAction(MockProductUpgrader.ActionType.GVFSInstall);
+                    this.Upgrader.SetFailOnAction(MockGitHubUpgrader.ActionType.GVFSInstall);
                 },
                 expectedReturn: ReturnCode.GenericError,
                 expectedOutput: new List<string>
@@ -182,7 +182,7 @@ namespace GVFS.UnitTests.Windows.Upgrader
             this.ConfigureRunAndVerify(
                 configure: () =>
                 {
-                    this.Upgrader.SetFailOnAction(MockProductUpgrader.ActionType.GVFSCleanup);
+                    this.Upgrader.SetFailOnAction(MockGitHubUpgrader.ActionType.GVFSCleanup);
                 },
                 expectedReturn: ReturnCode.Success,
                 expectedOutput: new List<string>
@@ -200,7 +200,7 @@ namespace GVFS.UnitTests.Windows.Upgrader
             this.ConfigureRunAndVerify(
                 configure: () =>
                 {
-                    this.Upgrader.SetFailOnAction(MockProductUpgrader.ActionType.GitCleanup);
+                    this.Upgrader.SetFailOnAction(MockGitHubUpgrader.ActionType.GitCleanup);
                 },
                 expectedReturn: ReturnCode.Success,
                 expectedOutput: new List<string>
