@@ -25,10 +25,12 @@ namespace GVFS.Common.Maintenance
 
         public override string Area => nameof(LooseObjectsStep);
         public int LooseObjectsPutIntoPackFile { get; private set; } = 0;
-        public int MaxLooseObjectsInPack { get; set; } = 100000;
+        
+        // 50,000 was found to be the optimal time taking ~5 minutes
+        public int MaxLooseObjectsInPack { get; set; } = 50000;
 
         protected override string LastRunTimeFilePath => Path.Combine(this.Context.Enlistment.GitObjectsRoot, "info", LooseObjectsLastRunFileName);
-        protected override TimeSpan TimeBetweenRuns => TimeSpan.FromDays(7);
+        protected override TimeSpan TimeBetweenRuns => TimeSpan.FromDays(1);
 
         public int CountLooseObjects()
         {

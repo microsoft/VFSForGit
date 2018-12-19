@@ -376,8 +376,11 @@ namespace GVFS.Common.Git
         public Result PackObjects(string filenamePrefix, string gitObjectsDirectory, Action<StreamWriter> packFileStream)
         {
             string packFilePath = Path.Combine(gitObjectsDirectory, GVFSConstants.DotGit.Objects.Pack.Name, filenamePrefix);
+
+            // Since we don't provide paths we won't be able to complete good deltas
+            // avoid the unnecessary computation by setting window/depth to 0
             return this.InvokeGitAgainstDotGitFolder(
-                $"pack-objects {packFilePath} --non-empty -q",
+                $"pack-objects {packFilePath} --non-empty --window=0 --depth=0 -q",
                 packFileStream,
                 parseStdOutLine: null,
                 gitObjectsDirectory: gitObjectsDirectory);

@@ -143,7 +143,7 @@ namespace GVFS.UnitTests.Maintenance
             GVFSEnlistment enlistment = new MockGVFSEnlistment(this.gitProcess);
 
             string packPrefix = Path.Combine(enlistment.GitPackRoot, "from-loose");
-            this.packCommand = $"pack-objects {packPrefix} --non-empty -q";
+            this.packCommand = $"pack-objects {packPrefix} --non-empty --window=0 --depth=0 -q";
 
             this.gitProcess.SetExpectedCommandResult(
                 this.packCommand,
