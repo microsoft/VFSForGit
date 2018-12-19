@@ -124,6 +124,13 @@ kern_return_t VirtualizationRoots_Init()
 
 kern_return_t VirtualizationRoots_Cleanup()
 {
+    if (s_virtualizationRoots != nullptr)
+    {
+        Memory_FreeArray(s_virtualizationRoots, s_maxVirtualizationRoots);
+        s_virtualizationRoots = nullptr;
+        s_maxVirtualizationRoots = 0;
+    }
+
     if (RWLock_IsValid(s_virtualizationRootsLock))
     {
         RWLock_FreeMemory(&s_virtualizationRootsLock);
