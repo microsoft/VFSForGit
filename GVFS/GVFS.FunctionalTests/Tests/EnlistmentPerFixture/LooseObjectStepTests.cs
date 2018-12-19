@@ -1,5 +1,6 @@
 ﻿using GVFS.FunctionalTests.FileSystemRunners;
 using GVFS.FunctionalTests.Tools;
+using GVFS.Tests.Should;
 using NUnit.Framework;
 using System.Collections.Generic;
 using System.IO;
@@ -26,59 +27,68 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
         private string PackRoot => this.Enlistment.GetPackRoot(this.fileSystem);
         private string TempPackRoot=> Path.Combine(this.PackRoot, TempPackFolder);
 
-        [SetUp]
-        public void DeleteLooseObjectsAndMovePackFiles()
+        [TestCase]
+        public void RemoveLooseObjectsInPackFiles()
         {
             // Delete/Move any starting loose objects and packfiles
             this.DeleteFiles(this.GetLooseObjectFiles());
             this.MovePackFilesToTemp();
-            Assert.AreEqual(0, this.GetLooseObjectFiles().Count);
-            Assert.AreEqual(0, this.CountPackFiles());
-        }
+            this.GetLooseObjectFiles().Count.ShouldEqual(0);
+            this.CountPackFiles().ShouldEqual(0);
 
-        [TestCase]
-        public void RemoveLooseObjectsInPackFiles()
-        {
             // Copy and expand one pack
             this.ExpandOneTempPack(copyPackBackToPackDirectory: true);
             Assert.AreNotEqual(0, this.GetLooseObjectFiles().Count);
-            Assert.AreEqual(1, this.CountPackFiles());
-
+            this.GetLooseObjectFiles().Count.ShouldBeAtLeast(1);
+            this.CountPackFiles().ShouldEqual(1);
+     
             // Cleanup should delete all loose objects, since they are in the packfile
             this.Enlistment.LooseObjectStep();
 
             Assert.AreEqual(0, this.GetLooseObjectFiles().Count);
             Assert.AreEqual(1, this.CountPackFiles());
+            this.GetLooseObjectFiles().Count.ShouldEqual(0);
+            this.CountPackFiles().ShouldEqual(1);
         }
 
         [TestCase]
         public void PutLooseObjectsInPackFiles()
         {
+            // Delete/Move any starting loose objects and packfiles
+            this.DeleteFiles(this.GetLooseObjectFiles());
+            this.MovePackFilesToTemp();
+            this.GetLooseObjectFiles().Count.ShouldEqual(0);
+            this.CountPackFiles().ShouldEqual(0);
+
             // Expand one pack, and verify we have loose objects
             this.ExpandOneTempPack(copyPackBackToPackDirectory: false);
             int loooseObjectCount = this.GetLooseObjectFiles().Count();
-            Assert.AreNotEqual(0, loooseObjectCount);
+            this.GetLooseObjectFiles().Count.ShouldBeAtLeast(1);
 
             // This step should put the loose objects into a packfile
             this.Enlistment.LooseObjectStep();
 
-            Assert.AreEqual(loooseObjectCount, this.GetLooseObjectFiles().Count);
-            Assert.AreEqual(1, this.CountPackFiles());
+            this.GetLooseObjectFiles().Count.ShouldEqual(loooseObjectCount);
+            this.CountPackFiles().ShouldEqual(1);
 
             // Running the step a second time should remove the loose obects and keep the pack file
             this.Enlistment.LooseObjectStep();
 
-            Assert.AreEqual(0, this.GetLooseObjectFiles().Count);
-            Assert.AreEqual(1, this.CountPackFiles());
+            this.GetLooseObjectFiles().Count.ShouldEqual(0);
+            this.CountPackFiles().ShouldEqual(1);
         }
 
         [TestCase]
         public void NoLooseObjectsDoesNothing()
         {
+            this.DeleteFiles(this.GetLooseObjectFiles());
+            this.GetLooseObjectFiles().Count.ShouldEqual(0);
+            int startingPackFileCount = this.CountPackFiles();
+
             this.Enlistment.LooseObjectStep();
 
-            Assert.AreEqual(0, this.GetLooseObjectFiles().Count);
-            Assert.AreEqual(0, this.CountPackFiles());
+            this.GetLooseObjectFiles().Count.ShouldEqual(0);
+            this.CountPackFiles().ShouldEqual(startingPackFileCount);
         }
 
         private List<string> GetLooseObjectFiles()
