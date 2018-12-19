@@ -7,13 +7,13 @@ using System.IO;
 
 namespace GVFS.UnitTests.Windows.Mock.Upgrader
 {
-    public class MockProductUpgrader : GitHubUpgrader
+    public class MockGitHubUpgrader : GitHubUpgrader
     {
         private string expectedGVFSAssetName;
         private string expectedGitAssetName;
         private ActionType failActionTypes;
 
-        public MockProductUpgrader(
+        public MockGitHubUpgrader(
             string currentVersion,
             ITracer tracer,
             GitHubUpgraderConfig config) : base(currentVersion, tracer, config)
