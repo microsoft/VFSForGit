@@ -15,7 +15,7 @@ OSDefineMetaClassAndStructors(PrjFSProviderUserClient, IOUserClient);
 static const uint32_t ProviderMessageQueueCapacityBytes = 100 * 1024;
 
 
-static const IOExternalMethodDispatch ProviderUserClientDispatch[] =
+const IOExternalMethodDispatch PrjFSProviderUserClient::ProviderUserClientDispatch[] =
 {
     [ProviderSelector_RegisterVirtualizationRootPath] =
         {
