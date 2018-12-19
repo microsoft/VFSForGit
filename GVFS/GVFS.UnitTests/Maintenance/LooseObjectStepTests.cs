@@ -75,13 +75,11 @@ namespace GVFS.UnitTests.Maintenance
 
             // Verify with default limit
             LooseObjectsStep step = new LooseObjectsStep(this.context, requireCacheLock: false, forceRun: false);
-            step.WriteLooseObjectIds(new StreamWriter(new MemoryStream()));
-            step.LooseObjectsPutIntoPackFile.ShouldEqual(3);
+            step.WriteLooseObjectIds(new StreamWriter(new MemoryStream())).ShouldEqual(3);
 
             // Verify with limit of 2
             step.MaxLooseObjectsInPack = 2;
-            step.WriteLooseObjectIds(new StreamWriter(new MemoryStream()));
-            step.LooseObjectsPutIntoPackFile.ShouldEqual(2);
+            step.WriteLooseObjectIds(new StreamWriter(new MemoryStream())).ShouldEqual(2);
         }
 
         [TestCase]
@@ -91,8 +89,7 @@ namespace GVFS.UnitTests.Maintenance
 
             // Verify with valid Objects 
             LooseObjectsStep step = new LooseObjectsStep(this.context, requireCacheLock: false, forceRun: false);
-            step.WriteLooseObjectIds(new StreamWriter(new MemoryStream()));
-            step.LooseObjectsPutIntoPackFile.ShouldEqual(3);
+            step.WriteLooseObjectIds(new StreamWriter(new MemoryStream())).ShouldEqual(3);
             this.tracer.RelatedErrorEvents.Count.ShouldEqual(0);
             this.tracer.RelatedWarningEvents.Count.ShouldEqual(0);
 
@@ -100,8 +97,7 @@ namespace GVFS.UnitTests.Maintenance
             this.context.FileSystem.WriteAllText(Path.Combine(this.context.Enlistment.GitObjectsRoot, "AA", "NOT_A_SHA"), string.Empty);
 
             // Verify it wasn't added and a warning exists
-            step.WriteLooseObjectIds(new StreamWriter(new MemoryStream()));
-            step.LooseObjectsPutIntoPackFile.ShouldEqual(3);
+            step.WriteLooseObjectIds(new StreamWriter(new MemoryStream())).ShouldEqual(3);
             this.tracer.RelatedErrorEvents.Count.ShouldEqual(0);
             this.tracer.RelatedWarningEvents.Count.ShouldEqual(1);
         }

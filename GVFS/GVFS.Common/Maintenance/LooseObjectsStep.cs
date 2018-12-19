@@ -24,7 +24,6 @@ namespace GVFS.Common.Maintenance
         }
 
         public override string Area => nameof(LooseObjectsStep);
-        public int LooseObjectsPutIntoPackFile { get; private set; } = 0;
         
         // 50,000 was found to be the optimal time taking ~5 minutes
         public int MaxLooseObjectsInPack { get; set; } = 50000;
@@ -49,9 +48,14 @@ namespace GVFS.Common.Maintenance
             return count;
         }
 
-        public void WriteLooseObjectIds(StreamWriter streamWriter)
+        /// <summary>
+        /// Writes loose object Ids to streamWriter
+        /// </summary>
+        /// <param name="streamWriter">Writer to which SHAs are written</param>
+        /// <returns>The number of loose objects SHAs written to the stream</returns>
+        public int WriteLooseObjectIds(StreamWriter streamWriter)
         {
-            this.LooseObjectsPutIntoPackFile = 0;
+            int looseObjectsPutIntoPackFiles = 0;
 
             // Find loose Objects
             foreach (DirectoryItemInfo directoryItemInfo in this.Context.FileSystem.ItemsInDirectory(this.Context.Enlistment.GitObjectsRoot))
@@ -72,18 +76,20 @@ namespace GVFS.Common.Maintenance
                                 continue;
                             }
 
-                            this.LooseObjectsPutIntoPackFile++;
+                            looseObjectsPutIntoPackFiles++;
                             streamWriter.Write(objectId + "\n");
 
                             // Stop when we hit the limit.  The next run will pack more files.
-                            if (this.LooseObjectsPutIntoPackFile >= this.MaxLooseObjectsInPack)
+                            if (looseObjectsPutIntoPackFiles >= this.MaxLooseObjectsInPack)
                             {
-                                return;
+                                return looseObjectsPutIntoPackFiles;
                             }
                         }
                     }
                 }
             }
+
+            return looseObjectsPutIntoPackFiles;
         }
 
         public bool TryGetLooseObjectId(string directoryName, string filePath, out string objectId)
@@ -97,13 +103,21 @@ namespace GVFS.Common.Maintenance
             return true;
         }
 
-        public void CreateLooseObjectsPackFile()
+        /// <summary>
+        /// Creates a pack file from loose objects
+        /// </summary>
+        /// <returns>The number of loose objects added to the pack file</returns>
+        public int CreateLooseObjectsPackFile()
         {
+            int objectsAddedToPack = 0;
+
             GitProcess.Result result = this.RunGitCommand(
                 (process) => process.PackObjects(
                     "from-loose",
                     this.Context.Enlistment.GitObjectsRoot,
-                    this.WriteLooseObjectIds));
+                    (StreamWriter writer) => objectsAddedToPack = this.WriteLooseObjectIds(writer)));
+
+            return objectsAddedToPack;
         }
 
         protected override void PerformMaintenance()
@@ -133,14 +147,14 @@ namespace GVFS.Common.Maintenance
                     GitProcess.Result result = this.RunGitCommand((process) => process.PrunePacked(this.Context.Enlistment.GitObjectsRoot));
                     int afterLooseObjectsCount = this.CountLooseObjects();
 
-                    this.CreateLooseObjectsPackFile();
+                    int objectsAddedToPack = this.CreateLooseObjectsPackFile();
 
                     EventMetadata metadata = new EventMetadata();
                     metadata.Add("GitObjectsRoot", this.Context.Enlistment.GitObjectsRoot);
                     metadata.Add("StartingCount", beforeLooseObjectsCount);
                     metadata.Add("EndingCount", afterLooseObjectsCount);
                     metadata.Add("RemovedCount", beforeLooseObjectsCount - afterLooseObjectsCount);
-                    metadata.Add("LooseObjectsPutIntoPackFile", this.LooseObjectsPutIntoPackFile);
+                    metadata.Add("LooseObjectsPutIntoPackFile", objectsAddedToPack);
                     activity.RelatedEvent(EventLevel.Informational, $"{this.Area}_{nameof(this.PerformMaintenance)}", metadata, Keywords.Telemetry);
                     this.SaveLastRunTimeToFile();
                 }
