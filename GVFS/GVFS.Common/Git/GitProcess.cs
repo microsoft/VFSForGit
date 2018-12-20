@@ -373,6 +373,19 @@ namespace GVFS.Common.Git
                 null);
         }
 
+        public Result PackObjects(string filenamePrefix, string gitObjectsDirectory, Action<StreamWriter> packFileStream)
+        {
+            string packFilePath = Path.Combine(gitObjectsDirectory, GVFSConstants.DotGit.Objects.Pack.Name, filenamePrefix);
+
+            // Since we don't provide paths we won't be able to complete good deltas
+            // avoid the unnecessary computation by setting window/depth to 0
+            return this.InvokeGitAgainstDotGitFolder(
+                $"pack-objects {packFilePath} --non-empty --window=0 --depth=0 -q",
+                packFileStream,
+                parseStdOutLine: null,
+                gitObjectsDirectory: gitObjectsDirectory);
+        }
+
         /// <summary>
         /// Write a new commit graph in the specified pack directory. Crawl the given pack-
         /// indexes for commits and then close under everything reachable or exists in the
@@ -596,6 +609,7 @@ namespace GVFS.Common.Git
                         }
 
                         writeStdIn?.Invoke(this.executingProcess.StandardInput);
+                        this.executingProcess.StandardInput.Close();
 
                         this.executingProcess.BeginOutputReadLine();
                         this.executingProcess.BeginErrorReadLine();

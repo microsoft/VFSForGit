@@ -17,6 +17,7 @@ namespace GVFS.UnitTests.Maintenance
     public class LooseObjectStepTests
     {
         private const string PrunePackedCommand = "prune-packed -q";
+        private string packCommand;
         private MockTracer tracer;
         private MockGitProcess gitProcess;
         private GVFSContext context;
@@ -32,8 +33,9 @@ namespace GVFS.UnitTests.Maintenance
             this.tracer.StartActivityTracer.RelatedErrorEvents.Count.ShouldEqual(0);
             this.tracer.StartActivityTracer.RelatedWarningEvents.Count.ShouldEqual(0);
             List<string> commands = this.gitProcess.CommandsRun;
-            commands.Count.ShouldEqual(1);
+            commands.Count.ShouldEqual(2);
             commands[0].ShouldEqual(PrunePackedCommand);
+            commands[1].ShouldEqual(this.packCommand);
         }
 
         [TestCase]
@@ -61,19 +63,76 @@ namespace GVFS.UnitTests.Maintenance
             this.tracer.StartActivityTracer.RelatedErrorEvents.Count.ShouldEqual(0);
             this.tracer.StartActivityTracer.RelatedWarningEvents.Count.ShouldEqual(0);
             List<string> commands = this.gitProcess.CommandsRun;
-            commands.Count.ShouldEqual(1);
+            commands.Count.ShouldEqual(2);
             commands[0].ShouldEqual(PrunePackedCommand);
+            commands[1].ShouldEqual(this.packCommand);
+        }
+
+        [TestCase]
+        public void LooseObjectsLimitPackCount()
+        {
+            this.TestSetup(DateTime.UtcNow.AddDays(-7));
+
+            // Verify with default limit
+            LooseObjectsStep step = new LooseObjectsStep(this.context, requireCacheLock: false, forceRun: false);
+            step.WriteLooseObjectIds(new StreamWriter(new MemoryStream())).ShouldEqual(3);
+
+            // Verify with limit of 2
+            step.MaxLooseObjectsInPack = 2;
+            step.WriteLooseObjectIds(new StreamWriter(new MemoryStream())).ShouldEqual(2);
+        }
+
+        [TestCase]
+        public void SkipInvalidLooseObjects()
+        {
+            this.TestSetup(DateTime.UtcNow.AddDays(-7));
+
+            // Verify with valid Objects 
+            LooseObjectsStep step = new LooseObjectsStep(this.context, requireCacheLock: false, forceRun: false);
+            step.WriteLooseObjectIds(new StreamWriter(new MemoryStream())).ShouldEqual(3);
+            this.tracer.RelatedErrorEvents.Count.ShouldEqual(0);
+            this.tracer.RelatedWarningEvents.Count.ShouldEqual(0);
+
+            // Write an ObjectId file with an invalid name
+            this.context.FileSystem.WriteAllText(Path.Combine(this.context.Enlistment.GitObjectsRoot, "AA", "NOT_A_SHA"), string.Empty);
+
+            // Verify it wasn't added and a warning exists
+            step.WriteLooseObjectIds(new StreamWriter(new MemoryStream())).ShouldEqual(3);
+            this.tracer.RelatedErrorEvents.Count.ShouldEqual(0);
+            this.tracer.RelatedWarningEvents.Count.ShouldEqual(1);
         }
 
         [TestCase]
         public void LooseObjectsCount()
         {
-            this.TestSetup(DateTime.Now.AddDays(-7));
+            this.TestSetup(DateTime.UtcNow.AddDays(-7));
 
             LooseObjectsStep step = new LooseObjectsStep(this.context, requireCacheLock: false, forceRun: false);
             int count = step.CountLooseObjects();
 
             count.ShouldEqual(3);
+        }
+
+        [TestCase]
+        public void LooseObjectId()
+        {
+            this.TestSetup(DateTime.UtcNow.AddDays(-7));
+
+            LooseObjectsStep step = new LooseObjectsStep(this.context, requireCacheLock: false, forceRun: false);
+            string directoryName = "AB";
+            string fileName = "830bb79cd4fadb2e73e780e452dc71db909001";
+            step.TryGetLooseObjectId(
+                directoryName, 
+                Path.Combine(this.context.Enlistment.GitObjectsRoot, directoryName, fileName), 
+                out string objectId).ShouldBeTrue();
+            objectId.ShouldEqual(directoryName + fileName);
+
+            directoryName = "AB";
+            fileName = "BAD_FILE_NAME";
+            step.TryGetLooseObjectId(
+                directoryName,
+                Path.Combine(this.context.Enlistment.GitObjectsRoot, directoryName, fileName),
+                out objectId).ShouldBeFalse();
         }
 
         private void TestSetup(DateTime lastRun)
@@ -89,6 +148,13 @@ namespace GVFS.UnitTests.Maintenance
             // Create enlistment using git process
             GVFSEnlistment enlistment = new MockGVFSEnlistment(this.gitProcess);
 
+            string packPrefix = Path.Combine(enlistment.GitPackRoot, "from-loose");
+            this.packCommand = $"pack-objects {packPrefix} --non-empty --window=0 --depth=0 -q";
+
+            this.gitProcess.SetExpectedCommandResult(
+                this.packCommand,
+                () => new GitProcess.Result(string.Empty, string.Empty, GitProcess.Result.SuccessCode));
+
             // Create a last run time file
             MockFile timeFile = new MockFile(Path.Combine(enlistment.GitObjectsRoot, "info", LooseObjectsStep.LooseObjectsLastRunFileName), lastRunTime);
 
@@ -101,7 +167,7 @@ namespace GVFS.UnitTests.Maintenance
                 null, 
                 new List<MockFile>()
                 {
-                     new MockFile(Path.Combine(enlistment.GitObjectsRoot, "AA", "test"), string.Empty)
+                     new MockFile(Path.Combine(enlistment.GitObjectsRoot, "AA", "1156f4f2b850673090c285289ea8475d629fe1"), string.Empty)
                 });
 
             // Create Hex Folder 2 with 2 Files
@@ -110,8 +176,8 @@ namespace GVFS.UnitTests.Maintenance
                 null, 
                 new List<MockFile>()
                 {
-                     new MockFile(Path.Combine(enlistment.GitObjectsRoot, "F1", "test1"), string.Empty),
-                     new MockFile(Path.Combine(enlistment.GitObjectsRoot, "F1", "test2"), string.Empty)
+                     new MockFile(Path.Combine(enlistment.GitObjectsRoot, "F1", "1156f4f2b850673090c285289ea8475d629fe2"), string.Empty),
+                     new MockFile(Path.Combine(enlistment.GitObjectsRoot, "F1", "1156f4f2b850673090c285289ea8475d629fe3"), string.Empty)
                 });
 
             // Create NonHex Folder with 4 Files
@@ -120,10 +186,10 @@ namespace GVFS.UnitTests.Maintenance
                 null, 
                 new List<MockFile>()
                 {
-                     new MockFile(Path.Combine(enlistment.GitObjectsRoot, "ZZ", "test1"), string.Empty),
-                     new MockFile(Path.Combine(enlistment.GitObjectsRoot, "ZZ", "test2"), string.Empty),
-                     new MockFile(Path.Combine(enlistment.GitObjectsRoot, "ZZ", "test3"), string.Empty),
-                     new MockFile(Path.Combine(enlistment.GitObjectsRoot, "ZZ", "test4"), string.Empty)
+                     new MockFile(Path.Combine(enlistment.GitObjectsRoot, "ZZ", "1156f4f2b850673090c285289ea8475d629fe4"), string.Empty),
+                     new MockFile(Path.Combine(enlistment.GitObjectsRoot, "ZZ", "1156f4f2b850673090c285289ea8475d629fe5"), string.Empty),
+                     new MockFile(Path.Combine(enlistment.GitObjectsRoot, "ZZ", "1156f4f2b850673090c285289ea8475d629fe6"), string.Empty),
+                     new MockFile(Path.Combine(enlistment.GitObjectsRoot, "ZZ", "1156f4f2b850673090c285289ea8475d629fe7"), string.Empty)
                 });
 
             // Create git objects directory

@@ -177,6 +177,9 @@ namespace GVFS.Common.FileSystem
             handledException = null;
             string tempFilePath = destinationPath + ".temp";
 
+            string parentPath = Path.GetDirectoryName(tempFilePath);
+            this.CreateDirectory(parentPath);
+
             try
             {
                 using (Stream tempFile = this.OpenFileStream(tempFilePath, FileMode.Create, FileAccess.Write, FileShare.None, callFlushFileBuffers: true))
