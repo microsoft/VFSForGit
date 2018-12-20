@@ -75,12 +75,12 @@ namespace GVFS.UnitTests.Maintenance
 
             // Verify with default limit
             LooseObjectsStep step = new LooseObjectsStep(this.context, requireCacheLock: false, forceRun: false);
-            step.PackLooseObjects(new StreamWriter(new MemoryStream()));
+            step.WriteLooseObjectIds(new StreamWriter(new MemoryStream()));
             step.LooseObjectsPutIntoPackFile.ShouldEqual(3);
 
             // Verify with limit of 2
             step.MaxLooseObjectsInPack = 2;
-            step.PackLooseObjects(new StreamWriter(new MemoryStream()));
+            step.WriteLooseObjectIds(new StreamWriter(new MemoryStream()));
             step.LooseObjectsPutIntoPackFile.ShouldEqual(2);
         }
 
@@ -91,7 +91,7 @@ namespace GVFS.UnitTests.Maintenance
 
             // Verify with valid Objects 
             LooseObjectsStep step = new LooseObjectsStep(this.context, requireCacheLock: false, forceRun: false);
-            step.PackLooseObjects(new StreamWriter(new MemoryStream()));
+            step.WriteLooseObjectIds(new StreamWriter(new MemoryStream()));
             step.LooseObjectsPutIntoPackFile.ShouldEqual(3);
             this.tracer.RelatedErrorEvents.Count.ShouldEqual(0);
             this.tracer.RelatedWarningEvents.Count.ShouldEqual(0);
@@ -100,7 +100,7 @@ namespace GVFS.UnitTests.Maintenance
             this.context.FileSystem.WriteAllText(Path.Combine(this.context.Enlistment.GitObjectsRoot, "AA", "NOT_A_SHA"), string.Empty);
 
             // Verify it wasn't added and a warning exists
-            step.PackLooseObjects(new StreamWriter(new MemoryStream()));
+            step.WriteLooseObjectIds(new StreamWriter(new MemoryStream()));
             step.LooseObjectsPutIntoPackFile.ShouldEqual(3);
             this.tracer.RelatedErrorEvents.Count.ShouldEqual(0);
             this.tracer.RelatedWarningEvents.Count.ShouldEqual(1);
@@ -125,20 +125,18 @@ namespace GVFS.UnitTests.Maintenance
             LooseObjectsStep step = new LooseObjectsStep(this.context, requireCacheLock: false, forceRun: false);
             string directoryName = "AB";
             string fileName = "830bb79cd4fadb2e73e780e452dc71db909001";
-            Assert.IsTrue(
-                step.TryGetLooseObjectId(
-                    directoryName, 
-                    Path.Combine(this.context.Enlistment.GitObjectsRoot, directoryName, fileName), 
-                    out string objectId));
+            step.TryGetLooseObjectId(
+                directoryName, 
+                Path.Combine(this.context.Enlistment.GitObjectsRoot, directoryName, fileName), 
+                out string objectId).ShouldBeTrue();
             objectId.ShouldEqual(directoryName + fileName);
 
             directoryName = "AB";
             fileName = "BAD_FILE_NAME";
-            Assert.IsFalse(
-                step.TryGetLooseObjectId(
-                    directoryName,
-                    Path.Combine(this.context.Enlistment.GitObjectsRoot, directoryName, fileName),
-                    out objectId));
+            step.TryGetLooseObjectId(
+                directoryName,
+                Path.Combine(this.context.Enlistment.GitObjectsRoot, directoryName, fileName),
+                out objectId).ShouldBeFalse();
         }
 
         private void TestSetup(DateTime lastRun)

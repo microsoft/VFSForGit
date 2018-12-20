@@ -49,7 +49,7 @@ namespace GVFS.Common.Maintenance
             return count;
         }
 
-        public void PackLooseObjects(StreamWriter streamWriter)
+        public void WriteLooseObjectIds(StreamWriter streamWriter)
         {
             this.LooseObjectsPutIntoPackFile = 0;
 
@@ -103,7 +103,7 @@ namespace GVFS.Common.Maintenance
                 (process) => process.PackObjects(
                     "from-loose",
                     this.Context.Enlistment.GitObjectsRoot,
-                    this.PackLooseObjects));
+                    this.WriteLooseObjectIds));
         }
 
         protected override void PerformMaintenance()
