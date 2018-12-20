@@ -48,6 +48,7 @@ namespace FastFetch
             catch (Win32Exception e)
             {
                 EventMetadata metadata = new EventMetadata();
+                metadata.Add("filemode", mode);
                 metadata.Add("destination", destination);
                 metadata.Add("exception", e.ToString());
                 tracer.RelatedError(metadata, $"Failed to properly create {destination}");
