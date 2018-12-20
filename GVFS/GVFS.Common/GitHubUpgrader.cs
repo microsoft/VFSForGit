@@ -233,7 +233,7 @@ namespace GVFS.Common
             if (!installActionWrapper(
                  () =>
                  {
-                     if (!this.TryInstallGitUpgrade(newGitVersion, out localError))
+                     if (!this.TryInstallUpgrade(GitAssetId, newGitVersion.ToString(), out localError))
                      {
                          return false;
                      }
@@ -249,7 +249,7 @@ namespace GVFS.Common
             if (!installActionWrapper(
                  () =>
                  {
-                     if (!this.TryInstallGVFSUpgrade(this.newestVersion, out localError))
+                     if (!this.TryInstallUpgrade(GVFSAssetId, this.newestVersion.ToString(), out localError))
                      {
                          return false;
                      }
@@ -456,69 +456,36 @@ namespace GVFS.Common
             return true;
         }
 
-        private bool TryInstallGitUpgrade(GitVersion version, out string consoleError)
+        private bool TryInstallUpgrade(string assetId, string version, out string consoleError)
         {
             bool installSuccess = false;
-            using (ITracer activity = this.tracer.StartActivity(
-                $"{nameof(this.TryInstallGitUpgrade)}({version.ToString()})",
-                EventLevel.Informational))
+            EventMetadata metadata = new EventMetadata();
+            metadata.Add("Upgrade Step", nameof(this.TryInstallUpgrade));
+            metadata.Add("AssetId", assetId);
+            metadata.Add("Version", version);
+
+            using (ITracer activity = this.tracer.StartActivity($"{nameof(this.TryInstallUpgrade)}", EventLevel.Informational, metadata))
             {
-                if (!this.TryRunGitInstaller(out installSuccess, out consoleError) ||
-                    !installSuccess)
-                {
-                    EventMetadata metadata = new EventMetadata();
-                    metadata.Add("Upgrade Step", nameof(this.TryInstallGitUpgrade));
-                    this.tracer.RelatedError(metadata, $"{nameof(this.TryRunGitInstaller)} failed. {consoleError}");
-                    return false;
-                }
-
-                activity.RelatedInfo("Successfully installed Git version: " + version.ToString());
-            }
-
-            return installSuccess;
-        }
-
-        private bool TryInstallGVFSUpgrade(Version version, out string consoleError)
-        {
-            bool installSuccess = false;
-            using (ITracer activity = this.tracer.StartActivity(
-                $"{nameof(this.TryInstallGVFSUpgrade)}({version.ToString()})",
-                EventLevel.Informational))
-            {
-                if (!this.TryRunGVFSInstaller(out installSuccess, out consoleError) ||
+                if (!this.TryRunInstaller(assetId, out installSuccess, out consoleError) ||
                 !installSuccess)
                 {
-                    EventMetadata metadata = new EventMetadata();
-                    metadata.Add("Upgrade Step", nameof(this.TryInstallGVFSUpgrade));
-                    this.tracer.RelatedError(metadata, $"{nameof(this.TryRunGVFSInstaller)} failed. {consoleError}");
+                    this.tracer.RelatedError(metadata, $"{nameof(this.TryInstallUpgrade)} failed. {consoleError}");
                     return false;
                 }
 
-                activity.RelatedInfo("Successfully installed GVFS version: " + version.ToString());
+                activity.RelatedInfo("Successfully installed GVFS version: " + version);
             }
 
             return installSuccess;
         }
 
-        private bool TryRunGitInstaller(out bool installationSucceeded, out string error)
+        private bool TryRunInstaller(string assetId, out bool installationSucceeded, out string error)
         {
             error = null;
             installationSucceeded = false;
 
             int exitCode = 0;
-            bool launched = this.TryRunInstallerForAsset(GitAssetId, out exitCode, out error);
-            installationSucceeded = exitCode == 0;
-
-            return launched;
-        }
-
-        private bool TryRunGVFSInstaller(out bool installationSucceeded, out string error)
-        {
-            error = null;
-            installationSucceeded = false;
-
-            int exitCode = 0;
-            bool launched = this.TryRunInstallerForAsset(GVFSAssetId, out exitCode, out error);
+            bool launched = this.TryRunInstallerForAsset(assetId, out exitCode, out error);
             installationSucceeded = exitCode == 0;
 
             return launched;

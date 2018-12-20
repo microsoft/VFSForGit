@@ -305,15 +305,14 @@ namespace GVFS.Upgrader
 
         private bool TryDownloadUpgrade(Version version, out string consoleError)
         {
-            using (ITracer activity = this.tracer.StartActivity(
-                $"{nameof(this.TryDownloadUpgrade)}({version.ToString()})",
-                EventLevel.Informational))
+            EventMetadata metadata = new EventMetadata();
+            metadata.Add("Upgrade Step", nameof(this.TryDownloadUpgrade));
+            metadata.Add("Version", version.ToString());
+
+            using (ITracer activity = this.tracer.StartActivity($"{nameof(this.TryDownloadUpgrade)}", EventLevel.Informational, metadata))
             {
                 if (!this.upgrader.TryDownloadNewestVersion(out consoleError))
                 {
-                    EventMetadata metadata = new EventMetadata();
-                    metadata.Add("Upgrade Step", nameof(this.TryDownloadUpgrade));
-                    metadata.Add("Version", version.ToString());
                     this.tracer.RelatedError(metadata, $"{nameof(this.upgrader.TryDownloadNewestVersion)} failed. {consoleError}");
                     return false;
                 }
