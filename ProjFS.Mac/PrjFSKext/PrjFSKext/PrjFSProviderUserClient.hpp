@@ -17,11 +17,13 @@ private:
     IOSharedDataQueue* dataQueue;
     IOMemoryDescriptor* dataQueueMemory;
     Mutex dataQueueWriterMutex;
-public:
     pid_t pid;
     // The root for which this is the provider; RootHandle_None prior to registration
     VirtualizationRootHandle virtualizationRootHandle;
-    
+
+    static const IOExternalMethodDispatch ProviderUserClientDispatch[];
+
+public:
     // IOUserClient methods:
     virtual bool initWithTask(
         task_t owningTask, void* securityToken, UInt32 type,
@@ -44,11 +46,17 @@ public:
     
     virtual IOReturn clientClose() override;
 
+    // IOService methods:
+    virtual void stop(IOService* provider) override;
+
     // OSObject methods:
     virtual void free() override;
 
 
     void sendMessage(const void* message, uint32_t size);
+
+private:
+    void cleanupProviderRegistration();
 
     // External methods:
     static IOReturn registerVirtualizationRoot(
