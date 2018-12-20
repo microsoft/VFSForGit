@@ -23,24 +23,25 @@ namespace FastFetch
             {
                 if (mode == SymLinkMode)
                 {
-                    string linkLocation = Marshal.PtrToStringUTF8(new IntPtr(originalData));
-                    int result = CreateSymLink(linkLocation, destination);
+                    string linkTarget = Marshal.PtrToStringUTF8(new IntPtr(originalData));
+                    int result = CreateSymLink(linkTarget, destination);
                     if (result == -1)
                     {
-                        tracer.RelatedInfo("Failed to create symlink({0},{1})", linkLocation, destination);
-                        throw new Win32Exception(Marshal.GetLastWin32Error());
+                        throw new Win32Exception(Marshal.GetLastWin32Error(), $"Failed to create symlink({linkTarget}, {destination}).");
                     }
                 }
                 else
                 {
                     fileDescriptor = Open(destination, WriteOnly | Create | Truncate, mode);
-                    if (fileDescriptor != InvalidFileDescriptor)
+                    if (fileDescriptor == InvalidFileDescriptor)
                     {
-                        IntPtr result = Write(fileDescriptor, originalData, (IntPtr)originalSize);
-                        if (result.ToInt32() == -1)
-                        {
-                            throw new Win32Exception(Marshal.GetLastWin32Error());
-                        }
+                        throw new Win32Exception(Marshal.GetLastWin32Error(), $"Failed to open({destination}.)");
+                    }
+
+                    IntPtr result = Write(fileDescriptor, originalData, (IntPtr)originalSize);
+                    if (result.ToInt32() == -1)
+                    {
+                        throw new Win32Exception(Marshal.GetLastWin32Error(), $"Failed to write contents into {destination}.");
                     }
                 }
             }
@@ -49,7 +50,7 @@ namespace FastFetch
                 EventMetadata metadata = new EventMetadata();
                 metadata.Add("destination", destination);
                 metadata.Add("exception", e.ToString());
-                tracer.RelatedError(metadata, "Error writing file.");
+                tracer.RelatedError(metadata, $"Failed to properly create {destination}");
                 throw;
             }
             finally
@@ -95,7 +96,7 @@ namespace FastFetch
         private static unsafe extern IntPtr Write(int fileDescriptor, void* buf, IntPtr count);
 
         [DllImport("libc", EntryPoint = "symlink", SetLastError = true)]
-        private static extern int CreateSymLink(string sourcePath, string destinationPath);
+        private static extern int CreateSymLink(string linkTarget, string newLinkPath);
 
         private static NativeStat.StatBuffer StatFile(string fileName)
         {
