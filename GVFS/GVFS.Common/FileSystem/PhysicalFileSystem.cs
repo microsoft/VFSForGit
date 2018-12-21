@@ -3,6 +3,7 @@ using System;
 using System.Collections.Generic;
 using System.ComponentModel;
 using System.IO;
+using System.Security;
 using System.Threading;
 
 namespace GVFS.Common.FileSystem
@@ -71,6 +72,27 @@ namespace GVFS.Common.FileSystem
         public virtual void WriteAllText(string path, string contents)
         {
             File.WriteAllText(path, contents);
+        }
+
+        public virtual bool TryWriteAllText(string path, string contents)
+        {
+            try
+            {
+                this.WriteAllText(path, contents);
+                return true;
+            }
+            catch (IOException)
+            {
+                return false;
+            }
+            catch (UnauthorizedAccessException)
+            {
+                return false;
+            }
+            catch (SecurityException)
+            {
+                return false;
+            }
         }
 
         public Stream OpenFileStream(string path, FileMode fileMode, FileAccess fileAccess, FileShare shareMode, bool callFlushFileBuffers)

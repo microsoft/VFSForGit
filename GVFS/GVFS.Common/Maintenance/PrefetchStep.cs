@@ -327,25 +327,22 @@ namespace GVFS.Common.Maintenance
 
             string newKeepFile = Path.ChangeExtension(info.FullName, ".keep");
 
-            try
+            if (!this.Context.FileSystem.TryWriteAllText(newKeepFile, string.Empty))
             {
-                this.Context.FileSystem.WriteAllText(newKeepFile, string.Empty);
-
-                foreach (string keepFile in this.Context
-                                         .FileSystem
-                                         .ItemsInDirectory(this.Context.Enlistment.GitPackRoot)
-                                         .Where(item => item.Name.EndsWith(".keep"))
-                                         .Select(item => item.FullName))
-                {
-                    if (!keepFile.Equals(newKeepFile))
-                    {
-                        this.Context.FileSystem.TryDeleteFile(keepFile);
-                    }
-                }
+                this.Context.Tracer.RelatedWarning(this.CreateEventMetadata(), $"Failed to create .keep file at {newKeepFile}");
+                return;
             }
-            catch (IOException e)
+
+            foreach (string keepFile in this.Context
+                                     .FileSystem
+                                     .ItemsInDirectory(this.Context.Enlistment.GitPackRoot)
+                                     .Where(item => item.Name.EndsWith(".keep"))
+                                     .Select(item => item.FullName))
             {
-                this.Context.Tracer.RelatedWarning(this.CreateEventMetadata(e), "Exception while managing '.keep' files");
+                if (!keepFile.Equals(newKeepFile))
+                {
+                    this.Context.FileSystem.TryDeleteFile(keepFile);
+                }
             }
         }
 

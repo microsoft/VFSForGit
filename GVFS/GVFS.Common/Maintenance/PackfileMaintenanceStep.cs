@@ -133,7 +133,7 @@ namespace GVFS.Common.Maintenance
 
                 if (!hasKeep)
                 {
-                    activity.RelatedWarning(this.CreateEventMetadata(), "Skiping pack maintenance due to no .keep file.");
+                    activity.RelatedWarning(this.CreateEventMetadata(), "Skipping pack maintenance due to no .keep file.");
                     return;
                 }
 
