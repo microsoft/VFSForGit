@@ -477,10 +477,20 @@ namespace GVFS.Common.Git
         public Result PrunePacked(string gitObjectDirectory)
         {
             return this.InvokeGitAgainstDotGitFolder(
-                "prune-packed -q", 
+                "prune-packed -q",
                 writeStdIn: null,
                 parseStdOutLine: null,
                 gitObjectsDirectory: gitObjectDirectory);
+        }
+
+        public Result MultiPackIndexExpire(string gitObjectDirectory)
+        {
+            return this.InvokeGitAgainstDotGitFolder($"multi-pack-index expire --object-dir=\"{gitObjectDirectory}\"");
+        }
+
+        public Result MultiPackIndexRepack(string gitObjectDirectory, string batchSize)
+        {
+            return this.InvokeGitAgainstDotGitFolder($"-c pack.depth=0 -c pack.window=0 multi-pack-index repack --object-dir=\"{gitObjectDirectory}\" --batch-size={batchSize}");
         }
 
         public Process GetGitProcess(string command, string workingDirectory, string dotGitDirectory, bool useReadObjectHook, bool redirectStandardError, string gitObjectsDirectory)

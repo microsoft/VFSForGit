@@ -13,10 +13,9 @@ namespace GVFS.Common.Maintenance
         public const string ObjectCacheLock = "git-maintenance-step.lock";
         private readonly object gitProcessLock = new object();
 
-        public GitMaintenanceStep(GVFSContext context, GitObjects gitObjects, bool requireObjectCacheLock)
+        public GitMaintenanceStep(GVFSContext context, bool requireObjectCacheLock)
         {
             this.Context = context;
-            this.GitObjects = gitObjects;
             this.RequireObjectCacheLock = requireObjectCacheLock;
         }
 
@@ -24,7 +23,6 @@ namespace GVFS.Common.Maintenance
         protected virtual TimeSpan TimeBetweenRuns { get; }
         protected virtual string LastRunTimeFilePath { get; set; }
         protected GVFSContext Context { get; }
-        protected GitObjects GitObjects { get; }
         protected GitProcess GitProcess { get; private set; }
         protected bool Stopping { get; private set; }
         protected bool RequireObjectCacheLock { get; }

@@ -3,7 +3,6 @@ using GVFS.Common.Git;
 using GVFS.Common.Tracing;
 using System;
 using System.Collections.Generic;
-using System.Diagnostics;
 using System.IO;
 using System.Linq;
 
@@ -17,8 +16,8 @@ namespace GVFS.Common.Maintenance
         public const string LooseObjectsLastRunFileName = "loose-objects.time";
         private readonly bool forceRun;
 
-        public LooseObjectsStep(GVFSContext context, bool requireCacheLock, bool forceRun = false)
-            : base(context, gitObjects: null, requireObjectCacheLock: requireCacheLock)
+        public LooseObjectsStep(GVFSContext context, bool requireCacheLock = true, bool forceRun = false)
+            : base(context, requireObjectCacheLock: requireCacheLock)
         {
             this.forceRun = forceRun;
         }

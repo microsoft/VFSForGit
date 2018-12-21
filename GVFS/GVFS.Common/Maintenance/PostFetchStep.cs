@@ -11,8 +11,8 @@ namespace GVFS.Common.Maintenance
         private const string MultiPackIndexLock = "multi-pack-index.lock";
         private List<string> packIndexes;
 
-        public PostFetchStep(GVFSContext context, GitObjects gitObjects, List<string> packIndexes)
-            : base(context, gitObjects, requireObjectCacheLock: true)
+        public PostFetchStep(GVFSContext context, List<string> packIndexes)
+            : base(context, requireObjectCacheLock: true)
         {
             this.packIndexes = packIndexes;
         }

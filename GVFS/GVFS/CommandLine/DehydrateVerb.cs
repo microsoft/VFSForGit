@@ -62,7 +62,6 @@ namespace GVFS.CommandLine
                 // This is only intended to be run by functional tests
                 if (this.MaintenanceJob != null)
                 {
-                    this.WriteMessage(tracer, "Running LooseObject Step");
                     this.InitializeLocalCacheAndObjectsPaths(tracer, enlistment, retryConfig: null, serverGVFSConfig: null, cacheServer: null);
                     PhysicalFileSystem fileSystem = new PhysicalFileSystem();
                     GitRepo gitRepo = new GitRepo(
@@ -72,8 +71,15 @@ namespace GVFS.CommandLine
                     switch (this.MaintenanceJob)
                     {
                         case "LooseObjects":
-                            (new LooseObjectsStep(new GVFSContext(tracer, fileSystem, gitRepo, enlistment), requireCacheLock: true, forceRun: true)).Execute();
-                            break;
+                            (new LooseObjectsStep(new GVFSContext(tracer, fileSystem, gitRepo, enlistment), forceRun: true)).Execute();
+                            return;
+
+                        case "PackfileMaintenance":
+                            (new PackfileMaintenanceStep(
+                                new GVFSContext(tracer, fileSystem, gitRepo, enlistment),
+                                forceRun: true,
+                                batchSize: this.PackfileMaintenanceBatchSize ?? PackfileMaintenanceStep.DefaultBatchSize)).Execute();
+                            return;
 
                         default:
                             this.ReportErrorAndExit($"Unknown maintenance job requested: {this.MaintenanceJob}");
@@ -119,7 +125,7 @@ of your enlistment's src folder.
                 {
                     this.ReportErrorAndExit(tracer, error);
                 }
-                
+
                 RetryConfig retryConfig;
                 if (!RetryConfig.TryLoadFromGitConfig(tracer, enlistment, out retryConfig, out error))
                 {
