@@ -178,7 +178,7 @@ namespace GVFS.Common
             {
                 if (handle.IsInvalid)
                 {
-                    ThrowLastWin32Exception($"Invalid handle for '{path}' as symlink");
+                    ThrowLastWin32Exception($"Invalid handle for '{path}'");
                 }
 
                 REPARSE_GUID_DATA_BUFFER reparseGuidData = new REPARSE_GUID_DATA_BUFFER();
@@ -194,23 +194,7 @@ namespace GVFS.Common
                     out bytesReturned, 
                     IntPtr.Zero))
                 {
-                    int deleteError = Marshal.GetLastWin32Error();
-
-                    // Check if something else has already deleted the reparse point
-                    REPARSE_DATA_BUFFER reparseData = new REPARSE_DATA_BUFFER();
-                    reparseData.ReparseDataLength = (4 * sizeof(ushort)) + ReparseDataPathBufferLength;
-                    if (DeviceIoControlGetReparsePoint(
-                        handle,
-                        FSCTL_GET_REPARSE_POINT,
-                        IntPtr.Zero,
-                        0,
-                        out reparseData,
-                        (uint)Marshal.SizeOf(reparseData),
-                        out bytesReturned,
-                        IntPtr.Zero))
-                    {
-                        throw new Win32Exception(deleteError, "Reparse data still present");
-                    }
+                    ThrowLastWin32Exception($"Delete reparse data for {path} failed");
                 }
             }
         }

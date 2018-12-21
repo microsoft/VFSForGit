@@ -32,6 +32,7 @@ namespace GVFS.Platform.Windows
         private IVirtualizationInstance virtualizationInstance;
         private ConcurrentDictionary<Guid, ActiveEnumeration> activeEnumerations;
         private ConcurrentDictionary<int, CancellationTokenSource> activeCommands;
+        private volatile bool rootDirectoryExpanded;
        
         public WindowsFileSystemVirtualizer(GVFSContext context, GVFSGitObjects gitObjects)
             : this(
@@ -332,11 +333,7 @@ namespace GVFS.Platform.Windows
                         return HResult.InternalError;
                     }
 
-                    HResult result = this.CreatePlaceholders(virtualPath, projectedItems, "StartDirectoryEnumerationHandler");
-                    if (result == HResult.Ok && virtualPath != string.Empty)
-                    {
-                        this.Context.FileSystem.ConvertDirectoryToFull(Path.Combine(this.Context.Enlistment.WorkingDirectoryRoot, virtualPath));
-                    }
+                    HResult result = this.CreatePlaceholdersAndConvertToFull(virtualPath, projectedItems, "StartDirectoryEnumerationHandler");
 
                     return result;
                 }
@@ -409,11 +406,7 @@ namespace GVFS.Platform.Windows
                 }
                 else
                 {
-                    result = this.CreatePlaceholders(virtualPath, projectedItems, "StartDirectoryEnumerationAsyncHandler");
-                    if (result == HResult.Ok && virtualPath != string.Empty)
-                    {
-                        this.Context.FileSystem.ConvertDirectoryToFull(Path.Combine(this.Context.Enlistment.WorkingDirectoryRoot, virtualPath));
-                    }
+                    result = this.CreatePlaceholdersAndConvertToFull(virtualPath, projectedItems, "StartDirectoryEnumerationAsyncHandler");
                 }
             }
             catch (OperationCanceledException)
@@ -462,8 +455,13 @@ namespace GVFS.Platform.Windows
             }
         }
 
-        private HResult CreatePlaceholders(string directoryRelativePath, IEnumerable<ProjectedFileInfo> projectedItems, string triggeringProcessName)
+        private HResult CreatePlaceholdersAndConvertToFull(string directoryRelativePath, IEnumerable<ProjectedFileInfo> projectedItems, string triggeringProcessName)
         {
+            if (directoryRelativePath == string.Empty && this.rootDirectoryExpanded)
+            {
+                return HResult.Ok;
+            }
+
             foreach (ProjectedFileInfo fileInfo in projectedItems)
             {
                 string childRelativePath = Path.Combine(directoryRelativePath, fileInfo.Name);
@@ -489,7 +487,7 @@ namespace GVFS.Platform.Windows
                     metadata.Add("fileInfo.Size", fileInfo.Size);
                     metadata.Add("fileInfo.IsFolder", fileInfo.IsFolder);
                     metadata.Add(nameof(sha), sha);
-                    this.Context.Tracer.RelatedError(metadata, $"{nameof(this.CreatePlaceholders)}: Write placeholder failed");
+                    this.Context.Tracer.RelatedError(metadata, $"{nameof(this.CreatePlaceholdersAndConvertToFull)}: Write placeholder failed");
 
                     return result;
                 }
@@ -507,6 +505,46 @@ namespace GVFS.Platform.Windows
             }
 
             this.FileSystemCallbacks.OnPlaceholderFolderExpanded(directoryRelativePath);
+
+            if (directoryRelativePath == string.Empty)
+            {
+                this.rootDirectoryExpanded = true;
+            }
+            else
+            {
+                string directoryFullPath = Path.Combine(this.Context.Enlistment.WorkingDirectoryRoot, directoryRelativePath);
+                try
+                {
+                    this.Context.FileSystem.ConvertDirectoryToFull(directoryFullPath);
+                }
+                catch (Win32Exception e)
+                {
+                    // It's possible ConvertDirectoryToFull failed because we're racing with another thread
+                    EventMetadata metadata = this.CreateEventMetadata(directoryRelativePath, e);
+
+                    OnDiskFileState directoryState;
+                    HResult onDiskResult = Utils.GetOnDiskFileState(directoryFullPath, out directoryState);
+                    if (onDiskResult == HResult.Ok)
+                    {
+                        metadata.Add(nameof(directoryState), directoryState);
+
+                        if (directoryState != OnDiskFileState.Full)
+                        {
+                            this.Context.Tracer.RelatedError(metadata, "ConvertDirectoryToFull failed and disk state is not full");
+                            return HResult.InternalError;
+                        }
+
+                        this.Context.Tracer.RelatedEvent(EventLevel.Informational, "ConvertDirectoryToFull_Race", metadata);
+                    }
+                    else
+                    {
+                        metadata.Add(nameof(onDiskResult), onDiskResult);
+
+                        this.Context.Tracer.RelatedError(metadata, "ConvertDirectoryToFull failed and GetOnDiskFileState failed");
+                        return HResult.InternalError;
+                    }
+                }
+            }
 
             return HResult.Ok;
         }
