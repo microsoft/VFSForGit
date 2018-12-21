@@ -327,19 +327,20 @@ namespace GVFS.CommandLine
         protected ServerGVFSConfig QueryGVFSConfig(ITracer tracer, GVFSEnlistment enlistment, RetryConfig retryConfig)
         {
             ServerGVFSConfig serverGVFSConfig = null;
+            string errorMessage = null;
             if (!this.ShowStatusWhileRunning(
                 () =>
                 {
                     using (ConfigHttpRequestor configRequestor = new ConfigHttpRequestor(tracer, enlistment, retryConfig))
                     {
                         const bool LogErrors = true;
-                        return configRequestor.TryQueryGVFSConfig(LogErrors, out serverGVFSConfig, out _);
+                        return configRequestor.TryQueryGVFSConfig(LogErrors, out serverGVFSConfig, out _, out errorMessage);
                     }
                 },
                 "Querying remote for config",
                 suppressGvfsLogMessage: true))
             {
-                this.ReportErrorAndExit(tracer, "Unable to query /gvfs/config");
+                this.ReportErrorAndExit(tracer, "Unable to query /gvfs/config" + Environment.NewLine + errorMessage);
             }
 
             return serverGVFSConfig;

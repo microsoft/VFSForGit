@@ -163,7 +163,7 @@ namespace GVFS.Common.Git
                 {
                     ServerGVFSConfig gvfsConfig;
                     const bool LogErrors = false;
-                    if (configRequestor.TryQueryGVFSConfig(LogErrors, out gvfsConfig, out httpStatus))
+                    if (configRequestor.TryQueryGVFSConfig(LogErrors, out gvfsConfig, out httpStatus, out _))
                     {
                         querySucceeded = true;
                         isAnonymous = true;
