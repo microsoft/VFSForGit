@@ -57,7 +57,7 @@ namespace GVFS.UnitTests.Common
             FileBasedDictionaryFileSystem fs = new FileBasedDictionaryFileSystem();
             FileBasedDictionary<string, string> dut = CreateFileBasedDictionary(fs, string.Empty);
             dut.SetValuesAndFlush(
-                new[] 
+                new[]
                 {
                     new KeyValuePair<string, string>(TestKey, TestValue),
                     new KeyValuePair<string, string>(TestKey2, TestValue2),
@@ -92,7 +92,7 @@ namespace GVFS.UnitTests.Common
             FileBasedDictionary<string, string> dut = CreateFileBasedDictionary(fs, string.Empty);
 
             dut.SetValuesAndFlush(
-                new[] 
+                new[]
                 {
                     new KeyValuePair<string, string>(TestKey, TestValue),
                     new KeyValuePair<string, string>(TestKey2, TestValue2),
@@ -156,7 +156,7 @@ namespace GVFS.UnitTests.Common
             FileBasedDictionaryFileSystem fs = new FileBasedDictionaryFileSystem(
                 openFileStreamFailurePath: null,
                 maxOpenFileStreamFailures: 0,
-                fileExistsFailurePath: MockEntryFileName + ".tmp", 
+                fileExistsFailurePath: MockEntryFileName + ".tmp",
                 maxFileExistsFailures: 5,
                 maxMoveAndOverwriteFileFailures: 0);
 
@@ -245,14 +245,14 @@ namespace GVFS.UnitTests.Common
             dut.ShouldNotBeNull();
 
             // FileBasedDictionary should only open a file stream to the non-tmp file when being created.  At all other times it should
-            // write to a tmp file and overwrite the non-tmp file  
+            // write to a tmp file and overwrite the non-tmp file
             fs.ExpectedOpenFileStreams.Remove(MockEntryFileName);
 
             return dut;
         }
 
         private void FileBasedDictionaryFileSystemShouldContain(
-            FileBasedDictionaryFileSystem fs, 
+            FileBasedDictionaryFileSystem fs,
             IList<string> expectedEntries)
         {
             string delimiter = "\r\n";
@@ -295,7 +295,7 @@ namespace GVFS.UnitTests.Common
             public FileBasedDictionaryFileSystem(
                 string openFileStreamFailurePath,
                 int maxOpenFileStreamFailures,
-                string fileExistsFailurePath, 
+                string fileExistsFailurePath,
                 int maxFileExistsFailures,
                 int maxMoveAndOverwriteFileFailures)
             {

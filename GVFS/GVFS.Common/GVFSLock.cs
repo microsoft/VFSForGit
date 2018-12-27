@@ -337,10 +337,10 @@ namespace GVFS.Common
         /// the lock can be held by us or by an external process, and because the external process that holds the lock
         /// can terminate without releasing the lock. If that happens, we implicitly release the lock the next time we
         /// check to see who is holding it.
-        /// 
+        ///
         /// The goal of this class is to make it impossible for the rest of GVFSLock to read the external holder without being
         /// aware of the fact that it could have terminated.
-        /// 
+        ///
         /// This class assumes that the caller is handling all synchronization.
         /// </summary>
         private class LockHolder

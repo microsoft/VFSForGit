@@ -23,7 +23,7 @@ namespace GVFS.Common.Git
         };
 
         // We can't accurated fill times and length in realtime, so we block write the zeroes and probably save time.
-        private static readonly byte[] EntryHeader = new byte[] 
+        private static readonly byte[] EntryHeader = new byte[]
         {
             0, 0, 0, 0,
             0, 0, 0, 0, // ctime
@@ -46,13 +46,13 @@ namespace GVFS.Common.Git
         private uint entryCount = 0;
 
         private BlockingCollection<LsTreeEntry> entryQueue = new BlockingCollection<LsTreeEntry>();
-        
+
         public GitIndexGenerator(ITracer tracer, Enlistment enlistment, bool shouldHashIndex)
         {
             this.tracer = tracer;
             this.enlistment = enlistment;
             this.shouldHashIndex = shouldHashIndex;
-            
+
             this.indexLockPath = Path.Combine(enlistment.DotGitRoot, GVFSConstants.DotGit.IndexName + GVFSConstants.DotGit.LockExtension);
         }
 
@@ -142,9 +142,9 @@ namespace GVFS.Common.Git
             long startPosition = writer.BaseStream.Position;
 
             this.entryCount++;
-            
+
             writer.Write(EntryHeader, 0, EntryHeader.Length);
-            
+
             writer.Write(SHA1Util.BytesFromHexString(sha));
 
             byte[] filenameBytes = Encoding.UTF8.GetBytes(filename);
@@ -162,7 +162,7 @@ namespace GVFS.Common.Git
 
             writer.Flush();
             long endPosition = writer.BaseStream.Position;
-            
+
             // Version 4 requires a nul-terminated string.
             int numPaddingBytes = 1;
             if (version < 4)
@@ -258,7 +258,7 @@ namespace GVFS.Common.Git
 
                     return blobEntry;
                 }
-                
+
                 return null;
             }
         }

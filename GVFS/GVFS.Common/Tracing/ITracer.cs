@@ -14,7 +14,7 @@ namespace GVFS.Common.Tracing
         void RelatedEvent(EventLevel level, string eventName, EventMetadata metadata, Keywords keywords);
 
         void RelatedInfo(string format, params object[] args);
-                
+
         void RelatedWarning(EventMetadata metadata, string message);
 
         void RelatedWarning(EventMetadata metadata, string message, Keywords keywords);
@@ -22,7 +22,7 @@ namespace GVFS.Common.Tracing
         void RelatedWarning(string message);
 
         void RelatedWarning(string format, params object[] args);
-        
+
         void RelatedError(EventMetadata metadata, string message);
 
         void RelatedError(EventMetadata metadata, string message, Keywords keywords);

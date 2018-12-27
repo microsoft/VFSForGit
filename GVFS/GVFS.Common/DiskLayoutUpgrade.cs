@@ -25,7 +25,7 @@ namespace GVFS.DiskLayoutUpgrades
             {
                 RegisterUpgrade(upgrade);
             }
-            
+
             using (JsonTracer tracer = new JsonTracer(GVFSConstants.GVFSEtwProviderName, "DiskLayoutUpgrade"))
             {
                 try

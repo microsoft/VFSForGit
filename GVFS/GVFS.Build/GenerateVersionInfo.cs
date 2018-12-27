@@ -26,7 +26,7 @@ namespace GVFS.PreBuild
             File.WriteAllText(
                 this.AssemblyVersion,
                 string.Format(
-@"using System.Reflection; 
+@"using System.Reflection;
 
 [assembly: AssemblyVersion(""{0}"")]
 [assembly: AssemblyFileVersion(""{0}"")]

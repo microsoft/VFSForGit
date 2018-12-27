@@ -48,7 +48,7 @@ namespace GVFS.CommandLine
         {
             get { return UpgradeVerbName; }
         }
-        
+
         public override void Execute()
         {
             ReturnCode exitCode = ReturnCode.Success;
@@ -118,7 +118,7 @@ namespace GVFS.CommandLine
                 this.upgrader.CleanupDownloadDirectory();
                 return true;
             }
-                        
+
             if (!this.TryRunUpgradeChecks(out newestVersion, out error))
             {
                 this.Output.WriteLine(errorOutputFormat, error);
@@ -162,16 +162,16 @@ namespace GVFS.CommandLine
                         GVFSConstants.UpgradeVerbMessages.UnmountRepoWarning,
                         GVFSConstants.UpgradeVerbMessages.UpgradeInstallAdvice);
                 this.ReportInfoToConsole(upgradeAvailableMessage + Environment.NewLine + Environment.NewLine + message + Environment.NewLine);
-            }          
+            }
 
             return true;
         }
-        
+
         private bool TryLoadUpgradeRing(out ProductUpgrader.RingType ring, out string consoleError)
         {
             bool loaded = false;
             if (!this.upgrader.TryLoadRingConfig(out consoleError))
-            {                
+            {
                 this.tracer.RelatedError($"{nameof(this.TryLoadUpgradeRing)} failed. {consoleError}");
             }
             else
@@ -268,13 +268,13 @@ namespace GVFS.CommandLine
 
                 activity.RelatedInfo("Successfully launched upgrade tool.");
             }
-                
+
             consoleError = null;
             return true;
         }
 
         private bool TryCheckUpgradeAvailable(
-            out Version latestVersion, 
+            out Version latestVersion,
             out string consoleError)
         {
             latestVersion = null;
@@ -313,7 +313,7 @@ namespace GVFS.CommandLine
 
                 activity.RelatedInfo("Upgrade is installable.");
             }
-            
+
             return true;
         }
 
@@ -326,7 +326,7 @@ namespace GVFS.CommandLine
         {
             public ProcessLauncher()
             {
-                this.Process = new Process();                
+                this.Process = new Process();
             }
 
             public Process Process { get; private set; }
@@ -352,7 +352,7 @@ namespace GVFS.CommandLine
                 exception = null;
 
                 try
-                {   
+                {
                     return this.Process.Start();
                 }
                 catch (Exception ex)

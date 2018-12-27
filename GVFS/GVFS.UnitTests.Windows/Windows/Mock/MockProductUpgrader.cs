@@ -137,7 +137,7 @@ namespace GVFS.UnitTests.Windows.Mock.Upgrader
             {
                 validAsset = false;
             }
-            
+
             if (validAsset)
             {
                 string fakeDownloadDirectory = @"C:\ProgramData\GVFS\GVFS.Upgrade\Downloads";

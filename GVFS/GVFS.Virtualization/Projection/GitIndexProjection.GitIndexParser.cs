@@ -68,11 +68,11 @@ namespace GVFS.Virtualization.Projection
 
                 this.projection.ClearProjectionCaches();
                 FileSystemTaskResult result = this.ParseIndex(
-                    tracer, 
-                    indexStream, 
-                    this.resuableProjectionBuildingIndexEntry, 
+                    tracer,
+                    indexStream,
+                    this.resuableProjectionBuildingIndexEntry,
                     this.AddIndexEntryToProjection);
-                
+
                 if (result != FileSystemTaskResult.Success)
                 {
                     // RebuildProjection should always result in FileSystemTaskResult.Success (or a thrown exception)
@@ -99,13 +99,13 @@ namespace GVFS.Virtualization.Projection
                     {
                         { "FilePlaceholderCount", filePlaceholders.Count }
                     });
-            
+
                 FileSystemTaskResult result = this.ParseIndex(
                     tracer,
                     indexStream,
                     this.resuableBackgroundTaskThreadIndexEntry,
                     (data) => this.AddEntryToModifiedPathsAndRemoveFromPlaceholdersIfNeeded(data, filePlaceholders));
-                
+
                 if (result != FileSystemTaskResult.Success)
                 {
                     return result;
@@ -160,7 +160,7 @@ namespace GVFS.Virtualization.Projection
             /// <param name="filePlaceholders">
             /// Dictionary of file placeholders.  AddEntryToModifiedPathsAndRemoveFromPlaceholdersIfNeeded will
             /// remove enties from filePlaceholders as they are found in the index.  After
-            /// AddEntryToModifiedPathsAndRemoveFromPlaceholdersIfNeeded is called for all entries in the index 
+            /// AddEntryToModifiedPathsAndRemoveFromPlaceholdersIfNeeded is called for all entries in the index
             /// filePlaceholders will contain only those placeholders that are not in the index.
             /// </param>
             private FileSystemTaskResult AddEntryToModifiedPathsAndRemoveFromPlaceholdersIfNeeded(
@@ -211,8 +211,8 @@ namespace GVFS.Virtualization.Projection
             /// case of a corrupt index)
             /// </remarks>
             private FileSystemTaskResult ParseIndex(
-                ITracer tracer, 
-                Stream indexStream, 
+                ITracer tracer,
+                Stream indexStream,
                 GitIndexEntry resuableParsedIndexEntry,
                 Func<GitIndexEntry, FileSystemTaskResult> entryAction)
             {
@@ -267,8 +267,8 @@ namespace GVFS.Virtualization.Projection
                         switch (typeAndMode.Type)
                         {
                             case FileType.Regular:
-                                if (typeAndMode.Mode != FileMode755 && 
-                                    typeAndMode.Mode != FileMode644 && 
+                                if (typeAndMode.Mode != FileMode755 &&
+                                    typeAndMode.Mode != FileMode644 &&
                                     typeAndMode.Mode != FileMode664)
                                 {
                                     throw new InvalidDataException($"Invalid file mode {typeAndMode.GetModeAsOctalString()} found for regular file in index");
@@ -288,7 +288,7 @@ namespace GVFS.Virtualization.Projection
                             default:
                                 throw new InvalidDataException($"Invalid file type {typeAndMode.Type:X} found in index");
                         }
-                                    
+
                         resuableParsedIndexEntry.TypeAndMode = typeAndMode;
 
                         this.Skip(12);

@@ -19,7 +19,7 @@ namespace GVFS.Common.Prefetch.Pipeline
     {
         private const string AreaPath = nameof(BatchObjectDownloadStage);
         private const string DownloadAreaPath = "Download";
-        
+
         private static readonly TimeSpan HeartBeatPeriod = TimeSpan.FromSeconds(20);
 
         private readonly DownloadRequestAggregator downloadRequests;
@@ -46,7 +46,7 @@ namespace GVFS.Common.Prefetch.Pipeline
             : base(maxParallel)
         {
             this.tracer = tracer.StartActivity(AreaPath, EventLevel.Informational, Keywords.Telemetry, metadata: null);
-            
+
             this.downloadRequests = new DownloadRequestAggregator(missingBlobs, chunkSize);
 
             this.enlistment = enlistment;
@@ -61,7 +61,7 @@ namespace GVFS.Common.Prefetch.Pipeline
         public BlockingCollection<IndexPackRequest> AvailablePacks { get; }
 
         public BlockingCollection<string> AvailableObjects { get; }
-        
+
         protected override void DoBeforeWork()
         {
             this.heartbeat = new Timer(this.EmitHeartbeat, null, TimeSpan.Zero, HeartBeatPeriod);
@@ -138,7 +138,7 @@ namespace GVFS.Common.Prefetch.Pipeline
                     fileName = this.gitObjects.WriteLooseObject(
                         response.Stream,
                         sha,
-                        overwriteExistingObject: false, 
+                        overwriteExistingObject: false,
                         bufToCopyWith: bufToCopyWith);
                     this.AvailableObjects.Add(sha);
                     break;

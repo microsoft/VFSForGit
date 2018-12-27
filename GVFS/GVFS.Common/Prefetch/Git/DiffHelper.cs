@@ -124,7 +124,7 @@ namespace GVFS.Common.Prefetch.Git
                         sourceTreeSha,
                         targetTreeSha,
                         line => this.EnqueueOperationsFromDiffTreeLine(this.tracer, this.enlistment.WorkingDirectoryRoot, line));
-                    
+
                     if (result.ExitCodeIsFailure)
                     {
                         this.HasFailures = true;

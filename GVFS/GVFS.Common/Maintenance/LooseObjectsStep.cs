@@ -23,7 +23,7 @@ namespace GVFS.Common.Maintenance
         }
 
         public override string Area => nameof(LooseObjectsStep);
-        
+
         // 50,000 was found to be the optimal time taking ~5 minutes
         public int MaxLooseObjectsInPack { get; set; } = 50000;
 

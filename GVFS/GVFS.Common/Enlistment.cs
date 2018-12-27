@@ -5,7 +5,7 @@ using System.IO;
 namespace GVFS.Common
 {
     public abstract class Enlistment
-    {       
+    {
         protected Enlistment(
             string enlistmentRoot,
             string workingDirectoryRoot,
@@ -47,7 +47,7 @@ namespace GVFS.Common
 
                 this.RepoUrl = originUrl.Trim();
             }
-            
+
             this.Authentication = authentication ?? new GitAuthentication(gitProcess, this.RepoUrl);
         }
 

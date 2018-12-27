@@ -6,11 +6,11 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
     [Category(Categories.GitCommands)]
     public class EnumerationMergeTest : GitRepoTests
     {
-        // Commit that found GvFlt Bug 12258777: Entries are sometimes skipped during 
+        // Commit that found GvFlt Bug 12258777: Entries are sometimes skipped during
         // enumeration when they don't fit in a user's buffer
         private const string EnumerationReproCommitish = "FunctionalTests/20170602";
 
-        public EnumerationMergeTest(bool validateWorkingTree) 
+        public EnumerationMergeTest(bool validateWorkingTree)
             : base(enlistmentPerTest: true, validateWorkingTree: validateWorkingTree)
         {
         }

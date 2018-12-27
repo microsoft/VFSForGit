@@ -91,7 +91,7 @@ namespace GVFS.FunctionalTests.FileSystemRunners
             output.Length.ShouldBeAtLeast(2);
             output.Substring(output.Length - 2).ShouldEqual("\r\n");
             output = output.Remove(output.Length - 2, 2);
-        
+
             return output;
         }
 

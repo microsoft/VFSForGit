@@ -29,22 +29,22 @@ namespace GVFS.Common
                 };
 
             ActionResult result = ShowStatusWhileRunning(
-                actionResultAction, 
-                message, 
-                output, 
-                showSpinner, 
-                gvfsLogEnlistmentRoot, 
+                actionResultAction,
+                message,
+                output,
+                showSpinner,
+                gvfsLogEnlistmentRoot,
                 initialDelayMs: initialDelayMs);
 
             return result == ActionResult.Success;
         }
 
         public static ActionResult ShowStatusWhileRunning(
-            Func<ActionResult> action, 
-            string message, 
-            TextWriter output, 
-            bool showSpinner, 
-            string gvfsLogEnlistmentRoot, 
+            Func<ActionResult> action,
+            string message,
+            TextWriter output,
+            bool showSpinner,
+            string gvfsLogEnlistmentRoot,
             int initialDelayMs)
         {
             ActionResult result = ActionResult.Failure;

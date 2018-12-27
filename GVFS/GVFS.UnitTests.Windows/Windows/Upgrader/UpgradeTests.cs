@@ -26,7 +26,7 @@ namespace GVFS.UnitTests.Windows.Upgrader
             this.Output = new MockTextWriter();
             this.PrerunChecker = new MockInstallerPrerunChecker(this.Tracer);
             this.Upgrader = new MockProductUpgrader(LocalGVFSVersion, this.Tracer);
-     
+
             this.PrerunChecker.Reset();
             this.Upgrader.PretendNewReleaseAvailableAtRemote(
                 upgradeVersion: NewerThanLocalVersion,

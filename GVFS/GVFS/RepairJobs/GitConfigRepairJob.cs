@@ -81,7 +81,7 @@ namespace GVFS.RepairJobs
             {
                 return FixResult.Failure;
             }
-            
+
             File.WriteAllText(configPath, string.Empty);
             this.Tracer.RelatedInfo("Created empty file: " + configPath);
 
@@ -97,7 +97,7 @@ namespace GVFS.RepairJobs
             // Don't output the validation output unless it turns out we couldn't fix the problem
             List<string> validationMessages = new List<string>();
 
-            // HasIssue should return CantFix because we can't set the repo url ourselves, 
+            // HasIssue should return CantFix because we can't set the repo url ourselves,
             // but getting Fixable means that we still failed
             if (this.HasIssue(validationMessages) == IssueType.Fixable)
             {

@@ -9,7 +9,7 @@ using System.IO;
 namespace GVFS.Mount
 {
     [Verb("mount", HelpText = "Starts the background mount process")]
-    public class InProcessMountVerb 
+    public class InProcessMountVerb
     {
         private TextWriter output;
 
@@ -61,7 +61,7 @@ namespace GVFS.Mount
                 MetaName = "Enlistment Root Path",
                 HelpText = "Full or relative path to the GVFS enlistment root")]
         public string EnlistmentRootPathParameter { get; set; }
-        
+
         public void InitializeDefaultParameterValues()
         {
             this.Verbosity = GVFSConstants.VerbParameters.Mount.DefaultVerbosity;
@@ -77,7 +77,7 @@ namespace GVFS.Mount
             this.ParseEnumArgs(out verbosity, out keywords);
 
             JsonTracer tracer = this.CreateTracer(enlistment, verbosity, keywords);
-            
+
             CacheServerInfo cacheServer = CacheServerResolver.GetCacheServerFromConfig(enlistment);
 
             tracer.WriteStartEvent(

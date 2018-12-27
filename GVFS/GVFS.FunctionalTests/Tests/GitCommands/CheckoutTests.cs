@@ -15,7 +15,7 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
     [Category(Categories.GitCommands)]
     public class CheckoutTests : GitRepoTests
     {
-        public CheckoutTests(bool validateWorkingTree) 
+        public CheckoutTests(bool validateWorkingTree)
             : base(enlistmentPerTest: true, validateWorkingTree: validateWorkingTree)
         {
         }
@@ -366,7 +366,7 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
         [TestCase]
         public void ModifyAndCheckoutFirstOfSeveralFilesWhoseNamesAppearBeforeDot()
         {
-            // Commit cb2d05febf64e3b0df50bd8d3fe8f05c0e2caa47 has the files (a).txt and (z).txt 
+            // Commit cb2d05febf64e3b0df50bd8d3fe8f05c0e2caa47 has the files (a).txt and (z).txt
             // in the DeleteFileWithNameAheadOfDotAndSwitchCommits folder
             string originalContent = "Test contents for (a).txt";
             string newContent = "content to append";
@@ -385,11 +385,11 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
         {
             this.ControlGitRepo.Fetch(GitRepoTests.ConflictSourceBranch);
 
-            // Commit db95d631e379d366d26d899523f8136a77441914 was prior to the additional of these 
+            // Commit db95d631e379d366d26d899523f8136a77441914 was prior to the additional of these
             // three files in commit 51d15f7584e81d59d44c1511ce17d7c493903390:
             //    Test_ConflictTests/AddedFiles/AddedByBothDifferentContent.txt
             //    Test_ConflictTests/AddedFiles/AddedByBothSameContent.txt
-            //    Test_ConflictTests/AddedFiles/AddedBySource.txt            
+            //    Test_ConflictTests/AddedFiles/AddedBySource.txt
             this.ValidateGitCommand("checkout db95d631e379d366d26d899523f8136a77441914");
             this.ValidateGitCommand("reset --mixed 51d15f7584e81d59d44c1511ce17d7c493903390");
 
@@ -410,7 +410,7 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
             // three files in commit 51d15f7584e81d59d44c1511ce17d7c493903390:
             //    Test_ConflictTests/AddedFiles/AddedByBothDifferentContent.txt
             //    Test_ConflictTests/AddedFiles/AddedByBothSameContent.txt
-            //    Test_ConflictTests/AddedFiles/AddedBySource.txt            
+            //    Test_ConflictTests/AddedFiles/AddedBySource.txt
             this.ValidateGitCommand("checkout db95d631e379d366d26d899523f8136a77441914");
 
             // Files should not exist
@@ -483,7 +483,7 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
             fileLocked.IsSet.ShouldBeTrue("Failed to obtain exclusive file handle.  Exclusive handle required to validate behavior");
 
             try
-            {                
+            {
                 this.ValidateGitCommand("checkout " + GitRepoTests.ConflictTargetBranch);
             }
             catch (Exception)
@@ -538,7 +538,7 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
             fileLocked.IsSet.ShouldBeTrue("Failed to obtain exclusive file handle.  Exclusive handle required to validate behavior");
 
             try
-            {                
+            {
                 this.ValidateGitCommand("checkout " + GitRepoTests.ConflictTargetBranch);
             }
             catch (Exception)
@@ -597,7 +597,7 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
             fileLocked.IsSet.ShouldBeTrue("Failed to obtain file handle.  Handle required to validate behavior");
 
             try
-            {                
+            {
                 this.ValidateGitCommand("checkout " + GitRepoTests.ConflictTargetBranch);
             }
             catch (Exception)
@@ -656,7 +656,7 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
             folderLocked.IsSet.ShouldBeTrue("Failed to obtain exclusive file handle.  Handle required to validate behavior");
 
             try
-            {                
+            {
                 this.ValidateGitCommand("checkout " + GitRepoTests.ConflictTargetBranch);
             }
             catch (Exception)
@@ -719,7 +719,7 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
             this.FolderShouldHaveCaseMatchingName(folderName, "GVFlt_MultiThreadTest");
             this.DeleteFolder(folderName);
 
-            // 4141dc6023b853740795db41a06b278ebdee0192 is the commit prior to deleting GVFLT_MultiThreadTest 
+            // 4141dc6023b853740795db41a06b278ebdee0192 is the commit prior to deleting GVFLT_MultiThreadTest
             // and re-adding it as as GVFlt_MultiThreadTest
             this.ValidateGitCommand("checkout 4141dc6023b853740795db41a06b278ebdee0192");
             this.FolderShouldHaveCaseMatchingName(folderName, "GVFLT_MultiThreadTest");
@@ -893,8 +893,8 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
             this.ControlGitRepo.Fetch(GitRepoTests.DeepDirectoryWithOneDifferentFile);
             this.ValidateGitCommand($"checkout {GitRepoTests.DeepDirectoryWithOneFile}");
             this.FileShouldHaveContents(
-                "TestFile1\n", 
-                "GitCommandsTests", 
+                "TestFile1\n",
+                "GitCommandsTests",
                 "CheckoutBranchDirectoryWithOneDeepFile",
                 "FolderDepth1",
                 "FolderDepth2",
@@ -905,7 +905,7 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
             // delete the file (and its parent directories) when
             // changing branches
             this.EditFile(
-                "Change file", 
+                "Change file",
                 "GitCommandsTests",
                 "CheckoutBranchDirectoryWithOneDeepFile",
                 "FolderDepth1",

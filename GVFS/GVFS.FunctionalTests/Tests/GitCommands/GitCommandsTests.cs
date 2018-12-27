@@ -25,8 +25,8 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
         private static readonly string RenameFilePathTo = Path.Combine("GVFS", "GVFS.Common", "Physical", "FileSystem", "FileProperties2.cs");
         private static readonly string RenameFolderPathFrom = Path.Combine("GVFS", "GVFS.Common", "PrefetchPacks");
         private static readonly string RenameFolderPathTo = Path.Combine("GVFS", "GVFS.Common", "PrefetchPacksRenamed");
-       
-        public GitCommandsTests(bool validateWorkingTree) 
+
+        public GitCommandsTests(bool validateWorkingTree)
             : base(enlistmentPerTest: false, validateWorkingTree: validateWorkingTree)
         {
         }
@@ -266,27 +266,27 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
         {
             this.FolderShouldExistAndHaveFile("GitCommandsTests", "RenameFileTests", "1", "#test");
             this.MoveFile(
-                Path.Combine("GitCommandsTests", "RenameFileTests", "1", "#test"), 
+                Path.Combine("GitCommandsTests", "RenameFileTests", "1", "#test"),
                 Path.Combine("GitCommandsTests", "RenameFileTests", "1", "#testRenamed"));
 
             this.FolderShouldExistAndHaveFile("GitCommandsTests", "RenameFileTests", "2", "$test");
             this.MoveFile(
-                Path.Combine("GitCommandsTests", "RenameFileTests", "2", "$test"), 
+                Path.Combine("GitCommandsTests", "RenameFileTests", "2", "$test"),
                 Path.Combine("GitCommandsTests", "RenameFileTests", "2", "$testRenamed"));
 
             this.FolderShouldExistAndHaveFile("GitCommandsTests", "RenameFileTests", "3", ")");
             this.MoveFile(
-                Path.Combine("GitCommandsTests", "RenameFileTests", "3", ")"), 
+                Path.Combine("GitCommandsTests", "RenameFileTests", "3", ")"),
                 Path.Combine("GitCommandsTests", "RenameFileTests", "3", ")Renamed"));
 
             this.FolderShouldExistAndHaveFile("GitCommandsTests", "RenameFileTests", "4", "+.test");
             this.MoveFile(
-                Path.Combine("GitCommandsTests", "RenameFileTests", "4", "+.test"), 
+                Path.Combine("GitCommandsTests", "RenameFileTests", "4", "+.test"),
                 Path.Combine("GitCommandsTests", "RenameFileTests", "4", "+.testRenamed"));
 
             this.FolderShouldExistAndHaveFile("GitCommandsTests", "RenameFileTests", "5", "-.test");
             this.MoveFile(
-                Path.Combine("GitCommandsTests", "RenameFileTests", "5", "-.test"), 
+                Path.Combine("GitCommandsTests", "RenameFileTests", "5", "-.test"),
                 Path.Combine("GitCommandsTests", "RenameFileTests", "5", "-.testRenamed"));
 
             this.ValidateGitCommand("status");
@@ -303,9 +303,9 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
             this.ValidateGitCommand("status");
 
             // 14cf226119766146b1fa5c5aa4cd0896d05f6b63 is the commit prior to creating (1).txt, it has two different files with
-            // names that start with '(': 
-            // (a).txt 
-            // (z).txt 
+            // names that start with '(':
+            // (a).txt
+            // (z).txt
             this.ValidateGitCommand("checkout 14cf226119766146b1fa5c5aa4cd0896d05f6b63");
             this.DeleteFile("DeleteFileWithNameAheadOfDotAndSwitchCommits", "(a).txt");
             this.ValidateGitCommand("checkout -- DeleteFileWithNameAheadOfDotAndSwitchCommits/(a).txt");
@@ -420,7 +420,7 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
             string testFileContents = "0123456789";
             string filename = "MoveFileFromOutsideRepoToInsideRepo.cs";
 
-            // Create the test files in this.Enlistment.EnlistmentRoot as it's outside of src and the control 
+            // Create the test files in this.Enlistment.EnlistmentRoot as it's outside of src and the control
             // repo and is cleaned up when the functional tests run
             string oldFilePath = Path.Combine(this.Enlistment.EnlistmentRoot, filename);
             string controlFilePath = Path.Combine(this.ControlGitRepo.RootPath, filename);
@@ -454,7 +454,7 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
             string filename = "MoveFolderFromOutsideRepoToInsideRepoAndAdd.cs";
             string folderName = "GitCommand_MoveFolderFromOutsideRepoToInsideRepoAndAdd";
 
-            // Create the test folders in this.Enlistment.EnlistmentRoot as it's outside of src and the control 
+            // Create the test folders in this.Enlistment.EnlistmentRoot as it's outside of src and the control
             // repo and is cleaned up when the functional tests run
             string oldFolderPath = Path.Combine(this.Enlistment.EnlistmentRoot, folderName);
             string oldFilePath = Path.Combine(this.Enlistment.EnlistmentRoot, folderName, filename);
@@ -766,7 +766,7 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
         {
             this.ValidateGitCommand("checkout -b tests/functional/ResetSoftTwice");
 
-            // A folder rename occured between 99fc72275f950b0052c8548bbcf83a851f2b4467 and 
+            // A folder rename occured between 99fc72275f950b0052c8548bbcf83a851f2b4467 and
             // the subsequent commit 60d19c87328120d11618ad563c396044a50985b2
             this.ValidateGitCommand("reset --soft 60d19c87328120d11618ad563c396044a50985b2");
             this.ValidateGitCommand("reset --soft 99fc72275f950b0052c8548bbcf83a851f2b4467");
@@ -777,7 +777,7 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
         {
             this.ValidateGitCommand("checkout -b tests/functional/ResetMixedTwice");
 
-            // A folder rename occured between 99fc72275f950b0052c8548bbcf83a851f2b4467 and 
+            // A folder rename occured between 99fc72275f950b0052c8548bbcf83a851f2b4467 and
             // the subsequent commit 60d19c87328120d11618ad563c396044a50985b2
             this.ValidateGitCommand("reset --mixed 60d19c87328120d11618ad563c396044a50985b2");
             this.ValidateGitCommand("reset --mixed 99fc72275f950b0052c8548bbcf83a851f2b4467");
@@ -788,7 +788,7 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
         {
             this.ValidateGitCommand("checkout -b tests/functional/ResetMixed2Twice");
 
-            // A folder rename occured between 99fc72275f950b0052c8548bbcf83a851f2b4467 and 
+            // A folder rename occured between 99fc72275f950b0052c8548bbcf83a851f2b4467 and
             // the subsequent commit 60d19c87328120d11618ad563c396044a50985b2
             this.ValidateGitCommand("reset 60d19c87328120d11618ad563c396044a50985b2");
             this.ValidateGitCommand("reset 99fc72275f950b0052c8548bbcf83a851f2b4467");

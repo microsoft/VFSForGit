@@ -20,7 +20,7 @@ namespace GVFS.CommandLine
             MetaName = "Enlistment Root Path",
             HelpText = "Full or relative path to the GVFS enlistment root")]
         public override string EnlistmentRootPathParameter { get; set; }
-        
+
         [Option(
             "confirm",
             Default = false,
@@ -73,7 +73,7 @@ To actually execute any necessary repair(s), run 'gvfs repair --confirm'
             if (!ConsoleHelper.ShowStatusWhileRunning(
                 () =>
                 {
-                    // Don't use 'gvfs status' here. The repo may be corrupt such that 'gvfs status' cannot run normally, 
+                    // Don't use 'gvfs status' here. The repo may be corrupt such that 'gvfs status' cannot run normally,
                     // causing repair to continue when it shouldn't.
                     using (NamedPipeClient pipeClient = new NamedPipeClient(enlistment.NamedPipeName))
                     {
@@ -114,7 +114,7 @@ To actually execute any necessary repair(s), run 'gvfs repair --confirm'
                     });
 
                 List<RepairJob> jobs = new List<RepairJob>();
-                
+
                 // Repair databases
                 jobs.Add(new BackgroundOperationDatabaseRepairJob(tracer, this.Output, enlistment));
                 jobs.Add(new RepoMetadataDatabaseRepairJob(tracer, this.Output, enlistment));
@@ -202,7 +202,7 @@ To actually execute any necessary repair(s), run 'gvfs repair --confirm'
                 }
             }
         }
-        
+
         private void WriteMessage(ITracer tracer, string message)
         {
             tracer.RelatedEvent(EventLevel.Informational, "RepairInfo", new EventMetadata { { TracingConstants.MessageKey.InfoMessage, message } });

@@ -17,7 +17,7 @@ namespace FastFetch
     {
         private const string AreaPath = nameof(CheckoutStage);
         private const int NumOperationsPerStatus = 10000;
-        
+
         private ITracer tracer;
         private Enlistment enlistment;
         private string targetCommitSha;
@@ -54,7 +54,7 @@ namespace FastFetch
         {
             get { return this.diff.RequiredBlobs; }
         }
-        
+
         public BlockingCollection<string> AvailableBlobShas { get; }
 
         public bool UpdatedWholeTree
@@ -124,7 +124,7 @@ namespace FastFetch
 
         protected override void DoAfterWork()
         {
-            // If for some reason a blob doesn't become available, 
+            // If for some reason a blob doesn't become available,
             // checkout might complete with file writes still left undone.
             if (this.diff.FileAddOperations.Count > 0)
             {
@@ -162,7 +162,7 @@ namespace FastFetch
                 {
                     return;
                 }
-                
+
                 switch (treeOp.Operation)
                 {
                     case DiffTreeResult.Operations.Modify:
@@ -259,7 +259,7 @@ namespace FastFetch
                     {
                         return;
                     }
-                    
+
                     Interlocked.Increment(ref this.shasReceived);
 
                     HashSet<PathWithMode> paths;

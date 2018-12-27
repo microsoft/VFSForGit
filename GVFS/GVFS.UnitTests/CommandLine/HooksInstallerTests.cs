@@ -20,8 +20,8 @@ namespace GVFS.UnitTests.CommandLine
         {
             Assert.Throws<HooksInstaller.HooksConfigurationException>(
                 () => HooksInstaller.MergeHooksData(
-                    new string[] { "first", GVFSPlatform.Instance.Constants.GVFSHooksExecutableName }, 
-                    Filename, 
+                    new string[] { "first", GVFSPlatform.Instance.Constants.GVFSHooksExecutableName },
+                    Filename,
                     GVFSConstants.DotGit.Hooks.PreCommandHookName));
         }
 

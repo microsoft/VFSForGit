@@ -12,7 +12,7 @@ namespace GVFS.Common
         private readonly string configFile;
         private readonly PhysicalFileSystem fileSystem;
         private FileBasedDictionary<string, string> allSettings;
-        
+
         public LocalGVFSConfig()
         {
             string servicePath = Paths.GetServiceDataRoot(GVFSConstants.Service.ServiceName);
@@ -39,8 +39,8 @@ namespace GVFS.Common
         }
 
         public bool TryGetConfig(
-            string name, 
-            out string value, 
+            string name,
+            out string value,
             out string error)
         {
             string valueFromDict = null;
@@ -58,12 +58,12 @@ namespace GVFS.Common
         }
 
         public bool TrySetConfig(
-            string name, 
-            string value, 
+            string name,
+            string value,
             out string error)
         {
             if (!this.TryPerformAction(
-                () => this.allSettings.SetValueAndFlush(name, value), 
+                () => this.allSettings.SetValueAndFlush(name, value),
                 out error))
             {
                 error = $"Error writing config {name}={value}. {error}";

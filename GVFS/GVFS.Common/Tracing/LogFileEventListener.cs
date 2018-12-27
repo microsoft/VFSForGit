@@ -13,7 +13,7 @@ namespace GVFS.Common.Tracing
         {
             this.SetLogFilePath(logFilePath);
         }
-        
+
         public override void Dispose()
         {
             if (this.writer != null)

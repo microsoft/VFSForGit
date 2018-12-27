@@ -188,7 +188,7 @@ namespace GVFS.UnitTests.Virtualization.Git
                     firstFolder.CaseInsensitiveCompare(secondFolder).ShouldBeAtLeast(1, nameof(firstFolder.CaseInsensitiveCompare));
                 });
         }
-        
+
         [TestCase]
         public unsafe void PoolSizeCheck()
         {

@@ -63,9 +63,9 @@ namespace GVFS.Common.Git
         }
 
         public static void ShaBufferToParts(
-            byte[] shaBuffer, 
-            out ulong shaBytes1Through8, 
-            out ulong shaBytes9Through16, 
+            byte[] shaBuffer,
+            out ulong shaBytes1Through8,
+            out ulong shaBytes9Through16,
             out uint shaBytes17Through20)
         {
             if (shaBuffer == null)

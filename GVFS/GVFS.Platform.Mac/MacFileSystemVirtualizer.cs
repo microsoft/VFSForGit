@@ -168,7 +168,7 @@ namespace GVFS.Platform.Mac
                     fileMode,
                     (UpdateType)updateFlags,
                     out failureCause);
-                
+
                 failureReason = (UpdateFailureReason)failureCause;
                 return new FileSystemResult(ResultToFSResult(result), unchecked((int)result));
             }
@@ -244,7 +244,7 @@ namespace GVFS.Platform.Mac
         }
 
         /// <summary>
-        /// Gets the target of the symbolic link. 
+        /// Gets the target of the symbolic link.
         /// </summary>
         /// <param name="sha">SHA of the loose object containing the target path of the symbolic link</param>
         /// <param name="symLinkTarget">Target path of the symbolic link</param>
@@ -463,7 +463,7 @@ namespace GVFS.Platform.Mac
                     string fileName;
                     bool isPathProjected = this.FileSystemCallbacks.GitIndexProjection.IsPathProjected(relativePath, out fileName, out isFolder);
                     if (isPathProjected)
-                    {                        
+                    {
                         this.FileSystemCallbacks.OnFileConvertedToFull(relativePath);
                     }
                 }
@@ -541,8 +541,8 @@ namespace GVFS.Platform.Mac
                             this.Context.Tracer.RelatedEvent(EventLevel.Informational, $"{nameof(this.OnNewFileCreated)}_GitCreatedFolder", metadata);
 
                             // Record this folder as expanded so that GitIndexProjection will re-expand the folder
-                            // when the projection change completes.  
-                            // 
+                            // when the projection change completes.
+                            //
                             // Git creates new folders when there are files that it needs to create.
                             // However, git will only create files that are in ModifiedPaths.dat.  There could
                             // be other files in the projection (that were not created by git) and so VFS must re-expand the
@@ -567,22 +567,22 @@ namespace GVFS.Platform.Mac
                 this.LogUnhandledExceptionAndExit(nameof(this.OnNewFileCreated), metadata);
             }
         }
-        
+
         private void OnFileRenamed(string relativeDestinationPath, bool isDirectory)
         {
             // ProjFS for Mac *could* be updated to provide us with relativeSourcePath as well,
             // but because VFSForGit doesn't need the source path on Mac for correct behavior
             // the relativeSourcePath is left out of the notification to keep the kext simple
             this.OnFileRenamed(
-                relativeSourcePath: string.Empty, 
-                relativeDestinationPath: relativeDestinationPath, 
+                relativeSourcePath: string.Empty,
+                relativeDestinationPath: relativeDestinationPath,
                 isDirectory: isDirectory);
         }
 
         private void OnHardLinkCreated(string relativeNewLinkPath)
         {
             this.OnHardLinkCreated(
-                relativeExistingFilePath: string.Empty, 
+                relativeExistingFilePath: string.Empty,
                 relativeNewLinkPath: relativeNewLinkPath);
         }
 

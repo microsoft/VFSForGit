@@ -28,7 +28,7 @@ namespace GVFS.Common
         }
 
         /// <summary>
-        /// Returns a string representation of a byte array from the first 
+        /// Returns a string representation of a byte array from the first
         /// <param name="numBytes"/> bytes of the buffer.
         /// </summary>
         public static string HexStringFromBytes(byte[] buf, int numBytes = -1)
@@ -56,7 +56,7 @@ namespace GVFS.Common
                 }
             }
         }
-        
+
         public static byte[] BytesFromHexString(string sha)
         {
             byte[] arr = new byte[sha.Length / 2];

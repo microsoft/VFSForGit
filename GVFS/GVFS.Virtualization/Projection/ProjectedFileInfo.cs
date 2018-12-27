@@ -15,7 +15,7 @@ namespace GVFS.Virtualization.Projection
         public string Name { get; }
         public long Size { get; }
         public bool IsFolder { get; }
-        
+
         public Sha1Id Sha { get; }
     }
 }

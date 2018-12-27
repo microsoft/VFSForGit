@@ -12,7 +12,7 @@ namespace GVFS.Common
         {
             this.dictionary = new ConcurrentDictionary<T, bool>();
         }
-        
+
         public ConcurrentHashSet(IEqualityComparer<T> comparer)
         {
             this.dictionary = new ConcurrentDictionary<T, bool>(comparer);

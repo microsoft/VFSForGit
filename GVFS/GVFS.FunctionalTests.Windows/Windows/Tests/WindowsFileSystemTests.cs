@@ -22,9 +22,9 @@ namespace GVFS.FunctionalTests.Windows.Windows.Tests
         private enum CreationDisposition
         {
             CreateNew = 1,        // CREATE_NEW
-            CreateAlways = 2,     // CREATE_ALWAYS    
-            OpenExisting = 3,     // OPEN_EXISTING    
-            OpenAlways = 4,       // OPEN_ALWAYS      
+            CreateAlways = 2,     // CREATE_ALWAYS
+            OpenExisting = 3,     // OPEN_EXISTING
+            OpenAlways = 4,       // OPEN_ALWAYS
             TruncateExisting = 5  // TRUNCATE_EXISTING
         }
 

@@ -22,7 +22,7 @@ namespace GVFS.Tests
             {
                 return null;
             }
-            
+
             this.args.Remove(match);
             return match.Substring(arg.Length + 1);
         }

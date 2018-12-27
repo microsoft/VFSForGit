@@ -27,7 +27,7 @@ namespace GVFS.UnitTests.Windows.Mock.Upgrader
             RemountRepos = 0x20,
             IsServiceInstalledAndNotRunning = 0x40,
         }
-        
+
         public void SetReturnFalseOnCheck(FailOnCheckType prerunCheck)
         {
             this.failOnCheck |= prerunCheck;
@@ -71,7 +71,7 @@ namespace GVFS.UnitTests.Windows.Mock.Upgrader
         {
             return this.FakedResultOfCheck(FailOnCheckType.UnattendedMode);
         }
-        
+
         protected override bool IsBlockingProcessRunning(out HashSet<string> processes)
         {
             processes = new HashSet<string>();
@@ -87,7 +87,7 @@ namespace GVFS.UnitTests.Windows.Mock.Upgrader
         }
 
         protected override bool TryRunGVFSWithArgs(string args, out string error)
-        {            
+        {
             if (string.CompareOrdinal(args, "service --unmount-all") == 0)
             {
                 bool result = this.FakedResultOfCheck(FailOnCheckType.UnMountRepos);

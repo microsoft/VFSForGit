@@ -99,7 +99,7 @@ namespace GVFS.CommandLine
                 {
                     string errorString = $"The following repos failed to mount:{Environment.NewLine}{string.Join("\r\n", failedRepoRoots.ToArray())}";
                     Console.Error.WriteLine(errorString);
-                    this.ReportErrorAndExit(Environment.NewLine + errorString);                    
+                    this.ReportErrorAndExit(Environment.NewLine + errorString);
                 }
             }
             else if (this.UnmountAll)

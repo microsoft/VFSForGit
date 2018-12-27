@@ -87,7 +87,7 @@ namespace GVFS.UnitTests.Maintenance
         {
             this.TestSetup(DateTime.UtcNow.AddDays(-7));
 
-            // Verify with valid Objects 
+            // Verify with valid Objects
             LooseObjectsStep step = new LooseObjectsStep(this.context, requireCacheLock: false, forceRun: false);
             step.WriteLooseObjectIds(new StreamWriter(new MemoryStream())).ShouldEqual(3);
             this.tracer.RelatedErrorEvents.Count.ShouldEqual(0);
@@ -122,8 +122,8 @@ namespace GVFS.UnitTests.Maintenance
             string directoryName = "AB";
             string fileName = "830bb79cd4fadb2e73e780e452dc71db909001";
             step.TryGetLooseObjectId(
-                directoryName, 
-                Path.Combine(this.context.Enlistment.GitObjectsRoot, directoryName, fileName), 
+                directoryName,
+                Path.Combine(this.context.Enlistment.GitObjectsRoot, directoryName, fileName),
                 out string objectId).ShouldBeTrue();
             objectId.ShouldEqual(directoryName + fileName);
 
@@ -163,8 +163,8 @@ namespace GVFS.UnitTests.Maintenance
 
             // Create Hex Folder 1 with 1 File
             MockDirectory hex1 = new MockDirectory(
-                Path.Combine(enlistment.GitObjectsRoot, "AA"), 
-                null, 
+                Path.Combine(enlistment.GitObjectsRoot, "AA"),
+                null,
                 new List<MockFile>()
                 {
                      new MockFile(Path.Combine(enlistment.GitObjectsRoot, "AA", "1156f4f2b850673090c285289ea8475d629fe1"), string.Empty)
@@ -172,8 +172,8 @@ namespace GVFS.UnitTests.Maintenance
 
             // Create Hex Folder 2 with 2 Files
             MockDirectory hex2 = new MockDirectory(
-                Path.Combine(enlistment.GitObjectsRoot, "F1"), 
-                null, 
+                Path.Combine(enlistment.GitObjectsRoot, "F1"),
+                null,
                 new List<MockFile>()
                 {
                      new MockFile(Path.Combine(enlistment.GitObjectsRoot, "F1", "1156f4f2b850673090c285289ea8475d629fe2"), string.Empty),
@@ -182,8 +182,8 @@ namespace GVFS.UnitTests.Maintenance
 
             // Create NonHex Folder with 4 Files
             MockDirectory nonhex = new MockDirectory(
-                Path.Combine(enlistment.GitObjectsRoot, "ZZ"), 
-                null, 
+                Path.Combine(enlistment.GitObjectsRoot, "ZZ"),
+                null,
                 new List<MockFile>()
                 {
                      new MockFile(Path.Combine(enlistment.GitObjectsRoot, "ZZ", "1156f4f2b850673090c285289ea8475d629fe4"), string.Empty),

@@ -131,10 +131,10 @@ namespace GVFS.StressTests
         }
 
         private void ChangeUnhydratedFileCase(
-            string oldName, 
-            string oldVirtualPath, 
-            string newName, 
-            string newVirtualPath, 
+            string oldName,
+            string oldVirtualPath,
+            string newName,
+            string newVirtualPath,
             string knownFileContents)
         {
             this.fileSystem.MoveFile(oldVirtualPath, newVirtualPath);

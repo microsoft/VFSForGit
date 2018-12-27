@@ -7,7 +7,7 @@ namespace GVFS.UnitTests.Mock.Git
 {
     public class MockLibGit2Repo : LibGit2Repo
     {
-        public MockLibGit2Repo(ITracer tracer) 
+        public MockLibGit2Repo(ITracer tracer)
             : base()
         {
         }

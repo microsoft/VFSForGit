@@ -31,10 +31,10 @@ namespace GVFS.Service
 
         public override string ToString()
         {
-            return 
+            return
                 string.Format(
-                    "({0} - {1}) {2}", 
-                    this.IsActive ? "Active" : "Inactive", 
+                    "({0} - {1}) {2}",
+                    this.IsActive ? "Active" : "Inactive",
                     this.OwnerSID,
                     this.EnlistmentRoot);
         }

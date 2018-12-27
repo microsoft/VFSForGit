@@ -8,10 +8,10 @@ namespace GVFS.Virtualization.Projection
     public partial class GitIndexProjection
     {
         /// <summary>
-        /// Data for an entry in the git index 
+        /// Data for an entry in the git index
         /// </summary>
         /// <remarks>
-        /// GitIndexEntry should not be used for storing projection data. It's designed for 
+        /// GitIndexEntry should not be used for storing projection data. It's designed for
         /// temporary storage of a single entry from the index.
         /// </remarks>
         internal class GitIndexEntry
@@ -79,7 +79,7 @@ namespace GVFS.Virtualization.Projection
 
                 // The index to start looking for the next path separator
                 // Because the previous final separator is stored and we know where the previous path will be replaced
-                // the code can use the previous final separator to start looking from that point instead of having to 
+                // the code can use the previous final separator to start looking from that point instead of having to
                 // run through the entire path to break it apart
                 /* Example:
                  * Previous path = folder/where/previous/separator/is/used/file.txt
@@ -102,7 +102,7 @@ namespace GVFS.Virtualization.Projection
                     {
                         // Only need to parse the last part, because the rest of the string is unchanged
 
-                        // The logical thing to do would be to start the for loop at previousFinalSeparatorIndex+1, but two 
+                        // The logical thing to do would be to start the for loop at previousFinalSeparatorIndex+1, but two
                         // repeated / characters would make an invalid path, so we'll assume that git would not have stored that path
                         forLoopStartIndex = this.buildingProjectionPreviousFinalSeparatorIndex + 2;
 
@@ -146,7 +146,7 @@ namespace GVFS.Virtualization.Projection
             }
 
             /// <summary>
-            /// Parses the path from the index as platform-specific relative path. 
+            /// Parses the path from the index as platform-specific relative path.
             /// It should only be called when running a background task.
             /// </summary>
             public unsafe void BackgroundTask_ParsePath()
@@ -228,7 +228,7 @@ namespace GVFS.Virtualization.Projection
             {
                 return this.backgroundTaskRelativePath;
             }
-            
+
             private unsafe bool RangeContains(byte* bufferPtr, int count, byte value)
             {
                 byte* indexPtr = bufferPtr;

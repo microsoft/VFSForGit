@@ -47,7 +47,7 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
             this.ValidateGitCommand("merge --abort");
             this.FilesShouldMatchCheckoutOfTargetBranch();
         }
-        
+
         [TestCase]
         public void MergeConflict_UsingOurs()
         {

@@ -14,7 +14,7 @@ namespace GVFS.Common
         private const string EtwArea = nameof(RetryConfig);
 
         private const int MinRetries = 0;
-        
+
         private static readonly TimeSpan DefaultTimeout = TimeSpan.FromSeconds(DefaultTimeoutSeconds);
 
         public RetryConfig(int maxRetries = DefaultMaxRetries)
@@ -115,11 +115,11 @@ namespace GVFS.Common
             timeout = TimeSpan.FromSeconds(0);
             int timeoutSeconds;
             if (!TryGetFromGitConfig(
-                git, 
-                GVFSConstants.GitConfig.TimeoutSecondsConfig, 
-                DefaultTimeoutSeconds, 
-                0, 
-                out timeoutSeconds, 
+                git,
+                GVFSConstants.GitConfig.TimeoutSecondsConfig,
+                DefaultTimeoutSeconds,
+                0,
+                out timeoutSeconds,
                 out error))
             {
                 return false;

@@ -8,7 +8,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
     {
         private readonly bool forcePerRepoObjectCache;
         private readonly bool skipPrefetchDuringClone;
-        
+
         public TestsWithEnlistmentPerFixture(bool forcePerRepoObjectCache = false, bool skipPrefetchDuringClone = false)
         {
             this.forcePerRepoObjectCache = forcePerRepoObjectCache;

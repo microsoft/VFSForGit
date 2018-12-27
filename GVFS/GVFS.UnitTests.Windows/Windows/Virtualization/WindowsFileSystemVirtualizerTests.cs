@@ -60,7 +60,7 @@ namespace GVFS.UnitTests.Windows.Virtualization
             using (WindowsFileSystemVirtualizer virtualizer = new WindowsFileSystemVirtualizer(this.Repo.Context, this.Repo.GitObjects, mockVirtualization, numWorkThreads))
             {
                 mockVirtualization.NegativePathCacheCount = InitialNegativePathCacheCount;
-                
+
                 uint totalEntryCount;
                 virtualizer.ClearNegativePathCache(out totalEntryCount).ShouldEqual(new FileSystemResult(FSResult.Ok, (int)HResult.Ok));
                 totalEntryCount.ShouldEqual(InitialNegativePathCacheCount);
@@ -103,7 +103,7 @@ namespace GVFS.UnitTests.Windows.Virtualization
         {
             using (MockVirtualizationInstance mockVirtualization = new MockVirtualizationInstance())
             using (WindowsFileSystemVirtualizer virtualizer = new WindowsFileSystemVirtualizer(this.Repo.Context, this.Repo.GitObjects, mockVirtualization, numWorkThreads))
-            { 
+            {
                 UpdateFailureReason failureReason = UpdateFailureReason.NoFailure;
 
                 mockVirtualization.UpdatePlaceholderIfNeededResult = HResult.Ok;
@@ -364,7 +364,7 @@ namespace GVFS.UnitTests.Windows.Virtualization
                     gitIndexProjection.UnblockGetProjectedFileInfo();
 
                     // Cancelling in the middle of GetPlaceholderInformation still allows it to create placeholders when the cancellation does not
-                    // interrupt network requests                
+                    // interrupt network requests
                     mockVirtualization.WaitForPlaceholderCreate();
                     gitIndexProjection.WaitForPlaceholderCreate();
                     mockVirtualization.CreatedPlaceholders.ShouldContain(entry => entry == "test.txt");

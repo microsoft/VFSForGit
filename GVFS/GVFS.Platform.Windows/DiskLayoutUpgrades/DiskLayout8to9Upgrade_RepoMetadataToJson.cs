@@ -33,7 +33,7 @@ namespace GVFS.Platform.Windows.DiskLayoutUpgrades
 
             return true;
         }
-        
+
         private bool UpdateRepoMetadata(ITracer tracer, string dotGVFSRoot)
         {
             string esentRepoMetadata = Path.Combine(dotGVFSRoot, WindowsDiskLayoutUpgradeData.EsentRepoMetadataName);

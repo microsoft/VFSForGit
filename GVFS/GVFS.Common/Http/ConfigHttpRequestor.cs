@@ -10,8 +10,8 @@ namespace GVFS.Common.Http
     public class ConfigHttpRequestor : HttpRequestor
     {
         private readonly string repoUrl;
-        
-        public ConfigHttpRequestor(ITracer tracer, Enlistment enlistment, RetryConfig retryConfig) 
+
+        public ConfigHttpRequestor(ITracer tracer, Enlistment enlistment, RetryConfig retryConfig)
             : base(tracer, retryConfig, enlistment.Authentication)
         {
             this.repoUrl = enlistment.RepoUrl;

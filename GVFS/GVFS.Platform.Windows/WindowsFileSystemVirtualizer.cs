@@ -32,16 +32,16 @@ namespace GVFS.Platform.Windows
         private IVirtualizationInstance virtualizationInstance;
         private ConcurrentDictionary<Guid, ActiveEnumeration> activeEnumerations;
         private ConcurrentDictionary<int, CancellationTokenSource> activeCommands;
-       
+
         public WindowsFileSystemVirtualizer(GVFSContext context, GVFSGitObjects gitObjects)
             : this(
-                  context, 
+                  context,
                   gitObjects,
                   virtualizationInstance: null,
                   numWorkerThreads: FileSystemVirtualizer.DefaultNumWorkerThreads)
         {
         }
-        
+
         public WindowsFileSystemVirtualizer(
             GVFSContext context,
             GVFSGitObjects gitObjects,
@@ -218,7 +218,7 @@ namespace GVFS.Platform.Windows
                 new NotificationMapping(Notifications.FilesAndFoldersInRefsHeads, GVFSConstants.DotGit.Refs.Heads.Root),
             };
 
-            // We currently use twice as many threads as connections to allow for 
+            // We currently use twice as many threads as connections to allow for
             // non-network operations to possibly succeed despite the connection limit
             HResult result = this.virtualizationInstance.StartVirtualizationInstance(
                 this.Context.Enlistment.WorkingDirectoryRoot,
@@ -304,7 +304,7 @@ namespace GVFS.Platform.Windows
             return false;
         }
 
-        // TODO: Need ProjFS 13150199 to be fixed so that GVFS doesn't leak memory if the enumeration cancelled.  
+        // TODO: Need ProjFS 13150199 to be fixed so that GVFS doesn't leak memory if the enumeration cancelled.
         // Currently EndDirectoryEnumerationHandler must be called to remove the ActiveEnumeration from this.activeEnumerations
         private HResult StartDirectoryEnumerationHandler(int commandId, Guid enumerationId, string virtualPath)
         {
@@ -326,7 +326,7 @@ namespace GVFS.Platform.Windows
                     if (!this.activeEnumerations.TryAdd(enumerationId, activeEnumeration))
                     {
                         this.Context.Tracer.RelatedError(
-                            this.CreateEventMetadata(enumerationId, virtualPath), 
+                            this.CreateEventMetadata(enumerationId, virtualPath),
                             nameof(this.StartDirectoryEnumerationHandler) + ": Failed to add enumeration ID to active collection");
 
                         return HResult.InternalError;
@@ -354,7 +354,7 @@ namespace GVFS.Platform.Windows
 
                 Exception e;
                 if (!this.TryScheduleFileOrNetworkRequest(startDirectoryEnumerationHandler, out e))
-                { 
+                {
                     EventMetadata metadata = this.CreateEventMetadata(virtualPath, e);
                     metadata.Add("commandId", commandId);
                     metadata.Add(TracingConstants.MessageKey.WarningMessage, nameof(this.StartDirectoryEnumerationHandler) + ": Failed to schedule async handler");
@@ -375,11 +375,11 @@ namespace GVFS.Platform.Windows
             return HResult.Pending;
         }
 
-        private void StartDirectoryEnumerationAsyncHandler(            
+        private void StartDirectoryEnumerationAsyncHandler(
             CancellationToken cancellationToken,
             BlobSizes.BlobSizesConnection blobSizesConnection,
             int commandId,
-            Guid enumerationId, 
+            Guid enumerationId,
             string virtualPath)
         {
             if (cancellationToken.IsCancellationRequested)
@@ -395,7 +395,7 @@ namespace GVFS.Platform.Windows
                 if (!this.activeEnumerations.TryAdd(enumerationId, activeEnumeration))
                 {
                     this.Context.Tracer.RelatedError(
-                        this.CreateEventMetadata(enumerationId, virtualPath), 
+                        this.CreateEventMetadata(enumerationId, virtualPath),
                         nameof(this.StartDirectoryEnumerationAsyncHandler) + ": Failed to add enumeration ID to active collection");
 
                     result = HResult.InternalError;
@@ -446,8 +446,8 @@ namespace GVFS.Platform.Windows
 
                 ActiveEnumeration activeEnumeration;
                 bool activeEnumerationsUpdated = this.activeEnumerations.TryRemove(enumerationId, out activeEnumeration);
-                metadata.Add("activeEnumerationsUpdated", activeEnumerationsUpdated);                
-                this.Context.Tracer.RelatedEvent(EventLevel.Informational, $"{nameof(this.StartDirectoryEnumerationAsyncHandler)}_CommandAlreadyCanceled", metadata);                
+                metadata.Add("activeEnumerationsUpdated", activeEnumerationsUpdated);
+                this.Context.Tracer.RelatedEvent(EventLevel.Informational, $"{nameof(this.StartDirectoryEnumerationAsyncHandler)}_CommandAlreadyCanceled", metadata);
             }
         }
 
@@ -459,12 +459,12 @@ namespace GVFS.Platform.Windows
                 if (!this.activeEnumerations.TryRemove(enumerationId, out activeEnumeration))
                 {
                     this.Context.Tracer.RelatedWarning(
-                        this.CreateEventMetadata(enumerationId), 
-                        nameof(this.EndDirectoryEnumerationHandler) + ": Failed to remove enumeration ID from active collection", 
+                        this.CreateEventMetadata(enumerationId),
+                        nameof(this.EndDirectoryEnumerationHandler) + ": Failed to remove enumeration ID from active collection",
                         Keywords.Telemetry);
 
                     return HResult.InternalError;
-                }                
+                }
             }
             catch (Exception e)
             {
@@ -553,7 +553,7 @@ namespace GVFS.Platform.Windows
             catch (Win32Exception e)
             {
                 this.Context.Tracer.RelatedWarning(
-                    this.CreateEventMetadata(enumerationId, relativePath: null, exception: e), 
+                    this.CreateEventMetadata(enumerationId, relativePath: null, exception: e),
                     nameof(this.GetDirectoryEnumerationHandler) + " caught Win32Exception");
 
                 return HResultExtensions.HResultFromWin32(e.NativeErrorCode);
@@ -749,7 +749,7 @@ namespace GVFS.Platform.Windows
                 ProjectedFileInfo fileInfo;
                 string parentFolderPath;
                 try
-                {                    
+                {
                     fileInfo = this.FileSystemCallbacks.GitIndexProjection.GetProjectedFileInfo(cancellationToken, blobSizesConnection, virtualPath, out parentFolderPath);
                     if (fileInfo == null)
                     {
@@ -762,8 +762,8 @@ namespace GVFS.Platform.Windows
                     EventMetadata metadata = this.CreateEventMetadata(virtualPath);
                     metadata.Add(TracingConstants.MessageKey.InfoMessage, nameof(this.GetPlaceholderInformationAsyncHandler) + ": Operation cancelled");
                     this.Context.Tracer.RelatedEvent(
-                        EventLevel.Informational, 
-                        $"{nameof(this.GetPlaceholderInformationAsyncHandler)}_{nameof(this.FileSystemCallbacks.GitIndexProjection.GetProjectedFileInfo)}_Cancelled", 
+                        EventLevel.Informational,
+                        $"{nameof(this.GetPlaceholderInformationAsyncHandler)}_{nameof(this.FileSystemCallbacks.GitIndexProjection.GetProjectedFileInfo)}_Cancelled",
                         metadata);
                     return;
                 }
@@ -868,8 +868,8 @@ namespace GVFS.Platform.Windows
             long byteOffset,
             uint length,
             Guid streamGuid,
-            byte[] contentId, 
-            byte[] providerId,            
+            byte[] contentId,
+            byte[] providerId,
             uint triggeringProcessId,
             string triggeringProcessImageFileName)
         {
@@ -1045,7 +1045,7 @@ namespace GVFS.Platform.Windows
 
                                         case HResult.FileNotFound:
                                             // WriteFile may return STATUS_OBJECT_NAME_NOT_FOUND if the stream guid provided is not valid (doesn’t exist in the stream table).
-                                            // For each file expansion, ProjFS creates a new get stream session with a new stream guid, the session starts at the beginning of the 
+                                            // For each file expansion, ProjFS creates a new get stream session with a new stream guid, the session starts at the beginning of the
                                             // file expansion, and ends after the GetFileStream command returns or times out.
                                             //
                                             // If we hit this in GVFS, the most common explanation is that we're calling WriteFile after the ProjFS thread waiting on the respose
@@ -1081,7 +1081,7 @@ namespace GVFS.Platform.Windows
             {
                 requestMetadata.Add(TracingConstants.MessageKey.InfoMessage, $"{nameof(this.GetFileStreamHandlerAsyncHandler)}: Operation cancelled");
                 this.Context.Tracer.RelatedEvent(
-                    EventLevel.Informational, 
+                    EventLevel.Informational,
                     nameof(this.GetFileStreamHandlerAsyncHandler) + "_OperationCancelled",
                     requestMetadata);
 
@@ -1124,10 +1124,10 @@ namespace GVFS.Platform.Windows
                         {
                             string directoryPath = Path.Combine(this.Context.Enlistment.WorkingDirectoryRoot, virtualPath);
                             HResult hr = this.virtualizationInstance.ConvertDirectoryToPlaceholder(
-                                directoryPath, 
-                                FolderContentId, 
+                                directoryPath,
+                                FolderContentId,
                                 PlaceholderVersionId);
-                            
+
                             if (hr == HResult.Ok)
                             {
                                 this.FileSystemCallbacks.OnPlaceholderFolderCreated(virtualPath);
@@ -1267,7 +1267,7 @@ namespace GVFS.Platform.Windows
         }
 
         private void NotifyFileHandleClosedFileModifiedOrDeletedHandler(
-            string virtualPath, 
+            string virtualPath,
             bool isDirectory,
             bool isFileModified,
             bool isFileDeleted)
@@ -1355,7 +1355,7 @@ namespace GVFS.Platform.Windows
                     }
                     catch (AggregateException e)
                     {
-                        // An aggregate exception containing all the exceptions thrown by 
+                        // An aggregate exception containing all the exceptions thrown by
                         // the registered callbacks on the associated CancellationToken
 
                         foreach (Exception innerException in e.Flatten().InnerExceptions)
@@ -1401,7 +1401,7 @@ namespace GVFS.Platform.Windows
                 NotificationType.HardlinkCreated |
                 NotificationType.FileHandleClosedFileModified;
 
-            public const NotificationType LogsHeadFile = 
+            public const NotificationType LogsHeadFile =
                 NotificationType.FileRenamed |
                 NotificationType.HardlinkCreated |
                 NotificationType.FileHandleClosedFileModified;

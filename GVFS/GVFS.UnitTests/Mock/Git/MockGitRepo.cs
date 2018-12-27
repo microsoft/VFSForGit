@@ -12,7 +12,7 @@ namespace GVFS.UnitTests.Mock.Git
     {
         private Dictionary<string, MockGitObject> objects = new Dictionary<string, MockGitObject>();
         private string rootSha;
-        
+
         public MockGitRepo(ITracer tracer, Enlistment enlistment, PhysicalFileSystem fileSystem)
             : base(tracer)
         {
@@ -59,7 +59,7 @@ namespace GVFS.UnitTests.Mock.Git
             this.AddChildBySha(parentSha, newSha);
             return newSha;
         }
-        
+
         /// <summary>
         /// Adds an parented tree to the "repo"
         /// </summary>
@@ -75,7 +75,7 @@ namespace GVFS.UnitTests.Mock.Git
         {
             return this.rootSha;
         }
-        
+
         public override bool TryGetBlobLength(string blobSha, out long size)
         {
             MockGitObject obj;

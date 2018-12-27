@@ -58,7 +58,7 @@ namespace GVFS.Platform.Windows
         }
 
         /// <summary>
-        /// Advances the enumerator to the next element of the collection (that is being projected).   
+        /// Advances the enumerator to the next element of the collection (that is being projected).
         /// If a filter string is set, MoveNext will advance to the next entry that matches the filter.
         /// </summary>
         /// <returns>

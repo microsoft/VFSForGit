@@ -94,7 +94,7 @@ namespace GVFS.FunctionalTests.Tools
 
         public static string ReadAllTextFromWriteLockedFile(string filename)
         {
-            // File.ReadAllText and others attempt to open for read and FileShare.None, which always fail on 
+            // File.ReadAllText and others attempt to open for read and FileShare.None, which always fail on
             // the placeholder db and other files that open for write and only share read access
             using (StreamReader reader = new StreamReader(File.Open(filename, FileMode.Open, FileAccess.Read, FileShare.ReadWrite)))
             {

@@ -16,7 +16,7 @@ namespace GVFS.Common
         private const string AddEntryPrefix = "A ";
         private const string RemoveEntryPrefix = "D ";
 
-        // Use the same newline separator regardless of platform 
+        // Use the same newline separator regardless of platform
         private const string NewLine = "\r\n";
         private const int IoFailureRetryDelayMS = 50;
         private const int IoFailureLoggingThreshold = 500;
@@ -44,7 +44,7 @@ namespace GVFS.Common
             this.dataDirectoryPath = Path.GetDirectoryName(this.DataFilePath);
             this.collectionAppendsDirectlyToFile = collectionAppendsDirectlyToFile;
         }
-        
+
         protected delegate bool TryParseAdd<TKey, TValue>(string line, out TKey key, out TValue value, out string error);
         protected delegate bool TryParseRemove<TKey>(string line, out TKey key, out string error);
 
@@ -82,7 +82,7 @@ namespace GVFS.Common
 
                     bool tmpFileCreated = false;
                     int tmpFileCreateAttempts = 0;
-                    
+
                     bool tmpFileMoved = false;
                     int tmpFileMoveAttempts = 0;
 
@@ -96,7 +96,7 @@ namespace GVFS.Common
                             if (!tmpFileCreated)
                             {
                                 if (this.Tracer != null && tmpFileCreateAttempts % IoFailureLoggingThreshold == 0)
-                                {                                    
+                                {
                                     EventMetadata metadata = CreateEventMetadata(lastException);
                                     metadata.Add("tmpFileCreateAttempts", tmpFileCreateAttempts);
                                     this.Tracer.RelatedWarning(metadata, nameof(this.WriteAndReplaceDataFile) + ": Failed to create tmp file ... retrying");
@@ -131,7 +131,7 @@ namespace GVFS.Common
                             catch (Win32Exception e)
                             {
                                 if (this.Tracer != null && tmpFileMoveAttempts % IoFailureLoggingThreshold == 0)
-                                {                                    
+                                {
                                     EventMetadata metadata = CreateEventMetadata(e);
                                     metadata.Add("tmpFileMoveAttempts", tmpFileMoveAttempts);
                                     this.Tracer.RelatedWarning(metadata, nameof(this.WriteAndReplaceDataFile) + ": Failed to overwrite data file ... retrying");
@@ -154,7 +154,7 @@ namespace GVFS.Common
                 }
             }
         }
-        
+
         protected string FormatAddLine(string line)
         {
             return AddEntryPrefix + line;
@@ -213,7 +213,7 @@ namespace GVFS.Common
 
         /// <param name="synchronizedAction">An optional callback to be run as soon as the fileLock is taken</param>
         protected bool TryLoadFromDisk<TKey, TValue>(
-            TryParseAdd<TKey, TValue> tryParseAdd, 
+            TryParseAdd<TKey, TValue> tryParseAdd,
             TryParseRemove<TKey> tryParseRemove,
             Action<TKey, TValue> add,
             out string error,
@@ -345,9 +345,9 @@ namespace GVFS.Common
                     if (this.dataFileHandle == null)
                     {
                         this.dataFileHandle = this.fileSystem.OpenFileStream(
-                            this.DataFilePath, 
-                            FileMode.OpenOrCreate, 
-                            this.collectionAppendsDirectlyToFile ? FileAccess.ReadWrite : FileAccess.Read, 
+                            this.DataFilePath,
+                            FileMode.OpenOrCreate,
+                            this.collectionAppendsDirectlyToFile ? FileAccess.ReadWrite : FileAccess.Read,
                             FileShare.Read,
                             callFlushFileBuffers: false);
                     }

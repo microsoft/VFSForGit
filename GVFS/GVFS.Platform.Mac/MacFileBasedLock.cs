@@ -15,7 +15,7 @@ namespace GVFS.Platform.Mac
             PhysicalFileSystem fileSystem,
             ITracer tracer,
             string lockPath)
-            : base(fileSystem, tracer, lockPath) 
+            : base(fileSystem, tracer, lockPath)
         {
             this.lockFileDescriptor = NativeMethods.InvalidFileDescriptor;
         }
@@ -27,8 +27,8 @@ namespace GVFS.Platform.Mac
                 this.FileSystem.CreateDirectory(Path.GetDirectoryName(this.LockPath));
 
                 this.lockFileDescriptor = NativeMethods.Open(
-                    this.LockPath, 
-                    NativeMethods.OpenCreate | NativeMethods.OpenWriteOnly, 
+                    this.LockPath,
+                    NativeMethods.OpenCreate | NativeMethods.OpenWriteOnly,
                     NativeMethods.FileMode644);
 
                 if (this.lockFileDescriptor == NativeMethods.InvalidFileDescriptor)
@@ -38,7 +38,7 @@ namespace GVFS.Platform.Mac
                     this.Tracer.RelatedWarning(
                         metadata,
                         $"{nameof(MacFileBasedLock)}.{nameof(this.TryAcquireLock)}: Failed to open lock file");
-                    
+
                     return false;
                 }
             }

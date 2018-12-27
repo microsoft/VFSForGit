@@ -9,7 +9,7 @@ namespace GVFS.FunctionalTests
         public static bool NoSharedCache { get; set; }
 
         public static string LocalCacheRoot { get; set; }
-        
+
         public static object[] FileSystemRunners { get; set; }
 
         public static object[] GitRepoTestsValidateWorkTree { get; set; }
@@ -23,8 +23,8 @@ namespace GVFS.FunctionalTests
             get
             {
                 return
-                    TestGVFSOnPath ? 
-                    Properties.Settings.Default.PathToGVFS : 
+                    TestGVFSOnPath ?
+                    Properties.Settings.Default.PathToGVFS :
                     Path.Combine(Properties.Settings.Default.CurrentDirectory, Properties.Settings.Default.PathToGVFS);
             }
         }

@@ -194,7 +194,7 @@ namespace GVFS.UnitTests.Common
 
             mockTracer.RelatedWarningEvents.Count.ShouldEqual(5, "There should be five warning events, the first and last, and the 4th, 7th, and 10th");
             mockTracer.RelatedWarningEvents[0].ShouldContain(
-                new[] 
+                new[]
                 {
                     "Failed to delete file, retrying ...",
                     "\"failureCount\":1",
@@ -232,7 +232,7 @@ namespace GVFS.UnitTests.Common
         }
 
         private class DeleteTestsFileSystem : PhysicalFileSystem
-        {            
+        {
             private bool allFilesExist;
             private bool noOpDelete;
 
@@ -286,7 +286,7 @@ namespace GVFS.UnitTests.Common
 
                 if (!this.noOpDelete)
                 {
-                    if (this.DeleteException != null && 
+                    if (this.DeleteException != null &&
                         (this.MaxDeleteFileExceptions == -1 || this.MaxDeleteFileExceptions >= this.DeleteFileCallCount))
                     {
                         throw this.DeleteException;

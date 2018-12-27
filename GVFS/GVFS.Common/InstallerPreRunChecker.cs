@@ -34,7 +34,7 @@ namespace GVFS.Upgrader
                     this.tracer.RelatedError($"{nameof(this.TryRunPreUpgradeChecks)}: {consoleError}");
                     return false;
                 }
-                
+
                 if (!this.IsGVFSUpgradeAllowed(out consoleError))
                 {
                     this.tracer.RelatedError($"{nameof(this.TryRunPreUpgradeChecks)}: {consoleError}");
@@ -42,7 +42,7 @@ namespace GVFS.Upgrader
                 }
 
                 activity.RelatedInfo($"Successfully finished pre upgrade checks. Okay to run {GVFSConstants.UpgradeVerbMessages.GVFSUpgrade}.");
-            }                
+            }
 
             consoleError = null;
             return true;
@@ -69,9 +69,9 @@ namespace GVFS.Upgrader
                     return false;
                 }
 
-                // While checking for blocking processes like GVFS.Mount immediately after un-mounting, 
-                // then sometimes GVFS.Mount shows up as running. But if the check is done after waiting 
-                // for some time, then eventually GVFS.Mount goes away. The retry loop below is to help 
+                // While checking for blocking processes like GVFS.Mount immediately after un-mounting,
+                // then sometimes GVFS.Mount shows up as running. But if the check is done after waiting
+                // for some time, then eventually GVFS.Mount goes away. The retry loop below is to help
                 // account for this delay between the time un-mount call returns and when GVFS.Mount
                 // actually quits.
                 this.tracer.RelatedInfo("Checking if GVFS or dependent processes are running.");
@@ -125,7 +125,7 @@ namespace GVFS.Upgrader
         {
             return GVFSEnlistment.IsUnattended(this.tracer);
         }
-        
+
         protected virtual bool IsBlockingProcessRunning(out HashSet<string> processes)
         {
             int currentProcessId = Process.GetCurrentProcess().Id;

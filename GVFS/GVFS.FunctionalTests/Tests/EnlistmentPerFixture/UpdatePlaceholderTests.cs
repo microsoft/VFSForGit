@@ -137,7 +137,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
 
             string placeholderDatabase = Path.Combine(this.Enlistment.DotGVFSRoot, "databases", "PlaceholderList.dat");
             string placeholdersBefore = GVFSHelpers.ReadAllTextFromWriteLockedFile(placeholderDatabase);
-            
+
             this.fileSystem.CreateEmptyFile(testFile);
 
             this.Enlistment.WaitForBackgroundOperations();

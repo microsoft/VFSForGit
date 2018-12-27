@@ -41,7 +41,7 @@ namespace GVFS.RepairJobs
             finally
             {
                 RepoMetadata.Shutdown();
-            }           
+            }
 
             if (BlobSizes.HasIssue(this.blobSizeRoot, new PhysicalFileSystem(), out error))
             {

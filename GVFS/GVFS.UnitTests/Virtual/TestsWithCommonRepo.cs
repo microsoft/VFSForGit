@@ -16,9 +16,9 @@ namespace GVFS.UnitTests.Virtual
 
             string error;
             RepoMetadata.TryInitialize(
-                new MockTracer(), 
+                new MockTracer(),
                 this.Repo.Context.FileSystem,
-                this.Repo.Context.Enlistment.DotGVFSRoot, 
+                this.Repo.Context.Enlistment.DotGVFSRoot,
                 out error);
         }
 

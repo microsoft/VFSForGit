@@ -107,12 +107,12 @@ namespace GVFS.Virtualization.BlobSize
                 using (SqliteCommand pragmaWalCommand = connection.CreateCommand())
                 {
                     // Advantages of using WAL ("Write-Ahead Log")
-                    // 1. WAL is significantly faster in most scenarios. 
-                    // 2. WAL provides more concurrency as readers do not block writers and a writer does not block readers. 
-                    //    Reading and writing can proceed concurrently. 
-                    // 3. Disk I/O operations tends to be more sequential using WAL. 
-                    // 4. WAL uses many fewer fsync() operations and is thus less vulnerable to problems on systems 
-                    //    where the fsync() system call is broken. 
+                    // 1. WAL is significantly faster in most scenarios.
+                    // 2. WAL provides more concurrency as readers do not block writers and a writer does not block readers.
+                    //    Reading and writing can proceed concurrently.
+                    // 3. Disk I/O operations tends to be more sequential using WAL.
+                    // 4. WAL uses many fewer fsync() operations and is thus less vulnerable to problems on systems
+                    //    where the fsync() system call is broken.
                     // http://www.sqlite.org/wal.html
                     pragmaWalCommand.CommandText = $"PRAGMA journal_mode=WAL;";
                     pragmaWalCommand.ExecuteNonQuery();
@@ -130,7 +130,7 @@ namespace GVFS.Virtualization.BlobSize
 
                 using (SqliteCommand userVersionCommand = connection.CreateCommand())
                 {
-                    // The user_version pragma will to get or set the value of the user-version integer at offset 60 in the database header. 
+                    // The user_version pragma will to get or set the value of the user-version integer at offset 60 in the database header.
                     // The user-version is an integer that is available to applications to use however they want. SQLite makes no use of the user-version itself.
                     // https://sqlite.org/pragma.html#pragma_user_version
                     userVersionCommand.CommandText = $"PRAGMA user_version;";
@@ -145,7 +145,7 @@ namespace GVFS.Virtualization.BlobSize
                     }
                     else
                     {
-                        databaseMetadata.Add("user_version", Convert.ToInt64(userVersion));                        
+                        databaseMetadata.Add("user_version", Convert.ToInt64(userVersion));
                     }
                 }
 
@@ -315,10 +315,10 @@ namespace GVFS.Virtualization.BlobSize
 
                     using (SqliteCommand pragmaReadUncommittedCommand = this.connection.CreateCommand())
                     {
-                        // A database connection in read-uncommitted mode does not attempt to obtain read-locks 
-                        // before reading from database tables as described above. This can lead to inconsistent 
-                        // query results if another database connection modifies a table while it is being read, 
-                        // but it also means that a read-transaction opened by a connection in read-uncommitted 
+                        // A database connection in read-uncommitted mode does not attempt to obtain read-locks
+                        // before reading from database tables as described above. This can lead to inconsistent
+                        // query results if another database connection modifies a table while it is being read,
+                        // but it also means that a read-transaction opened by a connection in read-uncommitted
                         // mode can neither block nor be blocked by any other connection
                         // http://www.sqlite.org/pragma.html#pragma_read_uncommitted
                         pragmaReadUncommittedCommand.CommandText = $"PRAGMA read_uncommitted=1;";

@@ -21,7 +21,7 @@ namespace GVFS.UnitTests.Git
             string authString;
             string error;
 
-            dut.TryGetCredentials(tracer, out authString, out error).ShouldEqual(true, "Failed to get initial credential");            
+            dut.TryGetCredentials(tracer, out authString, out error).ShouldEqual(true, "Failed to get initial credential");
 
             dut.Revoke(authString);
             dut.IsBackingOff.ShouldEqual(false, "Should not backoff after credentials initially revoked");
@@ -45,11 +45,11 @@ namespace GVFS.UnitTests.Git
 
             string authString;
             string error;
-        
+
             for (int i = 0; i < 5; ++i)
             {
-                dut.TryGetCredentials(tracer, out authString, out error).ShouldEqual(true, "Failed to get credential on iteration " + i + ": " + error);            
-                dut.Revoke(authString);            
+                dut.TryGetCredentials(tracer, out authString, out error).ShouldEqual(true, "Failed to get credential on iteration " + i + ": " + error);
+                dut.Revoke(authString);
                 dut.TryGetCredentials(tracer, out authString, out error).ShouldEqual(true, "Failed to retry getting credential on iteration " + i + ": " + error);
                 dut.ConfirmCredentialsWorked(authString);
                 dut.IsBackingOff.ShouldEqual(false, "Should reset backoff after successfully refreshing credentials");
@@ -67,7 +67,7 @@ namespace GVFS.UnitTests.Git
 
             string authString;
             string error;
-        
+
             dut.TryGetCredentials(tracer, out authString, out error).ShouldEqual(true, "Failed to get initial credential");
             dut.Revoke(authString);
 
@@ -100,7 +100,7 @@ namespace GVFS.UnitTests.Git
             // Simulate a 401 error on two threads
             dut.Revoke(authString);
             dut.Revoke(authString);
-        
+
             // Both threads should still be able to get a PAT for retry purposes
             dut.TryGetCredentials(tracer, out authString, out error).ShouldEqual(true, "The second thread caused back off when it shouldn't");
             dut.TryGetCredentials(tracer, out authString, out error).ShouldEqual(true);
@@ -126,12 +126,12 @@ namespace GVFS.UnitTests.Git
             // Simulate a 401 error on one threads
             dut.Revoke(thread1Auth);
 
-            // That thread then retries            
+            // That thread then retries
             dut.TryGetCredentials(tracer, out thread1Auth, out error).ShouldEqual(true);
-            
+
             // The second thread fails with the old PAT
             dut.Revoke(thread2Auth);
-        
+
             // The second thread should be able to get a PAT
             dut.TryGetCredentials(tracer, out thread2Auth, out error).ShouldEqual(true, error);
         }

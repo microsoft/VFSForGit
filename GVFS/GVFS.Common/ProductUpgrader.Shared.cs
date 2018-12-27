@@ -29,8 +29,8 @@ namespace GVFS.Common
                 {
                     string[] components = Path.GetFileName(file).Split('.');
                     int length = components.Length;
-                    if (length >= 2 && 
-                        installerNames.Contains(components[0]) && 
+                    if (length >= 2 &&
+                        installerNames.Contains(components[0]) &&
                         installerExtension.Equals(components[length - 1], StringComparison.OrdinalIgnoreCase))
                     {
                         return true;
@@ -45,7 +45,7 @@ namespace GVFS.Common
         {
             return Paths.GetServiceDataRoot(RootDirectory);
         }
-        
+
         public static string GetLogDirectoryPath()
         {
             return Path.Combine(Paths.GetServiceDataRoot(RootDirectory), LogDirectory);

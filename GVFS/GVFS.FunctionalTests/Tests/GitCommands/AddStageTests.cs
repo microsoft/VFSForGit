@@ -9,7 +9,7 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
     [Category(Categories.GitCommands)]
     public class AddStageTests : GitRepoTests
     {
-        public AddStageTests(bool validateWorkingTree) 
+        public AddStageTests(bool validateWorkingTree)
             : base(enlistmentPerTest: false, validateWorkingTree: validateWorkingTree)
         {
         }

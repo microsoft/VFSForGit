@@ -124,7 +124,7 @@ namespace GVFS.Common.Tracing
             metadata.Add(TracingConstants.MessageKey.InfoMessage, string.Format(format, args));
             this.RelatedEvent(EventLevel.Informational, "Information", metadata);
         }
-        
+
         public virtual void RelatedWarning(EventMetadata metadata, string message)
         {
             this.RelatedWarning(metadata, message, Keywords.None);
@@ -139,7 +139,7 @@ namespace GVFS.Common.Tracing
 
         public virtual void RelatedWarning(string message)
         {
-            EventMetadata metadata = new EventMetadata();            
+            EventMetadata metadata = new EventMetadata();
             this.RelatedWarning(metadata, message);
         }
 

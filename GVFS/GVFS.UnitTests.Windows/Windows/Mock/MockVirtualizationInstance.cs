@@ -121,15 +121,15 @@ namespace GVFS.UnitTests.Windows.Mock
         }
 
         public HResult WritePlaceholderInformation(
-            string relativePath, 
-            DateTime creationTime, 
-            DateTime lastAccessTime, 
-            DateTime lastWriteTime, 
-            DateTime changeTime, 
-            uint fileAttributes, 
-            long endOfFile, 
-            bool isDirectory, 
-            byte[] contentId, 
+            string relativePath,
+            DateTime creationTime,
+            DateTime lastAccessTime,
+            DateTime lastWriteTime,
+            DateTime changeTime,
+            uint fileAttributes,
+            long endOfFile,
+            bool isDirectory,
+            byte[] contentId,
             byte[] epochId)
         {
             this.CreatedPlaceholders.Add(relativePath);

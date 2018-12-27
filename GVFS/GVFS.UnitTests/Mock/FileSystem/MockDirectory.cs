@@ -73,7 +73,7 @@ namespace GVFS.UnitTests.Mock.FileSystem
             }
 
             MockFile existingFileAtPath = parentDirectory.FindFile(path);
-            
+
             if (existingFileAtPath != null)
             {
                 parentDirectory.Files.Remove(path);
@@ -173,7 +173,7 @@ namespace GVFS.UnitTests.Mock.FileSystem
         public MockDirectory CreateDirectory(string path)
         {
             int lastSlashIdx = path.LastIndexOf(Path.DirectorySeparatorChar);
-            
+
             if (lastSlashIdx <= 0)
             {
                 return this;
@@ -227,7 +227,7 @@ namespace GVFS.UnitTests.Mock.FileSystem
             MockDirectory sourceDirectory;
             MockDirectory sourceDirectoryParent;
             this.TryGetDirectoryAndParent(sourcePath, out sourceDirectory, out sourceDirectoryParent).ShouldEqual(true);
-            
+
             int endPathIndex = targetPath.LastIndexOf(Path.DirectorySeparatorChar);
             string targetDirectoryPath = targetPath.Substring(0, endPathIndex);
 
@@ -238,7 +238,7 @@ namespace GVFS.UnitTests.Mock.FileSystem
 
             sourceDirectory.FullName = targetPath;
 
-            targetDirectory.AddDirectory(sourceDirectory);            
+            targetDirectory.AddDirectory(sourceDirectory);
         }
 
         public void RemoveDirectory(MockDirectory directory)
@@ -297,6 +297,6 @@ namespace GVFS.UnitTests.Mock.FileSystem
             directory = null;
             parentDirectory = null;
             return false;
-        }        
+        }
     }
 }

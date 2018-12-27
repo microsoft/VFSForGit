@@ -14,5 +14,5 @@
         /// Underlying result. The value of RawResult varies based on the operating system.
         /// </summary>
         public int RawResult { get; }
-    }    
+    }
 }

@@ -130,10 +130,10 @@ IF ""%1""=="""" (SET ""Configuration=Debug"") ELSE (SET ""Configuration=%1"")
             string targetFileContents = "The Target";
 
             string sourceFilename = Path.Combine(
-                TestFileFolder, 
-                "MoveUnhydratedFileToOverwriteFullFileAndWrite", 
+                TestFileFolder,
+                "MoveUnhydratedFileToOverwriteFullFileAndWrite",
                 "MoveUnhydratedFileToOverwriteFullFileAndWrite.txt");
-            
+
             string sourceFileContents =
 @"<?xml version=""1.0"" encoding=""utf-8""?>
 <packages>

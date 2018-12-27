@@ -7,7 +7,7 @@ namespace GVFS.FunctionalTests.FileSystemRunners
     {
         private static FileSystemRunner defaultRunner = new SystemIORunner();
 
-        public static object[] AllWindowsRunners { get; } = 
+        public static object[] AllWindowsRunners { get; } =
             new[]
             {
                 new object[] { new SystemIORunner() },
@@ -16,7 +16,7 @@ namespace GVFS.FunctionalTests.FileSystemRunners
                 new object[] { new BashRunner() },
             };
 
-        public static object[] AllMacRunners { get; } = 
+        public static object[] AllMacRunners { get; } =
             new[]
             {
                 new object[] { new SystemIORunner() },
@@ -28,7 +28,7 @@ namespace GVFS.FunctionalTests.FileSystemRunners
             {
                 new object[] { defaultRunner }
             };
-        
+
         public static object[] Runners
         {
             get { return GVFSTestConfig.FileSystemRunners; }
@@ -43,7 +43,7 @@ namespace GVFS.FunctionalTests.FileSystemRunners
         }
 
         // File methods
-        public abstract bool FileExists(string path);       
+        public abstract bool FileExists(string path);
         public abstract string MoveFile(string sourcePath, string targetPath);
 
         /// <summary>
@@ -110,5 +110,5 @@ namespace GVFS.FunctionalTests.FileSystemRunners
         public abstract string DeleteDirectory(string path);
         public abstract void DeleteDirectory_DirectoryShouldNotBeFound(string path);
         public abstract void DeleteDirectory_ShouldBeBlockedByProcess(string path);
-    }   
+    }
 }

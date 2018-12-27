@@ -12,16 +12,16 @@ namespace GVFS.Platform.Windows
     /// <summary>
     /// This class implements optional logging of ETW events, and it is disabled by default.
     /// See the CreateTelemetryListenerIfEnabled method for implementation details.
-    /// 
+    ///
     /// IF the user creates the gvfs.telemetry-id config setting, this class will:
     ///   * Listen for tracer events with the Telemetry keyword
     ///   * Record them as local ETW events
     ///   * Specify the value of the gvfs.telemetry-id config setting as a trait on the ETW events
-    ///   
-    /// In addition, if the gvfs.telemetry-id happens to contain a particular (and unpublished) GUID, 
-    /// Windows will upload those ETW events to its telemetry stream as a background process. This is intended 
+    ///
+    /// In addition, if the gvfs.telemetry-id happens to contain a particular (and unpublished) GUID,
+    /// Windows will upload those ETW events to its telemetry stream as a background process. This is intended
     /// for use only by teams internal to Microsoft who have access to the special GUID.
-    /// 
+    ///
     /// For any other teams who want to collect telemetry, what you will need to do is:
     ///   * Write any arbitrary value to the gvfs.telemetry-id config setting
     ///   * This will cause GVFS to write its telemetry events to local ETW, but nothing will get uploaded
@@ -36,9 +36,9 @@ namespace GVFS.Platform.Windows
         private string mountId;
         private string ikey;
 
-        private ETWTelemetryEventListener(string providerName, string[] traitsList, string enlistmentId, string mountId, string ikey) 
+        private ETWTelemetryEventListener(string providerName, string[] traitsList, string enlistmentId, string mountId, string ikey)
             : base(EventLevel.Verbose, Keywords.Telemetry)
-        {           
+        {
             this.eventSource = new EventSource(providerName, EventSourceSettings.EtwSelfDescribingEventFormat, traitsList);
             this.enlistmentId = enlistmentId;
             this.mountId = mountId;

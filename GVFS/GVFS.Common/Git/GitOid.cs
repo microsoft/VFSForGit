@@ -8,7 +8,7 @@ namespace GVFS.Common.Git
         // OIDs are 20 bytes long
         [MarshalAs(UnmanagedType.ByValArray, SizeConst = 20)]
         public byte[] Id;
-        
+
         public override string ToString()
         {
             return SHA1Util.HexStringFromBytes(this.Id);

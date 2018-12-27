@@ -286,7 +286,7 @@ namespace GVFS.FunctionalTests.Tests.MultiEnlistmentTests
         }
 
         // Override OnTearDownEnlistmentsDeleted rathern than using [TearDown] as the enlistments need to be unmounted before
-        // localCacheParentPath can be deleted (as the SQLite blob sizes database cannot be deleted while GVFS is mounted) 
+        // localCacheParentPath can be deleted (as the SQLite blob sizes database cannot be deleted while GVFS is mounted)
         protected override void OnTearDownEnlistmentsDeleted()
         {
             RepositoryHelpers.DeleteTestDirectory(this.localCacheParentPath);

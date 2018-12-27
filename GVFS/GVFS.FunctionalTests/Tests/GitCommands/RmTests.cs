@@ -24,7 +24,7 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
             this.Enlistment.UnmountGVFS();
             this.Enlistment.GetVirtualPathTo(filePath).ShouldNotExistOnDisk(this.FileSystem);
             this.Enlistment.MountGVFS();
-                    
+
             this.ValidateGitCommand("rm --dry-run " + GitHelpers.ConvertPathToGitFormat(filePath));
             this.FileContentsShouldMatch(filePath);
         }

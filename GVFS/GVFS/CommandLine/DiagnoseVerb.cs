@@ -143,7 +143,7 @@ namespace GVFS.CommandLine
                                 ProductUpgrader.DownloadDirectory,
                                 "downloaded-assets.txt");
                         }
-                     
+
                         return true;
                     },
                     "Copying logs");
@@ -192,9 +192,9 @@ namespace GVFS.CommandLine
         }
 
         private void CopyAllFiles(
-            string sourceRoot, 
-            string targetRoot, 
-            string folderName, 
+            string sourceRoot,
+            string targetRoot,
+            string folderName,
             bool copySubFolders,
             bool hideErrorsFromStdout = false,
             string targetFolderName = null)

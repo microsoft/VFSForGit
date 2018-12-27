@@ -16,7 +16,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
         private FileSystemRunner fileSystem;
 
         // Set forcePerRepoObjectCache to true to avoid any of the tests inadvertently corrupting
-        // the cache 
+        // the cache
         public LooseObjectStepTests()
             : base(forcePerRepoObjectCache: true)
         {
@@ -41,7 +41,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
             Assert.AreNotEqual(0, this.GetLooseObjectFiles().Count);
             this.GetLooseObjectFiles().Count.ShouldBeAtLeast(1);
             this.CountPackFiles().ShouldEqual(1);
-     
+
             // Cleanup should delete all loose objects, since they are in the packfile
             this.Enlistment.LooseObjectStep();
 
@@ -144,9 +144,9 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
             using (FileStream packFileStream = File.OpenRead(packFile))
             {
                 string output = GitProcess.InvokeProcess(
-                    this.Enlistment.RepoRoot, 
-                    "unpack-objects", 
-                    new Dictionary<string, string>() { { "GIT_OBJECT_DIRECTORY", this.GitObjectRoot } }, 
+                    this.Enlistment.RepoRoot,
+                    "unpack-objects",
+                    new Dictionary<string, string>() { { "GIT_OBJECT_DIRECTORY", this.GitObjectRoot } },
                     inputStream: packFileStream).Output;
             }
 

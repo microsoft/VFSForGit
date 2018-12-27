@@ -47,7 +47,7 @@ namespace GVFS.Common.Git
 
             /*
              * The lines passed to this method should be the result of a call to git diff-tree -r -t (sourceTreeish) (targetTreeish)
-             * 
+             *
              * Example output lines from git diff-tree
              * :000000 040000 0000000000000000000000000000000000000000 cee82f9d431bf610404f67bcdda3fee76f0c1dd5 A\tGVFS/FastFetch/Git
              * :000000 100644 0000000000000000000000000000000000000000 cdc036f9d561f14d908e0a0c337105b53c778e5e A\tGVFS/FastFetch/Git/FastFetchGitObjects.cs
@@ -58,7 +58,7 @@ namespace GVFS.Common.Git
              *  ^-[0]  ^-[1]  ^-[2]                                    ^-[3]                                    ^-[4]
              *                                                                                                   ^-tab
              *                                                                                                     ^-[5]
-             * 
+             *
              * This output will only happen if -C or -M is passed to the diff-tree command
              * Since we are not passing those options we shouldn't have to handle this format.
              * :100644 100644 3ac7d60a25bb772af1d5843c76e8a070c062dc5d c31a95125b8a6efd401488839a7ed1288ce01634 R094\tGVFS/GVFS.CLI/CommandLine/CloneVerb.cs\tGVFS/GVFS/CommandLine/CloneVerb.cs
@@ -71,7 +71,7 @@ namespace GVFS.Common.Git
 
             // Skip the colon at the front
             line = line.Substring(1);
-            
+
             // Filenames may contain spaces, but always follow a \t. Other fields are space delimited.
             // Splitting on \t will give us the mode, sha, operation in parts[0] and that path in parts[1] and optionally in paths[2]
             string[] parts = line.Split(new[] { '\t' }, count: 2);
@@ -136,7 +136,7 @@ namespace GVFS.Common.Git
 
             /*
              * Example output lines from ls-tree
-             * 
+             *
              * 040000 tree 73b881d52b607b0f3e9e620d36f556d3d233a11d\tGVFS
              * 100644 blob 44c5f5cba4b29d31c2ad06eed51ea02af76c27c0\tReadme.md
              * 100755 blob 196142fbb753c0a3c7c6690323db7aa0a11f41ec\tScripts/BuildGVFSForMac.sh

@@ -97,7 +97,7 @@ namespace GVFS.Common.Git
                 this.Tracer.RelatedEvent(EventLevel.Informational, nameof(this.DeleteStaleTempPrefetchPackAndIdxs), metadata);
             }
         }
-        
+
         public virtual void DeleteTemporaryFiles()
         {
             string[] temporaryFiles = this.fileSystem.GetFiles(this.Enlistment.GitPackRoot, "tmp_*");
@@ -885,7 +885,7 @@ namespace GVFS.Common.Git
         }
 
         private RetryWrapper<GitObjectsHttpRequestor.GitObjectTaskResult>.CallbackResult TrySavePackOrLooseObject(
-                                                                                                IEnumerable<string> objectShas, 
+                                                                                                IEnumerable<string> objectShas,
                                                                                                 bool unpackObjects,
                                                                                                 GitEndPointResponseData responseData,
                                                                                                 GitProcess gitProcess)

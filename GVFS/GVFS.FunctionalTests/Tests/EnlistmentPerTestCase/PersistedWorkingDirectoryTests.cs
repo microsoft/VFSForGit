@@ -34,7 +34,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerTestCase
 
             string enumerateDirectoryPath = this.Enlistment.GetVirtualPathTo(enumerateDirectoryName);
             fileSystem.DirectoryExists(enumerateDirectoryPath).ShouldEqual(true);
-            
+
             foreach (string folder in subFolders)
             {
                 string directoryPath = this.Enlistment.GetVirtualPathTo(folder);
@@ -125,7 +125,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerTestCase
             string childFileToAdd = Path.Combine("GVFS", "ChildFileToAdd.txt");
             string childFileToAddContent = "This is new child file in the GVFS folder.";
             string childFileToAddPath = this.Enlistment.GetVirtualPathTo(childFileToAdd);
-            fileSystem.WriteAllText(childFileToAddPath, childFileToAddContent);              
+            fileSystem.WriteAllText(childFileToAddPath, childFileToAddContent);
 
             // Remount
             this.Enlistment.UnmountGVFS();
@@ -166,12 +166,12 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerTestCase
             string postMountChildFile = "PostMountChildFile.txt";
             string postMountChildFileContent = "This is new child file added after the mount";
             string postMountChildFilePath = this.Enlistment.GetVirtualPathTo(Path.Combine(childFolder, postMountChildFile));
-            fileSystem.WriteAllText(postMountChildFilePath, postMountChildFileContent); // Verify we can create files in subfolders of GVFS  
+            fileSystem.WriteAllText(postMountChildFilePath, postMountChildFileContent); // Verify we can create files in subfolders of GVFS
             postMountChildFilePath.ShouldBeAFile(fileSystem).WithContents().ShouldEqual(postMountChildFileContent);
 
             // 663045 - Ensure that folder can be deleted after a new file is added and GVFS is remounted
             fileSystem.DeleteDirectory(childFolderPath);
             childFolderPath.ShouldNotExistOnDisk(fileSystem);
-        }        
+        }
     }
 }

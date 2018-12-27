@@ -50,7 +50,7 @@ namespace GVFS.UnitTests.Mock.Git
             }
 
             writeAction(
-                new MemoryStream(new byte[this.FileLength]), 
+                new MemoryStream(new byte[this.FileLength]),
                 this.FileLength);
 
             return true;

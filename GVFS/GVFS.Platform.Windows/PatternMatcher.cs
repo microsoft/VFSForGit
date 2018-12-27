@@ -158,7 +158,7 @@ namespace GVFS.Platform.Windows
             }
 
             // If this class is ever exposed for generic use,
-            // we need to make sure that name doesn't contain wildcards. Currently 
+            // we need to make sure that name doesn't contain wildcards. Currently
             // the only component that calls this method is FileSystemWatcher and
             // it will never pass a name that contains a wildcard.
 

@@ -30,7 +30,7 @@ namespace GVFS.Platform.Windows
 
                 normalizedPath = NativeMethods.GetFinalPathName(parentPath);
 
-                // normalizedPath now consists of all parts of the path currently on disk, re-add any parts of the path that were popped off 
+                // normalizedPath now consists of all parts of the path currently on disk, re-add any parts of the path that were popped off
                 while (removedPathParts.Count > 0)
                 {
                     normalizedPath = Path.Combine(normalizedPath, removedPathParts.Pop());

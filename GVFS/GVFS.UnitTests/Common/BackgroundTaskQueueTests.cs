@@ -24,7 +24,7 @@ namespace GVFS.UnitTests.Common
 
         private static readonly FileSystemTask Item1Payload = new FileSystemTask(FileSystemTask.OperationType.Invalid, "mock:\\VirtualPath", NonAsciiString);
         private static readonly FileSystemTask Item2Payload = new FileSystemTask(FileSystemTask.OperationType.OnFileCreated, "mock:\\VirtualPath2", "mock:\\OldVirtualPath2");
-        
+
         [TestCase]
         [Category(CategoryConstants.ExceptionExpected)]
         public void ReturnsFalseWhenOpenFails()
@@ -63,7 +63,7 @@ namespace GVFS.UnitTests.Common
             FileSystemTaskQueue dut = CreateFileBasedQueue(fs, string.Empty);
 
             dut.EnqueueAndFlush(Item1Payload);
-            
+
             fs.File.ReadAsString().ShouldEqual(Item1EntryText);
         }
 
@@ -83,7 +83,7 @@ namespace GVFS.UnitTests.Common
         {
             MockFileSystem fs = new MockFileSystem();
             FileSystemTaskQueue dut = CreateFileBasedQueue(fs, CorruptEntryText);
-            
+
             fs.File.ReadAsString().ShouldEqual(Item1EntryText);
             dut.Count.ShouldEqual(1);
         }
@@ -95,7 +95,7 @@ namespace GVFS.UnitTests.Common
 
             MockFileSystem fs = new MockFileSystem();
             FileSystemTaskQueue dut = CreateFileBasedQueue(fs, Item1EntryText);
-            
+
             // Add a second entry to keep FileBasedQueue from setting the stream length to 0
             dut.EnqueueAndFlush(Item2Payload);
 
@@ -123,7 +123,7 @@ namespace GVFS.UnitTests.Common
             fs.File.TruncateWrites = true;
 
             Assert.Throws<FileBasedCollectionException>(() => dut.EnqueueAndFlush(Item2Payload));
-            
+
             fs.File.TruncateWrites = false;
             fs.File.ReadAt(fs.File.Length - 2, 2).ShouldNotEqual("\r\n", "Bad Test: The file is supposed to be corrupt.");
 
@@ -156,7 +156,7 @@ namespace GVFS.UnitTests.Common
 
             public string ExpectedPath { get; set; }
             public ReusableMemoryStream File { get; set; }
-            
+
             public override void CreateDirectory(string path)
             {
             }

@@ -57,7 +57,7 @@ namespace GVFS.Virtualization.Projection
 
                 lock (this)
                 {
-                    // Check ChildrenHaveSizes again in case another 
+                    // Check ChildrenHaveSizes again in case another
                     // thread has already done the work of setting the sizes
                     if (this.ChildrenHaveSizes)
                     {

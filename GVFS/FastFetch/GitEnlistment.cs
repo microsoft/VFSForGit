@@ -31,7 +31,7 @@ namespace FastFetch
         {
             get { return Path.Combine(this.EnlistmentRoot, GVFSConstants.DotGit.Root, ".fastfetch"); }
         }
-                       
+
         public static GitEnlistment CreateFromCurrentDirectory(string gitBinPath)
         {
             string root = Paths.GetGitEnlistmentRoot(Environment.CurrentDirectory);

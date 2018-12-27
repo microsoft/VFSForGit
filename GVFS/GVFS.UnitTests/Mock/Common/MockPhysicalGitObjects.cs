@@ -14,7 +14,7 @@ namespace GVFS.UnitTests.Mock.Common
             : base(tracer, enlistment, objectRequestor, fileSystem)
         {
         }
-        
+
         public override string WriteLooseObject(Stream responseStream, string sha, bool overwriteExisting, byte[] sharedBuf = null)
         {
             using (StreamReader reader = new StreamReader(responseStream))

@@ -18,7 +18,7 @@ namespace GVFS.UnitTests
             {
                 excludeCategories.Add(CategoryConstants.ExceptionExpected);
             }
-            
+
             Environment.ExitCode = runner.RunTests(includeCategories: null, excludeCategories: excludeCategories);
 
             if (Debugger.IsAttached)

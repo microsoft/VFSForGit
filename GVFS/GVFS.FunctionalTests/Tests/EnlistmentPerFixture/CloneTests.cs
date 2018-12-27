@@ -10,7 +10,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
     public class CloneTests : TestsWithEnlistmentPerFixture
     {
         private const int GVFSGenericError = 3;
-        
+
         [TestCase]
         public void CloneInsideMountedEnlistment()
         {

@@ -40,7 +40,7 @@ namespace GVFS.UnitTests.Common
                     () => new GitProcess.Result(MountId, string.Empty, GitProcess.Result.SuccessCode));
                 this.gitProcess.SetExpectedCommandResult(
                     "config --local gvfs.enlistment-id",
-                    () => new GitProcess.Result(EnlistmentId, string.Empty, GitProcess.Result.SuccessCode));                  
+                    () => new GitProcess.Result(EnlistmentId, string.Empty, GitProcess.Result.SuccessCode));
             }
 
             public override GitProcess CreateGitProcess()

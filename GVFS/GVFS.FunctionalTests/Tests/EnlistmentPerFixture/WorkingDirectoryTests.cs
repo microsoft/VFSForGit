@@ -67,7 +67,7 @@ BOOL APIENTRY DllMain( HMODULE hModule,
 
             using (MemoryMappedFile mmf = MemoryMappedFile.CreateFromFile(fileVirtualPath))
             {
-                // Length of the Byte-order-mark that will be at the start of the memory mapped file.  
+                // Length of the Byte-order-mark that will be at the start of the memory mapped file.
                 // See https://msdn.microsoft.com/en-us/library/windows/desktop/dd374101(v=vs.85).aspx
                 int bomOffset = 3;
 
@@ -130,7 +130,7 @@ BOOL APIENTRY DllMain( HMODULE hModule,
 
             using (MemoryMappedFile mmf = MemoryMappedFile.CreateFromFile(fileVirtualPath))
             {
-                // Length of the Byte-order-mark that will be at the start of the memory mapped file.  
+                // Length of the Byte-order-mark that will be at the start of the memory mapped file.
                 // See https://msdn.microsoft.com/en-us/library/windows/desktop/dd374101(v=vs.85).aspx
                 int bomOffset = 3;
 
@@ -186,13 +186,13 @@ BOOL APIENTRY DllMain( HMODULE hModule,
 
             StringBuilder contentsBuilder = new StringBuilder();
 
-            // Length of the Byte-order-mark that will be at the start of the memory mapped file.  
+            // Length of the Byte-order-mark that will be at the start of the memory mapped file.
             // See https://msdn.microsoft.com/en-us/library/windows/desktop/dd374101(v=vs.85).aspx
             int bomOffset = 3;
 
             using (MemoryMappedFile mmf = MemoryMappedFile.CreateFromFile(fileVirtualPath))
             {
-                // The text length of StreamAndRandomAccessReadWriteMemoryMappedProjectedFile.cs was determined 
+                // The text length of StreamAndRandomAccessReadWriteMemoryMappedProjectedFile.cs was determined
                 // outside of this test so that the test would not hydrate the file before we access via MemoryMappedFile
                 int fileTextLength = 13762;
 
@@ -309,7 +309,7 @@ BOOL APIENTRY DllMain( HMODULE hModule,
             string fileName = "Readme.md";
             string parentFolderPath = this.Enlistment.GetVirtualPathTo(Path.GetDirectoryName(fileName));
             parentFolderPath.ShouldBeADirectory(this.fileSystem).WithItems().ShouldContainSingle(info => info.Name.Equals(fileName, StringComparison.Ordinal));
-            
+
             // Hydrate file with a request using different file name case
             string wrongCaseFilePath = this.Enlistment.GetVirtualPathTo(fileName.ToUpper());
             string fileContents = wrongCaseFilePath.ShouldBeAFile(this.fileSystem).WithContents();
@@ -483,7 +483,7 @@ BOOL APIENTRY DllMain( HMODULE hModule,
 
             // Set the contents of objectPath to all NULL
             FileInfo objectFileInfo = new FileInfo(objectPath);
-            File.WriteAllBytes(objectPath, Enumerable.Repeat<byte>(0, (int)objectFileInfo.Length).ToArray());            
+            File.WriteAllBytes(objectPath, Enumerable.Repeat<byte>(0, (int)objectFileInfo.Length).ToArray());
 
             // Read the original path and verify its contents are correct
             this.Enlistment.GetVirtualPathTo("Test_EPF_WorkingDirectoryTests", "AllNullObjectRedownloaded.txt").ShouldBeAFile(this.fileSystem).WithContents(testFileContents);
@@ -527,7 +527,7 @@ BOOL APIENTRY DllMain( HMODULE hModule,
             {
                 for (int i = 0; i < (objectStream.Length - 16); ++i)
                 {
-                    truncatedObjectStream.WriteByte((byte)objectStream.ReadByte());    
+                    truncatedObjectStream.WriteByte((byte)objectStream.ReadByte());
                 }
             }
 
@@ -635,7 +635,7 @@ BOOL APIENTRY DllMain( HMODULE hModule,
 
             [DllImport("GVFS.NativeTests.dll", CharSet = CharSet.Ansi)]
             public static extern bool PlaceHolderHasVersionInfo(
-                string virtualPath, 
+                string virtualPath,
                 int version,
                 [MarshalAs(UnmanagedType.LPWStr)]string sha);
         }

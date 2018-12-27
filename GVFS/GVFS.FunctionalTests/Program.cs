@@ -56,12 +56,12 @@ namespace GVFS.FunctionalTests
             }
             else
             {
-                GVFSTestConfig.GitRepoTestsValidateWorkTree = 
-                    new object[] 
-                    { 
-                        new object[] { true } 
+                GVFSTestConfig.GitRepoTestsValidateWorkTree =
+                    new object[]
+                    {
+                        new object[] { true }
                     };
-            
+
                 excludeCategories.Add(Categories.FullSuiteOnly);
                 GVFSTestConfig.FileSystemRunners = FileSystemRunners.FileSystemRunner.DefaultRunners;
             }
@@ -89,7 +89,7 @@ namespace GVFS.FunctionalTests
             GVFSTestConfig.RepoToClone =
                 runner.GetCustomArgWithParam("--repo-to-clone")
                 ?? Properties.Settings.Default.RepoToClone;
-            
+
             RunBeforeAnyTests();
             Environment.ExitCode = runner.RunTests(includeCategories, excludeCategories);
             RunAfterAllTests();

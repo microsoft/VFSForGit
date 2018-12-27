@@ -181,7 +181,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
                 "status",
                 "On branch FunctionalTests/20180925_SymLinksPart4",
                 "nothing to commit, working tree clean");
-            
+
             string testFilePath = this.Enlistment.GetVirtualPathTo(Path.Combine(TestFolderName, TestFileName));
             testFilePath.ShouldBeAFile(this.bashRunner).WithContents(GrandChildFileContents);
             this.bashRunner.IsSymbolicLink(testFilePath).ShouldBeTrue($"{testFilePath} should be a symlink");

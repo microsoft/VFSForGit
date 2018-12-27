@@ -85,7 +85,7 @@ namespace GVFS.CommandLine
             this.ValidatePathParameter(this.EnlistmentRootPathParameter);
             this.ValidatePathParameter(this.LocalCacheRoot);
 
-            string fullEnlistmentRootPathParameter; 
+            string fullEnlistmentRootPathParameter;
             string normalizedEnlistmentRootPath = this.GetCloneRoot(out fullEnlistmentRootPathParameter);
 
             if (!string.IsNullOrWhiteSpace(this.LocalCacheRoot))
@@ -145,7 +145,7 @@ namespace GVFS.CommandLine
                                 { nameof(this.EnlistmentRootPathParameter), this.EnlistmentRootPathParameter },
                                 { nameof(fullEnlistmentRootPathParameter), fullEnlistmentRootPathParameter },
                             });
-                        
+
                         CacheServerResolver cacheServerResolver = new CacheServerResolver(tracer, enlistment);
                         cacheServer = cacheServerResolver.ParseUrlOrFriendlyName(this.CacheServerUrl);
 
@@ -178,7 +178,7 @@ namespace GVFS.CommandLine
                         cacheServer = this.ResolveCacheServer(tracer, cacheServer, cacheServerResolver, serverGVFSConfig);
 
                         this.ValidateClientVersions(tracer, enlistment, serverGVFSConfig, showWarnings: true);
-                       
+
                         this.ShowStatusWhileRunning(
                             () =>
                             {
@@ -276,12 +276,12 @@ namespace GVFS.CommandLine
 
         private Result TryCreateEnlistment(
             string fullEnlistmentRootPathParameter,
-            string normalizedEnlistementRootPath, 
+            string normalizedEnlistementRootPath,
             out GVFSEnlistment enlistment)
         {
             enlistment = null;
 
-            // Check that EnlistmentRootPath is empty before creating a tracer and LogFileEventListener as 
+            // Check that EnlistmentRootPath is empty before creating a tracer and LogFileEventListener as
             // LogFileEventListener will create a file in EnlistmentRootPath
             if (Directory.Exists(normalizedEnlistementRootPath) && Directory.EnumerateFileSystemEntries(normalizedEnlistementRootPath).Any())
             {
@@ -298,7 +298,7 @@ namespace GVFS.CommandLine
             {
                 return new Result(GVFSConstants.GitIsNotInstalledError);
             }
-            
+
             string hooksPath = this.GetGVFSHooksPathAndCheckVersion(tracer: null, hooksVersion: out _);
 
             enlistment = new GVFSEnlistment(
@@ -307,15 +307,15 @@ namespace GVFS.CommandLine
                 gitBinPath,
                 hooksPath,
                 authentication: null);
-            
+
             return new Result(true);
         }
-        
+
         private Result TryClone(
-            JsonTracer tracer, 
-            GVFSEnlistment enlistment, 
-            CacheServerInfo cacheServer, 
-            RetryConfig retryConfig, 
+            JsonTracer tracer,
+            GVFSEnlistment enlistment,
+            CacheServerInfo cacheServer,
+            RetryConfig retryConfig,
             ServerGVFSConfig serverGVFSConfig,
             string resolvedLocalCacheRoot)
         {
@@ -326,7 +326,7 @@ namespace GVFS.CommandLine
                 {
                     return pipeResult;
                 }
-                                
+
                 using (GitObjectsHttpRequestor objectRequestor = new GitObjectsHttpRequestor(tracer, enlistment, cacheServer, retryConfig))
                 {
                     GitRefs refs = objectRequestor.QueryInfoRefs(this.SingleBranch ? this.Branch : null);
@@ -445,7 +445,7 @@ namespace GVFS.CommandLine
             string errorMessage;
             string existingEnlistmentRoot;
             if (GVFSPlatform.Instance.TryGetGVFSEnlistmentRoot(normalizedEnlistmentRootPath, out existingEnlistmentRoot, out errorMessage))
-            { 
+            {
                 this.ReportErrorAndExit("Error: You can't clone inside an existing GVFS repo ({0})", existingEnlistmentRoot);
             }
         }
@@ -505,7 +505,7 @@ namespace GVFS.CommandLine
             {
                 return new Result("Error configuring alternate: " + errorMessage);
             }
-            
+
             GitRepo gitRepo = new GitRepo(tracer, enlistment, fileSystem);
             GVFSContext context = new GVFSContext(tracer, fileSystem, gitRepo, enlistment);
             GVFSGitObjects gitObjects = new GVFSGitObjects(context, objectRequestor);

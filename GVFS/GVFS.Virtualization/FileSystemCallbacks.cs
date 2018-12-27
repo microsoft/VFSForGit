@@ -272,7 +272,7 @@ namespace GVFS.Virtualization
 
             // Even though we're returning true and saying it's safe to ask for the lock
             // there is no guarantee that the lock will be acquired, because GVFS itself
-            // could obtain the lock before the external holder gets it. Setting up an 
+            // could obtain the lock before the external holder gets it. Setting up an
             // appropriate error message in case that happens
             denyMessage = "Waiting for GVFS to release the lock";
 
@@ -313,7 +313,7 @@ namespace GVFS.Virtualization
 
             metadata.Add(nameof(RepoMetadata.Instance.EnlistmentId), RepoMetadata.Instance.EnlistmentId);
             metadata.Add(
-                "PhysicalDiskInfo", 
+                "PhysicalDiskInfo",
                 GVFSPlatform.Instance.GetPhysicalDiskInfo(
                     this.context.Enlistment.WorkingDirectoryRoot,
                     sizeStatsOnly: true));
@@ -462,7 +462,7 @@ namespace GVFS.Virtualization
 
             // Note: Because OnPlaceholderFileCreated is not synchronized on all platforms it is possible that GVFS will double count
             // the creation of file placeholders if multiple requests for the same file are received at the same time on different
-            // threads.                         
+            // threads.
             this.placeHolderCreationCount.AddOrUpdate(
                 triggeringProcessImageFileName,
                 (imageName) => { return new PlaceHolderCreateCounter(); },
@@ -486,7 +486,7 @@ namespace GVFS.Virtualization
 
         public FileProperties GetLogsHeadFileProperties()
         {
-            // Use a temporary FileProperties in case another thread sets this.logsHeadFileProperties before this 
+            // Use a temporary FileProperties in case another thread sets this.logsHeadFileProperties before this
             // method returns
             FileProperties properties = this.logsHeadFileProperties;
             if (properties == null)
@@ -655,7 +655,7 @@ namespace GVFS.Virtualization
 
                     // An empty destination path means the folder was renamed to somewhere outside of the repo
                     // Note that only full folders can be moved\renamed, and so there will already be a recursive
-                    // sparse-checkout entry for the virtualPath of the folder being moved (meaning that no 
+                    // sparse-checkout entry for the virtualPath of the folder being moved (meaning that no
                     // additional work is needed for any files\folders inside the folder being moved)
                     if (result == FileSystemTaskResult.Success && !string.IsNullOrEmpty(gitUpdate.VirtualPath))
                     {

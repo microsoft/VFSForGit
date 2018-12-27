@@ -7,7 +7,7 @@ namespace GVFS.Service
     {
         private static Configuration instance = new Configuration();
         private static string assemblyPath = null;
-        
+
         private Configuration()
         {
             this.GVFSLocation = Path.Combine(AssemblyPath, GVFSPlatform.Instance.Constants.GVFSExecutableName);

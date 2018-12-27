@@ -243,7 +243,7 @@ namespace GVFS.Service
                                         metadata.Add(TracingConstants.MessageKey.InfoMessage, $"{nameof(this.ReadRegistry)}: Mapping registered enlistment root to final path");
                                         this.tracer.RelatedEvent(EventLevel.Informational, $"{nameof(this.ReadRegistry)}_NormalizedPathMapping", metadata);
                                     }
-                                }                                    
+                                }
                                 else
                                 {
                                     EventMetadata metadata = new EventMetadata();

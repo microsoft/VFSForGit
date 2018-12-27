@@ -33,7 +33,7 @@ namespace GVFS.Common
             public const string HooksPrefix = GitConfig.GVFSPrefix + "clone.default-";
             public const string GVFSTelemetryId = GitConfig.GVFSPrefix + "telemetry-id";
             public const string IKey = GitConfig.GVFSPrefix + "ikey";
-            public const string HooksExtension = ".hooks";            
+            public const string HooksExtension = ".hooks";
         }
 
         public static class LocalGVFSConfig
@@ -76,7 +76,7 @@ namespace GVFS.Common
         }
 
         public static class LogFileTypes
-        {            
+        {
             public const string MountPrefix = "mount";
             public const string UpgradePrefix = "productupgrade";
 
@@ -89,7 +89,7 @@ namespace GVFS.Common
             public const string Repair = "repair";
             public const string Service = "service";
             public const string UpgradeVerb = UpgradePrefix + "_verb";
-            public const string UpgradeProcess = UpgradePrefix + "_process";            
+            public const string UpgradeProcess = UpgradePrefix + "_process";
         }
 
         public static class DotGVFS
@@ -177,7 +177,7 @@ namespace GVFS.Common
             public static class Objects
             {
                 public static readonly string Root = Path.Combine(DotGit.Root, "objects");
-                
+
                 public static class Info
                 {
                     public static readonly string Root = Path.Combine(Objects.Root, "info");

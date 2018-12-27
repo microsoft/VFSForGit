@@ -6,7 +6,7 @@ using System.Runtime.InteropServices;
 
 namespace FastFetch
 {
-    public class NativeUnixMethods 
+    public class NativeUnixMethods
     {
         public const int ReadOnly = 0x0000;
         public const int WriteOnly = 0x0001;

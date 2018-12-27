@@ -12,7 +12,7 @@
         public string SourceSha { get; }
         public string TargetSha { get; }
         public string Reason { get; }
-        
+
         public static bool TryParse(string line, out RefLogEntry entry)
         {
             entry = null;
@@ -25,7 +25,7 @@
             {
                 return false;
             }
-            
+
             string sourceSha = line.Substring(0, GVFSConstants.ShaStringLength);
             string targetSha = line.Substring(GVFSConstants.ShaStringLength + 1, GVFSConstants.ShaStringLength);
 
