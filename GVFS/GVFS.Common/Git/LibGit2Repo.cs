@@ -1,5 +1,4 @@
 ﻿using GVFS.Common.Tracing;
-using Microsoft.Win32.SafeHandles;
 using System;
 using System.IO;
 using System.Runtime.InteropServices;
@@ -113,33 +112,6 @@ namespace GVFS.Common.Git
 
             Native.Object.Free(objHandle);
             return true;
-        }
-
-        public virtual bool TryGetObjectSize(string sha, out long size)
-        {
-            size = -1;
-
-            IntPtr objHandle;
-            if (Native.RevParseSingle(out objHandle, this.RepoHandle, sha) != Native.SuccessCode)
-            {
-                return false;
-            }
-
-            try
-            {
-                switch (Native.Object.GetType(objHandle))
-                {
-                    case Native.ObjectTypes.Blob:
-                        size = Native.Blob.GetRawSize(objHandle);
-                        return true;
-                }
-            }
-            finally
-            {
-                Native.Object.Free(objHandle);
-            }
-
-            return false;
         }
 
         public virtual bool TryCopyBlob(string sha, Action<Stream, long> writeAction)
