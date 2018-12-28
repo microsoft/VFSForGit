@@ -228,7 +228,7 @@ namespace GVFS.Common.Git
                 [DllImport(Git2NativeLibName, EntryPoint = "git_repository_open")]
                 public static extern uint Open(out IntPtr repoHandle, string path);
 
-                [DllImport(Git2NativeLibName, EntryPoint = "git_tree_free")]
+                [DllImport(Git2NativeLibName, EntryPoint = "git_repository_free")]
                 public static extern void Free(IntPtr repoHandle);
             }
 
