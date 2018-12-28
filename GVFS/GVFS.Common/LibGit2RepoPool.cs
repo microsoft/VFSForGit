@@ -21,7 +21,12 @@ namespace GVFS.Common
         private readonly TimeSpan repoDisposalPeriod = TimeSpan.FromSeconds(15);
         private int numAvailableRepoAllocations;
 
-        public LibGit2RepoPool(ITracer tracer, Func<LibGit2Repo> createRepo, int size)
+        public LibGit2RepoPool(
+            ITracer tracer,
+                Func<LibGit2Repo> createRepo,
+                int size,
+                TimeSpan? repoDisposalDueTime = null,
+                TimeSpan? repoDisposalPeriod = null)
         {
             if (size <= 0)
             {
@@ -34,6 +39,16 @@ namespace GVFS.Common
             for (int i = 0; i < size; ++i)
             {
                 this.pool.Add(createRepo());
+            }
+
+            if (repoDisposalDueTime.HasValue)
+            {
+                this.repoDisposalDueTime = repoDisposalDueTime.Value;
+            }
+
+            if (repoDisposalPeriod.HasValue)
+            {
+                this.repoDisposalPeriod = repoDisposalPeriod.Value;
             }
 
             this.repoDisposalTimer = new Timer(
