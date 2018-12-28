@@ -10,16 +10,16 @@ namespace GVFS.Common
     {
         private const int TryAddTimeoutMilliseconds = 10;
         private const int TryTakeWaitForever = Timeout.Infinite;
-        private const int TryTakeWaitShort = 10;
+        private const int TryTakeNoWait = 0;
 
         private readonly BlockingCollection<LibGit2Repo> pool;
-        private readonly Func<LibGit2Repo> repoFactory;
+        private readonly Func<LibGit2Repo> createRepo;
         private readonly ITracer tracer;
 
         private readonly Timer repoDisposalTimer;
         private readonly TimeSpan repoDisposalDueTime = TimeSpan.FromMinutes(1);
         private readonly TimeSpan repoDisposalPeriod = TimeSpan.FromSeconds(15);
-        private int numDisposedRepos;
+        private int numAvailableRepoAllocations;
 
         public LibGit2RepoPool(ITracer tracer, Func<LibGit2Repo> createRepo, int size)
         {
@@ -28,7 +28,7 @@ namespace GVFS.Common
                 throw new ArgumentException("ProcessPool: size must be greater than 0");
             }
 
-            this.repoFactory = createRepo;
+            this.createRepo = createRepo;
             this.tracer = tracer;
             this.pool = new BlockingCollection<LibGit2Repo>();
             for (int i = 0; i < size; ++i)
@@ -81,23 +81,23 @@ namespace GVFS.Common
 
         private LibGit2Repo GetRepoFromPool()
         {
-            this.ResetTimer();
+            this.ResetRepoDisposalTimer();
 
             LibGit2Repo repo;
-            if (this.pool.TryTake(out repo, TryTakeWaitShort))
+            if (this.pool.TryTake(out repo, TryTakeNoWait))
             {
                 return repo;
             }
 
-            if (this.numDisposedRepos > 0)
+            if (this.numAvailableRepoAllocations > 0)
             {
-                if (Interlocked.Decrement(ref this.numDisposedRepos) >= 0)
+                if (Interlocked.Decrement(ref this.numAvailableRepoAllocations) >= 0)
                 {
-                    return this.repoFactory();
+                    return this.createRepo();
                 }
                 else
                 {
-                    Interlocked.Increment(ref this.numDisposedRepos);
+                    Interlocked.Increment(ref this.numAvailableRepoAllocations);
                 }
             }
 
@@ -114,7 +114,7 @@ namespace GVFS.Common
         {
             if (repo != null)
             {
-                this.ResetTimer();
+                this.ResetRepoDisposalTimer();
 
                 if (this.pool.IsAddingCompleted ||
                     !this.pool.TryAdd(repo, TryAddTimeoutMilliseconds))
@@ -125,17 +125,17 @@ namespace GVFS.Common
             }
         }
 
-        private void ResetTimer()
+        private void ResetRepoDisposalTimer()
         {
             this.repoDisposalTimer.Change(this.repoDisposalDueTime, this.repoDisposalPeriod);
         }
 
         private void TryDropARepo()
         {
-            if (this.pool.TryTake(out LibGit2Repo repo, TryTakeWaitShort))
+            if (this.pool.TryTake(out LibGit2Repo repo, TryTakeNoWait))
             {
                 repo.Dispose();
-                Interlocked.Increment(ref this.numDisposedRepos);
+                Interlocked.Increment(ref this.numAvailableRepoAllocations);
             }
         }
 
