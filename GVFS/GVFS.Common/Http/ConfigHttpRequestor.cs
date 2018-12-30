@@ -17,10 +17,11 @@ namespace GVFS.Common.Http
             this.repoUrl = enlistment.RepoUrl;
         }
 
-        public bool TryQueryGVFSConfig(bool logErrors, out ServerGVFSConfig serverGVFSConfig, out HttpStatusCode? httpStatus)
+        public bool TryQueryGVFSConfig(bool logErrors, out ServerGVFSConfig serverGVFSConfig, out HttpStatusCode? httpStatus, out string errorMessage)
         {
             serverGVFSConfig = null;
             httpStatus = null;
+            errorMessage = null;
 
             Uri gvfsConfigEndpoint;
             string gvfsConfigEndpointString = this.repoUrl + GVFSConstants.Endpoints.GVFSConfig;
@@ -86,6 +87,7 @@ namespace GVFS.Common.Http
             if (httpException != null)
             {
                 httpStatus = httpException.StatusCode;
+                errorMessage = httpException.Message;
             }
 
             return false;
