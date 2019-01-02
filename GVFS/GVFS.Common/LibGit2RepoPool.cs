@@ -21,6 +21,8 @@ namespace GVFS.Common
         private readonly TimeSpan repoDisposalPeriod = TimeSpan.FromMinutes(1);
         private readonly int maxRepoAllocations;
         private int numAvailableRepoAllocations;
+        private int numWaitingThreads;
+        private object numWaitingThreadsLock = new object();
 
         public LibGit2RepoPool(
             ITracer tracer,
@@ -101,9 +103,30 @@ namespace GVFS.Common
 
         private LibGit2Repo GetRepoFromPool()
         {
+            try
+            {
+                lock (this.numWaitingThreadsLock)
+                {
+                    this.numWaitingThreads++;
+                }
+
+                return this.WaitForRepoFromPool();
+            }
+            finally
+            {
+                lock (this.numWaitingThreadsLock)
+                {
+                    this.numWaitingThreads--;
+                }
+            }
+        }
+
+        private LibGit2Repo WaitForRepoFromPool()
+        {
             this.ResetRepoDisposalTimer();
 
             LibGit2Repo repo;
+
             if (this.pool.TryTake(out repo, TryTakeNoWait))
             {
                 return repo;
@@ -154,8 +177,18 @@ namespace GVFS.Common
         {
             if (this.pool.TryTake(out LibGit2Repo repo, TryTakeNoWait))
             {
-                repo.Dispose();
-                Interlocked.Increment(ref this.numAvailableRepoAllocations);
+                lock (this.numWaitingThreadsLock)
+                {
+                    if (this.numWaitingThreads == 0)
+                    {
+                        repo.Dispose();
+                        Interlocked.Increment(ref this.numAvailableRepoAllocations);
+                    }
+                    else
+                    {
+                        this.ReturnToPool(repo);
+                    }
+                }
             }
         }
 
