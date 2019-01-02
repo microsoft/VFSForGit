@@ -12,7 +12,7 @@ namespace GVFS.Common
         private readonly string configFile;
         private readonly PhysicalFileSystem fileSystem;
         private FileBasedDictionary<string, string> allSettings;
-        
+
         public LocalGVFSConfig()
         {
             string servicePath = Paths.GetServiceDataRoot(GVFSConstants.Service.ServiceName);
@@ -39,8 +39,8 @@ namespace GVFS.Common
         }
 
         public virtual bool TryGetConfig(
-            string name, 
-            out string value, 
+            string name,
+            out string value,
             out string error)
         {
             string valueFromDict = null;
@@ -58,8 +58,8 @@ namespace GVFS.Common
         }
 
         public virtual bool TrySetConfig(
-            string name, 
-            string value, 
+            string name,
+            string value,
             out string error)
         {
             if (!this.TryPerformAction(

@@ -157,7 +157,7 @@ namespace GVFS.Common
                         break;
                     }
                 }
-                
+
                 if (newVersion == null)
                 {
                     message = $"Great news, you're all caught up on upgrades in the {this.Config.UpgradeRing} ring!";
@@ -201,7 +201,7 @@ namespace GVFS.Common
                 {
                     continue;
                 }
-				
+
                 if (!this.TryDownloadAsset(asset, out errorMessage))
                 {
                     errorMessage = $"Could not download {(isGVFSAsset ? GVFSAssetId : GitAssetId)} installer. {errorMessage}";

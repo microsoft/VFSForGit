@@ -29,10 +29,10 @@ namespace GVFS.UnitTests.Windows.Upgrader
             this.LocalConfig = new MockLocalGVFSConfig();
 
             this.Upgrader = new MockGitHubUpgrader(
-                LocalGVFSVersion, 
-                this.Tracer, 
+                LocalGVFSVersion,
+                this.Tracer,
                 new GitHubUpgrader.GitHubUpgraderConfig(this.Tracer, this.LocalConfig));
-     
+
             this.PrerunChecker.Reset();
             this.Upgrader.PretendNewReleaseAvailableAtRemote(
                 upgradeVersion: NewerThanLocalVersion,
