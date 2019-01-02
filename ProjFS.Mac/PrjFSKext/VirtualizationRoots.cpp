@@ -13,6 +13,7 @@
 #include "kernel-header-wrappers/mount.h"
 #include "VnodeUtilities.hpp"
 #include "PerformanceTracing.hpp"
+#include "VnodeCache.hpp"
 
 
 struct VirtualizationRoot
@@ -21,6 +22,7 @@ struct VirtualizationRoot
     // If this is a nullptr, there is no active provider for this virtualization root (offline root)
     PrjFSProviderUserClient*    providerUserClient;
     int                         providerPid;
+    
     // For an active root, this is retained (vnode_get), for an offline one, it is not, so it may be stale (check the vid)
     vnode_t                     rootVNode;
     uint32_t                    rootVNodeVid;
@@ -29,6 +31,9 @@ struct VirtualizationRoot
     // identify it if the vnode of an offline root gets recycled.
     fsid_t                      rootFsid;
     uint64_t                    rootInode;
+    
+    // Generation number.  Incremented when directories are moved in or out of the VirtualizationRoot
+    atomic_uint_fast16_t        vrgid;
     
     // TODO(Mac): this should eventually be entirely diagnostic and not used for decisions
     char                        path[PrjFSMaxPath];
@@ -81,6 +86,25 @@ bool VirtualizationRoot_PIDMatchesProvider(VirtualizationRootHandle rootHandle, 
             && s_virtualizationRoots[rootHandle].inUse
             && nullptr != s_virtualizationRoots[rootHandle].providerUserClient
             && pid == s_virtualizationRoots[rootHandle].providerPid;
+    }
+    RWLock_ReleaseShared(s_virtualizationRootsLock);
+    
+    return result;
+}
+
+bool VirtualizationRoot_TryGetGenerationId(VirtualizationRootHandle rootHandle, uint16_t& vrgid /* out */)
+{
+    bool result = false;
+    
+    RWLock_AcquireShared(s_virtualizationRootsLock);
+    {
+        if (rootHandle >= 0 &&
+            rootHandle < s_maxVirtualizationRoots &&
+            s_virtualizationRoots[rootHandle].inUse)
+        {
+            result = true;
+            vrgid = atomic_load(&s_virtualizationRoots[rootHandle].vrgid);
+        }
     }
     RWLock_ReleaseShared(s_virtualizationRootsLock);
     
