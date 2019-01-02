@@ -108,18 +108,18 @@ namespace GVFS.CommandLine
                 return false;
             }
 
-            bool isError;
-            if (!this.upgrader.CanRunUsingCurrentConfig(out isError, out message))
+            bool isUpgradeAllowed;
+            if (!this.upgrader.TryGetConfigAllowsUpgrade(out isUpgradeAllowed, out message))
             {
                 this.upgrader.CleanupDownloadDirectory();
+                this.Output.WriteLine(errorOutputFormat, message);
+                this.tracer.RelatedError($"{nameof(this.TryRunProductUpgrade)}: Upgrade checks failed. {message}");
+                return false;
+            }
 
-                if (isError)
-                {
-                    this.Output.WriteLine(errorOutputFormat, message);
-                    this.tracer.RelatedError($"{nameof(this.TryRunProductUpgrade)}: Upgrade checks failed. {message}");
-                    return false;
-                }
-
+            if (!isUpgradeAllowed)
+            {
+                this.upgrader.CleanupDownloadDirectory();
                 this.ReportInfoToConsole(message);
                 return true;
             }

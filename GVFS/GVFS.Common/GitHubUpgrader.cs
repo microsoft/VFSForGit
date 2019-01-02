@@ -93,20 +93,20 @@ namespace GVFS.Common
             return true;
         }
 
-        public bool CanRunUsingCurrentConfig(out bool isConfigError, out string message)
+        public bool TryGetConfigAllowsUpgrade(out bool upgradeAllowed, out string message)
         {
             if (this.Config.UpgradeRing == GitHubUpgraderConfig.RingType.None)
             {
-                isConfigError = false;
+                upgradeAllowed = false;
                 message = GVFSConstants.UpgradeVerbMessages.NoneRingConsoleAlert + Environment.NewLine + GVFSConstants.UpgradeVerbMessages.SetUpgradeRingCommand;
-                return false;
+                return true;
             }
 
             if (this.Config.UpgradeRing == GitHubUpgraderConfig.RingType.NoConfig)
             {
-                isConfigError = false;
+                upgradeAllowed = false;
                 message = GVFSConstants.UpgradeVerbMessages.NoRingConfigConsoleAlert + Environment.NewLine + GVFSConstants.UpgradeVerbMessages.SetUpgradeRingCommand;
-                return false;
+                return true;
             }
 
             if (this.Config.UpgradeRing == GitHubUpgraderConfig.RingType.Invalid)
@@ -120,15 +120,15 @@ namespace GVFS.Common
                 }
 
                 EventMetadata metadata = new EventMetadata();
-                metadata.Add("Upgrade Step", nameof(this.CanRunUsingCurrentConfig));
-                this.tracer.RelatedError(metadata, $"{nameof(this.CanRunUsingCurrentConfig)} failed.{prefix}{error}");
+                metadata.Add("Upgrade Step", nameof(this.TryGetConfigAllowsUpgrade));
+                this.tracer.RelatedError(metadata, $"{nameof(this.TryGetConfigAllowsUpgrade)} failed.{prefix}{error}");
 
                 message = prefix + Environment.NewLine + GVFSConstants.UpgradeVerbMessages.SetUpgradeRingCommand;
-                isConfigError = true;
+                upgradeAllowed = false;
                 return false;
             }
 
-            isConfigError = false;
+            upgradeAllowed = true;
             message = null;
             return true;
         }

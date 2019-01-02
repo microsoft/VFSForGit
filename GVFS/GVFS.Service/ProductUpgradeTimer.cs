@@ -82,7 +82,7 @@ namespace GVFS.Service
                 Version newerVersion = null;
                 string detailedError = null;
                 bool isError;
-                if (!productUpgrader.CanRunUsingCurrentConfig(out isError, out errorMessage))
+                if (!productUpgrader.TryGetConfigAllowsUpgrade(out isError, out errorMessage))
                 {
                     return !isError;
                 }

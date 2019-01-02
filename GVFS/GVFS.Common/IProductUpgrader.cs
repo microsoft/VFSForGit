@@ -14,7 +14,7 @@ namespace GVFS.Common
 
     public interface IProductUpgrader
     {
-        bool CanRunUsingCurrentConfig(out bool isConfigError, out string message);
+        bool TryGetConfigAllowsUpgrade(out bool isConfigError, out string message);
 
         bool TryInitialize(out string errorMessage);
 

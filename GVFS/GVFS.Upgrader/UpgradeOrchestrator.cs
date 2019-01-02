@@ -139,22 +139,19 @@ namespace GVFS.Upgrader
 
             Version newGVFSVersion = null;
             string error = null;
-            bool isError;
-            if (!this.upgrader.CanRunUsingCurrentConfig(out isError, out error))
+            bool isUpgradeAllowed;
+            if (!this.upgrader.TryGetConfigAllowsUpgrade(out isUpgradeAllowed, out error))
             {
                 this.upgrader.CleanupDownloadDirectory();
+                consoleError = error;
+                this.tracer.RelatedError($"{nameof(this.TryRunUpgrade)}: Run upgrade failed. {error}");
+                return false;
+            }
 
-                if (isError)
-                {
-                    consoleError = error;
-                    this.tracer.RelatedError($"{nameof(this.TryRunUpgrade)}: Run upgrade failed. {error}");
-                    return false;
-                }
-                else
-                {
-                    this.output.WriteLine(error);
-                }
-
+            if (!isUpgradeAllowed)
+            {
+                this.upgrader.CleanupDownloadDirectory();
+                this.output.WriteLine(error);
                 consoleError = null;
                 return true;
             }
