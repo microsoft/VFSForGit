@@ -10,9 +10,6 @@ namespace GVFS.Common.Maintenance
         private readonly TimeSpan looseObjectsDueTime = TimeSpan.FromMinutes(5);
         private readonly TimeSpan looseObjectsPeriod = TimeSpan.FromHours(6);
 
-        private readonly TimeSpan packfileDueTime = TimeSpan.FromMinutes(30);
-        private readonly TimeSpan packfilePeriod = TimeSpan.FromHours(12);
-
         private readonly TimeSpan prefetchPeriod = TimeSpan.FromMinutes(15);
 
         private List<Timer> stepTimers;
@@ -62,19 +59,13 @@ namespace GVFS.Common.Maintenance
                     state: null,
                     dueTime: this.prefetchPeriod,
                     period: this.prefetchPeriod));
-
-                this.stepTimers.Add(new Timer(
-                    (state) => this.queue.TryEnqueue(new LooseObjectsStep(this.context)),
-                    state: null,
-                    dueTime: this.looseObjectsDueTime,
-                    period: this.looseObjectsPeriod));
-
-                this.stepTimers.Add(new Timer(
-                    (state) => this.queue.TryEnqueue(new PackfileMaintenanceStep(this.context)),
-                    state: null,
-                    dueTime: this.packfileDueTime,
-                    period: this.packfilePeriod));
             }
+
+            this.stepTimers.Add(new Timer(
+                (state) => this.queue.TryEnqueue(new LooseObjectsStep(this.context)),
+                state: null,
+                dueTime: this.looseObjectsDueTime,
+                period: this.looseObjectsPeriod));
         }
     }
 }
