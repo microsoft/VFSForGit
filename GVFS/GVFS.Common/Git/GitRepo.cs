@@ -45,6 +45,8 @@ namespace GVFS.Common.Git
             Unknown,
         }
 
+        public bool HasActiveLibGit2Repos => this.libgit2RepoPool.NumActiveRepos > 0;
+
         public GVFSLock GVFSLock
         {
             get;

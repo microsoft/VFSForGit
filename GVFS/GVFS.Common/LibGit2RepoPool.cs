@@ -17,8 +17,9 @@ namespace GVFS.Common
         private readonly ITracer tracer;
 
         private readonly Timer repoDisposalTimer;
-        private readonly TimeSpan repoDisposalDueTime = TimeSpan.FromMinutes(1);
-        private readonly TimeSpan repoDisposalPeriod = TimeSpan.FromSeconds(15);
+        private readonly TimeSpan repoDisposalDueTime = TimeSpan.FromMinutes(15);
+        private readonly TimeSpan repoDisposalPeriod = TimeSpan.FromMinutes(1);
+        private readonly int maxRepoAllocations;
         private int numAvailableRepoAllocations;
 
         public LibGit2RepoPool(
@@ -33,6 +34,7 @@ namespace GVFS.Common
                 throw new ArgumentException("ProcessPool: size must be greater than 0");
             }
 
+            this.maxRepoAllocations = size;
             this.createRepo = createRepo;
             this.tracer = tracer;
             this.pool = new BlockingCollection<LibGit2Repo>();
@@ -58,8 +60,11 @@ namespace GVFS.Common
                                              period: this.repoDisposalPeriod);
         }
 
+        public int NumActiveRepos => this.pool.Count + (this.maxRepoAllocations - this.numAvailableRepoAllocations);
+
         public void Dispose()
         {
+            this.repoDisposalTimer.Dispose();
             this.pool.CompleteAdding();
             this.CleanUpPool();
         }
