@@ -18,8 +18,10 @@ enum PrjFSPerfCounter : int32_t
             PrjFSPerfCounter_VnodeOp_ShouldHandle_CheckFileSystemCrawler,
                 PrjFSPerfCounter_VnodeOp_ShouldHandle_DeniedFileSystemCrawler,
         PrjFSPerfCounter_VnodeOp_GetVirtualizationRoot,
-            PrjFSPerfCounter_VnodeOp_FindRoot,
-                PrjFSPerfCounter_VnodeOp_FindRoot_Iteration,
+            PrjFSPerfCounter_VnodeOp_Vnode_Cache_Hit,
+            PrjFSPerfCounter_VnodeOp_Vnode_Cache_Miss,
+                PrjFSPerfCounter_VnodeOp_FindRoot,
+                    PrjFSPerfCounter_VnodeOp_FindRoot_Iteration,
             PrjFSPerfCounter_VnodeOp_GetVirtualizationRoot_TemporaryDirectory,
             PrjFSPerfCounter_VnodeOp_GetVirtualizationRoot_NoRootFound,
             PrjFSPerfCounter_VnodeOp_GetVirtualizationRoot_ProviderOffline,
@@ -33,8 +35,10 @@ enum PrjFSPerfCounter : int32_t
     PrjFSPerfCounter_FileOp,
         PrjFSPerfCounter_FileOp_ShouldHandle,
             PrjFSPerfCounter_FileOp_ShouldHandle_FindVirtualizationRoot,
-                PrjFSPerfCounter_FileOp_FindRoot,
-                    PrjFSPerfCounter_FileOp_FindRoot_Iteration,
+                PrjFSPerfCounter_FileOp_Vnode_Cache_Hit,
+                PrjFSPerfCounter_FileOp_Vnode_Cache_Miss,
+                    PrjFSPerfCounter_FileOp_FindRoot,
+                        PrjFSPerfCounter_FileOp_FindRoot_Iteration,
                 PrjFSPerfCounter_FileOp_ShouldHandle_NoRootFound,
             PrjFSPerfCounter_FileOp_ShouldHandle_CompareProviderPid,
                 PrjFSPerfCounter_FileOp_ShouldHandle_OriginatedByProvider,
@@ -43,6 +47,7 @@ enum PrjFSPerfCounter : int32_t
         PrjFSPerfCounter_FileOp_FileModified,
         PrjFSPerfCounter_FileOp_FileCreated,
 
+    PrjFSPerfCounter_CacheCapacity,
     PrjFSPerfCounter_Count,
 };
 

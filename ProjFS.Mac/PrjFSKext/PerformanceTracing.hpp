@@ -23,7 +23,7 @@ private:
 public:
     inline PerfTracer();
     inline bool IsEnabled();
-    inline void IncrementCount(PrjFSPerfCounter counter);
+    inline void IncrementCount(PrjFSPerfCounter counter, bool ignoreSampling = false);
 };
 
 inline PerfTracer::PerfTracer()
@@ -51,10 +51,10 @@ inline bool PerfTracer::IsEnabled()
 #endif
 }
 
-inline void PerfTracer::IncrementCount(PrjFSPerfCounter counter)
+inline void PerfTracer::IncrementCount(PrjFSPerfCounter counter, bool ignoreSampling /* = false */)
 {
 #if PRJFS_PERFORMANCE_TRACING_ENABLE
-    if (this->IsEnabled())
+    if (ignoreSampling || this->IsEnabled())
     {
         PerfTracing_RecordSample(counter, 0, 0);
     }

@@ -11,7 +11,10 @@ uint64_t PerfTracer::s_numTracers = 0;
 static PrjFSPerfCounterResult s_perfCounterResults[PrjFSPerfCounter_Count];
 
 static void InitProbe(PrjFSPerfCounter counter);
+
+#if PRJFS_PERFORMANCE_TRACING_ENABLE
 static int Log2(unsigned long long nonZeroValue);
+#endif
 
 void PerfTracing_Init()
 {
@@ -58,6 +61,7 @@ IOReturn PerfTracing_ExportDataUserClient(IOExternalMethodArguments* arguments)
 
 void PerfTracing_RecordSample(PrjFSPerfCounter counter, uint64_t startTime, uint64_t endTime)
 {
+#if PRJFS_PERFORMANCE_TRACING_ENABLE
     PrjFSPerfCounterResult* result = &s_perfCounterResults[counter];
     
     uint64_t interval = endTime - startTime;
@@ -85,6 +89,7 @@ void PerfTracing_RecordSample(PrjFSPerfCounter counter, uint64_t startTime, uint
         int intervalLog2 = Log2(interval);
         atomic_fetch_add(&result->sampleBuckets[intervalLog2], 1);
     }
+#endif
 }
 
 static void InitProbe(PrjFSPerfCounter counter)
@@ -92,6 +97,7 @@ static void InitProbe(PrjFSPerfCounter counter)
     s_perfCounterResults[counter] = PrjFSPerfCounterResult{ .min = UINT64_MAX };
 }
 
+#if PRJFS_PERFORMANCE_TRACING_ENABLE
 // Computes the floor of the base-2 logarithm of the provided positive integer.
 // The __builtin_clzll() function counts the number of 0 bits until the most
 // significant 1 bit in the argument. For log2, the position of this most
@@ -101,3 +107,4 @@ static int Log2(unsigned long long nonZeroValue)
     static const int maxBitIndex = sizeof(nonZeroValue) * CHAR_BIT - 1;
     return maxBitIndex - __builtin_clzll(nonZeroValue);
 }
+#endif
