@@ -2,6 +2,8 @@
 #include "../PrjFSKext/VirtualizationRoots.hpp"
 #include "../PrjFSKext/PrjFSProviderUserClient.hpp"
 #include "../PrjFSKext/VirtualizationRootsTestable.hpp"
+#include "../PrjFSKext/VnodeCachePrivate.hpp"
+#include "../PrjFSKext/VnodeCacheTestable.hpp"
 #include "../PrjFSKext/PerformanceTracing.hpp"
 #include "../PrjFSKext/public/Message.h"
 #include "../PrjFSKext/ProviderMessaging.hpp"
@@ -12,6 +14,7 @@
 #include "KextMockUtilities.hpp"
 #include "MockVnodeAndMount.hpp"
 #include "MockProc.hpp"
+#include "VnodeCacheEntriesWrapper.hpp"
 #include <tuple>
 
 using std::make_tuple;
@@ -46,6 +49,7 @@ static void SetPrjFSFileXattrData(const shared_ptr<vnode>& vnode)
     shared_ptr<vnode> repoRootVnode;
     shared_ptr<vnode> testFileVnode;
     shared_ptr<vnode> testDirVnode;
+    VnodeCacheEntriesWrapper cacheWrapper;
 }
 
 - (void) setUp
@@ -54,6 +58,8 @@ static void SetPrjFSFileXattrData(const shared_ptr<vnode>& vnode)
     XCTAssertEqual(initResult, KERN_SUCCESS);
     context = vfs_context_create(NULL);
     dummyClientPid = 100;
+
+    cacheWrapper.AllocateCache();
 
     // Create Vnode Tree
     repoPath = "/Users/test/code/Repo";
@@ -76,6 +82,8 @@ static void SetPrjFSFileXattrData(const shared_ptr<vnode>& vnode)
     repoRootVnode.reset();
     testFileVnode.reset();
     testDirVnode.reset();
+    cacheWrapper.FreeCache();
+    
     VirtualizationRoots_Cleanup();
     vfs_context_rele(context);
     MockVnodes_CheckAndClear();

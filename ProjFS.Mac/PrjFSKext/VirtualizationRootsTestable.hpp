@@ -4,6 +4,7 @@
 #error Don't #include this file in non-testing builds
 #endif
 
+#include "VirtualizationRoots.hpp"
 #include "VirtualizationRootsPrivate.hpp"
 
 extern uint16_t s_maxVirtualizationRoots;

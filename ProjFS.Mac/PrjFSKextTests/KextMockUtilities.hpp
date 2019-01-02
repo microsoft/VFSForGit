@@ -111,6 +111,11 @@ public:
 
     static void Clear();
     
+    static bool DidCallAnyFunctions()
+    {
+        return singleton.nextCallSequenceNumber > 0;
+    }
+    
     template <typename R, typename... ARGS>
         static int CallCount(R (*fn)(ARGS...))
     {
