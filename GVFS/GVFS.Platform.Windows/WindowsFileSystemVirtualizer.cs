@@ -486,6 +486,7 @@ namespace GVFS.Platform.Windows
                     metadata.Add("fileInfo.Name", fileInfo.Name);
                     metadata.Add("fileInfo.Size", fileInfo.Size);
                     metadata.Add("fileInfo.IsFolder", fileInfo.IsFolder);
+                    metadata.Add("rootDirectoryExpanded", this.rootDirectoryExpanded);
                     metadata.Add(nameof(sha), sha);
                     this.Context.Tracer.RelatedError(metadata, $"{nameof(this.CreatePlaceholdersAndConvertToFull)}: Write placeholder failed");
 
@@ -678,81 +679,7 @@ namespace GVFS.Platform.Windows
                     return (HResult)HResultExtensions.HResultFromNtStatus.DeviceNotReady;
                 }
 
-                bool isFolder;
-                string fileName;
-                if (!this.FileSystemCallbacks.GitIndexProjection.IsPathProjected(virtualPath, out fileName, out isFolder))
-                {
-                    return HResult.FileNotFound;
-                }
-
-                if (!isFolder &&
-                    !this.IsSpecialGitFile(fileName) &&
-                    !this.CanCreatePlaceholder())
-                {
-                    EventMetadata metadata = this.CreateEventMetadata(virtualPath);
-                    metadata.Add("commandId", commandId);
-                    metadata.Add("desiredAccess", desiredAccess);
-                    metadata.Add("shareMode", shareMode);
-                    metadata.Add("createDisposition", createDisposition);
-                    metadata.Add("createOptions", createOptions);
-                    metadata.Add("triggeringProcessId", triggeringProcessId);
-                    metadata.Add("triggeringProcessImageFileName", triggeringProcessImageFileName);
-                    metadata.Add(TracingConstants.MessageKey.VerboseMessage, $"{nameof(this.GetPlaceholderInformationHandler)}: Not allowed to create placeholder");
-                    this.Context.Tracer.RelatedEvent(EventLevel.Verbose, nameof(this.GetPlaceholderInformationHandler), metadata);
-
-                    this.FileSystemCallbacks.OnPlaceholderCreateBlockedForGit();
-
-                    // Another process is modifying the working directory so we cannot modify it
-                    // until they are done.
-                    return HResult.FileNotFound;
-                }
-
-                CancellationTokenSource cancellationSource;
-                if (!this.TryRegisterCommand(commandId, out cancellationSource))
-                {
-                    EventMetadata metadata = this.CreateEventMetadata(virtualPath);
-                    metadata.Add("commandId", commandId);
-                    metadata.Add("desiredAccess", desiredAccess);
-                    metadata.Add("shareMode", shareMode);
-                    metadata.Add("createDisposition", createDisposition);
-                    metadata.Add("createOptions", createOptions);
-                    metadata.Add("triggeringProcessId", triggeringProcessId);
-                    metadata.Add("triggeringProcessImageFileName", triggeringProcessImageFileName);
-                    this.Context.Tracer.RelatedWarning(metadata, nameof(this.GetPlaceholderInformationHandler) + ": Failed to register command");
-                }
-
-                FileOrNetworkRequest getPlaceholderInformationHandler = new FileOrNetworkRequest(
-                    (blobSizesConnection) => this.GetPlaceholderInformationAsyncHandler(
-                        cancellationSource.Token,
-                        blobSizesConnection,
-                        commandId,
-                        virtualPath,
-                        desiredAccess,
-                        shareMode,
-                        createDisposition,
-                        createOptions,
-                        triggeringProcessId,
-                        triggeringProcessImageFileName),
-                    () => cancellationSource.Dispose());
-
-                Exception e;
-                if (!this.TryScheduleFileOrNetworkRequest(getPlaceholderInformationHandler, out e))
-                {
-                    EventMetadata metadata = this.CreateEventMetadata(virtualPath, e);
-                    metadata.Add("commandId", commandId);
-                    metadata.Add("desiredAccess", desiredAccess);
-                    metadata.Add("shareMode", shareMode);
-                    metadata.Add("createDisposition", createDisposition);
-                    metadata.Add("createOptions", createOptions);
-                    metadata.Add("triggeringProcessId", triggeringProcessId);
-                    metadata.Add("triggeringProcessImageFileName", triggeringProcessImageFileName);
-                    metadata.Add(TracingConstants.MessageKey.WarningMessage, nameof(this.GetPlaceholderInformationHandler) + ": Failed to schedule async handler");
-                    this.Context.Tracer.RelatedEvent(EventLevel.Warning, nameof(this.GetPlaceholderInformationHandler) + "_FailedToScheduleAsyncHandler", metadata);
-
-                    cancellationSource.Dispose();
-
-                    return (HResult)HResultExtensions.HResultFromNtStatus.DeviceNotReady;
-                }
+                return HResult.FileNotFound;
             }
             catch (Exception e)
             {
