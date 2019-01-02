@@ -48,43 +48,6 @@ int main(int argc, const char * argv[])
     return 0;
 }
 
-struct TerminationNotificationContext
-{
-    std::function<void()> terminationCallback;
-    io_iterator_t terminatedServiceIterator;
-};
-
-static void ServiceTerminated(void* refcon, io_iterator_t iterator)
-{
-    TerminationNotificationContext* context = static_cast<TerminationNotificationContext*>(refcon);
-    
-    io_service_t terminatedService = IOIteratorNext(iterator);
-    if (terminatedService != IO_OBJECT_NULL)
-    {
-        IOObjectRelease(terminatedService);
-        context->terminationCallback();
-        IOObjectRelease(iterator);
-        delete context;
-    }
-}
-
-static void WatchForServiceTermination(io_service_t service, IONotificationPortRef notificationPort, std::function<void()> terminationCallback)
-{
-    uint64_t serviceEntryID = 0;
-    IORegistryEntryGetRegistryEntryID(service, &serviceEntryID);
-    CFMutableDictionaryRef serviceMatching = IORegistryEntryIDMatching(serviceEntryID);
-    TerminationNotificationContext* context = new TerminationNotificationContext { std::move(terminationCallback), };
-    kern_return_t result = IOServiceAddMatchingNotification(notificationPort, kIOTerminatedNotification, serviceMatching, ServiceTerminated, context, &context->terminatedServiceIterator);
-    if (result != kIOReturnSuccess)
-    {
-        delete context;
-    }
-    else
-    {
-        ServiceTerminated(context, context->terminatedServiceIterator);
-    }
-}
-
 struct LogConnectionState
 {
     DataQueueResources dataQueue;
@@ -110,11 +73,7 @@ static void ProcessLogMessagesOnConnection(io_connect_t connection, io_service_t
     ++logState->lineCount;
     
     dispatch_source_set_event_handler(logState->dataQueue.dispatchSource, ^{
-        struct {
-            mach_msg_header_t  msgHdr;
-            mach_msg_trailer_t trailer;
-        } msg;
-        mach_msg(&msg.msgHdr, MACH_RCV_MSG | MACH_RCV_TIMEOUT, 0, sizeof(msg), logState->dataQueue.notificationPort, 0, MACH_PORT_NULL);
+        DataQueue_ClearMachNotification(logState->dataQueue.notificationPort);
         
         while(true)
         {
@@ -152,7 +111,7 @@ static void ProcessLogMessagesOnConnection(io_connect_t connection, io_service_t
         timer = StartKextProfilingDataPolling(connection);
     }
 
-    WatchForServiceTermination(
+    PrjFSService_WatchForServiceTermination(
         prjfsService,
         s_notificationPort,
         [timer, connection, logState, prjfsServiceEntryID]()

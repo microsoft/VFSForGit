@@ -143,6 +143,44 @@ void PrjFSService_StopWatching(PrjFSService_WatchContext* context)
     delete context;
 }
 
+struct TerminationNotificationContext
+{
+    std::function<void()> terminationCallback;
+    io_iterator_t terminatedServiceIterator;
+};
+
+static void ServiceTerminated(void* refcon, io_iterator_t iterator)
+{
+    TerminationNotificationContext* context = static_cast<TerminationNotificationContext*>(refcon);
+    
+    io_service_t terminatedService = IOIteratorNext(iterator);
+    if (terminatedService != IO_OBJECT_NULL)
+    {
+        IOObjectRelease(terminatedService);
+        context->terminationCallback();
+        IOObjectRelease(iterator);
+        delete context;
+    }
+}
+
+void PrjFSService_WatchForServiceTermination(io_service_t service, IONotificationPortRef notificationPort, std::function<void()> terminationCallback)
+{
+    uint64_t serviceEntryID = 0;
+    IORegistryEntryGetRegistryEntryID(service, &serviceEntryID);
+    CFMutableDictionaryRef serviceMatching = IORegistryEntryIDMatching(serviceEntryID);
+    TerminationNotificationContext* context = new TerminationNotificationContext { std::move(terminationCallback), };
+    kern_return_t result = IOServiceAddMatchingNotification(notificationPort, kIOTerminatedNotification, serviceMatching, ServiceTerminated, context, &context->terminatedServiceIterator);
+    if (result != kIOReturnSuccess)
+    {
+        delete context;
+    }
+    else
+    {
+        ServiceTerminated(context, context->terminatedServiceIterator);
+    }
+}
+
+
 bool PrjFSService_DataQueueInit(
     DataQueueResources* outQueue,
     io_connect_t connection,
@@ -219,6 +257,15 @@ void DataQueue_Dispose(DataQueueResources* queueResources, io_connect_t connecti
     {
         IOConnectUnmapMemory64(connection, clientMemoryType, mach_task_self(), queueResources->queueMemoryAddress);
     }
+}
+
+void DataQueue_ClearMachNotification(mach_port_t port)
+{
+    struct {
+        mach_msg_header_t    msgHdr;
+        mach_msg_trailer_t    trailer;
+    } msg;
+    mach_msg(&msg.msgHdr, MACH_RCV_MSG | MACH_RCV_TIMEOUT, 0, sizeof(msg), port, 0, MACH_PORT_NULL);
 }
 
 

@@ -26,6 +26,9 @@ PrjFSService_WatchContext* PrjFSService_WatchForServiceAndConnect(
 void PrjFSService_StopWatching(PrjFSService_WatchContext* context);
 bool PrjFSService_ValidateVersion(io_service_t prjfsService);
 
+void PrjFSService_WatchForServiceTermination(io_service_t service, struct IONotificationPort* notificationPort, std::function<void()> terminationCallback);
+
+
 bool PrjFSService_DataQueueInit(
     DataQueueResources* outQueue,
     io_connect_t connection,
@@ -36,3 +39,4 @@ void DataQueue_Dispose(DataQueueResources* queueResources, io_connect_t connecti
 
 IODataQueueEntry* DataQueue_Peek(IODataQueueMemory* dataQueue);
 IOReturn DataQueue_Dequeue(IODataQueueMemory* dataQueue, void* data, uint32_t* dataSize);
+void DataQueue_ClearMachNotification(mach_port_t port);
