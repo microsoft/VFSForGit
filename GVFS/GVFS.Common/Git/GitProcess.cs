@@ -412,6 +412,12 @@ namespace GVFS.Common.Git
                 });
         }
 
+        public Result VerifyCommitGraph(string objectDir)
+        {
+            string command = "commit-graph verify --object-dir \"" + objectDir + "\"";
+            return this.InvokeGitInWorkingDirectoryRoot(command, useReadObjectHook: true);
+        }
+
         public Result IndexPack(string packfilePath, string idxOutputPath)
         {
             return this.InvokeGitAgainstDotGitFolder($"index-pack -o \"{idxOutputPath}\" \"{packfilePath}\"");
@@ -426,6 +432,12 @@ namespace GVFS.Common.Git
         {
             // We override the config settings so we keep writing the MIDX file even if it is disabled for reads.
             return this.InvokeGitAgainstDotGitFolder("-c core.multiPackIndex=true multi-pack-index write --object-dir=\"" + objectDir + "\"");
+        }
+
+        public Result VerifyMultiPackIndex(string objectDir)
+        {
+            // We override the config settings so we keep writing the MIDX file even if it is disabled for reads.
+            return this.InvokeGitAgainstDotGitFolder("-c core.multiPackIndex=true multi-pack-index verify --object-dir=\"" + objectDir + "\"");
         }
 
         public Result RemoteAdd(string remoteName, string url)
