@@ -23,6 +23,8 @@ namespace GVFS.UnitTests.Maintenance
         private GVFSContext context;
 
         private string ExpireCommand => $"multi-pack-index expire --object-dir=\"{this.context.Enlistment.GitObjectsRoot}\"";
+        private string VerifyCommand => $"-c core.multiPackIndex=true multi-pack-index verify --object-dir=\"{this.context.Enlistment.GitObjectsRoot}\"";
+        private string WriteCommand => $"-c core.multiPackIndex=true multi-pack-index write --object-dir=\"{this.context.Enlistment.GitObjectsRoot}\"";
         private string RepackCommand => $"-c pack.depth=0 -c pack.window=0 multi-pack-index repack --object-dir=\"{this.context.Enlistment.GitObjectsRoot}\" --batch-size=2g";
 
         [TestCase]
@@ -36,9 +38,11 @@ namespace GVFS.UnitTests.Maintenance
             this.tracer.StartActivityTracer.RelatedErrorEvents.Count.ShouldEqual(0);
             this.tracer.StartActivityTracer.RelatedWarningEvents.Count.ShouldEqual(0);
             List<string> commands = this.gitProcess.CommandsRun;
-            commands.Count.ShouldEqual(2);
+            commands.Count.ShouldEqual(4);
             commands[0].ShouldEqual(this.ExpireCommand);
-            commands[1].ShouldEqual(this.RepackCommand);
+            commands[1].ShouldEqual(this.VerifyCommand);
+            commands[2].ShouldEqual(this.RepackCommand);
+            commands[3].ShouldEqual(this.VerifyCommand);
         }
 
         [TestCase]
@@ -66,9 +70,36 @@ namespace GVFS.UnitTests.Maintenance
             this.tracer.StartActivityTracer.RelatedErrorEvents.Count.ShouldEqual(0);
             this.tracer.StartActivityTracer.RelatedWarningEvents.Count.ShouldEqual(0);
             List<string> commands = this.gitProcess.CommandsRun;
-            commands.Count.ShouldEqual(2);
+            commands.Count.ShouldEqual(4);
             commands[0].ShouldEqual(this.ExpireCommand);
-            commands[1].ShouldEqual(this.RepackCommand);
+            commands[1].ShouldEqual(this.VerifyCommand);
+            commands[2].ShouldEqual(this.RepackCommand);
+            commands[3].ShouldEqual(this.VerifyCommand);
+        }
+
+        [TestCase]
+        public void PackfileMaintenanceRewriteOnBadVerify()
+        {
+            this.TestSetup(DateTime.UtcNow, failOnVerify: true);
+
+            this.gitProcess.SetExpectedCommandResult(
+                this.WriteCommand,
+                () => new GitProcess.Result(string.Empty, string.Empty, GitProcess.Result.SuccessCode));
+
+            PackfileMaintenanceStep step = new PackfileMaintenanceStep(this.context, requireObjectCacheLock: false, forceRun: true);
+            step.Execute();
+
+            this.tracer.StartActivityTracer.RelatedErrorEvents.Count.ShouldEqual(2);
+            this.tracer.StartActivityTracer.RelatedWarningEvents.Count.ShouldEqual(0);
+
+            List<string> commands = this.gitProcess.CommandsRun;
+            commands.Count.ShouldEqual(6);
+            commands[0].ShouldEqual(this.ExpireCommand);
+            commands[1].ShouldEqual(this.VerifyCommand);
+            commands[2].ShouldEqual(this.WriteCommand);
+            commands[3].ShouldEqual(this.RepackCommand);
+            commands[4].ShouldEqual(this.VerifyCommand);
+            commands[5].ShouldEqual(this.WriteCommand);
         }
 
         [TestCase]
@@ -109,7 +140,7 @@ namespace GVFS.UnitTests.Maintenance
                 .ShouldBeFalse();
         }
 
-        private void TestSetup(DateTime lastRun)
+        private void TestSetup(DateTime lastRun, bool failOnVerify = false)
         {
             string lastRunTime = EpochConverter.ToUnixEpochSeconds(lastRun).ToString();
 
@@ -157,6 +188,9 @@ namespace GVFS.UnitTests.Maintenance
             this.gitProcess.SetExpectedCommandResult(
                 this.ExpireCommand,
                 () => new GitProcess.Result(string.Empty, string.Empty, GitProcess.Result.SuccessCode));
+            this.gitProcess.SetExpectedCommandResult(
+                this.VerifyCommand,
+                () => new GitProcess.Result(string.Empty, string.Empty, failOnVerify ? GitProcess.Result.GenericFailureCode : GitProcess.Result.SuccessCode));
             this.gitProcess.SetExpectedCommandResult(
                 this.RepackCommand,
                 () => new GitProcess.Result(string.Empty, string.Empty, GitProcess.Result.SuccessCode));

@@ -140,8 +140,21 @@ namespace GVFS.Common.Maintenance
                 GitProcess.Result expireResult = this.RunGitCommand((process) => process.MultiPackIndexExpire(this.Context.Enlistment.GitObjectsRoot));
                 List<string> staleIdxFiles = this.CleanStaleIdxFiles(out int numDeletionBlocked);
                 this.GetPackFilesInfo(out int expireCount, out long expireSize, out hasKeep);
+
+                GitProcess.Result verifyAfterExpire = this.RunGitCommand((process) => process.VerifyMultiPackIndex(this.Context.Enlistment.GitObjectsRoot));
+                if (verifyAfterExpire.ExitCodeIsFailure)
+                {
+                    this.LogErrorAndRewriteMultiPackIndex(activity, verifyAfterExpire);
+                }
+
                 GitProcess.Result repackResult = this.RunGitCommand((process) => process.MultiPackIndexRepack(this.Context.Enlistment.GitObjectsRoot, this.batchSize));
                 this.GetPackFilesInfo(out int afterCount, out long afterSize, out hasKeep);
+
+                GitProcess.Result verifyAfterRepack = this.RunGitCommand((process) => process.VerifyMultiPackIndex(this.Context.Enlistment.GitObjectsRoot));
+                if (verifyAfterRepack.ExitCodeIsFailure)
+                {
+                    this.LogErrorAndRewriteMultiPackIndex(activity, verifyAfterRepack);
+                }
 
                 EventMetadata metadata = new EventMetadata();
                 metadata.Add("GitObjectsRoot", this.Context.Enlistment.GitObjectsRoot);
@@ -154,8 +167,10 @@ namespace GVFS.Common.Maintenance
                 metadata.Add(nameof(afterSize), afterSize);
                 metadata.Add("ExpireOutput", expireResult.Output);
                 metadata.Add("ExpireErrors", expireResult.Errors);
+                metadata.Add("VerifyAfterExpireExitCode", verifyAfterExpire.ExitCode);
                 metadata.Add("RepackOutput", repackResult.Output);
                 metadata.Add("RepackErrors", repackResult.Errors);
+                metadata.Add("VerifyAfterRepackExitCode", verifyAfterRepack.ExitCode);
                 metadata.Add("NumStaleIdxFiles", staleIdxFiles.Count);
                 metadata.Add("NumIdxDeletionsBlocked", numDeletionBlocked);
                 activity.RelatedEvent(EventLevel.Informational, $"{this.Area}_{nameof(this.PerformMaintenance)}", metadata, Keywords.Telemetry);

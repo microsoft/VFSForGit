@@ -108,7 +108,7 @@ namespace GVFS.UnitTests.Mock.Common
 
         public ITracer StartActivity(string activityName, EventLevel level, Keywords startStopKeywords, EventMetadata metadata)
         {
-            this.StartActivityTracer = new MockTracer();
+            this.StartActivityTracer = this.StartActivityTracer ?? new MockTracer();
             return this.StartActivityTracer;
         }
 
