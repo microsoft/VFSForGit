@@ -436,7 +436,6 @@ namespace GVFS.Common.Git
 
         public Result VerifyMultiPackIndex(string objectDir)
         {
-            // We override the config settings so we keep writing the MIDX file even if it is disabled for reads.
             return this.InvokeGitAgainstDotGitFolder("-c core.multiPackIndex=true multi-pack-index verify --object-dir=\"" + objectDir + "\"");
         }
 
