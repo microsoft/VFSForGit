@@ -94,6 +94,7 @@
     <Compile Include="Windows\Service\RepoRegistryTests.cs" />
     <Compile Include="Windows\Upgrader\ProductUpgraderTests.cs" />
     <Compile Include="Windows\Upgrader\UpgradeOrchestratorTests.cs" />
+    <Compile Include="Windows\Upgrader\UpgradeOrchestratorUnitTests.cs" />
     <Compile Include="Windows\Upgrader\UpgradeTests.cs" />
     <Compile Include="Windows\Upgrader\UpgradeVerbTests.cs" />
     <Compile Include="Windows\Virtualization\ActiveEnumerationTests.cs" />
