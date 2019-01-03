@@ -32,7 +32,7 @@ namespace GVFS.UnitTests.Common
 
             for (int i = 0; i < size; i++)
             {
-                disposalTriggers.TryTake(out object obj, millisecondsTimeout: 50).ShouldBeTrue();
+                disposalTriggers.TryTake(out object obj, millisecondsTimeout: 500).ShouldBeTrue();
             }
 
             disposalTriggers.TryTake(out object _, millisecondsTimeout: 0).ShouldBeFalse();
