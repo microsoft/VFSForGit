@@ -148,7 +148,7 @@ Note that VFS for Git on Mac is under active development.
 ## Trying out VFS for Git
 
 * VFS for Git will work with any git service that supports the GVFS [protocol](Protocol.md). For example, you can create a repo in
-Visual Studio Team Services (https://www.visualstudio.com/team-services/), and push some contents to it. There are two constraints:
+Azure DevOps (https://azure.microsoft.com/services/devops/), and push some contents to it. There are two constraints:
   * Your repo must not enable any clean/smudge filters
   * Your repo must have a `.gitattributes` file in the root that includes the line `* -text`
 * `gvfs clone <URL of repo you just created>`
