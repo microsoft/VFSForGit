@@ -1,6 +1,5 @@
 ﻿using GVFS.Common;
 using GVFS.Common.Git;
-using GVFS.Common.Tracing;
 using GVFS.Tests.Should;
 using GVFS.UnitTests.Mock.Common;
 using NUnit.Framework;
@@ -16,55 +15,81 @@ namespace GVFS.UnitTests.Common
         [TestCase]
         public void PoolConstructsThenDisposesRepos()
         {
-            ITracer tracer = new MockTracer();
+            MockTracer tracer = new MockTracer();
             int size = 3;
             TimeSpan dueTime = TimeSpan.FromMilliseconds(1);
             TimeSpan period = TimeSpan.FromMilliseconds(1);
 
+            BlockingCollection<object> threadReady = new BlockingCollection<object>();
+            BlockingCollection<object> threadTriggers = new BlockingCollection<object>();
             BlockingCollection<object> disposalTriggers = new BlockingCollection<object>();
 
-            LibGit2RepoPool pool = new LibGit2RepoPool(tracer, () => new MockLibGit2Repo(disposalTriggers), dueTime, period);
-
-            for (int i = 0; i < size; i++)
+            using (LibGit2RepoPool pool = new LibGit2RepoPool(tracer, () => new MockLibGit2Repo(disposalTriggers), size, dueTime, period))
             {
-                new Thread(() => pool.TryInvoke(repo => { Thread.Sleep(1); return true; }, out bool result)).Start();
-            }
+                for (int i = 0; i < size; i++)
+                {
+                    new Thread(() => pool.TryInvoke(
+                        repo =>
+                        {
+                            threadReady.TryAdd(new object(), 0);
+                            return threadTriggers.TryTake(out object _, 5000);
+                        },
+                        out bool result)).Start();
+                    threadReady.TryTake(out object _, 5000);
+                }
 
-            for (int i = 0; i < size; i++)
-            {
-                disposalTriggers.TryTake(out object obj, millisecondsTimeout: 500).ShouldBeTrue();
+                for (int i = 0; i < size; i++)
+                {
+                    threadTriggers.TryAdd(new object(), 0);
+                    disposalTriggers.TryTake(out object obj, millisecondsTimeout: 5000).ShouldBeTrue();
+                }
             }
 
             disposalTriggers.TryTake(out object _, millisecondsTimeout: 0).ShouldBeFalse();
+            tracer.RelatedWarningEvents.Count.ShouldEqual(0);
         }
 
         [TestCase]
         public void PoolReallocatesRepos()
         {
-            ITracer tracer = new MockTracer();
+            MockTracer tracer = new MockTracer();
             int size = 3;
             TimeSpan dueTime = TimeSpan.FromMilliseconds(1);
             TimeSpan period = TimeSpan.FromMilliseconds(1);
 
+            BlockingCollection<object> threadReady = new BlockingCollection<object>();
+            BlockingCollection<object> threadTriggers = new BlockingCollection<object>();
             BlockingCollection<object> disposalTriggers = new BlockingCollection<object>();
 
-            LibGit2RepoPool pool = new LibGit2RepoPool(tracer, () => new MockLibGit2Repo(disposalTriggers), dueTime, period);
-
-            for (int i = 0; i < size; i++)
+            using (LibGit2RepoPool pool = new LibGit2RepoPool(tracer, () => new MockLibGit2Repo(disposalTriggers), size, dueTime, period))
             {
-                new Thread(() => pool.TryInvoke(repo => { Thread.Sleep(1); return true; }, out bool result)).Start();
+                for (int i = 0; i < size; i++)
+                {
+                    new Thread(() => pool.TryInvoke(
+                        repo =>
+                        {
+                            threadReady.TryAdd(new object(), 0);
+                            return threadTriggers.TryTake(out object _, 5000);
+                        },
+                        out bool result)).Start();
+                    threadReady.TryTake(out object _, 5000);
+                }
+
+                for (int i = 0; i < size; i++)
+                {
+                    threadReady.TryTake(out object _, 5000);
+                    threadTriggers.TryAdd(new object(), 0);
+                    disposalTriggers.TryTake(out object _, millisecondsTimeout: 5000).ShouldBeTrue();
+                }
+
+                pool.TryInvoke(repo => true, out bool invoked);
+
+                invoked.ShouldBeTrue();
+                disposalTriggers.TryTake(out object _, millisecondsTimeout: 5000).ShouldBeTrue();
             }
 
-            for (int i = 0; i < size; i++)
-            {
-                disposalTriggers.TryTake(out object _, millisecondsTimeout: 50).ShouldBeTrue();
-            }
-
-            pool.TryInvoke(repo => true, out bool invoked);
-
-            invoked.ShouldBeTrue();
-            disposalTriggers.TryTake(out object _, millisecondsTimeout: 50).ShouldBeTrue();
             disposalTriggers.TryTake(out object _, millisecondsTimeout: 0).ShouldBeFalse();
+            tracer.RelatedWarningEvents.Count.ShouldEqual(0);
         }
 
         private class MockLibGit2Repo : LibGit2Repo

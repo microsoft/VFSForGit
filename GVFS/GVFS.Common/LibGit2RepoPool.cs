@@ -6,10 +6,10 @@ using System.Threading;
 
 namespace GVFS.Common
 {
-    public class LibGit2RepoPool
+    public class LibGit2RepoPool : IDisposable
     {
-        private const int TryAddTimeoutMilliseconds = 10;
-        private const int TryTakeTimeoutMilliseconds = 10;
+        private const int TryAddTimeoutMilliseconds = 0;
+        private const int TryTakeTimeoutMilliseconds = 0;
 
         private readonly BlockingCollection<LibGit2Repo> pool;
         private readonly Func<LibGit2Repo> createRepo;
@@ -18,17 +18,18 @@ namespace GVFS.Common
         private readonly Timer repoDisposalTimer;
         private readonly TimeSpan repoDisposalDueTime = TimeSpan.FromMinutes(15);
         private readonly TimeSpan repoDisposalPeriod = TimeSpan.FromMinutes(1);
-        private int numExternalRepos;
+        private volatile int numActiveRepos;
 
         public LibGit2RepoPool(
             ITracer tracer,
                 Func<LibGit2Repo> createRepo,
+                int size,
                 TimeSpan? repoDisposalDueTime = null,
                 TimeSpan? repoDisposalPeriod = null)
         {
             this.createRepo = createRepo;
             this.tracer = tracer;
-            this.pool = new BlockingCollection<LibGit2Repo>();
+            this.pool = new BlockingCollection<LibGit2Repo>(boundedCapacity: size);
 
             if (repoDisposalDueTime.HasValue)
             {
@@ -47,7 +48,7 @@ namespace GVFS.Common
                                              period: this.repoDisposalPeriod);
         }
 
-        public int NumActiveRepos => this.pool.Count + this.numExternalRepos;
+        public int NumActiveRepos => this.numActiveRepos;
 
         public void Dispose()
         {
@@ -90,13 +91,12 @@ namespace GVFS.Common
         {
             this.ResetRepoDisposalTimer();
 
-            Interlocked.Increment(ref this.numExternalRepos);
-
             if (this.pool.TryTake(out LibGit2Repo repo, TryTakeTimeoutMilliseconds))
             {
                 return repo;
             }
 
+            Interlocked.Increment(ref this.numActiveRepos);
             return this.createRepo();
         }
 
@@ -106,12 +106,11 @@ namespace GVFS.Common
             {
                 this.ResetRepoDisposalTimer();
 
-                Interlocked.Decrement(ref this.numExternalRepos);
-
                 if (this.pool.IsAddingCompleted ||
                     !this.pool.TryAdd(repo, TryAddTimeoutMilliseconds))
                 {
-                    // No more adding to the pool or trying to add to the pool failed
+                    // No more adding to the pool or the pool is full
+                    Interlocked.Decrement(ref this.numActiveRepos);
                     repo.Dispose();
                 }
             }
@@ -126,6 +125,7 @@ namespace GVFS.Common
         {
             if (this.pool.TryTake(out LibGit2Repo repo, TryTakeTimeoutMilliseconds))
             {
+                Interlocked.Decrement(ref this.numActiveRepos);
                 repo.Dispose();
             }
         }
