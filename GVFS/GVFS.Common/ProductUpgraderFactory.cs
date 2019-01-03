@@ -6,7 +6,7 @@ using System.IO;
 
 namespace GVFS.Common
 {
-    public partial class ProductUpgrader
+    public class ProductUpgraderFactory
     {
         public static bool TryCreateUpgrader(out IProductUpgrader newUpgrader, ITracer tracer, out string error)
         {

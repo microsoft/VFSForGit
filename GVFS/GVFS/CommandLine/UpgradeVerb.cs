@@ -69,7 +69,7 @@ namespace GVFS.CommandLine
                 {
                     JsonTracer jsonTracer = new JsonTracer(GVFSConstants.GVFSEtwProviderName, "UpgradeVerb");
                     string logFilePath = GVFSEnlistment.GetNewGVFSLogFileName(
-                        ProductUpgrader.GetLogDirectoryPath(),
+                        ProductUpgraderInfo.GetLogDirectoryPath(),
                         GVFSConstants.LogFileTypes.UpgradeVerb);
                     jsonTracer.AddLogFileEventListener(logFilePath, EventLevel.Informational, Keywords.Any);
 
@@ -77,7 +77,7 @@ namespace GVFS.CommandLine
                     this.prerunChecker = new InstallerPreRunChecker(this.tracer, this.Confirmed ? GVFSConstants.UpgradeVerbMessages.GVFSUpgradeConfirm : GVFSConstants.UpgradeVerbMessages.GVFSUpgrade);
 
                     IProductUpgrader upgrader;
-                    if (ProductUpgrader.TryCreateUpgrader(out upgrader, this.tracer, out error))
+                    if (ProductUpgraderFactory.TryCreateUpgrader(out upgrader, this.tracer, out error))
                     {
                         this.upgrader = upgrader;
                     }

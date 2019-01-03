@@ -59,7 +59,7 @@ namespace GVFS.Service
             InstallerPreRunChecker prerunChecker = new InstallerPreRunChecker(this.tracer, string.Empty);
             IProductUpgrader productUpgrader;
 
-            if (ProductUpgrader.TryCreateUpgrader(out productUpgrader, this.tracer, out errorMessage))
+            if (ProductUpgraderFactory.TryCreateUpgrader(out productUpgrader, this.tracer, out errorMessage))
             {
                 if (prerunChecker.TryRunPreUpgradeChecks(out string _) && this.TryDownloadUpgrade(productUpgrader, out errorMessage))
                 {

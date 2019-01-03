@@ -36,7 +36,7 @@ namespace GVFS.Upgrader
         public UpgradeOrchestrator()
         {
             string logFilePath = GVFSEnlistment.GetNewGVFSLogFileName(
-                ProductUpgrader.GetLogDirectoryPath(),
+                ProductUpgraderInfo.GetLogDirectoryPath(),
                 GVFSConstants.LogFileTypes.UpgradeProcess);
             JsonTracer jsonTracer = new JsonTracer(GVFSConstants.GVFSEtwProviderName, "UpgradeProcess");
             jsonTracer.AddLogFileEventListener(
@@ -122,7 +122,7 @@ namespace GVFS.Upgrader
             if (this.upgrader == null)
             {
                 IProductUpgrader upgrader;
-                if (!ProductUpgrader.TryCreateUpgrader(out upgrader, this.tracer, out errorMessage))
+                if (!ProductUpgraderFactory.TryCreateUpgrader(out upgrader, this.tracer, out errorMessage))
                 {
                     return false;
                 }

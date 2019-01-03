@@ -4,7 +4,7 @@ using System.IO;
 
 namespace GVFS.Common
 {
-    public partial class ProductUpgrader
+    public class ProductUpgraderInfo
     {
         public const string UpgradeDirectoryName = "GVFS.Upgrade";
         public const string LogDirectory = "Logs";

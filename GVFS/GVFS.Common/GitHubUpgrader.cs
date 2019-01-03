@@ -60,7 +60,7 @@ namespace GVFS.Common
             this.fileSystem = new PhysicalFileSystem();
             this.tracer = tracer;
 
-            string upgradesDirectoryPath = ProductUpgrader.GetUpgradesDirectoryPath();
+            string upgradesDirectoryPath = ProductUpgraderInfo.GetUpgradesDirectoryPath();
             this.fileSystem.CreateDirectory(upgradesDirectoryPath);
         }
 
@@ -277,7 +277,7 @@ namespace GVFS.Common
         // from this temporary location helps avoid this problem.
         public virtual bool TrySetupToolsDirectory(out string upgraderToolPath, out string error)
         {
-            string rootDirectoryPath = ProductUpgrader.GetUpgradesDirectoryPath();
+            string rootDirectoryPath = ProductUpgraderInfo.GetUpgradesDirectoryPath();
             string toolsDirectoryPath = Path.Combine(rootDirectoryPath, ToolsDirectory);
             Exception exception;
             if (TryCreateDirectory(toolsDirectoryPath, out exception))
@@ -350,11 +350,11 @@ namespace GVFS.Common
         {
             try
             {
-                this.fileSystem.DeleteDirectory(ProductUpgrader.GetAssetDownloadsPath());
+                this.fileSystem.DeleteDirectory(ProductUpgraderInfo.GetAssetDownloadsPath());
             }
             catch (Exception ex)
             {
-                this.TraceException(ex, nameof(this.CleanupDownloadDirectory), $"Could not remove directory: {ProductUpgrader.GetAssetDownloadsPath()}");
+                this.TraceException(ex, nameof(this.CleanupDownloadDirectory), $"Could not remove directory: {ProductUpgraderInfo.GetAssetDownloadsPath()}");
             }
         }
 
@@ -367,7 +367,7 @@ namespace GVFS.Common
         {
             errorMessage = null;
 
-            string downloadPath = ProductUpgrader.GetAssetDownloadsPath();
+            string downloadPath = ProductUpgraderInfo.GetAssetDownloadsPath();
             Exception exception;
             if (!GitHubUpgrader.TryCreateDirectory(downloadPath, out exception))
             {
@@ -501,7 +501,7 @@ namespace GVFS.Common
             string installerArgs;
             if (this.TryGetLocalInstallerPath(assetId, out path, out installerArgs))
             {
-                string logFilePath = GVFSEnlistment.GetNewLogFileName(ProductUpgrader.GetLogDirectoryPath(), Path.GetFileNameWithoutExtension(path));
+                string logFilePath = GVFSEnlistment.GetNewLogFileName(ProductUpgraderInfo.GetLogDirectoryPath(), Path.GetFileNameWithoutExtension(path));
                 string args = installerArgs + " /Log=" + logFilePath;
                 this.RunInstaller(path, args, out installerExitCode, out error);
 
@@ -556,7 +556,7 @@ namespace GVFS.Common
 
         private bool IsGVFSAsset(Asset asset)
         {
-            return this.AssetInstallerNameCompare(asset, ProductUpgrader.GVFSInstallerFileNamePrefix, ProductUpgrader.VFSForGitInstallerFileNamePrefix);
+            return this.AssetInstallerNameCompare(asset, ProductUpgraderInfo.GVFSInstallerFileNamePrefix, ProductUpgraderInfo.VFSForGitInstallerFileNamePrefix);
         }
 
         private bool IsGitAsset(Asset asset)
