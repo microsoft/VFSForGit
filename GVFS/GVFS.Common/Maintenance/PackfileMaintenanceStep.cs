@@ -140,8 +140,35 @@ namespace GVFS.Common.Maintenance
                 GitProcess.Result expireResult = this.RunGitCommand((process) => process.MultiPackIndexExpire(this.Context.Enlistment.GitObjectsRoot));
                 List<string> staleIdxFiles = this.CleanStaleIdxFiles(out int numDeletionBlocked);
                 this.GetPackFilesInfo(out int expireCount, out long expireSize, out hasKeep);
+
+                GitProcess.Result verifyResult1 = this.RunGitCommand((process) => process.VerifyMultiPackIndex(this.Context.Enlistment.GitObjectsRoot));
+                if (verifyResult1.ExitCodeIsFailure)
+                {
+                    EventMetadata errorMetadata = this.CreateEventMetadata();
+                    errorMetadata["MultiPackIndexVerifyOutput"] = verifyResult1.Output;
+                    errorMetadata["MultiPackIndexVerifyErrors"] = verifyResult1.Errors;
+                    string multiPackIndexPath = Path.Combine(this.Context.Enlistment.GitPackRoot, "multi-pack-index");
+                    errorMetadata["TryDeleteFileResult"] = this.Context.FileSystem.TryDeleteFile(multiPackIndexPath);
+                    activity.RelatedError(errorMetadata, "multi-pack-index is corrupt after write. Deleting and rewriting.");
+
+                    this.RunGitCommand((process) => process.WriteMultiPackIndex(this.Context.Enlistment.GitObjectsRoot));
+                }
+
                 GitProcess.Result repackResult = this.RunGitCommand((process) => process.MultiPackIndexRepack(this.Context.Enlistment.GitObjectsRoot, this.batchSize));
                 this.GetPackFilesInfo(out int afterCount, out long afterSize, out hasKeep);
+
+                GitProcess.Result verifyResult2 = this.RunGitCommand((process) => process.VerifyMultiPackIndex(this.Context.Enlistment.GitObjectsRoot));
+                if (verifyResult1.ExitCodeIsFailure)
+                {
+                    EventMetadata errorMetadata = this.CreateEventMetadata();
+                    errorMetadata["MultiPackIndexVerifyOutput"] = verifyResult1.Output;
+                    errorMetadata["MultiPackIndexVerifyErrors"] = verifyResult1.Errors;
+                    string multiPackIndexPath = Path.Combine(this.Context.Enlistment.GitPackRoot, "multi-pack-index");
+                    errorMetadata["TryDeleteFileResult"] = this.Context.FileSystem.TryDeleteFile(multiPackIndexPath);
+                    activity.RelatedError(errorMetadata, "multi-pack-index is corrupt after write. Deleting and rewriting.");
+
+                    this.RunGitCommand((process) => process.WriteMultiPackIndex(this.Context.Enlistment.GitObjectsRoot));
+                }
 
                 EventMetadata metadata = new EventMetadata();
                 metadata.Add("GitObjectsRoot", this.Context.Enlistment.GitObjectsRoot);
@@ -154,8 +181,10 @@ namespace GVFS.Common.Maintenance
                 metadata.Add(nameof(afterSize), afterSize);
                 metadata.Add("ExpireOutput", expireResult.Output);
                 metadata.Add("ExpireErrors", expireResult.Errors);
+                metadata.Add("VerifyResult1", verifyResult1.ExitCode);
                 metadata.Add("RepackOutput", repackResult.Output);
                 metadata.Add("RepackErrors", repackResult.Errors);
+                metadata.Add("VerifyResult2", verifyResult2.ExitCode);
                 metadata.Add("NumStaleIdxFiles", staleIdxFiles.Count);
                 metadata.Add("NumIdxDeletionsBlocked", numDeletionBlocked);
                 activity.RelatedEvent(EventLevel.Informational, $"{this.Area}_{nameof(this.PerformMaintenance)}", metadata, Keywords.Telemetry);
