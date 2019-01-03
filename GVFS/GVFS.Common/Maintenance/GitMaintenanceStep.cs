@@ -184,6 +184,34 @@ namespace GVFS.Common.Maintenance
             return allProcesses.Where(x => x.ProcessName.Equals("git", StringComparison.OrdinalIgnoreCase)).Select(x => x.Id);
         }
 
+        protected void LogErrorAndRewriteMultiPackIndex(ITracer activity, GitProcess.Result result)
+        {
+            EventMetadata errorMetadata = this.CreateEventMetadata();
+            errorMetadata["MultiPackIndexVerifyOutput"] = result.Output;
+            errorMetadata["MultiPackIndexVerifyErrors"] = result.Errors;
+            string multiPackIndexPath = Path.Combine(this.Context.Enlistment.GitPackRoot, "multi-pack-index");
+            errorMetadata["TryDeleteFileResult"] = this.Context.FileSystem.TryDeleteFile(multiPackIndexPath);
+
+            GitProcess.Result rewriteResult = this.RunGitCommand((process) => process.WriteMultiPackIndex(this.Context.Enlistment.GitObjectsRoot));
+            errorMetadata["RewriteResultExitCode"] = rewriteResult.ExitCode;
+
+            activity.RelatedError(errorMetadata, "multi-pack-index is corrupt after write. Deleting and rewriting.");
+        }
+
+        protected void LogErrorAndRewriteCommitGraph(ITracer activity, GitProcess.Result result, List<string> packs)
+        {
+            EventMetadata errorMetadata = this.CreateEventMetadata();
+            errorMetadata["CommitGraphVerifyOutput"] = result.Output;
+            errorMetadata["CommitGraphVerifyErrors"] = result.Errors;
+            string commitGraphPath = Path.Combine(this.Context.Enlistment.GitObjectsRoot, "info", "commit-graph");
+            errorMetadata["TryDeleteFileResult"] = this.Context.FileSystem.TryDeleteFile(commitGraphPath);
+
+            GitProcess.Result rewriteResult = this.RunGitCommand((process) => process.WriteCommitGraph(this.Context.Enlistment.GitObjectsRoot, packs));
+            errorMetadata["RewriteResultExitCode"] = rewriteResult.ExitCode;
+
+            activity.RelatedError(errorMetadata, "commit-graph is corrupt after write. Deleting and rewriting.");
+        }
+
         private void CreateProcessAndRun()
         {
             lock (this.gitProcessLock)

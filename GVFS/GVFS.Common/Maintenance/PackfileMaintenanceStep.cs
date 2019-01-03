@@ -144,7 +144,7 @@ namespace GVFS.Common.Maintenance
                 GitProcess.Result verifyAfterExpire = this.RunGitCommand((process) => process.VerifyMultiPackIndex(this.Context.Enlistment.GitObjectsRoot));
                 if (verifyAfterExpire.ExitCodeIsFailure)
                 {
-                    this.LogErrorAndRewrite(activity, verifyAfterExpire);
+                    this.LogErrorAndRewriteMultiPackIndex(activity, verifyAfterExpire);
                 }
 
                 GitProcess.Result repackResult = this.RunGitCommand((process) => process.MultiPackIndexRepack(this.Context.Enlistment.GitObjectsRoot, this.batchSize));
@@ -153,7 +153,7 @@ namespace GVFS.Common.Maintenance
                 GitProcess.Result verifyAfterRepack = this.RunGitCommand((process) => process.VerifyMultiPackIndex(this.Context.Enlistment.GitObjectsRoot));
                 if (verifyAfterRepack.ExitCodeIsFailure)
                 {
-                    this.LogErrorAndRewrite(activity, verifyAfterRepack);
+                    this.LogErrorAndRewriteMultiPackIndex(activity, verifyAfterRepack);
                 }
 
                 EventMetadata metadata = new EventMetadata();
@@ -167,28 +167,16 @@ namespace GVFS.Common.Maintenance
                 metadata.Add(nameof(afterSize), afterSize);
                 metadata.Add("ExpireOutput", expireResult.Output);
                 metadata.Add("ExpireErrors", expireResult.Errors);
-                metadata.Add("verifyAfterExpire", verifyAfterExpire.ExitCode);
+                metadata.Add("VerifyAfterExpireExitCode", verifyAfterExpire.ExitCode);
                 metadata.Add("RepackOutput", repackResult.Output);
                 metadata.Add("RepackErrors", repackResult.Errors);
-                metadata.Add("VerifyAfterRepack", verifyAfterRepack.ExitCode);
+                metadata.Add("VerifyAfterRepackExitCode", verifyAfterRepack.ExitCode);
                 metadata.Add("NumStaleIdxFiles", staleIdxFiles.Count);
                 metadata.Add("NumIdxDeletionsBlocked", numDeletionBlocked);
                 activity.RelatedEvent(EventLevel.Informational, $"{this.Area}_{nameof(this.PerformMaintenance)}", metadata, Keywords.Telemetry);
 
                 this.SaveLastRunTimeToFile();
             }
-        }
-
-        private void LogErrorAndRewrite(ITracer activity, GitProcess.Result result)
-        {
-            EventMetadata errorMetadata = this.CreateEventMetadata();
-            errorMetadata["MultiPackIndexVerifyOutput"] = result.Output;
-            errorMetadata["MultiPackIndexVerifyErrors"] = result.Errors;
-            string multiPackIndexPath = Path.Combine(this.Context.Enlistment.GitPackRoot, "multi-pack-index");
-            errorMetadata["TryDeleteFileResult"] = this.Context.FileSystem.TryDeleteFile(multiPackIndexPath);
-            activity.RelatedError(errorMetadata, "multi-pack-index is corrupt after write. Deleting and rewriting.");
-
-            this.RunGitCommand((process) => process.WriteMultiPackIndex(this.Context.Enlistment.GitObjectsRoot));
         }
     }
 }
