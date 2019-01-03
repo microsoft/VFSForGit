@@ -26,8 +26,7 @@ namespace GVFS.Common.Git
 
             this.libgit2RepoPool = new LibGit2RepoPool(
                 tracer,
-                repoFactory ?? (() => new LibGit2Repo(this.tracer, this.enlistment.WorkingDirectoryRoot)),
-                Environment.ProcessorCount * 2);
+                repoFactory ?? (() => new LibGit2Repo(this.tracer, this.enlistment.WorkingDirectoryRoot)));
         }
 
         // For Unit Testing

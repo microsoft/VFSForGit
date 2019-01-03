@@ -6,6 +6,7 @@ using GVFS.UnitTests.Mock.Common;
 using NUnit.Framework;
 using System;
 using System.Collections.Concurrent;
+using System.Threading;
 
 namespace GVFS.UnitTests.Common
 {
@@ -22,7 +23,12 @@ namespace GVFS.UnitTests.Common
 
             BlockingCollection<object> disposalTriggers = new BlockingCollection<object>();
 
-            LibGit2RepoPool pool = new LibGit2RepoPool(tracer, () => new MockLibGit2Repo(disposalTriggers), size, dueTime, period);
+            LibGit2RepoPool pool = new LibGit2RepoPool(tracer, () => new MockLibGit2Repo(disposalTriggers), dueTime, period);
+
+            for (int i = 0; i < size; i++)
+            {
+                new Thread(() => pool.TryInvoke(repo => { Thread.Sleep(1); return true; }, out bool result)).Start();
+            }
 
             for (int i = 0; i < size; i++)
             {
@@ -42,7 +48,12 @@ namespace GVFS.UnitTests.Common
 
             BlockingCollection<object> disposalTriggers = new BlockingCollection<object>();
 
-            LibGit2RepoPool pool = new LibGit2RepoPool(tracer, () => new MockLibGit2Repo(disposalTriggers), size, dueTime, period);
+            LibGit2RepoPool pool = new LibGit2RepoPool(tracer, () => new MockLibGit2Repo(disposalTriggers), dueTime, period);
+
+            for (int i = 0; i < size; i++)
+            {
+                new Thread(() => pool.TryInvoke(repo => { Thread.Sleep(1); return true; }, out bool result)).Start();
+            }
 
             for (int i = 0; i < size; i++)
             {

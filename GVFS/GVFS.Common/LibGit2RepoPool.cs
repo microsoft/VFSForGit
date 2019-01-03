@@ -9,8 +9,7 @@ namespace GVFS.Common
     public class LibGit2RepoPool
     {
         private const int TryAddTimeoutMilliseconds = 10;
-        private const int TryTakeWaitForever = Timeout.Infinite;
-        private const int TryTakeNoWait = 0;
+        private const int TryTakeTimeoutMilliseconds = 10;
 
         private readonly BlockingCollection<LibGit2Repo> pool;
         private readonly Func<LibGit2Repo> createRepo;
@@ -19,31 +18,17 @@ namespace GVFS.Common
         private readonly Timer repoDisposalTimer;
         private readonly TimeSpan repoDisposalDueTime = TimeSpan.FromMinutes(15);
         private readonly TimeSpan repoDisposalPeriod = TimeSpan.FromMinutes(1);
-        private readonly int maxRepoAllocations;
-        private int numAvailableRepoAllocations;
-        private int numWaitingThreads;
-        private object numWaitingThreadsLock = new object();
+        private int numExternalRepos;
 
         public LibGit2RepoPool(
             ITracer tracer,
                 Func<LibGit2Repo> createRepo,
-                int size,
                 TimeSpan? repoDisposalDueTime = null,
                 TimeSpan? repoDisposalPeriod = null)
         {
-            if (size <= 0)
-            {
-                throw new ArgumentException("ProcessPool: size must be greater than 0");
-            }
-
-            this.maxRepoAllocations = size;
             this.createRepo = createRepo;
             this.tracer = tracer;
             this.pool = new BlockingCollection<LibGit2Repo>();
-            for (int i = 0; i < size; ++i)
-            {
-                this.pool.Add(createRepo());
-            }
 
             if (repoDisposalDueTime.HasValue)
             {
@@ -62,7 +47,7 @@ namespace GVFS.Common
                                              period: this.repoDisposalPeriod);
         }
 
-        public int NumActiveRepos => this.pool.Count + (this.maxRepoAllocations - this.numAvailableRepoAllocations);
+        public int NumActiveRepos => this.pool.Count + this.numExternalRepos;
 
         public void Dispose()
         {
@@ -103,54 +88,16 @@ namespace GVFS.Common
 
         private LibGit2Repo GetRepoFromPool()
         {
-            try
-            {
-                lock (this.numWaitingThreadsLock)
-                {
-                    this.numWaitingThreads++;
-                }
-
-                return this.WaitForRepoFromPool();
-            }
-            finally
-            {
-                lock (this.numWaitingThreadsLock)
-                {
-                    this.numWaitingThreads--;
-                }
-            }
-        }
-
-        private LibGit2Repo WaitForRepoFromPool()
-        {
             this.ResetRepoDisposalTimer();
 
-            LibGit2Repo repo;
+            Interlocked.Increment(ref this.numExternalRepos);
 
-            if (this.pool.TryTake(out repo, TryTakeNoWait))
+            if (this.pool.TryTake(out LibGit2Repo repo, TryTakeTimeoutMilliseconds))
             {
                 return repo;
             }
 
-            if (this.numAvailableRepoAllocations > 0)
-            {
-                if (Interlocked.Decrement(ref this.numAvailableRepoAllocations) >= 0)
-                {
-                    return this.createRepo();
-                }
-                else
-                {
-                    Interlocked.Increment(ref this.numAvailableRepoAllocations);
-                }
-            }
-
-            if (this.pool.TryTake(out repo, TryTakeWaitForever))
-            {
-                return repo;
-            }
-
-            // This should only happen when the pool is shutting down
-            return null;
+            return this.createRepo();
         }
 
         private void ReturnToPool(LibGit2Repo repo)
@@ -158,6 +105,8 @@ namespace GVFS.Common
             if (repo != null)
             {
                 this.ResetRepoDisposalTimer();
+
+                Interlocked.Decrement(ref this.numExternalRepos);
 
                 if (this.pool.IsAddingCompleted ||
                     !this.pool.TryAdd(repo, TryAddTimeoutMilliseconds))
@@ -175,20 +124,9 @@ namespace GVFS.Common
 
         private void TryDropARepo()
         {
-            if (this.pool.TryTake(out LibGit2Repo repo, TryTakeNoWait))
+            if (this.pool.TryTake(out LibGit2Repo repo, TryTakeTimeoutMilliseconds))
             {
-                lock (this.numWaitingThreadsLock)
-                {
-                    if (this.numWaitingThreads == 0)
-                    {
-                        repo.Dispose();
-                        Interlocked.Increment(ref this.numAvailableRepoAllocations);
-                    }
-                    else
-                    {
-                        this.ReturnToPool(repo);
-                    }
-                }
+                repo.Dispose();
             }
         }
 
