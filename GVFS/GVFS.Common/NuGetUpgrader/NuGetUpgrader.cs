@@ -1,16 +1,11 @@
 ﻿using GVFS.Common.Git;
 using GVFS.Common.Tracing;
-using NuGet.Common;
-using NuGet.Packaging.Core;
-using NuGet.Protocol;
 using NuGet.Protocol.Core.Types;
 using System;
 using System.Collections.Generic;
 using System.IO;
 using System.IO.Compression;
-using System.Linq;
 using System.Threading;
-using System.Threading.Tasks;
 
 namespace GVFS.Common
 {
@@ -27,6 +22,8 @@ namespace GVFS.Common
             this.Config = config;
             this.DownloadFolder = downloadFolder;
             this.PersonalAccessToken = personalAccessToken;
+
+            this.NuGetWrapper = new NuGetWrapper(config.FeedUrl, config.PackageFeedName, downloadFolder, personalAccessToken, tracer);
         }
 
         private NugetUpgraderConfig Config { get; set; }
@@ -42,6 +39,8 @@ namespace GVFS.Common
         private string PackagePath { get; set; }
 
         private string ExtractedPath { get; set; }
+
+        private NuGetWrapper NuGetWrapper { get; set; }
 
         private NuGet.Configuration.PackageSourceCredential Credentials
         {
@@ -107,7 +106,7 @@ namespace GVFS.Common
             newVersion = null;
             message = null;
 
-            IList<IPackageSearchMetadata> queryResults = this.QueryFeed(this.Config.PackageFeedName).GetAwaiter().GetResult();
+            IList<IPackageSearchMetadata> queryResults = this.NuGetWrapper.QueryFeed(this.Config.PackageFeedName).GetAwaiter().GetResult();
 
             // Find the latest package
             IPackageSearchMetadata highestVersion = null;
@@ -133,7 +132,7 @@ namespace GVFS.Common
         {
             try
             {
-                this.PackagePath = this.DownloadPackage(this.LatestVersion.Identity).GetAwaiter().GetResult();
+                this.PackagePath = this.NuGetWrapper.DownloadPackage(this.LatestVersion.Identity).GetAwaiter().GetResult();
 
                 Exception e;
                 bool success = this.TryDeleteDirectory(ProductUpgraderBase.GetTempPath(), out e);
@@ -211,43 +210,6 @@ namespace GVFS.Common
         {
             GitProcess gitProcess = new GitProcess(gitBinaryPath, null, null);
             return gitProcess.TryGetCredentials(tracer, credentialUrl, out string username, out token, out error);
-        }
-
-        private async Task<IList<IPackageSearchMetadata>> QueryFeed(string packageId)
-        {
-            SourceRepository sourceRepository = Repository.Factory.GetCoreV3(this.Config.FeedUrl);
-            if (!string.IsNullOrEmpty(this.PersonalAccessToken))
-            {
-                sourceRepository.PackageSource.Credentials = this.Credentials;
-            }
-
-            var packageMetadataResource = await sourceRepository.GetResourceAsync<PackageMetadataResource>();
-            var cacheContext = new SourceCacheContext();
-            cacheContext.DirectDownload = true;
-            cacheContext.NoCache = true;
-            IList<IPackageSearchMetadata> queryResults = (await packageMetadataResource.GetMetadataAsync(packageId, true, true, cacheContext, new Logger(this.tracer), CancellationToken.None)).ToList();
-            return queryResults;
-        }
-
-        private async Task<string> DownloadPackage(PackageIdentity packageId)
-        {
-            SourceRepository sourceRepository = Repository.Factory.GetCoreV3(this.Config.FeedUrl);
-            if (!string.IsNullOrEmpty(this.PersonalAccessToken))
-            {
-                sourceRepository.PackageSource.Credentials = this.Credentials;
-            }
-
-            var downloadResource = await sourceRepository.GetResourceAsync<DownloadResource>();
-            var downloadResourceResult = await downloadResource.GetDownloadResourceResultAsync(packageId, new PackageDownloadContext(new SourceCacheContext(), this.DownloadFolder, true), string.Empty, new Logger(this.tracer), CancellationToken.None);
-
-            string downloadPath = Path.Combine(this.DownloadFolder, $"{this.Config.PackageFeedName}.zip");
-
-            using (var fileStream = File.Create(downloadPath))
-            {
-                downloadResourceResult.PackageStream.CopyTo(fileStream);
-            }
-
-            return downloadPath;
         }
 
         private void UnzipPackageToTempLocation()
@@ -337,73 +299,6 @@ namespace GVFS.Common
                 }
 
                 return true;
-            }
-        }
-
-        public class Logger : ILogger
-        {
-            private ITracer tracer;
-
-            public Logger(ITracer tracer)
-            {
-                this.tracer = tracer;
-            }
-
-            public void Log(LogLevel level, string data)
-            {
-                this.tracer.RelatedInfo($"NuGetPackageUpgrader ({level}): {data}");
-            }
-
-            public void Log(ILogMessage message)
-            {
-                this.tracer.RelatedInfo($"NuGetPackageUpgrader ({message.Level}): {message.Message}");
-            }
-
-            public Task LogAsync(LogLevel level, string data)
-            {
-                this.Log(level, data);
-                return Task.CompletedTask;
-            }
-
-            public Task LogAsync(ILogMessage message)
-            {
-                this.Log(message);
-                return Task.CompletedTask;
-            }
-
-            public void LogDebug(string data)
-            {
-                this.tracer.RelatedInfo($"NuGetPackageUpgrader (Debug): {data}");
-            }
-
-            public void LogError(string data)
-            {
-                this.tracer.RelatedInfo($"NuGetPackageUpgrader (Error): {data}");
-            }
-
-            public void LogInformation(string data)
-            {
-                this.tracer.RelatedInfo($"NuGetPackageUpgrader (Information): {data}");
-            }
-
-            public void LogInformationSummary(string data)
-            {
-                this.tracer.RelatedInfo($"NuGetPackageUpgrader (InformationSummary): {data}");
-            }
-
-            public void LogMinimal(string data)
-            {
-                this.tracer.RelatedInfo($"NuGetPackageUpgrader (Minimal): {data}");
-            }
-
-            public void LogVerbose(string data)
-            {
-                this.tracer.RelatedInfo($"NuGetPackageUpgrader (Verbose): {data}");
-            }
-
-            public void LogWarning(string data)
-            {
-                this.tracer.RelatedInfo($"NuGetPackageUpgrader (Warning): {data}");
             }
         }
     }
