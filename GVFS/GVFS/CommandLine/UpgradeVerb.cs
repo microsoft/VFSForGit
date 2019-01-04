@@ -51,55 +51,45 @@ namespace GVFS.CommandLine
 
         public override void Execute()
         {
-            ReturnCode exitCode = ReturnCode.Success;
-            string error;
-            if (!this.TryInitializeUpgrader(out error) || !this.TryRunProductUpgrade())
+            if (!this.TryInitializeUpgrader(out string error) || !this.TryRunProductUpgrade())
             {
-                exitCode = ReturnCode.GenericError;
-                this.ReportErrorAndExit(this.tracer, exitCode, error);
+                this.ReportErrorAndExit(this.tracer, ReturnCode.GenericError, error);
             }
         }
 
         private bool TryInitializeUpgrader(out string error)
         {
-            if (GVFSPlatform.Instance.UnderConstruction.SupportsGVFSUpgrade)
-            {
-                error = null;
-                if (this.upgrader == null)
-                {
-                    JsonTracer jsonTracer = new JsonTracer(GVFSConstants.GVFSEtwProviderName, "UpgradeVerb");
-                    string logFilePath = GVFSEnlistment.GetNewGVFSLogFileName(
-                        ProductUpgraderInfo.GetLogDirectoryPath(),
-                        GVFSConstants.LogFileTypes.UpgradeVerb);
-                    jsonTracer.AddLogFileEventListener(logFilePath, EventLevel.Informational, Keywords.Any);
-
-                    this.tracer = jsonTracer;
-                    this.prerunChecker = new InstallerPreRunChecker(this.tracer, this.Confirmed ? GVFSConstants.UpgradeVerbMessages.GVFSUpgradeConfirm : GVFSConstants.UpgradeVerbMessages.GVFSUpgrade);
-
-                    IProductUpgrader upgrader;
-                    if (ProductUpgraderFactory.TryCreateUpgrader(out upgrader, this.tracer, out error))
-                    {
-                        this.upgrader = upgrader;
-                    }
-                }
-
-                return this.upgrader != null;
-            }
-            else
+            if (!GVFSPlatform.Instance.UnderConstruction.SupportsGVFSUpgrade)
             {
                 error = $"ERROR: {GVFSConstants.UpgradeVerbMessages.GVFSUpgrade} is not supported on this operating system.";
                 return false;
             }
+
+            if (this.upgrader != null)
+            {
+                error = null;
+                return true;
+            }
+
+            JsonTracer jsonTracer = new JsonTracer(GVFSConstants.GVFSEtwProviderName, "UpgradeVerb");
+            string logFilePath = GVFSEnlistment.GetNewGVFSLogFileName(
+                ProductUpgraderInfo.GetLogDirectoryPath(),
+                GVFSConstants.LogFileTypes.UpgradeVerb);
+            jsonTracer.AddLogFileEventListener(logFilePath, EventLevel.Informational, Keywords.Any);
+
+            this.tracer = jsonTracer;
+            this.prerunChecker = new InstallerPreRunChecker(this.tracer, this.Confirmed ? GVFSConstants.UpgradeVerbMessages.GVFSUpgradeConfirm : GVFSConstants.UpgradeVerbMessages.GVFSUpgrade);
+
+            return ProductUpgraderFactory.TryCreateUpgrader(out this.upgrader, this.tracer, out error);
         }
 
         private bool TryRunProductUpgrade()
         {
             string errorOutputFormat = Environment.NewLine + "ERROR: {0}";
-            string message = null;
-            string cannotInstallReason = null;
-            Version newestVersion = null;
+            string message;
 
-            bool isInstallable = this.TryCheckUpgradeInstallable(out cannotInstallReason);
+            bool isInstallable = this.TryCheckUpgradeInstallable(out string cannotInstallReason);
+
             if (this.Confirmed && !isInstallable)
             {
                 this.ReportInfoToConsole($"Cannot upgrade GVFS on this machine.");
@@ -108,8 +98,7 @@ namespace GVFS.CommandLine
                 return false;
             }
 
-            bool isUpgradeAllowed;
-            if (!this.upgrader.TryGetConfigAllowsUpgrade(out isUpgradeAllowed, out message))
+            if (!this.upgrader.TryGetConfigAllowsUpgrade(out bool isUpgradeAllowed, out message))
             {
                 this.upgrader.CleanupDownloadDirectory();
                 this.Output.WriteLine(errorOutputFormat, message);
@@ -124,7 +113,7 @@ namespace GVFS.CommandLine
                 return true;
             }
 
-            if (!this.TryRunUpgradeChecks(out newestVersion, out message))
+            if (!this.TryRunUpgradeChecks(out Version newestVersion, out message))
             {
                 this.Output.WriteLine(errorOutputFormat, message);
                 this.tracer.RelatedError($"{nameof(this.TryRunProductUpgrade)}: Upgrade checks failed. {message}");
@@ -195,23 +184,19 @@ namespace GVFS.CommandLine
 
         private bool TryRunInstaller(out string consoleError)
         {
-            string upgraderPath = null;
-            string errorMessage = null;
-
             this.ReportInfoToConsole("Launching upgrade tool...");
 
-            if (!this.TryCopyUpgradeTool(out upgraderPath, out consoleError))
+            if (!this.TryCopyUpgradeTool(out string upgraderPath, out consoleError))
             {
                 return false;
             }
 
-            if (!this.TryLaunchUpgradeTool(upgraderPath, out errorMessage))
+            if (!this.TryLaunchUpgradeTool(upgraderPath, out string _))
             {
                 return false;
             }
 
             this.ReportInfoToConsole($"{Environment.NewLine}Installer launched in a new window. Do not run any git or gvfs commands until the installer has completed.");
-            consoleError = null;
             return true;
         }
 
@@ -236,8 +221,7 @@ namespace GVFS.CommandLine
         {
             using (ITracer activity = this.tracer.StartActivity(nameof(this.TryLaunchUpgradeTool), EventLevel.Informational))
             {
-                Exception exception;
-                if (!this.processLauncher.TryStart(path, out exception))
+                if (!this.processLauncher.TryStart(path, out Exception exception))
                 {
                     if (exception != null)
                     {
@@ -259,20 +243,14 @@ namespace GVFS.CommandLine
             return true;
         }
 
-        private bool TryCheckUpgradeAvailable(
-            out Version latestVersion,
-            out string error)
+        private bool TryCheckUpgradeAvailable(out Version latestVersion, out string error)
         {
             latestVersion = null;
             error = null;
 
             using (ITracer activity = this.tracer.StartActivity(nameof(this.TryCheckUpgradeAvailable), EventLevel.Informational))
             {
-                bool checkSucceeded = false;
-                Version version = null;
-
-                checkSucceeded = this.upgrader.TryGetNewerVersion(out version, out error);
-                if (!checkSucceeded)
+                if (!this.upgrader.TryGetNewerVersion(out Version version, out error))
                 {
                     return false;
                 }
@@ -287,12 +265,9 @@ namespace GVFS.CommandLine
 
         private bool TryCheckUpgradeInstallable(out string consoleError)
         {
-            consoleError = null;
-
             using (ITracer activity = this.tracer.StartActivity(nameof(this.TryCheckUpgradeInstallable), EventLevel.Informational))
             {
-                if (!this.prerunChecker.TryRunPreUpgradeChecks(
-                    out consoleError))
+                if (!this.prerunChecker.TryRunPreUpgradeChecks(out consoleError))
                 {
                     return false;
                 }
@@ -315,17 +290,11 @@ namespace GVFS.CommandLine
                 this.Process = new Process();
             }
 
-            public Process Process { get; private set; }
+            public Process Process { get; }
 
-            public virtual bool HasExited
-            {
-                get { return this.Process.HasExited; }
-            }
+            public virtual bool HasExited => this.Process.HasExited;
 
-            public virtual int ExitCode
-            {
-                get { return this.Process.ExitCode; }
-            }
+            public virtual int ExitCode => this.Process.ExitCode;
 
             public virtual bool TryStart(string path, out Exception exception)
             {
@@ -344,9 +313,8 @@ namespace GVFS.CommandLine
                 catch (Exception ex)
                 {
                     exception = ex;
+                    return false;
                 }
-
-                return false;
             }
         }
     }
