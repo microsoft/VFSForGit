@@ -1,8 +1,5 @@
-using GVFS.Common.FileSystem;
-using GVFS.Common.Git;
 using GVFS.Common.Tracing;
 using System;
-using System.IO;
 
 namespace GVFS.Common
 {
@@ -10,15 +7,10 @@ namespace GVFS.Common
     {
         public static bool TryCreateUpgrader(out IProductUpgrader newUpgrader, ITracer tracer, out string error)
         {
-            IProductUpgrader upgrader;
-            bool isEnabled;
-            bool isConfigured;
+            newUpgrader = GitHubUpgrader.Create(tracer, out bool isEnabled, out bool isConfigured, out error);
 
-            newUpgrader = null;
-            upgrader = GitHubUpgrader.Create(tracer, out isEnabled, out isConfigured, out error);
-            if (upgrader != null)
+            if (newUpgrader != null)
             {
-                newUpgrader = upgrader;
                 return true;
             }
 
@@ -29,10 +21,7 @@ namespace GVFS.Common
                 return false;
             }
 
-            if (tracer != null)
-            {
-                tracer.RelatedError($"{nameof(TryCreateUpgrader)}: Could not create upgrader. {error}");
-            }
+            tracer?.RelatedError($"{nameof(TryCreateUpgrader)}: Could not create upgrader. {error}");
 
             error = GVFSConstants.UpgradeVerbMessages.InvalidRingConsoleAlert + Environment.NewLine + Environment.NewLine + "Error: " + error;
             return false;
