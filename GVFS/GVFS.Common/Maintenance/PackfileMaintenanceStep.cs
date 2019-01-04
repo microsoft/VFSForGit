@@ -127,6 +127,12 @@ namespace GVFS.Common.Maintenance
                         activity.RelatedWarning($"Skipping {nameof(PackfileMaintenanceStep)} due to git pids {string.Join(",", processIds)}", Keywords.Telemetry);
                         return;
                     }
+
+                    if (this.Context.Repository.HasActiveLibGit2Repos)
+                    {
+                        activity.RelatedWarning($"Skipping {nameof(PackfileMaintenanceStep)} due to active libgit2 repos", Keywords.Telemetry);
+                        return;
+                    }
                 }
 
                 this.GetPackFilesInfo(out int beforeCount, out long beforeSize, out bool hasKeep);

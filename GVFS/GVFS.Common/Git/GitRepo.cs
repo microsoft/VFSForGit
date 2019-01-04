@@ -27,7 +27,7 @@ namespace GVFS.Common.Git
             this.libgit2RepoPool = new LibGit2RepoPool(
                 tracer,
                 repoFactory ?? (() => new LibGit2Repo(this.tracer, this.enlistment.WorkingDirectoryRoot)),
-                Environment.ProcessorCount * 2);
+                2 * Environment.ProcessorCount);
         }
 
         // For Unit Testing
@@ -44,6 +44,8 @@ namespace GVFS.Common.Git
             Corrupt,
             Unknown,
         }
+
+        public bool HasActiveLibGit2Repos => this.libgit2RepoPool != null && this.libgit2RepoPool.NumActiveRepos > 0;
 
         public GVFSLock GVFSLock
         {

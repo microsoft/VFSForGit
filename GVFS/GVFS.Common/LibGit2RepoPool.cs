@@ -6,31 +6,53 @@ using System.Threading;
 
 namespace GVFS.Common
 {
-    public class LibGit2RepoPool
+    public class LibGit2RepoPool : IDisposable
     {
-        private const int TryAddTimeoutMilliseconds = 10;
-        private const int TryTakeTimeoutMilliseconds = Timeout.Infinite;
+        private const int TryAddTimeoutMilliseconds = 0;
+        private const int TryTakeTimeoutMilliseconds = 0;
 
         private readonly BlockingCollection<LibGit2Repo> pool;
+        private readonly Func<LibGit2Repo> createRepo;
         private readonly ITracer tracer;
 
-        public LibGit2RepoPool(ITracer tracer, Func<LibGit2Repo> createRepo, int size)
+        private readonly Timer repoDisposalTimer;
+        private readonly TimeSpan repoDisposalDueTime = TimeSpan.FromMinutes(15);
+        private readonly TimeSpan repoDisposalPeriod = TimeSpan.FromMinutes(1);
+        private volatile int numActiveRepos;
+
+        public LibGit2RepoPool(
+            ITracer tracer,
+                Func<LibGit2Repo> createRepo,
+                int size,
+                TimeSpan? repoDisposalDueTime = null,
+                TimeSpan? repoDisposalPeriod = null)
         {
-            if (size <= 0)
+            this.createRepo = createRepo;
+            this.tracer = tracer;
+            this.pool = new BlockingCollection<LibGit2Repo>(boundedCapacity: size);
+
+            if (repoDisposalDueTime.HasValue)
             {
-                throw new ArgumentException("ProcessPool: size must be greater than 0");
+                this.repoDisposalDueTime = repoDisposalDueTime.Value;
             }
 
-            this.tracer = tracer;
-            this.pool = new BlockingCollection<LibGit2Repo>();
-            for (int i = 0; i < size; ++i)
+            if (repoDisposalPeriod.HasValue)
             {
-                this.pool.Add(createRepo());
+                this.repoDisposalPeriod = repoDisposalPeriod.Value;
             }
+
+            this.repoDisposalTimer = new Timer(
+                                             (state) => this.TryDropARepo(),
+                                             state: null,
+                                             dueTime: this.repoDisposalDueTime,
+                                             period: this.repoDisposalPeriod);
         }
+
+        public int NumActiveRepos => this.numActiveRepos;
 
         public void Dispose()
         {
+            this.repoDisposalTimer.Dispose();
             this.pool.CompleteAdding();
             this.CleanUpPool();
         }
@@ -67,26 +89,44 @@ namespace GVFS.Common
 
         private LibGit2Repo GetRepoFromPool()
         {
-            LibGit2Repo repo;
-            if (this.pool.TryTake(out repo, TryTakeTimeoutMilliseconds))
+            this.ResetRepoDisposalTimer();
+
+            if (this.pool.TryTake(out LibGit2Repo repo, TryTakeTimeoutMilliseconds))
             {
                 return repo;
             }
 
-            // This should only happen when the pool is shutting down
-            return null;
+            Interlocked.Increment(ref this.numActiveRepos);
+            return this.createRepo();
         }
 
         private void ReturnToPool(LibGit2Repo repo)
         {
             if (repo != null)
             {
+                this.ResetRepoDisposalTimer();
+
                 if (this.pool.IsAddingCompleted ||
                     !this.pool.TryAdd(repo, TryAddTimeoutMilliseconds))
                 {
-                    // No more adding to the pool or trying to add to the pool failed
+                    // No more adding to the pool or the pool is full
+                    Interlocked.Decrement(ref this.numActiveRepos);
                     repo.Dispose();
                 }
+            }
+        }
+
+        private void ResetRepoDisposalTimer()
+        {
+            this.repoDisposalTimer.Change(this.repoDisposalDueTime, this.repoDisposalPeriod);
+        }
+
+        private void TryDropARepo()
+        {
+            if (this.pool.TryTake(out LibGit2Repo repo, TryTakeTimeoutMilliseconds))
+            {
+                Interlocked.Decrement(ref this.numActiveRepos);
+                repo.Dispose();
             }
         }
 
