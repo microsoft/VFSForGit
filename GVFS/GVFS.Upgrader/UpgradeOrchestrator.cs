@@ -56,7 +56,7 @@ namespace GVFS.Upgrader
 
         public void Execute()
         {
-            string error = null;
+            string error;
             string mountError = null;
             Version newVersion = null;
 
@@ -326,10 +326,9 @@ namespace GVFS.Upgrader
             string installedGVFSVersion = ProcessHelper.GetCurrentProcessVersion();
             metadata.Add(nameof(installedGVFSVersion), installedGVFSVersion);
 
-            GitVersion installedGitVersion = null;
-            string error = null;
             string gitPath = GVFSPlatform.Instance.GitInstallation.GetInstalledGitBinPath();
-            if (!string.IsNullOrEmpty(gitPath) && GitProcess.TryGetVersion(gitPath, out installedGitVersion, out error))
+
+            if (!string.IsNullOrEmpty(gitPath) && GitProcess.TryGetVersion(gitPath, out GitVersion installedGitVersion, out string _))
             {
                 metadata.Add(nameof(installedGitVersion), installedGitVersion.ToString());
             }
