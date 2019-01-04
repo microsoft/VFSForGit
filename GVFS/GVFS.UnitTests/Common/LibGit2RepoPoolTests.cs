@@ -17,6 +17,7 @@ namespace GVFS.UnitTests.Common
         {
             MockTracer tracer = new MockTracer();
             int size = 3;
+            int allocations = 2 * size;
             TimeSpan dueTime = TimeSpan.FromMilliseconds(1);
             TimeSpan period = TimeSpan.FromMilliseconds(1);
 
@@ -26,7 +27,7 @@ namespace GVFS.UnitTests.Common
 
             using (LibGit2RepoPool pool = new LibGit2RepoPool(tracer, () => new MockLibGit2Repo(disposalTriggers), size, dueTime, period))
             {
-                for (int i = 0; i < size; i++)
+                for (int i = 0; i < allocations; i++)
                 {
                     new Thread(() => pool.TryInvoke(
                         repo =>
@@ -38,7 +39,7 @@ namespace GVFS.UnitTests.Common
                     threadReady.TryTake(out object _, 5000);
                 }
 
-                for (int i = 0; i < size; i++)
+                for (int i = 0; i < allocations; i++)
                 {
                     threadTriggers.TryAdd(new object(), 0);
                     disposalTriggers.TryTake(out object obj, millisecondsTimeout: 5000).ShouldBeTrue();
