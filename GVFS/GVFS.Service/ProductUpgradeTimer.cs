@@ -11,10 +11,10 @@ namespace GVFS.Service
     public class ProductUpgradeTimer : IDisposable
     {
         private static readonly TimeSpan TimeInterval = TimeSpan.FromDays(1);
-        private JsonTracer tracer;
+        private ITracer tracer;
         private Timer timer;
 
-        public ProductUpgradeTimer(JsonTracer tracer)
+        public ProductUpgradeTimer(ITracer tracer)
         {
             this.tracer = tracer;
         }
@@ -57,9 +57,8 @@ namespace GVFS.Service
         {
             string errorMessage = null;
             InstallerPreRunChecker prerunChecker = new InstallerPreRunChecker(this.tracer, string.Empty);
-            IProductUpgrader productUpgrader;
 
-            if (ProductUpgraderFactory.TryCreateUpgrader(out productUpgrader, this.tracer, out errorMessage))
+            if (ProductUpgraderFactory.TryCreateUpgrader(out IProductUpgrader productUpgrader, this.tracer, out errorMessage))
             {
                 if (prerunChecker.TryRunPreUpgradeChecks(out string _) && this.TryDownloadUpgrade(productUpgrader, out errorMessage))
                 {
@@ -79,15 +78,14 @@ namespace GVFS.Service
         {
             using (ITracer activity = this.tracer.StartActivity("Checking for product upgrades.", EventLevel.Informational))
             {
-                Version newerVersion = null;
-                string detailedError = null;
-                bool isError;
-                if (!productUpgrader.TryGetConfigAllowsUpgrade(out isError, out errorMessage))
+                string detailedError;
+
+                if (!productUpgrader.TryGetConfigAllowsUpgrade(out bool isError, out errorMessage))
                 {
                     return !isError;
                 }
 
-                if (!productUpgrader.TryGetNewerVersion(out newerVersion, out detailedError))
+                if (!productUpgrader.TryGetNewerVersion(out Version newerVersion, out detailedError))
                 {
                     errorMessage = "Could not fetch new version info. " + detailedError;
                     return false;
