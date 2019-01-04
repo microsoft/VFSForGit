@@ -1,5 +1,4 @@
 ﻿using GVFS.Common.FileSystem;
-using GVFS.Common.Tracing;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -112,12 +111,11 @@ namespace GVFS.Common
         {
             if (this.allSettings == null)
             {
-                FileBasedDictionary<string, string> config = null;
                 if (FileBasedDictionary<string, string>.TryCreate(
                     tracer: null,
                     dictionaryPath: this.configFile,
                     fileSystem: this.fileSystem,
-                    output: out config,
+                    output: out FileBasedDictionary<string, string> config,
                     error: out error,
                     keyComparer: StringComparer.OrdinalIgnoreCase))
                 {
