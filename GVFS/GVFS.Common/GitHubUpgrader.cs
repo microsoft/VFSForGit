@@ -73,7 +73,7 @@ namespace GVFS.Common
             out string error)
         {
             GitHubUpgrader upgrader = null;
-            LocalGVFSConfig localConfig = new LocalGVFSConfig();
+            LocalGVFSConfig localConfig = new LocalGVFSConfig(tracer);
             GitHubUpgraderConfig gitHubUpgraderConfig = new GitHubUpgraderConfig(tracer, localConfig);
 
             if (gitHubUpgraderConfig.TryLoad(out isEnabled, out isConfigured, out error))

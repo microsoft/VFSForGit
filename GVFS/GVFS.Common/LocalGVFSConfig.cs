@@ -1,4 +1,5 @@
 ﻿using GVFS.Common.FileSystem;
+using GVFS.Common.Tracing;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -8,12 +9,14 @@ namespace GVFS.Common
     public class LocalGVFSConfig
     {
         private const string FileName = "gvfs.config";
+        private readonly ITracer tracer;
         private readonly string configFile;
         private readonly PhysicalFileSystem fileSystem;
         private FileBasedDictionary<string, string> allSettings;
 
-        public LocalGVFSConfig()
+        public LocalGVFSConfig(ITracer tracer)
         {
+            this.tracer = tracer;
             string servicePath = Paths.GetServiceDataRoot(GVFSConstants.Service.ServiceName);
             string gvfsDirectory = Path.GetDirectoryName(servicePath);
 
@@ -112,7 +115,7 @@ namespace GVFS.Common
             if (this.allSettings == null)
             {
                 if (FileBasedDictionary<string, string>.TryCreate(
-                    tracer: null,
+                    this.tracer,
                     dictionaryPath: this.configFile,
                     fileSystem: this.fileSystem,
                     output: out FileBasedDictionary<string, string> config,

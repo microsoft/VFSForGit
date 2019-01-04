@@ -51,8 +51,9 @@ namespace GVFS.CommandLine
                 this.ReportErrorAndExit("`gvfs config` is not yet implemented on this operating system.");
             }
 
-            this.localConfig = new LocalGVFSConfig();
-            string error = null;
+            this.localConfig = new LocalGVFSConfig(tracer: null);
+
+            string error;
 
             if (this.IsMutuallyExclusiveOptionsSet(out error))
             {

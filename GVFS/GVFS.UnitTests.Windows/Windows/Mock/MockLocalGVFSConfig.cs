@@ -5,7 +5,7 @@ namespace GVFS.UnitTests.Windows.Mock.Upgrader
 {
     public class MockLocalGVFSConfig : LocalGVFSConfig
     {
-        public MockLocalGVFSConfig()
+        public MockLocalGVFSConfig() : base(tracer: null)
         {
             this.MockSettings = new Dictionary<string, string>();
         }
