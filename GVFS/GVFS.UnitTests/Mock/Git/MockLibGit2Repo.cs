@@ -26,5 +26,10 @@ namespace GVFS.UnitTests.Mock.Git
         {
             throw new NotSupportedException();
         }
+
+        public override bool TryGetObjectSize(string sha, out long size)
+        {
+            throw new NotSupportedException();
+        }
     }
 }
