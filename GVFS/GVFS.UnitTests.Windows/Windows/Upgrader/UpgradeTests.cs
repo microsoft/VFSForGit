@@ -31,7 +31,7 @@ namespace GVFS.UnitTests.Windows.Upgrader
             this.Upgrader = new MockGitHubUpgrader(
                 LocalGVFSVersion,
                 this.Tracer,
-                new GitHubUpgrader.GitHubUpgraderConfig(this.Tracer, this.LocalConfig));
+                new GitHubUpgrader.GitHubUpgraderConfig(this.LocalConfig));
 
             this.PrerunChecker.Reset();
             this.Upgrader.PretendNewReleaseAvailableAtRemote(

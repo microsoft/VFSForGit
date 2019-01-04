@@ -191,7 +191,7 @@ namespace GVFS.CommandLine
                 return false;
             }
 
-            if (!this.TryLaunchUpgradeTool(upgraderPath, out string _))
+            if (!this.TryLaunchUpgradeTool(upgraderPath, out consoleError))
             {
                 return false;
             }
