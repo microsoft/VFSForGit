@@ -5,11 +5,8 @@ using System.IO;
 
 namespace GVFS.Common
 {
-    public class ProductUpgraderBase
+    public class LocalUpgraderServices
     {
-        protected static readonly string GitBinPath = GVFSPlatform.Instance.GitInstallation.GetInstalledGitBinPath();
-
-        protected Version installedVersion;
         protected PhysicalFileSystem fileSystem;
         protected ITracer tracer;
 
@@ -28,14 +25,43 @@ namespace GVFS.Common
                 "Newtonsoft.Json.dll"
             };
 
-        protected ProductUpgraderBase(string currentVersion, ITracer tracer)
+        public LocalUpgraderServices(ITracer tracer)
         {
-            this.installedVersion = new Version(currentVersion);
             this.fileSystem = new PhysicalFileSystem();
             this.tracer = tracer;
 
             string upgradesDirectoryPath = ProductUpgraderInfo.GetUpgradesDirectoryPath();
             this.fileSystem.CreateDirectory(upgradesDirectoryPath);
+        }
+
+        public string TempPath => LocalUpgraderServices.GetTempPath();
+
+        public static string GetTempPath()
+        {
+            return Path.Combine(
+                ProductUpgraderInfo.GetUpgradesDirectoryPath(),
+                "InstallerTemp");
+        }
+
+        public static bool TryCreateDirectory(string path, out Exception exception)
+        {
+            try
+            {
+                Directory.CreateDirectory(path);
+            }
+            catch (IOException e)
+            {
+                exception = e;
+                return false;
+            }
+            catch (UnauthorizedAccessException e)
+            {
+                exception = e;
+                return false;
+            }
+
+            exception = null;
+            return true;
         }
 
         // TrySetupToolsDirectory -
@@ -89,43 +115,7 @@ namespace GVFS.Common
             return false;
         }
 
-        protected static bool TryCreateDirectory(string path, out Exception exception)
-        {
-            try
-            {
-                Directory.CreateDirectory(path);
-            }
-            catch (IOException e)
-            {
-                exception = e;
-                return false;
-            }
-            catch (UnauthorizedAccessException e)
-            {
-                exception = e;
-                return false;
-            }
-
-            exception = null;
-            return true;
-        }
-
-        protected static string GetTempPath()
-        {
-            return Path.Combine(
-                ProductUpgraderInfo.GetUpgradesDirectoryPath(),
-                "InstallerTemp");
-        }
-
-        protected void TraceException(Exception exception, string method, string message)
-        {
-            EventMetadata metadata = new EventMetadata();
-            metadata.Add("Method", method);
-            metadata.Add("Exception", exception.ToString());
-            this.tracer.RelatedError(metadata, message, Keywords.Telemetry);
-        }
-
-        protected virtual void RunInstaller(string path, string args, out int exitCode, out string error)
+        public virtual void RunInstaller(string path, string args, out int exitCode, out string error)
         {
             ProcessResult processResult = ProcessHelper.Run(path, args);
 
@@ -133,7 +123,7 @@ namespace GVFS.Common
             error = processResult.Errors;
         }
 
-        protected bool TryDeleteDirectory(string path, out Exception exception)
+        public virtual bool TryDeleteDirectory(string path, out Exception exception)
         {
             try
             {
@@ -152,6 +142,14 @@ namespace GVFS.Common
 
             exception = null;
             return true;
+        }
+
+        protected void TraceException(Exception exception, string method, string message)
+        {
+            EventMetadata metadata = new EventMetadata();
+            metadata.Add("Method", method);
+            metadata.Add("Exception", exception.ToString());
+            this.tracer.RelatedError(metadata, message, Keywords.Telemetry);
         }
     }
 }

@@ -1,4 +1,5 @@
-﻿using GVFS.Common.Git;
+﻿using GVFS.Common.FileSystem;
+using GVFS.Common.Git;
 using GVFS.Common.Tracing;
 using NuGet.Protocol.Core.Types;
 using System;
@@ -9,28 +10,37 @@ using System.Threading;
 
 namespace GVFS.Common
 {
-    public class NuGetUpgrader : ProductUpgraderBase, IProductUpgrader
+    public class NuGetUpgrader : IProductUpgrader
     {
+        private static readonly string GitBinPath = GVFSPlatform.Instance.GitInstallation.GetInstalledGitBinPath();
+
+        private PhysicalFileSystem fileSystem;
+        private ITracer tracer;
+        private LocalUpgraderServices localUpgradeServices;
+        private Version installedVersion;
+
         public NuGetUpgrader(
             string currentVersion,
             ITracer tracer,
             NugetUpgraderConfig config,
             string downloadFolder,
             string personalAccessToken)
-            : base(currentVersion, tracer)
         {
             this.Config = config;
-            this.DownloadFolder = downloadFolder;
-            this.PersonalAccessToken = personalAccessToken;
+
+            this.fileSystem = new PhysicalFileSystem();
+            this.tracer = tracer;
+            this.installedVersion = new Version(currentVersion);
+
+            string upgradesDirectoryPath = ProductUpgraderInfo.GetUpgradesDirectoryPath();
+            this.fileSystem.CreateDirectory(upgradesDirectoryPath);
 
             this.NuGetWrapper = new NuGetWrapper(config.FeedUrl, config.PackageFeedName, downloadFolder, personalAccessToken, tracer);
+
+            this.localUpgradeServices = new LocalUpgraderServices(tracer);
         }
 
         private NugetUpgraderConfig Config { get; set; }
-
-        private string DownloadFolder { get; set; }
-
-        private string PersonalAccessToken { get; set; }
 
         private IPackageSearchMetadata LatestVersion { get; set; }
 
@@ -41,18 +51,6 @@ namespace GVFS.Common
         private string ExtractedPath { get; set; }
 
         private NuGetWrapper NuGetWrapper { get; set; }
-
-        private NuGet.Configuration.PackageSourceCredential Credentials
-        {
-            get
-            {
-                return NuGet.Configuration.PackageSourceCredential.FromUserInput(
-                    "VfsForGitNugetUpgrader",
-                    "PersonalAccessToken",
-                    this.PersonalAccessToken,
-                    false);
-            }
-        }
 
         public static IProductUpgrader Create(
             ITracer tracer,
@@ -87,17 +85,27 @@ namespace GVFS.Common
             return upgrader;
         }
 
-        public Version QueryLatestVersion()
+        public bool UpgradeAllowed(out string message)
         {
-            Version version;
-            string message;
-            this.TryQueryNewestVersion(out version, out message);
-            return version;
-        }
+            if (string.IsNullOrEmpty(this.Config.FeedUrl))
+            {
+                message = "Nuget Feed URL has not been configured";
+                return false;
+            }
 
-        public bool UpgradeAllowed(out string error)
-        {
-            error = string.Empty;
+            if (string.IsNullOrEmpty(this.Config.PackageFeedName))
+            {
+                message = "URL to lookup credentials has not been configured";
+                return false;
+            }
+
+            if (string.IsNullOrEmpty(this.Config.FeedUrlForCredentials))
+            {
+                message = "URL to lookup credentials has not been configured";
+                return false;
+            }
+
+            message = null;
             return true;
         }
 
@@ -118,11 +126,23 @@ namespace GVFS.Common
                 }
             }
 
-            if (highestVersion != null)
+            if (highestVersion != null &&
+                highestVersion.Identity.Version.Version > this.installedVersion)
             {
                 this.LatestVersion = highestVersion;
-                newVersion = this.LatestVersion.Identity?.Version?.Version;
+            }
+
+            newVersion = this.LatestVersion.Identity?.Version?.Version;
+
+            if (!(newVersion is null))
+            {
+                message = $"New version {highestVersion.Identity.Version} is available.";
                 return true;
+            }
+            else if (!(highestVersion is null))
+            {
+                message = $"Latest available version is {highestVersion.Identity.Version}, you are up-to-date";
+                return false;
             }
 
             return false;
@@ -135,7 +155,11 @@ namespace GVFS.Common
                 this.PackagePath = this.NuGetWrapper.DownloadPackage(this.LatestVersion.Identity).GetAwaiter().GetResult();
 
                 Exception e;
-                bool success = this.TryDeleteDirectory(ProductUpgraderBase.GetTempPath(), out e);
+                if (!this.localUpgradeServices.TryDeleteDirectory(this.localUpgradeServices.TempPath, out e))
+                {
+                    errorMessage = e.Message;
+                    return false;
+                }
 
                 this.UnzipPackageToTempLocation();
                 this.Manifest = new ReleaseManifestJson();
@@ -155,7 +179,7 @@ namespace GVFS.Common
         {
             error = null;
             Exception e;
-            bool success = this.TryDeleteDirectory(GetTempPath(), out e);
+            bool success = this.localUpgradeServices.TryDeleteDirectory(this.localUpgradeServices.TempPath, out e);
 
             if (!success)
             {
@@ -177,7 +201,7 @@ namespace GVFS.Common
                     () =>
                     {
                         string installerPath = Path.Combine(this.ExtractedPath, "content", entry.RelativePath);
-                        this.RunInstaller(installerPath, entry.Args, out installerExitCode, out localError);
+                        this.localUpgradeServices.RunInstaller(installerPath, entry.Args, out installerExitCode, out localError);
 
                         installSuccesesfull = installerExitCode == 0;
 
@@ -206,6 +230,22 @@ namespace GVFS.Common
             throw new NotImplementedException();
         }
 
+        public bool TrySetupToolsDirectory(out string upgraderToolPath, out string error)
+        {
+            return this.localUpgradeServices.TrySetupToolsDirectory(out upgraderToolPath, out error);
+        }
+
+        public Version QueryLatestVersion()
+        {
+            Version version;
+            if (!this.TryQueryNewestVersion(out version, out string message))
+            {
+                throw new Exception(message);
+            }
+
+            return version;
+        }
+
         private static bool TryGetPersonalAccessToken(string gitBinaryPath, string credentialUrl, ITracer tracer, out string token, out string error)
         {
             GitProcess gitProcess = new GitProcess(gitBinaryPath, null, null);
@@ -214,7 +254,7 @@ namespace GVFS.Common
 
         private void UnzipPackageToTempLocation()
         {
-            this.ExtractedPath = ProductUpgraderBase.GetTempPath();
+            this.ExtractedPath = this.localUpgradeServices.TempPath;
             ZipFile.ExtractToDirectory(this.PackagePath, this.ExtractedPath);
         }
 

@@ -1,3 +1,4 @@
+using GVFS.Common.FileSystem;
 using GVFS.Common.Git;
 using GVFS.Common.Tracing;
 using System;
@@ -12,7 +13,7 @@ using System.Runtime.Serialization.Json;
 
 namespace GVFS.Common
 {
-    public class GitHubUpgrader : ProductUpgraderBase, IProductUpgrader
+    public class GitHubUpgrader : IProductUpgrader
     {
         private const string GitHubReleaseURL = @"https://api.github.com/repos/microsoft/vfsforgit/releases";
         private const string JSONMediaType = @"application/vnd.github.v3+json";
@@ -27,14 +28,23 @@ namespace GVFS.Common
 
         private Version newestVersion;
         private Release newestRelease;
+        private PhysicalFileSystem fileSystem;
+        private ITracer tracer;
+        private LocalUpgraderServices localUpgradeServices;
+        private Version installedVersion;
 
         public GitHubUpgrader(
             string currentVersion,
             ITracer tracer,
             GitHubUpgraderConfig upgraderConfig)
-            : base(currentVersion, tracer)
         {
             this.Config = upgraderConfig;
+
+            this.installedVersion = new Version(currentVersion);
+            this.fileSystem = new PhysicalFileSystem();
+            this.tracer = tracer;
+
+            this.localUpgradeServices = new LocalUpgraderServices(tracer);
         }
 
         public GitHubUpgraderConfig Config { get; private set; }
@@ -189,6 +199,11 @@ namespace GVFS.Common
             return true;
         }
 
+        public bool TrySetupToolsDirectory(out string upgraderToolPath, out string error)
+        {
+            return this.localUpgradeServices.TrySetupToolsDirectory(out upgraderToolPath, out error);
+        }
+
         public bool TryCleanup(out string error)
         {
             error = string.Empty;
@@ -227,7 +242,7 @@ namespace GVFS.Common
 
             string downloadPath = ProductUpgraderInfo.GetAssetDownloadsPath();
             Exception exception;
-            if (!ProductUpgraderBase.TryCreateDirectory(downloadPath, out exception))
+            if (!LocalUpgraderServices.TryCreateDirectory(downloadPath, out exception))
             {
                 errorMessage = exception.Message;
                 this.TraceException(exception, nameof(this.TryDownloadAsset), $"Error creating download directory {downloadPath}.");
@@ -350,7 +365,7 @@ namespace GVFS.Common
             {
                 string logFilePath = GVFSEnlistment.GetNewLogFileName(ProductUpgraderInfo.GetLogDirectoryPath(), Path.GetFileNameWithoutExtension(path));
                 string args = installerArgs + " /Log=" + logFilePath;
-                this.RunInstaller(path, args, out installerExitCode, out error);
+                this.localUpgradeServices.RunInstaller(path, args, out installerExitCode, out error);
 
                 if (installerExitCode != 0 && string.IsNullOrEmpty(error))
                 {
@@ -414,6 +429,14 @@ namespace GVFS.Common
             }
 
             return false;
+        }
+
+        private void TraceException(Exception exception, string method, string message)
+        {
+            EventMetadata metadata = new EventMetadata();
+            metadata.Add("Method", method);
+            metadata.Add("Exception", exception.ToString());
+            this.tracer.RelatedError(metadata, message, Keywords.Telemetry);
         }
 
         private void LogVersionInfo(
