@@ -123,6 +123,10 @@ namespace GVFS.Common
         {
             bool downloadedGit = false;
             bool downloadedGVFS = false;
+
+            string upgradesDirectoryPath = ProductUpgraderInfo.GetUpgradesDirectoryPath();
+            this.fileSystem.CreateDirectory(upgradesDirectoryPath);
+
             foreach (Asset asset in this.newestRelease.Assets)
             {
                 bool targetOSMatch = string.Equals(Path.GetExtension(asset.Name), GVFSPlatform.Instance.Constants.InstallerExtension, StringComparison.OrdinalIgnoreCase);
@@ -199,7 +203,7 @@ namespace GVFS.Common
             return true;
         }
 
-        public bool TrySetupToolsDirectory(out string upgraderToolPath, out string error)
+        public virtual bool TrySetupToolsDirectory(out string upgraderToolPath, out string error)
         {
             return this.localUpgradeServices.TrySetupToolsDirectory(out upgraderToolPath, out error);
         }
@@ -300,6 +304,11 @@ namespace GVFS.Common
             return false;
         }
 
+        protected virtual void RunInstaller(string path, string args, out int exitCode, out string error)
+        {
+            this.localUpgradeServices.RunInstaller(path, args, out exitCode, out error);
+        }
+
         private bool TryGetGitVersion(out GitVersion gitVersion, out string error)
         {
             error = null;
@@ -365,7 +374,7 @@ namespace GVFS.Common
             {
                 string logFilePath = GVFSEnlistment.GetNewLogFileName(ProductUpgraderInfo.GetLogDirectoryPath(), Path.GetFileNameWithoutExtension(path));
                 string args = installerArgs + " /Log=" + logFilePath;
-                this.localUpgradeServices.RunInstaller(path, args, out installerExitCode, out error);
+                this.RunInstaller(path, args, out installerExitCode, out error);
 
                 if (installerExitCode != 0 && string.IsNullOrEmpty(error))
                 {

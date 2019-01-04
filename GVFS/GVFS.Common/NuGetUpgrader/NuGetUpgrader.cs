@@ -25,6 +25,17 @@ namespace GVFS.Common
             NugetUpgraderConfig config,
             string downloadFolder,
             string personalAccessToken)
+            : this(currentVersion, tracer, config, downloadFolder, personalAccessToken, new NuGetWrapper(config.FeedUrl, config.PackageFeedName, downloadFolder, personalAccessToken, tracer))
+        {
+        }
+
+        public NuGetUpgrader(
+            string currentVersion,
+            ITracer tracer,
+            NugetUpgraderConfig config,
+            string downloadFolder,
+            string personalAccessToken,
+            NuGetWrapper nuGetWrapper)
         {
             this.Config = config;
 
@@ -32,10 +43,7 @@ namespace GVFS.Common
             this.tracer = tracer;
             this.installedVersion = new Version(currentVersion);
 
-            string upgradesDirectoryPath = ProductUpgraderInfo.GetUpgradesDirectoryPath();
-            this.fileSystem.CreateDirectory(upgradesDirectoryPath);
-
-            this.NuGetWrapper = new NuGetWrapper(config.FeedUrl, config.PackageFeedName, downloadFolder, personalAccessToken, tracer);
+            this.NuGetWrapper = nuGetWrapper;
 
             this.localUpgradeServices = new LocalUpgraderServices(tracer);
         }
@@ -195,6 +203,9 @@ namespace GVFS.Common
             int installerExitCode;
             bool installSuccesesfull = true;
 
+            string upgradesDirectoryPath = ProductUpgraderInfo.GetUpgradesDirectoryPath();
+            this.fileSystem.CreateDirectory(upgradesDirectoryPath);
+
             foreach (ManifestEntry entry in this.Manifest.ManifestEntries)
             {
                 installActionWrapper(
@@ -264,6 +275,19 @@ namespace GVFS.Common
             {
                 this.Tracer = tracer;
                 this.LocalConfig = localGVFSConfig;
+            }
+
+            public NugetUpgraderConfig(
+                ITracer tracer,
+                LocalGVFSConfig localGVFSConfig,
+                string feedUrl,
+                string packageFeedName,
+                string feedUrlForCredentials)
+                : this(tracer, localGVFSConfig)
+            {
+                this.FeedUrl = feedUrl;
+                this.PackageFeedName = packageFeedName;
+                this.FeedUrlForCredentials = feedUrlForCredentials;
             }
 
             public string FeedUrl { get; private set; }

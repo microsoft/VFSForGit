@@ -29,9 +29,6 @@ namespace GVFS.Common
         {
             this.fileSystem = new PhysicalFileSystem();
             this.tracer = tracer;
-
-            string upgradesDirectoryPath = ProductUpgraderInfo.GetUpgradesDirectoryPath();
-            this.fileSystem.CreateDirectory(upgradesDirectoryPath);
         }
 
         public string TempPath => LocalUpgraderServices.GetTempPath();
