@@ -160,14 +160,7 @@ VirtualizationRootHandle VirtualizationRoot_FindForVnode(
     errno_t error = vnode_get(vnode);
     if (error != 0)
     {
-        const char* name = vnode_getname(vnode);
-        mount_t mount = vnode_mount(vnode);
-        vfsstatfs* vfsStat = mount != nullptr ? vfs_statfs(mount) : nullptr;
-        KextLog_FileError(vnode, "VirtualizationRoot_FindForVnode: vnode_get() failed (error = %d) on vnode we'd expect to be live; name = '%s', recycling = %s, mount point mounted at path '%s'", error, name ?: "[NULL]", vnode_isrecycled(vnode) ? "yes" : "no", vfsStat ? vfsStat->f_mntonname : "[NULL]");
-        if (name != nullptr)
-        {
-            vnode_putname(name);
-        }
+        KextLog_ErrorVnodePathAndProperties(vnode, "VirtualizationRoot_FindForVnode: vnode_get() failed (error = %d) on vnode we'd expect to be live", error);
     }
     
     // Search up the tree until we hit a known virtualization root or THE root of the file system
@@ -226,15 +219,7 @@ static VirtualizationRootHandle FindOrDetectRootAtVnode(vnode_t _Nonnull vnode, 
             errno_t error = vn_getpath(vnode, path, &pathLength);
             if (error != 0)
             {
-                const char* name = vnode_getname(vnode);
-                mount_t mount = vnode_mount(vnode);
-                vfsstatfs* vfsStat = mount != nullptr ? vfs_statfs(mount) : nullptr;
-
-                KextLog_Error("FindOrDetectRootAtVnode: vn_getpath failed (error = %d) for vnode with name '%s', recycled: %s, on mount point mounted at '%s'", error, name ?: "[NULL]", vnode_isrecycled(vnode) ? "yes" : "no", vfsStat ? vfsStat->f_mntonname : "[NULL]");
-                if (name != nullptr)
-                {
-                    vnode_putname(name);
-                }
+                KextLog_ErrorVnodeProperties(vnode, "FindOrDetectRootAtVnode: vn_getpath failed (error = %d)", error);
             }
             
             RWLock_AcquireExclusive(s_virtualizationRootsLock);
@@ -404,15 +389,8 @@ VirtualizationRootResult VirtualizationRoot_RegisterProviderForPath(PrjFSProvide
             
             if (0 != err)
             {
-                const char* name = vnode_getname(virtualizationRootVNode);
-                mount_t mount = vnode_mount(virtualizationRootVNode);
-                vfsstatfs* vfsStat = mount != nullptr ? vfs_statfs(mount) : nullptr;
-
-                KextLog_Error("VirtualizationRoot_RegisterProviderForPath: vn_getpath failed (error = %d) for vnode looked up from path '%s' with name '%s', recycled: %s, on mount point at '%s'", err, virtualizationRootPath, name ?: "[NULL]", vnode_isrecycled(virtualizationRootVNode) ? "yes" : "no", vfsStat ? vfsStat->f_mntonname : "[NULL]");
-                if (name != nullptr)
-                {
-                    vnode_putname(name);
-                }
+                KextLog_ErrorVnodeProperties(
+                    virtualizationRootVNode, "VirtualizationRoot_RegisterProviderForPath: vn_getpath failed (error = %d) for vnode looked up from path '%s'", err, virtualizationRootPath);
             }
             else
             {

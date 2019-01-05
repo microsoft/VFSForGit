@@ -4,6 +4,8 @@
 #include "public/PrjFSCommon.h"
 #include "PrjFSClasses.hpp"
 #include "public/PrjFSLogClientShared.h"
+#include "kernel-header-wrappers/vnode.h"
+#include "kernel-header-wrappers/mount.h"
 #include <os/log.h>
 
 extern os_log_t __prjfs_log;
@@ -22,7 +24,14 @@ void KextLog_Printf(KextLog_Level loglevel, const char* fmt, ...)  __printflike(
 
 // Helper macros/function for logging with file paths. Note that the path must
 // be the last % format code in the format string, but the vnode is the first
-// argument following the format string. An unfortunate implementation detail!
+// argument following the format string. An unfortunate implementation detail,
+// but not too problematic if you just use the macros and not the function directly.
+//
+// The reason for the helper function/macro split is that we want to encourage
+// the compiler to create a new stack frame to hold the path buffer in order to
+// avoid bloating the caller's stack frame; we can't do this in a macro.
+// We need the macros below for the format string concatenation; we can't do
+// this in a function.
 struct vnode;
 extern "C" int vn_getpath(struct vnode *vp, char *pathbuf, int *len);
 template <typename... args>
@@ -41,6 +50,59 @@ template <typename... args>
 #define KextLog_FileError(vnode, format, ...) ({ _os_log_verify_format_str(format, ##__VA_ARGS__); KextLogFile_Printf(KEXTLOG_ERROR, vnode, format " (vnode path: '%s')", ##__VA_ARGS__); })
 #define KextLog_FileInfo(vnode, format, ...)  ({ _os_log_verify_format_str(format, ##__VA_ARGS__); KextLogFile_Printf(KEXTLOG_INFO, vnode, format " (vnode path: '%s')", ##__VA_ARGS__); })
 #define KextLog_FileNote(vnode, format, ...)  ({ _os_log_verify_format_str(format, ##__VA_ARGS__); KextLogFile_Printf(KEXTLOG_NOTE, vnode, format " (vnode path: '%s')", ##__VA_ARGS__); })
+
+
+// See comments for KextLogFile_Printf() above for rationale.
+template <typename... args>
+    void KextLog_PrintfVnodePathAndProperties(KextLog_Level loglevel, struct vnode* vnode, const char* fmt, args... a)
+    {
+        char vnodePath[PrjFSMaxPath] = "";
+        int vnodePathLength = PrjFSMaxPath;
+        vn_getpath(vnode, vnodePath, &vnodePathLength);
+        
+        const char* name = vnode_getname(vnode);
+        mount_t mount = vnode_mount(vnode);
+        vfsstatfs* vfsStat = mount != nullptr ? vfs_statfs(mount) : nullptr;
+        
+        KextLog_Printf(loglevel, fmt, a..., vnodePath, name ?: "[NULL]", vnode_vtype(vnode), vnode_isrecycled(vnode) ? "yes" : "no", vfsStat ? vfsStat->f_mntonname : "[NULL]");
+ 
+        if (name != nullptr)
+        {
+            // Cancels out the vnode_getname() call above, which incremented the refcount on the returned string.
+            vnode_putname(name);
+        }
+    }
+
+#define KextLog_ErrorVnodeProperties(vnode, format, ...) \
+    ({ \
+        _os_log_verify_format_str(format, ##__VA_ARGS__); \
+        KextLog_PrintfVnodeProperties(KEXTLOG_ERROR, vnode, format " (vnode name: '%s', type: %d, recycling: %s, mount point mounted at path '%s')", ##__VA_ARGS__); \
+    })
+
+
+// See comments for KextLogFile_Printf() above for rationale.
+template <typename... args>
+    void KextLog_PrintfVnodeProperties(KextLog_Level loglevel, struct vnode* vnode, const char* fmt, args... a)
+    {
+        const char* name = vnode_getname(vnode);
+        mount_t mount = vnode_mount(vnode);
+        vfsstatfs* vfsStat = mount != nullptr ? vfs_statfs(mount) : nullptr;
+        
+        KextLog_Printf(loglevel, fmt, a..., name ?: "[NULL]", vnode_vtype(vnode), vnode_isrecycled(vnode) ? "yes" : "no", vfsStat ? vfsStat->f_mntonname : "[NULL]");
+ 
+        if (name != nullptr)
+        {
+            // Cancels out the vnode_getname() call above, which incremented the refcount on the returned string.
+            vnode_putname(name);
+        }
+    }
+
+#define KextLog_ErrorVnodePathAndProperties(vnode, format, ...) \
+    ({ \
+        _os_log_verify_format_str(format, ##__VA_ARGS__); \
+        KextLog_PrintfVnodePathAndProperties(KEXTLOG_ERROR, vnode, format " (vnode path: '%s', name: '%s', type: %d, recycling: %s, mount point mounted at path '%s')", ##__VA_ARGS__); \
+    })
+
 
 #define KextLog_VnodeOp(vnode, vnodeType, procname, action, message) \
     do { \
