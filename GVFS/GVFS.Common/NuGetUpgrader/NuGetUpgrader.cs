@@ -25,7 +25,15 @@ namespace GVFS.Common
             NugetUpgraderConfig config,
             string downloadFolder,
             string personalAccessToken)
-            : this(currentVersion, tracer, config, downloadFolder, personalAccessToken, new NuGetWrapper(config.FeedUrl, config.PackageFeedName, downloadFolder, personalAccessToken, tracer))
+            : this(
+                currentVersion,
+                tracer,
+                config,
+                downloadFolder,
+                personalAccessToken,
+                new PhysicalFileSystem(),
+                new NuGetWrapper(config.FeedUrl, config.PackageFeedName, downloadFolder, personalAccessToken, tracer),
+                new LocalUpgraderServices(tracer))
         {
         }
 
@@ -35,17 +43,17 @@ namespace GVFS.Common
             NugetUpgraderConfig config,
             string downloadFolder,
             string personalAccessToken,
-            NuGetWrapper nuGetWrapper)
+            PhysicalFileSystem fileSystem,
+            NuGetWrapper nuGetWrapper,
+            LocalUpgraderServices localUpgraderServices)
         {
             this.Config = config;
-
-            this.fileSystem = new PhysicalFileSystem();
             this.tracer = tracer;
             this.installedVersion = new Version(currentVersion);
 
+            this.fileSystem = fileSystem;
             this.NuGetWrapper = nuGetWrapper;
-
-            this.localUpgradeServices = new LocalUpgraderServices(tracer);
+            this.localUpgradeServices = localUpgraderServices;
         }
 
         private NugetUpgraderConfig Config { get; set; }
@@ -166,20 +174,11 @@ namespace GVFS.Common
 
         public bool TryDownloadNewestVersion(out string errorMessage)
         {
+            // Check that we have latest version
+
             try
             {
                 this.PackagePath = this.NuGetWrapper.DownloadPackage(this.LatestVersion.Identity).GetAwaiter().GetResult();
-
-                Exception e;
-                if (!this.localUpgradeServices.TryDeleteDirectory(this.localUpgradeServices.TempPath, out e))
-                {
-                    errorMessage = e.Message;
-                    return false;
-                }
-
-                this.UnzipPackageToTempLocation();
-                this.Manifest = new ReleaseManifestJson();
-                this.Manifest.Read(Path.Combine(this.ExtractedPath, "content", "install-manifest.json"));
             }
             catch (Exception ex)
             {
@@ -212,6 +211,18 @@ namespace GVFS.Common
             bool installSuccesesfull = true;
 
             string upgradesDirectoryPath = ProductUpgraderInfo.GetUpgradesDirectoryPath();
+
+            Exception e;
+            if (!this.localUpgradeServices.TryDeleteDirectory(this.localUpgradeServices.TempPath, out e))
+            {
+                error = e.Message;
+                return false;
+            }
+
+            this.UnzipPackageToTempLocation();
+            this.Manifest = new ReleaseManifestJson();
+            this.Manifest.Read(Path.Combine(this.ExtractedPath, "content", "install-manifest.json"));
+
             this.fileSystem.CreateDirectory(upgradesDirectoryPath);
 
             foreach (ManifestEntry entry in this.Manifest.ManifestEntries)
