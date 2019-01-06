@@ -122,35 +122,43 @@ namespace GVFS.Common
             newVersion = null;
             message = null;
 
-            IList<IPackageSearchMetadata> queryResults = this.NuGetWrapper.QueryFeed(this.Config.PackageFeedName).GetAwaiter().GetResult();
-
-            // Find the latest package
-            IPackageSearchMetadata highestVersion = null;
-            foreach (IPackageSearchMetadata result in queryResults)
+            try
             {
-                if (highestVersion == null || result.Identity.Version > highestVersion.Identity.Version)
+                IList<IPackageSearchMetadata> queryResults = this.NuGetWrapper.QueryFeed(this.Config.PackageFeedName).GetAwaiter().GetResult();
+
+                // Find the latest package
+                IPackageSearchMetadata highestVersion = null;
+                foreach (IPackageSearchMetadata result in queryResults)
                 {
-                    highestVersion = result;
+                    if (highestVersion == null || result.Identity.Version > highestVersion.Identity.Version)
+                    {
+                        highestVersion = result;
+                    }
+                }
+
+                if (highestVersion != null &&
+                    highestVersion.Identity.Version.Version > this.installedVersion)
+                {
+                    this.LatestVersion = highestVersion;
+                }
+
+                newVersion = this.LatestVersion?.Identity?.Version?.Version;
+
+                if (!(newVersion is null))
+                {
+                    message = $"New version {highestVersion.Identity.Version} is available.";
+                    return true;
+                }
+                else if (!(highestVersion is null))
+                {
+                    message = $"Latest available version is {highestVersion.Identity.Version}, you are up-to-date";
+                    return true;
                 }
             }
-
-            if (highestVersion != null &&
-                highestVersion.Identity.Version.Version > this.installedVersion)
+            catch (Exception ex)
             {
-                this.LatestVersion = highestVersion;
-            }
-
-            newVersion = this.LatestVersion.Identity?.Version?.Version;
-
-            if (!(newVersion is null))
-            {
-                message = $"New version {highestVersion.Identity.Version} is available.";
-                return true;
-            }
-            else if (!(highestVersion is null))
-            {
-                message = $"Latest available version is {highestVersion.Identity.Version}, you are up-to-date";
-                return false;
+                message = ex.Message;
+                newVersion = null;
             }
 
             return false;
