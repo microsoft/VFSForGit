@@ -1,11 +1,16 @@
 ﻿using GVFS.Common;
+using GVFS.Common.FileSystem;
 using GVFS.Tests.Should;
+using GVFS.UnitTests.Mock;
 using GVFS.UnitTests.Mock.Common;
 using Moq;
+using NuGet.Packaging.Core;
+using NuGet.Protocol;
 using NuGet.Protocol.Core.Types;
 using NUnit.Framework;
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Threading.Tasks;
 
 namespace GVFS.UnitTests.Common
@@ -26,6 +31,7 @@ namespace GVFS.UnitTests.Common
         private string personalAccessToken;
 
         private Mock<NuGetWrapper> mockNuGetWrapper;
+        private Mock<PhysicalFileSystem> mockFileSystem;
 
         [SetUp]
         public void SetUp()
@@ -41,8 +47,17 @@ namespace GVFS.UnitTests.Common
             this.tracer = new MockTracer();
 
             this.mockNuGetWrapper = new Mock<NuGetWrapper>(feedUrl, feedName, this.downloadFolder, this.personalAccessToken, this.tracer);
+            this.mockFileSystem = new Mock<PhysicalFileSystem>();
 
-            this.upgrader = new NuGetUpgrader(this.currentVersion, this.tracer, this.upgraderConfig, this.downloadFolder, this.personalAccessToken, this.mockNuGetWrapper.Object);
+            this.upgrader = new NuGetUpgrader(
+                this.currentVersion,
+                this.tracer,
+                this.upgraderConfig,
+                this.downloadFolder,
+                this.personalAccessToken,
+                this.mockFileSystem.Object,
+                this.mockNuGetWrapper.Object,
+                new LocalUpgraderServices(this.tracer));
         }
 
         [TestCase]
@@ -128,6 +143,58 @@ namespace GVFS.UnitTests.Common
             // Assert that no new version was returned
             success.ShouldBeFalse();
             newVersion.ShouldBeNull();
+        }
+
+        [TestCase]
+        public void CanDownloadNewestVersion()
+        {
+            Version newVersion;
+            string message;
+            List<IPackageSearchMetadata> availablePackages = new List<IPackageSearchMetadata>()
+            {
+                this.GeneratePackageSeachMetadata(new Version(this.currentVersion)),
+                this.GeneratePackageSeachMetadata(new Version(this.newerVersion)),
+            };
+
+            this.mockNuGetWrapper.Setup(foo => foo.QueryFeed(It.IsAny<string>())).Returns(Task.FromResult<IList<IPackageSearchMetadata>>(availablePackages));
+
+            // TODO: verify expected argument
+            this.mockNuGetWrapper.Setup(foo => foo.DownloadPackage(It.IsAny<PackageIdentity>())).Returns(Task.FromResult("package_path"));
+
+            bool success = this.upgrader.TryQueryNewestVersion(out newVersion, out message);
+
+            // Assert that no new version was returned
+            success.ShouldBeTrue();
+            newVersion.ShouldNotBeNull();
+
+            bool downloadSuccessful = this.upgrader.TryDownloadNewestVersion(out message);
+            downloadSuccessful.ShouldBeTrue();
+        }
+
+        [TestCase]
+        public void DownloadNewestVersion_HandleException()
+        {
+            Version newVersion;
+            string message;
+            List<IPackageSearchMetadata> availablePackages = new List<IPackageSearchMetadata>()
+            {
+                this.GeneratePackageSeachMetadata(new Version(this.currentVersion)),
+                this.GeneratePackageSeachMetadata(new Version(this.newerVersion)),
+            };
+
+            this.mockNuGetWrapper.Setup(foo => foo.QueryFeed(It.IsAny<string>())).Returns(Task.FromResult<IList<IPackageSearchMetadata>>(availablePackages));
+
+            // TODO: verify expected argument
+            this.mockNuGetWrapper.Setup(foo => foo.DownloadPackage(It.IsAny<PackageIdentity>())).Throws(new Exception("Network Error"));
+
+            bool success = this.upgrader.TryQueryNewestVersion(out newVersion, out message);
+
+            // Assert that no new version was returned
+            success.ShouldBeTrue();
+            newVersion.ShouldNotBeNull();
+
+            bool downloadSuccessful = this.upgrader.TryDownloadNewestVersion(out message);
+            downloadSuccessful.ShouldBeFalse();
         }
 
         private IPackageSearchMetadata GeneratePackageSeachMetadata(Version version)
