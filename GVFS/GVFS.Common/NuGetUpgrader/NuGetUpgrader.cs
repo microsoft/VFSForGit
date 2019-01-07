@@ -14,10 +14,17 @@ namespace GVFS.Common
     {
         private static readonly string GitBinPath = GVFSPlatform.Instance.GitInstallation.GetInstalledGitBinPath();
 
-        private PhysicalFileSystem fileSystem;
         private ITracer tracer;
+        private PhysicalFileSystem fileSystem;
         private LocalUpgraderServices localUpgradeServices;
         private Version installedVersion;
+
+        private NugetUpgraderConfig nugetUpgraderConfig;
+        private ReleaseManifest releaseManifest;
+        private NuGetFeedWrapper nugetFeedWrapper;
+
+        private IPackageSearchMetadata latestVersion;
+        private string downloadedPackagePath;
 
         public NuGetUpgrader(
             string currentVersion,
@@ -47,26 +54,14 @@ namespace GVFS.Common
             NuGetFeedWrapper nuGetWrapper,
             LocalUpgraderServices localUpgraderServices)
         {
-            this.Config = config;
+            this.nugetUpgraderConfig = config;
             this.tracer = tracer;
             this.installedVersion = new Version(currentVersion);
 
             this.fileSystem = fileSystem;
-            this.NuGetWrapper = nuGetWrapper;
+            this.nugetFeedWrapper = nuGetWrapper;
             this.localUpgradeServices = localUpgraderServices;
         }
-
-        private NugetUpgraderConfig Config { get; set; }
-
-        private IPackageSearchMetadata LatestVersion { get; set; }
-
-        private ReleaseManifest Manifest { get; set; }
-
-        private string PackagePath { get; set; }
-
-        private string ExtractedPath { get; set; }
-
-        private NuGetFeedWrapper NuGetWrapper { get; set; }
 
         public static IProductUpgrader Create(
             ITracer tracer,
@@ -103,19 +98,19 @@ namespace GVFS.Common
 
         public bool UpgradeAllowed(out string message)
         {
-            if (string.IsNullOrEmpty(this.Config.FeedUrl))
+            if (string.IsNullOrEmpty(this.nugetUpgraderConfig.FeedUrl))
             {
                 message = "Nuget Feed URL has not been configured";
                 return false;
             }
 
-            if (string.IsNullOrEmpty(this.Config.PackageFeedName))
+            if (string.IsNullOrEmpty(this.nugetUpgraderConfig.PackageFeedName))
             {
                 message = "URL to lookup credentials has not been configured";
                 return false;
             }
 
-            if (string.IsNullOrEmpty(this.Config.FeedUrlForCredentials))
+            if (string.IsNullOrEmpty(this.nugetUpgraderConfig.FeedUrlForCredentials))
             {
                 message = "URL to lookup credentials has not been configured";
                 return false;
@@ -132,7 +127,7 @@ namespace GVFS.Common
 
             try
             {
-                IList<IPackageSearchMetadata> queryResults = this.NuGetWrapper.QueryFeed(this.Config.PackageFeedName).GetAwaiter().GetResult();
+                IList<IPackageSearchMetadata> queryResults = this.nugetFeedWrapper.QueryFeed(this.nugetUpgraderConfig.PackageFeedName).GetAwaiter().GetResult();
 
                 // Find the latest package
                 IPackageSearchMetadata highestVersion = null;
@@ -147,10 +142,10 @@ namespace GVFS.Common
                 if (highestVersion != null &&
                     highestVersion.Identity.Version.Version > this.installedVersion)
                 {
-                    this.LatestVersion = highestVersion;
+                    this.latestVersion = highestVersion;
                 }
 
-                newVersion = this.LatestVersion?.Identity?.Version?.Version;
+                newVersion = this.latestVersion?.Identity?.Version?.Version;
 
                 if (!(newVersion is null))
                 {
@@ -178,7 +173,7 @@ namespace GVFS.Common
 
             try
             {
-                this.PackagePath = this.NuGetWrapper.DownloadPackage(this.LatestVersion.Identity).GetAwaiter().GetResult();
+                this.downloadedPackagePath = this.nugetFeedWrapper.DownloadPackage(this.latestVersion.Identity).GetAwaiter().GetResult();
             }
             catch (Exception ex)
             {
@@ -219,18 +214,18 @@ namespace GVFS.Common
                 return false;
             }
 
-            this.UnzipPackageToTempLocation();
-            this.Manifest = new ReleaseManifestJson();
-            this.Manifest.Read(Path.Combine(this.ExtractedPath, "content", "install-manifest.json"));
+            string extractedPackagePath = this.UnzipPackageToTempLocation();
+            this.releaseManifest = new ReleaseManifestJson();
+            this.releaseManifest.Read(Path.Combine(extractedPackagePath, "content", "install-manifest.json"));
 
             this.fileSystem.CreateDirectory(upgradesDirectoryPath);
 
-            foreach (ManifestEntry entry in this.Manifest.Entries)
+            foreach (ManifestEntry entry in this.releaseManifest.Entries)
             {
                 installActionWrapper(
                     () =>
                     {
-                        string installerPath = Path.Combine(this.ExtractedPath, "content", entry.RelativePath);
+                        string installerPath = Path.Combine(extractedPackagePath, "content", entry.RelativePath);
                         this.localUpgradeServices.RunInstaller(installerPath, entry.Args, out installerExitCode, out localError);
 
                         installSuccesesfull = installerExitCode == 0;
@@ -277,10 +272,11 @@ namespace GVFS.Common
             return gitProcess.TryGetCredentials(tracer, credentialUrl, out string username, out token, out error);
         }
 
-        private void UnzipPackageToTempLocation()
+        private string UnzipPackageToTempLocation()
         {
-            this.ExtractedPath = this.localUpgradeServices.TempPath;
-            ZipFile.ExtractToDirectory(this.PackagePath, this.ExtractedPath);
+            string extractedPackagePath = this.localUpgradeServices.TempPath;
+            ZipFile.ExtractToDirectory(this.downloadedPackagePath, extractedPackagePath);
+            return extractedPackagePath;
         }
 
         public class NugetUpgraderConfig
