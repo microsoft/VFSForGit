@@ -1,4 +1,5 @@
 ﻿using GVFS.Common;
+using GVFS.Common.FileSystem;
 using GVFS.Common.Tracing;
 using GVFS.Upgrader;
 using System;
@@ -55,29 +56,41 @@ namespace GVFS.Service
         private void TimerCallback(object unusedState)
         {
             string errorMessage = null;
-
             InstallerPreRunChecker prerunChecker = new InstallerPreRunChecker(this.tracer, string.Empty);
-            ProductUpgrader productUpgrader = new ProductUpgrader(ProcessHelper.GetCurrentProcessVersion(), this.tracer);
-            if (prerunChecker.TryRunPreUpgradeChecks(out string _) && this.TryDownloadUpgrade(productUpgrader, out errorMessage))
-            {
-                return;
-            }
+            IProductUpgrader productUpgrader;
+            bool deleteExistingDownloads = true;
 
-            productUpgrader.CleanupDownloadDirectory();
+            if (ProductUpgraderFactory.TryCreateUpgrader(out productUpgrader, this.tracer, out errorMessage))
+            {
+                if (prerunChecker.TryRunPreUpgradeChecks(out string _) && this.TryDownloadUpgrade(productUpgrader, out errorMessage))
+                {
+                    deleteExistingDownloads = false;
+                }
+            }
 
             if (errorMessage != null)
             {
                 this.tracer.RelatedError(errorMessage);
             }
+
+            if (deleteExistingDownloads)
+            {
+                ProductUpgraderInfo.DeleteAllInstallerDownloads();
+            }
         }
 
-        private bool TryDownloadUpgrade(ProductUpgrader productUpgrader, out string errorMessage)
+        private bool TryDownloadUpgrade(IProductUpgrader productUpgrader, out string errorMessage)
         {
             using (ITracer activity = this.tracer.StartActivity("Checking for product upgrades.", EventLevel.Informational))
             {
                 Version newerVersion = null;
                 string detailedError = null;
-                if (!productUpgrader.TryGetNewerVersion(out newerVersion, out detailedError))
+                if (!productUpgrader.UpgradeAllowed(out errorMessage))
+                {
+                    return false;
+                }
+
+                if (!productUpgrader.TryQueryNewestVersion(out newerVersion, out detailedError))
                 {
                     errorMessage = "Could not fetch new version info. " + detailedError;
                     return false;
@@ -88,7 +101,7 @@ namespace GVFS.Service
                     // Already up-to-date
                     // Make sure there a no asset installers remaining in the Downloads directory. This can happen if user
                     // upgraded by manually downloading and running asset installers.
-                    productUpgrader.CleanupDownloadDirectory();
+                    ProductUpgraderInfo.DeleteAllInstallerDownloads();
                     errorMessage = null;
                     return true;
                 }

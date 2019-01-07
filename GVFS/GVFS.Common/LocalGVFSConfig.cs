@@ -22,7 +22,7 @@ namespace GVFS.Common
             this.fileSystem = new PhysicalFileSystem();
         }
 
-        public bool TryGetAllConfig(out Dictionary<string, string> allConfig, out string error)
+        public virtual bool TryGetAllConfig(out Dictionary<string, string> allConfig, out string error)
         {
             Dictionary<string, string> configCopy = null;
             if (!this.TryPerformAction(
@@ -38,7 +38,7 @@ namespace GVFS.Common
             return true;
         }
 
-        public bool TryGetConfig(
+        public virtual bool TryGetConfig(
             string name,
             out string value,
             out string error)
@@ -57,7 +57,7 @@ namespace GVFS.Common
             return true;
         }
 
-        public bool TrySetConfig(
+        public virtual bool TrySetConfig(
             string name,
             string value,
             out string error)
@@ -73,7 +73,7 @@ namespace GVFS.Common
             return true;
         }
 
-        public bool TryRemoveConfig(string name, out string error)
+        public virtual bool TryRemoveConfig(string name, out string error)
         {
             if (!this.TryPerformAction(
                 () => this.allSettings.RemoveAndFlush(name),
@@ -90,7 +90,7 @@ namespace GVFS.Common
         {
             if (!this.TryLoadSettings(out error))
             {
-                error = $"Error loading config settings.";
+                error = $"Error loading config settings. {error}";
                 return false;
             }
 

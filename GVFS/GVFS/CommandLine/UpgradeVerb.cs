@@ -13,12 +13,12 @@ namespace GVFS.CommandLine
     {
         private const string UpgradeVerbName = "upgrade";
         private ITracer tracer;
-        private ProductUpgrader upgrader;
+        private IProductUpgrader upgrader;
         private InstallerPreRunChecker prerunChecker;
         private ProcessLauncher processLauncher;
 
         public UpgradeVerb(
-            ProductUpgrader upgrader,
+            IProductUpgrader upgrader,
             ITracer tracer,
             InstallerPreRunChecker prerunChecker,
             ProcessLauncher processWrapper,
@@ -51,36 +51,45 @@ namespace GVFS.CommandLine
 
         public override void Execute()
         {
-            ReturnCode exitCode = ReturnCode.Success;
-            if (!this.TryInitializeUpgrader() || !this.TryRunProductUpgrade())
+            string error;
+            if (!this.TryInitializeUpgrader(out error) || !this.TryRunProductUpgrade())
             {
-                exitCode = ReturnCode.GenericError;
-                this.ReportErrorAndExit(this.tracer, exitCode, string.Empty);
+                this.ReportErrorAndExit(this.tracer, ReturnCode.GenericError, error);
             }
         }
 
-        private bool TryInitializeUpgrader()
+        private bool TryInitializeUpgrader(out string error)
         {
             if (GVFSPlatform.Instance.UnderConstruction.SupportsGVFSUpgrade)
             {
+                error = null;
                 if (this.upgrader == null)
                 {
                     JsonTracer jsonTracer = new JsonTracer(GVFSConstants.GVFSEtwProviderName, "UpgradeVerb");
                     string logFilePath = GVFSEnlistment.GetNewGVFSLogFileName(
-                        ProductUpgrader.GetLogDirectoryPath(),
+                        ProductUpgraderInfo.GetLogDirectoryPath(),
                         GVFSConstants.LogFileTypes.UpgradeVerb);
                     jsonTracer.AddLogFileEventListener(logFilePath, EventLevel.Informational, Keywords.Any);
 
                     this.tracer = jsonTracer;
                     this.prerunChecker = new InstallerPreRunChecker(this.tracer, this.Confirmed ? GVFSConstants.UpgradeVerbMessages.GVFSUpgradeConfirm : GVFSConstants.UpgradeVerbMessages.GVFSUpgrade);
-                    this.upgrader = new ProductUpgrader(ProcessHelper.GetCurrentProcessVersion(), this.tracer);
+
+                    IProductUpgrader upgrader;
+                    if (ProductUpgraderFactory.TryCreateUpgrader(out upgrader, this.tracer, out error))
+                    {
+                        this.upgrader = upgrader;
+                    }
+                    else
+                    {
+                        error = $"ERROR: {error}";
+                    }
                 }
 
-                return true;
+                return this.upgrader != null;
             }
             else
             {
-                this.ReportInfoToConsole($"ERROR: {GVFSConstants.UpgradeVerbMessages.GVFSUpgrade} is not supported on this operating system.");
+                error = $"ERROR: {GVFSConstants.UpgradeVerbMessages.GVFSUpgrade} is not supported on this operating system.";
                 return false;
             }
         }
@@ -88,10 +97,9 @@ namespace GVFS.CommandLine
         private bool TryRunProductUpgrade()
         {
             string errorOutputFormat = Environment.NewLine + "ERROR: {0}";
-            string error = null;
+            string message = null;
             string cannotInstallReason = null;
             Version newestVersion = null;
-            ProductUpgrader.RingType ring = ProductUpgrader.RingType.Invalid;
 
             bool isInstallable = this.TryCheckUpgradeInstallable(out cannotInstallReason);
             if (this.Confirmed && !isInstallable)
@@ -102,91 +110,62 @@ namespace GVFS.CommandLine
                 return false;
             }
 
-            if (!this.TryLoadUpgradeRing(out ring, out error))
+            if (!this.upgrader.UpgradeAllowed(out message))
             {
-                this.tracer.RelatedError($"{nameof(this.TryRunProductUpgrade)}: Could not load upgrade ring. {error}");
-                this.ReportInfoToConsole(GVFSConstants.UpgradeVerbMessages.InvalidRingConsoleAlert);
-                this.Output.WriteLine(errorOutputFormat, error);
-                return false;
-            }
-
-            if (ring == ProductUpgrader.RingType.None || ring == ProductUpgrader.RingType.NoConfig)
-            {
-                this.tracer.RelatedInfo($"{nameof(this.TryRunProductUpgrade)}: {GVFSConstants.UpgradeVerbMessages.NoneRingConsoleAlert}");
-                this.ReportInfoToConsole(ring == ProductUpgrader.RingType.None ? GVFSConstants.UpgradeVerbMessages.NoneRingConsoleAlert : GVFSConstants.UpgradeVerbMessages.NoRingConfigConsoleAlert);
-                this.ReportInfoToConsole(GVFSConstants.UpgradeVerbMessages.SetUpgradeRingCommand);
-                this.upgrader.CleanupDownloadDirectory();
+                ProductUpgraderInfo.DeleteAllInstallerDownloads();
+                this.ReportInfoToConsole(message);
                 return true;
             }
 
-            if (!this.TryRunUpgradeChecks(out newestVersion, out error))
+            if (!this.TryRunUpgradeChecks(out newestVersion, out message))
             {
-                this.Output.WriteLine(errorOutputFormat, error);
-                this.tracer.RelatedError($"{nameof(this.TryRunProductUpgrade)}: Upgrade checks failed. {error}");
+                this.Output.WriteLine(errorOutputFormat, message);
+                this.tracer.RelatedError($"{nameof(this.TryRunProductUpgrade)}: Upgrade checks failed. {message}");
                 return false;
             }
 
             if (newestVersion == null)
             {
-                this.ReportInfoToConsole($"Great news, you're all caught up on upgrades in the {this.upgrader.Ring} ring!");
-
                 // Make sure there a no asset installers remaining in the Downloads directory. This can happen if user
                 // upgraded by manually downloading and running asset installers.
-                this.upgrader.CleanupDownloadDirectory();
+                ProductUpgraderInfo.DeleteAllInstallerDownloads();
+                this.ReportInfoToConsole(message);
                 return true;
             }
 
-            string upgradeAvailableMessage = $"New GVFS version {newestVersion.ToString()} available in ring {ring}";
             if (this.Confirmed)
             {
-                this.ReportInfoToConsole(upgradeAvailableMessage);
+                this.ReportInfoToConsole(message);
 
                 if (!isInstallable)
                 {
-                    this.tracer.RelatedError($"{nameof(this.TryRunProductUpgrade)}: {error}");
-                    this.Output.WriteLine(errorOutputFormat, error);
+                    this.tracer.RelatedError($"{nameof(this.TryRunProductUpgrade)}: {message}");
+                    this.Output.WriteLine(errorOutputFormat, message);
                     return false;
                 }
 
-                if (!this.TryRunInstaller(out error))
+                if (!this.TryRunInstaller(out message))
                 {
-                    this.tracer.RelatedError($"{nameof(this.TryRunProductUpgrade)}: Could not launch upgrade tool. {error}");
-                    this.Output.WriteLine(errorOutputFormat, "Could not launch upgrade tool. " + error);
+                    this.tracer.RelatedError($"{nameof(this.TryRunProductUpgrade)}: Could not launch upgrade tool. {message}");
+                    this.Output.WriteLine(errorOutputFormat, "Could not launch upgrade tool. " + message);
                     return false;
                 }
             }
             else
             {
-                string message = string.Join(
+                string advisoryMessage = string.Join(
                         Environment.NewLine,
                         GVFSConstants.UpgradeVerbMessages.UnmountRepoWarning,
                         GVFSConstants.UpgradeVerbMessages.UpgradeInstallAdvice);
-                this.ReportInfoToConsole(upgradeAvailableMessage + Environment.NewLine + Environment.NewLine + message + Environment.NewLine);
+                this.ReportInfoToConsole(message + Environment.NewLine + Environment.NewLine + advisoryMessage + Environment.NewLine);
             }
 
             return true;
         }
 
-        private bool TryLoadUpgradeRing(out ProductUpgrader.RingType ring, out string consoleError)
-        {
-            bool loaded = false;
-            if (!this.upgrader.TryLoadRingConfig(out consoleError))
-            {
-                this.tracer.RelatedError($"{nameof(this.TryLoadUpgradeRing)} failed. {consoleError}");
-            }
-            else
-            {
-                consoleError = null;
-                loaded = true;
-            }
-
-            ring = this.upgrader.Ring;
-            return loaded;
-        }
-
         private bool TryRunUpgradeChecks(
             out Version latestVersion,
-            out string consoleError)
+            out string error)
         {
             bool upgradeCheckSuccess = false;
             string errorMessage = null;
@@ -202,7 +181,7 @@ namespace GVFS.CommandLine
                 suppressGvfsLogMessage: true);
 
             latestVersion = version;
-            consoleError = errorMessage;
+            error = errorMessage;
 
             return upgradeCheckSuccess;
         }
@@ -275,17 +254,17 @@ namespace GVFS.CommandLine
 
         private bool TryCheckUpgradeAvailable(
             out Version latestVersion,
-            out string consoleError)
+            out string error)
         {
             latestVersion = null;
-            consoleError = null;
+            error = null;
 
             using (ITracer activity = this.tracer.StartActivity(nameof(this.TryCheckUpgradeAvailable), EventLevel.Informational))
             {
                 bool checkSucceeded = false;
                 Version version = null;
 
-                checkSucceeded = this.upgrader.TryGetNewerVersion(out version, out consoleError);
+                checkSucceeded = this.upgrader.TryQueryNewestVersion(out version, out error);
                 if (!checkSucceeded)
                 {
                     return false;
