@@ -1,4 +1,5 @@
 ﻿using GVFS.Common.Tracing;
+using Microsoft.Win32.SafeHandles;
 using System;
 using System.IO;
 using System.Runtime.InteropServices;
@@ -112,6 +113,33 @@ namespace GVFS.Common.Git
 
             Native.Object.Free(objHandle);
             return true;
+        }
+
+        public virtual bool TryGetObjectSize(string sha, out long size)
+        {
+            size = -1;
+
+            IntPtr objHandle;
+            if (Native.RevParseSingle(out objHandle, this.RepoHandle, sha) != Native.SuccessCode)
+            {
+                return false;
+            }
+
+            try
+            {
+                switch (Native.Object.GetType(objHandle))
+                {
+                    case Native.ObjectTypes.Blob:
+                        size = Native.Blob.GetRawSize(objHandle);
+                        return true;
+                }
+            }
+            finally
+            {
+                Native.Object.Free(objHandle);
+            }
+
+            return false;
         }
 
         public virtual bool TryCopyBlob(string sha, Action<Stream, long> writeAction)
@@ -228,7 +256,7 @@ namespace GVFS.Common.Git
                 [DllImport(Git2NativeLibName, EntryPoint = "git_repository_open")]
                 public static extern uint Open(out IntPtr repoHandle, string path);
 
-                [DllImport(Git2NativeLibName, EntryPoint = "git_repository_free")]
+                [DllImport(Git2NativeLibName, EntryPoint = "git_tree_free")]
                 public static extern void Free(IntPtr repoHandle);
             }
 

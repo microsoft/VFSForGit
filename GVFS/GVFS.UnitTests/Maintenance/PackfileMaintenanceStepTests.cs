@@ -183,7 +183,7 @@ namespace GVFS.UnitTests.Maintenance
 
             // Create and return Context
             this.tracer = new MockTracer();
-            this.context = new GVFSContext(this.tracer, fileSystem, repository: new MockGitRepo(this.tracer, enlistment, fileSystem), enlistment: enlistment);
+            this.context = new GVFSContext(this.tracer, fileSystem, repository: null, enlistment: enlistment);
 
             this.gitProcess.SetExpectedCommandResult(
                 this.ExpireCommand,
