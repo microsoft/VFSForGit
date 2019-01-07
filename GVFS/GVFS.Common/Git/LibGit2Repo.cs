@@ -1,5 +1,4 @@
 ﻿using GVFS.Common.Tracing;
-using Microsoft.Win32.SafeHandles;
 using System;
 using System.IO;
 using System.Runtime.InteropServices;
@@ -115,33 +114,6 @@ namespace GVFS.Common.Git
             return true;
         }
 
-        public virtual bool TryGetObjectSize(string sha, out long size)
-        {
-            size = -1;
-
-            IntPtr objHandle;
-            if (Native.RevParseSingle(out objHandle, this.RepoHandle, sha) != Native.SuccessCode)
-            {
-                return false;
-            }
-
-            try
-            {
-                switch (Native.Object.GetType(objHandle))
-                {
-                    case Native.ObjectTypes.Blob:
-                        size = Native.Blob.GetRawSize(objHandle);
-                        return true;
-                }
-            }
-            finally
-            {
-                Native.Object.Free(objHandle);
-            }
-
-            return false;
-        }
-
         public virtual bool TryCopyBlob(string sha, Action<Stream, long> writeAction)
         {
             IntPtr objHandle;
@@ -224,9 +196,6 @@ namespace GVFS.Common.Git
 
             [DllImport(Git2NativeLibName, EntryPoint = "git_revparse_single")]
             public static extern uint RevParseSingle(out IntPtr objectHandle, IntPtr repoHandle, string oid);
-
-            [DllImport(Git2NativeLibName, EntryPoint = "git_oid_fromstr")]
-            public static extern void OidFromString(ref GitOid oid, string hash);
 
             public static string GetLastError()
             {
