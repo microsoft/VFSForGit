@@ -15,7 +15,7 @@ namespace GVFS.Common
                 JsonSerializer serializer = new JsonSerializer();
                 InstallManifest manifest = (InstallManifest)serializer.Deserialize(file, typeof(InstallManifest));
 
-                foreach (ManifestEntry entry in manifest.Platforms["Windows"].Installers)
+                foreach (ManifestEntry entry in manifest.Platforms["Windows"].InstallActions)
                 {
                     this.Entries.Add(entry);
                 }
