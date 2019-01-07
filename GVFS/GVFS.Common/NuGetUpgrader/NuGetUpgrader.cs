@@ -32,7 +32,7 @@ namespace GVFS.Common
                 downloadFolder,
                 personalAccessToken,
                 new PhysicalFileSystem(),
-                new NuGetWrapper(config.FeedUrl, config.PackageFeedName, downloadFolder, personalAccessToken, tracer),
+                new NuGetFeedWrapper(config.FeedUrl, config.PackageFeedName, downloadFolder, personalAccessToken, tracer),
                 new LocalUpgraderServices(tracer))
         {
         }
@@ -44,7 +44,7 @@ namespace GVFS.Common
             string downloadFolder,
             string personalAccessToken,
             PhysicalFileSystem fileSystem,
-            NuGetWrapper nuGetWrapper,
+            NuGetFeedWrapper nuGetWrapper,
             LocalUpgraderServices localUpgraderServices)
         {
             this.Config = config;
@@ -66,7 +66,7 @@ namespace GVFS.Common
 
         private string ExtractedPath { get; set; }
 
-        private NuGetWrapper NuGetWrapper { get; set; }
+        private NuGetFeedWrapper NuGetWrapper { get; set; }
 
         public static IProductUpgrader Create(
             ITracer tracer,
@@ -225,7 +225,7 @@ namespace GVFS.Common
 
             this.fileSystem.CreateDirectory(upgradesDirectoryPath);
 
-            foreach (ManifestEntry entry in this.Manifest.ManifestEntries)
+            foreach (ManifestEntry entry in this.Manifest.Entries)
             {
                 installActionWrapper(
                     () =>
@@ -253,11 +253,6 @@ namespace GVFS.Common
                 error = null;
                 return true;
             }
-        }
-
-        public void CleanupDownloadDirectory()
-        {
-            throw new NotImplementedException();
         }
 
         public bool TrySetupToolsDirectory(out string upgraderToolPath, out string error)

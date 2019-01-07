@@ -30,7 +30,7 @@ namespace GVFS.UnitTests.Common
         private string downloadFolder;
         private string personalAccessToken;
 
-        private Mock<NuGetWrapper> mockNuGetWrapper;
+        private Mock<NuGetFeedWrapper> mockNuGetWrapper;
         private Mock<PhysicalFileSystem> mockFileSystem;
 
         [SetUp]
@@ -46,7 +46,7 @@ namespace GVFS.UnitTests.Common
 
             this.tracer = new MockTracer();
 
-            this.mockNuGetWrapper = new Mock<NuGetWrapper>(feedUrl, feedName, this.downloadFolder, this.personalAccessToken, this.tracer);
+            this.mockNuGetWrapper = new Mock<NuGetFeedWrapper>(feedUrl, feedName, this.downloadFolder, this.personalAccessToken, this.tracer);
             this.mockFileSystem = new Mock<PhysicalFileSystem>();
 
             this.upgrader = new NuGetUpgrader(

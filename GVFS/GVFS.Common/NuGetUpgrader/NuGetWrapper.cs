@@ -1,19 +1,19 @@
-﻿using GVFS.Common.Git;
-using GVFS.Common.Tracing;
+﻿using GVFS.Common.Tracing;
 using NuGet.Common;
 using NuGet.Packaging.Core;
 using NuGet.Protocol;
 using NuGet.Protocol.Core.Types;
-using System;
 using System.Collections.Generic;
 using System.IO;
-using System.IO.Compression;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 
 namespace GVFS.Common
 {
+    /// <summary>
+    /// Handles interactions with a NuGet Feed.
+    /// </summary>
     public class NuGetFeedWrapper
     {
         private ITracer tracer;
