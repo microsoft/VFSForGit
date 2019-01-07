@@ -255,17 +255,6 @@ namespace GVFS.Common
             return this.localUpgradeServices.TrySetupToolsDirectory(out upgraderToolPath, out error);
         }
 
-        public Version QueryLatestVersion()
-        {
-            Version version;
-            if (!this.TryQueryNewestVersion(out version, out string message))
-            {
-                throw new Exception(message);
-            }
-
-            return version;
-        }
-
         private static bool TryGetPersonalAccessToken(string gitBinaryPath, string credentialUrl, ITracer tracer, out string token, out string error)
         {
             GitProcess gitProcess = new GitProcess(gitBinaryPath, null, null);
