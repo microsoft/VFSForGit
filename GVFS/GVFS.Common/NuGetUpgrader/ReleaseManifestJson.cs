@@ -3,6 +3,9 @@ using System.IO;
 
 namespace GVFS.Common
 {
+    /// <summary>
+    ///   A ReleaseManifest that reads from a JSON representation.
+    /// </summary>
     public class ReleaseManifestJson : ReleaseManifest
     {
         public override void Read(string path)
@@ -14,8 +17,7 @@ namespace GVFS.Common
 
                 foreach (ManifestEntry entry in manifest.Platforms["Windows"].Installers)
                 {
-                    this.Properties.Add(entry.Name, entry);
-                    this.ManifestEntries.Add(entry);
+                    this.Entries.Add(entry);
                 }
             }
         }

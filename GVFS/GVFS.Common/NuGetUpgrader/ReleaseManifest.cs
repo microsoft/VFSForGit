@@ -1,20 +1,27 @@
-﻿using System;
-using System.Collections.Generic;
-using System.IO;
+﻿using System.Collections.Generic;
 
 namespace GVFS.Common
 {
+    /// <summary>
+    /// Details on the upgrade included in this package, including information
+    /// on what packages are included and how to install them.
+    /// </summary>
     public abstract class ReleaseManifest
     {
         public ReleaseManifest()
         {
-            this.Properties = new Dictionary<string, ManifestEntry>(StringComparer.OrdinalIgnoreCase);
-            this.ManifestEntries = new List<ManifestEntry>();
+            this.Entries = new List<ManifestEntry>();
         }
 
-        public Dictionary<string, ManifestEntry> Properties { get; set; }
-        public List<ManifestEntry> ManifestEntries { get; set; }
+        /// <summary>
+        /// The list of install actions.
+        /// </summary>
+        public List<ManifestEntry> Entries { get; private set; }
 
+        /// <summary>
+        /// Read the manifest from file.
+        /// </summary>
+        /// <param name="path"></param>
         public abstract void Read(string path);
     }
 }
