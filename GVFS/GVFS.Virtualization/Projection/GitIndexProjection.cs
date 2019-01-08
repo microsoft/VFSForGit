@@ -39,10 +39,6 @@ namespace GVFS.Virtualization.Projection
 
         private const string EtwArea = "GitIndexProjection";
 
-        private const int ParseIndexRequestTimeoutMs = 50;
-
-        private char[] gitPathSeparatorCharArray = new char[] { GVFSConstants.GitPathSeparator };
-
         private GVFSContext context;
         private RepoMetadata repoMetadata;
         private FileSystemVirtualizer fileSystemVirtualizer;
