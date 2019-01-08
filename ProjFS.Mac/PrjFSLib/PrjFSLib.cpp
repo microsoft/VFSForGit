@@ -21,9 +21,9 @@
 #include "stdlib.h"
 
 #include "PrjFSLib.h"
-#include "PrjFSKext/public/PrjFSCommon.h"
-#include "PrjFSKext/public/PrjFSXattrs.h"
-#include "PrjFSKext/public/Message.h"
+#include "../PrjFSKext/public/PrjFSCommon.h"
+#include "../PrjFSKext/public/PrjFSXattrs.h"
+#include "../PrjFSKext/public/Message.h"
 #include "PrjFSUser.hpp"
 
 #define STRINGIFY(s) #s

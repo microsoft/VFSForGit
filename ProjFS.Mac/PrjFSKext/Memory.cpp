@@ -2,7 +2,7 @@
 #include <libkern/libkern.h>
 #include <libkern/OSMalloc.h>
 
-#include "PrjFSCommon.h"
+#include "public/PrjFSCommon.h"
 #include "Memory.hpp"
 
 static OSMallocTag s_mallocTag = nullptr;

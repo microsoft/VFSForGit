@@ -1,7 +1,7 @@
 #ifndef KauthHandler_h
 #define KauthHandler_h
 
-#include "Message.h"
+#include "public/Message.h"
 #include "VirtualizationRoots.hpp"
 
 kern_return_t KauthHandler_Init();

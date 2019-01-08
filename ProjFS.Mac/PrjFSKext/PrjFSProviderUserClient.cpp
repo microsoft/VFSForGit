@@ -1,7 +1,7 @@
 #include "PrjFSProviderUserClient.hpp"
-#include "PrjFSCommon.h"
-#include "../public/PrjFSProviderClientShared.h"
-#include "Message.h"
+#include "public/PrjFSCommon.h"
+#include "public/PrjFSProviderClientShared.h"
+#include "public/Message.h"
 #include "KauthHandler.hpp"
 #include "VirtualizationRoots.hpp"
 

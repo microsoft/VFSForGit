@@ -31,6 +31,6 @@
   </ItemGroup>
 
   <ItemGroup Condition="'$(OS)' != 'Windows_NT' And '$(CopyPrjFS)' == 'true'">
-    <None Include="$(BuildOutputDir)\ProjFS.Mac\Native\Build\Products\$(Configuration)\libPrjFSLib.dylib" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="$(BuildOutputDir)\ProjFS.Mac\Native\$(Configuration)\libPrjFSLib.dylib" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 </Project>

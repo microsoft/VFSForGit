@@ -1,9 +1,9 @@
 #ifndef KextLog_h
 #define KextLog_h
 
-#include "PrjFSCommon.h"
+#include "public/PrjFSCommon.h"
 #include "PrjFSClasses.hpp"
-#include "PrjFSLogClientShared.h"
+#include "public/PrjFSLogClientShared.h"
 #include <os/log.h>
 
 extern os_log_t __prjfs_log;

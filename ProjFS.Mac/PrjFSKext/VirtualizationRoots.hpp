@@ -1,8 +1,8 @@
 #pragma once
 
-#include "FsidInode.h"
+#include "public/FsidInode.h"
 #include "PrjFSClasses.hpp"
-#include "PrjFSPerfCounter.h"
+#include "public/PrjFSPerfCounter.h"
 #include "PerformanceTracing.hpp"
 #include "kernel-header-wrappers/vnode.h"
 

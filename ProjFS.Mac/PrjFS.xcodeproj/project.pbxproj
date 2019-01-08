@@ -1,0 +1,883 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 50;
+	objects = {
+
+/* Begin PBXAggregateTarget section */
+		4391F90021E436210008103C /* Build All */ = {
+			isa = PBXAggregateTarget;
+			buildConfigurationList = 4391F90121E436210008103C /* Build configuration list for PBXAggregateTarget "Build All" */;
+			buildPhases = (
+			);
+			dependencies = (
+				4391F90521E4362B0008103C /* PBXTargetDependency */,
+				4391F90721E4362B0008103C /* PBXTargetDependency */,
+				4391F90921E4362B0008103C /* PBXTargetDependency */,
+			);
+			name = "Build All";
+			productName = "Build All";
+		};
+/* End PBXAggregateTarget section */
+
+/* Begin PBXBuildFile section */
+		43057C5E21E439C700487681 /* prjfs-log.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 43057C5B21E439C700487681 /* prjfs-log.cpp */; };
+		43057C5F21E439C700487681 /* kext-perf-tracing.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 43057C5C21E439C700487681 /* kext-perf-tracing.cpp */; };
+		4391F8A821E42AC50008103C /* Locks.hpp in Headers */ = {isa = PBXBuildFile; fileRef = 4391F88E21E42AC40008103C /* Locks.hpp */; };
+		4391F8AB21E42AC50008103C /* KextLog.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 4391F89121E42AC40008103C /* KextLog.cpp */; };
+		4391F8AC21E42AC50008103C /* KextLog.hpp in Headers */ = {isa = PBXBuildFile; fileRef = 4391F89221E42AC40008103C /* KextLog.hpp */; };
+		4391F8AD21E42AC50008103C /* KauthHandler.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 4391F89321E42AC40008103C /* KauthHandler.cpp */; };
+		4391F8AE21E42AC50008103C /* VirtualizationRoots.hpp in Headers */ = {isa = PBXBuildFile; fileRef = 4391F89421E42AC40008103C /* VirtualizationRoots.hpp */; };
+		4391F8AF21E42AC50008103C /* PrjFSProviderUserClient.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 4391F89521E42AC40008103C /* PrjFSProviderUserClient.cpp */; };
+		4391F8B121E42AC50008103C /* Memory.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 4391F89721E42AC40008103C /* Memory.cpp */; };
+		4391F8B221E42AC50008103C /* Memory.hpp in Headers */ = {isa = PBXBuildFile; fileRef = 4391F89821E42AC40008103C /* Memory.hpp */; };
+		4391F8B321E42AC50008103C /* PrjFSService.hpp in Headers */ = {isa = PBXBuildFile; fileRef = 4391F89921E42AC40008103C /* PrjFSService.hpp */; };
+		4391F8B421E42AC50008103C /* PrjFSService.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 4391F89A21E42AC40008103C /* PrjFSService.cpp */; };
+		4391F8B521E42AC50008103C /* Message_Kernel.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 4391F89B21E42AC40008103C /* Message_Kernel.cpp */; };
+		4391F8B621E42AC50008103C /* PrjFSKext.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 4391F89C21E42AC40008103C /* PrjFSKext.cpp */; };
+		4391F8B721E42AC50008103C /* PrjFSClasses.hpp in Headers */ = {isa = PBXBuildFile; fileRef = 4391F89D21E42AC50008103C /* PrjFSClasses.hpp */; };
+		4391F8B821E42AC50008103C /* PrjFSLogUserClient.hpp in Headers */ = {isa = PBXBuildFile; fileRef = 4391F89E21E42AC50008103C /* PrjFSLogUserClient.hpp */; };
+		4391F8B921E42AC50008103C /* PrjFSProviderUserClient.hpp in Headers */ = {isa = PBXBuildFile; fileRef = 4391F89F21E42AC50008103C /* PrjFSProviderUserClient.hpp */; };
+		4391F8BA21E42AC50008103C /* PrjFSLogUserClient.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 4391F8A021E42AC50008103C /* PrjFSLogUserClient.cpp */; };
+		4391F8BB21E42AC50008103C /* VnodeUtilities.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 4391F8A121E42AC50008103C /* VnodeUtilities.cpp */; };
+		4391F8BC21E42AC50008103C /* VnodeUtilities.hpp in Headers */ = {isa = PBXBuildFile; fileRef = 4391F8A221E42AC50008103C /* VnodeUtilities.hpp */; };
+		4391F8BD21E42AC50008103C /* PerformanceTracing.hpp in Headers */ = {isa = PBXBuildFile; fileRef = 4391F8A321E42AC50008103C /* PerformanceTracing.hpp */; };
+		4391F8BE21E42AC50008103C /* KauthHandler.hpp in Headers */ = {isa = PBXBuildFile; fileRef = 4391F8A421E42AC50008103C /* KauthHandler.hpp */; };
+		4391F8BF21E42AC50008103C /* PerformanceTracing.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 4391F8A521E42AC50008103C /* PerformanceTracing.cpp */; };
+		4391F8C021E42AC50008103C /* Locks.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 4391F8A621E42AC50008103C /* Locks.cpp */; };
+		4391F8C121E42AC50008103C /* VirtualizationRoots.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 4391F8A721E42AC50008103C /* VirtualizationRoots.cpp */; };
+		4391F8DB21E430E20008103C /* CoreFoundation.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 4391F8DA21E430E20008103C /* CoreFoundation.framework */; };
+		4391F8DD21E430EB0008103C /* IOKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 4391F8DC21E430EB0008103C /* IOKit.framework */; };
+		4391F8EA21E435230008103C /* PrjFSLib.h in Headers */ = {isa = PBXBuildFile; fileRef = 4391F8E321E435230008103C /* PrjFSLib.h */; };
+		4391F8EB21E435230008103C /* PrjFSUser.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 4391F8E421E435230008103C /* PrjFSUser.cpp */; };
+		4391F8EC21E435230008103C /* PrjFSLib.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 4391F8E521E435230008103C /* PrjFSLib.cpp */; };
+		4391F8EE21E435230008103C /* PrjFSUser.hpp in Headers */ = {isa = PBXBuildFile; fileRef = 4391F8E721E435230008103C /* PrjFSUser.hpp */; };
+		4391F8FD21E435720008103C /* PrjFSUser.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 4391F8E421E435230008103C /* PrjFSUser.cpp */; };
+		4391F8FE21E435810008103C /* IOKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 4391F8DC21E430EB0008103C /* IOKit.framework */; };
+		4391F8FF21E435890008103C /* CoreFoundation.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 4391F8DA21E430E20008103C /* CoreFoundation.framework */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXContainerItemProxy section */
+		4391F90421E4362B0008103C /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 4391F87621E4278C0008103C /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 4391F87E21E4278C0008103C;
+			remoteInfo = PrjFS;
+		};
+		4391F90621E4362B0008103C /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 4391F87621E4278C0008103C /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 4391F8D421E430CF0008103C;
+			remoteInfo = PrjFSLib;
+		};
+		4391F90821E4362B0008103C /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 4391F87621E4278C0008103C /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 4391F8F321E4355C0008103C;
+			remoteInfo = "prjfs-log";
+		};
+/* End PBXContainerItemProxy section */
+
+/* Begin PBXCopyFilesBuildPhase section */
+		4391F8F221E4355C0008103C /* CopyFiles */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = /usr/share/man/man1/;
+			dstSubfolderSpec = 0;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 1;
+		};
+/* End PBXCopyFilesBuildPhase section */
+
+/* Begin PBXFileReference section */
+		43057C5B21E439C700487681 /* prjfs-log.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = "prjfs-log.cpp"; sourceTree = "<group>"; };
+		43057C5C21E439C700487681 /* kext-perf-tracing.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = "kext-perf-tracing.cpp"; sourceTree = "<group>"; };
+		43057C5D21E439C700487681 /* kext-perf-tracing.hpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.h; path = "kext-perf-tracing.hpp"; sourceTree = "<group>"; };
+		4391F87F21E4278C0008103C /* PrjFSKext.kext */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = PrjFSKext.kext; sourceTree = BUILT_PRODUCTS_DIR; };
+		4391F88E21E42AC40008103C /* Locks.hpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.h; path = Locks.hpp; sourceTree = "<group>"; };
+		4391F88F21E42AC40008103C /* Info.plist */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		4391F89021E42AC40008103C /* kernel-header-wrappers */ = {isa = PBXFileReference; lastKnownFileType = folder; path = "kernel-header-wrappers"; sourceTree = "<group>"; };
+		4391F89121E42AC40008103C /* KextLog.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = KextLog.cpp; sourceTree = "<group>"; };
+		4391F89221E42AC40008103C /* KextLog.hpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.h; path = KextLog.hpp; sourceTree = "<group>"; };
+		4391F89321E42AC40008103C /* KauthHandler.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = KauthHandler.cpp; sourceTree = "<group>"; };
+		4391F89421E42AC40008103C /* VirtualizationRoots.hpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.h; path = VirtualizationRoots.hpp; sourceTree = "<group>"; };
+		4391F89521E42AC40008103C /* PrjFSProviderUserClient.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = PrjFSProviderUserClient.cpp; sourceTree = "<group>"; };
+		4391F89621E42AC40008103C /* public */ = {isa = PBXFileReference; lastKnownFileType = folder; path = public; sourceTree = "<group>"; };
+		4391F89721E42AC40008103C /* Memory.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = Memory.cpp; sourceTree = "<group>"; };
+		4391F89821E42AC40008103C /* Memory.hpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.h; path = Memory.hpp; sourceTree = "<group>"; };
+		4391F89921E42AC40008103C /* PrjFSService.hpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.h; path = PrjFSService.hpp; sourceTree = "<group>"; };
+		4391F89A21E42AC40008103C /* PrjFSService.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = PrjFSService.cpp; sourceTree = "<group>"; };
+		4391F89B21E42AC40008103C /* Message_Kernel.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = Message_Kernel.cpp; sourceTree = "<group>"; };
+		4391F89C21E42AC40008103C /* PrjFSKext.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = PrjFSKext.cpp; sourceTree = "<group>"; };
+		4391F89D21E42AC50008103C /* PrjFSClasses.hpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.h; path = PrjFSClasses.hpp; sourceTree = "<group>"; };
+		4391F89E21E42AC50008103C /* PrjFSLogUserClient.hpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.h; path = PrjFSLogUserClient.hpp; sourceTree = "<group>"; };
+		4391F89F21E42AC50008103C /* PrjFSProviderUserClient.hpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.h; path = PrjFSProviderUserClient.hpp; sourceTree = "<group>"; };
+		4391F8A021E42AC50008103C /* PrjFSLogUserClient.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = PrjFSLogUserClient.cpp; sourceTree = "<group>"; };
+		4391F8A121E42AC50008103C /* VnodeUtilities.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = VnodeUtilities.cpp; sourceTree = "<group>"; };
+		4391F8A221E42AC50008103C /* VnodeUtilities.hpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.h; path = VnodeUtilities.hpp; sourceTree = "<group>"; };
+		4391F8A321E42AC50008103C /* PerformanceTracing.hpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.h; path = PerformanceTracing.hpp; sourceTree = "<group>"; };
+		4391F8A421E42AC50008103C /* KauthHandler.hpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.h; path = KauthHandler.hpp; sourceTree = "<group>"; };
+		4391F8A521E42AC50008103C /* PerformanceTracing.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = PerformanceTracing.cpp; sourceTree = "<group>"; };
+		4391F8A621E42AC50008103C /* Locks.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = Locks.cpp; sourceTree = "<group>"; };
+		4391F8A721E42AC50008103C /* VirtualizationRoots.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = VirtualizationRoots.cpp; sourceTree = "<group>"; };
+		4391F8D521E430CF0008103C /* libPrjFSLib.dylib */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.dylib"; includeInIndex = 0; path = libPrjFSLib.dylib; sourceTree = BUILT_PRODUCTS_DIR; };
+		4391F8DA21E430E20008103C /* CoreFoundation.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = CoreFoundation.framework; path = System/Library/Frameworks/CoreFoundation.framework; sourceTree = SDKROOT; };
+		4391F8DC21E430EB0008103C /* IOKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = IOKit.framework; path = System/Library/Frameworks/IOKit.framework; sourceTree = SDKROOT; };
+		4391F8E321E435230008103C /* PrjFSLib.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = PrjFSLib.h; sourceTree = "<group>"; };
+		4391F8E421E435230008103C /* PrjFSUser.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = PrjFSUser.cpp; sourceTree = "<group>"; };
+		4391F8E521E435230008103C /* PrjFSLib.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = PrjFSLib.cpp; sourceTree = "<group>"; };
+		4391F8E721E435230008103C /* PrjFSUser.hpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.h; path = PrjFSUser.hpp; sourceTree = "<group>"; };
+		4391F8F421E4355C0008103C /* prjfs-log */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.executable"; includeInIndex = 0; path = "prjfs-log"; sourceTree = BUILT_PRODUCTS_DIR; };
+/* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		4391F87C21E4278C0008103C /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		4391F8D321E430CF0008103C /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				4391F8DD21E430EB0008103C /* IOKit.framework in Frameworks */,
+				4391F8DB21E430E20008103C /* CoreFoundation.framework in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		4391F8F121E4355C0008103C /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				4391F8FF21E435890008103C /* CoreFoundation.framework in Frameworks */,
+				4391F8FE21E435810008103C /* IOKit.framework in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		43057C5A21E439B200487681 /* prjfs-log */ = {
+			isa = PBXGroup;
+			children = (
+				43057C5C21E439C700487681 /* kext-perf-tracing.cpp */,
+				43057C5D21E439C700487681 /* kext-perf-tracing.hpp */,
+				43057C5B21E439C700487681 /* prjfs-log.cpp */,
+			);
+			path = "prjfs-log";
+			sourceTree = "<group>";
+		};
+		4391F87521E4278C0008103C = {
+			isa = PBXGroup;
+			children = (
+				4391F8C221E4306D0008103C /* PrjFSLib */,
+				4391F88D21E42AA70008103C /* PrjFSKext */,
+				4391F88021E4278C0008103C /* Products */,
+				4391F8D921E430E10008103C /* Frameworks */,
+			);
+			sourceTree = "<group>";
+		};
+		4391F88021E4278C0008103C /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				4391F87F21E4278C0008103C /* PrjFSKext.kext */,
+				4391F8D521E430CF0008103C /* libPrjFSLib.dylib */,
+				4391F8F421E4355C0008103C /* prjfs-log */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		4391F88D21E42AA70008103C /* PrjFSKext */ = {
+			isa = PBXGroup;
+			children = (
+				4391F88F21E42AC40008103C /* Info.plist */,
+				4391F89321E42AC40008103C /* KauthHandler.cpp */,
+				4391F8A421E42AC50008103C /* KauthHandler.hpp */,
+				4391F89021E42AC40008103C /* kernel-header-wrappers */,
+				4391F89121E42AC40008103C /* KextLog.cpp */,
+				4391F89221E42AC40008103C /* KextLog.hpp */,
+				4391F8A621E42AC50008103C /* Locks.cpp */,
+				4391F88E21E42AC40008103C /* Locks.hpp */,
+				4391F89721E42AC40008103C /* Memory.cpp */,
+				4391F89821E42AC40008103C /* Memory.hpp */,
+				4391F89B21E42AC40008103C /* Message_Kernel.cpp */,
+				4391F8A521E42AC50008103C /* PerformanceTracing.cpp */,
+				4391F8A321E42AC50008103C /* PerformanceTracing.hpp */,
+				4391F89D21E42AC50008103C /* PrjFSClasses.hpp */,
+				4391F89C21E42AC40008103C /* PrjFSKext.cpp */,
+				4391F8A021E42AC50008103C /* PrjFSLogUserClient.cpp */,
+				4391F89E21E42AC50008103C /* PrjFSLogUserClient.hpp */,
+				4391F89521E42AC40008103C /* PrjFSProviderUserClient.cpp */,
+				4391F89F21E42AC50008103C /* PrjFSProviderUserClient.hpp */,
+				4391F89A21E42AC40008103C /* PrjFSService.cpp */,
+				4391F89921E42AC40008103C /* PrjFSService.hpp */,
+				4391F89621E42AC40008103C /* public */,
+				4391F8A721E42AC50008103C /* VirtualizationRoots.cpp */,
+				4391F89421E42AC40008103C /* VirtualizationRoots.hpp */,
+				4391F8A121E42AC50008103C /* VnodeUtilities.cpp */,
+				4391F8A221E42AC50008103C /* VnodeUtilities.hpp */,
+			);
+			path = PrjFSKext;
+			sourceTree = "<group>";
+		};
+		4391F8C221E4306D0008103C /* PrjFSLib */ = {
+			isa = PBXGroup;
+			children = (
+				43057C5A21E439B200487681 /* prjfs-log */,
+				4391F8E521E435230008103C /* PrjFSLib.cpp */,
+				4391F8E321E435230008103C /* PrjFSLib.h */,
+				4391F8E421E435230008103C /* PrjFSUser.cpp */,
+				4391F8E721E435230008103C /* PrjFSUser.hpp */,
+			);
+			path = PrjFSLib;
+			sourceTree = "<group>";
+		};
+		4391F8D921E430E10008103C /* Frameworks */ = {
+			isa = PBXGroup;
+			children = (
+				4391F8DC21E430EB0008103C /* IOKit.framework */,
+				4391F8DA21E430E20008103C /* CoreFoundation.framework */,
+			);
+			name = Frameworks;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXHeadersBuildPhase section */
+		4391F87A21E4278C0008103C /* Headers */ = {
+			isa = PBXHeadersBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				4391F8A821E42AC50008103C /* Locks.hpp in Headers */,
+				4391F8B821E42AC50008103C /* PrjFSLogUserClient.hpp in Headers */,
+				4391F8B221E42AC50008103C /* Memory.hpp in Headers */,
+				4391F8AE21E42AC50008103C /* VirtualizationRoots.hpp in Headers */,
+				4391F8BE21E42AC50008103C /* KauthHandler.hpp in Headers */,
+				4391F8AC21E42AC50008103C /* KextLog.hpp in Headers */,
+				4391F8B321E42AC50008103C /* PrjFSService.hpp in Headers */,
+				4391F8B721E42AC50008103C /* PrjFSClasses.hpp in Headers */,
+				4391F8BC21E42AC50008103C /* VnodeUtilities.hpp in Headers */,
+				4391F8BD21E42AC50008103C /* PerformanceTracing.hpp in Headers */,
+				4391F8B921E42AC50008103C /* PrjFSProviderUserClient.hpp in Headers */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		4391F8D121E430CF0008103C /* Headers */ = {
+			isa = PBXHeadersBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				4391F8EA21E435230008103C /* PrjFSLib.h in Headers */,
+				4391F8EE21E435230008103C /* PrjFSUser.hpp in Headers */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXHeadersBuildPhase section */
+
+/* Begin PBXNativeTarget section */
+		4391F87E21E4278C0008103C /* PrjFSKext */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 4391F88721E4278C0008103C /* Build configuration list for PBXNativeTarget "PrjFSKext" */;
+			buildPhases = (
+				4391F87B21E4278C0008103C /* Sources */,
+				4391F87C21E4278C0008103C /* Frameworks */,
+				4391F87A21E4278C0008103C /* Headers */,
+				4391F87D21E4278C0008103C /* Resources */,
+				43057C6021E43CC100487681 /* Run Script - Check kext linkage */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = PrjFSKext;
+			productName = PrjFS;
+			productReference = 4391F87F21E4278C0008103C /* PrjFSKext.kext */;
+			productType = "com.apple.product-type.kernel-extension";
+		};
+		4391F8D421E430CF0008103C /* PrjFSLib */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 4391F8D621E430CF0008103C /* Build configuration list for PBXNativeTarget "PrjFSLib" */;
+			buildPhases = (
+				4391F8D121E430CF0008103C /* Headers */,
+				4391F8D221E430CF0008103C /* Sources */,
+				4391F8D321E430CF0008103C /* Frameworks */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = PrjFSLib;
+			productName = PrjFSLib;
+			productReference = 4391F8D521E430CF0008103C /* libPrjFSLib.dylib */;
+			productType = "com.apple.product-type.library.dynamic";
+		};
+		4391F8F321E4355C0008103C /* prjfs-log */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 4391F8F821E4355C0008103C /* Build configuration list for PBXNativeTarget "prjfs-log" */;
+			buildPhases = (
+				4391F8F021E4355C0008103C /* Sources */,
+				4391F8F121E4355C0008103C /* Frameworks */,
+				4391F8F221E4355C0008103C /* CopyFiles */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = "prjfs-log";
+			productName = "prjfs-log";
+			productReference = 4391F8F421E4355C0008103C /* prjfs-log */;
+			productType = "com.apple.product-type.tool";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		4391F87621E4278C0008103C /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				LastUpgradeCheck = 1010;
+				ORGANIZATIONNAME = "Microsoft Corporation";
+				TargetAttributes = {
+					4391F87E21E4278C0008103C = {
+						CreatedOnToolsVersion = 10.1;
+					};
+					4391F8D421E430CF0008103C = {
+						CreatedOnToolsVersion = 10.1;
+					};
+					4391F8F321E4355C0008103C = {
+						CreatedOnToolsVersion = 10.1;
+					};
+					4391F90021E436210008103C = {
+						CreatedOnToolsVersion = 10.1;
+					};
+				};
+			};
+			buildConfigurationList = 4391F87921E4278C0008103C /* Build configuration list for PBXProject "PrjFS" */;
+			compatibilityVersion = "Xcode 9.3";
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				en,
+			);
+			mainGroup = 4391F87521E4278C0008103C;
+			productRefGroup = 4391F88021E4278C0008103C /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				4391F87E21E4278C0008103C /* PrjFSKext */,
+				4391F8D421E430CF0008103C /* PrjFSLib */,
+				4391F8F321E4355C0008103C /* prjfs-log */,
+				4391F90021E436210008103C /* Build All */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		4391F87D21E4278C0008103C /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXShellScriptBuildPhase section */
+		43057C6021E43CC100487681 /* Run Script - Check kext linkage */ = {
+			isa = PBXShellScriptBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputFileListPaths = (
+			);
+			inputPaths = (
+			);
+			name = "Run Script - Check kext linkage";
+			outputFileListPaths = (
+			);
+			outputPaths = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "# This checks whether the kext is loadable in theory and whether we've missed any OSBundleLibraries\nkextlibs -c -multdef-symbols -undef-symbols -unsupported \"$BUILT_PRODUCTS_DIR/$WRAPPER_NAME\"\nkextutil -n \"$BUILT_PRODUCTS_DIR/$WRAPPER_NAME\"\n";
+			showEnvVarsInLog = 0;
+		};
+/* End PBXShellScriptBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		4391F87B21E4278C0008103C /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				4391F8BB21E42AC50008103C /* VnodeUtilities.cpp in Sources */,
+				4391F8B521E42AC50008103C /* Message_Kernel.cpp in Sources */,
+				4391F8B121E42AC50008103C /* Memory.cpp in Sources */,
+				4391F8BF21E42AC50008103C /* PerformanceTracing.cpp in Sources */,
+				4391F8C121E42AC50008103C /* VirtualizationRoots.cpp in Sources */,
+				4391F8C021E42AC50008103C /* Locks.cpp in Sources */,
+				4391F8AD21E42AC50008103C /* KauthHandler.cpp in Sources */,
+				4391F8AF21E42AC50008103C /* PrjFSProviderUserClient.cpp in Sources */,
+				4391F8BA21E42AC50008103C /* PrjFSLogUserClient.cpp in Sources */,
+				4391F8B621E42AC50008103C /* PrjFSKext.cpp in Sources */,
+				4391F8AB21E42AC50008103C /* KextLog.cpp in Sources */,
+				4391F8B421E42AC50008103C /* PrjFSService.cpp in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		4391F8D221E430CF0008103C /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				4391F8EB21E435230008103C /* PrjFSUser.cpp in Sources */,
+				4391F8EC21E435230008103C /* PrjFSLib.cpp in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		4391F8F021E4355C0008103C /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				43057C5E21E439C700487681 /* prjfs-log.cpp in Sources */,
+				43057C5F21E439C700487681 /* kext-perf-tracing.cpp in Sources */,
+				4391F8FD21E435720008103C /* PrjFSUser.cpp in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		4391F90521E4362B0008103C /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 4391F87E21E4278C0008103C /* PrjFSKext */;
+			targetProxy = 4391F90421E4362B0008103C /* PBXContainerItemProxy */;
+		};
+		4391F90721E4362B0008103C /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 4391F8D421E430CF0008103C /* PrjFSLib */;
+			targetProxy = 4391F90621E4362B0008103C /* PBXContainerItemProxy */;
+		};
+		4391F90921E4362B0008103C /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 4391F8F321E4355C0008103C /* prjfs-log */;
+			targetProxy = 4391F90821E4362B0008103C /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
+
+/* Begin XCBuildConfiguration section */
+		43057C5221E437F300487681 /* Profiling(Release) */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				CODE_SIGN_IDENTITY = "Mac Developer";
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_PREPROCESSOR_DEFINITIONS = "PRJFS_PERFORMANCE_TRACING_ENABLE=1";
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				MACOSX_DEPLOYMENT_TARGET = 10.14;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				MTL_FAST_MATH = YES;
+				SDKROOT = macosx;
+				SYMROOT = "$(SRCROOT)/../../BuildOutput/ProjFS.Mac/Native";
+				USER_HEADER_SEARCH_PATHS = "$(SRCROOT)/../";
+				WARNING_CFLAGS = (
+					"-Werror=undefined-internal",
+					"-Werror",
+					"-Werror=format",
+					"-Werror=missing-prototypes",
+				);
+			};
+			name = "Profiling(Release)";
+		};
+		43057C5321E437F300487681 /* Profiling(Release) */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				DEVELOPMENT_TEAM = UBF8T346G9;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"PRJFS_PERFORMANCE_TRACING_ENABLE=1",
+					"MACH_ASSERT=1",
+				);
+				INFOPLIST_FILE = PrjFSKext/Info.plist;
+				MODULE_NAME = io.gvfs.PrjFSKext;
+				MODULE_START = PrjFSKext_Start;
+				MODULE_STOP = PrjFSKext_Stop;
+				MODULE_VERSION = 1.0.0d1;
+				PRODUCT_BUNDLE_IDENTIFIER = io.gvfs.PrjFSKext;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				WARNING_CFLAGS = (
+					"-Werror=missing-prototypes",
+					"-Werror=undefined-internal",
+				);
+				WRAPPER_EXTENSION = kext;
+			};
+			name = "Profiling(Release)";
+		};
+		43057C5421E437F300487681 /* Profiling(Release) */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				DEVELOPMENT_TEAM = UBF8T346G9;
+				DYLIB_COMPATIBILITY_VERSION = 1;
+				DYLIB_CURRENT_VERSION = 1;
+				EXECUTABLE_PREFIX = lib;
+				MACOSX_DEPLOYMENT_TARGET = 10.13;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SKIP_INSTALL = YES;
+			};
+			name = "Profiling(Release)";
+		};
+		43057C5521E437F300487681 /* Profiling(Release) */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				DEVELOPMENT_TEAM = UBF8T346G9;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+			};
+			name = "Profiling(Release)";
+		};
+		43057C5621E437F300487681 /* Profiling(Release) */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				DEVELOPMENT_TEAM = UBF8T346G9;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+			};
+			name = "Profiling(Release)";
+		};
+		4391F88521E4278C0008103C /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				CODE_SIGN_IDENTITY = "Mac Developer";
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"DEBUG=1",
+					"$(inherited)",
+				);
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				MACOSX_DEPLOYMENT_TARGET = 10.14;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				MTL_FAST_MATH = YES;
+				ONLY_ACTIVE_ARCH = YES;
+				SDKROOT = macosx;
+				SYMROOT = "$(SRCROOT)/../../BuildOutput/ProjFS.Mac/Native";
+				USER_HEADER_SEARCH_PATHS = "$(SRCROOT)/../";
+				WARNING_CFLAGS = (
+					"-Werror=undefined-internal",
+					"-Werror",
+					"-Werror=format",
+					"-Werror=missing-prototypes",
+				);
+			};
+			name = Debug;
+		};
+		4391F88621E4278C0008103C /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				CODE_SIGN_IDENTITY = "Mac Developer";
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				MACOSX_DEPLOYMENT_TARGET = 10.14;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				MTL_FAST_MATH = YES;
+				SDKROOT = macosx;
+				SYMROOT = "$(SRCROOT)/../../BuildOutput/ProjFS.Mac/Native";
+				USER_HEADER_SEARCH_PATHS = "$(SRCROOT)/../";
+				WARNING_CFLAGS = (
+					"-Werror=undefined-internal",
+					"-Werror",
+					"-Werror=format",
+					"-Werror=missing-prototypes",
+				);
+			};
+			name = Release;
+		};
+		4391F88821E4278C0008103C /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				DEVELOPMENT_TEAM = UBF8T346G9;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"DEBUG=1",
+					"$(inherited)",
+					"MACH_ASSERT=1",
+				);
+				INFOPLIST_FILE = PrjFSKext/Info.plist;
+				MODULE_NAME = io.gvfs.PrjFSKext;
+				MODULE_START = PrjFSKext_Start;
+				MODULE_STOP = PrjFSKext_Stop;
+				MODULE_VERSION = 1.0.0d1;
+				PRODUCT_BUNDLE_IDENTIFIER = io.gvfs.PrjFSKext;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				WARNING_CFLAGS = (
+					"-Werror=missing-prototypes",
+					"-Werror=undefined-internal",
+				);
+				WRAPPER_EXTENSION = kext;
+			};
+			name = Debug;
+		};
+		4391F88921E4278C0008103C /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				DEVELOPMENT_TEAM = UBF8T346G9;
+				GCC_PREPROCESSOR_DEFINITIONS = "MACH_ASSERT=1";
+				INFOPLIST_FILE = PrjFSKext/Info.plist;
+				MODULE_NAME = io.gvfs.PrjFSKext;
+				MODULE_START = PrjFSKext_Start;
+				MODULE_STOP = PrjFSKext_Stop;
+				MODULE_VERSION = 1.0.0d1;
+				PRODUCT_BUNDLE_IDENTIFIER = io.gvfs.PrjFSKext;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				WARNING_CFLAGS = (
+					"-Werror=missing-prototypes",
+					"-Werror=undefined-internal",
+				);
+				WRAPPER_EXTENSION = kext;
+			};
+			name = Release;
+		};
+		4391F8D721E430CF0008103C /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				DEVELOPMENT_TEAM = UBF8T346G9;
+				DYLIB_COMPATIBILITY_VERSION = 1;
+				DYLIB_CURRENT_VERSION = 1;
+				EXECUTABLE_PREFIX = lib;
+				MACOSX_DEPLOYMENT_TARGET = 10.13;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SKIP_INSTALL = YES;
+			};
+			name = Debug;
+		};
+		4391F8D821E430CF0008103C /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				DEVELOPMENT_TEAM = UBF8T346G9;
+				DYLIB_COMPATIBILITY_VERSION = 1;
+				DYLIB_CURRENT_VERSION = 1;
+				EXECUTABLE_PREFIX = lib;
+				MACOSX_DEPLOYMENT_TARGET = 10.13;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SKIP_INSTALL = YES;
+			};
+			name = Release;
+		};
+		4391F8F921E4355C0008103C /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				DEVELOPMENT_TEAM = UBF8T346G9;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+			};
+			name = Debug;
+		};
+		4391F8FA21E4355C0008103C /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				DEVELOPMENT_TEAM = UBF8T346G9;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+			};
+			name = Release;
+		};
+		4391F90221E436210008103C /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				DEVELOPMENT_TEAM = UBF8T346G9;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+			};
+			name = Debug;
+		};
+		4391F90321E436210008103C /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				DEVELOPMENT_TEAM = UBF8T346G9;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		4391F87921E4278C0008103C /* Build configuration list for PBXProject "PrjFS" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				4391F88521E4278C0008103C /* Debug */,
+				4391F88621E4278C0008103C /* Release */,
+				43057C5221E437F300487681 /* Profiling(Release) */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		4391F88721E4278C0008103C /* Build configuration list for PBXNativeTarget "PrjFSKext" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				4391F88821E4278C0008103C /* Debug */,
+				4391F88921E4278C0008103C /* Release */,
+				43057C5321E437F300487681 /* Profiling(Release) */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		4391F8D621E430CF0008103C /* Build configuration list for PBXNativeTarget "PrjFSLib" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				4391F8D721E430CF0008103C /* Debug */,
+				4391F8D821E430CF0008103C /* Release */,
+				43057C5421E437F300487681 /* Profiling(Release) */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		4391F8F821E4355C0008103C /* Build configuration list for PBXNativeTarget "prjfs-log" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				4391F8F921E4355C0008103C /* Debug */,
+				4391F8FA21E4355C0008103C /* Release */,
+				43057C5521E437F300487681 /* Profiling(Release) */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		4391F90121E436210008103C /* Build configuration list for PBXAggregateTarget "Build All" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				4391F90221E436210008103C /* Debug */,
+				4391F90321E436210008103C /* Release */,
+				43057C5621E437F300487681 /* Profiling(Release) */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+/* End XCConfigurationList section */
+	};
+	rootObject = 4391F87621E4278C0008103C /* Project object */;
+}

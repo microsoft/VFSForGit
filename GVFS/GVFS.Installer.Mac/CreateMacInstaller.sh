@@ -61,13 +61,13 @@ function CopyBinariesToInstall()
     removeDataDirectory="rm -Rf \"${STAGINGDIR}/${VFSFORGITDESTINATION}/Data\""
     eval $removeDataDirectory || exit 1
     
-    copyPrjFS="cp -Rf \"${VFS_OUTPUTDIR}/ProjFS.Mac/Native/Build/Products/$CONFIGURATION\"/*.dylib \"${STAGINGDIR}/${PRJFSDESTINATION}/.\""
+    copyPrjFS="cp -Rf \"${VFS_OUTPUTDIR}/ProjFS.Mac/Native/$CONFIGURATION\"/*.dylib \"${STAGINGDIR}/${PRJFSDESTINATION}/.\""
     eval $copyPrjFS || exit 1
     
-    copyPrjFS="cp -Rf \"${VFS_OUTPUTDIR}/ProjFS.Mac/Native/Build/Products/$CONFIGURATION\"/prjfs-log \"${STAGINGDIR}/${PRJFSDESTINATION}/.\""
+    copyPrjFS="cp -Rf \"${VFS_OUTPUTDIR}/ProjFS.Mac/Native/$CONFIGURATION\"/prjfs-log \"${STAGINGDIR}/${PRJFSDESTINATION}/.\""
     eval $copyPrjFS || exit 1
     
-    copyPrjFS="cp -Rf \"${VFS_OUTPUTDIR}/ProjFS.Mac/Native/Build/Products/$CONFIGURATION\"/PrjFSKext.kext \"${STAGINGDIR}/${PRJFSDESTINATION}/.\""
+    copyPrjFS="cp -Rf \"${VFS_OUTPUTDIR}/ProjFS.Mac/Native/$CONFIGURATION\"/PrjFSKext.kext \"${STAGINGDIR}/${PRJFSDESTINATION}/.\""
     eval $copyPrjFS || exit 1
     
     currentDirectory=`pwd`
