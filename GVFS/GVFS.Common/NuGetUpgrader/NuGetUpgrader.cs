@@ -215,12 +215,11 @@ namespace GVFS.Common
             }
 
             string extractedPackagePath = this.UnzipPackageToTempLocation();
-            this.releaseManifest = new ReleaseManifestJson();
-            this.releaseManifest.Read(Path.Combine(extractedPackagePath, "content", "install-manifest.json"));
+            this.releaseManifest = ReleaseManifest.FromJsonFile(Path.Combine(extractedPackagePath, "content", "install-manifest.json"));
 
             this.fileSystem.CreateDirectory(upgradesDirectoryPath);
 
-            foreach (ManifestEntry entry in this.releaseManifest.Entries)
+            foreach (ManifestEntry entry in this.releaseManifest.PlatformInstallManifests["Windows"].InstallActions)
             {
                 installActionWrapper(
                     () =>
