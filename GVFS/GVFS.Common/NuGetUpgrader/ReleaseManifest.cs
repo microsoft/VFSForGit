@@ -1,4 +1,7 @@
-﻿using System.Collections.Generic;
+﻿using Newtonsoft.Json;
+using System.Collections.Generic;
+using System.IO;
+using System.Linq;
 
 namespace GVFS.Common
 {
@@ -6,22 +9,52 @@ namespace GVFS.Common
     /// Details on the upgrade included in this package, including information
     /// on what packages are included and how to install them.
     /// </summary>
-    public abstract class ReleaseManifest
+    public class ReleaseManifest
     {
+        public static string WindowsPlatformKey = "Windows";
+
         public ReleaseManifest()
         {
-            this.Entries = new List<ManifestEntry>();
+            this.PlatformInstallManifests = new Dictionary<string, InstallManifestPlatform>();
         }
 
         /// <summary>
-        /// The list of install actions.
+        /// Install manifests for different platforms.
         /// </summary>
-        public List<ManifestEntry> Entries { get; private set; }
+        public Dictionary<string, InstallManifestPlatform> PlatformInstallManifests { get; private set; }
 
         /// <summary>
-        /// Read the manifest from file.
+        /// Construct ReleaseManifest from a JSON file.
         /// </summary>
-        /// <param name="path"></param>
-        public abstract void Read(string path);
+        public static ReleaseManifest FromJsonFile(string path)
+        {
+            using (StreamReader streamReader = File.OpenText(path))
+            {
+                return ReleaseManifest.FromJson(streamReader);
+            }
+        }
+
+        /// <summary>
+        /// Construct ReleaseManifest from a JSON string.
+        /// </summary>
+        public static ReleaseManifest FromJsonString(string json)
+        {
+            return JsonConvert.DeserializeObject<ReleaseManifest>(json);
+        }
+
+        /// <summary>
+        /// Construct ReleaseManifest from a JSON stream
+        /// </summary>
+        public static ReleaseManifest FromJson(StreamReader stream)
+        {
+            JsonSerializer serializer = new JsonSerializer();
+            return (ReleaseManifest)serializer.Deserialize(stream, typeof(ReleaseManifest));
+        }
+
+        public void AddPlatformInstallManifest(string platform, IEnumerable<ManifestEntry> entries)
+        {
+            InstallManifestPlatform platformManifest = new InstallManifestPlatform(entries);
+            this.PlatformInstallManifests.Add(platform, platformManifest);
+        }
     }
 }
