@@ -900,27 +900,23 @@ namespace GVFS.Platform.Windows
                 metadata.Add("sha", sha);
                 metadata.Add("placeholderVersion", placeholderVersion);
                 metadata.Add("commandId", commandId);
-                ITracer activity = this.Context.Tracer.StartActivity("GetFileStream", EventLevel.Verbose, Keywords.Telemetry, metadata);
 
                 if (!this.FileSystemCallbacks.IsMounted)
                 {
                     metadata.Add(TracingConstants.MessageKey.InfoMessage, $"{nameof(this.GetFileStreamHandler)} failed, mount has not yet completed");
-                    activity.RelatedEvent(EventLevel.Informational, "GetFileStream_MountNotComplete", metadata);
-                    activity.Dispose();
+                    this.Context.Tracer.RelatedEvent(EventLevel.Informational, "GetFileStream_MountNotComplete", metadata);
                     return (HResult)HResultExtensions.HResultFromNtStatus.DeviceNotReady;
                 }
 
                 if (byteOffset != 0)
                 {
-                    activity.RelatedError(metadata, "Invalid Parameter: byteOffset must be 0");
-                    activity.Dispose();
+                    this.Context.Tracer.RelatedError(metadata, "Invalid Parameter: byteOffset must be 0");
                     return HResult.InternalError;
                 }
 
                 if (placeholderVersion != FileSystemVirtualizer.PlaceholderVersion)
                 {
-                    activity.RelatedError(metadata, nameof(this.GetFileStreamHandler) + ": Unexpected placeholder version");
-                    activity.Dispose();
+                    this.Context.Tracer.RelatedError(metadata, nameof(this.GetFileStreamHandler) + ": Unexpected placeholder version");
                     return HResult.InternalError;
                 }
 
@@ -928,7 +924,7 @@ namespace GVFS.Platform.Windows
                 if (!this.TryRegisterCommand(commandId, out cancellationSource))
                 {
                     metadata.Add(TracingConstants.MessageKey.WarningMessage, nameof(this.GetFileStreamHandler) + ": Failed to register command");
-                    activity.RelatedEvent(EventLevel.Warning, nameof(this.GetFileStreamHandler) + "_FailedToRegisterCommand", metadata);
+                    this.Context.Tracer.RelatedEvent(EventLevel.Warning, nameof(this.GetFileStreamHandler) + "_FailedToRegisterCommand", metadata);
                 }
 
                 FileOrNetworkRequest getFileStreamHandler = new FileOrNetworkRequest(
@@ -939,10 +935,9 @@ namespace GVFS.Platform.Windows
                         streamGuid,
                         sha,
                         metadata,
-                        activity),
+                        this.Context.Tracer),
                     () =>
                     {
-                        activity.Dispose();
                         cancellationSource.Dispose();
                     });
 
@@ -951,9 +946,8 @@ namespace GVFS.Platform.Windows
                 {
                     metadata.Add("Exception", e?.ToString());
                     metadata.Add(TracingConstants.MessageKey.WarningMessage, nameof(this.GetFileStreamHandler) + ": Failed to schedule async handler");
-                    activity.RelatedEvent(EventLevel.Warning, nameof(this.GetFileStreamHandler) + "_FailedToScheduleAsyncHandler", metadata);
+                    this.Context.Tracer.RelatedEvent(EventLevel.Warning, nameof(this.GetFileStreamHandler) + "_FailedToScheduleAsyncHandler", metadata);
 
-                    activity.Dispose();
                     cancellationSource.Dispose();
 
                     return (HResult)HResultExtensions.HResultFromNtStatus.DeviceNotReady;
