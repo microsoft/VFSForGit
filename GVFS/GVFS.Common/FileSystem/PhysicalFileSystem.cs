@@ -260,6 +260,27 @@ namespace GVFS.Common.FileSystem
             }
         }
 
+        public bool TryCreateDirectory(string path, out Exception exception)
+        {
+            try
+            {
+                Directory.CreateDirectory(path);
+            }
+            catch (IOException e)
+            {
+                exception = e;
+                return false;
+            }
+            catch (UnauthorizedAccessException e)
+            {
+                exception = e;
+                return false;
+            }
+
+            exception = null;
+            return true;
+        }
+
         /// <summary>
         /// Attempts to delete a file
         /// </summary>
