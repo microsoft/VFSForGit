@@ -200,7 +200,7 @@ namespace GVFS.Common.NuGetUpgrader
         {
             error = null;
             Exception e;
-            bool success = this.localUpgradeServices.TryDeleteDirectory(this.localUpgradeServices.TempPath, out e);
+            bool success = this.fileSystem.TryDeleteDirectory(this.localUpgradeServices.TempPath, out e);
 
             if (!success)
             {
@@ -219,7 +219,7 @@ namespace GVFS.Common.NuGetUpgrader
             string upgradesDirectoryPath = ProductUpgraderInfo.GetUpgradesDirectoryPath();
 
             Exception e;
-            if (!this.localUpgradeServices.TryDeleteDirectory(this.localUpgradeServices.TempPath, out e))
+            if (!this.fileSystem.TryDeleteDirectory(this.localUpgradeServices.TempPath, out e))
             {
                 error = e.Message;
                 return false;
