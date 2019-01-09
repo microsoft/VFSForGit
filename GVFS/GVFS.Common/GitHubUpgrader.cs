@@ -245,7 +245,7 @@ namespace GVFS.Common
 
             string downloadPath = ProductUpgraderInfo.GetAssetDownloadsPath();
             Exception exception;
-            if (!LocalUpgraderServices.TryCreateDirectory(downloadPath, out exception))
+            if (!this.fileSystem.TryCreateDirectory(downloadPath, out exception))
             {
                 errorMessage = exception.Message;
                 this.TraceException(exception, nameof(this.TryDownloadAsset), $"Error creating download directory {downloadPath}.");

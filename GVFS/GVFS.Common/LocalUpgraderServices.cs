@@ -40,27 +40,6 @@ namespace GVFS.Common
                 "InstallerTemp");
         }
 
-        public static bool TryCreateDirectory(string path, out Exception exception)
-        {
-            try
-            {
-                Directory.CreateDirectory(path);
-            }
-            catch (IOException e)
-            {
-                exception = e;
-                return false;
-            }
-            catch (UnauthorizedAccessException e)
-            {
-                exception = e;
-                return false;
-            }
-
-            exception = null;
-            return true;
-        }
-
         // TrySetupToolsDirectory -
         // Copies GVFS Upgrader tool and its dependencies to a temporary location in ProgramData.
         // Reason why this is needed - When GVFS.Upgrader.exe is run from C:\ProgramFiles\GVFS folder
@@ -73,7 +52,7 @@ namespace GVFS.Common
             string rootDirectoryPath = ProductUpgraderInfo.GetUpgradesDirectoryPath();
             string toolsDirectoryPath = Path.Combine(rootDirectoryPath, ToolsDirectory);
             Exception exception;
-            if (TryCreateDirectory(toolsDirectoryPath, out exception))
+            if (this.fileSystem.TryCreateDirectory(toolsDirectoryPath, out exception))
             {
                 string currentPath = ProcessHelper.GetCurrentProcessLocation();
                 error = null;
