@@ -281,6 +281,27 @@ namespace GVFS.Common.FileSystem
             return true;
         }
 
+        public bool TryDeleteDirectory(string path, out Exception exception)
+        {
+            try
+            {
+                this.DeleteDirectory(path);
+            }
+            catch (IOException e)
+            {
+                exception = e;
+                return false;
+            }
+            catch (UnauthorizedAccessException e)
+            {
+                exception = e;
+                return false;
+            }
+
+            exception = null;
+            return true;
+        }
+
         /// <summary>
         /// Attempts to delete a file
         /// </summary>

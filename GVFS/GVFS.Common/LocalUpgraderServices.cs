@@ -109,27 +109,6 @@ namespace GVFS.Common
             error = processResult.Errors;
         }
 
-        public virtual bool TryDeleteDirectory(string path, out Exception exception)
-        {
-            try
-            {
-                this.fileSystem.DeleteDirectory(path);
-            }
-            catch (IOException e)
-            {
-                exception = e;
-                return false;
-            }
-            catch (UnauthorizedAccessException e)
-            {
-                exception = e;
-                return false;
-            }
-
-            exception = null;
-            return true;
-        }
-
         protected void TraceException(Exception exception, string method, string message)
         {
             EventMetadata metadata = new EventMetadata();
