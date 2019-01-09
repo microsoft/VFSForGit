@@ -934,8 +934,7 @@ namespace GVFS.Platform.Windows
                         length,
                         streamGuid,
                         sha,
-                        metadata,
-                        this.Context.Tracer),
+                        metadata),
                     () =>
                     {
                         cancellationSource.Dispose();
@@ -975,8 +974,7 @@ namespace GVFS.Platform.Windows
             uint length,
             Guid streamGuid,
             string sha,
-            EventMetadata requestMetadata,
-            ITracer activity)
+            EventMetadata requestMetadata)
         {
             if (cancellationToken.IsCancellationRequested)
             {
@@ -994,7 +992,7 @@ namespace GVFS.Platform.Windows
                         if (blobLength != length)
                         {
                             requestMetadata.Add("blobLength", blobLength);
-                            activity.RelatedError(requestMetadata, $"{nameof(this.GetFileStreamHandlerAsyncHandler)}: Actual file length (blobLength) does not match requested length");
+                            this.Context.Tracer.RelatedError(requestMetadata, $"{nameof(this.GetFileStreamHandlerAsyncHandler)}: Actual file length (blobLength) does not match requested length");
 
                             throw new GetFileStreamException(HResult.InternalError);
                         }
@@ -1018,7 +1016,7 @@ namespace GVFS.Platform.Windows
                                 catch (IOException e)
                                 {
                                     requestMetadata.Add("Exception", e.ToString());
-                                    activity.RelatedError(requestMetadata, "IOException while copying to unmanaged buffer.");
+                                    this.Context.Tracer.RelatedError(requestMetadata, "IOException while copying to unmanaged buffer.");
 
                                     throw new GetFileStreamException("IOException while copying to unmanaged buffer: " + e.Message, (HResult)HResultExtensions.HResultFromNtStatus.FileNotAvailable);
                                 }
@@ -1046,14 +1044,14 @@ namespace GVFS.Platform.Windows
                                             // from GetFileStream has already timed out
                                             {
                                                 requestMetadata.Add(TracingConstants.MessageKey.InfoMessage, $"{nameof(this.virtualizationInstance.WriteFile)} returned StatusObjectNameNotFound");
-                                                activity.RelatedEvent(EventLevel.Informational, "WriteFile_ObjectNameNotFound", requestMetadata);
+                                                this.Context.Tracer.RelatedEvent(EventLevel.Informational, "WriteFile_ObjectNameNotFound", requestMetadata);
                                             }
 
                                             break;
 
                                         default:
                                             {
-                                                activity.RelatedError(requestMetadata, $"{nameof(this.virtualizationInstance.WriteFile)} failed, error: " + writeResult.ToString("X") + "(" + writeResult.ToString("G") + ")");
+                                                this.Context.Tracer.RelatedError(requestMetadata, $"{nameof(this.virtualizationInstance.WriteFile)} failed, error: " + writeResult.ToString("X") + "(" + writeResult.ToString("G") + ")");
                                             }
 
                                             break;
@@ -1065,7 +1063,7 @@ namespace GVFS.Platform.Windows
                         }
                     }))
                 {
-                    activity.RelatedError(requestMetadata, $"{nameof(this.GetFileStreamHandlerAsyncHandler)}: TryCopyBlobContentStream failed");
+                    this.Context.Tracer.RelatedError(requestMetadata, $"{nameof(this.GetFileStreamHandlerAsyncHandler)}: TryCopyBlobContentStream failed");
 
                     this.TryCompleteCommand(commandId, (HResult)HResultExtensions.HResultFromNtStatus.FileNotAvailable);
                     return;
@@ -1089,7 +1087,7 @@ namespace GVFS.Platform.Windows
             catch (Exception e)
             {
                 requestMetadata.Add("Exception", e.ToString());
-                activity.RelatedError(requestMetadata, $"{nameof(this.GetFileStreamHandlerAsyncHandler)}: TryCopyBlobContentStream failed");
+                this.Context.Tracer.RelatedError(requestMetadata, $"{nameof(this.GetFileStreamHandlerAsyncHandler)}: TryCopyBlobContentStream failed");
 
                 this.TryCompleteCommand(commandId, (HResult)HResultExtensions.HResultFromNtStatus.FileNotAvailable);
                 return;
