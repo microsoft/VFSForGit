@@ -88,7 +88,7 @@ namespace GVFS.FunctionalTests.FileSystemRunners
             string output = this.RunProcess(string.Format("-Command \"& {{ Get-Content -Raw {0} }}\"", path), errorMsgDelimeter: "\r\n");
 
             // Get-Content insists on sticking a trailing "\r\n" at the end of the output that we need to remove
-            output.Length.ShouldBeAtLeast(2);
+            output.Length.ShouldBeAtLeast(2, $"File content was not long enough for {path}");
             output.Substring(output.Length - 2).ShouldEqual("\r\n");
             output = output.Remove(output.Length - 2, 2);
 
