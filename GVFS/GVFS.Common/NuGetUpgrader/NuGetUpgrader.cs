@@ -8,7 +8,7 @@ using System.IO;
 using System.IO.Compression;
 using System.Threading;
 
-namespace GVFS.Common
+namespace GVFS.Common.NuGetUpgrader
 {
     public class NuGetUpgrader : IProductUpgrader
     {
@@ -21,8 +21,7 @@ namespace GVFS.Common
 
         private NugetUpgraderConfig nugetUpgraderConfig;
         private ReleaseManifest releaseManifest;
-        private NuGetFeedWrapper nugetFeedWrapper;
-
+        private NuGetFeed nugetFeed;
         private IPackageSearchMetadata latestVersion;
         private string downloadedPackagePath;
 
@@ -36,11 +35,8 @@ namespace GVFS.Common
                 currentVersion,
                 tracer,
                 config,
-                downloadFolder,
-                personalAccessToken,
                 new PhysicalFileSystem(),
-                new NuGetFeedWrapper(config.FeedUrl, config.PackageFeedName, downloadFolder, personalAccessToken, tracer),
-                new LocalUpgraderServices(tracer))
+                new NuGetFeed(config.FeedUrl, config.PackageFeedName, downloadFolder, personalAccessToken, tracer))
         {
         }
 
@@ -48,10 +44,24 @@ namespace GVFS.Common
             string currentVersion,
             ITracer tracer,
             NugetUpgraderConfig config,
-            string downloadFolder,
-            string personalAccessToken,
             PhysicalFileSystem fileSystem,
-            NuGetFeedWrapper nuGetWrapper,
+            NuGetFeed nuGetFeed)
+            : this(
+                currentVersion,
+                tracer,
+                config,
+                fileSystem,
+                nuGetFeed,
+                new LocalUpgraderServices(tracer, fileSystem))
+        {
+        }
+
+        public NuGetUpgrader(
+            string currentVersion,
+            ITracer tracer,
+            NugetUpgraderConfig config,
+            PhysicalFileSystem fileSystem,
+            NuGetFeed nuGetFeed,
             LocalUpgraderServices localUpgraderServices)
         {
             this.nugetUpgraderConfig = config;
@@ -59,7 +69,7 @@ namespace GVFS.Common
             this.installedVersion = new Version(currentVersion);
 
             this.fileSystem = fileSystem;
-            this.nugetFeedWrapper = nuGetWrapper;
+            this.nugetFeed = nuGetFeed;
             this.localUpgradeServices = localUpgraderServices;
         }
 
@@ -122,12 +132,9 @@ namespace GVFS.Common
 
         public bool TryQueryNewestVersion(out Version newVersion, out string message)
         {
-            newVersion = null;
-            message = null;
-
             try
             {
-                IList<IPackageSearchMetadata> queryResults = this.nugetFeedWrapper.QueryFeed(this.nugetUpgraderConfig.PackageFeedName).GetAwaiter().GetResult();
+                IList<IPackageSearchMetadata> queryResults = this.nugetFeed.QueryFeed(this.nugetUpgraderConfig.PackageFeedName).GetAwaiter().GetResult();
 
                 // Find the latest package
                 IPackageSearchMetadata highestVersion = null;
@@ -157,6 +164,10 @@ namespace GVFS.Common
                     message = $"Latest available version is {highestVersion.Identity.Version}, you are up-to-date";
                     return true;
                 }
+                else
+                {
+                    message = $"No versions available via feed.";
+                }
             }
             catch (Exception ex)
             {
@@ -173,7 +184,7 @@ namespace GVFS.Common
 
             try
             {
-                this.downloadedPackagePath = this.nugetFeedWrapper.DownloadPackage(this.latestVersion.Identity).GetAwaiter().GetResult();
+                this.downloadedPackagePath = this.nugetFeed.DownloadPackage(this.latestVersion.Identity).GetAwaiter().GetResult();
             }
             catch (Exception ex)
             {
@@ -297,8 +308,6 @@ namespace GVFS.Common
             public bool TryLoad(out bool isEnabled, out bool isConfigured, out string error)
             {
                 error = string.Empty;
-                isEnabled = false;
-                isConfigured = false;
 
                 string configValue;
                 string readError;

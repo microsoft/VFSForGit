@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 
-namespace GVFS.Common
+namespace GVFS.Common.NuGetUpgrader
 {
     /// <summary>
     /// Details on the upgrade included in this package, including information

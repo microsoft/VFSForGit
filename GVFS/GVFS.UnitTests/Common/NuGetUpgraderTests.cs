@@ -1,5 +1,6 @@
 ﻿using GVFS.Common;
 using GVFS.Common.FileSystem;
+using GVFS.Common.NuGetUpgrader;
 using GVFS.Tests.Should;
 using GVFS.UnitTests.Mock;
 using GVFS.UnitTests.Mock.Common;
@@ -30,7 +31,7 @@ namespace GVFS.UnitTests.Common
         private string downloadFolder;
         private string personalAccessToken;
 
-        private Mock<NuGetFeedWrapper> mockNuGetWrapper;
+        private Mock<NuGetFeed> mockNuGetFeed;
         private Mock<PhysicalFileSystem> mockFileSystem;
 
         [SetUp]
@@ -46,18 +47,16 @@ namespace GVFS.UnitTests.Common
 
             this.tracer = new MockTracer();
 
-            this.mockNuGetWrapper = new Mock<NuGetFeedWrapper>(feedUrl, feedName, this.downloadFolder, this.personalAccessToken, this.tracer);
+            this.mockNuGetFeed = new Mock<NuGetFeed>(feedUrl, feedName, this.downloadFolder, this.personalAccessToken, this.tracer);
             this.mockFileSystem = new Mock<PhysicalFileSystem>();
 
             this.upgrader = new NuGetUpgrader(
                 this.currentVersion,
                 this.tracer,
                 this.upgraderConfig,
-                this.downloadFolder,
-                this.personalAccessToken,
                 this.mockFileSystem.Object,
-                this.mockNuGetWrapper.Object,
-                new LocalUpgraderServices(this.tracer));
+                this.mockNuGetFeed.Object,
+                new LocalUpgraderServices(this.tracer, this.mockFileSystem.Object));
         }
 
         [TestCase]
@@ -71,7 +70,7 @@ namespace GVFS.UnitTests.Common
                 this.GeneratePackageSeachMetadata(new Version(this.newerVersion)),
             };
 
-            this.mockNuGetWrapper.Setup(foo => foo.QueryFeed(It.IsAny<string>())).Returns(Task.FromResult<IList<IPackageSearchMetadata>>(availablePackages));
+            this.mockNuGetFeed.Setup(foo => foo.QueryFeed(It.IsAny<string>())).Returns(Task.FromResult<IList<IPackageSearchMetadata>>(availablePackages));
 
             bool success = this.upgrader.TryQueryNewestVersion(out newVersion, out message);
 
@@ -94,7 +93,7 @@ namespace GVFS.UnitTests.Common
                 this.GeneratePackageSeachMetadata(new Version(this.newerVersion2)),
             };
 
-            this.mockNuGetWrapper.Setup(foo => foo.QueryFeed(It.IsAny<string>())).Returns(Task.FromResult<IList<IPackageSearchMetadata>>(availablePackages));
+            this.mockNuGetFeed.Setup(foo => foo.QueryFeed(It.IsAny<string>())).Returns(Task.FromResult<IList<IPackageSearchMetadata>>(availablePackages));
 
             bool success = this.upgrader.TryQueryNewestVersion(out newVersion, out message);
 
@@ -116,7 +115,7 @@ namespace GVFS.UnitTests.Common
                 this.GeneratePackageSeachMetadata(new Version(this.currentVersion)),
             };
 
-            this.mockNuGetWrapper.Setup(foo => foo.QueryFeed(It.IsAny<string>())).Returns(Task.FromResult<IList<IPackageSearchMetadata>>(availablePackages));
+            this.mockNuGetFeed.Setup(foo => foo.QueryFeed(It.IsAny<string>())).Returns(Task.FromResult<IList<IPackageSearchMetadata>>(availablePackages));
 
             bool success = this.upgrader.TryQueryNewestVersion(out newVersion, out message);
 
@@ -136,7 +135,7 @@ namespace GVFS.UnitTests.Common
                 this.GeneratePackageSeachMetadata(new Version(this.currentVersion)),
             };
 
-            this.mockNuGetWrapper.Setup(foo => foo.QueryFeed(It.IsAny<string>())).Throws(new Exception("Network Error"));
+            this.mockNuGetFeed.Setup(foo => foo.QueryFeed(It.IsAny<string>())).Throws(new Exception("Network Error"));
 
             bool success = this.upgrader.TryQueryNewestVersion(out newVersion, out message);
 
@@ -156,10 +155,10 @@ namespace GVFS.UnitTests.Common
                 this.GeneratePackageSeachMetadata(new Version(this.newerVersion)),
             };
 
-            this.mockNuGetWrapper.Setup(foo => foo.QueryFeed(It.IsAny<string>())).Returns(Task.FromResult<IList<IPackageSearchMetadata>>(availablePackages));
+            this.mockNuGetFeed.Setup(foo => foo.QueryFeed(It.IsAny<string>())).Returns(Task.FromResult<IList<IPackageSearchMetadata>>(availablePackages));
 
             // TODO: verify expected argument
-            this.mockNuGetWrapper.Setup(foo => foo.DownloadPackage(It.IsAny<PackageIdentity>())).Returns(Task.FromResult("package_path"));
+            this.mockNuGetFeed.Setup(foo => foo.DownloadPackage(It.IsAny<PackageIdentity>())).Returns(Task.FromResult("package_path"));
 
             bool success = this.upgrader.TryQueryNewestVersion(out newVersion, out message);
 
@@ -182,10 +181,10 @@ namespace GVFS.UnitTests.Common
                 this.GeneratePackageSeachMetadata(new Version(this.newerVersion)),
             };
 
-            this.mockNuGetWrapper.Setup(foo => foo.QueryFeed(It.IsAny<string>())).Returns(Task.FromResult<IList<IPackageSearchMetadata>>(availablePackages));
+            this.mockNuGetFeed.Setup(foo => foo.QueryFeed(It.IsAny<string>())).Returns(Task.FromResult<IList<IPackageSearchMetadata>>(availablePackages));
 
             // TODO: verify expected argument
-            this.mockNuGetWrapper.Setup(foo => foo.DownloadPackage(It.IsAny<PackageIdentity>())).Throws(new Exception("Network Error"));
+            this.mockNuGetFeed.Setup(foo => foo.DownloadPackage(It.IsAny<PackageIdentity>())).Throws(new Exception("Network Error"));
 
             bool success = this.upgrader.TryQueryNewestVersion(out newVersion, out message);
 

@@ -1,4 +1,4 @@
-namespace GVFS.Common
+namespace GVFS.Common.NuGetUpgrader
 {
     public class ManifestEntry
     {
@@ -21,7 +21,8 @@ namespace GVFS.Common
         public string Name { get; set; }
 
         /// <summary>
-        /// The relative path to the install command
+        /// The path to the installer, relative to the
+        /// content directory of the NuGet package.
         /// </summary>
         public string RelativePath { get; set; }
 

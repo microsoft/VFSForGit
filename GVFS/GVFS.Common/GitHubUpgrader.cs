@@ -24,7 +24,6 @@ namespace GVFS.Common
         private const string GitAssetId = "Git";
         private const string GVFSAssetId = "GVFS";
         private const string GitInstallerFileNamePrefix = "Git-";
-        private const int RepoMountFailureExitCode = 17;
 
         private Version newestVersion;
         private Release newestRelease;
@@ -44,7 +43,7 @@ namespace GVFS.Common
             this.fileSystem = new PhysicalFileSystem();
             this.tracer = tracer;
 
-            this.localUpgradeServices = new LocalUpgraderServices(tracer);
+            this.localUpgradeServices = new LocalUpgraderServices(tracer, this.fileSystem);
         }
 
         public GitHubUpgraderConfig Config { get; private set; }
