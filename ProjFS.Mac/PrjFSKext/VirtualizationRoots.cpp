@@ -2,8 +2,8 @@
 #include <kern/assert.h>
 #include <stdatomic.h>
 
-#include "PrjFSCommon.h"
-#include "PrjFSXattrs.h"
+#include "public/PrjFSCommon.h"
+#include "public/PrjFSXattrs.h"
 #include "VirtualizationRoots.hpp"
 #include "Memory.hpp"
 #include "Locks.hpp"

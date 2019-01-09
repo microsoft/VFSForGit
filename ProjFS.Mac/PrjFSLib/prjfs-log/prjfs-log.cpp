@@ -1,4 +1,4 @@
-#include "../PrjFSUser.hpp"
+#include "PrjFSUser.hpp"
 #include "kext-perf-tracing.hpp"
 #include "../../PrjFSKext/public/PrjFSLogClientShared.h"
 #include <iostream>

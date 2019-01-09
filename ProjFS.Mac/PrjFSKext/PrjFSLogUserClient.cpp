@@ -1,7 +1,7 @@
 #include "PrjFSLogUserClient.hpp"
-#include "PrjFSLogClientShared.h"
+#include "public/PrjFSLogClientShared.h"
 #include "KextLog.hpp"
-#include "PrjFSCommon.h"
+#include "public/PrjFSCommon.h"
 #include "PerformanceTracing.hpp"
 #include <IOKit/IOSharedDataQueue.h>
 

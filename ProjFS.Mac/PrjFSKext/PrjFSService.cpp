@@ -1,5 +1,5 @@
-#include "../public/PrjFSCommon.h"
-#include "../public/PrjFSProviderClientShared.h"
+#include "public/PrjFSCommon.h"
+#include "public/PrjFSProviderClientShared.h"
 #include "PrjFSService.hpp"
 #include "PrjFSProviderUserClient.hpp"
 #include "PrjFSLogUserClient.hpp"

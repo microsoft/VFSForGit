@@ -2,7 +2,7 @@
 
 #include <sys/kernel_types.h>
 #include <sys/_types/_fsid_t.h>
-#include "FsidInode.h"
+#include "public/FsidInode.h"
 
 struct SizeOrError
 {

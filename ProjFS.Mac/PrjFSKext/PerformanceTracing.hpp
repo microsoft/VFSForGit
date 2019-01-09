@@ -1,7 +1,7 @@
 #pragma once
 
-#include "PrjFSCommon.h"
-#include "PrjFSPerfCounter.h"
+#include "public/PrjFSCommon.h"
+#include "public/PrjFSPerfCounter.h"
 
 #include <mach/mach_time.h>
 #include <IOKit/IOReturn.h>

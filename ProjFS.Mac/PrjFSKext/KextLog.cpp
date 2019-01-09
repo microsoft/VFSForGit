@@ -8,7 +8,7 @@
 #include "Locks.hpp"
 #include "Memory.hpp"
 #include "PrjFSLogUserClient.hpp"
-#include "PrjFSLogClientShared.h"
+#include "public/PrjFSLogClientShared.h"
 
 os_log_t __prjfs_log;
 

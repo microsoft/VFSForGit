@@ -2,7 +2,7 @@
 
 #include "PrjFSClasses.hpp"
 #include "Locks.hpp"
-#include "PrjFSCommon.h"
+#include "public/PrjFSCommon.h"
 #include <IOKit/IOUserClient.h>
 
 class IOSharedDataQueue;

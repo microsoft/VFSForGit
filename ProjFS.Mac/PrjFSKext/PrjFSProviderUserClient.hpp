@@ -2,7 +2,7 @@
 
 #include "PrjFSClasses.hpp"
 #include "Locks.hpp"
-#include "Message.h"
+#include "public/Message.h"
 #include "VirtualizationRoots.hpp"
 #include <IOKit/IOUserClient.h>
 

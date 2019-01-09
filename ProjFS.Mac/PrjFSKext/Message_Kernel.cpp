@@ -1,5 +1,5 @@
 #include <kern/debug.h>
-#include "Message.h"
+#include "public/Message.h"
 
 void Message_Init(
     Message* spec,

@@ -4,7 +4,7 @@
 #include <kern/assert.h>
 #include <libkern/OSAtomic.h>
 
-#include "PrjFSCommon.h"
+#include "public/PrjFSCommon.h"
 #include "Locks.hpp"
 
 static lck_grp_t* s_lockGroup = nullptr;

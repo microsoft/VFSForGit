@@ -5,13 +5,13 @@
 #include <kern/assert.h>
 #include <stdatomic.h>
 
-#include "PrjFSCommon.h"
-#include "PrjFSPerfCounter.h"
+#include "public/PrjFSCommon.h"
+#include "public/PrjFSPerfCounter.h"
 #include "VirtualizationRoots.hpp"
 #include "VnodeUtilities.hpp"
 #include "KauthHandler.hpp"
 #include "KextLog.hpp"
-#include "Message.h"
+#include "public/Message.h"
 #include "Locks.hpp"
 #include "PrjFSProviderUserClient.hpp"
 #include "PerformanceTracing.hpp"
