@@ -52,43 +52,53 @@ namespace GVFS.Common
             string rootDirectoryPath = ProductUpgraderInfo.GetUpgradesDirectoryPath();
             string toolsDirectoryPath = Path.Combine(rootDirectoryPath, ToolsDirectory);
             Exception exception;
-            if (this.fileSystem.TryCreateDirectory(toolsDirectoryPath, out exception))
+            if (!this.fileSystem.TryCreateDirectory(toolsDirectoryPath, out exception))
             {
-                string currentPath = ProcessHelper.GetCurrentProcessLocation();
-                error = null;
-                foreach (string name in UpgraderToolAndLibs)
-                {
-                    string toolPath = Path.Combine(currentPath, name);
-                    string destinationPath = Path.Combine(toolsDirectoryPath, name);
-                    try
-                    {
-                        File.Copy(toolPath, destinationPath, overwrite: true);
-                    }
-                    catch (UnauthorizedAccessException e)
-                    {
-                        error = string.Join(
-                            Environment.NewLine,
-                            "File copy error - " + e.Message,
-                            $"Make sure you have write permissions to directory {rootDirectoryPath} and run {GVFSConstants.UpgradeVerbMessages.GVFSUpgradeConfirm} again.");
-                        this.TraceException(e, nameof(this.TrySetupToolsDirectory), $"Error copying {toolPath} to {destinationPath}.");
-                        break;
-                    }
-                    catch (IOException e)
-                    {
-                        error = "File copy error - " + e.Message;
-                        this.TraceException(e, nameof(this.TrySetupToolsDirectory), $"Error copying {toolPath} to {destinationPath}.");
-                        break;
-                    }
-                }
-
-                upgraderToolPath = string.IsNullOrEmpty(error) ? Path.Combine(toolsDirectoryPath, UpgraderToolName) : null;
-                return string.IsNullOrEmpty(error);
+                upgraderToolPath = null;
+                error = exception.Message;
+                this.TraceException(exception, nameof(this.TrySetupToolsDirectory), $"Error creating upgrade tools directory {toolsDirectoryPath}.");
+                return false;
             }
 
-            upgraderToolPath = null;
-            error = exception.Message;
-            this.TraceException(exception, nameof(this.TrySetupToolsDirectory), $"Error creating upgrade tools directory {toolsDirectoryPath}.");
-            return false;
+            string currentPath = ProcessHelper.GetCurrentProcessLocation();
+            error = null;
+            foreach (string name in UpgraderToolAndLibs)
+            {
+                string toolPath = Path.Combine(currentPath, name);
+                string destinationPath = Path.Combine(toolsDirectoryPath, name);
+                try
+                {
+                    File.Copy(toolPath, destinationPath, overwrite: true);
+                }
+                catch (UnauthorizedAccessException e)
+                {
+                    error = string.Join(
+                        Environment.NewLine,
+                        "File copy error - " + e.Message,
+                        $"Make sure you have write permissions to directory {rootDirectoryPath} and run {GVFSConstants.UpgradeVerbMessages.GVFSUpgradeConfirm} again.");
+                    this.TraceException(e, nameof(this.TrySetupToolsDirectory), $"Error copying {toolPath} to {destinationPath}.");
+                    break;
+                }
+                catch (IOException e)
+                {
+                    error = "File copy error - " + e.Message;
+                    this.TraceException(e, nameof(this.TrySetupToolsDirectory), $"Error copying {toolPath} to {destinationPath}.");
+                    break;
+                }
+            }
+
+            if (string.IsNullOrEmpty(error))
+            {
+                // There was no error - set upgradeToolPath and return success.
+                upgraderToolPath = Path.Combine(toolsDirectoryPath, UpgraderToolName);
+                return true;
+            }
+            else
+            {
+                // Encountered error - do not set upgrade tool path and return failure.
+                upgraderToolPath = null;
+                return false;
+            }
         }
 
         public virtual void RunInstaller(string path, string args, out int exitCode, out string error)
