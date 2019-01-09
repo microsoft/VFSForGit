@@ -1,4 +1,5 @@
 ﻿using GVFS.FunctionalTests.FileSystemRunners;
+using GVFS.FunctionalTests.Tools;
 using GVFS.Tests.Should;
 using NUnit.Framework;
 using System;
@@ -23,6 +24,8 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
         [Category(Categories.FullSuiteOnly)]
         public void HydrateRepoInParallel()
         {
+            GitProcess.Invoke(this.Enlistment.RepoRoot, $"checkout -f {FileConstants.CommitId}");
+
             ConcurrentBag<string> collection = new ConcurrentBag<string>();
             List<Thread> threads = new List<Thread>();
             foreach (string path in FileConstants.Paths)
@@ -57,6 +60,8 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
 
         private class FileConstants
         {
+            public static readonly string CommitId = "b76df49a1e02465ef1c27d9c2a1720b337de99c8";
+
             /// <summary>
             /// Generate in Git Bash using command:
             /// git ls-tree --full-tree -r --name-only HEAD | awk '{print "\""$1"\","}'
