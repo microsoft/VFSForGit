@@ -1,4 +1,5 @@
 ﻿using GVFS.Common;
+using GVFS.Common.NuGetUpgrader;
 using GVFS.Tests.Should;
 using Newtonsoft.Json;
 using NUnit.Framework;

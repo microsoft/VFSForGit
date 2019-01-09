@@ -1,5 +1,6 @@
 using GVFS.Common.FileSystem;
 using GVFS.Common.Git;
+using GVFS.Common.NuGetUpgrader;
 using GVFS.Common.Tracing;
 using System;
 using System.IO;
@@ -13,10 +14,10 @@ namespace GVFS.Common
             ITracer tracer,
             out string error)
         {
-            newUpgrader = NuGetUpgrader.Create(tracer, out error);
+            newUpgrader = NuGetUpgrader.NuGetUpgrader.Create(tracer, out error);
             if (newUpgrader != null)
             {
-                return true;
+               return true;
             }
 
             newUpgrader = GitHubUpgrader.Create(tracer, out error);

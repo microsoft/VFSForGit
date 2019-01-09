@@ -9,24 +9,20 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 
-namespace GVFS.Common
+namespace GVFS.Common.NuGetUpgrader
 {
     /// <summary>
     /// Handles interactions with a NuGet Feed.
     /// </summary>
-    public class NuGetFeedWrapper
+    public class NuGetFeed
     {
         private ITracer tracer;
-
         private string feedUrl;
-
         private string feedName;
-
         private string downloadFolder;
-
         private string personalAccessToken;
 
-        public NuGetFeedWrapper(
+        public NuGetFeed(
             string feedUrl,
             string feedName,
             string downloadFolder,

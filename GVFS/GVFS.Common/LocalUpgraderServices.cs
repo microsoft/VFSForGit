@@ -25,9 +25,9 @@ namespace GVFS.Common
                 "Newtonsoft.Json.dll"
             };
 
-        public LocalUpgraderServices(ITracer tracer)
+        public LocalUpgraderServices(ITracer tracer, PhysicalFileSystem fileSystem)
         {
-            this.fileSystem = new PhysicalFileSystem();
+            this.fileSystem = fileSystem;
             this.tracer = tracer;
         }
 
