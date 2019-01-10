@@ -1,4 +1,4 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
 
   <Import Project="..\LibGit2Sharp.NativeBinaries.props" />
   <Import Project="..\GVFS.Build\GVFS.cs.props" />
