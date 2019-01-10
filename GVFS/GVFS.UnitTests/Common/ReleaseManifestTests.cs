@@ -26,13 +26,13 @@ namespace GVFS.UnitTests.Common
         {
  	    ""Name"" : ""Git"",
         ""Version"" : ""2.19.0.1.34"",
-        ""RelativePath"" : ""Installers\\Windows\\G4W\\Git-2.19.0.gvfs.1.34.gc7fb556-64-bit.exe"",
+        ""InstallerRelativePath"" : ""Installers\\Windows\\G4W\\Git-2.19.0.gvfs.1.34.gc7fb556-64-bit.exe"",
         ""Args"" : ""/VERYSILENT /CLOSEAPPLICATIONS""
       },
       {
  	    ""Name"" : ""PreGitInstaller"",
  	    ""Version"" : ""0.0.0.1"",
- 	    ""RelativePath"" : ""Installers\\Windows\\GSD\\PreGitInstallerSetup.exe""
+ 	    ""InstallerRelativePath"" : ""Installers\\Windows\\GSD\\PreGitInstallerSetup.exe""
       },
       ]
     }
@@ -47,6 +47,7 @@ namespace GVFS.UnitTests.Common
             platformInstallManifest.InstallActions.Count.ShouldEqual(2);
             platformInstallManifest.InstallActions[0].Name.ShouldEqual("Git");
             platformInstallManifest.InstallActions[1].Name.ShouldEqual("PreGitInstaller");
+            platformInstallManifest.InstallActions[0].InstallerRelativePath.ShouldEqual("Installers\\Windows\\G4W\\Git-2.19.0.gvfs.1.34.gc7fb556-64-bit.exe");
         }
 
         [TestCase]
@@ -109,6 +110,7 @@ namespace GVFS.UnitTests.Common
                 actual.InstallActions[i].Version.ShouldEqual(expected.InstallActions[i].Version);
                 actual.InstallActions[i].Args.ShouldEqual(expected.InstallActions[i].Args);
                 actual.InstallActions[i].Name.ShouldEqual(expected.InstallActions[i].Name);
+                actual.InstallActions[i].InstallerRelativePath.ShouldEqual(expected.InstallActions[i].InstallerRelativePath);
             }
         }
     }

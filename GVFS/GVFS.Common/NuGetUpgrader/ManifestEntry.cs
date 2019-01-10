@@ -2,12 +2,12 @@ namespace GVFS.Common.NuGetUpgrader
 {
     public class ManifestEntry
     {
-        public ManifestEntry(string name, string version, string args, string installerPath)
+        public ManifestEntry(string name, string version, string args, string installerRelativePath)
         {
             this.Name = name;
             this.Version = version;
             this.Args = args;
-            this.RelativePath = installerPath;
+            this.InstallerRelativePath = installerRelativePath;
         }
 
         /// <summary>
@@ -24,7 +24,7 @@ namespace GVFS.Common.NuGetUpgrader
         /// The path to the installer, relative to the
         /// content directory of the NuGet package.
         /// </summary>
-        public string RelativePath { get; set; }
+        public string InstallerRelativePath { get; set; }
 
         /// <summary>
         /// The version of the component that this entry installs
