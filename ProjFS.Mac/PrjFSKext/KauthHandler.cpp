@@ -15,6 +15,7 @@
 #include "Locks.hpp"
 #include "PrjFSProviderUserClient.hpp"
 #include "PerformanceTracing.hpp"
+#include "kernel-header-wrappers/mount.h"
 
 // Function prototypes
 static int HandleVnodeOperation(
@@ -345,9 +346,14 @@ static int HandleVnodeOperation(
         
         // Call vn_getpath first when the cache is hottest to increase the chances
         // of successfully getting the path
-        if (0 == vn_getpath(currentVnode, vnodePathBuffer, &vnodePathLength))
+        errno_t error = vn_getpath(currentVnode, vnodePathBuffer, &vnodePathLength);
+        if (0 == error)
         {
             vnodePath = vnodePathBuffer;
+        }
+        else
+        {
+            KextLog_ErrorVnodeProperties(currentVnode, "HandleVnodeOperation: vn_getpath failed, error = %d", error);
         }
     }
 
@@ -535,6 +541,7 @@ static int HandleFileOpOperation(
         errno_t toErr = vnode_lookup(newPath, 0 /* flags */, &currentVnode, context);
         if (0 != toErr)
         {
+            KextLog_Error("HandleFileOpOperation: vnode_lookup failed, errno %d for path '%s'", toErr, newPath);
             goto CleanupAndReturn;
         }
         
@@ -624,7 +631,8 @@ static int HandleFileOpOperation(
         bool fileFlaggedInRoot;
         if (!TryGetFileIsFlaggedAsInRoot(currentVnode, context, &fileFlaggedInRoot))
         {
-            KextLog_Info("Failed to read attributes when handling FileOp operation. Path is %s", path);
+            KextLog_ErrorVnodeProperties(currentVnode, "KAUTH_FILEOP_CLOSE: checking file flags failed. Path = '%s'", path);
+            
             goto CleanupAndReturn;
         }
         
@@ -1095,13 +1103,13 @@ static bool TryReadVNodeFileFlags(vnode_t vn, vfs_context_t _Nonnull context, ui
         //   - Logging this error
         //   - Falling back on vnode lookup (or custom cache) to determine if file is in the root
         //   - Assuming files are empty if we can't read the flags
-        
+        KextLog_FileError(vn, "ReadVNodeFileFlags: GetVNodeAttributes failed with error %d; vnode type: %d, recycled: %s", err, vnode_vtype(vn), vnode_isrecycled(vn) ? "yes" : "no");
         return false;
     }
     
     assert(VATTR_IS_SUPPORTED(&attributes, va_flags));
-     *flags = attributes.va_flags;
-     return true;
+    *flags = attributes.va_flags;
+    return true;
 }
 
 static inline bool FileFlagsBitIsSet(uint32_t fileFlags, uint32_t bit)
