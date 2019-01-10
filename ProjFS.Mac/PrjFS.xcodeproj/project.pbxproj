@@ -183,7 +183,10 @@
 				4391F88021E4278C0008103C /* Products */,
 				4391F8D921E430E10008103C /* Frameworks */,
 			);
+			indentWidth = 4;
 			sourceTree = "<group>";
+			tabWidth = 4;
+			usesTabs = 0;
 		};
 		4391F88021E4278C0008103C /* Products */ = {
 			isa = PBXGroup;
