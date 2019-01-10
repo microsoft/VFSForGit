@@ -29,7 +29,6 @@ namespace GVFS.Virtualization
         private readonly string logsHeadPath;
 
         private GVFSContext context;
-        private GVFSGitObjects gitObjects;
         private ModifiedPathsDatabase modifiedPaths;
         private ConcurrentHashSet<string> newlyCreatedFileAndFolderPaths;
         private ConcurrentDictionary<string, PlaceHolderCreateCounter> placeHolderCreationCount;
@@ -66,7 +65,6 @@ namespace GVFS.Virtualization
             this.logsHeadFileProperties = null;
 
             this.context = context;
-            this.gitObjects = gitObjects;
             this.fileSystemVirtualizer = fileSystemVirtualizer;
 
             this.placeHolderCreationCount = new ConcurrentDictionary<string, PlaceHolderCreateCounter>(StringComparer.OrdinalIgnoreCase);
