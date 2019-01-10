@@ -113,17 +113,19 @@ namespace GVFS.Common.NuGetUpgrader
                 message = "Nuget Feed URL has not been configured";
                 return false;
             }
-
-            if (string.IsNullOrEmpty(this.nugetUpgraderConfig.PackageFeedName))
+            else if (string.IsNullOrEmpty(this.nugetUpgraderConfig.PackageFeedName))
             {
                 message = "URL to lookup credentials has not been configured";
                 return false;
             }
-
-            if (string.IsNullOrEmpty(this.nugetUpgraderConfig.FeedUrlForCredentials))
+            else if (string.IsNullOrEmpty(this.nugetUpgraderConfig.FeedUrlForCredentials))
             {
                 message = "URL to lookup credentials has not been configured";
                 return false;
+            }
+            else
+            {
+                message = null;
             }
 
             message = null;
@@ -156,21 +158,25 @@ namespace GVFS.Common.NuGetUpgrader
 
                 if (!(newVersion is null))
                 {
+                    this.tracer.RelatedInfo($"{nameof(this.TryQueryNewestVersion)} - new version available: installedVersion: {this.installedVersion}, latestAvailableVersion: {highestVersion}");
                     message = $"New version {highestVersion.Identity.Version} is available.";
                     return true;
                 }
                 else if (!(highestVersion is null))
                 {
+                    this.tracer.RelatedInfo($"{nameof(this.TryQueryNewestVersion)} - up-to-date");
                     message = $"Latest available version is {highestVersion.Identity.Version}, you are up-to-date";
                     return true;
                 }
                 else
                 {
+                    this.tracer.RelatedInfo($"{nameof(this.TryQueryNewestVersion)} - no versions available from feed.");
                     message = $"No versions available via feed.";
                 }
             }
             catch (Exception ex)
             {
+                this.tracer.RelatedError($"{nameof(this.TryQueryNewestVersion)} failed with: {ex.Message}");
                 message = ex.Message;
                 newVersion = null;
             }
@@ -182,14 +188,18 @@ namespace GVFS.Common.NuGetUpgrader
         {
             // Check that we have latest version
 
-            try
+            using (ITracer activity = this.tracer.StartActivity(nameof(this.TryDownloadNewestVersion), EventLevel.Informational))
             {
-                this.downloadedPackagePath = this.nugetFeed.DownloadPackage(this.latestVersion.Identity).GetAwaiter().GetResult();
-            }
-            catch (Exception ex)
-            {
-                errorMessage = ex.Message;
-                return false;
+                try
+                {
+                    this.downloadedPackagePath = this.nugetFeed.DownloadPackage(this.latestVersion.Identity).GetAwaiter().GetResult();
+                }
+                catch (Exception ex)
+                {
+                    activity.RelatedError($"{nameof(this.TryDownloadNewestVersion)} - error encountered: ${ex.Message}");
+                    errorMessage = ex.Message;
+                    return false;
+                }
             }
 
             errorMessage = null;
@@ -204,6 +214,7 @@ namespace GVFS.Common.NuGetUpgrader
 
             if (!success)
             {
+                this.tracer.RelatedError($"{nameof(this.TryCleanup)} - Error encountered: {e.Message}");
                 error = e.Message;
             }
 
@@ -215,48 +226,73 @@ namespace GVFS.Common.NuGetUpgrader
             string localError = null;
             int installerExitCode;
             bool installSuccesesfull = true;
-
-            string upgradesDirectoryPath = ProductUpgraderInfo.GetUpgradesDirectoryPath();
-
-            Exception e;
-            if (!this.fileSystem.TryDeleteDirectory(this.localUpgradeServices.TempPath, out e))
+            using (ITracer activity = this.tracer.StartActivity(nameof(this.TryRunInstaller), EventLevel.Informational))
             {
-                error = e.Message;
-                return false;
-            }
+                try
+                {
+                    string platformKey = ReleaseManifest.WindowsPlatformKey;
+                    string upgradesDirectoryPath = ProductUpgraderInfo.GetUpgradesDirectoryPath();
 
-            string extractedPackagePath = this.UnzipPackageToTempLocation();
-            this.releaseManifest = ReleaseManifest.FromJsonFile(Path.Combine(extractedPackagePath, "content", "install-manifest.json"));
+                    Exception e;
+                    if (!this.fileSystem.TryDeleteDirectory(this.localUpgradeServices.TempPath, out e))
+                    {
+                        error = e.Message;
+                        return false;
+                    }
 
-            this.fileSystem.CreateDirectory(upgradesDirectoryPath);
+                    string extractedPackagePath = this.UnzipPackageToTempLocation();
+                    this.releaseManifest = ReleaseManifest.FromJsonFile(Path.Combine(extractedPackagePath, "content", "install-manifest.json"));
+                    InstallManifestPlatform platformInstallManifest = this.releaseManifest.PlatformInstallManifests[platformKey];
 
-            foreach (ManifestEntry entry in this.releaseManifest.PlatformInstallManifests[ReleaseManifest.WindowsPlatformKey].InstallActions)
-            {
-                installActionWrapper(
-                    () =>
+                    if (platformInstallManifest is null)
+                    {
+                        activity.RelatedError($"Extracted ReleaseManifest from JSON, but there was no entry for {platformKey}.");
+                        error = $"No entry in the manifest for the current platform ({platformKey}). Please verify the upgrade package.";
+                        return false;
+                    }
+
+                    activity.RelatedInfo($"Extracted ReleaseManifest from JSON. InstallActions: {platformInstallManifest.InstallActions.Count}");
+
+                    this.fileSystem.CreateDirectory(upgradesDirectoryPath);
+
+                    foreach (ManifestEntry entry in platformInstallManifest.InstallActions)
                     {
                         string installerPath = Path.Combine(extractedPackagePath, "content", entry.InstallerRelativePath);
-                        this.localUpgradeServices.RunInstaller(installerPath, entry.Args, out installerExitCode, out localError);
 
-                        installSuccesesfull = installerExitCode == 0;
+                        activity.RelatedInfo(
+                            $"Running install action: Name: {entry.Name}, Version: {entry.Version}" +
+                            $"InstallerPath: {installerPath} Args: {entry.Args}");
 
-                        // Just for initial experiment to make sure each step is displayed in UI
-                        Thread.Sleep(5 * 1000);
+                        installActionWrapper(
+                            () =>
+                            {
+                                this.localUpgradeServices.RunInstaller(installerPath, entry.Args, out installerExitCode, out localError);
 
-                        return installSuccesesfull;
-                    },
-                    $"Installing {entry.Name} Version: {entry.Version}");
-            }
+                                installSuccesesfull = installerExitCode == 0;
 
-            if (!installSuccesesfull)
-            {
-                error = localError;
-                return false;
-            }
-            else
-            {
-                error = null;
-                return true;
+                                return installSuccesesfull;
+                            },
+                            $"Installing {entry.Name} Version: {entry.Version}");
+                    }
+                }
+                catch (Exception ex)
+                {
+                    localError = ex.Message;
+                    installSuccesesfull = false;
+                }
+
+                if (!installSuccesesfull)
+                {
+                    activity.RelatedError($"Could not complete all install actions: {localError}");
+                    error = localError;
+                    return false;
+                }
+                else
+                {
+                    activity.RelatedInfo($"Install actions completed successfully.");
+                    error = null;
+                    return true;
+                }
             }
         }
 
