@@ -24,7 +24,7 @@ namespace GVFS.Upgrader
 
         protected string CommandToRerun { private get; set; }
 
-        public bool TryRunPreUpgradeChecks(out string consoleError)
+        public virtual bool TryRunPreUpgradeChecks(out string consoleError)
         {
             using (ITracer activity = this.tracer.StartActivity(nameof(this.TryRunPreUpgradeChecks), EventLevel.Informational))
             {
@@ -50,12 +50,12 @@ namespace GVFS.Upgrader
 
         // TODO: Move repo mount calls to GVFS.Upgrader project.
         // https://github.com/Microsoft/VFSForGit/issues/293
-        public bool TryMountAllGVFSRepos(out string consoleError)
+        public virtual bool TryMountAllGVFSRepos(out string consoleError)
         {
             return this.TryRunGVFSWithArgs("service --mount-all", out consoleError);
         }
 
-        public bool TryUnmountAllGVFSRepos(out string consoleError)
+        public virtual bool TryUnmountAllGVFSRepos(out string consoleError)
         {
             consoleError = null;
 

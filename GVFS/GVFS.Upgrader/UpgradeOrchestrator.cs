@@ -136,8 +136,6 @@ namespace GVFS.Upgrader
 
         private bool TryRunUpgrade(out Version newVersion, out string consoleError)
         {
-            newVersion = null;
-
             Version newGVFSVersion = null;
             string error = null;
 
@@ -146,12 +144,18 @@ namespace GVFS.Upgrader
                 ProductUpgraderInfo.DeleteAllInstallerDownloads();
                 this.output.WriteLine(error);
                 consoleError = null;
+                newVersion = null;
                 return true;
             }
 
             if (!this.LaunchInsideSpinner(
                 () =>
                 {
+                    if (!this.preRunChecker.TryRunPreUpgradeChecks(out error))
+                    {
+                        return false;
+                    }
+
                     if (!this.TryCheckIfUpgradeAvailable(out newGVFSVersion, out error))
                     {
                         return false;
@@ -159,12 +163,7 @@ namespace GVFS.Upgrader
 
                     this.LogInstalledVersionInfo();
 
-                    if (!this.preRunChecker.TryRunPreUpgradeChecks(out error))
-                    {
-                        return false;
-                    }
-
-                    if (!this.TryDownloadUpgrade(newGVFSVersion, out error))
+                    if (newGVFSVersion != null && !this.TryDownloadUpgrade(newGVFSVersion, out error))
                     {
                         return false;
                     }
@@ -173,8 +172,16 @@ namespace GVFS.Upgrader
                 },
                 "Downloading"))
             {
+                newVersion = null;
                 consoleError = error;
                 return false;
+            }
+
+            if (newGVFSVersion == null)
+            {
+                newVersion = null;
+                consoleError = null;
+                return true;
             }
 
             if (!this.LaunchInsideSpinner(
@@ -191,12 +198,14 @@ namespace GVFS.Upgrader
                 },
                 "Unmounting repositories"))
             {
+                newVersion = null;
                 consoleError = error;
                 return false;
             }
 
             if (!this.upgrader.TryRunInstaller(this.LaunchInsideSpinner, out consoleError))
             {
+                newVersion = null;
                 return false;
             }
 
@@ -249,11 +258,14 @@ namespace GVFS.Upgrader
         private bool TryCheckIfUpgradeAvailable(out Version newestVersion, out string consoleError)
         {
             newestVersion = null;
+            consoleError = null;
 
             using (ITracer activity = this.tracer.StartActivity(nameof(this.TryCheckIfUpgradeAvailable), EventLevel.Informational))
             {
-                if (!this.upgrader.TryQueryNewestVersion(out newestVersion, out consoleError))
+                string message;
+                if (!this.upgrader.TryQueryNewestVersion(out newestVersion, out message))
                 {
+                    consoleError = message;
                     EventMetadata metadata = new EventMetadata();
                     metadata.Add("Upgrade Step", nameof(this.TryCheckIfUpgradeAvailable));
                     this.tracer.RelatedError(metadata, $"{nameof(this.upgrader.TryQueryNewestVersion)} failed. {consoleError}");
@@ -262,9 +274,9 @@ namespace GVFS.Upgrader
 
                 if (newestVersion == null)
                 {
-                    consoleError = "Upgrade is not available.";
-                    this.tracer.RelatedInfo("No new upgrade releases available");
-                    return false;
+                    this.output.WriteLine(message);
+                    this.tracer.RelatedInfo($"No new upgrade releases available. {message}");
+                    return true;
                 }
 
                 activity.RelatedInfo("Successfully checked for new release. {0}", newestVersion);
