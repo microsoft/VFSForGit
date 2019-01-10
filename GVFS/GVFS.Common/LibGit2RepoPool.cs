@@ -1,20 +1,24 @@
 ﻿using GVFS.Common.Git;
 using GVFS.Common.Tracing;
 using System;
-using System.Collections.Concurrent;
 using System.Threading;
 
 namespace GVFS.Common
 {
     public class LibGit2RepoPool
     {
-        private const int TryAddTimeoutMilliseconds = 10;
-        private const int TryTakeTimeoutMilliseconds = Timeout.Infinite;
+        private static readonly TimeSpan DefaultRepositoryDisposalPeriod = TimeSpan.FromMinutes(15);
 
-        private readonly BlockingCollection<LibGit2Repo> pool;
+        private readonly Func<LibGit2Repo> createRepo;
         private readonly ITracer tracer;
+        private readonly object sharedRepoLock = new object();
+        private readonly TimeSpan sharedRepositoryDisposalPeriod;
+        private bool stopped;
+        private LibGit2Repo sharedRepo;
+        private Timer sharedRepoDisposalTimer;
+        private int activeCallers;
 
-        public LibGit2RepoPool(ITracer tracer, Func<LibGit2Repo> createRepo, int size)
+        public LibGit2RepoPool(ITracer tracer, Func<LibGit2Repo> createRepo, int size = 1, TimeSpan? disposalPeriod = null)
         {
             if (size <= 0)
             {
@@ -22,26 +26,41 @@ namespace GVFS.Common
             }
 
             this.tracer = tracer;
-            this.pool = new BlockingCollection<LibGit2Repo>();
-            for (int i = 0; i < size; ++i)
-            {
-                this.pool.Add(createRepo());
-            }
+            this.createRepo = createRepo;
+
+            this.sharedRepositoryDisposalPeriod = disposalPeriod ?? DefaultRepositoryDisposalPeriod;
+
+            this.sharedRepoDisposalTimer = new Timer(
+                (state) => this.DisposeSharedRepo(),
+                state: null,
+                dueTime: this.sharedRepositoryDisposalPeriod,
+                period: this.sharedRepositoryDisposalPeriod);
         }
 
         public void Dispose()
         {
-            this.pool.CompleteAdding();
-            this.CleanUpPool();
+            this.stopped = true;
+
+            lock (this.sharedRepoLock)
+            {
+                this.sharedRepo?.Dispose();
+                this.sharedRepo = null;
+            }
         }
 
         public bool TryInvoke<TResult>(Func<LibGit2Repo, TResult> function, out TResult result)
         {
-            LibGit2Repo repo = null;
+            if (this.stopped)
+            {
+                result = default(TResult);
+                return false;
+            }
 
             try
             {
-                repo = this.GetRepoFromPool();
+                Interlocked.Increment(ref this.activeCallers);
+                LibGit2Repo repo = this.GetRepoFromPool();
+
                 if (repo != null)
                 {
                     result = function(repo);
@@ -58,44 +77,42 @@ namespace GVFS.Common
             }
             finally
             {
-                if (repo != null)
-                {
-                    this.ReturnToPool(repo);
-                }
+                Interlocked.Decrement(ref this.activeCallers);
             }
         }
 
         private LibGit2Repo GetRepoFromPool()
         {
-            LibGit2Repo repo;
-            if (this.pool.TryTake(out repo, TryTakeTimeoutMilliseconds))
-            {
-                return repo;
-            }
+            this.sharedRepoDisposalTimer.Change(this.sharedRepositoryDisposalPeriod, this.sharedRepositoryDisposalPeriod);
 
-            // This should only happen when the pool is shutting down
-            return null;
-        }
-
-        private void ReturnToPool(LibGit2Repo repo)
-        {
-            if (repo != null)
+            lock (this.sharedRepoLock)
             {
-                if (this.pool.IsAddingCompleted ||
-                    !this.pool.TryAdd(repo, TryAddTimeoutMilliseconds))
+                if (this.stopped)
                 {
-                    // No more adding to the pool or trying to add to the pool failed
-                    repo.Dispose();
+                    return null;
                 }
+
+                if (this.sharedRepo == null)
+                {
+                    this.sharedRepo = this.createRepo();
+                }
+
+                return this.sharedRepo;
             }
         }
 
-        private void CleanUpPool()
+        private void DisposeSharedRepo()
         {
-            LibGit2Repo repo;
-            while (this.pool.TryTake(out repo))
+            lock (this.sharedRepoLock)
             {
-                repo.Dispose();
+                if (this.stopped || this.activeCallers > 0)
+                {
+                    return;
+                }
+
+                LibGit2Repo repo = this.sharedRepo;
+                this.sharedRepo = null;
+                repo?.Dispose();
             }
         }
     }
