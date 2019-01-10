@@ -11,7 +11,7 @@ namespace GVFS.Common.NuGetUpgrader
     /// </summary>
     public class ReleaseManifest
     {
-        public static string WindowsPlatformKey = "Windows";
+        public const string WindowsPlatformKey = "Windows";
 
         public ReleaseManifest()
         {
