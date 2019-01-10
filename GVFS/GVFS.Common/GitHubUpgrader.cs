@@ -124,7 +124,14 @@ namespace GVFS.Common
             bool downloadedGVFS = false;
 
             string upgradesDirectoryPath = ProductUpgraderInfo.GetUpgradesDirectoryPath();
-            this.fileSystem.CreateDirectory(upgradesDirectoryPath);
+            Exception exception;
+            if (!this.fileSystem.TryCreateDirectory(upgradesDirectoryPath, out exception))
+            {
+                this.TraceException(exception, nameof(this.TryDownloadNewestVersion), $"Error creating download directory {upgradesDirectoryPath} : {exception.Message}");
+
+                errorMessage = exception.Message;
+                return false;
+            }
 
             foreach (Asset asset in this.newestRelease.Assets)
             {
@@ -247,8 +254,9 @@ namespace GVFS.Common
             Exception exception;
             if (!this.fileSystem.TryCreateDirectory(downloadPath, out exception))
             {
+                this.TraceException(exception, nameof(this.TryDownloadAsset), $"Error creating download directory {downloadPath} : {exception.Message}");
+
                 errorMessage = exception.Message;
-                this.TraceException(exception, nameof(this.TryDownloadAsset), $"Error creating download directory {downloadPath}.");
                 return false;
             }
 
