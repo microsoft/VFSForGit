@@ -230,7 +230,7 @@ namespace GVFS.Common.NuGetUpgrader
 
             this.fileSystem.CreateDirectory(upgradesDirectoryPath);
 
-            foreach (ManifestEntry entry in this.releaseManifest.PlatformInstallManifests["Windows"].InstallActions)
+            foreach (ManifestEntry entry in this.releaseManifest.PlatformInstallManifests[ReleaseManifest.WindowsPlatformKey].InstallActions)
             {
                 installActionWrapper(
                     () =>
