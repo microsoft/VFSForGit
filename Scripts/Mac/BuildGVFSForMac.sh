@@ -61,7 +61,7 @@ cp $VFS_OUTPUTDIR/GVFS.Native.Mac/Build/Products/$CONFIGURATION/GVFS.VirtualFile
 cp $VFS_OUTPUTDIR/GVFS.Native.Mac/Build/Products/$CONFIGURATION/GVFS.PostIndexChangedHook $VFS_PUBLISHDIR || exit 1
 
 # Publish after native build, so installer package can include the native binaries.
-dotnet publish $VFS_SRCDIR/GVFS.sln /p:Configuration=$CONFIGURATION.Mac /p:Platform=x64 --runtime osx-x64 --framework netcoreapp2.1 --self-contained --output $VFS_PUBLISHDIR /maxcpucount:1 /warnasmessage:MSB4011 || exit 1
+dotnet publish $VFS_SRCDIR/GVFS.sln /p:Configuration=$CONFIGURATION.Mac /p:Platform=x64 -p:CopyPrjFS=true --runtime osx-x64 --framework netcoreapp2.1 --self-contained --output $VFS_PUBLISHDIR /maxcpucount:1 /warnasmessage:MSB4011 || exit 1
 
 echo 'Copying Git installer to the output directory...'
 $VFS_SCRIPTDIR/PublishGit.sh $GITPATH || exit 1
