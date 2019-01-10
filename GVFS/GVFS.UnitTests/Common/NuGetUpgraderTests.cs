@@ -163,7 +163,7 @@ namespace GVFS.UnitTests.Common
             bool success = this.upgrader.TryQueryNewestVersion(out newVersion, out message);
 
             // Assert that no new version was returned
-            success.ShouldBeTrue();
+            success.ShouldBeTrue($"Expecting TryQueryNewestVersion to have completed sucessfully. Error: {message}");
             newVersion.ShouldNotBeNull();
 
             bool downloadSuccessful = this.upgrader.TryDownloadNewestVersion(out message);
@@ -189,7 +189,7 @@ namespace GVFS.UnitTests.Common
             bool success = this.upgrader.TryQueryNewestVersion(out newVersion, out message);
 
             // Assert that no new version was returned
-            success.ShouldBeTrue();
+            success.ShouldBeTrue($"Expecting TryQueryNewestVersion to have completed sucessfully. Error: {message}");
             newVersion.ShouldNotBeNull();
 
             bool downloadSuccessful = this.upgrader.TryDownloadNewestVersion(out message);
