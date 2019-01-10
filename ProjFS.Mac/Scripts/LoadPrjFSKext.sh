@@ -6,7 +6,7 @@ if [ -z $CONFIGURATION ]; then
 fi
 
 SCRIPTDIR=$(dirname ${BASH_SOURCE[0]})
-BUILDDIR=$SCRIPTDIR/../../../BuildOutput/ProjFS.Mac/Native/Build/Products/$CONFIGURATION
+BUILDDIR=$SCRIPTDIR/../../../BuildOutput/ProjFS.Mac/Native/$CONFIGURATION
 
 # Copy the kext, because we have to chown it, which will cause a subsequent build
 # to fail when trying to overwrite the kext. Instead we chown the copy and install that. 
