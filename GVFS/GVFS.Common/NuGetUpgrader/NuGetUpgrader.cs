@@ -235,7 +235,7 @@ namespace GVFS.Common.NuGetUpgrader
                 installActionWrapper(
                     () =>
                     {
-                        string installerPath = Path.Combine(extractedPackagePath, "content", entry.RelativePath);
+                        string installerPath = Path.Combine(extractedPackagePath, "content", entry.InstallerRelativePath);
                         this.localUpgradeServices.RunInstaller(installerPath, entry.Args, out installerExitCode, out localError);
 
                         installSuccesesfull = installerExitCode == 0;
