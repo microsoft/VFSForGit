@@ -287,6 +287,10 @@ namespace GVFS.Common.FileSystem
             {
                 this.DeleteDirectory(path);
             }
+            catch (DirectoryNotFoundException)
+            {
+                // Swallow the exception
+            }
             catch (IOException e)
             {
                 exception = e;
