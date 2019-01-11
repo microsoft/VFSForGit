@@ -45,9 +45,20 @@ namespace GVFS.UnitTests.Common
             InstallManifestPlatform platformInstallManifest = releaseManifest.PlatformInstallManifests[ReleaseManifest.WindowsPlatformKey];
             platformInstallManifest.ShouldNotBeNull();
             platformInstallManifest.InstallActions.Count.ShouldEqual(2);
-            platformInstallManifest.InstallActions[0].Name.ShouldEqual("Git");
-            platformInstallManifest.InstallActions[1].Name.ShouldEqual("PreGitInstaller");
-            platformInstallManifest.InstallActions[0].InstallerRelativePath.ShouldEqual("Installers\\Windows\\G4W\\Git-2.19.0.gvfs.1.34.gc7fb556-64-bit.exe");
+
+            this.VerifyManifestEntry(
+                platformInstallManifest.InstallActions[0],
+                "Git",
+                "2.19.0.1.34",
+                "/VERYSILENT /CLOSEAPPLICATIONS",
+                "Installers\\Windows\\G4W\\Git-2.19.0.gvfs.1.34.gc7fb556-64-bit.exe");
+
+            this.VerifyManifestEntry(
+                platformInstallManifest.InstallActions[1],
+                "PreGitInstaller",
+                "0.0.0.1",
+                null,
+                "Installers\\Windows\\GSD\\PreGitInstallerSetup.exe");
         }
 
         [TestCase]
@@ -99,6 +110,19 @@ namespace GVFS.UnitTests.Common
             {
                 this.VerifyPlatformManifestsAreEqual(kvp.Value, actual.PlatformInstallManifests[kvp.Key]);
             }
+        }
+
+        private void VerifyManifestEntry(
+            ManifestEntry actualEntry,
+            string expectedName,
+            string expectedVersion,
+            string expectedArgs,
+            string expectedInstallerRelativePath)
+        {
+            actualEntry.Name.ShouldEqual(expectedName, "ManifestEntry name does not match expected value");
+            actualEntry.Version.ShouldEqual(expectedVersion, "ManifestEntry version does not match expected value");
+            actualEntry.Args.ShouldEqual(expectedArgs, "ManifestEntry Args does not match expected value");
+            actualEntry.InstallerRelativePath.ShouldEqual(expectedInstallerRelativePath, "ManifestEntry InstallerRelativePath does not match expected value");
         }
 
         private void VerifyPlatformManifestsAreEqual(InstallManifestPlatform expected, InstallManifestPlatform actual)
