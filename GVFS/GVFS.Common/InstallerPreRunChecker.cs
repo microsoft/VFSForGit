@@ -15,11 +15,13 @@ namespace GVFS.Upgrader
         private static readonly HashSet<string> BlockingProcessSet = new HashSet<string> { "GVFS", "GVFS.Mount", "git", "ssh-agent", "bash", "wish", "git-bash" };
 
         private ITracer tracer;
+        private bool dryRun;
 
-        public InstallerPreRunChecker(ITracer tracer, string commandToRerun)
+        public InstallerPreRunChecker(ITracer tracer, string commandToRerun, bool dryRun = false)
         {
             this.tracer = tracer;
             this.CommandToRerun = commandToRerun;
+            this.dryRun = dryRun;
         }
 
         protected string CommandToRerun { private get; set; }
@@ -32,13 +34,21 @@ namespace GVFS.Upgrader
                 {
                     consoleError = $"{GVFSConstants.UpgradeVerbMessages.GVFSUpgrade} is not supported in unattended mode";
                     this.tracer.RelatedError($"{nameof(this.TryRunPreUpgradeChecks)}: {consoleError}");
-                    return false;
+
+                    if (!this.dryRun)
+                    {
+                        return false;
+                    }
                 }
 
                 if (!this.IsGVFSUpgradeAllowed(out consoleError))
                 {
                     this.tracer.RelatedError($"{nameof(this.TryRunPreUpgradeChecks)}: {consoleError}");
-                    return false;
+
+                    if (!this.dryRun)
+                    {
+                        return false;
+                    }
                 }
 
                 activity.RelatedInfo($"Successfully finished pre upgrade checks. Okay to run {GVFSConstants.UpgradeVerbMessages.GVFSUpgrade}.");
@@ -128,6 +138,12 @@ namespace GVFS.Upgrader
 
         protected virtual bool IsBlockingProcessRunning(out HashSet<string> processes)
         {
+            if (this.dryRun)
+            {
+                processes = new HashSet<string>();
+                return false;
+            }
+
             int currentProcessId = Process.GetCurrentProcess().Id;
             Process[] allProcesses = Process.GetProcesses();
             HashSet<string> matchingNames = new HashSet<string>();
@@ -148,6 +164,12 @@ namespace GVFS.Upgrader
 
         protected virtual bool TryRunGVFSWithArgs(string args, out string consoleError)
         {
+            if (this.dryRun)
+            {
+                consoleError = null;
+                return true;
+            }
+
             string gvfsDirectory = ProcessHelper.WhereDirectory(GVFSPlatform.Instance.Constants.GVFSExecutableName);
             if (!string.IsNullOrEmpty(gvfsDirectory))
             {
@@ -183,7 +205,11 @@ namespace GVFS.Upgrader
                     Environment.NewLine,
                     "The installer needs to be run from an elevated command prompt.",
                     adviceText);
-                return false;
+
+                if (!this.dryRun)
+                {
+                    return false;
+                }
             }
 
             if (!this.IsGVFSUpgradeSupported())
@@ -192,7 +218,11 @@ namespace GVFS.Upgrader
                     Environment.NewLine,
                     $"{GVFSConstants.UpgradeVerbMessages.GVFSUpgrade} is not supported because you have previously installed an out of band ProjFS driver.",
                     "Check your team's documentation for how to upgrade.");
-                return false;
+
+                if (!this.dryRun)
+                {
+                    return false;
+                }
             }
 
             if (this.IsServiceInstalledAndNotRunning())
@@ -202,7 +232,11 @@ namespace GVFS.Upgrader
                     Environment.NewLine,
                     "GVFS Service is not running.",
                     adviceText);
-                return false;
+
+                if (!this.dryRun)
+                {
+                    return false;
+                }
             }
 
             consoleError = null;
