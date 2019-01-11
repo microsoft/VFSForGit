@@ -95,7 +95,6 @@ class PrjFSProviderUserClient
     
     if (VirtualizationRoot_IsValidRootHandle(testRootHandle))
     {
-        vnode_get(repoRootVnode.get()); // InsertVirtualizationRoot_Locked doesn't _get directly, but ActiveProvider_Disconnect does _put
         ActiveProvider_Disconnect(testRootHandle, &userClient);
     }
 }
@@ -146,7 +145,6 @@ class PrjFSProviderUserClient
     
     if (VirtualizationRoot_IsValidRootHandle(testRepoHandle))
     {
-        vnode_get(repoRootVnode.get()); // InsertVirtualizationRoot_Locked doesn't _get directly, but ActiveProvider_Disconnect does _put
         ActiveProvider_Disconnect(testRepoHandle, &userClient);
     }
 }
@@ -163,7 +161,6 @@ class PrjFSProviderUserClient
 
     if (VirtualizationRoot_IsValidRootHandle(testRootHandle))
     {
-        vnode_get(repoRootVnode.get()); // InsertVirtualizationRoot_Locked doesn't _get directly, but ActiveProvider_Disconnect does _put
         ActiveProvider_Disconnect(testRootHandle, &userClient);
     }
 
@@ -210,7 +207,6 @@ class PrjFSProviderUserClient
     
     if (VirtualizationRoot_IsValidRootHandle(testRootHandle))
     {
-        vnode_get(repoRootVnode.get()); // InsertVirtualizationRoot_Locked doesn't _get directly, but ActiveProvider_Disconnect does _put
         ActiveProvider_Disconnect(testRootHandle, &userClient);
     }
 }
@@ -316,7 +312,6 @@ class PrjFSProviderUserClient
     
     if (VirtualizationRoot_IsValidRootHandle(testRootHandle))
     {
-        vnode_get(repoRootVnode.get());
         ActiveProvider_Disconnect(testRootHandle, &userClient);
     }
 }
