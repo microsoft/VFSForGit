@@ -3,6 +3,7 @@ using NuGet.Common;
 using NuGet.Packaging.Core;
 using NuGet.Protocol;
 using NuGet.Protocol.Core.Types;
+using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -110,12 +111,30 @@ namespace GVFS.Common.NuGetUpgrader
 
             public void Log(LogLevel level, string data)
             {
-                this.tracer.RelatedInfo($"NuGetPackageUpgrader ({level}): {data}");
+                string message = $"NuGet Logger: ({level}): {data}";
+                switch (level)
+                {
+                case LogLevel.Debug:
+                case LogLevel.Verbose:
+                case LogLevel.Minimal:
+                case LogLevel.Information:
+                    this.tracer.RelatedInfo(message);
+                    break;
+                 case LogLevel.Warning:
+                     this.tracer.RelatedWarning(message);
+                    break;
+                case LogLevel.Error:
+                    this.tracer.RelatedError(message);
+                    break;
+                default:
+                    this.tracer.RelatedWarning(message);
+                    break;
+                }
             }
 
             public void Log(ILogMessage message)
             {
-                this.tracer.RelatedInfo($"NuGetPackageUpgrader ({message.Level}): {message.Message}");
+                this.Log(message.Level, message.Message);
             }
 
             public Task LogAsync(LogLevel level, string data)
@@ -132,37 +151,37 @@ namespace GVFS.Common.NuGetUpgrader
 
             public void LogDebug(string data)
             {
-                this.tracer.RelatedInfo($"NuGetPackageUpgrader (Debug): {data}");
+                this.Log(LogLevel.Debug, data);
             }
 
             public void LogError(string data)
             {
-                this.tracer.RelatedInfo($"NuGetPackageUpgrader (Error): {data}");
+                this.Log(LogLevel.Error, data);
             }
 
             public void LogInformation(string data)
             {
-                this.tracer.RelatedInfo($"NuGetPackageUpgrader (Information): {data}");
+                this.Log(LogLevel.Information, data);
             }
 
             public void LogInformationSummary(string data)
             {
-                this.tracer.RelatedInfo($"NuGetPackageUpgrader (InformationSummary): {data}");
+                this.Log(LogLevel.Information, data);
             }
 
             public void LogMinimal(string data)
             {
-                this.tracer.RelatedInfo($"NuGetPackageUpgrader (Minimal): {data}");
+                this.Log(LogLevel.Minimal, data);
             }
 
             public void LogVerbose(string data)
             {
-                this.tracer.RelatedInfo($"NuGetPackageUpgrader (Verbose): {data}");
+                this.Log(LogLevel.Verbose, data);
             }
 
             public void LogWarning(string data)
             {
-                this.tracer.RelatedInfo($"NuGetPackageUpgrader (Warning): {data}");
+                this.Log(LogLevel.Warning, data);
             }
         }
     }
