@@ -13,6 +13,7 @@
 			buildPhases = (
 			);
 			dependencies = (
+				4A08257521E77BEB00E21AFD /* PBXTargetDependency */,
 				4391F90521E4362B0008103C /* PBXTargetDependency */,
 				4391F90721E4362B0008103C /* PBXTargetDependency */,
 				4391F90921E4362B0008103C /* PBXTargetDependency */,
@@ -57,6 +58,11 @@
 		4391F8FD21E435720008103C /* PrjFSUser.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 4391F8E421E435230008103C /* PrjFSUser.cpp */; };
 		4391F8FE21E435810008103C /* IOKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 4391F8DC21E430EB0008103C /* IOKit.framework */; };
 		4391F8FF21E435890008103C /* CoreFoundation.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 4391F8DA21E430E20008103C /* CoreFoundation.framework */; };
+		4A08257321E77BDD00E21AFD /* PrjFSKextLogDaemon.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 4A08257121E77BDD00E21AFD /* PrjFSKextLogDaemon.cpp */; };
+		4A08257621E77C4600E21AFD /* CoreFoundation.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 4391F8DA21E430E20008103C /* CoreFoundation.framework */; };
+		4A08257721E77C4B00E21AFD /* IOKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 4391F8DC21E430EB0008103C /* IOKit.framework */; };
+		4A08257821E77C5400E21AFD /* PrjFSUser.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 4391F8E421E435230008103C /* PrjFSUser.cpp */; };
+		4A08257921E77C7000E21AFD /* org.vfsforgit.prjfs.PrjFSKextLogDaemon.plist in CopyFiles */ = {isa = PBXBuildFile; fileRef = 4A08257021E77BDD00E21AFD /* org.vfsforgit.prjfs.PrjFSKextLogDaemon.plist */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -81,6 +87,13 @@
 			remoteGlobalIDString = 4391F8F321E4355C0008103C;
 			remoteInfo = "prjfs-log";
 		};
+		4A08257421E77BEB00E21AFD /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 4391F87621E4278C0008103C /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 4A08256721E77B7F00E21AFD;
+			remoteInfo = PrjFSKextLogDaemon;
+		};
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXCopyFilesBuildPhase section */
@@ -90,6 +103,16 @@
 			dstPath = /usr/share/man/man1/;
 			dstSubfolderSpec = 0;
 			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 1;
+		};
+		4A08256621E77B7F00E21AFD /* CopyFiles */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = /Library/LaunchDaemons;
+			dstSubfolderSpec = 0;
+			files = (
+				4A08257921E77C7000E21AFD /* org.vfsforgit.prjfs.PrjFSKextLogDaemon.plist in CopyFiles */,
 			);
 			runOnlyForDeploymentPostprocessing = 1;
 		};
@@ -134,6 +157,10 @@
 		4391F8E521E435230008103C /* PrjFSLib.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = PrjFSLib.cpp; sourceTree = "<group>"; };
 		4391F8E721E435230008103C /* PrjFSUser.hpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.h; path = PrjFSUser.hpp; sourceTree = "<group>"; };
 		4391F8F421E4355C0008103C /* prjfs-log */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.executable"; includeInIndex = 0; path = "prjfs-log"; sourceTree = BUILT_PRODUCTS_DIR; };
+		4A08256821E77B7F00E21AFD /* PrjFSKextLogDaemon */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.executable"; includeInIndex = 0; path = PrjFSKextLogDaemon; sourceTree = BUILT_PRODUCTS_DIR; };
+		4A08257021E77BDD00E21AFD /* org.vfsforgit.prjfs.PrjFSKextLogDaemon.plist */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.plist.xml; path = org.vfsforgit.prjfs.PrjFSKextLogDaemon.plist; sourceTree = "<group>"; };
+		4A08257121E77BDD00E21AFD /* PrjFSKextLogDaemon.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = PrjFSKextLogDaemon.cpp; sourceTree = "<group>"; };
+		4A08257221E77BDD00E21AFD /* Info.plist */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -162,6 +189,15 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		4A08256521E77B7F00E21AFD /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				4A08257721E77C4B00E21AFD /* IOKit.framework in Frameworks */,
+				4A08257621E77C4600E21AFD /* CoreFoundation.framework in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
@@ -180,6 +216,7 @@
 			children = (
 				4391F8C221E4306D0008103C /* PrjFSLib */,
 				4391F88D21E42AA70008103C /* PrjFSKext */,
+				4A08256921E77B7F00E21AFD /* PrjFSKextLogDaemon */,
 				4391F88021E4278C0008103C /* Products */,
 				4391F8D921E430E10008103C /* Frameworks */,
 			);
@@ -194,6 +231,7 @@
 				4391F87F21E4278C0008103C /* PrjFSKext.kext */,
 				4391F8D521E430CF0008103C /* libPrjFSLib.dylib */,
 				4391F8F421E4355C0008103C /* prjfs-log */,
+				4A08256821E77B7F00E21AFD /* PrjFSKextLogDaemon */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -250,6 +288,16 @@
 				4391F8DA21E430E20008103C /* CoreFoundation.framework */,
 			);
 			name = Frameworks;
+			sourceTree = "<group>";
+		};
+		4A08256921E77B7F00E21AFD /* PrjFSKextLogDaemon */ = {
+			isa = PBXGroup;
+			children = (
+				4A08257221E77BDD00E21AFD /* Info.plist */,
+				4A08257021E77BDD00E21AFD /* org.vfsforgit.prjfs.PrjFSKextLogDaemon.plist */,
+				4A08257121E77BDD00E21AFD /* PrjFSKextLogDaemon.cpp */,
+			);
+			path = PrjFSKextLogDaemon;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -338,6 +386,23 @@
 			productReference = 4391F8F421E4355C0008103C /* prjfs-log */;
 			productType = "com.apple.product-type.tool";
 		};
+		4A08256721E77B7F00E21AFD /* PrjFSKextLogDaemon */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 4A08256F21E77B7F00E21AFD /* Build configuration list for PBXNativeTarget "PrjFSKextLogDaemon" */;
+			buildPhases = (
+				4A08256421E77B7F00E21AFD /* Sources */,
+				4A08256521E77B7F00E21AFD /* Frameworks */,
+				4A08256621E77B7F00E21AFD /* CopyFiles */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = PrjFSKextLogDaemon;
+			productName = PrjFSKextLogDaemon;
+			productReference = 4A08256821E77B7F00E21AFD /* PrjFSKextLogDaemon */;
+			productType = "com.apple.product-type.tool";
+		};
 /* End PBXNativeTarget section */
 
 /* Begin PBXProject section */
@@ -359,6 +424,9 @@
 					4391F90021E436210008103C = {
 						CreatedOnToolsVersion = 10.1;
 					};
+					4A08256721E77B7F00E21AFD = {
+						CreatedOnToolsVersion = 9.4.1;
+					};
 				};
 			};
 			buildConfigurationList = 4391F87921E4278C0008103C /* Build configuration list for PBXProject "PrjFS" */;
@@ -376,6 +444,7 @@
 				4391F87E21E4278C0008103C /* PrjFSKext */,
 				4391F8D421E430CF0008103C /* PrjFSLib */,
 				4391F8F321E4355C0008103C /* prjfs-log */,
+				4A08256721E77B7F00E21AFD /* PrjFSKextLogDaemon */,
 				4391F90021E436210008103C /* Build All */,
 			);
 		};
@@ -397,13 +466,9 @@
 			buildActionMask = 2147483647;
 			files = (
 			);
-			inputFileListPaths = (
-			);
 			inputPaths = (
 			);
 			name = "Run Script - Check kext linkage";
-			outputFileListPaths = (
-			);
 			outputPaths = (
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -452,6 +517,15 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		4A08256421E77B7F00E21AFD /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				4A08257821E77C5400E21AFD /* PrjFSUser.cpp in Sources */,
+				4A08257321E77BDD00E21AFD /* PrjFSKextLogDaemon.cpp in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXSourcesBuildPhase section */
 
 /* Begin PBXTargetDependency section */
@@ -469,6 +543,11 @@
 			isa = PBXTargetDependency;
 			target = 4391F8F321E4355C0008103C /* prjfs-log */;
 			targetProxy = 4391F90821E4362B0008103C /* PBXContainerItemProxy */;
+		};
+		4A08257521E77BEB00E21AFD /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 4A08256721E77B7F00E21AFD /* PrjFSKextLogDaemon */;
+			targetProxy = 4A08257421E77BEB00E21AFD /* PBXContainerItemProxy */;
 		};
 /* End PBXTargetDependency section */
 
@@ -824,6 +903,37 @@
 			};
 			name = Release;
 		};
+		4A08256C21E77B7F00E21AFD /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CREATE_INFOPLIST_SECTION_IN_BINARY = YES;
+				DEVELOPMENT_TEAM = UBF8T346G9;
+				INFOPLIST_FILE = PrjFSKextLogDaemon/Info.plist;
+				MTL_ENABLE_DEBUG_INFO = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+			};
+			name = Debug;
+		};
+		4A08256D21E77B7F00E21AFD /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CREATE_INFOPLIST_SECTION_IN_BINARY = YES;
+				DEVELOPMENT_TEAM = UBF8T346G9;
+				INFOPLIST_FILE = PrjFSKextLogDaemon/Info.plist;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+			};
+			name = Release;
+		};
+		4A08256E21E77B7F00E21AFD /* Profiling(Release) */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CREATE_INFOPLIST_SECTION_IN_BINARY = YES;
+				DEVELOPMENT_TEAM = UBF8T346G9;
+				INFOPLIST_FILE = PrjFSKextLogDaemon/Info.plist;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+			};
+			name = "Profiling(Release)";
+		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
@@ -873,6 +983,16 @@
 				4391F90221E436210008103C /* Debug */,
 				4391F90321E436210008103C /* Release */,
 				43057C5621E437F300487681 /* Profiling(Release) */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		4A08256F21E77B7F00E21AFD /* Build configuration list for PBXNativeTarget "PrjFSKextLogDaemon" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				4A08256C21E77B7F00E21AFD /* Debug */,
+				4A08256D21E77B7F00E21AFD /* Release */,
+				4A08256E21E77B7F00E21AFD /* Profiling(Release) */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;

@@ -22,9 +22,12 @@ struct PrjFSService_WatchContext;
 PrjFSService_WatchContext* PrjFSService_WatchForServiceAndConnect(
     struct IONotificationPort* notificationPort,
     enum PrjFSServiceUserClientType clientType,
-    std::function<void(io_service_t, io_connect_t, PrjFSService_WatchContext*)> discoveryCallback);
+    std::function<void(io_service_t, io_connect_t, bool serviceVersionMismatch, IOReturn connectResult, PrjFSService_WatchContext*)> discoveryCallback);
 void PrjFSService_StopWatching(PrjFSService_WatchContext* context);
 bool PrjFSService_ValidateVersion(io_service_t prjfsService);
+
+void PrjFSService_WatchForServiceTermination(io_service_t service, struct IONotificationPort* notificationPort, std::function<void()> terminationCallback);
+
 
 bool PrjFSService_DataQueueInit(
     DataQueueResources* outQueue,
@@ -36,3 +39,4 @@ void DataQueue_Dispose(DataQueueResources* queueResources, io_connect_t connecti
 
 IODataQueueEntry* DataQueue_Peek(IODataQueueMemory* dataQueue);
 IOReturn DataQueue_Dequeue(IODataQueueMemory* dataQueue, void* data, uint32_t* dataSize);
+void DataQueue_ClearMachNotification(mach_port_t port);

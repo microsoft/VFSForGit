@@ -8,8 +8,6 @@
 #include "kernel-header-wrappers/mount.h"
 #include <os/log.h>
 
-extern os_log_t __prjfs_log;
-
 bool KextLog_Init();
 void KextLog_Cleanup();
 

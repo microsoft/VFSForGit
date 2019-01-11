@@ -10,8 +10,6 @@
 #include "PrjFSLogUserClient.hpp"
 #include "public/PrjFSLogClientShared.h"
 
-os_log_t __prjfs_log;
-
 static PrjFSLogUserClient* s_currentUserClient;
 static RWLock s_kextLogRWLock = {};
 
@@ -23,14 +21,9 @@ struct KextLog_StackMessageBuffer
 
 bool KextLog_Init()
 {
-    // TODO: The subsystem and category values are not currently working. Our events get logged, but are missing these fields.
-    __prjfs_log = os_log_create("io.gvfs.PrjFS", "Kext");
-
     s_kextLogRWLock = RWLock_Alloc();
     if (!RWLock_IsValid(s_kextLogRWLock))
     {
-        os_release(__prjfs_log);
-        __prjfs_log = nullptr;
         return false;
     }
     return true;
@@ -41,12 +34,6 @@ void KextLog_Cleanup()
     if (RWLock_IsValid(s_kextLogRWLock))
     {
         RWLock_FreeMemory(&s_kextLogRWLock);
-    }
-    
-    if (nullptr != __prjfs_log)
-    {
-        os_release(__prjfs_log);
-        __prjfs_log = nullptr;
     }
 }
 
