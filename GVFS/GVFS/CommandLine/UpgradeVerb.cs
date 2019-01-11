@@ -44,6 +44,20 @@ namespace GVFS.CommandLine
             HelpText = "Pass in this flag to actually install the newest release")]
         public bool Confirmed { get; set; }
 
+        [Option(
+            "dry-run",
+            Default = false,
+            Required = false,
+            HelpText = "Display progress and errors, but don't install GVFS")]
+        public bool DryRun { get; set; }
+
+        [Option(
+            "no-verify",
+            Default = false,
+            Required = false,
+            HelpText = "Don't verify authenticode signature of installers")]
+        public bool NoVerify { get; set; }
+
         protected override string VerbName
         {
             get { return UpgradeVerbName; }
@@ -72,10 +86,13 @@ namespace GVFS.CommandLine
                     jsonTracer.AddLogFileEventListener(logFilePath, EventLevel.Informational, Keywords.Any);
 
                     this.tracer = jsonTracer;
-                    this.prerunChecker = new InstallerPreRunChecker(this.tracer, this.Confirmed ? GVFSConstants.UpgradeVerbMessages.GVFSUpgradeConfirm : GVFSConstants.UpgradeVerbMessages.GVFSUpgrade);
+                    this.prerunChecker = new InstallerPreRunChecker(
+                        this.tracer,
+                        this.Confirmed ? GVFSConstants.UpgradeVerbMessages.GVFSUpgradeConfirm : GVFSConstants.UpgradeVerbMessages.GVFSUpgrade,
+                        this.DryRun);
 
                     IProductUpgrader upgrader;
-                    if (ProductUpgraderFactory.TryCreateUpgrader(out upgrader, this.tracer, out error))
+                    if (ProductUpgraderFactory.TryCreateUpgrader(out upgrader, this.tracer, out error, this.DryRun, this.NoVerify))
                     {
                         this.upgrader = upgrader;
                     }
@@ -214,7 +231,12 @@ namespace GVFS.CommandLine
 
             using (ITracer activity = this.tracer.StartActivity(nameof(this.TryCopyUpgradeTool), EventLevel.Informational))
             {
-                if (!this.upgrader.TrySetupToolsDirectory(out upgraderExePath, out consoleError))
+                if (this.DryRun)
+                {
+                    upgraderExePath = Path.Combine(ProcessHelper.GetCurrentProcessLocation(), "GVFS.Upgrader.exe");
+                    consoleError = null;
+                }
+                else if (!this.upgrader.TrySetupToolsDirectory(out upgraderExePath, out consoleError))
                 {
                     return false;
                 }
@@ -230,7 +252,8 @@ namespace GVFS.CommandLine
             using (ITracer activity = this.tracer.StartActivity(nameof(this.TryLaunchUpgradeTool), EventLevel.Informational))
             {
                 Exception exception;
-                if (!this.processLauncher.TryStart(path, out exception))
+                string args = string.Empty + (this.DryRun ? " --dry-run" : string.Empty) + (this.NoVerify ? " --no-verify" : string.Empty);
+                if (!this.processLauncher.TryStart(path, args, out exception))
                 {
                     if (exception != null)
                     {
@@ -320,12 +343,13 @@ namespace GVFS.CommandLine
                 get { return this.Process.ExitCode; }
             }
 
-            public virtual bool TryStart(string path, out Exception exception)
+            public virtual bool TryStart(string path, string args, out Exception exception)
             {
                 this.Process.StartInfo = new ProcessStartInfo(path)
                 {
                     UseShellExecute = true,
-                    WindowStyle = ProcessWindowStyle.Normal
+                    WindowStyle = ProcessWindowStyle.Normal,
+                    Arguments = args
                 };
 
                 exception = null;

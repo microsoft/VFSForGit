@@ -1,4 +1,5 @@
-﻿using GVFS.PlatformLoader;
+﻿using CommandLine;
+using GVFS.PlatformLoader;
 
 namespace GVFS.Upgrader
 {
@@ -8,9 +9,8 @@ namespace GVFS.Upgrader
         {
             GVFSPlatformLoader.Initialize();
 
-            UpgradeOrchestrator upgrader = new UpgradeOrchestrator();
-
-            upgrader.Execute();
+            Parser.Default.ParseArguments<UpgradeOrchestrator>(args)
+                    .WithParsed(upgrader => upgrader.Execute());
         }
     }
 }

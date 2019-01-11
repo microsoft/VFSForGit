@@ -31,29 +31,35 @@ namespace GVFS.Common
         private ITracer tracer;
         private LocalUpgraderServices localUpgradeServices;
         private Version installedVersion;
+        private bool dryRun;
+        private bool noVerify;
 
         public GitHubUpgrader(
             string currentVersion,
             ITracer tracer,
-            GitHubUpgraderConfig upgraderConfig)
+            GitHubUpgraderConfig upgraderConfig,
+            bool dryRun = false,
+            bool noVerify = false)
         {
             this.Config = upgraderConfig;
 
             this.installedVersion = new Version(currentVersion);
             this.fileSystem = new PhysicalFileSystem();
             this.tracer = tracer;
+            this.dryRun = dryRun;
+            this.noVerify = noVerify;
 
             this.localUpgradeServices = new LocalUpgraderServices(tracer, this.fileSystem);
         }
 
         public GitHubUpgraderConfig Config { get; private set; }
 
-        public static GitHubUpgrader Create(ITracer tracer, out string error)
+        public static GitHubUpgrader Create(ITracer tracer, bool dryRun, bool noVerify, out string error)
         {
-            return Create(new LocalGVFSConfig(), tracer, out error);
+            return Create(new LocalGVFSConfig(), tracer, dryRun, noVerify, out error);
         }
 
-        public static GitHubUpgrader Create(LocalGVFSConfig localConfig, ITracer tracer, out string error)
+        public static GitHubUpgrader Create(LocalGVFSConfig localConfig, ITracer tracer, bool dryRun, bool noVerify, out string error)
         {
             GitHubUpgrader upgrader = null;
             GitHubUpgraderConfig gitHubUpgraderConfig = new GitHubUpgraderConfig(tracer, localConfig);
@@ -72,7 +78,9 @@ namespace GVFS.Common
             upgrader = new GitHubUpgrader(
                     ProcessHelper.GetCurrentProcessVersion(),
                     tracer,
-                    gitHubUpgraderConfig);
+                    gitHubUpgraderConfig,
+                    dryRun,
+                    noVerify);
 
             return upgrader;
         }
@@ -125,7 +133,7 @@ namespace GVFS.Common
 
             string upgradesDirectoryPath = ProductUpgraderInfo.GetUpgradesDirectoryPath();
             Exception exception;
-            if (!this.fileSystem.TryCreateDirectory(upgradesDirectoryPath, out exception))
+            if (!this.dryRun && !this.fileSystem.TryCreateDirectory(upgradesDirectoryPath, out exception))
             {
                 this.TraceException(exception, nameof(this.TryDownloadNewestVersion), $"Error creating download directory {upgradesDirectoryPath} : {exception.Message}");
 
@@ -243,6 +251,12 @@ namespace GVFS.Common
 
         protected virtual bool TryDeleteDownloadedAsset(Asset asset, out Exception exception)
         {
+            if (this.dryRun)
+            {
+                exception = null;
+                return true;
+            }
+
             return this.fileSystem.TryDeleteFile(asset.LocalPath, out exception);
         }
 
@@ -252,7 +266,7 @@ namespace GVFS.Common
 
             string downloadPath = ProductUpgraderInfo.GetAssetDownloadsPath();
             Exception exception;
-            if (!this.fileSystem.TryCreateDirectory(downloadPath, out exception))
+            if (!this.dryRun && !this.fileSystem.TryCreateDirectory(downloadPath, out exception))
             {
                 this.TraceException(exception, nameof(this.TryDownloadAsset), $"Error creating download directory {downloadPath} : {exception.Message}");
 
@@ -265,12 +279,16 @@ namespace GVFS.Common
 
             try
             {
-                webClient.DownloadFile(asset.DownloadURL, localPath);
+                if (!this.dryRun)
+                {
+                    webClient.DownloadFile(asset.DownloadURL, localPath);
+                }
+
                 asset.LocalPath = localPath;
             }
             catch (WebException webException)
             {
-                errorMessage = "Download error: " + exception.Message;
+                errorMessage = "Download error: " + webException.Message;
                 this.TraceException(webException, nameof(this.TryDownloadAsset), $"Error downloading asset {asset.Name}.");
                 return false;
             }
@@ -313,7 +331,15 @@ namespace GVFS.Common
 
         protected virtual void RunInstaller(string path, string args, out int exitCode, out string error)
         {
-            this.localUpgradeServices.RunInstaller(path, args, out exitCode, out error);
+            if (this.dryRun)
+            {
+                exitCode = 0;
+                error = null;
+            }
+            else
+            {
+                this.localUpgradeServices.RunInstaller(path, args, out exitCode, out error);
+            }
         }
 
         private bool TryGetGitVersion(out GitVersion gitVersion, out string error)
