@@ -29,9 +29,10 @@ namespace GVFS.Common
         {
             this.fileSystem = fileSystem;
             this.tracer = tracer;
+            this.TempPath = LocalUpgraderServices.GetTempPath();
         }
 
-        public string TempPath => LocalUpgraderServices.GetTempPath();
+        public string TempPath { get; }
 
         public static string GetTempPath()
         {

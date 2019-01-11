@@ -15,6 +15,6 @@ namespace GVFS.Common.NuGetUpgrader
             this.InstallActions = entries?.ToList() ?? new List<ManifestEntry>();
         }
 
-        public List<ManifestEntry> InstallActions { get; set; }
+        public List<ManifestEntry> InstallActions { get; }
     }
 }

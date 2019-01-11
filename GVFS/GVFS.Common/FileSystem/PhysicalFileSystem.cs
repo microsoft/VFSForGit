@@ -266,12 +266,10 @@ namespace GVFS.Common.FileSystem
             {
                 Directory.CreateDirectory(path);
             }
-            catch (IOException e)
-            {
-                exception = e;
-                return false;
-            }
-            catch (UnauthorizedAccessException e)
+            catch (Exception e) when (e is IOException ||
+                                      e is UnauthorizedAccessException ||
+                                      e is ArgumentException ||
+                                      e is NotSupportedException)
             {
                 exception = e;
                 return false;

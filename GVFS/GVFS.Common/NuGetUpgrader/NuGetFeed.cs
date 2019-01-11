@@ -66,8 +66,11 @@ namespace GVFS.Common.NuGetUpgrader
             SourceCacheContext cacheContext = new SourceCacheContext();
             cacheContext.DirectDownload = true;
             cacheContext.NoCache = true;
-            IList<IPackageSearchMetadata> queryResults = (await packageMetadataResource.GetMetadataAsync(packageId, true, true, cacheContext, new Logger(this.tracer), CancellationToken.None)).ToList();
-            return queryResults;
+
+            IEnumerable<IPackageSearchMetadata> queryResults = await packageMetadataResource.GetMetadataAsync(packageId, true, true, cacheContext, new Logger(this.tracer), CancellationToken.None);
+
+            // TODO: consider working with just the IEnumerable
+            return queryResults.ToList();
         }
 
         /// <summary>

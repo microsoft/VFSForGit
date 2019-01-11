@@ -13,22 +13,22 @@ namespace GVFS.Common.NuGetUpgrader
         /// <summary>
         /// The arguments that should be passed to the install command
         /// </summary>
-        public string Args { get; set; }
+        public string Args { get; }
 
         /// <summary>
         /// User friendly name for the install action
         /// </summary>
-        public string Name { get; set; }
+        public string Name { get; }
 
         /// <summary>
         /// The relative path to the install script / binary.
         /// The path is relative to the content directory of the NuGet package.
         /// </summary>
-        public string InstallerRelativePath { get; set; }
+        public string InstallerRelativePath { get; }
 
         /// <summary>
         /// The version of the component that this entry installs
         /// </summary>
-        public string Version { get; set; }
+        public string Version { get; }
     }
 }
