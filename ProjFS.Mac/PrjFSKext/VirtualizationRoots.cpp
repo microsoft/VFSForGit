@@ -14,6 +14,7 @@
 #include "kernel-header-wrappers/mount.h"
 #include "VnodeUtilities.hpp"
 #include "PerformanceTracing.hpp"
+#include "FileSystemMountPoints.hpp"
 
 #ifdef KEXT_UNIT_TESTING
 #include "VirtualizationRootsTestable.hpp"
@@ -386,6 +387,13 @@ KEXT_STATIC VirtualizationRootHandle InsertVirtualizationRoot_Locked(PrjFSProvid
     {
         assert(rootIndex < s_maxVirtualizationRoots);
         assert(!s_virtualizationRoots[rootIndex].inUse);
+        
+        // Retain a strong reference to the vnode if we have an active provider on it
+        if (userClient != nullptr && 0 != vnode_get(vnode))
+        {
+            return RootHandle_None;
+        }
+        
         VirtualizationRoot* root = &s_virtualizationRoots[rootIndex];
         
         root->providerUserClient = userClient;
@@ -475,7 +483,10 @@ VirtualizationRootResult VirtualizationRoot_RegisterProviderForPath(PrjFSProvide
                             strlcpy(root.path, virtualizationRootCanonicalPath, sizeof(root.path));
                             KextLog_File(virtualizationRootVNode, "VirtualizationRoot_RegisterProviderForPath: registered provider (PID %d, IOUC %p) for virtualization root %d: (path: \"%s\", fsid: 0x%x:%x, inode: 0x%llx) directory vnode %p:%u.",
                                 clientPID, KextLog_Unslide(userClient), rootIndex, root.path, root.rootFsid.val[0], root.rootFsid.val[1], root.rootInode, KextLog_Unslide(virtualizationRootVNode), rootVid);
-                            virtualizationRootVNode = NULLVP; // transfer ownership
+
+                            // Acquire strong reference while provider is connected
+                            err = vnode_get(virtualizationRootVNode);
+                            assert(err == 0); // we already hold 1 strong reference from vnode_lookup so this should always succeed
                         }
                     }
                     else
@@ -484,14 +495,11 @@ VirtualizationRootResult VirtualizationRoot_RegisterProviderForPath(PrjFSProvide
                         if (rootIndex >= 0)
                         {
                             assert(rootIndex < s_maxVirtualizationRoots);
-                        
-                            virtualizationRootVNode = NULLVP; // prevent vnode_put later; active provider should hold vnode reference
-                        
+                            
                             KextLog("VirtualizationRoot_RegisterProviderForPath: new root not found in offline roots, inserted as new root with index %d. path '%s'", rootIndex, virtualizationRootCanonicalPath);
                         }
                         else
                         {
-                            // TODO: scan the array for roots on mounts which have disappeared, or grow the array
                             KextLog_Error("VirtualizationRoot_RegisterProviderForPath: failed to insert new root");
                             err = ENOMEM;
                         }
@@ -507,17 +515,16 @@ VirtualizationRootResult VirtualizationRoot_RegisterProviderForPath(PrjFSProvide
         }
     }
     
+    if (VirtualizationRoot_IsValidRootHandle(rootIndex))
+    {
+        MountPoint_DisableAuthCache(vnode_mount(virtualizationRootVNode));
+    }
+
     if (NULLVP != virtualizationRootVNode)
     {
         vnode_put(virtualizationRootVNode);
     }
-    
-    if (rootIndex >= 0)
-    {
-        VirtualizationRoot* root = &s_virtualizationRoots[rootIndex];
-        vfs_setauthcache_ttl(vnode_mount(root->rootVNode), 0);
-    }
-    
+
     vfs_context_rele(vfsContext);
     
     return VirtualizationRootResult { err, rootIndex };
@@ -535,20 +542,22 @@ void ActiveProvider_Disconnect(VirtualizationRootHandle rootIndex, PrjFSProvider
         assertf(userClient == root->providerUserClient, "ActiveProvider_Disconnect: disconnecting provider IOUC %p for root index %d (%s), but expecting IOUC %p",
             KextLog_Unslide(userClient), rootIndex, root->path, KextLog_Unslide(root->providerUserClient));
         
-        assert(NULLVP != root->rootVNode);
-        
         KextLog_File(root->rootVNode, "ActiveProvider_Disconnect: disconnecting provider (PID %d, IOUC %p) for virtualization root %d: (path: \"%s\", fsid: 0x%x:%x, inode: 0x%llx) directory vnode %p:%u.",
             root->providerPid, KextLog_Unslide(root->providerUserClient), rootIndex, root->path, root->rootFsid.val[0], root->rootFsid.val[1], root->rootInode, KextLog_Unslide(root->rootVNode), root->rootVNodeVid);
 
         
-        vnode_put(root->rootVNode);
+        vnode_t rootVNode = root->rootVNode;
+        assert(NULLVP != rootVNode);
+
         root->providerPid = 0;
-        
         root->providerUserClient = nullptr;
 
         RWLock_DropExclusiveToShared(s_virtualizationRootsLock);
 
         ProviderMessaging_AbortOutstandingEventsForProvider(rootIndex);
+        MountPoint_RestoreAuthCache(vnode_mount(rootVNode));
+
+        vnode_put(rootVNode);
     }
     RWLock_ReleaseShared(s_virtualizationRootsLock);
 }
