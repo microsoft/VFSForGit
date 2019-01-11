@@ -168,13 +168,13 @@ namespace GVFS.Common.NuGetUpgrader
 
                 newVersion = this.latestVersion?.Identity?.Version?.Version;
 
-                if (!(newVersion is null))
+                if (newVersion != null)
                 {
                     this.tracer.RelatedInfo($"{nameof(this.TryQueryNewestVersion)} - new version available: installedVersion: {this.installedVersion}, latestAvailableVersion: {highestVersion}");
                     message = $"New version {highestVersion.Identity.Version} is available.";
                     return true;
                 }
-                else if (!(highestVersion is null))
+                else if (highestVersion != null)
                 {
                     this.tracer.RelatedInfo($"{nameof(this.TryQueryNewestVersion)} - up-to-date");
                     message = $"Latest available version is {highestVersion.Identity.Version}, you are up-to-date";
@@ -256,7 +256,7 @@ namespace GVFS.Common.NuGetUpgrader
                     this.releaseManifest = ReleaseManifest.FromJsonFile(Path.Combine(extractedPackagePath, "content", "install-manifest.json"));
                     InstallManifestPlatform platformInstallManifest = this.releaseManifest.PlatformInstallManifests[platformKey];
 
-                    if (platformInstallManifest is null)
+                    if (platformInstallManifest == null)
                     {
                         activity.RelatedError($"Extracted ReleaseManifest from JSON, but there was no entry for {platformKey}.");
                         error = $"No entry in the manifest for the current platform ({platformKey}). Please verify the upgrade package.";
