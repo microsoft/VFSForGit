@@ -61,8 +61,8 @@ namespace GVFS.Common.NuGetUpgrader
                 sourceRepository.PackageSource.Credentials = this.Credentials;
             }
 
-            var packageMetadataResource = await sourceRepository.GetResourceAsync<PackageMetadataResource>();
-            var cacheContext = new SourceCacheContext();
+            PackageMetadataResource packageMetadataResource = await sourceRepository.GetResourceAsync<PackageMetadataResource>();
+            SourceCacheContext cacheContext = new SourceCacheContext();
             cacheContext.DirectDownload = true;
             cacheContext.NoCache = true;
             IList<IPackageSearchMetadata> queryResults = (await packageMetadataResource.GetMetadataAsync(packageId, true, true, cacheContext, new Logger(this.tracer), CancellationToken.None)).ToList();
@@ -82,12 +82,12 @@ namespace GVFS.Common.NuGetUpgrader
                 sourceRepository.PackageSource.Credentials = this.Credentials;
             }
 
-            var downloadResource = await sourceRepository.GetResourceAsync<DownloadResource>();
-            var downloadResourceResult = await downloadResource.GetDownloadResourceResultAsync(packageId, new PackageDownloadContext(new SourceCacheContext(), this.downloadFolder, true), string.Empty, new Logger(this.tracer), CancellationToken.None);
+            DownloadResource downloadResource = await sourceRepository.GetResourceAsync<DownloadResource>();
+            DownloadResourceResult downloadResourceResult = await downloadResource.GetDownloadResourceResultAsync(packageId, new PackageDownloadContext(new SourceCacheContext(), this.downloadFolder, true), string.Empty, new Logger(this.tracer), CancellationToken.None);
 
             string downloadPath = Path.Combine(this.downloadFolder, $"{this.feedName}.zip");
 
-            using (var fileStream = File.Create(downloadPath))
+            using (FileStream fileStream = File.Create(downloadPath))
             {
                 downloadResourceResult.PackageStream.CopyTo(fileStream);
             }
