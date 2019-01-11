@@ -1,4 +1,4 @@
-﻿using GVFS.Common.Tracing;
+using GVFS.Common.Tracing;
 using NuGet.Common;
 using NuGet.Packaging.Core;
 using NuGet.Protocol;
@@ -53,7 +53,7 @@ namespace GVFS.Common.NuGetUpgrader
         /// </summary>
         /// <param name="packageId"></param>
         /// <returns>List of packages that match query parameters</returns>
-        public virtual async Task<IList<IPackageSearchMetadata>> QueryFeed(string packageId)
+        public virtual async Task<IList<IPackageSearchMetadata>> QueryFeedAsync(string packageId)
         {
             SourceRepository sourceRepository = Repository.Factory.GetCoreV3(this.feedUrl);
             if (!string.IsNullOrEmpty(this.personalAccessToken))
