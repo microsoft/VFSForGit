@@ -21,8 +21,8 @@ namespace GVFS.Common.NuGetUpgrader
         public string Name { get; set; }
 
         /// <summary>
-        /// The path to the installer, relative to the
-        /// content directory of the NuGet package.
+        /// The relative path to the install script / binary.
+        /// The path is relative to the content directory of the NuGet package.
         /// </summary>
         public string InstallerRelativePath { get; set; }
 
