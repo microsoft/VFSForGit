@@ -195,6 +195,7 @@
 		4A08257B21E8F65A00E21AFD /* FileSystemMountPoints.hpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.h; path = FileSystemMountPoints.hpp; sourceTree = "<group>"; };
 		4A558DB822357AB000AFDE07 /* ProviderMessaging.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = ProviderMessaging.cpp; sourceTree = "<group>"; };
 		4A558DB922357AB000AFDE07 /* ProviderMessaging.hpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.h; path = ProviderMessaging.hpp; sourceTree = "<group>"; };
+		4A5A190C224E14FB009EC126 /* FileSystemMountPointsTestable.hpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.h; path = FileSystemMountPointsTestable.hpp; sourceTree = "<group>"; };
 		4A781DA42220946000DB7733 /* VirtualizationRootsTests.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = VirtualizationRootsTests.mm; sourceTree = "<group>"; };
 		4A781DA6222094C300DB7733 /* VirtualizationRootsPrivate.hpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.h; path = VirtualizationRootsPrivate.hpp; sourceTree = "<group>"; };
 		4A781DA82222C6EA00DB7733 /* PrjFSProviderUserClient.hpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.h; path = PrjFSProviderUserClient.hpp; sourceTree = "<group>"; };
@@ -206,6 +207,7 @@
 		4A781DB122233A1E00DB7733 /* TestLocks.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = TestLocks.cpp; sourceTree = "<group>"; };
 		4A781DB322233A4500DB7733 /* TestMemory.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = TestMemory.cpp; sourceTree = "<group>"; };
 		4A781DB722299C5300DB7733 /* VirtualizationRootsTestable.hpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.h; path = VirtualizationRootsTestable.hpp; sourceTree = "<group>"; };
+		4A7A310B221190E0007B2AAF /* FileSystemMountPointsPrivate.hpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.h; path = FileSystemMountPointsPrivate.hpp; sourceTree = "<group>"; };
 		4A8C13A021F23EE800002878 /* libPrjFSKextTestable.a */ = {isa = PBXFileReference; explicitFileType = archive.ar; includeInIndex = 0; path = libPrjFSKextTestable.a; sourceTree = BUILT_PRODUCTS_DIR; };
 		4A8C13AA21F268FE00002878 /* PrjFSKextTests.exp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.exports; path = PrjFSKextTests.exp; sourceTree = "<group>"; };
 		D9C087F122384670009C1110 /* MemoryTests.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = MemoryTests.mm; sourceTree = "<group>"; };
@@ -344,6 +346,8 @@
 				4A781DA6222094C300DB7733 /* VirtualizationRootsPrivate.hpp */,
 				4A08257A21E8F65A00E21AFD /* FileSystemMountPoints.cpp */,
 				4A08257B21E8F65A00E21AFD /* FileSystemMountPoints.hpp */,
+				4A5A190C224E14FB009EC126 /* FileSystemMountPointsTestable.hpp */,
+				4A7A310B221190E0007B2AAF /* FileSystemMountPointsPrivate.hpp */,
 				4391F8A121E42AC50008103C /* VnodeUtilities.cpp */,
 				4391F8A221E42AC50008103C /* VnodeUtilities.hpp */,
 			);

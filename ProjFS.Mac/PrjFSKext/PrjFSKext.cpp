@@ -6,6 +6,7 @@
 #include "Locks.hpp"
 #include "Memory.hpp"
 #include "PerformanceTracing.hpp"
+#include "FileSystemMountPoints.hpp"
 
 extern "C" kern_return_t PrjFSKext_Start(kmod_info_t* ki, void* d);
 extern "C" kern_return_t PrjFSKext_Stop(kmod_info_t* ki, void* d);
@@ -25,6 +26,11 @@ kern_return_t PrjFSKext_Start(kmod_info_t* ki, void* d)
     }
     
     if (!KextLog_Init())
+    {
+        goto CleanupAndFail;
+    }
+    
+    if (!MountPoint_Init())
     {
         goto CleanupAndFail;
     }
@@ -52,6 +58,8 @@ kern_return_t PrjFSKext_Stop(kmod_info_t* ki, void* d)
     {
         result = KERN_FAILURE;
     }
+
+    MountPoint_Cleanup();
 
     if (Memory_Cleanup())
     {
