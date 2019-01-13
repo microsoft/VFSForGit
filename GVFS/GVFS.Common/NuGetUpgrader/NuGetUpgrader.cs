@@ -14,6 +14,7 @@ namespace GVFS.Common.NuGetUpgrader
     {
         private static readonly string GitBinPath = GVFSPlatform.Instance.GitInstallation.GetInstalledGitBinPath();
 
+        private readonly bool dryRun;
         private readonly PhysicalFileSystem fileSystem;
         private readonly Version installedVersion;
         private readonly LocalUpgraderServices localUpgradeServices;
@@ -29,12 +30,14 @@ namespace GVFS.Common.NuGetUpgrader
             string currentVersion,
             ITracer tracer,
             NugetUpgraderConfig config,
+            bool dryRun,
             string downloadFolder,
             string personalAccessToken)
             : this(
                 currentVersion,
                 tracer,
                 config,
+                dryRun,
                 new PhysicalFileSystem(),
                 new NuGetFeed(config.FeedUrl, config.PackageFeedName, downloadFolder, personalAccessToken, tracer))
         {
@@ -44,12 +47,14 @@ namespace GVFS.Common.NuGetUpgrader
             string currentVersion,
             ITracer tracer,
             NugetUpgraderConfig config,
+            bool dryRun,
             PhysicalFileSystem fileSystem,
             NuGetFeed nuGetFeed)
             : this(
                 currentVersion,
                 tracer,
                 config,
+                dryRun,
                 fileSystem,
                 nuGetFeed,
                 new LocalUpgraderServices(tracer, fileSystem))
@@ -60,10 +65,12 @@ namespace GVFS.Common.NuGetUpgrader
             string currentVersion,
             ITracer tracer,
             NugetUpgraderConfig config,
+            bool dryRun,
             PhysicalFileSystem fileSystem,
             NuGetFeed nuGetFeed,
             LocalUpgraderServices localUpgraderServices)
         {
+            this.dryRun = dryRun;
             this.nugetUpgraderConfig = config;
             this.tracer = tracer;
             this.installedVersion = new Version(currentVersion);
@@ -93,6 +100,7 @@ namespace GVFS.Common.NuGetUpgrader
                         ProcessHelper.GetCurrentProcessVersion(),
                         tracer,
                         upgraderConfig,
+                        dryRun,
                         ProductUpgraderInfo.GetAssetDownloadsPath(),
                         personalAccessToken: null);
                 }
@@ -114,6 +122,7 @@ namespace GVFS.Common.NuGetUpgrader
                 ProcessHelper.GetCurrentProcessVersion(),
                 tracer,
                 upgraderConfig,
+                dryRun,
                 ProductUpgraderInfo.GetAssetDownloadsPath(),
                 token);
 
@@ -285,7 +294,14 @@ namespace GVFS.Common.NuGetUpgrader
                         installActionWrapper(
                             () =>
                             {
-                                this.localUpgradeServices.RunInstaller(installerPath, entry.Args, out installerExitCode, out localError);
+                                if (!this.dryRun)
+                                {
+                                    this.localUpgradeServices.RunInstaller(installerPath, entry.Args, out installerExitCode, out localError);
+                                }
+                                else
+                                {
+                                    installerExitCode = 0;
+                                }
 
                                 installSuccessful = installerExitCode == 0;
 

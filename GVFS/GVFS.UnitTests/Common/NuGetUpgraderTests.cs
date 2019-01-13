@@ -57,6 +57,7 @@ namespace GVFS.UnitTests.Common
                 CurrentVersion,
                 this.tracer,
                 this.upgraderConfig,
+                false,
                 this.mockFileSystem.Object,
                 this.mockNuGetFeed.Object,
                 new LocalUpgraderServices(this.tracer, this.mockFileSystem.Object));
