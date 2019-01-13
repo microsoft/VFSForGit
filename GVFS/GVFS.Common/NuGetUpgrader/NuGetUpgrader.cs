@@ -19,7 +19,7 @@ namespace GVFS.Common.NuGetUpgrader
         private readonly Version installedVersion;
         private readonly LocalUpgraderServices localUpgradeServices;
         private readonly NugetUpgraderConfig nugetUpgraderConfig;
-        private readonly NuGetFeed nugetFeed;
+        private readonly NuGetFeed nuGetFeed;
         private readonly ITracer tracer;
 
         private ReleaseManifest releaseManifest;
@@ -76,7 +76,7 @@ namespace GVFS.Common.NuGetUpgrader
             this.installedVersion = new Version(currentVersion);
 
             this.fileSystem = fileSystem;
-            this.nugetFeed = nuGetFeed;
+            this.nuGetFeed = nuGetFeed;
             this.localUpgradeServices = localUpgraderServices;
         }
 
@@ -131,7 +131,7 @@ namespace GVFS.Common.NuGetUpgrader
 
         public void Dispose()
         {
-            this.nugetFeed?.Dispose();
+            this.nuGetFeed?.Dispose();
         }
 
         public bool UpgradeAllowed(out string message)
@@ -164,7 +164,7 @@ namespace GVFS.Common.NuGetUpgrader
         {
             try
             {
-                IList<IPackageSearchMetadata> queryResults = this.nugetFeed.QueryFeedAsync(this.nugetUpgraderConfig.PackageFeedName).GetAwaiter().GetResult();
+                IList<IPackageSearchMetadata> queryResults = this.nuGetFeed.QueryFeedAsync(this.nugetUpgraderConfig.PackageFeedName).GetAwaiter().GetResult();
 
                 // Find the latest package
                 IPackageSearchMetadata highestVersion = null;
@@ -220,7 +220,7 @@ namespace GVFS.Common.NuGetUpgrader
             {
                 try
                 {
-                    this.downloadedPackagePath = this.nugetFeed.DownloadPackage(this.latestVersion.Identity).GetAwaiter().GetResult();
+                    this.downloadedPackagePath = this.nuGetFeed.DownloadPackage(this.latestVersion.Identity).GetAwaiter().GetResult();
                 }
                 catch (Exception ex)
                 {
