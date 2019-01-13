@@ -81,17 +81,25 @@ namespace GVFS.Common.NuGetUpgrader
         /// <returns>List of packages that match query parameters</returns>
         public virtual async Task<IList<IPackageSearchMetadata>> QueryFeedAsync(string packageId)
         {
-            PackageMetadataResource packageMetadataResource = await this.sourceRepository.GetResourceAsync<PackageMetadataResource>();
-            IEnumerable<IPackageSearchMetadata> queryResults = await packageMetadataResource.GetMetadataAsync(
-                packageId,
-                includePrerelease: true,
-                includeUnlisted: true,
-                sourceCacheContext: this.sourceCacheContext,
-                log: this.nuGetLogger,
-                token: CancellationToken.None);
+            try
+            {
+                PackageMetadataResource packageMetadataResource = await this.sourceRepository.GetResourceAsync<PackageMetadataResource>();
+                IEnumerable<IPackageSearchMetadata> queryResults = await packageMetadataResource.GetMetadataAsync(
+                    packageId,
+                    includePrerelease: true,
+                    includeUnlisted: true,
+                    sourceCacheContext: this.sourceCacheContext,
+                    log: this.nuGetLogger,
+                    token: CancellationToken.None);
 
-            // TODO: consider working with just the IEnumerable
-            return queryResults.ToList();
+                // TODO: consider working with just the IEnumerable
+                return queryResults.ToList();
+            }
+            catch (Exception ex)
+            {
+                // TODO: consider utility method to help trace exceptions (possibly including stack infomration);
+                throw new Exception($"Failed to query the NuGet package feed due to error: {ex.Message}", ex);
+            }
         }
 
         /// <summary>
