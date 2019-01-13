@@ -300,6 +300,9 @@ namespace GVFS.Common.NuGetUpgrader
                                 }
                                 else
                                 {
+                                    // This is a temporary workaround to force the step to be written
+                                    // out to the console.
+                                    Thread.Sleep(2500);
                                     installerExitCode = 0;
                                 }
 
