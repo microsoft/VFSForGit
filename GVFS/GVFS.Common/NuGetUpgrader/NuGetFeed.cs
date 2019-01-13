@@ -17,11 +17,15 @@ namespace GVFS.Common.NuGetUpgrader
     /// </summary>
     public class NuGetFeed
     {
-        private ITracer tracer;
-        private string feedUrl;
-        private string feedName;
-        private string downloadFolder;
+        private readonly ITracer tracer;
+        private readonly string feedUrl;
+        private readonly string feedName;
+        private readonly string downloadFolder;
+
         private string personalAccessToken;
+        private SourceCacheContext sourceCacheContext;
+        private ILogger nuGetLogger;
+        private SourceRepository sourceRepository;
 
         public NuGetFeed(
             string feedUrl,
@@ -35,6 +39,21 @@ namespace GVFS.Common.NuGetUpgrader
             this.downloadFolder = downloadFolder;
             this.personalAccessToken = personalAccessToken;
             this.tracer = tracer;
+
+            // Configure the NuGet SourceCacheContext -
+            // - Direct download packages - do not download
+            //   to global NuGet cache.
+            // - NoCache - Do not cache package version lists
+            this.sourceCacheContext = NullSourceCacheContext.Instance;
+            this.sourceCacheContext.NoCache = true;
+
+            this.nuGetLogger = new Logger(this.tracer);
+
+            this.sourceRepository = Repository.Factory.GetCoreV3(this.feedUrl);
+            if (!string.IsNullOrEmpty(this.personalAccessToken))
+            {
+                this.sourceRepository.PackageSource.Credentials = this.Credentials;
+            }
         }
 
         private NuGet.Configuration.PackageSourceCredential Credentials
@@ -56,18 +75,14 @@ namespace GVFS.Common.NuGetUpgrader
         /// <returns>List of packages that match query parameters</returns>
         public virtual async Task<IList<IPackageSearchMetadata>> QueryFeedAsync(string packageId)
         {
-            SourceRepository sourceRepository = Repository.Factory.GetCoreV3(this.feedUrl);
-            if (!string.IsNullOrEmpty(this.personalAccessToken))
-            {
-                sourceRepository.PackageSource.Credentials = this.Credentials;
-            }
-
-            PackageMetadataResource packageMetadataResource = await sourceRepository.GetResourceAsync<PackageMetadataResource>();
-            SourceCacheContext cacheContext = new SourceCacheContext();
-            cacheContext.DirectDownload = true;
-            cacheContext.NoCache = true;
-
-            IEnumerable<IPackageSearchMetadata> queryResults = await packageMetadataResource.GetMetadataAsync(packageId, true, true, cacheContext, new Logger(this.tracer), CancellationToken.None);
+            PackageMetadataResource packageMetadataResource = await this.sourceRepository.GetResourceAsync<PackageMetadataResource>();
+            IEnumerable<IPackageSearchMetadata> queryResults = await packageMetadataResource.GetMetadataAsync(
+                packageId,
+                includePrerelease: true,
+                includeUnlisted: true,
+                sourceCacheContext: this.sourceCacheContext,
+                log: this.nuGetLogger,
+                token: CancellationToken.None);
 
             // TODO: consider working with just the IEnumerable
             return queryResults.ToList();
@@ -80,14 +95,20 @@ namespace GVFS.Common.NuGetUpgrader
         /// <returns>Path to the downloaded package.</returns>
         public virtual async Task<string> DownloadPackage(PackageIdentity packageId)
         {
-            SourceRepository sourceRepository = Repository.Factory.GetCoreV3(this.feedUrl);
-            if (!string.IsNullOrEmpty(this.personalAccessToken))
-            {
-                sourceRepository.PackageSource.Credentials = this.Credentials;
-            }
+            PackageDownloadContext packageDownloadContext = new PackageDownloadContext(
+                this.sourceCacheContext,
+                this.downloadFolder,
+                true);
 
-            DownloadResource downloadResource = await sourceRepository.GetResourceAsync<DownloadResource>();
-            DownloadResourceResult downloadResourceResult = await downloadResource.GetDownloadResourceResultAsync(packageId, new PackageDownloadContext(new SourceCacheContext(), this.downloadFolder, true), string.Empty, new Logger(this.tracer), CancellationToken.None);
+            DownloadResource downloadResource = await this.sourceRepository.GetResourceAsync<DownloadResource>();
+            DownloadResourceResult downloadResourceResult = await downloadResource.GetDownloadResourceResultAsync(
+                packageId,
+                packageDownloadContext,
+                globalPackagesFolder: string.Empty,
+                logger: this.nuGetLogger,
+                token: CancellationToken.None);
+
+            // Check download result status
 
             string downloadPath = Path.Combine(this.downloadFolder, $"{this.feedName}.zip");
 

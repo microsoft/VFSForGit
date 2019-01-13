@@ -75,6 +75,8 @@ namespace GVFS.Common.NuGetUpgrader
 
         public static IProductUpgrader Create(
             ITracer tracer,
+            bool dryRun,
+            bool noVerify,
             out string error)
         {
             NugetUpgraderConfig upgraderConfig = new NugetUpgraderConfig(tracer, new LocalGVFSConfig());

@@ -29,7 +29,6 @@ namespace GVFS.UnitTests.Common
 
         private NuGetUpgrader.NugetUpgraderConfig upgraderConfig;
         private string downloadFolder;
-        private string personalAccessToken;
 
         private Mock<NuGetFeed> mockNuGetFeed;
         private Mock<PhysicalFileSystem> mockFileSystem;
@@ -42,12 +41,16 @@ namespace GVFS.UnitTests.Common
             string feedName = "feedNameValue";
 
             this.upgraderConfig = new NuGetUpgrader.NugetUpgraderConfig(this.tracer, null, feedUrl, feedName, feedUrlForCredentials);
-            this.downloadFolder = "what";
-            this.personalAccessToken = "what";
+            this.downloadFolder = "downloadFolderTestValue";
 
             this.tracer = new MockTracer();
 
-            this.mockNuGetFeed = new Mock<NuGetFeed>(feedUrl, feedName, this.downloadFolder, this.personalAccessToken, this.tracer);
+            this.mockNuGetFeed = new Mock<NuGetFeed>(
+                feedUrl,
+                feedName,
+                this.downloadFolder,
+                null,
+                this.tracer);
             this.mockFileSystem = new Mock<PhysicalFileSystem>();
 
             this.upgrader = new NuGetUpgrader(
