@@ -66,6 +66,8 @@ namespace GVFS.Service
                 {
                     deleteExistingDownloads = false;
                 }
+
+                productUpgrader.Dispose();
             }
 
             if (errorMessage != null)

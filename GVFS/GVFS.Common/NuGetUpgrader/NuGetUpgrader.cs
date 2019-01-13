@@ -120,6 +120,11 @@ namespace GVFS.Common.NuGetUpgrader
             return upgrader;
         }
 
+        public void Dispose()
+        {
+            this.nugetFeed?.Dispose();
+        }
+
         public bool UpgradeAllowed(out string message)
         {
             if (string.IsNullOrEmpty(this.nugetUpgraderConfig.FeedUrl))

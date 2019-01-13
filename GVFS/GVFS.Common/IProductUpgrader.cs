@@ -12,7 +12,7 @@ namespace GVFS.Common
     /// <returns>success or failure return from the method run.</returns>
     public delegate bool InstallActionWrapper(Func<bool> method, string message);
 
-    public interface IProductUpgrader
+    public interface IProductUpgrader : IDisposable
     {
         bool UpgradeAllowed(out string message);
 

@@ -15,17 +15,17 @@ namespace GVFS.Common.NuGetUpgrader
     /// <summary>
     /// Handles interactions with a NuGet Feed.
     /// </summary>
-    public class NuGetFeed
+    public class NuGetFeed : IDisposable
     {
         private readonly ITracer tracer;
         private readonly string feedUrl;
         private readonly string feedName;
         private readonly string downloadFolder;
 
+        private SourceRepository sourceRepository;
         private string personalAccessToken;
         private SourceCacheContext sourceCacheContext;
         private ILogger nuGetLogger;
-        private SourceRepository sourceRepository;
 
         public NuGetFeed(
             string feedUrl,
@@ -68,6 +68,12 @@ namespace GVFS.Common.NuGetUpgrader
             }
         }
 
+        public void Dispose()
+        {
+            this.sourceRepository = null;
+            this.sourceCacheContext?.Dispose();
+        }
+
         /// <summary>
         /// Query a NuGet feed for list of packages that match the packageId.
         /// </summary>
@@ -95,26 +101,26 @@ namespace GVFS.Common.NuGetUpgrader
         /// <returns>Path to the downloaded package.</returns>
         public virtual async Task<string> DownloadPackage(PackageIdentity packageId)
         {
+            string downloadPath = Path.Combine(this.downloadFolder, $"{this.feedName}.zip");
             PackageDownloadContext packageDownloadContext = new PackageDownloadContext(
                 this.sourceCacheContext,
                 this.downloadFolder,
                 true);
 
             DownloadResource downloadResource = await this.sourceRepository.GetResourceAsync<DownloadResource>();
-            DownloadResourceResult downloadResourceResult = await downloadResource.GetDownloadResourceResultAsync(
-                packageId,
-                packageDownloadContext,
-                globalPackagesFolder: string.Empty,
-                logger: this.nuGetLogger,
-                token: CancellationToken.None);
 
-            // Check download result status
-
-            string downloadPath = Path.Combine(this.downloadFolder, $"{this.feedName}.zip");
-
-            using (FileStream fileStream = File.Create(downloadPath))
+            using (DownloadResourceResult downloadResourceResult = await downloadResource.GetDownloadResourceResultAsync(
+                       packageId,
+                       packageDownloadContext,
+                       globalPackagesFolder: string.Empty,
+                       logger : this.nuGetLogger,
+                       token: CancellationToken.None))
             {
-                downloadResourceResult.PackageStream.CopyTo(fileStream);
+                // Check download result status
+                using (FileStream fileStream = File.Create(downloadPath))
+                {
+                    downloadResourceResult.PackageStream.CopyTo(fileStream);
+                }
             }
 
             return downloadPath;

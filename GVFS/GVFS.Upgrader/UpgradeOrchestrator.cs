@@ -75,42 +75,49 @@ namespace GVFS.Upgrader
             string mountError = null;
             Version newVersion = null;
 
-            if (this.TryInitialize(out error))
+            try
             {
-                try
+                if (this.TryInitialize(out error))
                 {
-                    if (!this.TryRunUpgrade(out newVersion, out error))
+                    try
                     {
-                        this.ExitCode = ReturnCode.GenericError;
+                        if (!this.TryRunUpgrade(out newVersion, out error))
+                        {
+                            this.ExitCode = ReturnCode.GenericError;
+                        }
+                    }
+                    finally
+                    {
+                        if (!this.TryMountRepositories(out mountError))
+                        {
+                            mountError = Environment.NewLine + "WARNING: " + mountError;
+                            this.output.WriteLine(mountError);
+                        }
+
+                        this.DeletedDownloadedAssets();
                     }
                 }
-                finally
+                else
                 {
-                    if (!this.TryMountRepositories(out mountError))
+                    this.ExitCode = ReturnCode.GenericError;
+                }
+
+                if (this.ExitCode == ReturnCode.GenericError)
+                {
+                    error = Environment.NewLine + "ERROR: " + error;
+                    this.output.WriteLine(error);
+                }
+                else
+                {
+                    if (newVersion != null)
                     {
-                        mountError = Environment.NewLine + "WARNING: " + mountError;
-                        this.output.WriteLine(mountError);
+                        this.output.WriteLine($"{Environment.NewLine}Upgrade completed successfully{(string.IsNullOrEmpty(mountError) ? "." : ", but one or more repositories will need to be mounted manually.")}");
                     }
-
-                    this.DeletedDownloadedAssets();
                 }
             }
-            else
+            finally
             {
-                this.ExitCode = ReturnCode.GenericError;
-            }
-
-            if (this.ExitCode == ReturnCode.GenericError)
-            {
-                error = Environment.NewLine + "ERROR: " + error;
-                this.output.WriteLine(error);
-            }
-            else
-            {
-                if (newVersion != null)
-                {
-                    this.output.WriteLine($"{Environment.NewLine}Upgrade completed successfully{(string.IsNullOrEmpty(mountError) ? "." : ", but one or more repositories will need to be mounted manually.")}");
-                }
+                this.upgrader?.Dispose();
             }
 
             if (this.input == Console.In)

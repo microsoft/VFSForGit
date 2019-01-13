@@ -85,6 +85,10 @@ namespace GVFS.Common
             return upgrader;
         }
 
+        public void Dispose()
+        {
+        }
+
         public bool UpgradeAllowed(out string message)
         {
             return this.Config.UpgradeAllowed(out message);

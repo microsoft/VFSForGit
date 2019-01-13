@@ -62,6 +62,12 @@ namespace GVFS.UnitTests.Common
                 new LocalUpgraderServices(this.tracer, this.mockFileSystem.Object));
         }
 
+        [TearDown]
+        public void TearDown()
+        {
+            this.mockNuGetFeed.Object.Dispose();
+        }
+
         [TestCase]
         public void TryQueryNewestVersion_NewVersionAvailable()
         {
