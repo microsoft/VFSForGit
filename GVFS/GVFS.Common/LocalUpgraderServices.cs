@@ -29,7 +29,8 @@ namespace GVFS.Common
                 "NuGet.Packaging.Core.dll",
                 "NuGet.Packaging.dll",
                 "NuGet.Protocol.dll",
-                "NuGet.Versioning.dll"
+                "NuGet.Versioning.dll",
+                "CommandLine.dll"
             };
 
         public LocalUpgraderServices(ITracer tracer, PhysicalFileSystem fileSystem)
