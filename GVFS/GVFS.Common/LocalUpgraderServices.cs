@@ -22,7 +22,14 @@ namespace GVFS.Common
                 "Microsoft.Diagnostics.Tracing.EventSource.dll",
                 "netstandard.dll",
                 "System.Net.Http.dll",
-                "Newtonsoft.Json.dll"
+                "Newtonsoft.Json.dll",
+                "NuGet.Common.dll",
+                "NuGet.Configuration.dll",
+                "NuGet.Frameworks.dll",
+                "NuGet.Packaging.Core.dll",
+                "NuGet.Packaging.dll",
+                "NuGet.Protocol.dll",
+                "NuGet.Versioning.dll"
             };
 
         public LocalUpgraderServices(ITracer tracer, PhysicalFileSystem fileSystem)
