@@ -5,7 +5,9 @@ using System.Linq;
 using System.Security.Cryptography;
 using System.Security.Cryptography.X509Certificates;
 using System.Text.RegularExpressions;
+using GVFS.Common.FileSystem;
 using GVFS.Common.Tracing;
+using GVFS.Common.X509Certificates;
 
 namespace GVFS.Common.Git
 {
@@ -13,19 +15,15 @@ namespace GVFS.Common.Git
     {
         private readonly string certificatePathOrSubjectCommonName;
         private readonly bool isCertificatePasswordProtected;
+        private readonly Func<ICertificateStore> certificateStoreFactory;
+        private readonly ICertificateVerifier certificateVerifier;
+        private readonly PhysicalFileSystem fileSystem;
 
-        public GitSsl()
-        {
-            this.certificatePathOrSubjectCommonName = null;
-
-            this.isCertificatePasswordProtected = false;
-
-            // True by default, both to have good default security settings and to match git behavior.
-            // https://git-scm.com/docs/git-config#git-config-httpsslVerify
-            this.ShouldVerify = true;
-        }
-
-        public GitSsl(IDictionary<string, GitConfigSetting> configSettings) : this()
+        public GitSsl(
+            IDictionary<string, GitConfigSetting> configSettings,
+            Func<ICertificateStore> certificateStoreFactory = null,
+            ICertificateVerifier certificateVerifier = null,
+            PhysicalFileSystem fileSystem = null) : this(certificateStoreFactory, certificateVerifier, fileSystem)
         {
             if (configSettings != null)
             {
@@ -38,6 +36,23 @@ namespace GVFS.Common.Git
 
                 this.ShouldVerify = SetBoolSettingOrThrow(configSettings, GitConfigSetting.HttpSslVerify, this.ShouldVerify);
             }
+        }
+
+        private GitSsl(Func<ICertificateStore> certificateStoreFactory, ICertificateVerifier certificateVerifier, PhysicalFileSystem fileSystem)
+        {
+            this.fileSystem = fileSystem ?? new PhysicalFileSystem();
+
+            this.certificateStoreFactory = certificateStoreFactory ?? (() => new SystemCertificateStore());
+
+            this.certificateVerifier = certificateVerifier ?? new CertificateVerifier();
+
+            this.certificatePathOrSubjectCommonName = null;
+
+            this.isCertificatePasswordProtected = false;
+
+            // True by default, both to have good default security settings and to match git behavior.
+            // https://git-scm.com/docs/git-config#git-config-httpsslVerify
+            this.ShouldVerify = true;
         }
 
         /// <summary>
@@ -78,7 +93,7 @@ namespace GVFS.Common.Git
             {
                 try
                 {
-                    return settingValues.Values.Select(bool.Parse).Last();
+                    return bool.Parse(settingValues.Values.Last());
                 }
                 catch (FormatException)
                 {
@@ -141,12 +156,13 @@ namespace GVFS.Common.Git
                 metadata.Add("isPasswordSpecified", string.IsNullOrEmpty(certificatePassword));
             }
 
-            if (File.Exists(this.certificatePathOrSubjectCommonName))
+            if (this.fileSystem.FileExists(this.certificatePathOrSubjectCommonName))
             {
                 try
                 {
-                    X509Certificate2 cert = new X509Certificate2(this.certificatePathOrSubjectCommonName, certificatePassword);
-                    if (this.ShouldVerify && cert != null && !cert.Verify())
+                    byte[] certificateContent = this.fileSystem.ReadAllBytes(this.certificatePathOrSubjectCommonName);
+                    X509Certificate2 cert = new X509Certificate2(certificateContent, certificatePassword);
+                    if (this.ShouldVerify && cert != null && !this.certificateVerifier.Verify(cert))
                     {
                         tracer.RelatedWarning(metadata, "Certficate was found, but is invalid.");
                         return null;
@@ -169,11 +185,13 @@ namespace GVFS.Common.Git
         {
             try
             {
-                using (X509Store store = new X509Store())
+                using (ICertificateStore certificateStore = this.certificateStoreFactory())
                 {
-                    store.Open(OpenFlags.OpenExistingOnly | OpenFlags.ReadOnly);
+                    X509Certificate2Collection findResults = certificateStore.Find(
+                        X509FindType.FindBySubjectName,
+                        this.certificatePathOrSubjectCommonName,
+                        this.ShouldVerify);
 
-                    X509Certificate2Collection findResults = store.Certificates.Find(X509FindType.FindBySubjectName, this.certificatePathOrSubjectCommonName, this.ShouldVerify);
                     if (findResults?.Count > 0)
                     {
                         LogWithAppropriateLevel(
@@ -188,7 +206,7 @@ namespace GVFS.Common.Git
                         X509Certificate2[] certsWithMatchingCns = findResults
                             .OfType<X509Certificate2>()
                             .Where(x => x.HasPrivateKey && Regex.IsMatch(x.Subject, string.Format("(^|,\\s?)CN={0}(,|$)", this.certificatePathOrSubjectCommonName))) // We only want certificates, that have private keys, as we need them. We also want a complete CN match
-                            .OrderByDescending(x => x.Verify()) // Ordering by validity in a descending order will bring valid certificates to the beginning
+                            .OrderByDescending(x => this.certificateVerifier.Verify(x)) // Ordering by validity in a descending order will bring valid certificates to the beginning
                             .ThenBy(x => x.NotBefore) // We take the one, that was issued earliest, first
                             .ThenByDescending(x => x.NotAfter) // We then take the one, that is valid for the longest period
                             .ToArray();

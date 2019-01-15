@@ -135,6 +135,32 @@ namespace GVFS.UnitTests.Mock.FileSystem
             }
         }
 
+        public override byte[] ReadAllBytes(string path)
+        {
+            MockFile file = this.RootDirectory.FindFile(path);
+
+            using (Stream s = file.GetContentStream())
+            {
+                int count = (int)s.Length;
+
+                int pos = 0;
+                byte[] result = new byte[count];
+                while (count > 0)
+                {
+                    int n = s.Read(result, pos, count);
+                    if (n == 0)
+                    {
+                        throw new IOException("Unexpected end of stream");
+                    }
+
+                    pos += n;
+                    count -= n;
+                }
+
+                return result;
+            }
+        }
+
         public override IEnumerable<string> ReadLines(string path)
         {
             MockFile file = this.RootDirectory.FindFile(path);

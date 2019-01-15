@@ -28,4 +28,10 @@
     </PackageReference>
     <PackageReference Include="System.Security.Cryptography.Algorithms" Version="4.3.0" />
   </ItemGroup>
+  <ItemGroup>
+    <Folder Include="X509Certificates\" />
+  </ItemGroup>
+  <ItemGroup>
+    <Reference Include="System.Security.Cryptography.X509Certificates" />
+  </ItemGroup>
 </Project>
