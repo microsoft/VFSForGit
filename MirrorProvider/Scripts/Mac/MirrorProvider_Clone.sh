@@ -8,4 +8,7 @@ fi
 SCRIPTDIR=$(dirname ${BASH_SOURCE[0]})
 BUILDDIR=$SCRIPTDIR/../../../../BuildOutput/MirrorProvider.Mac/bin/$CONFIGURATION/x64/netcoreapp2.1
 
-dotnet $BUILDDIR/MirrorProvider.Mac.dll clone ~/PathToMirror ~/TestRoot
+PATH_TO_MIRROR="${PATH_TO_MIRROR:-$HOME/PathToMirror}"
+TEST_ROOT="${TEST_ROOT:-$HOME/TestRoot}"
+
+dotnet $BUILDDIR/MirrorProvider.Mac.dll clone "$PATH_TO_MIRROR" "$TEST_ROOT"
