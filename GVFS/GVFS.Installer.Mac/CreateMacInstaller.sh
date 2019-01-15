@@ -1,33 +1,50 @@
 #!/bin/bash
 
-CONFIGURATION=$1
+SOURCEDIRECTORY=$1
+if [ -z $SOURCEDIRECTORY ]; then
+  echo "Error: Source directory not specified"
+  exit 1
+fi
+
+CONFIGURATION=$2
 if [ -z $CONFIGURATION ]; then
-  echo "Build configuration not specified"
+  echo "Error: Build configuration not specified"
   exit 1
 fi
 
-PACKAGEVERSION=$2
+PACKAGEVERSION=$3
 if [ -z $PACKAGEVERSION ]; then
-  echo "Installer package version not specified"
+  echo "Error: Installer package version not specified"
   exit 1
 fi
 
-BUILDOUTPUTDIR=$3
+BUILDOUTPUTDIR=$4
 if [ -z $BUILDOUTPUTDIR ]; then
-  echo "Build output directory not specified"
+  echo "Error: Build output directory not specified"
+  exit 1
+fi
+
+if [ -z $VFS_OUTPUTDIR ]; then
+  echo "Error: Missing environment variable. VFS_OUTPUTDIR is not set"
+  exit 1
+fi
+
+if [ -z $VFS_PUBLISHDIR ]; then
+  echo "Error: Missing environment variable. VFS_PUBLISHDIR is not set"
   exit 1
 fi
 
 STAGINGDIR=$BUILDOUTPUTDIR"Staging"
 VFSFORGITDESTINATION="usr/local/vfsforgit"
-PRJFSDESTINATION="usr/local/vfsforgit/prjfs"
+LIBRARYEXTENSIONSDESTINATION="Library/Extensions"
 INSTALLERPACKAGENAME="VFSForGit.$PACKAGEVERSION"
 INSTALLERPACKAGEID="com.vfsforgit.pkg"
+UNINSTALLERPATH="${SOURCEDIRECTORY}/uninstall_vfsforgit.sh"
 
 function CheckBuildIsAvailable()
 {
-    if [ ! -d $VFS_OUTPUTDIR ] || [ ! -d $VFS_PUBLISHDIR ]; then
-        echo "Could not find VFSForGit Build to package."
+    if [ ! -d "$VFS_OUTPUTDIR" ] || [ ! -d "$VFS_PUBLISHDIR" ]; then
+        echo "Error: Could not find VFSForGit Build to package."
         exit 1
     fi
 }
@@ -45,8 +62,8 @@ function CreateInstallerRoot()
 
     mkdirBin="mkdir -p \"${STAGINGDIR}/usr/local/bin\""
     eval $mkdirBin || exit 1
-
-    mkdirBin="mkdir -p \"${STAGINGDIR}/$PRJFSDESTINATION\""
+    
+    mkdirBin="mkdir -p \"${STAGINGDIR}/$LIBRARYEXTENSIONSDESTINATION\""
     eval $mkdirBin || exit 1
 }
 
@@ -61,13 +78,16 @@ function CopyBinariesToInstall()
     removeDataDirectory="rm -Rf \"${STAGINGDIR}/${VFSFORGITDESTINATION}/Data\""
     eval $removeDataDirectory || exit 1
     
-    copyPrjFS="cp -Rf \"${VFS_OUTPUTDIR}/ProjFS.Mac/Native/$CONFIGURATION\"/*.dylib \"${STAGINGDIR}/${PRJFSDESTINATION}/.\""
+    copyPrjFS="cp -Rf \"${VFS_OUTPUTDIR}/ProjFS.Mac/Native/$CONFIGURATION\"/*.dylib \"${STAGINGDIR}/${VFSFORGITDESTINATION}/.\""
     eval $copyPrjFS || exit 1
     
-    copyPrjFS="cp -Rf \"${VFS_OUTPUTDIR}/ProjFS.Mac/Native/$CONFIGURATION\"/prjfs-log \"${STAGINGDIR}/${PRJFSDESTINATION}/.\""
+    copyPrjFS="cp -Rf \"${VFS_OUTPUTDIR}/ProjFS.Mac/Native/$CONFIGURATION\"/prjfs-log \"${STAGINGDIR}/${VFSFORGITDESTINATION}/.\""
     eval $copyPrjFS || exit 1
     
-    copyPrjFS="cp -Rf \"${VFS_OUTPUTDIR}/ProjFS.Mac/Native/$CONFIGURATION\"/PrjFSKext.kext \"${STAGINGDIR}/${PRJFSDESTINATION}/.\""
+    copyUnInstaller="cp -f \"${UNINSTALLERPATH}\" \"${STAGINGDIR}/${VFSFORGITDESTINATION}/.\""
+    eval $copyUnInstaller || exit 1
+    
+    copyPrjFS="cp -Rf \"${VFS_OUTPUTDIR}/ProjFS.Mac/Native/$CONFIGURATION\"/PrjFSKext.kext \"${STAGINGDIR}/${LIBRARYEXTENSIONSDESTINATION}/.\""
     eval $copyPrjFS || exit 1
     
     currentDirectory=`pwd`

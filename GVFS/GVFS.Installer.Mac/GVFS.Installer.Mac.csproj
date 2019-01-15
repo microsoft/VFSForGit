@@ -31,7 +31,7 @@
   </Target>
 
   <Target Name="AfterAllPublishing" AfterTargets="Publish">
-    <Message Text="$(ProjectDir)/CreateMacInstaller.sh $(Configuration) $(GVFSVersion) $(OutputPath)" Importance="high"></Message>
-    <Exec Command="$(ProjectDir)/CreateMacInstaller.sh $(Configuration) $(GVFSVersion) $(OutputPath)" />
+    <Message Text="$(ProjectDir)/CreateMacInstaller.sh $(MSBuildProjectDirectory) $(Configuration) $(GVFSVersion) $(OutputPath)" Importance="high"></Message>
+    <Exec Command="$(ProjectDir)/CreateMacInstaller.sh $(MSBuildProjectDirectory) $(Configuration) $(GVFSVersion) $(OutputPath)" />
   </Target>
 </Project>
