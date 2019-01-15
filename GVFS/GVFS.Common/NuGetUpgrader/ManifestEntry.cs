@@ -2,6 +2,12 @@ namespace GVFS.Common.NuGetUpgrader
 {
     public class ManifestEntry
     {
+        /// <summary>
+        /// Well known tokens that will be replaced when encountered in an Arguments field.
+        /// </summary>
+        public const string ManifestEntryInstallationIdToken = "installation_id";
+        public const string ManifestEntryLogDirectoryToken = "log_directory";
+
         public ManifestEntry(string name, string version, string args, string installerRelativePath)
         {
             this.Name = name;
