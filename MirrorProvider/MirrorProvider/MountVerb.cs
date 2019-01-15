@@ -22,6 +22,7 @@ namespace MirrorProvider
             if (this.enlistment == null)
             {
                 Console.WriteLine("Error: Unable to load enlistment");
+		return;
             }
 
             Console.WriteLine();
