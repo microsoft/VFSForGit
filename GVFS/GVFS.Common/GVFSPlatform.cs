@@ -40,7 +40,6 @@ namespace GVFS.Common
         public abstract bool IsProcessActive(int processId);
         public abstract void IsServiceInstalledAndRunning(string name, out bool installed, out bool running);
         public abstract string GetNamedPipeName(string enlistmentRoot);
-        public abstract string GetTelemetryNamedPipeName();
         public abstract NamedPipeServerStream CreatePipeByName(string pipeName);
 
         public abstract string GetOSVersionInformation();
@@ -52,7 +51,7 @@ namespace GVFS.Common
         public abstract bool TryGetGVFSHooksPathAndVersion(out string hooksPaths, out string hooksVersion, out string error);
         public abstract bool TryInstallGitCommandHooks(GVFSContext context, string executingDirectory, string hookName, string commandHookPath, out string errorMessage);
 
-        public abstract EventListener CreatePlatformTelemetryListener(string providerName, string enlistmentId, string mountId);
+        public abstract IEnumerable<EventListener> CreateTelemetryListeners(string providerName, string enlistmentId, string mountId);
 
         public abstract Dictionary<string, string> GetPhysicalDiskInfo(string path, bool sizeStatsOnly);
 

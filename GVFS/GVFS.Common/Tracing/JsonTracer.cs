@@ -43,18 +43,8 @@ namespace GVFS.Common.Tracing
         {
             if (!disableTelemetry)
             {
-                string gitBinRoot = GVFSPlatform.Instance.GitInstallation.GetInstalledGitBinPath();
-                EventListener commonListener = TelemetryDaemonEventListener.CreateIfEnabled(gitBinRoot, providerName, enlistmentId, mountId);
-                if (commonListener != null)
-                {
-                    this.listeners.Add(commonListener);
-                }
-
-                EventListener platformListener = GVFSPlatform.Instance.CreatePlatformTelemetryListener(providerName, enlistmentId, mountId);
-                if (platformListener != null)
-                {
-                    this.listeners.Add(platformListener);
-                }
+                IEnumerable<EventListener> telemetryListeners = GVFSPlatform.Instance.CreateTelemetryListeners(providerName, enlistmentId, mountId);
+                this.listeners.AddRange(telemetryListeners);
             }
         }
 
@@ -77,7 +67,7 @@ namespace GVFS.Common.Tracing
             }
         }
 
-        public void AddInProcEventListener(EventListener listener)
+        public void AddEventListener(EventListener listener)
         {
             this.listeners.Add(listener);
         }

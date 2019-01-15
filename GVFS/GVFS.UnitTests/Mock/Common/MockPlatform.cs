@@ -48,19 +48,14 @@ namespace GVFS.UnitTests.Mock.Common
             return "GVFS_Mock_PipeName";
         }
 
-        public override string GetTelemetryNamedPipeName()
-        {
-            return "vfs-test";
-        }
-
         public override NamedPipeServerStream CreatePipeByName(string pipeName)
         {
             throw new NotSupportedException();
         }
 
-        public override EventListener CreatePlatformTelemetryListener(string providerName, string enlistmentId, string mountId)
+        public override IEnumerable<EventListener> CreateTelemetryListeners(string providerName, string enlistmentId, string mountId)
         {
-            return new MockListener(EventLevel.Verbose, Keywords.Telemetry);
+            yield return new MockListener(EventLevel.Verbose, Keywords.Telemetry);
         }
 
         public override string GetCurrentUser()

@@ -17,7 +17,6 @@ namespace GVFS.UnitTests.Tracing
             const string eventName = "test-eventName";
             const EventLevel level = EventLevel.Error;
             const EventOpcode opcode = EventOpcode.Start;
-            const Keywords keyword = Keywords.Any;
             const string enlistmentId = "test-enlistmentId";
             const string mountId = "test-mountId";
             const string payload = "test-payload";
@@ -29,8 +28,8 @@ namespace GVFS.UnitTests.Tracing
                 ["version"] = vfsVersion,
                 ["providerName"] = providerName,
                 ["eventName"] = eventName,
-                ["eventLevel"] = ((int)level).ToString(),
-                ["eventOpcode"] = ((int)opcode).ToString(),
+                ["eventLevel"] = (int)level,
+                ["eventOpcode"] = (int)opcode,
                 ["payload"] = new Dictionary<string, string>
                 {
                     ["enlistmentId"] = enlistmentId,
@@ -41,20 +40,26 @@ namespace GVFS.UnitTests.Tracing
                 ["etw.parentActivityId"] = parentActivityId.ToString("D"),
             };
 
-            string json = TelemetryDaemonEventListener.CreateJsonMessage(
-                vfsVersion,
-                providerName,
-                enlistmentId,
-                mountId,
-                eventName,
-                activityId,
-                parentActivityId,
-                level,
-                keyword,
-                opcode,
-                payload);
+            var message = new TelemetryDaemonEventListener.TelemetryDaemonMessage
+            {
+                Version = vfsVersion,
+                ProviderName = providerName,
+                EventName = eventName,
+                EventLevel = level,
+                EventOpcode = opcode,
+                Payload = new TelemetryDaemonEventListener.TelemetryDaemonMessage.TelemetryDaemonMessagePayload
+                {
+                    EnlistmentId = enlistmentId,
+                    MountId = mountId,
+                    Json = payload
+                },
+                EtwActivityId = activityId,
+                EtwParentActivityId = parentActivityId
+            };
 
-            var actualDict = JsonConvert.DeserializeObject<Dictionary<string, object>>(json);
+            string messageJson = message.ToJson();
+
+            var actualDict = JsonConvert.DeserializeObject<Dictionary<string, object>>(messageJson);
 
             Assert.AreEqual(expectedDict.Count, actualDict.Count);
             Assert.AreEqual(expectedDict["version"], actualDict["version"]);

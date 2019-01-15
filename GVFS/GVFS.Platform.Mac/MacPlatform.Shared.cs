@@ -25,12 +25,6 @@ namespace GVFS.Platform.Mac
             return Path.Combine(enlistmentRoot, GVFSConstants.DotGVFS.Root, "GVFS_NetCorePipe");
         }
 
-        public static string GetTelemetryNamedPipeNameImplementation()
-        {
-            // TODO: determine the correct pipe/socket name for telemetry on macOS
-            return Path.Combine("/tmp/vfs");
-        }
-
         public static bool IsConsoleOutputRedirectedToFileImplementation()
         {
             // TODO(Mac): Implement proper check

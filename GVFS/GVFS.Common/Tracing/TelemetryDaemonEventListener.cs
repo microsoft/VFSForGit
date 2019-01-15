@@ -1,5 +1,4 @@
 ﻿using System;
-using System.Collections.Generic;
 using System.IO.Pipes;
 using System.Text;
 using GVFS.Common.Git;
@@ -9,6 +8,7 @@ namespace GVFS.Common.Tracing
 {
     public class TelemetryDaemonEventListener : EventListener
     {
+        private readonly string pipeName;
         private readonly string providerName;
         private readonly string enlistmentId;
         private readonly string mountId;
@@ -19,23 +19,25 @@ namespace GVFS.Common.Tracing
         private TelemetryDaemonEventListener(
             string providerName,
             string enlistmentId,
-            string mountId)
+            string mountId,
+            string pipeName)
             : base(EventLevel.Verbose, Keywords.Telemetry)
         {
+            this.pipeName = pipeName;
             this.providerName = providerName;
             this.enlistmentId = enlistmentId;
             this.mountId = mountId;
             this.vfsVersion = ProcessHelper.GetCurrentProcessVersion();
         }
 
-        public static TelemetryDaemonEventListener CreateIfEnabled(string gitBinRoot, string providerName, string enlistmentId, string mountId)
+        public static TelemetryDaemonEventListener CreateIfEnabled(string gitBinRoot, string providerName, string enlistmentId, string mountId, string pipeName)
         {
             // This listener is disabled unless the user specifies the proper git config setting.
 
             string telemetryId = GetConfigValue(gitBinRoot, GVFSConstants.GitConfig.GVFSTelemetryId);
             if (!string.IsNullOrEmpty(telemetryId))
             {
-                return new TelemetryDaemonEventListener(providerName, enlistmentId, mountId);
+                return new TelemetryDaemonEventListener(providerName, enlistmentId, mountId, pipeName);
             }
             else
             {
@@ -49,42 +51,6 @@ namespace GVFS.Common.Tracing
             base.Dispose();
         }
 
-        internal static string CreateJsonMessage(
-            string vfsVersion,
-            string providerName,
-            string enlistmentId,
-            string mountId,
-            string eventName,
-            Guid activityId,
-            Guid parentActivityId,
-            EventLevel level,
-            Keywords keywords,
-            EventOpcode opcode,
-            string payload)
-        {
-            var message = new Dictionary<string, object>
-            {
-                ["version"] = vfsVersion,
-                ["providerName"] = providerName,
-                ["eventName"] = eventName,
-                ["eventLevel"] = ((int)level).ToString(),
-                ["eventOpcode"] = ((int)opcode).ToString(),
-                ["payload"] = new Dictionary<string, string>
-                {
-                    ["enlistmentId"] = enlistmentId,
-                    ["mountId"] = mountId,
-                    ["json"] = payload,
-                },
-
-                // TODO: do we need these?
-                // ETW-only properties
-                ["etw.activityId"] = activityId.ToString("D"),
-                ["etw.parentActivityId"] = parentActivityId.ToString("D"),
-            };
-
-            return JsonConvert.SerializeObject(message);
-        }
-
         protected override void RecordMessageInternal(
             string eventName,
             Guid activityId,
@@ -94,20 +60,31 @@ namespace GVFS.Common.Tracing
             EventOpcode opcode,
             string payload)
         {
-            string message = CreateJsonMessage(
-                this.vfsVersion,
-                this.providerName,
-                this.enlistmentId,
-                this.mountId,
-                eventName,
-                activityId,
-                parentActivityId,
-                level,
-                keywords,
-                opcode,
-                payload);
+            var message = new TelemetryDaemonMessage
+            {
+                Version = this.vfsVersion,
+                ProviderName = this.providerName,
+                EventName = eventName,
+                EventLevel = level,
+                EventOpcode = opcode,
+                Payload = new TelemetryDaemonMessage.TelemetryDaemonMessagePayload
+                {
+                    EnlistmentId = this.enlistmentId,
+                    MountId = this.mountId,
+                    Json = payload
+                },
 
-            this.SendMessage(message);
+                // TODO: do we need these?
+                // ETW-only properties
+                EtwActivityId = activityId,
+                EtwParentActivityId = parentActivityId
+
+                // Keywords are not used
+            };
+
+            string messageJson = message.ToJson();
+
+            this.SendMessage(messageJson);
         }
 
         private static string GetConfigValue(string gitBinRoot, string configKey)
@@ -130,8 +107,7 @@ namespace GVFS.Common.Tracing
             // Create pipe if this is the first message, or if the last connection broke for any reason
             if (this.pipeClient == null)
             {
-                string pipeName = GVFSPlatform.Instance.GetTelemetryNamedPipeName();
-                var pipe = new NamedPipeClientStream(".", pipeName, PipeDirection.Out, PipeOptions.Asynchronous);
+                var pipe = new NamedPipeClientStream(".", this.pipeName, PipeDirection.Out, PipeOptions.Asynchronous);
                 try
                 {
                     // Specify a instantaneous timeout because we don't want to hold up the rest of the
@@ -157,6 +133,46 @@ namespace GVFS.Common.Tracing
                 // mechanism and drop this message. We will try to recreate/connect the pipe on the next message.
                 this.pipeClient.Dispose();
                 this.pipeClient = null;
+            }
+        }
+
+        internal class TelemetryDaemonMessage
+        {
+            [JsonProperty("version")]
+            public string Version { get; set; }
+            [JsonProperty("providerName")]
+            public string ProviderName { get; set; }
+            [JsonProperty("eventName")]
+            public string EventName { get; set; }
+            [JsonProperty("eventLevel")]
+            public EventLevel EventLevel { get; set; }
+            [JsonProperty("eventOpcode")]
+            public EventOpcode EventOpcode { get; set; }
+            [JsonProperty("payload")]
+            public TelemetryDaemonMessagePayload Payload { get; set; }
+            [JsonProperty("etw.activityId")]
+            public Guid EtwActivityId { get; set; }
+            [JsonProperty("etw.parentActivityId")]
+            public Guid EtwParentActivityId { get; set; }
+
+            public static TelemetryDaemonMessage FromJson(string json)
+            {
+                return JsonConvert.DeserializeObject<TelemetryDaemonMessage>(json);
+            }
+
+            public string ToJson()
+            {
+                return JsonConvert.SerializeObject(this);
+            }
+
+            public class TelemetryDaemonMessagePayload
+            {
+                [JsonProperty("enlistmentId")]
+                public string EnlistmentId { get; set; }
+                [JsonProperty("mountId")]
+                public string MountId { get; set; }
+                [JsonProperty("json")]
+                public string Json { get; set; }
             }
         }
     }
