@@ -30,9 +30,8 @@ namespace GVFS.UnitTests.Common
         ""Args"" : ""/VERYSILENT /CLOSEAPPLICATIONS""
       },
       {
- 	    ""Name"" : ""PreGitInstaller"",
- 	    ""Version"" : ""0.0.0.1"",
- 	    ""InstallerRelativePath"" : ""Installers\\Windows\\GSD\\PreGitInstallerSetup.exe""
+ 	    ""Name"" : ""PostGitInstall script"",
+ 	    ""InstallerRelativePath"" : ""Installers\\Windows\\GSD\\postinstall.ps1""
       },
       ]
     }
@@ -55,10 +54,10 @@ namespace GVFS.UnitTests.Common
 
             this.VerifyManifestEntry(
                 platformInstallManifest.InstallActions[1],
-                "PreGitInstaller",
-                "0.0.0.1",
+                "PostGitInstall script",
                 null,
-                "Installers\\Windows\\GSD\\PreGitInstallerSetup.exe");
+                null,
+                "Installers\\Windows\\GSD\\postinstall.ps1");
         }
 
         [TestCase]
@@ -96,10 +95,10 @@ namespace GVFS.UnitTests.Common
         {
             int entrySuffix = manifestEntryCount++;
             return new ManifestEntry(
-                $"Installer{entrySuffix}",
-                $"1.{entrySuffix}.1.2",
-                $"/nodowngrade{entrySuffix}",
-                $"installers/installer1{entrySuffix}");
+                name: $"Installer{entrySuffix}",
+                version: $"1.{entrySuffix}.1.2",
+                args: $"/nodowngrade{entrySuffix}",
+                installerRelativePath: $"installers/installer1{entrySuffix}");
         }
 
         private void VerifyReleaseManifestsAreEqual(ReleaseManifest expected, ReleaseManifest actual)
