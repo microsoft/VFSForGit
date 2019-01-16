@@ -95,7 +95,9 @@ namespace PrjFSLib.Linux
         public virtual Result WritePlaceholderDirectory(
             string relativePath)
         {
-            return Interop.PrjFSLib.WritePlaceholderDirectory(relativePath);
+            return Interop.PrjFSLib.WritePlaceholderDirectory(
+                mountHandle,
+                relativePath);
         }
 
         public virtual Result WritePlaceholderFile(
@@ -112,6 +114,7 @@ namespace PrjFSLib.Linux
             }
 
             return Interop.PrjFSLib.WritePlaceholderFile(
+                mountHandle,
                 relativePath,
                 providerId,
                 contentId,

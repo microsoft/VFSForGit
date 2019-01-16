@@ -28,10 +28,12 @@ namespace PrjFSLib.Linux.Interop
 
         [DllImport(PrjFSLibPath, EntryPoint = "PrjFS_WritePlaceholderDirectory")]
         public static extern Result WritePlaceholderDirectory(
+            IntPtr mountHandle,
             string relativePath);
 
         [DllImport(PrjFSLibPath, EntryPoint = "PrjFS_WritePlaceholderFile")]
         public static extern Result WritePlaceholderFile(
+            IntPtr mountHandle,
             string relativePath,
             [MarshalAs(UnmanagedType.LPArray, SizeConst = PlaceholderIdLength)]
             byte[] providerId,
