@@ -152,7 +152,7 @@ Azure DevOps (https://azure.microsoft.com/services/devops/), and push some conte
   * Your repo must not enable any clean/smudge filters
   * Your repo must have a `.gitattributes` file in the root that includes the line `* -text`
 * `gvfs clone <URL of repo you just created>`
-  * Please specify the URL of **Clone with HTTPS**, not **Clone with SSH**.
+  * Please choose the **Clone with HTTPS** option in the `Clone Repository` dialog in Azure Repos, not **Clone with SSH**.
 * `cd <root>\src`
 * Run git commands as you normally would
 * `gvfs unmount` when done
