@@ -10,17 +10,18 @@ namespace GVFS.Common.Tracing
     {
         public const string NetworkErrorEventName = "NetworkError";
 
-        private List<EventListener> listeners = new List<EventListener>();
+        private readonly List<EventListener> listeners;
+        private readonly Dictionary<EventListener, string> failedListeners = new Dictionary<EventListener, string>();
 
-        private string activityName;
-        private Guid parentActivityId;
-        private Guid activityId;
+        private readonly string activityName;
+        private readonly Guid parentActivityId;
+        private readonly Guid activityId;
+        private readonly Stopwatch duration = Stopwatch.StartNew();
+
+        private readonly EventLevel startStopLevel;
+        private readonly Keywords startStopKeywords;
+
         private bool stopped = false;
-        private Stopwatch duration = Stopwatch.StartNew();
-
-        private EventLevel startStopLevel;
-        private Keywords startStopKeywords;
-
         private bool disposed;
 
         public JsonTracer(string providerName, string activityName, bool disableTelemetry = false)
@@ -35,7 +36,7 @@ namespace GVFS.Common.Tracing
 
         public JsonTracer(string providerName, Guid providerActivityId, string activityName, string enlistmentId, string mountId, bool disableTelemetry = false)
             : this(
-                  new List<EventListener>(),
+                  null,
                   providerActivityId,
                   activityName,
                   EventLevel.Informational,
@@ -50,7 +51,7 @@ namespace GVFS.Common.Tracing
 
         private JsonTracer(List<EventListener> listeners, Guid parentActivityId, string activityName, EventLevel startStopLevel, Keywords startStopKeywords)
         {
-            this.listeners = listeners;
+            this.listeners = listeners ?? new List<EventListener>();
             this.parentActivityId = parentActivityId;
             this.activityName = activityName;
             this.startStopLevel = startStopLevel;
@@ -70,21 +71,28 @@ namespace GVFS.Common.Tracing
         public void AddEventListener(EventListener listener)
         {
             this.listeners.Add(listener);
+
+            // Tell the new listener about others who have previously failed
+            foreach (var kvp in this.failedListeners)
+            {
+                TraceEventMessage failureMessage = CreateListenerFailureMessage(kvp.Key, kvp.Value);
+                listener.TryRecordMessage(failureMessage, out _);
+            }
         }
 
         public void AddDiagnosticConsoleEventListener(EventLevel maxVerbosity, Keywords keywordFilter)
         {
-            this.listeners.Add(new DiagnosticConsoleEventListener(maxVerbosity, keywordFilter));
+            this.AddEventListener(new DiagnosticConsoleEventListener(maxVerbosity, keywordFilter));
         }
 
         public void AddPrettyConsoleEventListener(EventLevel maxVerbosity, Keywords keywordFilter)
         {
-            this.listeners.Add(new PrettyConsoleEventListener(maxVerbosity, keywordFilter));
+            this.AddEventListener(new PrettyConsoleEventListener(maxVerbosity, keywordFilter));
         }
 
         public void AddLogFileEventListener(string logFilePath, EventLevel maxVerbosity, Keywords keywordFilter)
         {
-            this.listeners.Add(new LogFileEventListener(logFilePath, maxVerbosity, keywordFilter));
+            this.AddEventListener(new LogFileEventListener(logFilePath, maxVerbosity, keywordFilter));
         }
 
         public void Dispose()
@@ -255,6 +263,22 @@ namespace GVFS.Common.Tracing
             }
         }
 
+        private static TraceEventMessage CreateListenerFailureMessage(EventListener failingListener, string errorMessage)
+        {
+            return new TraceEventMessage
+            {
+                EventName = "TraceEventListenerFailure",
+                Level = EventLevel.Error,
+                Keywords = Keywords.Any,
+                Opcode = EventOpcode.Info,
+                Payload = JsonConvert.SerializeObject(new Dictionary<string, string>
+                {
+                    ["EventListener"] = failingListener.GetType().Name,
+                    ["ErrorMessage"] = errorMessage,
+                })
+            };
+        }
+
         private void WriteEvent(string eventName, EventLevel level, Keywords keywords, EventMetadata metadata, EventOpcode opcode)
         {
             string jsonPayload = metadata != null ? JsonConvert.SerializeObject(metadata) : null;
@@ -267,9 +291,44 @@ namespace GVFS.Common.Tracing
                 throw new ObjectDisposedException(nameof(JsonTracer));
             }
 
+            var message = new TraceEventMessage
+            {
+                EventName = eventName,
+                ActivityId = this.activityId,
+                ParentActivityId = this.parentActivityId,
+                Level = level,
+                Keywords = keywords,
+                Opcode = opcode,
+                Payload = jsonPayload
+            };
+
             foreach (EventListener listener in this.listeners)
             {
-                listener.RecordMessage(eventName, this.activityId, this.parentActivityId, level, keywords, opcode, jsonPayload);
+                string errorMessage;
+                if (!listener.TryRecordMessage(message, out errorMessage))
+                {
+                    this.MarkAndLogListenerFailure(listener, errorMessage);
+                }
+            }
+        }
+
+        private void MarkAndLogListenerFailure(EventListener failingListener, string errorMessage)
+        {
+            if (this.failedListeners.ContainsKey(failingListener))
+            {
+                // We've already logged that this listener has failed so there is no need to do it again
+                return;
+            }
+
+            this.failedListeners.Add(failingListener, errorMessage);
+
+            TraceEventMessage message = CreateListenerFailureMessage(failingListener, errorMessage);
+
+            // Only log the failure to listeners that have not failed themselves
+            foreach (EventListener listener in this.listeners.Except(this.failedListeners.Keys))
+            {
+                // To prevent infinitely recursive failures, we won't try and log that we failed to log that a listener failed :)
+                listener.TryRecordMessage(message, out _);
             }
         }
     }

@@ -1,5 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using GVFS.Common.Tracing;
 using Newtonsoft.Json;
 using NUnit.Framework;
@@ -20,8 +19,6 @@ namespace GVFS.UnitTests.Tracing
             const string enlistmentId = "test-enlistmentId";
             const string mountId = "test-mountId";
             const string payload = "test-payload";
-            Guid activityId = Guid.NewGuid();
-            Guid parentActivityId = Guid.NewGuid();
 
             var expectedDict = new Dictionary<string, object>
             {
@@ -36,25 +33,21 @@ namespace GVFS.UnitTests.Tracing
                     ["mountId"] = mountId,
                     ["json"] = payload,
                 },
-                ["etw.activityId"] = activityId.ToString("D"),
-                ["etw.parentActivityId"] = parentActivityId.ToString("D"),
             };
 
-            var message = new TelemetryDaemonEventListener.TelemetryDaemonMessage
+            var message = new TelemetryDaemonEventListener.TelemetryMessage
             {
                 Version = vfsVersion,
                 ProviderName = providerName,
                 EventName = eventName,
                 EventLevel = level,
                 EventOpcode = opcode,
-                Payload = new TelemetryDaemonEventListener.TelemetryDaemonMessage.TelemetryDaemonMessagePayload
+                Payload = new TelemetryDaemonEventListener.TelemetryMessage.TelemetryMessagePayload
                 {
                     EnlistmentId = enlistmentId,
                     MountId = mountId,
                     Json = payload
                 },
-                EtwActivityId = activityId,
-                EtwParentActivityId = parentActivityId
             };
 
             string messageJson = message.ToJson();
@@ -67,8 +60,6 @@ namespace GVFS.UnitTests.Tracing
             Assert.AreEqual(expectedDict["eventName"], actualDict["eventName"]);
             Assert.AreEqual(expectedDict["eventLevel"], actualDict["eventLevel"]);
             Assert.AreEqual(expectedDict["eventOpcode"], actualDict["eventOpcode"]);
-            Assert.AreEqual(expectedDict["etw.activityId"], actualDict["etw.activityId"]);
-            Assert.AreEqual(expectedDict["etw.parentActivityId"], actualDict["etw.parentActivityId"]);
 
             var expectedPayloadDict = (Dictionary<string, string>)expectedDict["payload"];
             var actualPayloadDict = JsonConvert.DeserializeObject<Dictionary<string, string>>(actualDict["payload"].ToString());

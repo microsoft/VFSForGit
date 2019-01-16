@@ -51,40 +51,10 @@ namespace GVFS.Common.Tracing
             base.Dispose();
         }
 
-        protected override void RecordMessageInternal(
-            string eventName,
-            Guid activityId,
-            Guid parentActivityId,
-            EventLevel level,
-            Keywords keywords,
-            EventOpcode opcode,
-            string payload)
+        protected override void RecordMessageInternal(TraceEventMessage message)
         {
-            var message = new TelemetryDaemonMessage
-            {
-                Version = this.vfsVersion,
-                ProviderName = this.providerName,
-                EventName = eventName,
-                EventLevel = level,
-                EventOpcode = opcode,
-                Payload = new TelemetryDaemonMessage.TelemetryDaemonMessagePayload
-                {
-                    EnlistmentId = this.enlistmentId,
-                    MountId = this.mountId,
-                    Json = payload
-                },
-
-                // TODO: do we need these?
-                // ETW-only properties
-                EtwActivityId = activityId,
-                EtwParentActivityId = parentActivityId
-
-                // Keywords are not used
-            };
-
-            string messageJson = message.ToJson();
-
-            this.SendMessage(messageJson);
+            string json = this.SerializeMessage(message);
+            this.SendMessage(json);
         }
 
         private static string GetConfigValue(string gitBinRoot, string configKey)
@@ -100,6 +70,28 @@ namespace GVFS.Common.Tracing
             }
 
             return value.TrimEnd('\r', '\n');
+        }
+
+        private string SerializeMessage(TraceEventMessage message)
+        {
+            var pipeMessage = new TelemetryMessage
+            {
+                Version = this.vfsVersion,
+                ProviderName = this.providerName,
+                EventName = message.EventName,
+                EventLevel = message.Level,
+                EventOpcode = message.Opcode,
+                Payload = new TelemetryMessage.TelemetryMessagePayload
+                {
+                    EnlistmentId = this.enlistmentId,
+                    MountId = this.mountId,
+                    Json = message.Payload
+                },
+
+                // Other TraceEventMessage properties are not used
+            };
+
+            return pipeMessage.ToJson();
         }
 
         private void SendMessage(string message)
@@ -118,7 +110,7 @@ namespace GVFS.Common.Tracing
                 catch (TimeoutException)
                 {
                     // We can't connect; we will try again with a new pipe on the next message
-                    return;
+                    throw;
                 }
             }
 
@@ -133,10 +125,11 @@ namespace GVFS.Common.Tracing
                 // mechanism and drop this message. We will try to recreate/connect the pipe on the next message.
                 this.pipeClient.Dispose();
                 this.pipeClient = null;
+                throw;
             }
         }
 
-        internal class TelemetryDaemonMessage
+        public class TelemetryMessage
         {
             [JsonProperty("version")]
             public string Version { get; set; }
@@ -149,15 +142,11 @@ namespace GVFS.Common.Tracing
             [JsonProperty("eventOpcode")]
             public EventOpcode EventOpcode { get; set; }
             [JsonProperty("payload")]
-            public TelemetryDaemonMessagePayload Payload { get; set; }
-            [JsonProperty("etw.activityId")]
-            public Guid EtwActivityId { get; set; }
-            [JsonProperty("etw.parentActivityId")]
-            public Guid EtwParentActivityId { get; set; }
+            public TelemetryMessagePayload Payload { get; set; }
 
-            public static TelemetryDaemonMessage FromJson(string json)
+            public static TelemetryMessage FromJson(string json)
             {
-                return JsonConvert.DeserializeObject<TelemetryDaemonMessage>(json);
+                return JsonConvert.DeserializeObject<TelemetryMessage>(json);
             }
 
             public string ToJson()
@@ -165,7 +154,7 @@ namespace GVFS.Common.Tracing
                 return JsonConvert.SerializeObject(this);
             }
 
-            public class TelemetryDaemonMessagePayload
+            public class TelemetryMessagePayload
             {
                 [JsonProperty("enlistmentId")]
                 public string EnlistmentId { get; set; }

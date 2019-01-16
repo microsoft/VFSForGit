@@ -13,16 +13,9 @@ namespace GVFS.Common.Tracing
         {
         }
 
-        protected override void RecordMessageInternal(
-            string eventName,
-            Guid activityId,
-            Guid parentActivityId,
-            EventLevel level,
-            Keywords keywords,
-            EventOpcode opcode,
-            string jsonPayload)
+        protected override void RecordMessageInternal(TraceEventMessage message)
         {
-            Console.WriteLine(this.GetLogString(eventName, opcode, jsonPayload));
+            Console.WriteLine(this.GetLogString(message.EventName, message.Opcode, message.Payload));
         }
     }
 }

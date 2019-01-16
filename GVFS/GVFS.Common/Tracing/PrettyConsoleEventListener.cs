@@ -17,21 +17,14 @@ namespace GVFS.Common.Tracing
         {
         }
 
-        protected override void RecordMessageInternal(
-            string eventName,
-            Guid activityId,
-            Guid parentActivityId,
-            EventLevel level,
-            Keywords keywords,
-            EventOpcode opcode,
-            string jsonPayload)
+        protected override void RecordMessageInternal(TraceEventMessage message)
         {
-            if (string.IsNullOrEmpty(jsonPayload))
+            if (string.IsNullOrEmpty(message.Payload))
             {
                 return;
             }
 
-            ConsoleOutputPayload payload = JsonConvert.DeserializeObject<ConsoleOutputPayload>(jsonPayload);
+            ConsoleOutputPayload payload = JsonConvert.DeserializeObject<ConsoleOutputPayload>(message.Payload);
             if (string.IsNullOrEmpty(payload.ErrorMessage))
             {
                 return;
@@ -43,7 +36,7 @@ namespace GVFS.Common.Tracing
             {
                 ConsoleColor prevColor = Console.ForegroundColor;
                 string prefix;
-                switch (level)
+                switch (message.Level)
                 {
                     case EventLevel.Critical:
                     case EventLevel.Error:

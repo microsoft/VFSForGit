@@ -72,16 +72,13 @@ namespace GVFS.Platform.Windows
             }
         }
 
-        protected override void RecordMessageInternal(
-            string eventName,
-            Guid activityId,
-            Guid parentActivityId,
-            EventLevel level,
-            Keywords keywords,
-            EventOpcode opcode,
-            string jsonPayload)
+        protected override void RecordMessageInternal(TraceEventMessage message)
         {
-            EventSourceOptions options = this.CreateOptions(level, keywords, opcode);
+            Guid activityId = message.ActivityId;
+            Guid parentActivityId = message.ParentActivityId;
+            string jsonPayload = message.Payload;
+
+            EventSourceOptions options = this.CreateOptions(message.Level, message.Keywords, message.Opcode);
             EventSource.SetCurrentThreadActivityId(activityId);
 
             if (string.IsNullOrEmpty(jsonPayload))
@@ -91,13 +88,13 @@ namespace GVFS.Platform.Windows
 
             if (string.IsNullOrEmpty(this.ikey))
             {
-                Payload payload = new Payload(jsonPayload, this.enlistmentId, this.mountId);
-                this.eventSource.Write(eventName, ref options, ref activityId, ref parentActivityId, ref payload);
+                Payload payload = new Payload(message.Payload, this.enlistmentId, this.mountId);
+                this.eventSource.Write(message.EventName, ref options, ref activityId, ref parentActivityId, ref payload);
             }
             else
             {
                 PayloadWithIKey payload = new PayloadWithIKey(jsonPayload, this.enlistmentId, this.mountId, this.ikey);
-                this.eventSource.Write(eventName, ref options, ref activityId, ref parentActivityId, ref payload);
+                this.eventSource.Write(message.EventName, ref options, ref activityId, ref parentActivityId, ref payload);
             }
         }
 
