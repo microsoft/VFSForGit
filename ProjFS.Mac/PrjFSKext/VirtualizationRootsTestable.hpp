@@ -9,5 +9,5 @@
 extern uint16_t s_maxVirtualizationRoots;
 extern VirtualizationRoot* s_virtualizationRoots;
 
-KEXT_STATIC VirtualizationRootHandle InsertVirtualizationRoot_Locked(PrjFSProviderUserClient* userClient, pid_t clientPID, vnode_t vnode, uint32_t vid, FsidInode persistentIds, const char* path);
+KEXT_STATIC VirtualizationRootHandle FindOrInsertVirtualizationRoot_LockedMayUnlock(vnode_t virtualizationRootVNode, uint32_t rootVid, FsidInode persistentIds, const char* path);
 

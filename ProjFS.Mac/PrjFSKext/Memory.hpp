@@ -13,6 +13,7 @@ kern_return_t Memory_Init();
 kern_return_t Memory_Cleanup();
 
 void* Memory_Alloc(uint32_t size);
+void* Memory_AllocNoBlock(uint32_t size);
 void Memory_Free(void* buffer, uint32_t size);
 
 template <typename T>
@@ -27,6 +28,20 @@ T* Memory_AllocArray(uint32_t arrayLength)
 
     return static_cast<T*>(Memory_Alloc(allocBytes));
 }
+
+template <typename T>
+T* Memory_AllocArrayNoBlock(uint32_t arrayLength)
+{
+    uint32_t allocBytes;
+    if (__builtin_umul_overflow(arrayLength, sizeof(T), &allocBytes))
+    {
+        // Overflow occurred.
+        return nullptr;
+    }
+
+    return static_cast<T*>(Memory_AllocNoBlock(static_cast<uint32_t>(allocBytes)));
+}
+
 
 template <typename T>
 void Memory_FreeArray(T* array, uint32_t arrayLength)

@@ -314,7 +314,7 @@ static void SetRootXattrData(shared_ptr<vnode> vnode)
     shared_ptr<vnode> testFileVnode = self->testMountPoint->CreateVnodeTree(filePath);
     shared_ptr<vnode> deepFileVnode = self->testMountPoint->CreateVnodeTree(deeplyNestedPath);
     
-    VirtualizationRootHandle repoRootHandle = InsertVirtualizationRoot_Locked(nullptr /* no client */, 0, repoRootVnode.get(), repoRootVnode->GetVid(), FsidInode{ repoRootVnode->GetMountPoint()->GetFsid(), repoRootVnode->GetInode() }, repoPath);
+    VirtualizationRootHandle repoRootHandle = FindOrInsertVirtualizationRoot_LockedMayUnlock(repoRootVnode.get(), repoRootVnode->GetVid(), FsidInode{ repoRootVnode->GetMountPoint()->GetFsid(), repoRootVnode->GetInode() }, repoPath);
     XCTAssertTrue(VirtualizationRoot_IsValidRootHandle(repoRootHandle));
 
     VirtualizationRootHandle foundRoot = VirtualizationRoot_FindForVnode(&self->dummyTracer, PrjFSPerfCounter_VnodeOp_FindRoot, PrjFSPerfCounter_VnodeOp_FindRoot_Iteration, testFileVnode.get(), self->dummyVFSContext);
@@ -334,7 +334,7 @@ static void SetRootXattrData(shared_ptr<vnode> vnode)
     shared_ptr<vnode> testFileVnode = self->testMountPoint->CreateVnodeTree(filePath);
     
     
-    VirtualizationRootHandle repoRootHandle = InsertVirtualizationRoot_Locked(nullptr /* no client */, 0, repoRootVnode.get(), repoRootVnode->GetVid(), FsidInode{ repoRootVnode->GetMountPoint()->GetFsid(), repoRootVnode->GetInode() }, repoPath);
+    VirtualizationRootHandle repoRootHandle = FindOrInsertVirtualizationRoot_LockedMayUnlock(repoRootVnode.get(), repoRootVnode->GetVid(), FsidInode{ repoRootVnode->GetMountPoint()->GetFsid(), repoRootVnode->GetInode() }, repoPath);
     XCTAssertTrue(VirtualizationRoot_IsValidRootHandle(repoRootHandle));
     
     VirtualizationRootHandle foundRoot = VirtualizationRoot_FindForVnode(&self->dummyTracer, PrjFSPerfCounter_VnodeOp_FindRoot, PrjFSPerfCounter_VnodeOp_FindRoot_Iteration, testFileVnode.get(), self->dummyVFSContext);

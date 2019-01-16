@@ -30,13 +30,17 @@ KEXT_STATIC VirtualizationRoot* s_virtualizationRoots = nullptr;
 static VirtualizationRootHandle FindRootAtVnode_Locked(vnode_t vnode, uint32_t vid, FsidInode fileId);
 
 static void RefreshRootVnodeIfNecessary_Locked(VirtualizationRootHandle rootHandle, vnode_t vnode, uint32_t vid, FsidInode fileId);
+static void GrowVirtualizationRootArrayWithMemory_Locked(VirtualizationRoot* newMemory, uint16_t newLength);
+static bool FsidsAreEqual(fsid_t a, fsid_t b);
+static const char* GetRelativePath(const char* fullPath, const char* root);
 
 // Looks up the vnode and fsid/inode pair among the known roots, and if not found,
 // detects if there is a hitherto-unknown root at vnode by checking attributes.
 static VirtualizationRootHandle FindOrDetectRootAtVnode(vnode_t vnode, const FsidInode& vnodeFsidInode);
 
 static VirtualizationRootHandle FindUnusedIndex_Locked();
-KEXT_STATIC VirtualizationRootHandle InsertVirtualizationRoot_Locked(PrjFSProviderUserClient* userClient, pid_t clientPID, vnode_t vnode, uint32_t vid, FsidInode persistentIds, const char* path);
+
+KEXT_STATIC VirtualizationRootHandle FindOrInsertVirtualizationRoot_LockedMayUnlock(vnode_t vnode, uint32_t vid, FsidInode persistentIds, const char* path);
 
 ActiveProviderProperties VirtualizationRoot_GetActiveProvider(VirtualizationRootHandle rootHandle)
 {
@@ -81,7 +85,8 @@ kern_return_t VirtualizationRoots_Init()
         return KERN_FAILURE;
     }
     
-    s_maxVirtualizationRoots = 128;
+    // Start with a small size so the resizing logic is regularly tested
+    s_maxVirtualizationRoots = 4;
     s_virtualizationRoots = Memory_AllocArray<VirtualizationRoot>(s_maxVirtualizationRoots);
     if (nullptr == s_virtualizationRoots)
     {
@@ -225,18 +230,10 @@ static VirtualizationRootHandle FindOrDetectRootAtVnode(vnode_t _Nonnull vnode, 
  
             RWLock_AcquireExclusive(s_virtualizationRootsLock);
             {
-                // Vnode may already have been inserted as a root in the interim
-                rootIndex = FindRootAtVnode_Locked(vnode, vid, vnodeFsidInode);
+                rootIndex = FindOrInsertVirtualizationRoot_LockedMayUnlock(vnode, vid, vnodeFsidInode, path);
                 
-                if (RootHandle_None == rootIndex)
-                {
-                    // Insert new offline root
-                    rootIndex = InsertVirtualizationRoot_Locked(nullptr, 0, vnode, vid, vnodeFsidInode, path);
-                    
-                    // TODO: error handling
-                    assert(rootIndex >= 0);
-                }
-
+                // TODO: error handling
+                assert(rootIndex >= 0);
             }
             RWLock_ReleaseExclusive(s_virtualizationRootsLock);
         }
@@ -270,42 +267,19 @@ static VirtualizationRootHandle FindUnusedIndex_Locked()
     return RootHandle_None;
 }
 
-static VirtualizationRootHandle FindUnusedIndexOrGrow_Locked()
+static void GrowVirtualizationRootArrayWithMemory_Locked(VirtualizationRoot* newMemory, uint16_t newLength)
 {
-    VirtualizationRootHandle rootIndex = FindUnusedIndex_Locked();
-    
-    if (RootHandle_None == rootIndex)
+    uint32_t oldSizeBytes = sizeof(s_virtualizationRoots[0]) * s_maxVirtualizationRoots;
+    memcpy(newMemory, s_virtualizationRoots, oldSizeBytes);
+    Memory_FreeArray(s_virtualizationRoots, s_maxVirtualizationRoots);
+    s_virtualizationRoots = newMemory;
+
+    for (uint16_t i = s_maxVirtualizationRoots; i < newLength; ++i)
     {
-        // No space, resize array
-        uint16_t newLength = MIN(s_maxVirtualizationRoots * 2u, INT16_MAX + 1u);
-        if (newLength <= s_maxVirtualizationRoots)
-        {
-            assertf(newLength > 0, "s_maxVirtualizationRoot was likely not initialized");
-            // Already at max size, nothing to do.
-            return RootHandle_None;
-        }
-
-        VirtualizationRoot* grownArray = Memory_AllocArray<VirtualizationRoot>(newLength);
-        if (nullptr == grownArray)
-        {
-            return RootHandle_None;
-        }
-        
-        uint32_t oldSizeBytes = sizeof(s_virtualizationRoots[0]) * s_maxVirtualizationRoots;
-        memcpy(grownArray, s_virtualizationRoots, oldSizeBytes);
-        Memory_Free(s_virtualizationRoots, oldSizeBytes);
-        s_virtualizationRoots = grownArray;
-
-        for (uint16_t i = s_maxVirtualizationRoots; i < newLength; ++i)
-        {
-            s_virtualizationRoots[i] = VirtualizationRoot{ };
-        }
-        
-        rootIndex = s_maxVirtualizationRoots;
-        s_maxVirtualizationRoots = newLength;
+        s_virtualizationRoots[i] = VirtualizationRoot{ };
     }
-    
-    return rootIndex;
+
+    s_maxVirtualizationRoots = newLength;
 }
 
 static bool FsidsAreEqual(fsid_t a, fsid_t b)
@@ -378,42 +352,75 @@ static void RefreshRootVnodeIfNecessary_Locked(VirtualizationRootHandle rootHand
     rootEntry.rootVNodeVid = vid;
 }
 
-// Returns negative value if it failed, or inserted index on success
-KEXT_STATIC VirtualizationRootHandle InsertVirtualizationRoot_Locked(PrjFSProviderUserClient* userClient, pid_t clientPID, vnode_t vnode, uint32_t vid, FsidInode persistentIds, const char* path)
+KEXT_STATIC VirtualizationRootHandle FindOrInsertVirtualizationRoot_LockedMayUnlock(vnode_t virtualizationRootVNode, uint32_t rootVid, FsidInode persistentIds, const char* path)
 {
-    VirtualizationRootHandle rootIndex = FindUnusedIndexOrGrow_Locked();
-    
-    if (RootHandle_None != rootIndex)
+    VirtualizationRootHandle rootIndex;
+    do
     {
-        assert(rootIndex < s_maxVirtualizationRoots);
-        assert(!s_virtualizationRoots[rootIndex].inUse);
-        
-        // Retain a strong reference to the vnode if we have an active provider on it
-        if (userClient != nullptr && 0 != vnode_get(vnode))
+        rootIndex = FindRootAtVnode_Locked(virtualizationRootVNode, rootVid, persistentIds);
+        if (rootIndex >= 0)
         {
-            return RootHandle_None;
+            return rootIndex;
         }
         
-        VirtualizationRoot* root = &s_virtualizationRoots[rootIndex];
-        
-        root->providerUserClient = userClient;
-        root->providerPid = clientPID;
-        root->inUse = true;
-
-        root->rootVNode = vnode;
-        root->rootVNodeVid = vid;
-        KextLog_File(vnode, "InsertVirtualizationRoot_Locked: virtualization root inserted at index %d: (path: \"%s\", fsid: 0x%x:%x, inode: 0x%llx) directory vnode %p:%u, user client PID %d, IOUC %p.",
-            rootIndex, path, persistentIds.fsid.val[0], persistentIds.fsid.val[1], persistentIds.inode, KextLog_Unslide(vnode), vid, clientPID, KextLog_Unslide(userClient));
-        
-        root->rootFsid = persistentIds.fsid;
-        root->rootInode = persistentIds.inode;
-
-        if (path != nullptr)
+        rootIndex = FindUnusedIndex_Locked();
+        if (rootIndex < 0)
         {
-            strlcpy(root->path, path, sizeof(root->path));
+            // No space, resize array
+            uint16_t newLength = MIN(s_maxVirtualizationRoots * 2u, INT16_MAX + 1u);
+            if (newLength <= s_maxVirtualizationRoots)
+            {
+                KextLog_Error("FindOrInsertVirtualizationRoot_LockedMayUnlock: growing virtualization root array for root at '%s' failed: out of valid indices, array has reached %u items\n", path, s_maxVirtualizationRoots);
+                return RootHandle_None;
+            }
+        
+            VirtualizationRoot* grownArray = Memory_AllocArrayNoBlock<VirtualizationRoot>(newLength);
+            if (grownArray != nullptr)
+            {
+                KextLog_Info("FindOrInsertVirtualizationRoot_LockedMayUnlock: growing virtualization root array for root at '%s' with non-blocking alloc succeeded\n", path);
+                rootIndex = s_maxVirtualizationRoots;
+            }
+            else
+            {
+                // Must drop lock to safely allocate memory with blocking alloc
+                RWLock_ReleaseExclusive(s_virtualizationRootsLock);
+                grownArray = Memory_AllocArray<VirtualizationRoot>(newLength);
+                KextLog_Info("FindOrInsertVirtualizationRoot_LockedMayUnlock: growing virtualization root array to %u items for root at '%s' with non-blocking alloc failed, blocking alloc returned %p\n", newLength, path, grownArray);
+                RWLock_AcquireExclusive(s_virtualizationRootsLock);
+                
+                uint16_t newLengthAgain = MIN(s_maxVirtualizationRoots * 2u, INT16_MAX + 1u);
+                if (newLengthAgain != newLength || newLength == s_maxVirtualizationRoots)
+                {
+                    KextLog_Info("FindOrInsertVirtualizationRoot_LockedMayUnlock: Beaten to the resize (newLength = %u, newLengthAgain = %u) by another thread, starting over.", newLength, newLengthAgain);
+                    // another thread already resized, start over.
+                    Memory_FreeArray(grownArray, newLength);
+                    continue;
+                }
+            }
+            
+            GrowVirtualizationRootArrayWithMemory_Locked(grownArray, newLength);
         }
-    }
+    } while (rootIndex < 0);
+
+    assert(rootIndex < s_maxVirtualizationRoots);
+    assert(!s_virtualizationRoots[rootIndex].inUse);
+
+    VirtualizationRoot* root = &s_virtualizationRoots[rootIndex];
     
+    root->inUse = true;
+
+    root->rootVNode = virtualizationRootVNode;
+    root->rootVNodeVid = rootVid;
+    root->rootFsid = persistentIds.fsid;
+    root->rootInode = persistentIds.inode;
+    if (path != nullptr)
+    {
+        strlcpy(root->path, path, sizeof(root->path));
+    }
+
+    KextLog_File(virtualizationRootVNode, "InsertVirtualizationRoot_Locked: virtualization root inserted at index %d: (path: \"%s\", fsid: 0x%x:%x, inode: 0x%llx) directory vnode %p:%u.",
+            rootIndex, path, persistentIds.fsid.val[0], persistentIds.fsid.val[1], persistentIds.inode, KextLog_Unslide(virtualizationRootVNode), rootVid);
+
     return rootIndex;
 }
 
@@ -462,13 +469,16 @@ VirtualizationRootResult VirtualizationRoot_RegisterProviderForPath(PrjFSProvide
                 
                 RWLock_AcquireExclusive(s_virtualizationRootsLock);
                 {
-                    rootIndex = FindRootAtVnode_Locked(virtualizationRootVNode, rootVid, vnodeIds);
+                    rootIndex = FindOrInsertVirtualizationRoot_LockedMayUnlock(virtualizationRootVNode, rootVid, vnodeIds, virtualizationRootCanonicalPath);
+                    
                     if (rootIndex >= 0)
                     {
                         RefreshRootVnodeIfNecessary_Locked(rootIndex, virtualizationRootVNode, rootVid, vnodeIds);
                         
-                        // Reattaching to existing root
-                        if (nullptr != s_virtualizationRoots[rootIndex].providerUserClient)
+                        VirtualizationRoot& root = s_virtualizationRoots[rootIndex];
+                        assert(root.rootVNode == virtualizationRootVNode);
+
+                        if (nullptr != root.providerUserClient)
                         {
                             // Only one provider per root
                             err = EBUSY;
@@ -476,8 +486,6 @@ VirtualizationRootResult VirtualizationRoot_RegisterProviderForPath(PrjFSProvide
                         }
                         else
                         {
-                            VirtualizationRoot& root = s_virtualizationRoots[rootIndex];
-                            assert(root.rootVNode == virtualizationRootVNode);
                             root.providerUserClient = userClient;
                             root.providerPid = clientPID;
                             strlcpy(root.path, virtualizationRootCanonicalPath, sizeof(root.path));
@@ -491,18 +499,8 @@ VirtualizationRootResult VirtualizationRoot_RegisterProviderForPath(PrjFSProvide
                     }
                     else
                     {
-                        rootIndex = InsertVirtualizationRoot_Locked(userClient, clientPID, virtualizationRootVNode, rootVid, vnodeIds, virtualizationRootCanonicalPath);
-                        if (rootIndex >= 0)
-                        {
-                            assert(rootIndex < s_maxVirtualizationRoots);
-                            
-                            KextLog("VirtualizationRoot_RegisterProviderForPath: new root not found in offline roots, inserted as new root with index %d. path '%s'", rootIndex, virtualizationRootCanonicalPath);
-                        }
-                        else
-                        {
-                            KextLog_Error("VirtualizationRoot_RegisterProviderForPath: failed to insert new root");
-                            err = ENOMEM;
-                        }
+                        KextLog_Error("VirtualizationRoot_RegisterProviderForPath: failed to insert new root '%s' for provider with PID %u", virtualizationRootPath, clientPID);
+                        err = ENOMEM;
                     }
                 }
                 RWLock_ReleaseExclusive(s_virtualizationRootsLock);
