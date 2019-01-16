@@ -65,6 +65,18 @@ namespace GVFS.CommandLine
 
         public override void Execute()
         {
+            if (this.DryRun)
+            {
+                if (this.Confirmed)
+                {
+                    this.ReportErrorAndExit(this.tracer, ReturnCode.GenericError, "--dry-run and --confirm arguments are not compatible.");
+                }
+                else
+                {
+                    this.Confirmed = true;
+                }
+            }
+
             string error;
             if (!this.TryInitializeUpgrader(out error) || !this.TryRunProductUpgrade())
             {

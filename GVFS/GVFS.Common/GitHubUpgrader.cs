@@ -32,6 +32,7 @@ namespace GVFS.Common
             {
                 UpgraderToolName,
                 UpgraderToolConfigFile,
+                "CommandLine.dll",
                 "GVFS.Common.dll",
                 "GVFS.Platform.Windows.dll",
                 "Microsoft.Diagnostics.Tracing.EventSource.dll",
@@ -305,12 +306,6 @@ namespace GVFS.Common
 
         protected virtual bool TryDeleteDownloadedAsset(Asset asset, out Exception exception)
         {
-            if (this.dryRun)
-            {
-                exception = null;
-                return true;
-            }
-
             return this.fileSystem.TryDeleteFile(asset.LocalPath, out exception);
         }
 
@@ -320,7 +315,7 @@ namespace GVFS.Common
 
             string downloadPath = ProductUpgraderInfo.GetAssetDownloadsPath();
             Exception exception;
-            if (!this.dryRun && GitHubUpgrader.TryCreateDirectory(downloadPath, out exception))
+            if (!GitHubUpgrader.TryCreateDirectory(downloadPath, out exception))
             {
                 errorMessage = exception.Message;
                 this.TraceException(exception, nameof(this.TryDownloadAsset), $"Error creating download directory {downloadPath}.");
@@ -332,11 +327,7 @@ namespace GVFS.Common
 
             try
             {
-                if (!this.dryRun)
-                {
-                    webClient.DownloadFile(asset.DownloadURL, localPath);
-                }
-
+                webClient.DownloadFile(asset.DownloadURL, localPath);
                 asset.LocalPath = localPath;
             }
             catch (WebException webException)
