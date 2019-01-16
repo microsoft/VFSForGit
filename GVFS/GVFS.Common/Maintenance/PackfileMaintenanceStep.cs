@@ -35,8 +35,9 @@ namespace GVFS.Common.Maintenance
             GVFSContext context,
             bool requireObjectCacheLock = true,
             bool forceRun = false,
-            string batchSize = DefaultBatchSize)
-            : base(context, requireObjectCacheLock)
+            string batchSize = DefaultBatchSize,
+            GitProcessChecker gitProcessChecker = null)
+            : base(context, requireObjectCacheLock, gitProcessChecker)
         {
             this.forceRun = forceRun;
             this.batchSize = batchSize;
@@ -121,7 +122,7 @@ namespace GVFS.Common.Maintenance
                         return;
                     }
 
-                    IEnumerable<int> processIds = this.RunningGitProcessIds();
+                    IEnumerable<int> processIds = this.GitProcessChecker.GetRunningGitProcessIds();
                     if (processIds.Any())
                     {
                         activity.RelatedWarning($"Skipping {nameof(PackfileMaintenanceStep)} due to git pids {string.Join(",", processIds)}", Keywords.Telemetry);

@@ -2,9 +2,7 @@
 using GVFS.Common.Tracing;
 using System;
 using System.Collections.Generic;
-using System.Diagnostics;
 using System.IO;
-using System.Linq;
 
 namespace GVFS.Common.Maintenance
 {
@@ -13,10 +11,11 @@ namespace GVFS.Common.Maintenance
         public const string ObjectCacheLock = "git-maintenance-step.lock";
         private readonly object gitProcessLock = new object();
 
-        public GitMaintenanceStep(GVFSContext context, bool requireObjectCacheLock)
+        public GitMaintenanceStep(GVFSContext context, bool requireObjectCacheLock, GitProcessChecker gitProcessChecker = null)
         {
             this.Context = context;
             this.RequireObjectCacheLock = requireObjectCacheLock;
+            this.GitProcessChecker = gitProcessChecker ?? new GitProcessChecker();
         }
 
         public abstract string Area { get; }
@@ -26,6 +25,7 @@ namespace GVFS.Common.Maintenance
         protected GitProcess GitProcess { get; private set; }
         protected bool Stopping { get; private set; }
         protected bool RequireObjectCacheLock { get; }
+        protected GitProcessChecker GitProcessChecker { get; }
 
         public void Execute()
         {
@@ -176,12 +176,6 @@ namespace GVFS.Common.Maintenance
             {
                 this.Context.Tracer.RelatedError(this.CreateEventMetadata(handledException), "Failed to record run time");
             }
-        }
-
-        protected IEnumerable<int> RunningGitProcessIds()
-        {
-            Process[] allProcesses = Process.GetProcesses();
-            return allProcesses.Where(x => x.ProcessName.Equals("git", StringComparison.OrdinalIgnoreCase)).Select(x => x.Id);
         }
 
         protected void LogErrorAndRewriteMultiPackIndex(ITracer activity, GitProcess.Result result)

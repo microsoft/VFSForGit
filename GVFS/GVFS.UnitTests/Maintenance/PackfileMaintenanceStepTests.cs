@@ -6,6 +6,7 @@ using GVFS.Tests.Should;
 using GVFS.UnitTests.Mock.Common;
 using GVFS.UnitTests.Mock.FileSystem;
 using GVFS.UnitTests.Mock.Git;
+using Moq;
 using NUnit.Framework;
 using System;
 using System.Collections.Generic;
@@ -64,8 +65,19 @@ namespace GVFS.UnitTests.Maintenance
         {
             this.TestSetup(DateTime.UtcNow.AddDays(-1));
 
-            PackfileMaintenanceStep step = new PackfileMaintenanceStep(this.context, requireObjectCacheLock: false, forceRun: false);
+            Mock<GitProcessChecker> mockChecker = new Mock<GitProcessChecker>();
+            mockChecker.Setup(checker => checker.GetRunningGitProcessIds())
+                       .Returns(Array.Empty<int>());
+
+            PackfileMaintenanceStep step = new PackfileMaintenanceStep(
+                                                    this.context,
+                                                    requireObjectCacheLock: false,
+                                                    forceRun: false,
+                                                    gitProcessChecker: mockChecker.Object);
+
             step.Execute();
+
+            mockChecker.Verify(checker => checker.GetRunningGitProcessIds(), Times.Once());
 
             this.tracer.StartActivityTracer.RelatedErrorEvents.Count.ShouldEqual(0);
             this.tracer.StartActivityTracer.RelatedWarningEvents.Count.ShouldEqual(0);
@@ -75,6 +87,31 @@ namespace GVFS.UnitTests.Maintenance
             commands[1].ShouldEqual(this.VerifyCommand);
             commands[2].ShouldEqual(this.RepackCommand);
             commands[3].ShouldEqual(this.VerifyCommand);
+        }
+
+        [TestCase]
+        public void PackfileMaintenanceFailGitProcessIds()
+        {
+            this.TestSetup(DateTime.UtcNow.AddDays(-1));
+
+            Mock<GitProcessChecker> mockChecker = new Mock<GitProcessChecker>();
+            mockChecker.Setup(checker => checker.GetRunningGitProcessIds())
+                       .Returns(new int[] { 1 });
+
+            PackfileMaintenanceStep step = new PackfileMaintenanceStep(
+                                                    this.context,
+                                                    requireObjectCacheLock: false,
+                                                    forceRun: false,
+                                                    gitProcessChecker: mockChecker.Object);
+
+            step.Execute();
+
+            mockChecker.Verify(checker => checker.GetRunningGitProcessIds(), Times.Once());
+
+            this.tracer.StartActivityTracer.RelatedErrorEvents.Count.ShouldEqual(0);
+            this.tracer.StartActivityTracer.RelatedWarningEvents.Count.ShouldEqual(1);
+            List<string> commands = this.gitProcess.CommandsRun;
+            commands.Count.ShouldEqual(0);
         }
 
         [TestCase]
@@ -107,7 +144,7 @@ namespace GVFS.UnitTests.Maintenance
         {
             this.TestSetup(DateTime.UtcNow);
 
-            PackfileMaintenanceStep step = new PackfileMaintenanceStep(this.context, requireObjectCacheLock: false, forceRun: false);
+            PackfileMaintenanceStep step = new PackfileMaintenanceStep(this.context, requireObjectCacheLock: false, forceRun: true);
 
             step.GetPackFilesInfo(out int count, out long size, out bool hasKeep);
             count.ShouldEqual(3);
@@ -127,7 +164,7 @@ namespace GVFS.UnitTests.Maintenance
         {
             this.TestSetup(DateTime.UtcNow);
 
-            PackfileMaintenanceStep step = new PackfileMaintenanceStep(this.context, requireObjectCacheLock: false, forceRun: false);
+            PackfileMaintenanceStep step = new PackfileMaintenanceStep(this.context, requireObjectCacheLock: false, forceRun: true);
 
             List<string> staleIdx = step.CleanStaleIdxFiles(out int numDeletionBlocked);
 

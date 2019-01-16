@@ -16,8 +16,12 @@ namespace GVFS.Common.Maintenance
         public const string LooseObjectsLastRunFileName = "loose-objects.time";
         private readonly bool forceRun;
 
-        public LooseObjectsStep(GVFSContext context, bool requireCacheLock = true, bool forceRun = false)
-            : base(context, requireObjectCacheLock: requireCacheLock)
+        public LooseObjectsStep(
+            GVFSContext context,
+            bool requireCacheLock = true,
+            bool forceRun = false,
+            GitProcessChecker gitProcessChecker = null)
+            : base(context, requireCacheLock, gitProcessChecker)
         {
             this.forceRun = forceRun;
         }
@@ -134,7 +138,7 @@ namespace GVFS.Common.Maintenance
                             return;
                         }
 
-                        IEnumerable<int> processIds = this.RunningGitProcessIds();
+                        IEnumerable<int> processIds = this.GitProcessChecker.GetRunningGitProcessIds();
                         if (processIds.Any())
                         {
                             activity.RelatedWarning($"Skipping {nameof(LooseObjectsStep)} due to git pids {string.Join(",", processIds)}", Keywords.Telemetry);
