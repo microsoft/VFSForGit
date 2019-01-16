@@ -72,7 +72,8 @@ while read line; do
 	 [[ $line != *"PerfTracer"* ]] && 
 	 [[ $line != *"VirtualizationRoot_GetActiveProvider"* ]] &&      #SHOULD ADD COVERAGE
 	 [[ $line != *"VirtualizationRoots_Init"* ]] && 
-	 [[ $line != *"VirtualizationRoots_Cleanup"* ]] && 
+	 [[ $line != *"VirtualizationRoots_Cleanup"* ]] &&
+	 [[ $line != *"FindOrInsertVirtualizationRoot_LockedMayUnlock"* ]] && # Race compensation path not covered, currently can't provoke this in tests.
 	 [[ $line != *"VnodeCache_Init"* ]] && 
 	 [[ $line != *"VnodeCache_Cleanup"* ]] && 
 	 [[ $line != *"VnodeCache_ExportHealthData"* ]] &&               # IOKit related functions are not unit tested
