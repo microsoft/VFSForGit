@@ -12,6 +12,10 @@ namespace GVFS.CommandLine
     public class UpgradeVerb : GVFSVerb.ForNoEnlistment
     {
         private const string UpgradeVerbName = "upgrade";
+        private const string DryRunOption = "--dry-run";
+        private const string NoVerifyOption = "--no-verify";
+        private const string ConfirmOption = "--confirm";
+
         private ITracer tracer;
         private IProductUpgrader upgrader;
         private InstallerPreRunChecker prerunChecker;
@@ -55,7 +59,7 @@ namespace GVFS.CommandLine
             "no-verify",
             Default = false,
             Required = false,
-            HelpText = "Don't verify authenticode signature of installers")]
+            HelpText = "This parameter is reserved for internal use.")]
         public bool NoVerify { get; set; }
 
         protected override string VerbName
@@ -76,7 +80,7 @@ namespace GVFS.CommandLine
         {
             if (this.DryRun && this.Confirmed)
             {
-                error = "--dry-run and --confirm arguments are not compatible.";
+                error = $"{DryRunOption} and {ConfirmOption} arguments are not compatible.";
                 return false;
             }
 
@@ -92,22 +96,7 @@ namespace GVFS.CommandLine
                     jsonTracer.AddLogFileEventListener(logFilePath, EventLevel.Informational, Keywords.Any);
 
                     this.tracer = jsonTracer;
-                    string commandToRerun;
-
-                    if (this.Confirmed)
-                    {
-                        commandToRerun = GVFSConstants.UpgradeVerbMessages.GVFSUpgradeConfirm;
-                    }
-                    else if (this.DryRun)
-                    {
-                        commandToRerun = GVFSConstants.UpgradeVerbMessages.GVFSUpgradeDryRun;
-                    }
-                    else
-                    {
-                        commandToRerun = GVFSConstants.UpgradeVerbMessages.GVFSUpgrade;
-                    }
-
-                    this.prerunChecker = new InstallerPreRunChecker(this.tracer, commandToRerun);
+                    this.prerunChecker = new InstallerPreRunChecker(this.tracer, this.Confirmed ? GVFSConstants.UpgradeVerbMessages.GVFSUpgradeConfirm : GVFSConstants.UpgradeVerbMessages.GVFSUpgrade);
 
                     IProductUpgrader upgrader;
                     if (ProductUpgraderFactory.TryCreateUpgrader(out upgrader, this.tracer, out error, this.DryRun, this.NoVerify))
@@ -249,12 +238,7 @@ namespace GVFS.CommandLine
 
             using (ITracer activity = this.tracer.StartActivity(nameof(this.TryCopyUpgradeTool), EventLevel.Informational))
             {
-                if (this.DryRun)
-                {
-                    upgraderExePath = Path.Combine(ProcessHelper.GetCurrentProcessLocation(), "GVFS.Upgrader.exe");
-                    consoleError = null;
-                }
-                else if (!this.upgrader.TrySetupToolsDirectory(out upgraderExePath, out consoleError))
+                if (!this.upgrader.TrySetupToolsDirectory(out upgraderExePath, out consoleError))
                 {
                     return false;
                 }
@@ -270,7 +254,7 @@ namespace GVFS.CommandLine
             using (ITracer activity = this.tracer.StartActivity(nameof(this.TryLaunchUpgradeTool), EventLevel.Informational))
             {
                 Exception exception;
-                string args = string.Empty + (this.DryRun ? " --dry-run" : string.Empty) + (this.NoVerify ? " --no-verify" : string.Empty);
+                string args = string.Empty + (this.DryRun ? $" {DryRunOption}" : string.Empty) + (this.NoVerify ? $" {NoVerifyOption}" : string.Empty);
                 if (!this.processLauncher.TryStart(path, args, out exception))
                 {
                     if (exception != null)
