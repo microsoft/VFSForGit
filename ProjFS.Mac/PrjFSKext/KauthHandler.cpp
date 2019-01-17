@@ -16,6 +16,7 @@
 #include "PrjFSProviderUserClient.hpp"
 #include "PerformanceTracing.hpp"
 #include "kernel-header-wrappers/mount.h"
+#include "Utilities.hpp"
 
 // Function prototypes
 static int HandleVnodeOperation(
@@ -41,7 +42,6 @@ static int GetPid(vfs_context_t _Nonnull context);
 static bool TryReadVNodeFileFlags(vnode_t vn, vfs_context_t _Nonnull context, uint32_t* flags);
 static inline bool FileFlagsBitIsSet(uint32_t fileFlags, uint32_t bit);
 static inline bool TryGetFileIsFlaggedAsInRoot(vnode_t vnode, vfs_context_t _Nonnull context, bool* flaggedInRoot);
-static inline bool ActionBitIsSet(kauth_action_t action, kauth_action_t mask);
 
 static bool IsFileSystemCrawler(char* procname);
 
@@ -1129,11 +1129,6 @@ static inline bool TryGetFileIsFlaggedAsInRoot(vnode_t vnode, vfs_context_t _Non
     
     *flaggedInRoot = FileFlagsBitIsSet(vnodeFileFlags, FileFlags_IsInVirtualizationRoot);
     return true;
-}
-
-static inline bool ActionBitIsSet(kauth_action_t action, kauth_action_t mask)
-{
-    return action & mask;
 }
 
 static bool IsFileSystemCrawler(char* procname)

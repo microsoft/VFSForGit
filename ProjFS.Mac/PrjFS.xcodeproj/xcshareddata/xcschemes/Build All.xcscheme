@@ -28,7 +28,26 @@
       selectedLauncherIdentifier = "Xcode.DebuggerFoundation.Launcher.LLDB"
       shouldUseLaunchSchemeArgsEnv = "YES">
       <Testables>
+         <TestableReference
+            skipped = "NO">
+            <BuildableReference
+               BuildableIdentifier = "primary"
+               BlueprintIdentifier = "F5E39C7621F1118D006D65C2"
+               BuildableName = "PrjFSKextTests.xctest"
+               BlueprintName = "PrjFSKextTests"
+               ReferencedContainer = "container:PrjFS.xcodeproj">
+            </BuildableReference>
+         </TestableReference>
       </Testables>
+      <MacroExpansion>
+         <BuildableReference
+            BuildableIdentifier = "primary"
+            BlueprintIdentifier = "4391F90021E436210008103C"
+            BuildableName = "Build All"
+            BlueprintName = "Build All"
+            ReferencedContainer = "container:PrjFS.xcodeproj">
+         </BuildableReference>
+      </MacroExpansion>
       <AdditionalOptions>
       </AdditionalOptions>
    </TestAction>

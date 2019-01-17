@@ -12,7 +12,7 @@ PACKAGES=$ROOTDIR/packages
 
 PROJFS=$SRCDIR/ProjFS.Mac
 
-xcodebuild -configuration $CONFIGURATION -project $PROJFS/PrjFS.xcodeproj build -scheme 'Build All' -derivedDataPath $ROOTDIR/BuildOutput/ProjFS.Mac/Native || exit 1
+xcodebuild -configuration $CONFIGURATION -project $PROJFS/PrjFS.xcodeproj build -scheme 'Build All' -derivedDataPath $ROOTDIR/BuildOutput/ProjFS.Mac/Native test || exit 1
 
 # If we're building the Profiling(Release) configuration, remove Profiling() for building .NET code
 if [ "$CONFIGURATION" == "Profiling(Release)" ]; then
