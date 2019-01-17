@@ -1,5 +1,4 @@
-﻿using GVFS.Common;
-using GVFS.Common.Git;
+﻿using GVFS.Common.Git;
 using GVFS.Tests.Should;
 using GVFS.UnitTests.Mock.Common;
 using NUnit.Framework;
@@ -10,11 +9,11 @@ using System.Threading;
 namespace GVFS.UnitTests.Common
 {
     [TestFixture]
-    public class LibGit2RepoPoolTests
+    public class LibGit2RepoInvokerTests
     {
         private readonly TimeSpan disposalPeriod = TimeSpan.FromMilliseconds(1);
         private MockTracer tracer;
-        private LibGit2RepoPool pool;
+        private LibGit2RepoInvoker pool;
         public int NumConstructors { get; set; }
         public int NumDisposals { get; set; }
         public BlockingCollection<object> DisposalTriggers { get; set; }
@@ -23,7 +22,7 @@ namespace GVFS.UnitTests.Common
         public void Setup()
         {
             this.tracer = new MockTracer();
-            this.pool = new LibGit2RepoPool(this.tracer, this.CreateRepo, disposalPeriod: this.disposalPeriod);
+            this.pool = new LibGit2RepoInvoker(this.tracer, this.CreateRepo, disposalPeriod: this.disposalPeriod);
             this.NumConstructors = 0;
             this.NumDisposals = 0;
             this.DisposalTriggers = new BlockingCollection<object>();
@@ -154,9 +153,9 @@ namespace GVFS.UnitTests.Common
 
         private class MockLibGit2Repo : LibGit2Repo
         {
-            private readonly LibGit2RepoPoolTests parent;
+            private readonly LibGit2RepoInvokerTests parent;
 
-            public MockLibGit2Repo(LibGit2RepoPoolTests parent)
+            public MockLibGit2Repo(LibGit2RepoInvokerTests parent)
             {
                 this.parent = parent;
             }

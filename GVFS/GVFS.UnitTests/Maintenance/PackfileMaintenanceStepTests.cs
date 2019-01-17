@@ -150,9 +150,11 @@ namespace GVFS.UnitTests.Maintenance
             List<MockDirectory> directories = new List<MockDirectory>() { gitObjectsRoot };
             PhysicalFileSystem fileSystem = new MockFileSystem(new MockDirectory(enlistment.EnlistmentRoot, directories, null));
 
+            MockGitRepo repository = new MockGitRepo(this.tracer, enlistment, fileSystem);
+
             // Create and return Context
             this.tracer = new MockTracer();
-            this.context = new GVFSContext(this.tracer, fileSystem, repository: null, enlistment: enlistment);
+            this.context = new GVFSContext(this.tracer, fileSystem, repository, enlistment);
 
             this.gitProcess.SetExpectedCommandResult(
                 this.ExpireCommand,
