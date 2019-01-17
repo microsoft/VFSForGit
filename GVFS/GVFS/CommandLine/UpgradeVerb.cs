@@ -65,18 +65,6 @@ namespace GVFS.CommandLine
 
         public override void Execute()
         {
-            if (this.DryRun)
-            {
-                if (this.Confirmed)
-                {
-                    this.ReportErrorAndExit(this.tracer, ReturnCode.GenericError, "--dry-run and --confirm arguments are not compatible.");
-                }
-                else
-                {
-                    this.Confirmed = true;
-                }
-            }
-
             string error;
             if (!this.TryInitializeUpgrader(out error) || !this.TryRunProductUpgrade())
             {
@@ -86,6 +74,12 @@ namespace GVFS.CommandLine
 
         private bool TryInitializeUpgrader(out string error)
         {
+            if (this.DryRun && this.Confirmed)
+            {
+                error = "--dry-run and --confirm arguments are not compatible.";
+                return false;
+            }
+
             if (GVFSPlatform.Instance.UnderConstruction.SupportsGVFSUpgrade)
             {
                 error = null;
@@ -98,10 +92,22 @@ namespace GVFS.CommandLine
                     jsonTracer.AddLogFileEventListener(logFilePath, EventLevel.Informational, Keywords.Any);
 
                     this.tracer = jsonTracer;
-                    this.prerunChecker = new InstallerPreRunChecker(
-                        this.tracer,
-                        this.Confirmed ? GVFSConstants.UpgradeVerbMessages.GVFSUpgradeConfirm : GVFSConstants.UpgradeVerbMessages.GVFSUpgrade,
-                        this.DryRun);
+                    string commandToRerun;
+
+                    if (this.Confirmed)
+                    {
+                        commandToRerun = GVFSConstants.UpgradeVerbMessages.GVFSUpgradeConfirm;
+                    }
+                    else if (this.DryRun)
+                    {
+                        commandToRerun = GVFSConstants.UpgradeVerbMessages.GVFSUpgradeDryRun;
+                    }
+                    else
+                    {
+                        commandToRerun = GVFSConstants.UpgradeVerbMessages.GVFSUpgrade;
+                    }
+
+                    this.prerunChecker = new InstallerPreRunChecker(this.tracer, commandToRerun);
 
                     IProductUpgrader upgrader;
                     if (ProductUpgraderFactory.TryCreateUpgrader(out upgrader, this.tracer, out error, this.DryRun, this.NoVerify))
@@ -131,7 +137,7 @@ namespace GVFS.CommandLine
             Version newestVersion = null;
 
             bool isInstallable = this.TryCheckUpgradeInstallable(out cannotInstallReason);
-            if (this.Confirmed && !isInstallable)
+            if (this.ShouldRunUpgraderTool() && !isInstallable)
             {
                 this.ReportInfoToConsole($"Cannot upgrade GVFS on this machine.");
                 this.Output.WriteLine(errorOutputFormat, cannotInstallReason);
@@ -162,7 +168,7 @@ namespace GVFS.CommandLine
                 return true;
             }
 
-            if (this.Confirmed)
+            if (this.ShouldRunUpgraderTool())
             {
                 this.ReportInfoToConsole(message);
 
@@ -329,6 +335,11 @@ namespace GVFS.CommandLine
             }
 
             return true;
+        }
+
+        private bool ShouldRunUpgraderTool()
+        {
+            return this.Confirmed || this.DryRun;
         }
 
         private void ReportInfoToConsole(string message, params object[] args)

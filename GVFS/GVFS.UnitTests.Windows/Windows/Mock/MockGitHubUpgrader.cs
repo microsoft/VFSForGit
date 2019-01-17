@@ -41,6 +41,11 @@ namespace GVFS.UnitTests.Windows.Mock.Upgrader
 
         private Release FakeUpgradeRelease { get; set; }
 
+        public void SetDryRun(bool dryRun)
+        {
+            this.dryRun = dryRun;
+        }
+
         public void SetFailOnAction(ActionType failureType)
         {
             this.failActionTypes |= failureType;
@@ -54,6 +59,11 @@ namespace GVFS.UnitTests.Windows.Mock.Upgrader
         public void ResetFailedAction()
         {
             this.failActionTypes = ActionType.Invalid;
+        }
+
+        public bool RunInstallerInvoked()
+        {
+            return this.InstallerArgs.Count > 0;
         }
 
         public void PretendNewReleaseAvailableAtRemote(string upgradeVersion, GitHubUpgraderConfig.RingType remoteRing)

@@ -147,7 +147,7 @@ namespace GVFS.Upgrader
 
             if (this.preRunChecker == null)
             {
-                this.preRunChecker = new InstallerPreRunChecker(this.tracer, GVFSConstants.UpgradeVerbMessages.GVFSUpgradeConfirm, this.DryRun);
+                this.preRunChecker = new InstallerPreRunChecker(this.tracer, GVFSConstants.UpgradeVerbMessages.GVFSUpgradeConfirm);
             }
 
             errorMessage = null;

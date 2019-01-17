@@ -15,6 +15,9 @@ namespace GVFS.Common
 {
     public class GitHubUpgrader : IProductUpgrader
     {
+        protected bool dryRun;
+        protected bool noVerify;
+
         private const string GitHubReleaseURL = @"https://api.github.com/repos/microsoft/vfsforgit/releases";
         private const string JSONMediaType = @"application/vnd.github.v3+json";
         private const string UserAgent = @"GVFS_Auto_Upgrader";
@@ -46,8 +49,6 @@ namespace GVFS.Common
         private Release newestRelease;
         private PhysicalFileSystem fileSystem;
         private ITracer tracer;
-        private bool dryRun;
-        private bool noVerify;
 
         public GitHubUpgrader(
             string currentVersion,
@@ -375,18 +376,10 @@ namespace GVFS.Common
 
         protected virtual void RunInstaller(string path, string args, out int exitCode, out string error)
         {
-            if (this.dryRun)
-            {
-                exitCode = 0;
-                error = null;
-            }
-            else
-            {
-                ProcessResult processResult = ProcessHelper.Run(path, args);
+            ProcessResult processResult = ProcessHelper.Run(path, args);
 
-                exitCode = processResult.ExitCode;
-                error = processResult.Errors;
-            }
+            exitCode = processResult.ExitCode;
+            error = processResult.Errors;
         }
 
         private static bool TryCreateDirectory(string path, out Exception exception)
@@ -474,13 +467,16 @@ namespace GVFS.Common
             string installerArgs;
             if (this.TryGetLocalInstallerPath(assetId, out path, out installerArgs))
             {
-                string logFilePath = GVFSEnlistment.GetNewLogFileName(ProductUpgraderInfo.GetLogDirectoryPath(), Path.GetFileNameWithoutExtension(path));
-                string args = installerArgs + " /Log=" + logFilePath;
-                this.RunInstaller(path, args, out installerExitCode, out error);
-
-                if (installerExitCode != 0 && string.IsNullOrEmpty(error))
+                if (!this.dryRun)
                 {
-                    error = assetId + " installer failed. Error log: " + logFilePath;
+                    string logFilePath = GVFSEnlistment.GetNewLogFileName(ProductUpgraderInfo.GetLogDirectoryPath(), Path.GetFileNameWithoutExtension(path));
+                    string args = installerArgs + " /Log=" + logFilePath;
+                    this.RunInstaller(path, args, out installerExitCode, out error);
+
+                    if (installerExitCode != 0 && string.IsNullOrEmpty(error))
+                    {
+                        error = assetId + " installer failed. Error log: " + logFilePath;
+                    }
                 }
 
                 installerIsRun = true;
