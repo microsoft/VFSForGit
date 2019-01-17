@@ -12,7 +12,7 @@ namespace GVFS.Common.Git
         private readonly ITracer tracer;
         private readonly object sharedRepoLock = new object();
         private readonly TimeSpan sharedRepositoryDisposalPeriod;
-        private volatile bool stopped;
+        private volatile bool disposing;
         private volatile int activeCallers;
         private LibGit2Repo sharedRepo;
         private Timer sharedRepoDisposalTimer;
@@ -42,13 +42,13 @@ namespace GVFS.Common.Git
 
         public void Dispose()
         {
-            this.stopped = true;
-
-            this.sharedRepoDisposalTimer?.Dispose();
-            this.sharedRepoDisposalTimer = null;
+            this.disposing = true;
 
             lock (this.sharedRepoLock)
             {
+                this.sharedRepoDisposalTimer?.Dispose();
+                this.sharedRepoDisposalTimer = null;
+
                 this.sharedRepo?.Dispose();
                 this.sharedRepo = null;
             }
@@ -59,7 +59,7 @@ namespace GVFS.Common.Git
             try
             {
                 Interlocked.Increment(ref this.activeCallers);
-                LibGit2Repo repo = this.GetRepoFromPool();
+                LibGit2Repo repo = this.GetSharedRepo();
 
                 if (repo != null)
                 {
@@ -81,16 +81,16 @@ namespace GVFS.Common.Git
             }
         }
 
-        private LibGit2Repo GetRepoFromPool()
+        private LibGit2Repo GetSharedRepo()
         {
-            this.sharedRepoDisposalTimer?.Change(this.sharedRepositoryDisposalPeriod, this.sharedRepositoryDisposalPeriod);
-
             lock (this.sharedRepoLock)
             {
-                if (this.stopped)
+                if (this.disposing)
                 {
                     return null;
                 }
+
+                this.sharedRepoDisposalTimer?.Change(this.sharedRepositoryDisposalPeriod, this.sharedRepositoryDisposalPeriod);
 
                 if (this.sharedRepo == null)
                 {
@@ -105,14 +105,13 @@ namespace GVFS.Common.Git
         {
             lock (this.sharedRepoLock)
             {
-                if (this.stopped || this.activeCallers > 0)
+                if (this.disposing || this.activeCallers > 0)
                 {
                     return;
                 }
 
-                LibGit2Repo repo = this.sharedRepo;
+                this.sharedRepo?.Dispose();
                 this.sharedRepo = null;
-                repo?.Dispose();
             }
         }
     }

@@ -128,6 +128,12 @@ namespace GVFS.Common.Maintenance
                         return;
                     }
 
+                    // If a LibGit2Repo is active, then it may hold handles to the .idx and .pack files we want
+                    // to delete during the 'git multi-pack-index expire' step. If one starts during the step,
+                    // then it can still block those deletions, but we will clean them up in the next run. By
+                    // checking HasActiveLibGit2Repo here, we ensure that we do not run twice with the same
+                    // LibGit2Repo active across two calls. A "new" repo should not hold handles to .idx files
+                    // that do not have corresponding .pack files, so we will clean them up in CleanStaleIdxFiles().
                     if (this.Context.Repository.HasActiveLibGit2Repo)
                     {
                         activity.RelatedWarning($"Skipping {nameof(PackfileMaintenanceStep)} due to active libgit2 repo", Keywords.Telemetry);

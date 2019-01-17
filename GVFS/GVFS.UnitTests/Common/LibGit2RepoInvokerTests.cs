@@ -13,91 +13,98 @@ namespace GVFS.UnitTests.Common
     {
         private readonly TimeSpan disposalPeriod = TimeSpan.FromMilliseconds(1);
         private MockTracer tracer;
-        private LibGit2RepoInvoker pool;
-        public int NumConstructors { get; set; }
-        public int NumDisposals { get; set; }
+        private LibGit2RepoInvoker invoker;
+        private int numConstructors;
+        private int numDisposals;
+
         public BlockingCollection<object> DisposalTriggers { get; set; }
 
         [SetUp]
         public void Setup()
         {
             this.tracer = new MockTracer();
-            this.pool = new LibGit2RepoInvoker(this.tracer, this.CreateRepo, disposalPeriod: this.disposalPeriod);
-            this.NumConstructors = 0;
-            this.NumDisposals = 0;
+            this.invoker = new LibGit2RepoInvoker(this.tracer, this.CreateRepo, this.disposalPeriod);
+            this.numConstructors = 0;
+            this.numDisposals = 0;
             this.DisposalTriggers = new BlockingCollection<object>();
         }
 
         [TestCase]
         public void DoesNotCreateRepoOnConstruction()
         {
-            this.NumConstructors.ShouldEqual(0);
+            this.numConstructors.ShouldEqual(0);
         }
 
         [TestCase]
         public void CreatesRepoOnTryInvoke()
         {
-            this.NumConstructors.ShouldEqual(0);
+            this.numConstructors.ShouldEqual(0);
 
-            this.pool.TryInvoke(repo => { return true; }, out bool result);
+            this.invoker.TryInvoke(repo => { return true; }, out bool result);
             result.ShouldEqual(true);
-            this.NumConstructors.ShouldEqual(1);
+            this.numConstructors.ShouldEqual(1);
         }
 
         [TestCase]
         public void DoesNotCreateMultipleRepos()
         {
-            this.NumConstructors.ShouldEqual(0);
+            this.numConstructors.ShouldEqual(0);
 
-            this.pool.TryInvoke(repo => { return true; }, out bool result);
+            this.invoker.TryInvoke(repo => { return true; }, out bool result);
             result.ShouldEqual(true);
-            this.NumConstructors.ShouldEqual(1);
+            this.numConstructors.ShouldEqual(1);
 
-            this.pool.TryInvoke(repo => { return true; }, out result);
+            this.invoker.TryInvoke(repo => { return true; }, out result);
             result.ShouldEqual(true);
-            this.NumConstructors.ShouldEqual(1);
+            this.numConstructors.ShouldEqual(1);
 
-            this.pool.TryInvoke(repo => { return true; }, out result);
+            this.invoker.TryInvoke(repo => { return true; }, out result);
             result.ShouldEqual(true);
-            this.NumConstructors.ShouldEqual(1);
+            this.numConstructors.ShouldEqual(1);
         }
 
         [TestCase]
         public void DoesNotCreateRepoAfterDisposal()
         {
-            this.NumConstructors.ShouldEqual(0);
-            this.pool.Dispose();
-            this.pool.TryInvoke(repo => { return true; }, out bool result);
+            this.numConstructors.ShouldEqual(0);
+            this.invoker.Dispose();
+            this.invoker.TryInvoke(repo => { return true; }, out bool result);
             result.ShouldEqual(false);
-            this.NumConstructors.ShouldEqual(0);
+            this.numConstructors.ShouldEqual(0);
         }
 
         [TestCase]
         public void DisposesSharedRepo()
         {
-            this.pool.TryInvoke(repo => { return true; }, out bool result);
-            result.ShouldEqual(true);
-            this.NumConstructors.ShouldEqual(1);
+            this.numConstructors.ShouldEqual(0);
+            this.numDisposals.ShouldEqual(0);
 
-            this.pool.Dispose();
-            this.NumDisposals.ShouldEqual(1);
+            this.invoker.TryInvoke(repo => { return true; }, out bool result);
+            result.ShouldEqual(true);
+            this.numConstructors.ShouldEqual(1);
+
+            this.invoker.Dispose();
+            this.numConstructors.ShouldEqual(1);
+            this.numDisposals.ShouldEqual(1);
         }
 
         [TestCase]
         public void UsesOnlyOneRepoMultipleThreads()
         {
-            this.NumConstructors.ShouldEqual(0);
+            this.numConstructors.ShouldEqual(0);
 
             Thread[] threads = new Thread[10];
+            BlockingCollection<object> threadStarted = new BlockingCollection<object>();
             BlockingCollection<object> allowNextThreadToContinue = new BlockingCollection<object>();
 
             for (int i = 0; i < threads.Length; i++)
             {
                 threads[i] = new Thread(() =>
                 {
-                    this.pool.TryInvoke(
+                    this.invoker.TryInvoke(
                         repo =>
                         {
+                            threadStarted.Add(new object());
                             allowNextThreadToContinue.Take();
 
                             // Give the timer an opportunity to fire
@@ -108,13 +115,15 @@ namespace GVFS.UnitTests.Common
                         },
                         out bool result);
                     result.ShouldEqual(true);
-                    this.NumConstructors.ShouldEqual(1);
+                    this.numConstructors.ShouldEqual(1);
                 });
             }
 
+            // Ensure all threads are started before letting them continue
             for (int i = 0; i < threads.Length; i++)
             {
                 threads[i].Start();
+                threadStarted.Take();
             }
 
             allowNextThreadToContinue.Add(new object());
@@ -124,30 +133,30 @@ namespace GVFS.UnitTests.Common
                 threads[i].Join();
             }
 
-            this.NumConstructors.ShouldEqual(1);
+            this.numConstructors.ShouldEqual(1);
         }
 
         [TestCase]
         public void AutomaticallyDisposesAfterNoUse()
         {
-            this.NumConstructors.ShouldEqual(0);
+            this.numConstructors.ShouldEqual(0);
 
-            this.pool.TryInvoke(repo => { return true; }, out bool result);
+            this.invoker.TryInvoke(repo => { return true; }, out bool result);
             result.ShouldEqual(true);
-            this.NumConstructors.ShouldEqual(1);
+            this.numConstructors.ShouldEqual(1);
 
             this.DisposalTriggers.TryTake(out object _, (int)this.disposalPeriod.TotalMilliseconds * 100).ShouldBeTrue();
-            this.NumDisposals.ShouldEqual(1);
-            this.NumConstructors.ShouldEqual(1);
+            this.numDisposals.ShouldEqual(1);
+            this.numConstructors.ShouldEqual(1);
 
-            this.pool.TryInvoke(repo => { return true; }, out result);
+            this.invoker.TryInvoke(repo => { return true; }, out result);
             result.ShouldEqual(true);
-            this.NumConstructors.ShouldEqual(2);
+            this.numConstructors.ShouldEqual(2);
         }
 
         private LibGit2Repo CreateRepo()
         {
-            this.NumConstructors++;
+            Interlocked.Increment(ref this.numConstructors);
             return new MockLibGit2Repo(this);
         }
 
@@ -164,7 +173,7 @@ namespace GVFS.UnitTests.Common
             {
                 if (disposing)
                 {
-                    this.parent.NumDisposals++;
+                    Interlocked.Increment(ref this.parent.numDisposals);
                     this.parent.DisposalTriggers.Add(new object());
                 }
             }
