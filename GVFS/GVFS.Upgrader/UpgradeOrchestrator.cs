@@ -1,3 +1,4 @@
+using CommandLine;
 using GVFS.Common;
 using GVFS.Common.Git;
 using GVFS.Common.Tracing;
@@ -6,6 +7,7 @@ using System.IO;
 
 namespace GVFS.Upgrader
 {
+    [Verb("UpgradeOrchestrator", HelpText = "Checks for product upgrades, downloads and installs it.")]
     public class UpgradeOrchestrator
     {
         private const EventLevel DefaultEventLevel = EventLevel.Informational;
@@ -53,6 +55,20 @@ namespace GVFS.Upgrader
         }
 
         public ReturnCode ExitCode { get; private set; }
+
+        [Option(
+            "dry-run",
+            Default = false,
+            Required = false,
+            HelpText = "Display progress and errors, but don't install GVFS")]
+        public bool DryRun { get; set; }
+
+        [Option(
+            "no-verify",
+            Default = false,
+            Required = false,
+            HelpText = "Don't verify authenticode signature of installers")]
+        public bool NoVerify { get; set; }
 
         public void Execute()
         {
@@ -122,7 +138,7 @@ namespace GVFS.Upgrader
             if (this.upgrader == null)
             {
                 IProductUpgrader upgrader;
-                if (!ProductUpgraderFactory.TryCreateUpgrader(out upgrader, this.tracer, out errorMessage))
+                if (!ProductUpgraderFactory.TryCreateUpgrader(out upgrader, this.tracer, out errorMessage, this.DryRun, this.NoVerify))
                 {
                     return false;
                 }

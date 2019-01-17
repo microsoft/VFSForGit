@@ -231,6 +231,31 @@ namespace GVFS.UnitTests.Windows.Upgrader
                 });
         }
 
+        [TestCase]
+        public void DryRunDoesNotRunInstallerExes()
+        {
+            this.ConfigureRunAndVerify(
+                configure: () =>
+                {
+                    this.Upgrader.SetDryRun(true);
+                    this.Upgrader.InstallerExeLaunched = false;
+                    this.SetUpgradeRing("Slow");
+                    this.Upgrader.PretendNewReleaseAvailableAtRemote(
+                        upgradeVersion: NewerThanLocalVersion,
+                        remoteRing: GitHubUpgrader.GitHubUpgraderConfig.RingType.Slow);
+                },
+                expectedReturn: ReturnCode.Success,
+                expectedOutput: new List<string>
+                {
+                    "Installing Git",
+                    "Installing GVFS",
+                    "Upgrade completed successfully."
+                },
+                expectedErrors: null);
+
+            this.Upgrader.InstallerExeLaunched.ShouldBeFalse();
+        }
+
         protected override ReturnCode RunUpgrade()
         {
             this.orchestrator.Execute();

@@ -15,6 +15,9 @@ namespace GVFS.Common
 {
     public class GitHubUpgrader : IProductUpgrader
     {
+        protected bool dryRun;
+        protected bool noVerify;
+
         private const string GitHubReleaseURL = @"https://api.github.com/repos/microsoft/vfsforgit/releases";
         private const string JSONMediaType = @"application/vnd.github.v3+json";
         private const string UserAgent = @"GVFS_Auto_Upgrader";
@@ -32,6 +35,7 @@ namespace GVFS.Common
             {
                 UpgraderToolName,
                 UpgraderToolConfigFile,
+                "CommandLine.dll",
                 "GVFS.Common.dll",
                 "GVFS.Platform.Windows.dll",
                 "Microsoft.Diagnostics.Tracing.EventSource.dll",
@@ -49,10 +53,14 @@ namespace GVFS.Common
         public GitHubUpgrader(
             string currentVersion,
             ITracer tracer,
-            GitHubUpgraderConfig upgraderConfig)
+            GitHubUpgraderConfig upgraderConfig,
+            bool dryRun = false,
+            bool noVerify = false)
             : this(currentVersion, tracer)
         {
             this.Config = upgraderConfig;
+            this.dryRun = dryRun;
+            this.noVerify = noVerify;
         }
 
         public GitHubUpgrader(string currentVersion, ITracer tracer)
@@ -67,12 +75,12 @@ namespace GVFS.Common
 
         public GitHubUpgraderConfig Config { get; private set; }
 
-        public static GitHubUpgrader Create(ITracer tracer, out string error)
+        public static GitHubUpgrader Create(ITracer tracer, bool dryRun, bool noVerify, out string error)
         {
-            return Create(new LocalGVFSConfig(), tracer, out error);
+            return Create(new LocalGVFSConfig(), tracer, dryRun, noVerify, out error);
         }
 
-        public static GitHubUpgrader Create(LocalGVFSConfig localConfig, ITracer tracer, out string error)
+        public static GitHubUpgrader Create(LocalGVFSConfig localConfig, ITracer tracer, bool dryRun, bool noVerify, out string error)
         {
             GitHubUpgrader upgrader = null;
             GitHubUpgraderConfig gitHubUpgraderConfig = new GitHubUpgraderConfig(tracer, localConfig);
@@ -91,7 +99,9 @@ namespace GVFS.Common
             upgrader = new GitHubUpgrader(
                     ProcessHelper.GetCurrentProcessVersion(),
                     tracer,
-                    gitHubUpgraderConfig);
+                    gitHubUpgraderConfig,
+                    dryRun,
+                    noVerify);
 
             return upgrader;
         }
@@ -323,7 +333,7 @@ namespace GVFS.Common
             }
             catch (WebException webException)
             {
-                errorMessage = "Download error: " + exception.Message;
+                errorMessage = "Download error: " + webException.Message;
                 this.TraceException(webException, nameof(this.TryDownloadAsset), $"Error downloading asset {asset.Name}.");
                 return false;
             }
@@ -457,13 +467,16 @@ namespace GVFS.Common
             string installerArgs;
             if (this.TryGetLocalInstallerPath(assetId, out path, out installerArgs))
             {
-                string logFilePath = GVFSEnlistment.GetNewLogFileName(ProductUpgraderInfo.GetLogDirectoryPath(), Path.GetFileNameWithoutExtension(path));
-                string args = installerArgs + " /Log=" + logFilePath;
-                this.RunInstaller(path, args, out installerExitCode, out error);
-
-                if (installerExitCode != 0 && string.IsNullOrEmpty(error))
+                if (!this.dryRun)
                 {
-                    error = assetId + " installer failed. Error log: " + logFilePath;
+                    string logFilePath = GVFSEnlistment.GetNewLogFileName(ProductUpgraderInfo.GetLogDirectoryPath(), Path.GetFileNameWithoutExtension(path));
+                    string args = installerArgs + " /Log=" + logFilePath;
+                    this.RunInstaller(path, args, out installerExitCode, out error);
+
+                    if (installerExitCode != 0 && string.IsNullOrEmpty(error))
+                    {
+                        error = assetId + " installer failed. Error log: " + logFilePath;
+                    }
                 }
 
                 installerIsRun = true;

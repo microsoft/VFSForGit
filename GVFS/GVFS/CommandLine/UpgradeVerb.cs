@@ -12,6 +12,10 @@ namespace GVFS.CommandLine
     public class UpgradeVerb : GVFSVerb.ForNoEnlistment
     {
         private const string UpgradeVerbName = "upgrade";
+        private const string DryRunOption = "--dry-run";
+        private const string NoVerifyOption = "--no-verify";
+        private const string ConfirmOption = "--confirm";
+
         private ITracer tracer;
         private IProductUpgrader upgrader;
         private InstallerPreRunChecker prerunChecker;
@@ -44,6 +48,20 @@ namespace GVFS.CommandLine
             HelpText = "Pass in this flag to actually install the newest release")]
         public bool Confirmed { get; set; }
 
+        [Option(
+            "dry-run",
+            Default = false,
+            Required = false,
+            HelpText = "Display progress and errors, but don't install GVFS")]
+        public bool DryRun { get; set; }
+
+        [Option(
+            "no-verify",
+            Default = false,
+            Required = false,
+            HelpText = "This parameter is reserved for internal use.")]
+        public bool NoVerify { get; set; }
+
         protected override string VerbName
         {
             get { return UpgradeVerbName; }
@@ -60,6 +78,12 @@ namespace GVFS.CommandLine
 
         private bool TryInitializeUpgrader(out string error)
         {
+            if (this.DryRun && this.Confirmed)
+            {
+                error = $"{DryRunOption} and {ConfirmOption} arguments are not compatible.";
+                return false;
+            }
+
             if (GVFSPlatform.Instance.UnderConstruction.SupportsGVFSUpgrade)
             {
                 error = null;
@@ -75,7 +99,7 @@ namespace GVFS.CommandLine
                     this.prerunChecker = new InstallerPreRunChecker(this.tracer, this.Confirmed ? GVFSConstants.UpgradeVerbMessages.GVFSUpgradeConfirm : GVFSConstants.UpgradeVerbMessages.GVFSUpgrade);
 
                     IProductUpgrader upgrader;
-                    if (ProductUpgraderFactory.TryCreateUpgrader(out upgrader, this.tracer, out error))
+                    if (ProductUpgraderFactory.TryCreateUpgrader(out upgrader, this.tracer, out error, this.DryRun, this.NoVerify))
                     {
                         this.upgrader = upgrader;
                     }
@@ -102,7 +126,7 @@ namespace GVFS.CommandLine
             Version newestVersion = null;
 
             bool isInstallable = this.TryCheckUpgradeInstallable(out cannotInstallReason);
-            if (this.Confirmed && !isInstallable)
+            if (this.ShouldRunUpgraderTool() && !isInstallable)
             {
                 this.ReportInfoToConsole($"Cannot upgrade GVFS on this machine.");
                 this.Output.WriteLine(errorOutputFormat, cannotInstallReason);
@@ -133,7 +157,7 @@ namespace GVFS.CommandLine
                 return true;
             }
 
-            if (this.Confirmed)
+            if (this.ShouldRunUpgraderTool())
             {
                 this.ReportInfoToConsole(message);
 
@@ -230,7 +254,8 @@ namespace GVFS.CommandLine
             using (ITracer activity = this.tracer.StartActivity(nameof(this.TryLaunchUpgradeTool), EventLevel.Informational))
             {
                 Exception exception;
-                if (!this.processLauncher.TryStart(path, out exception))
+                string args = string.Empty + (this.DryRun ? $" {DryRunOption}" : string.Empty) + (this.NoVerify ? $" {NoVerifyOption}" : string.Empty);
+                if (!this.processLauncher.TryStart(path, args, out exception))
                 {
                     if (exception != null)
                     {
@@ -296,6 +321,11 @@ namespace GVFS.CommandLine
             return true;
         }
 
+        private bool ShouldRunUpgraderTool()
+        {
+            return this.Confirmed || this.DryRun;
+        }
+
         private void ReportInfoToConsole(string message, params object[] args)
         {
             this.Output.WriteLine(message, args);
@@ -320,12 +350,13 @@ namespace GVFS.CommandLine
                 get { return this.Process.ExitCode; }
             }
 
-            public virtual bool TryStart(string path, out Exception exception)
+            public virtual bool TryStart(string path, string args, out Exception exception)
             {
                 this.Process.StartInfo = new ProcessStartInfo(path)
                 {
                     UseShellExecute = true,
-                    WindowStyle = ProcessWindowStyle.Normal
+                    WindowStyle = ProcessWindowStyle.Normal,
+                    Arguments = args
                 };
 
                 exception = null;

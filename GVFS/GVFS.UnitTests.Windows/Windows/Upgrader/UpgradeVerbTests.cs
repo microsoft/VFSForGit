@@ -213,6 +213,26 @@ namespace GVFS.UnitTests.Windows.Upgrader
                 });
         }
 
+        [TestCase]
+        public void DryRunLaunchesUpgradeTool()
+        {
+            this.ConfigureRunAndVerify(
+                configure: () =>
+                {
+                    this.upgradeVerb.DryRun = true;
+                    this.SetUpgradeRing("Slow");
+                    this.Upgrader.PretendNewReleaseAvailableAtRemote(
+                        upgradeVersion: NewerThanLocalVersion,
+                        remoteRing: GitHubUpgrader.GitHubUpgraderConfig.RingType.Slow);
+                },
+                expectedReturn: ReturnCode.Success,
+                expectedOutput: new List<string>
+                {
+                    "Installer launched in a new window."
+                },
+                expectedErrors: null);
+        }
+
         protected override ReturnCode RunUpgrade()
         {
             try

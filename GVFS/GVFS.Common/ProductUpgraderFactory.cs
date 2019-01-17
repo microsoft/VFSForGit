@@ -11,9 +11,11 @@ namespace GVFS.Common
         public static bool TryCreateUpgrader(
             out IProductUpgrader newUpgrader,
             ITracer tracer,
-            out string error)
+            out string error,
+            bool dryRun = false,
+            bool noVerify = false)
         {
-            newUpgrader = GitHubUpgrader.Create(tracer, out error);
+            newUpgrader = GitHubUpgrader.Create(tracer, dryRun, noVerify, out error);
             if (newUpgrader == null)
             {
                 tracer.RelatedError($"{nameof(TryCreateUpgrader)}: Could not create upgrader. {error}");
