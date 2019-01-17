@@ -47,6 +47,7 @@ namespace GVFS.Upgrader
                 Keywords.Any);
 
             this.tracer = jsonTracer;
+            this.preRunChecker = new InstallerPreRunChecker(this.tracer, GVFSConstants.UpgradeVerbMessages.GVFSUpgradeConfirm);
             this.output = Console.Out;
             this.input = Console.In;
             this.mount = false;
@@ -143,11 +144,6 @@ namespace GVFS.Upgrader
                 }
 
                 this.upgrader = upgrader;
-            }
-
-            if (this.preRunChecker == null)
-            {
-                this.preRunChecker = new InstallerPreRunChecker(this.tracer, GVFSConstants.UpgradeVerbMessages.GVFSUpgradeConfirm);
             }
 
             errorMessage = null;

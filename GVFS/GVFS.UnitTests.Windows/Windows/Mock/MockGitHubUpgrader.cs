@@ -38,7 +38,7 @@ namespace GVFS.UnitTests.Windows.Mock.Upgrader
 
         public List<string> DownloadedFiles { get; private set; }
         public Dictionary<string, Dictionary<string, string>> InstallerArgs { get; private set; }
-
+        public bool InstallerExeLaunched { get; set; }
         private Release FakeUpgradeRelease { get; set; }
 
         public void SetDryRun(bool dryRun)
@@ -59,11 +59,6 @@ namespace GVFS.UnitTests.Windows.Mock.Upgrader
         public void ResetFailedAction()
         {
             this.failActionTypes = ActionType.Invalid;
-        }
-
-        public bool RunInstallerInvoked()
-        {
-            return this.InstallerArgs.Count > 0;
         }
 
         public void PretendNewReleaseAvailableAtRemote(string upgradeVersion, GitHubUpgraderConfig.RingType remoteRing)
@@ -207,6 +202,7 @@ namespace GVFS.UnitTests.Windows.Mock.Upgrader
             if (fileName.Equals(this.expectedGitAssetName, StringComparison.OrdinalIgnoreCase))
             {
                 this.InstallerArgs.Add("Git", installationInfo);
+                this.InstallerExeLaunched = true;
                 if (this.failActionTypes.HasFlag(ActionType.GitInstall))
                 {
                     exitCode = -1;
@@ -219,6 +215,7 @@ namespace GVFS.UnitTests.Windows.Mock.Upgrader
             if (fileName.Equals(this.expectedGVFSAssetName, StringComparison.OrdinalIgnoreCase))
             {
                 this.InstallerArgs.Add("GVFS", installationInfo);
+                this.InstallerExeLaunched = true;
                 if (this.failActionTypes.HasFlag(ActionType.GVFSInstall))
                 {
                     exitCode = -1;

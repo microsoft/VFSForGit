@@ -238,6 +238,7 @@ namespace GVFS.UnitTests.Windows.Upgrader
                 configure: () =>
                 {
                     this.Upgrader.SetDryRun(true);
+                    this.Upgrader.InstallerExeLaunched = false;
                     this.SetUpgradeRing("Slow");
                     this.Upgrader.PretendNewReleaseAvailableAtRemote(
                         upgradeVersion: NewerThanLocalVersion,
@@ -252,7 +253,7 @@ namespace GVFS.UnitTests.Windows.Upgrader
                 },
                 expectedErrors: null);
 
-            this.Upgrader.RunInstallerInvoked().ShouldBeFalse();
+            this.Upgrader.InstallerExeLaunched.ShouldBeFalse();
         }
 
         protected override ReturnCode RunUpgrade()
