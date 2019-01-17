@@ -73,7 +73,7 @@ namespace GVFS.Common.Tracing
             this.listeners.Add(listener);
 
             // Tell the new listener about others who have previously failed
-            foreach (var kvp in this.failedListeners)
+            foreach (KeyValuePair<EventListener, string> kvp in this.failedListeners)
             {
                 TraceEventMessage failureMessage = CreateListenerFailureMessage(kvp.Key, kvp.Value);
                 listener.TryRecordMessage(failureMessage, out _);
@@ -263,7 +263,22 @@ namespace GVFS.Common.Tracing
             }
         }
 
-        private static TraceEventMessage CreateListenerFailureMessage(EventListener failingListener, string errorMessage)
+        private static TraceEventMessage CreateListenerRecoveryMessage(EventListener recoveredListener)
+        {
+            return new TraceEventMessage
+            {
+                EventName = "TraceEventListenerRecovery",
+                Level = EventLevel.Informational,
+                Keywords = Keywords.Any,
+                Opcode = EventOpcode.Info,
+                Payload = JsonConvert.SerializeObject(new Dictionary<string, string>
+                {
+                    ["EventListener"] = recoveredListener.GetType().Name
+                })
+            };
+        }
+
+        private static TraceEventMessage CreateListenerFailureMessage(EventListener failedListener, string errorMessage)
         {
             return new TraceEventMessage
             {
@@ -273,7 +288,7 @@ namespace GVFS.Common.Tracing
                 Opcode = EventOpcode.Info,
                 Payload = JsonConvert.SerializeObject(new Dictionary<string, string>
                 {
-                    ["EventListener"] = failingListener.GetType().Name,
+                    ["EventListener"] = failedListener.GetType().Name,
                     ["ErrorMessage"] = errorMessage,
                 })
             };
@@ -305,24 +320,53 @@ namespace GVFS.Common.Tracing
             foreach (EventListener listener in this.listeners)
             {
                 string errorMessage;
-                if (!listener.TryRecordMessage(message, out errorMessage))
+                bool? success = listener.TryRecordMessage(message, out errorMessage);
+
+                if (success == null)
+                {
+                    // Listener was disabled for this message type
+                }
+                else if (success == true)
+                {
+                    this.MarkAndLogListenerRecovery(listener);
+                }
+                else
                 {
                     this.MarkAndLogListenerFailure(listener, errorMessage);
                 }
             }
         }
 
-        private void MarkAndLogListenerFailure(EventListener failingListener, string errorMessage)
+        private void MarkAndLogListenerRecovery(EventListener recoveredListener)
         {
-            if (this.failedListeners.ContainsKey(failingListener))
+            if (!this.failedListeners.ContainsKey(recoveredListener))
+            {
+                // This listener has not failed since the last time it was called, so no need to do anything
+                return;
+            }
+
+            this.failedListeners.Remove(recoveredListener);
+
+            TraceEventMessage message = CreateListenerRecoveryMessage(recoveredListener);
+
+            // Only log that the listener has recovered to the other good listeners
+            foreach (EventListener listener in this.listeners.Except(this.failedListeners.Keys))
+            {
+                listener.TryRecordMessage(message, out _);
+            }
+        }
+
+        private void MarkAndLogListenerFailure(EventListener failedListener, string errorMessage)
+        {
+            if (this.failedListeners.ContainsKey(failedListener))
             {
                 // We've already logged that this listener has failed so there is no need to do it again
                 return;
             }
 
-            this.failedListeners.Add(failingListener, errorMessage);
+            this.failedListeners.Add(failedListener, errorMessage);
 
-            TraceEventMessage message = CreateListenerFailureMessage(failingListener, errorMessage);
+            TraceEventMessage message = CreateListenerFailureMessage(failedListener, errorMessage);
 
             // Only log the failure to listeners that have not failed themselves
             foreach (EventListener listener in this.listeners.Except(this.failedListeners.Keys))

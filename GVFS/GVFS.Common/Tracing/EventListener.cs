@@ -18,7 +18,7 @@ namespace GVFS.Common.Tracing
         {
         }
 
-        public bool TryRecordMessage(TraceEventMessage message, out string errorMessage)
+        public bool? TryRecordMessage(TraceEventMessage message, out string errorMessage)
         {
             if (this.IsEnabled(message.Level, message.Keywords))
             {
@@ -34,7 +34,7 @@ namespace GVFS.Common.Tracing
             }
 
             errorMessage = null;
-            return true;
+            return null;
         }
 
         protected abstract void RecordMessageInternal(TraceEventMessage message);

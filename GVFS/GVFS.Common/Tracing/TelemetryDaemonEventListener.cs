@@ -100,18 +100,14 @@ namespace GVFS.Common.Tracing
             if (this.pipeClient == null)
             {
                 var pipe = new NamedPipeClientStream(".", this.pipeName, PipeDirection.Out, PipeOptions.Asynchronous);
-                try
-                {
-                    // Specify a instantaneous timeout because we don't want to hold up the rest of the
-                    // application if the pipe is not available; we will just drop this event.
-                    pipe.Connect(timeout: 0);
-                    this.pipeClient = pipe;
-                }
-                catch (TimeoutException)
-                {
-                    // We can't connect; we will try again with a new pipe on the next message
-                    throw;
-                }
+
+                // Specify a instantaneous timeout because we don't want to hold up the rest of the
+                // application if the pipe is not available; we will just drop this event.
+                // We let any TimeoutExceptions bubble up and will try again with a new pipe on the next SendMessage call.
+                pipe.Connect(timeout: 0);
+
+                // Keep a hold of this connected pipe for future messages
+                this.pipeClient = pipe;
             }
 
             try
