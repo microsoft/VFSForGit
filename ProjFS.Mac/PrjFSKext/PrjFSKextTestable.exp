@@ -1,5 +1,0 @@
-# Symbols to be exported from the kext-in-userspace build; these are the functions the test target wants to be able to call.
-# The reason we currently need this is that dead-code stripping doesn't work without it, so we end up with stacks of link errors.
-
-__Z14ActionBitIsSetii
-

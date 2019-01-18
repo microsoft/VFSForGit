@@ -44,7 +44,7 @@ static inline bool FileFlagsBitIsSet(uint32_t fileFlags, uint32_t bit);
 static inline bool TryGetFileIsFlaggedAsInRoot(vnode_t vnode, vfs_context_t _Nonnull context, bool* flaggedInRoot);
 KEXT_TESTABLE_STATIC_INLINE bool ActionBitIsSet(kauth_action_t action, kauth_action_t mask);
 
-static bool IsFileSystemCrawler(char* procname);
+KEXT_TESTABLE_STATIC bool IsFileSystemCrawler(const char* procname);
 
 static void Sleep(int seconds, void* channel, Mutex* _Nullable mutex);
 static bool TrySendRequestAndWaitForResponse(
@@ -1137,7 +1137,7 @@ KEXT_TESTABLE_STATIC_INLINE bool ActionBitIsSet(kauth_action_t action, kauth_act
     return action & mask;
 }
 
-static bool IsFileSystemCrawler(char* procname)
+KEXT_TESTABLE_STATIC bool IsFileSystemCrawler(const char* procname)
 {
     // These process will crawl the file system and force a full hydration
     if (!strcmp(procname, "mds") ||

@@ -15,4 +15,12 @@
 
 }
 
+- (void)testIsFileSystemCrawler {
+    XCTAssertTrue(IsFileSystemCrawler("mds"));
+    XCTAssertTrue(IsFileSystemCrawler("mds_stores"));
+    XCTAssertFalse(IsFileSystemCrawler("mds_"));
+    XCTAssertTrue(IsFileSystemCrawler("Spotlight"));
+    XCTAssertFalse(IsFileSystemCrawler("spotlight"));
+}
+
 @end
