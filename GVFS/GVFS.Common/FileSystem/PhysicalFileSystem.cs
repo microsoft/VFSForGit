@@ -12,10 +12,6 @@ namespace GVFS.Common.FileSystem
     {
         public const int DefaultStreamBufferSize = 8192;
 
-        // https://msdn.microsoft.com/en-us/library/system.io.filesystemwatcher.internalbuffersize(v=vs.110).aspx:
-        // Max FileSystemWatcher.InternalBufferSize is 64 KB
-        private const int WatcherBufferSize = 64 * 1024;
-
         public static void RecursiveDelete(string path)
         {
             if (!Directory.Exists(path))
