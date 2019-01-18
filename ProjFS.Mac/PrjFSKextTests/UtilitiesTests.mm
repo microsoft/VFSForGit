@@ -1,5 +1,5 @@
 #import <XCTest/XCTest.h>
-#include "../PrjFSKext/Utilities.hpp"
+#include "../PrjFSKext/KauthHandlerTestable.hpp"
 
 @interface UtilitiesTests : XCTestCase
 

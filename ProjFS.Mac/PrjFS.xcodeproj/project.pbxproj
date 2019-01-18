@@ -63,8 +63,10 @@
 		4A08257721E77C4B00E21AFD /* IOKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 4391F8DC21E430EB0008103C /* IOKit.framework */; };
 		4A08257821E77C5400E21AFD /* PrjFSUser.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 4391F8E421E435230008103C /* PrjFSUser.cpp */; };
 		4A08257921E77C7000E21AFD /* org.vfsforgit.prjfs.PrjFSKextLogDaemon.plist in CopyFiles */ = {isa = PBXBuildFile; fileRef = 4A08257021E77BDD00E21AFD /* org.vfsforgit.prjfs.PrjFSKextLogDaemon.plist */; };
-		F5E39C7A21F1118D006D65C2 /* UtilitiesTests.m in Sources */ = {isa = PBXBuildFile; fileRef = F5E39C7921F1118D006D65C2 /* UtilitiesTests.m */; };
-		F5E39C8321F11556006D65C2 /* Utilities.hpp in Headers */ = {isa = PBXBuildFile; fileRef = F5E39C8121F11556006D65C2 /* Utilities.hpp */; };
+		4A8C13A521F23F0200002878 /* KauthHandler.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 4391F89321E42AC40008103C /* KauthHandler.cpp */; };
+		4A8C13A621F2418400002878 /* libPrjFSKextTestable.dylib in Frameworks */ = {isa = PBXBuildFile; fileRef = 4A8C13A021F23EE800002878 /* libPrjFSKextTestable.dylib */; };
+		F5E39C7A21F1118D006D65C2 /* UtilitiesTests.mm in Sources */ = {isa = PBXBuildFile; fileRef = F5E39C7921F1118D006D65C2 /* UtilitiesTests.mm */; };
+		F5E39C8321F11556006D65C2 /* KauthHandlerTestable.hpp in Headers */ = {isa = PBXBuildFile; fileRef = F5E39C8121F11556006D65C2 /* KauthHandlerTestable.hpp */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -95,6 +97,13 @@
 			proxyType = 1;
 			remoteGlobalIDString = 4A08256721E77B7F00E21AFD;
 			remoteInfo = PrjFSKextLogDaemon;
+		};
+		4A8C13A721F241ED00002878 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 4391F87621E4278C0008103C /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 4A8C139F21F23EE800002878;
+			remoteInfo = PrjFSKextTestable;
 		};
 /* End PBXContainerItemProxy section */
 
@@ -163,10 +172,12 @@
 		4A08257021E77BDD00E21AFD /* org.vfsforgit.prjfs.PrjFSKextLogDaemon.plist */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.plist.xml; path = org.vfsforgit.prjfs.PrjFSKextLogDaemon.plist; sourceTree = "<group>"; };
 		4A08257121E77BDD00E21AFD /* PrjFSKextLogDaemon.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = PrjFSKextLogDaemon.cpp; sourceTree = "<group>"; };
 		4A08257221E77BDD00E21AFD /* Info.plist */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		4A8C13A021F23EE800002878 /* libPrjFSKextTestable.dylib */ = {isa = PBXFileReference; explicitFileType = archive.ar; includeInIndex = 0; path = libPrjFSKextTestable.dylib; sourceTree = BUILT_PRODUCTS_DIR; };
+		4A8C13A921F2464400002878 /* PrjFSKextTestable.exp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.exports; path = PrjFSKextTestable.exp; sourceTree = "<group>"; };
 		F5E39C7721F1118D006D65C2 /* PrjFSKextTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = PrjFSKextTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
-		F5E39C7921F1118D006D65C2 /* UtilitiesTests.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = UtilitiesTests.m; sourceTree = "<group>"; };
+		F5E39C7921F1118D006D65C2 /* UtilitiesTests.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = UtilitiesTests.mm; sourceTree = "<group>"; };
 		F5E39C7B21F1118D006D65C2 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
-		F5E39C8121F11556006D65C2 /* Utilities.hpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.h; path = Utilities.hpp; sourceTree = "<group>"; };
+		F5E39C8121F11556006D65C2 /* KauthHandlerTestable.hpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.h; path = KauthHandlerTestable.hpp; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -204,10 +215,18 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		4A8C139E21F23EE800002878 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		F5E39C7421F1118D006D65C2 /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				4A8C13A621F2418400002878 /* libPrjFSKextTestable.dylib in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -247,6 +266,7 @@
 				4391F8F421E4355C0008103C /* prjfs-log */,
 				4A08256821E77B7F00E21AFD /* PrjFSKextLogDaemon */,
 				F5E39C7721F1118D006D65C2 /* PrjFSKextTests.xctest */,
+				4A8C13A021F23EE800002878 /* libPrjFSKextTestable.dylib */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -257,6 +277,7 @@
 				4391F88F21E42AC40008103C /* Info.plist */,
 				4391F89321E42AC40008103C /* KauthHandler.cpp */,
 				4391F8A421E42AC50008103C /* KauthHandler.hpp */,
+				F5E39C8121F11556006D65C2 /* KauthHandlerTestable.hpp */,
 				4391F89021E42AC40008103C /* kernel-header-wrappers */,
 				4391F89121E42AC40008103C /* KextLog.cpp */,
 				4391F89221E42AC40008103C /* KextLog.hpp */,
@@ -280,7 +301,7 @@
 				4391F89421E42AC40008103C /* VirtualizationRoots.hpp */,
 				4391F8A121E42AC50008103C /* VnodeUtilities.cpp */,
 				4391F8A221E42AC50008103C /* VnodeUtilities.hpp */,
-				F5E39C8121F11556006D65C2 /* Utilities.hpp */,
+				4A8C13A921F2464400002878 /* PrjFSKextTestable.exp */,
 			);
 			path = PrjFSKext;
 			sourceTree = "<group>";
@@ -319,7 +340,7 @@
 		F5E39C7821F1118D006D65C2 /* PrjFSKextTests */ = {
 			isa = PBXGroup;
 			children = (
-				F5E39C7921F1118D006D65C2 /* UtilitiesTests.m */,
+				F5E39C7921F1118D006D65C2 /* UtilitiesTests.mm */,
 				F5E39C7B21F1118D006D65C2 /* Info.plist */,
 			);
 			path = PrjFSKextTests;
@@ -343,7 +364,7 @@
 				4391F8BC21E42AC50008103C /* VnodeUtilities.hpp in Headers */,
 				4391F8BD21E42AC50008103C /* PerformanceTracing.hpp in Headers */,
 				4391F8B921E42AC50008103C /* PrjFSProviderUserClient.hpp in Headers */,
-				F5E39C8321F11556006D65C2 /* Utilities.hpp in Headers */,
+				F5E39C8321F11556006D65C2 /* KauthHandlerTestable.hpp in Headers */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -353,6 +374,13 @@
 			files = (
 				4391F8EA21E435230008103C /* PrjFSLib.h in Headers */,
 				4391F8EE21E435230008103C /* PrjFSUser.hpp in Headers */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		4A8C139C21F23EE800002878 /* Headers */ = {
+			isa = PBXHeadersBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -429,6 +457,23 @@
 			productReference = 4A08256821E77B7F00E21AFD /* PrjFSKextLogDaemon */;
 			productType = "com.apple.product-type.tool";
 		};
+		4A8C139F21F23EE800002878 /* PrjFSKextTestable */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 4A8C13A421F23EE800002878 /* Build configuration list for PBXNativeTarget "PrjFSKextTestable" */;
+			buildPhases = (
+				4A8C139C21F23EE800002878 /* Headers */,
+				4A8C139D21F23EE800002878 /* Sources */,
+				4A8C139E21F23EE800002878 /* Frameworks */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = PrjFSKextTestable;
+			productName = PrjFSKextTestable;
+			productReference = 4A8C13A021F23EE800002878 /* libPrjFSKextTestable.dylib */;
+			productType = "com.apple.product-type.library.static";
+		};
 		F5E39C7621F1118D006D65C2 /* PrjFSKextTests */ = {
 			isa = PBXNativeTarget;
 			buildConfigurationList = F5E39C7F21F1118D006D65C2 /* Build configuration list for PBXNativeTarget "PrjFSKextTests" */;
@@ -440,6 +485,7 @@
 			buildRules = (
 			);
 			dependencies = (
+				4A8C13A821F241ED00002878 /* PBXTargetDependency */,
 			);
 			name = PrjFSKextTests;
 			productName = PrjFSKextTests;
@@ -470,6 +516,9 @@
 					4A08256721E77B7F00E21AFD = {
 						CreatedOnToolsVersion = 9.4.1;
 					};
+					4A8C139F21F23EE800002878 = {
+						CreatedOnToolsVersion = 10.1;
+					};
 					F5E39C7621F1118D006D65C2 = {
 						CreatedOnToolsVersion = 10.1;
 					};
@@ -493,6 +542,7 @@
 				4A08256721E77B7F00E21AFD /* PrjFSKextLogDaemon */,
 				4391F90021E436210008103C /* Build All */,
 				F5E39C7621F1118D006D65C2 /* PrjFSKextTests */,
+				4A8C139F21F23EE800002878 /* PrjFSKextTestable */,
 			);
 		};
 /* End PBXProject section */
@@ -580,11 +630,19 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		4A8C139D21F23EE800002878 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				4A8C13A521F23F0200002878 /* KauthHandler.cpp in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		F5E39C7321F1118D006D65C2 /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				F5E39C7A21F1118D006D65C2 /* UtilitiesTests.m in Sources */,
+				F5E39C7A21F1118D006D65C2 /* UtilitiesTests.mm in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -610,6 +668,11 @@
 			isa = PBXTargetDependency;
 			target = 4A08256721E77B7F00E21AFD /* PrjFSKextLogDaemon */;
 			targetProxy = 4A08257421E77BEB00E21AFD /* PBXContainerItemProxy */;
+		};
+		4A8C13A821F241ED00002878 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 4A8C139F21F23EE800002878 /* PrjFSKextTestable */;
+			targetProxy = 4A8C13A721F241ED00002878 /* PBXContainerItemProxy */;
 		};
 /* End PBXTargetDependency section */
 
@@ -996,19 +1059,82 @@
 			};
 			name = "Profiling(Release)";
 		};
+		4A8C13A121F23EE800002878 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CLANG_MODULES_AUTOLINK = NO;
+				DEAD_CODE_STRIPPING = YES;
+				EXECUTABLE_EXTENSION = dylib;
+				EXECUTABLE_PREFIX = lib;
+				EXPORTED_SYMBOLS_FILE = PrjFSKext/PrjFSKextTestable.exp;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					KEXT_UNIT_TESTING,
+					"DEBUG=1",
+				);
+				LINK_WITH_STANDARD_LIBRARIES = NO;
+				MACH_O_TYPE = mh_dylib;
+				OTHER_CFLAGS = "-ffreestanding";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SKIP_INSTALL = YES;
+				STRIP_INSTALLED_PRODUCT = NO;
+				SYSTEM_HEADER_SEARCH_PATHS = "$(SDKROOT)/System/Library/Frameworks/Kernel.framework/Headers/";
+			};
+			name = Debug;
+		};
+		4A8C13A221F23EE800002878 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CLANG_MODULES_AUTOLINK = NO;
+				DEAD_CODE_STRIPPING = YES;
+				EXECUTABLE_EXTENSION = dylib;
+				EXECUTABLE_PREFIX = lib;
+				EXPORTED_SYMBOLS_FILE = PrjFSKext/PrjFSKextTestable.exp;
+				GCC_PREPROCESSOR_DEFINITIONS = KEXT_UNIT_TESTING;
+				LINK_WITH_STANDARD_LIBRARIES = NO;
+				MACH_O_TYPE = mh_dylib;
+				OTHER_CFLAGS = "-ffreestanding";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SKIP_INSTALL = YES;
+				STRIP_INSTALLED_PRODUCT = NO;
+				SYSTEM_HEADER_SEARCH_PATHS = "$(SDKROOT)/System/Library/Frameworks/Kernel.framework/Headers/";
+			};
+			name = Release;
+		};
+		4A8C13A321F23EE800002878 /* Profiling(Release) */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CLANG_MODULES_AUTOLINK = NO;
+				DEAD_CODE_STRIPPING = YES;
+				EXECUTABLE_EXTENSION = dylib;
+				EXECUTABLE_PREFIX = lib;
+				EXPORTED_SYMBOLS_FILE = PrjFSKext/PrjFSKextTestable.exp;
+				GCC_PREPROCESSOR_DEFINITIONS = KEXT_UNIT_TESTING;
+				LINK_WITH_STANDARD_LIBRARIES = NO;
+				MACH_O_TYPE = mh_dylib;
+				OTHER_CFLAGS = "-ffreestanding";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SKIP_INSTALL = YES;
+				STRIP_INSTALLED_PRODUCT = NO;
+				SYSTEM_HEADER_SEARCH_PATHS = "$(SDKROOT)/System/Library/Frameworks/Kernel.framework/Headers/";
+			};
+			name = "Profiling(Release)";
+		};
 		F5E39C7C21F1118D006D65C2 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
-				DEVELOPMENT_TEAM = UBF8T346G9;
+				DEAD_CODE_STRIPPING = YES;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					KEXT_UNIT_TESTING,
+					"DEBUG=1",
+				);
 				INFOPLIST_FILE = PrjFSKextTests/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 					"@loader_path/../Frameworks",
 				);
-				MACOSX_DEPLOYMENT_TARGET = 10.14;
 				PRODUCT_BUNDLE_IDENTIFIER = io.gvfs.PrjFSKextTests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 			};
@@ -1019,14 +1145,14 @@
 			buildSettings = {
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
-				DEVELOPMENT_TEAM = UBF8T346G9;
+				DEAD_CODE_STRIPPING = YES;
+				GCC_PREPROCESSOR_DEFINITIONS = KEXT_UNIT_TESTING;
 				INFOPLIST_FILE = PrjFSKextTests/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 					"@loader_path/../Frameworks",
 				);
-				MACOSX_DEPLOYMENT_TARGET = 10.14;
 				PRODUCT_BUNDLE_IDENTIFIER = io.gvfs.PrjFSKextTests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 			};
@@ -1037,14 +1163,14 @@
 			buildSettings = {
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
-				DEVELOPMENT_TEAM = UBF8T346G9;
+				DEAD_CODE_STRIPPING = YES;
+				GCC_PREPROCESSOR_DEFINITIONS = KEXT_UNIT_TESTING;
 				INFOPLIST_FILE = PrjFSKextTests/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 					"@loader_path/../Frameworks",
 				);
-				MACOSX_DEPLOYMENT_TARGET = 10.14;
 				PRODUCT_BUNDLE_IDENTIFIER = io.gvfs.PrjFSKextTests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 			};
@@ -1109,6 +1235,16 @@
 				4A08256C21E77B7F00E21AFD /* Debug */,
 				4A08256D21E77B7F00E21AFD /* Release */,
 				4A08256E21E77B7F00E21AFD /* Profiling(Release) */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		4A8C13A421F23EE800002878 /* Build configuration list for PBXNativeTarget "PrjFSKextTestable" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				4A8C13A121F23EE800002878 /* Debug */,
+				4A8C13A221F23EE800002878 /* Release */,
+				4A8C13A321F23EE800002878 /* Profiling(Release) */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
