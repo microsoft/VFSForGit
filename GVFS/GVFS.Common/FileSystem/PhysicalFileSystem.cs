@@ -260,6 +260,51 @@ namespace GVFS.Common.FileSystem
             }
         }
 
+        public bool TryCreateDirectory(string path, out Exception exception)
+        {
+            try
+            {
+                Directory.CreateDirectory(path);
+            }
+            catch (Exception e) when (e is IOException ||
+                                      e is UnauthorizedAccessException ||
+                                      e is ArgumentException ||
+                                      e is NotSupportedException)
+            {
+                exception = e;
+                return false;
+            }
+
+            exception = null;
+            return true;
+        }
+
+        /// <summary>
+        /// Recursively deletes a directory and all contained contents.
+        /// </summary>
+        public bool TryDeleteDirectory(string path, out Exception exception)
+        {
+            try
+            {
+                this.DeleteDirectory(path);
+            }
+            catch (DirectoryNotFoundException)
+            {
+                // The directory does not exist - follow the
+                // convention of this class and report success
+            }
+            catch (Exception e) when (e is IOException ||
+                                      e is UnauthorizedAccessException ||
+                                      e is ArgumentException)
+            {
+                exception = e;
+                return false;
+            }
+
+            exception = null;
+            return true;
+        }
+
         /// <summary>
         /// Attempts to delete a file
         /// </summary>
