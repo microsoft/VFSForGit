@@ -22,7 +22,7 @@ namespace GVFS.Common
         private const string JSONMediaType = @"application/vnd.github.v3+json";
         private const string UserAgent = @"GVFS_Auto_Upgrader";
         private const string CommonInstallerArgs = "/VERYSILENT /CLOSEAPPLICATIONS /SUPPRESSMSGBOXES /NORESTART";
-        private const string GVFSInstallerArgs = CommonInstallerArgs + " /MOUNTREPOS=false";
+        private const string GVFSInstallerArgs = CommonInstallerArgs + " /REMOUNTREPOS=false";
         private const string GitInstallerArgs = CommonInstallerArgs + " /ALLOWDOWNGRADE=1";
         private const string GitAssetId = "Git";
         private const string GVFSAssetId = "GVFS";
