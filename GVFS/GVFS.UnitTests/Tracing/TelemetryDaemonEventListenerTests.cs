@@ -20,7 +20,7 @@ namespace GVFS.UnitTests.Tracing
             const string mountId = "test-mountId";
             const string payload = "test-payload";
 
-            var expectedDict = new Dictionary<string, object>
+            Dictionary<string, object> expectedDict = new Dictionary<string, object>
             {
                 ["version"] = vfsVersion,
                 ["providerName"] = providerName,
@@ -35,7 +35,7 @@ namespace GVFS.UnitTests.Tracing
                 },
             };
 
-            var message = new TelemetryDaemonEventListener.TelemetryMessage
+            TelemetryDaemonEventListener.TelemetryMessage message = new TelemetryDaemonEventListener.TelemetryMessage
             {
                 Version = vfsVersion,
                 ProviderName = providerName,
@@ -52,7 +52,7 @@ namespace GVFS.UnitTests.Tracing
 
             string messageJson = message.ToJson();
 
-            var actualDict = JsonConvert.DeserializeObject<Dictionary<string, object>>(messageJson);
+            Dictionary<string, object> actualDict = JsonConvert.DeserializeObject<Dictionary<string, object>>(messageJson);
 
             Assert.AreEqual(expectedDict.Count, actualDict.Count);
             Assert.AreEqual(expectedDict["version"], actualDict["version"]);
@@ -61,8 +61,8 @@ namespace GVFS.UnitTests.Tracing
             Assert.AreEqual(expectedDict["eventLevel"], actualDict["eventLevel"]);
             Assert.AreEqual(expectedDict["eventOpcode"], actualDict["eventOpcode"]);
 
-            var expectedPayloadDict = (Dictionary<string, string>)expectedDict["payload"];
-            var actualPayloadDict = JsonConvert.DeserializeObject<Dictionary<string, string>>(actualDict["payload"].ToString());
+            Dictionary<string, string> expectedPayloadDict = (Dictionary<string, string>)expectedDict["payload"];
+            Dictionary<string, string> actualPayloadDict = JsonConvert.DeserializeObject<Dictionary<string, string>>(actualDict["payload"].ToString());
             Assert.AreEqual(expectedPayloadDict.Count, actualPayloadDict.Count);
             Assert.AreEqual(expectedPayloadDict["enlistmentId"], actualPayloadDict["enlistmentId"]);
             Assert.AreEqual(expectedPayloadDict["mountId"], actualPayloadDict["mountId"]);

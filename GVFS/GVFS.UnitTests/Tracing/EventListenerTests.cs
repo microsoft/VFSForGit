@@ -12,8 +12,8 @@ namespace GVFS.UnitTests.Tracing
         {
             string expectedErrorMessage = "test error message";
 
-            var message = new TraceEventMessage { Level = EventLevel.Error, Keywords = Keywords.None };
-            var listener = new TestEventListener(EventLevel.Informational, Keywords.Any)
+            TraceEventMessage message = new TraceEventMessage { Level = EventLevel.Error, Keywords = Keywords.None };
+            TestEventListener listener = new TestEventListener(EventLevel.Informational, Keywords.Any)
             {
                 RecordMessageInternalCallback = _ => throw new Exception(expectedErrorMessage)
             };
@@ -28,8 +28,8 @@ namespace GVFS.UnitTests.Tracing
         [TestCase]
         public void EventListener_TryRecordMessage_ListenerNotEnabledForMessage_ReturnsNull()
         {
-            var message = new TraceEventMessage { Level = EventLevel.Informational, Keywords = Keywords.None };
-            var listener = new TestEventListener(EventLevel.Critical, Keywords.Telemetry);
+            TraceEventMessage message = new TraceEventMessage { Level = EventLevel.Informational, Keywords = Keywords.None };
+            TestEventListener listener = new TestEventListener(EventLevel.Critical, Keywords.Telemetry);
 
             string actualErrorMessage;
             bool? actualResult = listener.TryRecordMessage(message, out actualErrorMessage);
@@ -41,8 +41,8 @@ namespace GVFS.UnitTests.Tracing
         [TestCase]
         public void EventListener_TryRecordMessage_MessageSentSuccessfully_ReturnsTrue()
         {
-            var message = new TraceEventMessage { Level = EventLevel.Error, Keywords = Keywords.None };
-            var listener = new TestEventListener(EventLevel.Informational, Keywords.Any);
+            TraceEventMessage message = new TraceEventMessage { Level = EventLevel.Error, Keywords = Keywords.None };
+            TestEventListener listener = new TestEventListener(EventLevel.Informational, Keywords.Any);
 
             string actualErrorMessage;
             bool? actualResult = listener.TryRecordMessage(message, out actualErrorMessage);
