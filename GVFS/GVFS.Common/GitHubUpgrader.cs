@@ -239,7 +239,7 @@ namespace GVFS.Common
             string rootDirectoryPath = ProductUpgraderInfo.GetUpgradesDirectoryPath();
             string toolsDirectoryPath = Path.Combine(rootDirectoryPath, ToolsDirectory);
             Exception exception;
-            if (TryCreateDirectory(toolsDirectoryPath, out exception))
+            if (this.fileSystem.TryCreateDirectory(toolsDirectoryPath, out exception))
             {
                 string currentPath = ProcessHelper.GetCurrentProcessLocation();
                 error = null;
@@ -316,7 +316,7 @@ namespace GVFS.Common
 
             string downloadPath = ProductUpgraderInfo.GetAssetDownloadsPath();
             Exception exception;
-            if (!GitHubUpgrader.TryCreateDirectory(downloadPath, out exception))
+            if (!this.fileSystem.TryCreateDirectory(downloadPath, out exception))
             {
                 errorMessage = exception.Message;
                 this.TraceException(exception, nameof(this.TryDownloadAsset), $"Error creating download directory {downloadPath}.");
@@ -380,27 +380,6 @@ namespace GVFS.Common
 
             exitCode = processResult.ExitCode;
             error = processResult.Errors;
-        }
-
-        private static bool TryCreateDirectory(string path, out Exception exception)
-        {
-            try
-            {
-                Directory.CreateDirectory(path);
-            }
-            catch (IOException e)
-            {
-                exception = e;
-                return false;
-            }
-            catch (UnauthorizedAccessException e)
-            {
-                exception = e;
-                return false;
-            }
-
-            exception = null;
-            return true;
         }
 
         private bool TryGetGitVersion(out GitVersion gitVersion, out string error)
