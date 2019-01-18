@@ -25,6 +25,9 @@ namespace GVFS.Common.Tracing
                 try
                 {
                     this.RecordMessageInternal(message);
+
+                    errorMessage = null;
+                    return true;
                 }
                 catch (Exception ex)
                 {

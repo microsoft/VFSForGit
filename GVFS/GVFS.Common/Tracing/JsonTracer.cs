@@ -322,17 +322,17 @@ namespace GVFS.Common.Tracing
                 string errorMessage;
                 bool? success = listener.TryRecordMessage(message, out errorMessage);
 
-                if (success == null)
+                // Try to mark success or failure for this listener only if it was enabled for this message type
+                if (success.HasValue)
                 {
-                    // Listener was disabled for this message type
-                }
-                else if (success == true)
-                {
-                    this.MarkAndLogListenerRecovery(listener);
-                }
-                else
-                {
-                    this.MarkAndLogListenerFailure(listener, errorMessage);
+                    if (success == true)
+                    {
+                        this.MarkAndLogListenerRecovery(listener);
+                    }
+                    else
+                    {
+                        this.MarkAndLogListenerFailure(listener, errorMessage);
+                    }
                 }
             }
         }
