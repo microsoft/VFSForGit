@@ -154,7 +154,7 @@ namespace GVFS.UnitTests.Windows.Upgrader
 
             string args;
             gitInstallerInfo.TryGetValue("Args", out args).ShouldBeTrue();
-            args.ShouldContain(new string[] { "/VERYSILENT", "/CLOSEAPPLICATIONS", "/SUPPRESSMSGBOXES", "/NORESTART", "/Log", "/MOUNTREPOS=false" });
+            args.ShouldContain(new string[] { "/VERYSILENT", "/CLOSEAPPLICATIONS", "/SUPPRESSMSGBOXES", "/NORESTART", "/Log", "/REMOUNTREPOS=false" });
         }
 
         [TestCase]
