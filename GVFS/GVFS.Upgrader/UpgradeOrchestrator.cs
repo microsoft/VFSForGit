@@ -295,7 +295,7 @@ namespace GVFS.Upgrader
                     return true;
                 }
 
-                activity.RelatedInfo("Successfully checked for new release. {0}", newestVersion);
+                activity.RelatedInfo("New release found - latest available version: {0}", newestVersion);
             }
 
             return true;
