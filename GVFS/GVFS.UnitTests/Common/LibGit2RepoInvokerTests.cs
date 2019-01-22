@@ -22,6 +22,8 @@ namespace GVFS.UnitTests.Common
         [SetUp]
         public void Setup()
         {
+            this.invoker?.Dispose();
+
             this.tracer = new MockTracer();
             this.invoker = new LibGit2RepoInvoker(this.tracer, this.CreateRepo, this.disposalPeriod);
             this.numConstructors = 0;
