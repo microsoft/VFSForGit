@@ -101,7 +101,6 @@ VirtualizationRootHandle VnodeCache_FindRootForVnode(
         {
             if (vnode == s_entries[cacheIndex].vnode)
             {
-                // TODO(cache): Also check that the root's vrgid matches what's in the cache
                 if (invalidateEntry || vnodeVid != s_entries[cacheIndex].vid)
                 {
                     perfTracer->IncrementCount(cacheMissCounter, true /*ignoreSampling*/);
@@ -166,7 +165,6 @@ VirtualizationRootHandle VnodeCache_FindRootForVnode(
                     else
                     {
                         // We found an existing entry, ensure it's still valid
-                        // TODO(cache): Also check that the root's vrgid matches what's in the cache
                         if (invalidateEntry || vnodeVid != s_entries[insertionIndex].vid)
                         {
                             UpdateIndexEntryToLatest_Locked(
@@ -284,6 +282,4 @@ static void UpdateIndexEntryToLatest_Locked(
         cacheMissFallbackFunctionInnerLoopCounter,
         vnode,
         vnodeFsidInode);
-
-    // TODO(cache): Also set the vrgid
 }
