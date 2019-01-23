@@ -29,6 +29,10 @@ namespace GVFS.Common
         private const string GitInstallerFileNamePrefix = "Git-";
         private const int RepoMountFailureExitCode = 17;
         private const string ToolsDirectory = "Tools";
+        private const string GVFSSigner = "Microsoft Corporation";
+        private const string GVFSCertIssuer = "Microsoft Code Signing PCA";
+        private const string GitSigner = "Johannes Schindelin";
+        private const string GitCertIssuer = "COMODO RSA Code Signing CA";
         private static readonly string UpgraderToolName = GVFSPlatform.Instance.Constants.GVFSUpgraderExecutableName;
         private static readonly string UpgraderToolConfigFile = UpgraderToolName + ".config";
         private static readonly string[] UpgraderToolAndLibs =
@@ -374,12 +378,33 @@ namespace GVFS.Common
             return false;
         }
 
-        protected virtual void RunInstaller(string path, string args, out int exitCode, out string error)
+        protected virtual void RunInstaller(string path, string args, string certCN, string issuerCN, out int exitCode, out string error)
         {
-            ProcessResult processResult = ProcessHelper.Run(path, args);
+            using (Stream stream = this.fileSystem.OpenFileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read, false))
+            {
+                string expectedCNPrefix = $"CN={certCN}, ";
+                string expectecIssuerCNPrefix = $"CN={issuerCN}";
+                string subject;
+                string issuer;
+                if (!GVFSPlatform.Instance.TryVerifyAuthenticodeSignature(path, out subject, out issuer, out error))
+                {
+                    exitCode = -1;
+                    return;
+                }
 
-            exitCode = processResult.ExitCode;
-            error = processResult.Errors;
+                if (!subject.StartsWith(expectedCNPrefix) || !issuer.StartsWith(expectecIssuerCNPrefix))
+                {
+                    exitCode = -1;
+                    error = $"Installer {path} is signed by unknown signer.";
+                    this.tracer.RelatedError($"Installer {path} is signed by unknown signer. Signed by {subject}, issued by {issuer} expected signer is {certCN}, issuer {issuerCN}.");
+                    return;
+                }
+
+                ProcessResult processResult = ProcessHelper.Run(path, args);
+
+                exitCode = processResult.ExitCode;
+                error = processResult.Errors;
+            }
         }
 
         private bool TryGetGitVersion(out GitVersion gitVersion, out string error)
@@ -450,7 +475,26 @@ namespace GVFS.Common
                 {
                     string logFilePath = GVFSEnlistment.GetNewLogFileName(ProductUpgraderInfo.GetLogDirectoryPath(), Path.GetFileNameWithoutExtension(path));
                     string args = installerArgs + " /Log=" + logFilePath;
-                    this.RunInstaller(path, args, out installerExitCode, out error);
+                    string certCN = null;
+                    string issuerCN = null;
+                    switch (assetId)
+                    {
+                        case GVFSAssetId:
+                        {
+                            certCN = GVFSSigner;
+                            issuerCN = GVFSCertIssuer;
+                            break;
+                        }
+
+                        case GitAssetId:
+                        {
+                            certCN = GitSigner;
+                            issuerCN = GitCertIssuer;
+                            break;
+                        }
+                    }
+
+                    this.RunInstaller(path, args, certCN, issuerCN, out installerExitCode, out error);
 
                     if (installerExitCode != 0 && string.IsNullOrEmpty(error))
                     {

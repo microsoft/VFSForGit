@@ -34,6 +34,8 @@ namespace GVFS.UnitTests.Windows.Mock.Upgrader
             GVFSInstall = 0x20,
             GVFSCleanup = 0x40,
             GitCleanup = 0x80,
+            GitAuthenticodeCheck = 0x100,
+            GVFSAuthenticodeCheck = 0x200
         }
 
         public List<string> DownloadedFiles { get; private set; }
@@ -189,7 +191,7 @@ namespace GVFS.UnitTests.Windows.Mock.Upgrader
             return true;
         }
 
-        protected override void RunInstaller(string path, string args, out int exitCode, out string error)
+        protected override void RunInstaller(string path, string args, string certCN, string issuerCN, out int exitCode, out string error)
         {
             string fileName = Path.GetFileName(path);
             Dictionary<string, string> installationInfo = new Dictionary<string, string>();
@@ -209,6 +211,12 @@ namespace GVFS.UnitTests.Windows.Mock.Upgrader
                     error = "Git installation failed";
                 }
 
+                if (this.failActionTypes.HasFlag(ActionType.GitAuthenticodeCheck))
+                {
+                    exitCode = -1;
+                    error = "The contents of file C:\\ProgramData\\GVFS\\GVFS.Upgrade\\Tools\\Git-2.17.1.gvfs.2.1.4.g4385455-64-bit might have been changed by an unauthorized user or process, because the hash of the file does not match the hash stored in the digital signature. The script cannot run on the specified system. For more information, run Get-Help about_Signing.";
+                }
+
                 return;
             }
 
@@ -220,6 +228,12 @@ namespace GVFS.UnitTests.Windows.Mock.Upgrader
                 {
                     exitCode = -1;
                     error = "GVFS installation failed";
+                }
+
+                if (this.failActionTypes.HasFlag(ActionType.GVFSAuthenticodeCheck))
+                {
+                    exitCode = -1;
+                    error = "The contents of file C:\\ProgramData\\GVFS\\GVFS.Upgrade\\Tools\\SetupGVFS.1.0.18297.1.exe might have been changed by an unauthorized user or process, because the hash of the file does not match the hash stored in the digital signature. The script cannot run on the specified system. For more information, run Get-Help about_Signing.";
                 }
 
                 return;

@@ -144,6 +144,25 @@ namespace GVFS.UnitTests.Windows.Upgrader
         }
 
         [TestCase]
+        public void GitInstallerAuthenticodeError()
+        {
+            this.ConfigureRunAndVerify(
+                configure: () =>
+                {
+                    this.Upgrader.SetFailOnAction(MockGitHubUpgrader.ActionType.GitAuthenticodeCheck);
+                },
+                expectedReturn: ReturnCode.GenericError,
+                expectedOutput: new List<string>
+                {
+                    "hash of the file does not match the hash stored in the digital signature"
+                },
+                expectedErrors: new List<string>
+                {
+                    "hash of the file does not match the hash stored in the digital signature"
+                });
+        }
+
+        [TestCase]
         public void GVFSInstallationArgs()
         {
             this.RunUpgrade().ShouldEqual(ReturnCode.Success);
@@ -173,6 +192,25 @@ namespace GVFS.UnitTests.Windows.Upgrader
                 expectedErrors: new List<string>
                 {
                     "GVFS installation failed"
+                });
+        }
+
+        [TestCase]
+        public void GVFSInstallerAuthenticodeError()
+        {
+            this.ConfigureRunAndVerify(
+                configure: () =>
+                {
+                    this.Upgrader.SetFailOnAction(MockGitHubUpgrader.ActionType.GVFSAuthenticodeCheck);
+                },
+                expectedReturn: ReturnCode.GenericError,
+                expectedOutput: new List<string>
+                {
+                    "hash of the file does not match the hash stored in the digital signature"
+                },
+                expectedErrors: new List<string>
+                {
+                    "hash of the file does not match the hash stored in the digital signature"
                 });
         }
 
