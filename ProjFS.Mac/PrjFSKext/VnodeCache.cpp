@@ -25,8 +25,7 @@ struct VnodeCacheEntry
     VirtualizationRootHandle virtualizationRoot;
 };
 
-// Number of VnodeCacheEntry that can be stored in entries
-static uint32_t s_capacity;
+static uint32_t s_entriesCapacity;
 static VnodeCacheEntry* s_entries;
 static RWLock s_entriesLock;
 
@@ -43,23 +42,23 @@ kern_return_t VnodeCache_Init()
         return KERN_FAILURE;
     }
 
-    s_capacity = desiredvnodes * 2;
-    if (s_capacity <= 0)
+    s_entriesCapacity = desiredvnodes * 2;
+    if (s_entriesCapacity <= 0)
     {
         return KERN_FAILURE;
     }
     
-    s_entries = Memory_AllocArray<VnodeCacheEntry>(s_capacity);
+    s_entries = Memory_AllocArray<VnodeCacheEntry>(s_entriesCapacity);
     if (nullptr == s_entries)
     {
-        s_capacity = 0;
+        s_entriesCapacity = 0;
         RWLock_FreeMemory(&s_entriesLock);
         return KERN_RESOURCE_SHORTAGE;;
     }
     
     VnodeCache_InvalidateCache();
     
-    PerfTracing_RecordSample(PrjFSPerfCounter_CacheCapacity, 0, s_capacity);
+    PerfTracing_RecordSample(PrjFSPerfCounter_CacheCapacity, 0, s_entriesCapacity);
     
     return KERN_SUCCESS;
 }
@@ -73,9 +72,9 @@ void VnodeCache_Cleanup()
 
     if (nullptr != s_entries)
     {
-        Memory_FreeArray<VnodeCacheEntry>(s_entries, s_capacity);
+        Memory_FreeArray<VnodeCacheEntry>(s_entries, s_entriesCapacity);
         s_entries = nullptr;
-        s_capacity = 0;
+        s_entriesCapacity = 0;
     }
 }
 
@@ -223,7 +222,7 @@ void VnodeCache_InvalidateCache()
 {
     RWLock_AcquireExclusive(s_entriesLock);
     
-    memset(s_entries, 0, s_capacity * sizeof(VnodeCacheEntry));
+    memset(s_entries, 0, s_entriesCapacity * sizeof(VnodeCacheEntry));
     
     RWLock_ReleaseExclusive(s_entriesLock);
 }
@@ -231,7 +230,7 @@ void VnodeCache_InvalidateCache()
 static inline uintptr_t HashVnode(vnode_t vnode)
 {
     uintptr_t vnodeAddress = reinterpret_cast<uintptr_t>(vnode);
-    return (vnodeAddress >> 3) % s_capacity;
+    return (vnodeAddress >> 3) % s_entriesCapacity;
 }
 
 static bool TryFindVnodeIndex_Locked(vnode_t vnode, uintptr_t startingIndex, /* out */  uintptr_t& cacheIndex)
@@ -254,7 +253,7 @@ static bool TryFindVnodeIndex_Locked(vnode_t vnode, uintptr_t startingIndex, uin
             return true;
         }
     
-        cacheIndex = (cacheIndex + 1) % s_capacity;
+        cacheIndex = (cacheIndex + 1) % s_entriesCapacity;
         if (cacheIndex == stoppingIndex)
         {
             // Looped through the entire cache and didn't find an empty slot or the vnode
