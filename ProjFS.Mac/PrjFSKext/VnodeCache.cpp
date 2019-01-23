@@ -17,7 +17,7 @@ VnodeCache::~VnodeCache()
 
 bool VnodeCache::TryInitialize()
 {
-    if (RWLock_IsValid(this->entriesLock))
+    if (RWLock_IsValid(this->entriesLock))	
     {
         return false;
     }
@@ -41,7 +41,7 @@ bool VnodeCache::TryInitialize()
         return false;
     }
     
-    memset(this->entries, 0, this->capacity * sizeof(VnodeCacheEntry));
+    this->InvalidateCache();
     
     PerfTracing_RecordSample(PrjFSPerfCounter_CacheCapacity, 0, this->capacity);
     
@@ -201,6 +201,15 @@ VirtualizationRootHandle VnodeCache::FindRootForVnode(
     }
     
     return rootHandle;
+}
+
+void VnodeCache::InvalidateCache()
+{
+    RWLock_AcquireExclusive(this->entriesLock);
+    
+    memset(this->entries, 0, this->capacity * sizeof(VnodeCacheEntry));
+    
+    RWLock_ReleaseExclusive(this->entriesLock);
 }
 
 uintptr_t VnodeCache::HashVnode(vnode_t vnode)

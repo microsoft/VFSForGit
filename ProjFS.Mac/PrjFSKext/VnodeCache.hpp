@@ -26,6 +26,8 @@ public:
         vnode_t vnode,
         bool invalidateEntry);
     
+    void InvalidateCache();
+    
 private:
     VnodeCache(const VnodeCache&) = delete;
     VnodeCache& operator=(const VnodeCache&) = delete;

@@ -95,6 +95,7 @@ static bool ShouldHandleFileOpEvent(
     vfs_context_t _Nonnull context,
     const vnode_t vnode,
     kauth_action_t action,
+    bool isDirectory,
 
     // Out params:
     VirtualizationRootHandle* root,
@@ -570,6 +571,8 @@ static int HandleFileOpOperation(
         
         putCurrentVnode = true;
         
+        bool isDirectory = (0 != vnode_isdir(currentVnode));
+        
         VirtualizationRootHandle root = RootHandle_None;
         FsidInode vnodeFsidInode;
         int pid;
@@ -578,6 +581,7 @@ static int HandleFileOpOperation(
                 context,
                 currentVnode,
                 action,
+                isDirectory,
                 &root,
                 &vnodeFsidInode,
                 &pid))
@@ -593,7 +597,7 @@ static int HandleFileOpOperation(
             PerfSample renameSample(&perfTracer, PrjFSPerfCounter_FileOp_Renamed);
             
             MessageType messageType =
-                vnode_isdir(currentVnode)
+                isDirectory
                 ? MessageType_KtoU_NotifyDirectoryRenamed
                 : MessageType_KtoU_NotifyFileRenamed;
 
@@ -669,6 +673,7 @@ static int HandleFileOpOperation(
                 context,
                 currentVnode,
                 action,
+                false /* isDirectory */,
                 &root,
                 &vnodeFsidInode,
                 &pid))
@@ -918,6 +923,7 @@ static bool ShouldHandleFileOpEvent(
     vfs_context_t context,
     const vnode_t vnode,
     kauth_action_t action,
+    bool isDirectory,
 
     // Out params:
     VirtualizationRootHandle* root,
@@ -944,7 +950,12 @@ static bool ShouldHandleFileOpEvent(
         
         *vnodeFsidInode = Vnode_GetFsidAndInode(vnode, context);
         
-        bool invalidateCacheEntry = (action == KAUTH_FILEOP_LINK || action == KAUTH_FILEOP_RENAME);
+        if (isDirectory && KAUTH_FILEOP_RENAME == action)
+        {
+            vnodeCache.InvalidateCache();
+        }
+        
+        bool invalidateCacheEntry = (KAUTH_FILEOP_LINK == action || KAUTH_FILEOP_RENAME == action);
         *root = vnodeCache.FindRootForVnode(
             perfTracer,
             PrjFSPerfCounter_FileOp_Vnode_Cache_Hit,
