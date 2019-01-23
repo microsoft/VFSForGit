@@ -65,7 +65,7 @@
 		4A08257921E77C7000E21AFD /* org.vfsforgit.prjfs.PrjFSKextLogDaemon.plist in CopyFiles */ = {isa = PBXBuildFile; fileRef = 4A08257021E77BDD00E21AFD /* org.vfsforgit.prjfs.PrjFSKextLogDaemon.plist */; };
 		4A8C13A521F23F0200002878 /* KauthHandler.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 4391F89321E42AC40008103C /* KauthHandler.cpp */; };
 		4A8C13A621F2418400002878 /* libPrjFSKextTestable.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 4A8C13A021F23EE800002878 /* libPrjFSKextTestable.a */; };
-		F5E39C7A21F1118D006D65C2 /* UtilitiesTests.mm in Sources */ = {isa = PBXBuildFile; fileRef = F5E39C7921F1118D006D65C2 /* UtilitiesTests.mm */; };
+		F5E39C7A21F1118D006D65C2 /* KauthHandlerTests.mm in Sources */ = {isa = PBXBuildFile; fileRef = F5E39C7921F1118D006D65C2 /* KauthHandlerTests.mm */; };
 		F5E39C8321F11556006D65C2 /* KauthHandlerTestable.hpp in Headers */ = {isa = PBXBuildFile; fileRef = F5E39C8121F11556006D65C2 /* KauthHandlerTestable.hpp */; };
 /* End PBXBuildFile section */
 
@@ -175,7 +175,7 @@
 		4A8C13A021F23EE800002878 /* libPrjFSKextTestable.a */ = {isa = PBXFileReference; explicitFileType = archive.ar; includeInIndex = 0; path = libPrjFSKextTestable.a; sourceTree = BUILT_PRODUCTS_DIR; };
 		4A8C13AA21F268FE00002878 /* PrjFSKextTests.exp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.exports; path = PrjFSKextTests.exp; sourceTree = "<group>"; };
 		F5E39C7721F1118D006D65C2 /* PrjFSKextTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = PrjFSKextTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
-		F5E39C7921F1118D006D65C2 /* UtilitiesTests.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = UtilitiesTests.mm; sourceTree = "<group>"; };
+		F5E39C7921F1118D006D65C2 /* KauthHandlerTests.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = KauthHandlerTests.mm; sourceTree = "<group>"; };
 		F5E39C7B21F1118D006D65C2 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		F5E39C8121F11556006D65C2 /* KauthHandlerTestable.hpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.h; path = KauthHandlerTestable.hpp; sourceTree = "<group>"; };
 /* End PBXFileReference section */
@@ -339,7 +339,7 @@
 		F5E39C7821F1118D006D65C2 /* PrjFSKextTests */ = {
 			isa = PBXGroup;
 			children = (
-				F5E39C7921F1118D006D65C2 /* UtilitiesTests.mm */,
+				F5E39C7921F1118D006D65C2 /* KauthHandlerTests.mm */,
 				F5E39C7B21F1118D006D65C2 /* Info.plist */,
 				4A8C13AA21F268FE00002878 /* PrjFSKextTests.exp */,
 			);
@@ -642,7 +642,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				F5E39C7A21F1118D006D65C2 /* UtilitiesTests.mm in Sources */,
+				F5E39C7A21F1118D006D65C2 /* KauthHandlerTests.mm in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

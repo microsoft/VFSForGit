@@ -40,7 +40,7 @@ static int HandleFileOpOperation(
 static int GetPid(vfs_context_t _Nonnull context);
 
 static bool TryReadVNodeFileFlags(vnode_t vn, vfs_context_t _Nonnull context, uint32_t* flags);
-static inline bool FileFlagsBitIsSet(uint32_t fileFlags, uint32_t bit);
+KEXT_TESTABLE_STATIC_INLINE bool FileFlagsBitIsSet(uint32_t fileFlags, uint32_t bit);
 static inline bool TryGetFileIsFlaggedAsInRoot(vnode_t vnode, vfs_context_t _Nonnull context, bool* flaggedInRoot);
 KEXT_TESTABLE_STATIC_INLINE bool ActionBitIsSet(kauth_action_t action, kauth_action_t mask);
 
@@ -1113,7 +1113,7 @@ static bool TryReadVNodeFileFlags(vnode_t vn, vfs_context_t _Nonnull context, ui
     return true;
 }
 
-static inline bool FileFlagsBitIsSet(uint32_t fileFlags, uint32_t bit)
+KEXT_TESTABLE_STATIC_INLINE bool FileFlagsBitIsSet(uint32_t fileFlags, uint32_t bit)
 {
     // Note: if multiple bits are set in 'bit', this will return true if ANY are set in fileFlags
     return 0 != (fileFlags & bit);
