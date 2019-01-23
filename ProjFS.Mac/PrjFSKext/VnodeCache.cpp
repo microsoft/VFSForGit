@@ -273,8 +273,6 @@ static void UpdateIndexEntryToLatest_Locked(
     
     s_entries[index].vnode = vnode;
     s_entries[index].vid = vnodeVid;
-    
-    // TODO(cache): Add proper perf points
     s_entries[index].virtualizationRoot = VirtualizationRoot_FindForVnode(
         perfTracer,
         cacheMissFallbackFunctionCounter,
