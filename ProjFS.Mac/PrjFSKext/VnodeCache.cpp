@@ -51,7 +51,7 @@ kern_return_t VnodeCache_Init()
     if (nullptr == s_entries)
     {
         s_entriesCapacity = 0;
-        return KERN_RESOURCE_SHORTAGE;;
+        return KERN_RESOURCE_SHORTAGE;
     }
     
     VnodeCache_InvalidateCache();
