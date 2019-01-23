@@ -220,9 +220,9 @@ VirtualizationRootHandle VnodeCache_FindRootForVnode(
 void VnodeCache_InvalidateCache()
 {
     RWLock_AcquireExclusive(s_entriesLock);
-    
-    memset(s_entries, 0, s_entriesCapacity * sizeof(VnodeCacheEntry));
-    
+    {
+        memset(s_entries, 0, s_entriesCapacity * sizeof(VnodeCacheEntry));
+    }
     RWLock_ReleaseExclusive(s_entriesLock);
 }
 
