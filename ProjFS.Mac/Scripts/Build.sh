@@ -15,7 +15,8 @@ PROJFS=$SRCDIR/ProjFS.Mac
 xcodebuild -configuration $CONFIGURATION -project $PROJFS/PrjFS.xcodeproj  -scheme 'Build All' -derivedDataPath $ROOTDIR/BuildOutput/ProjFS.Mac/Native build || exit 1
 
 if !(gem list --local | grep xcpretty); then
-   sudo gem install xcpretty
+  echo "Attempting to run 'sudo gem install xcpretty'.  This may ask you for your password to gain admin privileges"
+  sudo gem install xcpretty
 fi
 
 # Run Tests and put output into a xml file
