@@ -125,8 +125,6 @@ static volatile int s_nextMessageId;
 static atomic_int s_numActiveKauthEvents;
 static volatile bool s_isShuttingDown;
 
-static VnodeCache vnodeCache;
-
 // Public functions
 kern_return_t KauthHandler_Init()
 {
@@ -151,7 +149,7 @@ kern_return_t KauthHandler_Init()
         goto CleanupAndFail;
     }
     
-    if (!vnodeCache.TryInitialize())
+    if (VnodeCache_Init())
     {
         goto CleanupAndFail;
     }
@@ -203,7 +201,7 @@ kern_return_t KauthHandler_Cleanup()
     // Then, ensure there are no more callbacks in flight.
     AbortAllOutstandingEvents();
 
-    vnodeCache.Cleanup();
+    VnodeCache_Cleanup();
 
     if (VirtualizationRoots_Cleanup())
     {
@@ -865,7 +863,7 @@ static bool TryGetVirtualizationRoot(
     
     // Need to invalidate the entry on delete to handle renames performed as hardlink+delete, otherwise we'll find the old parent
     // TODO(cache): Don't insert the entry into the cache when hardlinking
-    *root = vnodeCache.FindRootForVnode(
+    *root = VnodeCache_FindRootForVnode(
         perfTracer,
         PrjFSPerfCounter_VnodeOp_Vnode_Cache_Hit,
         PrjFSPerfCounter_VnodeOp_Vnode_Cache_Miss,
@@ -952,11 +950,11 @@ static bool ShouldHandleFileOpEvent(
         
         if (isDirectory && KAUTH_FILEOP_RENAME == action)
         {
-            vnodeCache.InvalidateCache();
+            VnodeCache_InvalidateCache();
         }
         
         bool invalidateCacheEntry = (KAUTH_FILEOP_LINK == action || KAUTH_FILEOP_RENAME == action);
-        *root = vnodeCache.FindRootForVnode(
+        *root = VnodeCache_FindRootForVnode(
             perfTracer,
             PrjFSPerfCounter_FileOp_Vnode_Cache_Hit,
             PrjFSPerfCounter_FileOp_Vnode_Cache_Miss,
