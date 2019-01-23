@@ -46,7 +46,6 @@ private:
     {
         vnode_t vnode;
         uint32_t vid;   // vnode generation number
-        //uint16_t vrgid; // TODO(cache): virtualization root generation number
         VirtualizationRootHandle virtualizationRoot;
     };
     

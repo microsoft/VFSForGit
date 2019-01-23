@@ -43,6 +43,5 @@ errno_t ActiveProvider_SendMessage(VirtualizationRootHandle rootHandle, const Me
 bool VirtualizationRoot_VnodeIsOnAllowedFilesystem(vnode_t _Nonnull vnode);
 bool VirtualizationRoot_IsOnline(VirtualizationRootHandle rootHandle);
 bool VirtualizationRoot_PIDMatchesProvider(VirtualizationRootHandle rootHandle, pid_t pid);
-bool VirtualizationRoot_TryGetGenerationId(VirtualizationRootHandle rootHandle, uint16_t& vrgid /* out */);
 bool VirtualizationRoot_IsValidRootHandle(VirtualizationRootHandle rootHandle);
 const char* _Nonnull VirtualizationRoot_GetRootRelativePath(VirtualizationRootHandle rootHandle, const char* _Nonnull path);
