@@ -1,7 +1,5 @@
 #include <string.h>
-#include "kernel-header-wrappers/vnode.h"
 #include "Locks.hpp"
-#include "VnodeUtilities.hpp"
 #include "VnodeCache.hpp"
 #include "Memory.hpp"
 #include "KextLog.hpp"
@@ -16,6 +14,7 @@ static void UpdateIndexEntryToLatest_Locked(
     PrjFSPerfCounter cacheMissFallbackFunctionInnerLoopCounter,
     uintptr_t index,
     vnode_t _Nonnull vnode,
+    const FsidInode& vnodeFsidInode,
     uint32_t vnodeVid);
 
 struct VnodeCacheEntry
@@ -85,6 +84,7 @@ VirtualizationRootHandle VnodeCache_FindRootForVnode(
     PrjFSPerfCounter cacheMissFallbackFunctionInnerLoopCounter,
     vfs_context_t _Nonnull context,
     vnode_t _Nonnull vnode,
+    const FsidInode& vnodeFsidInode,
     bool invalidateEntry)
 {
     VirtualizationRootHandle rootHandle = RootHandle_None;
@@ -117,6 +117,7 @@ VirtualizationRootHandle VnodeCache_FindRootForVnode(
                         cacheMissFallbackFunctionInnerLoopCounter,
                         cacheIndex,
                         vnode,
+                        vnodeFsidInode,
                         vnodeVid);
                 }
                 else
@@ -157,6 +158,7 @@ VirtualizationRootHandle VnodeCache_FindRootForVnode(
                             cacheMissFallbackFunctionInnerLoopCounter,
                             insertionIndex,
                             vnode,
+                            vnodeFsidInode,
                             vnodeVid);
                         
                         rootHandle = s_entries[insertionIndex].virtualizationRoot;
@@ -173,6 +175,7 @@ VirtualizationRootHandle VnodeCache_FindRootForVnode(
                                 cacheMissFallbackFunctionInnerLoopCounter,
                                 insertionIndex,
                                 vnode,
+                                vnodeFsidInode,
                                 vnodeVid);
                         }
                         
@@ -267,10 +270,9 @@ static void UpdateIndexEntryToLatest_Locked(
     PrjFSPerfCounter cacheMissFallbackFunctionInnerLoopCounter,
     uintptr_t index,
     vnode_t _Nonnull vnode,
+    const FsidInode& vnodeFsidInode,
     uint32_t vnodeVid)
 {
-    FsidInode vnodeFsidInode = Vnode_GetFsidAndInode(vnode, context);
-    
     s_entries[index].vnode = vnode;
     s_entries[index].vid = vnodeVid;
     s_entries[index].virtualizationRoot = VirtualizationRoot_FindForVnode(

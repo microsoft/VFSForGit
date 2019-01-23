@@ -15,6 +15,7 @@ VirtualizationRootHandle VnodeCache_FindRootForVnode(
         PrjFSPerfCounter cacheMissFallbackFunctionInnerLoopCounter,
         vfs_context_t _Nonnull context,
         vnode_t _Nonnull vnode,
+        const FsidInode& vnodeFsidInode,
         bool invalidateEntry);
 
 void VnodeCache_InvalidateCache();
