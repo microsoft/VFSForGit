@@ -8,13 +8,13 @@ kern_return_t VnodeCache_Init();
 void VnodeCache_Cleanup();
 
 VirtualizationRootHandle VnodeCache_FindRootForVnode(
-        PerfTracer* perfTracer,
+        PerfTracer* _Nonnull perfTracer,
         PrjFSPerfCounter cacheHitCounter,
         PrjFSPerfCounter cacheMissCounter,
         PrjFSPerfCounter cacheMissFallbackFunctionCounter,
         PrjFSPerfCounter cacheMissFallbackFunctionInnerLoopCounter,
-        vfs_context_t context,
-        vnode_t vnode,
+        vfs_context_t _Nonnull context,
+        vnode_t _Nonnull vnode,
         bool invalidateEntry);
 
 void VnodeCache_InvalidateCache();

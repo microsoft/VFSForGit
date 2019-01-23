@@ -6,16 +6,16 @@
 #include "Memory.hpp"
 #include "KextLog.hpp"
 
-static inline uintptr_t HashVnode(vnode_t vnode);
-static bool TryFindVnodeIndex_Locked(vnode_t vnode, uintptr_t startingIndex, /* out */  uintptr_t& cacheIndex);
-static bool TryFindVnodeIndex_Locked(vnode_t vnode, uintptr_t startingIndex, uintptr_t stoppingIndex, /* out */  uintptr_t& cacheIndex);
+static inline uintptr_t HashVnode(vnode_t _Nonnull vnode);
+static bool TryFindVnodeIndex_Locked(vnode_t _Nonnull vnode, uintptr_t startingIndex, /* out */  uintptr_t& cacheIndex);
+static bool TryFindVnodeIndex_Locked(vnode_t _Nonnull vnode, uintptr_t startingIndex, uintptr_t stoppingIndex, /* out */  uintptr_t& cacheIndex);
 static void UpdateIndexEntryToLatest_Locked(
-    vfs_context_t context,
-    PerfTracer* perfTracer,
+    vfs_context_t _Nonnull context,
+    PerfTracer* _Nonnull perfTracer,
     PrjFSPerfCounter cacheMissFallbackFunctionCounter,
     PrjFSPerfCounter cacheMissFallbackFunctionInnerLoopCounter,
     uintptr_t index,
-    vnode_t vnode,
+    vnode_t _Nonnull vnode,
     uint32_t vnodeVid);
 
 struct VnodeCacheEntry
@@ -77,15 +77,14 @@ void VnodeCache_Cleanup()
     }
 }
 
-// TODO(cache): Add _Nonnull where appropriate
 VirtualizationRootHandle VnodeCache_FindRootForVnode(
-    PerfTracer* perfTracer,
+    PerfTracer* _Nonnull perfTracer,
     PrjFSPerfCounter cacheHitCounter,
     PrjFSPerfCounter cacheMissCounter,
     PrjFSPerfCounter cacheMissFallbackFunctionCounter,
     PrjFSPerfCounter cacheMissFallbackFunctionInnerLoopCounter,
-    vfs_context_t context,
-    vnode_t vnode,
+    vfs_context_t _Nonnull context,
+    vnode_t _Nonnull vnode,
     bool invalidateEntry)
 {
     VirtualizationRootHandle rootHandle = RootHandle_None;
@@ -224,18 +223,18 @@ void VnodeCache_InvalidateCache()
     RWLock_ReleaseExclusive(s_entriesLock);
 }
 
-static inline uintptr_t HashVnode(vnode_t vnode)
+static inline uintptr_t HashVnode(vnode_t _Nonnull vnode)
 {
     uintptr_t vnodeAddress = reinterpret_cast<uintptr_t>(vnode);
     return (vnodeAddress >> 3) % s_entriesCapacity;
 }
 
-static bool TryFindVnodeIndex_Locked(vnode_t vnode, uintptr_t startingIndex, /* out */  uintptr_t& cacheIndex)
+static bool TryFindVnodeIndex_Locked(vnode_t _Nonnull vnode, uintptr_t startingIndex, /* out */  uintptr_t& cacheIndex)
 {
     return TryFindVnodeIndex_Locked(vnode, startingIndex, startingIndex, cacheIndex);
 }
 
-static bool TryFindVnodeIndex_Locked(vnode_t vnode, uintptr_t startingIndex, uintptr_t stoppingIndex, /* out */  uintptr_t& cacheIndex)
+static bool TryFindVnodeIndex_Locked(vnode_t _Nonnull vnode, uintptr_t startingIndex, uintptr_t stoppingIndex, /* out */  uintptr_t& cacheIndex)
 {
     // Walk from the starting index until we find:
     //    -> The vnode
@@ -262,12 +261,12 @@ static bool TryFindVnodeIndex_Locked(vnode_t vnode, uintptr_t startingIndex, uin
 }
 
 static void UpdateIndexEntryToLatest_Locked(
-    vfs_context_t context,
-    PerfTracer* perfTracer,
+    vfs_context_t _Nonnull context,
+    PerfTracer* _Nonnull perfTracer,
     PrjFSPerfCounter cacheMissFallbackFunctionCounter,
     PrjFSPerfCounter cacheMissFallbackFunctionInnerLoopCounter,
     uintptr_t index,
-    vnode_t vnode,
+    vnode_t _Nonnull vnode,
     uint32_t vnodeVid)
 {
     FsidInode vnodeFsidInode = Vnode_GetFsidAndInode(vnode, context);
