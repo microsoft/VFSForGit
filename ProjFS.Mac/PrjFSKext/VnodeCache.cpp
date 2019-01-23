@@ -52,7 +52,6 @@ kern_return_t VnodeCache_Init()
     if (nullptr == s_entries)
     {
         s_entriesCapacity = 0;
-        RWLock_FreeMemory(&s_entriesLock);
         return KERN_RESOURCE_SHORTAGE;;
     }
     
@@ -65,16 +64,16 @@ kern_return_t VnodeCache_Init()
 
 void VnodeCache_Cleanup()
 {
-    if (RWLock_IsValid(s_entriesLock))
-    {
-        RWLock_FreeMemory(&s_entriesLock);
-    }
-
     if (nullptr != s_entries)
     {
         Memory_FreeArray<VnodeCacheEntry>(s_entries, s_entriesCapacity);
         s_entries = nullptr;
         s_entriesCapacity = 0;
+    }
+    
+    if (RWLock_IsValid(s_entriesLock))
+    {
+        RWLock_FreeMemory(&s_entriesLock);
     }
 }
 
