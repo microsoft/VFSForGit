@@ -27,6 +27,8 @@ struct VnodeCacheEntry
 static uint32_t s_entriesCapacity;
 static VnodeCacheEntry* s_entries;
 static RWLock s_entriesLock;
+static const uint32_t MinEntriesCapacity = 0x040000; //  4 MB (assuming 16 bytes per VnodeCacheEntry)
+static const uint32_t MaxEntriesCapacity = 0x400000; // 64 MB (assuming 16 bytes per VnodeCacheEntry)
 
 kern_return_t VnodeCache_Init()
 {
@@ -41,11 +43,8 @@ kern_return_t VnodeCache_Init()
         return KERN_FAILURE;
     }
 
-    s_entriesCapacity = desiredvnodes * 2;
-    if (s_entriesCapacity <= 0)
-    {
-        return KERN_FAILURE;
-    }
+    s_entriesCapacity = MAX(MinEntriesCapacity, desiredvnodes * 2);
+    s_entriesCapacity = MIN(MaxEntriesCapacity, s_entriesCapacity);
     
     s_entries = Memory_AllocArray<VnodeCacheEntry>(s_entriesCapacity);
     if (nullptr == s_entries)
