@@ -11,14 +11,19 @@ static inline uintptr_t HashVnode(vnode_t _Nonnull vnode);
 static bool TryFindVnodeIndex_SharedLocked(
     vnode_t _Nonnull vnode,
     uintptr_t startingIndex,
-    /* out parameters*/
-    uintptr_t& cacheIndex);
-static bool TryFindVnodeIndex_SharedLocked(
-    vnode_t _Nonnull vnode,
-    uintptr_t startingIndex,
     uintptr_t stoppingIndex,
     /* out parameters */
     uintptr_t& cacheIndex);
+
+static void UpdateCacheEntryToLatest_ExclusiveLocked(
+    vfs_context_t _Nonnull context,
+    PerfTracer* _Nonnull perfTracer,
+    PrjFSPerfCounter cacheMissFallbackFunctionCounter,
+    PrjFSPerfCounter cacheMissFallbackFunctionInnerLoopCounter,
+    uintptr_t index,
+    vnode_t _Nonnull vnode,
+    const FsidInode& vnodeFsidInode,
+    uint32_t vnodeVid);
 
 static bool FindAndUpdateEntryToLatest_ExclusiveLocked(
     vfs_context_t _Nonnull context,
@@ -34,7 +39,7 @@ static bool FindAndUpdateEntryToLatest_ExclusiveLocked(
     /* out paramaeters */
     VirtualizationRootHandle& rootHandle);
 
-static void InvalidateCacheAndFindAndUpdateEntryToLatest_ExclusiveLocked(
+static void ClearCacheAndInsertEntry_ExclusiveLocked(
     vfs_context_t _Nonnull context,
     PerfTracer* _Nonnull perfTracer,
     PrjFSPerfCounter cacheMissFallbackFunctionCounter,
@@ -45,16 +50,6 @@ static void InvalidateCacheAndFindAndUpdateEntryToLatest_ExclusiveLocked(
     uint32_t vnodeVid,
     /* out paramaeters */
     VirtualizationRootHandle& rootHandle);
-
-static void UpdateIndexEntryToLatest_ExclusiveLocked(
-    vfs_context_t _Nonnull context,
-    PerfTracer* _Nonnull perfTracer,
-    PrjFSPerfCounter cacheMissFallbackFunctionCounter,
-    PrjFSPerfCounter cacheMissFallbackFunctionInnerLoopCounter,
-    uintptr_t index,
-    vnode_t _Nonnull vnode,
-    const FsidInode& vnodeFsidInode,
-    uint32_t vnodeVid);
 
 struct VnodeCacheEntry
 {
@@ -125,16 +120,15 @@ VirtualizationRootHandle VnodeCache_FindRootForVnode(
     const FsidInode& vnodeFsidInode,
     bool invalidateEntry)
 {
-    VirtualizationRootHandle rootHandle = RootHandle_None;
-    uintptr_t startingIndex = HashVnode(vnode);
-    
     bool lockElevatedToExclusive = false;
+    VirtualizationRootHandle rootHandle = RootHandle_None;
+    uintptr_t indexFromHash = HashVnode(vnode);
     uint32_t vnodeVid = vnode_vid(vnode);
     
     RWLock_AcquireShared(s_entriesLock);
     {
         uintptr_t cacheIndex;
-        if (TryFindVnodeIndex_SharedLocked(vnode, startingIndex, /*out*/ cacheIndex))
+        if (TryFindVnodeIndex_SharedLocked(vnode, indexFromHash, indexFromHash, /*out*/ cacheIndex))
         {
             if (vnode == s_entries[cacheIndex].vnode)
             {
@@ -145,7 +139,7 @@ VirtualizationRootHandle VnodeCache_FindRootForVnode(
                     UpgradeToExclusiveLock(s_entriesLock);
                     lockElevatedToExclusive = true;
                     
-                    UpdateIndexEntryToLatest_ExclusiveLocked(
+                    UpdateCacheEntryToLatest_ExclusiveLocked(
                         context,
                         perfTracer,
                         cacheMissFallbackFunctionCounter,
@@ -164,7 +158,6 @@ VirtualizationRootHandle VnodeCache_FindRootForVnode(
             }
             else
             {
-                // We need to insert the vnode into the cache, upgrade to exclusive lock and add it to the cache
                 perfTracer->IncrementCount(cacheMissCounter, true /*ignoreSampling*/);
             
                 UpgradeToExclusiveLock(s_entriesLock);
@@ -178,19 +171,19 @@ VirtualizationRootHandle VnodeCache_FindRootForVnode(
                         vnode,
                         vnodeFsidInode,
                         cacheIndex,    // starting index
-                        startingIndex, // stopping index
+                        indexFromHash, // stopping index
                         vnodeVid,
                         invalidateEntry,
                         /* out */ rootHandle))
                 {
-                    InvalidateCacheAndFindAndUpdateEntryToLatest_ExclusiveLocked(
+                    ClearCacheAndInsertEntry_ExclusiveLocked(
                         context,
                         perfTracer,
                         cacheMissFallbackFunctionCounter,
                         cacheMissFallbackFunctionInnerLoopCounter,
                         vnode,
                         vnodeFsidInode,
-                        startingIndex,
+                        indexFromHash,
                         vnodeVid,
                         /* out */ rootHandle);
                 }
@@ -203,14 +196,14 @@ VirtualizationRootHandle VnodeCache_FindRootForVnode(
             UpgradeToExclusiveLock(s_entriesLock);
             lockElevatedToExclusive = true;
             
-            InvalidateCacheAndFindAndUpdateEntryToLatest_ExclusiveLocked(
+            ClearCacheAndInsertEntry_ExclusiveLocked(
                 context,
                 perfTracer,
                 cacheMissFallbackFunctionCounter,
                 cacheMissFallbackFunctionInnerLoopCounter,
                 vnode,
                 vnodeFsidInode,
-                startingIndex,
+                indexFromHash,
                 vnodeVid,
                 /* out */ rootHandle);
         }
@@ -264,15 +257,6 @@ static inline uintptr_t HashVnode(vnode_t _Nonnull vnode)
 static bool TryFindVnodeIndex_SharedLocked(
     vnode_t _Nonnull vnode,
     uintptr_t startingIndex,
-    /* out parameters*/
-    uintptr_t& cacheIndex)
-{
-    return TryFindVnodeIndex_SharedLocked(vnode, startingIndex, startingIndex, cacheIndex);
-}
-
-static bool TryFindVnodeIndex_SharedLocked(
-    vnode_t _Nonnull vnode,
-    uintptr_t startingIndex,
     uintptr_t stoppingIndex,
     /* out parameters */
     uintptr_t& cacheIndex)
@@ -301,6 +285,26 @@ static bool TryFindVnodeIndex_SharedLocked(
     return true;
 }
 
+static void UpdateCacheEntryToLatest_ExclusiveLocked(
+    vfs_context_t _Nonnull context,
+    PerfTracer* _Nonnull perfTracer,
+    PrjFSPerfCounter cacheMissFallbackFunctionCounter,
+    PrjFSPerfCounter cacheMissFallbackFunctionInnerLoopCounter,
+    uintptr_t index,
+    vnode_t _Nonnull vnode,
+    const FsidInode& vnodeFsidInode,
+    uint32_t vnodeVid)
+{
+    s_entries[index].vnode = vnode;
+    s_entries[index].vid = vnodeVid;
+    s_entries[index].virtualizationRoot = VirtualizationRoot_FindForVnode(
+        perfTracer,
+        cacheMissFallbackFunctionCounter,
+        cacheMissFallbackFunctionInnerLoopCounter,
+        vnode,
+        vnodeFsidInode);
+}
+
 static bool FindAndUpdateEntryToLatest_ExclusiveLocked(
     vfs_context_t _Nonnull context,
     PerfTracer* _Nonnull perfTracer,
@@ -324,7 +328,7 @@ static bool FindAndUpdateEntryToLatest_ExclusiveLocked(
     {
         if (invalidateEntry || NULLVP == s_entries[insertionIndex].vnode || vnodeVid != s_entries[insertionIndex].vid)
         {
-            UpdateIndexEntryToLatest_ExclusiveLocked(
+            UpdateCacheEntryToLatest_ExclusiveLocked(
                 context,
                 perfTracer,
                 cacheMissFallbackFunctionCounter,
@@ -343,7 +347,7 @@ static bool FindAndUpdateEntryToLatest_ExclusiveLocked(
     return false;
 }
 
-static void InvalidateCacheAndFindAndUpdateEntryToLatest_ExclusiveLocked(
+static void ClearCacheAndInsertEntry_ExclusiveLocked(
     vfs_context_t _Nonnull context,
     PerfTracer* _Nonnull perfTracer,
     PrjFSPerfCounter cacheMissFallbackFunctionCounter,
@@ -371,7 +375,10 @@ static void InvalidateCacheAndFindAndUpdateEntryToLatest_ExclusiveLocked(
                 true,          // invalidateEntry
                 /* out */ rootHandle))
     {
-        // TODO(cache): Log error
+        KextLog_FileError(
+            vnode,
+            "ClearCacheAndInsertEntry: failed to insert vnode (0x%lu) after emptying cache",
+            reinterpret_cast<uintptr_t>(vnode));
         
         rootHandle = VirtualizationRoot_FindForVnode(
             perfTracer,
@@ -380,24 +387,4 @@ static void InvalidateCacheAndFindAndUpdateEntryToLatest_ExclusiveLocked(
             vnode,
             vnodeFsidInode);
     }
-}
-
-static void UpdateIndexEntryToLatest_ExclusiveLocked(
-    vfs_context_t _Nonnull context,
-    PerfTracer* _Nonnull perfTracer,
-    PrjFSPerfCounter cacheMissFallbackFunctionCounter,
-    PrjFSPerfCounter cacheMissFallbackFunctionInnerLoopCounter,
-    uintptr_t index,
-    vnode_t _Nonnull vnode,
-    const FsidInode& vnodeFsidInode,
-    uint32_t vnodeVid)
-{
-    s_entries[index].vnode = vnode;
-    s_entries[index].vid = vnodeVid;
-    s_entries[index].virtualizationRoot = VirtualizationRoot_FindForVnode(
-        perfTracer,
-        cacheMissFallbackFunctionCounter,
-        cacheMissFallbackFunctionInnerLoopCounter,
-        vnode,
-        vnodeFsidInode);
 }
