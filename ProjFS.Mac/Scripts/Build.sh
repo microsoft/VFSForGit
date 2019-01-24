@@ -20,12 +20,9 @@ if !(gem list --local | grep xcpretty); then
 fi
 
 # Run Tests and put output into a xml file
-xcodebuild -configuration $CONFIGURATION -project $PROJFS/PrjFS.xcodeproj -scheme 'Build All' test | xcpretty -r junit --output $PROJFS/TestResultJunit.xml
-
-#Check to see if the test results file contains a failure
-if grep -q '<failure' $PROJFS/TestResultJunit.xml; then
-  exit 1
-fi
+set -o pipefail
+xcodebuild -configuration $CONFIGURATION -project $PROJFS/PrjFS.xcodeproj -scheme 'Build All' test | xcpretty -r junit --output $PROJFS/TestResultJunit.xml || exit 1
+set +o pipefail
 
 # If we're building the Profiling(Release) configuration, remove Profiling() for building .NET code
 if [ "$CONFIGURATION" == "Profiling(Release)" ]; then
