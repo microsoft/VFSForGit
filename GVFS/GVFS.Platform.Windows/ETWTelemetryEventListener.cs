@@ -5,6 +5,7 @@ using Microsoft.Diagnostics.Tracing;
 using System;
 
 using EventLevel = GVFS.Common.Tracing.EventLevel;
+using EventListener = GVFS.Common.Tracing.EventListener;
 using EventOpcode = GVFS.Common.Tracing.EventOpcode;
 
 namespace GVFS.Platform.Windows
@@ -27,7 +28,7 @@ namespace GVFS.Platform.Windows
     ///   * This will cause GVFS to write its telemetry events to local ETW, but nothing will get uploaded
     ///   * Write your own tool to scrape the local ETW events and analyze the data
     /// </summary>
-    public class ETWTelemetryEventListener : InProcEventListener
+    public class ETWTelemetryEventListener : EventListener
     {
         private const long MeasureKeyword = 0x400000000000;
 
@@ -45,7 +46,7 @@ namespace GVFS.Platform.Windows
             this.ikey = ikey;
         }
 
-        public static ETWTelemetryEventListener CreateTelemetryListenerIfEnabled(string gitBinRoot, string providerName, string enlistmentId, string mountId)
+        public static ETWTelemetryEventListener CreateIfEnabled(string gitBinRoot, string providerName, string enlistmentId, string mountId)
         {
             // This listener is disabled unless the user specifies the proper git config setting.
 
@@ -71,16 +72,13 @@ namespace GVFS.Platform.Windows
             }
         }
 
-        protected override void RecordMessageInternal(
-            string eventName,
-            Guid activityId,
-            Guid parentActivityId,
-            EventLevel level,
-            Keywords keywords,
-            EventOpcode opcode,
-            string jsonPayload)
+        protected override void RecordMessageInternal(TraceEventMessage message)
         {
-            EventSourceOptions options = this.CreateOptions(level, keywords, opcode);
+            Guid activityId = message.ActivityId;
+            Guid parentActivityId = message.ParentActivityId;
+            string jsonPayload = message.Payload;
+
+            EventSourceOptions options = this.CreateOptions(message.Level, message.Keywords, message.Opcode);
             EventSource.SetCurrentThreadActivityId(activityId);
 
             if (string.IsNullOrEmpty(jsonPayload))
@@ -90,13 +88,13 @@ namespace GVFS.Platform.Windows
 
             if (string.IsNullOrEmpty(this.ikey))
             {
-                Payload payload = new Payload(jsonPayload, this.enlistmentId, this.mountId);
-                this.eventSource.Write(eventName, ref options, ref activityId, ref parentActivityId, ref payload);
+                Payload payload = new Payload(message.Payload, this.enlistmentId, this.mountId);
+                this.eventSource.Write(message.EventName, ref options, ref activityId, ref parentActivityId, ref payload);
             }
             else
             {
                 PayloadWithIKey payload = new PayloadWithIKey(jsonPayload, this.enlistmentId, this.mountId, this.ikey);
-                this.eventSource.Write(eventName, ref options, ref activityId, ref parentActivityId, ref payload);
+                this.eventSource.Write(message.EventName, ref options, ref activityId, ref parentActivityId, ref payload);
             }
         }
 

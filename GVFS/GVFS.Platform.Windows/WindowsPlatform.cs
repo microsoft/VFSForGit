@@ -75,13 +75,21 @@ namespace GVFS.Platform.Windows
             return true;
         }
 
-        public override InProcEventListener CreateTelemetryListenerIfEnabled(string providerName, string enlistmentId, string mountId)
+        public override IEnumerable<EventListener> CreateTelemetryListeners(string providerName, string enlistmentId, string mountId)
         {
-            return ETWTelemetryEventListener.CreateTelemetryListenerIfEnabled(
-                this.GitInstallation.GetInstalledGitBinPath(),
-                providerName,
-                enlistmentId,
-                mountId);
+            string gitBinRoot = this.GitInstallation.GetInstalledGitBinPath();
+
+            var etwListener = ETWTelemetryEventListener.CreateIfEnabled(gitBinRoot, providerName, enlistmentId, mountId);
+            if (etwListener != null)
+            {
+                yield return etwListener;
+            }
+
+            var daemonListener = TelemetryDaemonEventListener.CreateIfEnabled(gitBinRoot, providerName, enlistmentId, mountId, pipeName: "vfs");
+            if (daemonListener != null)
+            {
+                yield return daemonListener;
+            }
         }
 
         public override void InitializeEnlistmentACLs(string enlistmentPath)

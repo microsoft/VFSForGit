@@ -3,12 +3,12 @@ using System.Text;
 
 namespace GVFS.Common.Tracing
 {
-    public abstract class InProcEventListener : IDisposable
+    public abstract class EventListener : IDisposable
     {
-        private EventLevel maxVerbosity;
-        private Keywords keywordFilter;
+        private readonly EventLevel maxVerbosity;
+        private readonly Keywords keywordFilter;
 
-        public InProcEventListener(EventLevel maxVerbosity, Keywords keywordFilter)
+        protected EventListener(EventLevel maxVerbosity, Keywords keywordFilter)
         {
             this.maxVerbosity = maxVerbosity;
             this.keywordFilter = keywordFilter;
@@ -18,24 +18,29 @@ namespace GVFS.Common.Tracing
         {
         }
 
-        public void RecordMessage(string eventName, Guid activityId, Guid parentActivityId, EventLevel level, Keywords keywords, EventOpcode opcode, string jsonPayload)
+        public bool? TryRecordMessage(TraceEventMessage message, out string errorMessage)
         {
-            if (!this.IsEnabled(level, keywords))
+            if (this.IsEnabled(message.Level, message.Keywords))
             {
-                return;
+                try
+                {
+                    this.RecordMessageInternal(message);
+
+                    errorMessage = null;
+                    return true;
+                }
+                catch (Exception ex)
+                {
+                    errorMessage = ex.ToString();
+                    return false;
+                }
             }
 
-            this.RecordMessageInternal(eventName, activityId, parentActivityId, level, keywords, opcode, jsonPayload);
+            errorMessage = null;
+            return null;
         }
 
-        protected abstract void RecordMessageInternal(
-            string eventName,
-            Guid activityId,
-            Guid parentActivityId,
-            EventLevel level,
-            Keywords keywords,
-            EventOpcode opcode,
-            string payload);
+        protected abstract void RecordMessageInternal(TraceEventMessage message);
 
         protected string GetLogString(string eventName, EventOpcode opcode, string jsonPayload)
         {

@@ -58,9 +58,9 @@ namespace GVFS.UnitTests.Mock.Common
             throw new NotSupportedException();
         }
 
-        public override InProcEventListener CreateTelemetryListenerIfEnabled(string providerName, string enlistmentId, string mountId)
+        public override IEnumerable<EventListener> CreateTelemetryListeners(string providerName, string enlistmentId, string mountId)
         {
-            return new MockListener(EventLevel.Verbose, Keywords.Telemetry);
+            yield return new MockListener(EventLevel.Verbose, Keywords.Telemetry);
         }
 
         public override string GetCurrentUser()
