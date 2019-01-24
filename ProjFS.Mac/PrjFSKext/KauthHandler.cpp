@@ -17,6 +17,10 @@
 #include "PerformanceTracing.hpp"
 #include "kernel-header-wrappers/mount.h"
 
+#ifdef KEXT_UNIT_TESTING
+#include "KauthHandlerTestable.hpp"
+#endif
+
 // Function prototypes
 static int HandleVnodeOperation(
     kauth_cred_t    credential,
@@ -39,11 +43,11 @@ static int HandleFileOpOperation(
 static int GetPid(vfs_context_t _Nonnull context);
 
 static bool TryReadVNodeFileFlags(vnode_t vn, vfs_context_t _Nonnull context, uint32_t* flags);
-static inline bool FileFlagsBitIsSet(uint32_t fileFlags, uint32_t bit);
+KEXT_STATIC_INLINE bool FileFlagsBitIsSet(uint32_t fileFlags, uint32_t bit);
 static inline bool TryGetFileIsFlaggedAsInRoot(vnode_t vnode, vfs_context_t _Nonnull context, bool* flaggedInRoot);
-static inline bool ActionBitIsSet(kauth_action_t action, kauth_action_t mask);
+KEXT_STATIC_INLINE bool ActionBitIsSet(kauth_action_t action, kauth_action_t mask);
 
-static bool IsFileSystemCrawler(char* procname);
+KEXT_STATIC bool IsFileSystemCrawler(const char* procname);
 
 static void Sleep(int seconds, void* channel, Mutex* _Nullable mutex);
 static bool TrySendRequestAndWaitForResponse(
@@ -1112,7 +1116,7 @@ static bool TryReadVNodeFileFlags(vnode_t vn, vfs_context_t _Nonnull context, ui
     return true;
 }
 
-static inline bool FileFlagsBitIsSet(uint32_t fileFlags, uint32_t bit)
+KEXT_STATIC_INLINE bool FileFlagsBitIsSet(uint32_t fileFlags, uint32_t bit)
 {
     // Note: if multiple bits are set in 'bit', this will return true if ANY are set in fileFlags
     return 0 != (fileFlags & bit);
@@ -1131,12 +1135,12 @@ static inline bool TryGetFileIsFlaggedAsInRoot(vnode_t vnode, vfs_context_t _Non
     return true;
 }
 
-static inline bool ActionBitIsSet(kauth_action_t action, kauth_action_t mask)
+KEXT_STATIC_INLINE bool ActionBitIsSet(kauth_action_t action, kauth_action_t mask)
 {
     return action & mask;
 }
 
-static bool IsFileSystemCrawler(char* procname)
+KEXT_STATIC bool IsFileSystemCrawler(const char* procname)
 {
     // These process will crawl the file system and force a full hydration
     if (!strcmp(procname, "mds") ||

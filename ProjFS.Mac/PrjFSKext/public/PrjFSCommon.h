@@ -34,4 +34,14 @@ enum PrjFSServiceUserClientType
     UserClientType_Log,
 };
 
+// When building the kext in user space for unit testing, we want some functions
+// to have external linkage in order to make them testable
+#ifdef KEXT_UNIT_TESTING
+#define KEXT_STATIC
+#define KEXT_STATIC_INLINE
+#else
+#define KEXT_STATIC static
+#define KEXT_STATIC_INLINE static inline
+#endif
+
 #endif /* PrjFSCommon_h */
