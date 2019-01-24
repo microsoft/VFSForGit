@@ -84,7 +84,7 @@ namespace GVFS.Platform.Mac
         public bool TryLoad(ITracer tracer, string enlistmentRoot, out string errorMessage)
         {
             EventMetadata metadata = new EventMetadata();
-            ProcessResult loadKext = ProcessHelper.Run("sudo", "kextutil -b " + DriverName);
+            ProcessResult loadKext = ProcessHelper.Run("sudo", "/sbin/kextload -b " + DriverName);
             if (loadKext.ExitCode == LoadKext_ExitCode_Success)
             {
                 tracer.RelatedWarning(metadata, $"{DriverName} was successfully loaded.", Keywords.Telemetry);
