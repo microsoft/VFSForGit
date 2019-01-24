@@ -69,6 +69,7 @@ static const char* const PerfCounterNames[PrjFSPerfCounter_Count] =
     [PrjFSPerfCounter_FileOp_FileModified]                                  = " |--RaiseFileModifiedEvent",
     [PrjFSPerfCounter_FileOp_FileCreated]                                   = " |--RaiseFileCreatedEvent",
     [PrjFSPerfCounter_CacheCapacity]                                        = "VnodeCacheCapacity",
+    [PrjFSPerfCounter_CacheInvalidateCount]                                 = "VnodeCacheInvalidationCount",
 };
 
 static double FindSuitablPrefixedUnitFromNS(double nanoSeconds, const char*& outUnit)

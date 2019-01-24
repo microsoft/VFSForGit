@@ -953,7 +953,7 @@ static bool ShouldHandleFileOpEvent(
         
         if (isDirectory && KAUTH_FILEOP_RENAME == action)
         {
-            VnodeCache_InvalidateCache();
+            VnodeCache_InvalidateCache(perfTracer);
         }
         
         bool invalidateCacheEntry = (KAUTH_FILEOP_LINK == action || KAUTH_FILEOP_RENAME == action);

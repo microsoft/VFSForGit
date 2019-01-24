@@ -48,6 +48,7 @@ enum PrjFSPerfCounter : int32_t
         PrjFSPerfCounter_FileOp_FileCreated,
 
     PrjFSPerfCounter_CacheCapacity,
+    PrjFSPerfCounter_CacheInvalidateCount,
     PrjFSPerfCounter_Count,
 };
 

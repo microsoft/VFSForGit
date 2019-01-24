@@ -18,4 +18,4 @@ VirtualizationRootHandle VnodeCache_FindRootForVnode(
         const FsidInode& vnodeFsidInode,
         bool invalidateEntry);
 
-void VnodeCache_InvalidateCache();
+void VnodeCache_InvalidateCache(PerfTracer* _Nullable perfTracer);

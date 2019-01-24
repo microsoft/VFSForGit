@@ -65,7 +65,7 @@ kern_return_t VnodeCache_Init()
         return KERN_RESOURCE_SHORTAGE;
     }
     
-    VnodeCache_InvalidateCache();
+    VnodeCache_InvalidateCache(nullptr);
     
     PerfTracing_RecordSample(PrjFSPerfCounter_CacheCapacity, 0, s_entriesCapacity);
     
@@ -203,8 +203,13 @@ VirtualizationRootHandle VnodeCache_FindRootForVnode(
     return rootHandle;
 }
 
-void VnodeCache_InvalidateCache()
+void VnodeCache_InvalidateCache(PerfTracer* _Nullable perfTracer)
 {
+    if (perfTracer)
+    {
+        perfTracer->IncrementCount(PrjFSPerfCounter_CacheInvalidateCount, true /*ignoreSampling*/);
+    }
+
     RWLock_AcquireExclusive(s_entriesLock);
     {
         InvalidateCache_ExclusiveLocked();
