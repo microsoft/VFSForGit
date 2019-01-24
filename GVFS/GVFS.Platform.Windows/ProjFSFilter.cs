@@ -386,6 +386,11 @@ namespace GVFS.Platform.Windows
                 TryAttach(enlistmentRoot, out error);
         }
 
+        public bool TryLoad(ITracer tracer, string enlistmentRoot, out string errorMessage)
+        {
+            return TryAttach(enlistmentRoot, out errorMessage);
+        }
+
         private static bool IsInboxAndEnabled()
         {
             ProcessResult getOptionalFeatureResult = GetProjFSOptionalFeatureStatus();

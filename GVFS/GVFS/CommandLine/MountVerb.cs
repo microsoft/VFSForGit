@@ -137,15 +137,19 @@ namespace GVFS.CommandLine
                     }
                     else
                     {
-                        tracer.RelatedEvent(
-                            EventLevel.Informational,
-                            $"{nameof(MountVerb)}_{nameof(this.Execute)}",
-                            new EventMetadata
-                            {
-                                { "KernelDriver.IsReady_Error", errorMessage },
-                            });
+                        this.Output.WriteLine("Driver not loaded.  Attempting to load. You may be prompted for sudo password...");
+                        if (!GVFSPlatform.Instance.KernelDriver.TryLoad(tracer, enlistment.EnlistmentRoot, out errorMessage))
+                        {
+                            tracer.RelatedEvent(
+                                EventLevel.Informational,
+                                $"{nameof(MountVerb)}_{nameof(this.Execute)}",
+                                new EventMetadata
+                                {
+                                    { "KernelDriver.TryLoad_Error", errorMessage },
+                                });
 
-                        this.ReportErrorAndExit(tracer, ReturnCode.FilterError, errorMessage);
+                            this.ReportErrorAndExit(tracer, ReturnCode.FilterError, errorMessage);
+                        }
                     }
                 }
 

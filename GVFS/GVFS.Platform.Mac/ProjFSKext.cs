@@ -12,6 +12,8 @@ namespace GVFS.Platform.Mac
     public class ProjFSKext : IKernelDriver
     {
         private const string DriverName = "io.gvfs.PrjFSKext";
+        private const int LoadKext_ExitCode_Success = 0;
+        private const int LoadKext_ExitCode_NotApproved = 27;
 
         public bool EnumerationExpandsDirectories { get; } = true;
 
@@ -62,9 +64,7 @@ namespace GVFS.Platform.Mac
         public bool IsReady(JsonTracer tracer, string enlistmentRoot, out string error)
         {
             error = null;
-            return
-                this.IsKextLoaded() ||
-                this.TryLoadKext(tracer, enlistmentRoot, out error);
+            return this.IsKextLoaded();
         }
 
         public bool TryPrepareFolderForCallbacks(string folderPath, out string error, out Exception exception)
@@ -81,63 +81,30 @@ namespace GVFS.Platform.Mac
             return true;
         }
 
-        private ProcessResult Bash(string cmd)
+        public bool TryLoad(ITracer tracer, string enlistmentRoot, out string errorMessage)
         {
-            string escapedArgs = cmd.Replace("\"", "\\\"");
-
-            ProcessStartInfo startInfo = new ProcessStartInfo
+            EventMetadata metadata = new EventMetadata();
+            ProcessResult loadKext = ProcessHelper.Run("sudo", "kextutil -b " + DriverName);
+            if (loadKext.ExitCode == LoadKext_ExitCode_Success)
             {
-                FileName = "/bin/bash",
-                Arguments = $"-c \"{escapedArgs}\"",
-                RedirectStandardOutput = true,
-                RedirectStandardError = true,
-                UseShellExecute = false,
-                CreateNoWindow = true,
-            };
-
-            using (Process process = new Process())
-            {
-                process.StartInfo = startInfo;
-                string errors = string.Empty;
-                process.ErrorDataReceived += (sender, args) =>
-                {
-                    if (args.Data != null)
-                    {
-                        errors += args.Data + "\r\n";
-                    }
-                };
-
-                process.Start();
-                process.BeginErrorReadLine();
-                string output = process.StandardOutput.ReadToEnd();
-                process.WaitForExit();
-                return new ProcessResult(output, errors, process.ExitCode);
-            }
-        }
-
-        private bool TryLoadKext(ITracer tracer, string enlistmentRoot, out string error)
-        {
-            Console.WriteLine("Kernel extension not loaded.  Attempting to load...");
-            error = DriverName + " is not loaded. Make sure the driver is loaded and try again.";
-            ProcessResult loadKext = this.Bash("sudo kextutil /Library/Extensions/PrjFSKext.kext");
-            if (loadKext.ExitCode == 0)
-            {
-                error = null;
+                tracer.RelatedWarning(metadata, $"{DriverName} was successfully loaded.", Keywords.Telemetry);
+                errorMessage = null;
                 return true;
             }
-            else if (loadKext.ExitCode == 27)
+            else if (loadKext.ExitCode == LoadKext_ExitCode_NotApproved)
             {
-                tracer.RelatedWarning("Kext unable to load. Possibly has not been approved by the user");
-                error = DriverName + @" was unable to load.  Please check and make sure you have allowed the extension in
+                tracer.RelatedError("Kext unable to load. Not approved by the user");
+                errorMessage = DriverName + @" was unable to load.  Please check and make sure you have allowed the extension in
 System Preferences -> Security & Privacy";
             }
             else
             {
-                EventMetadata metadata = new EventMetadata();
                 metadata.Add("ExitCode", loadKext.ExitCode);
                 metadata.Add("Output", loadKext.Output);
                 metadata.Add("Errors", loadKext.Errors);
-                tracer.RelatedWarning(metadata, "Failed to load kext");
+                tracer.RelatedError(metadata, "Failed to load kext");
+
+                errorMessage = DriverName + " is not loaded. Make sure the driver is loaded and try again.";
             }
 
             return false;
