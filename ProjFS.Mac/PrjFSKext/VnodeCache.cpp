@@ -137,13 +137,13 @@ VirtualizationRootHandle VnodeCache_FindRootForVnode(
             }
             else
             {
+                // We need to insert the vnode into the cache, upgrade to exclusive lock and add it to the cache
                 perfTracer->IncrementCount(cacheMissCounter, true /*ignoreSampling*/);
             
-                // We need to insert the vnode into the cache, upgrade to exclusive lock and add it to the cache
                 UpgradeToExclusiveLock(s_entriesLock);
                 lockElevatedToExclusive = true;
                 
-                // Look up the index again in case another thread has already added the vnode we're interested into the cache
+                // Look up the index again in case another thread has already added the vnode
                 uintptr_t insertionIndex;
                 if (TryFindVnodeIndex_SharedLocked(
                         vnode,
