@@ -861,8 +861,10 @@ static bool TryGetVirtualizationRoot(
         
     *vnodeFsidInode = Vnode_GetFsidAndInode(vnode, context);
     
-    // Need to invalidate the entry on delete to handle renames performed as hardlink+delete, otherwise we'll find the old parent
-    // TODO(cache): Don't insert the entry into the cache when hardlinking
+    // TODO(Mac): Once #337 is fixed, remove the code that invalidates the cache entry for delete actions.
+    // Currently delete actions invalidate the cache entry to handle the hardlink+delete rename scenario.  If we do not invalidate
+    // the entry we'll find the root for the newly created hardlink and we need to find the root of the path of the file being deleted.
+    // Testing has shown that looking up the root again has consistently yielded the root of the file being deleted.
     *root = VnodeCache_FindRootForVnode(
         perfTracer,
         PrjFSPerfCounter_VnodeOp_Vnode_Cache_Hit,
