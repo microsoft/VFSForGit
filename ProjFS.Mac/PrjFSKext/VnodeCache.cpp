@@ -4,11 +4,22 @@
 #include "Memory.hpp"
 #include "KextLog.hpp"
 
+static inline void InvalidateCache_ExclusiveLocked();
 static inline void UpgradeToExclusiveLock(RWLock& lock);
 static inline uintptr_t HashVnode(vnode_t _Nonnull vnode);
-static bool TryFindVnodeIndex_Locked(vnode_t _Nonnull vnode, uintptr_t startingIndex, /* out */  uintptr_t& cacheIndex);
-static bool TryFindVnodeIndex_Locked(vnode_t _Nonnull vnode, uintptr_t startingIndex, uintptr_t stoppingIndex, /* out */  uintptr_t& cacheIndex);
-static void UpdateIndexEntryToLatest_Locked(
+static bool TryFindVnodeIndex_SharedLocked(
+    vnode_t _Nonnull vnode,
+    uintptr_t startingIndex,
+    /* out parameters*/
+    uintptr_t& cacheIndex);
+static bool TryFindVnodeIndex_SharedLocked(
+    vnode_t _Nonnull vnode,
+    uintptr_t startingIndex,
+    uintptr_t stoppingIndex,
+    /* out parameters */
+    uintptr_t& cacheIndex);
+
+static void UpdateIndexEntryToLatest_ExclusiveLocked(
     vfs_context_t _Nonnull context,
     PerfTracer* _Nonnull perfTracer,
     PrjFSPerfCounter cacheMissFallbackFunctionCounter,
@@ -96,7 +107,7 @@ VirtualizationRootHandle VnodeCache_FindRootForVnode(
     RWLock_AcquireShared(s_entriesLock);
     {
         uintptr_t cacheIndex;
-        if (TryFindVnodeIndex_Locked(vnode, startingIndex, /*out*/ cacheIndex))
+        if (TryFindVnodeIndex_SharedLocked(vnode, startingIndex, /*out*/ cacheIndex))
         {
             if (vnode == s_entries[cacheIndex].vnode)
             {
@@ -107,7 +118,7 @@ VirtualizationRootHandle VnodeCache_FindRootForVnode(
                     UpgradeToExclusiveLock(s_entriesLock);
                     lockElevatedToExclusive = true;
                     
-                    UpdateIndexEntryToLatest_Locked(
+                    UpdateIndexEntryToLatest_ExclusiveLocked(
                         context,
                         perfTracer,
                         cacheMissFallbackFunctionCounter,
@@ -132,11 +143,9 @@ VirtualizationRootHandle VnodeCache_FindRootForVnode(
                 UpgradeToExclusiveLock(s_entriesLock);
                 lockElevatedToExclusive = true;
                 
-                // 1. Find the insertion index
-                // 2. Look up the virtualization root (if still required)
-                
+                // Look up the index again in case another thread has already added the vnode we're interested into the cache
                 uintptr_t insertionIndex;
-                if (TryFindVnodeIndex_Locked(
+                if (TryFindVnodeIndex_SharedLocked(
                         vnode,
                         cacheIndex,    // starting index
                         startingIndex, // stopping index
@@ -144,7 +153,7 @@ VirtualizationRootHandle VnodeCache_FindRootForVnode(
                 {
                     if (invalidateEntry || NULLVP == s_entries[insertionIndex].vnode || vnodeVid != s_entries[insertionIndex].vid)
                     {
-                        UpdateIndexEntryToLatest_Locked(
+                        UpdateIndexEntryToLatest_ExclusiveLocked(
                             context,
                             perfTracer,
                             cacheMissFallbackFunctionCounter,
@@ -198,9 +207,14 @@ void VnodeCache_InvalidateCache()
 {
     RWLock_AcquireExclusive(s_entriesLock);
     {
-        memset(s_entries, 0, s_entriesCapacity * sizeof(VnodeCacheEntry));
+        InvalidateCache_ExclusiveLocked();
     }
     RWLock_ReleaseExclusive(s_entriesLock);
+}
+
+static inline void InvalidateCache_ExclusiveLocked()
+{
+    memset(s_entries, 0, s_entriesCapacity * sizeof(VnodeCacheEntry));
 }
 
 static inline void UpgradeToExclusiveLock(RWLock& lock)
@@ -217,12 +231,22 @@ static inline uintptr_t HashVnode(vnode_t _Nonnull vnode)
     return (vnodeAddress >> 3) % s_entriesCapacity;
 }
 
-static bool TryFindVnodeIndex_Locked(vnode_t _Nonnull vnode, uintptr_t startingIndex, /* out */  uintptr_t& cacheIndex)
+static bool TryFindVnodeIndex_SharedLocked(
+    vnode_t _Nonnull vnode,
+    uintptr_t startingIndex,
+    /* out parameters*/
+    uintptr_t& cacheIndex)
 {
-    return TryFindVnodeIndex_Locked(vnode, startingIndex, startingIndex, cacheIndex);
+    return TryFindVnodeIndex_SharedLocked(vnode, startingIndex, startingIndex, cacheIndex);
 }
 
-static bool TryFindVnodeIndex_Locked(vnode_t _Nonnull vnode, uintptr_t startingIndex, uintptr_t stoppingIndex, /* out */  uintptr_t& cacheIndex)
+static bool TryFindVnodeIndex_SharedLocked(
+    vnode_t _Nonnull vnode,
+    uintptr_t startingIndex,
+    uintptr_t stoppingIndex,
+    
+    /* out parameters */
+    uintptr_t& cacheIndex)
 {
     // Walk from the starting index until we find:
     //    -> The vnode
@@ -248,7 +272,7 @@ static bool TryFindVnodeIndex_Locked(vnode_t _Nonnull vnode, uintptr_t startingI
     return true;
 }
 
-static void UpdateIndexEntryToLatest_Locked(
+static void UpdateIndexEntryToLatest_ExclusiveLocked(
     vfs_context_t _Nonnull context,
     PerfTracer* _Nonnull perfTracer,
     PrjFSPerfCounter cacheMissFallbackFunctionCounter,
