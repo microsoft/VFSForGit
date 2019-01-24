@@ -900,27 +900,23 @@ namespace GVFS.Platform.Windows
                 metadata.Add("sha", sha);
                 metadata.Add("placeholderVersion", placeholderVersion);
                 metadata.Add("commandId", commandId);
-                ITracer activity = this.Context.Tracer.StartActivity("GetFileStream", EventLevel.Verbose, Keywords.Telemetry, metadata);
 
                 if (!this.FileSystemCallbacks.IsMounted)
                 {
                     metadata.Add(TracingConstants.MessageKey.InfoMessage, $"{nameof(this.GetFileStreamHandler)} failed, mount has not yet completed");
-                    activity.RelatedEvent(EventLevel.Informational, "GetFileStream_MountNotComplete", metadata);
-                    activity.Dispose();
+                    this.Context.Tracer.RelatedEvent(EventLevel.Informational, "GetFileStream_MountNotComplete", metadata);
                     return (HResult)HResultExtensions.HResultFromNtStatus.DeviceNotReady;
                 }
 
                 if (byteOffset != 0)
                 {
-                    activity.RelatedError(metadata, "Invalid Parameter: byteOffset must be 0");
-                    activity.Dispose();
+                    this.Context.Tracer.RelatedError(metadata, "Invalid Parameter: byteOffset must be 0");
                     return HResult.InternalError;
                 }
 
                 if (placeholderVersion != FileSystemVirtualizer.PlaceholderVersion)
                 {
-                    activity.RelatedError(metadata, nameof(this.GetFileStreamHandler) + ": Unexpected placeholder version");
-                    activity.Dispose();
+                    this.Context.Tracer.RelatedError(metadata, nameof(this.GetFileStreamHandler) + ": Unexpected placeholder version");
                     return HResult.InternalError;
                 }
 
@@ -928,7 +924,7 @@ namespace GVFS.Platform.Windows
                 if (!this.TryRegisterCommand(commandId, out cancellationSource))
                 {
                     metadata.Add(TracingConstants.MessageKey.WarningMessage, nameof(this.GetFileStreamHandler) + ": Failed to register command");
-                    activity.RelatedEvent(EventLevel.Warning, nameof(this.GetFileStreamHandler) + "_FailedToRegisterCommand", metadata);
+                    this.Context.Tracer.RelatedEvent(EventLevel.Warning, nameof(this.GetFileStreamHandler) + "_FailedToRegisterCommand", metadata);
                 }
 
                 FileOrNetworkRequest getFileStreamHandler = new FileOrNetworkRequest(
@@ -938,11 +934,9 @@ namespace GVFS.Platform.Windows
                         length,
                         streamGuid,
                         sha,
-                        metadata,
-                        activity),
+                        metadata),
                     () =>
                     {
-                        activity.Dispose();
                         cancellationSource.Dispose();
                     });
 
@@ -951,9 +945,8 @@ namespace GVFS.Platform.Windows
                 {
                     metadata.Add("Exception", e?.ToString());
                     metadata.Add(TracingConstants.MessageKey.WarningMessage, nameof(this.GetFileStreamHandler) + ": Failed to schedule async handler");
-                    activity.RelatedEvent(EventLevel.Warning, nameof(this.GetFileStreamHandler) + "_FailedToScheduleAsyncHandler", metadata);
+                    this.Context.Tracer.RelatedEvent(EventLevel.Warning, nameof(this.GetFileStreamHandler) + "_FailedToScheduleAsyncHandler", metadata);
 
-                    activity.Dispose();
                     cancellationSource.Dispose();
 
                     return (HResult)HResultExtensions.HResultFromNtStatus.DeviceNotReady;
@@ -981,8 +974,7 @@ namespace GVFS.Platform.Windows
             uint length,
             Guid streamGuid,
             string sha,
-            EventMetadata requestMetadata,
-            ITracer activity)
+            EventMetadata requestMetadata)
         {
             if (cancellationToken.IsCancellationRequested)
             {
@@ -1000,7 +992,7 @@ namespace GVFS.Platform.Windows
                         if (blobLength != length)
                         {
                             requestMetadata.Add("blobLength", blobLength);
-                            activity.RelatedError(requestMetadata, $"{nameof(this.GetFileStreamHandlerAsyncHandler)}: Actual file length (blobLength) does not match requested length");
+                            this.Context.Tracer.RelatedError(requestMetadata, $"{nameof(this.GetFileStreamHandlerAsyncHandler)}: Actual file length (blobLength) does not match requested length");
 
                             throw new GetFileStreamException(HResult.InternalError);
                         }
@@ -1024,7 +1016,7 @@ namespace GVFS.Platform.Windows
                                 catch (IOException e)
                                 {
                                     requestMetadata.Add("Exception", e.ToString());
-                                    activity.RelatedError(requestMetadata, "IOException while copying to unmanaged buffer.");
+                                    this.Context.Tracer.RelatedError(requestMetadata, "IOException while copying to unmanaged buffer.");
 
                                     throw new GetFileStreamException("IOException while copying to unmanaged buffer: " + e.Message, (HResult)HResultExtensions.HResultFromNtStatus.FileNotAvailable);
                                 }
@@ -1052,14 +1044,14 @@ namespace GVFS.Platform.Windows
                                             // from GetFileStream has already timed out
                                             {
                                                 requestMetadata.Add(TracingConstants.MessageKey.InfoMessage, $"{nameof(this.virtualizationInstance.WriteFile)} returned StatusObjectNameNotFound");
-                                                activity.RelatedEvent(EventLevel.Informational, "WriteFile_ObjectNameNotFound", requestMetadata);
+                                                this.Context.Tracer.RelatedEvent(EventLevel.Informational, "WriteFile_ObjectNameNotFound", requestMetadata);
                                             }
 
                                             break;
 
                                         default:
                                             {
-                                                activity.RelatedError(requestMetadata, $"{nameof(this.virtualizationInstance.WriteFile)} failed, error: " + writeResult.ToString("X") + "(" + writeResult.ToString("G") + ")");
+                                                this.Context.Tracer.RelatedError(requestMetadata, $"{nameof(this.virtualizationInstance.WriteFile)} failed, error: " + writeResult.ToString("X") + "(" + writeResult.ToString("G") + ")");
                                             }
 
                                             break;
@@ -1071,7 +1063,7 @@ namespace GVFS.Platform.Windows
                         }
                     }))
                 {
-                    activity.RelatedError(requestMetadata, $"{nameof(this.GetFileStreamHandlerAsyncHandler)}: TryCopyBlobContentStream failed");
+                    this.Context.Tracer.RelatedError(requestMetadata, $"{nameof(this.GetFileStreamHandlerAsyncHandler)}: TryCopyBlobContentStream failed");
 
                     this.TryCompleteCommand(commandId, (HResult)HResultExtensions.HResultFromNtStatus.FileNotAvailable);
                     return;
@@ -1095,7 +1087,7 @@ namespace GVFS.Platform.Windows
             catch (Exception e)
             {
                 requestMetadata.Add("Exception", e.ToString());
-                activity.RelatedError(requestMetadata, $"{nameof(this.GetFileStreamHandlerAsyncHandler)}: TryCopyBlobContentStream failed");
+                this.Context.Tracer.RelatedError(requestMetadata, $"{nameof(this.GetFileStreamHandlerAsyncHandler)}: TryCopyBlobContentStream failed");
 
                 this.TryCompleteCommand(commandId, (HResult)HResultExtensions.HResultFromNtStatus.FileNotAvailable);
                 return;

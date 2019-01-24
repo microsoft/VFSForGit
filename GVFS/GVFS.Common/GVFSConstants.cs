@@ -233,6 +233,7 @@ namespace GVFS.Common
         {
             public const string GVFSUpgrade = "`gvfs upgrade`";
             public const string GVFSUpgradeConfirm = "`gvfs upgrade --confirm`";
+            public const string GVFSUpgradeDryRun = "`gvfs upgrade --dry-run`";
             public const string NoUpgradeCheckPerformed = "No upgrade check was performed.";
             public const string NoneRingConsoleAlert = "Upgrade ring set to \"None\". " + NoUpgradeCheckPerformed;
             public const string NoRingConfigConsoleAlert = "Upgrade ring is not set. " + NoUpgradeCheckPerformed;

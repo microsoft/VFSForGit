@@ -56,6 +56,11 @@ namespace GVFS.Platform.Mac
             return true;
         }
 
+        public override bool TryVerifyAuthenticodeSignature(string path, out string subject, out string issuer, out string error)
+        {
+            throw new NotImplementedException();
+        }
+
         public override bool IsProcessActive(int processId)
         {
             return MacPlatform.IsProcessActiveImplementation(processId);

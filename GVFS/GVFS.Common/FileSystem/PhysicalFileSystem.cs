@@ -12,10 +12,6 @@ namespace GVFS.Common.FileSystem
     {
         public const int DefaultStreamBufferSize = 8192;
 
-        // https://msdn.microsoft.com/en-us/library/system.io.filesystemwatcher.internalbuffersize(v=vs.110).aspx:
-        // Max FileSystemWatcher.InternalBufferSize is 64 KB
-        private const int WatcherBufferSize = 64 * 1024;
-
         public static void RecursiveDelete(string path)
         {
             if (!Directory.Exists(path))
@@ -258,6 +254,51 @@ namespace GVFS.Common.FileSystem
                 handledException = e;
                 return false;
             }
+        }
+
+        public bool TryCreateDirectory(string path, out Exception exception)
+        {
+            try
+            {
+                Directory.CreateDirectory(path);
+            }
+            catch (Exception e) when (e is IOException ||
+                                      e is UnauthorizedAccessException ||
+                                      e is ArgumentException ||
+                                      e is NotSupportedException)
+            {
+                exception = e;
+                return false;
+            }
+
+            exception = null;
+            return true;
+        }
+
+        /// <summary>
+        /// Recursively deletes a directory and all contained contents.
+        /// </summary>
+        public bool TryDeleteDirectory(string path, out Exception exception)
+        {
+            try
+            {
+                this.DeleteDirectory(path);
+            }
+            catch (DirectoryNotFoundException)
+            {
+                // The directory does not exist - follow the
+                // convention of this class and report success
+            }
+            catch (Exception e) when (e is IOException ||
+                                      e is UnauthorizedAccessException ||
+                                      e is ArgumentException)
+            {
+                exception = e;
+                return false;
+            }
+
+            exception = null;
+            return true;
         }
 
         /// <summary>

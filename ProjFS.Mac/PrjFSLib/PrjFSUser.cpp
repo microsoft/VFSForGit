@@ -13,7 +13,7 @@ struct DarwinVersion
 
 struct PrjFSService_WatchContext
 {
-    std::function<void(io_service_t, io_connect_t, PrjFSService_WatchContext*)> discoveryCallback;
+    std::function<void(io_service_t, io_connect_t, bool, IOReturn, PrjFSService_WatchContext*)> discoveryCallback;
     io_iterator_t notificationIterator;
     PrjFSServiceUserClientType clientType;
 };
@@ -96,16 +96,14 @@ static void ServiceMatched(
     while (io_service_t prjfsService = IOIteratorNext(context->notificationIterator))
     {
         io_connect_t connection = IO_OBJECT_NULL;
-        if (PrjFSService_ValidateVersion(prjfsService))
+        IOReturn result = kIOReturnError;
+        bool serviceVersionMatches = PrjFSService_ValidateVersion(prjfsService);
+        if (serviceVersionMatches)
         {
-            kern_return_t result = IOServiceOpen(prjfsService, mach_task_self(), context->clientType, &connection);
-            if (result != kIOReturnSuccess)
-            {
-                std::cerr << "Failed to open connection to kernel service; error: 0x" << std::hex << result << ", connection 0x" << std::hex << connection << std::endl;
-            }
+            result = IOServiceOpen(prjfsService, mach_task_self(), context->clientType, &connection);
         }
         
-        context->discoveryCallback(prjfsService, connection, context);
+        context->discoveryCallback(prjfsService, connection, !serviceVersionMatches, result, context);
         
         IOObjectRelease(prjfsService);
     }
@@ -114,7 +112,7 @@ static void ServiceMatched(
 PrjFSService_WatchContext* PrjFSService_WatchForServiceAndConnect(
     IONotificationPortRef notificationPort,
     enum PrjFSServiceUserClientType clientType,
-    std::function<void(io_service_t, io_connect_t, PrjFSService_WatchContext*)> discoveryCallback)
+    std::function<void(io_service_t, io_connect_t, bool serviceVersionMismatch, IOReturn connectResult, PrjFSService_WatchContext*)> discoveryCallback)
 {
     CFDictionaryRef matchDict = IOServiceMatching(PrjFSServiceClass);
     PrjFSService_WatchContext* context = new PrjFSService_WatchContext { std::move(discoveryCallback), IO_OBJECT_NULL, clientType };
@@ -142,6 +140,44 @@ void PrjFSService_StopWatching(PrjFSService_WatchContext* context)
     IOObjectRelease(context->notificationIterator);
     delete context;
 }
+
+struct TerminationNotificationContext
+{
+    std::function<void()> terminationCallback;
+    io_iterator_t terminatedServiceIterator;
+};
+
+static void ServiceTerminated(void* refcon, io_iterator_t iterator)
+{
+    TerminationNotificationContext* context = static_cast<TerminationNotificationContext*>(refcon);
+    
+    io_service_t terminatedService = IOIteratorNext(iterator);
+    if (terminatedService != IO_OBJECT_NULL)
+    {
+        IOObjectRelease(terminatedService);
+        context->terminationCallback();
+        IOObjectRelease(iterator);
+        delete context;
+    }
+}
+
+void PrjFSService_WatchForServiceTermination(io_service_t service, IONotificationPortRef notificationPort, std::function<void()> terminationCallback)
+{
+    uint64_t serviceEntryID = 0;
+    IORegistryEntryGetRegistryEntryID(service, &serviceEntryID);
+    CFMutableDictionaryRef serviceMatching = IORegistryEntryIDMatching(serviceEntryID);
+    TerminationNotificationContext* context = new TerminationNotificationContext { std::move(terminationCallback), };
+    kern_return_t result = IOServiceAddMatchingNotification(notificationPort, kIOTerminatedNotification, serviceMatching, ServiceTerminated, context, &context->terminatedServiceIterator);
+    if (result != kIOReturnSuccess)
+    {
+        delete context;
+    }
+    else
+    {
+        ServiceTerminated(context, context->terminatedServiceIterator);
+    }
+}
+
 
 bool PrjFSService_DataQueueInit(
     DataQueueResources* outQueue,
@@ -219,6 +255,15 @@ void DataQueue_Dispose(DataQueueResources* queueResources, io_connect_t connecti
     {
         IOConnectUnmapMemory64(connection, clientMemoryType, mach_task_self(), queueResources->queueMemoryAddress);
     }
+}
+
+void DataQueue_ClearMachNotification(mach_port_t port)
+{
+    struct {
+        mach_msg_header_t    msgHdr;
+        mach_msg_trailer_t    trailer;
+    } msg;
+    mach_msg(&msg.msgHdr, MACH_RCV_MSG | MACH_RCV_TIMEOUT, 0, sizeof(msg), port, 0, MACH_PORT_NULL);
 }
 
 

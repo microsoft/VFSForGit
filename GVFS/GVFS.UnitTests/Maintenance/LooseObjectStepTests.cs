@@ -6,6 +6,7 @@ using GVFS.Tests.Should;
 using GVFS.UnitTests.Mock.Common;
 using GVFS.UnitTests.Mock.FileSystem;
 using GVFS.UnitTests.Mock.Git;
+using Moq;
 using NUnit.Framework;
 using System;
 using System.Collections.Generic;
@@ -57,8 +58,18 @@ namespace GVFS.UnitTests.Maintenance
         {
             this.TestSetup(DateTime.UtcNow.AddDays(-7));
 
-            LooseObjectsStep step = new LooseObjectsStep(this.context, requireCacheLock: false, forceRun: false);
+            Mock<GitProcessChecker> mockChecker = new Mock<GitProcessChecker>();
+            mockChecker.Setup(checker => checker.GetRunningGitProcessIds())
+                       .Returns(Array.Empty<int>());
+
+            LooseObjectsStep step = new LooseObjectsStep(
+                                            this.context,
+                                            requireCacheLock: false,
+                                            forceRun: false,
+                                            gitProcessChecker: mockChecker.Object);
             step.Execute();
+
+            mockChecker.Verify(checker => checker.GetRunningGitProcessIds(), Times.Once());
 
             this.tracer.StartActivityTracer.RelatedErrorEvents.Count.ShouldEqual(0);
             this.tracer.StartActivityTracer.RelatedWarningEvents.Count.ShouldEqual(0);
@@ -66,6 +77,30 @@ namespace GVFS.UnitTests.Maintenance
             commands.Count.ShouldEqual(2);
             commands[0].ShouldEqual(PrunePackedCommand);
             commands[1].ShouldEqual(this.packCommand);
+        }
+
+        [TestCase]
+        public void LooseObjectsFailGitProcessIds()
+        {
+            this.TestSetup(DateTime.UtcNow.AddDays(-7));
+
+            Mock<GitProcessChecker> mockChecker = new Mock<GitProcessChecker>();
+            mockChecker.Setup(checker => checker.GetRunningGitProcessIds())
+                       .Returns(new int[] { 1 });
+
+            LooseObjectsStep step = new LooseObjectsStep(
+                                            this.context,
+                                            requireCacheLock: false,
+                                            forceRun: false,
+                                            gitProcessChecker: mockChecker.Object);
+            step.Execute();
+
+            mockChecker.Verify(checker => checker.GetRunningGitProcessIds(), Times.Once());
+
+            this.tracer.StartActivityTracer.RelatedErrorEvents.Count.ShouldEqual(0);
+            this.tracer.StartActivityTracer.RelatedWarningEvents.Count.ShouldEqual(1);
+            List<string> commands = this.gitProcess.CommandsRun;
+            commands.Count.ShouldEqual(0);
         }
 
         [TestCase]

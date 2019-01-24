@@ -53,6 +53,8 @@ namespace GVFS.Common
 
         public abstract IEnumerable<EventListener> CreateTelemetryListeners(string providerName, string enlistmentId, string mountId);
 
+        public abstract bool TryVerifyAuthenticodeSignature(string path, out string subject, out string issuer, out string error);
+
         public abstract Dictionary<string, string> GetPhysicalDiskInfo(string path, bool sizeStatsOnly);
 
         public abstract bool IsConsoleOutputRedirectedToFile();

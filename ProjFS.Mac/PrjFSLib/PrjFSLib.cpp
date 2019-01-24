@@ -21,9 +21,9 @@
 #include "stdlib.h"
 
 #include "PrjFSLib.h"
-#include "PrjFSKext/public/PrjFSCommon.h"
-#include "PrjFSKext/public/PrjFSXattrs.h"
-#include "PrjFSKext/public/Message.h"
+#include "../PrjFSKext/public/PrjFSCommon.h"
+#include "../PrjFSKext/public/PrjFSXattrs.h"
+#include "../PrjFSKext/public/Message.h"
 #include "PrjFSUser.hpp"
 
 #define STRINGIFY(s) #s
@@ -125,8 +125,6 @@ static bool IsDirEntChildDirectory(const dirent* directoryEntry);
 
 static Message ParseMessageMemory(const void* messageMemory, uint32_t size);
 
-static void ClearMachNotification(mach_port_t port);
-
 #ifdef DEBUG
 static const char* NotificationTypeToString(PrjFS_NotificationType notificationType);
 #endif
@@ -211,7 +209,7 @@ PrjFS_Result PrjFS_StartVirtualizationInstance(
     s_kernelRequestHandlingConcurrentQueue = dispatch_queue_create("PrjFS Kernel Request Handling", DISPATCH_QUEUE_CONCURRENT);
     
     dispatch_source_set_event_handler(dataQueue.dispatchSource, ^{
-        ClearMachNotification(dataQueue.notificationPort);
+        DataQueue_ClearMachNotification(dataQueue.notificationPort);
         
         while (1)
         {
@@ -1261,14 +1259,6 @@ CleanupAndReturn:
 
 }
 
-static void ClearMachNotification(mach_port_t port)
-{
-    struct {
-        mach_msg_header_t	msgHdr;
-        mach_msg_trailer_t	trailer;
-    } msg;
-    mach_msg(&msg.msgHdr, MACH_RCV_MSG | MACH_RCV_TIMEOUT, 0, sizeof(msg), port, 0, MACH_PORT_NULL);
-}
 
 #ifdef DEBUG
 static const char* NotificationTypeToString(PrjFS_NotificationType notificationType)

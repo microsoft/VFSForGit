@@ -197,9 +197,6 @@ namespace GVFS.Common.Git
             [DllImport(Git2NativeLibName, EntryPoint = "git_revparse_single")]
             public static extern uint RevParseSingle(out IntPtr objectHandle, IntPtr repoHandle, string oid);
 
-            [DllImport(Git2NativeLibName, EntryPoint = "git_oid_fromstr")]
-            public static extern void OidFromString(ref GitOid oid, string hash);
-
             public static string GetLastError()
             {
                 IntPtr ptr = GetLastGitError();

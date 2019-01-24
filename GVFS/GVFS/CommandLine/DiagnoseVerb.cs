@@ -132,15 +132,15 @@ namespace GVFS.CommandLine
                         {
                             // upgrader
                             this.CopyAllFiles(
-                                ProductUpgrader.GetUpgradesDirectoryPath(),
+                                ProductUpgraderInfo.GetUpgradesDirectoryPath(),
                                 archiveFolderPath,
-                                ProductUpgrader.LogDirectory,
+                                ProductUpgraderInfo.LogDirectory,
                                 copySubFolders: true,
-                                targetFolderName: ProductUpgrader.UpgradeDirectoryName);
+                                targetFolderName: ProductUpgraderInfo.UpgradeDirectoryName);
                             this.LogDirectoryEnumeration(
-                                ProductUpgrader.GetUpgradesDirectoryPath(),
-                                Path.Combine(archiveFolderPath, ProductUpgrader.UpgradeDirectoryName),
-                                ProductUpgrader.DownloadDirectory,
+                                ProductUpgraderInfo.GetUpgradesDirectoryPath(),
+                                Path.Combine(archiveFolderPath, ProductUpgraderInfo.UpgradeDirectoryName),
+                                ProductUpgraderInfo.DownloadDirectory,
                                 "downloaded-assets.txt");
                         }
 

@@ -11,7 +11,6 @@ namespace GVFS.Virtualization.Background
     {
         private const int ActionRetryDelayMS = 50;
         private const int RetryFailuresLogThreshold = 200;
-        private const int MaxCallbackAttemptsOnShutdown = 5;
         private const int LogUpdateTaskThreshold = 25000;
         private static readonly string EtwArea = nameof(BackgroundFileSystemTaskRunner);
 
@@ -297,13 +296,6 @@ namespace GVFS.Virtualization.Background
                         return;
                 }
             }
-        }
-
-        private void LogWarning(string message)
-        {
-            EventMetadata metadata = new EventMetadata();
-            metadata.Add("Area", EtwArea);
-            this.context.Tracer.RelatedWarning(metadata, message);
         }
 
         private void LogErrorAndExit(string message, Exception e = null)
