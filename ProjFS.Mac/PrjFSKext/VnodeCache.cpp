@@ -4,6 +4,7 @@
 #include "Memory.hpp"
 #include "KextLog.hpp"
 
+static inline void UpgradeToExclusiveLock(RWLock& lock);
 static inline uintptr_t HashVnode(vnode_t _Nonnull vnode);
 static bool TryFindVnodeIndex_Locked(vnode_t _Nonnull vnode, uintptr_t startingIndex, /* out */  uintptr_t& cacheIndex);
 static bool TryFindVnodeIndex_Locked(vnode_t _Nonnull vnode, uintptr_t startingIndex, uintptr_t stoppingIndex, /* out */  uintptr_t& cacheIndex);
@@ -103,12 +104,9 @@ VirtualizationRootHandle VnodeCache_FindRootForVnode(
                 {
                     perfTracer->IncrementCount(cacheMissCounter, true /*ignoreSampling*/);
                 
-                    if (!RWLock_AcquireSharedToExclusive(s_entriesLock))
-                    {
-                        RWLock_AcquireExclusive(s_entriesLock);
-                    }
-                    
+                    UpgradeToExclusiveLock(s_entriesLock);
                     lockElevatedToExclusive = true;
+                    
                     UpdateIndexEntryToLatest_Locked(
                         context,
                         perfTracer,
@@ -131,11 +129,7 @@ VirtualizationRootHandle VnodeCache_FindRootForVnode(
                 perfTracer->IncrementCount(cacheMissCounter, true /*ignoreSampling*/);
             
                 // We need to insert the vnode into the cache, upgrade to exclusive lock and add it to the cache
-                if (!RWLock_AcquireSharedToExclusive(s_entriesLock))
-                {
-                    RWLock_AcquireExclusive(s_entriesLock);
-                }
-                
+                UpgradeToExclusiveLock(s_entriesLock);
                 lockElevatedToExclusive = true;
                 
                 // 1. Find the insertion index
@@ -148,7 +142,7 @@ VirtualizationRootHandle VnodeCache_FindRootForVnode(
                         startingIndex, // stopping index
                         /*out*/ insertionIndex))
                 {
-                    if (NULLVP == s_entries[insertionIndex].vnode)
+                    if (invalidateEntry || NULLVP == s_entries[insertionIndex].vnode || vnodeVid != s_entries[insertionIndex].vid)
                     {
                         UpdateIndexEntryToLatest_Locked(
                             context,
@@ -162,24 +156,8 @@ VirtualizationRootHandle VnodeCache_FindRootForVnode(
                         
                         rootHandle = s_entries[insertionIndex].virtualizationRoot;
                     }
-                    else
-                    {
-                        // We found an existing entry, ensure it's still valid
-                        if (invalidateEntry || vnodeVid != s_entries[insertionIndex].vid)
-                        {
-                            UpdateIndexEntryToLatest_Locked(
-                                context,
-                                perfTracer,
-                                cacheMissFallbackFunctionCounter,
-                                cacheMissFallbackFunctionInnerLoopCounter,
-                                insertionIndex,
-                                vnode,
-                                vnodeFsidInode,
-                                vnodeVid);
-                        }
-                        
-                        rootHandle = s_entries[insertionIndex].virtualizationRoot;
-                    }
+                    
+                    rootHandle = s_entries[insertionIndex].virtualizationRoot;
                 }
                 else
                 {
@@ -223,6 +201,14 @@ void VnodeCache_InvalidateCache()
         memset(s_entries, 0, s_entriesCapacity * sizeof(VnodeCacheEntry));
     }
     RWLock_ReleaseExclusive(s_entriesLock);
+}
+
+static inline void UpgradeToExclusiveLock(RWLock& lock)
+{
+    if (!RWLock_AcquireSharedToExclusive(lock))
+    {
+        RWLock_AcquireExclusive(lock);
+    }
 }
 
 static inline uintptr_t HashVnode(vnode_t _Nonnull vnode)
