@@ -103,6 +103,47 @@ function CreateInstaller()
     eval $pkgBuildCommand || exit 1
 }
 
+function CreateMetaInstaller()
+{
+    GITVERSION="$($VFS_SCRIPTDIR/GetGitVersionNumber.sh)"
+    GITDMGPATH="$(find $VFS_PACKAGESDIR/gitformac.gvfs.installer/$GITVERSION -type f -name *.dmg)" || exit 1
+    GITDMGNAME="${GITDMGPATH##*/}"
+    GITINSTALLERNAME="${GITDMGNAME%.dmg}"
+    GITVERSIONSTRING=`echo $GITINSTALLERNAME | cut -d"-" -f2`
+    
+    if [[ -z "$GITVERSION" || -z "$GITVERSIONSTRING" ]]; then
+        echo "Error creating metapackage: could not determine Git package version."
+        exit 1
+    fi
+    
+    if [ ! -f "$GITDMGPATH" ]; then
+        echo "Error creating metapackage: could not find Git disk image."
+        exit 1
+    fi
+    
+    mountCmd="/usr/bin/hdiutil attach \"$GITDMGPATH\""
+    echo "$mountCmd"
+    eval $mountCmd || exit 1
+    
+    MOUNTEDVOLUME=`/usr/bin/find /Volumes -type d -name "Git $GITVERSIONSTRING*"`
+    GITINSTALLERPATH=`/usr/bin/find "$MOUNTEDVOLUME" -type f -name "git-$GITVERSIONSTRING*.pkg"`
+    
+    if [ ! -f "$GITINSTALLERPATH" ]; then
+        echo "Error creating metapackage: could not find Git installer package."
+        exit 1
+    fi
+    
+    METAPACKAGENAME="$INSTALLERPACKAGENAME-Git.$GITVERSION.pkg"
+    
+    buildMetapkgCmd="/usr/bin/productbuild --package \"$GITINSTALLERPATH\" --package \"${BUILDOUTPUTDIR}\"$INSTALLERPACKAGENAME.pkg \"${BUILDOUTPUTDIR}\"$METAPACKAGENAME"
+    echo $buildMetapkgCmd
+    eval $buildMetapkgCmd || exit 1
+    
+    unmountCmd="/usr/bin/hdiutil detach \"$MOUNTEDVOLUME\""
+    echo "$unmountCmd"
+    eval $unmountCmd || exit 1
+}
+
 function Run()
 {
     CheckBuildIsAvailable
@@ -110,6 +151,7 @@ function Run()
     CopyBinariesToInstall
     SetPermissions
     CreateInstaller
+    CreateMetaInstaller
 }
 
 Run
