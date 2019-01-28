@@ -5,6 +5,9 @@ namespace GVFS.Common.X509Certificates
     public class SystemCertificateStore : ICertificateStore
     {
         private readonly X509Store store;
+
+        private bool isOpen = false;
+
         public SystemCertificateStore()
         {
             this.store = new X509Store();
@@ -17,9 +20,10 @@ namespace GVFS.Common.X509Certificates
 
         public X509Certificate2Collection Find(X509FindType findType, string searchString, bool validOnly)
         {
-            if (!this.store.IsOpen)
+            if (!this.isOpen)
             {
                 this.store.Open(OpenFlags.OpenExistingOnly | OpenFlags.ReadOnly);
+                this.isOpen = true;
             }
 
             return this.store.Certificates.Find(X509FindType.FindBySubjectName, searchString, validOnly);
