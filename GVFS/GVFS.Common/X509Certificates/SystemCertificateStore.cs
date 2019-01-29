@@ -1,8 +1,9 @@
+using System;
 using System.Security.Cryptography.X509Certificates;
 
 namespace GVFS.Common.X509Certificates
 {
-    public class SystemCertificateStore : ICertificateStore
+    public class SystemCertificateStore : IDisposable
     {
         private readonly X509Store store;
 
@@ -18,7 +19,7 @@ namespace GVFS.Common.X509Certificates
             this.store.Dispose();
         }
 
-        public X509Certificate2Collection Find(X509FindType findType, string searchString, bool validOnly)
+        public virtual X509Certificate2Collection Find(X509FindType findType, string searchString, bool validOnly)
         {
             if (!this.isOpen)
             {

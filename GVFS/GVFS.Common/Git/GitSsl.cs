@@ -15,15 +15,15 @@ namespace GVFS.Common.Git
     {
         private readonly string certificatePathOrSubjectCommonName;
         private readonly bool isCertificatePasswordProtected;
-        private readonly Func<ICertificateStore> certificateStoreFactory;
-        private readonly ICertificateVerifier certificateVerifier;
+        private readonly Func<SystemCertificateStore> createCertificateStore;
+        private readonly CertificateVerifier certificateVerifier;
         private readonly PhysicalFileSystem fileSystem;
 
         public GitSsl(
             IDictionary<string, GitConfigSetting> configSettings,
-            Func<ICertificateStore> certificateStoreFactory = null,
-            ICertificateVerifier certificateVerifier = null,
-            PhysicalFileSystem fileSystem = null) : this(certificateStoreFactory, certificateVerifier, fileSystem)
+            Func<SystemCertificateStore> createCertificateStore = null,
+            CertificateVerifier certificateVerifier = null,
+            PhysicalFileSystem fileSystem = null) : this(createCertificateStore, certificateVerifier, fileSystem)
         {
             if (configSettings != null)
             {
@@ -38,11 +38,11 @@ namespace GVFS.Common.Git
             }
         }
 
-        private GitSsl(Func<ICertificateStore> certificateStoreFactory, ICertificateVerifier certificateVerifier, PhysicalFileSystem fileSystem)
+        private GitSsl(Func<SystemCertificateStore> certificateStoreFactory, CertificateVerifier certificateVerifier, PhysicalFileSystem fileSystem)
         {
             this.fileSystem = fileSystem ?? new PhysicalFileSystem();
 
-            this.certificateStoreFactory = certificateStoreFactory ?? (() => new SystemCertificateStore());
+            this.createCertificateStore = certificateStoreFactory ?? (() => new SystemCertificateStore());
 
             this.certificateVerifier = certificateVerifier ?? new CertificateVerifier();
 
@@ -185,7 +185,7 @@ namespace GVFS.Common.Git
         {
             try
             {
-                using (ICertificateStore certificateStore = this.certificateStoreFactory())
+                using (SystemCertificateStore certificateStore = this.createCertificateStore())
                 {
                     X509Certificate2Collection findResults = certificateStore.Find(
                         X509FindType.FindBySubjectName,

@@ -95,7 +95,7 @@ namespace GVFS.Common.Http
                 this.Tracer.RelatedError(
                     new EventMetadata
                     {
-                    { "Exception", output.Error.ToString() }
+                        { "Exception", output.Error.ToString() }
                     },
                     $"{nameof(this.TryQueryGVFSConfig)} failed");
             }

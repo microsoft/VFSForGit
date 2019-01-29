@@ -2,9 +2,9 @@ using System.Security.Cryptography.X509Certificates;
 
 namespace GVFS.Common.X509Certificates
 {
-    public class CertificateVerifier : ICertificateVerifier
+    public class CertificateVerifier
     {
-        public bool Verify(X509Certificate2 certificate)
+        public virtual bool Verify(X509Certificate2 certificate)
         {
             return certificate.Verify();
         }

@@ -312,10 +312,7 @@ namespace GVFS.CommandLine
             }
             catch (InvalidRepoException e)
             {
-                this.ReportErrorAndExit(
-                    "Error when creating a new GVFS enlistment at '{0}'. {1}",
-                    normalizedEnlistementRootPath,
-                    e.Message);
+                return new Result($"Error when creating a new GVFS enlistment at '{normalizedEnlistementRootPath}'. {e.Message}");
             }
 
             return new Result(true);

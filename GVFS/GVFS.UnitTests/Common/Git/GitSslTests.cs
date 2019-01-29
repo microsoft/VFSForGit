@@ -2,6 +2,8 @@
 using GVFS.Common;
 using GVFS.Common.Git;
 using GVFS.Common.X509Certificates;
+using GVFS.Tests.Should;
+using GVFS.UnitTests.Category;
 using GVFS.UnitTests.Mock.Common;
 using GVFS.UnitTests.Mock.FileSystem;
 using GVFS.UnitTests.Mock.Git;
@@ -20,8 +22,8 @@ namespace GVFS.UnitTests.Common.Git
     {
         public static object[] BoolGitSettings = new[]
         {
-            GitConfigSetting.HttpSslCertPasswordProtected,
-            GitConfigSetting.HttpSslVerify
+            new object[] { GitConfigSetting.HttpSslCertPasswordProtected },
+            new object[] { GitConfigSetting.HttpSslVerify }
         };
 
         private const string CertificateName = "TestCert";
@@ -30,8 +32,8 @@ namespace GVFS.UnitTests.Common.Git
         private MockTracer tracer;
         private MockGitProcess gitProcess;
 
-        private Mock<ICertificateVerifier> certificateVerifierMock;
-        private Mock<ICertificateStore> certificateStoreMock;
+        private Mock<CertificateVerifier> certificateVerifierMock;
+        private Mock<SystemCertificateStore> certificateStoreMock;
 
         private MockDirectory mockDirectory;
         private MockFileSystem fileSystem;
@@ -43,10 +45,11 @@ namespace GVFS.UnitTests.Common.Git
             this.gitProcess = new MockGitProcess();
             this.mockDirectory = new MockDirectory("mock://root", null, null);
             this.fileSystem = new MockFileSystem(this.mockDirectory);
-            this.certificateVerifierMock = new Mock<ICertificateVerifier>();
-            this.certificateStoreMock = new Mock<ICertificateStore>();
+            this.certificateVerifierMock = new Mock<CertificateVerifier>();
+            this.certificateStoreMock = new Mock<SystemCertificateStore>();
         }
 
+        [Category(CategoryConstants.ExceptionExpected)]
         [TestCaseSource(typeof(GitSslTests), nameof(GitSslTests.BoolGitSettings))]
         public void ConstructorShouldThrowWhenLastBoolSettingNotABool(string setting)
         {
@@ -70,7 +73,7 @@ namespace GVFS.UnitTests.Common.Git
         {
             GitSsl sut = new GitSsl(new Dictionary<string, GitConfigSetting>());
             X509Certificate2 result = sut.GetCertificate(this.tracer, this.gitProcess);
-            Assert.IsNull(result);
+            result.ShouldBeNull();
         }
 
         [TestCase]
@@ -84,8 +87,8 @@ namespace GVFS.UnitTests.Common.Git
 
             X509Certificate2 result = gitSsl.GetCertificate(this.tracer, this.gitProcess);
 
-            Assert.IsNotNull(result);
-            Assert.AreEqual(result, certificate);
+            result.ShouldNotBeNull();
+            result.ShouldEqual(certificate);
         }
 
         [TestCase]
@@ -103,8 +106,8 @@ namespace GVFS.UnitTests.Common.Git
 
             X509Certificate2 result = gitSsl.GetCertificate(this.tracer, this.gitProcess);
 
-            Assert.IsNotNull(result);
-            Assert.AreEqual(result, certificate);
+            result.ShouldNotBeNull();
+            result.ShouldEqual(certificate);
         }
 
         [TestCase]
@@ -122,7 +125,7 @@ namespace GVFS.UnitTests.Common.Git
 
             X509Certificate2 result = gitSsl.GetCertificate(this.tracer, this.gitProcess);
 
-            Assert.IsNull(result);
+            result.ShouldBeNull();
         }
 
         [TestCase]
@@ -141,8 +144,8 @@ namespace GVFS.UnitTests.Common.Git
 
             X509Certificate2 result = gitSsl.GetCertificate(this.tracer, this.gitProcess);
 
-            Assert.IsNotNull(result);
-            Assert.AreEqual(result, certificate);
+            result.ShouldNotBeNull();
+            result.ShouldEqual(certificate);
         }
 
         [TestCase]
@@ -168,8 +171,8 @@ namespace GVFS.UnitTests.Common.Git
 
             X509Certificate2 result = gitSsl.GetCertificate(this.tracer, this.gitProcess);
 
-            Assert.IsNotNull(result);
-            Assert.AreEqual(result, certificate);
+            result.ShouldNotBeNull();
+            result.ShouldEqual(certificate);
         }
 
         [TestCase]
@@ -190,7 +193,7 @@ namespace GVFS.UnitTests.Common.Git
 
             X509Certificate2 result = gitSsl.GetCertificate(this.tracer, this.gitProcess);
 
-            Assert.IsNull(result);
+            result.ShouldBeNull();
         }
 
         private static IDictionary<string, GitConfigSetting> GetGitConfig(params GitConfigSetting[] overrides)
@@ -213,9 +216,9 @@ namespace GVFS.UnitTests.Common.Git
             DateTimeOffset? validFrom = null,
             DateTimeOffset? validTo = null)
         {
-            var ecdsa = ECDsa.Create();
-            var req = new CertificateRequest($"cn={subjectName ?? CertificateName}", ecdsa, HashAlgorithmName.SHA256);
-            var cert = req.CreateSelfSigned(validFrom ?? DateTimeOffset.Now.AddDays(-5), validTo ?? DateTimeOffset.Now.AddDays(5));
+            ECDsa ecdsa = ECDsa.Create();
+            CertificateRequest req = new CertificateRequest($"cn={subjectName ?? CertificateName}", ecdsa, HashAlgorithmName.SHA256);
+            X509Certificate2 cert = req.CreateSelfSigned(validFrom ?? DateTimeOffset.Now.AddDays(-5), validTo ?? DateTimeOffset.Now.AddDays(5));
 
             return cert;
         }
