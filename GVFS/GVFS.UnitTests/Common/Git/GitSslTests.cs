@@ -1,3 +1,4 @@
+#if NETCOREAPP2_1
 using GVFS.Common;
 using GVFS.Common.Git;
 using GVFS.Common.X509Certificates;
@@ -264,3 +265,4 @@ namespace GVFS.UnitTests.Common.Git
         }
     }
 }
+#endif
