@@ -389,7 +389,7 @@ namespace GVFS.Virtualization
 
         public void OnFileCreated(string relativePath)
         {
-            this.newlyCreatedFileAndFolderPaths.Add(relativePath);
+            this.AddToNewlyCreatedList(relativePath, isFolder: false);
             this.backgroundFileSystemTaskRunner.Enqueue(FileSystemTask.OnFileCreated(relativePath));
         }
 
@@ -435,7 +435,7 @@ namespace GVFS.Virtualization
 
         public void OnFolderCreated(string relativePath)
         {
-            this.newlyCreatedFileAndFolderPaths.Add(relativePath);
+            this.AddToNewlyCreatedList(relativePath, isFolder: true);
             this.backgroundFileSystemTaskRunner.Enqueue(FileSystemTask.OnFolderCreated(relativePath));
         }
 
@@ -657,11 +657,10 @@ namespace GVFS.Virtualization
                     // additional work is needed for any files\folders inside the folder being moved)
                     if (result == FileSystemTaskResult.Success && !string.IsNullOrEmpty(gitUpdate.VirtualPath))
                     {
+                        this.AddToNewlyCreatedList(gitUpdate.VirtualPath, isFolder: true);
                         result = this.TryAddModifiedPath(gitUpdate.VirtualPath, isFolder: true);
                         if (result == FileSystemTaskResult.Success)
                         {
-                            this.newlyCreatedFileAndFolderPaths.Add(gitUpdate.VirtualPath);
-
                             Queue<string> relativeFolderPaths = new Queue<string>();
                             relativeFolderPaths.Enqueue(gitUpdate.VirtualPath);
 
@@ -678,7 +677,7 @@ namespace GVFS.Virtualization
                                             string itemVirtualPath = Path.Combine(folderPath, itemInfo.Name);
                                             string oldItemVirtualPath = gitUpdate.OldVirtualPath + itemVirtualPath.Substring(gitUpdate.VirtualPath.Length);
 
-                                            this.newlyCreatedFileAndFolderPaths.Add(itemVirtualPath);
+                                            this.AddToNewlyCreatedList(itemVirtualPath, isFolder: itemInfo.IsDirectory);
                                             if (this.newlyCreatedFileAndFolderPaths.Contains(oldItemVirtualPath))
                                             {
                                                 result = this.TryRemoveModifiedPath(oldItemVirtualPath, isFolder: itemInfo.IsDirectory);
@@ -797,6 +796,14 @@ namespace GVFS.Virtualization
             }
 
             return result;
+        }
+
+        private void AddToNewlyCreatedList(string virtualPath, bool isFolder)
+        {
+            if (!this.modifiedPaths.Contains(virtualPath, isFolder))
+            {
+                this.newlyCreatedFileAndFolderPaths.Add(virtualPath);
+            }
         }
 
         private FileSystemTaskResult TryRemoveModifiedPath(string virtualPath, bool isFolder)
