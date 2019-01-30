@@ -17,12 +17,12 @@ namespace GVFS.CommandLine
         private const string ConfirmOption = "--confirm";
 
         private ITracer tracer;
-        private IProductUpgrader upgrader;
+        private ProductUpgrader upgrader;
         private InstallerPreRunChecker prerunChecker;
         private ProcessLauncher processLauncher;
 
         public UpgradeVerb(
-            IProductUpgrader upgrader,
+            ProductUpgrader upgrader,
             ITracer tracer,
             InstallerPreRunChecker prerunChecker,
             ProcessLauncher processWrapper,
@@ -98,8 +98,8 @@ namespace GVFS.CommandLine
                     this.tracer = jsonTracer;
                     this.prerunChecker = new InstallerPreRunChecker(this.tracer, this.Confirmed ? GVFSConstants.UpgradeVerbMessages.GVFSUpgradeConfirm : GVFSConstants.UpgradeVerbMessages.GVFSUpgrade);
 
-                    IProductUpgrader upgrader;
-                    if (ProductUpgraderFactory.TryCreateUpgrader(out upgrader, this.tracer, out error, this.DryRun, this.NoVerify))
+                    ProductUpgrader upgrader;
+                    if (ProductUpgrader.TryCreateUpgrader(out upgrader, this.tracer, out error, this.DryRun, this.NoVerify))
                     {
                         this.upgrader = upgrader;
                     }

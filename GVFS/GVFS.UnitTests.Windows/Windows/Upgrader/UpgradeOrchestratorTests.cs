@@ -26,7 +26,7 @@ namespace GVFS.UnitTests.Upgrader
         private MockTextWriter Output { get; set; }
         private MockInstallerPrerunChecker PreRunChecker { get; set; }
         private Mock<LocalGVFSConfig> MoqLocalConfig { get; set; }
-        private Mock<IProductUpgrader> MoqUpgrader { get; set; }
+        private Mock<ProductUpgrader> MoqUpgrader { get; set; }
 
         private UpgradeOrchestrator orchestrator { get; set; }
 
@@ -166,9 +166,9 @@ namespace GVFS.UnitTests.Upgrader
             this.orchestrator.ExitCode.ShouldEqual(ReturnCode.GenericError);
         }
 
-        public Mock<IProductUpgrader> DefaultUpgrader()
+        public Mock<ProductUpgrader> DefaultUpgrader()
         {
-            Mock<IProductUpgrader> mockUpgrader = new Mock<IProductUpgrader>();
+            Mock<ProductUpgrader> mockUpgrader = new Mock<ProductUpgrader>();
 
             mockUpgrader.Setup(upgrader => upgrader.UpgradeAllowed(out It.Ref<string>.IsAny))
                 .Callback(new UpgradeAllowedCallback((out string delegateMessage) =>

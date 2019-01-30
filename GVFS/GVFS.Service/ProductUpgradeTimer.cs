@@ -57,10 +57,10 @@ namespace GVFS.Service
         {
             string errorMessage = null;
             InstallerPreRunChecker prerunChecker = new InstallerPreRunChecker(this.tracer, string.Empty);
-            IProductUpgrader productUpgrader;
+            ProductUpgrader productUpgrader;
             bool deleteExistingDownloads = true;
 
-            if (ProductUpgraderFactory.TryCreateUpgrader(out productUpgrader, this.tracer, out errorMessage))
+            if (ProductUpgrader.TryCreateUpgrader(out productUpgrader, this.tracer, out errorMessage))
             {
                 if (prerunChecker.TryRunPreUpgradeChecks(out string _) && this.TryDownloadUpgrade(productUpgrader, out errorMessage))
                 {
@@ -79,7 +79,7 @@ namespace GVFS.Service
             }
         }
 
-        private bool TryDownloadUpgrade(IProductUpgrader productUpgrader, out string errorMessage)
+        private bool TryDownloadUpgrade(ProductUpgrader productUpgrader, out string errorMessage)
         {
             using (ITracer activity = this.tracer.StartActivity("Checking for product upgrades.", EventLevel.Informational))
             {
