@@ -39,6 +39,13 @@ namespace GVFS.Common
                 "System.Net.Http.dll",
                 "Newtonsoft.Json.dll",
                 "CommandLine.dll",
+                "NuGet.Common.dll",
+                "NuGet.Configuration.dll",
+                "NuGet.Frameworks.dll",
+                "NuGet.Packaging.Core.dll",
+                "NuGet.Packaging.dll",
+                "NuGet.Protocol.dll",
+                "NuGet.Versioning.dll",
                 "System.IO.Compression.dll"
             };
 
@@ -63,6 +70,29 @@ namespace GVFS.Common
             bool dryRun = false,
             bool noVerify = false)
         {
+            // Prefer to use the NuGet upgrader if it is configured. If the NuGet upgrader is not configured,
+            // then try to use the GitHubUpgrader.
+            if (NuGetUpgrader.NuGetUpgrader.TryCreate(tracer, dryRun, noVerify, out NuGetUpgrader.NuGetUpgrader nuGetUpgrader, out bool isConfigured, out error))
+            {
+                // We were successfully able to load a NuGetUpgrader - use that.
+                newUpgrader = nuGetUpgrader;
+                return true;
+            }
+            else
+            {
+                if (isConfigured)
+                {
+                    tracer.RelatedError($"{nameof(TryCreateUpgrader)}: Could not create upgrader. {error}");
+
+                    // We did not successfully load a NuGetUpgrader, but it is configured.
+                    newUpgrader = null;
+                    return false;
+                }
+
+                // We did not load a NuGetUpgrader, but it is not the configured upgrader.
+                // Try to load other upgraders as appropriate.
+            }
+
             newUpgrader = GitHubUpgrader.Create(tracer, dryRun, noVerify, out error);
             if (newUpgrader == null)
             {
