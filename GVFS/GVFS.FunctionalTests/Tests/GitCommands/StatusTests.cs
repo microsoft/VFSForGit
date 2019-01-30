@@ -26,6 +26,19 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
         }
 
         [TestCase]
+        public void DeleteThenCreateThenDeleteFile()
+        {
+            string srcPath = @"Readme.md";
+
+            this.DeleteFile(srcPath);
+            this.ValidateGitCommand("status");
+            this.CreateFile("Testing", srcPath);
+            this.ValidateGitCommand("status");
+            this.DeleteFile(srcPath);
+            this.ValidateGitCommand("status");
+        }
+
+        [TestCase]
         [Category(Categories.MacTODO.M4)]
         public void ModifyingAndDeletingRepositoryExcludeFileInvalidatesCache()
         {
