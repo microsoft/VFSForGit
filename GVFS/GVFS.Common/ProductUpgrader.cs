@@ -63,6 +63,13 @@ namespace GVFS.Common
             this.fileSystem = fileSystem;
         }
 
+        /// <summary>
+        /// For mocking purposes only
+        /// </summary>
+        protected ProductUpgrader()
+        {
+        }
+
         public static bool TryCreateUpgrader(
             out ProductUpgrader newUpgrader,
             ITracer tracer,
