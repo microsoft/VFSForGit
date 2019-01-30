@@ -12,7 +12,7 @@ namespace GVFS.Upgrader
     {
         private const EventLevel DefaultEventLevel = EventLevel.Informational;
 
-        private IProductUpgrader upgrader;
+        private ProductUpgrader upgrader;
         private ITracer tracer;
         private InstallerPreRunChecker preRunChecker;
         private TextWriter output;
@@ -20,7 +20,7 @@ namespace GVFS.Upgrader
         private bool mount;
 
         public UpgradeOrchestrator(
-            IProductUpgrader upgrader,
+            ProductUpgrader upgrader,
             ITracer tracer,
             InstallerPreRunChecker preRunChecker,
             TextReader input,
@@ -76,42 +76,49 @@ namespace GVFS.Upgrader
             string mountError = null;
             Version newVersion = null;
 
-            if (this.TryInitialize(out error))
+            try
             {
-                try
+                if (this.TryInitialize(out error))
                 {
-                    if (!this.TryRunUpgrade(out newVersion, out error))
+                    try
                     {
-                        this.ExitCode = ReturnCode.GenericError;
+                        if (!this.TryRunUpgrade(out newVersion, out error))
+                        {
+                            this.ExitCode = ReturnCode.GenericError;
+                        }
+                    }
+                    finally
+                    {
+                        if (!this.TryMountRepositories(out mountError))
+                        {
+                            mountError = Environment.NewLine + "WARNING: " + mountError;
+                            this.output.WriteLine(mountError);
+                        }
+
+                        this.DeletedDownloadedAssets();
                     }
                 }
-                finally
+                else
                 {
-                    if (!this.TryMountRepositories(out mountError))
+                    this.ExitCode = ReturnCode.GenericError;
+                }
+
+                if (this.ExitCode == ReturnCode.GenericError)
+                {
+                    error = Environment.NewLine + "ERROR: " + error;
+                    this.output.WriteLine(error);
+                }
+                else
+                {
+                    if (newVersion != null)
                     {
-                        mountError = Environment.NewLine + "WARNING: " + mountError;
-                        this.output.WriteLine(mountError);
+                        this.output.WriteLine($"{Environment.NewLine}Upgrade completed successfully{(string.IsNullOrEmpty(mountError) ? "." : ", but one or more repositories will need to be mounted manually.")}");
                     }
-
-                    this.DeletedDownloadedAssets();
                 }
             }
-            else
+            finally
             {
-                this.ExitCode = ReturnCode.GenericError;
-            }
-
-            if (this.ExitCode == ReturnCode.GenericError)
-            {
-                error = Environment.NewLine + "ERROR: " + error;
-                this.output.WriteLine(error);
-            }
-            else
-            {
-                if (newVersion != null)
-                {
-                    this.output.WriteLine($"{Environment.NewLine}Upgrade completed successfully{(string.IsNullOrEmpty(mountError) ? "." : ", but one or more repositories will need to be mounted manually.")}");
-                }
+                this.upgrader?.Dispose();
             }
 
             if (this.input == Console.In)
@@ -137,8 +144,8 @@ namespace GVFS.Upgrader
         {
             if (this.upgrader == null)
             {
-                IProductUpgrader upgrader;
-                if (!ProductUpgraderFactory.TryCreateUpgrader(out upgrader, this.tracer, out errorMessage, this.DryRun, this.NoVerify))
+                ProductUpgrader upgrader;
+                if (!ProductUpgrader.TryCreateUpgrader(out upgrader, this.tracer, out errorMessage, this.DryRun, this.NoVerify))
                 {
                     return false;
                 }
