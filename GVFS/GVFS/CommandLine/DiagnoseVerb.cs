@@ -144,6 +144,11 @@ namespace GVFS.CommandLine
                                 "downloaded-assets.txt");
                         }
 
+                        if (GVFSPlatform.Instance.UnderConstruction.SupportsGVFSConfig)
+                        {
+                            this.CopyFile(Paths.GetServiceDataRoot(string.Empty), archiveFolderPath, LocalGVFSConfig.FileName);
+                        }
+
                         return true;
                     },
                     "Copying logs");
@@ -189,6 +194,34 @@ namespace GVFS.CommandLine
         {
             string information = GVFSPlatform.Instance.GetOSVersionInformation();
             this.diagnosticLogFileWriter.WriteLine(information);
+        }
+
+        private void CopyFile(
+            string sourceRoot,
+            string targetRoot,
+            string fileName)
+        {
+            string sourceFile = Path.Combine(sourceRoot, fileName);
+            string targetFile = Path.Combine(targetRoot, fileName);
+
+            try
+            {
+                if (!File.Exists(sourceFile))
+                {
+                    return;
+                }
+
+                File.Copy(sourceFile, targetFile);
+            }
+            catch (Exception e)
+            {
+                this.WriteMessage(
+                    string.Format(
+                        "Failed to copy file {0} in {1} with exception {2}",
+                        fileName,
+                        sourceRoot,
+                        e));
+            }
         }
 
         private void CopyAllFiles(
