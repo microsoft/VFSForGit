@@ -155,6 +155,15 @@ DestDir: "{app}"; Flags: ignoreversion; Source:"{#GVFSDir}\GVFS.exe.config"
 DestDir: "{app}"; Flags: ignoreversion; Source:"{#GVFSDir}\GitVirtualFileSystem.ico"  
 DestDir: "{app}"; Flags: ignoreversion; Source:"{#GVFSDir}\GVFS.exe" 
 
+; NuGet support DLLs
+DestDir: "{app}"; Flags: ignoreversion; Source:"{#GVFSDir}\NuGet.Common.dll"
+DestDir: "{app}"; Flags: ignoreversion; Source:"{#GVFSDir}\NuGet.Configuration.dll"
+DestDir: "{app}"; Flags: ignoreversion; Source:"{#GVFSDir}\NuGet.Frameworks.dll"
+DestDir: "{app}"; Flags: ignoreversion; Source:"{#GVFSDir}\NuGet.Packaging.Core.dll"
+DestDir: "{app}"; Flags: ignoreversion; Source:"{#GVFSDir}\NuGet.Packaging.dll"
+DestDir: "{app}"; Flags: ignoreversion; Source:"{#GVFSDir}\NuGet.Protocol.dll"
+DestDir: "{app}"; Flags: ignoreversion; Source:"{#GVFSDir}\NuGet.Versioning.dll"
+
 ; .NET Standard Files
 ; See https://github.com/dotnet/standard/issues/415 for a discussion on why this are copied
 DestDir: "{app}"; Flags: ignoreversion; Source:"{#GVFSDir}\netstandard.dll"
