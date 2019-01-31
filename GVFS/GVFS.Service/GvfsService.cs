@@ -360,11 +360,11 @@ namespace GVFS.Service
             // Protect the access rules from inheritance
             programDataSecurity.SetAccessRuleProtection(isProtected: true, preserveInheritance: false);
 
-            // Everyone gets read access
-            SecurityIdentifier authenticatedUsers = new SecurityIdentifier(WellKnownSidType.WorldSid, null);
+            // All users gets read access
+            SecurityIdentifier allUsers = new SecurityIdentifier(WellKnownSidType.BuiltinUsersSid, null);
             programDataSecurity.AddAccessRule(
                 new FileSystemAccessRule(
-                    authenticatedUsers,
+                    allUsers,
                     FileSystemRights.Read,
                     InheritanceFlags.ContainerInherit | InheritanceFlags.ObjectInherit,
                     PropagationFlags.None,
