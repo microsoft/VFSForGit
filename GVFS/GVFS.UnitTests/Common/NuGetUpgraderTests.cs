@@ -37,7 +37,7 @@ namespace GVFS.UnitTests.Common
         private Mock<NuGetFeed> mockNuGetFeed;
         private MockFileSystem mockFileSystem;
 
-        private string downloadDirectoryPath = @"mock:\downloadFolderTestValue";
+        private string downloadDirectoryPath = @"mock:\GVFS.Upgrades\Download";
 
         [SetUp]
         public void SetUp()
@@ -52,7 +52,11 @@ namespace GVFS.UnitTests.Common
                 this.downloadDirectoryPath,
                 null,
                 this.tracer);
-            this.mockFileSystem = new MockFileSystem(new MockDirectory(this.downloadDirectoryPath, null, null));
+            this.mockFileSystem = new MockFileSystem(
+                new MockDirectory(
+                    Path.GetDirectoryName(this.downloadDirectoryPath),
+                    new[] { new MockDirectory(this.downloadDirectoryPath, null, null) },
+                    null));
 
             this.upgrader = new NuGetUpgrader(
                 CurrentVersion,
@@ -184,6 +188,34 @@ namespace GVFS.UnitTests.Common
             bool downloadSuccessful = this.upgrader.TryDownloadNewestVersion(out message);
             downloadSuccessful.ShouldBeTrue();
             this.upgrader.DownloadedPackagePath.ShouldEqual(testDownloadPath);
+        }
+
+        [TestCase]
+        public void CanDownloadNewestVersionFailsIfDirectoryIsMissing()
+        {
+            Version actualNewestVersion;
+            string message;
+            List<IPackageSearchMetadata> availablePackages = new List<IPackageSearchMetadata>()
+            {
+                this.GeneratePackageSeachMetadata(new Version(CurrentVersion)),
+                this.GeneratePackageSeachMetadata(new Version(NewerVersion)),
+            };
+
+            string testDownloadPath = Path.Combine(this.downloadDirectoryPath, "testNuget.zip");
+            IPackageSearchMetadata newestAvailableVersion = availablePackages.Last();
+            this.mockNuGetFeed.Setup(foo => foo.QueryFeedAsync(NuGetFeedName)).ReturnsAsync(availablePackages);
+            this.mockNuGetFeed.Setup(foo => foo.DownloadPackageAsync(It.Is<PackageIdentity>(packageIdentity => packageIdentity == newestAvailableVersion.Identity))).ReturnsAsync(testDownloadPath);
+
+            bool success = this.upgrader.TryQueryNewestVersion(out actualNewestVersion, out message);
+
+            // Assert that no new version was returned
+            success.ShouldBeTrue($"Expecting TryQueryNewestVersion to have completed sucessfully. Error: {message}");
+            actualNewestVersion.ShouldEqual(newestAvailableVersion.Identity.Version.Version, "Actual new version does not match expected new version.");
+
+            this.mockFileSystem.DeleteDirectory(this.downloadDirectoryPath);
+            bool downloadSuccessful = this.upgrader.TryDownloadNewestVersion(out message);
+            downloadSuccessful.ShouldBeFalse();
+            this.mockFileSystem.CreateDirectory(this.downloadDirectoryPath);
         }
 
         [TestCase]
