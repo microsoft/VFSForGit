@@ -39,6 +39,11 @@ namespace GVFS.UnitTests.Mock.FileSystem
             return this.RootDirectory.FindFile(path) != null;
         }
 
+        public override bool DirectoryExists(string path)
+        {
+            return this.RootDirectory.FindDirectory(path) != null;
+        }
+
         public override void CopyFile(string sourcePath, string destinationPath, bool overwrite)
         {
             throw new NotImplementedException();
