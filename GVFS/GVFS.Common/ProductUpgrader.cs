@@ -129,14 +129,6 @@ namespace GVFS.Common
             }
         }
 
-        public static bool TryCreateAndConfigureDownloadDirectory(ITracer tracer, out string error)
-        {
-            return GVFSPlatform.Instance.FileSystem.TryCreateAndConfigureDirectoryWithAdminOnlyModify(
-                tracer,
-                ProductUpgraderInfo.GetAssetDownloadsPath(),
-                out error);
-        }
-
         public abstract bool UpgradeAllowed(out string message);
 
         public abstract bool TryQueryNewestVersion(out Version newVersion, out string message);
@@ -144,6 +136,14 @@ namespace GVFS.Common
         public abstract bool TryDownloadNewestVersion(out string errorMessage);
 
         public abstract bool TryRunInstaller(InstallActionWrapper installActionWrapper, out string error);
+
+        public virtual bool TryCreateAndConfigureDownloadDirectory(ITracer tracer, out string error)
+        {
+            return GVFSPlatform.Instance.FileSystem.TryCreateAndConfigureDirectoryWithAdminOnlyModify(
+                tracer,
+                ProductUpgraderInfo.GetAssetDownloadsPath(),
+                out error);
+        }
 
         public virtual bool TrySetupToolsDirectory(out string upgraderToolPath, out string error)
         {

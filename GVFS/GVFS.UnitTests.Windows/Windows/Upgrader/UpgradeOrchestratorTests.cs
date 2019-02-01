@@ -1,5 +1,6 @@
 ﻿using GVFS.Common;
 using GVFS.Common.Git;
+using GVFS.Common.Tracing;
 using GVFS.Tests.Should;
 using GVFS.UnitTests.Mock.Common;
 using GVFS.UnitTests.Windows.Mock.Upgrader;
@@ -20,6 +21,7 @@ namespace GVFS.UnitTests.Upgrader
         private delegate void UpgradeAllowedCallback(out string message);
         private delegate void TryRunPreUpgradeChecksCallback(out string delegateMessage);
         private delegate void TryDownloadNewestVersionCallback(out string message);
+        private delegate void TryCreateAndConfigureDownloadDirectoryCallback(ITracer tracer, out string message);
         private delegate void TryRunInstallerCallback(InstallActionWrapper installActionWrapper, out string error);
 
         private MockTracer Tracer { get; set; }
@@ -119,13 +121,39 @@ namespace GVFS.UnitTests.Upgrader
         }
 
         [TestCase]
+        public void ExecuteFailsWhenCreatingDownloadDirectoryFails()
+        {
+            this.MoqUpgrader.Setup(upgrader => upgrader.TryCreateAndConfigureDownloadDirectory(It.IsAny<ITracer>(), out It.Ref<string>.IsAny))
+                .Callback(new TryCreateAndConfigureDownloadDirectoryCallback(
+                    (ITracer tracer, out string message) =>
+                    {
+                        message = "Directory creation error.";
+                    }))
+                .Returns(false);
+
+            this.orchestrator.Execute();
+
+            this.VerifyOrchestratorInvokes(
+                upgradeAllowed: true,
+                queryNewestVersion: true,
+                downloadNewestVersion: false,
+                installNewestVersion: false,
+                cleanup: true);
+
+            this.VerifyOutput("ERROR: Directory creation error.");
+
+            this.orchestrator.ExitCode.ShouldEqual(ReturnCode.GenericError);
+        }
+
+        [TestCase]
         public void ExecuteFailsWhenDownloadFails()
         {
             this.MoqUpgrader.Setup(upgrader => upgrader.TryDownloadNewestVersion(out It.Ref<string>.IsAny))
-                .Callback(new TryDownloadNewestVersionCallback((out string delegateMessage) =>
-                {
-                    delegateMessage = "Download error.";
-                }))
+                .Callback(new TryDownloadNewestVersionCallback(
+                    (out string delegateMessage) =>
+                    {
+                        delegateMessage = "Download error.";
+                    }))
                 .Returns(false);
 
             this.orchestrator.Execute();
@@ -178,6 +206,7 @@ namespace GVFS.UnitTests.Upgrader
                 .Returns(true);
 
             string message = string.Empty;
+            mockUpgrader.Setup(upgrader => upgrader.TryCreateAndConfigureDownloadDirectory(It.IsAny<ITracer>(), out It.Ref<string>.IsAny)).Returns(true);
             mockUpgrader.Setup(upgrader => upgrader.TryDownloadNewestVersion(out It.Ref<string>.IsAny)).Returns(true);
             mockUpgrader.Setup(upgrader => upgrader.TryRunInstaller(It.IsAny<InstallActionWrapper>(), out message)).Returns(true);
             mockUpgrader.Setup(upgrader => upgrader.TryCleanup(out It.Ref<string>.IsAny)).Returns(true);

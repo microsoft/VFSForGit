@@ -35,7 +35,8 @@ namespace GVFS.UnitTests.Windows.Mock.Upgrader
             GVFSCleanup = 0x40,
             GitCleanup = 0x80,
             GitAuthenticodeCheck = 0x100,
-            GVFSAuthenticodeCheck = 0x200
+            GVFSAuthenticodeCheck = 0x200,
+            CreateDownloadDirectory = 0x400,
         }
 
         public List<string> DownloadedFiles { get; private set; }
@@ -93,6 +94,18 @@ namespace GVFS.UnitTests.Windows.Mock.Upgrader
             this.FakeUpgradeRelease = release;
         }
 
+        public override bool TryCreateAndConfigureDownloadDirectory(ITracer tracer, out string error)
+        {
+            if (this.failActionTypes.HasFlag(ActionType.CreateDownloadDirectory))
+            {
+                error = "Error creating download directory";
+                return false;
+            }
+
+            error = null;
+            return true;
+        }
+
         public override bool TrySetupToolsDirectory(out string upgraderToolPath, out string error)
         {
             if (this.failActionTypes.HasFlag(ActionType.CopyTools))
@@ -102,7 +115,7 @@ namespace GVFS.UnitTests.Windows.Mock.Upgrader
                 return false;
             }
 
-            upgraderToolPath = @"C:\ProgramData\GVFS\GVFS.Upgrade\Tools\GVFS.Upgrader.exe";
+            upgraderToolPath = @"mock:\ProgramData\GVFS\GVFS.Upgrade\Tools\GVFS.Upgrader.exe";
             error = null;
             return true;
         }
@@ -133,7 +146,7 @@ namespace GVFS.UnitTests.Windows.Mock.Upgrader
 
             if (validAsset)
             {
-                string fakeDownloadDirectory = @"C:\ProgramData\GVFS\GVFS.Upgrade\Downloads";
+                string fakeDownloadDirectory = @"mock:\ProgramData\GVFS\GVFS.Upgrade\Downloads";
                 asset.LocalPath = Path.Combine(fakeDownloadDirectory, asset.Name);
                 this.DownloadedFiles.Add(asset.LocalPath);
 

@@ -73,6 +73,25 @@ namespace GVFS.UnitTests.Windows.Upgrader
         }
 
         [TestCase]
+        public void DownloadDirectoryCreationError()
+        {
+            this.ConfigureRunAndVerify(
+                configure: () =>
+                {
+                    this.Upgrader.SetFailOnAction(MockGitHubUpgrader.ActionType.CreateDownloadDirectory);
+                },
+                expectedReturn: ReturnCode.GenericError,
+                expectedOutput: new List<string>
+                {
+                    "Error creating download directory"
+                },
+                expectedErrors: new List<string>
+                {
+                    "Error creating download directory"
+                });
+        }
+
+        [TestCase]
         public void GVFSDownloadError()
         {
             this.ConfigureRunAndVerify(

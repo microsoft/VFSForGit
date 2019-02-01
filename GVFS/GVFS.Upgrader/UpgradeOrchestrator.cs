@@ -316,7 +316,7 @@ namespace GVFS.Upgrader
 
             using (ITracer activity = this.tracer.StartActivity($"{nameof(this.TryDownloadUpgrade)}", EventLevel.Informational, metadata))
             {
-                if (!ProductUpgrader.TryCreateAndConfigureDownloadDirectory(activity, out consoleError))
+                if (!this.upgrader.TryCreateAndConfigureDownloadDirectory(activity, out consoleError))
                 {
                     this.tracer.RelatedError(metadata, $"{nameof(this.upgrader.TryCreateAndConfigureDownloadDirectory)} failed. {consoleError}");
                     return false;
