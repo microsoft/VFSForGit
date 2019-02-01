@@ -457,7 +457,7 @@ dtrace='
  
 	/* print main data */
 	printf("%s(\"%S\", 0x%X, 0x%X)\t\t = %d %s%d\n",probefunc,
-	    copyinstr(self->arg0),self->arg1,self->arg2,(int)arg0,
+	    self->arg0 ? copyinstr(self->arg0) : "[NULL]",self->arg1,self->arg2,(int)arg0,
 	    self->code,(int)errno);
 	OPT_stack ? ustack()    : 1;
 	OPT_stack ? trace("\n") : 1;
@@ -520,8 +520,8 @@ dtrace='
 	OPT_cpu      ? printf("%6d ",this->cpu/1000) : 1;
  
 	/* print main data */
-	printf("%s(0x%X, \"%S\", 0x%X)\t\t = %d %s%d\n",probefunc,self->arg0,
-	    arg0 == -1 ? "" : stringof(copyin(self->arg1,arg0)),self->arg2,(int)arg0,
+	printf("%s(0x%X, \"%S\" (0x%X), 0x%X)\t\t = %d %s%d\n",probefunc,self->arg0,
+	    (arg0 == -1 || self->arg1 == 0) ? "" : stringof(copyin(self->arg1, arg0 < 1024 ? arg0 : 1024)), self->arg1, self->arg2,(int)arg0,
 	    self->code,(int)errno);
 	OPT_stack ? ustack()    : 1;
 	OPT_stack ? trace("\n") : 1;
@@ -728,7 +728,7 @@ dtrace='
  
 	/* print main data */
 	printf("%s(0x%X, \"%S\", 0x%X, 0x%X)\t\t = %d %s%d\n",probefunc,self->arg0,
-	    stringof(copyin(self->arg1,self->arg2)),self->arg2,self->arg3,(int)arg0,self->code,(int)errno);
+	    stringof(copyin(self->arg1,self->arg2 < 1024 ? self->arg2 : 1024)),self->arg2,self->arg3,(int)arg0,self->code,(int)errno);
 	OPT_stack ? ustack()    : 1;
 	OPT_stack ? trace("\n") : 1;
 	self->arg0 = 0;
