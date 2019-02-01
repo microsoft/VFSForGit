@@ -2,6 +2,7 @@
 using GVFS.Tests.Should;
 using GVFS.UnitTests.Category;
 using GVFS.UnitTests.Mock.Common;
+using GVFS.UnitTests.Mock.FileSystem;
 using GVFS.UnitTests.Windows.Mock.Upgrader;
 using NUnit.Framework;
 using System;
@@ -16,6 +17,7 @@ namespace GVFS.UnitTests.Windows.Upgrader
         protected const string NewerThanLocalVersion = "1.1.18115.1";
 
         protected MockTracer Tracer { get; private set; }
+        protected MockFileSystem FileSystem { get; private set; }
         protected MockTextWriter Output { get; private set; }
         protected MockInstallerPrerunChecker PrerunChecker { get; private set; }
         protected MockGitHubUpgrader Upgrader { get; private set; }
@@ -24,6 +26,7 @@ namespace GVFS.UnitTests.Windows.Upgrader
         public virtual void Setup()
         {
             this.Tracer = new MockTracer();
+            this.FileSystem = new MockFileSystem(new MockDirectory(@"mock:\GVFS.Upgrades\Download", null, null));
             this.Output = new MockTextWriter();
             this.PrerunChecker = new MockInstallerPrerunChecker(this.Tracer);
             this.LocalConfig = new MockLocalGVFSConfig();
@@ -31,6 +34,7 @@ namespace GVFS.UnitTests.Windows.Upgrader
             this.Upgrader = new MockGitHubUpgrader(
                 LocalGVFSVersion,
                 this.Tracer,
+                this.FileSystem,
                 new GitHubUpgrader.GitHubUpgraderConfig(this.Tracer, this.LocalConfig));
 
             this.PrerunChecker.Reset();
@@ -66,7 +70,7 @@ namespace GVFS.UnitTests.Windows.Upgrader
 
             string expectedError = "Invalid upgrade ring `Invalid` specified in gvfs config.";
             string errorString;
-            GitHubUpgrader.Create(this.LocalConfig, this.Tracer, dryRun: false, noVerify: false, error: out errorString).ShouldBeNull();
+            GitHubUpgrader.Create(this.LocalConfig, this.Tracer, this.FileSystem, dryRun: false, noVerify: false, error: out errorString).ShouldBeNull();
             errorString.ShouldContain(expectedError);
         }
 

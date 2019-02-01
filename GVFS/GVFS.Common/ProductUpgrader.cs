@@ -73,13 +73,14 @@ namespace GVFS.Common
         public static bool TryCreateUpgrader(
             out ProductUpgrader newUpgrader,
             ITracer tracer,
+            PhysicalFileSystem fileSystem,
             out string error,
             bool dryRun = false,
             bool noVerify = false)
         {
             // Prefer to use the NuGet upgrader if it is configured. If the NuGet upgrader is not configured,
             // then try to use the GitHubUpgrader.
-            if (NuGetUpgrader.NuGetUpgrader.TryCreate(tracer, dryRun, noVerify, out NuGetUpgrader.NuGetUpgrader nuGetUpgrader, out bool isConfigured, out error))
+            if (NuGetUpgrader.NuGetUpgrader.TryCreate(tracer, fileSystem, dryRun, noVerify, out NuGetUpgrader.NuGetUpgrader nuGetUpgrader, out bool isConfigured, out error))
             {
                 // We were successfully able to load a NuGetUpgrader - use that.
                 newUpgrader = nuGetUpgrader;
@@ -100,7 +101,7 @@ namespace GVFS.Common
                 // Try to load other upgraders as appropriate.
             }
 
-            newUpgrader = GitHubUpgrader.Create(tracer, dryRun, noVerify, out error);
+            newUpgrader = GitHubUpgrader.Create(tracer, fileSystem, dryRun, noVerify, out error);
             if (newUpgrader == null)
             {
                 tracer.RelatedError($"{nameof(TryCreateUpgrader)}: Could not create upgrader. {error}");
@@ -114,17 +115,17 @@ namespace GVFS.Common
         /// Deletes any previously downloaded installers in the Upgrader Download directory.
         /// This can include old installers which were downloaded but never installed.
         /// </summary>
-        public static void DeleteAllInstallerDownloads(ITracer tracer = null)
+        public virtual void DeleteAllInstallerDownloads(ITracer tracer = null)
         {
             try
             {
-                PhysicalFileSystem.RecursiveDelete(ProductUpgraderInfo.GetAssetDownloadsPath());
+                this.fileSystem.RecursiveDelete(ProductUpgraderInfo.GetAssetDownloadsPath());
             }
             catch (Exception ex)
             {
                 if (tracer != null)
                 {
-                    tracer.RelatedError($"{nameof(DeleteAllInstallerDownloads)}: Could not remove directory: {ProductUpgraderInfo.GetAssetDownloadsPath()}.{ex.ToString()}");
+                    tracer.RelatedError($"{nameof(this.DeleteAllInstallerDownloads)}: Could not remove directory: {ProductUpgraderInfo.GetAssetDownloadsPath()}.{ex.ToString()}");
                 }
             }
         }

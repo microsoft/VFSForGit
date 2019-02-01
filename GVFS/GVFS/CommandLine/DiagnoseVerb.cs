@@ -18,9 +18,11 @@ namespace GVFS.CommandLine
         private const string DiagnoseVerbName = "diagnose";
 
         private TextWriter diagnosticLogFileWriter;
+        private PhysicalFileSystem fileSystem;
 
         public DiagnoseVerb() : base(false)
         {
+            this.fileSystem = new PhysicalFileSystem();
         }
 
         protected override string VerbName
@@ -166,7 +168,7 @@ namespace GVFS.CommandLine
                 () =>
                 {
                     ZipFile.CreateFromDirectory(archiveFolderPath, zipFilePath);
-                    PhysicalFileSystem.RecursiveDelete(archiveFolderPath);
+                    this.fileSystem.RecursiveDelete(archiveFolderPath);
 
                     return true;
                 },

@@ -1,5 +1,6 @@
 using CommandLine;
 using GVFS.Common;
+using GVFS.Common.FileSystem;
 using GVFS.Common.Git;
 using GVFS.Common.Tracing;
 using System;
@@ -14,6 +15,7 @@ namespace GVFS.Upgrader
 
         private ProductUpgrader upgrader;
         private ITracer tracer;
+        private PhysicalFileSystem fileSystem;
         private InstallerPreRunChecker preRunChecker;
         private TextWriter output;
         private TextReader input;
@@ -22,12 +24,14 @@ namespace GVFS.Upgrader
         public UpgradeOrchestrator(
             ProductUpgrader upgrader,
             ITracer tracer,
+            PhysicalFileSystem fileSystem,
             InstallerPreRunChecker preRunChecker,
             TextReader input,
             TextWriter output)
         {
             this.upgrader = upgrader;
             this.tracer = tracer;
+            this.fileSystem = fileSystem;
             this.preRunChecker = preRunChecker;
             this.output = output;
             this.input = input;
@@ -47,6 +51,7 @@ namespace GVFS.Upgrader
                 Keywords.Any);
 
             this.tracer = jsonTracer;
+            this.fileSystem = new PhysicalFileSystem();
             this.preRunChecker = new InstallerPreRunChecker(this.tracer, GVFSConstants.UpgradeVerbMessages.GVFSUpgradeConfirm);
             this.output = Console.Out;
             this.input = Console.In;
@@ -145,7 +150,7 @@ namespace GVFS.Upgrader
             if (this.upgrader == null)
             {
                 ProductUpgrader upgrader;
-                if (!ProductUpgrader.TryCreateUpgrader(out upgrader, this.tracer, out errorMessage, this.DryRun, this.NoVerify))
+                if (!ProductUpgrader.TryCreateUpgrader(out upgrader, this.tracer, this.fileSystem, out errorMessage, this.DryRun, this.NoVerify))
                 {
                     return false;
                 }
@@ -162,9 +167,10 @@ namespace GVFS.Upgrader
             Version newGVFSVersion = null;
             string error = null;
 
+            this.upgrader.DeleteAllInstallerDownloads();
+
             if (!this.upgrader.UpgradeAllowed(out error))
             {
-                ProductUpgrader.DeleteAllInstallerDownloads();
                 this.output.WriteLine(error);
                 consoleError = null;
                 newVersion = null;

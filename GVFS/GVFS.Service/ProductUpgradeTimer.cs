@@ -3,7 +3,6 @@ using GVFS.Common.FileSystem;
 using GVFS.Common.Tracing;
 using GVFS.Upgrader;
 using System;
-using System.Collections.Generic;
 using System.Threading;
 
 namespace GVFS.Service
@@ -12,11 +11,13 @@ namespace GVFS.Service
     {
         private static readonly TimeSpan TimeInterval = TimeSpan.FromDays(1);
         private JsonTracer tracer;
+        private PhysicalFileSystem fileSystem;
         private Timer timer;
 
         public ProductUpgradeTimer(JsonTracer tracer)
         {
             this.tracer = tracer;
+            this.fileSystem = new PhysicalFileSystem();
         }
 
         public void Start()
@@ -60,7 +61,7 @@ namespace GVFS.Service
             ProductUpgrader productUpgrader;
             bool deleteExistingDownloads = true;
 
-            if (ProductUpgrader.TryCreateUpgrader(out productUpgrader, this.tracer, out errorMessage))
+            if (ProductUpgrader.TryCreateUpgrader(out productUpgrader, this.tracer, this.fileSystem, out errorMessage))
             {
                 if (prerunChecker.TryRunPreUpgradeChecks(out string _) && this.TryDownloadUpgrade(productUpgrader, out errorMessage))
                 {
@@ -75,7 +76,7 @@ namespace GVFS.Service
 
             if (deleteExistingDownloads)
             {
-                ProductUpgrader.DeleteAllInstallerDownloads();
+                productUpgrader.DeleteAllInstallerDownloads();
             }
         }
 
@@ -101,7 +102,7 @@ namespace GVFS.Service
                     // Already up-to-date
                     // Make sure there a no asset installers remaining in the Downloads directory. This can happen if user
                     // upgraded by manually downloading and running asset installers.
-                    ProductUpgrader.DeleteAllInstallerDownloads();
+                    productUpgrader.DeleteAllInstallerDownloads();
                     errorMessage = null;
                     return true;
                 }

@@ -24,6 +24,7 @@ namespace GVFS.Common.NuGetUpgrader
         public NuGetUpgrader(
             string currentVersion,
             ITracer tracer,
+            PhysicalFileSystem fileSystem,
             bool dryRun,
             bool noVerify,
             NuGetUpgraderConfig config,
@@ -34,7 +35,7 @@ namespace GVFS.Common.NuGetUpgrader
                 tracer,
                 dryRun,
                 noVerify,
-                new PhysicalFileSystem(),
+                fileSystem,
                 config,
                 new NuGetFeed(
                     config.FeedUrl,
@@ -91,6 +92,7 @@ namespace GVFS.Common.NuGetUpgrader
         /// </summary>
         public static bool TryCreate(
             ITracer tracer,
+            PhysicalFileSystem fileSystem,
             bool dryRun,
             bool noVerify,
             out NuGetUpgrader nuGetUpgrader,
@@ -135,6 +137,7 @@ namespace GVFS.Common.NuGetUpgrader
             nuGetUpgrader = new NuGetUpgrader(
                 ProcessHelper.GetCurrentProcessVersion(),
                 tracer,
+                fileSystem,
                 dryRun,
                 noVerify,
                 upgraderConfig,

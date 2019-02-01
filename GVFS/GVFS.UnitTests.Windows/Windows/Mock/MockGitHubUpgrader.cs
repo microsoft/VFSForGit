@@ -1,6 +1,6 @@
 ﻿using GVFS.Common;
+using GVFS.Common.FileSystem;
 using GVFS.Common.Tracing;
-using GVFS.UnitTests.Windows.Upgrader;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -16,7 +16,8 @@ namespace GVFS.UnitTests.Windows.Mock.Upgrader
         public MockGitHubUpgrader(
             string currentVersion,
             ITracer tracer,
-            GitHubUpgraderConfig config) : base(currentVersion, tracer, config)
+            PhysicalFileSystem fileSystem,
+            GitHubUpgraderConfig config) : base(currentVersion, tracer, fileSystem, config)
         {
             this.DownloadedFiles = new List<string>();
             this.InstallerArgs = new Dictionary<string, Dictionary<string, string>>();
