@@ -1,4 +1,6 @@
-﻿namespace GVFS.Common.FileSystem
+﻿using GVFS.Common.Tracing;
+
+namespace GVFS.Common.FileSystem
 {
     public interface IPlatformFileSystem
     {
@@ -11,5 +13,6 @@
         bool HydrateFile(string fileName, byte[] buffer);
         bool IsExecutable(string filePath);
         bool IsSocket(string filePath);
+        bool TryCreateAndConfigureDirectoryWithAdminOnlyWritePermissions(ITracer tracer, string directoryPath, out string error);
     }
 }

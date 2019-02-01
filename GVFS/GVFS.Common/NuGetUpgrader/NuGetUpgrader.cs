@@ -66,7 +66,7 @@ namespace GVFS.Common.NuGetUpgrader
             this.nuGetFeed = nuGetFeed;
 
             this.ExtractedInstallerPath = Path.Combine(
-                ProductUpgraderInfo.GetUpgradesDirectoryPath(),
+                ProductUpgraderInfo.GetAssetDownloadsPath(),
                 ExtractedInstallerDirectoryName);
         }
 
@@ -256,6 +256,12 @@ namespace GVFS.Common.NuGetUpgrader
                 return false;
             }
 
+            if (!this.fileSystem.DirectoryExists(this.nuGetFeed.DownloadFolder))
+            {
+                errorMessage = $"Download directory `{this.nuGetFeed.DownloadFolder}` does not exist";
+                return false;
+            }
+
             using (ITracer activity = this.tracer.StartActivity(nameof(this.TryDownloadNewestVersion), EventLevel.Informational))
             {
                 try
@@ -280,24 +286,7 @@ namespace GVFS.Common.NuGetUpgrader
 
         public override bool TryCleanup(out string error)
         {
-            error = null;
-            Exception e;
-
-            if (!this.fileSystem.TryDeleteDirectory(this.ExtractedInstallerPath, out e))
-            {
-                if (e != null)
-                {
-                    this.TraceException(
-                        e,
-                        nameof(this.TryRunInstaller),
-                        "Exception encountered trying to delete download directory in preperation for download.");
-                }
-
-                error = e?.Message ?? "Failed to delete directory, but no error was specified.";
-                return false;
-            }
-
-            return true;
+            return this.TryRecursivelyDeleteInstallerDirectory(out error);
         }
 
         public override bool TryRunInstaller(InstallActionWrapper installActionWrapper, out string error)
@@ -311,23 +300,13 @@ namespace GVFS.Common.NuGetUpgrader
                 {
                     string platformKey = InstallManifest.WindowsPlatformKey;
 
-                    Exception e;
-                    if (!this.fileSystem.TryDeleteDirectory(this.ExtractedInstallerPath, out e))
+                    if (!this.TryRecursivelyDeleteInstallerDirectory(out error))
                     {
-                        if (e != null)
-                        {
-                            this.TraceException(
-                                e,
-                                nameof(this.TryRunInstaller),
-                                "Exception encountered trying to delete download directory in preperation for download.");
-                        }
-
-                        error = e?.Message ?? "Failed to delete directory, but no error was specified.";
                         return false;
                     }
 
-                    string extractedPackagePath = this.UnzipPackageToTempLocation();
-                    this.installManifest = InstallManifest.FromJsonFile(Path.Combine(extractedPackagePath, ContentDirectoryName, InstallManifestFileName));
+                    this.UnzipPackage();
+                    this.installManifest = InstallManifest.FromJsonFile(Path.Combine(this.ExtractedInstallerPath, ContentDirectoryName, InstallManifestFileName));
                     if (!this.installManifest.PlatformInstallManifests.TryGetValue(platformKey, out InstallManifestPlatform platformInstallManifest) ||
                         platformInstallManifest == null)
                     {
@@ -340,7 +319,7 @@ namespace GVFS.Common.NuGetUpgrader
 
                     foreach (InstallActionInfo entry in platformInstallManifest.InstallActions)
                     {
-                        string installerPath = Path.Combine(extractedPackagePath, ContentDirectoryName, entry.InstallerRelativePath);
+                        string installerPath = Path.Combine(this.ExtractedInstallerPath, ContentDirectoryName, entry.InstallerRelativePath);
 
                         string args = entry.Args ?? string.Empty;
 
@@ -426,11 +405,30 @@ namespace GVFS.Common.NuGetUpgrader
             return "{" + tokenString + "}";
         }
 
-        private string UnzipPackageToTempLocation()
+        private void UnzipPackage()
         {
-            string extractedPackagePath = this.ExtractedInstallerPath;
-            ZipFile.ExtractToDirectory(this.DownloadedPackagePath, extractedPackagePath);
-            return extractedPackagePath;
+            ZipFile.ExtractToDirectory(this.DownloadedPackagePath, this.ExtractedInstallerPath);
+        }
+
+        private bool TryRecursivelyDeleteInstallerDirectory(out string error)
+        {
+            error = null;
+            Exception e;
+            if (!this.fileSystem.TryDeleteDirectory(this.ExtractedInstallerPath, out e))
+            {
+                if (e != null)
+                {
+                    this.TraceException(
+                        e,
+                        nameof(this.TryRunInstaller),
+                        "Exception encountered trying to delete download directory in preperation for download.");
+                }
+
+                error = e?.Message ?? "Failed to delete directory, but no error was specified.";
+                return false;
+            }
+
+            return true;
         }
 
         public class NuGetUpgraderConfig

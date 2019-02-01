@@ -238,11 +238,9 @@ namespace GVFS.Common
             errorMessage = null;
 
             string downloadPath = ProductUpgraderInfo.GetAssetDownloadsPath();
-            Exception exception;
-            if (!this.fileSystem.TryCreateDirectory(downloadPath, out exception))
+            if (!this.fileSystem.DirectoryExists(downloadPath))
             {
-                errorMessage = exception.Message;
-                this.TraceException(exception, nameof(this.TryDownloadAsset), $"Error creating download directory {downloadPath}.");
+                errorMessage = $"Download directory `{downloadPath}` does not exist";
                 return false;
             }
 

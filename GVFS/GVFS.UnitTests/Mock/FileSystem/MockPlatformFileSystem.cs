@@ -1,4 +1,5 @@
 ﻿using GVFS.Common.FileSystem;
+using GVFS.Common.Tracing;
 using System;
 
 namespace GVFS.UnitTests.Mock.FileSystem
@@ -45,6 +46,11 @@ namespace GVFS.UnitTests.Mock.FileSystem
         }
 
         public bool IsSocket(string fileName)
+        {
+            throw new NotSupportedException();
+        }
+
+        public bool TryCreateAndConfigureDirectoryWithAdminOnlyWritePermissions(ITracer tracer, string directoryPath, out string error)
         {
             throw new NotSupportedException();
         }

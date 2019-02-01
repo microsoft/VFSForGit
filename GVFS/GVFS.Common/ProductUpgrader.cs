@@ -129,6 +129,14 @@ namespace GVFS.Common
             }
         }
 
+        public static bool TryCreateAndConfigureDownloadDirectory(ITracer tracer, out string error)
+        {
+            return GVFSPlatform.Instance.FileSystem.TryCreateAndConfigureDirectoryWithAdminOnlyWritePermissions(
+                tracer,
+                ProductUpgraderInfo.GetAssetDownloadsPath(),
+                out error);
+        }
+
         public abstract bool UpgradeAllowed(out string message);
 
         public abstract bool TryQueryNewestVersion(out Version newVersion, out string message);

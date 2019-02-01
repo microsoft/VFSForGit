@@ -1,5 +1,6 @@
 ﻿using GVFS.Common;
 using GVFS.Common.FileSystem;
+using GVFS.Common.Tracing;
 using System;
 using System.IO;
 using System.Runtime.InteropServices;
@@ -54,6 +55,11 @@ namespace GVFS.Platform.Mac
         {
             NativeStat.StatBuffer statBuffer = this.StatFile(fileName);
             return NativeStat.IsSock(statBuffer.Mode);
+        }
+
+        public bool TryCreateAndConfigureDirectoryWithAdminOnlyWritePermissions(ITracer tracer, string directoryPath, out string error)
+        {
+            throw new NotImplementedException();
         }
 
         [DllImport("libc", EntryPoint = "chmod", SetLastError = true)]

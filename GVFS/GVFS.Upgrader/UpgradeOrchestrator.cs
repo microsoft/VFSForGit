@@ -316,6 +316,12 @@ namespace GVFS.Upgrader
 
             using (ITracer activity = this.tracer.StartActivity($"{nameof(this.TryDownloadUpgrade)}", EventLevel.Informational, metadata))
             {
+                if (!ProductUpgrader.TryCreateAndConfigureDownloadDirectory(activity, out consoleError))
+                {
+                    this.tracer.RelatedError(metadata, $"{nameof(this.upgrader.TryCreateAndConfigureDownloadDirectory)} failed. {consoleError}");
+                    return false;
+                }
+
                 if (!this.upgrader.TryDownloadNewestVersion(out consoleError))
                 {
                     this.tracer.RelatedError(metadata, $"{nameof(this.upgrader.TryDownloadNewestVersion)} failed. {consoleError}");

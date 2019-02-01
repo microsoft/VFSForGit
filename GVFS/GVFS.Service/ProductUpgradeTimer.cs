@@ -106,16 +106,20 @@ namespace GVFS.Service
                     return true;
                 }
 
-                if (productUpgrader.TryDownloadNewestVersion(out detailedError))
+                if (!ProductUpgrader.TryCreateAndConfigureDownloadDirectory(activity, out detailedError))
                 {
-                    errorMessage = null;
-                    return true;
-                }
-                else
-                {
-                    errorMessage = "Could not download product upgrade. " + detailedError;
+                    errorMessage = "Failed to create download directory. " + detailedError;
                     return false;
                 }
+
+                if (!productUpgrader.TryDownloadNewestVersion(out detailedError))
+                {
+                    errorMessage = "Failed to download product upgrade. " + detailedError;
+                    return false;
+                }
+
+                errorMessage = null;
+                return true;
             }
         }
     }
