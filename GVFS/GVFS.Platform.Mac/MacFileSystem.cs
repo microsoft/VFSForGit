@@ -57,7 +57,7 @@ namespace GVFS.Platform.Mac
             return NativeStat.IsSock(statBuffer.Mode);
         }
 
-        public bool TryCreateAndConfigureDirectoryWithAdminOnlyWritePermissions(ITracer tracer, string directoryPath, out string error)
+        public bool TryCreateAndConfigureDirectoryWithAdminOnlyModify(ITracer tracer, string directoryPath, out string error)
         {
             throw new NotImplementedException();
         }

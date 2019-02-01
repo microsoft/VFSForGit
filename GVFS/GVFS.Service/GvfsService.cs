@@ -380,10 +380,10 @@ namespace GVFS.Service
             }
 
             // All users gets read access
-            this.AddReadModifyUsersRule(serviceDataRootSecurity, allowModify: false);
+            this.AddReadModifyUsersRuleToDirectorySecurity(serviceDataRootSecurity, allowModify: false);
 
             // Only administrators have Execute/Modify/Delete access
-            this.AddFullAccessAdminRule(serviceDataRootSecurity);
+            this.AddFullAccessAdminRuleToDirectorySecurity(serviceDataRootSecurity);
 
             Directory.CreateDirectory(serviceDataRootPath, serviceDataRootSecurity);
             Directory.CreateDirectory(this.serviceDataLocation, serviceDataRootSecurity);
@@ -413,10 +413,10 @@ namespace GVFS.Service
             upgradeLogsSecurity.SetAccessRuleProtection(isProtected: true, preserveInheritance: false);
 
             // All users gets read and modify access
-            this.AddReadModifyUsersRule(upgradeLogsSecurity, allowModify: true);
+            this.AddReadModifyUsersRuleToDirectorySecurity(upgradeLogsSecurity, allowModify: true);
 
             // Administrators have Execute/Modify/Delete access
-            this.AddFullAccessAdminRule(upgradeLogsSecurity);
+            this.AddFullAccessAdminRuleToDirectorySecurity(upgradeLogsSecurity);
 
             Directory.CreateDirectory(upgradeLogsPath, upgradeLogsSecurity);
 
@@ -424,7 +424,7 @@ namespace GVFS.Service
             Directory.SetAccessControl(upgradeLogsPath, upgradeLogsSecurity);
         }
 
-        private void AddReadModifyUsersRule(DirectorySecurity directorySecurity, bool allowModify)
+        private void AddReadModifyUsersRuleToDirectorySecurity(DirectorySecurity directorySecurity, bool allowModify)
         {
             SecurityIdentifier allUsers = new SecurityIdentifier(WellKnownSidType.BuiltinUsersSid, null);
             FileSystemRights rights = FileSystemRights.Read;
@@ -442,7 +442,7 @@ namespace GVFS.Service
                     AccessControlType.Allow));
         }
 
-        private void AddFullAccessAdminRule(DirectorySecurity directorySecurity)
+        private void AddFullAccessAdminRuleToDirectorySecurity(DirectorySecurity directorySecurity)
         {
             SecurityIdentifier administratorUsers = new SecurityIdentifier(WellKnownSidType.BuiltinAdministratorsSid, null);
             directorySecurity.AddAccessRule(

@@ -57,7 +57,7 @@ namespace GVFS.Platform.Windows
             return false;
         }
 
-        public bool TryCreateAndConfigureDirectoryWithAdminOnlyWritePermissions(ITracer tracer, string directoryPath, out string error)
+        public bool TryCreateAndConfigureDirectoryWithAdminOnlyModify(ITracer tracer, string directoryPath, out string error)
         {
             try
             {
@@ -114,7 +114,7 @@ namespace GVFS.Platform.Windows
             {
                 EventMetadata metadata = new EventMetadata();
                 metadata.Add("Exception", e.ToString());
-                tracer.RelatedError(metadata, $"{nameof(this.TryCreateAndConfigureDirectoryWithAdminOnlyWritePermissions)}: IOException while creating/configuring directory");
+                tracer.RelatedError(metadata, $"{nameof(this.TryCreateAndConfigureDirectoryWithAdminOnlyModify)}: IOException while creating/configuring directory");
 
                 error = e.Message;
                 return false;
@@ -123,7 +123,7 @@ namespace GVFS.Platform.Windows
             {
                 EventMetadata metadata = new EventMetadata();
                 metadata.Add("Exception", e.ToString());
-                tracer.RelatedError(metadata, $"{nameof(this.TryCreateAndConfigureDirectoryWithAdminOnlyWritePermissions)}: SystemException while creating/configuring directory");
+                tracer.RelatedError(metadata, $"{nameof(this.TryCreateAndConfigureDirectoryWithAdminOnlyModify)}: SystemException while creating/configuring directory");
 
                 error = e.Message;
                 return false;
