@@ -355,14 +355,33 @@ namespace GVFS.Service
             this.serviceDataLocation = Paths.GetServiceDataRoot(this.serviceName);
             string serviceDataRootPath = Path.GetDirectoryName(this.serviceDataLocation);
 
-            DirectorySecurity programDataSecurity = new DirectorySecurity();
+            DirectorySecurity serviceDataRootSecurity;
+            if (Directory.Exists(serviceDataRootPath))
+            {
+                serviceDataRootSecurity = Directory.GetAccessControl(serviceDataRootPath);
+            }
+            else
+            {
+                serviceDataRootSecurity = new DirectorySecurity();
+            }
 
             // Protect the access rules from inheritance
-            programDataSecurity.SetAccessRuleProtection(isProtected: true, preserveInheritance: false);
+            serviceDataRootSecurity.SetAccessRuleProtection(isProtected: true, preserveInheritance: false);
+
+            // Remove any rules already set for the directory
+            AuthorizationRuleCollection currentRules = serviceDataRootSecurity.GetAccessRules(includeExplicit: true, includeInherited: true, targetType: typeof(NTAccount));
+            foreach (AuthorizationRule authorizationRule in currentRules)
+            {
+                FileSystemAccessRule fileSystemRule = authorizationRule as FileSystemAccessRule;
+                if (fileSystemRule != null)
+                {
+                    serviceDataRootSecurity.RemoveAccessRule(fileSystemRule);
+                }
+            }
 
             // All users gets read access
             SecurityIdentifier allUsers = new SecurityIdentifier(WellKnownSidType.BuiltinUsersSid, null);
-            programDataSecurity.AddAccessRule(
+            serviceDataRootSecurity.AddAccessRule(
                 new FileSystemAccessRule(
                     allUsers,
                     FileSystemRights.Read,
@@ -372,7 +391,7 @@ namespace GVFS.Service
 
             // Only administrators have Execute/Modify/Delete access
             SecurityIdentifier administratorUsers = new SecurityIdentifier(WellKnownSidType.BuiltinAdministratorsSid, null);
-            programDataSecurity.AddAccessRule(
+            serviceDataRootSecurity.AddAccessRule(
                 new FileSystemAccessRule(
                     administratorUsers,
                     FileSystemRights.ReadAndExecute | FileSystemRights.Modify | FileSystemRights.Delete,
@@ -380,12 +399,12 @@ namespace GVFS.Service
                     PropagationFlags.None,
                     AccessControlType.Allow));
 
-            Directory.CreateDirectory(serviceDataRootPath, programDataSecurity);
-            Directory.CreateDirectory(this.serviceDataLocation, programDataSecurity);
-            Directory.CreateDirectory(Path.Combine(Path.GetDirectoryName(this.serviceDataLocation), ProductUpgraderInfo.UpgradeDirectoryName), programDataSecurity);
+            Directory.CreateDirectory(serviceDataRootPath, serviceDataRootSecurity);
+            Directory.CreateDirectory(this.serviceDataLocation, serviceDataRootSecurity);
+            Directory.CreateDirectory(Path.Combine(Path.GetDirectoryName(this.serviceDataLocation), ProductUpgraderInfo.UpgradeDirectoryName), serviceDataRootSecurity);
 
             // Ensure the ACLs are set correct on any files or directories that were already created (e.g. after upgrading VFS4G)
-            Directory.SetAccessControl(serviceDataRootPath, programDataSecurity);
+            Directory.SetAccessControl(serviceDataRootPath, serviceDataRootSecurity);
         }
     }
 }
