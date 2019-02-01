@@ -303,6 +303,21 @@ dtrace='
 	self->arg5 = arg5;
  }
 
+ syscall::execve:entry
+ /(OPT_has_target && pid == $target) ||
+  (OPT_pid && pid == PID) ||
+  (OPT_name && NAME == strstr(NAME, execname)) ||
+  (OPT_name && execname == strstr(execname, NAME)) ||
+  (self->child)/
+ {
+	// Save the PID as this is reported incorrectly in the :return probe
+	self->execve_self_pid = pid;
+	/* Copy the executable path from user space now, as the process will have an
+	 * entirely new address space when execve() returns. */
+	self->arg0_str = arg0 ? copyinstr(arg0) : "";
+}
+
+
  /*
   * Follow children
   */
@@ -388,7 +403,6 @@ dtrace='
  }
 
  /* print 3 args, arg0 as a string */
- syscall::execve:return,
  syscall::stat:return, 
  syscall::stat64:return, 
  syscall::lstat:return, 
@@ -436,6 +450,38 @@ dtrace='
 	self->arg0 = 0;
 	self->arg1 = 0;
 	self->arg2 = 0;
+ }
+
+ /* print 3 args, arg0 as a string, already copied (due to pid weirdness) */
+ syscall::execve:return
+ /self->start/
+ {
+	/* calculate elapsed time */
+	this->elapsed = timestamp - self->start;
+	self->start = 0;
+	this->cpu = vtimestamp - self->vstart;
+	self->vstart = 0;
+	self->code = errno == 0 ? "" : "Err#";
+
+	/* print optional fields */
+	/* OPT_printid  ? printf("%5d/%d:  ",pid,tid) : 1; */
+	/* For some reason execve:return always reports pid = 0, so print stored value */
+	OPT_printid  ? printf("%5d/0x%x:  ", self->execve_self_pid,tid) : 1;
+	OPT_relative ? printf("%8d ",vtimestamp/1000) : 1;
+	OPT_elapsed  ? printf("%7d ",this->elapsed/1000) : 1;
+	OPT_cpu      ? printf("%6d ",this->cpu/1000) : 1;
+
+	/* print main data */
+	printf("%s(\"%S\", 0x%X, 0x%X)\t\t = %d %s%d\n",probefunc,
+	    self->arg0_str,self->arg1,self->arg2,(int)arg0,
+	    self->code,(int)errno);
+	OPT_stack ? ustack()    : 1;
+	OPT_stack ? trace("\n") : 1;
+	self->arg0 = 0;
+	self->arg1 = 0;
+	self->arg2 = 0;
+	self->arg0_str = 0;
+	self->execve_self_pid = 0;
  }
 
  /* print 3 args, arg1 as a string, for read/write variant */
