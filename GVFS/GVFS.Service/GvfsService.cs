@@ -401,10 +401,55 @@ namespace GVFS.Service
 
             Directory.CreateDirectory(serviceDataRootPath, serviceDataRootSecurity);
             Directory.CreateDirectory(this.serviceDataLocation, serviceDataRootSecurity);
-            Directory.CreateDirectory(Path.Combine(Path.GetDirectoryName(this.serviceDataLocation), ProductUpgraderInfo.UpgradeDirectoryName), serviceDataRootSecurity);
+            Directory.CreateDirectory(ProductUpgraderInfo.GetUpgradesDirectoryPath(), serviceDataRootSecurity);
 
             // Ensure the ACLs are set correct on any files or directories that were already created (e.g. after upgrading VFS4G)
             Directory.SetAccessControl(serviceDataRootPath, serviceDataRootSecurity);
+
+            this.CreateAndConfigureUpgradeLogDirectory();
+        }
+
+        private void CreateAndConfigureUpgradeLogDirectory()
+        {
+            // Special rules for the upgrader logs, as non-elevated users need to be be able to write
+            string upgradeLogsPath = ProductUpgraderInfo.GetLogDirectoryPath();
+            DirectorySecurity upgradeLogsSecurity;
+            if (Directory.Exists(upgradeLogsPath))
+            {
+                upgradeLogsSecurity = Directory.GetAccessControl(upgradeLogsPath);
+            }
+            else
+            {
+                upgradeLogsSecurity = new DirectorySecurity();
+            }
+
+            // Protect the access rules from inheritance
+            upgradeLogsSecurity.SetAccessRuleProtection(isProtected: true, preserveInheritance: false);
+
+            // All users gets read and modify access
+            SecurityIdentifier allUsers = new SecurityIdentifier(WellKnownSidType.BuiltinUsersSid, null);
+            upgradeLogsSecurity.AddAccessRule(
+                new FileSystemAccessRule(
+                    allUsers,
+                    FileSystemRights.Read | FileSystemRights.Modify,
+                    InheritanceFlags.ContainerInherit | InheritanceFlags.ObjectInherit,
+                    PropagationFlags.None,
+                    AccessControlType.Allow));
+
+            // Administrators have Execute/Modify/Delete access
+            SecurityIdentifier administratorUsers = new SecurityIdentifier(WellKnownSidType.BuiltinAdministratorsSid, null);
+            upgradeLogsSecurity.AddAccessRule(
+                new FileSystemAccessRule(
+                    administratorUsers,
+                    FileSystemRights.ReadAndExecute | FileSystemRights.Modify | FileSystemRights.Delete,
+                    InheritanceFlags.ContainerInherit | InheritanceFlags.ObjectInherit,
+                    PropagationFlags.None,
+                    AccessControlType.Allow));
+
+            Directory.CreateDirectory(upgradeLogsPath, upgradeLogsSecurity);
+
+            // Ensure the ACLs are set correct on any files or directories that were already created (e.g. after upgrading VFS4G)
+            Directory.SetAccessControl(upgradeLogsPath, upgradeLogsSecurity);
         }
     }
 }
