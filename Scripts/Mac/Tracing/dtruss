@@ -1149,7 +1149,7 @@ dtrace='
 # Redirect the output to stderr so that it doesn't mingle with
 # data going to the target's stdout
 if [ $opt_wait -eq 1 ]; then
-	/usr/sbin/dtrace -x dynvarsize=$buf -n "$dtrace" \
+	/usr/sbin/dtrace -w -x defaultargs -x dynvarsize=$buf -n "$dtrace" \
 	    -W "$wname" >&2
 elif [ $opt_command -eq 1 ]; then
 	# Getting dtrace to run the command means it'll run as root, so instead:
@@ -1165,8 +1165,8 @@ elif [ $opt_command -eq 1 ]; then
 	# OPT_command, so on startup, dtrace will resume the PID we passed in.
 	# Note that we need -w as resuming processes is considered "destructive".
 	/usr/bin/sudo /usr/sbin/dtrace -w -x dynvarsize=$buf -x evaltime=preinit -Z -n "$dtrace" \
-	    "$command_pid" >&2
+	    "$command_pid" >&2 || kill $command_pid
 
 else
-	/usr/sbin/dtrace -x dynvarsize=$buf -n "$dtrace" >&2
+	/usr/sbin/dtrace -x defaultargs -w -x dynvarsize=$buf -n "$dtrace" >&2
 fi
