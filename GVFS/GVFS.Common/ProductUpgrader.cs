@@ -149,15 +149,13 @@ namespace GVFS.Common
         {
             string rootDirectoryPath = ProductUpgraderInfo.GetUpgradesDirectoryPath();
             string toolsDirectoryPath = Path.Combine(rootDirectoryPath, ToolsDirectory);
-            Exception exception;
-            if (!this.fileSystem.TryCreateDirectory(toolsDirectoryPath, out exception))
+
+            if (!GVFSPlatform.Instance.FileSystem.TryCreateAndConfigureDirectoryWithAdminOnlyWritePermissions(
+                    this.tracer,
+                    toolsDirectoryPath,
+                    out error))
             {
                 upgraderToolPath = null;
-                error = exception.Message;
-                this.TraceException(
-                    exception,
-                    nameof(this.TrySetupToolsDirectory),
-                    $"Error creating upgrade tools directory {toolsDirectoryPath}.");
                 return false;
             }
 
