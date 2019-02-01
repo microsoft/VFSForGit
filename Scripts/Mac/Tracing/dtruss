@@ -303,6 +303,20 @@ dtrace='
 	self->arg5 = arg5;
  }
 
+ syscall::posix_spawn:entry
+ /(OPT_has_target && pid == $target) ||
+  (OPT_pid && pid == PID) ||
+  (OPT_name && NAME == strstr(NAME, execname)) ||
+  (OPT_name && execname == strstr(execname, NAME)) ||
+  (self->child)/
+ {
+	/* Save the executable path as it often seems to be unavailable on return */
+	self->arg1_str = (arg1 != 0 ? copyinstr(arg1) : "");
+	self->arg3 = arg3;
+	self->arg4 = arg4;
+	self->arg5 = arg5;
+ }
+
  syscall::execve:entry
  /(OPT_has_target && pid == $target) ||
   (OPT_pid && pid == PID) ||
@@ -1048,6 +1062,44 @@ dtrace='
 	self->arg4 = 0;
 	self->arg5 = 0;
  }
+
+ /* posix_spawn has 6 arguments, most of them too complicated to print here,
+  * but PID and path are the most useful for tracing anyway. */
+ syscall::posix_spawn:return
+ /self->start/
+ {
+	/* calculate elapsed time */
+	this->elapsed = timestamp - self->start;
+	self->start = 0;
+	this->cpu = vtimestamp - self->vstart;
+	self->vstart = 0;
+	self->code = errno == 0 ? "" : "Err#";
+
+	/* print optional fields */
+	/* OPT_printid  ? printf("%5d/%d:  ",pid,tid) : 1; */
+	OPT_printid  ? printf("%5d/0x%x:  ",pid,tid) : 1;
+	OPT_relative ? printf("%8d ",vtimestamp/1000) : 1;
+	OPT_elapsed  ? printf("%7d ",this->elapsed/1000) : 1;
+	OPT_cpu      ? printf("%6d ",this->cpu/1000) : 1;
+
+	/* print main data */
+	printf("%s(0x%X -> PID %d, \"%S\" (0x%X), 0x%X, 0x%X, 0x%X, 0x%X)\t\t = 0x%X %s%d\n", probefunc,
+		self->arg0, ((self->arg0 != 0) ? *(pid_t*)copyin(self->arg0, sizeof(pid_t)) : -1),
+	  self->arg1_str, self->arg1,
+	  self->arg2,
+	  self->arg3,self->arg4,self->arg5, arg0,self->code,(int)errno);
+	OPT_stack ? ustack()    : 1;
+	OPT_stack ? trace("\n") : 1;
+	self->arg0 = 0;
+	self->arg1 = 0;
+	self->arg2 = 0;
+	self->arg3 = 0;
+	self->arg4 = 0;
+	self->arg5 = 0;
+	self->arg1_str = 0;
+ }
+
+
 
  /* print 3 arg output - default */
  syscall:::return
