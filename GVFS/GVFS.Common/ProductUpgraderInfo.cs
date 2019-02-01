@@ -10,39 +10,52 @@ namespace GVFS.Common
         public const string UpgradeDirectoryName = "GVFS.Upgrade";
         public const string LogDirectory = "Logs";
         public const string DownloadDirectory = "Downloads";
+        public const string HighestAvailableVersionFileName = "HighestAvailableVersion";
 
         protected const string RootDirectory = UpgradeDirectoryName;
 
-        private static readonly HashSet<string> GVFSInstallerFileNamePrefixCandidates = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+        public static bool IsLocalUpgradeAvailable(ITracer tracer)
         {
-            "SetupGVFS",
-            "VFSForGit"
-        };
-
-        public static bool IsLocalUpgradeAvailable(string installerExtension)
-        {
-            string downloadDirectory = GetAssetDownloadsPath();
-            if (Directory.Exists(downloadDirectory))
+            try
             {
-                foreach (string file in Directory.EnumerateFiles(downloadDirectory, "*", SearchOption.TopDirectoryOnly))
+                return File.Exists(GetHighestAvailableVersionFilePath());
+            }
+            catch (Exception ex) when (
+                ex is IOException ||
+                ex is UnauthorizedAccessException ||
+                ex is NotSupportedException)
+            {
+                if (tracer != null)
                 {
-                    string[] components = Path.GetFileName(file).Split('.');
-                    int length = components.Length;
-                    if (length >= 2 &&
-                        GVFSInstallerFileNamePrefixCandidates.Contains(components[0]) &&
-                        installerExtension.Equals(components[length - 1], StringComparison.OrdinalIgnoreCase))
-                    {
-                        return true;
-                    }
+                    tracer.RelatedError(
+                        CreateEventMetadata(ex),
+                        "Exception encountered when determining if an upgrade is available.");
                 }
             }
 
             return false;
         }
 
-        public static IEnumerable<string> PossibleGVFSInstallerNamePrefixes()
+        public static void RecordHighestAvailableVersion(Version highestAvailableVersion)
         {
-            return GVFSInstallerFileNamePrefixCandidates;
+            string highestAvailableVersionFile = GetHighestAvailableVersionFilePath();
+
+            if (highestAvailableVersion == null)
+            {
+                if (File.Exists(highestAvailableVersionFile))
+                {
+                    File.Delete(highestAvailableVersionFile);
+                }
+            }
+            else
+            {
+                File.WriteAllText(highestAvailableVersionFile, highestAvailableVersion.ToString());
+            }
+        }
+
+        public static string CurrentGVFSVersion()
+        {
+            return ProcessHelper.GetCurrentProcessVersion();
         }
 
         public static string GetUpgradesDirectoryPath()
@@ -82,6 +95,11 @@ namespace GVFS.Common
             }
         }
 
+        public static string GetHighestAvailableVersionFilePath()
+        {
+            return Path.Combine(GetUpgradesDirectoryPath(), HighestAvailableVersionFileName);
+        }
+
         private static void RecursiveDelete(string path)
         {
             if (!Directory.Exists(path))
@@ -103,6 +121,17 @@ namespace GVFS.Common
             }
 
             directory.Delete();
+        }
+
+        private static EventMetadata CreateEventMetadata(Exception e)
+        {
+            EventMetadata metadata = new EventMetadata();
+            if (e != null)
+            {
+                metadata.Add("Exception", e.ToString());
+            }
+
+            return metadata;
         }
     }
 }
