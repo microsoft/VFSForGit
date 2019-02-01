@@ -125,7 +125,7 @@ function CreateMetaInstaller()
     echo "$mountCmd"
     eval $mountCmd || exit 1
     
-    MOUNTEDVOLUME=`/usr/bin/find /Volumes -type d -name "Git $GITVERSIONSTRING*"`
+    MOUNTEDVOLUME=`/usr/bin/find /Volumes -maxdepth 1 -type d -name "Git $GITVERSIONSTRING*"`
     GITINSTALLERPATH=`/usr/bin/find "$MOUNTEDVOLUME" -type f -name "git-$GITVERSIONSTRING*.pkg"`
     
     if [ ! -f "$GITINSTALLERPATH" ]; then
