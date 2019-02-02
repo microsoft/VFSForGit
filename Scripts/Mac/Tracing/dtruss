@@ -73,8 +73,9 @@ opt_relative=0; opt_printid=0; opt_follow=0
 opt_command=0; command=""; opt_buf=0; buf="4m"
 opt_trace=0; trace="."; opt_stack=0;
 opt_wait=0; wname="."; opt_has_target=0
+opt_filter=0
 ### Process options
-while getopts ab:cdefhln:op:st:LW: name
+while getopts ab:cdefhln:op:st:LFW: name
 do
         case $name in
 	b)	opt_buf=1; buf=$OPTARG ;;
@@ -92,8 +93,9 @@ do
 	o)	opt_cpu=1 ;;
 	L)	opt_printid=-1 ;;
 	s)	opt_stack=-1 ;;
+	F)	opt_filter=1 ;;
         h|?)    cat <<-END >&2
-		USAGE: dtruss [-acdefholLs] [-t syscall] { -p PID | -n name | command | -W name }
+		USAGE: dtruss [-acdefholLFs] [-t syscall] { -p PID | -n name | command | -W name }
 
 		          -p PID          # examine this PID
 		          -n name         # examine this process name
@@ -108,6 +110,7 @@ do
 		          -o              # print on cpu times
 		          -s              # print stack backtraces
 		          -L              # don't print pid/lwpid
+		          -F              # filter out common & noisy syscalls
 		          -b bufsize      # dynamic variable buf size
 		   eg,
 		       dtruss df -h       # run and examine "df -h"
@@ -169,6 +172,7 @@ dtrace='
  inline int OPT_name      = '$opt_name';
  inline int OPT_trace     = '$opt_trace';
  inline int OPT_stack     = '$opt_stack';
+ inline int OPT_filtercommon = '$opt_filter';
  inline int PID_OPT       = '$pid';
  inline string NAME       = "'"$pname"'";
  inline string TRACE      = "'$trace'";
@@ -644,6 +648,23 @@ dtrace='
 	    (int)arg0,self->code,(int)errno);
 	OPT_stack ? ustack()    : 1;
 	OPT_stack ? trace("\n") : 1;
+	self->arg0 = 0;
+	self->arg1 = 0;
+	self->arg2 = 0;
+ }
+
+ /* Some processes seem to close a huge number of file descriptors they
+  * never opened as a precautionary measure, which floods the trace, so
+  * hide EBADF. */
+ syscall::close:return,
+ syscall::close_nocancel:return
+ /self->start &&
+  (OPT_filtercommon && arg0 == -1 && errno == 9)/
+ {
+	self->start = 0;
+	self->vstart = 0;
+
+	OPT_counts == 1 ? @CloseBadFDCounts[pid] = count() : 1;
 	self->arg0 = 0;
 	self->arg1 = 0;
 	self->arg2 = 0;
@@ -1134,6 +1155,9 @@ dtrace='
  {
 	OPT_counts == 1 ? printf("\n%-32s %16s\n","CALL","COUNT") : 1;
 	OPT_counts == 1 ? printa("%-32s %@16d\n",@Counts) : 1;
+
+	(OPT_counts == 1 && OPT_filtercommon == 1) ? printf("\n%-7s %16s\n","PID","EBADF CLOSE() COUNT") : 1;
+	(OPT_counts == 1 && OPT_filtercommon == 1) ? printa("%7d %@16d\n", @CloseBadFDCounts) : 1;
  }
 '
 
