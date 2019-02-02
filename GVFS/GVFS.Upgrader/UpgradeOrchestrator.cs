@@ -167,10 +167,9 @@ namespace GVFS.Upgrader
             Version newGVFSVersion = null;
             string error = null;
 
-            this.upgrader.DeleteAllInstallerDownloads();
-
             if (!this.upgrader.UpgradeAllowed(out error))
             {
+                this.upgrader.DeleteAllInstallerDownloads(this.tracer);
                 this.output.WriteLine(error);
                 consoleError = null;
                 newVersion = null;

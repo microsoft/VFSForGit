@@ -115,7 +115,7 @@ namespace GVFS.Common
         /// Deletes any previously downloaded installers in the Upgrader Download directory.
         /// This can include old installers which were downloaded but never installed.
         /// </summary>
-        public virtual void DeleteAllInstallerDownloads(ITracer tracer = null)
+        public virtual void DeleteAllInstallerDownloads(ITracer tracer)
         {
             try
             {
@@ -123,10 +123,7 @@ namespace GVFS.Common
             }
             catch (Exception ex)
             {
-                if (tracer != null)
-                {
-                    tracer.RelatedError($"{nameof(this.DeleteAllInstallerDownloads)}: Could not remove directory: {ProductUpgraderInfo.GetAssetDownloadsPath()}.{ex.ToString()}");
-                }
+                tracer.RelatedError($"{nameof(this.DeleteAllInstallerDownloads)}: Could not remove directory: {ProductUpgraderInfo.GetAssetDownloadsPath()}.{ex.ToString()}");
             }
         }
 
