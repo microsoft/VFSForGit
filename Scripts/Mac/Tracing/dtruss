@@ -70,7 +70,7 @@
 opt_pid=0; opt_name=0; pid=0; pname="."
 opt_elapsed=0; opt_cpu=0; opt_counts=0; 
 opt_relative=0; opt_printid=0; opt_follow=0
-opt_command=0; command=""; opt_buf=0; buf="4m"
+opt_command=0; command=""; opt_buf=0; buf="30m"
 opt_trace=0; trace="."; opt_stack=0;
 opt_wait=0; wname="."; opt_has_target=0
 opt_filter=0
@@ -206,10 +206,12 @@ dtrace='
 	 * -1 = tracing this process
 	 * >0 = thread ID (tid) during vfork call */
 	trackedpid[pid] = 0;
-	/* child: effectively a boolean, set to 1 once a thread has been identified
-	 * as part of a traced process due to its descendence from a traced process. */
+	/* child: set to PID once a thread has been identified as part of a traced
+	 * process due to its descendence from a traced process. Threads get recycled
+	 * by other processes, so storing the PID here catches that case. */
 	self->child = 0;
-	this->type = 0;
+
+	self->follow_in_spawn_call = 0;
  }
 
  dtrace:::BEGIN
@@ -224,23 +226,33 @@ dtrace='
   * Save syscall entry info
   */
 
- /* MacOS X: notice first appearance of child from fork. Its parent
-    fires syscall::*fork:return in the ususal way (see below) */
+
+ /* Threads seem to be recycled on macOS, including thread-local DTrace
+  * variables; check for mismatch between self->child and pid to detect and
+  * reset the variables. */
  syscall:::entry
- /OPT_follow && trackedpid[ppid] == -1 && 0 == self->child/
+ /OPT_follow && (self->child != 0) && (self->child != pid)/
+ {
+	/* Clean up recycled threads */
+	self->child = 0;
+	self->start = (uint64_t)0;
+	self->vstart = (uint64_t)0;
+	self->arg0 = (uint64_t)0;
+	self->arg1 = (uint64_t)0;
+	self->arg2 = (uint64_t)0;
+	self->arg3 = (uint64_t)0;
+	self->arg4 = (uint64_t)0;
+	self->arg5 = (uint64_t)0;
+ }
+
+ /* MacOS X: notice first appearance of child process´s thread from fork or
+  * posix_spawn. Checking the own process for presence in the trackedpid table
+  * also catches new threads in child processes whose parent process has died. */
+ syscall:::entry
+ /OPT_follow && 0 == self->child && (trackedpid[ppid] == -1 || trackedpid[pid] == -1)/
  {
 	/* set as child */
-	self->child = 1;
-
-	/* print output */
-	self->code = errno == 0 ? "" : "Err#";
-	/* OPT_printid  ? printf("%5d/%d:  ",pid,tid) : 1; */
-	OPT_printid  ? printf("%5d/0x%x:  ",pid,tid) : 1;
-	OPT_relative ? printf("%8d:  ",vtimestamp/1000) : 1;
-	OPT_elapsed  ? printf("%7d:  ",0) : 1;
-	OPT_cpu      ? printf("%6d ",0) : 1;
-	printf("%s()\t\t = %d %s%d\n","fork",
-	    0,self->code,(int)errno);
+	self->child = pid;
  }
 
  /* MacOS X: notice first appearance of child and parent from vfork */
@@ -249,7 +261,7 @@ dtrace='
  {
 	/* set as child */
 	this->vforking_tid = trackedpid[ppid];
-	self->child = (this->vforking_tid == tid) ? 0 : 1;
+	self->child = (this->vforking_tid == tid) ? 0 : pid;
 
 	/* print output */
 	self->code = errno == 0 ? "" : "Err#";
@@ -261,13 +273,34 @@ dtrace='
 	printf("%s()\t\t = %d %s%d\n","vfork",
 	    (this->vforking_tid == tid) ? pid : 0,self->code,(int)errno);
  }
- 
+
+ /* Alternative detection of recycled threads: start time stamp is still set,
+  * although no tracking criteria are met. Again, reset thread-local variables. */
+ syscall:::entry
+ /self->start &&
+  !((OPT_has_target && pid == $target) ||
+    (OPT_pid && pid == PID) ||
+    (OPT_name && NAME == strstr(NAME, execname)) ||
+    (OPT_name && execname == strstr(execname, NAME)) ||
+    (self->child == pid))/
+ {
+	self->child = 0;
+	self->start = (uint64_t)0;
+	self->vstart = (uint64_t)0;
+	self->arg0 = (uint64_t)0;
+	self->arg1 = (uint64_t)0;
+	self->arg2 = (uint64_t)0;
+	self->arg3 = (uint64_t)0;
+	self->arg4 = (uint64_t)0;
+	self->arg5 = (uint64_t)0;
+ }
+
  syscall:::entry
  /(OPT_has_target && pid == $target) ||
   (OPT_pid && pid == PID) ||
   (OPT_name && NAME == strstr(NAME, execname)) ||
   (OPT_name && execname == strstr(execname, NAME)) ||
-  (self->child)/
+  (self->child == pid)/
  {
 	/* set start details */
 	self->start = timestamp;
@@ -300,7 +333,7 @@ dtrace='
   (OPT_pid && pid == PID) ||
   (OPT_name && NAME == strstr(NAME, execname)) ||
   (OPT_name && execname == strstr(execname, NAME)) ||
-  (self->child)/
+  (self->child == pid)/
  {
 	self->arg3 = arg3;
 	self->arg4 = arg4;
@@ -312,7 +345,7 @@ dtrace='
   (OPT_pid && pid == PID) ||
   (OPT_name && NAME == strstr(NAME, execname)) ||
   (OPT_name && execname == strstr(execname, NAME)) ||
-  (self->child)/
+  (self->child == pid)/
  {
 	/* Save the executable path as it often seems to be unavailable on return */
 	self->arg1_str = (arg1 != 0 ? copyinstr(arg1) : "");
@@ -326,7 +359,7 @@ dtrace='
   (OPT_pid && pid == PID) ||
   (OPT_name && NAME == strstr(NAME, execname)) ||
   (OPT_name && execname == strstr(execname, NAME)) ||
-  (self->child)/
+  (self->child == pid)/
  {
 	// Save the PID as this is reported incorrectly in the :return probe
 	self->execve_self_pid = pid;
@@ -355,11 +388,53 @@ dtrace='
  
  /* syscall::rexit:entry */
  syscall::exit:entry
+ /(self->child != 0)/
  {
 	/* forget child */
 	self->child = 0;
 	trackedpid[pid] = 0;
  }
+
+ proc::proc_exit:exited
+ /tracepid[args[0]->pr_pid] != 0/
+ {
+	/* Clears exited processes from the table in case the PID gets recycled */
+	self->child = 0;
+	tracepid[args[0]->pr_pid] = 0;
+ }
+
+ /* Follow posix_spawn()ed child processes */
+
+ proc:mach_kernel:posix_spawn:create
+ /OPT_follow &&
+  ((OPT_has_target && pid == $target) ||
+   (OPT_pid && pid == PID) ||
+   (OPT_name && NAME == strstr(NAME, execname)) ||
+   (OPT_name && execname == strstr(execname, NAME)) ||
+   (self->child == pid))/
+ {
+	trackedpid[pid] = -1;
+	self->follow_posix_spawn_child_pid = args[0]->pr_pid;
+	self->follow_in_spawn_call = 1;
+ }
+
+ proc::posix_spawn:spawn-success
+ /self->follow_in_spawn_call/
+ {
+	trackedpid[self->follow_posix_spawn_child_pid] = -1;
+
+	self->follow_posix_spawn_child_pid = 0;
+	self->follow_in_spawn_call = 0;
+ }
+
+ // If the posix_spawn() call failed, reset our state, ready for the next such call.
+proc::posix_spawn:*-failure
+/self->follow_in_spawn_call/
+{
+	self->follow_posix_spawn_child_pid = 0;
+	self->follow_in_spawn_call = 0;
+}
+
 
  /*
   * Check for syscall tracing
@@ -370,12 +445,12 @@ dtrace='
 	/* drop info */
 	self->start = 0;
 	self->vstart = 0;
-	self->arg0 = 0;
-	self->arg1 = 0;
-	self->arg2 = 0;
-	self->arg3 = 0;
-	self->arg4 = 0;
-	self->arg5 = 0;
+	self->arg0 = (uint64_t)0;
+	self->arg1 = (uint64_t)0;
+	self->arg2 = (uint64_t)0;
+	self->arg3 = (uint64_t)0;
+	self->arg4 = (uint64_t)0;
+	self->arg5 = (uint64_t)0;
  }
 
  /*
