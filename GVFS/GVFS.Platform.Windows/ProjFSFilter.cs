@@ -382,11 +382,10 @@ namespace GVFS.Platform.Windows
             error = string.Empty;
             return
                 IsServiceRunning(tracer) &&
-                IsNativeLibInstalled(tracer, new PhysicalFileSystem()) &&
-                TryAttach(enlistmentRoot, out error);
+                IsNativeLibInstalled(tracer, new PhysicalFileSystem());
         }
 
-        public bool TryLoad(ITracer tracer, string enlistmentRoot, out string errorMessage)
+        public bool TryLoad(ITracer tracer, string enlistmentRoot, TextWriter output, out string errorMessage)
         {
             return TryAttach(enlistmentRoot, out errorMessage);
         }

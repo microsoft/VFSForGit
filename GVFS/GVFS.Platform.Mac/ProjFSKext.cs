@@ -81,8 +81,9 @@ namespace GVFS.Platform.Mac
             return true;
         }
 
-        public bool TryLoad(ITracer tracer, string enlistmentRoot, out string errorMessage)
+        public bool TryLoad(ITracer tracer, string enlistmentRoot, TextWriter output, out string errorMessage)
         {
+            output?.WriteLine("Driver not loaded.  Attempting to load. You may be prompted for sudo password...");
             EventMetadata metadata = new EventMetadata();
             ProcessResult loadKext = ProcessHelper.Run("sudo", "/sbin/kextload -b " + DriverName);
             if (loadKext.ExitCode == LoadKext_ExitCode_Success)
@@ -104,7 +105,7 @@ System Preferences -> Security & Privacy";
                 metadata.Add("Errors", loadKext.Errors);
                 tracer.RelatedError(metadata, "Failed to load kext");
 
-                errorMessage = DriverName + " is not loaded. Make sure the driver is loaded and try again.";
+                errorMessage = DriverName + " is not loaded. Make sure the kext is loaded and try again.";
             }
 
             return false;

@@ -117,31 +117,30 @@ namespace GVFS.CommandLine
 
                 if (!GVFSPlatform.Instance.KernelDriver.IsReady(tracer, enlistment.EnlistmentRoot, out errorMessage))
                 {
-                    if (GVFSPlatform.Instance.UnderConstruction.SupportsGVFSService)
+                    if (!GVFSPlatform.Instance.KernelDriver.TryLoad(tracer, enlistment.EnlistmentRoot, this.Output, out errorMessage))
                     {
-                        tracer.RelatedEvent(
-                            EventLevel.Informational,
-                            $"{nameof(MountVerb)}_{nameof(this.Execute)}_EnablingKernelDriverViaService",
-                            new EventMetadata
-                            {
-                                { "KernelDriver.IsReady_Error", errorMessage },
-                                { TracingConstants.MessageKey.InfoMessage, "Service will retry" }
-                            });
-
-                        if (!this.ShowStatusWhileRunning(
-                            () => { return this.TryEnableAndAttachPrjFltThroughService(enlistment.EnlistmentRoot, out errorMessage); },
-                            $"Attaching ProjFS to volume"))
-                        {
-                            this.ReportErrorAndExit(tracer, ReturnCode.FilterError, errorMessage);
-                        }
-                    }
-                    else
-                    {
-                        this.Output.WriteLine("Driver not loaded.  Attempting to load. You may be prompted for sudo password...");
-                        if (!GVFSPlatform.Instance.KernelDriver.TryLoad(tracer, enlistment.EnlistmentRoot, out errorMessage))
+                        if (GVFSPlatform.Instance.UnderConstruction.SupportsGVFSService)
                         {
                             tracer.RelatedEvent(
                                 EventLevel.Informational,
+                                $"{nameof(MountVerb)}_{nameof(this.Execute)}_EnablingKernelDriverViaService",
+                                new EventMetadata
+                                {
+                                    { "KernelDriver.IsReady_Error", errorMessage },
+                                    { TracingConstants.MessageKey.InfoMessage, "Service will retry" }
+                                });
+
+                            if (!this.ShowStatusWhileRunning(
+                                () => { return this.TryEnableAndAttachPrjFltThroughService(enlistment.EnlistmentRoot, out errorMessage); },
+                                $"Attaching ProjFS to volume"))
+                            {
+                                this.ReportErrorAndExit(tracer, ReturnCode.FilterError, errorMessage);
+                            }
+                        }
+                        else
+                        {
+                            tracer.RelatedEvent(
+                                EventLevel.Error,
                                 $"{nameof(MountVerb)}_{nameof(this.Execute)}",
                                 new EventMetadata
                                 {
