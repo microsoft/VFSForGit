@@ -11,7 +11,6 @@ using NUnit.Framework;
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Threading.Tasks;
 
 namespace GVFS.UnitTests.Common
 {
@@ -24,7 +23,6 @@ namespace GVFS.UnitTests.Common
         private const string NewerVersion2 = "1.7.1185.0";
 
         private const string NuGetFeedUrl = "feedUrlValue";
-        private const string NuGetFeedUrlForCredentials = "feedUrlForCredentialsValue";
         private const string NuGetFeedName = "feedNameValue";
 
         private NuGetUpgrader upgrader;
@@ -39,7 +37,7 @@ namespace GVFS.UnitTests.Common
         [SetUp]
         public void SetUp()
         {
-            this.upgraderConfig = new NuGetUpgrader.NuGetUpgraderConfig(this.tracer, null, NuGetFeedUrl, NuGetFeedName, NuGetFeedUrlForCredentials);
+            this.upgraderConfig = new NuGetUpgrader.NuGetUpgraderConfig(this.tracer, null, NuGetFeedUrl, NuGetFeedName);
             this.downloadFolder = "downloadFolderTestValue";
 
             this.tracer = new MockTracer();
@@ -232,9 +230,9 @@ namespace GVFS.UnitTests.Common
         [TestCase]
         public void TestUpgradeAllowed()
         {
-            // Properly Configured NuGet config FeedUrlForCredentials
+            // Properly Configured NuGet config
             NuGetUpgrader.NuGetUpgraderConfig nuGetUpgraderConfig =
-                new NuGetUpgrader.NuGetUpgraderConfig(this.tracer, null, NuGetFeedUrl, NuGetFeedName, NuGetFeedUrlForCredentials);
+                new NuGetUpgrader.NuGetUpgraderConfig(this.tracer, null, NuGetFeedUrl, NuGetFeedName);
 
             NuGetUpgrader nuGetUpgrader = new NuGetUpgrader(
                 CurrentVersion,
@@ -249,7 +247,7 @@ namespace GVFS.UnitTests.Common
 
             // Empty FeedURL
             nuGetUpgraderConfig =
-                new NuGetUpgrader.NuGetUpgraderConfig(this.tracer, null, string.Empty, NuGetFeedName, NuGetFeedUrlForCredentials);
+                new NuGetUpgrader.NuGetUpgraderConfig(this.tracer, null, string.Empty, NuGetFeedName);
 
              nuGetUpgrader = new NuGetUpgrader(
                 CurrentVersion,
@@ -264,7 +262,7 @@ namespace GVFS.UnitTests.Common
 
             // Empty packageFeedName
             nuGetUpgraderConfig =
-                new NuGetUpgrader.NuGetUpgraderConfig(this.tracer, null, NuGetFeedUrl, string.Empty, NuGetFeedUrlForCredentials);
+                new NuGetUpgrader.NuGetUpgraderConfig(this.tracer, null, NuGetFeedUrl, string.Empty);
 
             // Empty packageFeedName
             nuGetUpgrader = new NuGetUpgrader(
@@ -277,21 +275,6 @@ namespace GVFS.UnitTests.Common
                 this.mockNuGetFeed.Object);
 
             nuGetUpgrader.UpgradeAllowed(out string _).ShouldBeFalse("Upgrade without FeedName configured should not be allowed.");
-
-            // Empty FeedUrlForCredentials
-            nuGetUpgraderConfig =
-                new NuGetUpgrader.NuGetUpgraderConfig(this.tracer, null, NuGetFeedUrl, NuGetFeedName, string.Empty);
-
-            nuGetUpgrader = new NuGetUpgrader(
-                CurrentVersion,
-                this.tracer,
-                false,
-                false,
-                this.mockFileSystem.Object,
-                nuGetUpgraderConfig,
-                this.mockNuGetFeed.Object);
-
-            nuGetUpgrader.UpgradeAllowed(out string _).ShouldBeFalse("Upgrade without FeedUrlForCredentials configured should not be allowed.");
         }
 
         [TestCase]
@@ -305,8 +288,8 @@ namespace GVFS.UnitTests.Common
             NuGetUpgrader.ReplaceArgTokens(sourceStringWithTokens, "unique_id").ShouldEqual(expectedProcessedString, "expected tokens have not been replaced");
         }
 
-        [TestCase("https://pkgs.dev.azure.com/test-pat/_packaging/Test-GVFS-Installers-Custom/nuget/v3/index.json", "https://dev.azure.com/test-pat")]
-        [TestCase("https://PKGS.DEV.azure.com/test-pat/_packaging/Test-GVFS-Installers-Custom/nuget/v3/index.json", "https://dev.azure.com/test-pat")]
+        [TestCase("https://pkgs.dev.azure.com/test-pat/_packaging/Test-GVFS-Installers-Custom/nuget/v3/index.json", "https://test-pat.visualstudio.com")]
+        [TestCase("https://PKGS.DEV.azure.com/test-pat/_packaging/Test-GVFS-Installers-Custom/nuget/v3/index.json", "https://test-pat.visualstudio.com")]
         [TestCase("https://dev.azure.com/test-pat/_packaging/Test-GVFS-Installers-Custom/nuget/v3/index.json", null)]
         [TestCase("http://pkgs.dev.azure.com/test-pat/_packaging/Test-GVFS-Installers-Custom/nuget/v3/index.json", null)]
         public void CanConstructAzureDevOpsUrlFromPackageFeedUrl(string packageFeedUrl, string expectedAzureDevOpsUrl)

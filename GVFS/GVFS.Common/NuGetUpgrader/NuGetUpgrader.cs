@@ -163,13 +163,13 @@ namespace GVFS.Common.NuGetUpgrader
             if (!urlMatch.Success)
             {
                 azureDevOpsUrl = null;
-                error = $"Input URL {packageFeedUrl} did not match expected format for an Azure Devops Package Feed URL";
+                error = $"Input URL {packageFeedUrl} did not match expected format for an Azure DevOps Package Feed URL";
                 return false;
             }
 
             string org = urlMatch.Groups["org"].Value;
 
-            azureDevOpsUrl = urlMatch.Result($"https://dev.azure.com/{org}");
+            azureDevOpsUrl = urlMatch.Result($"https://{org}.visualstudio.com");
             error = null;
 
             return true;
@@ -207,11 +207,6 @@ namespace GVFS.Common.NuGetUpgrader
             else if (string.IsNullOrEmpty(this.nuGetUpgraderConfig.PackageFeedName))
             {
                 message = "NuGet package feed has not been configured";
-                return false;
-            }
-            else if (string.IsNullOrEmpty(this.nuGetUpgraderConfig.FeedUrlForCredentials))
-            {
-                message = "URL to lookup credentials has not been configured";
                 return false;
             }
 
@@ -479,18 +474,15 @@ namespace GVFS.Common.NuGetUpgrader
                 ITracer tracer,
                 LocalGVFSConfig localGVFSConfig,
                 string feedUrl,
-                string packageFeedName,
-                string feedUrlForCredentials)
+                string packageFeedName)
                 : this(tracer, localGVFSConfig)
             {
                 this.FeedUrl = feedUrl;
                 this.PackageFeedName = packageFeedName;
-                this.FeedUrlForCredentials = feedUrlForCredentials;
             }
 
             public string FeedUrl { get; private set; }
             public string PackageFeedName { get; private set; }
-            public string FeedUrlForCredentials { get; private set; }
 
             /// <summary>
             /// Check if the NuGetUpgrader is ready for use. A
@@ -500,13 +492,12 @@ namespace GVFS.Common.NuGetUpgrader
             public bool IsReady(out string error)
             {
                 if (string.IsNullOrEmpty(this.FeedUrl) ||
-                    string.IsNullOrEmpty(this.PackageFeedName) ||
-                    string.IsNullOrEmpty(this.FeedUrlForCredentials))
+                    string.IsNullOrEmpty(this.PackageFeedName))
                 {
                     error = string.Join(
                         Environment.NewLine,
                         "One or more required settings for NuGetUpgrader are missing.",
-                        $"Use `gvfs config [{GVFSConstants.LocalGVFSConfig.UpgradeFeedUrl} | {GVFSConstants.LocalGVFSConfig.UpgradeFeedCredentialUrl} | {GVFSConstants.LocalGVFSConfig.UpgradeFeedPackageName}] <value>` to set the config.");
+                        $"Use `gvfs config [{GVFSConstants.LocalGVFSConfig.UpgradeFeedUrl} | {GVFSConstants.LocalGVFSConfig.UpgradeFeedPackageName}] <value>` to set the config.");
                     return false;
                 }
 
@@ -520,13 +511,12 @@ namespace GVFS.Common.NuGetUpgrader
             public bool IsConfigured(out string error)
             {
                 if (string.IsNullOrEmpty(this.FeedUrl) &&
-                    string.IsNullOrEmpty(this.PackageFeedName) &&
-                    string.IsNullOrEmpty(this.FeedUrlForCredentials))
+                    string.IsNullOrEmpty(this.PackageFeedName))
                 {
                     error = string.Join(
                         Environment.NewLine,
                         "NuGet upgrade server is not configured.",
-                        $"Use `gvfs config [{GVFSConstants.LocalGVFSConfig.UpgradeFeedUrl} | {GVFSConstants.LocalGVFSConfig.UpgradeFeedCredentialUrl} | {GVFSConstants.LocalGVFSConfig.UpgradeFeedPackageName}] <value>` to set the config.");
+                        $"Use `gvfs config [ {GVFSConstants.LocalGVFSConfig.UpgradeFeedUrl} | {GVFSConstants.LocalGVFSConfig.UpgradeFeedPackageName}] <value>` to set the config.");
                     return false;
                 }
 
@@ -547,14 +537,6 @@ namespace GVFS.Common.NuGetUpgrader
                 }
 
                 this.FeedUrl = configValue;
-
-                if (!this.localConfig.TryGetConfig(GVFSConstants.LocalGVFSConfig.UpgradeFeedCredentialUrl, out configValue, out error))
-                {
-                    this.tracer.RelatedError(error);
-                    return false;
-                }
-
-                this.FeedUrlForCredentials = configValue;
 
                 if (!this.localConfig.TryGetConfig(GVFSConstants.LocalGVFSConfig.UpgradeFeedPackageName, out configValue, out error))
                 {
