@@ -6,6 +6,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.IO.Compression;
+using System.Text.RegularExpressions;
 using System.Threading;
 
 namespace GVFS.Common.NuGetUpgrader
@@ -140,6 +141,30 @@ namespace GVFS.Common.NuGetUpgrader
                 upgraderConfig,
                 ProductUpgraderInfo.GetAssetDownloadsPath(),
                 token);
+
+            return true;
+        }
+
+        public static bool TryCreateAzDevOrgUrlFromPackageFeedUrl(string packageFeedUrl, out string azureDevOpsUrl, out string error)
+        {
+            // We expect a URL of the form https://pkgs.dev.azure.com/{org}
+            // and want to convert it to a URL of the form https://dev.azure.com/{org}
+            Regex packageUrlRegex = new Regex(
+                @"^https://pkgs.dev.azure.com/(?<org>.+?)/",
+                RegexOptions.CultureInvariant | RegexOptions.IgnoreCase);
+            Match urlMatch = packageUrlRegex.Match(packageFeedUrl);
+
+            if (!urlMatch.Success)
+            {
+                azureDevOpsUrl = null;
+                error = $"Input URL {packageFeedUrl} did not match expected format for an Azure Devops Package Feed URL";
+                return false;
+            }
+
+            string org = urlMatch.Groups["org"].Value;
+
+            azureDevOpsUrl = urlMatch.Result($"https://dev.azure.com/{org}");
+            error = null;
 
             return true;
         }
