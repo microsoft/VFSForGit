@@ -13,6 +13,9 @@ namespace GVFS.Platform.Mac
     {
         private const string DriverName = "io.gvfs.PrjFSKext";
         private const int LoadKext_ExitCode_Success = 0;
+
+        // This exit code was found in the following article
+        // https://developer.apple.com/library/archive/technotes/tn2459/_index.html
         private const int LoadKext_ExitCode_NotApproved = 27;
 
         public bool EnumerationExpandsDirectories { get; } = true;
