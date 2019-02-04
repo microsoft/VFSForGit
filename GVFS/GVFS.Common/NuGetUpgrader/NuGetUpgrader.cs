@@ -121,9 +121,15 @@ namespace GVFS.Common.NuGetUpgrader
                 return false;
             }
 
+            string authUrl;
+            if (!TryCreateAzDevOrgUrlFromPackageFeedUrl(upgraderConfig.FeedUrl, out authUrl, out error))
+            {
+                return false;
+            }
+
             if (!TryGetPersonalAccessToken(
                     GVFSPlatform.Instance.GitInstallation.GetInstalledGitBinPath(),
-                    upgraderConfig.FeedUrlForCredentials,
+                    authUrl,
                     tracer,
                     out string token,
                     out string getPatError))
