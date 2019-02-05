@@ -18,6 +18,8 @@ enum VirtualizationRootSpecialHandle : VirtualizationRootHandle
     RootHandle_Indeterminate              = -2,
     // Vnode is not in a virtualization root, but below a provider's registered temp directory
     RootHandle_ProviderTemporaryDirectory = -3,
+    // Used only when sending messages to provider; means we don't care which provider should handle the message
+    RootHandle_AnyActiveProvider          = -4,
 };
 
 kern_return_t VirtualizationRoots_Init(void);
@@ -39,7 +41,7 @@ VirtualizationRootResult VirtualizationRoot_RegisterProviderForPath(PrjFSProvide
 void ActiveProvider_Disconnect(VirtualizationRootHandle rootHandle, PrjFSProviderUserClient* _Nonnull userClient);
 
 struct Message;
-errno_t ActiveProvider_SendMessage(VirtualizationRootHandle rootHandle, const Message message);
+errno_t ActiveProvider_SendMessage(VirtualizationRootHandle rootHandle, const Message message, void* _Nullable resultDataBuffer = nullptr, size_t resultDataBufferSize = 0);
 bool VirtualizationRoot_VnodeIsOnAllowedFilesystem(vnode_t _Nonnull vnode);
 bool VirtualizationRoot_IsOnline(VirtualizationRootHandle rootHandle);
 bool VirtualizationRoot_PIDMatchesProvider(VirtualizationRootHandle rootHandle, pid_t pid);

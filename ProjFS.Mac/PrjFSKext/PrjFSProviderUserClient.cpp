@@ -29,7 +29,7 @@ const IOExternalMethodDispatch PrjFSProviderUserClient::ProviderUserClientDispat
         {
             .function =                 &PrjFSProviderUserClient::kernelMessageResponse,
             .checkScalarInputCount =    2, // message id, response type
-            .checkStructureInputSize =  0,
+            .checkStructureInputSize =  kIOUCVariableStructureSize, // Arbitrary data buffer, contents depends on kernel request
             .checkScalarOutputCount =   0,
             .checkStructureOutputSize = 0
         },
@@ -212,12 +212,14 @@ IOReturn PrjFSProviderUserClient::kernelMessageResponse(
 {
     return static_cast<PrjFSProviderUserClient*>(target)->kernelMessageResponse(
         arguments->scalarInput[0],
-        static_cast<MessageType>(arguments->scalarInput[1]));
+        static_cast<MessageType>(arguments->scalarInput[1]),
+        arguments->structureInput,
+        arguments->structureInputSize);
 }
 
-IOReturn PrjFSProviderUserClient::kernelMessageResponse(uint64_t messageId, MessageType responseType)
+IOReturn PrjFSProviderUserClient::kernelMessageResponse(uint64_t messageId, MessageType responseType, const void* resultData, size_t resultDataSize)
 {
-    ProviderMessaging_HandleKernelMessageResponse(this->virtualizationRootHandle, messageId, responseType);
+    ProviderMessaging_HandleKernelMessageResponse(this->virtualizationRootHandle, messageId, responseType, resultData, resultDataSize);
     return kIOReturnSuccess;
 }
 

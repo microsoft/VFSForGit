@@ -16,7 +16,10 @@ bool ProviderMessaging_TrySendRequestAndWaitForResponse(
     int pid,
     const char* procname,
     int* kauthResult,
-    int* kauthError);
+    int* kauthError,
+    void* resultDataBuffer = nullptr,
+    size_t resultDataBufferSize = 0,
+    size_t* resultDataSize = nullptr);
 
-void ProviderMessaging_HandleKernelMessageResponse(VirtualizationRootHandle providerVirtualizationRootHandle, uint64_t messageId, MessageType responseType);
+void ProviderMessaging_HandleKernelMessageResponse(VirtualizationRootHandle providerVirtualizationRootHandle, uint64_t messageId, MessageType responseType, const void* resultData, size_t resultDataSize);
 void ProviderMessaging_AbortOutstandingEventsForProvider(VirtualizationRootHandle providerVirtualizationRootHandle);

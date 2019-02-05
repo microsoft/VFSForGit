@@ -6,6 +6,7 @@
 #include <kern/assert.h>
 #include <sys/proc.h>
 #include <sys/kauth.h>
+#include <string.h>
 
 // Structs
 struct OutstandingMessage
@@ -17,6 +18,9 @@ struct OutstandingMessage
     
     LIST_ENTRY(OutstandingMessage) _list_privates;
     
+    void*                          resultDataBuffer;
+    size_t                         resultDataBufferSize;
+    size_t                         resultDataSize; // actual size of data sent by provider
 };
 
 // State
@@ -56,7 +60,7 @@ void ProviderMessaging_Cleanup()
 }
 
 
-void ProviderMessaging_HandleKernelMessageResponse(VirtualizationRootHandle providerVirtualizationRootHandle, uint64_t messageId, MessageType responseType)
+void ProviderMessaging_HandleKernelMessageResponse(VirtualizationRootHandle providerVirtualizationRootHandle, uint64_t messageId, MessageType responseType, const void* resultData, size_t resultDataSize)
 {
     switch (responseType)
     {
@@ -68,11 +72,14 @@ void ProviderMessaging_HandleKernelMessageResponse(VirtualizationRootHandle prov
                 OutstandingMessage* outstandingMessage;
                 LIST_FOREACH(outstandingMessage, &s_outstandingMessages, _list_privates)
                 {
-                    if (outstandingMessage->request.messageId == messageId && outstandingMessage->rootHandle == providerVirtualizationRootHandle)
+                    if (outstandingMessage->request.messageId == messageId && (outstandingMessage->rootHandle == providerVirtualizationRootHandle || outstandingMessage->rootHandle == RootHandle_AnyActiveProvider))
                     {
                         // Save the response for the blocked thread.
                         outstandingMessage->result = responseType;
                         outstandingMessage->receivedResult = true;
+                        
+                        memcpy(outstandingMessage->resultDataBuffer, resultData, MIN(resultDataSize, outstandingMessage->resultDataBufferSize));
+                        outstandingMessage->resultDataSize = resultDataSize;
                         
                         wakeup(outstandingMessage);
                         
@@ -133,7 +140,10 @@ bool ProviderMessaging_TrySendRequestAndWaitForResponse(
     int pid,
     const char* procname,
     int* kauthResult,
-    int* kauthError)
+    int* kauthError,
+    void* resultDataBuffer,
+    size_t resultDataBufferSize,
+    size_t* resultDataSize)
 {
     // To be useful, the message needs to either provide an FSID/inode pair or a path
     assert(vnodePath != nullptr || (vnodeFsidInode.fsid.val[0] != 0 || vnodeFsidInode.fsid.val[1] != 0));
@@ -144,6 +154,8 @@ bool ProviderMessaging_TrySendRequestAndWaitForResponse(
     {
         .receivedResult = false,
         .rootHandle = root,
+        .resultDataBuffer = resultDataBuffer,
+        .resultDataBufferSize = resultDataBufferSize,
     };
     
     if (nullptr != vnodePath)
@@ -200,6 +212,10 @@ bool ProviderMessaging_TrySendRequestAndWaitForResponse(
             {
                 *kauthResult = KAUTH_RESULT_DEFER;
                 result = true;
+                if (resultDataSize != nullptr)
+                {
+                    *resultDataSize = message.resultDataSize;
+                }
             }
             else
             {

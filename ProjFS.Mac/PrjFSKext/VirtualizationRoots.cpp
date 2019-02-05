@@ -569,24 +569,45 @@ void ActiveProvider_Disconnect(VirtualizationRootHandle rootIndex, PrjFSProvider
     RWLock_ReleaseShared(s_virtualizationRootsLock);
 }
 
-errno_t ActiveProvider_SendMessage(VirtualizationRootHandle rootIndex, const Message message)
+static PrjFSProviderUserClient* GetRetainedProvider(VirtualizationRootHandle rootHandle)
 {
-    assert(rootIndex >= 0);
-
     PrjFSProviderUserClient* userClient = nullptr;
     
     RWLock_AcquireShared(s_virtualizationRootsLock);
     {
-        assert(rootIndex < s_maxVirtualizationRoots);
-        
-        userClient = s_virtualizationRoots[rootIndex].providerUserClient;
-        if (nullptr != userClient)
+        if (rootHandle == RootHandle_AnyActiveProvider)
         {
-            ProviderUserClient_Retain(userClient);
+            // TODO(Mac): Linear search - perhaps cache this result?
+            for (uint16_t index = 0; index < s_maxVirtualizationRoots; ++index)
+            {
+                userClient = s_virtualizationRoots[index].providerUserClient;
+                if (userClient != nullptr)
+                {
+                    ProviderUserClient_Retain(userClient);
+                    break;
+                }
+            }
+        }
+        else
+        {
+            assert(rootHandle >= 0);
+            assert(rootHandle < s_maxVirtualizationRoots);
+        
+            userClient = s_virtualizationRoots[rootHandle].providerUserClient;
+            if (nullptr != userClient)
+            {
+                ProviderUserClient_Retain(userClient);
+            }
         }
     }
     RWLock_ReleaseShared(s_virtualizationRootsLock);
     
+    return userClient;
+}
+
+errno_t ActiveProvider_SendMessage(VirtualizationRootHandle rootIndex, const Message message, void* resultDataBuffer, size_t resultDataBufferSize)
+{
+    PrjFSProviderUserClient* userClient = GetRetainedProvider(rootIndex);
     if (nullptr != userClient)
     {
         uint32_t messageSize = sizeof(*message.messageHeader) + message.messageHeader->pathSizeBytes;
