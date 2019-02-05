@@ -609,24 +609,24 @@ bool VirtualizationRoot_VnodeIsOnAllowedFilesystem(vnode_t vnode)
         || 0 == strncmp("apfs", vfsStat->f_fstypename, sizeof(vfsStat->f_fstypename));
 }
 
-static const char* GetRelativePath(const char* path, const char* root)
+static const char* GetRelativePath(const char* fullPath, const char* root)
 {
     size_t rootLength = strlen(root);
-    size_t pathLength = strlen(path);
-    if (pathLength < rootLength || 0 != memcmp(path, root, rootLength))
+    size_t pathLength = strlen(fullPath);
+    if (pathLength < rootLength || 0 != memcmp(fullPath, root, rootLength))
     {
-        KextLog_Error("GetRelativePath: root path '%s' is not a prefix of path '%s'\n", root, path);
+        KextLog_Error("GetRelativePath: root path '%s' is not a prefix of path '%s'\n", root, fullPath);
         return nullptr;
     }
     
-    const char* relativePath = path + rootLength;
+    const char* relativePath = fullPath + rootLength;
     if (relativePath[0] == '/')
     {
         relativePath++;
     }
     else if (rootLength > 0 && root[rootLength - 1] != '/' && pathLength > rootLength)
     {
-        KextLog_Error("GetRelativePath: root path '%s' is not a parent directory of path '%s' (just a string prefix)\n", root, path);
+        KextLog_Error("GetRelativePath: root path '%s' is not a parent directory of path '%s' (just a string prefix)\n", root, fullPath);
         return nullptr;
     }
     
