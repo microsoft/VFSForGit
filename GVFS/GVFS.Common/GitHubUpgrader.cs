@@ -49,17 +49,22 @@ namespace GVFS.Common
 
         public GitHubUpgraderConfig Config { get; private set; }
 
-        public static GitHubUpgrader Create(ITracer tracer, PhysicalFileSystem fileSystem, bool dryRun, bool noVerify, out string error)
-        {
-            return Create(new LocalGVFSConfig(), tracer, fileSystem, dryRun, noVerify, out error);
-        }
-
         public static GitHubUpgrader Create(
-            LocalGVFSConfig localConfig,
             ITracer tracer,
             PhysicalFileSystem fileSystem,
             bool dryRun,
             bool noVerify,
+            out string error)
+        {
+            return Create(tracer, fileSystem, dryRun, noVerify, new LocalGVFSConfig(), out error);
+        }
+
+        public static GitHubUpgrader Create(
+            ITracer tracer,
+            PhysicalFileSystem fileSystem,
+            bool dryRun,
+            bool noVerify,
+            LocalGVFSConfig localConfig,
             out string error)
         {
             GitHubUpgrader upgrader = null;

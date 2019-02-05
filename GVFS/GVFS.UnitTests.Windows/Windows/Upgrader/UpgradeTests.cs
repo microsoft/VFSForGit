@@ -70,7 +70,14 @@ namespace GVFS.UnitTests.Windows.Upgrader
 
             string expectedError = "Invalid upgrade ring `Invalid` specified in gvfs config.";
             string errorString;
-            GitHubUpgrader.Create(this.LocalConfig, this.Tracer, this.FileSystem, dryRun: false, noVerify: false, error: out errorString).ShouldBeNull();
+            GitHubUpgrader.Create(
+                this.Tracer,
+                this.FileSystem,
+                dryRun: false,
+                noVerify: false,
+                localConfig: this.LocalConfig,
+                error: out errorString).ShouldBeNull();
+
             errorString.ShouldContain(expectedError);
         }
 

@@ -71,12 +71,12 @@ namespace GVFS.Common
         }
 
         public static bool TryCreateUpgrader(
-            out ProductUpgrader newUpgrader,
             ITracer tracer,
             PhysicalFileSystem fileSystem,
-            out string error,
-            bool dryRun = false,
-            bool noVerify = false)
+            bool dryRun,
+            bool noVerify,
+            out ProductUpgrader newUpgrader,
+            out string error)
         {
             // Prefer to use the NuGet upgrader if it is configured. If the NuGet upgrader is not configured,
             // then try to use the GitHubUpgrader.
