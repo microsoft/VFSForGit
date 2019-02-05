@@ -138,11 +138,11 @@ namespace GVFS.CommandLine
                     else
                     {
                         tracer.RelatedEvent(
-                            EventLevel.Error,
+                            EventLevel.Informational,
                             $"{nameof(MountVerb)}_{nameof(this.Execute)}",
                             new EventMetadata
                             {
-                                { "KernelDriver.TryLoad_Error", errorMessage },
+                                { "KernelDriver.IsReady_Error", errorMessage },
                             });
 
                         this.ReportErrorAndExit(tracer, ReturnCode.FilterError, errorMessage);
