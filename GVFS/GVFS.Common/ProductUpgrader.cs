@@ -135,14 +135,6 @@ namespace GVFS.Common
 
         public abstract bool TryRunInstaller(InstallActionWrapper installActionWrapper, out string error);
 
-        public virtual bool TryCreateAndConfigureDownloadDirectory(ITracer tracer, out string error)
-        {
-            return GVFSPlatform.Instance.FileSystem.TryCreateAndConfigureDirectoryWithAdminOnlyModify(
-                tracer,
-                ProductUpgraderInfo.GetAssetDownloadsPath(),
-                out error);
-        }
-
         public virtual bool TrySetupToolsDirectory(out string upgraderToolPath, out string error)
         {
             string rootDirectoryPath = ProductUpgraderInfo.GetUpgradesDirectoryPath();
@@ -215,6 +207,14 @@ namespace GVFS.Common
 
         public virtual void Dispose()
         {
+        }
+
+        protected virtual bool TryCreateAndConfigureDownloadDirectory(ITracer tracer, out string error)
+        {
+            return GVFSPlatform.Instance.FileSystem.TryCreateAndConfigureDirectoryWithAdminOnlyModify(
+                tracer,
+                ProductUpgraderInfo.GetAssetDownloadsPath(),
+                out error);
         }
 
         protected virtual void RunInstaller(string path, string args, out int exitCode, out string error)

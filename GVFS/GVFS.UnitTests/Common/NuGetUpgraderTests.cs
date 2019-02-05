@@ -191,7 +191,7 @@ namespace GVFS.UnitTests.Common
         }
 
         [TestCase]
-        public void CanDownloadNewestVersionFailsIfDirectoryIsMissing()
+        public void CanDownloadNewestVersionFailsIfDownloadDirectoryCreationFails()
         {
             Version actualNewestVersion;
             string message;
@@ -212,10 +212,11 @@ namespace GVFS.UnitTests.Common
             success.ShouldBeTrue($"Expecting TryQueryNewestVersion to have completed sucessfully. Error: {message}");
             actualNewestVersion.ShouldEqual(newestAvailableVersion.Identity.Version.Version, "Actual new version does not match expected new version.");
 
-            this.mockFileSystem.DeleteDirectory(this.downloadDirectoryPath);
+            MockPlatformFileSystem mockPlatformFileSystem = GVFSPlatform.Instance.FileSystem as MockPlatformFileSystem;
+            mockPlatformFileSystem.TryCreateAndConfigureDirectoryWithAdminOnlyModifyShouldSucceed = false;
             bool downloadSuccessful = this.upgrader.TryDownloadNewestVersion(out message);
+            mockPlatformFileSystem.TryCreateAndConfigureDirectoryWithAdminOnlyModifyShouldSucceed = true;
             downloadSuccessful.ShouldBeFalse();
-            this.mockFileSystem.CreateDirectory(this.downloadDirectoryPath);
         }
 
         [TestCase]

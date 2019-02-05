@@ -95,18 +95,6 @@ namespace GVFS.UnitTests.Windows.Mock.Upgrader
             this.FakeUpgradeRelease = release;
         }
 
-        public override bool TryCreateAndConfigureDownloadDirectory(ITracer tracer, out string error)
-        {
-            if (this.failActionTypes.HasFlag(ActionType.CreateDownloadDirectory))
-            {
-                error = "Error creating download directory";
-                return false;
-            }
-
-            error = null;
-            return true;
-        }
-
         public override bool TrySetupToolsDirectory(out string upgraderToolPath, out string error)
         {
             if (this.failActionTypes.HasFlag(ActionType.CopyTools))
@@ -117,6 +105,18 @@ namespace GVFS.UnitTests.Windows.Mock.Upgrader
             }
 
             upgraderToolPath = @"mock:\ProgramData\GVFS\GVFS.Upgrade\Tools\GVFS.Upgrader.exe";
+            error = null;
+            return true;
+        }
+
+        protected override bool TryCreateAndConfigureDownloadDirectory(ITracer tracer, out string error)
+        {
+            if (this.failActionTypes.HasFlag(ActionType.CreateDownloadDirectory))
+            {
+                error = "Error creating download directory";
+                return false;
+            }
+
             error = null;
             return true;
         }

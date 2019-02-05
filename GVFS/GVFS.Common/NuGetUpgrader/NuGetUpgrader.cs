@@ -259,9 +259,9 @@ namespace GVFS.Common.NuGetUpgrader
                 return false;
             }
 
-            if (!this.fileSystem.DirectoryExists(this.nuGetFeed.DownloadFolder))
+            if (!this.TryCreateAndConfigureDownloadDirectory(this.tracer, out errorMessage))
             {
-                errorMessage = $"Download directory `{this.nuGetFeed.DownloadFolder}` does not exist";
+                this.tracer.RelatedError($"{nameof(NuGetUpgrader)}.{nameof(this.TryCreateAndConfigureDownloadDirectory)} failed. {errorMessage}");
                 return false;
             }
 

@@ -130,6 +130,12 @@ namespace GVFS.Common
 
         public override bool TryDownloadNewestVersion(out string errorMessage)
         {
+            if (!this.TryCreateAndConfigureDownloadDirectory(this.tracer, out errorMessage))
+            {
+                this.tracer.RelatedError($"{nameof(GitHubUpgrader)}.{nameof(this.TryCreateAndConfigureDownloadDirectory)} failed. {errorMessage}");
+                return false;
+            }
+
             bool downloadedGit = false;
             bool downloadedGVFS = false;
 
@@ -246,12 +252,6 @@ namespace GVFS.Common
             errorMessage = null;
 
             string downloadPath = ProductUpgraderInfo.GetAssetDownloadsPath();
-            if (!this.fileSystem.DirectoryExists(downloadPath))
-            {
-                errorMessage = $"Download directory `{downloadPath}` does not exist";
-                return false;
-            }
-
             string localPath = Path.Combine(downloadPath, asset.Name);
             WebClient webClient = new WebClient();
 

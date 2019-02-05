@@ -125,31 +125,6 @@ namespace GVFS.UnitTests.Upgrader
         }
 
         [TestCase]
-        public void ExecuteFailsWhenCreatingDownloadDirectoryFails()
-        {
-            this.MoqUpgrader.Setup(upgrader => upgrader.TryCreateAndConfigureDownloadDirectory(It.IsAny<ITracer>(), out It.Ref<string>.IsAny))
-                .Callback(new TryCreateAndConfigureDownloadDirectoryCallback(
-                    (ITracer tracer, out string message) =>
-                    {
-                        message = "Directory creation error.";
-                    }))
-                .Returns(false);
-
-            this.orchestrator.Execute();
-
-            this.VerifyOrchestratorInvokes(
-                upgradeAllowed: true,
-                queryNewestVersion: true,
-                downloadNewestVersion: false,
-                installNewestVersion: false,
-                cleanup: true);
-
-            this.VerifyOutput("ERROR: Directory creation error.");
-
-            this.orchestrator.ExitCode.ShouldEqual(ReturnCode.GenericError);
-        }
-
-        [TestCase]
         public void ExecuteFailsWhenDownloadFails()
         {
             this.MoqUpgrader.Setup(upgrader => upgrader.TryDownloadNewestVersion(out It.Ref<string>.IsAny))
@@ -210,7 +185,6 @@ namespace GVFS.UnitTests.Upgrader
                 .Returns(true);
 
             string message = string.Empty;
-            mockUpgrader.Setup(upgrader => upgrader.TryCreateAndConfigureDownloadDirectory(It.IsAny<ITracer>(), out It.Ref<string>.IsAny)).Returns(true);
             mockUpgrader.Setup(upgrader => upgrader.TryDownloadNewestVersion(out It.Ref<string>.IsAny)).Returns(true);
             mockUpgrader.Setup(upgrader => upgrader.TryRunInstaller(It.IsAny<InstallActionWrapper>(), out message)).Returns(true);
             mockUpgrader.Setup(upgrader => upgrader.TryCleanup(out It.Ref<string>.IsAny)).Returns(true);
