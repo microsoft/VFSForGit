@@ -1190,8 +1190,6 @@ static inline PrjFS_NotificationType KUMessageTypeToNotificationType(MessageType
         
         // Non-notification types
         case MessageType_Invalid:
-        case MessageType_UtoK_StartVirtualizationInstance:
-        case MessageType_UtoK_StopVirtualizationInstance:
         case MessageType_KtoU_EnumerateDirectory:
         case MessageType_KtoU_RecursivelyEnumerateDirectory:
         case MessageType_KtoU_HydrateFile:

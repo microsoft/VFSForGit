@@ -245,8 +245,6 @@ void KauthHandler_HandleKernelMessageResponse(VirtualizationRootHandle providerV
         
         // The follow are not valid responses to kernel messages
         case MessageType_Invalid:
-        case MessageType_UtoK_StartVirtualizationInstance:
-        case MessageType_UtoK_StopVirtualizationInstance:
         case MessageType_KtoU_EnumerateDirectory:
         case MessageType_KtoU_RecursivelyEnumerateDirectory:
         case MessageType_KtoU_HydrateFile:
