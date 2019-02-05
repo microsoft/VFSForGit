@@ -18,8 +18,7 @@ namespace GVFS.Platform.Mac
                 underConstruction: new UnderConstructionFlags(
                     supportsGVFSService: false,
                     supportsGVFSUpgrade: false,
-                    supportsGVFSConfig: false,
-                    supportsKernelLogs: false))
+                    supportsGVFSConfig: false))
         {
         }
 

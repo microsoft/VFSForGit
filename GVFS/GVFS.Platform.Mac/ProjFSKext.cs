@@ -14,7 +14,13 @@ namespace GVFS.Platform.Mac
 
         public bool EnumerationExpandsDirectories { get; } = true;
 
-        public string LogsFolderPath => throw new NotImplementedException();
+        public string LogsFolderPath
+        {
+            get
+            {
+                return Path.Combine(System.IO.Path.GetTempPath(), "PrjFSKext");
+            }
+        }
 
         public bool IsGVFSUpgradeSupported()
         {
@@ -42,9 +48,14 @@ namespace GVFS.Platform.Mac
             return true;
         }
 
-        public string FlushLogs()
+        public bool TryFlushLogs(out string error)
         {
-            throw new NotImplementedException();
+            Directory.CreateDirectory(this.LogsFolderPath);
+            ProcessResult logShowOutput = ProcessHelper.Run("log", args: "show --predicate \"subsystem contains \'org.vfsforgit\'\" --info", redirectOutput: true);
+            File.WriteAllText(Path.Combine(this.LogsFolderPath, "PrjFSKext.log"), logShowOutput.Output);
+            error = string.Empty;
+
+            return true;
         }
 
         public bool IsReady(JsonTracer tracer, string enlistmentRoot, out string error)

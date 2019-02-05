@@ -320,7 +320,7 @@ namespace GVFS.Platform.Windows
             return false;
         }
 
-        public string FlushLogs()
+        public bool TryFlushLogs(out string error)
         {
             StringBuilder sb = new StringBuilder();
             try
@@ -330,14 +330,19 @@ namespace GVFS.Platform.Windows
                 if (result != 0)
                 {
                     sb.AppendFormat($"Failed to flush {ProjFSFilter.ServiceName} log buffers {result}");
+                    error = sb.ToString();
+                    return false;
                 }
             }
             catch (Exception e)
             {
                 sb.AppendFormat($"Failed to flush {ProjFSFilter.ServiceName} log buffers, exception: {e.ToString()}");
+                error = sb.ToString();
+                return false;
             }
 
-            return sb.ToString();
+            error = sb.ToString();
+            return true;
         }
 
         public bool TryPrepareFolderForCallbacks(string folderPath, out string error, out Exception exception)
