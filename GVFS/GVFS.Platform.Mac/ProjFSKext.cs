@@ -64,10 +64,12 @@ namespace GVFS.Platform.Mac
             return true;
         }
 
-        public bool IsReady(JsonTracer tracer, string enlistmentRoot, out string error)
+        public bool IsReady(JsonTracer tracer, string enlistmentRoot, TextWriter output, out string error)
         {
             error = null;
-            return this.IsKextLoaded();
+            return
+                this.IsKextLoaded() ||
+                this.TryLoad(tracer, output, out error);
         }
 
         public bool TryPrepareFolderForCallbacks(string folderPath, out string error, out Exception exception)
@@ -84,7 +86,7 @@ namespace GVFS.Platform.Mac
             return true;
         }
 
-        public bool TryLoad(ITracer tracer, string enlistmentRoot, TextWriter output, out string errorMessage)
+        private bool TryLoad(ITracer tracer, TextWriter output, out string errorMessage)
         {
             output?.WriteLine("Driver not loaded.  Attempting to load. You may be prompted for sudo password...");
             EventMetadata metadata = new EventMetadata();

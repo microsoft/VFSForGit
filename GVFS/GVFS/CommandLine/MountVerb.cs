@@ -115,40 +115,37 @@ namespace GVFS.CommandLine
                         { nameof(this.EnlistmentRootPathParameter), this.EnlistmentRootPathParameter },
                     });
 
-                if (!GVFSPlatform.Instance.KernelDriver.IsReady(tracer, enlistment.EnlistmentRoot, out errorMessage))
+                if (!GVFSPlatform.Instance.KernelDriver.IsReady(tracer, enlistment.EnlistmentRoot, this.Output, out errorMessage))
                 {
-                    if (!GVFSPlatform.Instance.KernelDriver.TryLoad(tracer, enlistment.EnlistmentRoot, this.Output, out errorMessage))
+                    if (GVFSPlatform.Instance.UnderConstruction.SupportsGVFSService)
                     {
-                        if (GVFSPlatform.Instance.UnderConstruction.SupportsGVFSService)
-                        {
-                            tracer.RelatedEvent(
-                                EventLevel.Informational,
-                                $"{nameof(MountVerb)}_{nameof(this.Execute)}_EnablingKernelDriverViaService",
-                                new EventMetadata
-                                {
-                                    { "KernelDriver.IsReady_Error", errorMessage },
-                                    { TracingConstants.MessageKey.InfoMessage, "Service will retry" }
-                                });
-
-                            if (!this.ShowStatusWhileRunning(
-                                () => { return this.TryEnableAndAttachPrjFltThroughService(enlistment.EnlistmentRoot, out errorMessage); },
-                                $"Attaching ProjFS to volume"))
+                        tracer.RelatedEvent(
+                            EventLevel.Informational,
+                            $"{nameof(MountVerb)}_{nameof(this.Execute)}_EnablingKernelDriverViaService",
+                            new EventMetadata
                             {
-                                this.ReportErrorAndExit(tracer, ReturnCode.FilterError, errorMessage);
-                            }
-                        }
-                        else
-                        {
-                            tracer.RelatedEvent(
-                                EventLevel.Error,
-                                $"{nameof(MountVerb)}_{nameof(this.Execute)}",
-                                new EventMetadata
-                                {
-                                    { "KernelDriver.TryLoad_Error", errorMessage },
-                                });
+                                { "KernelDriver.IsReady_Error", errorMessage },
+                                { TracingConstants.MessageKey.InfoMessage, "Service will retry" }
+                            });
 
+                        if (!this.ShowStatusWhileRunning(
+                            () => { return this.TryEnableAndAttachPrjFltThroughService(enlistment.EnlistmentRoot, out errorMessage); },
+                            $"Attaching ProjFS to volume"))
+                        {
                             this.ReportErrorAndExit(tracer, ReturnCode.FilterError, errorMessage);
                         }
+                    }
+                    else
+                    {
+                        tracer.RelatedEvent(
+                            EventLevel.Error,
+                            $"{nameof(MountVerb)}_{nameof(this.Execute)}",
+                            new EventMetadata
+                            {
+                                { "KernelDriver.TryLoad_Error", errorMessage },
+                            });
+
+                        this.ReportErrorAndExit(tracer, ReturnCode.FilterError, errorMessage);
                     }
                 }
 

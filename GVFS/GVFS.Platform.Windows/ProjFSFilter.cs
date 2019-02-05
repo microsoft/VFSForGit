@@ -377,17 +377,13 @@ namespace GVFS.Platform.Windows
 
         // TODO 1050199: Once the service is an optional component, GVFS should only attempt to attach
         // the filter via the service if the service is present\enabled
-        public bool IsReady(JsonTracer tracer, string enlistmentRoot, out string error)
+        public bool IsReady(JsonTracer tracer, string enlistmentRoot, TextWriter output, out string error)
         {
             error = string.Empty;
             return
                 IsServiceRunning(tracer) &&
-                IsNativeLibInstalled(tracer, new PhysicalFileSystem());
-        }
-
-        public bool TryLoad(ITracer tracer, string enlistmentRoot, TextWriter output, out string errorMessage)
-        {
-            return TryAttach(enlistmentRoot, out errorMessage);
+                IsNativeLibInstalled(tracer, new PhysicalFileSystem()) &&
+                TryAttach(enlistmentRoot, out error);
         }
 
         private static bool IsInboxAndEnabled()

@@ -11,8 +11,7 @@ namespace GVFS.Common.FileSystem
         bool IsSupported(string normalizedEnlistmentRootPath, out string warning, out string error);
         bool TryFlushLogs(out string errors);
         bool TryPrepareFolderForCallbacks(string folderPath, out string error, out Exception exception);
-        bool IsReady(JsonTracer tracer, string enlistmentRoot, out string error);
-        bool TryLoad(ITracer tracer, string enlistmentRoot, TextWriter output, out string error);
+        bool IsReady(JsonTracer tracer, string enlistmentRoot, TextWriter output, out string error);
         bool IsGVFSUpgradeSupported();
     }
 }
