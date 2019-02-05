@@ -93,7 +93,7 @@ namespace GVFS.Platform.Mac
             ProcessResult loadKext = ProcessHelper.Run("sudo", "/sbin/kextload -b " + DriverName);
             if (loadKext.ExitCode == LoadKext_ExitCode_Success)
             {
-                tracer.RelatedWarning(metadata, $"{DriverName} was successfully loaded.", Keywords.Telemetry);
+                tracer.RelatedWarning(metadata, $"{DriverName} was successfully loaded but should have been autoloaded.", Keywords.Telemetry);
                 errorMessage = null;
                 return true;
             }
