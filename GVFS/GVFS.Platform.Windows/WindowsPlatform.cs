@@ -79,17 +79,20 @@ namespace GVFS.Platform.Windows
         {
             string gitBinRoot = this.GitInstallation.GetInstalledGitBinPath();
 
-            var etwListener = ETWTelemetryEventListener.CreateIfEnabled(gitBinRoot, providerName, enlistmentId, mountId);
+            ETWTelemetryEventListener etwListener = ETWTelemetryEventListener.CreateIfEnabled(gitBinRoot, providerName, enlistmentId, mountId);
             if (etwListener != null)
             {
                 yield return etwListener;
             }
 
-            var daemonListener = TelemetryDaemonEventListener.CreateIfEnabled(gitBinRoot, providerName, enlistmentId, mountId, pipeName: "vfs");
-            if (daemonListener != null)
-            {
-                yield return daemonListener;
-            }
+            // TODO: enable the daemon-based telemetry listener once we're happy.
+            // See GitHub issue: https://github.com/Microsoft/VFSForGit/issues/739
+            //
+            // TelemetryDaemonEventListener daemonListener = TelemetryDaemonEventListener.CreateIfEnabled(gitBinRoot, providerName, enlistmentId, mountId, pipeName: "vfs");
+            // if (daemonListener != null)
+            // {
+            //     yield return daemonListener;
+            // }
         }
 
         public override void InitializeEnlistmentACLs(string enlistmentPath)
