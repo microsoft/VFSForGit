@@ -29,7 +29,6 @@ static uint64_t nanosecondsFromAbsoluteTime(uint64_t machAbsoluteTime)
 static constexpr const char* const PerfCounterNames[PrjFSPerfCounter_Count] =
 {
     [PrjFSPerfCounter_VnodeOp]                                              = "HandleVnodeOperation",
-    [PrjFSPerfCounter_VnodeOp_GetPath]                                      = " |--GetPath",
     [PrjFSPerfCounter_VnodeOp_ShouldHandle]                                 = " |--ShouldHandleVnodeOpEvent",
     [PrjFSPerfCounter_VnodeOp_ShouldHandle_IsVnodeAccessCheck]              = " |  |--IsVnodeAccessCheck",
     [PrjFSPerfCounter_VnodeOp_ShouldHandle_IgnoredVnodeAccessCheck]         = " |  |  |--IgnoredVnodeAccessCheck",
@@ -66,6 +65,7 @@ static constexpr const char* const PerfCounterNames[PrjFSPerfCounter_Count] =
     [PrjFSPerfCounter_FileOp_HardLinkCreated]                               = " |--RaiseHardLinkCreatedEvent",
     [PrjFSPerfCounter_FileOp_FileModified]                                  = " |--RaiseFileModifiedEvent",
     [PrjFSPerfCounter_FileOp_FileCreated]                                   = " |--RaiseFileCreatedEvent",
+    [PrjFSPerfCounter_VnodeGetPath]                                         = "VnodeGetPath",
 };
 
 template <typename T, size_t N>

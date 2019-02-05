@@ -103,6 +103,7 @@ void ProviderMessaging_HandleKernelMessageResponse(VirtualizationRootHandle prov
         case MessageType_KtoU_NotifyFileRenamed:
         case MessageType_KtoU_NotifyDirectoryRenamed:
         case MessageType_KtoU_NotifyFileHardLinkCreated:
+        case MessageType_KtoU_RequestVnodePath:
         case MessageType_Result_Aborted:
         default:
             KextLog_Error("KauthHandler_HandleKernelMessageResponse: Unexpected responseType: %d", responseType);

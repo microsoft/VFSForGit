@@ -6,7 +6,6 @@ enum PrjFSPerfCounter : int32_t
     // Note: ensure that any changes to this list are reflected in the PerfCounterNames array of strings
     
     PrjFSPerfCounter_VnodeOp,
-        PrjFSPerfCounter_VnodeOp_GetPath,
         PrjFSPerfCounter_VnodeOp_ShouldHandle,
             PrjFSPerfCounter_VnodeOp_ShouldHandle_IsVnodeAccessCheck,
                 PrjFSPerfCounter_VnodeOp_ShouldHandle_IgnoredVnodeAccessCheck,
@@ -44,6 +43,8 @@ enum PrjFSPerfCounter : int32_t
         PrjFSPerfCounter_FileOp_HardLinkCreated,
         PrjFSPerfCounter_FileOp_FileModified,
         PrjFSPerfCounter_FileOp_FileCreated,
+
+    PrjFSPerfCounter_VnodeGetPath,
 
     PrjFSPerfCounter_Count,
 };

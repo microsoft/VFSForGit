@@ -110,6 +110,7 @@ static void HandleKernelRequest(void* messageMemory, uint32_t messageSize);
 static PrjFS_Result HandleEnumerateDirectoryRequest(const MessageHeader* request, const char* relativePath);
 static PrjFS_Result HandleRecursivelyEnumerateDirectoryRequest(const MessageHeader* request, const char* relativePath);
 static PrjFS_Result HandleHydrateFileRequest(const MessageHeader* request, const char* relativePath);
+static PrjFS_Result HandleVnodePathRequest(const MessageHeader* request, vector<char>& resultData);
 static PrjFS_Result HandleNewFileInRootNotification(
     const MessageHeader* request,
     const char* relativePath,
@@ -699,6 +700,12 @@ static void HandleKernelRequest(void* messageMemory, uint32_t messageSize)
             result = HandleHydrateFileRequest(requestHeader, request.path);
             break;
         }
+        
+        case MessageType_KtoU_RequestVnodePath:
+        {
+            result = HandleVnodePathRequest(requestHeader, resultData);
+            break;
+        }
             
         case MessageType_KtoU_NotifyFileModified:
         case MessageType_KtoU_NotifyFilePreDelete:
@@ -955,6 +962,29 @@ static PrjFS_Result HandleHydrateFileRequest(const MessageHeader* request, const
 CleanupAndReturn:
     ReturnFileMutexIterator(mutexIterator);
     return result;
+}
+
+static PrjFS_Result HandleVnodePathRequest(const MessageHeader* request, vector<char>& resultData)
+{
+//#ifdef DEBUG
+    cout << "PrjFSLib.HandleVnodePathRequest: FSID = 0x" << std::hex << request->fsidInode.fsid.val[0] << ":" << std::hex << request->fsidInode.fsid.val[1] << "; inode = " << std::dec << request->fsidInode.inode << endl;
+//#endif
+    
+    fsid_t fsid = request->fsidInode.fsid;
+    resultData.resize(PrjFSMaxPath, '\0');
+    ssize_t pathSize = fsgetpath(resultData.data(), PrjFSMaxPath, &fsid, request->fsidInode.inode);
+    if (pathSize < 0)
+    {
+        cout << "fsgetpath failed, errno = " << errno << " (" << strerror(errno) << ")\n";
+        resultData.clear();
+        return PrjFS_Result_EFileNotFound;
+    }
+    else
+    {
+        cout << "fsgetpath returned '" << resultData.data() << "'\n";
+        resultData.resize(pathSize); // Note: fsgetpath returns length including nul terminator, no need for +1
+        return PrjFS_Result_Success;
+    }
 }
 
 static PrjFS_Result HandleNewFileInRootNotification(
@@ -1228,6 +1258,7 @@ static inline PrjFS_NotificationType KUMessageTypeToNotificationType(MessageType
         
         // Non-notification types
         case MessageType_Invalid:
+        case MessageType_KtoU_RequestVnodePath:
         case MessageType_KtoU_EnumerateDirectory:
         case MessageType_KtoU_RecursivelyEnumerateDirectory:
         case MessageType_KtoU_HydrateFile:

@@ -156,7 +156,7 @@ VirtualizationRootHandle VirtualizationRoot_FindForVnode(
     }
     else
     {
-        vnode_t parent = vnode_getparent(vnode);
+        vnode_t parent = Vnode_GetParentViaProvider(vnode, context, *perfTracer);
         if (NULLVP == parent)
         {
             KextLog_FileError(vnode, "VirtualizationRoot_FindForVnode: vnode_getparent returned nullptr on vnode that is not root of a mount point");
@@ -181,7 +181,7 @@ VirtualizationRootHandle VirtualizationRoot_FindForVnode(
             break;
         }
         
-        vnode_t parent = vnode_getparent(vnode);
+        vnode_t parent = Vnode_GetParentViaProvider(vnode, context, *perfTracer);
         if (NULLVP == parent)
         {
             KextLog_FileError(vnode, "VirtualizationRoot_FindForVnode: vnode_getparent returned nullptr on vnode that is not root of a mount point");

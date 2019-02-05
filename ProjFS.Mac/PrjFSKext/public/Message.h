@@ -21,7 +21,9 @@ typedef enum
     MessageType_KtoU_NotifyFileRenamed,
     MessageType_KtoU_NotifyDirectoryRenamed,
     MessageType_KtoU_NotifyFileHardLinkCreated,
-    
+
+    MessageType_KtoU_RequestVnodePath, // Given fsid+inode, provider should respond with nul-terminated path to the file
+
     // Responses
     MessageType_Response_Success,
     MessageType_Response_Fail,
