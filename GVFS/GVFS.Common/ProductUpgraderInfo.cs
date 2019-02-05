@@ -5,37 +5,8 @@ using System.IO;
 
 namespace GVFS.Common
 {
-    public class ProductUpgraderInfo
+    public partial class ProductUpgraderInfo
     {
-        public const string UpgradeDirectoryName = "GVFS.Upgrade";
-        public const string LogDirectory = "Logs";
-        public const string DownloadDirectory = "Downloads";
-        public const string HighestAvailableVersionFileName = "HighestAvailableVersion";
-
-        protected const string RootDirectory = UpgradeDirectoryName;
-
-        public static bool IsLocalUpgradeAvailable(ITracer tracer)
-        {
-            try
-            {
-                return File.Exists(GetHighestAvailableVersionFilePath());
-            }
-            catch (Exception ex) when (
-                ex is IOException ||
-                ex is UnauthorizedAccessException ||
-                ex is NotSupportedException)
-            {
-                if (tracer != null)
-                {
-                    tracer.RelatedError(
-                        CreateEventMetadata(ex),
-                        "Exception encountered when determining if an upgrade is available.");
-                }
-            }
-
-            return false;
-        }
-
         public static void RecordHighestAvailableVersion(Version highestAvailableVersion)
         {
             string highestAvailableVersionFile = GetHighestAvailableVersionFilePath();
@@ -56,11 +27,6 @@ namespace GVFS.Common
         public static string CurrentGVFSVersion()
         {
             return ProcessHelper.GetCurrentProcessVersion();
-        }
-
-        public static string GetUpgradesDirectoryPath()
-        {
-            return Paths.GetServiceDataRoot(RootDirectory);
         }
 
         public static string GetLogDirectoryPath()
@@ -95,11 +61,6 @@ namespace GVFS.Common
             }
         }
 
-        public static string GetHighestAvailableVersionFilePath()
-        {
-            return Path.Combine(GetUpgradesDirectoryPath(), HighestAvailableVersionFileName);
-        }
-
         private static void RecursiveDelete(string path)
         {
             if (!Directory.Exists(path))
@@ -121,17 +82,6 @@ namespace GVFS.Common
             }
 
             directory.Delete();
-        }
-
-        private static EventMetadata CreateEventMetadata(Exception e)
-        {
-            EventMetadata metadata = new EventMetadata();
-            if (e != null)
-            {
-                metadata.Add("Exception", e.ToString());
-            }
-
-            return metadata;
         }
     }
 }
