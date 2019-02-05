@@ -82,7 +82,7 @@ namespace GVFS.Service
 
             if (deleteExistingDownloads)
             {
-                productUpgrader.DeleteAllInstallerDownloads(this.tracer);
+                productUpgrader.DeleteAllInstallerDownloads();
             }
         }
 
@@ -108,7 +108,7 @@ namespace GVFS.Service
                     // Already up-to-date
                     // Make sure there a no asset installers remaining in the Downloads directory. This can happen if user
                     // upgraded by manually downloading and running asset installers.
-                    productUpgrader.DeleteAllInstallerDownloads(this.tracer);
+                    productUpgrader.DeleteAllInstallerDownloads();
                     errorMessage = null;
                     return true;
                 }

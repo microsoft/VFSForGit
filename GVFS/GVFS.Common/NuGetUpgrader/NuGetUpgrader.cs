@@ -423,8 +423,8 @@ namespace GVFS.Common.NuGetUpgrader
                 {
                     this.TraceException(
                         e,
-                        nameof(this.TryRunInstaller),
-                        "Exception encountered trying to delete download directory in preperation for download.");
+                        nameof(this.TryRecursivelyDeleteInstallerDirectory),
+                        $"Exception encountered while deleting {this.ExtractedInstallerPath}.");
                 }
 
                 error = e?.Message ?? "Failed to delete directory, but no error was specified.";

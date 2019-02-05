@@ -213,9 +213,9 @@ namespace GVFS.UnitTests.Common
             actualNewestVersion.ShouldEqual(newestAvailableVersion.Identity.Version.Version, "Actual new version does not match expected new version.");
 
             MockPlatformFileSystem mockPlatformFileSystem = GVFSPlatform.Instance.FileSystem as MockPlatformFileSystem;
-            mockPlatformFileSystem.TryCreateAndConfigureDirectoryWithAdminOnlyModifyShouldSucceed = false;
+            mockPlatformFileSystem.TryCreateDirectoryWithAdminOnlyModifyShouldSucceed = false;
             bool downloadSuccessful = this.upgrader.TryDownloadNewestVersion(out message);
-            mockPlatformFileSystem.TryCreateAndConfigureDirectoryWithAdminOnlyModifyShouldSucceed = true;
+            mockPlatformFileSystem.TryCreateDirectoryWithAdminOnlyModifyShouldSucceed = true;
             downloadSuccessful.ShouldBeFalse();
         }
 

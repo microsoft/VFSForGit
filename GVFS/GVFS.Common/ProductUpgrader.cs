@@ -1,8 +1,6 @@
 using GVFS.Common.FileSystem;
-using GVFS.Common.Git;
 using GVFS.Common.Tracing;
 using System;
-using System.Collections.Generic;
 using System.IO;
 
 namespace GVFS.Common
@@ -115,7 +113,7 @@ namespace GVFS.Common
         /// Deletes any previously downloaded installers in the Upgrader Download directory.
         /// This can include old installers which were downloaded but never installed.
         /// </summary>
-        public virtual void DeleteAllInstallerDownloads(ITracer tracer)
+        public virtual void DeleteAllInstallerDownloads()
         {
             try
             {
@@ -123,7 +121,8 @@ namespace GVFS.Common
             }
             catch (Exception ex)
             {
-                tracer.RelatedError($"{nameof(this.DeleteAllInstallerDownloads)}: Could not remove directory: {ProductUpgraderInfo.GetAssetDownloadsPath()}.{ex.ToString()}");
+                this.tracer.RelatedError(
+                    $"{nameof(this.DeleteAllInstallerDownloads)}: Could not remove directory: {ProductUpgraderInfo.GetAssetDownloadsPath()}.{ex.ToString()}");
             }
         }
 
@@ -140,7 +139,7 @@ namespace GVFS.Common
             string rootDirectoryPath = ProductUpgraderInfo.GetUpgradesDirectoryPath();
             string toolsDirectoryPath = Path.Combine(rootDirectoryPath, ToolsDirectory);
 
-            if (!GVFSPlatform.Instance.FileSystem.TryCreateAndConfigureDirectoryWithAdminOnlyModify(
+            if (!GVFSPlatform.Instance.FileSystem.TryCreateDirectoryWithAdminOnlyModify(
                     this.tracer,
                     toolsDirectoryPath,
                     out error))
@@ -211,7 +210,7 @@ namespace GVFS.Common
 
         protected virtual bool TryCreateAndConfigureDownloadDirectory(ITracer tracer, out string error)
         {
-            return GVFSPlatform.Instance.FileSystem.TryCreateAndConfigureDirectoryWithAdminOnlyModify(
+            return GVFSPlatform.Instance.FileSystem.TryCreateDirectoryWithAdminOnlyModify(
                 tracer,
                 ProductUpgraderInfo.GetAssetDownloadsPath(),
                 out error);

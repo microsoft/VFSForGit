@@ -57,7 +57,7 @@ namespace GVFS.Platform.Windows
             return false;
         }
 
-        public bool TryCreateAndConfigureDirectoryWithAdminOnlyModify(ITracer tracer, string directoryPath, out string error)
+        public bool TryCreateDirectoryWithAdminOnlyModify(ITracer tracer, string directoryPath, out string error)
         {
             try
             {
@@ -85,7 +85,7 @@ namespace GVFS.Platform.Windows
                     }
                 }
 
-                // All users gets read access
+                // All users get read access
                 SecurityIdentifier allUsers = new SecurityIdentifier(WellKnownSidType.BuiltinUsersSid, null);
                 directorySecurity.AddAccessRule(
                     new FileSystemAccessRule(
@@ -95,7 +95,7 @@ namespace GVFS.Platform.Windows
                         PropagationFlags.None,
                         AccessControlType.Allow));
 
-                // Only administrators have Execute/Modify/Delete access
+                // Administrators have Execute/Modify/Delete access
                 SecurityIdentifier administratorUsers = new SecurityIdentifier(WellKnownSidType.BuiltinAdministratorsSid, null);
                 directorySecurity.AddAccessRule(
                     new FileSystemAccessRule(
@@ -110,20 +110,11 @@ namespace GVFS.Platform.Windows
                 // Ensure the ACLs are set correctly if the directory already existed
                 Directory.SetAccessControl(directoryPath, directorySecurity);
             }
-            catch (IOException e)
+            catch (Exception e) when (e is IOException || e is SystemException)
             {
                 EventMetadata metadata = new EventMetadata();
                 metadata.Add("Exception", e.ToString());
-                tracer.RelatedError(metadata, $"{nameof(this.TryCreateAndConfigureDirectoryWithAdminOnlyModify)}: IOException while creating/configuring directory");
-
-                error = e.Message;
-                return false;
-            }
-            catch (SystemException e)
-            {
-                EventMetadata metadata = new EventMetadata();
-                metadata.Add("Exception", e.ToString());
-                tracer.RelatedError(metadata, $"{nameof(this.TryCreateAndConfigureDirectoryWithAdminOnlyModify)}: SystemException while creating/configuring directory");
+                tracer.RelatedError(metadata, $"{nameof(this.TryCreateDirectoryWithAdminOnlyModify)}: Exception while creating/configuring directory");
 
                 error = e.Message;
                 return false;

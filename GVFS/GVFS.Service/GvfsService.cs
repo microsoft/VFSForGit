@@ -379,11 +379,11 @@ namespace GVFS.Service
                 }
             }
 
-            // All users gets read access
-            this.AddReadModifyUsersRuleToDirectorySecurity(serviceDataRootSecurity, allowModify: false);
+            // All users get read access
+            this.AddUsersAccessRulesToDirectorySecurity(serviceDataRootSecurity, grantUsersModifyPermissions: false);
 
-            // Only administrators have Execute/Modify/Delete access
-            this.AddFullAccessAdminRuleToDirectorySecurity(serviceDataRootSecurity);
+            // Administrators get Execute/Modify/Delete access
+            this.AddAdminAccessRulesToDirectorySecurity(serviceDataRootSecurity);
 
             Directory.CreateDirectory(serviceDataRootPath, serviceDataRootSecurity);
             Directory.CreateDirectory(this.serviceDataLocation, serviceDataRootSecurity);
@@ -413,10 +413,10 @@ namespace GVFS.Service
             upgradeLogsSecurity.SetAccessRuleProtection(isProtected: true, preserveInheritance: false);
 
             // All users gets read and modify access
-            this.AddReadModifyUsersRuleToDirectorySecurity(upgradeLogsSecurity, allowModify: true);
+            this.AddUsersAccessRulesToDirectorySecurity(upgradeLogsSecurity, grantUsersModifyPermissions: true);
 
             // Administrators have Execute/Modify/Delete access
-            this.AddFullAccessAdminRuleToDirectorySecurity(upgradeLogsSecurity);
+            this.AddAdminAccessRulesToDirectorySecurity(upgradeLogsSecurity);
 
             Directory.CreateDirectory(upgradeLogsPath, upgradeLogsSecurity);
 
@@ -424,11 +424,11 @@ namespace GVFS.Service
             Directory.SetAccessControl(upgradeLogsPath, upgradeLogsSecurity);
         }
 
-        private void AddReadModifyUsersRuleToDirectorySecurity(DirectorySecurity directorySecurity, bool allowModify)
+        private void AddUsersAccessRulesToDirectorySecurity(DirectorySecurity directorySecurity, bool grantUsersModifyPermissions)
         {
             SecurityIdentifier allUsers = new SecurityIdentifier(WellKnownSidType.BuiltinUsersSid, null);
             FileSystemRights rights = FileSystemRights.Read;
-            if (allowModify)
+            if (grantUsersModifyPermissions)
             {
                 rights = rights | FileSystemRights.Modify;
             }
@@ -442,7 +442,7 @@ namespace GVFS.Service
                     AccessControlType.Allow));
         }
 
-        private void AddFullAccessAdminRuleToDirectorySecurity(DirectorySecurity directorySecurity)
+        private void AddAdminAccessRulesToDirectorySecurity(DirectorySecurity directorySecurity)
         {
             SecurityIdentifier administratorUsers = new SecurityIdentifier(WellKnownSidType.BuiltinAdministratorsSid, null);
             directorySecurity.AddAccessRule(

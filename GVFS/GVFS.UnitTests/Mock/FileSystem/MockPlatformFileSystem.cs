@@ -8,10 +8,10 @@ namespace GVFS.UnitTests.Mock.FileSystem
     {
         public MockPlatformFileSystem()
         {
-            this.TryCreateAndConfigureDirectoryWithAdminOnlyModifyShouldSucceed = true;
+            this.TryCreateDirectoryWithAdminOnlyModifyShouldSucceed = true;
         }
 
-        public bool TryCreateAndConfigureDirectoryWithAdminOnlyModifyShouldSucceed { get; set; }
+        public bool TryCreateDirectoryWithAdminOnlyModifyShouldSucceed { get; set; }
 
         public bool SupportsFileMode { get; } = true;
 
@@ -57,10 +57,10 @@ namespace GVFS.UnitTests.Mock.FileSystem
             throw new NotSupportedException();
         }
 
-        public bool TryCreateAndConfigureDirectoryWithAdminOnlyModify(ITracer tracer, string directoryPath, out string error)
+        public bool TryCreateDirectoryWithAdminOnlyModify(ITracer tracer, string directoryPath, out string error)
         {
             error = null;
-            return this.TryCreateAndConfigureDirectoryWithAdminOnlyModifyShouldSucceed;
+            return this.TryCreateDirectoryWithAdminOnlyModifyShouldSucceed;
         }
     }
 }

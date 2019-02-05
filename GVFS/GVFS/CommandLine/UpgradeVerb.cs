@@ -139,7 +139,7 @@ namespace GVFS.CommandLine
 
             if (!this.upgrader.UpgradeAllowed(out message))
             {
-                this.upgrader.DeleteAllInstallerDownloads(this.tracer);
+                this.upgrader.DeleteAllInstallerDownloads();
                 this.ReportInfoToConsole(message);
                 return true;
             }
@@ -155,7 +155,7 @@ namespace GVFS.CommandLine
             {
                 // Make sure there a no asset installers remaining in the Downloads directory. This can happen if user
                 // upgraded by manually downloading and running asset installers.
-                this.upgrader.DeleteAllInstallerDownloads(this.tracer);
+                this.upgrader.DeleteAllInstallerDownloads();
                 this.ReportInfoToConsole(message);
                 return true;
             }
