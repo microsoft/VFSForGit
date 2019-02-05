@@ -14,6 +14,64 @@ namespace GVFS.Platform.Windows
     {
         public bool SupportsFileMode { get; } = false;
 
+        /// <summary>
+        /// Adds a new FileSystemAccessRule granting read (and optionally modify) access for all users.
+        /// </summary>
+        /// <param name="directorySecurity">DirectorySecurity to which a FileSystemAccessRule will be added.</param>
+        /// <param name="grantUsersModifyPermissions">
+        /// True if all users should be given modify access, false if users should only be allowed read access
+        /// </param>
+        public static void AddUsersAccessRulesToDirectorySecurity(DirectorySecurity directorySecurity, bool grantUsersModifyPermissions)
+        {
+            SecurityIdentifier allUsers = new SecurityIdentifier(WellKnownSidType.BuiltinUsersSid, null);
+            FileSystemRights rights = FileSystemRights.Read;
+            if (grantUsersModifyPermissions)
+            {
+                rights = rights | FileSystemRights.Modify;
+            }
+
+            directorySecurity.AddAccessRule(
+                new FileSystemAccessRule(
+                    allUsers,
+                    rights,
+                    InheritanceFlags.ContainerInherit | InheritanceFlags.ObjectInherit,
+                    PropagationFlags.None,
+                    AccessControlType.Allow));
+        }
+
+        /// <summary>
+        /// Adds a new FileSystemAccessRule granting read/exceute/modify/delete access for administrators.
+        /// </summary>
+        /// <param name="directorySecurity">DirectorySecurity to which a FileSystemAccessRule will be added.</param>
+        public static void AddAdminAccessRulesToDirectorySecurity(DirectorySecurity directorySecurity)
+        {
+            SecurityIdentifier administratorUsers = new SecurityIdentifier(WellKnownSidType.BuiltinAdministratorsSid, null);
+            directorySecurity.AddAccessRule(
+                new FileSystemAccessRule(
+                    administratorUsers,
+                    FileSystemRights.ReadAndExecute | FileSystemRights.Modify | FileSystemRights.Delete,
+                    InheritanceFlags.ContainerInherit | InheritanceFlags.ObjectInherit,
+                    PropagationFlags.None,
+                    AccessControlType.Allow));
+        }
+
+        /// <summary>
+        /// Removes all FileSystemAccessRules from specified DirectorySecurity
+        /// </summary>
+        /// <param name="directorySecurity">DirectorySecurity from which to remove FileSystemAccessRules</param>
+        public static void RemoveAllFileSystemAccessRulesFromDirectorySecurity(DirectorySecurity directorySecurity)
+        {
+            AuthorizationRuleCollection currentRules = directorySecurity.GetAccessRules(includeExplicit: true, includeInherited: true, targetType: typeof(NTAccount));
+            foreach (AuthorizationRule authorizationRule in currentRules)
+            {
+                FileSystemAccessRule fileSystemRule = authorizationRule as FileSystemAccessRule;
+                if (fileSystemRule != null)
+                {
+                    directorySecurity.RemoveAccessRule(fileSystemRule);
+                }
+            }
+        }
+
         public void FlushFileBuffers(string path)
         {
             NativeMethods.FlushFileBuffers(path);
@@ -71,39 +129,13 @@ namespace GVFS.Platform.Windows
                     directorySecurity = new DirectorySecurity();
                 }
 
-                // Protect the access rules from inheritance
+                // Protect the access rules from inheritance and remove any inherited rules
                 directorySecurity.SetAccessRuleProtection(isProtected: true, preserveInheritance: false);
 
-                // Remove any rules already set for the directory
-                AuthorizationRuleCollection currentRules = directorySecurity.GetAccessRules(includeExplicit: true, includeInherited: true, targetType: typeof(NTAccount));
-                foreach (AuthorizationRule authorizationRule in currentRules)
-                {
-                    FileSystemAccessRule fileSystemRule = authorizationRule as FileSystemAccessRule;
-                    if (fileSystemRule != null)
-                    {
-                        directorySecurity.RemoveAccessRule(fileSystemRule);
-                    }
-                }
-
-                // All users get read access
-                SecurityIdentifier allUsers = new SecurityIdentifier(WellKnownSidType.BuiltinUsersSid, null);
-                directorySecurity.AddAccessRule(
-                    new FileSystemAccessRule(
-                        allUsers,
-                        FileSystemRights.Read,
-                        InheritanceFlags.ContainerInherit | InheritanceFlags.ObjectInherit,
-                        PropagationFlags.None,
-                        AccessControlType.Allow));
-
-                // Administrators have Execute/Modify/Delete access
-                SecurityIdentifier administratorUsers = new SecurityIdentifier(WellKnownSidType.BuiltinAdministratorsSid, null);
-                directorySecurity.AddAccessRule(
-                    new FileSystemAccessRule(
-                        administratorUsers,
-                        FileSystemRights.ReadAndExecute | FileSystemRights.Modify | FileSystemRights.Delete,
-                        InheritanceFlags.ContainerInherit | InheritanceFlags.ObjectInherit,
-                        PropagationFlags.None,
-                        AccessControlType.Allow));
+                // Remove any existing ACLs and add new ACLs for users and admins
+                RemoveAllFileSystemAccessRulesFromDirectorySecurity(directorySecurity);
+                AddUsersAccessRulesToDirectorySecurity(directorySecurity, grantUsersModifyPermissions: false);
+                AddAdminAccessRulesToDirectorySecurity(directorySecurity);
 
                 Directory.CreateDirectory(directoryPath, directorySecurity);
 

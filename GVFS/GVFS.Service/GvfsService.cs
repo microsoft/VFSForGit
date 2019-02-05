@@ -2,6 +2,7 @@ using GVFS.Common;
 using GVFS.Common.FileSystem;
 using GVFS.Common.NamedPipes;
 using GVFS.Common.Tracing;
+using GVFS.Platform.Windows;
 using GVFS.Service.Handlers;
 using System;
 using System.IO;
@@ -365,25 +366,13 @@ namespace GVFS.Service
                 serviceDataRootSecurity = new DirectorySecurity();
             }
 
-            // Protect the access rules from inheritance
+            // Protect the access rules from inheritance and remove any inherited rules
             serviceDataRootSecurity.SetAccessRuleProtection(isProtected: true, preserveInheritance: false);
 
-            // Remove any rules already set for the directory
-            AuthorizationRuleCollection currentRules = serviceDataRootSecurity.GetAccessRules(includeExplicit: true, includeInherited: true, targetType: typeof(NTAccount));
-            foreach (AuthorizationRule authorizationRule in currentRules)
-            {
-                FileSystemAccessRule fileSystemRule = authorizationRule as FileSystemAccessRule;
-                if (fileSystemRule != null)
-                {
-                    serviceDataRootSecurity.RemoveAccessRule(fileSystemRule);
-                }
-            }
-
-            // All users get read access
-            this.AddUsersAccessRulesToDirectorySecurity(serviceDataRootSecurity, grantUsersModifyPermissions: false);
-
-            // Administrators get Execute/Modify/Delete access
-            this.AddAdminAccessRulesToDirectorySecurity(serviceDataRootSecurity);
+            // Remove any existing ACLs and add new ACLs for users and admins
+            WindowsFileSystem.RemoveAllFileSystemAccessRulesFromDirectorySecurity(serviceDataRootSecurity);
+            WindowsFileSystem.AddUsersAccessRulesToDirectorySecurity(serviceDataRootSecurity, grantUsersModifyPermissions: false);
+            WindowsFileSystem.AddAdminAccessRulesToDirectorySecurity(serviceDataRootSecurity);
 
             Directory.CreateDirectory(serviceDataRootPath, serviceDataRootSecurity);
             Directory.CreateDirectory(this.serviceDataLocation, serviceDataRootSecurity);
@@ -409,49 +398,18 @@ namespace GVFS.Service
                 upgradeLogsSecurity = new DirectorySecurity();
             }
 
-            // Protect the access rules from inheritance
+            // Protect the access rules from inheritance and remove any inherited rules
+            // (any manually added ACLs are left in place)
             upgradeLogsSecurity.SetAccessRuleProtection(isProtected: true, preserveInheritance: false);
 
-            // All users gets read and modify access
-            this.AddUsersAccessRulesToDirectorySecurity(upgradeLogsSecurity, grantUsersModifyPermissions: true);
-
-            // Administrators have Execute/Modify/Delete access
-            this.AddAdminAccessRulesToDirectorySecurity(upgradeLogsSecurity);
+            // Add new ACLs for users and admins
+            WindowsFileSystem.AddUsersAccessRulesToDirectorySecurity(upgradeLogsSecurity, grantUsersModifyPermissions: true);
+            WindowsFileSystem.AddAdminAccessRulesToDirectorySecurity(upgradeLogsSecurity);
 
             Directory.CreateDirectory(upgradeLogsPath, upgradeLogsSecurity);
 
             // Ensure the ACLs are set correct on any files or directories that were already created (e.g. after upgrading VFS4G)
             Directory.SetAccessControl(upgradeLogsPath, upgradeLogsSecurity);
-        }
-
-        private void AddUsersAccessRulesToDirectorySecurity(DirectorySecurity directorySecurity, bool grantUsersModifyPermissions)
-        {
-            SecurityIdentifier allUsers = new SecurityIdentifier(WellKnownSidType.BuiltinUsersSid, null);
-            FileSystemRights rights = FileSystemRights.Read;
-            if (grantUsersModifyPermissions)
-            {
-                rights = rights | FileSystemRights.Modify;
-            }
-
-            directorySecurity.AddAccessRule(
-                new FileSystemAccessRule(
-                    allUsers,
-                    rights,
-                    InheritanceFlags.ContainerInherit | InheritanceFlags.ObjectInherit,
-                    PropagationFlags.None,
-                    AccessControlType.Allow));
-        }
-
-        private void AddAdminAccessRulesToDirectorySecurity(DirectorySecurity directorySecurity)
-        {
-            SecurityIdentifier administratorUsers = new SecurityIdentifier(WellKnownSidType.BuiltinAdministratorsSid, null);
-            directorySecurity.AddAccessRule(
-                new FileSystemAccessRule(
-                    administratorUsers,
-                    FileSystemRights.ReadAndExecute | FileSystemRights.Modify | FileSystemRights.Delete,
-                    InheritanceFlags.ContainerInherit | InheritanceFlags.ObjectInherit,
-                    PropagationFlags.None,
-                    AccessControlType.Allow));
         }
     }
 }
