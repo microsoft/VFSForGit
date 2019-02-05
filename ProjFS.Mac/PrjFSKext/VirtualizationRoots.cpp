@@ -179,7 +179,7 @@ VirtualizationRootHandle VirtualizationRoot_FindForVnode(
     {
         PerfSample iterationSample(perfTracer, innerLoopCounter);
 
-        FsidInode vnodeFsidInode = Vnode_GetFsidAndInode(vnode, context);
+        FsidInode vnodeFsidInode = Vnode_GetFsidAndInode(vnode, context, false /* Here we care about identity, not path */);
 
         rootHandle = FindOrDetectRootAtVnode(vnode, vnodeFsidInode);
         
@@ -472,7 +472,7 @@ VirtualizationRootResult VirtualizationRoot_RegisterProviderForPath(PrjFSProvide
             }
             else
             {
-                FsidInode vnodeIds = Vnode_GetFsidAndInode(virtualizationRootVNode, vfsContext);
+                FsidInode vnodeIds = Vnode_GetFsidAndInode(virtualizationRootVNode, vfsContext, false /* If a root has multiple hardlinks to it, only track one instance of it. */);
                 uint32_t rootVid = vnode_vid(virtualizationRootVNode);
                 
                 RWLock_AcquireExclusive(s_virtualizationRootsLock);

@@ -844,7 +844,7 @@ static bool TryGetVirtualizationRoot(
 {
     PerfSample findRootSample(perfTracer, PrjFSPerfCounter_VnodeOp_GetVirtualizationRoot);
         
-    *vnodeFsidInode = Vnode_GetFsidAndInode(vnode, context);
+    *vnodeFsidInode = Vnode_GetFsidAndInode(vnode, context, true /* the inode is used for getting the path in the provider, so use linkid */);
     *root = VirtualizationRoot_FindForVnode(
         perfTracer,
         PrjFSPerfCounter_VnodeOp_FindRoot,
@@ -950,7 +950,7 @@ static bool ShouldHandleFileOpEvent(
         }
     }
 
-    *vnodeFsidInode = Vnode_GetFsidAndInode(vnode, context);
+    *vnodeFsidInode = Vnode_GetFsidAndInode(vnode, context, true /* the inode is used for getting the path in the provider, so use linkid */);
 
     return true;
 }
