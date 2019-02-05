@@ -26,13 +26,14 @@ namespace GVFS.CommandLine
         public UpgradeVerb(
             ProductUpgrader upgrader,
             ITracer tracer,
+            PhysicalFileSystem fileSystem,
             InstallerPreRunChecker prerunChecker,
             ProcessLauncher processWrapper,
             TextWriter output)
         {
             this.upgrader = upgrader;
             this.tracer = tracer;
-            this.fileSystem = new PhysicalFileSystem();
+            this.fileSystem = fileSystem;
             this.prerunChecker = prerunChecker;
             this.processLauncher = processWrapper;
             this.Output = output;
@@ -40,6 +41,7 @@ namespace GVFS.CommandLine
 
         public UpgradeVerb()
         {
+            this.fileSystem = new PhysicalFileSystem();
             this.processLauncher = new ProcessLauncher();
             this.Output = Console.Out;
         }
