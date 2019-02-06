@@ -2,6 +2,7 @@
 using GVFS.Common;
 using GVFS.Tests.Should;
 using GVFS.UnitTests.Category;
+using GVFS.UnitTests.Mock.FileSystem;
 using GVFS.UnitTests.Windows.Mock.Upgrader;
 using NUnit.Framework;
 using System.Collections.Generic;
@@ -23,6 +24,7 @@ namespace GVFS.UnitTests.Windows.Upgrader
             this.upgradeVerb = new UpgradeVerb(
                 this.Upgrader,
                 this.Tracer,
+                this.FileSystem,
                 this.PrerunChecker,
                 this.processLauncher,
                 this.Output);

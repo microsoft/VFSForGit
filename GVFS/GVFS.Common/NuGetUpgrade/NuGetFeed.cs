@@ -11,7 +11,7 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 
-namespace GVFS.Common.NuGetUpgrader
+namespace GVFS.Common.NuGetUpgrade
 {
     /// <summary>
     /// Handles interactions with a NuGet Feed.

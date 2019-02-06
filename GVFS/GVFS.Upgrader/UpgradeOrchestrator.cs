@@ -24,13 +24,14 @@ namespace GVFS.Upgrader
         public UpgradeOrchestrator(
             ProductUpgrader upgrader,
             ITracer tracer,
+            PhysicalFileSystem fileSystem,
             InstallerPreRunChecker preRunChecker,
             TextReader input,
             TextWriter output)
         {
             this.upgrader = upgrader;
             this.tracer = tracer;
-            this.fileSystem = new PhysicalFileSystem();
+            this.fileSystem = fileSystem;
             this.preRunChecker = preRunChecker;
             this.output = output;
             this.input = input;
@@ -50,6 +51,7 @@ namespace GVFS.Upgrader
                 Keywords.Any);
 
             this.tracer = jsonTracer;
+            this.fileSystem = new PhysicalFileSystem();
             this.preRunChecker = new InstallerPreRunChecker(this.tracer, GVFSConstants.UpgradeVerbMessages.GVFSUpgradeConfirm);
             this.output = Console.Out;
             this.input = Console.In;
@@ -148,7 +150,7 @@ namespace GVFS.Upgrader
             if (this.upgrader == null)
             {
                 ProductUpgrader upgrader;
-                if (!ProductUpgrader.TryCreateUpgrader(out upgrader, this.tracer, out errorMessage, this.DryRun, this.NoVerify))
+                if (!ProductUpgrader.TryCreateUpgrader(this.tracer, this.fileSystem, this.DryRun, this.NoVerify, out upgrader, out errorMessage))
                 {
                     return false;
                 }

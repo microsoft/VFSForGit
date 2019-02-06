@@ -18,6 +18,7 @@ namespace GVFS.CommandLine
         private const string ConfirmOption = "--confirm";
 
         private ITracer tracer;
+        private PhysicalFileSystem fileSystem;
         private ProductUpgrader upgrader;
         private InstallerPreRunChecker prerunChecker;
         private ProcessLauncher processLauncher;
@@ -25,12 +26,14 @@ namespace GVFS.CommandLine
         public UpgradeVerb(
             ProductUpgrader upgrader,
             ITracer tracer,
+            PhysicalFileSystem fileSystem,
             InstallerPreRunChecker prerunChecker,
             ProcessLauncher processWrapper,
             TextWriter output)
         {
             this.upgrader = upgrader;
             this.tracer = tracer;
+            this.fileSystem = fileSystem;
             this.prerunChecker = prerunChecker;
             this.processLauncher = processWrapper;
             this.Output = output;
@@ -38,6 +41,7 @@ namespace GVFS.CommandLine
 
         public UpgradeVerb()
         {
+            this.fileSystem = new PhysicalFileSystem();
             this.processLauncher = new ProcessLauncher();
             this.Output = Console.Out;
         }
@@ -100,7 +104,7 @@ namespace GVFS.CommandLine
                     this.prerunChecker = new InstallerPreRunChecker(this.tracer, this.Confirmed ? GVFSConstants.UpgradeVerbMessages.GVFSUpgradeConfirm : GVFSConstants.UpgradeVerbMessages.GVFSUpgrade);
 
                     ProductUpgrader upgrader;
-                    if (ProductUpgrader.TryCreateUpgrader(out upgrader, this.tracer, out error, this.DryRun, this.NoVerify))
+                    if (ProductUpgrader.TryCreateUpgrader(this.tracer, this.fileSystem, this.DryRun, this.NoVerify, out upgrader, out error))
                     {
                         this.upgrader = upgrader;
                     }
@@ -139,7 +143,7 @@ namespace GVFS.CommandLine
             {
                 ProductUpgraderInfo productUpgraderInfo = new ProductUpgraderInfo(
                     this.tracer,
-                    new PhysicalFileSystem());
+                    this.fileSystem);
                 productUpgraderInfo.DeleteAllInstallerDownloads();
                 this.ReportInfoToConsole(message);
                 return true;
@@ -158,7 +162,7 @@ namespace GVFS.CommandLine
                 // upgraded by manually downloading and running asset installers.
                 ProductUpgraderInfo productUpgraderInfo = new ProductUpgraderInfo(
                     this.tracer,
-                    new PhysicalFileSystem());
+                    this.fileSystem);
                 productUpgraderInfo.DeleteAllInstallerDownloads();
                 this.ReportInfoToConsole(message);
                 return true;

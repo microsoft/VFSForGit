@@ -1,7 +1,9 @@
 ﻿using GVFS.Common;
 using GVFS.Common.Git;
+using GVFS.Common.Tracing;
 using GVFS.Tests.Should;
 using GVFS.UnitTests.Mock.Common;
+using GVFS.UnitTests.Mock.FileSystem;
 using GVFS.UnitTests.Windows.Mock.Upgrader;
 using GVFS.Upgrader;
 using Moq;
@@ -20,9 +22,11 @@ namespace GVFS.UnitTests.Upgrader
         private delegate void UpgradeAllowedCallback(out string message);
         private delegate void TryRunPreUpgradeChecksCallback(out string delegateMessage);
         private delegate void TryDownloadNewestVersionCallback(out string message);
+        private delegate void TryCreateAndConfigureDownloadDirectoryCallback(ITracer tracer, out string message);
         private delegate void TryRunInstallerCallback(InstallActionWrapper installActionWrapper, out string error);
 
         private MockTracer Tracer { get; set; }
+        private MockFileSystem FileSystem { get; set; }
         private MockTextWriter Output { get; set; }
         private MockInstallerPrerunChecker PreRunChecker { get; set; }
         private Mock<LocalGVFSConfig> MoqLocalConfig { get; set; }
@@ -34,6 +38,7 @@ namespace GVFS.UnitTests.Upgrader
         public void Setup()
         {
             this.Tracer = new MockTracer();
+            this.FileSystem = new MockFileSystem(new MockDirectory(@"mock:\GVFS.Upgrades\Download", null, null));
             this.Output = new MockTextWriter();
             this.PreRunChecker = new MockInstallerPrerunChecker(this.Tracer);
             this.PreRunChecker.Reset();
@@ -41,6 +46,7 @@ namespace GVFS.UnitTests.Upgrader
             this.orchestrator = new UpgradeOrchestrator(
                 this.MoqUpgrader.Object,
                 this.Tracer,
+                this.FileSystem,
                 this.PreRunChecker,
                 input: null,
                 output: this.Output);
@@ -122,10 +128,11 @@ namespace GVFS.UnitTests.Upgrader
         public void ExecuteFailsWhenDownloadFails()
         {
             this.MoqUpgrader.Setup(upgrader => upgrader.TryDownloadNewestVersion(out It.Ref<string>.IsAny))
-                .Callback(new TryDownloadNewestVersionCallback((out string delegateMessage) =>
-                {
-                    delegateMessage = "Download error.";
-                }))
+                .Callback(new TryDownloadNewestVersionCallback(
+                    (out string delegateMessage) =>
+                    {
+                        delegateMessage = "Download error.";
+                    }))
                 .Returns(false);
 
             this.orchestrator.Execute();

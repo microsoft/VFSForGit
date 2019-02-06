@@ -2,7 +2,7 @@ using Newtonsoft.Json;
 using System.Collections.Generic;
 using System.IO;
 
-namespace GVFS.Common.NuGetUpgrader
+namespace GVFS.Common.NuGetUpgrade
 {
     /// <summary>
     /// Details on the upgrade included in this package, including information

@@ -1,8 +1,7 @@
 using GVFS.Common.FileSystem;
-using GVFS.Common.Git;
+using GVFS.Common.NuGetUpgrade;
 using GVFS.Common.Tracing;
 using System;
-using System.Collections.Generic;
 using System.IO;
 
 namespace GVFS.Common
@@ -71,15 +70,16 @@ namespace GVFS.Common
         }
 
         public static bool TryCreateUpgrader(
-            out ProductUpgrader newUpgrader,
             ITracer tracer,
-            out string error,
-            bool dryRun = false,
-            bool noVerify = false)
+            PhysicalFileSystem fileSystem,
+            bool dryRun,
+            bool noVerify,
+            out ProductUpgrader newUpgrader,
+            out string error)
         {
             // Prefer to use the NuGet upgrader if it is configured. If the NuGet upgrader is not configured,
             // then try to use the GitHubUpgrader.
-            if (NuGetUpgrader.NuGetUpgrader.TryCreate(tracer, dryRun, noVerify, out NuGetUpgrader.NuGetUpgrader nuGetUpgrader, out bool isConfigured, out error))
+            if (NuGetUpgrader.TryCreate(tracer, fileSystem, dryRun, noVerify, out NuGetUpgrader nuGetUpgrader, out bool isConfigured, out error))
             {
                 // We were successfully able to load a NuGetUpgrader - use that.
                 newUpgrader = nuGetUpgrader;
@@ -100,7 +100,7 @@ namespace GVFS.Common
                 // Try to load other upgraders as appropriate.
             }
 
-            newUpgrader = GitHubUpgrader.Create(tracer, dryRun, noVerify, out error);
+            newUpgrader = GitHubUpgrader.Create(tracer, fileSystem, dryRun, noVerify, out error);
             if (newUpgrader == null)
             {
                 tracer.RelatedError($"{nameof(TryCreateUpgrader)}: Could not create upgrader. {error}");
@@ -108,25 +108,6 @@ namespace GVFS.Common
             }
 
             return true;
-        }
-
-        /// <summary>
-        /// Deletes any previously downloaded installers in the Upgrader Download directory.
-        /// This can include old installers which were downloaded but never installed.
-        /// </summary>
-        public static void DeleteAllInstallerDownloads(ITracer tracer = null)
-        {
-            try
-            {
-                PhysicalFileSystem.RecursiveDelete(ProductUpgraderInfo.GetAssetDownloadsPath());
-            }
-            catch (Exception ex)
-            {
-                if (tracer != null)
-                {
-                    tracer.RelatedError($"{nameof(DeleteAllInstallerDownloads)}: Could not remove directory: {ProductUpgraderInfo.GetAssetDownloadsPath()}.{ex.ToString()}");
-                }
-            }
         }
 
         public abstract bool UpgradeAllowed(out string message);
@@ -141,15 +122,13 @@ namespace GVFS.Common
         {
             string rootDirectoryPath = ProductUpgraderInfo.GetUpgradesDirectoryPath();
             string toolsDirectoryPath = Path.Combine(rootDirectoryPath, ToolsDirectory);
-            Exception exception;
-            if (!this.fileSystem.TryCreateDirectory(toolsDirectoryPath, out exception))
+
+            if (!this.fileSystem.TryCreateDirectoryWithAdminOnlyModify(
+                    this.tracer,
+                    toolsDirectoryPath,
+                    out error))
             {
                 upgraderToolPath = null;
-                error = exception.Message;
-                this.TraceException(
-                    exception,
-                    nameof(this.TrySetupToolsDirectory),
-                    $"Error creating upgrade tools directory {toolsDirectoryPath}.");
                 return false;
             }
 
@@ -211,6 +190,14 @@ namespace GVFS.Common
 
         public virtual void Dispose()
         {
+        }
+
+        protected virtual bool TryCreateAndConfigureDownloadDirectory(ITracer tracer, out string error)
+        {
+            return this.fileSystem.TryCreateDirectoryWithAdminOnlyModify(
+                tracer,
+                ProductUpgraderInfo.GetAssetDownloadsPath(),
+                out error);
         }
 
         protected virtual void RunInstaller(string path, string args, out int exitCode, out string error)

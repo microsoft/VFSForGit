@@ -41,10 +41,11 @@ namespace GVFS.Common
         public GitHubUpgrader(
             string currentVersion,
             ITracer tracer,
+            PhysicalFileSystem fileSystem,
             GitHubUpgraderConfig upgraderConfig,
             bool dryRun = false,
             bool noVerify = false)
-            : base(currentVersion, tracer, dryRun, noVerify, new PhysicalFileSystem())
+            : base(currentVersion, tracer, dryRun, noVerify, fileSystem)
         {
             this.Config = upgraderConfig;
 
@@ -54,12 +55,23 @@ namespace GVFS.Common
 
         public GitHubUpgraderConfig Config { get; private set; }
 
-        public static GitHubUpgrader Create(ITracer tracer, bool dryRun, bool noVerify, out string error)
+        public static GitHubUpgrader Create(
+            ITracer tracer,
+            PhysicalFileSystem fileSystem,
+            bool dryRun,
+            bool noVerify,
+            out string error)
         {
-            return Create(new LocalGVFSConfig(), tracer, dryRun, noVerify, out error);
+            return Create(tracer, fileSystem, dryRun, noVerify, new LocalGVFSConfig(), out error);
         }
 
-        public static GitHubUpgrader Create(LocalGVFSConfig localConfig, ITracer tracer, bool dryRun, bool noVerify, out string error)
+        public static GitHubUpgrader Create(
+            ITracer tracer,
+            PhysicalFileSystem fileSystem,
+            bool dryRun,
+            bool noVerify,
+            LocalGVFSConfig localConfig,
+            out string error)
         {
             GitHubUpgrader upgrader = null;
             GitHubUpgraderConfig gitHubUpgraderConfig = new GitHubUpgraderConfig(tracer, localConfig);
@@ -78,6 +90,7 @@ namespace GVFS.Common
             upgrader = new GitHubUpgrader(
                     ProcessHelper.GetCurrentProcessVersion(),
                     tracer,
+                    fileSystem,
                     gitHubUpgraderConfig,
                     dryRun,
                     noVerify);
@@ -128,6 +141,12 @@ namespace GVFS.Common
 
         public override bool TryDownloadNewestVersion(out string errorMessage)
         {
+            if (!this.TryCreateAndConfigureDownloadDirectory(this.tracer, out errorMessage))
+            {
+                this.tracer.RelatedError($"{nameof(GitHubUpgrader)}.{nameof(this.TryCreateAndConfigureDownloadDirectory)} failed. {errorMessage}");
+                return false;
+            }
+
             bool downloadedGit = false;
             bool downloadedGVFS = false;
 
@@ -244,14 +263,6 @@ namespace GVFS.Common
             errorMessage = null;
 
             string downloadPath = ProductUpgraderInfo.GetAssetDownloadsPath();
-            Exception exception;
-            if (!this.fileSystem.TryCreateDirectory(downloadPath, out exception))
-            {
-                errorMessage = exception.Message;
-                this.TraceException(exception, nameof(this.TryDownloadAsset), $"Error creating download directory {downloadPath}.");
-                return false;
-            }
-
             string localPath = Path.Combine(downloadPath, asset.Name);
             WebClient webClient = new WebClient();
 

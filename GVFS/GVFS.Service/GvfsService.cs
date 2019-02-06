@@ -2,6 +2,7 @@ using GVFS.Common;
 using GVFS.Common.FileSystem;
 using GVFS.Common.NamedPipes;
 using GVFS.Common.Tracing;
+using GVFS.Platform.Windows;
 using GVFS.Service.Handlers;
 using System;
 using System.IO;
@@ -355,37 +356,60 @@ namespace GVFS.Service
             this.serviceDataLocation = Paths.GetServiceDataRoot(this.serviceName);
             string serviceDataRootPath = Path.GetDirectoryName(this.serviceDataLocation);
 
-            DirectorySecurity programDataSecurity = new DirectorySecurity();
+            DirectorySecurity serviceDataRootSecurity;
+            if (Directory.Exists(serviceDataRootPath))
+            {
+                serviceDataRootSecurity = Directory.GetAccessControl(serviceDataRootPath);
+            }
+            else
+            {
+                serviceDataRootSecurity = new DirectorySecurity();
+            }
 
-            // Protect the access rules from inheritance
-            programDataSecurity.SetAccessRuleProtection(isProtected: true, preserveInheritance: false);
+            // Protect the access rules from inheritance and remove any inherited rules
+            serviceDataRootSecurity.SetAccessRuleProtection(isProtected: true, preserveInheritance: false);
 
-            // All users gets read access
-            SecurityIdentifier allUsers = new SecurityIdentifier(WellKnownSidType.BuiltinUsersSid, null);
-            programDataSecurity.AddAccessRule(
-                new FileSystemAccessRule(
-                    allUsers,
-                    FileSystemRights.Read,
-                    InheritanceFlags.ContainerInherit | InheritanceFlags.ObjectInherit,
-                    PropagationFlags.None,
-                    AccessControlType.Allow));
+            // Remove any existing ACLs and add new ACLs for users and admins
+            WindowsFileSystem.RemoveAllFileSystemAccessRulesFromDirectorySecurity(serviceDataRootSecurity);
+            WindowsFileSystem.AddUsersAccessRulesToDirectorySecurity(serviceDataRootSecurity, grantUsersModifyPermissions: false);
+            WindowsFileSystem.AddAdminAccessRulesToDirectorySecurity(serviceDataRootSecurity);
 
-            // Only administrators have Execute/Modify/Delete access
-            SecurityIdentifier administratorUsers = new SecurityIdentifier(WellKnownSidType.BuiltinAdministratorsSid, null);
-            programDataSecurity.AddAccessRule(
-                new FileSystemAccessRule(
-                    administratorUsers,
-                    FileSystemRights.ReadAndExecute | FileSystemRights.Modify | FileSystemRights.Delete,
-                    InheritanceFlags.ContainerInherit | InheritanceFlags.ObjectInherit,
-                    PropagationFlags.None,
-                    AccessControlType.Allow));
+            Directory.CreateDirectory(serviceDataRootPath, serviceDataRootSecurity);
+            Directory.CreateDirectory(this.serviceDataLocation, serviceDataRootSecurity);
+            Directory.CreateDirectory(ProductUpgraderInfo.GetUpgradesDirectoryPath(), serviceDataRootSecurity);
 
-            Directory.CreateDirectory(serviceDataRootPath, programDataSecurity);
-            Directory.CreateDirectory(this.serviceDataLocation, programDataSecurity);
-            Directory.CreateDirectory(Path.Combine(Path.GetDirectoryName(this.serviceDataLocation), ProductUpgraderInfo.UpgradeDirectoryName), programDataSecurity);
+            // Ensure the ACLs are set correctly on any files or directories that were already created (e.g. after upgrading VFS4G)
+            Directory.SetAccessControl(serviceDataRootPath, serviceDataRootSecurity);
+
+            this.CreateAndConfigureUpgradeLogDirectory();
+        }
+
+        private void CreateAndConfigureUpgradeLogDirectory()
+        {
+            // Special rules for the upgrader logs, as non-elevated users need to be be able to write
+            string upgradeLogsPath = ProductUpgraderInfo.GetLogDirectoryPath();
+            DirectorySecurity upgradeLogsSecurity;
+            if (Directory.Exists(upgradeLogsPath))
+            {
+                upgradeLogsSecurity = Directory.GetAccessControl(upgradeLogsPath);
+            }
+            else
+            {
+                upgradeLogsSecurity = new DirectorySecurity();
+            }
+
+            // Protect the access rules from inheritance and remove any inherited rules
+            // (any manually added ACLs are left in place)
+            upgradeLogsSecurity.SetAccessRuleProtection(isProtected: true, preserveInheritance: false);
+
+            // Add new ACLs for users and admins
+            WindowsFileSystem.AddUsersAccessRulesToDirectorySecurity(upgradeLogsSecurity, grantUsersModifyPermissions: true);
+            WindowsFileSystem.AddAdminAccessRulesToDirectorySecurity(upgradeLogsSecurity);
+
+            Directory.CreateDirectory(upgradeLogsPath, upgradeLogsSecurity);
 
             // Ensure the ACLs are set correct on any files or directories that were already created (e.g. after upgrading VFS4G)
-            Directory.SetAccessControl(serviceDataRootPath, programDataSecurity);
+            Directory.SetAccessControl(upgradeLogsPath, upgradeLogsSecurity);
         }
     }
 }

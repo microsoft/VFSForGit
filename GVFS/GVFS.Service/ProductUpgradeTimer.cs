@@ -12,8 +12,8 @@ namespace GVFS.Service
     {
         private static readonly TimeSpan TimeInterval = TimeSpan.FromDays(1);
         private JsonTracer tracer;
-        private Timer timer;
         private PhysicalFileSystem fileSystem;
+        private Timer timer;
 
         public ProductUpgradeTimer(JsonTracer tracer)
         {
@@ -77,6 +77,7 @@ namespace GVFS.Service
                     // The upgrade check always goes against GitHub
                     GitHubUpgrader productUpgrader = GitHubUpgrader.Create(
                         this.tracer,
+                        this.fileSystem,
                         dryRun: false,
                         noVerify: false,
                         error: out errorMessage);
