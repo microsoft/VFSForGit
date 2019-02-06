@@ -1,6 +1,5 @@
 using GVFS.Common;
-using GVFS.Common.FileSystem;
-using GVFS.Common.NuGetUpgrader;
+using GVFS.Common.NuGetUpgrade;
 using GVFS.Tests.Should;
 using GVFS.UnitTests.Category;
 using GVFS.UnitTests.Mock.Common;
@@ -14,7 +13,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 
-namespace GVFS.UnitTests.Common
+namespace GVFS.UnitTests.Common.NuGetUpgrade
 {
     [TestFixture]
     public class NuGetUpgraderTests

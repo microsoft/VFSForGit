@@ -9,7 +9,7 @@ using System.IO.Compression;
 using System.Text.RegularExpressions;
 using System.Threading;
 
-namespace GVFS.Common.NuGetUpgrader
+namespace GVFS.Common.NuGetUpgrade
 {
     public class NuGetUpgrader : ProductUpgrader
     {

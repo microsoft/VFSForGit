@@ -1,4 +1,5 @@
 using GVFS.Common.FileSystem;
+using GVFS.Common.NuGetUpgrade;
 using GVFS.Common.Tracing;
 using System;
 using System.IO;
@@ -78,7 +79,7 @@ namespace GVFS.Common
         {
             // Prefer to use the NuGet upgrader if it is configured. If the NuGet upgrader is not configured,
             // then try to use the GitHubUpgrader.
-            if (NuGetUpgrader.NuGetUpgrader.TryCreate(tracer, fileSystem, dryRun, noVerify, out NuGetUpgrader.NuGetUpgrader nuGetUpgrader, out bool isConfigured, out error))
+            if (NuGetUpgrader.TryCreate(tracer, fileSystem, dryRun, noVerify, out NuGetUpgrader nuGetUpgrader, out bool isConfigured, out error))
             {
                 // We were successfully able to load a NuGetUpgrader - use that.
                 newUpgrader = nuGetUpgrader;
