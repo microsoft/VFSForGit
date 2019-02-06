@@ -1,5 +1,6 @@
 using CommandLine;
 using GVFS.Common;
+using GVFS.Common.FileSystem;
 using GVFS.Common.Tracing;
 using GVFS.Upgrader;
 using System;
@@ -136,7 +137,10 @@ namespace GVFS.CommandLine
 
             if (!this.upgrader.UpgradeAllowed(out message))
             {
-                ProductUpgraderInfo.DeleteAllInstallerDownloads();
+                ProductUpgraderInfo productUpgraderInfo = new ProductUpgraderInfo(
+                    this.tracer,
+                    new PhysicalFileSystem());
+                productUpgraderInfo.DeleteAllInstallerDownloads();
                 this.ReportInfoToConsole(message);
                 return true;
             }
@@ -152,7 +156,10 @@ namespace GVFS.CommandLine
             {
                 // Make sure there a no asset installers remaining in the Downloads directory. This can happen if user
                 // upgraded by manually downloading and running asset installers.
-                ProductUpgraderInfo.DeleteAllInstallerDownloads();
+                ProductUpgraderInfo productUpgraderInfo = new ProductUpgraderInfo(
+                    this.tracer,
+                    new PhysicalFileSystem());
+                productUpgraderInfo.DeleteAllInstallerDownloads();
                 this.ReportInfoToConsole(message);
                 return true;
             }

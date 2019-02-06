@@ -15,8 +15,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
     [Category(Categories.WindowsOnly)]
     public class UpgradeReminderTests : TestsWithEnlistmentPerFixture
     {
-        private const string GVFSInstallerName = "VFSForGit.1.0.18234.1.exe";
-        private const string GitInstallerName = "Git-2.17.1.gvfs.2.5.g2962052-64-bit.exe";
+        private const string HighestAvailableVersionFileName = "HighestAvailableVersion";
         private const string UpgradeRingKey = "upgrade.ring";
         private const string AlwaysUpToDateRing = "None";
 
@@ -77,15 +76,12 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
 
         private void CreateUpgradeInstallers()
         {
-            string gvfsInstallerPath = Path.Combine(this.upgradeDirectory, GVFSInstallerName);
-            string gitInstallerPath = Path.Combine(this.upgradeDirectory, GitInstallerName);
+            string gvfsUpgradeAvailableFilePath = Path.Combine(this.upgradeDirectory, HighestAvailableVersionFileName);
 
             this.EmptyDownloadDirectory();
 
-            this.fileSystem.CreateEmptyFile(gvfsInstallerPath);
-            this.fileSystem.CreateEmptyFile(gitInstallerPath);
-            this.fileSystem.FileExists(gvfsInstallerPath).ShouldBeTrue();
-            this.fileSystem.FileExists(gitInstallerPath).ShouldBeTrue();
+            this.fileSystem.CreateEmptyFile(gvfsUpgradeAvailableFilePath);
+            this.fileSystem.FileExists(gvfsUpgradeAvailableFilePath).ShouldBeTrue();
         }
 
         private void SetUpgradeRing(string value)
