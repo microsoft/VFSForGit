@@ -36,10 +36,12 @@ fi
 
 STAGINGDIR=$BUILDOUTPUTDIR"Staging"
 VFSFORGITDESTINATION="usr/local/vfsforgit"
+DAEMONPLISTDESTINATION="Library/LaunchDaemons"
 LIBRARYEXTENSIONSDESTINATION="Library/Extensions"
 INSTALLERPACKAGENAME="VFSForGit.$PACKAGEVERSION"
 INSTALLERPACKAGEID="com.vfsforgit.pkg"
 UNINSTALLERPATH="${SOURCEDIRECTORY}/uninstall_vfsforgit.sh"
+SCRIPTSPATH="${SOURCEDIRECTORY}/scripts"
 
 function CheckBuildIsAvailable()
 {
@@ -65,6 +67,9 @@ function CreateInstallerRoot()
     
     mkdirBin="mkdir -p \"${STAGINGDIR}/$LIBRARYEXTENSIONSDESTINATION\""
     eval $mkdirBin || exit 1
+    
+    mkdirBin="mkdir -p \"${STAGINGDIR}/$DAEMONPLISTDESTINATION\""
+    eval $mkdirBin || exit 1
 }
 
 function CopyBinariesToInstall()
@@ -84,10 +89,16 @@ function CopyBinariesToInstall()
     copyPrjFS="cp -Rf \"${VFS_OUTPUTDIR}/ProjFS.Mac/Native/$CONFIGURATION\"/prjfs-log \"${STAGINGDIR}/${VFSFORGITDESTINATION}/.\""
     eval $copyPrjFS || exit 1
     
+    copyPrjFS="cp -Rf \"${VFS_OUTPUTDIR}/ProjFS.Mac/Native/$CONFIGURATION\"/PrjFSKextLogDaemon \"${STAGINGDIR}/${VFSFORGITDESTINATION}/.\""
+    eval $copyPrjFS || exit 1
+    
     copyUnInstaller="cp -f \"${UNINSTALLERPATH}\" \"${STAGINGDIR}/${VFSFORGITDESTINATION}/.\""
     eval $copyUnInstaller || exit 1
     
     copyPrjFS="cp -Rf \"${VFS_OUTPUTDIR}/ProjFS.Mac/Native/$CONFIGURATION\"/PrjFSKext.kext \"${STAGINGDIR}/${LIBRARYEXTENSIONSDESTINATION}/.\""
+    eval $copyPrjFS || exit 1
+    
+    copyPrjFS="cp -Rf \"${VFS_OUTPUTDIR}/ProjFS.Mac/Native/$CONFIGURATION\"/org.vfsforgit.prjfs.PrjFSKextLogDaemon.plist \"${STAGINGDIR}/${DAEMONPLISTDESTINATION}/.\""
     eval $copyPrjFS || exit 1
     
     currentDirectory=`pwd`
@@ -99,7 +110,7 @@ function CopyBinariesToInstall()
 
 function CreateInstaller()
 {
-    pkgBuildCommand="/usr/bin/pkgbuild --identifier $INSTALLERPACKAGEID --root \"${STAGINGDIR}\" \"${BUILDOUTPUTDIR}\"$INSTALLERPACKAGENAME.pkg"
+    pkgBuildCommand="/usr/bin/pkgbuild --identifier $INSTALLERPACKAGEID --scripts \"${SCRIPTSPATH}\" --root \"${STAGINGDIR}\" \"${BUILDOUTPUTDIR}\"$INSTALLERPACKAGENAME.pkg"
     eval $pkgBuildCommand || exit 1
 }
 

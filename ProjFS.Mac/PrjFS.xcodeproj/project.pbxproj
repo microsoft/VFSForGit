@@ -119,13 +119,13 @@
 		};
 		4A08256621E77B7F00E21AFD /* CopyFiles */ = {
 			isa = PBXCopyFilesBuildPhase;
-			buildActionMask = 2147483647;
-			dstPath = /Library/LaunchDaemons;
-			dstSubfolderSpec = 0;
+			buildActionMask = 12;
+			dstPath = "";
+			dstSubfolderSpec = 16;
 			files = (
 				4A08257921E77C7000E21AFD /* org.vfsforgit.prjfs.PrjFSKextLogDaemon.plist in CopyFiles */,
 			);
-			runOnlyForDeploymentPostprocessing = 1;
+			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXCopyFilesBuildPhase section */
 

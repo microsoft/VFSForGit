@@ -5,7 +5,7 @@
 	<key>Label</key>
 	<string>org.vfsforgit.prjfs.PrjFSKextLogDaemon</string>
 	<key>Program</key>
-	<string>/usr/local/libexec/PrjFSKextLogDaemon</string>
+	<string>/usr/local/vfsforgit/PrjFSKextLogDaemon</string>
 	<key>KeepAlive</key>
 	<true/>
 	<key>RunAtLoad</key>

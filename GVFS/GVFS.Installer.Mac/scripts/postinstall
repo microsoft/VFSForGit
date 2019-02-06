@@ -1,0 +1,4 @@
+#!/bin/bash
+loadCmd="sudo launchctl load -w /Library/LaunchDaemons/org.vfsforgit.prjfs.PrjFSKextLogDaemon.plist"
+echo "Loading PrjFSKextLogDaemon: '$loadCmd'..."
+eval $loadCmd || exit 1

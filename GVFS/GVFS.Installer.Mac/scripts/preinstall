@@ -1,0 +1,6 @@
+#!/bin/bash
+if [ -f /Library/LaunchDaemons/org.vfsforgit.prjfs.PrjFSKextLogDaemon.plist ]; then
+    unloadCmd="sudo launchctl unload -w /Library/LaunchDaemons/org.vfsforgit.prjfs.PrjFSKextLogDaemon.plist"
+    echo "Unloading PrjFSKextLogDaemon: '$unloadCmd'..."
+    eval $unloadCmd || exit 1
+fi
