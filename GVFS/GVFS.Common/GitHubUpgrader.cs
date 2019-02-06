@@ -29,6 +29,12 @@ namespace GVFS.Common
         private const string GitSigner = "Johannes Schindelin";
         private const string GitCertIssuer = "COMODO RSA Code Signing CA";
 
+        private static readonly HashSet<string> GVFSInstallerFileNamePrefixCandidates = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+        {
+            "SetupGVFS",
+            "VFSForGit"
+        };
+
         private Version newestVersion;
         private Release newestRelease;
 
@@ -456,15 +462,15 @@ namespace GVFS.Common
 
         private bool IsGVFSAsset(Asset asset)
         {
-            return this.AssetInstallerNameCompare(asset, ProductUpgraderInfo.PossibleGVFSInstallerNamePrefixes().ToArray());
+            return this.AssetInstallerNameCompare(asset, GVFSInstallerFileNamePrefixCandidates);
         }
 
         private bool IsGitAsset(Asset asset)
         {
-            return this.AssetInstallerNameCompare(asset, GitInstallerFileNamePrefix);
+            return this.AssetInstallerNameCompare(asset, new string[] { GitInstallerFileNamePrefix });
         }
 
-        private bool AssetInstallerNameCompare(Asset asset, params string[] expectedFileNamePrefixes)
+        private bool AssetInstallerNameCompare(Asset asset, IEnumerable<string> expectedFileNamePrefixes)
         {
             foreach (string fileNamePrefix in expectedFileNamePrefixes)
             {
