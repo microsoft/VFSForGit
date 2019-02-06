@@ -115,7 +115,7 @@ namespace GVFS.CommandLine
                         { nameof(this.EnlistmentRootPathParameter), this.EnlistmentRootPathParameter },
                     });
 
-                if (!GVFSPlatform.Instance.KernelDriver.IsReady(tracer, enlistment.EnlistmentRoot, out errorMessage))
+                if (!GVFSPlatform.Instance.KernelDriver.IsReady(tracer, enlistment.EnlistmentRoot, this.Output, out errorMessage))
                 {
                     if (GVFSPlatform.Instance.UnderConstruction.SupportsGVFSService)
                     {

@@ -253,7 +253,10 @@ PrjFS_Result PrjFS_ConvertDirectoryToVirtualizationRoot(
     _In_    const char*                             virtualizationRootFullPath)
 {
 #ifdef DEBUG
-    cout << "PrjFS_ConvertDirectoryToVirtualizationRoot(" << virtualizationRootFullPath << ")" << endl;
+    cout
+        << "PrjFS_ConvertDirectoryToVirtualizationRoot("
+        << virtualizationRootFullPath
+        << ")" << endl;
 #endif
     
     if (nullptr == virtualizationRootFullPath)
@@ -286,7 +289,10 @@ PrjFS_Result PrjFS_WritePlaceholderDirectory(
     _In_    const char*                             relativePath)
 {
 #ifdef DEBUG
-    cout << "PrjFS_WritePlaceholderDirectory(" << relativePath << ")" << endl;
+    cout
+        << "PrjFS_WritePlaceholderDirectory("
+        << relativePath
+        << ")" << endl;
 #endif
     
     if (nullptr == relativePath)
@@ -708,7 +714,12 @@ static void HandleKernelRequest(void* messageMemory, uint32_t messageSize)
 static PrjFS_Result HandleEnumerateDirectoryRequest(const MessageHeader* request, const char* relativePath)
 {
 #ifdef DEBUG
-    cout << "PrjFSLib.HandleEnumerateDirectoryRequest: " << relativePath << endl;
+    cout
+        << "PrjFSLib.HandleEnumerateDirectoryRequest: "
+        << relativePath
+        << " Process name: " << request->procname
+        << " Pid: " << request->pid
+        << endl;
 #endif
     
     char fullPath[PrjFSMaxPath];
@@ -754,7 +765,12 @@ CleanupAndReturn:
 static PrjFS_Result HandleRecursivelyEnumerateDirectoryRequest(const MessageHeader* request, const char* relativePath)
 {
 #ifdef DEBUG
-    cout << "PrjFSLib.HandleRecursivelyEnumerateDirectoryRequest: " << relativePath << endl;
+    cout
+        << "PrjFSLib.HandleRecursivelyEnumerateDirectoryRequest: "
+        << relativePath
+        << " Process name: " << request->procname
+        << " Pid: " << request->pid
+        << endl;
 #endif
     
     DIR* directory = nullptr;
@@ -809,7 +825,12 @@ CleanupAndReturn:
 static PrjFS_Result HandleHydrateFileRequest(const MessageHeader* request, const char* relativePath)
 {
 #ifdef DEBUG
-    cout << "PrjFSLib.HandleHydrateFileRequest: " << relativePath << endl;
+    cout
+        << "PrjFSLib.HandleHydrateFileRequest: "
+        << relativePath
+        << " Process name: " << request->procname
+        << " Pid: " << request->pid
+        << endl;
 #endif
     
     char fullPath[PrjFSMaxPath];
@@ -907,7 +928,10 @@ static PrjFS_Result HandleNewFileInRootNotification(
 {
 #ifdef DEBUG
     cout
-        << "HandleNewFileInRootNotification: " << relativePath
+        << "HandleNewFileInRootNotification: "
+        << relativePath
+        << " Process name: " << request->procname
+        << " Pid: " << request->pid
         << " notificationType: " << NotificationTypeToString(notificationType)
         << " isDirectory: " << isDirectory << endl;
 #endif
@@ -939,7 +963,10 @@ static PrjFS_Result HandleFileNotification(
 {
 #ifdef DEBUG
     cout
-        << "PrjFSLib.HandleFileNotification: " << relativePath
+        << "PrjFSLib.HandleFileNotification: "
+        << relativePath
+        << " Process name: " << request->procname
+        << " Pid: " << request->pid
         << " notificationType: " << NotificationTypeToString(notificationType)
         << " isDirectory: " << isDirectory << endl;
 #endif

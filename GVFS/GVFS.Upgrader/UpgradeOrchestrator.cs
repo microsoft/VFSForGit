@@ -1,5 +1,6 @@
 using CommandLine;
 using GVFS.Common;
+using GVFS.Common.FileSystem;
 using GVFS.Common.Git;
 using GVFS.Common.Tracing;
 using System;
@@ -14,6 +15,7 @@ namespace GVFS.Upgrader
 
         private IProductUpgrader upgrader;
         private ITracer tracer;
+        private PhysicalFileSystem fileSystem;
         private InstallerPreRunChecker preRunChecker;
         private TextWriter output;
         private TextReader input;
@@ -28,6 +30,7 @@ namespace GVFS.Upgrader
         {
             this.upgrader = upgrader;
             this.tracer = tracer;
+            this.fileSystem = new PhysicalFileSystem();
             this.preRunChecker = preRunChecker;
             this.output = output;
             this.input = input;
@@ -157,7 +160,10 @@ namespace GVFS.Upgrader
 
             if (!this.upgrader.UpgradeAllowed(out error))
             {
-                ProductUpgraderInfo.DeleteAllInstallerDownloads();
+                ProductUpgraderInfo productUpgraderInfo = new ProductUpgraderInfo(
+                    this.tracer,
+                    this.fileSystem);
+                productUpgraderInfo.DeleteAllInstallerDownloads();
                 this.output.WriteLine(error);
                 consoleError = null;
                 newVersion = null;

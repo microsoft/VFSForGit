@@ -320,7 +320,7 @@ namespace GVFS.Platform.Windows
             return false;
         }
 
-        public string FlushLogs()
+        public bool TryFlushLogs(out string error)
         {
             StringBuilder sb = new StringBuilder();
             try
@@ -330,14 +330,19 @@ namespace GVFS.Platform.Windows
                 if (result != 0)
                 {
                     sb.AppendFormat($"Failed to flush {ProjFSFilter.ServiceName} log buffers {result}");
+                    error = sb.ToString();
+                    return false;
                 }
             }
             catch (Exception e)
             {
                 sb.AppendFormat($"Failed to flush {ProjFSFilter.ServiceName} log buffers, exception: {e.ToString()}");
+                error = sb.ToString();
+                return false;
             }
 
-            return sb.ToString();
+            error = sb.ToString();
+            return true;
         }
 
         public bool TryPrepareFolderForCallbacks(string folderPath, out string error, out Exception exception)
@@ -372,7 +377,7 @@ namespace GVFS.Platform.Windows
 
         // TODO 1050199: Once the service is an optional component, GVFS should only attempt to attach
         // the filter via the service if the service is present\enabled
-        public bool IsReady(JsonTracer tracer, string enlistmentRoot, out string error)
+        public bool IsReady(JsonTracer tracer, string enlistmentRoot, TextWriter output, out string error)
         {
             error = string.Empty;
             return
