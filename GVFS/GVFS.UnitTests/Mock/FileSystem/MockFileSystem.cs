@@ -1,5 +1,6 @@
 ﻿using GVFS.Common;
 using GVFS.Common.FileSystem;
+using GVFS.Common.Tracing;
 using GVFS.Tests.Should;
 using Microsoft.Win32.SafeHandles;
 using System;
@@ -14,11 +15,14 @@ namespace GVFS.UnitTests.Mock.FileSystem
         {
             this.RootDirectory = rootDirectory;
             this.DeleteNonExistentFileThrowsException = true;
+            this.TryCreateDirectoryWithAdminOnlyModifyShouldSucceed = true;
         }
 
         public MockDirectory RootDirectory { get; private set; }
 
         public bool DeleteFileThrowsException { get; set; }
+
+        public bool TryCreateDirectoryWithAdminOnlyModifyShouldSucceed { get; set; }
 
         /// <summary>
         /// Allow FileMoves without checking the input arguments.
@@ -160,6 +164,19 @@ namespace GVFS.UnitTests.Mock.FileSystem
         public override void CreateDirectory(string path)
         {
             this.RootDirectory.CreateDirectory(path);
+        }
+
+        public override bool TryCreateDirectoryWithAdminOnlyModify(ITracer tracer, string directoryPath, out string error)
+        {
+            error = null;
+
+            if (this.TryCreateDirectoryWithAdminOnlyModifyShouldSucceed)
+            {
+                this.RootDirectory.CreateDirectory(directoryPath);
+                return true;
+            }
+
+            return false;
         }
 
         public override void DeleteDirectory(string path, bool recursive = false)

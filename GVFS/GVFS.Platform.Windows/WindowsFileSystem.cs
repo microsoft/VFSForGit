@@ -30,6 +30,9 @@ namespace GVFS.Platform.Windows
                 rights = rights | FileSystemRights.Modify;
             }
 
+            // InheritanceFlags.ContainerInherit | InheritanceFlags.ObjectInherit -> ACE is inherited by child directories and files
+            // PropagationFlags.None -> Standard propagation rules, settings are applied to the directory and its children
+            // AccessControlType.Allow -> Rule is used to allow access to an object
             directorySecurity.AddAccessRule(
                 new FileSystemAccessRule(
                     allUsers,
@@ -46,6 +49,10 @@ namespace GVFS.Platform.Windows
         public static void AddAdminAccessRulesToDirectorySecurity(DirectorySecurity directorySecurity)
         {
             SecurityIdentifier administratorUsers = new SecurityIdentifier(WellKnownSidType.BuiltinAdministratorsSid, null);
+
+            // InheritanceFlags.ContainerInherit | InheritanceFlags.ObjectInherit -> ACE is inherited by child directories and files
+            // PropagationFlags.None -> Standard propagation rules, settings are applied to the directory and its children
+            // AccessControlType.Allow -> Rule is used to allow access to an object
             directorySecurity.AddAccessRule(
                 new FileSystemAccessRule(
                     administratorUsers,

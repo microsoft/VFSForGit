@@ -209,10 +209,9 @@ namespace GVFS.UnitTests.Common.NuGetUpgrade
             success.ShouldBeTrue($"Expecting TryQueryNewestVersion to have completed sucessfully. Error: {message}");
             actualNewestVersion.ShouldEqual(newestAvailableVersion.Identity.Version.Version, "Actual new version does not match expected new version.");
 
-            MockPlatformFileSystem mockPlatformFileSystem = GVFSPlatform.Instance.FileSystem as MockPlatformFileSystem;
-            mockPlatformFileSystem.TryCreateDirectoryWithAdminOnlyModifyShouldSucceed = false;
+            this.mockFileSystem.TryCreateDirectoryWithAdminOnlyModifyShouldSucceed = false;
             bool downloadSuccessful = this.upgrader.TryDownloadNewestVersion(out message);
-            mockPlatformFileSystem.TryCreateDirectoryWithAdminOnlyModifyShouldSucceed = true;
+            this.mockFileSystem.TryCreateDirectoryWithAdminOnlyModifyShouldSucceed = true;
             downloadSuccessful.ShouldBeFalse();
         }
 
@@ -349,10 +348,9 @@ namespace GVFS.UnitTests.Common.NuGetUpgrade
         [TestCase]
         public void TrySetupToolsDirectoryFailsIfCreateToolsDirectoryFails()
         {
-            MockPlatformFileSystem mockPlatformFileSystem = GVFSPlatform.Instance.FileSystem as MockPlatformFileSystem;
-            mockPlatformFileSystem.TryCreateDirectoryWithAdminOnlyModifyShouldSucceed = false;
+            this.mockFileSystem.TryCreateDirectoryWithAdminOnlyModifyShouldSucceed = false;
             this.upgrader.TrySetupToolsDirectory(out string upgraderToolsPath, out string error).ShouldBeFalse();
-            mockPlatformFileSystem.TryCreateDirectoryWithAdminOnlyModifyShouldSucceed = true;
+            this.mockFileSystem.TryCreateDirectoryWithAdminOnlyModifyShouldSucceed = true;
         }
 
         private IPackageSearchMetadata GeneratePackageSeachMetadata(Version version)

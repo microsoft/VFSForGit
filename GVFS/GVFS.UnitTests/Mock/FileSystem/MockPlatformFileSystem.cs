@@ -6,13 +6,6 @@ namespace GVFS.UnitTests.Mock.FileSystem
 {
     public class MockPlatformFileSystem : IPlatformFileSystem
     {
-        public MockPlatformFileSystem()
-        {
-            this.TryCreateDirectoryWithAdminOnlyModifyShouldSucceed = true;
-        }
-
-        public bool TryCreateDirectoryWithAdminOnlyModifyShouldSucceed { get; set; }
-
         public bool SupportsFileMode { get; } = true;
 
         public void FlushFileBuffers(string path)
@@ -59,8 +52,7 @@ namespace GVFS.UnitTests.Mock.FileSystem
 
         public bool TryCreateDirectoryWithAdminOnlyModify(ITracer tracer, string directoryPath, out string error)
         {
-            error = null;
-            return this.TryCreateDirectoryWithAdminOnlyModifyShouldSucceed;
+            throw new NotSupportedException();
         }
     }
 }

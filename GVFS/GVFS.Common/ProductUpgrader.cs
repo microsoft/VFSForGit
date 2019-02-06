@@ -140,7 +140,7 @@ namespace GVFS.Common
             string rootDirectoryPath = ProductUpgraderInfo.GetUpgradesDirectoryPath();
             string toolsDirectoryPath = Path.Combine(rootDirectoryPath, ToolsDirectory);
 
-            if (!GVFSPlatform.Instance.FileSystem.TryCreateDirectoryWithAdminOnlyModify(
+            if (!this.fileSystem.TryCreateDirectoryWithAdminOnlyModify(
                     this.tracer,
                     toolsDirectoryPath,
                     out error))
@@ -211,7 +211,7 @@ namespace GVFS.Common
 
         protected virtual bool TryCreateAndConfigureDownloadDirectory(ITracer tracer, out string error)
         {
-            return GVFSPlatform.Instance.FileSystem.TryCreateDirectoryWithAdminOnlyModify(
+            return this.fileSystem.TryCreateDirectoryWithAdminOnlyModify(
                 tracer,
                 ProductUpgraderInfo.GetAssetDownloadsPath(),
                 out error);
