@@ -508,6 +508,7 @@ namespace GVFS.Common.NuGetUpgrade
 
             public string FeedUrl { get; private set; }
             public string PackageFeedName { get; private set; }
+            public string CertificateFingerprint { get; private set; }
 
             /// <summary>
             /// Check if the NuGetUpgrader is ready for use. A
