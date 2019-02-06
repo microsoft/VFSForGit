@@ -155,11 +155,48 @@ namespace GVFS.Common.Git
             }
         }
 
-        public virtual void RevokeCredential(string repoUrl)
+        public virtual void RejectCredentials(string repoUrl, string username = null, string password = null)
         {
+            StringBuilder sb = new StringBuilder();
+            sb.AppendFormat("url={0}\n", repoUrl);
+
+            // Passing the username and password that we want to signal rejection for is optional.
+            // Credential helpers that support it can use the provided username/password values to
+            // perform a check that they're being asked to delete the same stored credential that
+            // the caller is asking them to erase.
+            if (username != null)
+            {
+                sb.AppendFormat("username={0}\n", username);
+            }
+
+            if (password != null)
+            {
+                sb.AppendFormat("password={0}\n", password);
+            }
+
+            sb.Append("\n");
+
+            string stdinConfig = sb.ToString();
+
             this.InvokeGitOutsideEnlistment(
                 "credential reject",
-                stdin => stdin.Write("url=" + repoUrl + "\n\n"),
+                stdin => stdin.Write(stdinConfig),
+                null);
+        }
+
+        public virtual void ApproveCredentials(string repoUrl, string username, string password)
+        {
+            StringBuilder sb = new StringBuilder();
+            sb.AppendFormat("url={0}\n", repoUrl);
+            sb.AppendFormat("username={0}\n", username);
+            sb.AppendFormat("password={0}\n", password);
+            sb.Append("\n");
+
+            string stdinConfig = sb.ToString();
+
+            this.InvokeGitOutsideEnlistment(
+                "credential approve",
+                stdin => stdin.Write(stdinConfig),
                 null);
         }
 
@@ -232,8 +269,8 @@ namespace GVFS.Common.Git
             using (ITracer activity = tracer.StartActivity("TryGetCredentials", EventLevel.Informational))
             {
                 Result gitCredentialOutput = this.InvokeGitAgainstDotGitFolder(
-                    "-c " + GitConfigSetting.CredentialUseHttpPath + "=true credential fill",
-                    stdin => stdin.Write("url=" + repoUrl + "\n\n"),
+                    $"-c {GitConfigSetting.CredentialUseHttpPath}=true credential fill",
+                    stdin => stdin.Write($"url={repoUrl}\n\n"),
                     parseStdOutLine: null);
 
                 if (gitCredentialOutput.ExitCodeIsFailure)
