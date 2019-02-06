@@ -34,7 +34,12 @@ namespace GVFS.UnitTests.Common.NuGetUpgrade
         private Mock<NuGetFeed> mockNuGetFeed;
         private MockFileSystem mockFileSystem;
 
-        private string downloadDirectoryPath = @"mock:\GVFS.Upgrades\Download";
+        private string downloadDirectoryPath = Path.Combine(
+            $"mock:{Path.DirectorySeparatorChar}",
+            ProductUpgraderInfo.UpgradeDirectoryName,
+            ProductUpgraderInfo.DownloadDirectory);
+
+        private delegate void DownloadPackageAsyncCallback(PackageIdentity packageIdentity);
 
         [SetUp]
         public void SetUp()
@@ -369,9 +374,12 @@ namespace GVFS.UnitTests.Common.NuGetUpgrade
 
             IPackageSearchMetadata newestAvailableVersion = availablePackages.Last();
 
-            string downloadPath = "c:\\test_download_path";
+            string testDownloadPath = Path.Combine(this.downloadDirectoryPath, "testNuget.zip");
             this.mockNuGetFeed.Setup(foo => foo.QueryFeedAsync(NuGetFeedName)).ReturnsAsync(availablePackages);
-            this.mockNuGetFeed.Setup(foo => foo.DownloadPackageAsync(It.Is<PackageIdentity>(packageIdentity => packageIdentity == newestAvailableVersion.Identity))).ReturnsAsync(downloadPath);
+            this.mockNuGetFeed.Setup(foo => foo.DownloadPackageAsync(It.Is<PackageIdentity>(packageIdentity => packageIdentity == newestAvailableVersion.Identity)))
+                .Callback(new DownloadPackageAsyncCallback(
+                    (packageIdentity) => this.mockFileSystem.WriteAllText(testDownloadPath, "Package contents that will fail validation")))
+                .ReturnsAsync(testDownloadPath);
             this.mockNuGetFeed.Setup(foo => foo.VerifyPackage(It.IsAny<string>())).Returns(false);
 
             bool success = this.upgrader.TryQueryNewestVersion(out actualNewestVersion, out message);
@@ -381,6 +389,7 @@ namespace GVFS.UnitTests.Common.NuGetUpgrade
             bool downloadSuccessful = this.upgrader.TryDownloadNewestVersion(out message);
             this.mockNuGetFeed.Verify(nuGetFeed => nuGetFeed.VerifyPackage(this.upgrader.DownloadedPackagePath), Times.Once());
             downloadSuccessful.ShouldBeFalse("Failure to verify NuGet package should cause download to fail.");
+            this.mockFileSystem.FileExists(testDownloadPath).ShouldBeFalse("VerifyPackage should delete invalid packages");
         }
 
         [TestCase]
@@ -408,9 +417,9 @@ namespace GVFS.UnitTests.Common.NuGetUpgrade
 
             IPackageSearchMetadata newestAvailableVersion = availablePackages.Last();
 
-            string downloadPath = "c:\\test_download_path";
+            string testDownloadPath = Path.Combine(this.downloadDirectoryPath, "testNuget.zip");
             this.mockNuGetFeed.Setup(foo => foo.QueryFeedAsync(NuGetFeedName)).ReturnsAsync(availablePackages);
-            this.mockNuGetFeed.Setup(foo => foo.DownloadPackageAsync(It.Is<PackageIdentity>(packageIdentity => packageIdentity == newestAvailableVersion.Identity))).ReturnsAsync(downloadPath);
+            this.mockNuGetFeed.Setup(foo => foo.DownloadPackageAsync(It.Is<PackageIdentity>(packageIdentity => packageIdentity == newestAvailableVersion.Identity))).ReturnsAsync(testDownloadPath);
             this.mockNuGetFeed.Setup(foo => foo.VerifyPackage(It.IsAny<string>())).Returns(false);
 
             bool success = nuGetUpgrader.TryQueryNewestVersion(out actualNewestVersion, out message);
