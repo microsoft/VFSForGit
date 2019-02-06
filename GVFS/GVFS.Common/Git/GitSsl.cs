@@ -38,11 +38,11 @@ namespace GVFS.Common.Git
             }
         }
 
-        private GitSsl(Func<SystemCertificateStore> certificateStoreFactory, CertificateVerifier certificateVerifier, PhysicalFileSystem fileSystem)
+        private GitSsl(Func<SystemCertificateStore> createCertificateStore, CertificateVerifier certificateVerifier, PhysicalFileSystem fileSystem)
         {
             this.fileSystem = fileSystem ?? new PhysicalFileSystem();
 
-            this.createCertificateStore = certificateStoreFactory ?? (() => new SystemCertificateStore());
+            this.createCertificateStore = createCertificateStore ?? (() => new SystemCertificateStore());
 
             this.certificateVerifier = certificateVerifier ?? new CertificateVerifier();
 
