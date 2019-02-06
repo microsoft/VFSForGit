@@ -169,7 +169,10 @@ namespace GVFS.Upgrader
 
             if (!this.upgrader.UpgradeAllowed(out error))
             {
-                this.upgrader.DeleteAllInstallerDownloads();
+                ProductUpgraderInfo productUpgraderInfo = new ProductUpgraderInfo(
+                    this.tracer,
+                    this.fileSystem);
+                productUpgraderInfo.DeleteAllInstallerDownloads();
                 this.output.WriteLine(error);
                 consoleError = null;
                 newVersion = null;

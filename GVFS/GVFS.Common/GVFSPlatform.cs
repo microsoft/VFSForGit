@@ -1,4 +1,4 @@
-﻿using GVFS.Common.FileSystem;
+using GVFS.Common.FileSystem;
 using GVFS.Common.Git;
 using GVFS.Common.Tracing;
 using System;
@@ -137,20 +137,17 @@ namespace GVFS.Common
                 bool supportsGVFSService = true,
                 bool supportsGVFSUpgrade = true,
                 bool supportsGVFSConfig = true,
-                bool supportsKernelLogs = true,
                 bool requiresDeprecatedGitHooksLoader = false)
             {
                 this.SupportsGVFSService = supportsGVFSService;
                 this.SupportsGVFSUpgrade = supportsGVFSUpgrade;
                 this.SupportsGVFSConfig = supportsGVFSConfig;
-                this.SupportsKernelLogs = supportsKernelLogs;
                 this.RequiresDeprecatedGitHooksLoader = requiresDeprecatedGitHooksLoader;
             }
 
             public bool SupportsGVFSService { get; }
             public bool SupportsGVFSUpgrade { get; }
             public bool SupportsGVFSConfig { get; }
-            public bool SupportsKernelLogs { get; }
             public bool RequiresDeprecatedGitHooksLoader { get; }
         }
     }

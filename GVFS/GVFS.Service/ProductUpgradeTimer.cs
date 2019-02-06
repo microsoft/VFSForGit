@@ -3,6 +3,7 @@ using GVFS.Common.FileSystem;
 using GVFS.Common.Tracing;
 using GVFS.Upgrader;
 using System;
+using System.IO;
 using System.Threading;
 
 namespace GVFS.Service
@@ -54,74 +55,111 @@ namespace GVFS.Service
             }
         }
 
+        private static EventMetadata CreateEventMetadata(Exception e)
+        {
+            EventMetadata metadata = new EventMetadata();
+            if (e != null)
+            {
+                metadata.Add("Exception", e.ToString());
+            }
+
+            return metadata;
+        }
+
         private void TimerCallback(object unusedState)
         {
             string errorMessage = null;
-            InstallerPreRunChecker prerunChecker = new InstallerPreRunChecker(this.tracer, string.Empty);
-            ProductUpgrader productUpgrader;
-            bool deleteExistingDownloads = true;
 
-            if (ProductUpgrader.TryCreateUpgrader(
-                this.tracer,
-                this.fileSystem,
-                dryRun: false,
-                noVerify: false,
-                newUpgrader: out productUpgrader,
-                error: out errorMessage))
+            using (ITracer activity = this.tracer.StartActivity("Checking for product upgrades.", EventLevel.Informational))
             {
-                if (prerunChecker.TryRunPreUpgradeChecks(out string _) && this.TryDownloadUpgrade(productUpgrader, out errorMessage))
+                try
                 {
-                    deleteExistingDownloads = false;
+                    // The upgrade check always goes against GitHub
+                    GitHubUpgrader productUpgrader = GitHubUpgrader.Create(
+                        this.tracer,
+                        this.fileSystem,
+                        dryRun: false,
+                        noVerify: false,
+                        error: out errorMessage);
+
+                    if (productUpgrader == null)
+                    {
+                        activity.RelatedWarning(
+                            "{0}.{1}: GitHubUpgrader.Create failed to create upgrader: {2}",
+                            nameof(ProductUpgradeTimer),
+                            nameof(this.TimerCallback),
+                            errorMessage);
+                        return;
+                    }
+
+                    InstallerPreRunChecker prerunChecker = new InstallerPreRunChecker(this.tracer, string.Empty);
+                    if (!prerunChecker.TryRunPreUpgradeChecks(out errorMessage))
+                    {
+                        activity.RelatedWarning(
+                            "{0}.{1}: PreUpgradeChecks failed with: {2}",
+                            nameof(ProductUpgradeTimer),
+                            nameof(this.TimerCallback),
+                            errorMessage);
+                        return;
+                    }
+
+                    if (!productUpgrader.UpgradeAllowed(out errorMessage))
+                    {
+                        errorMessage = errorMessage ??
+                            $"{nameof(ProductUpgradeTimer)}.{nameof(this.TimerCallback)}: Upgrade is not allowed, but no reason provided.";
+                        this.tracer.RelatedWarning(errorMessage);
+                        return;
+                    }
+
+                    if (!this.TryQueryForNewerVersion(
+                            activity,
+                            productUpgrader,
+                            out Version newerVersion,
+                            out errorMessage))
+                    {
+                        this.tracer.RelatedError(errorMessage);
+                        return;
+                    }
+
+                    ProductUpgraderInfo info = new ProductUpgraderInfo(
+                        this.tracer,
+                        this.fileSystem);
+                    info.RecordHighestAvailableVersion(newerVersion);
                 }
-            }
-
-            if (errorMessage != null)
-            {
-                this.tracer.RelatedError(errorMessage);
-            }
-
-            if (deleteExistingDownloads)
-            {
-                productUpgrader.DeleteAllInstallerDownloads();
+                catch (Exception ex) when (
+                    ex is IOException ||
+                    ex is UnauthorizedAccessException ||
+                    ex is NotSupportedException)
+                {
+                    this.tracer.RelatedWarning(
+                        CreateEventMetadata(ex),
+                        "Exception encountered recording highest available version");
+                }
+                catch (Exception ex)
+                {
+                    this.tracer.RelatedError(
+                        CreateEventMetadata(ex),
+                        "Unhanlded exception encountered recording highest available version");
+                    Environment.Exit((int)ReturnCode.GenericError);
+                }
             }
         }
 
-        private bool TryDownloadUpgrade(ProductUpgrader productUpgrader, out string errorMessage)
+        private bool TryQueryForNewerVersion(ITracer tracer, GitHubUpgrader productUpgrader, out Version newVersion, out string errorMessage)
         {
-            using (ITracer activity = this.tracer.StartActivity("Checking for product upgrades.", EventLevel.Informational))
+            errorMessage = null;
+            tracer.RelatedInfo("Querying server for latest version...");
+
+            if (!productUpgrader.TryQueryNewestVersion(out newVersion, out string detailedError))
             {
-                Version newerVersion = null;
-                string detailedError = null;
-                if (!productUpgrader.UpgradeAllowed(out errorMessage))
-                {
-                    return false;
-                }
-
-                if (!productUpgrader.TryQueryNewestVersion(out newerVersion, out detailedError))
-                {
-                    errorMessage = "Could not fetch new version info. " + detailedError;
-                    return false;
-                }
-
-                if (newerVersion == null)
-                {
-                    // Already up-to-date
-                    // Make sure there a no asset installers remaining in the Downloads directory. This can happen if user
-                    // upgraded by manually downloading and running asset installers.
-                    productUpgrader.DeleteAllInstallerDownloads();
-                    errorMessage = null;
-                    return true;
-                }
-
-                if (!productUpgrader.TryDownloadNewestVersion(out detailedError))
-                {
-                    errorMessage = "Failed to download product upgrade. " + detailedError;
-                    return false;
-                }
-
-                errorMessage = null;
-                return true;
+                errorMessage = "Could not fetch new version info. " + detailedError;
+                return false;
             }
+
+            string logMessage = newVersion == null ? "No newer versions available." : $"Newer version available: {newVersion}.";
+            tracer.RelatedInfo(logMessage);
+
+            return true;
         }
     }
 }

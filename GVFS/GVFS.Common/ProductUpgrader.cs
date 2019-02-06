@@ -110,23 +110,6 @@ namespace GVFS.Common
             return true;
         }
 
-        /// <summary>
-        /// Deletes any previously downloaded installers in the Upgrader Download directory.
-        /// This can include old installers which were downloaded but never installed.
-        /// </summary>
-        public virtual void DeleteAllInstallerDownloads()
-        {
-            try
-            {
-                this.fileSystem.RecursiveDelete(ProductUpgraderInfo.GetAssetDownloadsPath());
-            }
-            catch (Exception ex)
-            {
-                this.tracer.RelatedError(
-                    $"{nameof(this.DeleteAllInstallerDownloads)}: Could not remove directory: {ProductUpgraderInfo.GetAssetDownloadsPath()}.{ex.ToString()}");
-            }
-        }
-
         public abstract bool UpgradeAllowed(out string message);
 
         public abstract bool TryQueryNewestVersion(out Version newVersion, out string message);

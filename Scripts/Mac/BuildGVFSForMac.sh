@@ -7,6 +7,11 @@ if [ -z $CONFIGURATION ]; then
   CONFIGURATION=Debug
 fi
 
+VERSION=$2
+if [ -z $VERSION ]; then
+  VERSION="0.2.173.2"
+fi
+
 if [ ! -d $VFS_OUTPUTDIR ]; then
   mkdir $VFS_OUTPUTDIR
 fi
@@ -33,8 +38,8 @@ if [ "$CONFIGURATION" == "Profiling(Release)" ]; then
   CONFIGURATION=Release
 fi
 
-echo 'Generating CommonAssemblyVersion.cs...'
-$VFS_SCRIPTDIR/GenerateCommonAssemblyVersion.sh || exit 1
+echo "Generating CommonAssemblyVersion.cs as $VERSION..."
+$VFS_SCRIPTDIR/GenerateCommonAssemblyVersion.sh $VERSION || exit 1
 
 # /warnasmessage:MSB4011. Reference: https://bugzilla.xamarin.com/show_bug.cgi?id=58564
 # Visual Studio Mac does not support explicit import of Sdks. GVFS.Installer.Mac.csproj
