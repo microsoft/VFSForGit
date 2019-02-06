@@ -34,6 +34,21 @@ namespace GVFS.Common
                 DownloadDirectory);
         }
 
+        public void DeleteAllInstallerDownloads()
+         {
+             try
+             {
+                 PhysicalFileSystem.RecursiveDelete(ProductUpgraderInfo.GetAssetDownloadsPath());
+             }
+             catch (Exception ex)
+             {
+                 if (this.tracer != null)
+                 {
+                     this.tracer.RelatedError($"{nameof(this.DeleteAllInstallerDownloads)}: Could not remove directory: {ProductUpgraderInfo.GetAssetDownloadsPath()}.{ex.ToString()}");
+                 }
+             }
+         }
+
         public void RecordHighestAvailableVersion(Version highestAvailableVersion)
         {
             string highestAvailableVersionFile = GetHighestAvailableVersionFilePath();
