@@ -377,7 +377,7 @@ namespace GVFS.Platform.Windows
 
         // TODO 1050199: Once the service is an optional component, GVFS should only attempt to attach
         // the filter via the service if the service is present\enabled
-        public bool IsReady(JsonTracer tracer, string enlistmentRoot, out string error)
+        public bool IsReady(JsonTracer tracer, string enlistmentRoot, TextWriter output, out string error)
         {
             error = string.Empty;
             return
