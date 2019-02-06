@@ -21,6 +21,7 @@ namespace GVFS.Common.NuGetUpgrader
         private readonly ITracer tracer;
         private readonly string feedUrl;
         private readonly string feedName;
+        private readonly string downloadFolder;
 
         private SourceRepository sourceRepository;
         private string personalAccessToken;
@@ -36,7 +37,7 @@ namespace GVFS.Common.NuGetUpgrader
         {
             this.feedUrl = feedUrl;
             this.feedName = feedName;
-            this.DownloadFolder = downloadFolder;
+            this.downloadFolder = downloadFolder;
             this.personalAccessToken = personalAccessToken;
             this.tracer = tracer;
 
@@ -55,8 +56,6 @@ namespace GVFS.Common.NuGetUpgrader
                 this.sourceRepository.PackageSource.Credentials = BuildCredentialsFromPAT(this.personalAccessToken);
             }
         }
-
-        public string DownloadFolder { get; }
 
         public void Dispose()
         {
@@ -100,10 +99,10 @@ namespace GVFS.Common.NuGetUpgrader
         /// <returns>Path to the downloaded package.</returns>
         public virtual async Task<string> DownloadPackageAsync(PackageIdentity packageId)
         {
-            string downloadPath = Path.Combine(this.DownloadFolder, $"{this.feedName}.zip");
+            string downloadPath = Path.Combine(this.downloadFolder, $"{this.feedName}.zip");
             PackageDownloadContext packageDownloadContext = new PackageDownloadContext(
                 this.sourceCacheContext,
-                this.DownloadFolder,
+                this.downloadFolder,
                 true);
 
             DownloadResource downloadResource = await this.sourceRepository.GetResourceAsync<DownloadResource>();

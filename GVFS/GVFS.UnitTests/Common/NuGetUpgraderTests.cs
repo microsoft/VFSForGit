@@ -347,6 +347,15 @@ namespace GVFS.UnitTests.Common
             }
         }
 
+        [TestCase]
+        public void TrySetupToolsDirectoryFailsIfCreateToolsDirectoryFails()
+        {
+            MockPlatformFileSystem mockPlatformFileSystem = GVFSPlatform.Instance.FileSystem as MockPlatformFileSystem;
+            mockPlatformFileSystem.TryCreateDirectoryWithAdminOnlyModifyShouldSucceed = false;
+            this.upgrader.TrySetupToolsDirectory(out string upgraderToolsPath, out string error).ShouldBeFalse();
+            mockPlatformFileSystem.TryCreateDirectoryWithAdminOnlyModifyShouldSucceed = true;
+        }
+
         private IPackageSearchMetadata GeneratePackageSeachMetadata(Version version)
         {
             Mock<IPackageSearchMetadata> mockPackageSearchMetaData = new Mock<IPackageSearchMetadata>();

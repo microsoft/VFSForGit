@@ -67,6 +67,8 @@ namespace GVFS.Common.NuGetUpgrader
 
             this.nuGetFeed = nuGetFeed;
 
+            // Extract the folder inside ProductUpgraderInfo.GetAssetDownloadsPath to ensure the
+            // correct ACLs are in place
             this.ExtractedInstallerPath = Path.Combine(
                 ProductUpgraderInfo.GetAssetDownloadsPath(),
                 ExtractedInstallerDirectoryName);
