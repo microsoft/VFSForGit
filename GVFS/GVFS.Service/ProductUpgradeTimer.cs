@@ -74,6 +74,10 @@ namespace GVFS.Service
             {
                 try
                 {
+                    ProductUpgraderInfo info = new ProductUpgraderInfo(
+                        this.tracer,
+                        this.fileSystem);
+
                     // The upgrade check always goes against GitHub
                     GitHubUpgrader productUpgrader = GitHubUpgrader.Create(
                         this.tracer,
@@ -84,22 +88,36 @@ namespace GVFS.Service
 
                     if (productUpgrader == null)
                     {
-                        activity.RelatedWarning(
+                        string message = string.Format(
                             "{0}.{1}: GitHubUpgrader.Create failed to create upgrader: {2}",
                             nameof(ProductUpgradeTimer),
                             nameof(this.TimerCallback),
                             errorMessage);
+
+                        activity.RelatedWarning(
+                            metadata: new EventMetadata(),
+                            message: message,
+                            keywords: Keywords.Telemetry);
+
+                        info.RecordHighestAvailableVersion(highestAvailableVersion: null);
                         return;
                     }
 
                     InstallerPreRunChecker prerunChecker = new InstallerPreRunChecker(this.tracer, string.Empty);
                     if (!prerunChecker.TryRunPreUpgradeChecks(out errorMessage))
                     {
-                        activity.RelatedWarning(
+                        string message = string.Format(
                             "{0}.{1}: PreUpgradeChecks failed with: {2}",
                             nameof(ProductUpgradeTimer),
                             nameof(this.TimerCallback),
                             errorMessage);
+
+                        activity.RelatedWarning(
+                            metadata: new EventMetadata(),
+                            message: message,
+                            keywords: Keywords.Telemetry);
+
+                        info.RecordHighestAvailableVersion(highestAvailableVersion: null);
                         return;
                     }
 
@@ -107,7 +125,12 @@ namespace GVFS.Service
                     {
                         errorMessage = errorMessage ??
                             $"{nameof(ProductUpgradeTimer)}.{nameof(this.TimerCallback)}: Upgrade is not allowed, but no reason provided.";
-                        this.tracer.RelatedWarning(errorMessage);
+                        activity.RelatedWarning(
+                            metadata: new EventMetadata(),
+                            message: errorMessage,
+                            keywords: Keywords.Telemetry);
+
+                        info.RecordHighestAvailableVersion(highestAvailableVersion: null);
                         return;
                     }
 
@@ -117,14 +140,22 @@ namespace GVFS.Service
                             out Version newerVersion,
                             out errorMessage))
                     {
-                        this.tracer.RelatedError(errorMessage);
+                        string message = string.Format(
+                            "{0}.{1}: TryQueryForNewerVersion failed with: {2}",
+                            nameof(ProductUpgradeTimer),
+                            nameof(this.TimerCallback),
+                            errorMessage);
+
+                        activity.RelatedWarning(
+                            metadata: new EventMetadata(),
+                            message: message,
+                            keywords: Keywords.Telemetry);
+
+                        info.RecordHighestAvailableVersion(highestAvailableVersion: null);
                         return;
                     }
 
-                    ProductUpgraderInfo info = new ProductUpgraderInfo(
-                        this.tracer,
-                        this.fileSystem);
-                    info.RecordHighestAvailableVersion(newerVersion);
+                    info.RecordHighestAvailableVersion(highestAvailableVersion: newerVersion);
                 }
                 catch (Exception ex) when (
                     ex is IOException ||
