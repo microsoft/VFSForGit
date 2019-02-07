@@ -145,6 +145,7 @@ namespace GVFS.CommandLine
                     this.tracer,
                     this.fileSystem);
                 productUpgraderInfo.DeleteAllInstallerDownloads();
+                productUpgraderInfo.RecordHighestAvailableVersion(highestAvailableVersion: null);
                 this.ReportInfoToConsole(message);
                 return true;
             }
