@@ -38,6 +38,7 @@ namespace GVFS.Common
                 "System.Net.Http.dll",
                 "Newtonsoft.Json.dll",
                 "CommandLine.dll",
+                "NuGet.Commands.dll",
                 "NuGet.Common.dll",
                 "NuGet.Configuration.dll",
                 "NuGet.Frameworks.dll",

@@ -1,4 +1,5 @@
 using GVFS.Common.Tracing;
+using NuGet.Commands;
 using NuGet.Common;
 using NuGet.Configuration;
 using NuGet.Packaging.Core;
@@ -18,6 +19,9 @@ namespace GVFS.Common.NuGetUpgrade
     /// </summary>
     public class NuGetFeed : IDisposable
     {
+        // This is the SHA256 Certificate Thumbrint we expect packages from Microsoft to be signed with
+        private const string TrustedMicrosoftCertFingerprint = "3F9001EA83C560D712C24CF213C3D312CB3BFF51EE89435D3430BD06B5D0EECE";
+
         private readonly ITracer tracer;
         private readonly string feedUrl;
         private readonly string feedName;
@@ -128,6 +132,21 @@ namespace GVFS.Common.NuGetUpgrade
             return downloadPath;
         }
 
+        public virtual bool VerifyPackage(string packagePath)
+        {
+            VerifyArgs verifyArgs = new VerifyArgs()
+            {
+                Verifications = new VerifyArgs.Verification[] { VerifyArgs.Verification.All },
+                PackagePath = packagePath,
+                CertificateFingerprint = new List<string>() { TrustedMicrosoftCertFingerprint },
+                Logger = this.nuGetLogger
+            };
+
+            VerifyCommandRunner verifyCommandRunner = new VerifyCommandRunner();
+            int result = verifyCommandRunner.ExecuteCommandAsync(verifyArgs).Result;
+            return result == 0;
+        }
+
         protected static EventMetadata CreateEventMetadata(Exception e = null)
         {
             EventMetadata metadata = new EventMetadata();
@@ -177,7 +196,7 @@ namespace GVFS.Common.NuGetUpgrade
                      this.tracer.RelatedWarning(message);
                     break;
                 case LogLevel.Error:
-                    this.tracer.RelatedError(message);
+                    this.tracer.RelatedWarning(message);
                     break;
                 default:
                     this.tracer.RelatedWarning(message);

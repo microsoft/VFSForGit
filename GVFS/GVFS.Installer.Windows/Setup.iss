@@ -1,4 +1,4 @@
-; This script requires Inno Setup Compiler 5.5.9 or later to compile
+﻿; This script requires Inno Setup Compiler 5.5.9 or later to compile
 ; The Inno Setup Compiler (and IDE) can be found at http://www.jrsoftware.org/isinfo.php
 
 ; General documentation on how to use InnoSetup scripts: http://www.jrsoftware.org/ishelp/index.php
@@ -156,6 +156,7 @@ DestDir: "{app}"; Flags: ignoreversion; Source:"{#GVFSDir}\GitVirtualFileSystem.
 DestDir: "{app}"; Flags: ignoreversion; Source:"{#GVFSDir}\GVFS.exe" 
 
 ; NuGet support DLLs
+DestDir: "{app}"; Flags: ignoreversion; Source:"{#GVFSDir}\NuGet.Commands.dll"
 DestDir: "{app}"; Flags: ignoreversion; Source:"{#GVFSDir}\NuGet.Common.dll"
 DestDir: "{app}"; Flags: ignoreversion; Source:"{#GVFSDir}\NuGet.Configuration.dll"
 DestDir: "{app}"; Flags: ignoreversion; Source:"{#GVFSDir}\NuGet.Frameworks.dll"

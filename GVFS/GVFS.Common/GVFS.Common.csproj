@@ -23,6 +23,7 @@
   <ItemGroup>
     <PackageReference Include="LibGit2Sharp.NativeBinaries" Version="1.0.165" />
     <PackageReference Include="Newtonsoft.Json" Version="11.0.2" />
+    <PackageReference Include="NuGet.Commands" Version="4.9.2" />
     <PackageReference Include="StyleCop.Analyzers" Version="1.0.2">
       <PrivateAssets>all</PrivateAssets>
     </PackageReference>
