@@ -11,12 +11,14 @@ namespace GVFS.RepairJobs
     public abstract class RepairJob
     {
         private const string BackupExtension = ".bak";
+        private PhysicalFileSystem fileSystem;
 
         public RepairJob(ITracer tracer, TextWriter output, GVFSEnlistment enlistment)
         {
             this.Tracer = tracer;
             this.Output = output;
             this.Enlistment = enlistment;
+            this.fileSystem = new PhysicalFileSystem();
         }
 
         public enum IssueType
@@ -95,7 +97,7 @@ namespace GVFS.RepairJobs
         {
             try
             {
-                PhysicalFileSystem.RecursiveDelete(filePath);
+                this.fileSystem.RecursiveDelete(filePath);
                 this.Tracer.RelatedEvent(EventLevel.Informational, "FolderDeleted", new EventMetadata { { "SourcePath", filePath } });
             }
             catch (Exception e)

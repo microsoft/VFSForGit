@@ -12,7 +12,7 @@ namespace GVFS.Common.FileSystem
     {
         public const int DefaultStreamBufferSize = 8192;
 
-        public static void RecursiveDelete(string path)
+        public virtual void RecursiveDelete(string path)
         {
             if (!Directory.Exists(path))
             {
@@ -29,7 +29,7 @@ namespace GVFS.Common.FileSystem
 
             foreach (DirectoryInfo subDirectory in directory.GetDirectories())
             {
-                RecursiveDelete(subDirectory.FullName);
+                this.RecursiveDelete(subDirectory.FullName);
             }
 
             directory.Delete();
@@ -116,9 +116,14 @@ namespace GVFS.Common.FileSystem
             Directory.CreateDirectory(path);
         }
 
+        public virtual bool TryCreateDirectoryWithAdminOnlyModify(ITracer tracer, string directoryPath, out string error)
+        {
+            return GVFSPlatform.Instance.FileSystem.TryCreateDirectoryWithAdminOnlyModify(tracer, directoryPath, out error);
+        }
+
         public virtual void DeleteDirectory(string path, bool recursive = false)
         {
-            RecursiveDelete(path);
+            this.RecursiveDelete(path);
         }
 
         public virtual bool IsSymLink(string path)

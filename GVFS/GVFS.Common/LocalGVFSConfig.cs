@@ -8,7 +8,7 @@ namespace GVFS.Common
 {
     public class LocalGVFSConfig
     {
-        private const string FileName = "gvfs.config";
+        public const string FileName = "gvfs.config";
         private readonly string configFile;
         private readonly PhysicalFileSystem fileSystem;
         private FileBasedDictionary<string, string> allSettings;

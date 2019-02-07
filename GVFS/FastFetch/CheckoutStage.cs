@@ -20,6 +20,7 @@ namespace FastFetch
 
         private ITracer tracer;
         private Enlistment enlistment;
+        private PhysicalFileSystem fileSystem;
         private string targetCommitSha;
         private bool forceCheckout;
 
@@ -39,6 +40,7 @@ namespace FastFetch
         {
             this.tracer = tracer.StartActivity(AreaPath, EventLevel.Informational, Keywords.Telemetry, metadata: null);
             this.enlistment = enlistment;
+            this.fileSystem = new PhysicalFileSystem();
             this.diff = new DiffHelper(tracer, enlistment, new string[0], folderList, includeSymLinks: true);
             this.targetCommitSha = targetCommitSha;
             this.forceCheckout = forceCheckout;
@@ -186,7 +188,7 @@ namespace FastFetch
                         {
                             if (Directory.Exists(treeOp.TargetPath))
                             {
-                                PhysicalFileSystem.RecursiveDelete(treeOp.TargetPath);
+                                this.fileSystem.RecursiveDelete(treeOp.TargetPath);
                             }
                         }
                         catch (Exception ex)

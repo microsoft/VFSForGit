@@ -13,7 +13,7 @@ namespace GVFS.Upgrader
     {
         private const EventLevel DefaultEventLevel = EventLevel.Informational;
 
-        private IProductUpgrader upgrader;
+        private ProductUpgrader upgrader;
         private ITracer tracer;
         private PhysicalFileSystem fileSystem;
         private InstallerPreRunChecker preRunChecker;
@@ -22,15 +22,16 @@ namespace GVFS.Upgrader
         private bool mount;
 
         public UpgradeOrchestrator(
-            IProductUpgrader upgrader,
+            ProductUpgrader upgrader,
             ITracer tracer,
+            PhysicalFileSystem fileSystem,
             InstallerPreRunChecker preRunChecker,
             TextReader input,
             TextWriter output)
         {
             this.upgrader = upgrader;
             this.tracer = tracer;
-            this.fileSystem = new PhysicalFileSystem();
+            this.fileSystem = fileSystem;
             this.preRunChecker = preRunChecker;
             this.output = output;
             this.input = input;
@@ -50,6 +51,7 @@ namespace GVFS.Upgrader
                 Keywords.Any);
 
             this.tracer = jsonTracer;
+            this.fileSystem = new PhysicalFileSystem();
             this.preRunChecker = new InstallerPreRunChecker(this.tracer, GVFSConstants.UpgradeVerbMessages.GVFSUpgradeConfirm);
             this.output = Console.Out;
             this.input = Console.In;
@@ -79,42 +81,49 @@ namespace GVFS.Upgrader
             string mountError = null;
             Version newVersion = null;
 
-            if (this.TryInitialize(out error))
+            try
             {
-                try
+                if (this.TryInitialize(out error))
                 {
-                    if (!this.TryRunUpgrade(out newVersion, out error))
+                    try
                     {
-                        this.ExitCode = ReturnCode.GenericError;
+                        if (!this.TryRunUpgrade(out newVersion, out error))
+                        {
+                            this.ExitCode = ReturnCode.GenericError;
+                        }
+                    }
+                    finally
+                    {
+                        if (!this.TryMountRepositories(out mountError))
+                        {
+                            mountError = Environment.NewLine + "WARNING: " + mountError;
+                            this.output.WriteLine(mountError);
+                        }
+
+                        this.DeletedDownloadedAssets();
                     }
                 }
-                finally
+                else
                 {
-                    if (!this.TryMountRepositories(out mountError))
+                    this.ExitCode = ReturnCode.GenericError;
+                }
+
+                if (this.ExitCode == ReturnCode.GenericError)
+                {
+                    error = Environment.NewLine + "ERROR: " + error;
+                    this.output.WriteLine(error);
+                }
+                else
+                {
+                    if (newVersion != null)
                     {
-                        mountError = Environment.NewLine + "WARNING: " + mountError;
-                        this.output.WriteLine(mountError);
+                        this.output.WriteLine($"{Environment.NewLine}Upgrade completed successfully{(string.IsNullOrEmpty(mountError) ? "." : ", but one or more repositories will need to be mounted manually.")}");
                     }
-
-                    this.DeletedDownloadedAssets();
                 }
             }
-            else
+            finally
             {
-                this.ExitCode = ReturnCode.GenericError;
-            }
-
-            if (this.ExitCode == ReturnCode.GenericError)
-            {
-                error = Environment.NewLine + "ERROR: " + error;
-                this.output.WriteLine(error);
-            }
-            else
-            {
-                if (newVersion != null)
-                {
-                    this.output.WriteLine($"{Environment.NewLine}Upgrade completed successfully{(string.IsNullOrEmpty(mountError) ? "." : ", but one or more repositories will need to be mounted manually.")}");
-                }
+                this.upgrader?.Dispose();
             }
 
             if (this.input == Console.In)
@@ -140,8 +149,8 @@ namespace GVFS.Upgrader
         {
             if (this.upgrader == null)
             {
-                IProductUpgrader upgrader;
-                if (!ProductUpgraderFactory.TryCreateUpgrader(out upgrader, this.tracer, out errorMessage, this.DryRun, this.NoVerify))
+                ProductUpgrader upgrader;
+                if (!ProductUpgrader.TryCreateUpgrader(this.tracer, this.fileSystem, this.DryRun, this.NoVerify, out upgrader, out errorMessage))
                 {
                     return false;
                 }
@@ -301,7 +310,7 @@ namespace GVFS.Upgrader
                     return true;
                 }
 
-                activity.RelatedInfo("Successfully checked for new release. {0}", newestVersion);
+                activity.RelatedInfo("New release found - latest available version: {0}", newestVersion);
             }
 
             return true;

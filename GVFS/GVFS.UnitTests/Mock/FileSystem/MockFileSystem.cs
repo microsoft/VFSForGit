@@ -1,5 +1,6 @@
 ﻿using GVFS.Common;
 using GVFS.Common.FileSystem;
+using GVFS.Common.Tracing;
 using GVFS.Tests.Should;
 using Microsoft.Win32.SafeHandles;
 using System;
@@ -14,11 +15,14 @@ namespace GVFS.UnitTests.Mock.FileSystem
         {
             this.RootDirectory = rootDirectory;
             this.DeleteNonExistentFileThrowsException = true;
+            this.TryCreateDirectoryWithAdminOnlyModifyShouldSucceed = true;
         }
 
         public MockDirectory RootDirectory { get; private set; }
 
         public bool DeleteFileThrowsException { get; set; }
+
+        public bool TryCreateDirectoryWithAdminOnlyModifyShouldSucceed { get; set; }
 
         /// <summary>
         /// Allow FileMoves without checking the input arguments.
@@ -34,9 +38,19 @@ namespace GVFS.UnitTests.Mock.FileSystem
         /// </summary>
         public bool DeleteNonExistentFileThrowsException { get; set; }
 
+        public override void RecursiveDelete(string path)
+        {
+            this.RootDirectory.DeleteDirectory(path);
+        }
+
         public override bool FileExists(string path)
         {
             return this.RootDirectory.FindFile(path) != null;
+        }
+
+        public override bool DirectoryExists(string path)
+        {
+            return this.RootDirectory.FindDirectory(path) != null;
         }
 
         public override void CopyFile(string sourcePath, string destinationPath, bool overwrite)
@@ -150,6 +164,29 @@ namespace GVFS.UnitTests.Mock.FileSystem
         public override void CreateDirectory(string path)
         {
             this.RootDirectory.CreateDirectory(path);
+        }
+
+        public override bool TryCreateDirectoryWithAdminOnlyModify(ITracer tracer, string directoryPath, out string error)
+        {
+            error = null;
+
+            if (this.TryCreateDirectoryWithAdminOnlyModifyShouldSucceed)
+            {
+                // TryCreateDirectoryWithAdminOnlyModify is typically called for paths in C:\ProgramData\GVFS, it's called
+                // for one of those paths remap the paths to be inside the mock: root
+                string mockDirectoryPath = directoryPath;
+                string gvfsProgramData = @"C:\ProgramData\GVFS";
+                if (directoryPath.StartsWith(gvfsProgramData, StringComparison.OrdinalIgnoreCase))
+                {
+                    mockDirectoryPath = mockDirectoryPath.Substring(gvfsProgramData.Length);
+                    mockDirectoryPath = "mock:" + mockDirectoryPath;
+                }
+
+                this.RootDirectory.CreateDirectory(mockDirectoryPath);
+                return true;
+            }
+
+            return false;
         }
 
         public override void DeleteDirectory(string path, bool recursive = false)
