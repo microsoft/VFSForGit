@@ -232,14 +232,21 @@ static VirtualizationRootHandle FindOrDetectRootAtVnode(vnode_t _Nonnull vnode, 
         {
             // TODO: check xattr contents
             
-            char path[PrjFSMaxPath] = "";
-            int pathLength = sizeof(path);
-            errno_t error = vn_getpath(vnode, path, &pathLength);
+            const char* path = nullptr;
+#if DEBUG // Offline roots shouldn't need their path filled, and vn_getpath() may fail anyway.
+            char pathBuffer[PrjFSMaxPath] = "";
+            int pathLength = sizeof(pathBuffer);
+            errno_t error = vn_getpath(vnode, pathBuffer, &pathLength);
             if (error != 0)
             {
                 KextLog_ErrorVnodeProperties(vnode, "FindOrDetectRootAtVnode: vn_getpath failed (error = %d)", error);
             }
-            
+            else
+            {
+                path = pathBuffer;
+            }
+#endif
+ 
             RWLock_AcquireExclusive(s_virtualizationRootsLock);
             {
                 // Vnode may already have been inserted as a root in the interim
@@ -415,7 +422,11 @@ static VirtualizationRootHandle InsertVirtualizationRoot_Locked(PrjFSProviderUse
         
         root->rootFsid = persistentIds.fsid;
         root->rootInode = persistentIds.inode;
-        strlcpy(root->path, path, sizeof(root->path));
+
+        if (path != nullptr)
+        {
+            strlcpy(root->path, path, sizeof(root->path));
+        }
     }
     
     return rootIndex;
@@ -484,6 +495,7 @@ VirtualizationRootResult VirtualizationRoot_RegisterProviderForPath(PrjFSProvide
                             assert(root.rootVNode == virtualizationRootVNode);
                             root.providerUserClient = userClient;
                             root.providerPid = clientPID;
+                            strlcpy(root.path, virtualizationRootCanonicalPath, sizeof(root.path));
                             KextLog_File(virtualizationRootVNode, "VirtualizationRoot_RegisterProviderForPath: registered provider (PID %d, IOUC %p) for virtualization root %d: (path: \"%s\", fsid: 0x%x:%x, inode: 0x%llx) directory vnode %p:%u.",
                                 clientPID, KextLog_Unslide(userClient), rootIndex, root.path, root.rootFsid.val[0], root.rootFsid.val[1], root.rootInode, KextLog_Unslide(virtualizationRootVNode), rootVid);
                             virtualizationRootVNode = NULLVP; // transfer ownership
