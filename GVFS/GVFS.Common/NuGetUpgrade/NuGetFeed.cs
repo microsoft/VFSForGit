@@ -165,7 +165,7 @@ namespace GVFS.Common.NuGetUpgrade
                 "VfsForGitNugetUpgrader",
                 "PersonalAccessToken",
                 personalAccessToken,
-                false);
+                storePasswordInClearText: false);
         }
 
         /// <summary>

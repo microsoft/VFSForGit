@@ -35,19 +35,19 @@ namespace GVFS.Common
         }
 
         public void DeleteAllInstallerDownloads()
-         {
-             try
-             {
-                 this.fileSystem.RecursiveDelete(GetAssetDownloadsPath());
-             }
-             catch (Exception ex)
-             {
-                 if (this.tracer != null)
-                 {
-                     this.tracer.RelatedError($"{nameof(this.DeleteAllInstallerDownloads)}: Could not remove directory: {ProductUpgraderInfo.GetAssetDownloadsPath()}.{ex.ToString()}");
-                 }
-             }
-         }
+        {
+            try
+            {
+                this.fileSystem.RecursiveDelete(GetAssetDownloadsPath());
+            }
+            catch (Exception ex)
+            {
+                if (this.tracer != null)
+                {
+                    this.tracer.RelatedError($"{nameof(this.DeleteAllInstallerDownloads)}: Could not remove directory: {ProductUpgraderInfo.GetAssetDownloadsPath()}.{ex.ToString()}");
+                }
+            }
+        }
 
         public void RecordHighestAvailableVersion(Version highestAvailableVersion)
         {

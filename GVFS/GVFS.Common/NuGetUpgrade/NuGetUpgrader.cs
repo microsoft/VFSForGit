@@ -55,12 +55,12 @@ namespace GVFS.Common.NuGetUpgrade
             PhysicalFileSystem fileSystem,
             NuGetUpgraderConfig config,
             NuGetFeed nuGetFeed)
-        : base(
-            currentVersion,
-            tracer,
-            dryRun,
-            noVerify,
-            fileSystem)
+            : base(
+                currentVersion,
+                tracer,
+                dryRun,
+                noVerify,
+                fileSystem)
         {
             this.nuGetUpgraderConfig = config;
             this.InstallationId = DateTime.Now.ToString("yyyyMMdd_HHmmss");
@@ -159,7 +159,7 @@ namespace GVFS.Common.NuGetUpgrade
         public static bool TryCreateAzDevOrgUrlFromPackageFeedUrl(string packageFeedUrl, out string azureDevOpsUrl, out string error)
         {
             // We expect a URL of the form https://pkgs.dev.azure.com/{org}
-            // and want to convert it to a URL of the form https://dev.azure.com/{org}
+            // and want to convert it to a URL of the form https://{org}.visualstudio.com
             Regex packageUrlRegex = new Regex(
                 @"^https://pkgs.dev.azure.com/(?<org>.+?)/",
                 RegexOptions.CultureInvariant | RegexOptions.IgnoreCase);

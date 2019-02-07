@@ -41,7 +41,6 @@ namespace GVFS.Common
             public const string UpgradeRing = "upgrade.ring";
             public const string UpgradeFeedPackageName = "upgrade.feedpackagename";
             public const string UpgradeFeedUrl = "upgrade.feedurl";
-            public const string UpgradeFeedCredentialUrl = "upgrade.feedcredentialurl";
         }
 
         public static class GitStatusCache

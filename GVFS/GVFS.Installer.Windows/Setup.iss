@@ -1,4 +1,4 @@
-﻿; This script requires Inno Setup Compiler 5.5.9 or later to compile
+; This script requires Inno Setup Compiler 5.5.9 or later to compile
 ; The Inno Setup Compiler (and IDE) can be found at http://www.jrsoftware.org/isinfo.php
 
 ; General documentation on how to use InnoSetup scripts: http://www.jrsoftware.org/ishelp/index.php
