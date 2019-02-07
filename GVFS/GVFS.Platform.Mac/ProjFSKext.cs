@@ -11,7 +11,7 @@ namespace GVFS.Platform.Mac
 {
     public class ProjFSKext : IKernelDriver
     {
-        private const string DriverName = "io.gvfs.PrjFSKext";
+        private const string DriverName = "org.vfsforgit.PrjFSKext";
         private const int LoadKext_ExitCode_Success = 0;
 
         // This exit code was found in the following article

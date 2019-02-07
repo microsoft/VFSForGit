@@ -27,9 +27,9 @@
 			<key>CFBundleIdentifier</key>
 			<string>$(PRODUCT_BUNDLE_IDENTIFIER)</string>
 			<key>IOClass</key>
-			<string>io_gvfs_PrjFS</string>
+			<string>org_vfsforgit_PrjFS</string>
 			<key>IOMatchCategory</key>
-			<string>io_gvfs_PrjFS</string>
+			<string>org_vfsforgit_PrjFS</string>
 			<key>IOResourceMatch</key>
 			<string>IOBSD</string>
 			<key>IOProviderClass</key>

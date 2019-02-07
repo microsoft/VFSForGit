@@ -4,8 +4,8 @@
 // Xattrs used by both kernel and user component
 
 // TODO: Issue #584, update xattr names
-#define PrjFSVirtualizationRootXAttrName "io.gvfs.xattr.virtualizationroot"
-#define PrjFSFileXAttrName "io.gvfs.xattr.file"
+#define PrjFSVirtualizationRootXAttrName "org.vfsforgit.xattr.virtualizationroot"
+#define PrjFSFileXAttrName "org.vfsforgit.xattr.file"
 
 #define PrjFS_PlaceholderIdLength 128
 

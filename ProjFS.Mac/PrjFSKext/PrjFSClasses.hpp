@@ -1,9 +1,9 @@
 #pragma once
 
 // IOKit class naming convention is to use reverse DNS notation
-#define PrjFSService            io_gvfs_PrjFS
+#define PrjFSService            org_vfsforgit_PrjFS
 class PrjFSService;
-#define PrjFSProviderUserClient io_gvfs_PrjFSProviderUserClient
+#define PrjFSProviderUserClient org_vfsforgit_PrjFSProviderUserClient
 class PrjFSProviderUserClient;
-#define PrjFSLogUserClient      io_gvfs_PrjFSLogUserClient
+#define PrjFSLogUserClient      org_vfsforgit_PrjFSLogUserClient
 class PrjFSLogUserClient;
