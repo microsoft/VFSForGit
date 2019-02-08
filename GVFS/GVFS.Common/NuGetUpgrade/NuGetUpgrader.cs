@@ -245,7 +245,7 @@ namespace GVFS.Common.NuGetUpgrade
 
                 if (newVersion != null)
                 {
-                    this.tracer.RelatedInfo($"{nameof(this.TryQueryNewestVersion)} - new version available: installedVersion: {this.installedVersion}, highestVersionAvailable: {highestVersionAvailable}");
+                    this.tracer.RelatedInfo($"{nameof(this.TryQueryNewestVersion)} - new version available: installedVersion: {this.installedVersion}, highestVersionAvailable: {newVersion}");
                     message = $"New version {highestVersionAvailable.Identity.Version} is available.";
                     return true;
                 }
