@@ -618,6 +618,66 @@ static int HandleFileOpOperation(
             }
         }
     }
+    else if (KAUTH_FILEOP_OPEN == action)
+    {
+        currentVnode = reinterpret_cast<vnode_t>(arg0);
+        putCurrentVnode = false;
+        const char* path = reinterpret_cast<const char*>(arg1);
+
+        if (vnode_isdir(currentVnode))
+        {
+            goto CleanupAndReturn;
+        }
+
+        UseMainForkIfNamedStream(currentVnode, putCurrentVnode);
+
+        bool fileFlaggedInRoot;
+        if (!TryGetFileIsFlaggedAsInRoot(currentVnode, context, &fileFlaggedInRoot))
+        {
+            KextLog_ErrorVnodeProperties(currentVnode, "KAUTH_FILEOP_OPEN: checking file flags failed. Path = '%s'", path);
+            
+            goto CleanupAndReturn;
+        }
+        
+        if (fileFlaggedInRoot)
+        {
+            goto CleanupAndReturn;
+        }
+        
+        VirtualizationRootHandle root = RootHandle_None;
+        FsidInode vnodeFsidInode;
+        int pid;
+        if (!ShouldHandleFileOpEvent(
+                                     &perfTracer,
+                                     context,
+                                     currentVnode,
+                                     action,
+                                     &root,
+                                     &vnodeFsidInode,
+                                     &pid))
+        {
+            goto CleanupAndReturn;
+        }
+        
+        char procname[MAXCOMLEN + 1];
+        proc_name(pid, procname, MAXCOMLEN + 1);
+        PerfSample fileCreatedSample(&perfTracer, PrjFSPerfCounter_FileOp_FileCreated);
+        int kauthResult;
+        int kauthError;
+        if (!TrySendRequestAndWaitForResponse(
+                                              root,
+                                              MessageType_KtoU_NotifyFileCreated,
+                                              currentVnode,
+                                              vnodeFsidInode,
+                                              path,
+                                              pid,
+                                              procname,
+                                              &kauthResult,
+                                              &kauthError))
+        {
+            goto CleanupAndReturn;
+        }
+    }
     else if (KAUTH_FILEOP_CLOSE == action)
     {
         currentVnode = reinterpret_cast<vnode_t>(arg0);
@@ -631,16 +691,8 @@ static int HandleFileOpOperation(
         }
         
         UseMainForkIfNamedStream(currentVnode, putCurrentVnode);
-
-        bool fileFlaggedInRoot;
-        if (!TryGetFileIsFlaggedAsInRoot(currentVnode, context, &fileFlaggedInRoot))
-        {
-            KextLog_ErrorVnodeProperties(currentVnode, "KAUTH_FILEOP_CLOSE: checking file flags failed. Path = '%s'", path);
-            
-            goto CleanupAndReturn;
-        }
         
-        if (fileFlaggedInRoot && KAUTH_FILEOP_CLOSE_MODIFIED != closeFlags)
+        if (KAUTH_FILEOP_CLOSE_MODIFIED != closeFlags)
         {
             goto CleanupAndReturn;
         }
@@ -662,46 +714,21 @@ static int HandleFileOpOperation(
         
         char procname[MAXCOMLEN + 1];
         proc_name(pid, procname, MAXCOMLEN + 1);
-        
-        if (fileFlaggedInRoot)
+        PerfSample fileModifiedSample(&perfTracer, PrjFSPerfCounter_FileOp_FileModified);
+        int kauthResult;
+        int kauthError;
+        if (!TrySendRequestAndWaitForResponse(
+                root,
+                MessageType_KtoU_NotifyFileModified,
+                currentVnode,
+                vnodeFsidInode,
+                path,
+                pid,
+                procname,
+                &kauthResult,
+                &kauthError))
         {
-            PerfSample fileModifiedSample(&perfTracer, PrjFSPerfCounter_FileOp_FileModified);
-        
-            int kauthResult;
-            int kauthError;
-            if (!TrySendRequestAndWaitForResponse(
-                    root,
-                    MessageType_KtoU_NotifyFileModified,
-                    currentVnode,
-                    vnodeFsidInode,
-                    path,
-                    pid,
-                    procname,
-                    &kauthResult,
-                    &kauthError))
-            {
-                goto CleanupAndReturn;
-            }
-        }
-        else
-        {
-            PerfSample fileCreatedSample(&perfTracer, PrjFSPerfCounter_FileOp_FileCreated);
-            
-            int kauthResult;
-            int kauthError;
-            if (!TrySendRequestAndWaitForResponse(
-                    root,
-                    MessageType_KtoU_NotifyFileCreated,
-                    currentVnode,
-                    vnodeFsidInode,
-                    path,
-                    pid,
-                    procname,
-                    &kauthResult,
-                    &kauthError))
-            {
-                goto CleanupAndReturn;
-            }
+            goto CleanupAndReturn;
         }
     }
     
