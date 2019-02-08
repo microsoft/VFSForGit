@@ -76,7 +76,7 @@ namespace GVFS.Upgrader
                 // actually quits.
                 this.tracer.RelatedInfo("Checking if GVFS or dependent processes are running.");
                 int retryCount = 10;
-                HashSet<string> processList = null;
+                List<string> processList = null;
                 while (retryCount > 0)
                 {
                     if (!this.IsBlockingProcessRunning(out processList))
@@ -126,11 +126,11 @@ namespace GVFS.Upgrader
             return GVFSEnlistment.IsUnattended(this.tracer);
         }
 
-        protected virtual bool IsBlockingProcessRunning(out HashSet<string> processes)
+        protected virtual bool IsBlockingProcessRunning(out List<string> processes)
         {
             int currentProcessId = Process.GetCurrentProcess().Id;
             Process[] allProcesses = Process.GetProcesses();
-            HashSet<string> matchingNames = new HashSet<string>();
+            List<string> matchingNames = new List<string>();
 
             foreach (Process process in allProcesses)
             {
@@ -139,7 +139,7 @@ namespace GVFS.Upgrader
                     continue;
                 }
 
-                matchingNames.Add(process.ProcessName);
+                matchingNames.Add(process.ProcessName + " pid:" + process.Id);
             }
 
             processes = matchingNames;
