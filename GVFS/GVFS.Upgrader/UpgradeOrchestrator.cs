@@ -41,18 +41,12 @@ namespace GVFS.Upgrader
 
         public UpgradeOrchestrator()
         {
-            string logFilePath = GVFSEnlistment.GetNewGVFSLogFileName(
-                ProductUpgraderInfo.GetLogDirectoryPath(),
-                GVFSConstants.LogFileTypes.UpgradeProcess);
-            JsonTracer jsonTracer = new JsonTracer(GVFSConstants.GVFSEtwProviderName, "UpgradeProcess");
-            jsonTracer.AddLogFileEventListener(
-                logFilePath,
-                DefaultEventLevel,
-                Keywords.Any);
+            // CommandLine's Parser will create multiple instances of UpgradeOrchestrator, and we don't want
+            // multiple log files to get created.  Defer tracer (and preRunChecker) creation until Execute()
+            this.tracer = null;
+            this.preRunChecker = null;
 
-            this.tracer = jsonTracer;
             this.fileSystem = new PhysicalFileSystem();
-            this.preRunChecker = new InstallerPreRunChecker(this.tracer, GVFSConstants.UpgradeVerbMessages.GVFSUpgradeConfirm);
             this.output = Console.Out;
             this.input = Console.In;
             this.mount = false;
@@ -80,6 +74,16 @@ namespace GVFS.Upgrader
             string error = null;
             string mountError = null;
             Version newVersion = null;
+
+            if (this.tracer == null)
+            {
+                this.tracer = this.CreateTracer();
+            }
+
+            if (this.preRunChecker == null)
+            {
+                this.preRunChecker = new InstallerPreRunChecker(this.tracer, GVFSConstants.UpgradeVerbMessages.GVFSUpgradeConfirm);
+            }
 
             try
             {
@@ -133,6 +137,21 @@ namespace GVFS.Upgrader
             }
 
             Environment.ExitCode = (int)this.ExitCode;
+        }
+
+        private JsonTracer CreateTracer()
+        {
+            string logFilePath = GVFSEnlistment.GetNewGVFSLogFileName(
+                ProductUpgraderInfo.GetLogDirectoryPath(),
+                GVFSConstants.LogFileTypes.UpgradeProcess);
+            JsonTracer jsonTracer = new JsonTracer(GVFSConstants.GVFSEtwProviderName, "UpgradeProcess");
+
+            jsonTracer.AddLogFileEventListener(
+                logFilePath,
+                DefaultEventLevel,
+                Keywords.Any);
+
+            return jsonTracer;
         }
 
         private bool LaunchInsideSpinner(Func<bool> method, string message)
