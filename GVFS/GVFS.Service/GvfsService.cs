@@ -155,15 +155,18 @@ namespace GVFS.Service
                 this.serviceName = serviceName.Substring(ServiceNameArgPrefix.Length);
             }
 
-            this.CreateAndConfigureProgramDataDirectories();
+            string serviceLogsDirectoryPath = Paths.GetServiceLogsPath(this.serviceName);
+
+            this.CreateServiceLogsDirectory(serviceLogsDirectoryPath);
 
             this.tracer.AddLogFileEventListener(
-                GVFSEnlistment.GetNewGVFSLogFileName(Paths.GetServiceLogsPath(this.serviceName), GVFSConstants.LogFileTypes.Service),
+                GVFSEnlistment.GetNewGVFSLogFileName(serviceLogsDirectoryPath, GVFSConstants.LogFileTypes.Service),
                 EventLevel.Verbose,
                 Keywords.Any);
 
             try
             {
+                this.CreateAndConfigureProgramDataDirectories();
                 this.Start();
             }
             catch (Exception e)
@@ -349,6 +352,18 @@ namespace GVFS.Service
             metadata.Add("Exception", e.ToString());
             this.tracer.RelatedError(metadata, "Unhandled exception in " + method);
             Environment.Exit((int)ReturnCode.GenericError);
+        }
+
+        private void CreateServiceLogsDirectory(string directoryPath)
+        {
+            DirectorySecurity serviceDataRootSecurity = new DirectorySecurity();
+
+            // Protect the access rules from inheritance
+            serviceDataRootSecurity.SetAccessRuleProtection(isProtected: true, preserveInheritance: false);
+            WindowsFileSystem.AddUsersAccessRulesToDirectorySecurity(serviceDataRootSecurity, grantUsersModifyPermissions: false);
+            WindowsFileSystem.AddAdminAccessRulesToDirectorySecurity(serviceDataRootSecurity);
+
+            Directory.CreateDirectory(directoryPath);
         }
 
         private void CreateAndConfigureProgramDataDirectories()
