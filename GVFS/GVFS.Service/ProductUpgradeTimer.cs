@@ -179,7 +179,7 @@ namespace GVFS.Service
         private bool TryQueryForNewerVersion(ITracer tracer, GitHubUpgrader productUpgrader, out Version newVersion, out string errorMessage)
         {
             errorMessage = null;
-            tracer.RelatedInfo("Querying server for latest version...");
+            tracer.RelatedInfo($"Querying server for latest version in ring {productUpgrader.Config.UpgradeRing}...");
 
             if (!productUpgrader.TryQueryNewestVersion(out newVersion, out string detailedError))
             {
