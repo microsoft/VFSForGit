@@ -72,9 +72,9 @@ namespace GVFS.UnitTests.Windows.Mock.Upgrader
             return this.FakedResultOfCheck(FailOnCheckType.UnattendedMode);
         }
 
-        protected override bool IsBlockingProcessRunning(out HashSet<string> processes)
+        protected override bool IsBlockingProcessRunning(out List<string> processes)
         {
-            processes = new HashSet<string>();
+            processes = new List<string>();
 
             bool isRunning = this.FakedResultOfCheck(FailOnCheckType.BlockingProcessesRunning);
             if (isRunning)

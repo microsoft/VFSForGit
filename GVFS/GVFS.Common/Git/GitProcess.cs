@@ -126,7 +126,7 @@ namespace GVFS.Common.Git
             return true;
         }
 
-        public bool TryKillRunningProcess()
+        public bool WaitForRunningGitProcess()
         {
             this.stopping = true;
 
@@ -138,7 +138,7 @@ namespace GVFS.Common.Git
 
                     if (process != null)
                     {
-                        process.Kill();
+                        process.WaitForExit();
                     }
 
                     return true;
