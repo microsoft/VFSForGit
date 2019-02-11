@@ -434,8 +434,15 @@ namespace GVFS.Common.NuGetUpgrade
 
                 if (!installSuccessful)
                 {
-                    activity.RelatedError($"Could not complete all install actions. The following error was encountered: {localError}");
-                    error = localError;
+                    string installActionName = string.IsNullOrEmpty(currentInstallAction?.Name) ?
+                        "installer" :
+                        currentInstallAction.Name;
+
+                    error = string.IsNullOrEmpty(localError) ?
+                       $"The {installActionName} failed, but no error message was provided by the failing command." :
+                       $"The {installActionName} failed with the following error: {localError}";
+
+                    activity.RelatedError($"Could not complete all install actions. The following error was encountered: {error}");
                     return false;
                 }
                 else
