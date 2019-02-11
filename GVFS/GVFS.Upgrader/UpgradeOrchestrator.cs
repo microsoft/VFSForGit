@@ -5,6 +5,7 @@ using GVFS.Common.Git;
 using GVFS.Common.Tracing;
 using System;
 using System.IO;
+using System.Text;
 
 namespace GVFS.Upgrader
 {
@@ -118,8 +119,16 @@ namespace GVFS.Upgrader
 
                 if (this.ExitCode == ReturnCode.GenericError)
                 {
-                    error = Environment.NewLine + "ERROR: " + error;
-                    this.output.WriteLine(error);
+                    StringBuilder sb = new StringBuilder();
+                    sb.AppendLine();
+                    sb.Append("ERROR: " + error);
+
+                    sb.AppendLine();
+                    sb.AppendLine();
+
+                    sb.AppendLine($"Upgrade logs can be found at: {this.logDirectory} with file names that end with the installation ID: {this.installationId}.");
+
+                    this.output.WriteLine(sb.ToString());
                 }
                 else
                 {
