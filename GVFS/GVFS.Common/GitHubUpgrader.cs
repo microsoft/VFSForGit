@@ -406,7 +406,7 @@ namespace GVFS.Common
             {
                 if (!this.dryRun)
                 {
-                    string logFilePath = GVFSEnlistment.GetNewLogFileName(ProductUpgraderInfo.GetLogDirectoryPath(), Path.GetFileNameWithoutExtension(path));
+                    string logFilePath = GVFSEnlistment.GetNewLogFileName(ProductUpgraderInfo.GetLogDirectoryPath(), Path.GetFileNameWithoutExtension(path), this.UpgradeInstanceId);
                     string args = installerArgs + " /Log=" + logFilePath;
                     string certCN = null;
                     string issuerCN = null;
