@@ -320,12 +320,13 @@ namespace GVFS.UnitTests.Common.NuGetUpgrade
         [TestCase]
         public void WellKnownArgumentTokensReplaced()
         {
+            string logDirectory = "mock:\\test_log_directory";
             string noTokenSourceString = "/arg no_token log_directory installation_id";
-            NuGetUpgrader.ReplaceArgTokens(noTokenSourceString, "unique_id").ShouldEqual(noTokenSourceString, "String with no tokens should not be modifed");
+            NuGetUpgrader.ReplaceArgTokens(noTokenSourceString, "unique_id", logDirectory).ShouldEqual(noTokenSourceString, "String with no tokens should not be modifed");
 
             string sourceStringWithTokens = "/arg /log {log_directory}_{installation_id}";
-            string expectedProcessedString = "/arg /log " + ProductUpgraderInfo.GetLogDirectoryPath() + "_" + "unique_id";
-            NuGetUpgrader.ReplaceArgTokens(sourceStringWithTokens, "unique_id").ShouldEqual(expectedProcessedString, "expected tokens have not been replaced");
+            string expectedProcessedString = "/arg /log " + logDirectory + "_" + "unique_id";
+            NuGetUpgrader.ReplaceArgTokens(sourceStringWithTokens, "unique_id", logDirectory).ShouldEqual(expectedProcessedString, "expected tokens have not been replaced");
         }
 
         [TestCase("https://pkgs.dev.azure.com/test-pat/_packaging/Test-GVFS-Installers-Custom/nuget/v3/index.json", "https://test-pat.visualstudio.com")]
