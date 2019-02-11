@@ -70,6 +70,8 @@ namespace GVFS.Common
         {
         }
 
+        public string UpgradeInstanceId { get; set; } = DateTime.Now.ToString("yyyyMMdd_HHmmss");
+
         public static bool TryCreateUpgrader(
             ITracer tracer,
             PhysicalFileSystem fileSystem,
