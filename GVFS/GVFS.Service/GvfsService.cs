@@ -374,10 +374,17 @@ namespace GVFS.Service
             DirectorySecurity serviceDataRootSecurity;
             if (Directory.Exists(serviceDataRootPath))
             {
+                this.tracer.RelatedInfo(
+                    $"{nameof(this.CreateAndConfigureProgramDataDirectories)}: {serviceDataRootPath} exists, setting ACLs.");
+
                 serviceDataRootSecurity = Directory.GetAccessControl(serviceDataRootPath);
             }
             else
             {
+                // Warning because CreateServiceLogsDirectory should have created this directory already if it didn't exist
+                this.tracer.RelatedWarning(
+                    $"{nameof(this.CreateAndConfigureProgramDataDirectories)}: {serviceDataRootPath} does not exist, creating directory.");
+
                 serviceDataRootSecurity = new DirectorySecurity();
             }
 
@@ -406,10 +413,12 @@ namespace GVFS.Service
             DirectorySecurity upgradeLogsSecurity;
             if (Directory.Exists(upgradeLogsPath))
             {
+                this.tracer.RelatedInfo("Setting ACLs on existing upgrade log directory");
                 upgradeLogsSecurity = Directory.GetAccessControl(upgradeLogsPath);
             }
             else
             {
+                this.tracer.RelatedInfo("Creating new upgrade log directory");
                 upgradeLogsSecurity = new DirectorySecurity();
             }
 
@@ -423,8 +432,73 @@ namespace GVFS.Service
 
             Directory.CreateDirectory(upgradeLogsPath, upgradeLogsSecurity);
 
-            // Ensure the ACLs are set correct on any files or directories that were already created (e.g. after upgrading VFS4G)
-            Directory.SetAccessControl(upgradeLogsPath, upgradeLogsSecurity);
+            try
+            {
+                // Ensure the ACLs are set correct on any files or directories that were already created (e.g. after upgrading VFS4G)
+                Directory.SetAccessControl(upgradeLogsPath, upgradeLogsSecurity);
+            }
+            catch (UnauthorizedAccessException e)
+            {
+                // This can happen when the Logs directory was created by a non-elevated user running 'gvfs upgrade'
+
+                EventMetadata metadata = new EventMetadata();
+                metadata.Add("Exception", e.ToString());
+                metadata.Add(
+                    TracingConstants.MessageKey.InfoMessage,
+                    $"{nameof(this.CreateAndConfigureUpgradeLogDirectory)}: UnauthorizedAccessException when setting log dir ACLs");
+                this.tracer.RelatedEvent(EventLevel.Informational, "LogDirACL_UnauthorizedAccessException", metadata);
+
+                this.MigrateUpgradeLogsToDirectoryWithFreshACLs();
+            }
+        }
+
+        private void MigrateUpgradeLogsToDirectoryWithFreshACLs()
+        {
+            string upgradeLogsPath = ProductUpgraderInfo.GetLogDirectoryPath();
+            string tempUpgradeLogsPath = Path.Combine(
+                Path.GetDirectoryName(upgradeLogsPath),
+                ProductUpgraderInfo.LogDirectory + "_" + Guid.NewGuid().ToString("N"));
+
+            this.tracer.RelatedInfo($"Renaming '{upgradeLogsPath}' to '{tempUpgradeLogsPath}'");
+            Directory.Move(upgradeLogsPath, tempUpgradeLogsPath);
+
+            this.tracer.RelatedInfo($"Creating new '{upgradeLogsPath}' directory with appropriate ACLs");
+            DirectorySecurity upgradeLogsSecurity = new DirectorySecurity();
+
+            // Protect the access rules from inheritance and remove any inherited rules
+            // (any manually added ACLs are left in place)
+            upgradeLogsSecurity.SetAccessRuleProtection(isProtected: true, preserveInheritance: false);
+
+            // Add ACLs for users and admins
+            WindowsFileSystem.AddUsersAccessRulesToDirectorySecurity(upgradeLogsSecurity, grantUsersModifyPermissions: true);
+            WindowsFileSystem.AddAdminAccessRulesToDirectorySecurity(upgradeLogsSecurity);
+            Directory.CreateDirectory(upgradeLogsPath, upgradeLogsSecurity);
+
+            try
+            {
+                DirectoryInfo tempDirectoryInfo = new DirectoryInfo(tempUpgradeLogsPath);
+                FileInfo[] existingLogFileInfos = tempDirectoryInfo.GetFiles("*", SearchOption.TopDirectoryOnly);
+
+                this.tracer.RelatedInfo($"Moving {existingLogFileInfos.Length} log files from '{tempUpgradeLogsPath}' to '{upgradeLogsPath}'");
+                foreach (FileInfo logFileInfo in existingLogFileInfos)
+                {
+                    File.Move(logFileInfo.FullName, Path.Combine(upgradeLogsPath, logFileInfo.Name));
+                }
+
+                PhysicalFileSystem fileSystem = new PhysicalFileSystem();
+                fileSystem.DeleteDirectory(tempUpgradeLogsPath, recursive: true);
+            }
+            catch (Exception e)
+            {
+                EventMetadata metadata = new EventMetadata();
+                metadata.Add("Exception", e.ToString());
+                metadata.Add(nameof(tempUpgradeLogsPath), tempUpgradeLogsPath);
+                metadata.Add(nameof(upgradeLogsPath), upgradeLogsPath);
+
+                this.tracer.RelatedWarning(
+                    metadata,
+                    $"{nameof(this.MigrateUpgradeLogsToDirectoryWithFreshACLs)}: Caught exception migrating log files");
+            }
         }
     }
 }
