@@ -124,6 +124,16 @@ namespace GVFS.Common
             string rootDirectoryPath = ProductUpgraderInfo.GetUpgradesDirectoryPath();
             string toolsDirectoryPath = Path.Combine(rootDirectoryPath, ToolsDirectory);
 
+            Exception deleteDirectoryException;
+            if (this.fileSystem.DirectoryExists(toolsDirectoryPath) &&
+                !this.fileSystem.TryDeleteDirectory(toolsDirectoryPath, out deleteDirectoryException))
+            {
+                upgraderToolPath = null;
+                error = $"Failed to delete {toolsDirectoryPath} - {deleteDirectoryException.Message}";
+                this.TraceException(deleteDirectoryException, nameof(this.TrySetupToolsDirectory), $"Error deleting {toolsDirectoryPath}.");
+                return false;
+            }
+
             if (!this.fileSystem.TryCreateDirectoryWithAdminOnlyModify(
                     this.tracer,
                     toolsDirectoryPath,
