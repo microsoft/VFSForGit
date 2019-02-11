@@ -126,34 +126,33 @@ namespace GVFS.Common.Git
             return true;
         }
 
-        public bool WaitForRunningGitProcess()
+        /// <summary>
+        /// Tries to kill the run git process.  Make sure you only use this on git processes that can safely be killed!
+        /// </summary>
+        /// <param name="processName">Name of the running process</param>
+        /// <param name="exitCode">Exit code of the kill.  -1 means there was no running process.</param>
+        /// <param name="error">Error message of the kill</param>
+        /// <returns></returns>
+        public bool TryKillRunningProcess(out string processName, out int exitCode, out string error)
         {
             this.stopping = true;
+            processName = null;
+            exitCode = -1;
+            error = null;
 
-            try
+            lock (this.processLock)
             {
-                lock (this.processLock)
+                Process process = this.executingProcess;
+
+                if (process != null)
                 {
-                    Process process = this.executingProcess;
+                    processName = process.ProcessName;
 
-                    if (process != null)
-                    {
-                        process.WaitForExit();
-                    }
-
-                    return true;
+                    return GVFSPlatform.Instance.TryKillProcessTree(process.Id, out exitCode, out error);
                 }
-            }
-            catch (Win32Exception)
-            {
-                // Thrown when process is already terminating
-            }
-            catch (InvalidOperationException)
-            {
-                // Process already terminated
-            }
 
-            return false;
+                return true;
+            }
         }
 
         public virtual void RevokeCredential(string repoUrl)

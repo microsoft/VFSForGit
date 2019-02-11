@@ -58,6 +58,9 @@ namespace GVFS.Common
         public abstract Dictionary<string, string> GetPhysicalDiskInfo(string path, bool sizeStatsOnly);
 
         public abstract bool IsConsoleOutputRedirectedToFile();
+
+        public abstract bool TryKillProcessTree(int processId, out int exitCode, out string error);
+
         public abstract bool TryGetGVFSEnlistmentRoot(string directory, out string enlistmentRoot, out string errorMessage);
 
         public abstract bool IsGitStatusCacheSupported();

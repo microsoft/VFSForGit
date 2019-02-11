@@ -74,11 +74,9 @@ namespace GVFS.Upgrader
             return true;
         }
 
-        public virtual bool NoBlockingProcessCheck(out string consoleError)
+        public virtual bool IsInstallationBlockedByRunningProcess(out string consoleError)
         {
             consoleError = null;
-
-            this.tracer.RelatedInfo("Checking for running git processes.");
 
             // While checking for blocking processes like GVFS.Mount immediately after un-mounting,
             // then sometimes GVFS.Mount shows up as running. But if the check is done after waiting
@@ -87,7 +85,7 @@ namespace GVFS.Upgrader
             // actually quits.
             this.tracer.RelatedInfo("Checking if GVFS or dependent processes are running.");
             int retryCount = 10;
-            List<string> processList = null;
+            HashSet<string> processList = null;
             while (retryCount > 0)
             {
                 if (!this.IsBlockingProcessRunning(out processList))
@@ -105,7 +103,7 @@ namespace GVFS.Upgrader
                     Environment.NewLine,
                     "Blocking processes are running.",
                     $"Run {this.CommandToRerun} again after quitting these processes - " + string.Join(", ", processList.ToArray()));
-                this.tracer.RelatedError($"{nameof(this.TryUnmountAllGVFSRepos)}: {consoleError}");
+                this.tracer.RelatedError($"{nameof(this.IsInstallationBlockedByRunningProcess)}: {consoleError}");
                 return false;
             }
 
@@ -134,11 +132,11 @@ namespace GVFS.Upgrader
             return GVFSEnlistment.IsUnattended(this.tracer);
         }
 
-        protected virtual bool IsBlockingProcessRunning(out List<string> processes)
+        protected virtual bool IsBlockingProcessRunning(out HashSet<string> processes)
         {
             int currentProcessId = Process.GetCurrentProcess().Id;
             Process[] allProcesses = Process.GetProcesses();
-            List<string> matchingNames = new List<string>();
+            HashSet<string> matchingNames = new HashSet<string>();
 
             foreach (Process process in allProcesses)
             {

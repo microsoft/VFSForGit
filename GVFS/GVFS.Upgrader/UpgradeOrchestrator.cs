@@ -222,18 +222,14 @@ namespace GVFS.Upgrader
             if (!this.LaunchInsideSpinner(
                 () =>
                 {
-                    // if (!this.preRunChecker.TryUnmountAllGVFSRepos(out error))
-
-                    if (!this.preRunChecker.NoBlockingProcessCheck(out error))
+                    if (!this.preRunChecker.IsInstallationBlockedByRunningProcess(out error))
                     {
                         return false;
                     }
 
-                    this.mount = true;
-
                     return true;
                 },
-                "Checking for running git processes."))
+                "Checking for blocking processes."))
             {
                 newVersion = null;
                 consoleError = error;
