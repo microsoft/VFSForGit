@@ -60,6 +60,11 @@ namespace GVFS.Common.FileSystem
             return File.ReadAllText(path);
         }
 
+        public virtual byte[] ReadAllBytes(string path)
+        {
+            return File.ReadAllBytes(path);
+        }
+
         public virtual IEnumerable<string> ReadLines(string path)
         {
             return File.ReadLines(path);

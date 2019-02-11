@@ -79,13 +79,14 @@ namespace GVFS.Common.Git
         ///     section.settingName=settingValue
         /// </summary>
         /// <param name="input">The lines of text with the settings to parse.</param>
+        /// <param name="delimiter">The delimiter char, separating key from value</param>
         /// <returns>A dictionary of settings, keyed off the setting name representing the settings parsed from input.</returns>
-        public static Dictionary<string, GitConfigSetting> ParseKeyValues(IEnumerable<string> input)
+        public static Dictionary<string, GitConfigSetting> ParseKeyValues(IEnumerable<string> input, char delimiter = '=')
         {
             Dictionary<string, GitConfigSetting> configSettings = new Dictionary<string, GitConfigSetting>(StringComparer.OrdinalIgnoreCase);
             foreach (string line in input)
             {
-                string[] fields = line.Trim().Split(new[] { '=' }, 2, StringSplitOptions.None);
+                string[] fields = line.Split(new[] { delimiter }, 2, StringSplitOptions.None);
 
                 if (fields.Length > 0)
                 {
@@ -128,10 +129,11 @@ namespace GVFS.Common.Git
         ///     section.settingNameN=settingValueN
         /// </summary>
         /// <param name="input">The settings as text.</param>
+        /// <param name="delimiter">The delimiter char, separating key from value</param>
         /// <returns>A dictionary of settings, keyed off the setting name representing the settings parsed from input.</returns>
-        public static Dictionary<string, GitConfigSetting> ParseKeyValues(string input)
+        public static Dictionary<string, GitConfigSetting> ParseKeyValues(string input, char delimiter = '=')
         {
-            return ParseKeyValues(input.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries));
+            return ParseKeyValues(input.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries), delimiter);
         }
     }
 }

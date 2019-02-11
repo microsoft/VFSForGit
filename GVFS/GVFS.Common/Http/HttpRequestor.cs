@@ -21,8 +21,9 @@ namespace GVFS.Common.Http
 
         private readonly ProductInfoHeaderValue userAgentHeader;
 
+        private readonly GitAuthentication authentication;
+
         private HttpClient client;
-        private GitAuthentication authentication;
 
         static HttpRequestor()
         {
@@ -31,14 +32,22 @@ namespace GVFS.Common.Http
             availableConnections = new SemaphoreSlim(ServicePointManager.DefaultConnectionLimit);
         }
 
-        public HttpRequestor(ITracer tracer, RetryConfig retryConfig, GitAuthentication authentication)
+        protected HttpRequestor(ITracer tracer, RetryConfig retryConfig, Enlistment enlistment)
         {
-            this.client = new HttpClient(new HttpClientHandler() { UseDefaultCredentials = true });
-            this.client.Timeout = retryConfig.Timeout;
             this.RetryConfig = retryConfig;
-            this.authentication = authentication;
+
+            this.authentication = enlistment.Authentication;
 
             this.Tracer = tracer;
+
+            HttpClientHandler httpClientHandler = new HttpClientHandler() { UseDefaultCredentials = true };
+
+            this.authentication.ConfigureHttpClientHandlerSslIfNeeded(this.Tracer, httpClientHandler, enlistment.CreateGitProcess());
+
+            this.client = new HttpClient(httpClientHandler)
+            {
+                Timeout = retryConfig.Timeout
+            };
 
             this.userAgentHeader = new ProductInfoHeaderValue(ProcessHelper.GetEntryClassName(), ProcessHelper.GetCurrentProcessVersion());
         }
@@ -196,6 +205,16 @@ namespace GVFS.Common.Http
                     HttpStatusCode.RequestTimeout,
                     new GitObjectsHttpException(HttpStatusCode.RequestTimeout, errorMessage),
                     shouldRetry: true,
+                    message: response,
+                    onResponseDisposed: () => availableConnections.Release());
+            }
+            catch (HttpRequestException httpRequestException) when (httpRequestException.InnerException is System.Security.Authentication.AuthenticationException)
+            {
+                // This exception is thrown on OSX, when user declines to give permission to access certificate
+                gitEndPointResponseData = new GitEndPointResponseData(
+                    HttpStatusCode.Unauthorized,
+                    httpRequestException.InnerException,
+                    shouldRetry: false,
                     message: response,
                     onResponseDisposed: () => availableConnections.Release());
             }

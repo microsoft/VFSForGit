@@ -1,7 +1,10 @@
 ﻿using GVFS.Common.Http;
 using GVFS.Common.Tracing;
 using System;
+using System.Collections.Generic;
 using System.Net;
+using System.Net.Http;
+using System.Security.Cryptography.X509Certificates;
 using System.Text;
 
 namespace GVFS.Common.Git
@@ -25,6 +28,11 @@ namespace GVFS.Common.Git
         {
             this.git = git;
             this.repoUrl = repoUrl;
+
+            if (git.TryGetConfigUrlMatch("http", this.repoUrl, out Dictionary<string, GitConfigSetting> configSettings))
+            {
+                this.GitSsl = new GitSsl(configSettings);
+            }
         }
 
         public bool IsBackingOff
@@ -36,6 +44,8 @@ namespace GVFS.Common.Git
         }
 
         public bool IsAnonymous { get; private set; } = true;
+
+        private GitSsl GitSsl { get; }
 
         public void ConfirmCredentialsWorked(string usedCredential)
         {
@@ -150,6 +160,25 @@ namespace GVFS.Common.Git
             }
 
             return false;
+        }
+
+        public void ConfigureHttpClientHandlerSslIfNeeded(ITracer tracer, HttpClientHandler httpClientHandler, GitProcess gitProcess)
+        {
+            X509Certificate2 cert = this.GitSsl?.GetCertificate(tracer, gitProcess);
+            if (cert != null)
+            {
+                if (this.GitSsl != null && !this.GitSsl.ShouldVerify)
+                {
+                    httpClientHandler.ServerCertificateCustomValidationCallback =
+                        (httpRequestMessage, c, cetChain, policyErrors) =>
+                        {
+                            return true;
+                        };
+                }
+
+                httpClientHandler.ClientCertificateOptions = ClientCertificateOption.Manual;
+                httpClientHandler.ClientCertificates.Add(cert);
+            }
         }
 
         private bool TryAnonymousQuery(ITracer tracer, Enlistment enlistment, out bool isAnonymous)
