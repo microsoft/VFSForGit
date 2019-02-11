@@ -13,7 +13,7 @@ namespace GVFS.Common.Git
 
         private ITracer tracer;
         private PhysicalFileSystem fileSystem;
-        private LibGit2RepoPool libgit2RepoPool;
+        private LibGit2RepoInvoker libgit2RepoInvoker;
         private Enlistment enlistment;
 
         public GitRepo(ITracer tracer, Enlistment enlistment, PhysicalFileSystem fileSystem, Func<LibGit2Repo> repoFactory = null)
@@ -24,10 +24,9 @@ namespace GVFS.Common.Git
 
             this.GVFSLock = new GVFSLock(tracer);
 
-            this.libgit2RepoPool = new LibGit2RepoPool(
+            this.libgit2RepoInvoker = new LibGit2RepoInvoker(
                 tracer,
-                repoFactory ?? (() => new LibGit2Repo(this.tracer, this.enlistment.WorkingDirectoryRoot)),
-                Environment.ProcessorCount * 2);
+                repoFactory ?? (() => new LibGit2Repo(this.tracer, this.enlistment.WorkingDirectoryRoot)));
         }
 
         // For Unit Testing
@@ -45,6 +44,8 @@ namespace GVFS.Common.Git
             Unknown,
         }
 
+        public bool HasActiveLibGit2Repo => this.libgit2RepoInvoker?.IsActive == true;
+
         public GVFSLock GVFSLock
         {
             get;
@@ -53,7 +54,7 @@ namespace GVFS.Common.Git
 
         public bool TryGetIsBlob(string sha, out bool isBlob)
         {
-            return this.libgit2RepoPool.TryInvoke(repo => repo.IsBlob(sha), out isBlob);
+            return this.libgit2RepoInvoker.TryInvoke(repo => repo.IsBlob(sha), out isBlob);
         }
 
         public virtual bool TryCopyBlobContentStream(string blobSha, Action<Stream, long> writeAction)
@@ -69,7 +70,7 @@ namespace GVFS.Common.Git
                 return false;
             }
 
-            if (!this.libgit2RepoPool.TryInvoke(repo => repo.TryCopyBlob(blobSha, writeAction), out bool copyBlobResult))
+            if (!this.libgit2RepoInvoker.TryInvoke(repo => repo.TryCopyBlob(blobSha, writeAction), out bool copyBlobResult))
             {
                 return false;
             }
@@ -80,14 +81,14 @@ namespace GVFS.Common.Git
         public virtual bool CommitAndRootTreeExists(string commitSha)
         {
             bool output = false;
-            this.libgit2RepoPool.TryInvoke(repo => repo.CommitAndRootTreeExists(commitSha), out output);
+            this.libgit2RepoInvoker.TryInvoke(repo => repo.CommitAndRootTreeExists(commitSha), out output);
             return output;
         }
 
         public virtual bool ObjectExists(string blobSha)
         {
             bool output = false;
-            this.libgit2RepoPool.TryInvoke(repo => repo.ObjectExists(blobSha), out output);
+            this.libgit2RepoInvoker.TryInvoke(repo => repo.ObjectExists(blobSha), out output);
             return output;
         }
 
@@ -103,10 +104,10 @@ namespace GVFS.Common.Git
 
         public void Dispose()
         {
-            if (this.libgit2RepoPool != null)
+            if (this.libgit2RepoInvoker != null)
             {
-                this.libgit2RepoPool.Dispose();
-                this.libgit2RepoPool = null;
+                this.libgit2RepoInvoker.Dispose();
+                this.libgit2RepoInvoker = null;
             }
         }
 
