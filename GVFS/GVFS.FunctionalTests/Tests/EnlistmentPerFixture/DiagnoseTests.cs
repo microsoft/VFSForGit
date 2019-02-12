@@ -8,6 +8,7 @@ using System.Linq;
 namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
 {
     [TestFixture]
+    [NonParallelizable]
     [Category(Categories.FullSuiteOnly)]
     public class DiagnoseTests : TestsWithEnlistmentPerFixture
     {
