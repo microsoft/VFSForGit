@@ -65,14 +65,16 @@ namespace GVFS.Common
 
         public GitAuthentication Authentication { get; }
 
-        public static string GetNewLogFileName(string logsRoot, string prefix)
+        public static string GetNewLogFileName(string logsRoot, string prefix, string logId = null)
         {
             if (!Directory.Exists(logsRoot))
             {
                 Directory.CreateDirectory(logsRoot);
             }
 
-            string name = prefix + "_" + DateTime.Now.ToString("yyyyMMdd_HHmmss");
+            logId = logId ?? DateTime.Now.ToString("yyyyMMdd_HHmmss");
+
+            string name = prefix + "_" + logId;
             string fullPath = Path.Combine(
                 logsRoot,
                 name + ".log");

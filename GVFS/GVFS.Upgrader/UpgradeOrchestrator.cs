@@ -5,6 +5,7 @@ using GVFS.Common.Git;
 using GVFS.Common.Tracing;
 using System;
 using System.IO;
+using System.Text;
 
 namespace GVFS.Upgrader
 {
@@ -14,6 +15,8 @@ namespace GVFS.Upgrader
         private const EventLevel DefaultEventLevel = EventLevel.Informational;
 
         private ProductUpgrader upgrader;
+        private string logDirectory = ProductUpgraderInfo.GetLogDirectoryPath();
+        private string installationId;
         private ITracer tracer;
         private PhysicalFileSystem fileSystem;
         private InstallerPreRunChecker preRunChecker;
@@ -37,6 +40,7 @@ namespace GVFS.Upgrader
             this.input = input;
             this.mount = false;
             this.ExitCode = ReturnCode.Success;
+            this.installationId = DateTime.Now.ToString("yyyyMMdd_HHmmss");
         }
 
         public UpgradeOrchestrator()
@@ -51,6 +55,7 @@ namespace GVFS.Upgrader
             this.input = Console.In;
             this.mount = false;
             this.ExitCode = ReturnCode.Success;
+            this.installationId = DateTime.Now.ToString("yyyyMMdd_HHmmss");
         }
 
         public ReturnCode ExitCode { get; private set; }
@@ -114,8 +119,16 @@ namespace GVFS.Upgrader
 
                 if (this.ExitCode == ReturnCode.GenericError)
                 {
-                    error = Environment.NewLine + "ERROR: " + error;
-                    this.output.WriteLine(error);
+                    StringBuilder sb = new StringBuilder();
+                    sb.AppendLine();
+                    sb.Append("ERROR: " + error);
+
+                    sb.AppendLine();
+                    sb.AppendLine();
+
+                    sb.AppendLine($"Upgrade logs can be found at: {this.logDirectory} with file names that end with the installation ID: {this.installationId}.");
+
+                    this.output.WriteLine(sb.ToString());
                 }
                 else
                 {
@@ -142,8 +155,9 @@ namespace GVFS.Upgrader
         private JsonTracer CreateTracer()
         {
             string logFilePath = GVFSEnlistment.GetNewGVFSLogFileName(
-                ProductUpgraderInfo.GetLogDirectoryPath(),
+                this.logDirectory,
                 GVFSConstants.LogFileTypes.UpgradeProcess);
+
             JsonTracer jsonTracer = new JsonTracer(GVFSConstants.GVFSEtwProviderName, "UpgradeProcess");
 
             jsonTracer.AddLogFileEventListener(
@@ -174,6 +188,9 @@ namespace GVFS.Upgrader
                     return false;
                 }
 
+                // Configure the upgrader to have installer logs written to the same directory
+                // as the upgrader.
+                upgrader.UpgradeInstanceId = this.installationId;
                 this.upgrader = upgrader;
             }
 
