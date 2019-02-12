@@ -142,12 +142,12 @@ namespace GVFS.UnitTests.Windows.Upgrader
                 expectedReturn: ReturnCode.GenericError,
                 expectedOutput: new List<string>
                 {
-                    "ERROR: `gvfs upgrade` is not supported because you have previously installed an out of band ProjFS driver.",
+                    "ERROR: `gvfs upgrade` is only supported after the \"Windows Projected File System\" optional feature has been enabled by a manual installation of VFS for Git, and only on versions of Windows that support this feature.",
                     "Check your team's documentation for how to upgrade."
                 },
                 expectedErrors: new List<string>
                 {
-                    "`gvfs upgrade` is not supported because you have previously installed an out of band ProjFS driver."
+                    "`gvfs upgrade` is only supported after the \"Windows Projected File System\" optional feature has been enabled by a manual installation of VFS for Git, and only on versions of Windows that support this feature."
                 });
         }
 
