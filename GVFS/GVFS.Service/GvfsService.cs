@@ -509,7 +509,7 @@ namespace GVFS.Service
             // Protect the access rules from inheritance and remove any inherited rules
             upgradeLogsSecurity.SetAccessRuleProtection(isProtected: true, preserveInheritance: false);
 
-            // Add new ACLs for users and admins.  Users will be granted write permissions.S
+            // Add new ACLs for users and admins.  Users will be granted write permissions.
             WindowsFileSystem.AddUsersAccessRulesToDirectorySecurity(upgradeLogsSecurity, grantUsersModifyPermissions: true);
             WindowsFileSystem.AddAdminAccessRulesToDirectorySecurity(upgradeLogsSecurity);
             return upgradeLogsSecurity;
