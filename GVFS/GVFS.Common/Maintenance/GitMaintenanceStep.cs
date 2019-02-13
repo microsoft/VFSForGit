@@ -79,18 +79,28 @@ namespace GVFS.Common.Maintenance
 
                 if (process != null)
                 {
-                    if (process.TryKillRunningProcess())
+                    if (process.TryKillRunningProcess(out string processName, out int exitCode, out string error))
                     {
                         this.Context.Tracer.RelatedEvent(
                             EventLevel.Informational,
-                            this.Area + ": killed background Git process during " + nameof(this.Stop),
+                            string.Format(
+                                "{0}: killed background process {1} during {2}",
+                                this.Area,
+                                processName,
+                                nameof(this.Stop)),
                             metadata: null);
                     }
                     else
                     {
                         this.Context.Tracer.RelatedEvent(
                             EventLevel.Informational,
-                            this.Area + ": failed to kill background Git process during " + nameof(this.Stop),
+                            string.Format(
+                                "{0}: failed to kill background process {1} during {2}. ExitCode:{3} Error:{4}",
+                                this.Area,
+                                processName,
+                                nameof(this.Stop),
+                                exitCode,
+                                error),
                             metadata: null);
                     }
                 }

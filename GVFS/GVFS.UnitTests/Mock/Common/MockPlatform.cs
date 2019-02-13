@@ -122,5 +122,12 @@ namespace GVFS.UnitTests.Mock.Common
         {
             return new MockFileBasedLock(fileSystem, tracer, lockPath);
         }
+
+        public override bool TryKillProcessTree(int processId, out int exitCode, out string error)
+        {
+            error = null;
+            exitCode = 0;
+            return true;
+        }
     }
 }

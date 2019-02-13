@@ -270,6 +270,23 @@ namespace GVFS.Upgrader
                 return false;
             }
 
+            if (!this.LaunchInsideSpinner(
+                () =>
+                {
+                    if (!this.preRunChecker.IsInstallationBlockedByRunningProcess(out error))
+                    {
+                        return false;
+                    }
+
+                    return true;
+                },
+                "Checking for blocking processes."))
+            {
+                newVersion = null;
+                consoleError = error;
+                return false;
+            }
+
             if (!this.upgrader.TryRunInstaller(this.LaunchInsideSpinner, out consoleError))
             {
                 newVersion = null;

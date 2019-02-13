@@ -159,5 +159,13 @@ namespace GVFS.Platform.Mac
         {
             return new MacFileBasedLock(fileSystem, tracer, lockPath);
         }
+
+        public override bool TryKillProcessTree(int processId, out int exitCode, out string error)
+        {
+            ProcessResult result = ProcessHelper.Run("pkill", $"-P {processId}");
+            error = result.Errors;
+            exitCode = result.ExitCode;
+            return result.ExitCode == 0;
+        }
     }
 }

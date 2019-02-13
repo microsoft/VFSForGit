@@ -58,7 +58,6 @@ namespace GVFS.Upgrader
         public virtual bool TryUnmountAllGVFSRepos(out string consoleError)
         {
             consoleError = null;
-
             this.tracer.RelatedInfo("Unmounting any mounted GVFS repositories.");
 
             using (ITracer activity = this.tracer.StartActivity(nameof(this.TryUnmountAllGVFSRepos), EventLevel.Informational))
@@ -69,36 +68,43 @@ namespace GVFS.Upgrader
                     return false;
                 }
 
-                // While checking for blocking processes like GVFS.Mount immediately after un-mounting,
-                // then sometimes GVFS.Mount shows up as running. But if the check is done after waiting
-                // for some time, then eventually GVFS.Mount goes away. The retry loop below is to help
-                // account for this delay between the time un-mount call returns and when GVFS.Mount
-                // actually quits.
-                this.tracer.RelatedInfo("Checking if GVFS or dependent processes are running.");
-                int retryCount = 10;
-                HashSet<string> processList = null;
-                while (retryCount > 0)
-                {
-                    if (!this.IsBlockingProcessRunning(out processList))
-                    {
-                        break;
-                    }
-
-                    Thread.Sleep(TimeSpan.FromMilliseconds(250));
-                    retryCount--;
-                }
-
-                if (processList.Count > 0)
-                {
-                    consoleError = string.Join(
-                        Environment.NewLine,
-                        "Blocking processes are running.",
-                        $"Run {this.CommandToRerun} again after quitting these processes - " + string.Join(", ", processList.ToArray()));
-                    this.tracer.RelatedError($"{nameof(this.TryUnmountAllGVFSRepos)}: {consoleError}");
-                    return false;
-                }
-
                 activity.RelatedInfo("Successfully unmounted repositories.");
+            }
+
+            return true;
+        }
+
+        public virtual bool IsInstallationBlockedByRunningProcess(out string consoleError)
+        {
+            consoleError = null;
+
+            // While checking for blocking processes like GVFS.Mount immediately after un-mounting,
+            // then sometimes GVFS.Mount shows up as running. But if the check is done after waiting
+            // for some time, then eventually GVFS.Mount goes away. The retry loop below is to help
+            // account for this delay between the time un-mount call returns and when GVFS.Mount
+            // actually quits.
+            this.tracer.RelatedInfo("Checking if GVFS or dependent processes are running.");
+            int retryCount = 10;
+            HashSet<string> processList = null;
+            while (retryCount > 0)
+            {
+                if (!this.IsBlockingProcessRunning(out processList))
+                {
+                    break;
+                }
+
+                Thread.Sleep(TimeSpan.FromMilliseconds(250));
+                retryCount--;
+            }
+
+            if (processList.Count > 0)
+            {
+                consoleError = string.Join(
+                    Environment.NewLine,
+                    "Blocking processes are running.",
+                    $"Run {this.CommandToRerun} again after quitting these processes - " + string.Join(", ", processList.ToArray()));
+                this.tracer.RelatedError($"{nameof(this.IsInstallationBlockedByRunningProcess)}: {consoleError}");
+                return false;
             }
 
             return true;
@@ -139,7 +145,7 @@ namespace GVFS.Upgrader
                     continue;
                 }
 
-                matchingNames.Add(process.ProcessName);
+                matchingNames.Add(process.ProcessName + " pid:" + process.Id);
             }
 
             processes = matchingNames;

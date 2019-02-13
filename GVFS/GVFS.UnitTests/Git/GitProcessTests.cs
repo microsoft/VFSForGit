@@ -12,7 +12,11 @@ namespace GVFS.UnitTests.Git
         public void TryKillRunningProcess_NeverRan()
         {
             GitProcess process = new GitProcess(new MockGVFSEnlistment());
-            process.TryKillRunningProcess().ShouldBeTrue();
+            process.TryKillRunningProcess(out string processName, out int exitCode, out string error).ShouldBeTrue();
+
+            processName.ShouldBeNull();
+            exitCode.ShouldEqual(-1);
+            error.ShouldBeNull();
         }
 
         [TestCase]

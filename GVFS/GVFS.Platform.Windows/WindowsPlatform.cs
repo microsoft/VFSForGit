@@ -335,6 +335,14 @@ namespace GVFS.Platform.Windows
             return WindowsPlatform.TryGetGVFSEnlistmentRootImplementation(directory, out enlistmentRoot, out errorMessage);
         }
 
+        public override bool TryKillProcessTree(int processId, out int exitCode, out string error)
+        {
+            ProcessResult result = ProcessHelper.Run("taskkill", $"/pid {processId} /f /t");
+            error = result.Errors;
+            exitCode = result.ExitCode;
+            return result.ExitCode == 0;
+        }
+
         private static object GetValueFromRegistry(RegistryHive registryHive, string key, string valueName, RegistryView view)
         {
             RegistryKey localKey = RegistryKey.OpenBaseKey(registryHive, view);
