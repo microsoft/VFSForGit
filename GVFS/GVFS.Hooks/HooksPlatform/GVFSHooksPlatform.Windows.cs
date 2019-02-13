@@ -16,7 +16,10 @@ namespace GVFS.Hooks.HooksPlatform
 
         public static bool IsProcessActive(int processId)
         {
-            return WindowsPlatform.IsProcessActiveImplementation(processId);
+            // Since the hooks are children of the running git process, they will have permissions
+            // to OpenProcess and don't need to try the expessive GetProcessById method to determine
+            // if the process is still active.
+            return WindowsPlatform.IsProcessActiveImplementation(processId, tryGetProcessById: false);
         }
 
         public static string GetNamedPipeName(string enlistmentRoot)

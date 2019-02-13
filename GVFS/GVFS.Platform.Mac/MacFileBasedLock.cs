@@ -15,7 +15,7 @@ namespace GVFS.Platform.Mac
             PhysicalFileSystem fileSystem,
             ITracer tracer,
             string lockPath)
-            : base(fileSystem, tracer, lockPath) 
+            : base(fileSystem, tracer, lockPath)
         {
             this.lockFileDescriptor = NativeMethods.InvalidFileDescriptor;
         }
@@ -27,8 +27,8 @@ namespace GVFS.Platform.Mac
                 this.FileSystem.CreateDirectory(Path.GetDirectoryName(this.LockPath));
 
                 this.lockFileDescriptor = NativeMethods.Open(
-                    this.LockPath, 
-                    NativeMethods.OpenCreate | NativeMethods.OpenWriteOnly, 
+                    this.LockPath,
+                    NativeMethods.OpenCreate | NativeMethods.OpenWriteOnly,
                     NativeMethods.FileMode644);
 
                 if (this.lockFileDescriptor == NativeMethods.InvalidFileDescriptor)
@@ -38,7 +38,7 @@ namespace GVFS.Platform.Mac
                     this.Tracer.RelatedWarning(
                         metadata,
                         $"{nameof(MacFileBasedLock)}.{nameof(this.TryAcquireLock)}: Failed to open lock file");
-                    
+
                     return false;
                 }
             }
@@ -70,7 +70,7 @@ namespace GVFS.Platform.Mac
                     // It's possible that errors from a previous operation (e.g. write(2))
                     // are only reported in close().  We should *not* retry the close() if
                     // it fails since it may cause a re-used file descriptor from another
-                    // thrad to be closed.
+                    // thread to be closed.
 
                     int errno = Marshal.GetLastWin32Error();
                     EventMetadata metadata = this.CreateEventMetadata(errno);

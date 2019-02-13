@@ -1,11 +1,12 @@
-SCRIPTDIR=$(dirname ${BASH_SOURCE[0]})
-SRCDIR=$SCRIPTDIR/../..
-$SRCDIR/ProjFS.Mac/Scripts/UnloadPrjFSKext.sh
+. "$(dirname ${BASH_SOURCE[0]})/InitializeEnvironment.sh"
 
-sudo rm -r /GVFS.FT
+pkill -9 -l GVFS.FunctionalTests
+pkill -9 -l git
+pkill -9 -l gvfs
+pkill -9 -l prjfs-log
 
-PATURL=$1
-if [[ -z $PATURL ]] ; then
-    exit 1
+$VFS_SRCDIR/ProjFS.Mac/Scripts/UnloadPrjFSKext.sh
+
+if [ -d /GVFS.FT ]; then
+    sudo rm -r /GVFS.FT
 fi
-security delete-generic-password -s "gcm4ml:git:$PATURL"

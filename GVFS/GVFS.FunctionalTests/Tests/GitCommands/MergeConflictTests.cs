@@ -4,12 +4,12 @@ using NUnit.Framework;
 
 namespace GVFS.FunctionalTests.Tests.GitCommands
 {
-    [TestFixture]
+    [TestFixtureSource(typeof(GitRepoTests), nameof(GitRepoTests.ValidateWorkingTree))]
     [Category(Categories.GitCommands)]
-    [Category(Categories.MacTODO.M3)]
     public class MergeConflictTests : GitRepoTests
     {
-        public MergeConflictTests() : base(enlistmentPerTest: true)
+        public MergeConflictTests(bool validateWorkingTree)
+            : base(enlistmentPerTest: true, validateWorkingTree: validateWorkingTree)
         {
         }
 
@@ -47,7 +47,7 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
             this.ValidateGitCommand("merge --abort");
             this.FilesShouldMatchCheckoutOfTargetBranch();
         }
-        
+
         [TestCase]
         public void MergeConflict_UsingOurs()
         {

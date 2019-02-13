@@ -5,14 +5,9 @@ namespace GVFS.FunctionalTests.FileSystemRunners
 {
     public abstract class FileSystemRunner
     {
-        /// <summary>
-        /// String that identifies which list to use when running tests
-        /// </summary>
-        public const string TestRunners = "Runners";
-
         private static FileSystemRunner defaultRunner = new SystemIORunner();
 
-        public static object[] AllWindowsRunners { get; } = 
+        public static object[] AllWindowsRunners { get; } =
             new[]
             {
                 new object[] { new SystemIORunner() },
@@ -21,7 +16,7 @@ namespace GVFS.FunctionalTests.FileSystemRunners
                 new object[] { new BashRunner() },
             };
 
-        public static object[] AllMacRunners { get; } = 
+        public static object[] AllMacRunners { get; } =
             new[]
             {
                 new object[] { new SystemIORunner() },
@@ -33,7 +28,7 @@ namespace GVFS.FunctionalTests.FileSystemRunners
             {
                 new object[] { defaultRunner }
             };
-        
+
         public static object[] Runners
         {
             get { return GVFSTestConfig.FileSystemRunners; }
@@ -48,7 +43,7 @@ namespace GVFS.FunctionalTests.FileSystemRunners
         }
 
         // File methods
-        public abstract bool FileExists(string path);       
+        public abstract bool FileExists(string path);
         public abstract string MoveFile(string sourcePath, string targetPath);
 
         /// <summary>
@@ -70,6 +65,7 @@ namespace GVFS.FunctionalTests.FileSystemRunners
 
         public abstract void CreateEmptyFile(string path);
         public abstract void CreateHardLink(string newLinkFilePath, string existingFilePath);
+        public abstract void ChangeMode(string path, ushort mode);
 
         /// <summary>
         /// Write the specified contents to the specified file.  By calling this method the caller is
@@ -114,5 +110,5 @@ namespace GVFS.FunctionalTests.FileSystemRunners
         public abstract string DeleteDirectory(string path);
         public abstract void DeleteDirectory_DirectoryShouldNotBeFound(string path);
         public abstract void DeleteDirectory_ShouldBeBlockedByProcess(string path);
-    }   
+    }
 }

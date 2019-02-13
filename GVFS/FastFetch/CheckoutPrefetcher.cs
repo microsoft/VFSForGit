@@ -3,7 +3,7 @@ using GVFS.Common.Git;
 using GVFS.Common.Http;
 using GVFS.Common.Prefetch;
 using GVFS.Common.Prefetch.Git;
-using GVFS.Common.Prefetch.Jobs;
+using GVFS.Common.Prefetch.Pipeline;
 using GVFS.Common.Tracing;
 using System;
 using System.Collections.Generic;
@@ -28,7 +28,15 @@ namespace FastFetch
             int indexThreadCount,
             int checkoutThreadCount,
             bool allowIndexMetadataUpdateFromWorkingTree,
-            bool forceCheckout) : base(tracer, enlistment, objectRequestor, chunkSize, searchThreadCount, downloadThreadCount, indexThreadCount)
+            bool forceCheckout)
+                : base(
+                    tracer,
+                    enlistment,
+                    objectRequestor,
+                    chunkSize,
+                    searchThreadCount,
+                    downloadThreadCount,
+                    indexThreadCount)
         {
             this.checkoutThreadCount = checkoutThreadCount;
             this.allowIndexMetadataUpdateFromWorkingTree = allowIndexMetadataUpdateFromWorkingTree;
@@ -68,11 +76,11 @@ namespace FastFetch
 
             // Configure pipeline
             // Checkout uses DiffHelper when running checkout.Start(), which we use instead of LsTreeHelper
-            // Checkout diff output => FindMissingBlobs => BatchDownload => IndexPack => Checkout available blobs
-            CheckoutJob checkout = new CheckoutJob(this.checkoutThreadCount, this.FolderList, commitToFetch, this.Tracer, this.Enlistment, this.forceCheckout);
-            FindMissingBlobsJob blobFinder = new FindMissingBlobsJob(this.SearchThreadCount, checkout.RequiredBlobs, checkout.AvailableBlobShas, this.Tracer, this.Enlistment);
-            BatchObjectDownloadJob downloader = new BatchObjectDownloadJob(this.DownloadThreadCount, this.ChunkSize, blobFinder.MissingBlobs, checkout.AvailableBlobShas, this.Tracer, this.Enlistment, this.ObjectRequestor, this.GitObjects);
-            IndexPackJob packIndexer = new IndexPackJob(this.IndexThreadCount, downloader.AvailablePacks, checkout.AvailableBlobShas, this.Tracer, this.GitObjects);
+            // Checkout diff output => FindBlobs => BatchDownload => IndexPack => Checkout available blobs
+            CheckoutStage checkout = new CheckoutStage(this.checkoutThreadCount, this.FolderList, commitToFetch, this.Tracer, this.Enlistment, this.forceCheckout);
+            FindBlobsStage blobFinder = new FindBlobsStage(this.SearchThreadCount, checkout.RequiredBlobs, checkout.AvailableBlobShas, this.Tracer, this.Enlistment);
+            BatchObjectDownloadStage downloader = new BatchObjectDownloadStage(this.DownloadThreadCount, this.ChunkSize, blobFinder.MissingBlobs, checkout.AvailableBlobShas, this.Tracer, this.Enlistment, this.ObjectRequestor, this.GitObjects);
+            IndexPackStage packIndexer = new IndexPackStage(this.IndexThreadCount, downloader.AvailablePacks, checkout.AvailableBlobShas, this.Tracer, this.GitObjects);
 
             // Start pipeline
             downloader.Start();
@@ -111,7 +119,7 @@ namespace FastFetch
                         string remoteBranch = refs.GetBranchRefPairs().Single().Key;
                         GitProcess git = new GitProcess(this.Enlistment);
                         GitProcess.Result result = git.SetUpstream(branchOrCommit, remoteBranch);
-                        if (result.HasErrors)
+                        if (result.ExitCodeIsFailure)
                         {
                             activity.RelatedError("Could not set upstream for {0} to {1}: {2}", branchOrCommit, remoteBranch, result.Errors);
                             this.HasFailures = true;
@@ -134,9 +142,9 @@ namespace FastFetch
                     if (!indexGen.HasFailures)
                     {
                         Index newIndex = new Index(
-                            this.Enlistment.EnlistmentRoot, 
+                            this.Enlistment.EnlistmentRoot,
                             this.Tracer,
-                            Path.Combine(this.Enlistment.DotGitRoot, GVFSConstants.DotGit.IndexName), 
+                            Path.Combine(this.Enlistment.DotGitRoot, GVFSConstants.DotGit.IndexName),
                             readOnly: false);
 
                         // Update from disk only if the caller says it is ok via command line
@@ -147,7 +155,7 @@ namespace FastFetch
                 }
             }
         }
-        
+
         /// <summary>
         /// * Updates local branch (N/A for checkout to detached HEAD)
         /// * Updates HEAD
@@ -171,7 +179,7 @@ namespace FastFetch
 
             base.UpdateRefs(branchOrCommit, isBranch, refs);
         }
-        
+
         private Index GetSourceIndex()
         {
             string indexPath = Path.Combine(this.Enlistment.DotGitRoot, GVFSConstants.DotGit.IndexName);
@@ -185,7 +193,7 @@ namespace FastFetch
                 this.Tracer.RelatedEvent(EventLevel.Informational, "CreateBackup", new EventMetadata() { { "BackupIndexName", backupIndexPath } });
                 File.Delete(backupIndexPath);
                 File.Move(indexPath, backupIndexPath);
-                
+
                 Index output = new Index(this.Enlistment.EnlistmentRoot, this.Tracer, backupIndexPath, readOnly: true);
                 output.Parse();
                 return output;
@@ -200,14 +208,20 @@ namespace FastFetch
             const uint CoreGvfsUnsignedIndexFlag = 1;
 
             GitProcess git = new GitProcess(this.Enlistment);
-            GitProcess.Result configCoreGvfs = git.GetFromConfig("core.gvfs");
+            GitProcess.ConfigResult configCoreGvfs = git.GetFromConfig("core.gvfs");
+            string coreGvfs;
+            string error;
+            if (!configCoreGvfs.TryParseAsString(out coreGvfs, out error))
+            {
+                return false;
+            }
+
             uint valueCoreGvfs;
 
             // No errors getting the configuration and it is either "true" or numeric with the right bit set.
-            return !configCoreGvfs.HasErrors &&
-                !string.IsNullOrEmpty(configCoreGvfs.Output) &&
-                (configCoreGvfs.Output.Equals("true", StringComparison.OrdinalIgnoreCase) ||
-                (uint.TryParse(configCoreGvfs.Output, out valueCoreGvfs) &&
+            return !string.IsNullOrEmpty(coreGvfs) &&
+                (coreGvfs.Equals("true", StringComparison.OrdinalIgnoreCase) ||
+                (uint.TryParse(coreGvfs, out valueCoreGvfs) &&
                 ((valueCoreGvfs & CoreGvfsUnsignedIndexFlag) == CoreGvfsUnsignedIndexFlag)));
         }
     }

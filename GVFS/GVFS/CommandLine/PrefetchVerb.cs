@@ -3,9 +3,11 @@ using GVFS.Common;
 using GVFS.Common.FileSystem;
 using GVFS.Common.Git;
 using GVFS.Common.Http;
+using GVFS.Common.Maintenance;
 using GVFS.Common.Prefetch;
 using GVFS.Common.Tracing;
 using System;
+using System.Collections.Generic;
 using System.IO;
 
 namespace GVFS.CommandLine
@@ -47,10 +49,31 @@ namespace GVFS.CommandLine
         public string FoldersListFile { get; set; }
 
         [Option(
+            "stdin-files-list",
+            Required = false,
+            Default = false,
+            HelpText = "Specify this flag to load file list from stdin. Same format as when loading from file.")]
+        public bool FilesFromStdIn { get; set; }
+
+        [Option(
+            "stdin-folders-list",
+            Required = false,
+            Default = false,
+            HelpText = "Specify this flag to load folder list from stdin. Same format as when loading from file.")]
+        public bool FoldersFromStdIn { get; set; }
+
+        [Option(
+            "files-list",
+            Required = false,
+            Default = "",
+            HelpText = "A file containing line-delimited list of files to fetch. Wildcards are supported.")]
+        public string FilesListFile { get; set; }
+
+        [Option(
             "hydrate",
             Required = false,
             Default = false,
-            HelpText = "Specify this flag to also hydrate files in the working directory")]
+            HelpText = "Specify this flag to also hydrate files in the working directory.")]
         public bool HydrateFiles { get; set; }
 
         [Option(
@@ -65,7 +88,7 @@ namespace GVFS.CommandLine
             "verbose",
             Required = false,
             Default = false,
-            HelpText = "Show all outputs on the console in addition to writing them to a log file")]
+            HelpText = "Show all outputs on the console in addition to writing them to a log file.")]
         public bool Verbose { get; set; }
 
         public bool SkipVersionCheck { get; set; }
@@ -97,55 +120,27 @@ namespace GVFS.CommandLine
                     enlistment.RepoUrl,
                     cacheServerUrl);
 
-                RetryConfig retryConfig = this.GetRetryConfig(tracer, enlistment, TimeSpan.FromMinutes(RetryConfig.FetchAndCloneTimeoutMinutes));
-
-                CacheServerInfo cacheServer = this.ResolvedCacheServer;
-                ServerGVFSConfig serverGVFSConfig = this.ServerGVFSConfig;
-                if (!this.SkipVersionCheck)
-                {
-                    string authErrorMessage;
-                    if (!this.ShowStatusWhileRunning(
-                        () => enlistment.Authentication.TryRefreshCredentials(tracer, out authErrorMessage),
-                        "Authenticating"))
-                    {
-                        this.ReportErrorAndExit(tracer, "Unable to prefetch because authentication failed");
-                    }
-
-                    if (serverGVFSConfig == null)
-                    {
-                        serverGVFSConfig = this.QueryGVFSConfig(tracer, enlistment, retryConfig);
-                    }
-
-                    if (cacheServer == null)
-                    {
-                        CacheServerResolver cacheServerResolver = new CacheServerResolver(tracer, enlistment);
-                        cacheServer = cacheServerResolver.ResolveNameFromRemote(cacheServerUrl, serverGVFSConfig);
-                    }
-
-                    this.ValidateClientVersions(tracer, enlistment, serverGVFSConfig, showWarnings: false);
-
-                    this.Output.WriteLine("Configured cache server: " + cacheServer);
-                }
-
-                this.InitializeLocalCacheAndObjectsPaths(tracer, enlistment, retryConfig, serverGVFSConfig, cacheServer);
-
                 try
                 {
                     EventMetadata metadata = new EventMetadata();
                     metadata.Add("Commits", this.Commits);
                     metadata.Add("Files", this.Files);
                     metadata.Add("Folders", this.Folders);
+                    metadata.Add("FileListFile", this.FilesListFile);
                     metadata.Add("FoldersListFile", this.FoldersListFile);
+                    metadata.Add("FilesFromStdIn", this.FilesFromStdIn);
+                    metadata.Add("FoldersFromStdIn", this.FoldersFromStdIn);
                     metadata.Add("HydrateFiles", this.HydrateFiles);
                     tracer.RelatedEvent(EventLevel.Informational, "PerformPrefetch", metadata);
-
-                    GitObjectsHttpRequestor objectRequestor = new GitObjectsHttpRequestor(tracer, enlistment, cacheServer, retryConfig);
 
                     if (this.Commits)
                     {
                         if (!string.IsNullOrWhiteSpace(this.Files) ||
                             !string.IsNullOrWhiteSpace(this.Folders) ||
-                            !string.IsNullOrWhiteSpace(this.FoldersListFile))
+                            !string.IsNullOrWhiteSpace(this.FoldersListFile) ||
+                            !string.IsNullOrWhiteSpace(this.FilesListFile) ||
+                            this.FilesFromStdIn ||
+                            this.FoldersFromStdIn)
                         {
                             this.ReportErrorAndExit(tracer, "You cannot prefetch commits and blobs at the same time.");
                         }
@@ -155,11 +150,41 @@ namespace GVFS.CommandLine
                             this.ReportErrorAndExit(tracer, "You can only specify --hydrate with --files or --folders");
                         }
 
+                        GitObjectsHttpRequestor objectRequestor;
+                        CacheServerInfo cacheServer;
+                        this.InitializeServerConnection(
+                            tracer,
+                            enlistment,
+                            cacheServerUrl,
+                            out objectRequestor,
+                            out cacheServer);
                         this.PrefetchCommits(tracer, enlistment, objectRequestor, cacheServer);
                     }
                     else
                     {
-                        this.PrefetchBlobs(tracer, enlistment, objectRequestor, cacheServer);
+                        string headCommitId;
+                        List<string> filesList;
+                        List<string> foldersList;
+                        FileBasedDictionary<string, string> lastPrefetchArgs;
+
+                        this.LoadBlobPrefetchArgs(tracer, enlistment, out headCommitId, out filesList, out foldersList, out lastPrefetchArgs);
+
+                        if (BlobPrefetcher.IsNoopPrefetch(tracer, lastPrefetchArgs, headCommitId, filesList, foldersList, this.HydrateFiles))
+                        {
+                            Console.WriteLine("All requested files are already available. Nothing new to prefetch.");
+                        }
+                        else
+                        {
+                            GitObjectsHttpRequestor objectRequestor;
+                            CacheServerInfo cacheServer;
+                            this.InitializeServerConnection(
+                                tracer,
+                                enlistment,
+                                cacheServerUrl,
+                                out objectRequestor,
+                                out cacheServer);
+                            this.PrefetchBlobs(tracer, enlistment, headCommitId, filesList, foldersList, lastPrefetchArgs, objectRequestor, cacheServer);
+                        }
                     }
                 }
                 catch (VerbAbortedException)
@@ -202,6 +227,45 @@ namespace GVFS.CommandLine
             }
         }
 
+        private void InitializeServerConnection(
+            ITracer tracer,
+            GVFSEnlistment enlistment,
+            string cacheServerUrl,
+            out GitObjectsHttpRequestor objectRequestor,
+            out CacheServerInfo cacheServer)
+        {
+            RetryConfig retryConfig = this.GetRetryConfig(tracer, enlistment, TimeSpan.FromMinutes(RetryConfig.FetchAndCloneTimeoutMinutes));
+
+            cacheServer = this.ResolvedCacheServer;
+            ServerGVFSConfig serverGVFSConfig = this.ServerGVFSConfig;
+            if (!this.SkipVersionCheck)
+            {
+                string authErrorMessage;
+                if (!this.TryAuthenticate(tracer, enlistment, out authErrorMessage))
+                {
+                    this.ReportErrorAndExit(tracer, "Unable to prefetch because authentication failed: " + authErrorMessage);
+                }
+
+                if (serverGVFSConfig == null)
+                {
+                    serverGVFSConfig = this.QueryGVFSConfig(tracer, enlistment, retryConfig);
+                }
+
+                if (cacheServer == null)
+                {
+                    CacheServerResolver cacheServerResolver = new CacheServerResolver(tracer, enlistment);
+                    cacheServer = cacheServerResolver.ResolveNameFromRemote(cacheServerUrl, serverGVFSConfig);
+                }
+
+                this.ValidateClientVersions(tracer, enlistment, serverGVFSConfig, showWarnings: false);
+
+                this.Output.WriteLine("Configured cache server: " + cacheServer);
+            }
+
+            this.InitializeLocalCacheAndObjectsPaths(tracer, enlistment, retryConfig, serverGVFSConfig, cacheServer);
+            objectRequestor = new GitObjectsHttpRequestor(tracer, enlistment, cacheServer, retryConfig);
+        }
+
         private void PrefetchCommits(ITracer tracer, GVFSEnlistment enlistment, GitObjectsHttpRequestor objectRequestor, CacheServerInfo cacheServer)
         {
             bool success;
@@ -213,13 +277,13 @@ namespace GVFS.CommandLine
 
             if (this.Verbose)
             {
-                success = CommitPrefetcher.TryPrefetchCommitsAndTrees(tracer, enlistment, fileSystem, gitObjects, out error);
+                success = new PrefetchStep(context, gitObjects, requireCacheLock: false).TryPrefetchCommitsAndTrees(out error);
             }
             else
             {
                 success = this.ShowStatusWhileRunning(
-                    () => CommitPrefetcher.TryPrefetchCommitsAndTrees(tracer, enlistment, fileSystem, gitObjects, out error),
-                    "Fetching commits and trees " + this.GetCacheServerDisplay(cacheServer, enlistment.RepoUrl));
+                    () => new PrefetchStep(context, gitObjects, requireCacheLock: false).TryPrefetchCommitsAndTrees(out error),
+                "Fetching commits and trees " + this.GetCacheServerDisplay(cacheServer, enlistment.RepoUrl));
             }
 
             if (!success)
@@ -228,32 +292,75 @@ namespace GVFS.CommandLine
             }
         }
 
-        private void PrefetchBlobs(ITracer tracer, GVFSEnlistment enlistment, GitObjectsHttpRequestor blobRequestor, CacheServerInfo cacheServer)
+        private void LoadBlobPrefetchArgs(
+            ITracer tracer,
+            GVFSEnlistment enlistment,
+            out string headCommitId,
+            out List<string> filesList,
+            out List<string> foldersList,
+            out FileBasedDictionary<string, string> lastPrefetchArgs)
+        {
+            string error;
+
+            if (!FileBasedDictionary<string, string>.TryCreate(
+                    tracer,
+                    Path.Combine(enlistment.DotGVFSRoot, "LastBlobPrefetch.dat"),
+                    new PhysicalFileSystem(),
+                    out lastPrefetchArgs,
+                    out error))
+            {
+                tracer.RelatedWarning("Unable to load last prefetch args: " + error);
+            }
+
+            filesList = new List<string>();
+            foldersList = new List<string>();
+
+            if (!BlobPrefetcher.TryLoadFileList(enlistment, this.Files, this.FilesListFile, filesList, readListFromStdIn: this.FilesFromStdIn, error: out error))
+            {
+                this.ReportErrorAndExit(tracer, error);
+            }
+
+            if (!BlobPrefetcher.TryLoadFolderList(enlistment, this.Folders, this.FoldersListFile, foldersList, readListFromStdIn: this.FoldersFromStdIn, error: out error))
+            {
+                this.ReportErrorAndExit(tracer, error);
+            }
+
+            GitProcess gitProcess = new GitProcess(enlistment);
+            GitProcess.Result result = gitProcess.RevParse(GVFSConstants.DotGit.HeadName);
+            if (result.ExitCodeIsFailure)
+            {
+                this.ReportErrorAndExit(tracer, result.Errors);
+            }
+
+            headCommitId = result.Output.Trim();
+        }
+
+        private void PrefetchBlobs(
+            ITracer tracer,
+            GVFSEnlistment enlistment,
+            string headCommitId,
+            List<string> filesList,
+            List<string> foldersList,
+            FileBasedDictionary<string, string> lastPrefetchArgs,
+            GitObjectsHttpRequestor objectRequestor,
+            CacheServerInfo cacheServer)
         {
             BlobPrefetcher blobPrefetcher = new BlobPrefetcher(
                 tracer,
                 enlistment,
-                blobRequestor,
+                objectRequestor,
+                filesList,
+                foldersList,
+                lastPrefetchArgs,
                 ChunkSize,
                 SearchThreadCount,
                 DownloadThreadCount,
                 IndexThreadCount);
 
-            string error;
-            if (!BlobPrefetcher.TryLoadFolderList(enlistment, this.Folders, this.FoldersListFile, blobPrefetcher.FolderList, out error))
-            {
-                this.ReportErrorAndExit(tracer, error);
-            }
-
-            if (!BlobPrefetcher.TryLoadFileList(enlistment, this.Files, blobPrefetcher.FileList, out error))
-            {
-                this.ReportErrorAndExit(tracer, error);
-            }
-
             if (blobPrefetcher.FolderList.Count == 0 &&
                 blobPrefetcher.FileList.Count == 0)
             {
-                this.ReportErrorAndExit(tracer, "Did you mean to fetch all blobs? If so, specify `--files *` to confirm.");
+                this.ReportErrorAndExit(tracer, "Did you mean to fetch all blobs? If so, specify `--files '*'` to confirm.");
             }
 
             if (this.HydrateFiles)
@@ -264,33 +371,22 @@ namespace GVFS.CommandLine
                 }
             }
 
-            GitProcess gitProcess = new GitProcess(enlistment);
-            GitProcess.Result result = gitProcess.RevParse(GVFSConstants.DotGit.HeadName);
-            if (result.HasErrors)
-            {
-                tracer.RelatedError(result.Errors);
-                this.Output.WriteLine(result.Errors);
-                Environment.ExitCode = (int)ReturnCode.GenericError;
-                return;
-            }
-
             int matchedBlobCount = 0;
             int downloadedBlobCount = 0;
-            int readFileCount = 0;
+            int hydratedFileCount = 0;
 
-            string headCommitId = result.Output;
             Func<bool> doPrefetch =
                 () =>
                 {
                     try
                     {
                         blobPrefetcher.PrefetchWithStats(
-                            headCommitId.Trim(),
+                            headCommitId,
                             isBranch: false,
-                            readFilesAfterDownload: this.HydrateFiles,
+                            hydrateFilesAfterDownload: this.HydrateFiles,
                             matchedBlobCount: out matchedBlobCount,
                             downloadedBlobCount: out downloadedBlobCount,
-                            readFileCount: out readFileCount);
+                            hydratedFileCount: out hydratedFileCount);
                         return !blobPrefetcher.HasFailures;
                     }
                     catch (BlobPrefetcher.FetchException e)
@@ -326,7 +422,7 @@ namespace GVFS.CommandLine
                 Console.WriteLine("  Downloaded:       " + downloadedBlobCount);
                 if (this.HydrateFiles)
                 {
-                    Console.WriteLine("  Hydrated files:   " + readFileCount);
+                    Console.WriteLine("  Hydrated files:   " + hydratedFileCount);
                 }
             }
         }

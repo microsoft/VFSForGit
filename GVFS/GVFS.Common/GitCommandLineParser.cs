@@ -48,6 +48,13 @@ namespace GVFS.Common
             get { return this.parts != null; }
         }
 
+        public bool IsResetMixed()
+        {
+            return
+                this.IsResetSoftOrMixed() &&
+                !this.HasArgument("--soft");
+        }
+
         public bool IsResetSoftOrMixed()
         {
             return
@@ -83,7 +90,7 @@ namespace GVFS.Common
                     return true;
                 }
 
-                // We also special case one usage with HEAD, as long as there are no other arguments with - or -- that might 
+                // We also special case one usage with HEAD, as long as there are no other arguments with - or -- that might
                 // result in behavior we haven't tested.
                 // e.g. git checkout HEAD fileName
                 if (numArguments >= 2 &&

@@ -53,6 +53,12 @@ namespace GVFS.Platform.Mac
                 case Result.EPathNotFound:
                     return FSResult.FileOrPathNotFound;
 
+                case Result.EDirectoryNotEmpty:
+                    return FSResult.DirectoryNotEmpty;
+
+                case Result.EVirtualizationInvalidOperation:
+                    return FSResult.VirtualizationInvalidOperation;
+
                 default:
                     return FSResult.IOError;
             }
@@ -162,7 +168,7 @@ namespace GVFS.Platform.Mac
                     fileMode,
                     (UpdateType)updateFlags,
                     out failureCause);
-                
+
                 failureReason = (UpdateFailureReason)failureCause;
                 return new FileSystemResult(ResultToFSResult(result), unchecked((int)result));
             }
@@ -238,7 +244,7 @@ namespace GVFS.Platform.Mac
         }
 
         /// <summary>
-        /// Gets the target of the symbolic link. 
+        /// Gets the target of the symbolic link.
         /// </summary>
         /// <param name="sha">SHA of the loose object containing the target path of the symbolic link</param>
         /// <param name="symLinkTarget">Target path of the symbolic link</param>
@@ -283,7 +289,7 @@ namespace GVFS.Platform.Mac
                                 metadata.Add("bufferContents", Encoding.UTF8.GetString(buffer));
                                 this.Context.Tracer.RelatedError(metadata, $"{nameof(this.TryGetSymLinkTarget)}: SymLink target exceeds buffer size");
 
-                                throw new GetSymLinkTargetException("SymLink target exceeds buffer size");;
+                                throw new GetSymLinkTargetException("SymLink target exceeds buffer size");
                             }
                         }
                     }))
@@ -457,7 +463,7 @@ namespace GVFS.Platform.Mac
                     string fileName;
                     bool isPathProjected = this.FileSystemCallbacks.GitIndexProjection.IsPathProjected(relativePath, out fileName, out isFolder);
                     if (isPathProjected)
-                    {                        
+                    {
                         this.FileSystemCallbacks.OnFileConvertedToFull(relativePath);
                     }
                 }
@@ -494,7 +500,7 @@ namespace GVFS.Platform.Mac
                             EventMetadata metadata = new EventMetadata();
                             metadata.Add("Area", this.EtwArea);
                             metadata.Add(TracingConstants.MessageKey.WarningMessage, "Blocked index delete outside the lock");
-                            this.Context.Tracer.RelatedEvent(EventLevel.Warning, $"{nameof(OnPreDelete)}_BlockedIndexDelete", metadata);
+                            this.Context.Tracer.RelatedEvent(EventLevel.Warning, $"{nameof(this.OnPreDelete)}_BlockedIndexDelete", metadata);
 
                             return Result.EAccessDenied;
                         }
@@ -525,13 +531,23 @@ namespace GVFS.Platform.Mac
                 {
                     if (isDirectory)
                     {
-                        GitCommandLineParser gitCommand = new GitCommandLineParser(this.Context.Repository.GVFSLock.GetLockedGitCommand());
+                        string lockedGitCommand = this.Context.Repository.GVFSLock.GetLockedGitCommand();
+                        GitCommandLineParser gitCommand = new GitCommandLineParser(lockedGitCommand);
                         if (gitCommand.IsValidGitCommand)
                         {
-                            // TODO(Mac): Ensure that when git creates a folder all files\folders within that folder are written to disk
                             EventMetadata metadata = this.CreateEventMetadata(relativePath);
-                            metadata.Add("isDirectory", isDirectory);
-                            this.Context.Tracer.RelatedWarning(metadata, $"{nameof(this.OnNewFileCreated)}: Git created a folder, currently an unsupported scenario on Mac");
+                            metadata.Add(nameof(lockedGitCommand), lockedGitCommand);
+                            metadata.Add(TracingConstants.MessageKey.InfoMessage, "Git command created new folder");
+                            this.Context.Tracer.RelatedEvent(EventLevel.Informational, $"{nameof(this.OnNewFileCreated)}_GitCreatedFolder", metadata);
+
+                            // Record this folder as expanded so that GitIndexProjection will re-expand the folder
+                            // when the projection change completes.
+                            //
+                            // Git creates new folders when there are files that it needs to create.
+                            // However, git will only create files that are in ModifiedPaths.dat.  There could
+                            // be other files in the projection (that were not created by git) and so VFS must re-expand the
+                            // newly created folder to ensure that all files are written to disk.
+                            this.FileSystemCallbacks.OnPlaceholderFolderExpanded(relativePath);
                         }
                         else
                         {
@@ -551,22 +567,22 @@ namespace GVFS.Platform.Mac
                 this.LogUnhandledExceptionAndExit(nameof(this.OnNewFileCreated), metadata);
             }
         }
-        
+
         private void OnFileRenamed(string relativeDestinationPath, bool isDirectory)
         {
             // ProjFS for Mac *could* be updated to provide us with relativeSourcePath as well,
             // but because VFSForGit doesn't need the source path on Mac for correct behavior
             // the relativeSourcePath is left out of the notification to keep the kext simple
             this.OnFileRenamed(
-                relativeSourcePath: string.Empty, 
-                relativeDestinationPath: relativeDestinationPath, 
+                relativeSourcePath: string.Empty,
+                relativeDestinationPath: relativeDestinationPath,
                 isDirectory: isDirectory);
         }
 
         private void OnHardLinkCreated(string relativeNewLinkPath)
         {
             this.OnHardLinkCreated(
-                relativeExistingFilePath: string.Empty, 
+                relativeExistingFilePath: string.Empty,
                 relativeNewLinkPath: relativeNewLinkPath);
         }
 

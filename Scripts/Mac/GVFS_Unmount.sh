@@ -1,13 +1,10 @@
 #!/bin/bash
 
+. "$(dirname ${BASH_SOURCE[0]})/InitializeEnvironment.sh"
+
 CONFIGURATION=$1
 if [ -z $CONFIGURATION ]; then
   CONFIGURATION=Debug
 fi
 
-SCRIPTDIR=$(dirname ${BASH_SOURCE[0]})
-
-ROOTDIR=$SCRIPTDIR/../../..
-PUBLISHDIR=$ROOTDIR/Publish 
-
-$PUBLISHDIR/gvfs unmount ~/GVFSTest
+$VFS_PUBLISHDIR/gvfs unmount ~/GVFSTest

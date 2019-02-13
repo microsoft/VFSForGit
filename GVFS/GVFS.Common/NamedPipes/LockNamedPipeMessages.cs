@@ -113,7 +113,7 @@ namespace GVFS.Common.NamedPipes
                 // Message Format
                 //     FailedUpdateCount<FailedDeleteCount<FailedUpdateList<FailedDeleteList
                 //
-                //     - If the sum of FailedUpdateCount and FailedDeleteCount exceeds MaxReportedFileNames then 
+                //     - If the sum of FailedUpdateCount and FailedDeleteCount exceeds MaxReportedFileNames then
                 //       FailedUpdateList and FailedDeleteList will be empty
                 //
                 //     - Format of each list is Path1|Path2|Path3|...|PathN
@@ -123,7 +123,7 @@ namespace GVFS.Common.NamedPipes
 
                 public ReleaseLockData(List<string> failedToUpdateFileList, List<string> failedToDeleteFileList)
                     : this(
-                          failedToUpdateFileList.Count, 
+                          failedToUpdateFileList.Count,
                           failedToDeleteFileList.Count,
                           (failedToUpdateFileList.Count + failedToDeleteFileList.Count <= MaxReportedFileNames) ? failedToUpdateFileList : new List<string>(),
                           (failedToUpdateFileList.Count + failedToDeleteFileList.Count <= MaxReportedFileNames) ? failedToDeleteFileList : new List<string>())
@@ -131,9 +131,9 @@ namespace GVFS.Common.NamedPipes
                 }
 
                 private ReleaseLockData(
-                    int failedToUpdateCount, 
-                    int failedToDeleteCount, 
-                    List<string> failedToUpdateFileList, 
+                    int failedToUpdateCount,
+                    int failedToDeleteCount,
+                    List<string> failedToUpdateFileList,
                     List<string> failedToDeleteFileList)
                 {
                     this.FailedToUpdateCount = failedToUpdateCount;
@@ -216,13 +216,13 @@ namespace GVFS.Common.NamedPipes
 
                 internal string ToMessage()
                 {
-                    return 
+                    return
                         this.FailedToUpdateCount.ToString() +
                         SectionSeparator +
                         this.FailedToDeleteCount.ToString() +
                         SectionSeparator +
-                        string.Join(MessageSeparator.ToString(), this.FailedToUpdateFileList) + 
-                        SectionSeparator + 
+                        string.Join(MessageSeparator.ToString(), this.FailedToUpdateFileList) +
+                        SectionSeparator +
                         string.Join(MessageSeparator.ToString(), this.FailedToDeleteFileList);
                 }
             }

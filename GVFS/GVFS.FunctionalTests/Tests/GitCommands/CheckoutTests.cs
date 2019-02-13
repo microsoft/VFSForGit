@@ -11,11 +11,12 @@ using System.Threading.Tasks;
 
 namespace GVFS.FunctionalTests.Tests.GitCommands
 {
-    [TestFixture]
+    [TestFixtureSource(typeof(GitRepoTests), nameof(GitRepoTests.ValidateWorkingTree))]
     [Category(Categories.GitCommands)]
     public class CheckoutTests : GitRepoTests
     {
-        public CheckoutTests() : base(enlistmentPerTest: true)
+        public CheckoutTests(bool validateWorkingTree)
+            : base(enlistmentPerTest: true, validateWorkingTree: validateWorkingTree)
         {
         }
 
@@ -186,11 +187,11 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
             this.FileContentsShouldMatch("Test_ConflictTests", "ModifiedFiles", fileName);
 
             // A read should not add the file to the modified paths
-            GVFSHelpers.ModifiedPathsShouldNotContain(this.FileSystem, this.Enlistment.DotGVFSRoot, fileName);
+            GVFSHelpers.ModifiedPathsShouldNotContain(this.Enlistment, this.FileSystem, fileName);
 
             this.ValidateGitCommand("checkout FunctionalTests/20170206_Conflict_Source");
             this.FileContentsShouldMatch("Test_ConflictTests", "ModifiedFiles", fileName);
-            GVFSHelpers.ModifiedPathsShouldNotContain(this.FileSystem, this.Enlistment.DotGVFSRoot, fileName);
+            GVFSHelpers.ModifiedPathsShouldNotContain(this.Enlistment, this.FileSystem, fileName);
         }
 
         [TestCase]
@@ -206,11 +207,11 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
             this.FileContentsShouldMatch(filePath);
 
             // A read should not add the file to the modified paths
-            GVFSHelpers.ModifiedPathsShouldNotContain(this.FileSystem, this.Enlistment.DotGVFSRoot, fileName);
+            GVFSHelpers.ModifiedPathsShouldNotContain(this.Enlistment, this.FileSystem, fileName);
 
             this.ValidateGitCommand("checkout FunctionalTests/20170206_Conflict_Source");
             this.ShouldNotExistOnDisk(filePath);
-            GVFSHelpers.ModifiedPathsShouldNotContain(this.FileSystem, this.Enlistment.DotGVFSRoot, fileName);
+            GVFSHelpers.ModifiedPathsShouldNotContain(this.Enlistment, this.FileSystem, fileName);
         }
 
         [TestCase]
@@ -226,7 +227,7 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
             this.FilesShouldMatchCheckoutOfSourceBranch();
 
             // Verify modified paths contents
-            GVFSHelpers.ModifiedPathsContentsShouldEqual(this.FileSystem, this.Enlistment.DotGVFSRoot, "A .gitattributes" + GVFSHelpers.ModifiedPathsNewLine);
+            GVFSHelpers.ModifiedPathsContentsShouldEqual(this.Enlistment, this.FileSystem, "A .gitattributes" + GVFSHelpers.ModifiedPathsNewLine);
         }
 
         [TestCase]
@@ -244,7 +245,7 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
                 .WithDeepStructure(this.FileSystem, this.ControlGitRepo.RootPath, compareContent: true);
 
             // Verify modified paths contents
-            GVFSHelpers.ModifiedPathsContentsShouldEqual(this.FileSystem, this.Enlistment.DotGVFSRoot, "A .gitattributes" + GVFSHelpers.ModifiedPathsNewLine);
+            GVFSHelpers.ModifiedPathsContentsShouldEqual(this.Enlistment, this.FileSystem, "A .gitattributes" + GVFSHelpers.ModifiedPathsNewLine);
         }
 
         [TestCase]
@@ -329,7 +330,7 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
             this.FileContentsShouldMatch(editFilePath);
             this.Enlistment.GetVirtualPathTo(readFilePath).ShouldBeAFile(this.FileSystem).WithContents().ShouldNotEqual(originalReadFileContents);
 
-            GVFSHelpers.ModifiedPathsShouldNotContain(this.FileSystem, this.Enlistment.DotGVFSRoot, Path.GetFileName(readFilePath));
+            GVFSHelpers.ModifiedPathsShouldNotContain(this.Enlistment, this.FileSystem, Path.GetFileName(readFilePath));
         }
 
         [TestCase]
@@ -365,7 +366,7 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
         [TestCase]
         public void ModifyAndCheckoutFirstOfSeveralFilesWhoseNamesAppearBeforeDot()
         {
-            // Commit cb2d05febf64e3b0df50bd8d3fe8f05c0e2caa47 has the files (a).txt and (z).txt 
+            // Commit cb2d05febf64e3b0df50bd8d3fe8f05c0e2caa47 has the files (a).txt and (z).txt
             // in the DeleteFileWithNameAheadOfDotAndSwitchCommits folder
             string originalContent = "Test contents for (a).txt";
             string newContent = "content to append";
@@ -380,16 +381,15 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
         }
 
         [TestCase]
-        [Category(Categories.MacTODO.M3)]
         public void ResetMixedToCommitWithNewFileThenCheckoutNewBranchAndCheckoutCommitWithNewFile()
         {
             this.ControlGitRepo.Fetch(GitRepoTests.ConflictSourceBranch);
 
-            // Commit db95d631e379d366d26d899523f8136a77441914 was prior to the additional of these 
+            // Commit db95d631e379d366d26d899523f8136a77441914 was prior to the additional of these
             // three files in commit 51d15f7584e81d59d44c1511ce17d7c493903390:
             //    Test_ConflictTests/AddedFiles/AddedByBothDifferentContent.txt
             //    Test_ConflictTests/AddedFiles/AddedByBothSameContent.txt
-            //    Test_ConflictTests/AddedFiles/AddedBySource.txt            
+            //    Test_ConflictTests/AddedFiles/AddedBySource.txt
             this.ValidateGitCommand("checkout db95d631e379d366d26d899523f8136a77441914");
             this.ValidateGitCommand("reset --mixed 51d15f7584e81d59d44c1511ce17d7c493903390");
 
@@ -402,7 +402,6 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
         // ReadFileAfterTryingToReadFileAtCommitWhereFileDoesNotExist is meant to exercise the NegativePathCache and its
         // behavior when projections change
         [TestCase]
-        [Category(Categories.MacTODO.M3)]
         public void ReadFileAfterTryingToReadFileAtCommitWhereFileDoesNotExist()
         {
             this.ControlGitRepo.Fetch(GitRepoTests.ConflictSourceBranch);
@@ -411,7 +410,7 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
             // three files in commit 51d15f7584e81d59d44c1511ce17d7c493903390:
             //    Test_ConflictTests/AddedFiles/AddedByBothDifferentContent.txt
             //    Test_ConflictTests/AddedFiles/AddedByBothSameContent.txt
-            //    Test_ConflictTests/AddedFiles/AddedBySource.txt            
+            //    Test_ConflictTests/AddedFiles/AddedBySource.txt
             this.ValidateGitCommand("checkout db95d631e379d366d26d899523f8136a77441914");
 
             // Files should not exist
@@ -484,7 +483,7 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
             fileLocked.IsSet.ShouldBeTrue("Failed to obtain exclusive file handle.  Exclusive handle required to validate behavior");
 
             try
-            {                
+            {
                 this.ValidateGitCommand("checkout " + GitRepoTests.ConflictTargetBranch);
             }
             catch (Exception)
@@ -496,7 +495,6 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
         }
 
         [TestCase]
-        [Category(Categories.MacTODO.M3)]
         public void CheckoutBranchWithOpenHandleBlockingProjectionDeleteAndRepoMetdataUpdate()
         {
             this.ControlGitRepo.Fetch(GitRepoTests.ConflictSourceBranch);
@@ -540,7 +538,7 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
             fileLocked.IsSet.ShouldBeTrue("Failed to obtain exclusive file handle.  Exclusive handle required to validate behavior");
 
             try
-            {                
+            {
                 this.ValidateGitCommand("checkout " + GitRepoTests.ConflictTargetBranch);
             }
             catch (Exception)
@@ -562,7 +560,6 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
         }
 
         [TestCase]
-        [Category(Categories.MacTODO.M3)]
         public void CheckoutBranchWhileOutsideToolDoesNotAllowDeleteOfOpenRepoMetadata()
         {
             this.ControlGitRepo.Fetch(GitRepoTests.ConflictSourceBranch);
@@ -600,7 +597,7 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
             fileLocked.IsSet.ShouldBeTrue("Failed to obtain file handle.  Handle required to validate behavior");
 
             try
-            {                
+            {
                 this.ValidateGitCommand("checkout " + GitRepoTests.ConflictTargetBranch);
             }
             catch (Exception)
@@ -611,8 +608,9 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
             }
         }
 
+        // WindowsOnly because the test depends on Windows specific file sharing behavior
         [TestCase]
-        [Category(Categories.MacTODO.M4)]
+        [Category(Categories.WindowsOnly)]
         public void CheckoutBranchWhileOutsideToolHasExclusiveReadHandleOnDatabasesFolder()
         {
             this.ControlGitRepo.Fetch(GitRepoTests.ConflictSourceBranch);
@@ -658,7 +656,7 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
             folderLocked.IsSet.ShouldBeTrue("Failed to obtain exclusive file handle.  Handle required to validate behavior");
 
             try
-            {                
+            {
                 this.ValidateGitCommand("checkout " + GitRepoTests.ConflictTargetBranch);
             }
             catch (Exception)
@@ -670,7 +668,6 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
         }
 
         [TestCase]
-        [Category(Categories.MacTODO.M3)]
         public void ResetMixedTwiceThenCheckoutWithChanges()
         {
             this.ControlGitRepo.Fetch("FunctionalTests/20171219_MultipleFileEdits");
@@ -690,7 +687,6 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
         }
 
         [TestCase]
-        [Category(Categories.MacTODO.M3)]
         public void ResetMixedTwiceThenCheckoutWithRemovedFiles()
         {
             this.ControlGitRepo.Fetch("FunctionalTests/20180102_MultipleFileDeletes");
@@ -718,12 +714,12 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
             string folderName = "GVFlt_MultiThreadTest";
 
             // Confirm that no other test has caused "GVFlt_MultiThreadTest" to be added to the modified paths database
-            GVFSHelpers.ModifiedPathsShouldNotContain(this.FileSystem, this.Enlistment.DotGVFSRoot, folderName);
+            GVFSHelpers.ModifiedPathsShouldNotContain(this.Enlistment, this.FileSystem, folderName);
 
             this.FolderShouldHaveCaseMatchingName(folderName, "GVFlt_MultiThreadTest");
             this.DeleteFolder(folderName);
 
-            // 4141dc6023b853740795db41a06b278ebdee0192 is the commit prior to deleting GVFLT_MultiThreadTest 
+            // 4141dc6023b853740795db41a06b278ebdee0192 is the commit prior to deleting GVFLT_MultiThreadTest
             // and re-adding it as as GVFlt_MultiThreadTest
             this.ValidateGitCommand("checkout 4141dc6023b853740795db41a06b278ebdee0192");
             this.FolderShouldHaveCaseMatchingName(folderName, "GVFLT_MultiThreadTest");
@@ -798,9 +794,7 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
             this.ShouldNotExistOnDisk("d", "c");
         }
 
-        // TODO(Mac): This test needs the fix for issue #264
         [TestCase]
-        [Category(Categories.MacTODO.M3)]
         public void DeleteFileThenCheckout()
         {
             this.FolderShouldExistAndHaveFile("GitCommandsTests", "DeleteFileTests", "1", "#test");
@@ -816,7 +810,6 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
         }
 
         [TestCase]
-        [Category(Categories.MacTODO.M3)]
         public void CheckoutEditCheckoutWithoutFolderThenCheckoutWithMultipleFiles()
         {
             // Edit the file to get the entry in the modified paths database
@@ -844,7 +837,6 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
         }
 
         [TestCase]
-        [Category(Categories.MacTODO.M3)]
         public void CheckoutBranchWithDirectoryNameSameAsFile()
         {
             this.SetupForFileDirectoryTest();
@@ -852,21 +844,18 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
         }
 
         [TestCase]
-        [Category(Categories.MacTODO.M3)]
         public void CheckoutBranchWithDirectoryNameSameAsFileEnumerate()
         {
             this.RunFileDirectoryEnumerateTest("checkout");
         }
 
         [TestCase]
-        [Category(Categories.MacTODO.M3)]
         public void CheckoutBranchWithDirectoryNameSameAsFileWithRead()
         {
             this.RunFileDirectoryReadTest("checkout");
         }
 
         [TestCase]
-        [Category(Categories.MacTODO.M3)]
         public void CheckoutBranchWithDirectoryNameSameAsFileWithWrite()
         {
             this.RunFileDirectoryWriteTest("checkout");
@@ -904,8 +893,8 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
             this.ControlGitRepo.Fetch(GitRepoTests.DeepDirectoryWithOneDifferentFile);
             this.ValidateGitCommand($"checkout {GitRepoTests.DeepDirectoryWithOneFile}");
             this.FileShouldHaveContents(
-                "TestFile1\n", 
-                "GitCommandsTests", 
+                "TestFile1\n",
+                "GitCommandsTests",
                 "CheckoutBranchDirectoryWithOneDeepFile",
                 "FolderDepth1",
                 "FolderDepth2",
@@ -916,7 +905,7 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
             // delete the file (and its parent directories) when
             // changing branches
             this.EditFile(
-                "Change file", 
+                "Change file",
                 "GitCommandsTests",
                 "CheckoutBranchDirectoryWithOneDeepFile",
                 "FolderDepth1",

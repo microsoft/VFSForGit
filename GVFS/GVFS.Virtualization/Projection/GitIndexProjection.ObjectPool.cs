@@ -111,7 +111,7 @@ namespace GVFS.Virtualization.Projection
                     int previousSize = this.pool.Length;
 
                     // The values for shrinking and expanding are currently set to prevent the pool from shrinking after expanding
-                    // 
+                    //
                     // Example using
                     // ExpandPoolNewObjects = 0.15
                     // ShrinkExtraObjects = 1.1

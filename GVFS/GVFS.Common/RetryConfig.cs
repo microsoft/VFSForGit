@@ -14,7 +14,7 @@ namespace GVFS.Common
         private const string EtwArea = nameof(RetryConfig);
 
         private const int MinRetries = 0;
-        
+
         private static readonly TimeSpan DefaultTimeout = TimeSpan.FromSeconds(DefaultTimeoutSeconds);
 
         public RetryConfig(int maxRetries = DefaultMaxRetries)
@@ -115,11 +115,11 @@ namespace GVFS.Common
             timeout = TimeSpan.FromSeconds(0);
             int timeoutSeconds;
             if (!TryGetFromGitConfig(
-                git, 
-                GVFSConstants.GitConfig.TimeoutSecondsConfig, 
-                DefaultTimeoutSeconds, 
-                0, 
-                out timeoutSeconds, 
+                git,
+                GVFSConstants.GitConfig.TimeoutSecondsConfig,
+                DefaultTimeoutSeconds,
+                0,
+                out timeoutSeconds,
                 out error))
             {
                 return false;
@@ -131,42 +131,8 @@ namespace GVFS.Common
 
         private static bool TryGetFromGitConfig(GitProcess git, string configName, int defaultValue, int minValue, out int value, out string error)
         {
-            value = defaultValue;
-            error = string.Empty;
-
-            GitProcess.Result result = git.GetFromConfig(configName);
-            if (result.HasErrors)
-            {
-                if (result.Errors.Any())
-                {
-                    error = "Error while reading '" + configName + "' from config: " + result.Errors;
-                    return false;
-                }
-
-                // Git returns non-zero for non-existent settings and errors.
-                return true;
-            }
-
-            string valueString = result.Output.TrimEnd('\n');
-            if (string.IsNullOrWhiteSpace(valueString))
-            {
-                // Use default value
-                return true;
-            }
-
-            if (!int.TryParse(valueString, out value))
-            {
-                error = string.Format("Misconfigured config setting {0}, could not parse value {1}", configName, valueString);
-                return false;
-            }
-
-            if (value < minValue)
-            {
-                error = string.Format("Invalid value {0} for setting {1}, value must be greater than or equal to {2}", value, configName, minValue);
-                return false;
-            }
-
-            return true;
+            GitProcess.ConfigResult result = git.GetFromConfig(configName);
+            return result.TryParseAsInt(defaultValue, minValue, out value, out error);
         }
     }
 }

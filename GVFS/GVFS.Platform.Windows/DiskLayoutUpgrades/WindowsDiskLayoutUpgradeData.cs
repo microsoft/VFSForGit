@@ -15,7 +15,7 @@ namespace GVFS.Platform.Windows.DiskLayoutUpgrades
         {
             get
             {
-                return new DiskLayoutUpgrade[] 
+                return new DiskLayoutUpgrade[]
                 {
                     new DiskLayout7to8Upgrade_NewOperationType(),
                     new DiskLayout8to9Upgrade_RepoMetadataToJson(),

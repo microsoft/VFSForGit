@@ -2,8 +2,9 @@
 using GVFS.Common.Git;
 using GVFS.Common.Http;
 using GVFS.Common.Prefetch.Git;
-using GVFS.Common.Prefetch.Jobs;
+using GVFS.Common.Prefetch.Pipeline;
 using GVFS.Common.Tracing;
+using Newtonsoft.Json;
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
@@ -32,10 +33,27 @@ namespace GVFS.Common.Prefetch
         private const string AreaPath = nameof(BlobPrefetcher);
         private static string pathSeparatorString = Path.DirectorySeparatorChar.ToString();
 
+        private FileBasedDictionary<string, string> lastPrefetchArgs;
+
         public BlobPrefetcher(
             ITracer tracer,
             Enlistment enlistment,
             GitObjectsHttpRequestor objectRequestor,
+            int chunkSize,
+            int searchThreadCount,
+            int downloadThreadCount,
+            int indexThreadCount)
+            : this(tracer, enlistment, objectRequestor, null, null, null, chunkSize, searchThreadCount, downloadThreadCount, indexThreadCount)
+        {
+        }
+
+        public BlobPrefetcher(
+            ITracer tracer,
+            Enlistment enlistment,
+            GitObjectsHttpRequestor objectRequestor,
+            List<string> fileList,
+            List<string> folderList,
+            FileBasedDictionary<string, string> lastPrefetchArgs,
             int chunkSize,
             int searchThreadCount,
             int downloadThreadCount,
@@ -50,8 +68,10 @@ namespace GVFS.Common.Prefetch
             this.ObjectRequestor = objectRequestor;
 
             this.GitObjects = new PrefetchGitObjects(tracer, enlistment, this.ObjectRequestor);
-            this.FileList = new List<string>();
-            this.FolderList = new List<string>();
+            this.FileList = fileList ?? new List<string>();
+            this.FolderList = folderList ?? new List<string>();
+
+            this.lastPrefetchArgs = lastPrefetchArgs;
 
             // We never want to update config settings for a GVFSEnlistment
             this.SkipConfigUpdate = enlistment is GVFSEnlistment;
@@ -63,70 +83,91 @@ namespace GVFS.Common.Prefetch
 
         public List<string> FolderList { get; }
 
-        public static bool TryLoadFolderList(Enlistment enlistment, string foldersInput, string folderListFile, List<string> folderListOutput, out string error)
+        public static bool TryLoadFolderList(Enlistment enlistment, string foldersInput, string folderListFile, List<string> folderListOutput, bool readListFromStdIn, out string error)
         {
-            folderListOutput.AddRange(
-                foldersInput.Split(new[] { ';' }, StringSplitOptions.RemoveEmptyEntries)
-                .Select(path => BlobPrefetcher.ToAbsolutePath(enlistment, path, isFolder: true)));
-
-            if (!string.IsNullOrWhiteSpace(folderListFile))
-            {
-                if (File.Exists(folderListFile))
-                {
-                    IEnumerable<string> allLines = File.ReadAllLines(folderListFile)
-                        .Select(line => line.Trim())
-                        .Where(line => !string.IsNullOrEmpty(line))
-                        .Where(line => !line.StartsWith(GVFSConstants.GitCommentSign.ToString()))
-                        .Select(path => BlobPrefetcher.ToAbsolutePath(enlistment, path, isFolder: true));
-
-                    folderListOutput.AddRange(allLines);
-                }
-                else
-                {
-                    error = string.Format("Could not find '{0}' for folder list.", folderListFile);
-                    return false;
-                }
-            }
-
-            folderListOutput.RemoveAll(string.IsNullOrWhiteSpace);
-
-            foreach (string folder in folderListOutput)
-            {
-                if (folder.Contains("*"))
-                {
-                    error = "Wildcards are not supported for folders. Invalid entry: " + folder;
-                    return false;
-                }
-            }
-
-            error = null;
-            return true;
+            return TryLoadFileOrFolderList(
+                    enlistment,
+                    foldersInput,
+                    folderListFile,
+                    isFolder: true,
+                    readListFromStdIn: readListFromStdIn,
+                    output: folderListOutput,
+                    elementValidationFunction: s =>
+                        s.Contains("*") ?
+                            "Wildcards are not supported for folders. Invalid entry: " + s :
+                            null,
+                    error: out error);
         }
 
-        public static bool TryLoadFileList(Enlistment enlistment, string filesInput, List<string> fileListOutput, out string error)
+        public static bool TryLoadFileList(Enlistment enlistment, string filesInput, string filesListFile, List<string> fileListOutput, bool readListFromStdIn, out string error)
         {
-            fileListOutput.AddRange(
-                filesInput.Split(new[] { ';' }, StringSplitOptions.RemoveEmptyEntries)
-                .Select(path => BlobPrefetcher.ToAbsolutePath(enlistment, path, isFolder: false)));
+            return TryLoadFileOrFolderList(
+                enlistment,
+                filesInput,
+                filesListFile,
+                readListFromStdIn: readListFromStdIn,
+                isFolder: false,
+                output: fileListOutput,
+                elementValidationFunction: s =>
+                {
+                    if (s.IndexOf('*', 1) != -1)
+                    {
+                        return "Only prefix wildcards are supported. Invalid entry: " + s;
+                    }
 
-            foreach (string file in fileListOutput)
+                    if (s.EndsWith(GVFSConstants.GitPathSeparatorString) ||
+                        s.EndsWith(pathSeparatorString))
+                    {
+                        return "Folders are not allowed in the file list. Invalid entry: " + s;
+                    }
+
+                    return null;
+                },
+                error: out error);
+        }
+
+        public static bool IsNoopPrefetch(
+            ITracer tracer,
+            FileBasedDictionary<string, string> lastPrefetchArgs,
+            string commitId,
+            List<string> files,
+            List<string> folders,
+            bool hydrateFilesAfterDownload)
+        {
+            if (lastPrefetchArgs != null &&
+                lastPrefetchArgs.TryGetValue(PrefetchArgs.CommitId, out string lastCommitId) &&
+                lastPrefetchArgs.TryGetValue(PrefetchArgs.Files, out string lastFilesString) &&
+                lastPrefetchArgs.TryGetValue(PrefetchArgs.Folders, out string lastFoldersString) &&
+                lastPrefetchArgs.TryGetValue(PrefetchArgs.Hydrate, out string lastHydrateString))
             {
-                if (file.IndexOf('*', 1) != -1)
-                {
-                    error = "Only prefix wildcards are supported. Invalid entry: " + file;
-                    return false;
-                }
+                string newFilesString = JsonConvert.SerializeObject(files);
+                string newFoldersString = JsonConvert.SerializeObject(folders);
+                bool isNoop =
+                    commitId == lastCommitId &&
+                    hydrateFilesAfterDownload.ToString() == lastHydrateString &&
+                    newFilesString == lastFilesString &&
+                    newFoldersString == lastFoldersString;
 
-                if (file.EndsWith(GVFSConstants.GitPathSeparatorString) ||
-                    file.EndsWith(pathSeparatorString))
-                {
-                    error = "Folders are not allowed in the file list. Invalid entry: " + file;
-                    return false;
-                }
+                tracer.RelatedEvent(
+                    EventLevel.Informational,
+                    "BlobPrefetcher.IsNoopPrefetch",
+                    new EventMetadata
+                    {
+                        { "Last" + PrefetchArgs.CommitId, lastCommitId },
+                        { "Last" + PrefetchArgs.Files, lastFilesString },
+                        { "Last" + PrefetchArgs.Folders, lastFoldersString },
+                        { "Last" + PrefetchArgs.Hydrate, lastHydrateString },
+                        { "New" + PrefetchArgs.CommitId, commitId },
+                        { "New" + PrefetchArgs.Files, newFilesString },
+                        { "New" + PrefetchArgs.Folders, newFoldersString },
+                        { "New" + PrefetchArgs.Hydrate, hydrateFilesAfterDownload.ToString() },
+                        { "Result", isNoop },
+                    });
+
+                return isNoop;
             }
 
-            error = null;
-            return true;
+            return false;
         }
 
         public static void AppendToNewlineSeparatedFile(string filename, string newContent)
@@ -166,22 +207,22 @@ namespace GVFS.Common.Prefetch
         {
             int matchedBlobCount;
             int downloadedBlobCount;
-            int readFileCount;
-            
-            this.PrefetchWithStats(branchOrCommit, isBranch, false, out matchedBlobCount, out downloadedBlobCount, out readFileCount);
+            int hydratedFileCount;
+
+            this.PrefetchWithStats(branchOrCommit, isBranch, false, out matchedBlobCount, out downloadedBlobCount, out hydratedFileCount);
         }
 
         public void PrefetchWithStats(
             string branchOrCommit,
             bool isBranch,
-            bool readFilesAfterDownload,
+            bool hydrateFilesAfterDownload,
             out int matchedBlobCount,
             out int downloadedBlobCount,
-            out int readFileCount)
+            out int hydratedFileCount)
         {
             matchedBlobCount = 0;
             downloadedBlobCount = 0;
-            readFileCount = 0;
+            hydratedFileCount = 0;
 
             if (string.IsNullOrWhiteSpace(branchOrCommit))
             {
@@ -211,10 +252,8 @@ namespace GVFS.Common.Prefetch
 
             this.DownloadMissingCommit(commitToFetch, this.GitObjects);
 
-            // Configure pipeline
-            // LsTreeHelper output => FindMissingBlobs => BatchDownload => IndexPack
+            // For FastFetch only, examine the shallow file to determine the previous commit that had been fetched
             string shallowFile = Path.Combine(this.Enlistment.WorkingDirectoryRoot, GVFSConstants.DotGit.Shallow);
-
             string previousCommit = null;
 
             // Use the shallow file to find a recent commit to diff against to try and reduce the number of SHAs to check.
@@ -229,18 +268,70 @@ namespace GVFS.Common.Prefetch
                 }
             }
 
-            DiffHelper blobEnumerator = new DiffHelper(this.Tracer, this.Enlistment, this.FileList, this.FolderList);
+            BlockingCollection<string> availableBlobs = new BlockingCollection<string>();
+
+            ////
+            // First create the pipeline
+            //
+            //  diff ---> blobFinder ---> downloader ---> packIndexer
+            //    |           |              |                 |
+            //     ------------------------------------------------------> fileHydrator
+            ////
+
+            // diff
+            //  Inputs:
+            //      * files/folders
+            //      * commit id
+            //  Outputs:
+            //      * RequiredBlobs (property): Blob ids required to satisfy desired paths
+            //      * FileAddOperations (property): Repo-relative paths corresponding to those blob ids
+            DiffHelper diff = new DiffHelper(this.Tracer, this.Enlistment, this.FileList, this.FolderList, includeSymLinks: false);
+
+            // blobFinder
+            //  Inputs:
+            //      * requiredBlobs (in param): Blob ids from output of `diff`
+            //  Outputs:
+            //      * availableBlobs (out param): Locally available blob ids (shared between `blobFinder`, `downloader`, and `packIndexer`, all add blob ids to the list as they are locally available)
+            //      * MissingBlobs (property): Blob ids that are missing and need to be downloaded
+            //      * AvailableBlobs (property): Same as availableBlobs
+            FindBlobsStage blobFinder = new FindBlobsStage(this.SearchThreadCount, diff.RequiredBlobs, availableBlobs, this.Tracer, this.Enlistment);
+
+            // downloader
+            //  Inputs:
+            //      * missingBlobs (in param): Blob ids from output of `blobFinder`
+            //  Outputs:
+            //      * availableBlobs (out param): Loose objects that have completed downloading (shared between `blobFinder`, `downloader`, and `packIndexer`, all add blob ids to the list as they are locally available)
+            //      * AvailableObjects (property): Same as availableBlobs
+            //      * AvailablePacks (property): Packfiles that have completed downloading
+            BatchObjectDownloadStage downloader = new BatchObjectDownloadStage(this.DownloadThreadCount, this.ChunkSize, blobFinder.MissingBlobs, availableBlobs, this.Tracer, this.Enlistment, this.ObjectRequestor, this.GitObjects);
+
+            // packIndexer
+            //  Inputs:
+            //      * availablePacks (in param): Packfiles that have completed downloading from output of `downloader`
+            //  Outputs:
+            //      * availableBlobs (out param): Blobs that have completed downloading and indexing (shared between `blobFinder`, `downloader`, and `packIndexer`, all add blob ids to the list as they are locally available)
+            IndexPackStage packIndexer = new IndexPackStage(this.IndexThreadCount, downloader.AvailablePacks, availableBlobs, this.Tracer, this.GitObjects);
+
+            // fileHydrator
+            //  Inputs:
+            //      * blobIdsToPaths (in param): paths of all blob ids that need to be hydrated from output of `diff`
+            //      * availableBlobs (in param): blobs id that are available locally, from whatever source
+            //  Outputs:
+            //      * Hydrated files on disk.
+            HydrateFilesStage fileHydrator = new HydrateFilesStage(Environment.ProcessorCount * 2, diff.FileAddOperations, availableBlobs, this.Tracer);
+
+            // All the stages of the pipeline are created and wired up, now kick them off in the proper sequence
 
             ThreadStart performDiff = () =>
             {
-                blobEnumerator.PerformDiff(previousCommit, commitToFetch);
-                this.HasFailures |= blobEnumerator.HasFailures;
+                diff.PerformDiff(previousCommit, commitToFetch);
+                this.HasFailures |= diff.HasFailures;
             };
 
-            if (readFilesAfterDownload)
+            if (hydrateFilesAfterDownload)
             {
-                // Call synchronously to ensure that blobEnumerator.FileAddOperations
-                // is completely populated when ReadFilesJob starts
+                // Call synchronously to ensure that diff.FileAddOperations
+                // is completely populated when fileHydrator starts
                 performDiff();
             }
             else
@@ -248,19 +339,12 @@ namespace GVFS.Common.Prefetch
                 new Thread(performDiff).Start();
             }
 
-            BlockingCollection<string> availableBlobs = new BlockingCollection<string>();
-
-            FindMissingBlobsJob blobFinder = new FindMissingBlobsJob(this.SearchThreadCount, blobEnumerator.RequiredBlobs, availableBlobs, this.Tracer, this.Enlistment);
-            BatchObjectDownloadJob downloader = new BatchObjectDownloadJob(this.DownloadThreadCount, this.ChunkSize, blobFinder.MissingBlobs, availableBlobs, this.Tracer, this.Enlistment, this.ObjectRequestor, this.GitObjects);
-            IndexPackJob packIndexer = new IndexPackJob(this.IndexThreadCount, downloader.AvailablePacks, availableBlobs, this.Tracer, this.GitObjects);
-            ReadFilesJob readFiles = new ReadFilesJob(Environment.ProcessorCount * 2, blobEnumerator.FileAddOperations, availableBlobs, this.Tracer);
-            
             blobFinder.Start();
             downloader.Start();
 
-            if (readFilesAfterDownload)
+            if (hydrateFilesAfterDownload)
             {
-                readFiles.Start();
+                fileHydrator.Start();
             }
 
             // If indexing happens during searching, searching progressively gets slower, so wait on searching before indexing.
@@ -277,15 +361,15 @@ namespace GVFS.Common.Prefetch
 
             availableBlobs.CompleteAdding();
 
-            if (readFilesAfterDownload)
+            if (hydrateFilesAfterDownload)
             {
-                readFiles.WaitForCompletion();
-                this.HasFailures |= readFiles.HasFailures;
+                fileHydrator.WaitForCompletion();
+                this.HasFailures |= fileHydrator.HasFailures;
             }
 
             matchedBlobCount = blobFinder.AvailableBlobCount + blobFinder.MissingBlobCount;
             downloadedBlobCount = blobFinder.MissingBlobCount;
-            readFileCount = readFiles.ReadFileCount;
+            hydratedFileCount = fileHydrator.ReadFileCount;
 
             if (!this.SkipConfigUpdate && !this.HasFailures)
             {
@@ -295,6 +379,11 @@ namespace GVFS.Common.Prefetch
                 {
                     this.HasFailures |= !this.UpdateRefSpec(this.Tracer, this.Enlistment, branchOrCommit, refs);
                 }
+            }
+
+            if (!this.HasFailures)
+            {
+                this.SavePrefetchArgs(commitToFetch, hydrateFilesAfterDownload);
             }
         }
 
@@ -315,7 +404,7 @@ namespace GVFS.Common.Prefetch
                 // * ensures the default refspec (remote.origin.fetch=+refs/heads/*:refs/remotes/origin/*) is removed which avoids some "git fetch/pull" failures
                 // * gives added "git fetch" performance since git will only fetch the branch provided in the refspec.
                 GitProcess.Result setResult = git.SetInLocalConfig(OriginRefMapSettingName, refSpec, replaceAll: true);
-                if (setResult.HasErrors)
+                if (setResult.ExitCodeIsFailure)
                 {
                     activity.RelatedError("Could not update ref spec to {0}: {1}", refSpec, setResult.Errors);
                     return false;
@@ -368,7 +457,7 @@ namespace GVFS.Common.Prefetch
                     result = gitProcess.UpdateBranchSha(refName, targetCommitish);
                 }
 
-                if (result.HasErrors)
+                if (result.ExitCodeIsFailure)
                 {
                     activity.RelatedError(result.Errors);
                     return false;
@@ -385,7 +474,7 @@ namespace GVFS.Common.Prefetch
 
             using (ITracer activity = this.Tracer.StartActivity("DownloadTrees", EventLevel.Informational, Keywords.Telemetry, startMetadata))
             {
-                using (PrefetchLibGit2Repo repo = new PrefetchLibGit2Repo(this.Tracer, this.Enlistment.WorkingDirectoryRoot))
+                using (LibGit2Repo repo = new LibGit2Repo(this.Tracer, this.Enlistment.WorkingDirectoryRoot))
                 {
                     if (!repo.ObjectExists(commitSha))
                     {
@@ -401,9 +490,77 @@ namespace GVFS.Common.Prefetch
             }
         }
 
+        private static IEnumerable<string> GetFilesFromVerbParameter(string valueString)
+        {
+            return valueString.Split(new[] { ';' }, StringSplitOptions.RemoveEmptyEntries);
+        }
+
+        private static IEnumerable<string> GetFilesFromFile(string fileName, out string error)
+        {
+            error = null;
+            if (string.IsNullOrWhiteSpace(fileName))
+            {
+                return Enumerable.Empty<string>();
+            }
+
+            if (!File.Exists(fileName))
+            {
+                error = string.Format("Could not find '{0}' list file.", fileName);
+                return Enumerable.Empty<string>();
+            }
+
+            return File.ReadAllLines(fileName)
+                        .Select(line => line.Trim());
+        }
+
+        private static IEnumerable<string> GetFilesFromStdin(bool shouldRead)
+        {
+            if (!shouldRead)
+            {
+                yield break;
+            }
+
+            string line;
+            while ((line = Console.In.ReadLine()) != null)
+            {
+                yield return line.Trim();
+            }
+        }
+
+        private static bool TryLoadFileOrFolderList(Enlistment enlistment, string valueString, string listFileName, bool readListFromStdIn, bool isFolder, List<string> output, Func<string, string> elementValidationFunction, out string error)
+        {
+            output.AddRange(
+                GetFilesFromVerbParameter(valueString)
+                .Union(GetFilesFromFile(listFileName, out string fileReadError))
+                .Union(GetFilesFromStdin(readListFromStdIn))
+                .Where(path => !path.StartsWith(GVFSConstants.GitCommentSign.ToString()))
+                .Where(path => !string.IsNullOrWhiteSpace(path))
+                .Select(path => BlobPrefetcher.ToAbsolutePath(enlistment, path, isFolder: isFolder)));
+
+            if (!string.IsNullOrWhiteSpace(fileReadError))
+            {
+                error = fileReadError;
+                return false;
+            }
+
+            string[] errorArray = output
+                .Select(elementValidationFunction)
+                .Where(s => !string.IsNullOrWhiteSpace(s))
+                .ToArray();
+
+            if (errorArray != null && errorArray.Length > 0)
+            {
+                error = string.Join("\n", errorArray);
+                return false;
+            }
+
+            error = null;
+            return true;
+        }
+
         private static string ToAbsolutePath(Enlistment enlistment, string path, bool isFolder)
         {
-            string absolute = 
+            string absolute =
                 path.StartsWith("*")
                 ? path
                 : Path.Combine(enlistment.WorkingDirectoryRoot, path.Replace(GVFSConstants.GitPathSeparator, Path.DirectorySeparatorChar).TrimStart(Path.DirectorySeparatorChar));
@@ -422,12 +579,35 @@ namespace GVFS.Common.Prefetch
             return targetCommitish.StartsWith("refs/", StringComparison.OrdinalIgnoreCase);
         }
 
+        private void SavePrefetchArgs(string targetCommit, bool hydrate)
+        {
+            if (this.lastPrefetchArgs != null)
+            {
+                this.lastPrefetchArgs.SetValuesAndFlush(
+                    new[]
+                    {
+                        new KeyValuePair<string, string>(PrefetchArgs.CommitId, targetCommit),
+                        new KeyValuePair<string, string>(PrefetchArgs.Files, JsonConvert.SerializeObject(this.FileList)),
+                        new KeyValuePair<string, string>(PrefetchArgs.Folders, JsonConvert.SerializeObject(this.FolderList)),
+                        new KeyValuePair<string, string>(PrefetchArgs.Hydrate, hydrate.ToString()),
+                    });
+            }
+        }
+
         public class FetchException : Exception
         {
             public FetchException(string format, params object[] args)
                 : base(string.Format(format, args))
             {
             }
+        }
+
+        private static class PrefetchArgs
+        {
+            public const string CommitId = "CommitId";
+            public const string Files = "Files";
+            public const string Folders = "Folders";
+            public const string Hydrate = "Hydrate";
         }
     }
 }

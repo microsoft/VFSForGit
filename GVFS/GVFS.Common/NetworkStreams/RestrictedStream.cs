@@ -4,7 +4,7 @@ using System.IO;
 namespace GVFS.Common.NetworkStreams
 {
     /// <summary>
-    /// Stream wrapper for a length-limited subview of another stream. 
+    /// Stream wrapper for a length-limited subview of another stream.
     /// </summary>
     internal class RestrictedStream : Stream
     {

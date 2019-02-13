@@ -2,6 +2,7 @@
 using GVFS.Common;
 using GVFS.Tests.Should;
 using GVFS.UnitTests.Category;
+using GVFS.UnitTests.Mock.FileSystem;
 using GVFS.UnitTests.Windows.Mock.Upgrader;
 using NUnit.Framework;
 using System.Collections.Generic;
@@ -11,22 +12,23 @@ namespace GVFS.UnitTests.Windows.Upgrader
     [TestFixture]
     public class UpgradeVerbTests : UpgradeTests
     {
-        private MockProcessLauncher ProcessWrapper { get; set; }
-        private UpgradeVerb UpgradeVerb { get; set; }
+        private MockProcessLauncher processLauncher;
+        private UpgradeVerb upgradeVerb;
 
         [SetUp]
         public override void Setup()
         {
             base.Setup();
 
-            this.ProcessWrapper = new MockProcessLauncher(exitCode: 0, hasExited: true, startResult: true);
-            this.UpgradeVerb = new UpgradeVerb(
+            this.processLauncher = new MockProcessLauncher(exitCode: 0, hasExited: true, startResult: true);
+            this.upgradeVerb = new UpgradeVerb(
                 this.Upgrader,
                 this.Tracer,
+                this.FileSystem,
                 this.PrerunChecker,
-                this.ProcessWrapper,
+                this.processLauncher,
                 this.Output);
-            this.UpgradeVerb.Confirmed = false;
+            this.upgradeVerb.Confirmed = false;
             this.PrerunChecker.SetCommandToRerun("`gvfs upgrade`");
         }
 
@@ -36,9 +38,10 @@ namespace GVFS.UnitTests.Windows.Upgrader
             this.ConfigureRunAndVerify(
                 configure: () =>
                 {
+                    this.SetUpgradeRing("Slow");
                     this.Upgrader.PretendNewReleaseAvailableAtRemote(
                         upgradeVersion: NewerThanLocalVersion,
-                        remoteRing: ProductUpgrader.RingType.Slow);
+                        remoteRing: GitHubUpgrader.GitHubUpgraderConfig.RingType.Slow);
                 },
                 expectedReturn: ReturnCode.Success,
                 expectedOutput: new List<string>
@@ -55,9 +58,10 @@ namespace GVFS.UnitTests.Windows.Upgrader
             this.ConfigureRunAndVerify(
                 configure: () =>
                 {
+                    this.SetUpgradeRing("Slow");
                     this.Upgrader.PretendNewReleaseAvailableAtRemote(
                         upgradeVersion: OlderThanLocalVersion,
-                        remoteRing: ProductUpgrader.RingType.Slow);
+                        remoteRing: GitHubUpgrader.GitHubUpgraderConfig.RingType.Slow);
                 },
                 expectedReturn: ReturnCode.Success,
                 expectedOutput: new List<string>
@@ -74,7 +78,8 @@ namespace GVFS.UnitTests.Windows.Upgrader
             this.ConfigureRunAndVerify(
                 configure: () =>
                 {
-                    this.UpgradeVerb.Confirmed = true;
+                    this.SetUpgradeRing("Slow");
+                    this.upgradeVerb.Confirmed = true;
                     this.PrerunChecker.SetCommandToRerun("`gvfs upgrade --confirm`");
                 },
                 expectedReturn: ReturnCode.Success,
@@ -85,7 +90,7 @@ namespace GVFS.UnitTests.Windows.Upgrader
                 },
                 expectedErrors:null);
 
-            this.ProcessWrapper.IsLaunched.ShouldBeTrue();
+            this.processLauncher.IsLaunched.ShouldBeTrue();
         }
 
         [TestCase]
@@ -109,8 +114,9 @@ namespace GVFS.UnitTests.Windows.Upgrader
             this.ConfigureRunAndVerify(
                 configure: () =>
                 {
-                    this.Upgrader.SetFailOnAction(MockProductUpgrader.ActionType.CopyTools);
-                    this.UpgradeVerb.Confirmed = true;
+                    this.SetUpgradeRing("Slow");
+                    this.Upgrader.SetFailOnAction(MockGitHubUpgrader.ActionType.CopyTools);
+                    this.upgradeVerb.Confirmed = true;
                     this.PrerunChecker.SetCommandToRerun("`gvfs upgrade --confirm`");
                 },
                 expectedReturn: ReturnCode.GenericError,
@@ -130,18 +136,18 @@ namespace GVFS.UnitTests.Windows.Upgrader
             this.ConfigureRunAndVerify(
                 configure: () =>
                 {
-                    this.UpgradeVerb.Confirmed = true;
+                    this.upgradeVerb.Confirmed = true;
                     this.PrerunChecker.SetReturnFalseOnCheck(MockInstallerPrerunChecker.FailOnCheckType.ProjFSEnabled);
                 },
                 expectedReturn: ReturnCode.GenericError,
                 expectedOutput: new List<string>
                 {
-                    "ERROR: `gvfs upgrade` is not supported because you have previously installed an out of band ProjFS driver.",
+                    "ERROR: `gvfs upgrade` is only supported after the \"Windows Projected File System\" optional feature has been enabled by a manual installation of VFS for Git, and only on versions of Windows that support this feature.",
                     "Check your team's documentation for how to upgrade."
                 },
                 expectedErrors: new List<string>
                 {
-                    "`gvfs upgrade` is not supported because you have previously installed an out of band ProjFS driver."
+                    "`gvfs upgrade` is only supported after the \"Windows Projected File System\" optional feature has been enabled by a manual installation of VFS for Git, and only on versions of Windows that support this feature."
                 });
         }
 
@@ -152,7 +158,7 @@ namespace GVFS.UnitTests.Windows.Upgrader
             this.ConfigureRunAndVerify(
                 configure: () =>
                 {
-                    this.UpgradeVerb.Confirmed = true;
+                    this.upgradeVerb.Confirmed = true;
                     this.PrerunChecker.SetReturnTrueOnCheck(MockInstallerPrerunChecker.FailOnCheckType.IsServiceInstalledAndNotRunning);
                 },
                 expectedReturn: ReturnCode.GenericError,
@@ -174,7 +180,7 @@ namespace GVFS.UnitTests.Windows.Upgrader
             this.ConfigureRunAndVerify(
                 configure: () =>
                 {
-                    this.UpgradeVerb.Confirmed = true;
+                    this.upgradeVerb.Confirmed = true;
                     this.PrerunChecker.SetReturnFalseOnCheck(MockInstallerPrerunChecker.FailOnCheckType.IsElevated);
                 },
                 expectedReturn: ReturnCode.GenericError,
@@ -195,7 +201,7 @@ namespace GVFS.UnitTests.Windows.Upgrader
             this.ConfigureRunAndVerify(
                 configure: () =>
                 {
-                    this.UpgradeVerb.Confirmed = true;
+                    this.upgradeVerb.Confirmed = true;
                     this.PrerunChecker.SetReturnTrueOnCheck(MockInstallerPrerunChecker.FailOnCheckType.UnattendedMode);
                 },
                 expectedReturn: ReturnCode.GenericError,
@@ -209,21 +215,38 @@ namespace GVFS.UnitTests.Windows.Upgrader
                 });
         }
 
-        protected override void RunUpgrade()
+        [TestCase]
+        public void DryRunLaunchesUpgradeTool()
+        {
+            this.ConfigureRunAndVerify(
+                configure: () =>
+                {
+                    this.upgradeVerb.DryRun = true;
+                    this.SetUpgradeRing("Slow");
+                    this.Upgrader.PretendNewReleaseAvailableAtRemote(
+                        upgradeVersion: NewerThanLocalVersion,
+                        remoteRing: GitHubUpgrader.GitHubUpgraderConfig.RingType.Slow);
+                },
+                expectedReturn: ReturnCode.Success,
+                expectedOutput: new List<string>
+                {
+                    "Installer launched in a new window."
+                },
+                expectedErrors: null);
+        }
+
+        protected override ReturnCode RunUpgrade()
         {
             try
             {
-                this.UpgradeVerb.Execute();
+                this.upgradeVerb.Execute();
             }
             catch (GVFSVerb.VerbAbortedException)
             {
                 // ignore. exceptions are expected while simulating some failures.
             }
-        }
 
-        protected override ReturnCode ExitCode()
-        {
-            return this.UpgradeVerb.ReturnCode;
+            return this.upgradeVerb.ReturnCode;
         }
     }
 }

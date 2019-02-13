@@ -3,7 +3,9 @@ using GVFS.FunctionalTests.Should;
 using GVFS.FunctionalTests.Tools;
 using GVFS.Tests.Should;
 using NUnit.Framework;
+using System;
 using System.IO;
+using System.Linq;
 using System.Threading;
 
 namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
@@ -13,6 +15,8 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
     public class PrefetchVerbTests : TestsWithEnlistmentPerFixture
     {
         private const string PrefetchCommitsAndTreesLock = "prefetch-commits-trees.lock";
+        private const string MultiPackIndexLock = "multi-pack-index.lock";
+        private const string LsTreeTypeInPathBranchName = "FunctionalTests/20181105_LsTreeTypeInPath";
 
         private FileSystemRunner fileSystem;
 
@@ -42,7 +46,6 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
         }
 
         [TestCase, Order(4)]
-        [Category(Categories.MacTODO.M4)]
         public void PrefetchByFileExtensionWithHydrate()
         {
             int expectedCount = 3;
@@ -52,7 +55,6 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
         }
 
         [TestCase, Order(5)]
-        [Category(Categories.MacTODO.M4)]
         public void PrefetchByFilesWithHydrateWhoseObjectsAreAlreadyDownloaded()
         {
             int expectedCount = 2;
@@ -92,7 +94,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
                     "gvfs/"
                 });
 
-            this.ExpectBlobCount(this.Enlistment.Prefetch("--folders-list " + tempFilePath), 279);
+            this.ExpectBlobCount(this.Enlistment.Prefetch("--folders-list \"" + tempFilePath + "\""), 279);
             File.Delete(tempFilePath);
         }
 
@@ -100,25 +102,119 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
         public void PrefetchAll()
         {
             this.ExpectBlobCount(this.Enlistment.Prefetch("--files *"), 494);
-            this.ExpectBlobCount(this.Enlistment.Prefetch("--folders /"), 494);
             this.ExpectBlobCount(this.Enlistment.Prefetch($"--folders {Path.DirectorySeparatorChar}"), 494);
         }
 
-        // TODO(Mac): Handle that lock files are not deleted on Mac, they are simply unlocked
         [TestCase, Order(10)]
+        public void NoopPrefetch()
+        {
+            this.ExpectBlobCount(this.Enlistment.Prefetch("--files *"), 494);
+
+            this.Enlistment.Prefetch("--files *").ShouldContain("Nothing new to prefetch.");
+        }
+
+        // TODO(Mac): Handle that lock files are not deleted on Mac, they are simply unlocked
+        [TestCase, Order(11)]
         [Category(Categories.MacTODO.M4)]
         public void PrefetchCleansUpStalePrefetchLock()
         {
             this.Enlistment.Prefetch("--commits");
-            this.PostFetchJobShouldComplete();
+            this.PostFetchStepShouldComplete();
             string prefetchCommitsLockFile = Path.Combine(this.Enlistment.GetObjectRoot(this.fileSystem), "pack", PrefetchCommitsAndTreesLock);
             prefetchCommitsLockFile.ShouldNotExistOnDisk(this.fileSystem);
             this.fileSystem.WriteAllText(prefetchCommitsLockFile, this.Enlistment.EnlistmentRoot);
             prefetchCommitsLockFile.ShouldBeAFile(this.fileSystem);
 
+            this.fileSystem
+                .EnumerateDirectory(this.Enlistment.GetPackRoot(this.fileSystem))
+                .Split()
+                .Where(file => string.Equals(Path.GetExtension(file), ".keep", StringComparison.OrdinalIgnoreCase))
+                .Count()
+                .ShouldEqual(1, "Incorrect number of .keep files in pack directory");
+
             this.Enlistment.Prefetch("--commits");
-            this.PostFetchJobShouldComplete();
+            this.PostFetchStepShouldComplete();
             prefetchCommitsLockFile.ShouldNotExistOnDisk(this.fileSystem);
+        }
+
+        [TestCase, Order(11)]
+        [Category(Categories.MacTODO.M4)]
+        public void PrefetchCleansUpPackDir()
+        {
+            string multiPackIndexLockFile = Path.Combine(this.Enlistment.GetPackRoot(this.fileSystem), MultiPackIndexLock);
+            string oldGitTempFile = Path.Combine(this.Enlistment.GetPackRoot(this.fileSystem), "tmp_midx_XXXX");
+            string oldKeepFile = Path.Combine(this.Enlistment.GetPackRoot(this.fileSystem), "prefetch-00000000-HASH.keep");
+
+            this.fileSystem.WriteAllText(multiPackIndexLockFile, this.Enlistment.EnlistmentRoot);
+            this.fileSystem.WriteAllText(oldGitTempFile, this.Enlistment.EnlistmentRoot);
+            this.fileSystem.WriteAllText(oldKeepFile, this.Enlistment.EnlistmentRoot);
+
+            this.Enlistment.Prefetch("--commits");
+            oldGitTempFile.ShouldNotExistOnDisk(this.fileSystem);
+            oldKeepFile.ShouldNotExistOnDisk(this.fileSystem);
+
+            this.PostFetchStepShouldComplete();
+            multiPackIndexLockFile.ShouldNotExistOnDisk(this.fileSystem);
+        }
+
+        [TestCase, Order(12)]
+        public void PrefetchFilesFromFileListFile()
+        {
+            string tempFilePath = Path.Combine(Path.GetTempPath(), "temp.file");
+            try
+            {
+                File.WriteAllLines(
+                    tempFilePath,
+                    new[]
+                    {
+                        Path.Combine("GVFS", "GVFS", "Program.cs"),
+                        Path.Combine("GVFS", "GVFS.FunctionalTests", "GVFS.FunctionalTests.csproj")
+                    });
+
+                this.ExpectBlobCount(this.Enlistment.Prefetch($"--files-list \"{tempFilePath}\""), 2);
+            }
+            finally
+            {
+                File.Delete(tempFilePath);
+            }
+        }
+
+        [TestCase, Order(13)]
+        public void PrefetchFilesFromFileListStdIn()
+        {
+            string input = string.Join(
+                Environment.NewLine,
+                new[]
+                {
+                    Path.Combine("GVFS", "GVFS", "packages.config"),
+                    Path.Combine("GVFS", "GVFS.FunctionalTests", "App.config")
+                });
+
+            this.ExpectBlobCount(this.Enlistment.Prefetch("--stdin-files-list", standardInput: input), 2);
+        }
+
+        [TestCase, Order(14)]
+        public void PrefetchFolderListFromStdin()
+        {
+            string input = string.Join(
+                Environment.NewLine,
+                new[]
+                {
+                    "# A comment",
+                    " ",
+                    "gvfs/",
+                    "gvfs/gvfs",
+                    "gvfs/"
+                });
+
+            this.ExpectBlobCount(this.Enlistment.Prefetch("--stdin-folders-list", standardInput: input), 279);
+        }
+
+        public void PrefetchPathsWithLsTreeTypeInPath()
+        {
+            ProcessResult checkoutResult = GitProcess.InvokeProcess(this.Enlistment.RepoRoot, "checkout " + LsTreeTypeInPathBranchName);
+
+            this.ExpectBlobCount(this.Enlistment.Prefetch("--files *"), 496);
         }
 
         private void ExpectBlobCount(string output, int expectedCount)
@@ -126,10 +222,10 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
             output.ShouldContain("Matched blobs:    " + expectedCount);
         }
 
-        private void PostFetchJobShouldComplete()
+        private void PostFetchStepShouldComplete()
         {
             string objectDir = this.Enlistment.GetObjectRoot(this.fileSystem);
-            string postFetchLock = Path.Combine(objectDir, "post-fetch.lock");
+            string objectCacheLock = Path.Combine(objectDir, "git-maintenance-step.lock");
 
             // Wait first, to hopefully ensure the background thread has
             // started before we check for the lock file.
@@ -137,15 +233,18 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
             {
                 Thread.Sleep(500);
             }
-            while (this.fileSystem.FileExists(postFetchLock));
+            while (this.fileSystem.FileExists(objectCacheLock));
 
-            ProcessResult midxResult = GitProcess.InvokeProcess(this.Enlistment.RepoRoot, "midx --read --pack-dir=\"" + objectDir + "/pack\"");
+            ProcessResult midxResult = GitProcess.InvokeProcess(this.Enlistment.RepoRoot, "multi-pack-index verify --object-dir=\"" + objectDir + "\"");
             midxResult.ExitCode.ShouldEqual(0);
-            midxResult.Output.ShouldContain("4d494458"); // Header from midx file.
 
-            ProcessResult graphResult = GitProcess.InvokeProcess(this.Enlistment.RepoRoot, "commit-graph read --object-dir=\"" + objectDir + "\"");
-            graphResult.ExitCode.ShouldEqual(0);
-            graphResult.Output.ShouldContain("43475048"); // Header from commit-graph file.
+            // A commit graph is not always generated, but if it is, then we want to ensure it is in a good state
+            if (this.fileSystem.FileExists(Path.Combine(objectDir, "info", "commit-graph")))
+            {
+                ProcessResult graphResult = GitProcess.InvokeProcess(this.Enlistment.RepoRoot, "commit-graph read --object-dir=\"" + objectDir + "\"");
+                graphResult.ExitCode.ShouldEqual(0);
+                graphResult.Output.ShouldContain("43475048"); // Header from commit-graph file.
+            }
         }
     }
 }

@@ -1,15 +1,16 @@
 ﻿using GVFS.FunctionalTests.Should;
 using GVFS.FunctionalTests.Tools;
 using NUnit.Framework;
+using System.IO;
 
 namespace GVFS.FunctionalTests.Tests.GitCommands
 {
     [TestFixture]
     [Category(Categories.GitCommands)]
-    [Category(Categories.MacTODO.M3)]
     public class HashObjectTests : GitRepoTests
     {
-        public HashObjectTests() : base(enlistmentPerTest: false)
+        public HashObjectTests()
+            : base(enlistmentPerTest: false, validateWorkingTree: false)
         {
         }
 
@@ -18,19 +19,19 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
         {
             this.ValidateGitCommand("status");
 
-            // Validate that Readme.md is not on disk at all
-            string fileName = "Readme.md";
+            // Validate that Scripts\RunUnitTests.bad is not on disk at all
+            string filePath = Path.Combine("Scripts", "RunUnitTests.bat");
 
             this.Enlistment.UnmountGVFS();
-            this.Enlistment.GetVirtualPathTo(fileName).ShouldNotExistOnDisk(this.FileSystem);
+            this.Enlistment.GetVirtualPathTo(filePath).ShouldNotExistOnDisk(this.FileSystem);
             this.Enlistment.MountGVFS();
 
             // TODO 1087312: Fix 'git hash-oject' so that it works for files that aren't on disk yet
             GitHelpers.InvokeGitAgainstGVFSRepo(
                 this.Enlistment.RepoRoot,
-                "hash-object " + fileName);
+                "hash-object " + GitHelpers.ConvertPathToGitFormat(filePath));
 
-            this.FileContentsShouldMatch(fileName);
+            this.FileContentsShouldMatch(filePath);
         }
     }
 }

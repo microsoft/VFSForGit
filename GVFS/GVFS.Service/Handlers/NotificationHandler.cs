@@ -8,7 +8,7 @@ namespace GVFS.Service.Handlers
 {
     public class NotificationHandler
     {
-        // NotificationHandler uses a singleton so in the future, we can create callback actions 
+        // NotificationHandler uses a singleton so in the future, we can create callback actions
         // from responses sent by GVFS.Service.UI when a user clicks on a notification.
         private static NotificationHandler instance = new NotificationHandler();
 

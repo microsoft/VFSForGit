@@ -1,6 +1,9 @@
+@ECHO OFF
+CALL %~dp0\InitializeEnvironment.bat || EXIT /b 10
+
 IF "%1"=="" (SET "Configuration=Debug") ELSE (SET "Configuration=%1")
 
-call %~dp0\UninstallGVFS.bat
+call %VFS_SCRIPTSDIR%\UninstallGVFS.bat
 
 if not exist "c:\Program Files\Git" goto :noGit
 for /F "delims=" %%g in ('dir "c:\Program Files\Git\unins*.exe" /B /S /O:-D') do %%g /VERYSILENT /SUPPRESSMSGBOXES /NORESTART & goto :deleteGit
@@ -12,8 +15,8 @@ rmdir /q/s "c:\Program Files\Git"
 REM This is a hacky way to sleep for 2 seconds in a non-interactive window.  The timeout command does not work if it can't redirect stdin.
 ping 1.1.1.1 -n 1 -w 2000 >NUL
 
-call %~dp0\StopService.bat gvflt
-call %~dp0\StopService.bat prjflt
+call %VFS_SCRIPTSDIR%\StopService.bat gvflt
+call %VFS_SCRIPTSDIR%\StopService.bat prjflt
 
 if not exist c:\Windows\System32\drivers\gvflt.sys goto :removePrjFlt
 del c:\Windows\System32\drivers\gvflt.sys
@@ -25,5 +28,4 @@ verify >nul
 del c:\Windows\System32\drivers\PrjFlt.sys
 
 :runInstallers
-call %~dp0\..\..\BuildOutput\GVFS.Build\InstallG4W.bat
-call %~dp0\..\..\BuildOutput\GVFS.Build\InstallGVFS.bat
+call %VFS_OUTPUTDIR%\GVFS.Build\InstallProduct.bat

@@ -36,7 +36,7 @@ namespace GVFS.Platform.Windows.DiskLayoutUpgrades
             {
                 return false;
             }
-            
+
             if (!this.TryIncrementMajorVersion(tracer, enlistmentRoot))
             {
                 return false;
@@ -92,7 +92,7 @@ namespace GVFS.Platform.Windows.DiskLayoutUpgrades
                     tracer.RelatedError("Placeholder database appears to be from an older version of GVFS and corrupted: " + ex.Message);
                     return false;
                 }
-                
+
                 string backupName;
                 if (this.TryRenameFolderForDelete(tracer, esentPlaceholderFolder, out backupName))
                 {
@@ -142,8 +142,8 @@ namespace GVFS.Platform.Windows.DiskLayoutUpgrades
                                 tracer.RelatedInfo("Copying ESENT entry: {0} = {1}", kvp.Key, kvp.Value);
                                 newBackgroundOps.EnqueueAndFlush(
                                     new FileSystemTask(
-                                        (FileSystemTask.OperationType)kvp.Value.Operation, 
-                                        kvp.Value.VirtualPath, 
+                                        (FileSystemTask.OperationType)kvp.Value.Operation,
+                                        kvp.Value.VirtualPath,
                                         kvp.Value.OldVirtualPath));
                             }
                         }
@@ -159,7 +159,7 @@ namespace GVFS.Platform.Windows.DiskLayoutUpgrades
                     tracer.RelatedError("BackgroundOperations appears to be from an older version of GVFS and corrupted: " + ex.Message);
                     return false;
                 }
-                
+
                 string backupName;
                 if (this.TryRenameFolderForDelete(tracer, esentBackgroundOpsFolder, out backupName))
                 {

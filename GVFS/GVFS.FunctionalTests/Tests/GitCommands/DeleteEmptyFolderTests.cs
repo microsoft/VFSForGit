@@ -4,11 +4,12 @@ using NUnit.Framework;
 
 namespace GVFS.FunctionalTests.Tests.GitCommands
 {
-    [TestFixture]
+    [TestFixtureSource(typeof(GitRepoTests), nameof(GitRepoTests.ValidateWorkingTree))]
     [Category(Categories.GitCommands)]
     public class DeleteEmptyFolderTests : GitRepoTests
     {
-        public DeleteEmptyFolderTests() : base(enlistmentPerTest: true)
+        public DeleteEmptyFolderTests(bool validateWorkingTree)
+            : base(enlistmentPerTest: true, validateWorkingTree: validateWorkingTree)
         {
         }
 
@@ -34,7 +35,7 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
 
         private void SetupFolderDeleteTest()
         {
-            ControlGitRepo.Fetch("FunctionalTests/20170202_RenameTestMergeTarget");
+            this.ControlGitRepo.Fetch("FunctionalTests/20170202_RenameTestMergeTarget");
             this.ValidateGitCommand("checkout FunctionalTests/20170202_RenameTestMergeTarget");
             this.DeleteFile("Test_EPF_GitCommandsTestOnlyFileFolder", "file.txt");
             this.ValidateGitCommand("add .");

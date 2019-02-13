@@ -149,10 +149,7 @@ namespace GVFS.Common
             // In this code path, we don't care if the process terminated without releasing the lock. The calling code
             // is asking us about this lock so that it can determine if git was the cause of certain IO events. Even
             // if the git process has terminated, the answer to that question does not change.
-
-            bool externalHolderTerminatedWithoutReleasingLock;
-            NamedPipeMessages.LockData currentHolder = this.currentLockHolder.GetExternalHolder(
-                out externalHolderTerminatedWithoutReleasingLock);
+            NamedPipeMessages.LockData currentHolder = this.currentLockHolder.GetExternalHolder();
 
             if (currentHolder != null)
             {
@@ -221,9 +218,7 @@ namespace GVFS.Common
                     }
 
                     // We don't care if the process has already terminated. We're just trying to record the info for the last holder.
-                    bool externalHolderTerminatedWithoutReleasingLock;
-                    NamedPipeMessages.LockData previousExternalHolder = this.currentLockHolder.GetExternalHolder(
-                        out externalHolderTerminatedWithoutReleasingLock);
+                    NamedPipeMessages.LockData previousExternalHolder = this.currentLockHolder.GetExternalHolder();
 
                     if (previousExternalHolder == null)
                     {
@@ -342,10 +337,10 @@ namespace GVFS.Common
         /// the lock can be held by us or by an external process, and because the external process that holds the lock
         /// can terminate without releasing the lock. If that happens, we implicitly release the lock the next time we
         /// check to see who is holding it.
-        /// 
+        ///
         /// The goal of this class is to make it impossible for the rest of GVFSLock to read the external holder without being
         /// aware of the fact that it could have terminated.
-        /// 
+        ///
         /// This class assumes that the caller is handling all synchronization.
         /// </summary>
         private class LockHolder
@@ -387,6 +382,11 @@ namespace GVFS.Common
             {
                 this.IsGVFS = false;
                 this.externalLockHolder = null;
+            }
+
+            public NamedPipeMessages.LockData GetExternalHolder()
+            {
+                return this.externalLockHolder;
             }
 
             public NamedPipeMessages.LockData GetExternalHolder(out bool externalHolderTerminatedWithoutReleasingLock)

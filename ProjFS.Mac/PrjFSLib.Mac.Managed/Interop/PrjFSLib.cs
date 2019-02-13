@@ -31,12 +31,12 @@ namespace PrjFSLib.Mac.Interop
             byte[] contentId,
             ulong fileSize,
             ushort fileMode);
-        
+
         [DllImport(PrjFSLibPath, EntryPoint = "PrjFS_WriteSymLink")]
         public static extern Result WriteSymLink(
             string relativePath,
             string symLinkTarget);
-        
+
         [DllImport(PrjFSLibPath, EntryPoint = "PrjFS_UpdatePlaceholderFileIfNeeded")]
         public static extern Result UpdatePlaceholderFileIfNeeded(
             string relativePath,

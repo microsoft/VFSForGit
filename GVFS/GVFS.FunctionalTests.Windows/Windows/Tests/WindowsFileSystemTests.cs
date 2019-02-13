@@ -22,13 +22,13 @@ namespace GVFS.FunctionalTests.Windows.Windows.Tests
         private enum CreationDisposition
         {
             CreateNew = 1,        // CREATE_NEW
-            CreateAlways = 2,     // CREATE_ALWAYS    
-            OpenExisting = 3,     // OPEN_EXISTING    
-            OpenAlways = 4,       // OPEN_ALWAYS      
+            CreateAlways = 2,     // CREATE_ALWAYS
+            OpenExisting = 3,     // OPEN_EXISTING
+            OpenAlways = 4,       // OPEN_ALWAYS
             TruncateExisting = 5  // TRUNCATE_EXISTING
         }
 
-        [TestCaseSource(typeof(FileRunnersAndFolders), FileRunnersAndFolders.TestRunners)]
+        [TestCaseSource(typeof(FileRunnersAndFolders), nameof(FileRunnersAndFolders.Runners))]
         public void CaseOnlyRenameEmptyVirtualNTFSFolder(FileSystemRunner fileSystem, string parentFolder)
         {
             string testFolderName = Path.Combine(parentFolder, "test_folder");
@@ -50,7 +50,7 @@ namespace GVFS.FunctionalTests.Windows.Windows.Tests
             newFolderVirtualPath.ShouldNotExistOnDisk(fileSystem);
         }
 
-        [TestCaseSource(typeof(FileSystemRunner), FileSystemRunner.TestRunners)]
+        [TestCaseSource(typeof(FileSystemRunner), nameof(FileSystemRunner.Runners))]
         public void CaseOnlyRenameToAllCapsEmptyVirtualNTFSFolder(FileSystemRunner fileSystem)
         {
             string testFolderName = Path.Combine("test_folder");
@@ -72,7 +72,7 @@ namespace GVFS.FunctionalTests.Windows.Windows.Tests
             newFolderVirtualPath.ShouldNotExistOnDisk(fileSystem);
         }
 
-        [TestCaseSource(typeof(FileSystemRunner), FileSystemRunner.TestRunners)]
+        [TestCaseSource(typeof(FileSystemRunner), nameof(FileSystemRunner.Runners))]
         public void CaseOnlyRenameTopOfVirtualNTFSFolderTree(FileSystemRunner fileSystem)
         {
             string testFolderParent = "test_folder_parent";
@@ -117,7 +117,7 @@ namespace GVFS.FunctionalTests.Windows.Windows.Tests
             this.Enlistment.GetVirtualPathTo(relativeTestFilePath).ShouldNotExistOnDisk(fileSystem);
         }
 
-        [TestCaseSource(typeof(FileSystemRunner), FileSystemRunner.TestRunners)]
+        [TestCaseSource(typeof(FileSystemRunner), nameof(FileSystemRunner.Runners))]
         public void CaseOnlyRenameFullDotGitFolder(FileSystemRunner fileSystem)
         {
             string testFolderName = ".git\\test_folder";
@@ -139,7 +139,7 @@ namespace GVFS.FunctionalTests.Windows.Windows.Tests
             newFolderVirtualPath.ShouldNotExistOnDisk(fileSystem);
         }
 
-        [TestCaseSource(typeof(FileSystemRunner), FileSystemRunner.TestRunners)]
+        [TestCaseSource(typeof(FileSystemRunner), nameof(FileSystemRunner.Runners))]
         public void CaseOnlyRenameTopOfDotGitFullFolderTree(FileSystemRunner fileSystem)
         {
             string testFolderParent = ".git\\test_folder_parent";
@@ -181,7 +181,7 @@ namespace GVFS.FunctionalTests.Windows.Windows.Tests
             this.Enlistment.GetVirtualPathTo(Path.Combine(".git", newFolderParentName)).ShouldNotExistOnDisk(fileSystem);
         }
 
-        [TestCaseSource(typeof(FileRunnersAndFolders), FileRunnersAndFolders.TestFolders)]
+        [TestCaseSource(typeof(FileRunnersAndFolders), nameof(FileRunnersAndFolders.Folders))]
         public void StreamAccessReadFromMemoryMappedVirtualNTFSFile(string parentFolder)
         {
             // Use SystemIORunner as the text we are writing is too long to pass to the command line
@@ -221,7 +221,7 @@ namespace GVFS.FunctionalTests.Windows.Windows.Tests
             FileRunnersAndFolders.ShouldNotExistOnDisk(this.Enlistment, fileSystem, filename, parentFolder);
         }
 
-        [TestCaseSource(typeof(FileRunnersAndFolders), FileRunnersAndFolders.TestFolders)]
+        [TestCaseSource(typeof(FileRunnersAndFolders), nameof(FileRunnersAndFolders.Folders))]
         public void RandomAccessReadFromMemoryMappedVirtualNTFSFile(string parentFolder)
         {
             // Use SystemIORunner as the text we are writing is too long to pass to the command line
@@ -251,7 +251,6 @@ namespace GVFS.FunctionalTests.Windows.Windows.Tests
                     randAccessor.CanRead.ShouldEqual(true);
 
                     for (int i = 0; i < size; ++i)
-
                     {
                         ((char)randAccessor.ReadByte(i)).ShouldEqual(contents[i]);
                     }
@@ -267,7 +266,7 @@ namespace GVFS.FunctionalTests.Windows.Windows.Tests
             FileRunnersAndFolders.ShouldNotExistOnDisk(this.Enlistment, fileSystem, filename, parentFolder);
         }
 
-        [TestCaseSource(typeof(FileRunnersAndFolders), FileRunnersAndFolders.TestFolders)]
+        [TestCaseSource(typeof(FileRunnersAndFolders), nameof(FileRunnersAndFolders.Folders))]
         public void StreamAccessReadWriteFromMemoryMappedVirtualNTFSFile(string parentFolder)
         {
             // Use SystemIORunner as the text we are writing is too long to pass to the command line
@@ -335,7 +334,7 @@ namespace GVFS.FunctionalTests.Windows.Windows.Tests
             FileRunnersAndFolders.ShouldNotExistOnDisk(this.Enlistment, fileSystem, filename, parentFolder);
         }
 
-        [TestCaseSource(typeof(FileRunnersAndFolders), FileRunnersAndFolders.TestFolders)]
+        [TestCaseSource(typeof(FileRunnersAndFolders), nameof(FileRunnersAndFolders.Folders))]
         public void RandomAccessReadWriteFromMemoryMappedVirtualNTFSFile(string parentFolder)
         {
             // Use SystemIORunner as the text we are writing is too long to pass to the command line
@@ -405,7 +404,7 @@ namespace GVFS.FunctionalTests.Windows.Windows.Tests
             FileRunnersAndFolders.ShouldNotExistOnDisk(this.Enlistment, fileSystem, filename, parentFolder);
         }
 
-        [TestCaseSource(typeof(FileRunnersAndFolders), FileRunnersAndFolders.TestFolders)]
+        [TestCaseSource(typeof(FileRunnersAndFolders), nameof(FileRunnersAndFolders.Folders))]
         public void StreamAccessToExistingMemoryMappedFile(string parentFolder)
         {
             // Use SystemIORunner as the text we are writing is too long to pass to the command line
@@ -474,7 +473,7 @@ namespace GVFS.FunctionalTests.Windows.Windows.Tests
             FileRunnersAndFolders.ShouldNotExistOnDisk(this.Enlistment, fileSystem, filename, parentFolder);
         }
 
-        [TestCaseSource(typeof(FileRunnersAndFolders), FileRunnersAndFolders.TestFolders)]
+        [TestCaseSource(typeof(FileRunnersAndFolders), nameof(FileRunnersAndFolders.Folders))]
         public void RandomAccessToExistingMemoryMappedFile(string parentFolder)
         {
             // Use SystemIORunner as the text we are writing is too long to pass to the command line
@@ -543,7 +542,7 @@ namespace GVFS.FunctionalTests.Windows.Windows.Tests
             FileRunnersAndFolders.ShouldNotExistOnDisk(this.Enlistment, fileSystem, filename, parentFolder);
         }
 
-        [TestCaseSource(typeof(FileRunnersAndFolders), FileRunnersAndFolders.TestFolders)]
+        [TestCaseSource(typeof(FileRunnersAndFolders), nameof(FileRunnersAndFolders.Folders))]
         public void NativeReadAndWriteSeparateHandles(string parentFolder)
         {
             FileSystemRunner fileSystem = FileSystemRunner.DefaultRunner;
@@ -557,7 +556,7 @@ namespace GVFS.FunctionalTests.Windows.Windows.Tests
             FileRunnersAndFolders.ShouldNotExistOnDisk(this.Enlistment, fileSystem, filename, parentFolder);
         }
 
-        [TestCaseSource(typeof(FileRunnersAndFolders), FileRunnersAndFolders.TestFolders)]
+        [TestCaseSource(typeof(FileRunnersAndFolders), nameof(FileRunnersAndFolders.Folders))]
         public void NativeReadAndWriteSameHandle(string parentFolder)
         {
             FileSystemRunner fileSystem = FileSystemRunner.DefaultRunner;
@@ -575,7 +574,7 @@ namespace GVFS.FunctionalTests.Windows.Windows.Tests
             FileRunnersAndFolders.ShouldNotExistOnDisk(this.Enlistment, fileSystem, filename, parentFolder);
         }
 
-        [TestCaseSource(typeof(FileRunnersAndFolders), FileRunnersAndFolders.TestFolders)]
+        [TestCaseSource(typeof(FileRunnersAndFolders), nameof(FileRunnersAndFolders.Folders))]
         public void NativeReadAndWriteRepeatedly(string parentFolder)
         {
             FileSystemRunner fileSystem = FileSystemRunner.DefaultRunner;
@@ -593,7 +592,7 @@ namespace GVFS.FunctionalTests.Windows.Windows.Tests
             FileRunnersAndFolders.ShouldNotExistOnDisk(this.Enlistment, fileSystem, filename, parentFolder);
         }
 
-        [TestCaseSource(typeof(FileRunnersAndFolders), FileRunnersAndFolders.TestFolders)]
+        [TestCaseSource(typeof(FileRunnersAndFolders), nameof(FileRunnersAndFolders.Folders))]
         public void NativeRemoveReadOnlyAttribute(string parentFolder)
         {
             FileSystemRunner fileSystem = FileSystemRunner.DefaultRunner;
@@ -607,7 +606,7 @@ namespace GVFS.FunctionalTests.Windows.Windows.Tests
             FileRunnersAndFolders.ShouldNotExistOnDisk(this.Enlistment, fileSystem, filename, parentFolder);
         }
 
-        [TestCaseSource(typeof(FileRunnersAndFolders), FileRunnersAndFolders.TestFolders)]
+        [TestCaseSource(typeof(FileRunnersAndFolders), nameof(FileRunnersAndFolders.Folders))]
         public void NativeCannotWriteToReadOnlyFile(string parentFolder)
         {
             FileSystemRunner fileSystem = FileSystemRunner.DefaultRunner;
@@ -1142,6 +1141,7 @@ namespace GVFS.FunctionalTests.Windows.Windows.Tests
             ProjFS_MoveFileTest.ProjFS_MoveFile_VirtualToOutside(Path.GetDirectoryName(this.Enlistment.RepoRoot), this.Enlistment.RepoRoot).ShouldEqual(true);
         }
 
+        [Ignore("Disable this test until we can surface native test errors, see #454")]
         [TestCase]
         public void Native_ProjFS_MoveFile_PartialToOutside()
         {

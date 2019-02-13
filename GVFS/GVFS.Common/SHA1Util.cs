@@ -1,4 +1,5 @@
-﻿using System.Linq;
+﻿using System;
+using System.Linq;
 using System.Security.Cryptography;
 using System.Text;
 
@@ -8,7 +9,7 @@ namespace GVFS.Common
     {
         public static bool IsValidShaFormat(string sha)
         {
-            return sha.Length == 40 && !sha.Any(c => !(c >= '0' && c <= '9') && !(c >= 'a' && c <= 'f') && !(c >= 'A' && c <= 'F'));
+            return sha.Length == 40 && sha.All(c => Uri.IsHexDigit(c));
         }
 
         public static string SHA1HashStringForUTF8String(string s)
@@ -27,7 +28,7 @@ namespace GVFS.Common
         }
 
         /// <summary>
-        /// Returns a string representation of a byte array from the first 
+        /// Returns a string representation of a byte array from the first
         /// <param name="numBytes"/> bytes of the buffer.
         /// </summary>
         public static string HexStringFromBytes(byte[] buf, int numBytes = -1)
@@ -55,7 +56,7 @@ namespace GVFS.Common
                 }
             }
         }
-        
+
         public static byte[] BytesFromHexString(string sha)
         {
             byte[] arr = new byte[sha.Length / 2];

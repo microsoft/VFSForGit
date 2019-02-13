@@ -18,6 +18,7 @@ namespace GVFS.UnitTests.Mock.Common
             this.RelatedErrorEvents = new List<string>();
         }
 
+        public MockTracer StartActivityTracer { get; private set; }
         public string WaitRelatedEventName { get; set; }
 
         public List<string> RelatedInfoEvents { get; }
@@ -49,11 +50,14 @@ namespace GVFS.UnitTests.Mock.Common
         {
             this.RelatedInfoEvents.Add(string.Format(format, args));
         }
-        
+
         public void RelatedWarning(EventMetadata metadata, string message)
         {
-            metadata[TracingConstants.MessageKey.WarningMessage] = message;
-            this.RelatedWarningEvents.Add(JsonConvert.SerializeObject(metadata));
+            if (metadata != null)
+            {
+                metadata[TracingConstants.MessageKey.WarningMessage] = message;
+                this.RelatedWarningEvents.Add(JsonConvert.SerializeObject(metadata));
+            }
         }
 
         public void RelatedWarning(EventMetadata metadata, string message, Keywords keyword)
@@ -70,7 +74,7 @@ namespace GVFS.UnitTests.Mock.Common
         {
             this.RelatedWarningEvents.Add(string.Format(format, args));
         }
-        
+
         public void RelatedError(EventMetadata metadata, string message)
         {
             metadata[TracingConstants.MessageKey.ErrorMessage] = message;
@@ -94,17 +98,18 @@ namespace GVFS.UnitTests.Mock.Common
 
         public ITracer StartActivity(string activityName, EventLevel level)
         {
-            return new MockTracer();
+            return this.StartActivity(activityName, level, metadata: null);
         }
 
         public ITracer StartActivity(string activityName, EventLevel level, EventMetadata metadata)
         {
-            return new MockTracer();
+            return this.StartActivity(activityName, level, Keywords.None, metadata);
         }
 
         public ITracer StartActivity(string activityName, EventLevel level, Keywords startStopKeywords, EventMetadata metadata)
         {
-            return new MockTracer();
+            this.StartActivityTracer = this.StartActivityTracer ?? new MockTracer();
+            return this.StartActivityTracer;
         }
 
         public TimeSpan Stop(EventMetadata metadata)

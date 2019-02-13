@@ -38,7 +38,7 @@ namespace GVFS.FunctionalTests.Tests
                 Console.WriteLine("Unable to read logfile at {0}: {1}", filename, ex.ToString());
             }
         }
-        
+
         public static IEnumerable<string> GetAllFilesInDirectory(string folderName)
         {
             DirectoryInfo directory = new DirectoryInfo(folderName);

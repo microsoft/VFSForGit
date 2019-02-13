@@ -126,26 +126,22 @@ namespace GVFS.Common.Http
             GitProcess.Result result = git.SetInLocalConfig(GVFSConstants.GitConfig.CacheServer, cache.Url, replaceAll: true);
 
             error = result.Errors;
-            return !result.HasErrors;
+            return result.ExitCodeIsSuccess;
         }
 
         private static string GetValueFromConfig(GitProcess git, string configName, bool localOnly)
         {
-            GitProcess.Result result =
+            GitProcess.ConfigResult result =
                 localOnly
                 ? git.GetFromLocalConfig(configName)
                 : git.GetFromConfig(configName);
 
-            if (!result.HasErrors)
+            if (!result.TryParseAsString(out string value, out string error))
             {
-                return result.Output.TrimEnd('\n');
-            }
-            else if (result.Errors.Any())
-            {
-                throw new InvalidRepoException("Error while reading '" + configName + "' from config: " + result.Errors);
+                throw new InvalidRepoException(error);
             }
 
-            return null;
+            return value;
         }
 
         private static string GetDeprecatedCacheConfigSettingName(Enlistment enlistment)

@@ -1,249 +1,250 @@
 ﻿using GVFS.Common;
+using GVFS.Common.Git;
+using GVFS.Common.Tracing;
 using GVFS.Tests.Should;
+using GVFS.UnitTests.Mock.Common;
+using GVFS.UnitTests.Mock.FileSystem;
 using GVFS.UnitTests.Windows.Mock.Upgrader;
 using GVFS.Upgrader;
+using Moq;
 using NUnit.Framework;
+using System;
 using System.Collections.Generic;
 
-namespace GVFS.UnitTests.Windows.Upgrader
+namespace GVFS.UnitTests.Upgrader
 {
     [TestFixture]
-    public class UpgradeOrchestratorTests : UpgradeTests
+    public class UpgradeOrchestratorTests
     {
-        private UpgradeOrchestrator Orchestrator { get; set; }
+        private const string GVFSVersion = "1.1.18115.1";
+
+        private delegate void TryGetNewerVersionCallback(out System.Version version, out string message);
+        private delegate void UpgradeAllowedCallback(out string message);
+        private delegate void TryRunPreUpgradeChecksCallback(out string delegateMessage);
+        private delegate void TryDownloadNewestVersionCallback(out string message);
+        private delegate void TryCreateAndConfigureDownloadDirectoryCallback(ITracer tracer, out string message);
+        private delegate void TryRunInstallerCallback(InstallActionWrapper installActionWrapper, out string error);
+
+        private MockTracer Tracer { get; set; }
+        private MockFileSystem FileSystem { get; set; }
+        private MockTextWriter Output { get; set; }
+        private MockInstallerPrerunChecker PreRunChecker { get; set; }
+        private Mock<LocalGVFSConfig> MoqLocalConfig { get; set; }
+        private Mock<ProductUpgrader> MoqUpgrader { get; set; }
+
+        private UpgradeOrchestrator orchestrator { get; set; }
 
         [SetUp]
-        public override void Setup()
+        public void Setup()
         {
-            base.Setup();
-
-            this.Orchestrator = new UpgradeOrchestrator(
-                this.Upgrader,
+            this.Tracer = new MockTracer();
+            this.FileSystem = new MockFileSystem(new MockDirectory(@"mock:\GVFS.Upgrades\Download", null, null));
+            this.Output = new MockTextWriter();
+            this.PreRunChecker = new MockInstallerPrerunChecker(this.Tracer);
+            this.PreRunChecker.Reset();
+            this.MoqUpgrader = this.DefaultUpgrader();
+            this.orchestrator = new UpgradeOrchestrator(
+                this.MoqUpgrader.Object,
                 this.Tracer,
-                this.PrerunChecker,
+                this.FileSystem,
+                this.PreRunChecker,
                 input: null,
                 output: this.Output);
-            this.PrerunChecker.SetCommandToRerun("`gvfs upgrade --confirm`");
+
+            this.SetUpgradeAvailable(new Version(GVFSVersion), error: null);
         }
 
         [TestCase]
-        public void UpgradeNoError()
+        public void ExecuteSucceedsWhenUpgradeAvailable()
         {
-            this.Orchestrator.Execute();
-            this.Orchestrator.ExitCode.ShouldEqual(ReturnCode.Success);
-            this.Tracer.RelatedErrorEvents.ShouldBeEmpty();
+            this.orchestrator.Execute();
+
+            this.VerifyOrchestratorInvokes(
+                upgradeAllowed: true,
+                queryNewestVersion: true,
+                downloadNewestVersion: true,
+                installNewestVersion: true,
+                cleanup: true);
+
+            this.orchestrator.ExitCode.ShouldEqual(ReturnCode.Success);
         }
 
         [TestCase]
-        public void AutoUnmountError()
+        public void ExecuteSucceedsWhenOnLatestVersion()
         {
-            this.ConfigureRunAndVerify(
-                configure: () =>
-                {
-                    this.PrerunChecker.SetReturnFalseOnCheck(MockInstallerPrerunChecker.FailOnCheckType.UnMountRepos);
-                },
-                expectedReturn: ReturnCode.GenericError,
-                expectedOutput: new List<string>
-                {
-                    "Unmount of some of the repositories failed."
-                },
-                expectedErrors: new List<string>
-                {
-                    "Unmount of some of the repositories failed."
-                });
+            this.SetUpgradeAvailable(newVersion: null, error: null);
+
+            this.orchestrator.Execute();
+
+            this.VerifyOrchestratorInvokes(
+                upgradeAllowed: true,
+                queryNewestVersion: true,
+                downloadNewestVersion: false,
+                installNewestVersion: false,
+                cleanup: true);
+
+            this.orchestrator.ExitCode.ShouldEqual(ReturnCode.Success);
         }
 
         [TestCase]
-        public void AbortOnBlockingProcess()
+        public void ExecuteFailsWhenGetNewVersionFails()
         {
-            this.ConfigureRunAndVerify(
-                configure: () =>
-                {
-                    this.PrerunChecker.SetReturnTrueOnCheck(MockInstallerPrerunChecker.FailOnCheckType.BlockingProcessesRunning);
-                },
-                expectedReturn: ReturnCode.GenericError,
-                expectedOutput: new List<string>
-                {
-                    "ERROR: Blocking processes are running.",
-                    $"Run `gvfs upgrade --confirm` again after quitting these processes - GVFS.Mount, git"
-                },
-                expectedErrors: new List<string>
-                {
-                    $"Run `gvfs upgrade --confirm` again after quitting these processes - GVFS.Mount, git"
-                });
+            string errorMessage = "Authentication error.";
+
+            this.SetUpgradeAvailable(newVersion: null, error: errorMessage);
+
+            this.orchestrator.Execute();
+
+            this.VerifyOrchestratorInvokes(
+                upgradeAllowed: true,
+                queryNewestVersion: true,
+                downloadNewestVersion: false,
+                installNewestVersion: false,
+                cleanup: true);
+
+            this.VerifyOutput("ERROR: Authentication error.");
+
+            this.orchestrator.ExitCode.ShouldEqual(ReturnCode.GenericError);
         }
 
         [TestCase]
-        public void GVFSDownloadError()
+        public void ExecuteFailsWhenPrecheckFails()
         {
-            this.ConfigureRunAndVerify(
-                configure: () =>
-                {
-                    this.Upgrader.SetFailOnAction(MockProductUpgrader.ActionType.GVFSDownload);
-                },
-                expectedReturn: ReturnCode.GenericError,
-                expectedOutput: new List<string>
-                {
-                    "Error downloading GVFS from GitHub"
-                },
-                expectedErrors: new List<string>
-                {
-                    "Error downloading GVFS from GitHub"
-                });
+            this.PreRunChecker.SetReturnFalseOnCheck(MockInstallerPrerunChecker.FailOnCheckType.IsElevated);
+
+            this.orchestrator.Execute();
+
+            this.VerifyOrchestratorInvokes(
+                upgradeAllowed: true,
+                queryNewestVersion: false,
+                downloadNewestVersion: false,
+                installNewestVersion: false,
+                cleanup: true);
+
+            this.orchestrator.ExitCode.ShouldEqual(ReturnCode.GenericError);
         }
 
         [TestCase]
-        public void GitDownloadError()
+        public void ExecuteFailsWhenDownloadFails()
         {
-            this.ConfigureRunAndVerify(
-                configure: () =>
-                {
-                    this.Upgrader.SetFailOnAction(MockProductUpgrader.ActionType.GitDownload);
-                },
-                expectedReturn: ReturnCode.GenericError,
-                expectedOutput: new List<string>
-                {
-                    "Error downloading Git from GitHub"
-                },
-                expectedErrors: new List<string>
-                {
-                    "Error downloading Git from GitHub"
-                });
+            this.MoqUpgrader.Setup(upgrader => upgrader.TryDownloadNewestVersion(out It.Ref<string>.IsAny))
+                .Callback(new TryDownloadNewestVersionCallback(
+                    (out string delegateMessage) =>
+                    {
+                        delegateMessage = "Download error.";
+                    }))
+                .Returns(false);
+
+            this.orchestrator.Execute();
+
+            this.VerifyOrchestratorInvokes(
+                upgradeAllowed: true,
+                queryNewestVersion: true,
+                downloadNewestVersion: true,
+                installNewestVersion: false,
+                cleanup: true);
+
+            this.VerifyOutput("ERROR: Download error.");
+
+            this.orchestrator.ExitCode.ShouldEqual(ReturnCode.GenericError);
         }
 
         [TestCase]
-        public void GitInstallationArgs()
+        public void ExecuteFailsWhenRunInstallerFails()
         {
-            this.Orchestrator.Execute();
+            this.MoqUpgrader.Setup(upgrader => upgrader.TryRunInstaller(It.IsAny<InstallActionWrapper>(), out It.Ref<string>.IsAny))
+                .Callback(new TryRunInstallerCallback((InstallActionWrapper installActionWrapper, out string delegateMessage) =>
+                {
+                    delegateMessage = "Installer error.";
+                }))
+                .Returns(false);
 
-            this.Orchestrator.ExitCode.ShouldEqual(ReturnCode.Success);
+            this.orchestrator.Execute();
 
-            Dictionary<string, string> gitInstallerInfo;
-            this.Upgrader.InstallerArgs.ShouldBeNonEmpty();
-            this.Upgrader.InstallerArgs.TryGetValue("Git", out gitInstallerInfo).ShouldBeTrue();
+            this.VerifyOrchestratorInvokes(
+                upgradeAllowed: true,
+                queryNewestVersion: true,
+                downloadNewestVersion: true,
+                installNewestVersion: true,
+                cleanup: true);
 
-            string args;
-            gitInstallerInfo.TryGetValue("Args", out args).ShouldBeTrue();
-            args.ShouldContain(new string[] { "/VERYSILENT", "/CLOSEAPPLICATIONS", "/SUPPRESSMSGBOXES", "/NORESTART", "/Log" });
+            this.VerifyOutput("ERROR: Installer error.");
+
+            this.orchestrator.ExitCode.ShouldEqual(ReturnCode.GenericError);
         }
 
-        [TestCase]
-        public void GitInstallError()
+        public Mock<ProductUpgrader> DefaultUpgrader()
         {
-            this.ConfigureRunAndVerify(
-                configure: () =>
+            Mock<ProductUpgrader> mockUpgrader = new Mock<ProductUpgrader>();
+
+            mockUpgrader.Setup(upgrader => upgrader.UpgradeAllowed(out It.Ref<string>.IsAny))
+                .Callback(new UpgradeAllowedCallback((out string delegateMessage) =>
                 {
-                    this.Upgrader.SetFailOnAction(MockProductUpgrader.ActionType.GitInstall);
-                },
-                expectedReturn: ReturnCode.GenericError,
-                expectedOutput: new List<string>
-                {
-                    "Git installation failed"
-                },
-                expectedErrors: new List<string>
-                {
-                    "Git installation failed"
-                });
+                    delegateMessage = string.Empty;
+                }))
+                .Returns(true);
+
+            string message = string.Empty;
+            mockUpgrader.Setup(upgrader => upgrader.TryDownloadNewestVersion(out It.Ref<string>.IsAny)).Returns(true);
+            mockUpgrader.Setup(upgrader => upgrader.TryRunInstaller(It.IsAny<InstallActionWrapper>(), out message)).Returns(true);
+            mockUpgrader.Setup(upgrader => upgrader.TryCleanup(out It.Ref<string>.IsAny)).Returns(true);
+
+            return mockUpgrader;
         }
 
-        [TestCase]
-        public void GVFSInstallationArgs()
+        public void SetUpgradeAvailable(Version newVersion, string error)
         {
-           this.Orchestrator.Execute();
+            bool upgradeResult = string.IsNullOrEmpty(error);
 
-            this.Orchestrator.ExitCode.ShouldEqual(ReturnCode.Success);
-
-            Dictionary<string, string> gitInstallerInfo;
-            this.Upgrader.InstallerArgs.ShouldBeNonEmpty();
-            this.Upgrader.InstallerArgs.TryGetValue("GVFS", out gitInstallerInfo).ShouldBeTrue();
-
-            string args;
-            gitInstallerInfo.TryGetValue("Args", out args).ShouldBeTrue();
-            args.ShouldContain(new string[] { "/VERYSILENT", "/CLOSEAPPLICATIONS", "/SUPPRESSMSGBOXES", "/NORESTART", "/Log", "/MOUNTREPOS=false" });
+            this.MoqUpgrader.Setup(upgrader => upgrader.TryQueryNewestVersion(out It.Ref<System.Version>.IsAny, out It.Ref<string>.IsAny))
+                .Callback(new TryGetNewerVersionCallback((out System.Version delegateVersion, out string delegateMessage) =>
+                {
+                    delegateVersion = newVersion;
+                    delegateMessage = error;
+                }))
+                .Returns(upgradeResult);
         }
 
-        [TestCase]
-        public void GVFSInstallError()
+        public void VerifyOrchestratorInvokes(
+            bool upgradeAllowed,
+            bool queryNewestVersion,
+            bool downloadNewestVersion,
+            bool installNewestVersion,
+            bool cleanup)
         {
-            this.ConfigureRunAndVerify(
-                configure: () =>
-                {
-                    this.Upgrader.SetFailOnAction(MockProductUpgrader.ActionType.GVFSInstall);
-                },
-                expectedReturn: ReturnCode.GenericError,
-                expectedOutput: new List<string>
-                {
-                    "GVFS installation failed"
-                },
-                expectedErrors: new List<string>
-                {
-                    "GVFS installation failed"
-                });
+            this.MoqUpgrader.Verify(
+                upgrader => upgrader.UpgradeAllowed(
+                    out It.Ref<string>.IsAny),
+                    upgradeAllowed ? Times.Once() : Times.Never());
+
+            this.MoqUpgrader.Verify(
+                upgrader => upgrader.TryQueryNewestVersion(
+                    out It.Ref<System.Version>.IsAny,
+                    out It.Ref<string>.IsAny),
+                    queryNewestVersion ? Times.Once() : Times.Never());
+
+            this.MoqUpgrader.Verify(
+                upgrader => upgrader.TryDownloadNewestVersion(
+                    out It.Ref<string>.IsAny),
+                    downloadNewestVersion ? Times.Once() : Times.Never());
+
+            this.MoqUpgrader.Verify(
+                upgrader => upgrader.TryRunInstaller(
+                    It.IsAny<InstallActionWrapper>(),
+                    out It.Ref<string>.IsAny),
+                    installNewestVersion ? Times.Once() : Times.Never());
+
+            this.MoqUpgrader.Verify(
+                upgrader => upgrader.TryCleanup(
+                    out It.Ref<string>.IsAny),
+                    cleanup ? Times.Once() : Times.Never());
         }
 
-        [TestCase]
-        public void GVFSCleanupError()
+        public void VerifyOutput(string expectedMessage)
         {
-            this.ConfigureRunAndVerify(
-                configure: () =>
-                {
-                    this.Upgrader.SetFailOnAction(MockProductUpgrader.ActionType.GVFSCleanup);
-                },
-                expectedReturn: ReturnCode.Success,
-                expectedOutput: new List<string>
-                {
-                },
-                expectedErrors: new List<string>
-                {
-                    "Error deleting downloaded GVFS installer."
-                });
-        }
-
-        [TestCase]
-        public void GitCleanupError()
-        {
-            this.ConfigureRunAndVerify(
-                configure: () =>
-                {
-                    this.Upgrader.SetFailOnAction(MockProductUpgrader.ActionType.GitCleanup);
-                },
-                expectedReturn: ReturnCode.Success,
-                expectedOutput: new List<string>
-                {
-                },
-                expectedErrors: new List<string>
-                {
-                    "Error deleting downloaded Git installer."
-                });
-        }
-
-        [TestCase]
-        public void RemountReposError()
-        {
-            this.ConfigureRunAndVerify(
-                configure: () =>
-                {
-                    this.PrerunChecker.SetReturnFalseOnCheck(MockInstallerPrerunChecker.FailOnCheckType.RemountRepos);
-                },
-                expectedReturn: ReturnCode.Success,
-                expectedOutput: new List<string>
-                {
-                    "Auto remount failed."
-                },
-                expectedErrors: new List<string>
-                {
-                    "Auto remount failed."
-                });
-        }
-
-        protected override void RunUpgrade()
-        {
-            this.Orchestrator.Execute();
-        }
-
-        protected override ReturnCode ExitCode()
-        {
-            return this.Orchestrator.ExitCode;
+            this.Output.AllLines.ShouldContain(
+                    new List<string>() { expectedMessage },
+                    (line, expectedLine) => { return line.Contains(expectedLine); });
         }
     }
 }

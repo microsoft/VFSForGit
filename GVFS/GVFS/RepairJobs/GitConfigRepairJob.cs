@@ -22,15 +22,12 @@ namespace GVFS.RepairJobs
         public override IssueType HasIssue(List<string> messages)
         {
             GitProcess git = new GitProcess(this.Enlistment);
-            GitProcess.Result result = git.GetOriginUrl();
-            if (result.HasErrors)
+            GitProcess.ConfigResult originResult = git.GetOriginUrl();
+            string error;
+            string originUrl;
+            if (!originResult.TryParseAsString(out originUrl, out error))
             {
-                if (result.Errors.Length == 0)
-                {
-                    messages.Add("Remote 'origin' is not configured for this repo. You can fix this by running 'git remote add origin <repourl>'");
-                    return IssueType.CantFix;
-                }
-                else if (result.Errors.Contains("--local"))
+                if (error.Contains("--local"))
                 {
                     // example error: '--local can only be used inside a git repository'
                     // Corrupting the git config does not cause git to not recognize the current folder as "not a git repository".
@@ -39,35 +36,37 @@ namespace GVFS.RepairJobs
                     return IssueType.CantFix;
                 }
 
-                messages.Add("Could not read origin url: " + result.Errors);
+                messages.Add("Could not read origin url: " + error);
                 return IssueType.Fixable;
             }
 
-            // At this point, we've confirmed that the repo url can be gotten, so we have to 
-            // reinitialize the GitProcess with a valid repo url for 'git credential fill'
-            string repoUrl = null;
+            if (originUrl == null)
+            {
+                messages.Add("Remote 'origin' is not configured for this repo. You can fix this by running 'git remote add origin <repourl>'");
+                return IssueType.CantFix;
+            }
+
+            // We've validated the repo URL, so now make sure we can authenticate
             try
             {
                 GVFSEnlistment enlistment = GVFSEnlistment.CreateFromDirectory(
                     this.Enlistment.EnlistmentRoot,
                     this.Enlistment.GitBinPath,
-                    this.Enlistment.GVFSHooksRoot);
-                git = new GitProcess(enlistment);
-                repoUrl = enlistment.RepoUrl;
+                    this.Enlistment.GVFSHooksRoot,
+                    authentication: null);
+
+                string authError;
+                if (!enlistment.Authentication.TryInitialize(this.Tracer, enlistment, out authError))
+                {
+                    messages.Add("Authentication failed. Run 'gvfs log' for more info.");
+                    messages.Add(".git\\config is valid and remote 'origin' is set, but may have a typo:");
+                    messages.Add(originUrl.Trim());
+                    return IssueType.CantFix;
+                }
             }
             catch (InvalidRepoException)
             {
                 messages.Add("An issue was found that may be a side-effect of other issues. Fix them with 'gvfs repair --confirm' then 'gvfs repair' again.");
-                return IssueType.CantFix;
-            }
-
-            string username;
-            string password;
-            if (!git.TryGetCredentials(this.Tracer, repoUrl, out username, out password))
-            {
-                messages.Add("Authentication failed. Run 'gvfs log' for more info.");
-                messages.Add(".git\\config is valid and remote 'origin' is set, but may have a typo:");
-                messages.Add(result.Output.Trim());
                 return IssueType.CantFix;
             }
 
@@ -82,7 +81,7 @@ namespace GVFS.RepairJobs
             {
                 return FixResult.Failure;
             }
-            
+
             File.WriteAllText(configPath, string.Empty);
             this.Tracer.RelatedInfo("Created empty file: " + configPath);
 
@@ -98,7 +97,7 @@ namespace GVFS.RepairJobs
             // Don't output the validation output unless it turns out we couldn't fix the problem
             List<string> validationMessages = new List<string>();
 
-            // HasIssue should return CantFix because we can't set the repo url ourselves, 
+            // HasIssue should return CantFix because we can't set the repo url ourselves,
             // but getting Fixable means that we still failed
             if (this.HasIssue(validationMessages) == IssueType.Fixable)
             {

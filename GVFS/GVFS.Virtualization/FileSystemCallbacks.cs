@@ -19,8 +19,6 @@ namespace GVFS.Virtualization
     public class FileSystemCallbacks : IDisposable, IHeartBeatMetadataProvider
     {
         private const string EtwArea = nameof(FileSystemCallbacks);
-        private const string PostFetchLock = "post-fetch.lock";
-        private const string PostFetchTelemetryKey = "post-fetch";
 
         private static readonly GitCommandLineParser.Verbs LeavesProjectionUnchangedVerbs =
             GitCommandLineParser.Verbs.AddOrStage |
@@ -31,16 +29,12 @@ namespace GVFS.Virtualization
         private readonly string logsHeadPath;
 
         private GVFSContext context;
-        private GVFSGitObjects gitObjects;
         private ModifiedPathsDatabase modifiedPaths;
         private ConcurrentHashSet<string> newlyCreatedFileAndFolderPaths;
         private ConcurrentDictionary<string, PlaceHolderCreateCounter> placeHolderCreationCount;
         private BackgroundFileSystemTaskRunner backgroundFileSystemTaskRunner;
         private FileSystemVirtualizer fileSystemVirtualizer;
         private FileProperties logsHeadFileProperties;
-        private Thread postFetchJobThread;
-        private object postFetchJobLock;
-        private bool stopping;
 
         private GitStatusCache gitStatusCache;
         private bool enableGitStatusCache;
@@ -69,10 +63,8 @@ namespace GVFS.Virtualization
             GitStatusCache gitStatusCache = null)
         {
             this.logsHeadFileProperties = null;
-            this.postFetchJobLock = new object();
 
             this.context = context;
-            this.gitObjects = gitObjects;
             this.fileSystemVirtualizer = fileSystemVirtualizer;
 
             this.placeHolderCreationCount = new ConcurrentDictionary<string, PlaceHolderCreateCounter>(StringComparer.OrdinalIgnoreCase);
@@ -194,13 +186,6 @@ namespace GVFS.Virtualization
 
         public void Stop()
         {
-            this.stopping = true;
-            lock (this.postFetchJobLock)
-            {
-                // TODO(Mac): System.PlatformNotSupportedException: Thread abort is not supported on this platform
-                this.postFetchJobThread?.Abort();
-            }
-
             // Shutdown the GitStatusCache before other
             // components that it depends on.
             this.gitStatusCache.Shutdown();
@@ -285,7 +270,7 @@ namespace GVFS.Virtualization
 
             // Even though we're returning true and saying it's safe to ask for the lock
             // there is no guarantee that the lock will be acquired, because GVFS itself
-            // could obtain the lock before the external holder gets it. Setting up an 
+            // could obtain the lock before the external holder gets it. Setting up an
             // appropriate error message in case that happens
             denyMessage = "Waiting for GVFS to release the lock";
 
@@ -325,8 +310,19 @@ namespace GVFS.Virtualization
             }
 
             metadata.Add(nameof(RepoMetadata.Instance.EnlistmentId), RepoMetadata.Instance.EnlistmentId);
+            metadata.Add(
+                "PhysicalDiskInfo",
+                GVFSPlatform.Instance.GetPhysicalDiskInfo(
+                    this.context.Enlistment.WorkingDirectoryRoot,
+                    sizeStatsOnly: true));
 
             return metadata;
+        }
+
+        public void ForceIndexProjectionUpdate(bool invalidateProjection, bool invalidateModifiedPaths)
+        {
+            this.InvalidateState(invalidateProjection, invalidateModifiedPaths);
+            this.GitIndexProjection.WaitForProjectionUpdate();
         }
 
         public NamedPipeMessages.ReleaseLock.Response TryReleaseExternalLock(int pid)
@@ -346,8 +342,7 @@ namespace GVFS.Virtualization
             if (!gitCommand.IsValidGitCommand)
             {
                 // Something wrote to the index without holding the GVFS lock, so we invalidate the projection
-                this.GitIndexProjection.InvalidateProjection();
-                this.InvalidateGitStatusCache();
+                this.InvalidateState(invalidateProjection: true, invalidateModifiedPaths: false);
 
                 // But this isn't something we expect to see, so log a warning
                 EventMetadata metadata = new EventMetadata
@@ -358,19 +353,6 @@ namespace GVFS.Virtualization
 
                 this.context.Tracer.RelatedEvent(EventLevel.Warning, $"{nameof(this.OnIndexFileChange)}_NoLock", metadata);
             }
-            else if (this.GitCommandLeavesProjectionUnchanged(gitCommand))
-            {
-                this.GitIndexProjection.InvalidateModifiedFiles();
-                this.backgroundFileSystemTaskRunner.Enqueue(FileSystemTask.OnIndexWriteWithoutProjectionChange());
-                this.InvalidateGitStatusCache();
-            }
-            else
-            {
-                this.GitIndexProjection.InvalidateProjection();
-                this.InvalidateGitStatusCache();
-            }
-
-            this.newlyCreatedFileAndFolderPaths.Clear();
         }
 
         public void InvalidateGitStatusCache()
@@ -407,7 +389,7 @@ namespace GVFS.Virtualization
 
         public void OnFileCreated(string relativePath)
         {
-            this.newlyCreatedFileAndFolderPaths.Add(relativePath);
+            this.AddToNewlyCreatedList(relativePath, isFolder: false);
             this.backgroundFileSystemTaskRunner.Enqueue(FileSystemTask.OnFileCreated(relativePath));
         }
 
@@ -453,7 +435,7 @@ namespace GVFS.Virtualization
 
         public void OnFolderCreated(string relativePath)
         {
-            this.newlyCreatedFileAndFolderPaths.Add(relativePath);
+            this.AddToNewlyCreatedList(relativePath, isFolder: true);
             this.backgroundFileSystemTaskRunner.Enqueue(FileSystemTask.OnFolderCreated(relativePath));
         }
 
@@ -478,7 +460,7 @@ namespace GVFS.Virtualization
 
             // Note: Because OnPlaceholderFileCreated is not synchronized on all platforms it is possible that GVFS will double count
             // the creation of file placeholders if multiple requests for the same file are received at the same time on different
-            // threads.                         
+            // threads.
             this.placeHolderCreationCount.AddOrUpdate(
                 triggeringProcessImageFileName,
                 (imageName) => { return new PlaceHolderCreateCounter(); },
@@ -502,7 +484,7 @@ namespace GVFS.Virtualization
 
         public FileProperties GetLogsHeadFileProperties()
         {
-            // Use a temporary FileProperties in case another thread sets this.logsHeadFileProperties before this 
+            // Use a temporary FileProperties in case another thread sets this.logsHeadFileProperties before this
             // method returns
             FileProperties properties = this.logsHeadFileProperties;
             if (properties == null)
@@ -527,92 +509,21 @@ namespace GVFS.Virtualization
             return properties;
         }
 
-        public void LaunchPostFetchJob(List<string> packIndexes)
+        private void InvalidateState(bool invalidateProjection, bool invalidateModifiedPaths)
         {
-            lock (this.postFetchJobLock)
+            if (invalidateProjection)
             {
-                if (this.postFetchJobThread?.IsAlive == true)
-                {
-                    this.context.Tracer.RelatedWarning("Dropping post-fetch job since previous job is still running");
-                    return;
-                }
-
-                if (this.stopping)
-                {
-                    this.context.Tracer.RelatedWarning("Dropping post-fetch job since attempting to unmount");
-                    return;
-                }
-
-                this.postFetchJobThread = new Thread(() => this.PostFetchJob(packIndexes));
-                this.postFetchJobThread.IsBackground = true;
-                this.postFetchJobThread.Start();
+                this.GitIndexProjection.InvalidateProjection();
             }
-        }
 
-        private void PostFetchJob(List<string> packIndexes)
-        {
-            try
+            if (invalidateModifiedPaths)
             {
-                using (FileBasedLock postFetchFileLock = GVFSPlatform.Instance.CreateFileBasedLock(
-                    this.context.FileSystem,
-                    this.context.Tracer,
-                    Path.Combine(this.context.Enlistment.GitObjectsRoot, PostFetchLock)))
-                {
-                    if (!postFetchFileLock.TryAcquireLock())
-                    {
-                        this.context.Tracer.RelatedInfo(PostFetchTelemetryKey + ": Skipping post-fetch work since another process holds the lock");
-                        return;
-                    }
-
-                    if (!this.gitObjects.TryWriteMultiPackIndex(this.context.Tracer, this.context.Enlistment, this.context.FileSystem))
-                    {
-                        this.context.Tracer.RelatedWarning(
-                            metadata: null,
-                            message: PostFetchTelemetryKey + ": Failed to generate midx for new packfiles",
-                            keywords: Keywords.Telemetry);
-                    }
-
-                    if (packIndexes == null || packIndexes.Count == 0)
-                    {
-                        this.context.Tracer.RelatedInfo(PostFetchTelemetryKey + ": Skipping commit-graph write due to no new packfiles");
-                        return;
-                    }
-
-                    using (ITracer activity = this.context.Tracer.StartActivity("TryWriteGitCommitGraph", EventLevel.Informational, Keywords.Telemetry, metadata: null))
-                    {
-                        GitProcess process = new GitProcess(this.context.Enlistment);
-                        GitProcess.Result result = process.WriteCommitGraph(this.context.Enlistment.GitObjectsRoot, packIndexes);
-
-                        if (result.HasErrors)
-                        {
-                            this.context.Tracer.RelatedWarning(
-                                metadata: null,
-                                message: PostFetchTelemetryKey + ": Failed to generate commit-graph for new packfiles:" + result.Errors,
-                                keywords: Keywords.Telemetry);
-                            return;
-                        }
-                    }
-                }
+                this.GitIndexProjection.InvalidateModifiedFiles();
+                this.backgroundFileSystemTaskRunner.Enqueue(FileSystemTask.OnIndexWriteRequiringModifiedPathsValidation());
             }
-            catch (ThreadAbortException)
-            {
-                this.context.Tracer.RelatedInfo("Aborting post-fetch job due to ThreadAbortException");
-            }
-            catch (IOException e)
-            {
-                this.context.Tracer.RelatedWarning(
-                    metadata: this.CreateEventMetadata(null, e),
-                    message: PostFetchTelemetryKey + ": IOException while running post-fetch job: " + e.Message,
-                    keywords: Keywords.Telemetry);
-            }
-            catch (Exception e)
-            {
-                this.context.Tracer.RelatedError(
-                    metadata: this.CreateEventMetadata(null, e),
-                    message: PostFetchTelemetryKey + ": Exception while running post-fetch job: " + e.Message,
-                    keywords: Keywords.Telemetry);
-                Environment.Exit((int)ReturnCode.GenericError);
-            }
+
+            this.InvalidateGitStatusCache();
+            this.newlyCreatedFileAndFolderPaths.Clear();
         }
 
         private bool GitCommandLeavesProjectionUnchanged(GitCommandLineParser gitCommand)
@@ -621,6 +532,13 @@ namespace GVFS.Virtualization
                 gitCommand.IsVerb(LeavesProjectionUnchangedVerbs) ||
                 gitCommand.IsResetSoftOrMixed() ||
                 gitCommand.IsCheckoutWithFilePaths();
+        }
+
+        private bool GitCommandRequiresModifiedPathValidationAfterIndexChange(GitCommandLineParser gitCommand)
+        {
+            return
+                gitCommand.IsVerb(GitCommandLineParser.Verbs.UpdateIndex) ||
+                gitCommand.IsResetMixed();
         }
 
         private FileSystemTaskResult PreBackgroundOperation()
@@ -735,15 +653,14 @@ namespace GVFS.Virtualization
 
                     // An empty destination path means the folder was renamed to somewhere outside of the repo
                     // Note that only full folders can be moved\renamed, and so there will already be a recursive
-                    // sparse-checkout entry for the virtualPath of the folder being moved (meaning that no 
+                    // sparse-checkout entry for the virtualPath of the folder being moved (meaning that no
                     // additional work is needed for any files\folders inside the folder being moved)
                     if (result == FileSystemTaskResult.Success && !string.IsNullOrEmpty(gitUpdate.VirtualPath))
                     {
+                        this.AddToNewlyCreatedList(gitUpdate.VirtualPath, isFolder: true);
                         result = this.TryAddModifiedPath(gitUpdate.VirtualPath, isFolder: true);
                         if (result == FileSystemTaskResult.Success)
                         {
-                            this.newlyCreatedFileAndFolderPaths.Add(gitUpdate.VirtualPath);
-
                             Queue<string> relativeFolderPaths = new Queue<string>();
                             relativeFolderPaths.Enqueue(gitUpdate.VirtualPath);
 
@@ -760,7 +677,7 @@ namespace GVFS.Virtualization
                                             string itemVirtualPath = Path.Combine(folderPath, itemInfo.Name);
                                             string oldItemVirtualPath = gitUpdate.OldVirtualPath + itemVirtualPath.Substring(gitUpdate.VirtualPath.Length);
 
-                                            this.newlyCreatedFileAndFolderPaths.Add(itemVirtualPath);
+                                            this.AddToNewlyCreatedList(itemVirtualPath, isFolder: itemInfo.IsDirectory);
                                             if (this.newlyCreatedFileAndFolderPaths.Contains(oldItemVirtualPath))
                                             {
                                                 result = this.TryRemoveModifiedPath(oldItemVirtualPath, isFolder: itemInfo.IsDirectory);
@@ -856,7 +773,7 @@ namespace GVFS.Virtualization
                     result = FileSystemTaskResult.Success;
                     break;
 
-                case FileSystemTask.OperationType.OnIndexWriteWithoutProjectionChange:
+                case FileSystemTask.OperationType.OnIndexWriteRequiringModifiedPathsValidation:
                     result = this.GitIndexProjection.AddMissingModifiedFiles();
                     break;
 
@@ -879,6 +796,14 @@ namespace GVFS.Virtualization
             }
 
             return result;
+        }
+
+        private void AddToNewlyCreatedList(string virtualPath, bool isFolder)
+        {
+            if (!this.modifiedPaths.Contains(virtualPath, isFolder))
+            {
+                this.newlyCreatedFileAndFolderPaths.Add(virtualPath);
+            }
         }
 
         private FileSystemTaskResult TryRemoveModifiedPath(string virtualPath, bool isFolder)

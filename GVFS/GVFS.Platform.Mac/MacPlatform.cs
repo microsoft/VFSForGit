@@ -12,7 +12,13 @@ namespace GVFS.Platform.Mac
     public partial class MacPlatform : GVFSPlatform
     {
         public MacPlatform()
-            : base(executableExtension: string.Empty, installerExtension: ".dmg")
+            : base(
+                executableExtension: string.Empty,
+                installerExtension: ".dmg",
+                underConstruction: new UnderConstructionFlags(
+                    supportsGVFSService: false,
+                    supportsGVFSUpgrade: false,
+                    supportsGVFSConfig: false))
         {
         }
 
@@ -20,8 +26,6 @@ namespace GVFS.Platform.Mac
         public override IGitInstallation GitInstallation { get; } = new MacGitInstallation();
         public override IDiskLayoutUpgradeData DiskLayoutUpgrade { get; } = new MacDiskLayoutUpgradeData();
         public override IPlatformFileSystem FileSystem { get; } = new MacFileSystem();
-        public override bool IsUnderConstruction { get; } = true;
-        public override bool SupportsGVFSService { get; } = false;
 
         public override void ConfigureVisualStudio(string gitBinPath, ITracer tracer)
         {
@@ -46,9 +50,14 @@ namespace GVFS.Platform.Mac
             File.WriteAllText(
                 commandHookPath,
                 $"#!/bin/sh\n{gvfsHooksPath} {hookName} \"$@\"");
-            GVFSPlatform.Instance.FileSystem.ChangeMode(commandHookPath, Convert.ToInt32("755", 8));
+            GVFSPlatform.Instance.FileSystem.ChangeMode(commandHookPath, Convert.ToUInt16("755", 8));
 
             return true;
+        }
+
+        public override bool TryVerifyAuthenticodeSignature(string path, out string subject, out string issuer, out string error)
+        {
+            throw new NotImplementedException();
         }
 
         public override bool IsProcessActive(int processId)
@@ -61,9 +70,9 @@ namespace GVFS.Platform.Mac
             throw new NotImplementedException();
         }
 
-        public override void StartBackgroundProcess(string programName, string[] args)
+        public override void StartBackgroundProcess(ITracer tracer, string programName, string[] args)
         {
-            ProcessLauncher.StartBackgroundProcess(programName, args);
+            ProcessLauncher.StartBackgroundProcess(tracer, programName, args);
         }
 
         public override NamedPipeServerStream CreatePipeByName(string pipeName)
@@ -80,9 +89,18 @@ namespace GVFS.Platform.Mac
             return pipe;
         }
 
-        public override InProcEventListener CreateTelemetryListenerIfEnabled(string providerName, string enlistmentId, string mountId)
+        public override IEnumerable<EventListener> CreateTelemetryListeners(string providerName, string enlistmentId, string mountId)
         {
-            return null;
+            // TODO: return TelemetryDaemonEventListener when the telemetry daemon has been implemented for Mac
+
+            // string gitBinRoot = this.GitInstallation.GetInstalledGitBinPath();
+            // var daemonListener = TelemetryDaemonEventListener.CreateIfEnabled(gitBinRoot, providerName, enlistmentId, mountId, pipeName: "vfs");
+            // if (daemonListener != null)
+            // {
+            //     yield return daemonListener;
+            // }
+
+            yield break;
         }
 
         public override string GetCurrentUser()
@@ -92,10 +110,11 @@ namespace GVFS.Platform.Mac
 
         public override string GetOSVersionInformation()
         {
-            throw new NotImplementedException();
+            ProcessResult result = ProcessHelper.Run("sw_vers", args: string.Empty, redirectOutput: true);
+            return string.IsNullOrWhiteSpace(result.Output) ? result.Errors : result.Output;
         }
 
-        public override Dictionary<string, string> GetPhysicalDiskInfo(string path)
+        public override Dictionary<string, string> GetPhysicalDiskInfo(string path, bool sizeStatsOnly)
         {
             // TODO(Mac): Collect disk information
             Dictionary<string, string> result = new Dictionary<string, string>();
@@ -139,6 +158,14 @@ namespace GVFS.Platform.Mac
             string lockPath)
         {
             return new MacFileBasedLock(fileSystem, tracer, lockPath);
+        }
+
+        public override bool TryKillProcessTree(int processId, out int exitCode, out string error)
+        {
+            ProcessResult result = ProcessHelper.Run("pkill", $"-P {processId}");
+            error = result.Errors;
+            exitCode = result.ExitCode;
+            return result.ExitCode == 0;
         }
     }
 }

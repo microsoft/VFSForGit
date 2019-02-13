@@ -94,7 +94,7 @@ namespace GVFS.FunctionalTests.Tools
 
         public static string ReadAllTextFromWriteLockedFile(string filename)
         {
-            // File.ReadAllText and others attempt to open for read and FileShare.None, which always fail on 
+            // File.ReadAllText and others attempt to open for read and FileShare.None, which always fail on
             // the placeholder db and other files that open for write and only share read access
             using (StreamReader reader = new StreamReader(File.Open(filename, FileMode.Open, FileAccess.Read, FileShare.ReadWrite)))
             {
@@ -102,18 +102,15 @@ namespace GVFS.FunctionalTests.Tools
             }
         }
 
-        public static void ModifiedPathsContentsShouldEqual(FileSystemRunner fileSystem, string dotGVFSRoot, string contents)
+        public static void ModifiedPathsContentsShouldEqual(GVFSFunctionalTestEnlistment enlistment, FileSystemRunner fileSystem, string contents)
         {
-            string modifiedPathsDatabase = Path.Combine(dotGVFSRoot, TestConstants.Databases.ModifiedPaths);
-            modifiedPathsDatabase.ShouldBeAFile(fileSystem);
-            GVFSHelpers.ReadAllTextFromWriteLockedFile(modifiedPathsDatabase).ShouldEqual(contents);
+            string modifedPathsContents = GetModifiedPathsContents(enlistment, fileSystem);
+            modifedPathsContents.ShouldEqual(contents);
         }
 
-        public static void ModifiedPathsShouldContain(FileSystemRunner fileSystem, string dotGVFSRoot, params string[] gitPaths)
+        public static void ModifiedPathsShouldContain(GVFSFunctionalTestEnlistment enlistment, FileSystemRunner fileSystem, params string[] gitPaths)
         {
-            string modifiedPathsDatabase = Path.Combine(dotGVFSRoot, TestConstants.Databases.ModifiedPaths);
-            modifiedPathsDatabase.ShouldBeAFile(fileSystem);
-            string modifedPathsContents = GVFSHelpers.ReadAllTextFromWriteLockedFile(modifiedPathsDatabase);
+            string modifedPathsContents = GetModifiedPathsContents(enlistment, fileSystem);
             string[] modifedPathLines = modifedPathsContents.Split(new[] { ModifiedPathsNewLine }, StringSplitOptions.None);
             foreach (string gitPath in gitPaths)
             {
@@ -121,11 +118,9 @@ namespace GVFS.FunctionalTests.Tools
             }
         }
 
-        public static void ModifiedPathsShouldNotContain(FileSystemRunner fileSystem, string dotGVFSRoot, params string[] gitPaths)
+        public static void ModifiedPathsShouldNotContain(GVFSFunctionalTestEnlistment enlistment, FileSystemRunner fileSystem, params string[] gitPaths)
         {
-            string modifiedPathsDatabase = Path.Combine(dotGVFSRoot, TestConstants.Databases.ModifiedPaths);
-            modifiedPathsDatabase.ShouldBeAFile(fileSystem);
-            string modifedPathsContents = GVFSHelpers.ReadAllTextFromWriteLockedFile(modifiedPathsDatabase);
+            string modifedPathsContents = GetModifiedPathsContents(enlistment, fileSystem);
             string[] modifedPathLines = modifedPathsContents.Split(new[] { ModifiedPathsNewLine }, StringSplitOptions.None);
             foreach (string gitPath in gitPaths)
             {
@@ -136,6 +131,22 @@ namespace GVFS.FunctionalTests.Tools
                                path.Equals(ModifedPathsLineDeletePrefix + gitPath, StringComparison.OrdinalIgnoreCase);
                     });
             }
+        }
+
+        public static string GetInternalParameter(string maintenanceJob = "null", string packfileMaintenanceBatchSize = "null")
+        {
+            return $"\"{{\\\"ServiceName\\\":\\\"{GVFSServiceProcess.TestServiceName}\\\"," +
+                    "\\\"StartedByService\\\":false," +
+                    $"\\\"MaintenanceJob\\\":{maintenanceJob}," +
+                    $"\\\"PackfileMaintenanceBatchSize\\\":{packfileMaintenanceBatchSize}}}\"";
+        }
+
+        private static string GetModifiedPathsContents(GVFSFunctionalTestEnlistment enlistment, FileSystemRunner fileSystem)
+        {
+            enlistment.WaitForBackgroundOperations();
+            string modifiedPathsDatabase = Path.Combine(enlistment.DotGVFSRoot, TestConstants.Databases.ModifiedPaths);
+            modifiedPathsDatabase.ShouldBeAFile(fileSystem);
+            return GVFSHelpers.ReadAllTextFromWriteLockedFile(modifiedPathsDatabase);
         }
 
         private static byte[] StringToShaBytes(string sha)

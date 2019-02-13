@@ -9,6 +9,7 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
+using System.Runtime.InteropServices;
 using System.Text.RegularExpressions;
 
 namespace GVFS.FunctionalTests.Tests
@@ -16,17 +17,19 @@ namespace GVFS.FunctionalTests.Tests
     [TestFixture]
     [Category(Categories.FastFetch)]
     [Category(Categories.FullSuiteOnly)]
-    [Category(Categories.MacTODO.M4)]
     public class FastFetchTests
     {
+        private const string LsTreeTypeInPathBranchName = "FunctionalTests/20181105_LsTreeTypeInPath";
+
         private readonly string fastFetchRepoRoot = Settings.Default.FastFetchRoot;
         private readonly string fastFetchControlRoot = Settings.Default.FastFetchControl;
+        private readonly string fastFetchBaseRoot = Settings.Default.FastFetchBaseRoot;
 
         [OneTimeSetUp]
         public void InitControlRepo()
         {
             Directory.CreateDirectory(this.fastFetchControlRoot);
-            GitProcess.Invoke("C:\\", "clone -b " + Settings.Default.Commitish + " " + GVFSTestConfig.RepoToClone + " " + this.fastFetchControlRoot);
+            GitProcess.Invoke(this.fastFetchBaseRoot, "clone -b " + Settings.Default.Commitish + " " + GVFSTestConfig.RepoToClone + " " + this.fastFetchControlRoot);
         }
 
         [SetUp]
@@ -46,15 +49,15 @@ namespace GVFS.FunctionalTests.Tests
         [TearDown]
         public void TearDownTests()
         {
-            CmdRunner.DeleteDirectoryWithUnlimitedRetries(this.fastFetchRepoRoot);
+            RepositoryHelpers.DeleteTestDirectory(this.fastFetchRepoRoot);
         }
 
         [OneTimeTearDown]
         public void DeleteControlRepo()
         {
-            CmdRunner.DeleteDirectoryWithUnlimitedRetries(this.fastFetchControlRoot);
+            RepositoryHelpers.DeleteTestDirectory(this.fastFetchControlRoot);
         }
-        
+
         [TestCase]
         public void CanFetchIntoEmptyGitRepoAndCheckoutWithGit()
         {
@@ -87,7 +90,7 @@ namespace GVFS.FunctionalTests.Tests
 
             this.fastFetchRepoRoot.ShouldBeADirectory(FileSystemRunner.DefaultRunner);
             List<string> dirs = Directory.EnumerateFileSystemEntries(this.fastFetchRepoRoot).ToList();
-            dirs.SequenceEqual(new[] 
+            dirs.SequenceEqual(new[]
             {
                 Path.Combine(this.fastFetchRepoRoot, ".git"),
                 Path.Combine(this.fastFetchRepoRoot, "GVFS"),
@@ -122,7 +125,7 @@ namespace GVFS.FunctionalTests.Tests
                 .ShouldEqual(345);
             this.AllFetchedFilePathsShouldPassCheck(path => path.StartsWith("GVFS", StringComparison.OrdinalIgnoreCase));
 
-            // Run a second time in the same repo on the same branch with more folders. 
+            // Run a second time in the same repo on the same branch with more folders.
             this.RunFastFetch($"--checkout --folders \"/GVFS;/Scripts\" -b {Settings.Default.Commitish} --force-checkout");
             dirs = Directory.EnumerateFileSystemEntries(this.fastFetchRepoRoot).ToList();
             dirs.SequenceEqual(new[]
@@ -152,7 +155,8 @@ namespace GVFS.FunctionalTests.Tests
         [TestCase]
         public void FastFetchFolderWithOnlyOneFile()
         {
-            this.RunFastFetch("--checkout --folders \"GVFS\\GVFS\\Properties\" -b " + Settings.Default.Commitish);
+            string folderPath = Path.Combine("GVFS", "GVFS", "Properties");
+            this.RunFastFetch("--checkout --folders " + folderPath + " -b " + Settings.Default.Commitish);
 
             this.CurrentBranchShouldEqual(Settings.Default.Commitish);
 
@@ -209,7 +213,7 @@ namespace GVFS.FunctionalTests.Tests
             this.RunFastFetch("--checkout -b " + Settings.Default.Commitish);
 
             this.CurrentBranchShouldEqual(Settings.Default.Commitish);
-            
+
             this.fastFetchRepoRoot.ShouldBeADirectory(FileSystemRunner.DefaultRunner)
                 .WithDeepStructure(FileSystemRunner.DefaultRunner, this.fastFetchControlRoot);
         }
@@ -235,7 +239,6 @@ namespace GVFS.FunctionalTests.Tests
             // Reset the index and use fastfetch to update the index. Compare against 'git status' baseline.
             GitProcess.Invoke(this.fastFetchRepoRoot, $"-c index.version= {indexVersion} read-tree HEAD");
             ProcessResult fastFetchResult = this.RunFastFetch("--checkout --Allow-index-metadata-update-from-working-tree");
-            Trace.WriteLine(fastFetchResult.Output); // Written to log file for manual investigation
             string lsfilesAfterUpdate = GitProcess.Invoke(this.fastFetchRepoRoot, "ls-files --debug");
             lsfilesAfterUpdate.ShouldEqual(lsfilesAfterStatus, "git status and fastfetch didn't result in the same index");
 
@@ -247,7 +250,7 @@ namespace GVFS.FunctionalTests.Tests
             // Verify that the final results are the same as the intial fetch results
             lsfilesAfterUpdate2.ShouldEqual(lsfilesAfterFirstFetch, "Incremental update should not change index");
         }
-        
+
         [TestCase]
         public void IncrementalChangesLeaveGoodStatus()
         {
@@ -271,7 +274,7 @@ namespace GVFS.FunctionalTests.Tests
 
             // There must be modified files in these commits.  Modified files must
             // be updated with valid metadata (times, sizes) or 'git status' will
-            // show them as modified when they were not actually modified. 
+            // show them as modified when they were not actually modified.
             Regex.IsMatch(changes, @"^M\s", RegexOptions.Multiline).ShouldEqual(true, "Data does not meet requirements");
         }
 
@@ -280,7 +283,7 @@ namespace GVFS.FunctionalTests.Tests
         {
             this.RunFastFetch("--checkout -b " + Settings.Default.Commitish);
             this.CurrentBranchShouldEqual(Settings.Default.Commitish);
-            
+
             // Switch to another branch
             this.RunFastFetch("--checkout -b FunctionalTests/20170602");
             this.CurrentBranchShouldEqual("FunctionalTests/20170602");
@@ -288,7 +291,7 @@ namespace GVFS.FunctionalTests.Tests
             // And back
             this.RunFastFetch("--checkout -b " + Settings.Default.Commitish);
             this.CurrentBranchShouldEqual(Settings.Default.Commitish);
-            
+
             this.fastFetchRepoRoot.ShouldBeADirectory(FileSystemRunner.DefaultRunner)
                 .WithDeepStructure(FileSystemRunner.DefaultRunner, this.fastFetchControlRoot);
         }
@@ -298,7 +301,7 @@ namespace GVFS.FunctionalTests.Tests
         {
             this.RunFastFetch("--checkout -b " + Settings.Default.Commitish);
             this.CurrentBranchShouldEqual(Settings.Default.Commitish);
-            
+
             this.RunFastFetch(" -b " + Settings.Default.Commitish).Output.ShouldContain("\"TotalMissingObjects\":0");
             this.RunFastFetch("--checkout -b " + Settings.Default.Commitish).Output.ShouldContain("\"RequiredBlobsCount\":0");
 
@@ -313,7 +316,7 @@ namespace GVFS.FunctionalTests.Tests
             // The delta between these two is the same as the UnitTest "caseChange.txt" data file.
             this.RunFastFetch("--checkout -c b3ddcf43b997cba3fbf9d2341b297e22bf48601a");
             this.RunFastFetch("--checkout -c e637c874f6a914ae83cd5668bcdd07293fef961d");
-            
+
             GitProcess.Invoke(this.fastFetchControlRoot, "checkout e637c874f6a914ae83cd5668bcdd07293fef961d");
 
             try
@@ -337,7 +340,7 @@ namespace GVFS.FunctionalTests.Tests
             // renamed:    foo.cpp\foo.cpp -> foo.cpp
             //   where the top level "foo.cpp" is a folder with a file, then becomes just a file
             //   note that folder\file names picked illustrate a real example
-            Path.Combine(this.fastFetchRepoRoot, "foo.cpp\\foo.cpp")
+            Path.Combine(this.fastFetchRepoRoot, "foo.cpp", "foo.cpp")
                 .ShouldBeAFile(FileSystemRunner.DefaultRunner);
 
             // Delta of interest - Check initial state
@@ -345,7 +348,7 @@ namespace GVFS.FunctionalTests.Tests
             //   where a\a contains "file contents one"
             //   and b contains "file contents two"
             //   This tests two types of renames crossing into each other
-            Path.Combine(this.fastFetchRepoRoot, "a\\a")
+            Path.Combine(this.fastFetchRepoRoot, "a", "a")
                 .ShouldBeAFile(FileSystemRunner.DefaultRunner).WithContents("file contents one");
             Path.Combine(this.fastFetchRepoRoot, "b")
                 .ShouldBeAFile(FileSystemRunner.DefaultRunner).WithContents("file contents two");
@@ -355,9 +358,9 @@ namespace GVFS.FunctionalTests.Tests
             //   where c\c contains "file contents c"
             //   and d\d contains "file contents d"
             //   This tests two types of renames crossing into each other
-            Path.Combine(this.fastFetchRepoRoot, "c\\c")
+            Path.Combine(this.fastFetchRepoRoot, "c", "c")
                 .ShouldBeAFile(FileSystemRunner.DefaultRunner).WithContents("file contents c");
-            Path.Combine(this.fastFetchRepoRoot, "d\\d")
+            Path.Combine(this.fastFetchRepoRoot, "d", "d")
                 .ShouldBeAFile(FileSystemRunner.DefaultRunner).WithContents("file contents d");
 
             // Now switch to second branch, part2 and verify transitions
@@ -377,13 +380,13 @@ namespace GVFS.FunctionalTests.Tests
 
             // Delta of interest - Verify change
             // renamed:    c\c <-> d\c && d\d <-> c\d
-            Path.Combine(this.fastFetchRepoRoot, "c\\d")
+            Path.Combine(this.fastFetchRepoRoot, "c", "d")
                 .ShouldBeAFile(FileSystemRunner.DefaultRunner).WithContents("file contents d");
-            Path.Combine(this.fastFetchRepoRoot, "d\\c")
+            Path.Combine(this.fastFetchRepoRoot, "d", "c")
                 .ShouldBeAFile(FileSystemRunner.DefaultRunner).WithContents("file contents c");
-            Path.Combine(this.fastFetchRepoRoot, "c\\c")
+            Path.Combine(this.fastFetchRepoRoot, "c", "c")
                 .ShouldNotExistOnDisk(FileSystemRunner.DefaultRunner);
-            Path.Combine(this.fastFetchRepoRoot, "d\\d")
+            Path.Combine(this.fastFetchRepoRoot, "d", "d")
                 .ShouldNotExistOnDisk(FileSystemRunner.DefaultRunner);
 
             // And back again
@@ -391,26 +394,38 @@ namespace GVFS.FunctionalTests.Tests
 
             // Delta of interest - Final validation
             // renamed:    foo.cpp\foo.cpp -> foo.cpp
-            Path.Combine(this.fastFetchRepoRoot, "foo.cpp\\foo.cpp")
+            Path.Combine(this.fastFetchRepoRoot, "foo.cpp", "foo.cpp")
                 .ShouldBeAFile(FileSystemRunner.DefaultRunner);
 
             // Delta of interest - Final validation
             // renamed:    a\a <-> b && b <-> a
-            Path.Combine(this.fastFetchRepoRoot, "a\\a")
+            Path.Combine(this.fastFetchRepoRoot, "a", "a")
                 .ShouldBeAFile(FileSystemRunner.DefaultRunner).WithContents("file contents one");
             Path.Combine(this.fastFetchRepoRoot, "b")
                 .ShouldBeAFile(FileSystemRunner.DefaultRunner).WithContents("file contents two");
 
             // Delta of interest - Final validation
             // renamed:    c\c <-> d\c && d\d <-> c\d
-            Path.Combine(this.fastFetchRepoRoot, "c\\c")
+            Path.Combine(this.fastFetchRepoRoot, "c", "c")
                 .ShouldBeAFile(FileSystemRunner.DefaultRunner).WithContents("file contents c");
-            Path.Combine(this.fastFetchRepoRoot, "d\\d")
+            Path.Combine(this.fastFetchRepoRoot, "d", "d")
                 .ShouldBeAFile(FileSystemRunner.DefaultRunner).WithContents("file contents d");
-            Path.Combine(this.fastFetchRepoRoot, "c\\d")
+            Path.Combine(this.fastFetchRepoRoot, "c", "d")
                 .ShouldNotExistOnDisk(FileSystemRunner.DefaultRunner);
-            Path.Combine(this.fastFetchRepoRoot, "d\\c")
+            Path.Combine(this.fastFetchRepoRoot, "d", "c")
                 .ShouldNotExistOnDisk(FileSystemRunner.DefaultRunner);
+        }
+
+        [TestCase]
+        public void CanFetchPathsWithLsTreeTypes()
+        {
+            this.RunFastFetch("--checkout -b " + LsTreeTypeInPathBranchName);
+            Path.Combine(this.fastFetchRepoRoot, "Test_LsTree_Issues", "file with tree in name.txt")
+                .ShouldBeAFile(FileSystemRunner.DefaultRunner).WithContents("File with \" tree \" in name caused issues with ls tree diff logic.");
+            Path.Combine(this.fastFetchRepoRoot, "Test_LsTree_Issues", "directory with blob in path")
+                .ShouldBeADirectory(FileSystemRunner.DefaultRunner);
+            Path.Combine(this.fastFetchRepoRoot, "Test_LsTree_Issues", "directory with blob in path", "file with tree in name.txt")
+                .ShouldBeAFile(FileSystemRunner.DefaultRunner).WithContents("File with \" tree \" in name caused issues with ls tree diff logic. This is another example.");
         }
 
         private void AllFetchedFilePathsShouldPassCheck(Func<string, bool> checkPath)
@@ -476,26 +491,31 @@ namespace GVFS.FunctionalTests.Tests
         {
             args = args + " --verbose";
 
-            string fastfetch = Path.Combine(Settings.Default.CurrentDirectory, "fastfetch.exe");
-            if (!File.Exists(fastfetch))
+            string fastfetch;
+            if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
             {
-                fastfetch = "fastfetch.exe";
+                fastfetch = Path.Combine(Settings.Default.CurrentDirectory, "netcoreapp2.1", "fastfetch.dll");
+            }
+            else
+            {
+                fastfetch = Path.Combine(Settings.Default.CurrentDirectory, "fastfetch.dll");
             }
 
+            File.Exists(fastfetch).ShouldBeTrue();
             Console.WriteLine($"Using {fastfetch}");
 
-            ProcessStartInfo processInfo = new ProcessStartInfo(fastfetch);
-            processInfo.Arguments = args;
+            ProcessStartInfo processInfo = new ProcessStartInfo("dotnet");
+            processInfo.Arguments = $"{fastfetch} {args}";
             processInfo.WorkingDirectory = this.fastFetchRepoRoot;
             processInfo.UseShellExecute = false;
             processInfo.RedirectStandardOutput = true;
             processInfo.RedirectStandardError = true;
-            
+
             ProcessResult result = ProcessHelper.Run(processInfo);
 
             return result;
         }
-        
+
         private string GetShaFromLsLine(string line)
         {
             string output = line.Substring(line.LastIndexOf('\t') - 40, 40);

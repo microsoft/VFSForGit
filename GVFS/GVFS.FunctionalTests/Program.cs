@@ -43,6 +43,8 @@ namespace GVFS.FunctionalTests
             {
                 Console.WriteLine("Running the full suite of tests");
 
+                GVFSTestConfig.GitRepoTestsValidateWorkTree = DataSources.AllBools;
+
                 if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
                 {
                     GVFSTestConfig.FileSystemRunners = FileSystemRunners.FileSystemRunner.AllWindowsRunners;
@@ -54,6 +56,12 @@ namespace GVFS.FunctionalTests
             }
             else
             {
+                GVFSTestConfig.GitRepoTestsValidateWorkTree =
+                    new object[]
+                    {
+                        new object[] { true }
+                    };
+
                 excludeCategories.Add(Categories.FullSuiteOnly);
                 GVFSTestConfig.FileSystemRunners = FileSystemRunners.FileSystemRunner.DefaultRunners;
             }
@@ -67,9 +75,10 @@ namespace GVFS.FunctionalTests
             {
                 excludeCategories.Add(Categories.MacTODO.NeedsLockHolder);
                 excludeCategories.Add(Categories.MacTODO.FailsOnBuildAgent);
-                excludeCategories.Add(Categories.MacTODO.M2);
+                excludeCategories.Add(Categories.MacTODO.NeedsRenameOldPath);
                 excludeCategories.Add(Categories.MacTODO.M3);
                 excludeCategories.Add(Categories.MacTODO.M4);
+                excludeCategories.Add(Categories.MacTODO.FlakyTest);
                 excludeCategories.Add(Categories.WindowsOnly);
             }
             else
@@ -80,7 +89,7 @@ namespace GVFS.FunctionalTests
             GVFSTestConfig.RepoToClone =
                 runner.GetCustomArgWithParam("--repo-to-clone")
                 ?? Properties.Settings.Default.RepoToClone;
-            
+
             RunBeforeAnyTests();
             Environment.ExitCode = runner.RunTests(includeCategories, excludeCategories);
             RunAfterAllTests();

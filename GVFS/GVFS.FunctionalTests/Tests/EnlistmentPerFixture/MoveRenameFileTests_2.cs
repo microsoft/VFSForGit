@@ -7,7 +7,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
 {
     // TODO 452590 - Combine all of the MoveRenameTests into a single fixture, and have each use different
     // well known files
-    [TestFixtureSource(typeof(FileSystemRunner), FileSystemRunner.TestRunners)]
+    [TestFixtureSource(typeof(FileSystemRunner), nameof(FileSystemRunner.Runners))]
     public class MoveRenameFileTests_2 : TestsWithEnlistmentPerFixture
     {
         private const string TestFileFolder = "Test_EPF_MoveRenameFileTests_2";
@@ -130,10 +130,10 @@ IF ""%1""=="""" (SET ""Configuration=Debug"") ELSE (SET ""Configuration=%1"")
             string targetFileContents = "The Target";
 
             string sourceFilename = Path.Combine(
-                TestFileFolder, 
-                "MoveUnhydratedFileToOverwriteFullFileAndWrite", 
+                TestFileFolder,
+                "MoveUnhydratedFileToOverwriteFullFileAndWrite",
                 "MoveUnhydratedFileToOverwriteFullFileAndWrite.txt");
-            
+
             string sourceFileContents =
 @"<?xml version=""1.0"" encoding=""utf-8""?>
 <packages>

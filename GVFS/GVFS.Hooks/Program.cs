@@ -69,7 +69,7 @@ namespace GVFS.Hooks
                             RunLockRequest(args, unattended, ReleaseGVFSLock);
                         }
 
-                        RunPostCommands(args);
+                        RunPostCommands(args, unattended);
                         break;
 
                     default:
@@ -95,21 +95,24 @@ namespace GVFS.Hooks
             }
         }
 
-        private static void RunPostCommands(string[] args)
+        private static void RunPostCommands(string[] args, bool unattended)
         {
-            RemindUpgradeAvailable();
+            if (!unattended)
+            {
+                RemindUpgradeAvailable();
+            }
         }
 
         private static void RemindUpgradeAvailable()
         {
-            // The idea is to generate a random number between 0 and 100. To make 
-            // sure that the reminder is displayed only 10% of the times a git 
-            // command is run, check that the random number is between 0 and 10, 
+            // The idea is to generate a random number between 0 and 100. To make
+            // sure that the reminder is displayed only 10% of the times a git
+            // command is run, check that the random number is between 0 and 10,
             // which will have a probability of 10/100 == 10%.
             int reminderFrequency = 10;
             int randomValue = random.Next(0, 100);
 
-            if (randomValue <= reminderFrequency && ProductUpgrader.IsLocalUpgradeAvailable(GVFSHooksPlatform.GetInstallerExtension()))
+            if (randomValue <= reminderFrequency && ProductUpgraderInfo.IsLocalUpgradeAvailable(tracer: null))
             {
                 Console.WriteLine(Environment.NewLine + GVFSConstants.UpgradeVerbMessages.ReminderNotification);
             }
@@ -130,43 +133,8 @@ namespace GVFS.Hooks
             string command = GetGitCommand(args);
             switch (command)
             {
-                case "update-index":
-                    if (ContainsArg(args, "--split-index") ||
-                        ContainsArg(args, "--no-split-index"))
-                    {
-                        ExitWithError("Split index is not supported on a GVFS repo");
-                    }
-
-                    if (ContainsArg(args, "--index-version"))
-                    {
-                        ExitWithError("Changing the index version is not supported on a GVFS repo");
-                    }
-
-                    if (ContainsArg(args, "--skip-worktree") || 
-                        ContainsArg(args, "--no-skip-worktree"))
-                    {
-                        ExitWithError("Modifying the skip worktree bit is not supported on a GVFS repo");
-                    }
-
-                    break;
-
-                case "fsck":
-                case "gc":
-                case "prune":
-                case "repack":
-                    ExitWithError("'git " + command + "' is not supported on a GVFS repo");
-                    break;
-
-                case "submodule":
-                    ExitWithError("Submodule operations are not supported on a GVFS repo");
-                    break;
-
                 case "status":
                     VerifyRenameDetectionSettings(args);
-                    break;
-
-                case "worktree":
-                    ExitWithError("Worktree operations are not supported on a GVFS repo");
                     break;
 
                 case "gui":
@@ -204,7 +172,7 @@ namespace GVFS.Hooks
         }
 
         private static void RunLockRequest(string[] args, bool unattended, LockRequestDelegate requestToRun)
-        { 
+        {
             try
             {
                 if (ShouldLock(args))
@@ -324,7 +292,7 @@ namespace GVFS.Hooks
                     }
                 },
                 gvfsEnlistmentRoot: null,
-                waitingMessage: "Waiting for GVFS to parse index and update placeholder files", 
+                waitingMessage: "Waiting for GVFS to parse index and update placeholder files",
                 spinnerDelay: PostCommandSpinnerDelayMs);
         }
 
@@ -430,7 +398,7 @@ namespace GVFS.Hooks
                 case "ls-files":
                 case "ls-tree":
                 case "merge-base":
-                case "midx":
+                case "multi-pack-index":
                 case "name-rev":
                 case "push":
                 case "remote":

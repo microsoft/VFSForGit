@@ -40,29 +40,27 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerTestCase
                 $"A {FolderToDelete}/",
             };
 
-        [TestCaseSource(typeof(FileSystemRunner), FileSystemRunner.TestRunners)]
+        [TestCaseSource(typeof(FileSystemRunner), nameof(FileSystemRunner.Runners))]
         public void DeletedTempFileIsRemovedFromModifiedFiles(FileSystemRunner fileSystem)
         {
             string tempFile = this.CreateFile(fileSystem, "temp.txt");
             fileSystem.DeleteFile(tempFile);
             tempFile.ShouldNotExistOnDisk(fileSystem);
 
-            this.Enlistment.UnmountGVFS();
-            GVFSHelpers.ModifiedPathsShouldNotContain(fileSystem, this.Enlistment.DotGVFSRoot, "temp.txt");
+            GVFSHelpers.ModifiedPathsShouldNotContain(this.Enlistment, fileSystem, "temp.txt");
         }
 
-        [TestCaseSource(typeof(FileSystemRunner), FileSystemRunner.TestRunners)]
+        [TestCaseSource(typeof(FileSystemRunner), nameof(FileSystemRunner.Runners))]
         public void DeletedTempFolderIsRemovedFromModifiedFiles(FileSystemRunner fileSystem)
         {
             string tempFolder = this.CreateDirectory(fileSystem, "Temp");
             fileSystem.DeleteDirectory(tempFolder);
             tempFolder.ShouldNotExistOnDisk(fileSystem);
 
-            this.Enlistment.UnmountGVFS();
-            GVFSHelpers.ModifiedPathsShouldNotContain(fileSystem, this.Enlistment.DotGVFSRoot, "Temp/");
+            GVFSHelpers.ModifiedPathsShouldNotContain(this.Enlistment, fileSystem, "Temp/");
         }
 
-        [TestCaseSource(typeof(FileSystemRunner), FileSystemRunner.TestRunners)]
+        [TestCaseSource(typeof(FileSystemRunner), nameof(FileSystemRunner.Runners))]
         public void DeletedTempFolderDeletesFilesFromModifiedFiles(FileSystemRunner fileSystem)
         {
             string tempFolder = this.CreateDirectory(fileSystem, "Temp");
@@ -73,12 +71,11 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerTestCase
             tempFile1.ShouldNotExistOnDisk(fileSystem);
             tempFile2.ShouldNotExistOnDisk(fileSystem);
 
-            this.Enlistment.UnmountGVFS();
-            GVFSHelpers.ModifiedPathsShouldNotContain(fileSystem, this.Enlistment.DotGVFSRoot, "Temp/", "Temp/temp1.txt", "Temp/temp2.txt");
+            GVFSHelpers.ModifiedPathsShouldNotContain(this.Enlistment, fileSystem, "Temp/", "Temp/temp1.txt", "Temp/temp2.txt");
         }
 
-        [Category(Categories.MacTODO.M2)]
-        [TestCaseSource(typeof(FileSystemRunner), FileSystemRunner.TestRunners)]
+        [Category(Categories.MacTODO.NeedsRenameOldPath)]
+        [TestCaseSource(typeof(FileSystemRunner), nameof(FileSystemRunner.Runners))]
         public void ModifiedPathsSavedAfterRemount(FileSystemRunner fileSystem)
         {
             string fileToAdd = this.Enlistment.GetVirtualPathTo(FileToAdd);
@@ -148,7 +145,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerTestCase
             this.Enlistment.UnmountGVFS();
             this.Enlistment.MountGVFS();
 
-            this.Enlistment.WaitForBackgroundOperations().ShouldEqual(true, "Background operations failed to complete.");
+            this.Enlistment.WaitForBackgroundOperations();
 
             string modifiedPathsDatabase = Path.Combine(this.Enlistment.DotGVFSRoot, TestConstants.Databases.ModifiedPaths);
             modifiedPathsDatabase.ShouldBeAFile(fileSystem);
@@ -159,7 +156,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerTestCase
             }
         }
 
-        [TestCaseSource(typeof(FileSystemRunner), FileSystemRunner.TestRunners)]
+        [TestCaseSource(typeof(FileSystemRunner), nameof(FileSystemRunner.Runners))]
         public void ModifiedPathsCorrectAfterHardLinking(FileSystemRunner fileSystem)
         {
             string[] expectedModifiedFilesContentsAfterHardlinks =
@@ -195,7 +192,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerTestCase
             fileSystem.CreateHardLink(hardLinkOutsideRepoToFileInRepoPath, secondFileInRepoPath);
             hardLinkOutsideRepoToFileInRepoPath.ShouldBeAFile(fileSystem).WithContents(contents);
 
-            this.Enlistment.WaitForBackgroundOperations().ShouldEqual(true, "Background operations failed to complete.");
+            this.Enlistment.WaitForBackgroundOperations();
 
             string modifiedPathsDatabase = Path.Combine(this.Enlistment.DotGVFSRoot, TestConstants.Databases.ModifiedPaths);
             modifiedPathsDatabase.ShouldBeAFile(fileSystem);

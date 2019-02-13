@@ -2,8 +2,8 @@
 using GVFS.Common.FileSystem;
 using GVFS.Common.Git;
 using GVFS.Common.Http;
+using GVFS.Common.Maintenance;
 using GVFS.Common.NamedPipes;
-using GVFS.Common.Prefetch;
 using GVFS.Common.Tracing;
 using GVFS.PlatformLoader;
 using GVFS.Virtualization;
@@ -29,7 +29,7 @@ namespace GVFS.Mount
         private FileSystemCallbacks fileSystemCallbacks;
         private GVFSEnlistment enlistment;
         private ITracer tracer;
-        private BackgroundPrefetcher prefetcher;
+        private GitMaintenanceScheduler maintenanceScheduler;
 
         private CacheServerInfo cacheServer;
         private RetryConfig retryConfig;
@@ -67,7 +67,7 @@ namespace GVFS.Mount
         {
             this.currentState = MountState.Mounting;
 
-            // We must initialize repo metadata before starting the pipe server so it 
+            // We must initialize repo metadata before starting the pipe server so it
             // can immediately handle status requests
             string error;
             if (!RepoMetadata.TryInitialize(this.tracer, this.enlistment.DotGVFSRoot, out error))
@@ -134,14 +134,15 @@ namespace GVFS.Mount
                 Console.Title = "GVFS " + ProcessHelper.GetCurrentProcessVersion() + " - " + this.enlistment.EnlistmentRoot;
 
                 this.tracer.RelatedEvent(
-                    EventLevel.Critical,
+                    EventLevel.Informational,
                     "Mount",
                     new EventMetadata
                     {
                         // Use TracingConstants.MessageKey.InfoMessage rather than TracingConstants.MessageKey.CriticalMessage
                         // as this message should not appear as an error
                         { TracingConstants.MessageKey.InfoMessage, "Virtual repo is ready" },
-                    });
+                    },
+                    Keywords.Telemetry);
 
                 this.currentState = MountState.Ready;
 
@@ -253,6 +254,10 @@ namespace GVFS.Mount
                     this.HandleModifiedPathsListRequest(message, connection);
                     break;
 
+                case NamedPipeMessages.PostIndexChanged.NotificationRequest:
+                    this.HandlePostIndexChangedRequest(message, connection);
+                    break;
+
                 case NamedPipeMessages.RunPostFetchJob.PostFetchJob:
                     this.HandlePostFetchJobRequest(message, connection);
                     break;
@@ -329,12 +334,33 @@ namespace GVFS.Mount
 
             if (request.RequestData == null)
             {
-                this.tracer.RelatedError($"{nameof(HandleReleaseLockRequest)} received invalid lock request with body '{messageBody}'");
+                this.tracer.RelatedError($"{nameof(this.HandleReleaseLockRequest)} received invalid lock request with body '{messageBody}'");
                 this.UnmountAndStopWorkingDirectoryCallbacks();
                 Environment.Exit((int)ReturnCode.NullRequestData);
             }
 
             NamedPipeMessages.ReleaseLock.Response response = this.fileSystemCallbacks.TryReleaseExternalLock(request.RequestData.PID);
+            connection.TrySendResponse(response.CreateMessage());
+        }
+
+        private void HandlePostIndexChangedRequest(NamedPipeMessages.Message message, NamedPipeServer.Connection connection)
+        {
+            NamedPipeMessages.PostIndexChanged.Response response;
+            NamedPipeMessages.PostIndexChanged.Request request = new NamedPipeMessages.PostIndexChanged.Request(message);
+            if (request == null)
+            {
+                response = new NamedPipeMessages.PostIndexChanged.Response(NamedPipeMessages.UnknownRequest);
+            }
+            else if (this.currentState != MountState.Ready)
+            {
+                response = new NamedPipeMessages.PostIndexChanged.Response(NamedPipeMessages.MountNotReadyResult);
+            }
+            else
+            {
+                this.fileSystemCallbacks.ForceIndexProjectionUpdate(request.UpdatedWorkingDirectory, request.UpdatedSkipWorktreeBits);
+                response = new NamedPipeMessages.PostIndexChanged.Response(NamedPipeMessages.PostIndexChanged.SuccessResult);
+            }
+
             connection.TrySendResponse(response.CreateMessage());
         }
 
@@ -413,7 +439,7 @@ namespace GVFS.Mount
             if (this.currentState == MountState.Ready)
             {
                 List<string> packIndexes = JsonConvert.DeserializeObject<List<string>>(message.Body);
-                this.fileSystemCallbacks.LaunchPostFetchJob(packIndexes);
+                this.maintenanceScheduler.EnqueueOneTimeStep(new PostFetchStep(this.context, packIndexes));
 
                 response = new NamedPipeMessages.RunPostFetchJob.Response(NamedPipeMessages.RunPostFetchJob.QueuedResult);
             }
@@ -499,7 +525,7 @@ namespace GVFS.Mount
         private void MountAndStartWorkingDirectoryCallbacks(CacheServerInfo cache)
         {
             string error;
-            if (!this.context.Enlistment.Authentication.TryRefreshCredentials(this.context.Tracer, out error))
+            if (!this.context.Enlistment.Authentication.TryInitialize(this.context.Tracer, this.context.Enlistment, out error))
             {
                 this.FailMountAndExit("Failed to obtain git credentials: " + error);
             }
@@ -515,7 +541,7 @@ namespace GVFS.Mount
             }
 
             this.fileSystemCallbacks = this.CreateOrReportAndExit(() => new FileSystemCallbacks(this.context, this.gitObjects, RepoMetadata.Instance, virtualizer, gitStatusCache), "Failed to create src folder callback listener");
-            this.prefetcher = this.CreateOrReportAndExit(() => new BackgroundPrefetcher(this.tracer, this.enlistment, this.context.FileSystem, this.gitObjects), "Failed to start background prefetcher");
+            this.maintenanceScheduler = this.CreateOrReportAndExit(() => new GitMaintenanceScheduler(this.context, this.gitObjects), "Failed to start maintenance scheduler");
 
             int majorVersion;
             int minorVersion;
@@ -550,10 +576,10 @@ namespace GVFS.Mount
 
         private void UnmountAndStopWorkingDirectoryCallbacks()
         {
-            if (this.prefetcher != null)
+            if (this.maintenanceScheduler != null)
             {
-                this.prefetcher.Dispose();
-                this.prefetcher = null;
+                this.maintenanceScheduler.Dispose();
+                this.maintenanceScheduler = null;
             }
 
             if (this.heartbeat != null)

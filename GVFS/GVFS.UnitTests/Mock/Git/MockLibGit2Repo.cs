@@ -7,7 +7,7 @@ namespace GVFS.UnitTests.Mock.Git
 {
     public class MockLibGit2Repo : LibGit2Repo
     {
-        public MockLibGit2Repo(ITracer tracer) 
+        public MockLibGit2Repo(ITracer tracer)
             : base()
         {
         }
@@ -23,11 +23,6 @@ namespace GVFS.UnitTests.Mock.Git
         }
 
         public override bool TryCopyBlob(string sha, Action<Stream, long> writeAction)
-        {
-            throw new NotSupportedException();
-        }
-
-        public override bool TryGetObjectSize(string sha, out long size)
         {
             throw new NotSupportedException();
         }

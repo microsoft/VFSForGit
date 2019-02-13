@@ -1,5 +1,7 @@
-﻿using GVFS.Common.Tracing;
+﻿using GVFS.Common.Http;
+using GVFS.Common.Tracing;
 using System;
+using System.Net;
 using System.Text;
 
 namespace GVFS.Common.Git
@@ -7,14 +9,17 @@ namespace GVFS.Common.Git
     public class GitAuthentication
     {
         private const double MaxBackoffSeconds = 30;
+
         private readonly object gitAuthLock = new object();
+        private readonly GitProcess git;
+        private readonly string repoUrl;
+
         private int numberOfAttempts = 0;
         private DateTime lastAuthAttempt = DateTime.MinValue;
 
         private string cachedAuthString;
 
-        private GitProcess git;
-        private string repoUrl;
+        private bool isInitialized;
 
         public GitAuthentication(GitProcess git, string repoUrl)
         {
@@ -29,6 +34,8 @@ namespace GVFS.Common.Git
                 return this.GetNextAuthAttemptTime() > DateTime.Now;
             }
         }
+
+        public bool IsAnonymous { get; private set; } = true;
 
         public void ConfirmCredentialsWorked(string usedCredential)
         {
@@ -54,10 +61,9 @@ namespace GVFS.Common.Git
 
                 if (this.cachedAuthString != null)
                 {
-                    // Wipe the username and password so we can try recovering if applicable.
                     this.cachedAuthString = null;
-
                     this.git.RevokeCredential(this.repoUrl);
+
                     this.UpdateBackoff();
                 }
             }
@@ -71,38 +77,27 @@ namespace GVFS.Common.Git
 
         public bool TryGetCredentials(ITracer tracer, out string gitAuthString, out string errorMessage)
         {
+            if (!this.isInitialized)
+            {
+                throw new InvalidOperationException("This auth instance must be initialized before it can be used");
+            }
+
             gitAuthString = this.cachedAuthString;
-            if (this.cachedAuthString == null)
+            if (gitAuthString == null)
             {
                 lock (this.gitAuthLock)
                 {
                     if (this.cachedAuthString == null)
                     {
-                        string gitUsername;
-                        string gitPassword;
-
                         if (this.IsBackingOff)
                         {
-                            gitAuthString = null;
                             errorMessage = "Auth failed. No retries will be made until: " + this.GetNextAuthAttemptTime();
                             return false;
                         }
 
-                        if (!this.git.TryGetCredentials(tracer, this.repoUrl, out gitUsername, out gitPassword))
+                        if (!this.TryCallGitCredential(tracer, out errorMessage))
                         {
-                            gitAuthString = null;
-                            errorMessage = "Authentication failed.";
-                            this.UpdateBackoff();
                             return false;
-                        }
-
-                        if (!string.IsNullOrEmpty(gitUsername) && !string.IsNullOrEmpty(gitPassword))
-                        {
-                            this.cachedAuthString = Convert.ToBase64String(Encoding.ASCII.GetBytes(gitUsername + ":" + gitPassword));
-                        }
-                        else
-                        {
-                            this.cachedAuthString = string.Empty;
                         }
                     }
 
@@ -112,6 +107,88 @@ namespace GVFS.Common.Git
 
             errorMessage = null;
             return true;
+        }
+
+        public bool TryInitialize(ITracer tracer, Enlistment enlistment, out string errorMessage)
+        {
+            if (this.isInitialized)
+            {
+                throw new InvalidOperationException("Already initialized");
+            }
+
+            errorMessage = null;
+
+            bool isAnonymous;
+            if (!this.TryAnonymousQuery(tracer, enlistment, out isAnonymous))
+            {
+                errorMessage = $"Unable to determine if authentication is required";
+                return false;
+            }
+
+            if (!isAnonymous &&
+                !this.TryCallGitCredential(tracer, out errorMessage))
+            {
+                return false;
+            }
+
+            this.IsAnonymous = isAnonymous;
+            this.isInitialized = true;
+            return true;
+        }
+
+        public bool TryInitializeAndRequireAuth(ITracer tracer, out string errorMessage)
+        {
+            if (this.isInitialized)
+            {
+                throw new InvalidOperationException("Already initialized");
+            }
+
+            if (this.TryCallGitCredential(tracer, out errorMessage))
+            {
+                this.isInitialized = true;
+                return true;
+            }
+
+            return false;
+        }
+
+        private bool TryAnonymousQuery(ITracer tracer, Enlistment enlistment, out bool isAnonymous)
+        {
+            bool querySucceeded;
+            using (ITracer anonymousTracer = tracer.StartActivity("AttemptAnonymousAuth", EventLevel.Informational))
+            {
+                HttpStatusCode? httpStatus;
+
+                using (ConfigHttpRequestor configRequestor = new ConfigHttpRequestor(anonymousTracer, enlistment, new RetryConfig()))
+                {
+                    ServerGVFSConfig gvfsConfig;
+                    const bool LogErrors = false;
+                    if (configRequestor.TryQueryGVFSConfig(LogErrors, out gvfsConfig, out httpStatus, out _))
+                    {
+                        querySucceeded = true;
+                        isAnonymous = true;
+                    }
+                    else if (httpStatus == HttpStatusCode.Unauthorized)
+                    {
+                        querySucceeded = true;
+                        isAnonymous = false;
+                    }
+                    else
+                    {
+                        querySucceeded = false;
+                        isAnonymous = false;
+                    }
+                }
+
+                anonymousTracer.Stop(new EventMetadata
+                {
+                    { "HttpStatus", httpStatus.HasValue ? ((int)httpStatus).ToString() : "None" },
+                    { "QuerySucceeded", querySucceeded },
+                    { "IsAnonymous", isAnonymous },
+                });
+            }
+
+            return querySucceeded;
         }
 
         private DateTime GetNextAuthAttemptTime()
@@ -129,6 +206,29 @@ namespace GVFS.Common.Git
         {
             this.lastAuthAttempt = DateTime.Now;
             this.numberOfAttempts++;
+        }
+
+        private bool TryCallGitCredential(ITracer tracer, out string errorMessage)
+        {
+            string gitUsername;
+            string gitPassword;
+            if (!this.git.TryGetCredentials(tracer, this.repoUrl, out gitUsername, out gitPassword, out errorMessage))
+            {
+                this.UpdateBackoff();
+                return false;
+            }
+
+            if (!string.IsNullOrEmpty(gitUsername) && !string.IsNullOrEmpty(gitPassword))
+            {
+                this.cachedAuthString = Convert.ToBase64String(Encoding.ASCII.GetBytes(gitUsername + ":" + gitPassword));
+            }
+            else
+            {
+                errorMessage = "Got back empty credentials from git";
+                return false;
+            }
+
+            return true;
         }
     }
 }

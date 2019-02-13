@@ -8,6 +8,18 @@
     <IntermediateOutputPath>$(BuildOutputDir)\$(MSBuildProjectName)\obj\$(Platform)\$(Configuration)\</IntermediateOutputPath>
     <IntDir>$(BuildOutputDir)\$(MSBuildProjectName)\intermediate\$(Platform)\$(Configuration)\</IntDir>
   </PropertyGroup>
+  
+  <PropertyGroup>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <CodeAnalysisRuleSet>$(MSBuildThisFileDirectory)\GVFS.ruleset</CodeAnalysisRuleSet>
+    <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Compile Include="$(BuildOutputDir)\CommonAssemblyVersion.cs">
+      <Link>CommonAssemblyVersion.cs</Link>
+    </Compile>
+  </ItemGroup>
 
   <PropertyGroup>
     <DefaultItemExcludes>$(DefaultItemExcludes);StyleCop.Cache;TestResults.xml</DefaultItemExcludes>

@@ -5,15 +5,17 @@ using System.Threading;
 
 namespace GVFS.FunctionalTests.Tests.GitCommands
 {
-    [TestFixture]
+    [TestFixtureSource(typeof(GitRepoTests), nameof(GitRepoTests.ValidateWorkingTree))]
     [Category(Categories.GitCommands)]
     public class StatusTests : GitRepoTests
     {
-        public StatusTests() : base(enlistmentPerTest: true)
+        public StatusTests(bool validateWorkingTree)
+            : base(enlistmentPerTest: true, validateWorkingTree: validateWorkingTree)
         {
         }
 
         [TestCase]
+        [Category(Categories.MacTODO.FlakyTest)]
         public void MoveFileIntoDotGitDirectory()
         {
             string srcPath = @"Readme.md";
@@ -24,7 +26,20 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
         }
 
         [TestCase]
-        [Category(Categories.MacTODO.M4)]   
+        public void DeleteThenCreateThenDeleteFile()
+        {
+            string srcPath = @"Readme.md";
+
+            this.DeleteFile(srcPath);
+            this.ValidateGitCommand("status");
+            this.CreateFile("Testing", srcPath);
+            this.ValidateGitCommand("status");
+            this.DeleteFile(srcPath);
+            this.ValidateGitCommand("status");
+        }
+
+        [TestCase]
+        [Category(Categories.MacTODO.M4)]
         public void ModifyingAndDeletingRepositoryExcludeFileInvalidatesCache()
         {
             string repositoryExcludeFile = Path.Combine(".git", "info", "exclude");
@@ -50,7 +65,7 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
         }
 
         [TestCase]
-        [Category(Categories.MacTODO.M4)]  
+        [Category(Categories.MacTODO.M4)]
         public void NewRepositoryExcludeFileInvalidatesCache()
         {
             string repositoryExcludeFileRelativePath = Path.Combine(".git", "info", "exclude");
@@ -71,7 +86,7 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
         }
 
         [TestCase]
-        [Category(Categories.MacTODO.M4)]  
+        [Category(Categories.MacTODO.M4)]
         public void ModifyingHeadSymbolicRefInvalidatesCache()
         {
             this.ValidateGitCommand("status");
@@ -87,7 +102,7 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
         }
 
         [TestCase]
-        [Category(Categories.MacTODO.M4)]  
+        [Category(Categories.MacTODO.M4)]
         public void ModifyingHeadRefInvalidatesCache()
         {
             this.ValidateGitCommand("status");

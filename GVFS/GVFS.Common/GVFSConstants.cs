@@ -32,12 +32,15 @@ namespace GVFS.Common
             public const string DeprecatedCacheEndpointSuffix = ".cache-server-url";
             public const string HooksPrefix = GitConfig.GVFSPrefix + "clone.default-";
             public const string GVFSTelemetryId = GitConfig.GVFSPrefix + "telemetry-id";
-            public const string HooksExtension = ".hooks";            
+            public const string IKey = GitConfig.GVFSPrefix + "ikey";
+            public const string HooksExtension = ".hooks";
         }
 
         public static class LocalGVFSConfig
         {
             public const string UpgradeRing = "upgrade.ring";
+            public const string UpgradeFeedPackageName = "upgrade.feedpackagename";
+            public const string UpgradeFeedUrl = "upgrade.feedurl";
         }
 
         public static class GitStatusCache
@@ -75,7 +78,7 @@ namespace GVFS.Common
         }
 
         public static class LogFileTypes
-        {            
+        {
             public const string MountPrefix = "mount";
             public const string UpgradePrefix = "productupgrade";
 
@@ -88,7 +91,7 @@ namespace GVFS.Common
             public const string Repair = "repair";
             public const string Service = "service";
             public const string UpgradeVerb = UpgradePrefix + "_verb";
-            public const string UpgradeProcess = UpgradePrefix + "_process";            
+            public const string UpgradeProcess = UpgradePrefix + "_process";
         }
 
         public static class DotGVFS
@@ -151,11 +154,13 @@ namespace GVFS.Common
                 public const string PostCommandHookName = "post-command";
                 public const string ReadObjectName = "read-object";
                 public const string VirtualFileSystemName = "virtual-filesystem";
+                public const string PostIndexChangedName = "post-indexchanged";
                 public static readonly string Root = Path.Combine(DotGit.Root, "hooks");
                 public static readonly string PreCommandPath = Path.Combine(Hooks.Root, PreCommandHookName);
                 public static readonly string PostCommandPath = Path.Combine(Hooks.Root, PostCommandHookName);
                 public static readonly string ReadObjectPath = Path.Combine(Hooks.Root, ReadObjectName);
                 public static readonly string VirtualFileSystemPath = Path.Combine(Hooks.Root, VirtualFileSystemName);
+                public static readonly string PostIndexChangedPath = Path.Combine(Hooks.Root, PostIndexChangedName);
             }
 
             public static class Info
@@ -174,7 +179,7 @@ namespace GVFS.Common
             public static class Objects
             {
                 public static readonly string Root = Path.Combine(DotGit.Root, "objects");
-                
+
                 public static class Info
                 {
                     public static readonly string Root = Path.Combine(Objects.Root, "info");
@@ -207,9 +212,11 @@ namespace GVFS.Common
 
         public static class VerbParameters
         {
+                public const string InternalUseOnly = "internal_use_only";
+
             public static class Mount
             {
-                public const string ServiceName = "internal_use_only_service_name";
+                public const string StartedByService = "StartedByService";
                 public const string Verbosity = "verbosity";
                 public const string Keywords = "keywords";
                 public const string DebugWindow = "debug-window";
@@ -228,6 +235,7 @@ namespace GVFS.Common
         {
             public const string GVFSUpgrade = "`gvfs upgrade`";
             public const string GVFSUpgradeConfirm = "`gvfs upgrade --confirm`";
+            public const string GVFSUpgradeDryRun = "`gvfs upgrade --dry-run`";
             public const string NoUpgradeCheckPerformed = "No upgrade check was performed.";
             public const string NoneRingConsoleAlert = "Upgrade ring set to \"None\". " + NoUpgradeCheckPerformed;
             public const string NoRingConfigConsoleAlert = "Upgrade ring is not set. " + NoUpgradeCheckPerformed;

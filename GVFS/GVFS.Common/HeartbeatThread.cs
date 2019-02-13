@@ -53,6 +53,7 @@ namespace GVFS.Common
                 EventLevel eventLevel = EventLevel.Verbose;
                 EventMetadata metadata = this.dataProvider.GetMetadataForHeartBeat(ref eventLevel) ?? new EventMetadata();
                 DateTime now = DateTime.Now;
+                metadata.Add("Version", ProcessHelper.GetCurrentProcessVersion());
                 metadata.Add("MinutesUptime", (long)(now - this.startTime).TotalMinutes);
                 metadata.Add("MinutesSinceLast", (int)(now - this.lastHeartBeatTime).TotalMinutes);
                 this.lastHeartBeatTime = now;

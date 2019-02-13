@@ -59,6 +59,11 @@ namespace GVFS.Common.Http
                 throw new RetryableException("Stream is null (this could be a result of network flakiness), retrying.");
             }
 
+            if (!this.Stream.CanRead)
+            {
+                throw new RetryableException("Stream is not readable (this could be a result of network flakiness), retrying.");
+            }
+
             using (StreamReader contentStreamReader = new StreamReader(this.Stream))
             {
                 try
@@ -138,7 +143,7 @@ namespace GVFS.Common.Http
         }
 
         /// <summary>
-        /// Convert from a string-based Content-Type to <see cref="GitObjectsHttpRequestor.ContentType"/> 
+        /// Convert from a string-based Content-Type to <see cref="GitObjectsHttpRequestor.ContentType"/>
         /// </summary>
         private static GitObjectContentType MapContentType(string contentType)
         {

@@ -16,8 +16,10 @@ namespace GVFS.UnitTests.Mock.Git
         public MockGitProcess()
             : base(new MockGVFSEnlistment())
         {
+            this.CommandsRun = new List<string>();
         }
 
+        public List<string> CommandsRun { get; }
         public bool ShouldFail { get; set; }
 
         public void SetExpectedCommandResult(string command, Func<Result> result, bool matchPrefix = false)
@@ -26,8 +28,18 @@ namespace GVFS.UnitTests.Mock.Git
             this.expectedCommandInfos.Add(commandInfo);
         }
 
-        protected override Result InvokeGitImpl(string command, string workingDirectory, string dotGitDirectory, bool useReadObjectHook, Action<StreamWriter> writeStdIn, Action<string> parseStdOutLine, int timeoutMs)
+        protected override Result InvokeGitImpl(
+            string command,
+            string workingDirectory,
+            string dotGitDirectory,
+            bool useReadObjectHook,
+            Action<StreamWriter> writeStdIn,
+            Action<string> parseStdOutLine,
+            int timeoutMs,
+            string gitObjectsDirectory = null)
         {
+            this.CommandsRun.Add(command);
+
             if (this.ShouldFail)
             {
                 return new Result(string.Empty, string.Empty, Result.GenericFailureCode);

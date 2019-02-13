@@ -48,7 +48,7 @@ namespace GVFS.UnitTests.Common
 
             output.ShouldBeNull();
         }
-        
+
         [TestCase]
         public void FailsForNull()
         {

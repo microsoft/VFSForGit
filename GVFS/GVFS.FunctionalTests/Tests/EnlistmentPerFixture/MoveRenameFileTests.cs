@@ -9,7 +9,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
 {
     // TODO 452590 - Combine all of the MoveRenameTests into a single fixture, and have each use different
     // well known files
-    [TestFixtureSource(typeof(FileSystemRunner), FileSystemRunner.TestRunners)]
+    [TestFixtureSource(typeof(FileSystemRunner), nameof(FileSystemRunner.Runners))]
     public class MoveRenameFileTests : TestsWithEnlistmentPerFixture
     {
         public const string TestFileContents =
@@ -131,10 +131,10 @@ namespace GVFS.StressTests
         }
 
         private void ChangeUnhydratedFileCase(
-            string oldName, 
-            string oldVirtualPath, 
-            string newName, 
-            string newVirtualPath, 
+            string oldName,
+            string oldVirtualPath,
+            string newName,
+            string newVirtualPath,
             string knownFileContents)
         {
             this.fileSystem.MoveFile(oldVirtualPath, newVirtualPath);

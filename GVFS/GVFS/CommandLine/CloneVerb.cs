@@ -82,12 +82,10 @@ namespace GVFS.CommandLine
         {
             int exitCode = 0;
 
-            // TODO(Mac): limit the length of the enlistment root based on the length constraints imposed by named pipes
-
             this.ValidatePathParameter(this.EnlistmentRootPathParameter);
             this.ValidatePathParameter(this.LocalCacheRoot);
 
-            string fullEnlistmentRootPathParameter; 
+            string fullEnlistmentRootPathParameter;
             string normalizedEnlistmentRootPath = this.GetCloneRoot(out fullEnlistmentRootPathParameter);
 
             if (!string.IsNullOrWhiteSpace(this.LocalCacheRoot))
@@ -147,7 +145,7 @@ namespace GVFS.CommandLine
                                 { nameof(this.EnlistmentRootPathParameter), this.EnlistmentRootPathParameter },
                                 { nameof(fullEnlistmentRootPathParameter), fullEnlistmentRootPathParameter },
                             });
-                        
+
                         CacheServerResolver cacheServerResolver = new CacheServerResolver(tracer, enlistment);
                         cacheServer = cacheServerResolver.ParseUrlOrFriendlyName(this.CacheServerUrl);
 
@@ -168,13 +166,10 @@ namespace GVFS.CommandLine
                         this.Output.WriteLine("  Local Cache:  " + resolvedLocalCacheRoot);
                         this.Output.WriteLine("  Destination:  " + enlistment.EnlistmentRoot);
 
-                        string authErrorMessage = null;
-                        if (!this.ShowStatusWhileRunning(
-                            () => enlistment.Authentication.TryRefreshCredentials(tracer, out authErrorMessage),
-                            "Authenticating",
-                            normalizedEnlistmentRootPath))
+                        string authErrorMessage;
+                        if (!this.TryAuthenticate(tracer, enlistment, out authErrorMessage))
                         {
-                            this.ReportErrorAndExit(tracer, "Cannot clone because authentication failed");
+                            this.ReportErrorAndExit(tracer, "Cannot clone because authentication failed: " + authErrorMessage);
                         }
 
                         RetryConfig retryConfig = this.GetRetryConfig(tracer, enlistment, TimeSpan.FromMinutes(RetryConfig.FetchAndCloneTimeoutMinutes));
@@ -182,11 +177,8 @@ namespace GVFS.CommandLine
 
                         cacheServer = this.ResolveCacheServer(tracer, cacheServer, cacheServerResolver, serverGVFSConfig);
 
-                        if (!GVFSPlatform.Instance.IsUnderConstruction)
-                        {
-                            this.ValidateClientVersions(tracer, enlistment, serverGVFSConfig, showWarnings: true);
-                        }
-                       
+                        this.ValidateClientVersions(tracer, enlistment, serverGVFSConfig, showWarnings: true);
+
                         this.ShowStatusWhileRunning(
                             () =>
                             {
@@ -208,7 +200,7 @@ namespace GVFS.CommandLine
                     if (!this.NoPrefetch)
                     {
                         ReturnCode result = this.Execute<PrefetchVerb>(
-                            fullEnlistmentRootPathParameter,
+                            enlistment,
                             verb =>
                             {
                                 verb.Commits = true;
@@ -232,7 +224,7 @@ namespace GVFS.CommandLine
                     else
                     {
                         this.Execute<MountVerb>(
-                            fullEnlistmentRootPathParameter,
+                            enlistment,
                             verb =>
                             {
                                 verb.SkipMountedCheck = true;
@@ -284,12 +276,12 @@ namespace GVFS.CommandLine
 
         private Result TryCreateEnlistment(
             string fullEnlistmentRootPathParameter,
-            string normalizedEnlistementRootPath, 
+            string normalizedEnlistementRootPath,
             out GVFSEnlistment enlistment)
         {
             enlistment = null;
 
-            // Check that EnlistmentRootPath is empty before creating a tracer and LogFileEventListener as 
+            // Check that EnlistmentRootPath is empty before creating a tracer and LogFileEventListener as
             // LogFileEventListener will create a file in EnlistmentRootPath
             if (Directory.Exists(normalizedEnlistementRootPath) && Directory.EnumerateFileSystemEntries(normalizedEnlistementRootPath).Any())
             {
@@ -306,23 +298,24 @@ namespace GVFS.CommandLine
             {
                 return new Result(GVFSConstants.GitIsNotInstalledError);
             }
-            
+
             string hooksPath = this.GetGVFSHooksPathAndCheckVersion(tracer: null, hooksVersion: out _);
 
             enlistment = new GVFSEnlistment(
                 normalizedEnlistementRootPath,
                 this.RepositoryURL,
                 gitBinPath,
-                hooksPath);
-            
+                hooksPath,
+                authentication: null);
+
             return new Result(true);
         }
-        
+
         private Result TryClone(
-            JsonTracer tracer, 
-            GVFSEnlistment enlistment, 
-            CacheServerInfo cacheServer, 
-            RetryConfig retryConfig, 
+            JsonTracer tracer,
+            GVFSEnlistment enlistment,
+            CacheServerInfo cacheServer,
+            RetryConfig retryConfig,
             ServerGVFSConfig serverGVFSConfig,
             string resolvedLocalCacheRoot)
         {
@@ -333,7 +326,7 @@ namespace GVFS.CommandLine
                 {
                     return pipeResult;
                 }
-                                
+
                 using (GitObjectsHttpRequestor objectRequestor = new GitObjectsHttpRequestor(tracer, enlistment, cacheServer, retryConfig))
                 {
                     GitRefs refs = objectRequestor.QueryInfoRefs(this.SingleBranch ? this.Branch : null);
@@ -452,7 +445,7 @@ namespace GVFS.CommandLine
             string errorMessage;
             string existingEnlistmentRoot;
             if (GVFSPlatform.Instance.TryGetGVFSEnlistmentRoot(normalizedEnlistmentRootPath, out existingEnlistmentRoot, out errorMessage))
-            { 
+            {
                 this.ReportErrorAndExit("Error: You can't clone inside an existing GVFS repo ({0})", existingEnlistmentRoot);
             }
         }
@@ -512,7 +505,7 @@ namespace GVFS.CommandLine
             {
                 return new Result("Error configuring alternate: " + errorMessage);
             }
-            
+
             GitRepo gitRepo = new GitRepo(tracer, enlistment, fileSystem);
             GVFSContext context = new GVFSContext(tracer, fileSystem, gitRepo, enlistment);
             GVFSGitObjects gitObjects = new GVFSGitObjects(context, objectRequestor);
@@ -543,7 +536,7 @@ namespace GVFS.CommandLine
             GitProcess git = new GitProcess(enlistment);
             string originBranchName = "origin/" + branch;
             GitProcess.Result createBranchResult = git.CreateBranchWithUpstream(branch, originBranchName);
-            if (createBranchResult.HasErrors)
+            if (createBranchResult.ExitCodeIsFailure)
             {
                 return new Result("Unable to create branch '" + originBranchName + "': " + createBranchResult.Errors + "\r\n" + createBranchResult.Output);
             }
@@ -567,7 +560,7 @@ namespace GVFS.CommandLine
             }
 
             GitProcess.Result forceCheckoutResult = git.ForceCheckout(branch);
-            if (forceCheckoutResult.HasErrors && forceCheckoutResult.Errors.IndexOf("unable to read tree") > 0)
+            if (forceCheckoutResult.ExitCodeIsFailure && forceCheckoutResult.Errors.IndexOf("unable to read tree") > 0)
             {
                 // It is possible to have the above TryDownloadCommit() fail because we
                 // already have the commit and root tree we intend to check out, but
@@ -591,7 +584,7 @@ namespace GVFS.CommandLine
                 forceCheckoutResult = git.ForceCheckout(branch);
             }
 
-            if (forceCheckoutResult.HasErrors)
+            if (forceCheckoutResult.ExitCodeIsFailure)
             {
                 string[] errorLines = forceCheckoutResult.Errors.Split('\n');
                 StringBuilder checkoutErrors = new StringBuilder();
@@ -679,7 +672,7 @@ git %*
         {
             string repoPath = enlistmentToInit.WorkingDirectoryRoot;
             GitProcess.Result initResult = GitProcess.Init(enlistmentToInit);
-            if (initResult.HasErrors)
+            if (initResult.ExitCodeIsFailure)
             {
                 string error = string.Format("Could not init repo at to {0}: {1}", repoPath, initResult.Errors);
                 tracer.RelatedError(error);
@@ -687,7 +680,7 @@ git %*
             }
 
             GitProcess.Result remoteAddResult = new GitProcess(enlistmentToInit).RemoteAdd("origin", enlistmentToInit.RepoUrl);
-            if (remoteAddResult.HasErrors)
+            if (remoteAddResult.ExitCodeIsFailure)
             {
                 string error = string.Format("Could not add remote to {0}: {1}", repoPath, remoteAddResult.Errors);
                 tracer.RelatedError(error);

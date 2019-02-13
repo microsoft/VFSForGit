@@ -24,11 +24,11 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
         private enum MoveFileFlags : uint
         {
             MoveFileReplaceExisting = 0x00000001,    // MOVEFILE_REPLACE_EXISTING
-            MoveFileCopyAllowed = 0x00000002,        // MOVEFILE_COPY_ALLOWED           
-            MoveFileDelayUntilReboot = 0x00000004,   // MOVEFILE_DELAY_UNTIL_REBOOT     
-            MoveFileWriteThrough = 0x00000008,       // MOVEFILE_WRITE_THROUGH          
-            MoveFileCreateHardlink = 0x00000010,     // MOVEFILE_CREATE_HARDLINK        
-            MoveFileFailIfNotTrackable = 0x00000020, // MOVEFILE_FAIL_IF_NOT_TRACKABLE  
+            MoveFileCopyAllowed = 0x00000002,        // MOVEFILE_COPY_ALLOWED
+            MoveFileDelayUntilReboot = 0x00000004,   // MOVEFILE_DELAY_UNTIL_REBOOT
+            MoveFileWriteThrough = 0x00000008,       // MOVEFILE_WRITE_THROUGH
+            MoveFileCreateHardlink = 0x00000010,     // MOVEFILE_CREATE_HARDLINK
+            MoveFileFailIfNotTrackable = 0x00000020, // MOVEFILE_FAIL_IF_NOT_TRACKABLE
         }
 
         [TestCase]
@@ -94,13 +94,13 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
         {
             string indexPath = this.Enlistment.GetVirtualPathTo(".git", "index");
 
-            this.Enlistment.WaitForBackgroundOperations().ShouldEqual(true, "Background operations failed to complete.");
+            this.Enlistment.WaitForBackgroundOperations();
             byte[] indexContents = File.ReadAllBytes(indexPath);
 
             string testFileContents = "OverwriteIndexTest";
             this.fileSystem.WriteAllText(testFilePath, testFileContents);
 
-            this.Enlistment.WaitForBackgroundOperations().ShouldEqual(true, "Background operations failed to complete.");
+            this.Enlistment.WaitForBackgroundOperations();
 
             this.RenameAndOverwrite(testFilePath, indexPath).ShouldBeFalse("GVFS should prevent renaming on top of index when GVFSLock is not held");
             byte[] newIndexContents = File.ReadAllBytes(indexPath);

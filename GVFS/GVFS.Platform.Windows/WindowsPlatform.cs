@@ -6,10 +6,12 @@ using GVFS.Platform.Windows.DiskLayoutUpgrades;
 using Microsoft.Win32;
 using System;
 using System.Collections.Generic;
+using System.Collections.ObjectModel;
 using System.Diagnostics;
 using System.IO;
 using System.IO.Pipes;
 using System.Linq;
+using System.Management.Automation;
 using System.Security.AccessControl;
 using System.Security.Principal;
 using System.ServiceProcess;
@@ -24,7 +26,10 @@ namespace GVFS.Platform.Windows
         private const string BuildLabExRegistryValue = "BuildLabEx";
 
         public WindowsPlatform()
-            : base(executableExtension: ".exe", installerExtension: ".exe")
+            : base(
+                executableExtension: ".exe",
+                installerExtension: ".exe",
+                underConstruction: new UnderConstructionFlags(requiresDeprecatedGitHooksLoader: true))
         {
         }
 
@@ -70,19 +75,30 @@ namespace GVFS.Platform.Windows
             return true;
         }
 
-        public override InProcEventListener CreateTelemetryListenerIfEnabled(string providerName, string enlistmentId, string mountId)
+        public override IEnumerable<EventListener> CreateTelemetryListeners(string providerName, string enlistmentId, string mountId)
         {
-            return ETWTelemetryEventListener.CreateTelemetryListenerIfEnabled(
-                this.GitInstallation.GetInstalledGitBinPath(),
-                providerName,
-                enlistmentId,
-                mountId);
+            string gitBinRoot = this.GitInstallation.GetInstalledGitBinPath();
+
+            ETWTelemetryEventListener etwListener = ETWTelemetryEventListener.CreateIfEnabled(gitBinRoot, providerName, enlistmentId, mountId);
+            if (etwListener != null)
+            {
+                yield return etwListener;
+            }
+
+            // TODO: enable the daemon-based telemetry listener once we're happy.
+            // See GitHub issue: https://github.com/Microsoft/VFSForGit/issues/739
+            //
+            // TelemetryDaemonEventListener daemonListener = TelemetryDaemonEventListener.CreateIfEnabled(gitBinRoot, providerName, enlistmentId, mountId, pipeName: "vfs");
+            // if (daemonListener != null)
+            // {
+            //     yield return daemonListener;
+            // }
         }
 
         public override void InitializeEnlistmentACLs(string enlistmentPath)
         {
             // The following permissions are typically present on deskop and missing on Server
-            //                  
+            //
             //   ACCESS_ALLOWED_ACE_TYPE: NT AUTHORITY\Authenticated Users
             //          [OBJECT_INHERIT_ACE]
             //          [CONTAINER_INHERIT_ACE]
@@ -127,17 +143,28 @@ namespace GVFS.Platform.Windows
             return sb.ToString();
         }
 
-        public override void StartBackgroundProcess(string programName, string[] args)
+        public override void StartBackgroundProcess(ITracer tracer, string programName, string[] args)
         {
-            ProcessStartInfo processInfo = new ProcessStartInfo(
-                programName, 
-                string.Join(" ", args.Select(arg => arg.Contains(' ') ? "\"" + arg + "\"" : arg)));
-            processInfo.WindowStyle = ProcessWindowStyle.Hidden;
+            string programArguments = string.Empty;
+            try
+            {
+                programArguments = string.Join(" ", args.Select(arg => arg.Contains(' ') ? "\"" + arg + "\"" : arg));
+                ProcessStartInfo processInfo = new ProcessStartInfo(programName, programArguments);
+                processInfo.WindowStyle = ProcessWindowStyle.Hidden;
 
-            Process executingProcess = new Process();
-            executingProcess.StartInfo = processInfo;
-
-            executingProcess.Start();
+                Process executingProcess = new Process();
+                executingProcess.StartInfo = processInfo;
+                executingProcess.Start();
+            }
+            catch (Exception ex)
+            {
+                EventMetadata metadata = new EventMetadata();
+                metadata.Add(nameof(programName), programName);
+                metadata.Add(nameof(programArguments), programArguments);
+                metadata.Add("Exception", ex.ToString());
+                tracer.RelatedError(metadata, "Failed to start background process.");
+                throw;
+            }
         }
 
         public override NamedPipeServerStream CreatePipeByName(string pipeName)
@@ -168,7 +195,7 @@ namespace GVFS.Platform.Windows
 
         public override bool IsProcessActive(int processId)
         {
-            return WindowsPlatform.IsProcessActiveImplementation(processId);
+            return WindowsPlatform.IsProcessActiveImplementation(processId, tryGetProcessById: true);
         }
 
         public override void IsServiceInstalledAndRunning(string name, out bool installed, out bool running)
@@ -187,7 +214,11 @@ namespace GVFS.Platform.Windows
         public override void ConfigureVisualStudio(string gitBinPath, ITracer tracer)
         {
             const string GitBinPathEnd = "\\cmd\\git.exe";
-            const string GitVSRegistryKeyName = "HKEY_CURRENT_USER\\Software\\Microsoft\\VSCommon\\15.0\\TeamFoundation\\GitSourceControl";
+            string[] gitVSRegistryKeyNames =
+            {
+                "HKEY_CURRENT_USER\\Software\\Microsoft\\VSCommon\\15.0\\TeamFoundation\\GitSourceControl",
+                "HKEY_CURRENT_USER\\Software\\Microsoft\\VSCommon\\16.0\\TeamFoundation\\GitSourceControl"
+            };
             const string GitVSRegistryValueName = "GitPath";
 
             if (!gitBinPath.EndsWith(GitBinPathEnd))
@@ -200,7 +231,10 @@ namespace GVFS.Platform.Windows
             }
 
             string regKeyValue = gitBinPath.Substring(0, gitBinPath.Length - GitBinPathEnd.Length);
-            Registry.SetValue(GitVSRegistryKeyName, GitVSRegistryValueName, regKeyValue);
+            foreach (string registryKeyName in gitVSRegistryKeyNames)
+            {
+                Registry.SetValue(registryKeyName, GitVSRegistryValueName, regKeyValue);
+            }
         }
 
         public override bool TryGetGVFSHooksPathAndVersion(out string hooksPath, out string hooksVersion, out string error)
@@ -227,7 +261,7 @@ namespace GVFS.Platform.Windows
 
             string gitHooksloaderPath = Path.Combine(executingDirectory, GVFSConstants.DotGit.Hooks.LoaderExecutable);
             if (!HooksInstaller.TryHooksInstallationAction(
-                () => HooksInstaller.CopyHook(context, gitHooksloaderPath, commandHookPath + GVFSPlatform.Instance.Constants.ExecutableExtension), 
+                () => HooksInstaller.CopyHook(context, gitHooksloaderPath, commandHookPath + GVFSPlatform.Instance.Constants.ExecutableExtension),
                 out errorMessage))
             {
                 errorMessage = "Failed to copy " + GVFSConstants.DotGit.Hooks.LoaderExecutable + " to " + commandHookPath + GVFSPlatform.Instance.Constants.ExecutableExtension + "\n" + errorMessage;
@@ -235,7 +269,7 @@ namespace GVFS.Platform.Windows
             }
 
             if (!HooksInstaller.TryHooksInstallationAction(
-                () => WindowsGitHooksInstaller.CreateHookCommandConfig(context, hookName, commandHookPath), 
+                () => WindowsGitHooksInstaller.CreateHookCommandConfig(context, hookName, commandHookPath),
                 out errorMessage))
             {
                 errorMessage = "Failed to create " + commandHookPath + GVFSConstants.GitConfig.HooksExtension + "\n" + errorMessage;
@@ -245,6 +279,30 @@ namespace GVFS.Platform.Windows
             return true;
         }
 
+        public override bool TryVerifyAuthenticodeSignature(string path, out string subject, out string issuer, out string error)
+        {
+            using (PowerShell powershell = PowerShell.Create())
+            {
+                powershell.AddScript($"Get-AuthenticodeSignature -FilePath {path}");
+
+                Collection<PSObject> results = powershell.Invoke();
+                if (powershell.HadErrors || results.Count <= 0)
+                {
+                    subject = null;
+                    issuer = null;
+                    error = $"Powershell Get-AuthenticodeSignature failed, could not verify authenticode for {path}.";
+                    return false;
+                }
+
+                Signature signature = results[0].BaseObject as Signature;
+                bool isValid = signature.Status == SignatureStatus.Valid;
+                subject = signature.SignerCertificate.SubjectName.Name;
+                issuer = signature.SignerCertificate.IssuerName.Name;
+                error = isValid == false ? signature.StatusMessage : null;
+                return isValid;
+            }
+        }
+
         public override string GetCurrentUser()
         {
             WindowsIdentity identity = WindowsIdentity.GetCurrent();
@@ -252,7 +310,7 @@ namespace GVFS.Platform.Windows
             return identity.User.Value;
         }
 
-        public override Dictionary<string, string> GetPhysicalDiskInfo(string path) => WindowsPhysicalDiskInfo.GetPhysicalDiskInfo(path);
+        public override Dictionary<string, string> GetPhysicalDiskInfo(string path, bool sizeStatsOnly) => WindowsPhysicalDiskInfo.GetPhysicalDiskInfo(path, sizeStatsOnly);
 
         public override bool IsConsoleOutputRedirectedToFile()
         {
@@ -275,6 +333,14 @@ namespace GVFS.Platform.Windows
         public override bool TryGetGVFSEnlistmentRoot(string directory, out string enlistmentRoot, out string errorMessage)
         {
             return WindowsPlatform.TryGetGVFSEnlistmentRootImplementation(directory, out enlistmentRoot, out errorMessage);
+        }
+
+        public override bool TryKillProcessTree(int processId, out int exitCode, out string error)
+        {
+            ProcessResult result = ProcessHelper.Run("taskkill", $"/pid {processId} /f /t");
+            error = result.Errors;
+            exitCode = result.ExitCode;
+            return result.ExitCode == 0;
         }
 
         private static object GetValueFromRegistry(RegistryHive registryHive, string key, string valueName, RegistryView view)

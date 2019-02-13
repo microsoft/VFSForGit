@@ -2,12 +2,12 @@
 
 namespace GVFS.FunctionalTests.Tests.GitCommands
 {
-    [TestFixture]
+    [TestFixtureSource(typeof(GitRepoTests), nameof(GitRepoTests.ValidateWorkingTree))]
     [Category(Categories.GitCommands)]
-    [Category(Categories.MacTODO.M3)]
     public class RebaseConflictTests : GitRepoTests
     {
-        public RebaseConflictTests() : base(enlistmentPerTest: true)
+        public RebaseConflictTests(bool validateWorkingTree)
+            : base(enlistmentPerTest: true, validateWorkingTree: validateWorkingTree)
         {
         }
 
@@ -20,7 +20,15 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
         }
 
         [TestCase]
-        [Ignore("The file system is correct but getting 'refusing to lose untracked file at Test_ConflictTests\\ModifiedFiles\\ChangeInTargetDeleteInSource.txt'")]
+        public void RebaseConflictWithPrefetch()
+        {
+            this.ValidateGitCommand("checkout " + GitRepoTests.ConflictTargetBranch);
+            this.Enlistment.Prefetch("--files * --hydrate");
+            this.RunGitCommand("rebase " + GitRepoTests.ConflictSourceBranch);
+            this.FilesShouldMatchAfterConflict();
+        }
+
+        [TestCase]
         public void RebaseConflictWithFileReads()
         {
             this.ValidateGitCommand("checkout " + GitRepoTests.ConflictTargetBranch);

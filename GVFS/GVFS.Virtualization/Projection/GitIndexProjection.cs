@@ -28,20 +28,16 @@ namespace GVFS.Virtualization.Projection
 
         private const int IndexFileStreamBufferSize = 512 * 1024;
 
-        private const UpdatePlaceholderType FolderPlaceholderDeleteFlags = 
-            UpdatePlaceholderType.AllowDirtyMetadata | 
-            UpdatePlaceholderType.AllowReadOnly | 
+        private const UpdatePlaceholderType FolderPlaceholderDeleteFlags =
+            UpdatePlaceholderType.AllowDirtyMetadata |
+            UpdatePlaceholderType.AllowReadOnly |
             UpdatePlaceholderType.AllowTombstone;
 
-        private const UpdatePlaceholderType FilePlaceholderUpdateFlags = 
-            UpdatePlaceholderType.AllowDirtyMetadata | 
+        private const UpdatePlaceholderType FilePlaceholderUpdateFlags =
+            UpdatePlaceholderType.AllowDirtyMetadata |
             UpdatePlaceholderType.AllowReadOnly;
 
         private const string EtwArea = "GitIndexProjection";
-
-        private const int ExternalLockReleaseTimeoutMs = 50;
-
-        private char[] gitPathSeparatorCharArray = new char[] { GVFSConstants.GitPathSeparator };
 
         private GVFSContext context;
         private RepoMetadata repoMetadata;
@@ -64,7 +60,6 @@ namespace GVFS.Virtualization.Projection
         private BackgroundFileSystemTaskRunner backgroundFileSystemTaskRunner;
         private ReaderWriterLockSlim projectionReadWriteLock;
         private ManualResetEventSlim projectionParseComplete;
-        private ManualResetEventSlim externalLockReleaseRequested;
 
         private volatile bool projectionInvalid;
 
@@ -72,8 +67,8 @@ namespace GVFS.Virtualization.Projection
         // git from creating a placeholder (since the last time the cache was cleared)
         private int negativePathCacheUpdatedForGitCount;
 
-        // modifiedFilesInvalid: If true, a change to the index that did not trigger a new projection 
-        // has been made and GVFS has not yet validated that all entries whose skip-worktree bit is  
+        // modifiedFilesInvalid: If true, a change to the index that did not trigger a new projection
+        // has been made and GVFS has not yet validated that all entries whose skip-worktree bit is
         // cleared are in the ModifiedFilesDatabase
         private volatile bool modifiedFilesInvalid;
 
@@ -107,7 +102,6 @@ namespace GVFS.Virtualization.Projection
 
             this.projectionReadWriteLock = new ReaderWriterLockSlim();
             this.projectionParseComplete = new ManualResetEventSlim(initialState: false);
-            this.externalLockReleaseRequested = new ManualResetEventSlim(initialState: false);
             this.wakeUpIndexParsingThread = new AutoResetEvent(initialState: false);
             this.projectionIndexBackupPath = Path.Combine(this.context.Enlistment.DotGVFSRoot, ProjectionIndexBackupName);
             this.indexPath = Path.Combine(this.context.Enlistment.WorkingDirectoryRoot, GVFSConstants.DotGit.Index);
@@ -163,7 +157,7 @@ namespace GVFS.Virtualization.Projection
             using (FileStream indexStream = new FileStream(this.indexPath, FileMode.Open, FileAccess.ReadWrite, FileShare.Read, IndexFileStreamBufferSize))
             {
                 // Not checking the FileSystemTaskResult here because this is only for profiling
-                this.indexParser.AddMissingModifiedFiles(tracer, indexStream);
+                this.indexParser.AddMissingModifiedFilesAndRemoveThemFromPlaceholderList(tracer, indexStream);
             }
         }
 
@@ -197,7 +191,7 @@ namespace GVFS.Virtualization.Projection
                     this.CopyIndexFileAndBuildProjection();
                 }
                 else
-                {                    
+                {
                     this.BuildProjection();
                 }
             }
@@ -219,7 +213,7 @@ namespace GVFS.Virtualization.Projection
                 this.projectionParseComplete.Set();
             }
 
-            this.indexParsingThread = Task.Factory.StartNew(this.ParseIndexThreadMain, TaskCreationOptions.LongRunning);            
+            this.indexParsingThread = Task.Factory.StartNew(this.ParseIndexThreadMain, TaskCreationOptions.LongRunning);
         }
 
         public virtual void Shutdown()
@@ -227,6 +221,11 @@ namespace GVFS.Virtualization.Projection
             this.isStopping = true;
             this.wakeUpIndexParsingThread.Set();
             this.indexParsingThread.Wait();
+        }
+
+        public void WaitForProjectionUpdate()
+        {
+            this.projectionParseComplete.Wait();
         }
 
         public NamedPipeMessages.ReleaseLock.Response TryReleaseExternalLock(int pid)
@@ -241,14 +240,7 @@ namespace GVFS.Virtualization.Projection
                 this.context.Tracer.RelatedEvent(EventLevel.Informational, "ReleaseExternalLockRequested", null);
                 this.context.Repository.GVFSLock.Stats.RecordReleaseExternalLockRequested();
 
-                // Inform the index parsing thread that git has requested a release, which means all of git's updates to the
-                // index are complete and it's safe to start parsing it now
-                this.externalLockReleaseRequested.Set();
-
                 this.ClearNegativePathCacheIfPollutedByGit();
-                this.projectionParseComplete.Wait();
-
-                this.externalLockReleaseRequested.Reset();
 
                 ConcurrentHashSet<string> updateFailures = this.updatePlaceholderFailures;
                 ConcurrentHashSet<string> deleteFailures = this.deletePlaceholderFailures;
@@ -396,7 +388,7 @@ namespace GVFS.Virtualization.Projection
 
         public virtual List<ProjectedFileInfo> GetProjectedItems(
             CancellationToken cancellationToken,
-            BlobSizes.BlobSizesConnection blobSizesConnection, 
+            BlobSizes.BlobSizesConnection blobSizesConnection,
             string folderPath)
         {
             this.projectionReadWriteLock.EnterReadLock();
@@ -407,10 +399,10 @@ namespace GVFS.Virtualization.Projection
                 if (this.TryGetOrAddFolderDataFromCache(folderPath, out folderData))
                 {
                     folderData.PopulateSizes(
-                        this.context.Tracer, 
-                        this.gitObjects, 
-                        blobSizesConnection, 
-                        availableSizes: null, 
+                        this.context.Tracer,
+                        this.gitObjects,
+                        blobSizesConnection,
+                        availableSizes: null,
                         cancellationToken: cancellationToken);
 
                     return ConvertToProjectedFileInfos(folderData.ChildEntries);
@@ -430,8 +422,8 @@ namespace GVFS.Virtualization.Projection
             string parentKey;
             this.GetChildNameAndParentKey(virtualPath, out fileName, out parentKey);
             FolderEntryData data = this.GetProjectedFolderEntryData(
-                blobSizesConnection: null, 
-                childName: fileName, 
+                blobSizesConnection: null,
+                childName: fileName,
                 parentKey: parentKey);
 
             if (data != null)
@@ -446,7 +438,7 @@ namespace GVFS.Virtualization.Projection
         public virtual ProjectedFileInfo GetProjectedFileInfo(
             CancellationToken cancellationToken,
             BlobSizes.BlobSizesConnection blobSizesConnection,
-            string virtualPath, 
+            string virtualPath,
             out string parentFolderPath)
         {
             string childName;
@@ -458,8 +450,8 @@ namespace GVFS.Virtualization.Projection
                 cancellationToken,
                 blobSizesConnection,
                 availableSizes: null,
-                childName: childName, 
-                parentKey: parentKey, 
+                childName: childName,
+                parentKey: parentKey,
                 gitCasedChildName: out gitCasedChildName);
 
             if (data != null)
@@ -529,13 +521,21 @@ namespace GVFS.Virtualization.Projection
             {
                 if (this.modifiedFilesInvalid)
                 {
-                    FileSystemTaskResult result = this.indexParser.AddMissingModifiedFiles(this.context.Tracer, this.indexFileStream);
-                    if (result == FileSystemTaskResult.Success)
+                    using (ITracer activity = this.context.Tracer.StartActivity(
+                        nameof(this.indexParser.AddMissingModifiedFilesAndRemoveThemFromPlaceholderList),
+                        EventLevel.Informational))
                     {
-                        this.modifiedFilesInvalid = false;
-                    }
+                        FileSystemTaskResult result = this.indexParser.AddMissingModifiedFilesAndRemoveThemFromPlaceholderList(
+                            activity,
+                            this.indexFileStream);
 
-                    return result;
+                        if (result == FileSystemTaskResult.Success)
+                        {
+                            this.modifiedFilesInvalid = false;
+                        }
+
+                        return result;
+                    }
                 }
             }
             catch (IOException e)
@@ -581,12 +581,6 @@ namespace GVFS.Virtualization.Projection
                 {
                     this.projectionParseComplete.Dispose();
                     this.projectionParseComplete = null;
-                }
-
-                if (this.externalLockReleaseRequested != null)
-                {
-                    this.externalLockReleaseRequested.Dispose();
-                    this.externalLockReleaseRequested = null;
                 }
 
                 if (this.wakeUpIndexParsingThread != null)
@@ -659,20 +653,20 @@ namespace GVFS.Virtualization.Projection
 
         private void AddItemFromIndexEntry(GitIndexEntry indexEntry)
         {
-            if (indexEntry.HasSameParentAsLastEntry)
+            if (indexEntry.BuildingProjection_HasSameParentAsLastEntry)
             {
-                indexEntry.LastParent.AddChildFile(indexEntry.GetChildName(), indexEntry.Sha);
+                indexEntry.BuildingProjection_LastParent.AddChildFile(indexEntry.BuildingProjection_GetChildName(), indexEntry.Sha);
             }
             else
             {
-                if (indexEntry.NumParts == 1)
+                if (indexEntry.BuildingProjection_NumParts == 1)
                 {
-                    indexEntry.LastParent = this.rootFolderData;
-                    indexEntry.LastParent.AddChildFile(indexEntry.GetChildName(), indexEntry.Sha);
+                    indexEntry.BuildingProjection_LastParent = this.rootFolderData;
+                    indexEntry.BuildingProjection_LastParent.AddChildFile(indexEntry.BuildingProjection_GetChildName(), indexEntry.Sha);
                 }
                 else
                 {
-                    indexEntry.LastParent = this.AddFileToTree(indexEntry);
+                    indexEntry.BuildingProjection_LastParent = this.AddFileToTree(indexEntry);
                 }
             }
 
@@ -685,8 +679,8 @@ namespace GVFS.Virtualization.Projection
                 {
                     // TODO(Mac): The line below causes a conversion from LazyUTF8String to .NET string.
                     // Measure the perf and memory overhead of performing this conversion, and determine if we need
-                    // a way to keep the path as LazyUTF8String[]
-                    this.nonDefaultFileTypesAndModes.Add(indexEntry.GetFullPath(), indexEntry.TypeAndMode);
+                    // a way to keep the path as LazyUTF8String
+                    this.nonDefaultFileTypesAndModes.Add(indexEntry.BuildingProjection_GetGitRelativePath(), indexEntry.TypeAndMode);
                 }
             }
         }
@@ -715,8 +709,8 @@ namespace GVFS.Virtualization.Projection
         {
             sha = string.Empty;
             FileData data = this.GetProjectedFolderEntryData(
-                blobSizesConnection: null, 
-                childName: childName, 
+                blobSizesConnection: null,
+                childName: childName,
                 parentKey: parentKey) as FileData;
 
             if (data != null && !data.IsFolder)
@@ -770,30 +764,30 @@ namespace GVFS.Virtualization.Projection
         /// <remarks>This method will create and add any intermediate FolderDatas that are
         /// required but not already in the tree.  For example, if the tree was completely empty
         /// and AddFileToTree was called for the path \A\B\C.txt:
-        /// 
+        ///
         ///    pathParts -> { "A", "B", "C.txt"}
-        /// 
+        ///
         ///    AddFileToTree would create new FolderData entries in the tree for "A" and "B"
         ///    and return the FolderData entry for "B"
         /// </remarks>
         private FolderData AddFileToTree(GitIndexEntry indexEntry)
-        {            
+        {
             FolderData parentFolder = this.rootFolderData;
-            for (int pathIndex = 0; pathIndex < indexEntry.NumParts - 1; ++pathIndex)
+            for (int pathIndex = 0; pathIndex < indexEntry.BuildingProjection_NumParts - 1; ++pathIndex)
             {
                 if (parentFolder == null)
                 {
                     string parentFolderName;
                     if (pathIndex > 0)
                     {
-                        parentFolderName = indexEntry.PathParts[pathIndex - 1].GetString();
+                        parentFolderName = indexEntry.BuildingProjection_PathParts[pathIndex - 1].GetString();
                     }
                     else
                     {
                         parentFolderName = this.rootFolderData.Name.GetString();
                     }
 
-                    string gitPath = indexEntry.GetFullPath();
+                    string gitPath = indexEntry.BuildingProjection_GetGitRelativePath();
 
                     EventMetadata metadata = CreateEventMetadata();
                     metadata.Add("gitPath", gitPath);
@@ -803,20 +797,20 @@ namespace GVFS.Virtualization.Projection
                     throw new InvalidDataException("Found a file (" + parentFolderName + ") where a folder was expected: " + gitPath);
                 }
 
-                parentFolder = parentFolder.ChildEntries.GetOrAddFolder(indexEntry.PathParts[pathIndex]);
+                parentFolder = parentFolder.ChildEntries.GetOrAddFolder(indexEntry.BuildingProjection_PathParts[pathIndex]);
             }
 
-            parentFolder.AddChildFile(indexEntry.PathParts[indexEntry.NumParts - 1], indexEntry.Sha);
+            parentFolder.AddChildFile(indexEntry.BuildingProjection_PathParts[indexEntry.BuildingProjection_NumParts - 1], indexEntry.Sha);
 
             return parentFolder;
         }
-        
+
         private FolderEntryData GetProjectedFolderEntryData(
             CancellationToken cancellationToken,
             BlobSizes.BlobSizesConnection blobSizesConnection,
             Dictionary<string, long> availableSizes,
-            string childName, 
-            string parentKey, 
+            string childName,
+            string parentKey,
             out string gitCasedChildName)
         {
             this.projectionReadWriteLock.EnterReadLock();
@@ -866,17 +860,17 @@ namespace GVFS.Virtualization.Projection
         /// <returns>FolderEntryData for the specified childName and parentKey or null if no FolderEntryData exists for them in the projection</returns>
         /// <remarks><see cref="GetChildNameAndParentKey"/> can be used for getting child name and parent key from a file path</remarks>
         private FolderEntryData GetProjectedFolderEntryData(
-            BlobSizes.BlobSizesConnection blobSizesConnection, 
-            string childName, 
+            BlobSizes.BlobSizesConnection blobSizesConnection,
+            string childName,
             string parentKey)
         {
             string casedChildName;
             return this.GetProjectedFolderEntryData(
                 CancellationToken.None,
                 blobSizesConnection,
-                availableSizes: null, 
-                childName: childName, 
-                parentKey: parentKey, 
+                availableSizes: null,
+                childName: childName,
+                parentKey: parentKey,
                 gitCasedChildName: out casedChildName);
         }
 
@@ -884,10 +878,10 @@ namespace GVFS.Virtualization.Projection
         /// Try to get the FolderData for the specified folder path from the projectionFolderCache
         /// cache.  If the  folder is not already in projectionFolderCache, search for it in the tree and
         /// then add it to projectionData
-        /// </summary>        
+        /// </summary>
         /// <returns>True if the folder could be found, and false otherwise</returns>
         private bool TryGetOrAddFolderDataFromCache(
-            string folderPath, 
+            string folderPath,
             out FolderData folderData)
         {
             if (!this.projectionFolderCache.TryGetValue(folderPath, out folderData))
@@ -941,7 +935,7 @@ namespace GVFS.Virtualization.Projection
 
         /// <summary>
         /// Finds the FolderEntryData at the specified depth of the path provided.  If depth == pathParts.Length
-        /// TryGetFolderEntryDataFromTree will find the FolderEntryData specified in pathParts.  If 
+        /// TryGetFolderEntryDataFromTree will find the FolderEntryData specified in pathParts.  If
         /// depth is less than pathParts.Length, then TryGetFolderEntryDataFromTree will return an ancestor folder of
         /// childPathParts.
         /// </summary>
@@ -981,23 +975,15 @@ namespace GVFS.Virtualization.Projection
                 {
                     this.wakeUpIndexParsingThread.WaitOne();
 
-                    while (this.context.Repository.GVFSLock.GetExternalHolder() != null)
+                    if (this.isStopping)
                     {
-                        if (this.externalLockReleaseRequested.Wait(ExternalLockReleaseTimeoutMs))
-                        {
-                            break;
-                        }
-
-                        if (this.isStopping)
-                        {
-                            return;
-                        }
+                        return;
                     }
 
                     this.projectionReadWriteLock.EnterWriteLock();
 
                     // Record if the projection needed to be updated to ensure that placeholders and the negative cache
-                    // are only updated when required (i.e. only updated when the projection was updated) 
+                    // are only updated when required (i.e. only updated when the projection was updated)
                     bool updatedProjection = this.projectionInvalid;
 
                     try
@@ -1047,10 +1033,10 @@ namespace GVFS.Virtualization.Projection
                     }
 
                     // Avoid unnecessary updates by checking if the projection actually changed.  Some git commands (e.g. cherry-pick)
-                    // update the index multiple times which can result in the outer 'while (true)' loop executing twice.  This happens 
+                    // update the index multiple times which can result in the outer 'while (true)' loop executing twice.  This happens
                     // because this.wakeUpThread is set again after this thread has woken up but before it's done any processing (because it's
-                    // still waiting for the git command to complete).  If the projection is still valid during the second execution of 
-                    // the loop there's no need to clear the negative cache or update placeholders a second time. 
+                    // still waiting for the git command to complete).  If the projection is still valid during the second execution of
+                    // the loop there's no need to clear the negative cache or update placeholders a second time.
                     if (updatedProjection)
                     {
                         this.ClearNegativePathCache();
@@ -1099,11 +1085,9 @@ namespace GVFS.Virtualization.Projection
 
         private void UpdatePlaceholders()
         {
-            this.ClearUpdatePlaceholderErrors();
-
             List<PlaceholderListDatabase.PlaceholderData> placeholderFilesListCopy;
             List<PlaceholderListDatabase.PlaceholderData> placeholderFoldersListCopy;
-            this.placeholderList.GetAllEntries(out placeholderFilesListCopy, out placeholderFoldersListCopy);
+            this.placeholderList.GetAllEntriesAndPrepToWriteAllEntries(out placeholderFilesListCopy, out placeholderFoldersListCopy);
 
             EventMetadata metadata = new EventMetadata();
             metadata.Add("File placeholder count", placeholderFilesListCopy.Count);
@@ -1139,13 +1123,13 @@ namespace GVFS.Virtualization.Projection
                     updatedPlaceholderBag = new ConcurrentBag<PlaceholderListDatabase.PlaceholderData>();
                     addPlaceholderToUpdatedPlaceholders = (data) => updatedPlaceholderBag.Add(data);
                 }
-                
+
                 this.ProcessListOnThreads(
                     numThreads,
                     placeholderFilesListCopy,
-                    (placeholderBatch, start, end, blobSizesConnection, availableSizes) => 
+                    (placeholderBatch, start, end, blobSizesConnection, availableSizes) =>
                         this.BatchPopulateMissingSizesFromRemote(blobSizesConnection, placeholderBatch, start, end, availableSizes),
-                    (placeholder, blobSizesConnection, availableSizes) => 
+                    (placeholder, blobSizesConnection, availableSizes) =>
                         this.UpdateOrDeleteFilePlaceholder(blobSizesConnection, placeholder, addPlaceholderToUpdatedPlaceholders, folderPlaceholdersToKeep, availableSizes));
 
                 this.blobSizes.Flush();
@@ -1153,11 +1137,11 @@ namespace GVFS.Virtualization.Projection
                 using (BlobSizes.BlobSizesConnection blobSizesConnection = this.blobSizes.CreateConnection())
                 {
                     // A hash of the folder placeholders is only required if the platform expands directories
-                    HashSet<string> folderPlaceholders = 
+                    HashSet<string> folderPlaceholders =
                         GVFSPlatform.Instance.KernelDriver.EnumerationExpandsDirectories ?
-                        new HashSet<string>(placeholderFoldersListCopy.Select(x => x.Path), StringComparer.OrdinalIgnoreCase) : 
+                        new HashSet<string>(placeholderFoldersListCopy.Select(x => x.Path), StringComparer.OrdinalIgnoreCase) :
                         null;
-                    
+
                     // Order the folders in decscending order so that we walk the tree from bottom up.
                     // Traversing the folders in this order:
                     //  1. Ensures child folders are deleted before their parents
@@ -1213,8 +1197,8 @@ namespace GVFS.Virtualization.Projection
 
         private void ProcessListOnThreads<T>(
             int numThreads,
-            List<T> list, 
-            Action<List<T>, int, int, BlobSizes.BlobSizesConnection, Dictionary<string, long>> preProcessBatch, 
+            List<T> list,
+            Action<List<T>, int, int, BlobSizes.BlobSizesConnection, Dictionary<string, long>> preProcessBatch,
             Action<T, BlobSizes.BlobSizesConnection, Dictionary<string, long>> processItem)
         {
             if (numThreads > 1)
@@ -1232,12 +1216,12 @@ namespace GVFS.Virtualization.Projection
                         {
                             // We have a top-level try\catch for any unhandled exceptions thrown in the newly created thread
                             try
-                            {                                
+                            {
                                 this.ProcessListThreadCallback(preProcessBatch, processItem, list, start, end);
                             }
                             catch (Exception e)
                             {
-                                this.LogErrorAndExit(nameof(ProcessListOnThreads) + " background thread caught unhandled exception, exiting process", e);
+                                this.LogErrorAndExit(nameof(this.ProcessListOnThreads) + " background thread caught unhandled exception, exiting process", e);
                             }
                         });
 
@@ -1256,10 +1240,10 @@ namespace GVFS.Virtualization.Projection
         }
 
         private void ProcessListThreadCallback<T>(
-            Action<List<T>, int, int, BlobSizes.BlobSizesConnection, Dictionary<string, long>> preProcessBatch, 
-            Action<T, BlobSizes.BlobSizesConnection, Dictionary<string, long>> processItem, 
-            List<T> placeholderList, 
-            int start, 
+            Action<List<T>, int, int, BlobSizes.BlobSizesConnection, Dictionary<string, long>> preProcessBatch,
+            Action<T, BlobSizes.BlobSizesConnection, Dictionary<string, long>> processItem,
+            List<T> placeholderList,
+            int start,
             int end)
         {
             using (BlobSizes.BlobSizesConnection blobSizesConnection = this.blobSizes.CreateConnection())
@@ -1279,14 +1263,14 @@ namespace GVFS.Virtualization.Projection
         }
 
         private void BatchPopulateMissingSizesFromRemote(
-            BlobSizes.BlobSizesConnection blobSizesConnection, 
-            List<PlaceholderListDatabase.PlaceholderData> placeholderList, 
-            int start, 
-            int end, 
+            BlobSizes.BlobSizesConnection blobSizesConnection,
+            List<PlaceholderListDatabase.PlaceholderData> placeholderList,
+            int start,
+            int end,
             Dictionary<string, long> availableSizes)
         {
             int maxObjectsInHTTPRequest = 2000;
-            
+
             for (int index = start; index < end; index += maxObjectsInHTTPRequest)
             {
                 int count = Math.Min(maxObjectsInHTTPRequest, end - index);
@@ -1306,7 +1290,7 @@ namespace GVFS.Virtualization.Projection
                         availableSizes[downloadedSizeId] = downloadedSize.Size;
                     }
                 }
-            }           
+            }
         }
 
         private IEnumerable<string> GetShasWithoutSizeAndNeedingUpdate(BlobSizes.BlobSizesConnection blobSizesConnection, Dictionary<string, long> availableSizes, List<PlaceholderListDatabase.PlaceholderData> placeholders, int start, int end)
@@ -1314,7 +1298,7 @@ namespace GVFS.Virtualization.Projection
             for (int index = start; index < end; index++)
             {
                 string projectedSha = this.GetNewProjectedShaForPlaceholder(placeholders[index].Path);
-                
+
                 if (!string.IsNullOrEmpty(projectedSha))
                 {
                     long blobSize = 0;
@@ -1436,7 +1420,7 @@ namespace GVFS.Virtualization.Projection
         /// Removes the folder placeholder from disk if it's empty.
         /// </summary>
         /// <returns>
-        /// <c>true</c>If the folder placeholder was deleted 
+        /// <c>true</c>If the folder placeholder was deleted
         /// <c>false</c>If RemoveFolderPlaceholderIfEmpty did not attempt to remove the folder placeholder
         /// </returns>
         /// <remarks>
@@ -1461,8 +1445,8 @@ namespace GVFS.Virtualization.Projection
                 //
                 // If enumeration does not expand directories there is no harm in deleting empty
                 // folder placeholders that are in the projection as they will be re-projected during
-                // enumeration.  Additionally, there may be folder tombstones on disk that need to be 
-                // cleaned up (e.g. git might have deleted a folder placeholder that was not in 
+                // enumeration.  Additionally, there may be folder tombstones on disk that need to be
+                // cleaned up (e.g. git might have deleted a folder placeholder that was not in
                 // ModifiedPaths.dat, resulting in a tombstone getting created).
 
                 FolderData folderData;
@@ -1492,7 +1476,7 @@ namespace GVFS.Virtualization.Projection
                     metadata.Add("Folder Path", placeholder.Path);
                     metadata.Add("result.Result", result.Result.ToString());
                     metadata.Add("result.RawResult", result.RawResult);
-                    metadata.Add("UpdateFailureCause", failureReason.ToString());                    
+                    metadata.Add("UpdateFailureCause", failureReason.ToString());
                     this.context.Tracer.RelatedEvent(EventLevel.Informational, nameof(this.RemoveFolderPlaceholderIfEmpty) + "_DeleteFileFailure", metadata);
 
                     // TODO(Mac): Issue #245, handle failures DeleteFile on Mac.  If we don't do anything we could leave an untracked folder
@@ -1521,13 +1505,13 @@ namespace GVFS.Virtualization.Projection
                 UpdateFailureReason failureReason = UpdateFailureReason.NoFailure;
                 FileSystemResult result = this.fileSystemVirtualizer.DeleteFile(placeholder.Path, FilePlaceholderUpdateFlags, out failureReason);
                 this.ProcessGvUpdateDeletePlaceholderResult(
-                    placeholder, 
-                    string.Empty, 
-                    result, 
-                    addPlaceholderToUpdatedPlaceholders, 
-                    failureReason, 
-                    parentKey, 
-                    folderPlaceholdersToKeep, 
+                    placeholder,
+                    string.Empty,
+                    result,
+                    addPlaceholderToUpdatedPlaceholders,
+                    failureReason,
+                    parentKey,
+                    folderPlaceholdersToKeep,
                     deleteOperation: true);
             }
             else
@@ -1564,13 +1548,13 @@ namespace GVFS.Virtualization.Projection
                     }
 
                     this.ProcessGvUpdateDeletePlaceholderResult(
-                        placeholder, 
-                        projectedSha, 
-                        result, 
-                        addPlaceholderToUpdatedPlaceholders, 
-                        failureReason, 
-                        parentKey, 
-                        folderPlaceholdersToKeep, 
+                        placeholder,
+                        projectedSha,
+                        result,
+                        addPlaceholderToUpdatedPlaceholders,
+                        failureReason,
+                        parentKey,
+                        folderPlaceholdersToKeep,
                         deleteOperation: false);
                 }
                 else
@@ -1617,22 +1601,22 @@ namespace GVFS.Virtualization.Projection
                     metadata.Add(TracingConstants.MessageKey.InfoMessage, "UpdateOrDeletePlaceholder: StatusIoReparseTagNotHandled");
                     this.context.Tracer.RelatedEvent(EventLevel.Informational, "UpdatePlaceholders_StatusIoReparseTagNotHandled", metadata);
 
-                    break;                
+                    break;
 
                 case FSResult.VirtualizationInvalidOperation:
-                    // GVFS attempted to update\delete a file that is no longer partial.  
+                    // GVFS attempted to update\delete a file that is no longer partial.
                     // This can occur if:
                     //
                     //    - A file is converted from partial to full (or tombstone) while a git command is running.
-                    //      Any tasks scheduled during the git command to update the placeholder list have not yet 
+                    //      Any tasks scheduled during the git command to update the placeholder list have not yet
                     //      completed at this point.
                     //
                     //    - A placeholder file was converted to full without being in the index.  This can happen if 'git update-index --remove'
-                    //      is used to remove a file from the index before converting the file to full.  Because a skip-worktree bit 
+                    //      is used to remove a file from the index before converting the file to full.  Because a skip-worktree bit
                     //      is not cleared when this file file is converted to full, FileSystemCallbacks assumes that there is no placeholder
                     //      that needs to be removed removed from the list
                     //
-                    //    - When there is a merge conflict the conflicting file will get the skip worktree bit removed. In some cases git 
+                    //    - When there is a merge conflict the conflicting file will get the skip worktree bit removed. In some cases git
                     //      will not make any changes to the file in the working directory. In order to handle this case we have to check
                     //      the merge stage in the index and add that entry to the placeholder list. In doing so the files that git did
                     //      update in the working directory will be full files but we will have a placeholder entry for them as well.
@@ -1675,8 +1659,8 @@ namespace GVFS.Virtualization.Projection
                         metadata.Add("result.RawResult", result.RawResult);
                         metadata.Add("failureReason", failureReason.ToString());
                         this.context.Tracer.RelatedWarning(metadata, "UpdateOrDeletePlaceholder: did not succeed");
-                    }       
-                             
+                    }
+
                     break;
             }
         }
@@ -1693,11 +1677,10 @@ namespace GVFS.Virtualization.Projection
         }
 
         private void AddFileToUpdateDeletePlaceholderFailureReport(
-            bool deleteOperation, 
-            PlaceholderListDatabase.PlaceholderData placeholder, 
+            bool deleteOperation,
+            PlaceholderListDatabase.PlaceholderData placeholder,
             out string gitPath)
         {
-            // TODO(Mac) This can be optimized if needed
             gitPath = placeholder.Path.TrimStart(Path.DirectorySeparatorChar).Replace(Path.DirectorySeparatorChar, GVFSConstants.GitPathSeparator);
             if (deleteOperation)
             {
@@ -1749,7 +1732,7 @@ namespace GVFS.Virtualization.Projection
                     catch (Exception e)
                     {
                         EventMetadata metadata = CreateEventMetadata(e);
-                        this.context.Tracer.RelatedWarning(metadata, $"{nameof(BuildProjection)}: Exception thrown by {nameof(GitIndexParser.RebuildProjection)}");
+                        this.context.Tracer.RelatedWarning(metadata, $"{nameof(this.BuildProjection)}: Exception thrown by {nameof(GitIndexParser.RebuildProjection)}");
 
                         this.SetProjectionInvalid(true);
                         throw;

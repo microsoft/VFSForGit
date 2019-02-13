@@ -25,7 +25,7 @@ namespace GVFS.DiskLayoutUpgrades
             {
                 RegisterUpgrade(upgrade);
             }
-            
+
             using (JsonTracer tracer = new JsonTracer(GVFSConstants.GVFSEtwProviderName, "DiskLayoutUpgrade"))
             {
                 try
@@ -122,7 +122,8 @@ namespace GVFS.DiskLayoutUpgrades
         {
             try
             {
-                PhysicalFileSystem.RecursiveDelete(folderName);
+                PhysicalFileSystem fileSystem = new PhysicalFileSystem();
+                fileSystem.RecursiveDelete(folderName);
             }
             catch (Exception e)
             {
@@ -174,13 +175,14 @@ namespace GVFS.DiskLayoutUpgrades
             GVFSEnlistment enlistment = GVFSEnlistment.CreateFromDirectory(
                 enlistmentRoot,
                 GVFSPlatform.Instance.GitInstallation.GetInstalledGitBinPath(),
-                ProcessHelper.GetCurrentProcessLocation());
+                ProcessHelper.GetCurrentProcessLocation(),
+                authentication: null);
             GitProcess git = enlistment.CreateGitProcess();
 
             foreach (string key in configSettings.Keys)
             {
                 GitProcess.Result result = git.SetInLocalConfig(key, configSettings[key]);
-                if (result.HasErrors)
+                if (result.ExitCodeIsFailure)
                 {
                     tracer.RelatedError("Could not set git config setting {0}. Error: {1}", key, result.Errors);
                     return false;

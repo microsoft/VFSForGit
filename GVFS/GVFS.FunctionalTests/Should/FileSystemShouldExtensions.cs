@@ -198,9 +198,9 @@ namespace GVFS.FunctionalTests.Should
             }
 
             public DirectoryAdapter WithDeepStructure(
-                FileSystemRunner fileSystem, 
+                FileSystemRunner fileSystem,
                 string otherPath,
-                bool ignoreCase = false, 
+                bool ignoreCase = false,
                 bool compareContent = false)
             {
                 otherPath.ShouldBeADirectory(this.runner);
@@ -252,10 +252,10 @@ namespace GVFS.FunctionalTests.Should
             }
 
             private static void CompareDirectories(
-                FileSystemRunner fileSystem, 
-                string expectedPath, 
+                FileSystemRunner fileSystem,
+                string expectedPath,
                 string actualPath,
-                bool ignoreCase, 
+                bool ignoreCase,
                 bool compareContent)
             {
                 IEnumerable<FileSystemInfo> expectedEntries = new DirectoryInfo(expectedPath).EnumerateFileSystemInfos("*", SearchOption.AllDirectories);
@@ -270,7 +270,7 @@ namespace GVFS.FunctionalTests.Should
                     .Where(x => !x.FullName.Contains(dotGitFolder))
                     .OrderBy(x => x.FullName)
                     .GetEnumerator();
-                
+
                 bool expectedMoved = expectedEnumerator.MoveNext();
                 bool actualMoved = actualEnumerator.MoveNext();
 

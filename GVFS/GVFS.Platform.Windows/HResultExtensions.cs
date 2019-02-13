@@ -12,7 +12,7 @@ namespace GVFS.Platform.Windows
         {
             FileNotAvailable = unchecked((int)0xC0000467) | FacilityNtBit,       // STATUS_FILE_NOT_AVAILABLE
             FileClosed = unchecked((int)0xC0000128) | FacilityNtBit,             // STATUS_FILE_CLOSED
-            IoReparseTagNotHandled = unchecked((int)0xC0000279) | FacilityNtBit, // STATUS_IO_REPARSE_TAG_NOT_HANDLED 
+            IoReparseTagNotHandled = unchecked((int)0xC0000279) | FacilityNtBit, // STATUS_IO_REPARSE_TAG_NOT_HANDLED
             DeviceNotReady = unchecked((int)0xC00000A3L) | FacilityNtBit,        // STATUS_DEVICE_NOT_READY
         }
 

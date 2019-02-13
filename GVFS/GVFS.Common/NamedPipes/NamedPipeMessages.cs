@@ -1,4 +1,5 @@
 ﻿using Newtonsoft.Json;
+using System;
 using System.Collections.Generic;
 
 namespace GVFS.Common.NamedPipes
@@ -7,7 +8,7 @@ namespace GVFS.Common.NamedPipes
     /// Define messages used to communicate via the named-pipe in GVFS.
     /// </summary>
     /// <remarks>
-    /// This class is defined as partial so that GVFS.Hooks 
+    /// This class is defined as partial so that GVFS.Hooks
     /// can compile the portions of it that it cares about (see LockedNamedPipeMessages).
     /// </remarks>
     public static partial class NamedPipeMessages
@@ -119,6 +120,46 @@ namespace GVFS.Common.NamedPipes
                 {
                     return new Message(DownloadRequest, this.RequestSha);
                 }
+            }
+
+            public class Response
+            {
+                public Response(string result)
+                {
+                    this.Result = result;
+                }
+
+                public string Result { get; }
+
+                public Message CreateMessage()
+                {
+                    return new Message(this.Result, null);
+                }
+            }
+        }
+
+        public static class PostIndexChanged
+        {
+            public const string NotificationRequest = "PICN";
+            public const string SuccessResult = "S";
+            public const string FailureResult = "F";
+
+            public class Request
+            {
+                public Request(Message message)
+                {
+                    if (message.Body.Length != 2)
+                    {
+                        throw new InvalidOperationException($"Invalid PostIndexChanged message. Expected 2 characters, got: {message.Body.Length} from message: '{message.Body}'");
+                    }
+
+                    this.UpdatedWorkingDirectory = message.Body[0] == '1';
+                    this.UpdatedSkipWorktreeBits = message.Body[1] == '1';
+                }
+
+                public bool UpdatedWorkingDirectory { get; }
+
+                public bool UpdatedSkipWorktreeBits { get; }
             }
 
             public class Response

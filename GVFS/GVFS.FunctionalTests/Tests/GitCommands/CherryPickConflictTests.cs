@@ -2,12 +2,12 @@
 
 namespace GVFS.FunctionalTests.Tests.GitCommands
 {
-    [TestFixture]
+    [TestFixtureSource(typeof(GitRepoTests), nameof(GitRepoTests.ValidateWorkingTree))]
     [Category(Categories.GitCommands)]
-    [Category(Categories.MacTODO.M3)]
     public class CherryPickConflictTests : GitRepoTests
     {
-        public CherryPickConflictTests() : base(enlistmentPerTest: true)
+        public CherryPickConflictTests(bool validateWorkingTree)
+            : base(enlistmentPerTest: true, validateWorkingTree: validateWorkingTree)
         {
         }
 

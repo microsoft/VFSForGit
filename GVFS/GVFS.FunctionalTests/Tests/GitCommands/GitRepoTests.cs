@@ -23,11 +23,21 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
         protected const string DeepDirectoryWithOneDifferentFile = "FunctionalTests/20181010_DeepFolderOneDifferentFile";
 
         private bool enlistmentPerTest;
+        private bool validateWorkingTree;
 
-        public GitRepoTests(bool enlistmentPerTest)
+        public GitRepoTests(bool enlistmentPerTest, bool validateWorkingTree)
         {
             this.enlistmentPerTest = enlistmentPerTest;
+            this.validateWorkingTree = validateWorkingTree;
             this.FileSystem = new SystemIORunner();
+        }
+
+        public static object[] ValidateWorkingTree
+        {
+            get
+            {
+                return GVFSTestConfig.GitRepoTestsValidateWorkTree;
+            }
         }
 
         public ControlGitRepo ControlGitRepo
@@ -74,8 +84,13 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
             this.ValidateGitCommand("checkout " + this.ControlGitRepo.Commitish);
 
             this.CheckHeadCommitTree();
-            this.Enlistment.RepoRoot.ShouldBeADirectory(this.FileSystem)
-                .WithDeepStructure(this.FileSystem, this.ControlGitRepo.RootPath);
+
+            if (this.validateWorkingTree)
+            {
+                this.Enlistment.RepoRoot.ShouldBeADirectory(this.FileSystem)
+                    .WithDeepStructure(this.FileSystem, this.ControlGitRepo.RootPath);
+            }
+
             this.ValidateGitCommand("status");
         }
 
@@ -90,16 +105,26 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
             try
             {
                 this.CheckHeadCommitTree();
-                this.Enlistment.RepoRoot.ShouldBeADirectory(this.FileSystem)
-                    .WithDeepStructure(this.FileSystem, this.ControlGitRepo.RootPath, ignoreCase: ignoreCase);
+
+                if (this.validateWorkingTree)
+                {
+                    this.Enlistment.RepoRoot.ShouldBeADirectory(this.FileSystem)
+                        .WithDeepStructure(this.FileSystem, this.ControlGitRepo.RootPath, ignoreCase: ignoreCase);
+                }
 
                 this.RunGitCommand("reset --hard -q HEAD");
                 this.RunGitCommand("clean -d -f -x");
                 this.ValidateGitCommand("checkout " + this.ControlGitRepo.Commitish);
 
                 this.CheckHeadCommitTree();
-                this.Enlistment.RepoRoot.ShouldBeADirectory(this.FileSystem)
-                    .WithDeepStructure(this.FileSystem, this.ControlGitRepo.RootPath, ignoreCase: ignoreCase);
+
+                // If enlistmentPerTest is true we can always validate the working tree because
+                // this is the last place we'll use it
+                if (this.validateWorkingTree || this.enlistmentPerTest)
+                {
+                    this.Enlistment.RepoRoot.ShouldBeADirectory(this.FileSystem)
+                        .WithDeepStructure(this.FileSystem, this.ControlGitRepo.RootPath, ignoreCase: ignoreCase);
+                }
             }
             finally
             {
@@ -132,7 +157,7 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
 
             if (this.ControlGitRepo != null)
             {
-                this.ControlGitRepo.Delete();
+                RepositoryHelpers.DeleteTestDirectory(this.ControlGitRepo.RootPath);
             }
         }
 
@@ -182,6 +207,14 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
                 this.ControlGitRepo,
                 command,
                 args);
+        }
+
+        protected void ChangeMode(string filePath, ushort mode)
+        {
+            string virtualFile = Path.Combine(this.Enlistment.RepoRoot, filePath);
+            string controlFile = Path.Combine(this.ControlGitRepo.RootPath, filePath);
+            this.FileSystem.ChangeMode(virtualFile, mode);
+            this.FileSystem.ChangeMode(controlFile, mode);
         }
 
         protected void CreateEmptyFile()

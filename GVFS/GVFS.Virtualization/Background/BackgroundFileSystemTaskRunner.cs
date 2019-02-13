@@ -11,7 +11,6 @@ namespace GVFS.Virtualization.Background
     {
         private const int ActionRetryDelayMS = 50;
         private const int RetryFailuresLogThreshold = 200;
-        private const int MaxCallbackAttemptsOnShutdown = 5;
         private const int LogUpdateTaskThreshold = 25000;
         private static readonly string EtwArea = nameof(BackgroundFileSystemTaskRunner);
 
@@ -177,7 +176,7 @@ namespace GVFS.Virtualization.Background
                     int tasksProcessed = 0;
                     while (this.backgroundTasks.TryPeek(out backgroundTask))
                     {
-                        if (tasksProcessed % LogUpdateTaskThreshold == 0 && 
+                        if (tasksProcessed % LogUpdateTaskThreshold == 0 &&
                             (tasksProcessed >= LogUpdateTaskThreshold || this.backgroundTasks.Count >= LogUpdateTaskThreshold))
                         {
                             this.LogTaskProcessingStatus(tasksProcessed);
@@ -194,7 +193,7 @@ namespace GVFS.Virtualization.Background
                         FileSystemTaskResult callbackResult = this.callback(backgroundTask);
                         switch (callbackResult)
                         {
-                            case FileSystemTaskResult.Success:                                
+                            case FileSystemTaskResult.Success:
                                 this.backgroundTasks.DequeueAndFlush(backgroundTask);
                                 ++tasksProcessed;
                                 break;
@@ -297,13 +296,6 @@ namespace GVFS.Virtualization.Background
                         return;
                 }
             }
-        }
-
-        private void LogWarning(string message)
-        {
-            EventMetadata metadata = new EventMetadata();
-            metadata.Add("Area", EtwArea);
-            this.context.Tracer.RelatedWarning(metadata, message);
         }
 
         private void LogErrorAndExit(string message, Exception e = null)

@@ -42,9 +42,9 @@ namespace GVFS.FunctionalTests.Tools
             return this.IsEnlistmentMounted();
         }
 
-        public string Prefetch(string args, bool failOnError)
+        public string Prefetch(string args, bool failOnError, string standardInput = null)
         {
-            return this.CallGVFS("prefetch \"" + this.enlistmentRoot + "\" " + args, failOnError);
+            return this.CallGVFS("prefetch \"" + this.enlistmentRoot + "\" " + args, failOnError, standardInput: standardInput);
         }
 
         public void Repair(bool confirm)
@@ -53,6 +53,24 @@ namespace GVFS.FunctionalTests.Tools
             this.CallGVFS(
                 "repair " + confirmArg + "\"" + this.enlistmentRoot + "\"",
                 failOnError: true);
+        }
+
+        public string LooseObjectStep()
+        {
+            return this.CallGVFS(
+                "dehydrate \"" + this.enlistmentRoot + "\"",
+                failOnError: true,
+                internalParameter: GVFSHelpers.GetInternalParameter("\\\"LooseObjects\\\""));
+        }
+
+        public string PackfileMaintenanceStep(long? batchSize)
+        {
+            string sizeString = batchSize.HasValue ? $"\\\"{batchSize.Value}\\\"" : "null";
+            string internalParameter = GVFSHelpers.GetInternalParameter("\\\"PackfileMaintenance\\\"", sizeString);
+            return this.CallGVFS(
+                "dehydrate \"" + this.enlistmentRoot + "\"",
+                failOnError: true,
+                internalParameter: internalParameter);
         }
 
         public string Diagnose()
@@ -90,15 +108,25 @@ namespace GVFS.FunctionalTests.Tools
             return this.CallGVFS("service " + argument, failOnError: true);
         }
 
-        private string CallGVFS(string args, bool failOnError = false, string trace = null)
+        private string CallGVFS(string args, bool failOnError = false, string trace = null, string standardInput = null, string internalParameter = null)
         {
             ProcessStartInfo processInfo = null;
             processInfo = new ProcessStartInfo(this.pathToGVFS);
-            processInfo.Arguments = args + " --internal_use_only_service_name " + GVFSServiceProcess.TestServiceName;
+
+            if (internalParameter == null)
+            {
+                internalParameter = GVFSHelpers.GetInternalParameter();
+            }
+
+            processInfo.Arguments = args + " " + TestConstants.InternalUseOnlyFlag + " " + internalParameter;
 
             processInfo.WindowStyle = ProcessWindowStyle.Hidden;
             processInfo.UseShellExecute = false;
             processInfo.RedirectStandardOutput = true;
+            if (standardInput != null)
+            {
+                processInfo.RedirectStandardInput = true;
+            }
 
             if (trace != null)
             {
@@ -107,6 +135,12 @@ namespace GVFS.FunctionalTests.Tools
 
             using (Process process = Process.Start(processInfo))
             {
+                if (standardInput != null)
+                {
+                    process.StandardInput.Write(standardInput);
+                    process.StandardInput.Close();
+                }
+
                 string result = process.StandardOutput.ReadToEnd();
                 process.WaitForExit();
 

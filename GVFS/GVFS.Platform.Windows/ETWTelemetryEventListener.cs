@@ -5,6 +5,7 @@ using Microsoft.Diagnostics.Tracing;
 using System;
 
 using EventLevel = GVFS.Common.Tracing.EventLevel;
+using EventListener = GVFS.Common.Tracing.EventListener;
 using EventOpcode = GVFS.Common.Tracing.EventOpcode;
 
 namespace GVFS.Platform.Windows
@@ -12,51 +13,49 @@ namespace GVFS.Platform.Windows
     /// <summary>
     /// This class implements optional logging of ETW events, and it is disabled by default.
     /// See the CreateTelemetryListenerIfEnabled method for implementation details.
-    /// 
+    ///
     /// IF the user creates the gvfs.telemetry-id config setting, this class will:
     ///   * Listen for tracer events with the Telemetry keyword
     ///   * Record them as local ETW events
     ///   * Specify the value of the gvfs.telemetry-id config setting as a trait on the ETW events
-    ///   
-    /// In addition, if the gvfs.telemetry-id happens to contain a particular (and unpublished) GUID, 
-    /// Windows will upload those ETW events to its telemetry stream as a background process. This is intended 
+    ///
+    /// In addition, if the gvfs.telemetry-id happens to contain a particular (and unpublished) GUID,
+    /// Windows will upload those ETW events to its telemetry stream as a background process. This is intended
     /// for use only by teams internal to Microsoft who have access to the special GUID.
-    /// 
+    ///
     /// For any other teams who want to collect telemetry, what you will need to do is:
     ///   * Write any arbitrary value to the gvfs.telemetry-id config setting
     ///   * This will cause GVFS to write its telemetry events to local ETW, but nothing will get uploaded
     ///   * Write your own tool to scrape the local ETW events and analyze the data
     /// </summary>
-    public class ETWTelemetryEventListener : InProcEventListener
+    public class ETWTelemetryEventListener : EventListener
     {
         private const long MeasureKeyword = 0x400000000000;
 
         private EventSource eventSource;
         private string enlistmentId;
         private string mountId;
+        private string ikey;
 
-        private ETWTelemetryEventListener(string providerName, string[] traitsList, string enlistmentId, string mountId) 
+        private ETWTelemetryEventListener(string providerName, string[] traitsList, string enlistmentId, string mountId, string ikey)
             : base(EventLevel.Verbose, Keywords.Telemetry)
-        {           
+        {
             this.eventSource = new EventSource(providerName, EventSourceSettings.EtwSelfDescribingEventFormat, traitsList);
             this.enlistmentId = enlistmentId;
             this.mountId = mountId;
+            this.ikey = ikey;
         }
 
-        public static ETWTelemetryEventListener CreateTelemetryListenerIfEnabled(string gitBinRoot, string providerName, string enlistmentId, string mountId)
+        public static ETWTelemetryEventListener CreateIfEnabled(string gitBinRoot, string providerName, string enlistmentId, string mountId)
         {
             // This listener is disabled unless the user specifies the proper git config setting.
 
-            GitProcess.Result result = GitProcess.GetFromSystemConfig(gitBinRoot, GVFSConstants.GitConfig.GVFSTelemetryId);
-            if (result.HasErrors || string.IsNullOrEmpty(result.Output.TrimEnd('\r', '\n')))
+            string traits = GetConfigValue(gitBinRoot, GVFSConstants.GitConfig.GVFSTelemetryId);
+            if (!string.IsNullOrEmpty(traits))
             {
-                result = GitProcess.GetFromGlobalConfig(gitBinRoot, GVFSConstants.GitConfig.GVFSTelemetryId);
-            }
-
-            if (!result.HasErrors && !string.IsNullOrEmpty(result.Output.TrimEnd('\r', '\n')))
-            {
-                string[] traitsList = result.Output.TrimEnd('\r', '\n').Split('|');
-                return new ETWTelemetryEventListener(providerName, traitsList, enlistmentId, mountId);
+                string[] traitsList = traits.Split('|');
+                string ikey = GetConfigValue(gitBinRoot, GVFSConstants.GitConfig.IKey);
+                return new ETWTelemetryEventListener(providerName, traitsList, enlistmentId, mountId, ikey);
             }
             else
             {
@@ -73,28 +72,45 @@ namespace GVFS.Platform.Windows
             }
         }
 
-        protected override void RecordMessageInternal(
-            string eventName,
-            Guid activityId,
-            Guid parentActivityId,
-            EventLevel level,
-            Keywords keywords,
-            EventOpcode opcode,
-            string jsonPayload)
+        protected override void RecordMessageInternal(TraceEventMessage message)
         {
-            EventSourceOptions options = this.CreateOptions(level, keywords, opcode);
+            Guid activityId = message.ActivityId;
+            Guid parentActivityId = message.ParentActivityId;
+            string jsonPayload = message.Payload;
+
+            EventSourceOptions options = this.CreateOptions(message.Level, message.Keywords, message.Opcode);
             EventSource.SetCurrentThreadActivityId(activityId);
 
-            if (jsonPayload != null)
+            if (string.IsNullOrEmpty(jsonPayload))
             {
-                JsonPayload payload = new JsonPayload(jsonPayload, this.enlistmentId, this.mountId);
-                this.eventSource.Write(eventName, ref options, ref activityId, ref parentActivityId, ref payload);
+                jsonPayload = "{}";
+            }
+
+            if (string.IsNullOrEmpty(this.ikey))
+            {
+                Payload payload = new Payload(message.Payload, this.enlistmentId, this.mountId);
+                this.eventSource.Write(message.EventName, ref options, ref activityId, ref parentActivityId, ref payload);
             }
             else
             {
-                Payload payload = new Payload(this.enlistmentId, this.mountId);
-                this.eventSource.Write(eventName, ref options, ref activityId, ref parentActivityId, ref payload);
+                PayloadWithIKey payload = new PayloadWithIKey(jsonPayload, this.enlistmentId, this.mountId, this.ikey);
+                this.eventSource.Write(message.EventName, ref options, ref activityId, ref parentActivityId, ref payload);
             }
+        }
+
+        private static string GetConfigValue(string gitBinRoot, string configKey)
+        {
+            string value = string.Empty;
+            string error;
+
+            GitProcess.ConfigResult result = GitProcess.GetFromSystemConfig(gitBinRoot, configKey);
+            if (!result.TryParseAsString(out value, out error, defaultValue: string.Empty) || string.IsNullOrWhiteSpace(value))
+            {
+                result = GitProcess.GetFromGlobalConfig(gitBinRoot, configKey);
+                result.TryParseAsString(out value, out error, defaultValue: string.Empty);
+            }
+
+            return value.TrimEnd('\r', '\n');
         }
 
         private EventSourceOptions CreateOptions(EventLevel level, Keywords keywords, EventOpcode opcode)
@@ -108,16 +124,19 @@ namespace GVFS.Platform.Windows
 
             return options;
         }
-        
+
         [EventData]
-        public struct Payload
+        private class Payload
         {
-            public Payload(string enlistmentId, string mountId)
+            public Payload(string jsonPayload, string enlistmentId, string mountId)
             {
+                this.Json = jsonPayload;
                 this.EnlistmentId = enlistmentId;
                 this.MountId = mountId;
             }
 
+            [EventField]
+            public string Json { get; }
             [EventField]
             public string EnlistmentId { get; }
             [EventField]
@@ -125,22 +144,16 @@ namespace GVFS.Platform.Windows
         }
 
         [EventData]
-        public struct JsonPayload
+        private class PayloadWithIKey : Payload
         {
-            public JsonPayload(string payload, string enlistmentId, string mountId)
+            public PayloadWithIKey(string jsonPayload, string enlistmentId, string mountId, string ikey)
+                : base(jsonPayload, enlistmentId, mountId)
             {
-                this.Json = payload;
-                this.EnlistmentId = enlistmentId;
-                this.MountId = mountId;
+                this.PartA_iKey = ikey;
             }
 
             [EventField]
-            public string Json { get; }
-
-            [EventField]
-            public string EnlistmentId { get; }
-            [EventField]
-            public string MountId { get; }
+            public string PartA_iKey { get; }
         }
     }
 }

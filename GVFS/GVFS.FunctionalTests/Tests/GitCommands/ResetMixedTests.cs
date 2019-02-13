@@ -3,12 +3,12 @@ using NUnit.Framework;
 
 namespace GVFS.FunctionalTests.Tests.GitCommands
 {
-    [TestFixture]
+    [TestFixtureSource(typeof(GitRepoTests), nameof(GitRepoTests.ValidateWorkingTree))]
     [Category(Categories.GitCommands)]
-    [Category(Categories.MacTODO.M3)]
     public class ResetMixedTests : GitRepoTests
     {
-        public ResetMixedTests() : base(enlistmentPerTest: true)
+        public ResetMixedTests(bool validateWorkingTree)
+            : base(enlistmentPerTest: true, validateWorkingTree: validateWorkingTree)
         {
         }
 
@@ -16,6 +16,15 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
         public void ResetMixed()
         {
             this.ValidateGitCommand("checkout " + GitRepoTests.ConflictTargetBranch);
+            this.ValidateGitCommand("reset --mixed HEAD~1");
+            this.FilesShouldMatchCheckoutOfTargetBranch();
+        }
+
+        [TestCase]
+        public void ResetMixedAfterPrefetch()
+        {
+            this.ValidateGitCommand("checkout " + GitRepoTests.ConflictTargetBranch);
+            this.Enlistment.Prefetch("--files * --hydrate");
             this.ValidateGitCommand("reset --mixed HEAD~1");
             this.FilesShouldMatchCheckoutOfTargetBranch();
         }
@@ -30,7 +39,7 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
             // command will not report modified and deleted files
             this.RunGitCommand("checkout -b tests/functional/ResetMixedAndCheckoutNewBranch");
             this.FilesShouldMatchCheckoutOfTargetBranch();
-            this.ValidateGitCommand("status");            
+            this.ValidateGitCommand("status");
         }
 
         [TestCase]
@@ -74,7 +83,7 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
             this.ValidateGitCommand("checkout " + GitRepoTests.ConflictTargetBranch);
             this.ValidateGitCommand("reset --mixed HEAD~1");
 
-            // This will reset all the files except the files that were added 
+            // This will reset all the files except the files that were added
             // and are untracked to make sure we error out with those using sparse-checkout
             this.ValidateGitCommand("checkout -f");
             this.ValidateGitCommand("checkout " + GitRepoTests.ConflictSourceBranch);

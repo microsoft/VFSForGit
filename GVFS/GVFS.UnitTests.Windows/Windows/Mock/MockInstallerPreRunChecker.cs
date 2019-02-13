@@ -1,11 +1,7 @@
-﻿using GVFS.Common;
-using GVFS.Common.Git;
-using GVFS.Common.Tracing;
-using GVFS.UnitTests.Windows.Upgrader;
+﻿using GVFS.Common.Tracing;
 using GVFS.Upgrader;
 using System;
 using System.Collections.Generic;
-using System.IO;
 
 namespace GVFS.UnitTests.Windows.Mock.Upgrader
 {
@@ -31,7 +27,7 @@ namespace GVFS.UnitTests.Windows.Mock.Upgrader
             RemountRepos = 0x20,
             IsServiceInstalledAndNotRunning = 0x40,
         }
-        
+
         public void SetReturnFalseOnCheck(FailOnCheckType prerunCheck)
         {
             this.failOnCheck |= prerunCheck;
@@ -75,7 +71,7 @@ namespace GVFS.UnitTests.Windows.Mock.Upgrader
         {
             return this.FakedResultOfCheck(FailOnCheckType.UnattendedMode);
         }
-        
+
         protected override bool IsBlockingProcessRunning(out HashSet<string> processes)
         {
             processes = new HashSet<string>();
@@ -91,7 +87,7 @@ namespace GVFS.UnitTests.Windows.Mock.Upgrader
         }
 
         protected override bool TryRunGVFSWithArgs(string args, out string error)
-        {            
+        {
             if (string.CompareOrdinal(args, "service --unmount-all") == 0)
             {
                 bool result = this.FakedResultOfCheck(FailOnCheckType.UnMountRepos);
@@ -112,9 +108,7 @@ namespace GVFS.UnitTests.Windows.Mock.Upgrader
 
         private bool FakedResultOfCheck(FailOnCheckType checkType)
         {
-            bool result = this.failOnCheck.HasFlag(checkType) ? false : true;
-
-            return result;
+            return !this.failOnCheck.HasFlag(checkType);
         }
     }
 }

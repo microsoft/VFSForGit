@@ -8,8 +8,8 @@ using System.Linq;
 namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
 {
     [TestFixture]
+    [NonParallelizable]
     [Category(Categories.FullSuiteOnly)]
-    [Category(Categories.MacTODO.M4)]
     public class DiagnoseTests : TestsWithEnlistmentPerFixture
     {
         private FileSystemRunner fileSystem;

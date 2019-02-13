@@ -20,12 +20,20 @@ namespace GVFS.FunctionalTests.Tools
         private const string LockHolderCommandName = @"GVFS.FunctionalTests.LockHolder";
         private const string LockHolderCommand = @"GVFS.FunctionalTests.LockHolder.exe";
 
+        private const string WindowsPathSeparator = "\\";
+        private const string GitPathSeparator = "/";
+
         private static string LockHolderCommandPath
         {
             get
             {
                 return Path.Combine(Settings.Default.CurrentDirectory, LockHolderCommand);
             }
+        }
+
+        public static string ConvertPathToGitFormat(string relativePath)
+        {
+            return relativePath.Replace(WindowsPathSeparator, GitPathSeparator);
         }
 
         public static void CheckGitCommand(string virtualRepoRoot, string command, params string[] expectedLinesInResult)
@@ -52,20 +60,30 @@ namespace GVFS.FunctionalTests.Tools
             string gvfsRepoRoot,
             string command,
             Dictionary<string, string> environmentVariables = null,
-            bool cleanErrors = true)
+            bool removeWaitingMessages = true,
+            bool removeUpgradeMessages = true)
         {
             ProcessResult result = GitProcess.InvokeProcess(gvfsRepoRoot, command, environmentVariables);
-
             string errors = result.Errors;
-            if (cleanErrors)
-            {
-                string[] lines = errors.Split(new string[] { "\r\n" }, StringSplitOptions.None);
-                errors = string.Join("\r\n", lines.Where(line => !line.StartsWith("Waiting for ")));
 
-                if (errors.Length > 0 && string.IsNullOrWhiteSpace(errors))
+            if (!string.IsNullOrEmpty(errors) && (removeWaitingMessages || removeUpgradeMessages))
+            {
+                IEnumerable<string> errorLines = errors.Split(new string[] { Environment.NewLine }, StringSplitOptions.None);
+                IEnumerable<string> filteredErrorLines = errorLines.Where(line =>
                 {
-                    errors = string.Empty;
-                }
+                    if (string.IsNullOrWhiteSpace(line) ||
+                        (removeUpgradeMessages && line.StartsWith("A new version of GVFS is available.")) ||
+                        (removeWaitingMessages && line.StartsWith("Waiting for ")))
+                    {
+                        return false;
+                    }
+                    else
+                    {
+                        return true;
+                    }
+                });
+
+                errors = filteredErrorLines.Any() ? string.Join(Environment.NewLine, filteredErrorLines) : string.Empty;
             }
 
             return new ProcessResult(

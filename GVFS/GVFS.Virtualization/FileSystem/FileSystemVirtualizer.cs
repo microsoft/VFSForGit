@@ -135,7 +135,7 @@ namespace GVFS.Virtualization.FileSystem
         /// If a git-status or git-add is running, we don't want to fail placeholder creation because users will
         /// want to be able to run those commands during long running builds. Allow lock acquisition to be deferred
         /// until background thread actually needs it.
-        /// 
+        ///
         /// git-mv is also allowed to defer since it needs to create the files it moves.
         /// </remarks>
         protected bool CanCreatePlaceholder()
@@ -217,7 +217,7 @@ namespace GVFS.Virtualization.FileSystem
 
             this.FileSystemCallbacks.InvalidateGitStatusCache();
         }
-        
+
         protected void OnFileRenamed(string relativeSourcePath, string relativeDestinationPath, bool isDirectory)
         {
             try
@@ -388,7 +388,7 @@ namespace GVFS.Virtualization.FileSystem
         protected class FileOrNetworkRequest
         {
             /// <summary>
-            /// FileOrNetworkRequest constructor 
+            /// FileOrNetworkRequest constructor
             /// </summary>
             /// <param name="work">Action that requires file and\or network access</param>
             /// <param name="cleanup">Cleanup action to take after performing work</param>

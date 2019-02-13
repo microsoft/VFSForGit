@@ -48,9 +48,9 @@ namespace GVFS.UnitTests.Git
                 GVFSGitObjects dut = this.CreateTestableGVFSGitObjects(httpObjects, fileSystem);
 
                 dut.TryCopyBlobContentStream(
-                    ValidTestObjectFileContents, 
+                    ValidTestObjectFileContents,
                     new CancellationToken(),
-                    GVFSGitObjects.RequestSource.FileStreamCallback, 
+                    GVFSGitObjects.RequestSource.FileStreamCallback,
                     (stream, length) => Assert.Fail("Should not be able to call copy stream callback"))
                     .ShouldEqual(false);
             }
@@ -138,7 +138,7 @@ namespace GVFS.UnitTests.Git
         private GVFSGitObjects CreateTestableGVFSGitObjects(MockHttpGitObjects httpObjects, MockFileSystemWithCallbacks fileSystem)
         {
             MockTracer tracer = new MockTracer();
-            GVFSEnlistment enlistment = new GVFSEnlistment(TestEnlistmentRoot, "https://fakeRepoUrl", "fakeGitBinPath", gvfsHooksRoot: null);
+            GVFSEnlistment enlistment = new GVFSEnlistment(TestEnlistmentRoot, "https://fakeRepoUrl", "fakeGitBinPath", gvfsHooksRoot: null, authentication: null);
             enlistment.InitializeCachePathsFromKey(TestLocalCacheRoot, TestObjecRoot);
             GitRepo repo = new GitRepo(tracer, enlistment, fileSystem, () => new MockLibGit2Repo(tracer));
 
@@ -155,7 +155,7 @@ namespace GVFS.UnitTests.Git
 
         private class MockHttpGitObjects : GitObjectsHttpRequestor
         {
-            public MockHttpGitObjects() 
+            public MockHttpGitObjects()
                 : this(new MockGVFSEnlistment())
             {
             }
@@ -198,10 +198,10 @@ namespace GVFS.UnitTests.Git
                 bool preferBatchedLooseObjects)
             {
                 using (GitEndPointResponseData response = new GitEndPointResponseData(
-                    HttpStatusCode.OK, 
-                    this.MediaType, 
-                    this.InputStream, 
-                    message: null, 
+                    HttpStatusCode.OK,
+                    this.MediaType,
+                    this.InputStream,
+                    message: null,
                     onResponseDisposed: null))
                 {
                     onSuccess(0, response);

@@ -15,7 +15,7 @@ namespace GVFS.Common
     {
         private ConcurrentHashSet<string> modifiedPaths;
 
-        protected ModifiedPathsDatabase(ITracer tracer, PhysicalFileSystem fileSystem, string dataFilePath) 
+        protected ModifiedPathsDatabase(ITracer tracer, PhysicalFileSystem fileSystem, string dataFilePath)
             : base(tracer, fileSystem, dataFilePath, collectionAppendsDirectlyToFile: true)
         {
             this.modifiedPaths = new ConcurrentHashSet<string>(StringComparer.OrdinalIgnoreCase);
@@ -29,7 +29,7 @@ namespace GVFS.Common
         public static bool TryLoadOrCreate(ITracer tracer, string dataDirectory, PhysicalFileSystem fileSystem, out ModifiedPathsDatabase output, out string error)
         {
             ModifiedPathsDatabase temp = new ModifiedPathsDatabase(tracer, fileSystem, dataDirectory);
-            
+
             if (!temp.TryLoadFromDisk<string, string>(
                 temp.TryParseAddLine,
                 temp.TryParseRemoveLine,

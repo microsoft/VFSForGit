@@ -14,7 +14,7 @@ namespace GVFS.UnitTests.Mock.Common
             : base(tracer, enlistment, objectRequestor, fileSystem)
         {
         }
-        
+
         public override string WriteLooseObject(Stream responseStream, string sha, bool overwriteExisting, byte[] sharedBuf = null)
         {
             using (StreamReader reader = new StreamReader(responseStream))
@@ -36,7 +36,7 @@ namespace GVFS.UnitTests.Mock.Common
             }
         }
 
-        public override GitProcess.Result IndexTempPackFile(string tempPackPath)
+        public override GitProcess.Result IndexTempPackFile(string tempPackPath, GitProcess gitProcess = null)
         {
             return new GitProcess.Result(string.Empty, "TestFailure", GitProcess.Result.GenericFailureCode);
         }

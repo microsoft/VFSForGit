@@ -1,4 +1,5 @@
 ﻿using GVFS.Common.FileSystem;
+using GVFS.Common.Tracing;
 using System;
 
 namespace GVFS.UnitTests.Mock.FileSystem
@@ -22,7 +23,7 @@ namespace GVFS.UnitTests.Mock.FileSystem
             throw new NotSupportedException();
         }
 
-        public void ChangeMode(string path, int mode)
+        public void ChangeMode(string path, ushort mode)
         {
             throw new NotSupportedException();
         }
@@ -32,6 +33,26 @@ namespace GVFS.UnitTests.Mock.FileSystem
             errorMessage = null;
             normalizedPath = path;
             return true;
+        }
+
+        public bool HydrateFile(string fileName, byte[] buffer)
+        {
+            throw new NotSupportedException();
+        }
+
+        public bool IsExecutable(string fileName)
+        {
+            throw new NotSupportedException();
+        }
+
+        public bool IsSocket(string fileName)
+        {
+            throw new NotSupportedException();
+        }
+
+        public bool TryCreateDirectoryWithAdminOnlyModify(ITracer tracer, string directoryPath, out string error)
+        {
+            throw new NotSupportedException();
         }
     }
 }

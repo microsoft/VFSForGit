@@ -177,7 +177,7 @@ namespace GVFS.UnitTests.Mock.Virtualization.Projection
 
         public override List<ProjectedFileInfo> GetProjectedItems(
             CancellationToken cancellationToken,
-            BlobSizes.BlobSizesConnection blobSizesConnection, 
+            BlobSizes.BlobSizesConnection blobSizesConnection,
             string folderPath)
         {
             this.waitForGetProjectedItems.Set();
@@ -210,9 +210,9 @@ namespace GVFS.UnitTests.Mock.Virtualization.Projection
         }
 
         public override ProjectedFileInfo GetProjectedFileInfo(
-            CancellationToken cancellationToken, 
-            BlobSizes.BlobSizesConnection blobSizesConnection, 
-            string virtualPath, 
+            CancellationToken cancellationToken,
+            BlobSizes.BlobSizesConnection blobSizesConnection,
+            string virtualPath,
             out string parentFolderPath)
         {
             this.waitForGetProjectedFileInfo.Set();

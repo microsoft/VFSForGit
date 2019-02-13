@@ -18,7 +18,7 @@ namespace GVFS.Common.Git
 
         public GitRefs(IEnumerable<string> infoRefsResponse, string branch)
         {
-            // First 4 characters of a given line are the length of the line and not part of the commit id so 
+            // First 4 characters of a given line are the length of the line and not part of the commit id so
             //  skip them (https://git-scm.com/book/en/v2/Git-Internals-Transfer-Protocols)
             this.commitsPerRef =
                 infoRefsResponse
@@ -65,7 +65,7 @@ namespace GVFS.Common.Git
 
             if (headRefMatches.Count() == 0 || headRefMatches.Count(reference => reference.Key == (OriginRemoteRefPrefix + Master)) > 0)
             {
-                // Default to master if no HEAD or if the commit ID or the dafult branch matches master (this is 
+                // Default to master if no HEAD or if the commit ID or the dafult branch matches master (this is
                 //  the same behavior as git.exe)
                 return Master;
             }
@@ -80,7 +80,7 @@ namespace GVFS.Common.Git
 
             return defaultBranch.Substring(OriginRemoteRefPrefix.Length);
         }
-        
+
         /// <summary>
         /// Checks if the specified branch exists (case sensitive)
         /// </summary>

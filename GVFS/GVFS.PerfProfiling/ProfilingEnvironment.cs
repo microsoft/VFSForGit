@@ -8,7 +8,7 @@ using GVFS.Virtualization;
 
 namespace GVFS.PerfProfiling
 {
-    class ProfilingEnvironment
+    internal class ProfilingEnvironment
     {
         public ProfilingEnvironment(string enlistmentRootPath)
         {
@@ -23,11 +23,10 @@ namespace GVFS.PerfProfiling
 
         private GVFSEnlistment CreateEnlistment(string enlistmentRootPath)
         {
-            GVFSPlatform.Register(new WindowsPlatform());
             string gitBinPath = GVFSPlatform.Instance.GitInstallation.GetInstalledGitBinPath();
             string hooksPath = ProcessHelper.WhereDirectory(GVFSPlatform.Instance.Constants.GVFSHooksExecutableName);
 
-            return GVFSEnlistment.CreateFromDirectory(enlistmentRootPath, gitBinPath, hooksPath);
+            return GVFSEnlistment.CreateFromDirectory(enlistmentRootPath, gitBinPath, hooksPath, authentication: null);
         }
 
         private GVFSContext CreateContext()

@@ -5,6 +5,7 @@ using GVFS.Common.Git;
 using GVFS.Common.Http;
 using GVFS.Common.NamedPipes;
 using GVFS.Common.Tracing;
+using Newtonsoft.Json;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -23,9 +24,9 @@ namespace GVFS.CommandLine
         {
             this.Output = Console.Out;
             this.ReturnCode = ReturnCode.Success;
-            this.ServiceName = GVFSConstants.Service.ServiceName;
             this.validateOriginURL = validateOrigin;
-
+            this.ServiceName = GVFSConstants.Service.ServiceName;
+            this.StartedByService = false;
             this.Unattended = GVFSEnlistment.IsUnattended(tracer: null);
 
             this.InitializeDefaultParameterValues();
@@ -34,11 +35,50 @@ namespace GVFS.CommandLine
         public abstract string EnlistmentRootPathParameter { get; set; }
 
         [Option(
-            GVFSConstants.VerbParameters.Mount.ServiceName,
-            Default = GVFSConstants.Service.ServiceName,
+            GVFSConstants.VerbParameters.InternalUseOnly,
             Required = false,
             HelpText = "This parameter is reserved for internal use.")]
+        public string InternalParameters
+        {
+            set
+            {
+                if (!string.IsNullOrEmpty(value))
+                {
+                    try
+                    {
+                        InternalVerbParameters mountInternal = InternalVerbParameters.FromJson(value);
+                        if (!string.IsNullOrEmpty(mountInternal.ServiceName))
+                        {
+                            this.ServiceName = mountInternal.ServiceName;
+                        }
+
+                        if (!string.IsNullOrEmpty(mountInternal.MaintenanceJob))
+                        {
+                            this.MaintenanceJob = mountInternal.MaintenanceJob;
+                        }
+
+                        if (!string.IsNullOrEmpty(mountInternal.PackfileMaintenanceBatchSize))
+                        {
+                            this.PackfileMaintenanceBatchSize = mountInternal.PackfileMaintenanceBatchSize;
+                        }
+
+                        this.StartedByService = mountInternal.StartedByService;
+                    }
+                    catch (JsonReaderException e)
+                    {
+                        this.ReportErrorAndExit("Failed to parse InternalParameters: {0}.\n {1}", value, e);
+                    }
+                }
+            }
+        }
+
         public string ServiceName { get; set; }
+
+        public string MaintenanceJob { get; set; }
+
+        public string PackfileMaintenanceBatchSize { get; set; }
+
+        public bool StartedByService { get; set; }
 
         public bool Unattended { get; private set; }
 
@@ -74,19 +114,23 @@ namespace GVFS.CommandLine
 
             // These settings are required for normal GVFS functionality.
             // They will override any existing local configuration values.
+            //
+            // IMPORTANT! These must parallel the settings in ControlGitRepo:Initialize
+            //
             Dictionary<string, string> requiredSettings = new Dictionary<string, string>
             {
                 { "am.keepcr", "true" },
+                { "checkout.optimizenewbranch", "true" },
                 { "core.autocrlf", "false" },
                 { "core.commitGraph", "true" },
                 { "core.fscache", "true" },
                 { "core.gvfs", "true" },
-                { "core.midx", "true" },
+                { "core.multiPackIndex", "true" },
                 { "core.preloadIndex", "true" },
                 { "core.safecrlf", "false" },
                 { "core.untrackedCache", "false" },
                 { "core.repositoryformatversion", "0" },
-                { "core.filemode", "false" },
+                { "core.filemode", GVFSPlatform.Instance.FileSystem.SupportsFileMode ? "true" : "false" },
                 { "core.bare", "false" },
                 { "core.logallrefupdates", "true" },
                 { GitConfigSetting.CoreVirtualizeObjectsName, "true" },
@@ -97,10 +141,14 @@ namespace GVFS.CommandLine
                 { "diff.autoRefreshIndex", "false" },
                 { "gc.auto", "0" },
                 { "gui.gcwarning", "false" },
+                { "index.threads", "true" },
                 { "index.version", "4" },
                 { "merge.stat", "false" },
                 { "merge.renames", "false" },
+                { "pack.useBitmaps", "false" },
+                { "pack.useSparse", "true" },
                 { "receive.autogc", "false" },
+                { "reset.quiet", "true" },
                 { "status.deserializePath", gitStatusCachePath },
             };
 
@@ -162,6 +210,32 @@ namespace GVFS.CommandLine
             return verb.ReturnCode;
         }
 
+        protected ReturnCode Execute<TVerb>(
+            GVFSEnlistment enlistment,
+            Action<TVerb> configureVerb = null)
+            where TVerb : GVFSVerb.ForExistingEnlistment, new()
+        {
+            TVerb verb = new TVerb();
+            verb.EnlistmentRootPathParameter = enlistment.EnlistmentRoot;
+            verb.ServiceName = this.ServiceName;
+            verb.Unattended = this.Unattended;
+
+            if (configureVerb != null)
+            {
+                configureVerb(verb);
+            }
+
+            try
+            {
+                verb.Execute(enlistment.Authentication);
+            }
+            catch (VerbAbortedException)
+            {
+            }
+
+            return verb.ReturnCode;
+        }
+
         protected bool ShowStatusWhileRunning(
             Func<bool> action,
             string message,
@@ -189,6 +263,19 @@ namespace GVFS.CommandLine
             }
 
             return this.ShowStatusWhileRunning(action, message, gvfsLogEnlistmentRoot);
+        }
+
+        protected bool TryAuthenticate(ITracer tracer, GVFSEnlistment enlistment, out string authErrorMessage)
+        {
+            string authError = null;
+
+            bool result = this.ShowStatusWhileRunning(
+                () => enlistment.Authentication.TryInitialize(tracer, enlistment, out authError),
+                "Authenticating",
+                enlistment.EnlistmentRoot);
+
+            authErrorMessage = authError;
+            return result;
         }
 
         protected void ReportErrorAndExit(ITracer tracer, ReturnCode exitCode, string error, params object[] args)
@@ -247,30 +334,29 @@ namespace GVFS.CommandLine
         protected ServerGVFSConfig QueryGVFSConfig(ITracer tracer, GVFSEnlistment enlistment, RetryConfig retryConfig)
         {
             ServerGVFSConfig serverGVFSConfig = null;
+            string errorMessage = null;
             if (!this.ShowStatusWhileRunning(
                 () =>
                 {
                     using (ConfigHttpRequestor configRequestor = new ConfigHttpRequestor(tracer, enlistment, retryConfig))
                     {
-                        return configRequestor.TryQueryGVFSConfig(out serverGVFSConfig);
+                        const bool LogErrors = true;
+                        return configRequestor.TryQueryGVFSConfig(LogErrors, out serverGVFSConfig, out _, out errorMessage);
                     }
                 },
                 "Querying remote for config",
                 suppressGvfsLogMessage: true))
             {
-                this.ReportErrorAndExit(tracer, "Unable to query /gvfs/config");
+                this.ReportErrorAndExit(tracer, "Unable to query /gvfs/config" + Environment.NewLine + errorMessage);
             }
 
             return serverGVFSConfig;
-        }        
+        }
 
         protected void ValidateClientVersions(ITracer tracer, GVFSEnlistment enlistment, ServerGVFSConfig gvfsConfig, bool showWarnings)
         {
-            if (!GVFSPlatform.Instance.IsUnderConstruction)
-            {
-                this.CheckGitVersion(tracer, enlistment, out string gitVersion);
-                enlistment.SetGitVersion(gitVersion);
-            }
+            this.CheckGitVersion(tracer, enlistment, out string gitVersion);
+            enlistment.SetGitVersion(gitVersion);
 
             this.GetGVFSHooksPathAndCheckVersion(tracer, out string hooksVersion);
             enlistment.SetGVFSHooksVersion(hooksVersion);
@@ -427,7 +513,7 @@ You can specify a URL, a name of a configured cache server, or the special names
                 line => rootEntries.Add(DiffTreeResult.ParseFromLsTreeLine(line, repoRoot: string.Empty)),
                 recursive: false);
 
-            if (result.HasErrors)
+            if (result.ExitCodeIsFailure)
             {
                 error = "Error returned from ls-tree to find " + GVFSConstants.SpecialGitFiles.GitAttributes + " file: " + result.Errors;
                 return false;
@@ -519,18 +605,18 @@ You can specify a URL, a name of a configured cache server, or the special names
             metadata.Add(nameof(RepoMetadata.Instance.EnlistmentId), RepoMetadata.Instance.EnlistmentId);
             metadata.Add(nameof(mountId), mountId);
             metadata.Add("Enlistment", enlistment);
-            metadata.Add("PhysicalDiskInfo", GVFSPlatform.Instance.GetPhysicalDiskInfo(enlistment.WorkingDirectoryRoot));
+            metadata.Add("PhysicalDiskInfo", GVFSPlatform.Instance.GetPhysicalDiskInfo(enlistment.WorkingDirectoryRoot, sizeStatsOnly: false));
             tracer.RelatedEvent(EventLevel.Informational, "EnlistmentInfo", metadata, Keywords.Telemetry);
 
             GitProcess.Result configResult = git.SetInLocalConfig(GVFSConstants.GitConfig.EnlistmentId, RepoMetadata.Instance.EnlistmentId, replaceAll: true);
-            if (configResult.HasErrors)
+            if (configResult.ExitCodeIsFailure)
             {
                 string error = "Could not update config with enlistment id, error: " + configResult.Errors;
                 tracer.RelatedWarning(error);
             }
 
             configResult = git.SetInLocalConfig(GVFSConstants.GitConfig.MountId, mountId, replaceAll: true);
-            if (configResult.HasErrors)
+            if (configResult.ExitCodeIsFailure)
             {
                 string error = "Could not update config with mount id, error: " + configResult.Errors;
                 tracer.RelatedWarning(error);
@@ -564,7 +650,7 @@ You can specify a URL, a name of a configured cache server, or the special names
                         (isRequired && !existingSetting.HasValue(setting.Value)))
                     {
                         GitProcess.Result setConfigResult = git.SetInLocalConfig(setting.Key, setting.Value);
-                        if (setConfigResult.HasErrors)
+                        if (setConfigResult.ExitCodeIsFailure)
                         {
                             return false;
                         }
@@ -734,10 +820,16 @@ You can specify a URL, a name of a configured cache server, or the special names
 
             public sealed override void Execute()
             {
+                this.Execute(authentication: null);
+            }
+
+            public void Execute(GitAuthentication authentication)
+            {
                 this.ValidatePathParameter(this.EnlistmentRootPathParameter);
 
                 this.PreCreateEnlistment();
-                GVFSEnlistment enlistment = this.CreateEnlistment(this.EnlistmentRootPathParameter);
+                GVFSEnlistment enlistment = this.CreateEnlistment(this.EnlistmentRootPathParameter, authentication);
+
                 this.Execute(enlistment);
             }
 
@@ -988,7 +1080,7 @@ You can specify a URL, a name of a configured cache server, or the special names
                 }
             }
 
-            private GVFSEnlistment CreateEnlistment(string enlistmentRootPath)
+            private GVFSEnlistment CreateEnlistment(string enlistmentRootPath, GitAuthentication authentication)
             {
                 string gitBinPath = GVFSPlatform.Instance.GitInstallation.GetInstalledGitBinPath();
                 if (string.IsNullOrWhiteSpace(gitBinPath))
@@ -996,13 +1088,15 @@ You can specify a URL, a name of a configured cache server, or the special names
                     this.ReportErrorAndExit("Error: " + GVFSConstants.GitIsNotInstalledError);
                 }
 
-                string hooksPath;
-                if (GVFSPlatform.Instance.IsUnderConstruction)
+                string hooksPath = null;
+                if (GVFSPlatform.Instance.UnderConstruction.RequiresDeprecatedGitHooksLoader)
                 {
-                    hooksPath = "hooksUnderConstruction";
-                }
-                else
-                {
+                    // On Windows, the soon-to-be deprecated GitHooksLoader tries to call out to the hooks process without
+                    // its full path, so we have to pass the path along to our background git processes via the PATH
+                    // environment variable. On Mac this is not needed because we just copy our own hook directly into
+                    // the .git/hooks folder, and once Windows does the same, this hooksPath can be removed (from here
+                    // and all the classes that handle it on the way to GitProcess)
+
                     hooksPath = ProcessHelper.WhereDirectory(GVFSPlatform.Instance.Constants.GVFSHooksExecutableName);
                     if (hooksPath == null)
                     {
@@ -1015,11 +1109,11 @@ You can specify a URL, a name of a configured cache server, or the special names
                 {
                     if (this.validateOriginURL)
                     {
-                        enlistment = GVFSEnlistment.CreateFromDirectory(enlistmentRootPath, gitBinPath, hooksPath);
+                        enlistment = GVFSEnlistment.CreateFromDirectory(enlistmentRootPath, gitBinPath, hooksPath, authentication);
                     }
                     else
                     {
-                        enlistment = GVFSEnlistment.CreateWithoutRepoUrlFromDirectory(enlistmentRootPath, gitBinPath, hooksPath);
+                        enlistment = GVFSEnlistment.CreateWithoutRepoUrlFromDirectory(enlistmentRootPath, gitBinPath, hooksPath, authentication);
                     }
 
                     if (enlistment == null)

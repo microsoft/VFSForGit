@@ -69,7 +69,7 @@ namespace GVFS.CommandLine
                     }
                 }
             }
-            
+
             if (!DiskLayoutUpgrade.TryRunAllUpgrades(enlistmentRoot))
             {
                 this.ReportErrorAndExit("Failed to upgrade repo disk layout. " + ConsoleHelper.GetGVFSLogMessage(enlistmentRoot));
@@ -115,14 +115,36 @@ namespace GVFS.CommandLine
                         { nameof(this.EnlistmentRootPathParameter), this.EnlistmentRootPathParameter },
                     });
 
-                if (!GVFSPlatform.Instance.KernelDriver.IsReady(tracer, enlistment.EnlistmentRoot, out errorMessage))
+                if (!GVFSPlatform.Instance.KernelDriver.IsReady(tracer, enlistment.EnlistmentRoot, this.Output, out errorMessage))
                 {
-                    tracer.RelatedInfo($"{nameof(MountVerb)}.{nameof(this.Execute)}: Enabling and attaching ProjFS through service");
-
-                    if (!this.ShowStatusWhileRunning(
-                        () => { return this.TryEnableAndAttachPrjFltThroughService(enlistment.EnlistmentRoot, out errorMessage); },
-                        $"Attaching ProjFS to volume"))
+                    if (GVFSPlatform.Instance.UnderConstruction.SupportsGVFSService)
                     {
+                        tracer.RelatedEvent(
+                            EventLevel.Informational,
+                            $"{nameof(MountVerb)}_{nameof(this.Execute)}_EnablingKernelDriverViaService",
+                            new EventMetadata
+                            {
+                                { "KernelDriver.IsReady_Error", errorMessage },
+                                { TracingConstants.MessageKey.InfoMessage, "Service will retry" }
+                            });
+
+                        if (!this.ShowStatusWhileRunning(
+                            () => { return this.TryEnableAndAttachPrjFltThroughService(enlistment.EnlistmentRoot, out errorMessage); },
+                            $"Attaching ProjFS to volume"))
+                        {
+                            this.ReportErrorAndExit(tracer, ReturnCode.FilterError, errorMessage);
+                        }
+                    }
+                    else
+                    {
+                        tracer.RelatedEvent(
+                            EventLevel.Informational,
+                            $"{nameof(MountVerb)}_{nameof(this.Execute)}",
+                            new EventMetadata
+                            {
+                                { "KernelDriver.IsReady_Error", errorMessage },
+                            });
+
                         this.ReportErrorAndExit(tracer, ReturnCode.FilterError, errorMessage);
                     }
                 }
@@ -131,10 +153,8 @@ namespace GVFS.CommandLine
                 ServerGVFSConfig serverGVFSConfig = this.DownloadedGVFSConfig;
                 if (!this.SkipVersionCheck)
                 {
-                    string authErrorMessage = null;
-                    if (!this.ShowStatusWhileRunning(
-                        () => enlistment.Authentication.TryRefreshCredentials(tracer, out authErrorMessage),
-                        "Authenticating"))
+                    string authErrorMessage;
+                    if (!this.TryAuthenticate(tracer, enlistment, out authErrorMessage))
                     {
                         this.Output.WriteLine("    WARNING: " + authErrorMessage);
                         this.Output.WriteLine("    Mount will proceed, but new files cannot be accessed until GVFS can authenticate.");
@@ -184,17 +204,17 @@ namespace GVFS.CommandLine
                         RepoMetadata.Shutdown();
                     }
                 }
-            }
 
-            if (!this.ShowStatusWhileRunning(
-                () => { return this.TryMount(enlistment, mountExecutableLocation, out errorMessage); },
-                "Mounting"))
-            {
-                this.ReportErrorAndExit(errorMessage);
+                if (!this.ShowStatusWhileRunning(
+                    () => { return this.TryMount(tracer, enlistment, mountExecutableLocation, out errorMessage); },
+                    "Mounting"))
+                {
+                    this.ReportErrorAndExit(errorMessage);
+                }
             }
 
             if (!this.Unattended &&
-                GVFSPlatform.Instance.SupportsGVFSService)
+                GVFSPlatform.Instance.UnderConstruction.SupportsGVFSService)
             {
                 if (!this.ShowStatusWhileRunning(
                     () => { return this.RegisterMount(enlistment, out errorMessage); },
@@ -210,7 +230,7 @@ namespace GVFS.CommandLine
             errorMessage = string.Empty;
             mountExecutableLocation = string.Empty;
 
-            // We have to parse these parameters here to make sure they are valid before 
+            // We have to parse these parameters here to make sure they are valid before
             // handing them to the background process which cannot tell the user when they are bad
             EventLevel verbosity;
             Keywords keywords;
@@ -247,7 +267,7 @@ namespace GVFS.CommandLine
             return true;
         }
 
-        private bool TryMount(GVFSEnlistment enlistment, string mountExecutableLocation, out string errorMessage)
+        private bool TryMount(ITracer tracer, GVFSEnlistment enlistment, string mountExecutableLocation, out string errorMessage)
         {
             if (!GVFSVerb.TrySetRequiredGitConfigSettings(enlistment))
             {
@@ -256,12 +276,9 @@ namespace GVFS.CommandLine
             }
 
             const string ParamPrefix = "--";
-            if (GVFSPlatform.Instance.IsUnderConstruction)
-            {
-                mountExecutableLocation = Path.Combine(ProcessHelper.GetCurrentProcessLocation(), "gvfs.mount");
-            }
 
             GVFSPlatform.Instance.StartBackgroundProcess(
+                tracer,
                 mountExecutableLocation,
                 new[]
                 {
@@ -269,20 +286,16 @@ namespace GVFS.CommandLine
                     ParamPrefix + GVFSConstants.VerbParameters.Mount.Verbosity,
                     this.Verbosity,
                     ParamPrefix + GVFSConstants.VerbParameters.Mount.Keywords,
-                    this.KeywordsCsv
+                    this.KeywordsCsv,
+                    ParamPrefix + GVFSConstants.VerbParameters.Mount.StartedByService,
+                    this.StartedByService.ToString()
                 });
-
-            if (GVFSPlatform.Instance.IsUnderConstruction)
-            {
-                // TODO(Mac): figure out the timing issue here on connecting to the pipe
-                System.Threading.Thread.Sleep(TimeSpan.FromSeconds(1));
-            }
 
             return GVFSEnlistment.WaitUntilMounted(enlistment.EnlistmentRoot, this.Unattended, out errorMessage);
         }
 
         private bool RegisterMount(GVFSEnlistment enlistment, out string errorMessage)
-        {   
+        {
             errorMessage = string.Empty;
 
             NamedPipeMessages.RegisterRepoRequest request = new NamedPipeMessages.RegisterRepoRequest();

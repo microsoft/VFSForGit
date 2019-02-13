@@ -93,7 +93,7 @@ namespace GVFS.Common.NetworkStreams
             }
             else if (totalBytes == NumObjectIdBytes)
             {
-                // We may have finished reading all the objects 
+                // We may have finished reading all the objects
                 for (int i = 0; i < NumObjectIdBytes; i++)
                 {
                     if (curObjectHeader[i] != 0)

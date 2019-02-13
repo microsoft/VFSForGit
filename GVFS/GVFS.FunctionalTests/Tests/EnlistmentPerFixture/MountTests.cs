@@ -64,7 +64,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
 
             this.Enlistment.MountGVFS();
             string expectedHooksPath = Path.Combine(this.Enlistment.RepoRoot, ".git", "hooks");
-            expectedHooksPath = expectedHooksPath.Replace("\\", "/");
+            expectedHooksPath = GitHelpers.ConvertPathToGitFormat(expectedHooksPath);
 
             GitProcess.Invoke(
                 this.Enlistment.RepoRoot, "config core.hookspath")
@@ -288,7 +288,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
 
             // TODO: 865304 Use app.config instead of --internal* arguments
             ProcessStartInfo processInfo = new ProcessStartInfo(GVFSTestConfig.PathToGVFS);
-            processInfo.Arguments = "mount --internal_use_only_service_name " + GVFSServiceProcess.TestServiceName;
+            processInfo.Arguments = "mount " + TestConstants.InternalUseOnlyFlag + " " + GVFSHelpers.GetInternalParameter();
             processInfo.WindowStyle = ProcessWindowStyle.Hidden;
             processInfo.WorkingDirectory = string.IsNullOrEmpty(mountWorkingDirectory) ? enlistmentRoot : mountWorkingDirectory;
             processInfo.UseShellExecute = false;
@@ -305,7 +305,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
         }
 
         private class MountSubfolders
-        {            
+        {
             public const string MountFolders = "Folders";
             private static object[] mountFolders =
             {

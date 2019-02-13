@@ -1,4 +1,5 @@
-﻿using System;
+﻿using GVFS.Common.Tracing;
+using System;
 using System.Collections.Generic;
 using System.ComponentModel;
 using System.Diagnostics;
@@ -12,7 +13,7 @@ namespace GVFS.Platform.Mac
         private const int StdOutFileNo = 1; // STDOUT_FILENO -> standard output file descriptor
         private const int StdErrFileNo = 2; // STDERR_FILENO -> standard error file descriptor
 
-        public static void StartBackgroundProcess(string programName, string[] args)
+        public static void StartBackgroundProcess(ITracer tracer, string programName, string[] args)
         {
             ProcessStartInfo startInfo = new ProcessStartInfo(programName);
             string[] envp = NetCoreMethods.CreateEnvp(startInfo);
@@ -32,12 +33,16 @@ namespace GVFS.Platform.Mac
                     int processId = Fork();
                     if (processId == -1)
                     {
-                        throw new Win32Exception(Marshal.GetLastWin32Error(), "Failed to fork process");
+                        string errorMessage = "Failed to fork process";
+                        EventMetadata metadata = new EventMetadata();
+                        metadata.Add("lastErrorCode", Marshal.GetLastWin32Error());
+                        tracer.RelatedError(metadata, errorMessage);
+                        throw new Win32Exception(Marshal.GetLastWin32Error(), errorMessage);
                     }
 
                     if (processId == 0)
                     {
-                        RunChildProcess(programName, argvPtr, envpPtr);
+                        RunChildProcess(tracer, programName, argvPtr, envpPtr);
                     }
                 }
                 finally
@@ -49,17 +54,21 @@ namespace GVFS.Platform.Mac
         }
 
         private static unsafe void RunChildProcess(
-            string programName, 
+            ITracer tracer,
+            string programName,
             byte** argvPtr = null,
             byte** envpPtr = null)
         {
-            // TODO(Mac): log errors here to a log file
-
             int fdin = Open("/dev/null", (int)NetCoreMethods.OpenFlags.O_RDONLY);
-            int fdout = Open("/dev/null", (int)NetCoreMethods.OpenFlags.O_WRONLY);
-            if (fdin == -1 || fdout == -1)
+            if (fdin == -1)
             {
-                Environment.Exit(Marshal.GetLastWin32Error());
+                LogErrorAndExit(tracer, "Unable to open file descriptor for stdin", Marshal.GetLastWin32Error());
+            }
+
+            int fdout = Open("/dev/null", (int)NetCoreMethods.OpenFlags.O_WRONLY);
+            if (fdout == -1)
+            {
+                LogErrorAndExit(tracer, "Unable to open file descriptor for stdout", Marshal.GetLastWin32Error());
             }
 
             // Redirect stdout/stdin/stderr to "/dev/null"
@@ -67,18 +76,18 @@ namespace GVFS.Platform.Mac
                 Dup2(fdout, StdOutFileNo) == -1 ||
                 Dup2(fdout, StdErrFileNo) == -1)
             {
-                Environment.Exit(Marshal.GetLastWin32Error());
+                LogErrorAndExit(tracer, "Error redirecting stdout/stdin/stderr", Marshal.GetLastWin32Error());
             }
 
             // Become session leader of a new session
             if (SetSid() == -1)
             {
-                Environment.Exit(Marshal.GetLastWin32Error());
+                LogErrorAndExit(tracer, "Error calling SetSid()", Marshal.GetLastWin32Error());
             }
 
             // execve will not return if it's successful.
             Execve(programName, argvPtr, envpPtr);
-            Environment.Exit(Marshal.GetLastWin32Error());
+            LogErrorAndExit(tracer, "Error calling Execve", Marshal.GetLastWin32Error());
         }
 
         private static string[] GenerateArgv(string fileName, string[] args)
@@ -87,6 +96,14 @@ namespace GVFS.Platform.Mac
             argvList.Add(fileName);
             argvList.AddRange(args);
             return argvList.ToArray();
+        }
+
+        private static void LogErrorAndExit(ITracer tracer, string message, int lastErrorCode)
+        {
+            EventMetadata metadata = new EventMetadata();
+            metadata.Add(nameof(lastErrorCode), lastErrorCode);
+            tracer.RelatedError(metadata, message);
+            Environment.Exit(lastErrorCode);
         }
 
         [DllImport("libc", EntryPoint = "fork", SetLastError = true)]

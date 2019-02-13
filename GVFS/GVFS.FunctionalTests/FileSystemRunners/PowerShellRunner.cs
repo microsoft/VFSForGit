@@ -88,10 +88,10 @@ namespace GVFS.FunctionalTests.FileSystemRunners
             string output = this.RunProcess(string.Format("-Command \"& {{ Get-Content -Raw {0} }}\"", path), errorMsgDelimeter: "\r\n");
 
             // Get-Content insists on sticking a trailing "\r\n" at the end of the output that we need to remove
-            output.Length.ShouldBeAtLeast(2);
+            output.Length.ShouldBeAtLeast(2, $"File content was not long enough for {path}");
             output.Substring(output.Length - 2).ShouldEqual("\r\n");
             output = output.Remove(output.Length - 2, 2);
-        
+
             return output;
         }
 
@@ -198,6 +198,11 @@ namespace GVFS.FunctionalTests.FileSystemRunners
         public override void DeleteDirectory_ShouldBeBlockedByProcess(string path)
         {
             this.DeleteDirectory(path).ShouldContain(fileUsedByAnotherProcessMessage);
+        }
+
+        public override void ChangeMode(string path, ushort mode)
+        {
+            throw new System.NotSupportedException();
         }
 
         protected override string RunProcess(string command, string workingDirectory = "", string errorMsgDelimeter = "")

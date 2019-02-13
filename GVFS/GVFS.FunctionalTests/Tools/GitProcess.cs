@@ -1,5 +1,6 @@
 ﻿using System.Collections.Generic;
 using System.Diagnostics;
+using System.IO;
 
 namespace GVFS.FunctionalTests.Tools
 {
@@ -10,7 +11,7 @@ namespace GVFS.FunctionalTests.Tools
             return InvokeProcess(executionWorkingDirectory, command).Output;
         }
 
-        public static ProcessResult InvokeProcess(string executionWorkingDirectory, string command, Dictionary<string, string> environmentVariables = null)
+        public static ProcessResult InvokeProcess(string executionWorkingDirectory, string command, Dictionary<string, string> environmentVariables = null, Stream inputStream = null)
         {
             ProcessStartInfo processInfo = new ProcessStartInfo(Properties.Settings.Default.PathToGit);
             processInfo.WorkingDirectory = executionWorkingDirectory;
@@ -18,6 +19,11 @@ namespace GVFS.FunctionalTests.Tools
             processInfo.RedirectStandardOutput = true;
             processInfo.RedirectStandardError = true;
             processInfo.Arguments = command;
+
+            if (inputStream != null)
+            {
+                processInfo.RedirectStandardInput = true;
+            }
 
             processInfo.EnvironmentVariables["GIT_TERMINAL_PROMPT"] = "0";
 
@@ -29,7 +35,7 @@ namespace GVFS.FunctionalTests.Tools
                 }
             }
 
-            return ProcessHelper.Run(processInfo);
+            return ProcessHelper.Run(processInfo, inputStream: inputStream);
         }
     }
 }

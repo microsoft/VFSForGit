@@ -14,7 +14,7 @@ namespace GVFS.UnitTests.Mock.Common
     public class MockPlatform : GVFSPlatform
     {
         public MockPlatform()
-            : base(executableExtension: ".mockexe", installerExtension: ".mockexe")
+            : base(executableExtension: ".mockexe", installerExtension: ".mockexe", underConstruction: new UnderConstructionFlags())
         {
         }
 
@@ -25,6 +25,8 @@ namespace GVFS.UnitTests.Mock.Common
         public override IDiskLayoutUpgradeData DiskLayoutUpgrade => throw new NotSupportedException();
 
         public override IPlatformFileSystem FileSystem { get; } = new MockPlatformFileSystem();
+
+        public HashSet<int> ActiveProcesses { get; } = new HashSet<int>();
 
         public override void ConfigureVisualStudio(string gitBinPath, ITracer tracer)
         {
@@ -41,6 +43,11 @@ namespace GVFS.UnitTests.Mock.Common
             throw new NotSupportedException();
         }
 
+        public override bool TryVerifyAuthenticodeSignature(string path, out string subject, out string issuer, out string error)
+        {
+            throw new NotImplementedException();
+        }
+
         public override string GetNamedPipeName(string enlistmentRoot)
         {
             return "GVFS_Mock_PipeName";
@@ -51,9 +58,9 @@ namespace GVFS.UnitTests.Mock.Common
             throw new NotSupportedException();
         }
 
-        public override InProcEventListener CreateTelemetryListenerIfEnabled(string providerName, string enlistmentId, string mountId)
+        public override IEnumerable<EventListener> CreateTelemetryListeners(string providerName, string enlistmentId, string mountId)
         {
-            return new MockListener(EventLevel.Verbose, Keywords.Telemetry);
+            yield return new MockListener(EventLevel.Verbose, Keywords.Telemetry);
         }
 
         public override string GetCurrentUser()
@@ -66,9 +73,9 @@ namespace GVFS.UnitTests.Mock.Common
             throw new NotSupportedException();
         }
 
-        public override Dictionary<string, string> GetPhysicalDiskInfo(string path)
+        public override Dictionary<string, string> GetPhysicalDiskInfo(string path, bool sizeStatsOnly)
         {
-            throw new NotSupportedException();
+            return new Dictionary<string, string>();
         }
 
         public override void InitializeEnlistmentACLs(string enlistmentPath)
@@ -88,7 +95,7 @@ namespace GVFS.UnitTests.Mock.Common
 
         public override bool IsProcessActive(int processId)
         {
-            throw new NotSupportedException();
+            return this.ActiveProcesses.Contains(processId);
         }
 
         public override void IsServiceInstalledAndRunning(string name, out bool installed, out bool running)
@@ -101,7 +108,7 @@ namespace GVFS.UnitTests.Mock.Common
             throw new NotSupportedException();
         }
 
-        public override void StartBackgroundProcess(string programName, string[] args)
+        public override void StartBackgroundProcess(ITracer tracer, string programName, string[] args)
         {
             throw new NotSupportedException();
         }
@@ -114,6 +121,13 @@ namespace GVFS.UnitTests.Mock.Common
         public override FileBasedLock CreateFileBasedLock(PhysicalFileSystem fileSystem, ITracer tracer, string lockPath)
         {
             return new MockFileBasedLock(fileSystem, tracer, lockPath);
+        }
+
+        public override bool TryKillProcessTree(int processId, out int exitCode, out string error)
+        {
+            error = null;
+            exitCode = 0;
+            return true;
         }
     }
 }

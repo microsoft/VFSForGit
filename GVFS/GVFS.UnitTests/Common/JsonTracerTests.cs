@@ -14,7 +14,7 @@ namespace GVFS.UnitTests.Common
             using (JsonTracer tracer = new JsonTracer("Microsoft-GVFS-Test", "EventsAreFilteredByVerbosity1", disableTelemetry: true))
             using (MockListener listener = new MockListener(EventLevel.Informational, Keywords.Any))
             {
-                tracer.AddInProcEventListener(listener);
+                tracer.AddEventListener(listener);
 
                 tracer.RelatedEvent(EventLevel.Informational, "ShouldReceive", metadata: null);
                 listener.EventNamesRead.ShouldContain(name => name.Equals("ShouldReceive"));
@@ -26,7 +26,7 @@ namespace GVFS.UnitTests.Common
             using (JsonTracer tracer = new JsonTracer("Microsoft-GVFS-Test", "EventsAreFilteredByVerbosity2", disableTelemetry: true))
             using (MockListener listener = new MockListener(EventLevel.Verbose, Keywords.Any))
             {
-                tracer.AddInProcEventListener(listener);
+                tracer.AddEventListener(listener);
 
                 tracer.RelatedEvent(EventLevel.Informational, "ShouldReceive", metadata: null);
                 listener.EventNamesRead.ShouldContain(name => name.Equals("ShouldReceive"));
@@ -43,7 +43,7 @@ namespace GVFS.UnitTests.Common
             using (JsonTracer tracer = new JsonTracer("Microsoft-GVFS-Test", "EventsAreFilteredByKeyword1", disableTelemetry: true))
             using (MockListener listener = new MockListener(EventLevel.Verbose, Keywords.Network))
             {
-                tracer.AddInProcEventListener(listener);
+                tracer.AddEventListener(listener);
 
                 tracer.RelatedEvent(EventLevel.Informational, "ShouldReceive", metadata: null, keyword: Keywords.Network);
                 listener.EventNamesRead.ShouldContain(name => name.Equals("ShouldReceive"));
@@ -56,7 +56,7 @@ namespace GVFS.UnitTests.Common
             using (JsonTracer tracer = new JsonTracer("Microsoft-GVFS-Test", "EventsAreFilteredByKeyword2", disableTelemetry: true))
             using (MockListener listener = new MockListener(EventLevel.Verbose, Keywords.Any))
             {
-                tracer.AddInProcEventListener(listener);
+                tracer.AddEventListener(listener);
 
                 tracer.RelatedEvent(EventLevel.Informational, "ShouldReceive", metadata: null, keyword: Keywords.Network);
                 listener.EventNamesRead.ShouldContain(name => name.Equals("ShouldReceive"));
@@ -64,12 +64,12 @@ namespace GVFS.UnitTests.Common
                 tracer.RelatedEvent(EventLevel.Verbose, "ShouldAlsoReceive", metadata: null);
                 listener.EventNamesRead.ShouldContain(name => name.Equals("ShouldAlsoReceive"));
             }
-             
+
             // None filters everything out (including events marked as none)
             using (JsonTracer tracer = new JsonTracer("Microsoft-GVFS-Test", "EventsAreFilteredByKeyword3", disableTelemetry: true))
             using (MockListener listener = new MockListener(EventLevel.Verbose, Keywords.None))
             {
-                tracer.AddInProcEventListener(listener);
+                tracer.AddEventListener(listener);
 
                 tracer.RelatedEvent(EventLevel.Informational, "ShouldNotReceive", metadata: null, keyword: Keywords.Network);
                 listener.EventNamesRead.ShouldBeEmpty();
@@ -85,7 +85,7 @@ namespace GVFS.UnitTests.Common
             using (JsonTracer tracer = new JsonTracer("Microsoft-GVFS-Test", "EventMetadataWithKeywordsIsOptional", disableTelemetry: true))
             using (MockListener listener = new MockListener(EventLevel.Verbose, Keywords.Any))
             {
-                tracer.AddInProcEventListener(listener);
+                tracer.AddEventListener(listener);
 
                 tracer.RelatedWarning(metadata: null, message: string.Empty, keywords: Keywords.Telemetry);
                 listener.EventNamesRead.ShouldContain(x => x.Equals("Warning"));

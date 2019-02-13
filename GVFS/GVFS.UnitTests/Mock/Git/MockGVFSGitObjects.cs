@@ -50,7 +50,7 @@ namespace GVFS.UnitTests.Mock.Git
             }
 
             writeAction(
-                new MemoryStream(new byte[this.FileLength]), 
+                new MemoryStream(new byte[this.FileLength]),
                 this.FileLength);
 
             return true;
@@ -61,7 +61,7 @@ namespace GVFS.UnitTests.Mock.Git
             return Array.Empty<string>();
         }
 
-        public override GitProcess.Result IndexPackFile(string packfilePath)
+        public override GitProcess.Result IndexPackFile(string packfilePath, GitProcess process)
         {
             return new GitProcess.Result("mocked", null, 0);
         }
@@ -70,7 +70,7 @@ namespace GVFS.UnitTests.Mock.Git
         {
         }
 
-        public override bool TryDownloadPrefetchPacks(long latestTimestamp, out List<string> packIndexes)
+        public override bool TryDownloadPrefetchPacks(GitProcess gitProcess, long latestTimestamp, out List<string> packIndexes)
         {
             packIndexes = new List<string>();
             return true;

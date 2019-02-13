@@ -1,4 +1,4 @@
-#include "../PrjFSUser.hpp"
+#include "PrjFSUser.hpp"
 #include "kext-perf-tracing.hpp"
 #include "../../PrjFSKext/public/PrjFSLogClientShared.h"
 #include <iostream>
@@ -10,41 +10,78 @@
 static const char* KextLogLevelAsString(KextLog_Level level);
 static uint64_t NanosecondsFromAbsoluteTime(uint64_t machAbsoluteTime);
 static dispatch_source_t StartKextProfilingDataPolling(io_connect_t connection);
+static void ProcessLogMessagesOnConnection(io_connect_t connection, io_service_t prjfsService);
 
 static mach_timebase_info_data_t s_machTimebase;
-
+static uint64_t s_machStartTime;
+static IONotificationPortRef s_notificationPort;
 
 int main(int argc, const char * argv[])
 {
     mach_timebase_info(&s_machTimebase);
-    const uint64_t machStartTime = mach_absolute_time();
+    s_machStartTime = mach_absolute_time();
 
-    io_connect_t connection = PrjFSService_ConnectToDriver(UserClientType_Log);
-    if (connection == IO_OBJECT_NULL)
+
+    s_notificationPort = IONotificationPortCreate(kIOMasterPortDefault);
+    IONotificationPortSetDispatchQueue(s_notificationPort, dispatch_get_main_queue());
+
+    PrjFSService_WatchContext* watchContext = PrjFSService_WatchForServiceAndConnect(
+        s_notificationPort, UserClientType_Log,
+        [](io_service_t service, io_connect_t connection, bool serviceVersionMismatch, IOReturn connectResult, PrjFSService_WatchContext* context)
+        {
+            if (connection != IO_OBJECT_NULL)
+            {
+                ProcessLogMessagesOnConnection(connection, service);
+            }
+            else
+            {
+                std::cerr << "Failed to connect to matched kernel service; result = 0x" << std::hex << connectResult << std::endl;
+            }
+        });
+    if (nullptr == watchContext)
     {
-        std::cerr << "Failed to connect to kernel service.\n";
+        std::cerr << "Failed to register for IOService notifications.\n";
         return 1;
     }
     
-    DataQueueResources dataQueue = {};
-    if (!PrjFSService_DataQueueInit(&dataQueue, connection, LogPortType_MessageQueue, LogMemoryType_MessageQueue, dispatch_get_main_queue()))
+
+    CFRunLoopRun();
+    
+    PrjFSService_StopWatching(watchContext);
+
+    return 0;
+}
+
+struct LogConnectionState
+{
+    DataQueueResources dataQueue;
+    unsigned lineCount;
+};
+
+static void ProcessLogMessagesOnConnection(io_connect_t connection, io_service_t prjfsService)
+{
+    std::shared_ptr<LogConnectionState> logState(new LogConnectionState {{}, 0 });
+    if (!PrjFSService_DataQueueInit(&logState->dataQueue, connection, LogPortType_MessageQueue, LogMemoryType_MessageQueue, dispatch_get_main_queue()))
     {
-        std::cerr << "Failed to set up shared data queue.\n";
-        return 1;
+        std::cerr << "Failed to set up shared data queue on connection 0x" << std::hex << connection << ".\n";
+        IOServiceClose(connection);
+        return;
     }
     
-    __block int lineCount = 0;
+    uint64_t prjfsServiceEntryID = 0;
+    IORegistryEntryGetRegistryEntryID(prjfsService, &prjfsServiceEntryID);
+    uint64_t timeOffsetMS = NanosecondsFromAbsoluteTime(mach_absolute_time() - s_machStartTime) / NSEC_PER_MSEC;
+    printf("(0x%x: %5d: %5llu.%03llu) START: Processing log messages from service with ID 0x%llx\n",
+        connection, logState->lineCount, timeOffsetMS / 1000u, timeOffsetMS % 1000u, prjfsServiceEntryID);
+    fflush(stdout);
+    ++logState->lineCount;
     
-    dispatch_source_set_event_handler(dataQueue.dispatchSource, ^{
-        struct {
-            mach_msg_header_t	msgHdr;
-            mach_msg_trailer_t	trailer;
-        } msg;
-        mach_msg(&msg.msgHdr, MACH_RCV_MSG | MACH_RCV_TIMEOUT, 0, sizeof(msg), dataQueue.notificationPort, 0, MACH_PORT_NULL);
+    dispatch_source_set_event_handler(logState->dataQueue.dispatchSource, ^{
+        DataQueue_ClearMachNotification(logState->dataQueue.notificationPort);
         
         while(true)
         {
-            IODataQueueEntry* entry = IODataQueuePeek(dataQueue.queueMemory);
+            IODataQueueEntry* entry = DataQueue_Peek(logState->dataQueue.queueMemory);
             if(entry == nullptr)
             {
                 break;
@@ -58,17 +95,19 @@ int main(int argc, const char * argv[])
                 const char* messageType = KextLogLevelAsString(message.level);
                 int logStringLength = messageSize - sizeof(KextLog_MessageHeader) - 1;
                 
-                uint64_t timeOffsetNS = NanosecondsFromAbsoluteTime(message.machAbsoluteTimestamp - machStartTime);
+                uint64_t timeOffsetNS = NanosecondsFromAbsoluteTime(message.machAbsoluteTimestamp - s_machStartTime);
                 uint64_t timeOffsetMS = timeOffsetNS / NSEC_PER_MSEC;
                 
-                printf("(%d: %5llu.%03llu) %s: %.*s\n", lineCount, timeOffsetMS / 1000u, timeOffsetMS % 1000u, messageType, logStringLength, entry->data + sizeof(KextLog_MessageHeader));
-                lineCount++;
+                printf("(0x%x: %5d: %5llu.%03llu) %s: %.*s\n", connection, logState->lineCount, timeOffsetMS / 1000u, timeOffsetMS % 1000u, messageType, logStringLength, entry->data + sizeof(KextLog_MessageHeader));
+                logState->lineCount++;
             }
             
-            IODataQueueDequeue(dataQueue.queueMemory, nullptr, nullptr);
+            DataQueue_Dequeue(logState->dataQueue.queueMemory, nullptr, nullptr);
         }
+        
+        fflush(stdout);
     });
-    dispatch_resume(dataQueue.dispatchSource);
+    dispatch_resume(logState->dataQueue.dispatchSource);
 
     dispatch_source_t timer = nullptr;
     if (PrjFSLog_FetchAndPrintKextProfilingData(connection))
@@ -76,15 +115,26 @@ int main(int argc, const char * argv[])
         timer = StartKextProfilingDataPolling(connection);
     }
 
-    CFRunLoopRun();
-    
-    if (nullptr != timer)
-    {
-        dispatch_cancel(timer);
-        dispatch_release(timer);
-    }
+    PrjFSService_WatchForServiceTermination(
+        prjfsService,
+        s_notificationPort,
+        [timer, connection, logState, prjfsServiceEntryID]()
+        {
+            uint64_t timeOffsetMS = NanosecondsFromAbsoluteTime(mach_absolute_time() - s_machStartTime) / NSEC_PER_MSEC;
+            printf("(0x%x: %5d: %5llu.%03llu) STOP: service with ID 0x%llx has terminated\n", connection, logState->lineCount, timeOffsetMS / 1000u, timeOffsetMS % 1000u, prjfsServiceEntryID);
+            fflush(stdout);
+            logState->lineCount++;
 
-    return 0;
+            DataQueue_Dispose(&logState->dataQueue, connection, LogMemoryType_MessageQueue);
+            
+            if (nullptr != timer)
+            {
+                dispatch_cancel(timer);
+                dispatch_release(timer);
+            }
+            
+            IOServiceClose(connection);
+        });
 }
 
 static const char* KextLogLevelAsString(KextLog_Level level)

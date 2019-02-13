@@ -34,11 +34,6 @@ namespace GVFS.CommandLine
 
         public override void Execute()
         {
-            if (GVFSPlatform.Instance.IsUnderConstruction)
-            {
-                this.SkipLock = true;
-            }
-            
             this.ValidatePathParameter(this.EnlistmentRootPathParameter);
 
             string errorMessage;
@@ -62,9 +57,9 @@ namespace GVFS.CommandLine
                 this.ReportErrorAndExit(errorMessage);
             }
 
-            if (!this.Unattended && 
+            if (!this.Unattended &&
                 !this.SkipUnregister &&
-                GVFSPlatform.Instance.SupportsGVFSService)
+                GVFSPlatform.Instance.UnderConstruction.SupportsGVFSService)
             {
                 if (!this.ShowStatusWhileRunning(
                     () => { return this.UnregisterRepo(root, out errorMessage); },
@@ -221,9 +216,9 @@ namespace GVFS.CommandLine
                     string result = null;
                     if (!GVFSLock.TryAcquireGVFSLockForProcess(
                             this.Unattended,
-                            pipeClient, 
-                            "gvfs unmount", 
-                            currentProcess.Id, 
+                            pipeClient,
+                            "gvfs unmount",
+                            currentProcess.Id,
                             GVFSPlatform.Instance.IsElevated(),
                             isConsoleOutputRedirectedToFile: GVFSPlatform.Instance.IsConsoleOutputRedirectedToFile(),
                             checkAvailabilityOnly: false,

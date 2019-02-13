@@ -4,6 +4,7 @@
     <OutputType>Exe</OutputType>
     <TargetFramework>netcoreapp2.1</TargetFramework>
     <Platforms>x64</Platforms>
+    <GenerateProgramFile>false</GenerateProgramFile>
   </PropertyGroup>
   
   <PropertyGroup>
@@ -34,9 +35,16 @@
   </ItemGroup>
   
   <ItemGroup>
+    <PackageReference Include="Microsoft.NET.Test.SDK" Version="15.0.0" />
+    <PackageReference Include="Moq" Version="4.10.1" />
+    <PackageReference Include="NUnit3TestAdapter" Version="3.10.0" />
+    <PackageReference Include="Moq" Version="4.10.1" />
+    <PackageReference Include="NuGet.Protocol" Version="4.9.2" />
+    <PackageReference Include="NuGet.Versioning" Version="4.9.2" />
     <PackageReference Include="NUnitLite" Version="3.10.1" />
-    <PackageReference Include="StyleCop.Error.MSBuild" Version="1.0.0" Condition="'$(OS)' == 'Windows_NT'" />
-    <PackageReference Include="StyleCop.MSBuild" Version="5.0.0" Condition="'$(OS)' == 'Windows_NT'" />
+    <PackageReference Include="StyleCop.Analyzers" Version="1.0.2">
+      <PrivateAssets>all</PrivateAssets>
+    </PackageReference>
   </ItemGroup>
   
   <ItemGroup>

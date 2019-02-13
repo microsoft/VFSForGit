@@ -151,7 +151,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerTestCase
 
             this.Enlistment.Repair(confirm: true);
             ProcessResult result = GitProcess.InvokeProcess(this.Enlistment.RepoRoot, "remote add origin " + this.Enlistment.RepoUrl);
-            result.ExitCode.ShouldEqual(0, result.Errors);            
+            result.ExitCode.ShouldEqual(0, result.Errors);
             this.Enlistment.MountGVFS();
         }
 

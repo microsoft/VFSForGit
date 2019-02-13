@@ -1,4 +1,4 @@
-﻿using GVFS.Common.FileSystem;
+using GVFS.Common.FileSystem;
 using GVFS.Common.Git;
 using GVFS.Common.Tracing;
 using System;
@@ -10,9 +10,10 @@ namespace GVFS.Common
 {
     public abstract class GVFSPlatform
     {
-        public GVFSPlatform(string executableExtension, string installerExtension)
+        public GVFSPlatform(string executableExtension, string installerExtension, UnderConstructionFlags underConstruction)
         {
             this.Constants = new GVFSPlatformConstants(executableExtension, installerExtension);
+            this.UnderConstruction = underConstruction;
         }
 
         public static GVFSPlatform Instance { get; private set; }
@@ -21,9 +22,9 @@ namespace GVFS.Common
         public abstract IGitInstallation GitInstallation { get; }
         public abstract IDiskLayoutUpgradeData DiskLayoutUpgrade { get; }
         public abstract IPlatformFileSystem FileSystem { get; }
-        public virtual bool IsUnderConstruction { get; } = false;
-        public virtual bool SupportsGVFSService { get; } = true;
+
         public GVFSPlatformConstants Constants { get; }
+        public UnderConstructionFlags UnderConstruction { get; }
 
         public static void Register(GVFSPlatform platform)
         {
@@ -35,7 +36,7 @@ namespace GVFS.Common
             GVFSPlatform.Instance = platform;
         }
 
-        public abstract void StartBackgroundProcess(string programName, string[] args);
+        public abstract void StartBackgroundProcess(ITracer tracer, string programName, string[] args);
         public abstract bool IsProcessActive(int processId);
         public abstract void IsServiceInstalledAndRunning(string name, out bool installed, out bool running);
         public abstract string GetNamedPipeName(string enlistmentRoot);
@@ -50,11 +51,16 @@ namespace GVFS.Common
         public abstract bool TryGetGVFSHooksPathAndVersion(out string hooksPaths, out string hooksVersion, out string error);
         public abstract bool TryInstallGitCommandHooks(GVFSContext context, string executingDirectory, string hookName, string commandHookPath, out string errorMessage);
 
-        public abstract InProcEventListener CreateTelemetryListenerIfEnabled(string providerName, string enlistmentId, string mountId);
+        public abstract IEnumerable<EventListener> CreateTelemetryListeners(string providerName, string enlistmentId, string mountId);
 
-        public abstract Dictionary<string, string> GetPhysicalDiskInfo(string path);
+        public abstract bool TryVerifyAuthenticodeSignature(string path, out string subject, out string issuer, out string error);
+
+        public abstract Dictionary<string, string> GetPhysicalDiskInfo(string path, bool sizeStatsOnly);
 
         public abstract bool IsConsoleOutputRedirectedToFile();
+
+        public abstract bool TryKillProcessTree(int processId, out int exitCode, out string error);
+
         public abstract bool TryGetGVFSEnlistmentRoot(string directory, out string enlistmentRoot, out string errorMessage);
 
         public abstract bool IsGitStatusCacheSupported();
@@ -81,6 +87,8 @@ namespace GVFS.Common
 
         public class GVFSPlatformConstants
         {
+            public static readonly char PathSeparator = Path.DirectorySeparatorChar;
+
             public GVFSPlatformConstants(string executableExtension, string installerExtension)
             {
                 this.ExecutableExtension = executableExtension;
@@ -110,6 +118,11 @@ namespace GVFS.Common
                 get { return "GVFS.VirtualFileSystemHook" + this.ExecutableExtension; }
             }
 
+            public string GVFSPostIndexChangedHookExecutableName
+            {
+                get { return "GVFS.PostIndexChangedHook" + this.ExecutableExtension; }
+            }
+
             public string MountExecutableName
             {
                 get { return "GVFS.Mount" + this.ExecutableExtension; }
@@ -119,6 +132,26 @@ namespace GVFS.Common
             {
                 get { return "GVFS.Upgrader" + this.ExecutableExtension;  }
             }
+        }
+
+        public class UnderConstructionFlags
+        {
+            public UnderConstructionFlags(
+                bool supportsGVFSService = true,
+                bool supportsGVFSUpgrade = true,
+                bool supportsGVFSConfig = true,
+                bool requiresDeprecatedGitHooksLoader = false)
+            {
+                this.SupportsGVFSService = supportsGVFSService;
+                this.SupportsGVFSUpgrade = supportsGVFSUpgrade;
+                this.SupportsGVFSConfig = supportsGVFSConfig;
+                this.RequiresDeprecatedGitHooksLoader = requiresDeprecatedGitHooksLoader;
+            }
+
+            public bool SupportsGVFSService { get; }
+            public bool SupportsGVFSUpgrade { get; }
+            public bool SupportsGVFSConfig { get; }
+            public bool RequiresDeprecatedGitHooksLoader { get; }
         }
     }
 }

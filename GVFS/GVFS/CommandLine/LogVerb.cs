@@ -38,7 +38,7 @@ namespace GVFS.CommandLine
             string errorMessage;
             string enlistmentRoot;
             if (!GVFSPlatform.Instance.TryGetGVFSEnlistmentRoot(this.EnlistmentRootPathParameter, out enlistmentRoot, out errorMessage))
-            { 
+            {
                 this.ReportErrorAndExit(
                     "Error: '{0}' is not a valid GVFS enlistment",
                     this.EnlistmentRootPathParameter);
@@ -61,7 +61,7 @@ namespace GVFS.CommandLine
                 string serviceLogsRoot = Paths.GetServiceLogsPath(this.ServiceName);
                 this.DisplayMostRecent(serviceLogsRoot, GVFSConstants.LogFileTypes.Service);
 
-                string autoUpgradeLogsRoot = Paths.GetServiceLogsPath(ProductUpgrader.UpgradeDirectoryName);
+                string autoUpgradeLogsRoot = Paths.GetServiceLogsPath(ProductUpgraderInfo.UpgradeDirectoryName);
                 this.DisplayMostRecent(autoUpgradeLogsRoot, GVFSConstants.LogFileTypes.UpgradePrefix);
             }
             else
@@ -103,7 +103,7 @@ namespace GVFS.CommandLine
                 .First()
                 .FullName;
         }
-        
+
         private static string GetLogFilePatternForType(string logFileType)
         {
             return "gvfs_" + logFileType + "_*.log";

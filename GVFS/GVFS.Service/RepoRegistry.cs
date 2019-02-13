@@ -240,17 +240,17 @@ namespace GVFS.Service
                                         EventMetadata metadata = new EventMetadata();
                                         metadata.Add("registration.EnlistmentRoot", registration.EnlistmentRoot);
                                         metadata.Add(nameof(normalizedEnlistmentRootPath), normalizedEnlistmentRootPath);
-                                        metadata.Add(TracingConstants.MessageKey.InfoMessage, $"{nameof(ReadRegistry)}: Mapping registered enlistment root to final path");
-                                        this.tracer.RelatedEvent(EventLevel.Informational, $"{nameof(ReadRegistry)}_NormalizedPathMapping", metadata);
+                                        metadata.Add(TracingConstants.MessageKey.InfoMessage, $"{nameof(this.ReadRegistry)}: Mapping registered enlistment root to final path");
+                                        this.tracer.RelatedEvent(EventLevel.Informational, $"{nameof(this.ReadRegistry)}_NormalizedPathMapping", metadata);
                                     }
-                                }                                    
+                                }
                                 else
                                 {
                                     EventMetadata metadata = new EventMetadata();
                                     metadata.Add("registration.EnlistmentRoot", registration.EnlistmentRoot);
                                     metadata.Add("NormalizedEnlistmentRootPath", normalizedEnlistmentRootPath);
                                     metadata.Add("ErrorMessage", errorMessage);
-                                    this.tracer.RelatedWarning(metadata, $"{nameof(ReadRegistry)}: Failed to get normalized path name for registed enlistment root");
+                                    this.tracer.RelatedWarning(metadata, $"{nameof(this.ReadRegistry)}: Failed to get normalized path name for registed enlistment root");
                                 }
 
                                 if (normalizedEnlistmentRootPath != null)

@@ -16,6 +16,7 @@ namespace GVFS.FunctionalTests.Properties
             public static string Commitish { get; set; }
             public static string ControlGitRepoRoot { get; set; }
             public static string EnlistmentRoot { get; set; }
+            public static string FastFetchBaseRoot { get; set; }
             public static string FastFetchRoot { get; set; }
             public static string FastFetchControl { get; set; }
             public static string PathToGit { get; set; }
@@ -37,8 +38,9 @@ namespace GVFS.FunctionalTests.Properties
                     PathToBash = @"C:\Program Files\Git\bin\bash.exe";
 
                     ControlGitRepoRoot = @"C:\Repos\GVFSFunctionalTests\ControlRepo";
-                    FastFetchRoot = @"C:\Repos\GVFSFunctionalTests\FastFetch\Test";
-                    FastFetchControl = @"C:\Repos\GVFSFunctionalTests\FastFetch\Control";
+                    FastFetchBaseRoot = @"C:\Repos\GVFSFunctionalTests\FastFetch";
+                    FastFetchRoot = Path.Combine(FastFetchBaseRoot, "test");
+                    FastFetchControl = Path.Combine(FastFetchBaseRoot, "control");
                     PathToGVFSService = @"GVFS.Service.exe";
                     BinaryFileNameExtension = ".exe";
                 }
@@ -47,6 +49,9 @@ namespace GVFS.FunctionalTests.Properties
                     string root = "/GVFS.FT";
                     EnlistmentRoot = Path.Combine(root, "test");
                     ControlGitRepoRoot = Path.Combine(root, "control");
+                    FastFetchBaseRoot = Path.Combine(root, "FastFetch");
+                    FastFetchRoot = Path.Combine(FastFetchBaseRoot, "test");
+                    FastFetchControl = Path.Combine(FastFetchBaseRoot, "control");
                     PathToGVFS = "gvfs";
                     PathToGit = "/usr/local/bin/git";
                     PathToBash = "/bin/bash";

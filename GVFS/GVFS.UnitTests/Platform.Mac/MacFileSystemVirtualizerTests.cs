@@ -27,6 +27,8 @@ namespace GVFS.UnitTests.Platform.Mac
             { Result.Success, FSResult.Ok },
             { Result.EFileNotFound, FSResult.FileOrPathNotFound },
             { Result.EPathNotFound, FSResult.FileOrPathNotFound },
+            { Result.EDirectoryNotEmpty, FSResult.DirectoryNotEmpty },
+            { Result.EVirtualizationInvalidOperation, FSResult.VirtualizationInvalidOperation },
         };
 
         [TestCase]
@@ -98,9 +100,9 @@ namespace GVFS.UnitTests.Platform.Mac
                 virtualizer))
             {
                 gitIndexProjection.MockFileTypesAndModes.TryAdd(
-                    UpdatePlaceholderFileName, 
+                    UpdatePlaceholderFileName,
                     ConvertFileTypeAndModeToIndexFormat(GitIndexProjection.FileType.Regular, GitIndexProjection.FileMode644));
-                
+
                 string error;
                 fileSystemCallbacks.TryStart(out error).ShouldEqual(true);
 
@@ -183,15 +185,15 @@ namespace GVFS.UnitTests.Platform.Mac
                 virtualizer))
             {
                 gitIndexProjection.MockFileTypesAndModes.TryAdd(
-                    WriteSymLinkFileName, 
+                    WriteSymLinkFileName,
                     ConvertFileTypeAndModeToIndexFormat(GitIndexProjection.FileType.SymLink, fileMode: 0));
 
                 string error;
                 fileSystemCallbacks.TryStart(out error).ShouldEqual(true);
 
                 virtualizer.WritePlaceholderFile(
-                    WriteSymLinkFileName, 
-                    endOfFile: 0, 
+                    WriteSymLinkFileName,
+                    endOfFile: 0,
                     sha: string.Empty).ShouldEqual(new FileSystemResult(FSResult.Ok, (int)Result.Success));
 
                 mockVirtualization.CreatedPlaceholders.ShouldBeEmpty();
@@ -225,9 +227,9 @@ namespace GVFS.UnitTests.Platform.Mac
                 virtualizer))
             {
                 gitIndexProjection.MockFileTypesAndModes.TryAdd(
-                    PlaceholderToLinkFileName, 
+                    PlaceholderToLinkFileName,
                     ConvertFileTypeAndModeToIndexFormat(GitIndexProjection.FileType.SymLink, fileMode: 0));
-                
+
                 string error;
                 fileSystemCallbacks.TryStart(out error).ShouldEqual(true);
 
@@ -297,7 +299,7 @@ namespace GVFS.UnitTests.Platform.Mac
                 fileSystemVirtualizer: virtualizer))
             {
                 gitIndexProjection.MockFileTypesAndModes.TryAdd(
-                    testFilePath, 
+                    testFilePath,
                     ConvertFileTypeAndModeToIndexFormat(GitIndexProjection.FileType.Regular, GitIndexProjection.FileMode644));
 
                 string error;
@@ -320,7 +322,7 @@ namespace GVFS.UnitTests.Platform.Mac
             string testFilePath = Path.Combine(TestFolderName, TestFileName);
             using (MockBackgroundFileSystemTaskRunner backgroundTaskRunner = new MockBackgroundFileSystemTaskRunner())
             using (MockVirtualizationInstance mockVirtualization = new MockVirtualizationInstance())
-                
+
             // Don't include TestFolderName as MockGitIndexProjection returns the same list of files regardless of what folder name
             // it is passed
             using (MockGitIndexProjection gitIndexProjection = new MockGitIndexProjection(new[] { TestFileName }))
@@ -335,7 +337,7 @@ namespace GVFS.UnitTests.Platform.Mac
                 fileSystemVirtualizer: virtualizer))
             {
                 gitIndexProjection.MockFileTypesAndModes.TryAdd(
-                    testFilePath, 
+                    testFilePath,
                     ConvertFileTypeAndModeToIndexFormat(GitIndexProjection.FileType.Regular, GitIndexProjection.FileMode644));
 
                 string error;
@@ -378,13 +380,13 @@ namespace GVFS.UnitTests.Platform.Mac
                 fileSystemVirtualizer: virtualizer))
             {
                 gitIndexProjection.MockFileTypesAndModes.TryAdd(
-                    testFile644Path, 
+                    testFile644Path,
                     ConvertFileTypeAndModeToIndexFormat(GitIndexProjection.FileType.Regular, GitIndexProjection.FileMode644));
                 gitIndexProjection.MockFileTypesAndModes.TryAdd(
-                    testFile664Path, 
+                    testFile664Path,
                     ConvertFileTypeAndModeToIndexFormat(GitIndexProjection.FileType.Regular, GitIndexProjection.FileMode664));
                 gitIndexProjection.MockFileTypesAndModes.TryAdd(
-                    testFile755Path, 
+                    testFile755Path,
                     ConvertFileTypeAndModeToIndexFormat(GitIndexProjection.FileType.Regular, GitIndexProjection.FileMode755));
 
                 string error;

@@ -67,8 +67,8 @@ namespace GVFS.FunctionalTests.FileSystemRunners
                 return false;
             }
 
-            string output = this.RunProcess(string.Format("/C if exist \"{0}\" (echo {1}) else (echo {2})", path, ShellRunner.SuccessOutput, ShellRunner.FailureOutput)).Trim();  
-                  
+            string output = this.RunProcess(string.Format("/C if exist \"{0}\" (echo {1}) else (echo {2})", path, ShellRunner.SuccessOutput, ShellRunner.FailureOutput)).Trim();
+
             return output.Equals(ShellRunner.SuccessOutput, StringComparison.InvariantCulture);
         }
 
@@ -126,7 +126,7 @@ namespace GVFS.FunctionalTests.FileSystemRunners
             // to the contents
             this.RunProcess(string.Format("/C echo|set /p =\"{0}\" > {1}", contents, path));
         }
-        
+
         public override void WriteAllTextShouldFail<ExceptionType>(string path, string contents)
         {
             // CmdRunner does nothing special when a failure is expected
@@ -137,7 +137,7 @@ namespace GVFS.FunctionalTests.FileSystemRunners
         {
             string parentDirectory = Path.GetDirectoryName(path);
             string targetName = Path.GetFileName(path);
-                  
+
             string output = this.RunProcess(string.Format("/C dir /A:d /B {0}", parentDirectory));
             string[] directories = output.Split(new string[] { "\r\n" }, StringSplitOptions.RemoveEmptyEntries);
 
@@ -222,6 +222,11 @@ namespace GVFS.FunctionalTests.FileSystemRunners
         public override void DeleteDirectory_ShouldBeBlockedByProcess(string path)
         {
             this.DeleteDirectory(path).ShouldContain(fileUsedByAnotherProcessMessage);
+        }
+
+        public override void ChangeMode(string path, ushort mode)
+        {
+            throw new NotSupportedException();
         }
     }
 }

@@ -3,6 +3,7 @@ using System;
 using System.Collections.Generic;
 using System.ComponentModel;
 using System.IO;
+using System.Security;
 using System.Threading;
 
 namespace GVFS.Common.FileSystem
@@ -11,11 +12,7 @@ namespace GVFS.Common.FileSystem
     {
         public const int DefaultStreamBufferSize = 8192;
 
-        // https://msdn.microsoft.com/en-us/library/system.io.filesystemwatcher.internalbuffersize(v=vs.110).aspx:
-        // Max FileSystemWatcher.InternalBufferSize is 64 KB
-        private const int WatcherBufferSize = 64 * 1024;
-
-        public static void RecursiveDelete(string path)
+        public virtual void RecursiveDelete(string path)
         {
             if (!Directory.Exists(path))
             {
@@ -32,7 +29,7 @@ namespace GVFS.Common.FileSystem
 
             foreach (DirectoryInfo subDirectory in directory.GetDirectories())
             {
-                RecursiveDelete(subDirectory.FullName);
+                this.RecursiveDelete(subDirectory.FullName);
             }
 
             directory.Delete();
@@ -73,6 +70,27 @@ namespace GVFS.Common.FileSystem
             File.WriteAllText(path, contents);
         }
 
+        public virtual bool TryWriteAllText(string path, string contents)
+        {
+            try
+            {
+                this.WriteAllText(path, contents);
+                return true;
+            }
+            catch (IOException)
+            {
+                return false;
+            }
+            catch (UnauthorizedAccessException)
+            {
+                return false;
+            }
+            catch (SecurityException)
+            {
+                return false;
+            }
+        }
+
         public Stream OpenFileStream(string path, FileMode fileMode, FileAccess fileAccess, FileShare shareMode, bool callFlushFileBuffers)
         {
             return this.OpenFileStream(path, fileMode, fileAccess, shareMode, FileOptions.None, callFlushFileBuffers);
@@ -98,9 +116,14 @@ namespace GVFS.Common.FileSystem
             Directory.CreateDirectory(path);
         }
 
+        public virtual bool TryCreateDirectoryWithAdminOnlyModify(ITracer tracer, string directoryPath, out string error)
+        {
+            return GVFSPlatform.Instance.FileSystem.TryCreateDirectoryWithAdminOnlyModify(tracer, directoryPath, out error);
+        }
+
         public virtual void DeleteDirectory(string path, bool recursive = false)
         {
-            RecursiveDelete(path);
+            this.RecursiveDelete(path);
         }
 
         public virtual bool IsSymLink(string path)
@@ -177,6 +200,9 @@ namespace GVFS.Common.FileSystem
             handledException = null;
             string tempFilePath = destinationPath + ".temp";
 
+            string parentPath = Path.GetDirectoryName(tempFilePath);
+            this.CreateDirectory(parentPath);
+
             try
             {
                 using (Stream tempFile = this.OpenFileStream(tempFilePath, FileMode.Create, FileAccess.Write, FileShare.None, callFlushFileBuffers: true))
@@ -233,6 +259,51 @@ namespace GVFS.Common.FileSystem
                 handledException = e;
                 return false;
             }
+        }
+
+        public bool TryCreateDirectory(string path, out Exception exception)
+        {
+            try
+            {
+                Directory.CreateDirectory(path);
+            }
+            catch (Exception e) when (e is IOException ||
+                                      e is UnauthorizedAccessException ||
+                                      e is ArgumentException ||
+                                      e is NotSupportedException)
+            {
+                exception = e;
+                return false;
+            }
+
+            exception = null;
+            return true;
+        }
+
+        /// <summary>
+        /// Recursively deletes a directory and all contained contents.
+        /// </summary>
+        public bool TryDeleteDirectory(string path, out Exception exception)
+        {
+            try
+            {
+                this.DeleteDirectory(path);
+            }
+            catch (DirectoryNotFoundException)
+            {
+                // The directory does not exist - follow the
+                // convention of this class and report success
+            }
+            catch (Exception e) when (e is IOException ||
+                                      e is UnauthorizedAccessException ||
+                                      e is ArgumentException)
+            {
+                exception = e;
+                return false;
+            }
+
+            exception = null;
+            return true;
         }
 
         /// <summary>
@@ -348,7 +419,7 @@ namespace GVFS.Common.FileSystem
                             metadata.Add("path", path);
                             metadata.Add("failureCount", failureCount + 1);
                             metadata.Add("maxRetries", maxRetries);
-                            tracer.RelatedWarning(metadata, $"{nameof(TryWaitForDelete)}: Failed to delete file.");
+                            tracer.RelatedWarning(metadata, $"{nameof(this.TryWaitForDelete)}: Failed to delete file.");
                         }
 
                         return false;
@@ -362,7 +433,7 @@ namespace GVFS.Common.FileSystem
                             metadata.Add("path", path);
                             metadata.Add("failureCount", failureCount + 1);
                             metadata.Add("maxRetries", maxRetries);
-                            tracer.RelatedWarning(metadata, $"{nameof(TryWaitForDelete)}: Failed to delete file, retrying ...");
+                            tracer.RelatedWarning(metadata, $"{nameof(this.TryWaitForDelete)}: Failed to delete file, retrying ...");
                         }
                     }
 

@@ -25,6 +25,8 @@ namespace GVFS.Platform.Windows
         private const string PrjFltAutoLoggerKey = "SYSTEM\\CurrentControlSet\\Control\\WMI\\Autologger\\Microsoft-Windows-ProjFS-Filter-Log";
         private const string PrjFltAutoLoggerStartValue = "Start";
 
+        private const string System32LogFilesRoot = @"%SystemRoot%\System32\LogFiles";
+
         // From "Autologger" section of prjflt.inf
         private const string FilterLoggerGuid = "ee4206ff-4a4d-452f-be56-6bd0ed272b44";
         private const string FilterLoggerSessionName = "Microsoft-Windows-ProjFS-Filter-Log";
@@ -45,9 +47,15 @@ namespace GVFS.Platform.Windows
 
         public bool EnumerationExpandsDirectories { get; } = false;
 
-        public string DriverLogFolderName { get; } = ProjFSFilter.ServiceName;
+        public string LogsFolderPath
+        {
+            get
+            {
+                return Path.Combine(Environment.ExpandEnvironmentVariables(System32LogFilesRoot), ProjFSFilter.ServiceName);
+            }
+        }
 
-        public static bool TryAttach(ITracer tracer, string enlistmentRoot, out string errorMessage)
+        public static bool TryAttach(string enlistmentRoot, out string errorMessage)
         {
             errorMessage = null;
             try
@@ -56,7 +64,6 @@ namespace GVFS.Platform.Windows
                 if (!NativeMethods.GetVolumePathName(enlistmentRoot, volumePathName, GVFSConstants.MaxPath))
                 {
                     errorMessage = "Could not get volume path name";
-                    tracer.RelatedError($"{nameof(TryAttach)}:{errorMessage}");
                     return false;
                 }
 
@@ -64,14 +71,12 @@ namespace GVFS.Platform.Windows
                 if (result != OkResult && result != NameCollisionErrorResult)
                 {
                     errorMessage = string.Format("Attaching the filter driver resulted in: {0}", result);
-                    tracer.RelatedError(errorMessage);
                     return false;
                 }
             }
             catch (Exception e)
             {
                 errorMessage = string.Format("Attaching the filter driver resulted in: {0}", e.Message);
-                tracer.RelatedError(errorMessage);
                 return false;
             }
 
@@ -100,9 +105,9 @@ namespace GVFS.Platform.Windows
         }
 
         public static bool IsServiceRunningAndInstalled(
-            ITracer tracer, 
-            PhysicalFileSystem fileSystem, 
-            out bool isServiceInstalled, 
+            ITracer tracer,
+            PhysicalFileSystem fileSystem,
+            out bool isServiceInstalled,
             out bool isDriverFileInstalled,
             out bool isNativeLibInstalled)
         {
@@ -132,7 +137,7 @@ namespace GVFS.Platform.Windows
 
             return isRunning;
         }
-        
+
         public static bool TryStartService(ITracer tracer)
         {
             try
@@ -171,7 +176,7 @@ namespace GVFS.Platform.Windows
                 {
                     tracer.RelatedError($"{nameof(IsAutoLoggerEnabled)}: Failed to find current Start value setting");
                     return false;
-                }                
+                }
             }
             catch (UnauthorizedAccessException e)
             {
@@ -227,7 +232,7 @@ namespace GVFS.Platform.Windows
         }
 
         public static bool TryEnableOrInstallDriver(
-            ITracer tracer, 
+            ITracer tracer,
             PhysicalFileSystem fileSystem,
             out uint windowsBuildNumber,
             out bool isInboxProjFSFinalAPI,
@@ -290,7 +295,7 @@ namespace GVFS.Platform.Windows
         {
             warning = null;
             error = null;
-           
+
             string pathRoot = Path.GetPathRoot(normalizedEnlistmentRootPath);
             DriveInfo rootDriveInfo = DriveInfo.GetDrives().FirstOrDefault(x => x.Name == pathRoot);
             string requiredFormat = "NTFS";
@@ -315,7 +320,7 @@ namespace GVFS.Platform.Windows
             return false;
         }
 
-        public string FlushDriverLogs()
+        public bool TryFlushLogs(out string error)
         {
             StringBuilder sb = new StringBuilder();
             try
@@ -325,14 +330,19 @@ namespace GVFS.Platform.Windows
                 if (result != 0)
                 {
                     sb.AppendFormat($"Failed to flush {ProjFSFilter.ServiceName} log buffers {result}");
+                    error = sb.ToString();
+                    return false;
                 }
             }
             catch (Exception e)
             {
                 sb.AppendFormat($"Failed to flush {ProjFSFilter.ServiceName} log buffers, exception: {e.ToString()}");
+                error = sb.ToString();
+                return false;
             }
 
-            return sb.ToString();
+            error = sb.ToString();
+            return true;
         }
 
         public bool TryPrepareFolderForCallbacks(string folderPath, out string error, out Exception exception)
@@ -367,13 +377,13 @@ namespace GVFS.Platform.Windows
 
         // TODO 1050199: Once the service is an optional component, GVFS should only attempt to attach
         // the filter via the service if the service is present\enabled
-        public bool IsReady(JsonTracer tracer, string enlistmentRoot, out string error)
+        public bool IsReady(JsonTracer tracer, string enlistmentRoot, TextWriter output, out string error)
         {
             error = string.Empty;
             return
                 IsServiceRunning(tracer) &&
                 IsNativeLibInstalled(tracer, new PhysicalFileSystem()) &&
-                TryAttach(tracer, enlistmentRoot, out error);
+                TryAttach(enlistmentRoot, out error);
         }
 
         private static bool IsInboxAndEnabled()
@@ -392,7 +402,7 @@ namespace GVFS.Platform.Windows
                 tracer.RelatedInfo($"{nameof(TryGetIsInboxProjFSFinalAPI)}: Build number = {windowsBuildNumber}");
             }
             catch (Win32Exception e)
-            {                
+            {
                 tracer.RelatedError(CreateEventMetadata(e), $"{nameof(TryGetIsInboxProjFSFinalAPI)}: Exception while trying to get Windows build number");
                 return false;
             }
@@ -410,7 +420,7 @@ namespace GVFS.Platform.Windows
             if (!TryCopyNativeLibToAppDirectory(tracer, fileSystem, gvfsAppDirectory))
             {
                 return false;
-            }            
+            }
 
             ProcessResult result = ProcessHelper.Run("RUNDLL32.EXE", $"SETUPAPI.DLL,InstallHinfSection DefaultInstall 128 {gvfsAppDirectory}\\Filter\\prjflt.inf");
             if (result.ExitCode == 0)
@@ -509,7 +519,7 @@ namespace GVFS.Platform.Windows
         private static void GetNativeLibPaths(string gvfsAppDirectory, out string installFilePath, out string appFilePath)
         {
             installFilePath = Path.Combine(gvfsAppDirectory, "ProjFS", ProjFSNativeLibFileName);
-            appFilePath = Path.Combine(gvfsAppDirectory, ProjFSNativeLibFileName);            
+            appFilePath = Path.Combine(gvfsAppDirectory, ProjFSNativeLibFileName);
         }
 
         private static bool TryEnableProjFSOptionalFeature(ITracer tracer, PhysicalFileSystem fileSystem, out bool isProjFSFeatureAvailable)
@@ -529,16 +539,16 @@ namespace GVFS.Platform.Windows
                     isProjFSFeatureAvailable = false;
                     break;
 
-                case (int)ProjFSInboxStatus.Enabled:                    
+                case (int)ProjFSInboxStatus.Enabled:
                     tracer.RelatedEvent(
-                        EventLevel.Informational, 
-                        $"{nameof(TryEnableProjFSOptionalFeature)}_ClientProjFSAlreadyEnabled", 
-                        metadata, 
+                        EventLevel.Informational,
+                        $"{nameof(TryEnableProjFSOptionalFeature)}_ClientProjFSAlreadyEnabled",
+                        metadata,
                         Keywords.Network);
                     projFSEnabled = true;
                     break;
 
-                case (int)ProjFSInboxStatus.Disabled:                    
+                case (int)ProjFSInboxStatus.Disabled:
                     ProcessResult enableOptionalFeatureResult = CallPowershellCommand("try {Enable-WindowsOptionalFeature -Online -FeatureName " + OptionalFeatureName + " -NoRestart}catch{exit 1}");
                     metadata.Add("enableOptionalFeatureResult.Output", enableOptionalFeatureResult.Output.Trim().Replace("\r\n", ","));
                     metadata.Add("enableOptionalFeatureResult.Errors", enableOptionalFeatureResult.Errors);

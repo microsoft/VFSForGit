@@ -1,5 +1,4 @@
 ﻿using GVFS.Common.Tracing;
-using Microsoft.Win32.SafeHandles;
 using System;
 using System.IO;
 using System.Runtime.InteropServices;
@@ -29,7 +28,7 @@ namespace GVFS.Common.Git
 
             this.RepoHandle = repoHandle;
         }
-        
+
         protected LibGit2Repo()
         {
         }
@@ -115,33 +114,6 @@ namespace GVFS.Common.Git
             return true;
         }
 
-        public virtual bool TryGetObjectSize(string sha, out long size)
-        {
-            size = -1;
-
-            IntPtr objHandle;
-            if (Native.RevParseSingle(out objHandle, this.RepoHandle, sha) != Native.SuccessCode)
-            {
-                return false;
-            }
-
-            try
-            {
-                switch (Native.Object.GetType(objHandle))
-                {
-                    case Native.ObjectTypes.Blob:
-                        size = Native.Blob.GetRawSize(objHandle);
-                        return true;
-                }
-            }
-            finally
-            {
-                Native.Object.Free(objHandle);
-            }
-
-            return false;
-        }
-        
         public virtual bool TryCopyBlob(string sha, Action<Stream, long> writeAction)
         {
             IntPtr objHandle;
@@ -159,12 +131,12 @@ namespace GVFS.Common.Git
                         case Native.ObjectTypes.Blob:
                             byte* originalData = Native.Blob.GetRawContent(objHandle);
                             long originalSize = Native.Blob.GetRawSize(objHandle);
-                            
+
                             // TODO 938696: UnmanagedMemoryStream marshals content even for CopyTo
                             // If GetRawContent changed to return IntPtr and ProjFS changed WriteBuffer to expose an IntPtr,
                             // We could probably pinvoke memcpy and avoid marshalling.
                             using (Stream mem = new UnmanagedMemoryStream(originalData, originalSize))
-                            { 
+                            {
                                 writeAction(mem, originalSize);
                             }
 
@@ -216,20 +188,6 @@ namespace GVFS.Common.Git
                 return Marshal.PtrToStructure<GitOid>(oidPtr);
             }
 
-            [DllImport("kernel32.dll", CharSet = CharSet.Auto, SetLastError = true)]
-            public static extern SafeFileHandle CreateFile(
-                [MarshalAs(UnmanagedType.LPTStr)] string filename,
-                [MarshalAs(UnmanagedType.U4)] FileAccess access,
-                [MarshalAs(UnmanagedType.U4)] FileShare share,
-                IntPtr securityAttributes, // optional SECURITY_ATTRIBUTES struct or IntPtr.Zero
-                [MarshalAs(UnmanagedType.U4)] FileMode creationDisposition,
-                [MarshalAs(UnmanagedType.U4)] FileAttributes flagsAndAttributes,
-                IntPtr templateFile);
-
-            [DllImport("kernel32.dll")]
-            [return: MarshalAs(UnmanagedType.Bool)]
-            public static unsafe extern bool WriteFile(SafeFileHandle file, byte* buffer, uint numberOfBytesToWrite, out uint numberOfBytesWritten, IntPtr overlapped);
-
             [DllImport(Git2NativeLibName, EntryPoint = "git_libgit2_init")]
             public static extern void Init();
 
@@ -238,9 +196,6 @@ namespace GVFS.Common.Git
 
             [DllImport(Git2NativeLibName, EntryPoint = "git_revparse_single")]
             public static extern uint RevParseSingle(out IntPtr objectHandle, IntPtr repoHandle, string oid);
-
-            [DllImport(Git2NativeLibName, EntryPoint = "git_oid_fromstr")]
-            public static extern void OidFromString(ref GitOid oid, string hash);
 
             public static string GetLastError()
             {
@@ -270,7 +225,7 @@ namespace GVFS.Common.Git
                 [DllImport(Git2NativeLibName, EntryPoint = "git_repository_open")]
                 public static extern uint Open(out IntPtr repoHandle, string path);
 
-                [DllImport(Git2NativeLibName, EntryPoint = "git_tree_free")]
+                [DllImport(Git2NativeLibName, EntryPoint = "git_repository_free")]
                 public static extern void Free(IntPtr repoHandle);
             }
 

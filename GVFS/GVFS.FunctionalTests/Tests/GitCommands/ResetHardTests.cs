@@ -1,22 +1,23 @@
-using GVFS.FunctionalTests.Should;
+﻿using GVFS.FunctionalTests.Should;
 using NUnit.Framework;
 
 namespace GVFS.FunctionalTests.Tests.GitCommands
 {
-    [TestFixture]
+    [TestFixtureSource(typeof(GitRepoTests), nameof(GitRepoTests.ValidateWorkingTree))]
     [Category(Categories.GitCommands)]
     public class ResetHardTests : GitRepoTests
     {
         private const string ResetHardCommand = "reset --hard";
 
-        public ResetHardTests() : base(enlistmentPerTest: true)
+        public ResetHardTests(bool validateWorkingTree)
+            : base(enlistmentPerTest: true, validateWorkingTree: validateWorkingTree)
         {
         }
 
         [TestCase]
         public void VerifyResetHardDeletesEmptyFolders()
         {
-            ControlGitRepo.Fetch("FunctionalTests/20170202_RenameTestMergeTarget");
+            this.ControlGitRepo.Fetch("FunctionalTests/20170202_RenameTestMergeTarget");
             this.ValidateGitCommand("checkout FunctionalTests/20170202_RenameTestMergeTarget");
             this.ValidateGitCommand("reset --hard HEAD~1");
             this.ShouldNotExistOnDisk("Test_EPF_GitCommandsTestOnlyFileFolder");

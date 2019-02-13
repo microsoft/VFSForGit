@@ -30,6 +30,9 @@ typedef enum
     MessageType_Response_Success,
     MessageType_Response_Fail,
     
+    // Other message outcomes
+    MessageType_Result_Aborted,
+    
 } MessageType;
 
 struct MessageHeader

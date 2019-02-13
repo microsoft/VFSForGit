@@ -6,9 +6,9 @@ using System.IO;
 
 namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
 {
-    [TestFixtureSource(typeof(FileSystemRunner), FileSystemRunner.TestRunners)]
+    [TestFixtureSource(typeof(FileSystemRunner), nameof(FileSystemRunner.Runners))]
     public class MoveRenameFolderTests : TestsWithEnlistmentPerFixture
-    {       
+    {
         private const string TestFileContents =
 @"// dllmain.cpp : Defines the entry point for the DLL application.
 #include ""stdafx.h""
@@ -221,11 +221,11 @@ BOOL APIENTRY DllMain( HMODULE hModule,
             this.Enlistment.GetVirtualPathTo(newFolderName, "ChangeNestedUnhydratedFileNameCase", "Program.cs")
                 .ShouldBeAFile(this.fileSystem)
                 .WithContents(MoveRenameFileTests.TestFileContents);
-            
+
             this.Enlistment.GetVirtualPathTo(newFolderName, "ChangeUnhydratedFileName", "Program.cs")
                 .ShouldBeAFile(this.fileSystem)
                 .WithContents(MoveRenameFileTests.TestFileContents);
-            
+
             this.Enlistment.GetVirtualPathTo(newFolderName, "MoveUnhydratedFileToDotGitFolder", "Program.cs")
                 .ShouldBeAFile(this.fileSystem)
                 .WithContents(MoveRenameFileTests.TestFileContents);

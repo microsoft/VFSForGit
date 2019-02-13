@@ -1,4 +1,4 @@
-using GVFS.FunctionalTests.FileSystemRunners;
+﻿using GVFS.FunctionalTests.FileSystemRunners;
 using GVFS.FunctionalTests.Should;
 using GVFS.Tests.Should;
 using NUnit.Framework;
@@ -20,7 +20,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
             // other tests in this class. That applies to every directory in the path, as well as the leaf file name.
             // Otherwise, this test loses most of its value because there will be no races occurring on creating the
             // placeholder directories, enumerating them, and then creating a placeholder file and hydrating it.
-            
+
             string fileName = Path.Combine("GVFS", "GVFS.FunctionalTests", "Tests", "LongRunningEnlistment", "GitMoveRenameTests.cs");
             string virtualPath = this.Enlistment.GetVirtualPathTo(fileName);
 
@@ -109,7 +109,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
             }
         }
 
-        [TestCaseSource(typeof(FileSystemRunner), FileSystemRunner.TestRunners)]
+        [TestCaseSource(typeof(FileSystemRunner), nameof(FileSystemRunner.Runners))]
         [Order(3)]
         public void CanReadWriteAFileInParallel(FileSystemRunner fileSystem)
         {

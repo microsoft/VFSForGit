@@ -18,9 +18,9 @@ namespace GVFS.UnitTests.Windows.Upgrader
         public void UpgradeAvailableOnFastWhileOnLocalNoneRing()
         {
             this.SimulateUpgradeAvailable(
-                remoteRing: ProductUpgrader.RingType.Fast,
+                remoteRing: GitHubUpgrader.GitHubUpgraderConfig.RingType.Fast,
                 remoteVersion: UpgradeTests.NewerThanLocalVersion,
-                localRing: ProductUpgrader.RingType.None,
+                localRing: GitHubUpgrader.GitHubUpgraderConfig.RingType.None,
                 expectedReturn: true,
                 expectedUpgradeVersion: null);
         }
@@ -29,9 +29,9 @@ namespace GVFS.UnitTests.Windows.Upgrader
         public void UpgradeAvailableOnSlowWhileOnLocalNoneRing()
         {
             this.SimulateUpgradeAvailable(
-                remoteRing: ProductUpgrader.RingType.Slow,
+                remoteRing: GitHubUpgrader.GitHubUpgraderConfig.RingType.Slow,
                 remoteVersion: UpgradeTests.NewerThanLocalVersion,
-                localRing: ProductUpgrader.RingType.None,
+                localRing: GitHubUpgrader.GitHubUpgraderConfig.RingType.None,
                 expectedReturn: true,
                 expectedUpgradeVersion: null);
         }
@@ -40,9 +40,9 @@ namespace GVFS.UnitTests.Windows.Upgrader
         public void UpgradeAvailableOnFastWhileOnLocalSlowRing()
         {
             this.SimulateUpgradeAvailable(
-                remoteRing: ProductUpgrader.RingType.Fast,
+                remoteRing: GitHubUpgrader.GitHubUpgraderConfig.RingType.Fast,
                 remoteVersion: UpgradeTests.NewerThanLocalVersion,
-                localRing: ProductUpgrader.RingType.Slow,
+                localRing: GitHubUpgrader.GitHubUpgraderConfig.RingType.Slow,
                 expectedReturn: true,
                 expectedUpgradeVersion: null);
         }
@@ -51,9 +51,9 @@ namespace GVFS.UnitTests.Windows.Upgrader
         public void UpgradeAvailableOnSlowWhileOnLocalSlowRing()
         {
             this.SimulateUpgradeAvailable(
-                remoteRing: ProductUpgrader.RingType.Slow,
+                remoteRing: GitHubUpgrader.GitHubUpgraderConfig.RingType.Slow,
                 remoteVersion: UpgradeTests.NewerThanLocalVersion,
-                localRing: ProductUpgrader.RingType.Slow,
+                localRing: GitHubUpgrader.GitHubUpgraderConfig.RingType.Slow,
                 expectedReturn: true,
                 expectedUpgradeVersion: UpgradeTests.NewerThanLocalVersion);
         }
@@ -62,9 +62,9 @@ namespace GVFS.UnitTests.Windows.Upgrader
         public void UpgradeAvailableOnFastWhileOnLocalFastRing()
         {
             this.SimulateUpgradeAvailable(
-                remoteRing: ProductUpgrader.RingType.Fast,
+                remoteRing: GitHubUpgrader.GitHubUpgraderConfig.RingType.Fast,
                 remoteVersion: UpgradeTests.NewerThanLocalVersion,
-                localRing: ProductUpgrader.RingType.Fast,
+                localRing: GitHubUpgrader.GitHubUpgraderConfig.RingType.Fast,
                 expectedReturn: true,
                 expectedUpgradeVersion: UpgradeTests.NewerThanLocalVersion);
         }
@@ -73,53 +73,117 @@ namespace GVFS.UnitTests.Windows.Upgrader
         public void UpgradeAvailableOnSlowWhileOnLocalFastRing()
         {
             this.SimulateUpgradeAvailable(
-                remoteRing: ProductUpgrader.RingType.Slow,
+                remoteRing: GitHubUpgrader.GitHubUpgraderConfig.RingType.Slow,
                 remoteVersion: UpgradeTests.NewerThanLocalVersion,
-                localRing:ProductUpgrader.RingType.Fast,
+                localRing: GitHubUpgrader.GitHubUpgraderConfig.RingType.Fast,
                 expectedReturn: true,
                 expectedUpgradeVersion:UpgradeTests.NewerThanLocalVersion);
         }
 
+        [TestCase]
+        public void RingInNugetFeedURLOverridesUpgradeRing()
+        {
+            // Pretend there is an upgrade available in Fast ring. Set upgrade.ring
+            // to fast and verify that Upgrader returns the new version.
+            Version newVersion;
+            string error;
+            this.SetUpgradeRing(GitHubUpgrader.GitHubUpgraderConfig.RingType.Fast.ToString());
+
+            // Replace pretend upgrade Release set by UpgradeTests.Setup() method
+            this.Upgrader.PretendNewReleaseAvailableAtRemote(UpgradeTests.NewerThanLocalVersion, GitHubUpgrader.GitHubUpgraderConfig.RingType.Fast);
+
+            this.Upgrader.TryQueryNewestVersion(out newVersion, out error).ShouldBeTrue();
+            newVersion.ShouldNotBeNull();
+            newVersion.ToString().ShouldEqual(UpgradeTests.NewerThanLocalVersion);
+
+            // Now add upgrade.feedurl with Slow ring info. The Slow ring in upgrade.feedurl should
+            // override the Fast that is set already (in the steps above) in upgrade.ring. Since
+            // there is no upgrade available in Slow, Verify that Upgrader returns Null upgrade
+            // this time.
+            string feedUrlWithSlowRing = "https://foo.bar.visualstudio.com/helloworld/_packaging/GVFS@Slow/nuget/v3/index.json";
+            this.LocalConfig.TrySetConfig("upgrade.feedurl", feedUrlWithSlowRing, out error);
+            this.Upgrader.Config.TryLoad(out error).ShouldBeTrue();
+
+            this.Upgrader.TryQueryNewestVersion(out newVersion, out error).ShouldBeTrue();
+            newVersion.ShouldBeNull();
+            error.ShouldContain("Great news");
+        }
+
+        [TestCase]
+        public void FastUpgradeRingAndNoRingInNugetFeedURLReturnsNoUpgrade()
+        {
+            // Pretend there is an upgrade available in Fast ring. Set upgrade.ring
+            // to fast and verify that Upgrader returns the new version.
+            Version newVersion;
+            string error;
+            this.SetUpgradeRing(GitHubUpgrader.GitHubUpgraderConfig.RingType.Fast.ToString());
+
+            // Replace pretend upgrade Release set by UpgradeTests.Setup() method
+            this.Upgrader.PretendNewReleaseAvailableAtRemote(UpgradeTests.NewerThanLocalVersion, GitHubUpgrader.GitHubUpgraderConfig.RingType.Fast);
+
+            this.Upgrader.TryQueryNewestVersion(out newVersion, out error).ShouldBeTrue();
+            newVersion.ShouldNotBeNull();
+
+            // Now add upgrade.feedurl with no ring info. The presence of upgrade.feedurl config
+            // should force upgrader to reset its ring to the one specified in upgrade.feedurl.
+            // But since there is no ring specified in upgrade.feedurl, upgrader should have no valid
+            // ring now. Verify that Upgrader returns Null upgrade this time.
+            string feedUrlWithNoRing = "https://foo.bar.visualstudio.com/helloworld/GVFS/nuget/v3/index.json";
+            this.LocalConfig.TrySetConfig("upgrade.feedurl", feedUrlWithNoRing, out error);
+            this.Upgrader.Config.TryLoad(out error).ShouldBeTrue();
+
+            this.Upgrader.TryQueryNewestVersion(out newVersion, out error).ShouldBeTrue();
+            newVersion.ShouldBeNull();
+        }
+
+        [TestCase]
+        public void NoRingInNugetFeedURLReturnsNullUpgrade()
+        {
+            string error;
+            string feedUrlWithNoRing = "https://foo.bar.visualstudio.com/helloworld/_packaging/GVFS/nuget/v3/index.json";
+            this.LocalConfig.TrySetConfig("upgrade.feedurl", feedUrlWithNoRing, out error);
+            this.Upgrader.Config.TryLoad(out error).ShouldBeTrue();
+
+            Version newVersion;
+            this.Upgrader.TryQueryNewestVersion(out newVersion, out error).ShouldBeTrue();
+            newVersion.ShouldBeNull();
+        }
+
         public override void NoneLocalRing()
         {
-            throw new NotImplementedException();
+            throw new NotSupportedException();
         }
 
         public override void InvalidUpgradeRing()
         {
-            throw new NotImplementedException();
+            throw new NotSupportedException();
         }
 
         public override void FetchReleaseInfo()
         {
-            throw new NotImplementedException();
+            throw new NotSupportedException();
         }
 
-        protected override void RunUpgrade()
+        protected override ReturnCode RunUpgrade()
         {
-            throw new NotImplementedException();
-        }
-
-        protected override ReturnCode ExitCode()
-        {
-            return ReturnCode.Success;
+            throw new NotSupportedException();
         }
 
         private void SimulateUpgradeAvailable(
-            ProductUpgrader.RingType remoteRing,
+            GitHubUpgrader.GitHubUpgraderConfig.RingType remoteRing,
             string remoteVersion,
-            ProductUpgrader.RingType localRing,
+            GitHubUpgrader.GitHubUpgraderConfig.RingType localRing,
             bool expectedReturn,
             string expectedUpgradeVersion)
         {
-            this.Upgrader.LocalRingConfig = localRing;
+            this.SetUpgradeRing(localRing.ToString());
             this.Upgrader.PretendNewReleaseAvailableAtRemote(
                 remoteVersion,
                 remoteRing);
 
             Version newVersion;
-            string errorMessage;
-            this.Upgrader.TryGetNewerVersion(out newVersion, out errorMessage).ShouldEqual(expectedReturn);
+            string message;
+            this.Upgrader.TryQueryNewestVersion(out newVersion, out message).ShouldEqual(expectedReturn);
 
             if (string.IsNullOrEmpty(expectedUpgradeVersion))
             {

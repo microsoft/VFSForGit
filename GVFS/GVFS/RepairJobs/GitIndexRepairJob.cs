@@ -1,5 +1,5 @@
 ﻿using GVFS.Common;
-using GVFS.Common.Prefetch.Git;
+using GVFS.Common.Git;
 using GVFS.Common.Tracing;
 using System.Collections.Generic;
 using System.IO;
@@ -9,7 +9,7 @@ namespace GVFS.RepairJobs
     public class GitIndexRepairJob : RepairJob
     {
         private readonly string indexPath;
-        
+
         public GitIndexRepairJob(ITracer tracer, TextWriter output, GVFSEnlistment enlistment)
             : base(tracer, output, enlistment)
         {

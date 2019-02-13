@@ -6,7 +6,7 @@ namespace GVFS.Platform.Windows.DiskLayoutUpgrades
     /// <summary>
     /// This is a no-op upgrade step. It is here to prevent users from downgrading to a previous
     /// version of GVFS that is not GitStatusCache aware.
-    /// 
+    ///
     /// This is because GVFS will set git config entries for the location of the git status cache when mounting,
     /// but does not unset them when unmounting (even if it did, it might not reliably unset these values).
     /// If a user downgrades, and they have a status cache file on disk, and git is configured to use the cache,

@@ -44,6 +44,9 @@ namespace GVFS.FunctionalTests.Tools
                 commitish == null ? Properties.Settings.Default.Commitish : commitish);
         }
 
+        //
+        // IMPORTANT! These must parallel the settings in GVFSVerb:TrySetRequiredGitConfigSettings
+        //
         public void Initialize()
         {
             Directory.CreateDirectory(this.RootPath);
@@ -53,6 +56,8 @@ namespace GVFS.FunctionalTests.Tools
             GitProcess.Invoke(this.RootPath, "config merge.renames false");
             GitProcess.Invoke(this.RootPath, "config advice.statusUoption false");
             GitProcess.Invoke(this.RootPath, "config core.abbrev 40");
+            GitProcess.Invoke(this.RootPath, "config pack.useSparse true");
+            GitProcess.Invoke(this.RootPath, "config reset.quiet true");
             GitProcess.Invoke(this.RootPath, "config status.aheadbehind false");
             GitProcess.Invoke(this.RootPath, "config user.name \"Functional Test User\"");
             GitProcess.Invoke(this.RootPath, "config user.email \"functional@test.com\"");
@@ -66,19 +71,6 @@ namespace GVFS.FunctionalTests.Tools
         public void Fetch(string commitish)
         {
             GitProcess.Invoke(this.RootPath, "fetch origin " + commitish);
-        }
-
-        public void Delete()
-        {
-            if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
-            {
-                CmdRunner.DeleteDirectoryWithUnlimitedRetries(this.RootPath);
-            }
-            else
-            {
-                // TODO(Mac): See if we can use BashRunner.DeleteDirectoryWithRetry on Windows as well
-                BashRunner.DeleteDirectoryWithUnlimitedRetries(this.RootPath);
-            }
         }
     }
 }

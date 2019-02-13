@@ -13,7 +13,7 @@ namespace GVFS.Common.NetworkStreams
     {
         private const int NumPackHeaderBytes = 3 * sizeof(long);
 
-        private static readonly byte[] PrefetchPackExpectedHeader = 
+        private static readonly byte[] PrefetchPackExpectedHeader =
             new byte[]
             {
                 (byte)'G', (byte)'P', (byte)'R', (byte)'E', (byte)' ', // Magic

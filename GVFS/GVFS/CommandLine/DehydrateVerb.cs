@@ -3,6 +3,7 @@ using GVFS.Common;
 using GVFS.Common.FileSystem;
 using GVFS.Common.Git;
 using GVFS.Common.Http;
+using GVFS.Common.Maintenance;
 using GVFS.Common.NamedPipes;
 using GVFS.Common.Tracing;
 using GVFS.DiskLayoutUpgrades;
@@ -58,6 +59,34 @@ namespace GVFS.CommandLine
                         { nameof(this.EnlistmentRootPathParameter), this.EnlistmentRootPathParameter },
                     });
 
+                // This is only intended to be run by functional tests
+                if (this.MaintenanceJob != null)
+                {
+                    this.InitializeLocalCacheAndObjectsPaths(tracer, enlistment, retryConfig: null, serverGVFSConfig: null, cacheServer: null);
+                    PhysicalFileSystem fileSystem = new PhysicalFileSystem();
+                    GitRepo gitRepo = new GitRepo(
+                            tracer,
+                            enlistment,
+                            fileSystem);
+                    switch (this.MaintenanceJob)
+                    {
+                        case "LooseObjects":
+                            (new LooseObjectsStep(new GVFSContext(tracer, fileSystem, gitRepo, enlistment), forceRun: true)).Execute();
+                            return;
+
+                        case "PackfileMaintenance":
+                            (new PackfileMaintenanceStep(
+                                new GVFSContext(tracer, fileSystem, gitRepo, enlistment),
+                                forceRun: true,
+                                batchSize: this.PackfileMaintenanceBatchSize ?? PackfileMaintenanceStep.DefaultBatchSize)).Execute();
+                            return;
+
+                        default:
+                            this.ReportErrorAndExit($"Unknown maintenance job requested: {this.MaintenanceJob}");
+                            break;
+                    }
+                }
+
                 if (!this.Confirmed)
                 {
                     this.Output.WriteLine(
@@ -90,17 +119,23 @@ of your enlistment's src folder.
                 this.Output.WriteLine();
 
                 this.Unmount(tracer);
-                
+
                 string error;
                 if (!DiskLayoutUpgrade.TryCheckDiskLayoutVersion(tracer, enlistment.EnlistmentRoot, out error))
                 {
                     this.ReportErrorAndExit(tracer, error);
                 }
-                
+
                 RetryConfig retryConfig;
                 if (!RetryConfig.TryLoadFromGitConfig(tracer, enlistment, out retryConfig, out error))
                 {
                     this.ReportErrorAndExit(tracer, "Failed to determine GVFS timeout and max retries: " + error);
+                }
+
+                string errorMessage;
+                if (!this.TryAuthenticate(tracer, enlistment, out errorMessage))
+                {
+                    this.ReportErrorAndExit(tracer, errorMessage);
                 }
 
                 // Local cache and objects paths are required for TryDownloadGitObjects
@@ -152,7 +187,7 @@ of your enlistment's src folder.
 
                         GitProcess git = new GitProcess(enlistment);
                         statusResult = git.Status(allowObjectDownloads: false, useStatusCache: false);
-                        if (statusResult.HasErrors)
+                        if (statusResult.ExitCodeIsFailure)
                         {
                             return false;
                         }
@@ -174,7 +209,7 @@ of your enlistment's src folder.
                         this.WriteMessage(tracer, "Failed to run git status because the repo is not mounted");
                         this.WriteMessage(tracer, "Either mount first, or run with --no-status");
                     }
-                    else if (statusResult.HasErrors)
+                    else if (statusResult.ExitCodeIsFailure)
                     {
                         this.WriteMessage(tracer, "Failed to run git status: " + statusResult.Errors);
                     }
@@ -275,7 +310,7 @@ of your enlistment's src folder.
 
                     // ... backup the .gvfs hydration-related data structures...
                     string databasesFolder = Path.Combine(enlistment.DotGVFSRoot, GVFSConstants.DotGVFS.Databases.Name);
-                    if (!TryBackupFilesInFolder(tracer, databasesFolder, backupDatabases, searchPattern: "*", filenamesToSkip: "RepoMetadata.dat"))
+                    if (!this.TryBackupFilesInFolder(tracer, databasesFolder, backupDatabases, searchPattern: "*", filenamesToSkip: "RepoMetadata.dat"))
                     {
                         return false;
                     }
@@ -300,7 +335,7 @@ of your enlistment's src folder.
                     }
 
                     // ... backup all .git\*.lock files
-                    if (!TryBackupFilesInFolder(tracer, enlistment.DotGitRoot, backupGit, searchPattern: "*.lock"))
+                    if (!this.TryBackupFilesInFolder(tracer, enlistment.DotGitRoot, backupGit, searchPattern: "*.lock"))
                     {
                         return false;
                     }
@@ -355,7 +390,7 @@ of your enlistment's src folder.
                         GVFSGitObjects gitObjects = new GVFSGitObjects(new GVFSContext(tracer, fileSystem, gitRepo, enlistment), objectRequestor);
 
                         GitProcess.Result revParseResult = enlistment.CreateGitProcess().RevParse("HEAD");
-                        if (revParseResult.HasErrors)
+                        if (revParseResult.ExitCodeIsFailure)
                         {
                             errorMessage = "Unable to determine HEAD commit id: " + revParseResult.Errors;
                             return false;
@@ -396,7 +431,7 @@ of your enlistment's src folder.
                         GitProcess.Result checkoutResult = git.ForceCheckout("HEAD");
 
                         errorMessage = checkoutResult.Errors;
-                        return !checkoutResult.HasErrors;
+                        return checkoutResult.ExitCodeIsSuccess;
                     }
                 },
                 "Recreating git index",

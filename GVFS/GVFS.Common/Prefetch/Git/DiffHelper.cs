@@ -1,5 +1,4 @@
-﻿using GVFS.Common;
-using GVFS.Common.Git;
+﻿using GVFS.Common.Git;
 using GVFS.Common.Tracing;
 using System;
 using System.Collections.Concurrent;
@@ -24,24 +23,27 @@ namespace GVFS.Common.Prefetch.Git
         private Enlistment enlistment;
         private GitProcess git;
 
-        public DiffHelper(ITracer tracer, Enlistment enlistment, IEnumerable<string> fileList, IEnumerable<string> folderList)
-            : this(tracer, enlistment, new GitProcess(enlistment), fileList, folderList)
+        public DiffHelper(ITracer tracer, Enlistment enlistment, IEnumerable<string> fileList, IEnumerable<string> folderList, bool includeSymLinks)
+            : this(tracer, enlistment, new GitProcess(enlistment), fileList, folderList, includeSymLinks)
         {
         }
 
-        public DiffHelper(ITracer tracer, Enlistment enlistment, GitProcess git, IEnumerable<string> fileList, IEnumerable<string> folderList)
+        public DiffHelper(ITracer tracer, Enlistment enlistment, GitProcess git, IEnumerable<string> fileList, IEnumerable<string> folderList, bool includeSymLinks)
         {
             this.tracer = tracer;
             this.fileList = new List<string>(fileList);
             this.folderList = new List<string>(folderList);
             this.enlistment = enlistment;
             this.git = git;
+            this.ShouldIncludeSymLinks = includeSymLinks;
 
             this.DirectoryOperations = new ConcurrentQueue<DiffTreeResult>();
             this.FileDeleteOperations = new ConcurrentQueue<string>();
-            this.FileAddOperations = new ConcurrentDictionary<string, HashSet<string>>(StringComparer.OrdinalIgnoreCase);
+            this.FileAddOperations = new ConcurrentDictionary<string, HashSet<PathWithMode>>(StringComparer.OrdinalIgnoreCase);
             this.RequiredBlobs = new BlockingCollection<string>();
         }
+
+        public bool ShouldIncludeSymLinks { get; set; }
 
         public bool HasFailures { get; private set; }
 
@@ -52,7 +54,7 @@ namespace GVFS.Common.Prefetch.Git
         /// <summary>
         /// Mapping from available sha to filenames where blob should be written
         /// </summary>
-        public ConcurrentDictionary<string, HashSet<string>> FileAddOperations { get; }
+        public ConcurrentDictionary<string, HashSet<PathWithMode>> FileAddOperations { get; }
 
         /// <summary>
         /// Blobs required to perform a checkout of the destination
@@ -78,7 +80,7 @@ namespace GVFS.Common.Prefetch.Git
         {
             string targetTreeSha;
             string headTreeSha;
-            using (PrefetchLibGit2Repo repo = new PrefetchLibGit2Repo(this.tracer, this.enlistment.WorkingDirectoryRoot))
+            using (LibGit2Repo repo = new LibGit2Repo(this.tracer, this.enlistment.WorkingDirectoryRoot))
             {
                 targetTreeSha = repo.GetTreeSha(targetCommitSha);
                 headTreeSha = repo.GetTreeSha("HEAD");
@@ -106,7 +108,7 @@ namespace GVFS.Common.Prefetch.Git
                         recursive: true,
                         showAllTrees: true);
 
-                    if (result.HasErrors)
+                    if (result.ExitCodeIsFailure)
                     {
                         this.HasFailures = true;
                         metadata.Add("Errors", result.Errors);
@@ -122,8 +124,8 @@ namespace GVFS.Common.Prefetch.Git
                         sourceTreeSha,
                         targetTreeSha,
                         line => this.EnqueueOperationsFromDiffTreeLine(this.tracer, this.enlistment.WorkingDirectoryRoot, line));
-                    
-                    if (result.HasErrors)
+
+                    if (result.ExitCodeIsFailure)
                     {
                         this.HasFailures = true;
                         metadata.Add("Errors", result.Errors);
@@ -313,6 +315,11 @@ namespace GVFS.Common.Prefetch.Git
 
         private bool ShouldIncludeResult(DiffTreeResult blobAdd)
         {
+            if (blobAdd.TargetIsSymLink && !this.ShouldIncludeSymLinks)
+            {
+                return false;
+            }
+
             if (blobAdd.TargetPath == null)
             {
                 return true;
@@ -362,9 +369,10 @@ namespace GVFS.Common.Prefetch.Git
             // Each filepath should be case-insensitive unique. If there are duplicates, only the last parsed one should remain.
             if (!this.filesAdded.Add(operation.TargetPath))
             {
-                foreach (KeyValuePair<string, HashSet<string>> kvp in this.FileAddOperations)
+                foreach (KeyValuePair<string, HashSet<PathWithMode>> kvp in this.FileAddOperations)
                 {
-                    if (kvp.Value.Remove(operation.TargetPath))
+                    PathWithMode tempPathWithMode = new PathWithMode(operation.TargetPath, 0x0000);
+                    if (kvp.Value.Remove(tempPathWithMode))
                     {
                         break;
                     }
@@ -381,10 +389,10 @@ namespace GVFS.Common.Prefetch.Git
 
             this.FileAddOperations.AddOrUpdate(
                 operation.TargetSha,
-                new HashSet<string>(StringComparer.OrdinalIgnoreCase) { operation.TargetPath },
+                new HashSet<PathWithMode> { new PathWithMode(operation.TargetPath, operation.TargetMode) },
                 (key, oldValue) =>
                 {
-                    oldValue.Add(operation.TargetPath);
+                    oldValue.Add(new PathWithMode(operation.TargetPath, operation.TargetMode));
                     return oldValue;
                 });
 

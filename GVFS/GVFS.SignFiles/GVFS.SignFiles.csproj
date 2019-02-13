@@ -36,7 +36,6 @@
   <ItemGroup>
     <FilesToSign Include="
       $(BuildOutputDir)\GitHooksLoader\bin\$(Platform)\$(Configuration)\GitHooksLoader.exe;
-      $(BuildOutputDir)\FastFetch\bin\$(Platform)\$(Configuration)\FastFetch.exe;
       $(BuildOutputDir)\GVFS.Common\bin\$(Platform)\$(Configuration)\netstandard2.0\GVFS.Common.dll;
       $(BuildOutputDir)\GVFS.GVFlt\bin\$(Platform)\$(Configuration)\GVFS.GVFlt.dll;
       $(BuildOutputDir)\GVFS.Hooks.Windows\bin\$(Platform)\$(Configuration)\GVFS.Hooks.exe;
@@ -47,6 +46,7 @@
       $(BuildOutputDir)\GVFS.Service.UI\bin\$(Platform)\$(Configuration)\GVFS.Service.UI.exe;
       $(BuildOutputDir)\GVFS.Virtualization\bin\$(Platform)\$(Configuration)\netstandard2.0\GVFS.Virtualization.dll;
       $(BuildOutputDir)\GVFS.VirtualFileSystemHook.Windows\bin\$(Platform)\$(Configuration)\GVFS.VirtualFileSystemHook.exe;
+      $(BuildOutputDir)\GVFS.PostIndexChangedHook.Windows\bin\$(Platform)\$(Configuration)\GVFS.PostIndexChangedHook.exe;
       $(BuildOutputDir)\GVFS.Upgrader\bin\$(Platform)\$(Configuration)\GVFS.Upgrader.exe;
       $(BuildOutputDir)\GVFS.Windows\bin\$(Platform)\$(Configuration)\GVFS.exe;">
       <Authenticode>Microsoft</Authenticode>

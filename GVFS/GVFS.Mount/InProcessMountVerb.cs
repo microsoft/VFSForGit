@@ -9,7 +9,7 @@ using System.IO;
 namespace GVFS.Mount
 {
     [Verb("mount", HelpText = "Starts the background mount process")]
-    public class InProcessMountVerb 
+    public class InProcessMountVerb
     {
         private TextWriter output;
 
@@ -47,13 +47,21 @@ namespace GVFS.Mount
             HelpText = "Show the debug window.  By default, all output is written to a log file and no debug window is shown.")]
         public bool ShowDebugWindow { get; set; }
 
+        [Option(
+            's',
+            GVFSConstants.VerbParameters.Mount.StartedByService,
+            Default = "false",
+            Required = false,
+            HelpText = "Service initiated mount.")]
+        public string StartedByService { get; set; }
+
         [Value(
                 0,
                 Required = true,
                 MetaName = "Enlistment Root Path",
                 HelpText = "Full or relative path to the GVFS enlistment root")]
         public string EnlistmentRootPathParameter { get; set; }
-        
+
         public void InitializeDefaultParameterValues()
         {
             this.Verbosity = GVFSConstants.VerbParameters.Mount.DefaultVerbosity;
@@ -69,7 +77,7 @@ namespace GVFS.Mount
             this.ParseEnumArgs(out verbosity, out keywords);
 
             JsonTracer tracer = this.CreateTracer(enlistment, verbosity, keywords);
-            
+
             CacheServerInfo cacheServer = CacheServerResolver.GetCacheServerFromConfig(enlistment);
 
             tracer.WriteStartEvent(
@@ -80,6 +88,7 @@ namespace GVFS.Mount
                 {
                     { "IsElevated", GVFSPlatform.Instance.IsElevated() },
                     { nameof(this.EnlistmentRootPathParameter), this.EnlistmentRootPathParameter },
+                    { nameof(this.StartedByService), this.StartedByService },
                 });
 
             AppDomain.CurrentDomain.UnhandledException += (object sender, UnhandledExceptionEventArgs e) =>
@@ -125,23 +134,7 @@ namespace GVFS.Mount
 
         private JsonTracer CreateTracer(GVFSEnlistment enlistment, EventLevel verbosity, Keywords keywords)
         {
-            string enlistmentId = null;
-            string mountId = null;
-
-            GitProcess git = new GitProcess(enlistment);
-            GitProcess.Result configResult = git.GetFromLocalConfig(GVFSConstants.GitConfig.EnlistmentId);
-            if (!configResult.HasErrors)
-            {
-                enlistmentId = configResult.Output.Trim();
-            }
-
-            configResult = git.GetFromLocalConfig(GVFSConstants.GitConfig.MountId);
-            if (!configResult.HasErrors)
-            {
-                mountId = configResult.Output.Trim();
-            }
-
-            JsonTracer tracer = new JsonTracer(GVFSConstants.GVFSEtwProviderName, "GVFSMount", enlistmentId: enlistmentId, mountId: mountId);
+            JsonTracer tracer = new JsonTracer(GVFSConstants.GVFSEtwProviderName, "GVFSMount", enlistment.GetEnlistmentId(), enlistment.GetMountId());
             tracer.AddLogFileEventListener(
                 GVFSEnlistment.GetNewGVFSLogFileName(enlistment.GVFSLogsRoot, GVFSConstants.LogFileTypes.MountProcess),
                 verbosity,
@@ -178,7 +171,7 @@ namespace GVFS.Mount
             GVFSEnlistment enlistment = null;
             try
             {
-                enlistment = GVFSEnlistment.CreateFromDirectory(enlistmentRootPath, gitBinPath, ProcessHelper.GetCurrentProcessLocation());
+                enlistment = GVFSEnlistment.CreateFromDirectory(enlistmentRootPath, gitBinPath, ProcessHelper.GetCurrentProcessLocation(), authentication: null);
                 if (enlistment == null)
                 {
                     this.ReportErrorAndExit(

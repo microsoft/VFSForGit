@@ -126,7 +126,6 @@ namespace GVFS.FunctionalTests.Tests.MultiEnlistmentTests
         }
 
         [TestCase]
-        [Category(Categories.MacTODO.M3)]
         public void DeleteObjectsCacheAndCacheMappingBeforeMount()
         {
             GVFSFunctionalTestEnlistment enlistment1 = this.CloneAndMountEnlistment();
@@ -136,7 +135,7 @@ namespace GVFS.FunctionalTests.Tests.MultiEnlistmentTests
 
             string objectsRoot = GVFSHelpers.GetPersistedGitObjectsRoot(enlistment1.DotGVFSRoot).ShouldNotBeNull();
             objectsRoot.ShouldBeADirectory(this.fileSystem);
-            this.DeleteDirectoryWithUnlimitedRetries(objectsRoot);
+            RepositoryHelpers.DeleteTestDirectory(objectsRoot);
 
             string metadataPath = Path.Combine(this.localCachePath, "mapping.dat");
             metadataPath.ShouldBeAFile(this.fileSystem);
@@ -159,7 +158,6 @@ namespace GVFS.FunctionalTests.Tests.MultiEnlistmentTests
         }
 
         [TestCase]
-        [Category(Categories.MacTODO.M3)]
         public void DeleteCacheDuringHydrations()
         {
             GVFSFunctionalTestEnlistment enlistment1 = this.CloneAndMountEnlistment();
@@ -177,7 +175,7 @@ namespace GVFS.FunctionalTests.Tests.MultiEnlistmentTests
                 try
                 {
                     // Delete objectsRoot rather than this.localCachePath as the blob sizes database cannot be deleted while GVFS is mounted
-                    this.DeleteDirectoryWithUnlimitedRetries(objectsRoot);
+                    RepositoryHelpers.DeleteTestDirectory(objectsRoot);
                     Thread.Sleep(100);
                 }
                 catch (IOException)
@@ -217,7 +215,7 @@ namespace GVFS.FunctionalTests.Tests.MultiEnlistmentTests
             mappingFileContents.Length.ShouldNotEqual(0, "mapping.dat should not be empty");
 
             // Delete the git objects root folder, mount should re-create it and the mapping.dat file should not change
-            this.DeleteDirectoryWithUnlimitedRetries(objectsRoot);
+            RepositoryHelpers.DeleteTestDirectory(objectsRoot);
 
             enlistment.MountGVFS();
 
@@ -244,7 +242,7 @@ namespace GVFS.FunctionalTests.Tests.MultiEnlistmentTests
             mappingFileContents.Length.ShouldNotEqual(0, "mapping.dat should not be empty");
 
             // Delete the local cache folder, mount should re-create it and generate a new mapping file and local cache key
-            this.DeleteDirectoryWithUnlimitedRetries(enlistment.LocalCacheRoot);
+            RepositoryHelpers.DeleteTestDirectory(enlistment.LocalCacheRoot);
 
             enlistment.MountGVFS();
 
@@ -288,10 +286,10 @@ namespace GVFS.FunctionalTests.Tests.MultiEnlistmentTests
         }
 
         // Override OnTearDownEnlistmentsDeleted rathern than using [TearDown] as the enlistments need to be unmounted before
-        // localCacheParentPath can be deleted (as the SQLite blob sizes database cannot be deleted while GVFS is mounted) 
+        // localCacheParentPath can be deleted (as the SQLite blob sizes database cannot be deleted while GVFS is mounted)
         protected override void OnTearDownEnlistmentsDeleted()
         {
-            this.DeleteDirectoryWithUnlimitedRetries(this.localCacheParentPath);
+            RepositoryHelpers.DeleteTestDirectory(this.localCacheParentPath);
         }
 
         private GVFSFunctionalTestEnlistment CloneAndMountEnlistment(string branch = null)
@@ -324,19 +322,6 @@ namespace GVFS.FunctionalTests.Tests.MultiEnlistmentTests
                 {
                     File.ReadAllText(allFiles[i]);
                 }
-            }
-        }
-
-        private void DeleteDirectoryWithUnlimitedRetries(string path)
-        {
-            if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
-            {
-                CmdRunner.DeleteDirectoryWithUnlimitedRetries(path);
-            }
-            else
-            {
-                // TODO(Mac): See if we can use BashRunner.DeleteDirectoryWithRetry on Windows as well
-                BashRunner.DeleteDirectoryWithUnlimitedRetries(path);
             }
         }
     }

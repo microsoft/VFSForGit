@@ -14,10 +14,10 @@ namespace GVFS.Virtualization.Background
         private const char ValueTerminatorChar = '\0';
 
         private readonly ConcurrentQueue<KeyValuePair<long, FileSystemTask>> data = new ConcurrentQueue<KeyValuePair<long, FileSystemTask>>();
-        
+
         private long entryCounter = 0;
 
-        private FileSystemTaskQueue(ITracer tracer, PhysicalFileSystem fileSystem, string dataFilePath) 
+        private FileSystemTaskQueue(ITracer tracer, PhysicalFileSystem fileSystem, string dataFilePath)
             : base(tracer, fileSystem, dataFilePath, collectionAppendsDirectlyToFile: true)
         {
         }
@@ -26,7 +26,7 @@ namespace GVFS.Virtualization.Background
         {
             get { return this.data.Count; }
         }
-        
+
         public static bool TryCreate(ITracer tracer, string dataDirectory, PhysicalFileSystem fileSystem, out FileSystemTaskQueue output, out string error)
         {
             output = new FileSystemTaskQueue(tracer, fileSystem, dataDirectory);
@@ -50,7 +50,7 @@ namespace GVFS.Virtualization.Background
                 KeyValuePair<long, FileSystemTask> kvp = new KeyValuePair<long, FileSystemTask>(
                     Interlocked.Increment(ref this.entryCounter),
                     value);
-                
+
                 this.WriteAddEntry(
                     kvp.Key + ValueTerminator + this.Serialize(kvp.Value),
                     () => this.data.Enqueue(kvp));
@@ -159,7 +159,7 @@ namespace GVFS.Virtualization.Background
                 value = default(FileSystemTask);
                 return false;
             }
-            
+
             value = new FileSystemTask(
                 operationType,
                 parts[1],

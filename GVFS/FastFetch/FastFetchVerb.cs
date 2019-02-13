@@ -11,8 +11,8 @@ namespace FastFetch
     [Verb("fastfetch", HelpText = "Fast-fetch a branch")]
     public class FastFetchVerb
     {
-        // Testing has shown that more than 16 download threads does not improve 
-        // performance even with 56 core machines with 40G NICs. More threads does 
+        // Testing has shown that more than 16 download threads does not improve
+        // performance even with 56 core machines with 40G NICs. More threads does
         // create more load on the servers as they have to handle extra connections.
         private const int MaxDefaultDownloadThreads = 16;
 
@@ -106,7 +106,7 @@ namespace FastFetch
             Required = false,
             HelpText = "Sets the path and filename for git.exe if it isn't expected to be on %PATH%.")]
         public string GitBinPath { get; set; }
-        
+
         [Option(
             "folders",
             Required = false,
@@ -172,7 +172,7 @@ namespace FastFetch
                 Console.WriteLine("Cannot use --force-checkout option without --checkout option.");
                 return ExitFailure;
             }
-            
+
             this.SearchThreadCount = this.SearchThreadCount > 0 ? this.SearchThreadCount : Environment.ProcessorCount;
             this.DownloadThreadCount = this.DownloadThreadCount > 0 ? this.DownloadThreadCount : Math.Min(Environment.ProcessorCount, MaxDefaultDownloadThreads);
             this.IndexThreadCount = this.IndexThreadCount > 0 ? this.IndexThreadCount : Environment.ProcessorCount;
@@ -191,7 +191,7 @@ namespace FastFetch
             if (string.IsNullOrWhiteSpace(commitish))
             {
                 GitProcess.Result result = new GitProcess(enlistment).GetCurrentBranchName();
-                if (result.HasErrors || string.IsNullOrWhiteSpace(result.Output))
+                if (result.ExitCodeIsFailure || string.IsNullOrWhiteSpace(result.Output))
                 {
                     Console.WriteLine("Could not retrieve current branch name: " + result.Errors);
                     return ExitFailure;
@@ -231,11 +231,18 @@ namespace FastFetch
                         { "TargetCommitish", commitish },
                         { "Checkout", this.Checkout },
                     });
-                
+
+                string error;
+                if (!enlistment.Authentication.TryInitialize(tracer, enlistment, out error))
+                {
+                    tracer.RelatedError(error);
+                    Console.WriteLine(error);
+                    return ExitFailure;
+                }
+
                 RetryConfig retryConfig = new RetryConfig(this.MaxAttempts, TimeSpan.FromMinutes(RetryConfig.FetchAndCloneTimeoutMinutes));
                 BlobPrefetcher prefetcher = this.GetFolderPrefetcher(tracer, enlistment, cacheServer, retryConfig);
-                string error;
-                if (!BlobPrefetcher.TryLoadFolderList(enlistment, this.FolderList, this.FolderListFile, prefetcher.FolderList, out error))
+                if (!BlobPrefetcher.TryLoadFolderList(enlistment, this.FolderList, this.FolderListFile, prefetcher.FolderList, readListFromStdIn: false, error: out error))
                 {
                     tracer.RelatedError(error);
                     Console.WriteLine(error);

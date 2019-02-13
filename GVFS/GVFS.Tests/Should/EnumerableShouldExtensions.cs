@@ -66,7 +66,7 @@ namespace GVFS.Tests.Should
         public static IEnumerable<T> ShouldContain<T>(this IEnumerable<T> group, IEnumerable<T> expectedValues, Func<T, T, bool> predicate)
         {
             List<T> groupList = new List<T>(group);
-            
+
             foreach (T expectedValue in expectedValues)
             {
                 Assert.IsTrue(groupList.Any(item => predicate(item, expectedValue)));

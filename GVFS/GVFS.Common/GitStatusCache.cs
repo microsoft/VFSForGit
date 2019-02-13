@@ -14,7 +14,7 @@ namespace GVFS.Common
     /// Responsible for orchestrating the Git Status Cache interactions. This is a cache of the results of running
     /// the "git status" command.
     ///
-    /// Consumers are responsible for invalidating the cache and directing it to rebuild. 
+    /// Consumers are responsible for invalidating the cache and directing it to rebuild.
     /// </summary>
     public class GitStatusCache : IDisposable
     {
@@ -348,8 +348,8 @@ namespace GVFS.Common
 
             // Do not modify this block unless you completely understand the comments and code within
             {
-                // We MUST set the state to Rebuilding _immediately before_ we call the `git status` command. That allows us to 
-                // check afterwards if anything happened during the status command that should invalidate the cache, and we 
+                // We MUST set the state to Rebuilding _immediately before_ we call the `git status` command. That allows us to
+                // check afterwards if anything happened during the status command that should invalidate the cache, and we
                 // can discard its results if that happens.
                 this.cacheState = CacheState.Rebuilding;
 
@@ -360,7 +360,7 @@ namespace GVFS.Common
             }
 
             bool rebuildSucceeded = false;
-            if (!statusResult.HasErrors)
+            if (statusResult.ExitCodeIsSuccess)
             {
                 lock (this.cacheFileLock)
                 {
@@ -439,9 +439,10 @@ namespace GVFS.Common
                 metadata.Add("Area", EtwArea);
                 metadata.Add("Exception", ex.ToString());
 
-                this.context.Tracer.RelatedError(
+                this.context.Tracer.RelatedWarning(
                     metadata,
-                    string.Format("GitStatusCache encountered exception attempting to delete cache file at {0}.", this.serializedGitStatusFilePath));
+                    string.Format("GitStatusCache encountered exception attempting to delete cache file at {0}.", this.serializedGitStatusFilePath),
+                    Keywords.Telemetry);
 
                 return false;
             }
