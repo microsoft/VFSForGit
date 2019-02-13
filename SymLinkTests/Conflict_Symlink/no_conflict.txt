@@ -1,1 +1,1 @@
-C:/Temp/Test_GVFS_SymLinks/Conflict_Symlink/Target2.txt
+C:/Temp/Test_GVFS_SymLinks/Conflict_NoSymLinks/Target1.txt
