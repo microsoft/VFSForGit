@@ -1,0 +1,1 @@
+"Another regular file for this directory" 
