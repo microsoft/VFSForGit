@@ -15,10 +15,8 @@ namespace MirrorProvider.Linux
 
         public override bool TryConvertVirtualizationRoot(string directory, out string error)
         {
-            Result result = VirtualizationInstance.ConvertDirectoryToVirtualizationRoot(directory);
-
-            error = result.ToString();
-            return result == Result.Success;
+            error = null;
+            return true;
         }
 
         public override bool TryStartVirtualizationInstance(Enlistment enlistment, out string error)

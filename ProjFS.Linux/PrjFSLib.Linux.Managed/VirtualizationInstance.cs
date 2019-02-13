@@ -22,11 +22,6 @@ namespace PrjFSLib.Linux
         public virtual NotifyFileRenamedEvent OnFileRenamed { get; set; }
         public virtual NotifyHardLinkCreatedEvent OnHardLinkCreated { get; set; }
 
-        public static Result ConvertDirectoryToVirtualizationRoot(string fullPath)
-        {
-            return Interop.PrjFSLib.ConvertDirectoryToVirtualizationRoot(fullPath);
-        }
-
         public virtual Result StartVirtualizationInstance(
             string storageRootFullPath,
             string virtualizationRootFullPath,
