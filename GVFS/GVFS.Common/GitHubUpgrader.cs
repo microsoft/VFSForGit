@@ -540,37 +540,9 @@ namespace GVFS.Common
                 this.UpgradeRing = RingType.NoConfig;
 
                 string ringConfig = null;
-                string upgradeFeedUrl = null;
                 string loadError = "Could not read GVFS Config." + Environment.NewLine + GVFSConstants.UpgradeVerbMessages.SetUpgradeRingCommand;
 
-                // There are couple config settings that contain info about Upgrade rings.
-                // upgrade.ring and upgrade.feedURL. upgrade.feedURL will override upgrade.ring
-                // config. If upgrade.feedURL is set, but does not contain valid ring info then
-                // upgrade ring would be set to NoConfig and auto upgrade checks will fail.
-                if (!this.LocalConfig.TryGetConfig(GVFSConstants.LocalGVFSConfig.UpgradeFeedUrl, out upgradeFeedUrl, out error))
-                {
-                    error = loadError;
-                    return false;
-                }
-
-                // If upgradeFeedUrl is available then use it for the ring config, if not use regular
-                // upgrade.ring.
-                if (!string.IsNullOrEmpty(upgradeFeedUrl))
-                {
-                    this.UpgradeRing = RingType.None;
-
-                    string[] expectedRings = new string[] { RingType.Slow.ToString(), RingType.Fast.ToString() };
-                    foreach (string ring in expectedRings)
-                    {
-                        string ringSubstring = $"@{ring}/";
-                        if (upgradeFeedUrl.IndexOf(ringSubstring, StringComparison.OrdinalIgnoreCase) != -1)
-                        {
-                            ringConfig = ring;
-                            break;
-                        }
-                    }
-                }
-                else if (!this.LocalConfig.TryGetConfig(GVFSConstants.LocalGVFSConfig.UpgradeRing, out ringConfig, out error))
+                if (!this.LocalConfig.TryGetConfig(GVFSConstants.LocalGVFSConfig.UpgradeRing, out ringConfig, out error))
                 {
                     error = loadError;
                     return false;
