@@ -1,1 +1,1 @@
-"This is the regular file in the clean merge case" 
+This is the regular file in the clean merge case
