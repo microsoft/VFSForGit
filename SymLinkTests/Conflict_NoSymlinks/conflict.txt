@@ -1,1 +1,2 @@
-"File to create a conflict for" 
+File to create a conflict for
+Hopefully this will create a conflict.
