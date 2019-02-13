@@ -22,10 +22,6 @@ namespace PrjFSLib.Linux.Interop
         public static extern void StopVirtualizationInstance(
             IntPtr mountHandle);
 
-        [DllImport(PrjFSLibPath, EntryPoint = "PrjFS_ConvertDirectoryToVirtualizationRoot")]
-        public static extern Result ConvertDirectoryToVirtualizationRoot(
-            string virtualizationRootFullPath);
-
         [DllImport(PrjFSLibPath, EntryPoint = "PrjFS_WritePlaceholderDirectory")]
         public static extern Result WritePlaceholderDirectory(
             IntPtr mountHandle,
