@@ -52,6 +52,7 @@ static const char* const PerfCounterNames[PrjFSPerfCounter_Count] =
     [PrjFSPerfCounter_VnodeOp_EnumerateDirectory]                           = " |--RaiseEnumerateDirectoryEvent",
     [PrjFSPerfCounter_VnodeOp_RecursivelyEnumerateDirectory]                = " |--RaiseRecursivelyEnumerateEvent",
     [PrjFSPerfCounter_VnodeOp_HydrateFile]                                  = " |--RaiseHydrateFileEvent",
+    [PrjFSPerfCounter_VnodeOp_FileModified]                                 = " |--RaiseFileModifiedEvent",
     [PrjFSPerfCounter_FileOp]                                               = "HandleFileOpOperation",
     [PrjFSPerfCounter_FileOp_ShouldHandle]                                  = " |--ShouldHandleFileOpEvent",
     [PrjFSPerfCounter_FileOp_ShouldHandle_FindVirtualizationRoot]           = " |  |--FindVirtualizationRoot",
@@ -62,7 +63,6 @@ static const char* const PerfCounterNames[PrjFSPerfCounter_Count] =
     [PrjFSPerfCounter_FileOp_ShouldHandle_OriginatedByProvider]             = " |     |--OriginatedByProvider",
     [PrjFSPerfCounter_FileOp_Renamed]                                       = " |--RaiseRenamedEvent",
     [PrjFSPerfCounter_FileOp_HardLinkCreated]                               = " |--RaiseHardLinkCreatedEvent",
-    [PrjFSPerfCounter_FileOp_FileModified]                                  = " |--RaiseFileModifiedEvent",
     [PrjFSPerfCounter_FileOp_FileCreated]                                   = " |--RaiseFileCreatedEvent",
 };
 

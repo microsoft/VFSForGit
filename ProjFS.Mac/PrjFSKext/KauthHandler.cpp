@@ -499,6 +499,30 @@ static int HandleVnodeOperation(
                         kauthError))
                 {
                     goto CleanupAndReturn;
+                }                
+            }
+            
+            if(ActionBitIsSet(action, KAUTH_VNODE_WRITE_DATA))
+            {
+                if (!TryGetVirtualizationRoot(&perfTracer, context, currentVnode, pid, &root, &vnodeFsidInode, &kauthResult, kauthError))
+                {
+                    goto CleanupAndReturn;
+                }
+                
+                PerfSample fileModifiedSample(&perfTracer, PrjFSPerfCounter_VnodeOp_FileModified);
+                
+                if (!TrySendRequestAndWaitForResponse(
+                                                      root,
+                                                      MessageType_KtoU_NotifyFileModified,
+                                                      currentVnode,
+                                                      vnodeFsidInode,
+                                                      vnodePath,
+                                                      pid,
+                                                      procname,
+                                                      &kauthResult,
+                                                      kauthError))
+                {
+                    goto CleanupAndReturn;
                 }
             }
         }
@@ -674,59 +698,6 @@ static int HandleFileOpOperation(
                                               procname,
                                               &kauthResult,
                                               &kauthError))
-        {
-            goto CleanupAndReturn;
-        }
-    }
-    else if (KAUTH_FILEOP_CLOSE == action)
-    {
-        currentVnode = reinterpret_cast<vnode_t>(arg0);
-        putCurrentVnode = false;
-        const char* path = reinterpret_cast<const char*>(arg1);
-        int closeFlags = static_cast<int>(arg2);
-        
-        if (vnode_isdir(currentVnode))
-        {
-            goto CleanupAndReturn;
-        }
-        
-        UseMainForkIfNamedStream(currentVnode, putCurrentVnode);
-        
-        if (KAUTH_FILEOP_CLOSE_MODIFIED != closeFlags)
-        {
-            goto CleanupAndReturn;
-        }
-            
-        VirtualizationRootHandle root = RootHandle_None;
-        FsidInode vnodeFsidInode;
-        int pid;
-        if (!ShouldHandleFileOpEvent(
-                &perfTracer,
-                context,
-                currentVnode,
-                action,
-                &root,
-                &vnodeFsidInode,
-                &pid))
-        {
-            goto CleanupAndReturn;
-        }
-        
-        char procname[MAXCOMLEN + 1];
-        proc_name(pid, procname, MAXCOMLEN + 1);
-        PerfSample fileModifiedSample(&perfTracer, PrjFSPerfCounter_FileOp_FileModified);
-        int kauthResult;
-        int kauthError;
-        if (!TrySendRequestAndWaitForResponse(
-                root,
-                MessageType_KtoU_NotifyFileModified,
-                currentVnode,
-                vnodeFsidInode,
-                path,
-                pid,
-                procname,
-                &kauthResult,
-                &kauthError))
         {
             goto CleanupAndReturn;
         }
