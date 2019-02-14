@@ -27,6 +27,7 @@ namespace MirrorProvider.Mac
             this.virtualizationInstance.OnNewFileCreated = this.OnNewFileCreated;
             this.virtualizationInstance.OnFileRenamed = this.OnFileRenamed;
             this.virtualizationInstance.OnHardLinkCreated = this.OnHardLinkCreated;
+            this.virtualizationInstance.OnFilePreConvertToFull = this.OnFilePreConvertToFull;
 
             Result result = this.virtualizationInstance.StartVirtualizationInstance(
                 enlistment.SrcRoot,
@@ -199,6 +200,12 @@ namespace MirrorProvider.Mac
         private void OnHardLinkCreated(string relativeNewLinkPath)
         {
             Console.WriteLine($"OnHardLinkCreated: {relativeNewLinkPath}");
+        }
+
+        private Result OnFilePreConvertToFull(string relativePath)
+        {
+            Console.WriteLine($"OnFilePreConvertToFull: {relativePath}");
+            return Result.Success;
         }
 
         private bool TryGetSymLinkTarget(string relativePath, out string symLinkTarget)

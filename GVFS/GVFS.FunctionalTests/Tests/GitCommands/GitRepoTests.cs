@@ -243,10 +243,12 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
             this.FileSystem.CreateFileWithoutClose(controlFile);
         }
 
-        protected void OpenFileAndWriteWithoutClose(string path, string contents)
+        protected void ReadFileAndWriteWithoutClose(string path, string contents)
         {
             string virtualFile = Path.Combine(this.Enlistment.RepoRoot, path);
             string controlFile = Path.Combine(this.ControlGitRepo.RootPath, path);
+            this.FileSystem.ReadAllText(virtualFile);
+            this.FileSystem.ReadAllText(controlFile);
             this.FileSystem.OpenFileAndWriteWithoutClose(virtualFile, contents);
             this.FileSystem.OpenFileAndWriteWithoutClose(controlFile, contents);
         }

@@ -218,6 +218,7 @@ namespace GVFS.Platform.Mac
             this.virtualizationInstance.OnNewFileCreated = this.OnNewFileCreated;
             this.virtualizationInstance.OnFileRenamed = this.OnFileRenamed;
             this.virtualizationInstance.OnHardLinkCreated = this.OnHardLinkCreated;
+            this.virtualizationInstance.OnFilePreConvertToFull = this.NotifyFilePreConvertToFull;
 
             uint threadCount = (uint)Environment.ProcessorCount * 2;
 
@@ -437,23 +438,17 @@ namespace GVFS.Platform.Mac
                 {
                     this.OnDotGitFileOrFolderChanged(relativePath);
                 }
-                else
-                {
-                    // TODO(Mac): As a temporary work around (until we have a ConvertToFull type notification) treat every modification
-                    // as the first write to the file
-                    bool isFolder;
-                    string fileName;
-                    bool isPathProjected = this.FileSystemCallbacks.GitIndexProjection.IsPathProjected(relativePath, out fileName, out isFolder);
-                    if (isPathProjected)
-                    {
-                        this.FileSystemCallbacks.OnFileConvertedToFull(relativePath);
-                    }
-                }
             }
             catch (Exception e)
             {
                 this.LogUnhandledExceptionAndExit(nameof(this.OnFileModified), this.CreateEventMetadata(relativePath, e));
             }
+        }
+
+        private Result NotifyFilePreConvertToFull(string relativePath)
+        {
+            this.OnFilePreConvertToFull(relativePath);
+            return Result.Success;
         }
 
         private Result OnPreDelete(string relativePath, bool isDirectory)

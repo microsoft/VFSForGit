@@ -46,12 +46,11 @@ namespace GVFS.FunctionalTests.Tests.GitCommands
             this.ValidateGitCommand("status");
         }
 
-        [Ignore("This test exposes a bug we don't yet have a fix for")]
         [TestCase]
         public void WriteWithoutClose()
         {
             string srcPath = @"Readme.md";
-            this.OpenFileAndWriteWithoutClose(srcPath, "More Stuff");
+            this.ReadFileAndWriteWithoutClose(srcPath, "More Stuff");
             this.ValidateGitCommand("status");
         }
 

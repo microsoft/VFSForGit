@@ -29,6 +29,7 @@ enum PrjFSPerfCounter : int32_t
         PrjFSPerfCounter_VnodeOp_EnumerateDirectory,
         PrjFSPerfCounter_VnodeOp_RecursivelyEnumerateDirectory,
         PrjFSPerfCounter_VnodeOp_HydrateFile,
+        PrjFSPerfCounter_VnodeOp_PreConvertToFull,
     
     PrjFSPerfCounter_FileOp,
         PrjFSPerfCounter_FileOp_ShouldHandle,

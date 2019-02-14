@@ -701,6 +701,7 @@ static void HandleKernelRequest(void* messageMemory, uint32_t messageSize)
         case MessageType_KtoU_NotifyFileModified:
         case MessageType_KtoU_NotifyFilePreDelete:
         case MessageType_KtoU_NotifyDirectoryPreDelete:
+        case MessageType_KtoU_NotifyFilePreConvertToFull:
         {
             char fullPath[PrjFSMaxPath];
             CombinePaths(s_virtualizationRootFullPath.c_str(), request.path, fullPath);
@@ -1011,7 +1012,7 @@ static PrjFS_Result HandleFileNotification(
 #endif
     
     PrjFSFileXAttrData xattrData = {};
-    bool partialFile = TryGetXAttr(fullPath, PrjFSFileXAttrName, sizeof(PrjFSFileXAttrData), &xattrData);
+    bool placeholderFile = TryGetXAttr(fullPath, PrjFSFileXAttrName, sizeof(PrjFSFileXAttrData), &xattrData);
 
     PrjFS_Result result = s_callbacks.NotifyOperation(
         0 /* commandId */,
@@ -1024,10 +1025,8 @@ static PrjFS_Result HandleFileNotification(
         notificationType,
         nullptr /* destinationRelativePath */);
     
-    if (partialFile && PrjFS_NotificationType_FileModified == notificationType)
+    if (result == 0 && placeholderFile && PrjFS_NotificationType_PreConvertToFull == notificationType)
     {
-        // PrjFS_NotificationType_FileModified is a post-modified FileOp event (that cannot be stopped
-        // by the provider) and so there's no need to check the result of the call to NotifyOperation
         errno_t result = RemoveXAttrWithoutFollowingLinks(fullPath, PrjFSFileXAttrName);
         if (0 != result)
         {
@@ -1216,6 +1215,9 @@ static inline PrjFS_NotificationType KUMessageTypeToNotificationType(MessageType
         case MessageType_KtoU_NotifyFilePreDelete:
         case MessageType_KtoU_NotifyDirectoryPreDelete:
             return PrjFS_NotificationType_PreDelete;
+
+        case MessageType_KtoU_NotifyFilePreConvertToFull:
+            return PrjFS_NotificationType_PreConvertToFull;
             
         case MessageType_KtoU_NotifyFileCreated:
             return PrjFS_NotificationType_NewFileCreated;
