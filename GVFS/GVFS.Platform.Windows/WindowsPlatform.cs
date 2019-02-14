@@ -92,14 +92,11 @@ namespace GVFS.Platform.Windows
                 yield return etwListener;
             }
 
-            // TODO: enable the daemon-based telemetry listener once we're happy.
-            // See GitHub issue: https://github.com/Microsoft/VFSForGit/issues/739
-            //
-            // TelemetryDaemonEventListener daemonListener = TelemetryDaemonEventListener.CreateIfEnabled(gitBinRoot, providerName, enlistmentId, mountId, pipeName: "vfs");
-            // if (daemonListener != null)
-            // {
-            //     yield return daemonListener;
-            // }
+            TelemetryDaemonEventListener daemonListener = TelemetryDaemonEventListener.CreateIfEnabled(gitBinRoot, providerName, enlistmentId, mountId);
+            if (daemonListener != null)
+            {
+                yield return daemonListener;
+            }
         }
 
         public override void InitializeEnlistmentACLs(string enlistmentPath)

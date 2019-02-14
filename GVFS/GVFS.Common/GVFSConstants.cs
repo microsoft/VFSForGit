@@ -32,6 +32,7 @@ namespace GVFS.Common
             public const string DeprecatedCacheEndpointSuffix = ".cache-server-url";
             public const string HooksPrefix = GitConfig.GVFSPrefix + "clone.default-";
             public const string GVFSTelemetryId = GitConfig.GVFSPrefix + "telemetry-id";
+            public const string GVFSTelemetryPipe = GitConfig.GVFSPrefix + "telemetry-pipe";
             public const string IKey = GitConfig.GVFSPrefix + "ikey";
             public const string HooksExtension = ".hooks";
         }

@@ -91,16 +91,13 @@ namespace GVFS.Platform.Mac
 
         public override IEnumerable<EventListener> CreateTelemetryListeners(string providerName, string enlistmentId, string mountId)
         {
-            // TODO: return TelemetryDaemonEventListener when the telemetry daemon has been implemented for Mac
+            string gitBinRoot = this.GitInstallation.GetInstalledGitBinPath();
 
-            // string gitBinRoot = this.GitInstallation.GetInstalledGitBinPath();
-            // var daemonListener = TelemetryDaemonEventListener.CreateIfEnabled(gitBinRoot, providerName, enlistmentId, mountId, pipeName: "vfs");
-            // if (daemonListener != null)
-            // {
-            //     yield return daemonListener;
-            // }
-
-            yield break;
+            TelemetryDaemonEventListener daemonListener = TelemetryDaemonEventListener.CreateIfEnabled(gitBinRoot, providerName, enlistmentId, mountId);
+            if (daemonListener != null)
+            {
+                yield return daemonListener;
+            }
         }
 
         public override string GetCurrentUser()
