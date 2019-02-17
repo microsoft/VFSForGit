@@ -21,8 +21,10 @@ struct VirtualizationRoot
     // If this is a nullptr, there is no active provider for this virtualization root (offline root)
     PrjFSProviderUserClient*    providerUserClient;
     int                         providerPid;
-    // For an active root, this is retained (vnode_get), for an offline one, it is not, so it may be stale (check the vid)
-    vnode_t                     rootVNode;
+    VnodeIORef                  providerRootVNode;
+    
+    // Non-null even if no provider is active, but no iocount so may be stale (check vid)
+    vnode_t                     rootVNodeWeak;
     uint32_t                    rootVNodeVid;
     
     // Mount point ID + persistent, on-disk ID for the root directory, so we can
@@ -48,7 +50,7 @@ static VirtualizationRootHandle FindRootAtVnode_Locked(vnode_t vnode, uint32_t v
 static VirtualizationRootHandle FindOrDetectRootAtVnode(vnode_t vnode, const FsidInode& vnodeFsidInode);
 
 static VirtualizationRootHandle FindUnusedIndex_Locked();
-static VirtualizationRootHandle InsertVirtualizationRoot_Locked(PrjFSProviderUserClient* userClient, pid_t clientPID, vnode_t vnode, uint32_t vid, FsidInode persistentIds, const char* path);
+static VirtualizationRootHandle InsertVirtualizationRoot_Locked(PrjFSProviderUserClient* userClient, pid_t clientPID, VnodeIORef& vnode, uint32_t vid, FsidInode persistentIds, const char* path);
 
 bool VirtualizationRoot_IsOnline(VirtualizationRootHandle rootHandle)
 {
@@ -229,8 +231,10 @@ static VirtualizationRootHandle FindOrDetectRootAtVnode(vnode_t _Nonnull vnode, 
                 
                 if (RootHandle_None == rootIndex)
                 {
+                    VnodeIORef vnodeRef;
+                    vnodeRef.SetAndRetain(vnode);
                     // Insert new offline root
-                    rootIndex = InsertVirtualizationRoot_Locked(nullptr, 0, vnode, vid, vnodeFsidInode, path);
+                    rootIndex = InsertVirtualizationRoot_Locked(nullptr, 0, vnodeRef, vid, vnodeFsidInode, path);
                     
                     // TODO: error handling
                     assert(rootIndex >= 0);
@@ -280,9 +284,12 @@ static VirtualizationRootHandle FindUnusedIndexOrGrow_Locked()
             return RootHandle_None;
         }
         
-        uint32_t oldSizeBytes = sizeof(s_virtualizationRoots[0]) * s_maxVirtualizationRoots;
-        memcpy(grownArray, s_virtualizationRoots, oldSizeBytes);
-        Memory_Free(s_virtualizationRoots, oldSizeBytes);
+        for (uint32_t i = 0; i < s_maxVirtualizationRoots; ++i)
+        {
+            grownArray[i] = s_virtualizationRoots[i];
+        }
+        
+        Memory_FreeArray(s_virtualizationRoots, s_maxVirtualizationRoots);
         s_virtualizationRoots = grownArray;
 
         for (uint16_t i = s_maxVirtualizationRoots; i < newLength; ++i)
@@ -312,7 +319,7 @@ static VirtualizationRootHandle FindRootAtVnode_Locked(vnode_t vnode, uint32_t v
             continue;
         }
         
-        if (rootEntry.rootVNode == vnode && rootEntry.rootVNodeVid == vid)
+        if (rootEntry.rootVNodeWeak == vnode && rootEntry.rootVNodeVid == vid)
         {
             assert(fileId.fsid.val[0] == rootEntry.rootFsid.val[0]);
             return i;
@@ -322,7 +329,7 @@ static VirtualizationRootHandle FindRootAtVnode_Locked(vnode_t vnode, uint32_t v
         {
             assert(rootEntry.providerUserClient == nullptr);
             // root vnode must be stale, update it
-            rootEntry.rootVNode = vnode;
+            rootEntry.rootVNodeWeak = vnode;
             rootEntry.rootVNodeVid = vid;
             return i;
         }
@@ -332,7 +339,7 @@ static VirtualizationRootHandle FindRootAtVnode_Locked(vnode_t vnode, uint32_t v
 }
 
 // Returns negative value if it failed, or inserted index on success
-static VirtualizationRootHandle InsertVirtualizationRoot_Locked(PrjFSProviderUserClient* userClient, pid_t clientPID, vnode_t vnode, uint32_t vid, FsidInode persistentIds, const char* path)
+static VirtualizationRootHandle InsertVirtualizationRoot_Locked(PrjFSProviderUserClient* userClient, pid_t clientPID, VnodeIORef& vnode, uint32_t vid, FsidInode persistentIds, const char* path)
 {
     VirtualizationRootHandle rootIndex = FindUnusedIndexOrGrow_Locked();
     
@@ -343,13 +350,19 @@ static VirtualizationRootHandle InsertVirtualizationRoot_Locked(PrjFSProviderUse
         
         root->providerUserClient = userClient;
         root->providerPid = clientPID;
+        
         root->inUse = true;
 
-        root->rootVNode = vnode;
+        root->rootVNodeWeak = vnode.Get();
         root->rootVNodeVid = vid;
         root->rootFsid = persistentIds.fsid;
         root->rootInode = persistentIds.inode;
         strlcpy(root->path, path, sizeof(root->path));
+
+        if (userClient != nullptr)
+        {
+            root->providerRootVNode = move(vnode);
+        }
     }
     
     return rootIndex;
@@ -367,11 +380,12 @@ VirtualizationRootResult VirtualizationRoot_RegisterProviderForPath(PrjFSProvide
     assert(nullptr != virtualizationRootPath);
     assert(nullptr != userClient);
     
-    vnode_t virtualizationRootVNode = NULLVP;
     vfs_context_t _Nonnull vfsContext = vfs_context_create(nullptr);
     
     VirtualizationRootHandle rootIndex = RootHandle_None;
-    errno_t err = vnode_lookup(virtualizationRootPath, 0 /* flags */, &virtualizationRootVNode, vfsContext);
+    vnode_t tempVnode = NULLVP;
+    errno_t err = vnode_lookup(virtualizationRootPath, 0 /* flags */, &tempVnode, vfsContext);
+    VnodeIORef virtualizationRootVNode(tempVnode);
     if (0 == err)
     {
         if (!VirtualizationRoot_VnodeIsOnAllowedFilesystem(virtualizationRootVNode))
@@ -386,7 +400,7 @@ VirtualizationRootResult VirtualizationRoot_RegisterProviderForPath(PrjFSProvide
         {
             char virtualizationRootCanonicalPath[PrjFSMaxPath] = "";
             int virtualizationRootCanonicalPathLength = sizeof(virtualizationRootCanonicalPath);
-            err = vn_getpath(virtualizationRootVNode, virtualizationRootCanonicalPath, &virtualizationRootCanonicalPathLength);
+            err = vn_getpath(virtualizationRootVNode.Get(), virtualizationRootCanonicalPath, &virtualizationRootCanonicalPathLength);
             
             if (0 != err)
             {
@@ -395,12 +409,12 @@ VirtualizationRootResult VirtualizationRoot_RegisterProviderForPath(PrjFSProvide
             }
             else
             {
-                FsidInode vnodeIds = Vnode_GetFsidAndInode(virtualizationRootVNode, vfsContext);
+                FsidInode vnodeIds = Vnode_GetFsidAndInode(virtualizationRootVNode.Get(), vfsContext);
                 uint32_t rootVid = vnode_vid(virtualizationRootVNode);
                 
                 RWLock_AcquireExclusive(s_virtualizationRootsLock);
                 {
-                    rootIndex = FindRootAtVnode_Locked(virtualizationRootVNode, rootVid, vnodeIds);
+                    rootIndex = FindRootAtVnode_Locked(virtualizationRootVNode.Get(), rootVid, vnodeIds);
                     if (rootIndex >= 0)
                     {
                         // Reattaching to existing root
@@ -415,7 +429,7 @@ VirtualizationRootResult VirtualizationRoot_RegisterProviderForPath(PrjFSProvide
                             VirtualizationRoot& root = s_virtualizationRoots[rootIndex];
                             root.providerUserClient = userClient;
                             root.providerPid = clientPID;
-                            virtualizationRootVNode = NULLVP; // transfer ownership
+                            root.providerRootVNode = move(virtualizationRootVNode);
                         }
                     }
                     else
@@ -425,7 +439,7 @@ VirtualizationRootResult VirtualizationRoot_RegisterProviderForPath(PrjFSProvide
                         {
                             assert(rootIndex < s_maxVirtualizationRoots);
                         
-                            virtualizationRootVNode = NULLVP; // prevent vnode_put later; active provider should hold vnode reference
+                            assert(virtualizationRootVNode.IsNull()); // InsertVirtualizationRoot_Locked should already have transferred ownership
                         
                             KextLog_Note("VirtualizationRoot_RegisterProviderForPath: new root not found in offline roots, inserted as new root with index %d. path '%s'", rootIndex, virtualizationRootCanonicalPath);
                         }
@@ -446,15 +460,10 @@ VirtualizationRootResult VirtualizationRoot_RegisterProviderForPath(PrjFSProvide
         }
     }
     
-    if (NULLVP != virtualizationRootVNode)
-    {
-        vnode_put(virtualizationRootVNode);
-    }
-    
     if (rootIndex >= 0)
     {
         VirtualizationRoot* root = &s_virtualizationRoots[rootIndex];
-        vfs_setauthcache_ttl(vnode_mount(root->rootVNode), 0);
+        vfs_setauthcache_ttl(vnode_mount(root->providerRootVNode.Get()), 0);
     }
     
     vfs_context_rele(vfsContext);
@@ -471,11 +480,10 @@ void ActiveProvider_Disconnect(VirtualizationRootHandle rootIndex)
 
         VirtualizationRoot* root = &s_virtualizationRoots[rootIndex];
         assert(nullptr != root->providerUserClient);
-        
-        assert(NULLVP != root->rootVNode);
-        vnode_put(root->rootVNode);
+        assert(!root->providerRootVNode.IsNull());
+        assert(NULLVP != root->rootVNodeWeak);
+        root->providerRootVNode.Reset();
         root->providerPid = 0;
-        
         root->providerUserClient = nullptr;
 
         RWLock_DropExclusiveToShared(s_virtualizationRootsLock);

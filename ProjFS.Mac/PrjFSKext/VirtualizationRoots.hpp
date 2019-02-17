@@ -5,6 +5,7 @@
 #include "public/PrjFSPerfCounter.h"
 #include "PerformanceTracing.hpp"
 #include "kernel-header-wrappers/vnode.h"
+#include "VnodeUtilities.hpp"
 
 typedef int16_t VirtualizationRootHandle;
 
@@ -41,7 +42,13 @@ void ActiveProvider_Disconnect(VirtualizationRootHandle rootHandle);
 struct Message;
 errno_t ActiveProvider_SendMessage(VirtualizationRootHandle rootHandle, const Message message);
 bool VirtualizationRoot_VnodeIsOnAllowedFilesystem(vnode_t _Nonnull vnode);
+inline bool VirtualizationRoot_VnodeIsOnAllowedFilesystem(const VnodeIORef& vnodeRef);
 bool VirtualizationRoot_IsOnline(VirtualizationRootHandle rootHandle);
 bool VirtualizationRoot_PIDMatchesProvider(VirtualizationRootHandle rootHandle, pid_t pid);
 bool VirtualizationRoot_IsValidRootHandle(VirtualizationRootHandle rootHandle);
 const char* _Nonnull VirtualizationRoot_GetRootRelativePath(VirtualizationRootHandle rootHandle, const char* _Nonnull path);
+
+inline bool VirtualizationRoot_VnodeIsOnAllowedFilesystem(const VnodeIORef& vnodeRef)
+{
+    return VirtualizationRoot_VnodeIsOnAllowedFilesystem(vnodeRef.Get());
+}
