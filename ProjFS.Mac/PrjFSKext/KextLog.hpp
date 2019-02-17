@@ -8,6 +8,9 @@
 #include "kernel-header-wrappers/mount.h"
 #include <os/log.h>
 
+// Redeclared as printf-like to get format string warnings on assertf()
+extern "C" void panic(const char* fmt, ...) __printflike(1, 2);
+
 bool KextLog_Init();
 void KextLog_Cleanup();
 

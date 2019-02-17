@@ -317,9 +317,16 @@ static VirtualizationRootHandle FindRootAtVnode_Locked(vnode_t vnode, uint32_t v
             assert(fileId.fsid.val[0] == rootEntry.rootFsid.val[0]);
             return i;
         }
+        else if (rootEntry.rootVNode == vnode)
+        {
+            assert(rootEntry.providerUserClient == nullptr);
+        }
+        
         
         if (FsidsAreEqual(rootEntry.rootFsid, fileId.fsid) && rootEntry.rootInode == fileId.inode)
         {
+            assertf(rootEntry.providerUserClient == nullptr, "Finding root vnode based on FSID/inode equality but not vnode identity (recycled vnode) should only happen if no provider is active. Root index %d, provider PID %d, IOUC %p path '%s'",
+                i, rootEntry.providerPid, rootEntry.providerUserClient, rootEntry.path);
             // root vnode must be stale, update it
             rootEntry.rootVNode = vnode;
             rootEntry.rootVNodeVid = vid;
@@ -338,6 +345,7 @@ static VirtualizationRootHandle InsertVirtualizationRoot_Locked(PrjFSProviderUse
     if (RootHandle_None != rootIndex)
     {
         assert(rootIndex < s_maxVirtualizationRoots);
+        assert(!s_virtualizationRoots[rootIndex].inUse);
         VirtualizationRoot* root = &s_virtualizationRoots[rootIndex];
         
         root->providerUserClient = userClient;
@@ -412,6 +420,7 @@ VirtualizationRootResult VirtualizationRoot_RegisterProviderForPath(PrjFSProvide
                         else
                         {
                             VirtualizationRoot& root = s_virtualizationRoots[rootIndex];
+                            assert(root.rootVNode == virtualizationRootVNode);
                             root.providerUserClient = userClient;
                             root.providerPid = clientPID;
                             virtualizationRootVNode = NULLVP; // transfer ownership
