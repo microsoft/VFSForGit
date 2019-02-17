@@ -320,6 +320,7 @@ static VirtualizationRootHandle FindRootAtVnode_Locked(vnode_t vnode, uint32_t v
         
         if (FsidsAreEqual(rootEntry.rootFsid, fileId.fsid) && rootEntry.rootInode == fileId.inode)
         {
+            assert(rootEntry.providerUserClient == nullptr);
             // root vnode must be stale, update it
             rootEntry.rootVNode = vnode;
             rootEntry.rootVNodeVid = vid;
