@@ -86,12 +86,6 @@ namespace GVFS.Platform.Windows
                 yield break;
             }
 
-            ETWTelemetryEventListener etwListener = ETWTelemetryEventListener.CreateIfEnabled(gitBinRoot, providerName, enlistmentId, mountId);
-            if (etwListener != null)
-            {
-                yield return etwListener;
-            }
-
             TelemetryDaemonEventListener daemonListener = TelemetryDaemonEventListener.CreateIfEnabled(gitBinRoot, providerName, enlistmentId, mountId);
             if (daemonListener != null)
             {
