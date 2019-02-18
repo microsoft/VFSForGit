@@ -40,6 +40,7 @@ namespace PrjFSLib.Linux.Interop
 
         [DllImport(PrjFSLibPath, EntryPoint = "PrjFS_WriteSymLink")]
         public static extern Result WriteSymLink(
+            IntPtr mountHandle,
             string relativePath,
             string symLinkTarget);
 
