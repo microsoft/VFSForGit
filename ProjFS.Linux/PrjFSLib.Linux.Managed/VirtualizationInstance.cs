@@ -121,7 +121,10 @@ namespace PrjFSLib.Linux
             string relativePath,
             string symLinkTarget)
         {
-            return Interop.PrjFSLib.WriteSymLink(relativePath, symLinkTarget);
+            return Interop.PrjFSLib.WriteSymLink(
+                this.mountHandle,
+                relativePath,
+                symLinkTarget);
         }
 
         public virtual Result UpdatePlaceholderIfNeeded(
