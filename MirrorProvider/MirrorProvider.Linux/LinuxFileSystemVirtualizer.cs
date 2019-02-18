@@ -3,6 +3,7 @@ using System;
 using System.IO;
 using System.Runtime.InteropServices;
 using System.Text;
+using Mono.Unix.Native;
 
 namespace MirrorProvider.Linux
 {
@@ -106,14 +107,16 @@ namespace MirrorProvider.Linux
                     }
                     else
                     {
-                        // The MirrorProvider marks every file as executable (mode 755), but this is just a shortcut to avoid the pain of
-                        // having to p/invoke to determine if the original file is exectuable or not.
-                        // A real provider will have to get this information from its data source. For example, GVFS gets this info
-                        // out of the git index along with all the other info for projecting files.
-                        UInt16 fileMode = Convert.ToUInt16("755", 8);
+                        string childRelativePath = Path.Combine(relativePath, child.Name);
+                        int statResult = Syscall.lstat(this.GetFullPathInMirror(childRelativePath), out Stat stat);
+                        if (statResult == -1)
+                        {
+                            return Result.EIOError;
+                        }
+                        ushort fileMode = (ushort)(stat.st_mode & FilePermissions.ALLPERMS);
 
                         Result result = this.virtualizationInstance.WritePlaceholderFile(
-                            Path.Combine(relativePath, child.Name),
+                            childRelativePath,
                             providerId: ToVersionIdByteArray(1),
                             contentId: ToVersionIdByteArray(0),
                             fileSize: (ulong)child.Size,
@@ -165,7 +168,7 @@ namespace MirrorProvider.Linux
                             (uint)bytesToCopy);
                         if (result != Result.Success)
                         {
-                        Console.WriteLine($"WriteFileContents failed: {result}");
+                            Console.WriteLine($"WriteFileContents failed: {result}");
                             return false;
                         }
 
