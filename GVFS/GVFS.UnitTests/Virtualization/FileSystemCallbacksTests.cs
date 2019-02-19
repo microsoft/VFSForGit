@@ -72,32 +72,6 @@ namespace GVFS.UnitTests.Virtualization
         }
 
         [TestCase]
-        public void StartingAndStoppingSetsMountedState()
-        {
-            using (MockBackgroundFileSystemTaskRunner backgroundTaskRunner = new MockBackgroundFileSystemTaskRunner())
-            using (MockFileSystemVirtualizer fileSystemVirtualizer = new MockFileSystemVirtualizer(this.Repo.Context, this.Repo.GitObjects))
-            using (MockGitIndexProjection gitIndexProjection = new MockGitIndexProjection(new[] { "test.txt" }))
-            using (FileSystemCallbacks fileSystemCallbacks = new FileSystemCallbacks(
-                this.Repo.Context,
-                this.Repo.GitObjects,
-                RepoMetadata.Instance,
-                new MockBlobSizes(),
-                gitIndexProjection: gitIndexProjection,
-                backgroundFileSystemTaskRunner: backgroundTaskRunner,
-                fileSystemVirtualizer: fileSystemVirtualizer))
-            {
-                fileSystemCallbacks.IsMounted.ShouldBeFalse();
-
-                string error;
-                fileSystemCallbacks.TryStart(out error).ShouldBeTrue();
-                fileSystemCallbacks.IsMounted.ShouldBeTrue();
-
-                fileSystemCallbacks.Stop();
-                fileSystemCallbacks.IsMounted.ShouldBeFalse();
-            }
-        }
-
-        [TestCase]
         public void GetMetadataForHeartBeatDoesNotChangeEventLevelWhenNoPlaceholderHaveBeenCreated()
         {
             using (MockBackgroundFileSystemTaskRunner backgroundTaskRunner = new MockBackgroundFileSystemTaskRunner())
@@ -185,15 +159,6 @@ namespace GVFS.UnitTests.Virtualization
                 fileSystemVirtualizer: fileSystemVirtualizer))
             {
                 string denyMessage;
-                fileSystemCallbacks.IsReadyForExternalAcquireLockRequests(
-                    new NamedPipeMessages.LockData(
-                        pid: 0,
-                        isElevated: false,
-                        checkAvailabilityOnly: false,
-                        parsedCommand: "git dummy-command"),
-                    out denyMessage).ShouldBeFalse();
-                denyMessage.ShouldEqual("Waiting for mount to complete");
-
                 string error;
                 fileSystemCallbacks.TryStart(out error).ShouldBeTrue();
                 gitIndexProjection.ProjectionParseComplete = false;

@@ -310,15 +310,6 @@ namespace GVFS.Platform.Windows
         {
             try
             {
-                if (!this.FileSystemCallbacks.IsMounted)
-                {
-                    EventMetadata metadata = this.CreateEventMetadata(enumerationId, virtualPath);
-                    metadata.Add(TracingConstants.MessageKey.InfoMessage, nameof(this.StartDirectoryEnumerationHandler) + ": Failed to start enumeration, mount has not yet completed");
-                    this.Context.Tracer.RelatedEvent(EventLevel.Informational, "StartDirectoryEnum_MountNotComplete", metadata);
-
-                    return (HResult)HResultExtensions.HResultFromNtStatus.DeviceNotReady;
-                }
-
                 List<ProjectedFileInfo> projectedItems;
                 if (this.FileSystemCallbacks.GitIndexProjection.TryGetProjectedItemsFromMemory(virtualPath, out projectedItems))
                 {
@@ -582,14 +573,6 @@ namespace GVFS.Platform.Windows
                     return HResult.FileNotFound;
                 }
 
-                if (!this.FileSystemCallbacks.IsMounted)
-                {
-                    EventMetadata metadata = this.CreateEventMetadata(virtualPath);
-                    metadata.Add(TracingConstants.MessageKey.InfoMessage, $"{nameof(this.QueryFileNameHandler)}: Mount has not yet completed");
-                    this.Context.Tracer.RelatedEvent(EventLevel.Informational, $"{nameof(this.QueryFileNameHandler)}_MountNotComplete", metadata);
-                    return (HResult)HResultExtensions.HResultFromNtStatus.DeviceNotReady;
-                }
-
                 bool isFolder;
                 string fileName;
                 if (!this.FileSystemCallbacks.GitIndexProjection.IsPathProjected(virtualPath, out fileName, out isFolder))
@@ -617,22 +600,6 @@ namespace GVFS.Platform.Windows
         {
             try
             {
-                if (!this.FileSystemCallbacks.IsMounted)
-                {
-                    EventMetadata metadata = this.CreateEventMetadata(virtualPath);
-                    metadata.Add("commandId", commandId);
-                    metadata.Add("desiredAccess", desiredAccess);
-                    metadata.Add("shareMode", shareMode);
-                    metadata.Add("createDisposition", createDisposition);
-                    metadata.Add("createOptions", createOptions);
-                    metadata.Add("triggeringProcessId", triggeringProcessId);
-                    metadata.Add("triggeringProcessImageFileName", triggeringProcessImageFileName);
-                    metadata.Add(TracingConstants.MessageKey.InfoMessage, $"{nameof(this.GetPlaceholderInformationHandler)}: Mount has not yet completed");
-                    this.Context.Tracer.RelatedEvent(EventLevel.Informational, $"{nameof(this.GetPlaceholderInformationHandler)}_MountNotComplete", metadata);
-
-                    return (HResult)HResultExtensions.HResultFromNtStatus.DeviceNotReady;
-                }
-
                 bool isFolder;
                 string fileName;
                 if (!this.FileSystemCallbacks.GitIndexProjection.IsPathProjected(virtualPath, out fileName, out isFolder))
@@ -900,13 +867,6 @@ namespace GVFS.Platform.Windows
                 metadata.Add("sha", sha);
                 metadata.Add("placeholderVersion", placeholderVersion);
                 metadata.Add("commandId", commandId);
-
-                if (!this.FileSystemCallbacks.IsMounted)
-                {
-                    metadata.Add(TracingConstants.MessageKey.InfoMessage, $"{nameof(this.GetFileStreamHandler)} failed, mount has not yet completed");
-                    this.Context.Tracer.RelatedEvent(EventLevel.Informational, "GetFileStream_MountNotComplete", metadata);
-                    return (HResult)HResultExtensions.HResultFromNtStatus.DeviceNotReady;
-                }
 
                 if (byteOffset != 0)
                 {
@@ -1306,14 +1266,6 @@ namespace GVFS.Platform.Windows
         {
             try
             {
-                if (!this.FileSystemCallbacks.IsMounted)
-                {
-                    EventMetadata metadata = this.CreateEventMetadata(virtualPath);
-                    metadata.Add(TracingConstants.MessageKey.InfoMessage, nameof(this.NotifyFilePreConvertToFullHandler) + ": Mount has not yet completed");
-                    this.Context.Tracer.RelatedEvent(EventLevel.Informational, $"{nameof(this.NotifyFilePreConvertToFullHandler)}_MountNotComplete", metadata);
-                    return (HResult)HResultExtensions.HResultFromNtStatus.DeviceNotReady;
-                }
-
                 bool isFolder;
                 string fileName;
                 bool isPathProjected = this.FileSystemCallbacks.GitIndexProjection.IsPathProjected(virtualPath, out fileName, out isFolder);

@@ -357,16 +357,6 @@ namespace GVFS.Platform.Mac
                 metadata.Add(nameof(commandId), commandId);
                 ITracer activity = this.Context.Tracer.StartActivity("GetFileStream", EventLevel.Verbose, Keywords.Telemetry, metadata);
 
-                if (!this.FileSystemCallbacks.IsMounted)
-                {
-                    metadata.Add(TracingConstants.MessageKey.InfoMessage, $"{nameof(this.OnGetFileStream)} failed, mount has not yet completed");
-                    activity.RelatedEvent(EventLevel.Informational, $"{nameof(this.OnGetFileStream)}_MountNotComplete", metadata);
-                    activity.Dispose();
-
-                    // TODO(Mac): Is this the correct Result to return?
-                    return Result.EIOError;
-                }
-
                 if (placeholderVersion != FileSystemVirtualizer.PlaceholderVersion)
                 {
                     activity.RelatedError(metadata, nameof(this.OnGetFileStream) + ": Unexpected placeholder version");
@@ -443,14 +433,6 @@ namespace GVFS.Platform.Mac
         {
             try
             {
-                if (!this.FileSystemCallbacks.IsMounted)
-                {
-                    EventMetadata metadata = this.CreateEventMetadata(relativePath);
-                    metadata.Add(TracingConstants.MessageKey.InfoMessage, nameof(this.OnFileModified) + ": Mount has not yet completed");
-                    this.Context.Tracer.RelatedEvent(EventLevel.Informational, $"{nameof(this.OnFileModified)}_MountNotComplete", metadata);
-                    return;
-                }
-
                 if (Virtualization.FileSystemCallbacks.IsPathInsideDotGit(relativePath))
                 {
                     this.OnDotGitFileOrFolderChanged(relativePath);
@@ -478,17 +460,6 @@ namespace GVFS.Platform.Mac
         {
             try
             {
-                if (!this.FileSystemCallbacks.IsMounted)
-                {
-                    EventMetadata metadata = this.CreateEventMetadata(relativePath);
-                    metadata.Add(nameof(isDirectory), isDirectory);
-                    metadata.Add(TracingConstants.MessageKey.InfoMessage, $"{nameof(this.OnPreDelete)} failed, mount has not yet completed");
-                    this.Context.Tracer.RelatedEvent(EventLevel.Informational, $"{nameof(this.OnPreDelete)}_MountNotComplete", metadata);
-
-                    // TODO(Mac): Is this the correct Result to return?
-                    return Result.EIOError;
-                }
-
                 bool pathInsideDotGit = Virtualization.FileSystemCallbacks.IsPathInsideDotGit(relativePath);
                 if (pathInsideDotGit)
                 {
@@ -594,16 +565,6 @@ namespace GVFS.Platform.Mac
         {
             try
             {
-                if (!this.FileSystemCallbacks.IsMounted)
-                {
-                    EventMetadata metadata = this.CreateEventMetadata(relativePath);
-                    metadata.Add(TracingConstants.MessageKey.InfoMessage, nameof(this.OnEnumerateDirectory) + ": Failed enumeration, mount has not yet completed");
-                    this.Context.Tracer.RelatedEvent(EventLevel.Informational, $"{nameof(this.OnEnumerateDirectory)}_MountNotComplete", metadata);
-
-                    // TODO: Is this the correct Result to return?
-                    return Result.EIOError;
-                }
-
                 Result result;
                 try
                 {
