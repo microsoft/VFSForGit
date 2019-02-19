@@ -18,7 +18,11 @@ namespace GVFS.Platform.Mac
                 underConstruction: new UnderConstructionFlags(
                     supportsGVFSService: false,
                     supportsGVFSUpgrade: false,
-                    supportsGVFSConfig: false))
+                    supportsGVFSConfig: false),
+                diskLayoutVersion: new DiskLayoutVersion(
+                    currentMajorVersion: 18,
+                    currentMinorVersion: 0,
+                    minimumSupportedMajorVersion: 18))
         {
         }
 

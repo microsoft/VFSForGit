@@ -29,7 +29,11 @@ namespace GVFS.Platform.Windows
             : base(
                 executableExtension: ".exe",
                 installerExtension: ".exe",
-                underConstruction: new UnderConstructionFlags(requiresDeprecatedGitHooksLoader: true))
+                underConstruction: new UnderConstructionFlags(requiresDeprecatedGitHooksLoader: true),
+                diskLayoutVersion: new DiskLayoutVersion(
+                    currentMajorVersion: 17,
+                    currentMinorVersion: 0,
+                    minimumSupportedMajorVersion: 7))
         {
         }
 

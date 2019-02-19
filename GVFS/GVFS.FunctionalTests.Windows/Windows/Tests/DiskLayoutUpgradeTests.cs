@@ -142,26 +142,6 @@ namespace GVFS.FunctionalTests.Windows.Tests
         }
 
         [TestCase]
-        public void MountSucceedsIfMinorVersionHasAdvancedButNotMajorVersion()
-        {
-            // Advance the minor version, mount should still work
-            this.Enlistment.UnmountGVFS();
-            GVFSHelpers.SaveDiskLayoutVersion(
-                this.Enlistment.DotGVFSRoot,
-                CurrentDiskLayoutMajorVersion.ToString(),
-                (CurrentDiskLayoutMinorVersion + 1).ToString());
-            this.Enlistment.TryMountGVFS().ShouldBeTrue("Mount should succeed because only the minor version advanced");
-
-            // Advance the major version, mount should fail
-            this.Enlistment.UnmountGVFS();
-            GVFSHelpers.SaveDiskLayoutVersion(
-                this.Enlistment.DotGVFSRoot,
-                (CurrentDiskLayoutMajorVersion + 1).ToString(),
-                CurrentDiskLayoutMinorVersion.ToString());
-            this.Enlistment.TryMountGVFS().ShouldBeFalse("Mount should fail because the major version has advanced");
-        }
-
-        [TestCase]
         public void MountWritesFolderPlaceholdersToPlaceholderDatabase()
         {
             this.PerformIOBeforePlaceholderDatabaseUpgradeTest();
