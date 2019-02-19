@@ -616,6 +616,66 @@ begin
   Result := True;
 end;
 
+type
+  UpgradeRing = (urUnconfigured, urNone, urFast, urSlow);
+
+function GetConfiguredUpgradeRing(): UpgradeRing;
+var
+  ResultCode: integer;
+  ResultString: ansiString;
+begin
+  Result := urUnconfigured;
+  if ExecWithResult('gvfs.exe', 'config upgrade.ring', '', SW_HIDE, ewWaitUntilTerminated, ResultCode, ResultString) then begin
+    if ResultCode = 0 then begin
+      ResultString := AnsiLowercase(Trim(ResultString));
+      Log('upgrade.ring is ' + ResultString);
+      if CompareText(ResultString, 'none') = 0 then begin
+        Result := urNone;
+      end else if CompareText(ResultString, 'fast') = 0 then begin
+        Result := urFast;
+      end else if CompareText(ResultString, 'slow') = 0 then begin
+        Result := urSlow;
+      end;
+    end;
+  end else begin
+    Log('Call gvfs config upgrade.ring failed with ' + SysErrorMessage(ResultCode));
+  end;
+end;
+
+procedure SetNuGetFeedIfNecessary();
+var
+  ConfiguredRing: UpgradeRing;
+  RingName: String;
+  TargetFeed: String;
+  FeedPackageName: String;
+  ResultCode: Integer;
+  ResultString: ansiString;
+begin
+  ConfiguredRing := GetConfiguredUpgradeRing();
+  if ConfiguredRing = urFast then begin
+    RingName := 'Fast';
+  end else if (ConfiguredRing = urSlow) or (ConfiguredRing = urNone) then begin
+    RingName := 'Slow';
+  end else begin
+    Log('No upgrade ring configured. Not configuring NuGet feed.')
+    exit;
+  end;
+
+  TargetFeed := Format('https://pkgs.dev.azure.com/microsoft/_packaging/VFSForGit-%s/nuget/v3/index.json', [RingName]);
+  FeedPackageName := 'Microsoft.VfsForGitEnvironment';
+  if ExecWithResult('gvfs.exe', Format('config upgrade.feedurl %s', [TargetFeed]), '', SW_HIDE, ewWaitUntilTerminated, ResultCode, ResultString) then begin
+    Log('Set upgrade.feedurl to ' + TargetFeed);
+  end else begin
+    Log('Failed to set upgrade.feedurl with ' + SysErrorMessage(ResultCode));
+  end;
+
+  if ExecWithResult('gvfs.exe', Format('config upgrade.feedpackagename %s', [FeedPackageName]), '', SW_HIDE, ewWaitUntilTerminated, ResultCode, ResultString) = false then begin
+    Log('Set upgrade.feedpackagename to ' + FeedPackageName)
+  end else begin
+    Log('Failed to set upgrade.feedpackagename with ' + SysErrorMessage(ResultCode));
+  end;
+end;
+
 // Below are EVENT FUNCTIONS -> The main entry points of InnoSetup into the code region 
 // Documentation : http://www.jrsoftware.org/ishelp/index.php?topic=scriptevents
 
@@ -673,6 +733,7 @@ function PrepareToInstall(var NeedsRestart: Boolean): String;
 begin
   NeedsRestart := False;
   Result := '';
+  SetNuGetFeedIfNecessary();
   if ConfirmUnmountAll() then
     begin
       if ExpandConstant('{param:REMOUNTREPOS|true}') = 'true' then
