@@ -669,7 +669,7 @@ begin
     Log('Failed to set upgrade.feedurl with ' + SysErrorMessage(ResultCode));
   end;
 
-  if ExecWithResult('gvfs.exe', Format('config upgrade.feedpackagename %s', [FeedPackageName]), '', SW_HIDE, ewWaitUntilTerminated, ResultCode, ResultString) = false then begin
+  if ExecWithResult('gvfs.exe', Format('config upgrade.feedpackagename %s', [FeedPackageName]), '', SW_HIDE, ewWaitUntilTerminated, ResultCode, ResultString) then begin
     Log('Set upgrade.feedpackagename to ' + FeedPackageName)
   end else begin
     Log('Failed to set upgrade.feedpackagename with ' + SysErrorMessage(ResultCode));
