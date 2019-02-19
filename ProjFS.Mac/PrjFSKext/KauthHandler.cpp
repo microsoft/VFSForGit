@@ -10,7 +10,6 @@
 #include "VirtualizationRoots.hpp"
 #include "VnodeUtilities.hpp"
 #include "KauthHandler.hpp"
-#include "KextLog.hpp"
 #include "public/Message.h"
 #include "Locks.hpp"
 #include "PrjFSProviderUserClient.hpp"
@@ -19,6 +18,8 @@
 
 #ifdef KEXT_UNIT_TESTING
 #include "KauthHandlerTestable.hpp"
+#else
+#include "KextLog.hpp"
 #endif
 
 // Function prototypes
@@ -61,7 +62,7 @@ static bool TrySendRequestAndWaitForResponse(
     int* kauthResult,
     int* kauthError);
 static void AbortAllOutstandingEvents();
-static bool ShouldIgnoreVnodeType(vtype vnodeType, vnode_t vnode);
+KEXT_STATIC bool ShouldIgnoreVnodeType(vtype vnodeType, vnode_t vnode);
 
 static bool ShouldHandleVnodeOpEvent(
     // In params:
@@ -1182,7 +1183,7 @@ KEXT_STATIC bool IsFileSystemCrawler(const char* procname)
     return false;
 }
 
-static bool ShouldIgnoreVnodeType(vtype vnodeType, vnode_t vnode)
+KEXT_STATIC bool ShouldIgnoreVnodeType(vtype vnodeType, vnode_t vnode)
 {
     switch (vnodeType)
     {

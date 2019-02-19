@@ -32,4 +32,19 @@
     XCTAssertFalse(FileFlagsBitIsSet(FileFlags_IsInVirtualizationRoot, FileFlags_Invalid));
 }
 
+- (void)testShouldIgnoreVnodeType {
+    XCTAssertTrue(ShouldIgnoreVnodeType(VNON, NULL));
+    XCTAssertTrue(ShouldIgnoreVnodeType(VBLK, NULL));
+    XCTAssertTrue(ShouldIgnoreVnodeType(VCHR, NULL));
+    XCTAssertTrue(ShouldIgnoreVnodeType(VSOCK, NULL));
+    XCTAssertTrue(ShouldIgnoreVnodeType(VFIFO, NULL));
+    XCTAssertTrue(ShouldIgnoreVnodeType(VBAD, NULL));
+    XCTAssertFalse(ShouldIgnoreVnodeType(VREG, NULL));
+    XCTAssertFalse(ShouldIgnoreVnodeType(VDIR, NULL));
+    XCTAssertFalse(ShouldIgnoreVnodeType(VLNK, NULL));
+    XCTAssertFalse(ShouldIgnoreVnodeType(VSTR, NULL));
+    XCTAssertFalse(ShouldIgnoreVnodeType(VCPLX, NULL));
+    XCTAssertFalse(ShouldIgnoreVnodeType(static_cast<vtype>(1000), NULL));
+}
+
 @end
