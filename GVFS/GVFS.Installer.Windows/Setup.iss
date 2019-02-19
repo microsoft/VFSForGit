@@ -628,17 +628,21 @@ begin
   if ExecWithResult('gvfs.exe', 'config upgrade.ring', '', SW_HIDE, ewWaitUntilTerminated, ResultCode, ResultString) then begin
     if ResultCode = 0 then begin
       ResultString := AnsiLowercase(Trim(ResultString));
-      Log('upgrade.ring is ' + ResultString);
+      Log('GetConfiguredUpgradeRing: upgrade.ring is ' + ResultString);
       if CompareText(ResultString, 'none') = 0 then begin
         Result := urNone;
       end else if CompareText(ResultString, 'fast') = 0 then begin
         Result := urFast;
       end else if CompareText(ResultString, 'slow') = 0 then begin
         Result := urSlow;
+      end else begin
+        Log('GetConfiguredUpgradeRing: Unknown upgrade ring: ' + ResultString);
       end;
+    end else begin
+      Log('GetConfiguredUpgradeRing: Call to gvfs config upgrade.ring failed with ' + SysErrorMessage(ResultCode));
     end;
   end else begin
-    Log('Call gvfs config upgrade.ring failed with ' + SysErrorMessage(ResultCode));
+    Log('GetConfiguredUpgradeRing: Call to gvfs config upgrade.ring failed with ' + SysErrorMessage(ResultCode));
   end;
 end;
 
@@ -657,22 +661,22 @@ begin
   end else if (ConfiguredRing = urSlow) or (ConfiguredRing = urNone) then begin
     RingName := 'Slow';
   end else begin
-    Log('No upgrade ring configured. Not configuring NuGet feed.')
+    Log('SetNuGetFeedIfNecessary: No upgrade ring configured. Not configuring NuGet feed.')
     exit;
   end;
 
   TargetFeed := Format('https://pkgs.dev.azure.com/microsoft/_packaging/VFSForGit-%s/nuget/v3/index.json', [RingName]);
   FeedPackageName := 'Microsoft.VfsForGitEnvironment';
   if ExecWithResult('gvfs.exe', Format('config upgrade.feedurl %s', [TargetFeed]), '', SW_HIDE, ewWaitUntilTerminated, ResultCode, ResultString) then begin
-    Log('Set upgrade.feedurl to ' + TargetFeed);
+    Log('SetNuGetFeedIfNecessary: Set upgrade.feedurl to ' + TargetFeed);
   end else begin
-    Log('Failed to set upgrade.feedurl with ' + SysErrorMessage(ResultCode));
+    Log('SetNuGetFeedIfNecessary: Failed to set upgrade.feedurl with ' + SysErrorMessage(ResultCode));
   end;
 
   if ExecWithResult('gvfs.exe', Format('config upgrade.feedpackagename %s', [FeedPackageName]), '', SW_HIDE, ewWaitUntilTerminated, ResultCode, ResultString) then begin
-    Log('Set upgrade.feedpackagename to ' + FeedPackageName)
+    Log('SetNuGetFeedIfNecessary: Set upgrade.feedpackagename to ' + FeedPackageName)
   end else begin
-    Log('Failed to set upgrade.feedpackagename with ' + SysErrorMessage(ResultCode));
+    Log('SetNuGetFeedIfNecessary: Failed to set upgrade.feedpackagename with ' + SysErrorMessage(ResultCode));
   end;
 end;
 
