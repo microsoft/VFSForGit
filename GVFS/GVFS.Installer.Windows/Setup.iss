@@ -651,7 +651,7 @@ var
   ResultCode: integer;
   ResultString: ansiString;
 begin
-  Result := false
+  Result := False
   if ExecWithResult('gvfs.exe', Format('config %s', [ConfigKey]), '', SW_HIDE, ewWaitUntilTerminated, ResultCode, ResultString) then begin
     ResultString := AnsiLowercase(Trim(ResultString));
     Log(Format('IsConfigured(%s): value is %s', [ConfigKey, ResultString]));
@@ -664,14 +664,14 @@ var
   ResultCode: integer;
   ResultString: ansiString;
 begin
-  if IsConfigured(ConfigKey) = false then begin
+  if IsConfigured(ConfigKey) = False then begin
     if ExecWithResult('gvfs.exe', Format('config %s %s', [ConfigKey, ConfigValue]), '', SW_HIDE, ewWaitUntilTerminated, ResultCode, ResultString) then begin
-      Log(Format('SetNuGetFeedIfNecessary: Set %s to %s', [ConfigKey, ConfigValue]));
+      Log(Format('SetIfNotConfigured: Set %s to %s', [ConfigKey, ConfigValue]));
     end else begin
-      Log(Format('SetNuGetFeedIfNecessary: Failed to set %s with %s', [ConfigKey, SysErrorMessage(ResultCode)]));
+      Log(Format('SetIfNotConfigured: Failed to set %s with %s', [ConfigKey, SysErrorMessage(ResultCode)]));
     end;
   end else begin
-    Log(Format('%s is configured, not overwriting', [ConfigKey]));
+    Log(Format('SetIfNotConfigured: %s is configured, not overwriting', [ConfigKey]));
   end;
 end;
 
