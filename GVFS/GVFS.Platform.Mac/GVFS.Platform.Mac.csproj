@@ -18,6 +18,10 @@
     <Version>$(GVFSVersion)</Version>
   </PropertyGroup>
 
+  <PropertyGroup Condition="'$(MSBuildRuntimeType)' == 'Core'">
+    <IsOSX Condition="'$([System.Runtime.InteropServices.RuntimeInformation]::IsOSPlatform($([System.Runtime.InteropServices.OSPlatform]::OSX)))' == 'true'">true</IsOSX>
+  </PropertyGroup>
+
   <ItemGroup>
     <ProjectReference Include="..\..\ProjFS.Mac\PrjFSLib.Mac.Managed\PrjFSLib.Mac.Managed.csproj" />
     <ProjectReference Include="..\GVFS.Virtualization\GVFS.Virtualization.csproj" />
@@ -32,7 +36,7 @@
     </PackageReference>
   </ItemGroup>
 
-  <ItemGroup Condition="'$(OS)' != 'Windows_NT' And '$(CopyPrjFS)' == 'true'">
+  <ItemGroup Condition="'$(IsOSX)' == 'true' And '$(CopyPrjFS)' == 'true'">
     <None Include="$(BuildOutputDir)\ProjFS.Mac\Native\$(Configuration)\libPrjFSLib.dylib" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 </Project>

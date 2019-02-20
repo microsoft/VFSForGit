@@ -20,6 +20,11 @@
     <Version>$(GVFSVersion)</Version>
   </PropertyGroup>
 
+  <PropertyGroup Condition="'$(MSBuildRuntimeType)' == 'Core'">
+    <IsLinux Condition="'$([System.Runtime.InteropServices.RuntimeInformation]::IsOSPlatform($([System.Runtime.InteropServices.OSPlatform]::Linux)))' == 'true'">true</IsLinux>
+    <IsOSX Condition="'$([System.Runtime.InteropServices.RuntimeInformation]::IsOSPlatform($([System.Runtime.InteropServices.OSPlatform]::OSX)))' == 'true'">true</IsOSX>
+  </PropertyGroup>
+
   <!-- ItemGroup Conditions are not supported on VS for Mac and Choose/When must be
        Used instead, see https://github.com/mono/monodevelop/issues/7417 -->
   <Choose>
@@ -35,7 +40,20 @@
         </Compile>
       </ItemGroup>
     </When>
-    <Otherwise>
+    <When Condition="'$(IsLinux)' == 'true'">
+      <PropertyGroup>
+        <TargetFrameworks>netcoreapp2.1</TargetFrameworks>
+        <RuntimeIdentifiers>linux-x64</RuntimeIdentifiers>
+	<DefineConstants>$(DefineConstants);LINUX_BUILD</DefineConstants>
+      </PropertyGroup>
+      <ItemGroup>
+        <ProjectReference Include="..\GVFS.Platform.Linux\GVFS.Platform.Linux.csproj" />
+        <Compile Include="..\GVFS.PlatformLoader\PlatformLoader.Linux.cs">
+          <Link>PlatformLoader.Linux.cs</Link>
+        </Compile>
+      </ItemGroup>
+    </When>
+    <When Condition="'$(IsOSX)' == 'true'">
       <PropertyGroup>
         <TargetFrameworks>netcoreapp2.1</TargetFrameworks>
         <RuntimeIdentifiers>osx-x64</RuntimeIdentifiers>
@@ -47,7 +65,7 @@
           <Link>PlatformLoader.Mac.cs</Link>
         </Compile>
       </ItemGroup>
-    </Otherwise>
+    </When>
   </Choose>
 
   <ItemGroup>
