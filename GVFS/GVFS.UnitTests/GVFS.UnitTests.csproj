@@ -50,8 +50,10 @@
   </ItemGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\..\ProjFS.Linux\PrjFSLib.Linux.Managed\PrjFSLib.Linux.Managed.csproj" />
     <ProjectReference Include="..\..\ProjFS.Mac\PrjFSLib.Mac.Managed\PrjFSLib.Mac.Managed.csproj" />
     <ProjectReference Include="..\GVFS.Common\GVFS.Common.csproj" />
+    <ProjectReference Include="..\GVFS.Platform.Linux\GVFS.Platform.Linux.csproj" />
     <ProjectReference Include="..\GVFS.Platform.Mac\GVFS.Platform.Mac.csproj" />
     <ProjectReference Include="..\GVFS.Service\GVFS.Service.Mac.csproj" />
     <ProjectReference Include="..\GVFS.Tests\GVFS.Tests.csproj" />
