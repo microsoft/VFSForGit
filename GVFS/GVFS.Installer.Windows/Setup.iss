@@ -646,14 +646,41 @@ begin
   end;
 end;
 
+function IsConfigured(ConfigKey: String): Boolean;
+var
+  ResultCode: integer;
+  ResultString: ansiString;
+begin
+  Result := false
+  if ExecWithResult('gvfs.exe', Format('config %s', [ConfigKey]), '', SW_HIDE, ewWaitUntilTerminated, ResultCode, ResultString) then begin
+    ResultString := AnsiLowercase(Trim(ResultString));
+    Log(Format('IsConfigured(%s): value is %s', [ConfigKey, ResultString]));
+    Result := Length(ResultString) > 1
+  end
+end;
+
+procedure SetIfNotConfigured(ConfigKey: String; ConfigValue: String);
+var
+  ResultCode: integer;
+  ResultString: ansiString;
+begin
+  if IsConfigured(ConfigKey) = false then begin
+    if ExecWithResult('gvfs.exe', Format('config %s %s', [ConfigKey, ConfigValue]), '', SW_HIDE, ewWaitUntilTerminated, ResultCode, ResultString) then begin
+      Log(Format('SetNuGetFeedIfNecessary: Set %s to %s', [ConfigKey, ConfigValue]));
+    end else begin
+      Log(Format('SetNuGetFeedIfNecessary: Failed to set %s with %s', [ConfigKey, SysErrorMessage(ResultCode)]));
+    end;
+  end else begin
+    Log(Format('%s is configured, not overwriting', [ConfigKey]));
+  end;
+end;
+
 procedure SetNuGetFeedIfNecessary();
 var
   ConfiguredRing: UpgradeRing;
   RingName: String;
   TargetFeed: String;
   FeedPackageName: String;
-  ResultCode: Integer;
-  ResultString: ansiString;
 begin
   ConfiguredRing := GetConfiguredUpgradeRing();
   if ConfiguredRing = urFast then begin
@@ -667,17 +694,9 @@ begin
 
   TargetFeed := Format('https://pkgs.dev.azure.com/microsoft/_packaging/VFSForGit-%s/nuget/v3/index.json', [RingName]);
   FeedPackageName := 'Microsoft.VfsForGitEnvironment';
-  if ExecWithResult('gvfs.exe', Format('config upgrade.feedurl %s', [TargetFeed]), '', SW_HIDE, ewWaitUntilTerminated, ResultCode, ResultString) then begin
-    Log('SetNuGetFeedIfNecessary: Set upgrade.feedurl to ' + TargetFeed);
-  end else begin
-    Log('SetNuGetFeedIfNecessary: Failed to set upgrade.feedurl with ' + SysErrorMessage(ResultCode));
-  end;
 
-  if ExecWithResult('gvfs.exe', Format('config upgrade.feedpackagename %s', [FeedPackageName]), '', SW_HIDE, ewWaitUntilTerminated, ResultCode, ResultString) then begin
-    Log('SetNuGetFeedIfNecessary: Set upgrade.feedpackagename to ' + FeedPackageName)
-  end else begin
-    Log('SetNuGetFeedIfNecessary: Failed to set upgrade.feedpackagename with ' + SysErrorMessage(ResultCode));
-  end;
+  SetIfNotConfigured('upgrade.feedurl', TargetFeed);
+  SetIfNotConfigured('upgrade.feedpackagename', FeedPackageName);
 end;
 
 // Below are EVENT FUNCTIONS -> The main entry points of InnoSetup into the code region 
