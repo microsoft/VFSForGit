@@ -4,6 +4,7 @@
     <Platforms>x64</Platforms>
     <Configurations>Debug;Release</Configurations>
     <CodeAnalysisRuleSet>..\..\GVFS\GVFS.Build\GVFS.ruleset</CodeAnalysisRuleSet>
+    <TargetLatestRuntimePatch>true</TargetLatestRuntimePatch>
   </PropertyGroup>
 
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
