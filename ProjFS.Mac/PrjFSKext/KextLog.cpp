@@ -122,3 +122,10 @@ void KextLog_Printf(KextLog_Level loglevel, const char* fmt, ...)
         Memory_Free(messagePtr, messageSize);
     }
 }
+
+const void* KextLog_Unslide(const void* pointer)
+{
+    vm_offset_t outPointer = 0;
+    vm_kernel_unslide_or_perm_external(reinterpret_cast<vm_offset_t>(pointer), &outPointer);
+    return reinterpret_cast<const void*>(outPointer);
+}

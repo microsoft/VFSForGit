@@ -328,6 +328,8 @@ static VirtualizationRootHandle FindRootAtVnode_Locked(vnode_t vnode, uint32_t v
             assertf(rootEntry.providerUserClient == nullptr, "Finding root vnode based on FSID/inode equality but not vnode identity (recycled vnode) should only happen if no provider is active. Root index %d, provider PID %d, IOUC %p path '%s'",
                 i, rootEntry.providerPid, rootEntry.providerUserClient, rootEntry.path);
             // root vnode must be stale, update it
+            KextLog_FileNote(vnode, "FindRootAtVnode_Locked: virtualization root %d (path: \"%s\", fsid: 0x%x:%x, inode: 0x%llx) directory vnode %p:%u has gone stale, refreshing to %p:%u",
+                i, rootEntry.path, rootEntry.rootFsid.val[0], rootEntry.rootFsid.val[1], rootEntry.rootInode, KextLog_Unslide(rootEntry.rootVNode), rootEntry.rootVNodeVid, KextLog_Unslide(vnode), vid);
             rootEntry.rootVNode = vnode;
             rootEntry.rootVNodeVid = vid;
             return i;
@@ -354,6 +356,9 @@ static VirtualizationRootHandle InsertVirtualizationRoot_Locked(PrjFSProviderUse
 
         root->rootVNode = vnode;
         root->rootVNodeVid = vid;
+        KextLog_FileNote(vnode, "InsertVirtualizationRoot_Locked: virtualization root inserted at index %d: (path: \"%s\", fsid: 0x%x:%x, inode: 0x%llx) directory vnode %p:%u, user client PID %d, IOUC %p.",
+            rootIndex, path, persistentIds.fsid.val[0], persistentIds.fsid.val[1], persistentIds.inode, KextLog_Unslide(vnode), vid, clientPID, KextLog_Unslide(userClient));
+        
         root->rootFsid = persistentIds.fsid;
         root->rootInode = persistentIds.inode;
         strlcpy(root->path, path, sizeof(root->path));
@@ -423,6 +428,8 @@ VirtualizationRootResult VirtualizationRoot_RegisterProviderForPath(PrjFSProvide
                             assert(root.rootVNode == virtualizationRootVNode);
                             root.providerUserClient = userClient;
                             root.providerPid = clientPID;
+                            KextLog_FileNote(virtualizationRootVNode, "VirtualizationRoot_RegisterProviderForPath: registered provider (PID %d, IOUC %p) for virtualization root %d: (path: \"%s\", fsid: 0x%x:%x, inode: 0x%llx) directory vnode %p:%u.",
+                                clientPID, KextLog_Unslide(userClient), rootIndex, root.path, root.rootFsid.val[0], root.rootFsid.val[1], root.rootInode, KextLog_Unslide(virtualizationRootVNode), rootVid);
                             virtualizationRootVNode = NULLVP; // transfer ownership
                         }
                     }
@@ -483,6 +490,11 @@ void ActiveProvider_Disconnect(VirtualizationRootHandle rootIndex, PrjFSProvider
             KextLog_Unslide(userClient), rootIndex, root->path, KextLog_Unslide(root->providerUserClient));
         
         assert(NULLVP != root->rootVNode);
+        
+        KextLog_FileNote(root->rootVNode, "ActiveProvider_Disconnect: disconnecting provider (PID %d, IOUC %p) for virtualization root %d: (path: \"%s\", fsid: 0x%x:%x, inode: 0x%llx) directory vnode %p:%u.",
+            root->providerPid, KextLog_Unslide(root->providerUserClient), rootIndex, root->path, root->rootFsid.val[0], root->rootFsid.val[1], root->rootInode, KextLog_Unslide(root->rootVNode), root->rootVNodeVid);
+
+        
         vnode_put(root->rootVNode);
         root->providerPid = 0;
         

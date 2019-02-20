@@ -21,6 +21,9 @@ void KextLog_Cleanup();
 bool KextLog_RegisterUserClient(PrjFSLogUserClient* userClient);
 void KextLog_DeregisterUserClient(PrjFSLogUserClient* userClient);
 void KextLog_Printf(KextLog_Level loglevel, const char* fmt, ...)  __printflike(2,3);
+// Prepares a kernel pointer for printing to user space without revealing the
+// genuine kernel-space address, which would be a security issue.
+const void* KextLog_Unslide(const void* pointer);
 
 
 // Helper macros/function for logging with file paths. Note that the path must
