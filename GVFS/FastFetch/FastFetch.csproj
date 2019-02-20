@@ -19,6 +19,11 @@
     <Version>$(GVFSVersion)</Version>
   </PropertyGroup>
 
+  <PropertyGroup Condition="'$(MSBuildRuntimeType)' == 'Core'">
+    <IsLinux Condition="'$([System.Runtime.InteropServices.RuntimeInformation]::IsOSPlatform($([System.Runtime.InteropServices.OSPlatform]::Linux)))' == 'true'">true</IsLinux>
+    <IsOSX Condition="'$([System.Runtime.InteropServices.RuntimeInformation]::IsOSPlatform($([System.Runtime.InteropServices.OSPlatform]::OSX)))' == 'true'">true</IsOSX>
+  </PropertyGroup>
+
   <ItemGroup>
     <ProjectReference Include="..\GVFS.Common\GVFS.Common.csproj" />
     <ProjectReference Include="..\GVFS.Virtualization\GVFS.Virtualization.csproj" />
@@ -35,14 +40,22 @@
         </Compile>
       </ItemGroup>
     </When>
-    <Otherwise>
+    <When Condition="'$(IsLinux)' == 'true'">
+      <ItemGroup>
+        <ProjectReference Include="..\GVFS.Platform.Linux\GVFS.Platform.Linux.csproj" />
+        <Compile Include="..\GVFS.PlatformLoader\PlatformLoader.Linux.cs">
+          <Link>PlatformLoader.Linux.cs</Link>
+        </Compile>
+      </ItemGroup>
+    </When>
+    <When Condition="'$(IsOSX)' == 'true'">
       <ItemGroup>
         <ProjectReference Include="..\GVFS.Platform.Mac\GVFS.Platform.Mac.csproj" />
         <Compile Include="..\GVFS.PlatformLoader\PlatformLoader.Mac.cs">
           <Link>PlatformLoader.Mac.cs</Link>
         </Compile>
       </ItemGroup>
-    </Otherwise>
+    </When>
   </Choose>
   
   <ItemGroup>
