@@ -1,5 +1,6 @@
 using CommandLine;
 using GVFS.Common;
+using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 
@@ -9,6 +10,7 @@ namespace GVFS.CommandLine
     public class LogVerb : GVFSVerb
     {
         private const string LogVerbName = "log";
+        private static readonly int LogNameConsoleOutputFormatWidth = GetMaxLogNameLength();
 
         [Value(
             0,
@@ -109,11 +111,27 @@ namespace GVFS.CommandLine
             return "gvfs_" + logFileType + "_*.log";
         }
 
+        private static int GetMaxLogNameLength()
+        {
+            List<string> lognames = new List<string>
+            {
+                GVFSConstants.LogFileTypes.Clone,
+                GVFSConstants.LogFileTypes.MountPrefix,
+                GVFSConstants.LogFileTypes.Prefetch,
+                GVFSConstants.LogFileTypes.Dehydrate,
+                GVFSConstants.LogFileTypes.Repair,
+                GVFSConstants.LogFileTypes.Service,
+                GVFSConstants.LogFileTypes.UpgradePrefix,
+            };
+
+            return lognames.Max(s => s.Length) + 1;
+        }
+
         private void DisplayMostRecent(string logFolder, string logFileType)
         {
             string logFile = FindNewestFileInFolder(logFolder, logFileType);
             this.Output.WriteLine(
-                "  {0, -10}: {1}",
+                $"  {{0, -{LogNameConsoleOutputFormatWidth}}}: {{1}}",
                 logFileType,
                 logFile == null ? "None" : logFile);
         }
