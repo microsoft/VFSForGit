@@ -97,7 +97,7 @@ namespace GVFS.RepairJobs
         {
             try
             {
-                this.fileSystem.RecursiveDelete(filePath);
+                this.fileSystem.DeleteDirectory(filePath);
                 this.Tracer.RelatedEvent(EventLevel.Informational, "FolderDeleted", new EventMetadata { { "SourcePath", filePath } });
             }
             catch (Exception e)

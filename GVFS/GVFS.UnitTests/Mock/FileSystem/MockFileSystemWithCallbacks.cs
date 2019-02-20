@@ -48,7 +48,7 @@ namespace GVFS.UnitTests.Mock.FileSystem
         {
         }
 
-        public override void DeleteDirectory(string path, bool recursive = false)
+        public override void DeleteDirectory(string path, bool recursive = true)
         {
             throw new InvalidOperationException("DeleteDirectory has not been implemented.");
         }
