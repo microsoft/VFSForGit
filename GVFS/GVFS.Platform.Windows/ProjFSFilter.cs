@@ -316,7 +316,7 @@ namespace GVFS.Platform.Windows
                 return true;
             }
 
-            error = "File system does not support features required by GVFS. Confirm that Windows version is at or beyond that required by GVFS";
+            error = "File system does not support features required by VFS for Git. Confirm that Windows version is at or beyond that required by VFS for Git. A one-time reboot is required on Windows Server 2016 after installing VFS for Git.";
             return false;
         }
 
