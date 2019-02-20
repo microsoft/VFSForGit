@@ -29,6 +29,13 @@
     <ProjectReference Include="..\GVFS.Virtualization\GVFS.Virtualization.csproj" />
   </ItemGroup>
   
+  <ItemGroup Condition="'$(IsLinux)' == 'true'">
+    <ProjectReference Include="..\GVFS.Platform.Linux\GVFS.Platform.Linux.csproj" />
+    <Compile Include="..\GVFS.PlatformLoader\PlatformLoader.Linux.cs">
+      <Link>PlatformLoader.Linux.cs</Link>
+    </Compile>
+  </ItemGroup>
+
   <ItemGroup Condition="'$(IsOSX)' == 'true'">
     <ProjectReference Include="..\GVFS.Platform.Mac\GVFS.Platform.Mac.csproj" />
     <Compile Include="..\GVFS.PlatformLoader\PlatformLoader.Mac.cs">
