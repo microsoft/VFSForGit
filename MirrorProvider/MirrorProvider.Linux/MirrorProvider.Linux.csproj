@@ -38,7 +38,7 @@
 
   <!-- TODO(Linux): enable copy when built locally and not already installed
   <ItemGroup>
-    <None Include="$(BuildOutputDir)\ProjFS.Linux\Native\Build\Products\$(Configuration)\libprojfs.so" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="$(BuildOutputDir)\ProjFS.Linux\Native\$(Configuration)\libprojfs.so" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
   -->
 </Project>
