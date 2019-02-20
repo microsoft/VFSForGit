@@ -133,8 +133,8 @@ namespace GVFS.Common
             this.repoMetadata.SetValuesAndFlush(
                 new[]
                 {
-                    new KeyValuePair<string, string>(Keys.DiskLayoutMajorVersion, GVFSPlatform.Instance.DiskLayout.CurrentMajorVersion.ToString()),
-                    new KeyValuePair<string, string>(Keys.DiskLayoutMinorVersion, GVFSPlatform.Instance.DiskLayout.CurrentMinorVersion.ToString()),
+                    new KeyValuePair<string, string>(Keys.DiskLayoutMajorVersion, GVFSPlatform.Instance.DiskLayoutUpgrade.Version.CurrentMajorVersion.ToString()),
+                    new KeyValuePair<string, string>(Keys.DiskLayoutMinorVersion, GVFSPlatform.Instance.DiskLayoutUpgrade.Version.CurrentMinorVersion.ToString()),
                     new KeyValuePair<string, string>(Keys.GitObjectsRoot, enlistment.GitObjectsRoot),
                     new KeyValuePair<string, string>(Keys.LocalCacheRoot, enlistment.LocalCacheRoot),
                     new KeyValuePair<string, string>(Keys.BlobSizesRoot, enlistment.BlobSizesRoot),

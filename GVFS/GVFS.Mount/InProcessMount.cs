@@ -459,7 +459,7 @@ namespace GVFS.Mount
             response.RepoUrl = this.enlistment.RepoUrl;
             response.CacheServer = this.cacheServer.ToString();
             response.LockStatus = this.context?.Repository.GVFSLock != null ? this.context.Repository.GVFSLock.GetStatus() : "Unavailable";
-            response.DiskLayoutVersion = $"{GVFSPlatform.Instance.DiskLayout.CurrentMajorVersion}.{GVFSPlatform.Instance.DiskLayout.CurrentMinorVersion}";
+            response.DiskLayoutVersion = $"{GVFSPlatform.Instance.DiskLayoutUpgrade.Version.CurrentMajorVersion}.{GVFSPlatform.Instance.DiskLayoutUpgrade.Version.CurrentMinorVersion}";
 
             switch (this.currentState)
             {
@@ -550,12 +550,12 @@ namespace GVFS.Mount
                 this.FailMountAndExit("Error: {0}", error);
             }
 
-            if (majorVersion != GVFSPlatform.Instance.DiskLayout.CurrentMajorVersion)
+            if (majorVersion != GVFSPlatform.Instance.DiskLayoutUpgrade.Version.CurrentMajorVersion)
             {
                 this.FailMountAndExit(
                     "Error: On disk version ({0}) does not match current version ({1})",
                     majorVersion,
-                    GVFSPlatform.Instance.DiskLayout.CurrentMajorVersion);
+                    GVFSPlatform.Instance.DiskLayoutUpgrade.Version.CurrentMajorVersion);
             }
 
             try
