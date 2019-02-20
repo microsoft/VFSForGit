@@ -470,7 +470,7 @@ VirtualizationRootResult VirtualizationRoot_RegisterProviderForPath(PrjFSProvide
     return VirtualizationRootResult { err, rootIndex };
 }
 
-void ActiveProvider_Disconnect(VirtualizationRootHandle rootIndex)
+void ActiveProvider_Disconnect(VirtualizationRootHandle rootIndex, PrjFSProviderUserClient* _Nonnull userClient)
 {
     assert(rootIndex >= 0);
     RWLock_AcquireExclusive(s_virtualizationRootsLock);
@@ -479,6 +479,8 @@ void ActiveProvider_Disconnect(VirtualizationRootHandle rootIndex)
 
         VirtualizationRoot* root = &s_virtualizationRoots[rootIndex];
         assert(nullptr != root->providerUserClient);
+        assertf(userClient == root->providerUserClient, "ActiveProvider_Disconnect: disconnecting provider IOUC %p for root index %d (%s), but expecting IOUC %p",
+            KextLog_Unslide(userClient), rootIndex, root->path, KextLog_Unslide(root->providerUserClient));
         
         assert(NULLVP != root->rootVNode);
         vnode_put(root->rootVNode);
