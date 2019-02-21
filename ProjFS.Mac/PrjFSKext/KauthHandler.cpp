@@ -883,7 +883,7 @@ static bool TryGetVirtualizationRoot(
     }
     else if (RootHandle_None == *root)
     {
-        KextLog_FileNote(vnode, "No virtualization root found for file with set flag.");
+        KextLog_File(vnode, "No virtualization root found for file with set flag.");
         perfTracer->IncrementCount(PrjFSPerfCounter_VnodeOp_GetVirtualizationRoot_NoRootFound);
     
         *kauthResult = KAUTH_RESULT_DEFER;
