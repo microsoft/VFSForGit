@@ -120,11 +120,12 @@ namespace GVFS.Common.Maintenance
             {
                 if (this.Stopping)
                 {
+                    string message = this.Area + "Not launching Git process because the mount is stopping";
                     this.Context.Tracer.RelatedWarning(
                         metadata: null,
-                        message: this.Area + ": Not launching Git process because the mount is stopping",
+                        message: message,
                         keywords: Keywords.Telemetry);
-                    return null;
+                    return new GitProcess.Result(message, string.Empty, GitProcess.Result.ExitDueToShutDownCode);
                 }
 
                 GitProcess.Result result = work.Invoke(this.GitProcess);

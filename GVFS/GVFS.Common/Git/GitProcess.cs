@@ -752,6 +752,7 @@ namespace GVFS.Common.Git
         {
             public const int SuccessCode = 0;
             public const int GenericFailureCode = 1;
+            public const int ExitDueToShutDownCode = 2;
 
             public Result(string stdout, string stderr, int exitCode)
             {
@@ -771,7 +772,7 @@ namespace GVFS.Common.Git
 
             public bool ExitCodeIsFailure
             {
-                get { return !this.ExitCodeIsSuccess; }
+                get { return !this.ExitCodeIsSuccess && this.ExitCode != ExitDueToShutDownCode; }
             }
 
             public bool StderrContainsErrors()
