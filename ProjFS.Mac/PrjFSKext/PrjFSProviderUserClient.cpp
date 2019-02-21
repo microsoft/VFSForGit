@@ -118,7 +118,7 @@ void PrjFSProviderUserClient::cleanupProviderRegistration()
     this->virtualizationRootHandle = RootHandle_None;
     if (RootHandle_None != root)
     {
-        ActiveProvider_Disconnect(root);
+        ActiveProvider_Disconnect(root, this);
     }
 }
 

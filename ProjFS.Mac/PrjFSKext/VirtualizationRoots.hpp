@@ -36,7 +36,7 @@ struct VirtualizationRootResult
     VirtualizationRootHandle root;
 };
 VirtualizationRootResult VirtualizationRoot_RegisterProviderForPath(PrjFSProviderUserClient* _Nonnull userClient, pid_t clientPID, const char* _Nonnull virtualizationRootPath);
-void ActiveProvider_Disconnect(VirtualizationRootHandle rootHandle);
+void ActiveProvider_Disconnect(VirtualizationRootHandle rootHandle, PrjFSProviderUserClient* _Nonnull userClient);
 
 struct Message;
 errno_t ActiveProvider_SendMessage(VirtualizationRootHandle rootHandle, const Message message);
