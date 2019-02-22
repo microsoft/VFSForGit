@@ -145,8 +145,8 @@ static const char* KextLogLevelAsString(KextLog_Level level)
         return "Error";
     case KEXTLOG_INFO:
         return "Info";
-    case KEXTLOG_NOTE:
-        return "Note";
+    case KEXTLOG_DEFAULT:
+        return "Default";
     default:
         return "Unknown";
     }
