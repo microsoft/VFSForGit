@@ -147,7 +147,7 @@ namespace GVFS.Common.Http
                     string contentType = GetSingleHeaderOrEmpty(response.Content.Headers, "Content-Type");
                     responseMetadata.Add("ContentType", contentType);
 
-                    this.authentication.ConfirmCredentialsWorked(authString);
+                    this.authentication.ApproveCredentials(this.Tracer, authString);
                     Stream responseStream = response.Content.ReadAsStreamAsync().GetAwaiter().GetResult();
 
                     gitEndPointResponseData = new GitEndPointResponseData(
@@ -172,7 +172,7 @@ namespace GVFS.Common.Http
                     }
                     else if (response.StatusCode == HttpStatusCode.Unauthorized || response.StatusCode == HttpStatusCode.BadRequest || response.StatusCode == HttpStatusCode.Redirect)
                     {
-                        this.authentication.Revoke(authString);
+                        this.authentication.RejectCredentials(this.Tracer, authString);
                         if (!this.authentication.IsBackingOff)
                         {
                             errorMessage = string.Format("Server returned error code {0} ({1}). Your PAT may be expired and we are asking for a new one. Original error message from server: {2}", statusInt, response.StatusCode, errorMessage);
