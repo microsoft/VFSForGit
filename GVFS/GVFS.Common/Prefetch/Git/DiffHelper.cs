@@ -32,7 +32,7 @@ namespace GVFS.Common.Prefetch.Git
         public DiffHelper(ITracer tracer, Enlistment enlistment, GitProcess git, IEnumerable<string> fileList, IEnumerable<string> folderList, bool includeSymLinks)
         {
             this.tracer = tracer;
-            this.exactFileList = new HashSet<string>(fileList.Where(x => !x.StartsWith("*")).Select(x => x.ToLower()));
+            this.exactFileList = new HashSet<string>(fileList.Where(x => !x.StartsWith("*")), StringComparer.OrdinalIgnoreCase);
             this.patternList = fileList.Where(x => x.StartsWith("*")).ToList();
             this.folderList = new List<string>(folderList);
             this.enlistment = enlistment;
@@ -334,7 +334,7 @@ namespace GVFS.Common.Prefetch.Git
                 return true;
             }
 
-            if (this.exactFileList.Contains(blobAdd.TargetPath.ToLower()) ||
+            if (this.exactFileList.Contains(blobAdd.TargetPath) ||
                 this.patternList.Any(path => blobAdd.TargetPath.EndsWith(path.Substring(1), StringComparison.OrdinalIgnoreCase)))
             {
                 return true;
