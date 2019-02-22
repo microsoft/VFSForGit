@@ -44,8 +44,20 @@ namespace GVFS.Common.Tracing
         {
             if (!disableTelemetry)
             {
-                IEnumerable<EventListener> telemetryListeners = GVFSPlatform.Instance.CreateTelemetryListeners(providerName, enlistmentId, mountId);
-                this.listeners.AddRange(telemetryListeners);
+                string gitBinRoot = GVFSPlatform.Instance.GitInstallation.GetInstalledGitBinPath();
+
+                // If we do not have a git binary, then we cannot check if we should set up telemetry
+                // We also cannot log this, as we are setting up tracer.
+                if (string.IsNullOrEmpty(gitBinRoot))
+                {
+                    return;
+                }
+
+                TelemetryDaemonEventListener daemonListener = TelemetryDaemonEventListener.CreateIfEnabled(gitBinRoot, providerName, enlistmentId, mountId);
+                if (daemonListener != null)
+                {
+                    this.listeners.Add(daemonListener);
+                }
             }
         }
 

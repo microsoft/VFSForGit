@@ -89,17 +89,6 @@ namespace GVFS.Platform.Mac
             return pipe;
         }
 
-        public override IEnumerable<EventListener> CreateTelemetryListeners(string providerName, string enlistmentId, string mountId)
-        {
-            string gitBinRoot = this.GitInstallation.GetInstalledGitBinPath();
-
-            TelemetryDaemonEventListener daemonListener = TelemetryDaemonEventListener.CreateIfEnabled(gitBinRoot, providerName, enlistmentId, mountId);
-            if (daemonListener != null)
-            {
-                yield return daemonListener;
-            }
-        }
-
         public override string GetCurrentUser()
         {
             throw new NotImplementedException();
