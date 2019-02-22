@@ -13,7 +13,8 @@ namespace GVFS.Common.Prefetch.Git
         private const string AreaPath = nameof(DiffHelper);
 
         private ITracer tracer;
-        private List<string> fileList;
+        private HashSet<string> exactFileList;
+        private List<string> patternList;
         private List<string> folderList;
         private HashSet<string> filesAdded = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
@@ -31,7 +32,8 @@ namespace GVFS.Common.Prefetch.Git
         public DiffHelper(ITracer tracer, Enlistment enlistment, GitProcess git, IEnumerable<string> fileList, IEnumerable<string> folderList, bool includeSymLinks)
         {
             this.tracer = tracer;
-            this.fileList = new List<string>(fileList);
+            this.exactFileList = new HashSet<string>(fileList.Where(x => !x.StartsWith("*")).Select(x => x.ToLower()));
+            this.patternList = fileList.Where(x => x.StartsWith("*")).ToList();
             this.folderList = new List<string>(folderList);
             this.enlistment = enlistment;
             this.git = git;
@@ -325,15 +327,15 @@ namespace GVFS.Common.Prefetch.Git
                 return true;
             }
 
-            if (this.fileList.Count == 0 && this.folderList.Count == 0)
+            if (this.exactFileList.Count == 0 &&
+                this.patternList.Count == 0 &&
+                this.folderList.Count == 0)
             {
                 return true;
             }
 
-            if (this.fileList.Any(path =>
-                    path.StartsWith("*")
-                    ? blobAdd.TargetPath.EndsWith(path.Substring(1), StringComparison.OrdinalIgnoreCase)
-                    : blobAdd.TargetPath.Equals(path, StringComparison.OrdinalIgnoreCase)))
+            if (this.exactFileList.Contains(blobAdd.TargetPath.ToLower()) ||
+                this.patternList.Any(path => blobAdd.TargetPath.EndsWith(path.Substring(1), StringComparison.OrdinalIgnoreCase)))
             {
                 return true;
             }
