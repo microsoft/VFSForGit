@@ -8,7 +8,7 @@ namespace GVFS.Common
     public partial class ProductUpgraderInfo
     {
         public const string UpgradeDirectoryName = "GVFS.Upgrade";
-        public const string LogDirectory = "Logs";
+        public const string LogDirectory = "UpgraderLogs";
         public const string DownloadDirectory = "Downloads";
         public const string HighestAvailableVersionFileName = "HighestAvailableVersion";
 
