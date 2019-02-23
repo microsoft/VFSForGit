@@ -391,86 +391,18 @@ namespace GVFS.Service
         private void CreateAndConfigureUpgradeLogDirectory()
         {
             string upgradeLogsPath = ProductUpgraderInfo.GetLogDirectoryPath();
-            DirectorySecurity upgradeLogsSecurity = this.GetUpgradeLogsDirectorySecurity(upgradeLogsPath);
-            Directory.CreateDirectory(upgradeLogsPath, upgradeLogsSecurity);
-            try
-            {
-                // Call SetAccessControl in case the directory already existed
-                // (in which case the above CreateDirectory was a no-op)
-                Directory.SetAccessControl(upgradeLogsPath, upgradeLogsSecurity);
-            }
-            catch (UnauthorizedAccessException e)
-            {
-                // UnauthorizedAccessException can occur when the upgrade logs directory was
-                // created by a non-elevated user running 'gvfs upgrade'.  Only the owner
-                // is allowed to modify the ACLs, and if the logs directory was created by
-                // the user running 'gvfs upgrade' then the Adminstrators group is not the owner.
 
-                EventMetadata metadata = new EventMetadata();
-                metadata.Add("Exception", e.ToString());
-                metadata.Add(
-                    TracingConstants.MessageKey.InfoMessage,
-                    $"{nameof(this.CreateAndConfigureUpgradeLogDirectory)}: UnauthorizedAccessException when setting log directory ACLs");
-                this.tracer.RelatedEvent(EventLevel.Informational, "LogDirACL_UnauthorizedAccessException", metadata);
-
-                // To avoid the ownership issues, rename the old log directory, create a new one, and migrate over
-                // all of the contents of the old directory.
-                this.MigrateUpgradeLogsToDirectoryWithFreshACLs();
-            }
-        }
-
-        private void MigrateUpgradeLogsToDirectoryWithFreshACLs()
-        {
-            string upgradeLogsPath = ProductUpgraderInfo.GetLogDirectoryPath();
-            string tempUpgradeLogsPath = Path.Combine(
-                Path.GetDirectoryName(upgradeLogsPath),
-                ProductUpgraderInfo.LogDirectory + "_" + Guid.NewGuid().ToString("N"));
-
-            this.tracer.RelatedInfo($"{nameof(this.MigrateUpgradeLogsToDirectoryWithFreshACLs)}: Renaming '{upgradeLogsPath}' to '{tempUpgradeLogsPath}'");
-            Directory.Move(upgradeLogsPath, tempUpgradeLogsPath);
-
-            this.tracer.RelatedInfo($"{nameof(this.MigrateUpgradeLogsToDirectoryWithFreshACLs)}: Creating new '{upgradeLogsPath}' directory with appropriate ACLs");
-            DirectorySecurity upgradeLogsSecurity = this.GetUpgradeLogsDirectorySecurity(upgradeLogsPath);
-            Directory.CreateDirectory(upgradeLogsPath, upgradeLogsSecurity);
-
-            try
-            {
-                DirectoryInfo tempDirectoryInfo = new DirectoryInfo(tempUpgradeLogsPath);
-
-                this.tracer.RelatedInfo($"Moving directories from '{tempUpgradeLogsPath}' to '{upgradeLogsPath}'");
-                foreach (DirectoryInfo logDirectoryInfo in tempDirectoryInfo.EnumerateDirectories(searchPattern: "*", searchOption: SearchOption.TopDirectoryOnly))
-                {
-                    Directory.Move(logDirectoryInfo.FullName, Path.Combine(upgradeLogsPath, logDirectoryInfo.Name));
-                }
-
-                this.tracer.RelatedInfo($"Moving files from '{tempUpgradeLogsPath}' to '{upgradeLogsPath}'");
-                foreach (FileInfo logFileInfo in tempDirectoryInfo.EnumerateFiles(searchPattern: "*", searchOption: SearchOption.TopDirectoryOnly))
-                {
-                    File.Move(logFileInfo.FullName, Path.Combine(upgradeLogsPath, logFileInfo.Name));
-                }
-
-                FileSystemInfo[] remainingChildren = tempDirectoryInfo.GetFileSystemInfos();
-                if (remainingChildren.Length > 0)
-                {
-                    this.tracer.RelatedWarning(
-                        $"{nameof(this.MigrateUpgradeLogsToDirectoryWithFreshACLs)}: Skipping delete of old directory, {remainingChildren.Length} items still present on disk");
-                }
-                else
-                {
-                    PhysicalFileSystem fileSystem = new PhysicalFileSystem();
-                    fileSystem.DeleteDirectory(tempUpgradeLogsPath, recursive: false);
-                }
-            }
-            catch (Exception e)
+            string error;
+            if (!GVFSPlatform.Instance.FileSystem.TryCreateDirectoryWithAdminAndUserModifyPermissions(upgradeLogsPath, out error))
             {
                 EventMetadata metadata = new EventMetadata();
-                metadata.Add("Exception", e.ToString());
-                metadata.Add(nameof(tempUpgradeLogsPath), tempUpgradeLogsPath);
+                metadata.Add("Area", EtwArea);
                 metadata.Add(nameof(upgradeLogsPath), upgradeLogsPath);
-
+                metadata.Add(nameof(error), error);
                 this.tracer.RelatedWarning(
                     metadata,
-                    $"{nameof(this.MigrateUpgradeLogsToDirectoryWithFreshACLs)}: Caught exception migrating files from the old upgrade log directory");
+                    $"{nameof(this.CreateAndConfigureUpgradeLogDirectory)}: Failed to create upgrade logs directory",
+                    Keywords.Telemetry);
             }
         }
 
@@ -497,29 +429,6 @@ namespace GVFS.Service
             WindowsFileSystem.AddAdminAccessRulesToDirectorySecurity(serviceDataRootSecurity);
 
             return serviceDataRootSecurity;
-        }
-
-        private DirectorySecurity GetUpgradeLogsDirectorySecurity(string upgradeLogsPath)
-        {
-            DirectorySecurity upgradeLogsSecurity;
-            if (Directory.Exists(upgradeLogsPath))
-            {
-                this.tracer.RelatedInfo($"{nameof(this.GetUpgradeLogsDirectorySecurity)}: '{upgradeLogsPath}' exists, modifying ACLs");
-                upgradeLogsSecurity = Directory.GetAccessControl(upgradeLogsPath);
-            }
-            else
-            {
-                this.tracer.RelatedInfo($"{nameof(this.GetUpgradeLogsDirectorySecurity)}: '{upgradeLogsPath}' does not exist, creating new ACLs");
-                upgradeLogsSecurity = new DirectorySecurity();
-            }
-
-            // Protect the access rules from inheritance and remove any inherited rules
-            upgradeLogsSecurity.SetAccessRuleProtection(isProtected: true, preserveInheritance: false);
-
-            // Add new ACLs for users and admins.  Users will be granted write permissions.
-            WindowsFileSystem.AddUsersAccessRulesToDirectorySecurity(upgradeLogsSecurity, grantUsersModifyPermissions: true);
-            WindowsFileSystem.AddAdminAccessRulesToDirectorySecurity(upgradeLogsSecurity);
-            return upgradeLogsSecurity;
         }
     }
 }

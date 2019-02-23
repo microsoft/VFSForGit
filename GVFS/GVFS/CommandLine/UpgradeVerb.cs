@@ -94,6 +94,19 @@ namespace GVFS.CommandLine
                 error = null;
                 if (this.upgrader == null)
                 {
+                    // Under normal circumstances ProductUpgraderInfo.GetLogDirectoryPath will have already been created by GVFS.Service.  If for some reason it
+                    // does not (e.g. the service failed to start), we need to create ProductUpgraderInfo.GetLogDirectoryPath() explicity to ensure that
+                    // it has the correct ACLs (so that both admin and non-admin users can create log files).
+                    // If the logs directory does not already exist, this call could fail when running as a non-elevated user.
+                    string createDirectoryError;
+                    if (!this.fileSystem.TryCreateDirectoryWithAdminAndUserModifyPermissions(ProductUpgraderInfo.GetLogDirectoryPath(), out createDirectoryError))
+                    {
+                        error = $"ERROR: Unable to create directory `{ProductUpgraderInfo.GetLogDirectoryPath()}`";
+                        error += $"\n{createDirectoryError}";
+                        error += $"\n\nTry running {GVFSConstants.UpgradeVerbMessages.GVFSUpgrade} from an elevated command prompt.";
+                        return false;
+                    }
+
                     JsonTracer jsonTracer = new JsonTracer(GVFSConstants.GVFSEtwProviderName, "UpgradeVerb");
                     string logFilePath = GVFSEnlistment.GetNewGVFSLogFileName(
                         ProductUpgraderInfo.GetLogDirectoryPath(),
