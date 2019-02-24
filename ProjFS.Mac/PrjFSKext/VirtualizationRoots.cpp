@@ -269,7 +269,7 @@ static VirtualizationRootHandle FindOrDetectRootAtVnode(vnode_t _Nonnull vnode, 
 
 static VirtualizationRootHandle FindUnusedIndex_Locked()
 {
-    for (VirtualizationRootHandle i = 0; i < s_maxVirtualizationRoots; ++i)
+    for (uint32_t i = 0; i < s_maxVirtualizationRoots; ++i)
     {
         if (!s_virtualizationRoots[i].inUse)
         {
@@ -290,6 +290,7 @@ static VirtualizationRootHandle FindUnusedIndexOrGrow_Locked()
         uint16_t newLength = MIN(s_maxVirtualizationRoots * 2u, INT16_MAX + 1u);
         if (newLength <= s_maxVirtualizationRoots)
         {
+            assert(newLength > 0);
             return RootHandle_None;
         }
         
@@ -323,7 +324,7 @@ static bool FsidsAreEqual(fsid_t a, fsid_t b)
 
 static VirtualizationRootHandle FindRootAtVnode_Locked(vnode_t vnode, uint32_t vid, FsidInode fileId)
 {
-    for (VirtualizationRootHandle i = 0; i < s_maxVirtualizationRoots; ++i)
+    for (uint32_t i = 0; i < s_maxVirtualizationRoots; ++i)
     {
         VirtualizationRoot& rootEntry = s_virtualizationRoots[i];
         if (!rootEntry.inUse)
@@ -502,6 +503,7 @@ VirtualizationRootResult VirtualizationRoot_RegisterProviderForPath(PrjFSProvide
                         {
                             // TODO: scan the array for roots on mounts which have disappeared, or grow the array
                             KextLog_Error("VirtualizationRoot_RegisterProviderForPath: failed to insert new root");
+                            err = ENOMEM;
                         }
                     }
                 }
