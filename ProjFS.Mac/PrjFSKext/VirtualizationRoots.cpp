@@ -5,6 +5,7 @@
 #include "public/PrjFSCommon.h"
 #include "public/PrjFSXattrs.h"
 #include "VirtualizationRoots.hpp"
+#include "VirtualizationRootsTestable.hpp"
 #include "Memory.hpp"
 #include "Locks.hpp"
 #include "KextLog.hpp"
