@@ -1,249 +1,30 @@
 #include "../PrjFSKext/VirtualizationRoots.hpp"
+#include "../PrjFSKext/VirtualizationRootsTestable.hpp"
+#include "../PrjFSKext/PrjFSProviderUserClient.hpp"
 #include "../PrjFSKext/kernel-header-wrappers/mount.h"
-#import <XCTest/XCTest.h>
 #include "../PrjFSKext/Memory.hpp"
 #include "../PrjFSKext/Locks.hpp"
 #include "../PrjFSKext/VnodeUtilities.hpp"
 #include "../PrjFSKext/KextLog.hpp"
-#include <unordered_map>
-#include <unordered_set>
-#include <set>
-#include <memory>
+#include "KextMockUtilities.hpp"
+#include "MockVnodeAndMount.hpp"
+
+#import <XCTest/XCTest.h>
+#include <vector>
 #include <string>
 
-using std::string;
 using std::make_pair;
-
-typedef std::shared_ptr<mount> MountPointer;
-
-typedef std::shared_ptr<vnode> VnodePointer;
-typedef std::weak_ptr<vnode> VnodeWeakPointer;
-typedef std::unordered_map<string, VnodeWeakPointer> PathToVnodeMap;
-typedef std::unordered_map<vnode_t, VnodeWeakPointer> WeakVnodeMap;
+using std::shared_ptr;
 
 class PrjFSProviderUserClient
 {
 };
 
-struct mount
+void ProviderUserClient_UpdatePathProperty(PrjFSProviderUserClient* userClient, const char* providerPath)
 {
-private:
-    vfsstatfs statfs;
-    
-public:
-    static MountPointer WithName(const char* fileSystemName);
-    
-    friend vfsstatfs* vfs_statfs(mount_t mountPoint);
-};
-
-struct vnode
-{
-private:
-    MountPointer mountPoint;
-    VnodeWeakPointer weakSelfPointer;
-
-    int32_t ioCount = 0;
-    bool isRecycling = false;
-    
-    vtype type = VREG;
-    
-    string path;
-    const char* name;
-    
-    void SetPath(const string& path);
-
-    explicit vnode(const MountPointer& mount);
-    
-    vnode(const vnode&) = delete;
-    vnode& operator=(const vnode&) = delete;
-    
-public:
-    static VnodePointer WithPath(const MountPointer& mount, const char* path);
-    ~vnode();
-
-    friend int vnode_isrecycled(vnode_t vnode);
-    friend const char* vnode_getname(vnode_t vnode);
-    friend vtype vnode_vtype(vnode_t vnode);
-    friend mount_t vnode_mount(vnode_t vnode);
-    friend int vnode_put(vnode_t vnode);
-    friend errno_t vnode_lookup(const char* path, int flags, vnode_t* foundVnode, vfs_context_t vfsContext);
-};
-
-static PathToVnodeMap s_vnodesByPath;
-static WeakVnodeMap s_allVnodes;
-
-MountPointer mount::WithName(const char* fileSystemName)
-{
-    MountPointer result(new mount{});
-    assert(strlen(fileSystemName) + 1 < sizeof(result->statfs.f_fstypename));
-    strlcpy(result->statfs.f_fstypename, fileSystemName, sizeof(result->statfs.f_fstypename));
-    return result;
+    MockCalls::RecordFunctionCall(ProviderUserClient_UpdatePathProperty, userClient, providerPath);
 }
 
-
-vnode::vnode(const MountPointer& mount) :
-    mountPoint(mount),
-    name(nullptr)
-{
-}
-
-vnode::~vnode()
-{
-    assert(this->ioCount == 0);
-}
-
-VnodePointer vnode::WithPath(const MountPointer& mount, const char* path)
-{
-    VnodePointer result(new vnode(mount));
-    s_allVnodes.insert(make_pair(result.get(), VnodeWeakPointer(result)));
-    result->weakSelfPointer = result;
-    result->SetPath(path);
-    return result;
-}
-
-void vnode::SetPath(const string& path)
-{
-    s_vnodesByPath.erase(this->path);
-
-    this->path = path;
-    size_t lastSlash = this->path.rfind('/');
-    if (lastSlash == string::npos)
-    {
-        this->name = this->path.c_str();
-    }
-    else
-    {
-        this->name = this->path.c_str() + lastSlash + 1;
-    }
-    
-    s_vnodesByPath.insert(make_pair(path, this->weakSelfPointer));
-}
-
-int vnode_isrecycled(vnode_t vnode)
-{
-    return vnode->isRecycling;
-}
-
-const char* vnode_getname(vnode_t vnode)
-{
-    return vnode->name;
-}
-
-void vnode_putname(const char* name)
-{
-    // TODO: track name reference counts
-}
-
-int vnode_isdir(vnode_t vnode)
-{
-    return vnode_vtype(vnode) == VDIR;
-}
-
-int vn_getpath(vnode_t vnode, char* pathBuffer, int* pathLengthInOut)
-{
-    return 0;
-}
-
-FsidInode Vnode_GetFsidAndInode(vnode_t vnode, vfs_context_t vfsContext)
-{
-    return FsidInode{};
-}
-
-errno_t vnode_lookup(const char* path, int flags, vnode_t* foundVnode, vfs_context_t vfsContext)
-{
-    PathToVnodeMap::const_iterator found = s_vnodesByPath.find(path);
-    if (found == s_vnodesByPath.end())
-    {
-        return ENOENT;
-    }
-    else if (VnodePointer vnode = found->second.lock())
-    {
-        // vnode_lookup returns a vnode with an iocount
-        ++vnode->ioCount;
-        *foundVnode = vnode.get();
-        return 0;
-    }
-    else
-    {
-        s_vnodesByPath.erase(found);
-        return ENOENT;
-    }
-}
-
-uint32_t vnode_vid(vnode_t vnode)
-{
-    return 0;
-}
-
-vtype vnode_vtype(vnode_t vnode)
-{
-    return vnode->type;
-}
-
-mount_t vnode_mount(vnode_t vnode)
-{
-    return vnode->mountPoint.get();
-}
-
-int vnode_put(vnode_t vnode)
-{
-    assert(vnode->ioCount > 0);
-    --vnode->ioCount;
-    return 0;
-}
-
-
-
-vfsstatfs* vfs_statfs(mount_t mountPoint)
-{
-    return &mountPoint->statfs;
-}
-
-vfs_context_t vfs_context_create(vfs_context_t contextToClone)
-{
-    return nullptr;
-}
-
-int vfs_context_rele(vfs_context_t vfsContext)
-{
-    return 0;
-}
-
-void vfs_setauthcache_ttl(mount_t mountPoint, int ttl)
-{
-}
-
-
-
-
-void Memory_Free(void* memory, uint32_t sizeBytes)
-{
-    free(memory);
-}
-
-void* Memory_Alloc(uint32_t sizeBytes)
-{
-    return malloc(sizeBytes);
-}
-
-
-void RWLock_AcquireExclusive(RWLock& lock)
-{
-}
-
-void RWLock_ReleaseExclusive(RWLock& lock)
-{
-}
-
-
-const void* KextLog_Unslide(const void* pointer)
-{
-    return pointer;
-}
-
-void KextLog_Printf(KextLog_Level level, const char* format, ...)
-{
-}
 
 @interface VirtualizationRootsTests : XCTestCase
 
@@ -253,24 +34,32 @@ void KextLog_Printf(KextLog_Level level, const char* format, ...)
 {
     PrjFSProviderUserClient dummyClient;
     pid_t dummyClientPid;
-    MountPointer testMountPoint;
+    shared_ptr<mount> testMountPoint;
 }
 
 - (void)setUp
 {
+    srand(0);
     self->dummyClientPid = 100;
-    testMountPoint = mount::WithName("hfs");
+    
+    // This is roughly what "real" fsids look like
+    fsid_t testMountFsid = { (1 << 24) | (rand() % 32), (rand() % 16) };
+    
+    // HFS+ inodes are < UINT32_MAX (APFS' are 64-bit)
+    uint64_t testMountInitialInode = rand();
+    
+    testMountPoint = mount::Create("hfs", testMountFsid, testMountInitialInode);
+    
+    kern_return_t initResult = VirtualizationRoots_Init();
+    XCTAssertEqual(initResult, KERN_SUCCESS);
 }
 
 - (void)tearDown
 {
-    for (WeakVnodeMap::const_iterator cur = s_allVnodes.begin(); cur != s_allVnodes.end(); ++cur)
-    {
-        VnodePointer strong = cur->second.lock();
-        XCTAssertFalse(strong);
-    }
-    
-    s_allVnodes.clear();
+    VirtualizationRoots_Cleanup();
+
+    MockVnodes_CheckAndClear();
+    MockCalls::Clear();
 }
 
 
@@ -280,17 +69,164 @@ void KextLog_Printf(KextLog_Level level, const char* format, ...)
     VirtualizationRootResult result = VirtualizationRoot_RegisterProviderForPath(&self->dummyClient, self->dummyClientPid, path);
     XCTAssertEqual(result.error, ENOENT);
     XCTAssertFalse(VirtualizationRoot_IsValidRootHandle(result.root));
+    
+    XCTAssertFalse(MockCalls::DidCallFunction(vfs_setauthcache_ttl));
 }
 
 - (void)testRegisterProviderForPath_NonDirectoryPath
 {
     const char* path = "/Users/test/code/NotADirectory.cpp";
     
-    VnodePointer vnode = vnode::WithPath(self->testMountPoint, path);
+    shared_ptr<vnode> vnode = vnode::Create(self->testMountPoint, path);
     
     VirtualizationRootResult result = VirtualizationRoot_RegisterProviderForPath(&self->dummyClient, self->dummyClientPid, path);
     XCTAssertEqual(result.error, ENOTDIR);
     XCTAssertFalse(VirtualizationRoot_IsValidRootHandle(result.root));
+
+    XCTAssertFalse(MockCalls::DidCallFunction(vfs_setauthcache_ttl));
 }
+
+- (void)testRegisterProviderForPath_DisallowedFileSystem
+{
+    const char* path = "/Volumes/USBStick/repo";
+    
+    fsid_t fatFsid = self->testMountPoint->GetFsid();
+    fatFsid.val[1]++;
+    shared_ptr<mount> fatMount(mount::Create("msdos", fatFsid, rand()));
+    
+    shared_ptr<vnode> vnode = vnode::Create(fatMount, path, VDIR);
+    
+    VirtualizationRootResult result = VirtualizationRoot_RegisterProviderForPath(&self->dummyClient, self->dummyClientPid, path);
+    XCTAssertEqual(result.error, ENODEV);
+    XCTAssertFalse(VirtualizationRoot_IsValidRootHandle(result.root));
+
+    XCTAssertFalse(MockCalls::DidCallFunction(vfs_setauthcache_ttl));
+}
+
+- (void)testRegisterProviderForPath_GetPathError
+{
+    const char* path = "/Users/test/code/RepoNotInNamecache";
+    
+    shared_ptr<vnode> vnode = vnode::Create(self->testMountPoint, path, VDIR);
+    vnode->SetGetPathError(EINVAL);
+    
+    VirtualizationRootResult result = VirtualizationRoot_RegisterProviderForPath(&self->dummyClient, self->dummyClientPid, path);
+    XCTAssertEqual(result.error, EINVAL);
+    XCTAssertFalse(VirtualizationRoot_IsValidRootHandle(result.root));
+
+    XCTAssertFalse(MockCalls::DidCallFunction(vfs_setauthcache_ttl));
+    XCTAssertFalse(MockCalls::DidCallFunction(ProviderUserClient_UpdatePathProperty));
+}
+
+- (void)testRegisterProviderForPath_ExistingRoot
+{
+    const char* path = "/Users/test/code/Repo";
+    
+    shared_ptr<vnode> vnode = vnode::Create(self->testMountPoint, path, VDIR);
+    
+    const VirtualizationRootHandle rootIndex = 2;
+    XCTAssertLessThan(rootIndex, s_maxVirtualizationRoots);
+    
+    s_virtualizationRoots[rootIndex].inUse = true;
+    s_virtualizationRoots[rootIndex].rootVNode = vnode.get();
+    s_virtualizationRoots[rootIndex].rootVNodeVid = vnode_vid(vnode.get());
+    s_virtualizationRoots[rootIndex].rootFsid = self->testMountPoint->GetFsid();
+    s_virtualizationRoots[rootIndex].rootInode = vnode->GetInode();
+    
+    VirtualizationRootResult result = VirtualizationRoot_RegisterProviderForPath(&self->dummyClient, self->dummyClientPid, path);
+    XCTAssertEqual(result.error, 0);
+    XCTAssertEqual(result.root, rootIndex);
+    XCTAssertEqual(s_virtualizationRoots[result.root].providerUserClient, &self->dummyClient);
+
+    XCTAssertTrue(MockCalls::DidCallFunction(vfs_setauthcache_ttl));
+    XCTAssertTrue(MockCalls::DidCallFunction(ProviderUserClient_UpdatePathProperty));
+    
+    s_virtualizationRoots[result.root].providerUserClient = nullptr;
+    vnode_put(s_virtualizationRoots[result.root].rootVNode);
+
+}
+
+- (void)testRegisterProviderForPath_ProviderExists
+{
+    const char* path = "/Users/test/code/Repo";
+    
+    shared_ptr<vnode> vnode = vnode::Create(self->testMountPoint, path, VDIR);
+    
+    const VirtualizationRootHandle rootIndex = 1;
+    XCTAssertLessThan(rootIndex, s_maxVirtualizationRoots);
+    
+    PrjFSProviderUserClient existingClient;
+    const pid_t existingClientPid = 50;
+
+    
+    s_virtualizationRoots[rootIndex].inUse = true;
+    s_virtualizationRoots[rootIndex].rootVNode = vnode.get();
+    s_virtualizationRoots[rootIndex].rootVNodeVid = vnode_vid(vnode.get());
+    s_virtualizationRoots[rootIndex].rootFsid = self->testMountPoint->GetFsid();
+    s_virtualizationRoots[rootIndex].rootInode = vnode->GetInode();
+    
+    vnode_get(s_virtualizationRoots[rootIndex].rootVNode);
+    
+    s_virtualizationRoots[rootIndex].providerUserClient = &existingClient;
+    s_virtualizationRoots[rootIndex].providerPid = existingClientPid;
+    
+    VirtualizationRootResult result = VirtualizationRoot_RegisterProviderForPath(&self->dummyClient, self->dummyClientPid, path);
+    XCTAssertEqual(result.error, EBUSY);
+    XCTAssertFalse(VirtualizationRoot_IsValidRootHandle(result.root));
+    XCTAssertNotEqual(s_virtualizationRoots[rootIndex].providerUserClient, &self->dummyClient);
+
+    XCTAssertFalse(MockCalls::DidCallFunction(vfs_setauthcache_ttl));
+    XCTAssertFalse(MockCalls::DidCallFunction(ProviderUserClient_UpdatePathProperty));
+    
+    s_virtualizationRoots[rootIndex].providerUserClient = nullptr;
+    vnode_put(s_virtualizationRoots[rootIndex].rootVNode);
+}
+
+
+- (void)testRegisterProviderForPath_InsertionSucceeded
+{
+    const char* path = "/Users/test/code/Repo";
+    
+    shared_ptr<vnode> vnode = vnode::Create(self->testMountPoint, path, VDIR);
+    
+    VirtualizationRootResult result = VirtualizationRoot_RegisterProviderForPath(&self->dummyClient, self->dummyClientPid, path);
+    XCTAssertEqual(result.error, 0);
+    XCTAssertTrue(VirtualizationRoot_IsValidRootHandle(result.root));
+    if (VirtualizationRoot_IsValidRootHandle(result.root))
+    {
+        XCTAssertEqual(s_virtualizationRoots[result.root].providerUserClient, &self->dummyClient);
+
+        XCTAssertTrue(MockCalls::DidCallFunction(vfs_setauthcache_ttl));
+        XCTAssertTrue(MockCalls::DidCallFunction(ProviderUserClient_UpdatePathProperty));
+    
+        s_virtualizationRoots[result.root].providerUserClient = nullptr;
+        vnode_put(s_virtualizationRoots[result.root].rootVNode);
+    }
+}
+
+- (void)testRegisterProviderForPath_ArrayFull
+{
+    const char* path = "/Users/test/code/Repo";
+    
+    shared_ptr<vnode> vnode = vnode::Create(self->testMountPoint, path, VDIR);
+    
+    Memory_FreeArray(s_virtualizationRoots, s_maxVirtualizationRoots);
+    s_maxVirtualizationRoots = INT16_MAX + 1;
+    s_virtualizationRoots = Memory_AllocArray<VirtualizationRoot>(INT16_MAX + 1);
+    memset(s_virtualizationRoots, 0, s_maxVirtualizationRoots * sizeof(s_virtualizationRoots[0]));
+    
+    for (uint32_t i = 0; i < s_maxVirtualizationRoots; ++i)
+    {
+        s_virtualizationRoots[i].inUse = true;
+    }
+    
+    VirtualizationRootResult result = VirtualizationRoot_RegisterProviderForPath(&self->dummyClient, self->dummyClientPid, path);
+    XCTAssertEqual(result.error, ENOMEM);
+    XCTAssertFalse(VirtualizationRoot_IsValidRootHandle(result.root));
+
+    XCTAssertFalse(MockCalls::DidCallFunction(vfs_setauthcache_ttl));
+    XCTAssertFalse(MockCalls::DidCallFunction(ProviderUserClient_UpdatePathProperty));
+}
+
 
 @end

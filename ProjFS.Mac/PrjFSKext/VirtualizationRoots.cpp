@@ -5,7 +5,7 @@
 #include "public/PrjFSCommon.h"
 #include "public/PrjFSXattrs.h"
 #include "VirtualizationRoots.hpp"
-#include "VirtualizationRootsTestable.hpp"
+#include "VirtualizationRootsPrivate.hpp"
 #include "Memory.hpp"
 #include "Locks.hpp"
 #include "KextLog.hpp"
@@ -15,31 +15,15 @@
 #include "VnodeUtilities.hpp"
 #include "PerformanceTracing.hpp"
 
-
-struct VirtualizationRoot
-{
-    bool                        inUse;
-    // If this is a nullptr, there is no active provider for this virtualization root (offline root)
-    PrjFSProviderUserClient*    providerUserClient;
-    int                         providerPid;
-    // For an active root, this is retained (vnode_get), for an offline one, it is not, so it may be stale (check the vid)
-    vnode_t                     rootVNode;
-    uint32_t                    rootVNodeVid;
-    
-    // Mount point ID + persistent, on-disk ID for the root directory, so we can
-    // identify it if the vnode of an offline root gets recycled.
-    fsid_t                      rootFsid;
-    uint64_t                    rootInode;
-    
-    // TODO(Mac): this should eventually be entirely diagnostic and not used for decisions
-    char                        path[PrjFSMaxPath];
-};
+#ifdef KEXT_UNIT_TESTING
+#include "VirtualizationRootsTestable.hpp"
+#endif
 
 static RWLock s_virtualizationRootsLock = {};
 
 // Current length of the s_virtualizationRoots array
-static uint16_t s_maxVirtualizationRoots = 0;
-static VirtualizationRoot* s_virtualizationRoots = nullptr;
+KEXT_STATIC uint16_t s_maxVirtualizationRoots = 0;
+KEXT_STATIC VirtualizationRoot* s_virtualizationRoots = nullptr;
 
 // Looks up the vnode/vid and fsid/inode pairs among the known roots
 static VirtualizationRootHandle FindRootAtVnode_Locked(vnode_t vnode, uint32_t vid, FsidInode fileId);

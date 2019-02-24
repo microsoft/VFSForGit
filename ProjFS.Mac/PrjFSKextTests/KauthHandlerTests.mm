@@ -1,10 +1,19 @@
+#include "../PrjFSKext/kernel-header-wrappers/vnode.h"
 #import <XCTest/XCTest.h>
 #include "../PrjFSKext/KauthHandlerTestable.hpp"
+#include "MockVnodeAndMount.hpp"
+
+using std::shared_ptr;
 
 @interface KauthHandlerTests : XCTestCase
 @end
 
 @implementation KauthHandlerTests
+
+- (void) tearDown
+{
+    MockVnodes_CheckAndClear();
+}
 
 - (void)testActionBitIsSet {
     XCTAssertTrue(ActionBitIsSet(KAUTH_VNODE_READ_DATA, KAUTH_VNODE_READ_DATA));
@@ -33,18 +42,20 @@
 }
 
 - (void)testShouldIgnoreVnodeType {
-    XCTAssertTrue(ShouldIgnoreVnodeType(VNON, NULL));
-    XCTAssertTrue(ShouldIgnoreVnodeType(VBLK, NULL));
-    XCTAssertTrue(ShouldIgnoreVnodeType(VCHR, NULL));
-    XCTAssertTrue(ShouldIgnoreVnodeType(VSOCK, NULL));
-    XCTAssertTrue(ShouldIgnoreVnodeType(VFIFO, NULL));
-    XCTAssertTrue(ShouldIgnoreVnodeType(VBAD, NULL));
-    XCTAssertFalse(ShouldIgnoreVnodeType(VREG, NULL));
-    XCTAssertFalse(ShouldIgnoreVnodeType(VDIR, NULL));
-    XCTAssertFalse(ShouldIgnoreVnodeType(VLNK, NULL));
-    XCTAssertFalse(ShouldIgnoreVnodeType(VSTR, NULL));
-    XCTAssertFalse(ShouldIgnoreVnodeType(VCPLX, NULL));
-    XCTAssertFalse(ShouldIgnoreVnodeType(static_cast<vtype>(1000), NULL));
+    shared_ptr<mount> testMount = mount::Create("hfs", fsid_t{}, 0);
+    shared_ptr<vnode> testVnode = vnode::Create(testMount, "/foo");
+    XCTAssertTrue(ShouldIgnoreVnodeType(VNON, testVnode.get()));
+    XCTAssertTrue(ShouldIgnoreVnodeType(VBLK, testVnode.get()));
+    XCTAssertTrue(ShouldIgnoreVnodeType(VCHR, testVnode.get()));
+    XCTAssertTrue(ShouldIgnoreVnodeType(VSOCK, testVnode.get()));
+    XCTAssertTrue(ShouldIgnoreVnodeType(VFIFO, testVnode.get()));
+    XCTAssertTrue(ShouldIgnoreVnodeType(VBAD, testVnode.get()));
+    XCTAssertFalse(ShouldIgnoreVnodeType(VREG, testVnode.get()));
+    XCTAssertFalse(ShouldIgnoreVnodeType(VDIR, testVnode.get()));
+    XCTAssertFalse(ShouldIgnoreVnodeType(VLNK, testVnode.get()));
+    XCTAssertFalse(ShouldIgnoreVnodeType(VSTR, testVnode.get()));
+    XCTAssertFalse(ShouldIgnoreVnodeType(VCPLX, testVnode.get()));
+    XCTAssertFalse(ShouldIgnoreVnodeType(static_cast<vtype>(1000), testVnode.get()));
 }
 
 @end
