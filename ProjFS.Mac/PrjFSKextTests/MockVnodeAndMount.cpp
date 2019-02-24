@@ -47,6 +47,22 @@ shared_ptr<vnode> vnode::Create(const shared_ptr<mount>& mount, const char* path
     return result;
 }
 
+shared_ptr<vnode> vnode::Create(const shared_ptr<mount>& mount, const char* path, vtype vnodeType, uint64_t inode)
+{
+    shared_ptr<vnode> result = Create(mount, path, vnodeType);
+    result->inode = inode;
+    return result;
+}
+
+void vnode::StartRecycling()
+{
+    s_vnodesByPath.erase(this->path);
+    this->path.clear();
+    this->type = VBAD;
+    this->vid++;
+    this->isRecycling = true;
+}
+
 void vnode::SetGetPathError(errno_t error)
 {
     this->getPathError = error;
@@ -140,7 +156,7 @@ errno_t vnode_lookup(const char* path, int flags, vnode_t* foundVnode, vfs_conte
 
 uint32_t vnode_vid(vnode_t vnode)
 {
-    return 0;
+    return vnode->vid;
 }
 
 vtype vnode_vtype(vnode_t vnode)

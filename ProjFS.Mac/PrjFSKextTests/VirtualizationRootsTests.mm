@@ -13,12 +13,12 @@
 #include <vector>
 #include <string>
 
-using std::make_pair;
 using std::shared_ptr;
 
 class PrjFSProviderUserClient
 {
 };
+
 
 void ProviderUserClient_UpdatePathProperty(PrjFSProviderUserClient* userClient, const char* providerPath)
 {
@@ -161,7 +161,7 @@ void ProviderUserClient_UpdatePathProperty(PrjFSProviderUserClient* userClient, 
     
     s_virtualizationRoots[rootIndex].inUse = true;
     s_virtualizationRoots[rootIndex].rootVNode = vnode.get();
-    s_virtualizationRoots[rootIndex].rootVNodeVid = vnode_vid(vnode.get());
+    s_virtualizationRoots[rootIndex].rootVNodeVid = vnode->GetVid();
     s_virtualizationRoots[rootIndex].rootFsid = self->testMountPoint->GetFsid();
     s_virtualizationRoots[rootIndex].rootInode = vnode->GetInode();
     
@@ -228,5 +228,40 @@ void ProviderUserClient_UpdatePathProperty(PrjFSProviderUserClient* userClient, 
     XCTAssertFalse(MockCalls::DidCallFunction(ProviderUserClient_UpdatePathProperty));
 }
 
+
+- (void)testRegisterProviderForPath_ExistingRecycledRoot
+{
+    const char* path = "/Users/test/code/Repo";
+    
+    shared_ptr<vnode> oldVnode = vnode::Create(self->testMountPoint, path, VDIR);
+    
+    const VirtualizationRootHandle rootIndex = 2;
+    XCTAssertLessThan(rootIndex, s_maxVirtualizationRoots);
+    
+    s_virtualizationRoots[rootIndex].inUse = true;
+    s_virtualizationRoots[rootIndex].rootVNode = oldVnode.get();
+    s_virtualizationRoots[rootIndex].rootVNodeVid = oldVnode->GetVid();
+    s_virtualizationRoots[rootIndex].rootFsid = self->testMountPoint->GetFsid();
+    uint64_t inode = oldVnode->GetInode();
+    s_virtualizationRoots[rootIndex].rootInode = inode;
+    
+    oldVnode->StartRecycling();
+    
+    shared_ptr<vnode> newVnode = vnode::Create(self->testMountPoint, path, VDIR, oldVnode->GetInode());
+    
+    VirtualizationRootResult result = VirtualizationRoot_RegisterProviderForPath(&self->dummyClient, self->dummyClientPid, path);
+    XCTAssertEqual(result.error, 0);
+    XCTAssertEqual(result.root, rootIndex);
+    XCTAssertEqual(s_virtualizationRoots[result.root].providerUserClient, &self->dummyClient);
+    XCTAssertEqual(s_virtualizationRoots[result.root].rootVNode, newVnode.get());
+    XCTAssertEqual(s_virtualizationRoots[result.root].rootVNodeVid, newVnode->GetVid());
+
+    XCTAssertTrue(MockCalls::DidCallFunction(vfs_setauthcache_ttl));
+    XCTAssertTrue(MockCalls::DidCallFunction(ProviderUserClient_UpdatePathProperty));
+    
+    s_virtualizationRoots[result.root].providerUserClient = nullptr;
+    vnode_put(newVnode.get());
+
+}
 
 @end
