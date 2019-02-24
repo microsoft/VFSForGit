@@ -1,4 +1,4 @@
-#include "PrjFSProviderUserClient.hpp"
+#include "PrjFSProviderUserClientPrivate.hpp"
 #include "public/PrjFSCommon.h"
 #include "public/PrjFSProviderClientShared.h"
 #include "public/Message.h"
@@ -281,3 +281,22 @@ void PrjFSProviderUserClient::sendMessage(const void* message, uint32_t size)
     Mutex_Release(this->dataQueueWriterMutex);
 }
 
+void ProviderUserClient_SendMessage(PrjFSProviderUserClient* userClient, const void* message, uint32_t size)
+{
+    userClient->sendMessage(message, size);
+}
+
+void ProviderUserClient_UpdatePathProperty(PrjFSProviderUserClient* userClient, const char* providerPath)
+{
+    userClient->setProperty(PrjFSProviderPathKey, providerPath);
+}
+
+void ProviderUserClient_Retain(PrjFSProviderUserClient* userClient)
+{
+    userClient->retain();
+}
+
+void ProviderUserClient_Release(PrjFSProviderUserClient* userClient)
+{
+    userClient->release();
+}

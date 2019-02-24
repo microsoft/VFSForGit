@@ -40,7 +40,7 @@
 		4391F8B621E42AC50008103C /* PrjFSKext.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 4391F89C21E42AC40008103C /* PrjFSKext.cpp */; };
 		4391F8B721E42AC50008103C /* PrjFSClasses.hpp in Headers */ = {isa = PBXBuildFile; fileRef = 4391F89D21E42AC50008103C /* PrjFSClasses.hpp */; };
 		4391F8B821E42AC50008103C /* PrjFSLogUserClient.hpp in Headers */ = {isa = PBXBuildFile; fileRef = 4391F89E21E42AC50008103C /* PrjFSLogUserClient.hpp */; };
-		4391F8B921E42AC50008103C /* PrjFSProviderUserClient.hpp in Headers */ = {isa = PBXBuildFile; fileRef = 4391F89F21E42AC50008103C /* PrjFSProviderUserClient.hpp */; };
+		4391F8B921E42AC50008103C /* PrjFSProviderUserClientPrivate.hpp in Headers */ = {isa = PBXBuildFile; fileRef = 4391F89F21E42AC50008103C /* PrjFSProviderUserClientPrivate.hpp */; };
 		4391F8BA21E42AC50008103C /* PrjFSLogUserClient.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 4391F8A021E42AC50008103C /* PrjFSLogUserClient.cpp */; };
 		4391F8BB21E42AC50008103C /* VnodeUtilities.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 4391F8A121E42AC50008103C /* VnodeUtilities.cpp */; };
 		4391F8BC21E42AC50008103C /* VnodeUtilities.hpp in Headers */ = {isa = PBXBuildFile; fileRef = 4391F8A221E42AC50008103C /* VnodeUtilities.hpp */; };
@@ -151,7 +151,7 @@
 		4391F89C21E42AC40008103C /* PrjFSKext.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = PrjFSKext.cpp; sourceTree = "<group>"; };
 		4391F89D21E42AC50008103C /* PrjFSClasses.hpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.h; path = PrjFSClasses.hpp; sourceTree = "<group>"; };
 		4391F89E21E42AC50008103C /* PrjFSLogUserClient.hpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.h; path = PrjFSLogUserClient.hpp; sourceTree = "<group>"; };
-		4391F89F21E42AC50008103C /* PrjFSProviderUserClient.hpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.h; path = PrjFSProviderUserClient.hpp; sourceTree = "<group>"; };
+		4391F89F21E42AC50008103C /* PrjFSProviderUserClientPrivate.hpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.h; path = PrjFSProviderUserClientPrivate.hpp; sourceTree = "<group>"; };
 		4391F8A021E42AC50008103C /* PrjFSLogUserClient.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = PrjFSLogUserClient.cpp; sourceTree = "<group>"; };
 		4391F8A121E42AC50008103C /* VnodeUtilities.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = VnodeUtilities.cpp; sourceTree = "<group>"; };
 		4391F8A221E42AC50008103C /* VnodeUtilities.hpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.h; path = VnodeUtilities.hpp; sourceTree = "<group>"; };
@@ -172,6 +172,7 @@
 		4A08257021E77BDD00E21AFD /* org.vfsforgit.prjfs.PrjFSKextLogDaemon.plist */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.plist.xml; path = org.vfsforgit.prjfs.PrjFSKextLogDaemon.plist; sourceTree = "<group>"; };
 		4A08257121E77BDD00E21AFD /* PrjFSKextLogDaemon.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = PrjFSKextLogDaemon.cpp; sourceTree = "<group>"; };
 		4A08257221E77BDD00E21AFD /* Info.plist */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		4A781DA82222C6EA00DB7733 /* PrjFSProviderUserClient.hpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.h; path = PrjFSProviderUserClient.hpp; sourceTree = "<group>"; };
 		4A8C13A021F23EE800002878 /* libPrjFSKextTestable.a */ = {isa = PBXFileReference; explicitFileType = archive.ar; includeInIndex = 0; path = libPrjFSKextTestable.a; sourceTree = BUILT_PRODUCTS_DIR; };
 		4A8C13AA21F268FE00002878 /* PrjFSKextTests.exp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.exports; path = PrjFSKextTests.exp; sourceTree = "<group>"; };
 		F557623E22009F0E005DE35E /* KextLogMock.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = KextLogMock.h; sourceTree = "<group>"; };
@@ -294,7 +295,8 @@
 				4391F8A021E42AC50008103C /* PrjFSLogUserClient.cpp */,
 				4391F89E21E42AC50008103C /* PrjFSLogUserClient.hpp */,
 				4391F89521E42AC40008103C /* PrjFSProviderUserClient.cpp */,
-				4391F89F21E42AC50008103C /* PrjFSProviderUserClient.hpp */,
+				4391F89F21E42AC50008103C /* PrjFSProviderUserClientPrivate.hpp */,
+				4A781DA82222C6EA00DB7733 /* PrjFSProviderUserClient.hpp */,
 				4391F89A21E42AC40008103C /* PrjFSService.cpp */,
 				4391F89921E42AC40008103C /* PrjFSService.hpp */,
 				4391F89621E42AC40008103C /* public */,
@@ -365,7 +367,7 @@
 				4391F8B721E42AC50008103C /* PrjFSClasses.hpp in Headers */,
 				4391F8BC21E42AC50008103C /* VnodeUtilities.hpp in Headers */,
 				4391F8BD21E42AC50008103C /* PerformanceTracing.hpp in Headers */,
-				4391F8B921E42AC50008103C /* PrjFSProviderUserClient.hpp in Headers */,
+				4391F8B921E42AC50008103C /* PrjFSProviderUserClientPrivate.hpp in Headers */,
 				F5E39C8321F11556006D65C2 /* KauthHandlerTestable.hpp in Headers */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;

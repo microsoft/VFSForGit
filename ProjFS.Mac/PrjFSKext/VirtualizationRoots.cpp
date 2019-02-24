@@ -524,7 +524,7 @@ VirtualizationRootResult VirtualizationRoot_RegisterProviderForPath(PrjFSProvide
                 
                 if (0 == err)
                 {
-                    userClient->setProperty(PrjFSProviderPathKey, virtualizationRootCanonicalPath);
+                    ProviderUserClient_UpdatePathProperty(userClient, virtualizationRootCanonicalPath);
                 }
             }
         }
@@ -589,7 +589,7 @@ errno_t ActiveProvider_SendMessage(VirtualizationRootHandle rootIndex, const Mes
         userClient = s_virtualizationRoots[rootIndex].providerUserClient;
         if (nullptr != userClient)
         {
-            userClient->retain();
+            ProviderUserClient_Retain(userClient);
         }
     }
     RWLock_ReleaseShared(s_virtualizationRootsLock);
@@ -604,8 +604,8 @@ errno_t ActiveProvider_SendMessage(VirtualizationRootHandle rootIndex, const Mes
             memcpy(messageMemory + sizeof(*message.messageHeader), message.path, message.messageHeader->pathSizeBytes);
         }
         
-        userClient->sendMessage(messageMemory, messageSize);
-        userClient->release();
+        ProviderUserClient_SendMessage(userClient, messageMemory, messageSize);
+        ProviderUserClient_Release(userClient);
         return 0;
     }
     else
