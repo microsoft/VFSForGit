@@ -72,11 +72,13 @@ namespace GVFS.UnitTests.Maintenance
 
             protected override void PerformMaintenance()
             {
-                this.RunGitCommand(process =>
-                {
-                    this.SawWorkInvoked = true;
-                    return null;
-                });
+                this.RunGitCommand(
+                    process =>
+                    {
+                        this.SawWorkInvoked = true;
+                        return null;
+                    },
+                    nameof(this.SawWorkInvoked));
             }
         }
 
@@ -94,11 +96,13 @@ namespace GVFS.UnitTests.Maintenance
             protected override void PerformMaintenance()
             {
                 this.Stop();
-                this.RunGitCommand(process =>
-                {
-                    this.SawWorkInvoked = true;
-                    return null;
-                });
+                this.RunGitCommand(
+                    process =>
+                    {
+                        this.SawWorkInvoked = true;
+                        return null;
+                    },
+                    nameof(this.SawWorkInvoked));
             }
         }
     }

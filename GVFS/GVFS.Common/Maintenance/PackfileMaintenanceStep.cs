@@ -150,23 +150,23 @@ namespace GVFS.Common.Maintenance
                     return;
                 }
 
-                GitProcess.Result expireResult = this.RunGitCommand((process) => process.MultiPackIndexExpire(this.Context.Enlistment.GitObjectsRoot));
+                GitProcess.Result expireResult = this.RunGitCommand((process) => process.MultiPackIndexExpire(this.Context.Enlistment.GitObjectsRoot), nameof(GitProcess.MultiPackIndexExpire));
                 List<string> staleIdxFiles = this.CleanStaleIdxFiles(out int numDeletionBlocked);
                 this.GetPackFilesInfo(out int expireCount, out long expireSize, out hasKeep);
 
-                GitProcess.Result verifyAfterExpire = this.RunGitCommand((process) => process.VerifyMultiPackIndex(this.Context.Enlistment.GitObjectsRoot));
+                GitProcess.Result verifyAfterExpire = this.RunGitCommand((process) => process.VerifyMultiPackIndex(this.Context.Enlistment.GitObjectsRoot), nameof(GitProcess.VerifyMultiPackIndex));
                 if (verifyAfterExpire.ExitCodeIsFailure)
                 {
-                    this.LogErrorAndRewriteMultiPackIndex(activity, verifyAfterExpire);
+                    this.LogErrorAndRewriteMultiPackIndex(activity);
                 }
 
-                GitProcess.Result repackResult = this.RunGitCommand((process) => process.MultiPackIndexRepack(this.Context.Enlistment.GitObjectsRoot, this.batchSize));
+                GitProcess.Result repackResult = this.RunGitCommand((process) => process.MultiPackIndexRepack(this.Context.Enlistment.GitObjectsRoot, this.batchSize), nameof(GitProcess.MultiPackIndexRepack));
                 this.GetPackFilesInfo(out int afterCount, out long afterSize, out hasKeep);
 
-                GitProcess.Result verifyAfterRepack = this.RunGitCommand((process) => process.VerifyMultiPackIndex(this.Context.Enlistment.GitObjectsRoot));
+                GitProcess.Result verifyAfterRepack = this.RunGitCommand((process) => process.VerifyMultiPackIndex(this.Context.Enlistment.GitObjectsRoot), nameof(GitProcess.VerifyMultiPackIndex));
                 if (verifyAfterRepack.ExitCodeIsFailure)
                 {
-                    this.LogErrorAndRewriteMultiPackIndex(activity, verifyAfterRepack);
+                    this.LogErrorAndRewriteMultiPackIndex(activity);
                 }
 
                 EventMetadata metadata = new EventMetadata();
@@ -178,11 +178,7 @@ namespace GVFS.Common.Maintenance
                 metadata.Add(nameof(expireSize), expireSize);
                 metadata.Add(nameof(afterCount), afterCount);
                 metadata.Add(nameof(afterSize), afterSize);
-                metadata.Add("ExpireOutput", expireResult.Output);
-                metadata.Add("ExpireErrors", expireResult.Errors);
                 metadata.Add("VerifyAfterExpireExitCode", verifyAfterExpire.ExitCode);
-                metadata.Add("RepackOutput", repackResult.Output);
-                metadata.Add("RepackErrors", repackResult.Errors);
                 metadata.Add("VerifyAfterRepackExitCode", verifyAfterRepack.ExitCode);
                 metadata.Add("NumStaleIdxFiles", staleIdxFiles.Count);
                 metadata.Add("NumIdxDeletionsBlocked", numDeletionBlocked);
