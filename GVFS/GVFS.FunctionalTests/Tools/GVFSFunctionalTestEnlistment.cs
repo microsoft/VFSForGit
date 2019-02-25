@@ -2,6 +2,8 @@
 using GVFS.FunctionalTests.Should;
 using GVFS.FunctionalTests.Tests;
 using GVFS.Tests.Should;
+using Newtonsoft.Json;
+using Newtonsoft.Json.Linq;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -118,7 +120,8 @@ namespace GVFS.FunctionalTests.Tools
 
         public string GetObjectRoot(FileSystemRunner fileSystem)
         {
-            Path.Combine(this.LocalCacheRoot, "mapping.dat").ShouldBeAFile(fileSystem);
+            string mappingFile = Path.Combine(this.LocalCacheRoot, "mapping.dat");
+            mappingFile.ShouldBeAFile(fileSystem);
 
             HashSet<string> allowedFileNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
             {
@@ -128,12 +131,19 @@ namespace GVFS.FunctionalTests.Tools
 
             this.LocalCacheRoot.ShouldBeADirectory(fileSystem).WithFiles().ShouldNotContain(f => !allowedFileNames.Contains(f.Name));
 
-            DirectoryInfo[] directories = this.LocalCacheRoot.ShouldBeADirectory(fileSystem).WithDirectories().ToArray();
-            directories.Length.ShouldEqual(
-                1,
-                this.LocalCacheRoot + " is expected to have only one folder. Actual folders: " + string.Join<DirectoryInfo>(",", directories));
+            string mappingFileContents = File.ReadAllText(mappingFile);
+            mappingFileContents.ShouldNotBeNull();
+            string[] objectRootEntries = mappingFileContents.Split(new char[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries)
+                                                            .Where(x => x.IndexOf(this.RepoUrl, StringComparison.OrdinalIgnoreCase) >= 0)
+                                                            .ToArray();
+            objectRootEntries.Length.ShouldEqual(1, $"Should be only one entry for repo url: {this.RepoUrl} mapping file content: {mappingFileContents}");
+            objectRootEntries[0].Substring(0, 2).ShouldEqual("A ", $"Invalid mapping entry for repo: {objectRootEntries[0]}");
+            JObject rootEntryJson = JObject.Parse(objectRootEntries[0].Substring(2));
+            string objectRootFolder = rootEntryJson.GetValue("Value").ToString();
+            objectRootFolder.ShouldNotBeNull();
+            objectRootFolder.Length.ShouldBeAtLeast(1, $"Invalid object root folder: {objectRootFolder} for {this.RepoUrl} mapping file content: {mappingFileContents}");
 
-            return Path.Combine(directories[0].FullName, "gitObjects");
+            return Path.Combine(this.LocalCacheRoot, objectRootFolder, "gitObjects");
         }
 
         public string GetPackRoot(FileSystemRunner fileSystem)
