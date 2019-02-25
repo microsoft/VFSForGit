@@ -90,7 +90,7 @@ namespace GVFS.UnitTests.Mock.Common
 
         public override bool IsElevated()
         {
-            throw new NotSupportedException();
+            return false;
         }
 
         public override bool IsProcessActive(int processId)

@@ -65,5 +65,20 @@ namespace GVFS.Common
                 this.fileSystem.WriteAllText(highestAvailableVersionFile, highestAvailableVersion.ToString());
             }
         }
+
+        public void RecordHighestAvailableVersionSafe(Version highestAvailableVersion)
+        {
+            try
+            {
+                this.RecordHighestAvailableVersion(highestAvailableVersion);
+            }
+            catch (Exception ex) when (
+                    ex is IOException ||
+                    ex is UnauthorizedAccessException ||
+                    ex is NotSupportedException)
+            {
+                this.tracer.RelatedWarning($"{nameof(this.RecordHighestAvailableVersionSafe)}: Failed to record highest available version available.");
+            }
+        }
     }
 }

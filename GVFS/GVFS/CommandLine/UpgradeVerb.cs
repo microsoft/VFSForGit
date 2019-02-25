@@ -154,11 +154,14 @@ namespace GVFS.CommandLine
 
             if (!this.upgrader.UpgradeAllowed(out message))
             {
-                ProductUpgraderInfo productUpgraderInfo = new ProductUpgraderInfo(
-                    this.tracer,
-                    this.fileSystem);
-                productUpgraderInfo.DeleteAllInstallerDownloads();
-                productUpgraderInfo.RecordHighestAvailableVersion(highestAvailableVersion: null);
+                if (GVFSPlatform.Instance.IsElevated())
+                {
+                    ProductUpgraderInfo productUpgraderInfo = new ProductUpgraderInfo(
+                        this.tracer,
+                        this.fileSystem);
+                    productUpgraderInfo.RecordHighestAvailableVersionSafe(highestAvailableVersion: null);
+                }
+
                 this.ReportInfoToConsole(message);
                 return true;
             }
@@ -172,12 +175,14 @@ namespace GVFS.CommandLine
 
             if (newestVersion == null)
             {
-                // Make sure there a no asset installers remaining in the Downloads directory. This can happen if user
-                // upgraded by manually downloading and running asset installers.
-                ProductUpgraderInfo productUpgraderInfo = new ProductUpgraderInfo(
-                    this.tracer,
-                    this.fileSystem);
-                productUpgraderInfo.DeleteAllInstallerDownloads();
+                if (GVFSPlatform.Instance.IsElevated())
+                {
+                    ProductUpgraderInfo productUpgraderInfo = new ProductUpgraderInfo(
+                        this.tracer,
+                        this.fileSystem);
+                    productUpgraderInfo.RecordHighestAvailableVersionSafe(highestAvailableVersion: null);
+                }
+
                 this.ReportInfoToConsole(message);
                 return true;
             }
