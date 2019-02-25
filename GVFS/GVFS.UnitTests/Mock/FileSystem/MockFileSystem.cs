@@ -38,8 +38,13 @@ namespace GVFS.UnitTests.Mock.FileSystem
         /// </summary>
         public bool DeleteNonExistentFileThrowsException { get; set; }
 
-        public override void RecursiveDelete(string path)
+        public override void DeleteDirectory(string path, bool recursive = true)
         {
+            if (!recursive)
+            {
+                throw new NotImplementedException();
+            }
+
             this.RootDirectory.DeleteDirectory(path);
         }
 
@@ -213,14 +218,6 @@ namespace GVFS.UnitTests.Mock.FileSystem
             }
 
             return false;
-        }
-
-        public override void DeleteDirectory(string path, bool recursive = false)
-        {
-            MockDirectory directory = this.RootDirectory.FindDirectory(path);
-            directory.ShouldNotBeNull();
-
-            this.RootDirectory.DeleteDirectory(path);
         }
 
         public override IEnumerable<DirectoryItemInfo> ItemsInDirectory(string path)

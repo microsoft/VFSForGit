@@ -188,7 +188,7 @@ namespace FastFetch
                         {
                             if (Directory.Exists(treeOp.TargetPath))
                             {
-                                this.fileSystem.RecursiveDelete(treeOp.TargetPath);
+                                this.fileSystem.DeleteDirectory(treeOp.TargetPath);
                             }
                         }
                         catch (Exception ex)

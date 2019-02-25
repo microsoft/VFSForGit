@@ -123,7 +123,7 @@ namespace GVFS.DiskLayoutUpgrades
             try
             {
                 PhysicalFileSystem fileSystem = new PhysicalFileSystem();
-                fileSystem.RecursiveDelete(folderName);
+                fileSystem.DeleteDirectory(folderName);
             }
             catch (Exception e)
             {
