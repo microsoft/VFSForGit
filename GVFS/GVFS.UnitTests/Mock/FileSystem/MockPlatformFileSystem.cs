@@ -50,7 +50,12 @@ namespace GVFS.UnitTests.Mock.FileSystem
             throw new NotSupportedException();
         }
 
-        public bool TryCreateDirectoryWithAdminOnlyModify(ITracer tracer, string directoryPath, out string error)
+        public bool TryCreateDirectoryWithAdminAndUserModifyPermissions(string directoryPath, out string error)
+        {
+            throw new NotSupportedException();
+        }
+
+        public bool TryCreateOrUpdateDirectoryToAdminModifyPermissions(ITracer tracer, string directoryPath, out string error)
         {
             throw new NotSupportedException();
         }
