@@ -320,6 +320,11 @@ namespace GVFS.Common.NuGetUpgrade
 
         public override bool TryCleanup(out string error)
         {
+            if (!base.TryCleanup(out error))
+            {
+                return false;
+            }
+
             return this.TryRecursivelyDeleteInstallerDirectory(out error);
         }
 

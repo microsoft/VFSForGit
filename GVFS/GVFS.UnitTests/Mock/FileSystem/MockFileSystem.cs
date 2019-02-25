@@ -22,6 +22,8 @@ namespace GVFS.UnitTests.Mock.FileSystem
 
         public bool DeleteFileThrowsException { get; set; }
 
+        public Exception DeleteDirectoryExceptionToThrow { get; set; }
+
         public bool TryCreateOrUpdateDirectoryToAdminModifyPermissionsShouldSucceed { get; set; }
 
         /// <summary>
@@ -43,6 +45,11 @@ namespace GVFS.UnitTests.Mock.FileSystem
             if (!recursive)
             {
                 throw new NotImplementedException();
+            }
+
+            if (this.DeleteDirectoryExceptionToThrow != null)
+            {
+                throw this.DeleteDirectoryExceptionToThrow;
             }
 
             this.RootDirectory.DeleteDirectory(path);

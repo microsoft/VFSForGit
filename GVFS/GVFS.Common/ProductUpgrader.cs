@@ -186,7 +186,11 @@ namespace GVFS.Common
             }
         }
 
-        public abstract bool TryCleanup(out string error);
+        public virtual bool TryCleanup(out string error)
+        {
+            ProductUpgraderInfo productUpgraderInfo = new ProductUpgraderInfo(this.tracer, this.fileSystem);
+            return productUpgraderInfo.TryDeleteAllInstallerDownloads(out error);
+        }
 
         public void TraceException(Exception exception, string method, string message)
         {

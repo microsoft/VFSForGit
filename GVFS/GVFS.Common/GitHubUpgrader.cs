@@ -226,38 +226,6 @@ namespace GVFS.Common
             return true;
         }
 
-        public override bool TryCleanup(out string error)
-        {
-            error = string.Empty;
-            if (this.newestRelease == null)
-            {
-                return true;
-            }
-
-            foreach (Asset asset in this.newestRelease.Assets)
-            {
-                Exception exception;
-                if (!this.TryDeleteDownloadedAsset(asset, out exception))
-                {
-                    error += $"Could not delete {asset.LocalPath}. {exception.ToString()}." + Environment.NewLine;
-                }
-            }
-
-            if (!string.IsNullOrEmpty(error))
-            {
-                error.TrimEnd(Environment.NewLine.ToCharArray());
-                return false;
-            }
-
-            error = null;
-            return true;
-        }
-
-        protected virtual bool TryDeleteDownloadedAsset(Asset asset, out Exception exception)
-        {
-            return this.fileSystem.TryDeleteFile(asset.LocalPath, out exception);
-        }
-
         protected virtual bool TryDownloadAsset(Asset asset, out string errorMessage)
         {
             errorMessage = null;

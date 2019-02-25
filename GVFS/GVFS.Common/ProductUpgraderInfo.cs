@@ -36,16 +36,27 @@ namespace GVFS.Common
 
         public void DeleteAllInstallerDownloads()
         {
-            try
-            {
-                this.fileSystem.DeleteDirectory(GetAssetDownloadsPath());
-            }
-            catch (Exception ex)
+            if (!this.TryDeleteAllInstallerDownloads(out string error))
             {
                 if (this.tracer != null)
                 {
-                    this.tracer.RelatedError($"{nameof(this.DeleteAllInstallerDownloads)}: Could not remove directory: {ProductUpgraderInfo.GetAssetDownloadsPath()}.{ex.ToString()}");
+                    this.tracer.RelatedWarning(error);
                 }
+            }
+        }
+
+        public bool TryDeleteAllInstallerDownloads(out string error)
+        {
+            try
+            {
+                this.fileSystem.DeleteDirectory(GetAssetDownloadsPath());
+                error = null;
+                return true;
+            }
+            catch (Exception ex)
+            {
+                error = $"{nameof(this.TryDeleteAllInstallerDownloads)}: Could not remove directory: {ProductUpgraderInfo.GetAssetDownloadsPath()}.{ex.Message}";
+                return false;
             }
         }
 

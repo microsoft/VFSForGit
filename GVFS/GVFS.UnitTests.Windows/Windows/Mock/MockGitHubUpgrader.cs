@@ -33,8 +33,6 @@ namespace GVFS.UnitTests.Windows.Mock.Upgrader
             GVFSDownload = 0x8,
             GitInstall = 0x10,
             GVFSInstall = 0x20,
-            GVFSCleanup = 0x40,
-            GitCleanup = 0x80,
             GitAuthenticodeCheck = 0x100,
             GVFSAuthenticodeCheck = 0x200,
             CreateDownloadDirectory = 0x400,
@@ -157,37 +155,6 @@ namespace GVFS.UnitTests.Windows.Mock.Upgrader
 
             errorMessage = "Cannot download unknown asset.";
             return false;
-        }
-
-        protected override bool TryDeleteDownloadedAsset(Asset asset, out Exception exception)
-        {
-            if (this.expectedGVFSAssetName.Equals(asset.Name, StringComparison.OrdinalIgnoreCase))
-            {
-                if (this.failActionTypes.HasFlag(ActionType.GVFSCleanup))
-                {
-                    exception = new Exception("Error deleting downloaded GVFS installer.");
-                    return false;
-                }
-
-                exception = null;
-                return true;
-            }
-            else if (this.expectedGitAssetName.Equals(asset.Name, StringComparison.OrdinalIgnoreCase))
-            {
-                if (this.failActionTypes.HasFlag(ActionType.GitCleanup))
-                {
-                    exception = new Exception("Error deleting downloaded Git installer.");
-                    return false;
-                }
-
-                exception = null;
-                return true;
-            }
-            else
-            {
-                exception = new Exception("Unknown asset.");
-                return false;
-            }
         }
 
         protected override bool TryFetchReleases(out List<Release> releases, out string errorMessage)

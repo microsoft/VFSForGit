@@ -240,7 +240,7 @@ namespace GVFS.UnitTests.Windows.Upgrader
             this.ConfigureRunAndVerify(
                 configure: () =>
                 {
-                    this.Upgrader.SetFailOnAction(MockGitHubUpgrader.ActionType.GVFSCleanup);
+                    this.FileSystem.DeleteDirectoryExceptionToThrow = new System.Exception("Error deleting downloaded GVFS installer.");
                 },
                 expectedReturn: ReturnCode.Success,
                 expectedOutput: new List<string>
@@ -249,24 +249,6 @@ namespace GVFS.UnitTests.Windows.Upgrader
                 expectedErrors: new List<string>
                 {
                     "Error deleting downloaded GVFS installer."
-                });
-        }
-
-        [TestCase]
-        public void GitCleanupError()
-        {
-            this.ConfigureRunAndVerify(
-                configure: () =>
-                {
-                    this.Upgrader.SetFailOnAction(MockGitHubUpgrader.ActionType.GitCleanup);
-                },
-                expectedReturn: ReturnCode.Success,
-                expectedOutput: new List<string>
-                {
-                },
-                expectedErrors: new List<string>
-                {
-                    "Error deleting downloaded Git installer."
                 });
         }
 
