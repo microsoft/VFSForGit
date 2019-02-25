@@ -145,9 +145,9 @@ namespace MirrorProvider.Linux
             byte[] contentId,
             int triggeringProcessId,
             string triggeringProcessName,
-            IntPtr fileHandle)
+            int fd)
         {
-            Console.WriteLine($"OnGetFileStream({commandId}, '{relativePath}', {contentId.Length}/{contentId[0]}:{contentId[1]}, {providerId.Length}/{providerId[0]}:{providerId[1]}, {triggeringProcessId}, {triggeringProcessName}, 0x{fileHandle.ToInt64():X})");
+            Console.WriteLine($"OnGetFileStream({commandId}, '{relativePath}', {contentId.Length}/{contentId[0]}:{contentId[1]}, {providerId.Length}/{providerId[0]}:{providerId[1]}, {triggeringProcessId}, {triggeringProcessName}, {fd})");
 
             if (!this.FileExists(relativePath))
             {
@@ -163,7 +163,7 @@ namespace MirrorProvider.Linux
                     (buffer, bytesToCopy) =>
                     {
                         Result result = this.virtualizationInstance.WriteFileContents(
-                            fileHandle,
+                            fd,
                             buffer,
                             (uint)bytesToCopy);
                         if (result != Result.Success)
@@ -222,7 +222,7 @@ namespace MirrorProvider.Linux
 
             const ulong BufSize = 4096;
             byte[] targetBuffer = new byte[BufSize];
-            long bytesRead = ReadLink(fullPathInMirror, targetBuffer, BufSize);
+            long bytesRead = Syscall.readlink(fullPathInMirror, targetBuffer);
             if (bytesRead < 0)
             {
                 Console.WriteLine($"GetSymLinkTarget failed: {Marshal.GetLastWin32Error()}");
@@ -251,11 +251,5 @@ namespace MirrorProvider.Linux
 
             return bytes;
         }
-
-        [DllImport("libc", EntryPoint = "readlink", SetLastError = true)]
-        private static extern long ReadLink(
-            string path,
-            byte[] buf,
-            ulong bufsize);
     }
 }
