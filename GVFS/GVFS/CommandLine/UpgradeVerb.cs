@@ -94,6 +94,15 @@ namespace GVFS.CommandLine
                 error = null;
                 if (this.upgrader == null)
                 {
+                    string createDirectoryError;
+                    if (!this.fileSystem.TryCreateDirectoryWithAdminAndUserModifyPermissions(ProductUpgraderInfo.GetLogDirectoryPath(), out createDirectoryError))
+                    {
+                        error = $"ERROR: Unable to create directory `{ProductUpgraderInfo.GetLogDirectoryPath()}`";
+                        error += $"\n{createDirectoryError}";
+                        error += $"\n\nTry running {GVFSConstants.UpgradeVerbMessages.GVFSUpgrade} from an elevated command prompt.";
+                        return false;
+                    }
+
                     JsonTracer jsonTracer = new JsonTracer(GVFSConstants.GVFSEtwProviderName, "UpgradeVerb");
                     string logFilePath = GVFSEnlistment.GetNewGVFSLogFileName(
                         ProductUpgraderInfo.GetLogDirectoryPath(),

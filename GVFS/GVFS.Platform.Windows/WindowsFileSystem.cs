@@ -122,7 +122,35 @@ namespace GVFS.Platform.Windows
             return false;
         }
 
-        public bool TryCreateDirectoryWithAdminOnlyModify(ITracer tracer, string directoryPath, out string error)
+        public bool TryCreateDirectoryWithAdminAndUserModifyPermissions(string directoryPath, out string error)
+        {
+            try
+            {
+                DirectorySecurity directorySecurity = new DirectorySecurity();
+
+                // Protect the access rules from inheritance and remove any inherited rules
+                directorySecurity.SetAccessRuleProtection(isProtected: true, preserveInheritance: false);
+
+                // Add new ACLs for users and admins.  Users will be granted write permissions.
+                WindowsFileSystem.AddUsersAccessRulesToDirectorySecurity(directorySecurity, grantUsersModifyPermissions: true);
+                WindowsFileSystem.AddAdminAccessRulesToDirectorySecurity(directorySecurity);
+
+                Directory.CreateDirectory(directoryPath, directorySecurity);
+            }
+            catch (Exception e) when (e is IOException ||
+                                      e is UnauthorizedAccessException ||
+                                      e is PathTooLongException ||
+                                      e is DirectoryNotFoundException)
+            {
+                error = $"Exception while creating directory `{directoryPath}`: {e.Message}";
+                return false;
+            }
+
+            error = null;
+            return true;
+        }
+
+        public bool TryCreateOrUpdateDirectoryToAdminModifyPermissions(ITracer tracer, string directoryPath, out string error)
         {
             try
             {
@@ -153,7 +181,7 @@ namespace GVFS.Platform.Windows
             {
                 EventMetadata metadata = new EventMetadata();
                 metadata.Add("Exception", e.ToString());
-                tracer.RelatedError(metadata, $"{nameof(this.TryCreateDirectoryWithAdminOnlyModify)}: Exception while creating/configuring directory");
+                tracer.RelatedError(metadata, $"{nameof(this.TryCreateOrUpdateDirectoryToAdminModifyPermissions)}: Exception while creating/configuring directory");
 
                 error = e.Message;
                 return false;

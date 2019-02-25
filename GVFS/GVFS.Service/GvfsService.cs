@@ -384,8 +384,19 @@ namespace GVFS.Service
         private void CreateAndConfigureUpgradeLogDirectory()
         {
             string upgradeLogsPath = ProductUpgraderInfo.GetLogDirectoryPath();
-            DirectorySecurity upgradeLogsSecurity = this.GetUpgradeLogsDirectorySecurity(upgradeLogsPath);
-            Directory.CreateDirectory(upgradeLogsPath, upgradeLogsSecurity);
+
+            string error;
+            if (!GVFSPlatform.Instance.FileSystem.TryCreateDirectoryWithAdminAndUserModifyPermissions(upgradeLogsPath, out error))
+            {
+                EventMetadata metadata = new EventMetadata();
+                metadata.Add("Area", EtwArea);
+                metadata.Add(nameof(upgradeLogsPath), upgradeLogsPath);
+                metadata.Add(nameof(error), error);
+                this.tracer.RelatedWarning(
+                    metadata,
+                    $"{nameof(this.CreateAndConfigureUpgradeLogDirectory)}: Failed to create upgrade logs directory",
+                    Keywords.Telemetry);
+            }
         }
 
         private DirectorySecurity GetServiceDirectorySecurity(string serviceDataRootPath)
@@ -411,29 +422,6 @@ namespace GVFS.Service
             WindowsFileSystem.AddAdminAccessRulesToDirectorySecurity(serviceDataRootSecurity);
 
             return serviceDataRootSecurity;
-        }
-
-        private DirectorySecurity GetUpgradeLogsDirectorySecurity(string upgradeLogsPath)
-        {
-            DirectorySecurity upgradeLogsSecurity;
-            if (Directory.Exists(upgradeLogsPath))
-            {
-                this.tracer.RelatedInfo($"{nameof(this.GetUpgradeLogsDirectorySecurity)}: '{upgradeLogsPath}' exists, modifying ACLs");
-                upgradeLogsSecurity = Directory.GetAccessControl(upgradeLogsPath);
-            }
-            else
-            {
-                this.tracer.RelatedInfo($"{nameof(this.GetUpgradeLogsDirectorySecurity)}: '{upgradeLogsPath}' does not exist, creating new ACLs");
-                upgradeLogsSecurity = new DirectorySecurity();
-            }
-
-            // Protect the access rules from inheritance and remove any inherited rules
-            upgradeLogsSecurity.SetAccessRuleProtection(isProtected: true, preserveInheritance: false);
-
-            // Add new ACLs for users and admins.  Users will be granted write permissions.
-            WindowsFileSystem.AddUsersAccessRulesToDirectorySecurity(upgradeLogsSecurity, grantUsersModifyPermissions: true);
-            WindowsFileSystem.AddAdminAccessRulesToDirectorySecurity(upgradeLogsSecurity);
-            return upgradeLogsSecurity;
         }
     }
 }

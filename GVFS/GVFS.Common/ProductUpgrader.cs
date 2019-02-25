@@ -134,7 +134,7 @@ namespace GVFS.Common
                 return false;
             }
 
-            if (!this.fileSystem.TryCreateDirectoryWithAdminOnlyModify(
+            if (!this.fileSystem.TryCreateOrUpdateDirectoryToAdminModifyPermissions(
                     this.tracer,
                     toolsDirectoryPath,
                     out error))
@@ -205,7 +205,7 @@ namespace GVFS.Common
 
         protected virtual bool TryCreateAndConfigureDownloadDirectory(ITracer tracer, out string error)
         {
-            return this.fileSystem.TryCreateDirectoryWithAdminOnlyModify(
+            return this.fileSystem.TryCreateOrUpdateDirectoryToAdminModifyPermissions(
                 tracer,
                 ProductUpgraderInfo.GetAssetDownloadsPath(),
                 out error);

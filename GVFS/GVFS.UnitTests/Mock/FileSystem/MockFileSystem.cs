@@ -15,14 +15,14 @@ namespace GVFS.UnitTests.Mock.FileSystem
         {
             this.RootDirectory = rootDirectory;
             this.DeleteNonExistentFileThrowsException = true;
-            this.TryCreateDirectoryWithAdminOnlyModifyShouldSucceed = true;
+            this.TryCreateOrUpdateDirectoryToAdminModifyPermissionsShouldSucceed = true;
         }
 
         public MockDirectory RootDirectory { get; private set; }
 
         public bool DeleteFileThrowsException { get; set; }
 
-        public bool TryCreateDirectoryWithAdminOnlyModifyShouldSucceed { get; set; }
+        public bool TryCreateOrUpdateDirectoryToAdminModifyPermissionsShouldSucceed { get; set; }
 
         /// <summary>
         /// Allow FileMoves without checking the input arguments.
@@ -166,14 +166,19 @@ namespace GVFS.UnitTests.Mock.FileSystem
             this.RootDirectory.CreateDirectory(path);
         }
 
-        public override bool TryCreateDirectoryWithAdminOnlyModify(ITracer tracer, string directoryPath, out string error)
+        public override bool TryCreateDirectoryWithAdminAndUserModifyPermissions(string directoryPath, out string error)
+        {
+            throw new NotImplementedException();
+        }
+
+        public override bool TryCreateOrUpdateDirectoryToAdminModifyPermissions(ITracer tracer, string directoryPath, out string error)
         {
             error = null;
 
-            if (this.TryCreateDirectoryWithAdminOnlyModifyShouldSucceed)
+            if (this.TryCreateOrUpdateDirectoryToAdminModifyPermissionsShouldSucceed)
             {
-                // TryCreateDirectoryWithAdminOnlyModify is typically called for paths in C:\ProgramData\GVFS, it's called
-                // for one of those paths remap the paths to be inside the mock: root
+                // TryCreateOrUpdateDirectoryToAdminModifyPermissions is typically called for paths in C:\ProgramData\GVFS,
+                // if it's called for one of those paths remap the paths to be inside the mock: root
                 string mockDirectoryPath = directoryPath;
                 string gvfsProgramData = @"C:\ProgramData\GVFS";
                 if (directoryPath.StartsWith(gvfsProgramData, StringComparison.OrdinalIgnoreCase))
