@@ -216,9 +216,9 @@ namespace GVFS.UnitTests.Common.NuGetUpgrade
             success.ShouldBeTrue($"Expecting TryQueryNewestVersion to have completed sucessfully. Error: {message}");
             actualNewestVersion.ShouldEqual(newestAvailableVersion.Identity.Version.Version, "Actual new version does not match expected new version.");
 
-            this.mockFileSystem.TryCreateDirectoryWithAdminOnlyModifyShouldSucceed = false;
+            this.mockFileSystem.TryCreateOrUpdateDirectoryToAdminModifyPermissionsShouldSucceed = false;
             bool downloadSuccessful = this.upgrader.TryDownloadNewestVersion(out message);
-            this.mockFileSystem.TryCreateDirectoryWithAdminOnlyModifyShouldSucceed = true;
+            this.mockFileSystem.TryCreateOrUpdateDirectoryToAdminModifyPermissionsShouldSucceed = true;
             downloadSuccessful.ShouldBeFalse();
         }
 
@@ -357,9 +357,9 @@ namespace GVFS.UnitTests.Common.NuGetUpgrade
         [TestCase]
         public void TrySetupToolsDirectoryFailsIfCreateToolsDirectoryFails()
         {
-            this.mockFileSystem.TryCreateDirectoryWithAdminOnlyModifyShouldSucceed = false;
+            this.mockFileSystem.TryCreateOrUpdateDirectoryToAdminModifyPermissionsShouldSucceed = false;
             this.upgrader.TrySetupToolsDirectory(out string upgraderToolsPath, out string error).ShouldBeFalse();
-            this.mockFileSystem.TryCreateDirectoryWithAdminOnlyModifyShouldSucceed = true;
+            this.mockFileSystem.TryCreateOrUpdateDirectoryToAdminModifyPermissionsShouldSucceed = true;
         }
 
         [TestCase]

@@ -116,9 +116,14 @@ namespace GVFS.Common.FileSystem
             Directory.CreateDirectory(path);
         }
 
-        public virtual bool TryCreateDirectoryWithAdminOnlyModify(ITracer tracer, string directoryPath, out string error)
+        public virtual bool TryCreateDirectoryWithAdminAndUserModifyPermissions(string directoryPath, out string error)
         {
-            return GVFSPlatform.Instance.FileSystem.TryCreateDirectoryWithAdminOnlyModify(tracer, directoryPath, out error);
+            return GVFSPlatform.Instance.FileSystem.TryCreateDirectoryWithAdminAndUserModifyPermissions(directoryPath, out error);
+        }
+
+        public virtual bool TryCreateOrUpdateDirectoryToAdminModifyPermissions(ITracer tracer, string directoryPath, out string error)
+        {
+            return GVFSPlatform.Instance.FileSystem.TryCreateOrUpdateDirectoryToAdminModifyPermissions(tracer, directoryPath, out error);
         }
 
         public virtual void DeleteDirectory(string path, bool recursive = false)
