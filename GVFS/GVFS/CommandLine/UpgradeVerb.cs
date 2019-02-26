@@ -320,9 +320,14 @@ namespace GVFS.CommandLine
                     return false;
                 }
 
+                string currentVersion = ProcessHelper.GetCurrentProcessVersion();
                 latestVersion = version;
 
-                activity.RelatedInfo($"Successfully checked server for GVFS upgrades. New version available {latestVersion}");
+                string message = latestVersion == null ?
+                    $"Successfully checked for VFSForGit upgrades. Local version ({currentVersion}) is up-to-date." :
+                    $"Successfully checked for VFSForGit upgrades. A new version is available: {latestVersion}, local version is: {currentVersion}.";
+
+                activity.RelatedInfo(message);
             }
 
             return true;
