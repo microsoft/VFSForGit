@@ -3,6 +3,7 @@ using GVFS.FunctionalTests.Tools;
 using GVFS.Tests.Should;
 using NUnit.Framework;
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Threading;
@@ -60,6 +61,51 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
         {
             this.VerifyServiceRestartStopsReminder();
             this.VerifyUpgradeVerbStopsReminder();
+        }
+
+        [TestCase]
+        public void UpgradeTimerScheduledOnServiceStart()
+        {
+            this.RestartService();
+            Thread.Sleep(TimeSpan.FromSeconds(15));
+
+            this.ServiceLogContainsUpgradeMessaging().ShouldBeTrue();
+        }
+
+        private bool ServiceLogContainsUpgradeMessaging()
+        {
+            string upgradeTimerMessage = "Checking for product upgrades. (Start)";
+            string serviceLogFolder = Path.Combine(
+                Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData),
+                "GVFS",
+                GVFSServiceProcess.TestServiceName,
+                "Logs");
+            DirectoryInfo logsDirectory = new DirectoryInfo(serviceLogFolder);
+            IEnumerable<FileInfo> files = logsDirectory.GetFiles()
+                .OrderByDescending(f => f.LastWriteTime)
+                .Take(2);
+
+            foreach (FileInfo nextFile in files)
+            {
+                using (StreamReader fileStream = new StreamReader(File.Open(nextFile.FullName, FileMode.Open, FileAccess.Read, FileShare.ReadWrite)))
+                {
+                    for (int lineCount = 0; lineCount < 20; lineCount++)
+                    {
+                        string nextLine = fileStream.ReadLine();
+                        if (string.IsNullOrEmpty(nextLine))
+                        {
+                            break;
+                        }
+
+                        if (nextLine.Contains(upgradeTimerMessage))
+                        {
+                            return true;
+                        }
+                    }
+                }
+            }
+
+            return false;
         }
 
         private void EmptyDownloadDirectory()
