@@ -4,22 +4,8 @@ using Mono.Unix.Native;
 
 namespace PrjFSLib.Linux.Interop
 {
-    internal class ProjFS
+    internal partial class ProjFS
     {
-        // TODO(Linux): set value from that defined in Linux library header
-        public const int PlaceholderIdLength = 128;
-
-        public const ulong PROJFS_CLOSE_WRITE = 0x00000008;
-        public const ulong PROJFS_OPEN = 0x00000020;
-        public const ulong PROJFS_DELETE_SELF = 0x00000400;
-        public const ulong PROJFS_MOVE_SELF = 0x00000800;
-        public const ulong PROJFS_CREATE_SELF = 0x000100000000;
-
-        public const ulong PROJFS_ONDIR = 0x40000000;
-
-        public const int PROJFS_ALLOW = 0x01;
-        public const int PROJFS_DENY = 0x02;
-
         private const string PrjFSLibPath = "libprojfs.so";
 
         private readonly IntPtr handle;
