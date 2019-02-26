@@ -12,9 +12,7 @@ namespace PrjFSLib.Linux
     public delegate Result GetFileStreamCallback(
         ulong commandId,
         string relativePath,
-        [MarshalAs(UnmanagedType.LPArray, SizeConst = Interop.ProjFS.PlaceholderIdLength)]
         byte[] providerId,
-        [MarshalAs(UnmanagedType.LPArray, SizeConst = Interop.ProjFS.PlaceholderIdLength)]
         byte[] contentId,
         int triggeringProcessId,
         string triggeringProcessName,
@@ -23,9 +21,7 @@ namespace PrjFSLib.Linux
     public delegate Result NotifyOperationCallback(
         ulong commandId,
         string relativePath,
-        [MarshalAs(UnmanagedType.LPArray, SizeConst = Interop.ProjFS.PlaceholderIdLength)]
         byte[] providerId,
-        [MarshalAs(UnmanagedType.LPArray, SizeConst = Interop.ProjFS.PlaceholderIdLength)]
         byte[] contentId,
         int triggeringProcessId,
         string triggeringProcessName,
