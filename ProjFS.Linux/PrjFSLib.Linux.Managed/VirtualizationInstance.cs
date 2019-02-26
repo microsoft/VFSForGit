@@ -7,7 +7,7 @@ namespace PrjFSLib.Linux
 {
     public class VirtualizationInstance
     {
-        public const int PlaceholderIdLength = Interop.ProjFS.PlaceholderIdLength;
+        public const int PlaceholderIdLength = 128;
 
         private Interop.ProjFS projfs;
 
@@ -118,8 +118,8 @@ namespace PrjFSLib.Linux
             ulong fileSize,
             ushort fileMode)
         {
-            if (providerId.Length != Interop.ProjFS.PlaceholderIdLength ||
-                contentId.Length != Interop.ProjFS.PlaceholderIdLength)
+            if (providerId.Length != PlaceholderIdLength ||
+                contentId.Length != PlaceholderIdLength)
             {
                 throw new ArgumentException();
             }
@@ -234,7 +234,7 @@ namespace PrjFSLib.Linux
             string triggeringProcessName = GetProcCmdline(ev.Pid);
             Result result;
 
-            if ((ev.Mask & Interop.ProjFS.PROJFS_ONDIR) != 0)
+            if ((ev.Mask & Interop.ProjFS.Constants.PROJFS_ONDIR) != 0)
             {
                 result = this.OnEnumerateDirectory(
                     commandId: 0,
@@ -247,8 +247,8 @@ namespace PrjFSLib.Linux
                 result = this.OnGetFileStream(
                     commandId: 0,
                     relativePath: PtrToStringUTF8(ev.Path),
-                    providerId: new byte[Interop.ProjFS.PlaceholderIdLength],
-                    contentId: new byte[Interop.ProjFS.PlaceholderIdLength],
+                    providerId: new byte[PlaceholderIdLength],
+                    contentId: new byte[PlaceholderIdLength],
                     triggeringProcessId: ev.Pid,
                     triggeringProcessName: triggeringProcessName,
                     fd: ev.Fd);
@@ -261,15 +261,15 @@ namespace PrjFSLib.Linux
         {
             NotificationType nt;
 
-            if ((ev.Mask & Interop.ProjFS.PROJFS_DELETE_SELF) != 0)
+            if ((ev.Mask & Interop.ProjFS.Constants.PROJFS_DELETE_SELF) != 0)
             {
                 nt = NotificationType.PreDelete;
             }
-            else if ((ev.Mask & Interop.ProjFS.PROJFS_MOVE_SELF) != 0)
+            else if ((ev.Mask & Interop.ProjFS.Constants.PROJFS_MOVE_SELF) != 0)
             {
                 nt = NotificationType.FileRenamed;
             }
-            else if ((ev.Mask & Interop.ProjFS.PROJFS_CREATE_SELF) != 0)
+            else if ((ev.Mask & Interop.ProjFS.Constants.PROJFS_CREATE_SELF) != 0)
             {
                 nt = NotificationType.NewFileCreated;
             }
@@ -283,11 +283,11 @@ namespace PrjFSLib.Linux
             Result result = this.OnNotifyOperation(
                 commandId: 0,
                 relativePath: PtrToStringUTF8(ev.Path),
-                providerId: new byte[Interop.ProjFS.PlaceholderIdLength],
-                contentId: new byte[Interop.ProjFS.PlaceholderIdLength],
+                providerId: new byte[PlaceholderIdLength],
+                contentId: new byte[PlaceholderIdLength],
                 triggeringProcessId: ev.Pid,
                 triggeringProcessName: triggeringProcessName,
-                isDirectory: (ev.Mask & Interop.ProjFS.PROJFS_ONDIR) != 0,
+                isDirectory: (ev.Mask & Interop.ProjFS.Constants.PROJFS_ONDIR) != 0,
                 notificationType: nt);
 
             int ret = result.ConvertResultToErrno();
@@ -296,11 +296,11 @@ namespace PrjFSLib.Linux
             {
                 if (ret == 0)
                 {
-                    ret = Interop.ProjFS.PROJFS_ALLOW;
+                    ret = (int)Interop.ProjFS.Constants.PROJFS_ALLOW;
                 }
                 else if (ret == -(int)Errno.EPERM)
                 {
-                    ret = Interop.ProjFS.PROJFS_DENY;
+                    ret = (int)Interop.ProjFS.Constants.PROJFS_DENY;
                 }
             }
 
