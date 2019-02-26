@@ -8,6 +8,7 @@ using GVFS.UnitTests.Mock.FileSystem;
 using GVFS.UnitTests.Mock.Git;
 using NUnit.Framework;
 using System;
+using System.Collections.Generic;
 using System.IO;
 
 namespace GVFS.UnitTests.Common
@@ -23,6 +24,15 @@ namespace GVFS.UnitTests.Common
         private string gitParentPath;
         private string gvfsMetadataPath;
         private MockDirectory enlistmentDirectory;
+
+        public static IEnumerable<Exception> ExceptionsThrownByCreateDirectory
+        {
+            get
+            {
+                yield return new IOException("Error creating directory");
+                yield return new UnauthorizedAccessException("Error creating directory");
+            }
+        }
 
         [SetUp]
         public void SetUp()
@@ -150,6 +160,33 @@ namespace GVFS.UnitTests.Common
                 result.ShouldBeTrue();
 
                 statusCache.IsCacheReadyAndUpToDate().ShouldBeTrue();
+
+                statusCache.Shutdown();
+            }
+        }
+
+        [TestCaseSource("ExceptionsThrownByCreateDirectory")]
+        [Category(CategoryConstants.ExceptionExpected)]
+        public void HandlesExceptionsCreatingDirectory(Exception exceptionToThrow)
+        {
+            this.enlistmentDirectory.CreateFile(Path.Combine(this.gvfsMetadataPath, GVFSConstants.DotGVFS.GitStatusCache.CachePath), "Git status cache contents", createDirectories: true);
+            this.fileSystem.ExceptionThrownByCreateDirectory = exceptionToThrow;
+            using (GitStatusCache statusCache = new GitStatusCache(this.context, TimeSpan.Zero))
+            {
+                statusCache.Initialize();
+
+                statusCache.IsCacheReadyAndUpToDate().ShouldBeFalse();
+
+                string message;
+                bool result = statusCache.IsReadyForExternalAcquireLockRequests(statusCommandLockData, out message);
+                result.ShouldBeTrue();
+
+                statusCache.RefreshAndWait();
+
+                result = statusCache.IsReadyForExternalAcquireLockRequests(statusCommandLockData, out message);
+                result.ShouldBeTrue();
+
+                statusCache.IsCacheReadyAndUpToDate().ShouldBeFalse();
 
                 statusCache.Shutdown();
             }

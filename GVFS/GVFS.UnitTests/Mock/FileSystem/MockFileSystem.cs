@@ -21,6 +21,7 @@ namespace GVFS.UnitTests.Mock.FileSystem
         public MockDirectory RootDirectory { get; private set; }
 
         public bool DeleteFileThrowsException { get; set; }
+        public Exception ExceptionThrownByCreateDirectory { get; set; }
 
         public bool TryCreateOrUpdateDirectoryToAdminModifyPermissionsShouldSucceed { get; set; }
 
@@ -194,6 +195,11 @@ namespace GVFS.UnitTests.Mock.FileSystem
 
         public override void CreateDirectory(string path)
         {
+            if (this.ExceptionThrownByCreateDirectory != null)
+            {
+                throw this.ExceptionThrownByCreateDirectory;
+            }
+
             this.RootDirectory.CreateDirectory(path);
         }
 
