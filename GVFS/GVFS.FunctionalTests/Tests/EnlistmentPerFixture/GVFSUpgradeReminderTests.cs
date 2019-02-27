@@ -67,9 +67,19 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
         public void UpgradeTimerScheduledOnServiceStart()
         {
             this.RestartService();
-            Thread.Sleep(TimeSpan.FromSeconds(15));
 
-            this.ServiceLogContainsUpgradeMessaging().ShouldBeTrue();
+            bool timerScheduled = false;
+            for (int trialCount = 0; trialCount < 15; trialCount++)
+            {
+                Thread.Sleep(TimeSpan.FromSeconds(1));
+                if (this.ServiceLogContainsUpgradeMessaging())
+                {
+                    timerScheduled = true;
+                    break;
+                }
+            }
+
+            timerScheduled.ShouldBeTrue();
         }
 
         private bool ServiceLogContainsUpgradeMessaging()
@@ -81,22 +91,17 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
                 GVFSServiceProcess.TestServiceName,
                 "Logs");
             DirectoryInfo logsDirectory = new DirectoryInfo(serviceLogFolder);
-            IEnumerable<FileInfo> files = logsDirectory.GetFiles()
+            FileInfo logFile = logsDirectory.GetFiles()
                 .OrderByDescending(f => f.LastWriteTime)
-                .Take(2);
+                .FirstOrDefault();
 
-            foreach (FileInfo nextFile in files)
+            if (logFile != null)
             {
-                using (StreamReader fileStream = new StreamReader(File.Open(nextFile.FullName, FileMode.Open, FileAccess.Read, FileShare.ReadWrite)))
+                using (StreamReader fileStream = new StreamReader(File.Open(logFile.FullName, FileMode.Open, FileAccess.Read, FileShare.ReadWrite)))
                 {
-                    for (int lineCount = 0; lineCount < 20; lineCount++)
+                    string nextLine = null;
+                    while ((nextLine = fileStream.ReadLine()) != null)
                     {
-                        string nextLine = fileStream.ReadLine();
-                        if (string.IsNullOrEmpty(nextLine))
-                        {
-                            break;
-                        }
-
                         if (nextLine.Contains(upgradeTimerMessage))
                         {
                             return true;
