@@ -343,7 +343,21 @@ namespace GVFS.Common
         /// </summary>
         private bool TryRebuildStatusCache()
         {
-            this.context.FileSystem.CreateDirectory(this.context.Enlistment.GitStatusCacheFolder);
+            try
+            {
+                this.context.FileSystem.CreateDirectory(this.context.Enlistment.GitStatusCacheFolder);
+            }
+            catch (Exception ex) when (ex is IOException || ex is UnauthorizedAccessException)
+            {
+                EventMetadata metadata = new EventMetadata();
+                metadata.Add("Area", EtwArea);
+                metadata.Add("Exception", ex.ToString());
+
+                this.context.Tracer.RelatedWarning(
+                    metadata,
+                    string.Format("GitStatusCache is unable to create git status cache folder at {0}.", this.context.Enlistment.GitStatusCacheFolder));
+                return false;
+            }
 
             // The status cache is regenerated on mount. This means that even if the write to temp file
             // and rename operation doesn't complete (due to a system crash), and there is a torn write,
