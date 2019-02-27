@@ -539,6 +539,10 @@ namespace GVFS.Mount
             {
                 this.tracer.RelatedInfo("Git status cache enabled. Backoff time: {0}ms", this.gitStatusCacheConfig.BackoffTime.TotalMilliseconds);
             }
+            else
+            {
+                this.tracer.RelatedInfo("Git status cache is not enabled");
+            }
 
             this.fileSystemCallbacks = this.CreateOrReportAndExit(() => new FileSystemCallbacks(this.context, this.gitObjects, RepoMetadata.Instance, virtualizer, gitStatusCache), "Failed to create src folder callback listener");
             this.maintenanceScheduler = this.CreateOrReportAndExit(() => new GitMaintenanceScheduler(this.context, this.gitObjects), "Failed to start maintenance scheduler");

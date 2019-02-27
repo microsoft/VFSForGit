@@ -23,6 +23,10 @@ namespace GVFS.Common
 
         private readonly TimeSpan backoffTime;
 
+        // arbitrary value used when deciding whether to print
+        // a message about a delayed status scan.
+        private readonly TimeSpan delayThreshold = TimeSpan.FromSeconds(0.5);
+
         private string serializedGitStatusFilePath;
 
         /// <summary>
@@ -161,9 +165,8 @@ namespace GVFS.Common
             if (!shouldAllowExternalRequest)
             {
                 this.statistics.RecordBlockedRequest();
+                this.context.Tracer.RelatedWarning("GitStatusCache.IsReadyForExternalAcquireLockRequests: request blocked");
             }
-
-            this.context.Tracer.RelatedInfo("GitStatusCache.IsReadyForExternalAcquireLockRequests: isCacheReady: {0}, shouldAllowRequest: {1}", isCacheReady, shouldAllowExternalRequest);
 
             return shouldAllowExternalRequest;
         }
@@ -265,12 +268,12 @@ namespace GVFS.Common
         private void RebuildStatusCacheIfNeeded(bool ignoreBackoff)
         {
             bool needToRebuild = false;
-            DateTime now;
+            DateTime startTime;
 
             lock (this.cacheFileLock)
             {
                 CacheState cacheState = this.cacheState;
-                now = DateTime.UtcNow;
+                startTime = DateTime.UtcNow;
 
                 if (cacheState == CacheState.Clean)
                 {
@@ -284,7 +287,7 @@ namespace GVFS.Common
                     // if a status command is run.
                 }
                 else if (!ignoreBackoff &&
-                    (now - this.lastInvalidationTime) < this.backoffTime)
+                    (startTime - this.lastInvalidationTime) < this.backoffTime)
                 {
                     // The approriate backoff time has not elapsed yet,
                     // If this is the 1st time we are delaying the background
@@ -293,7 +296,7 @@ namespace GVFS.Common
                     // how long the scan was delayed for.
                     if (this.initialDelayTime == DateTime.MinValue)
                     {
-                        this.initialDelayTime = now;
+                        this.initialDelayTime = startTime;
                     }
 
                     // Signal the background thread to run again, so it
@@ -311,20 +314,23 @@ namespace GVFS.Common
 
             if (needToRebuild)
             {
-                if (this.initialDelayTime > DateTime.MinValue)
-                {
-                    this.context.Tracer.RelatedInfo("GitStatusCache.RebuildStatusCacheIfNeeded: Generating new Status Cache... Status scan was delayed for: {0:0.##}s", (now - this.initialDelayTime).TotalSeconds);
-                }
-                else
-                {
-                    this.context.Tracer.RelatedInfo("GitStatusCache.RebuildStatusCacheIfNeeded: Generating new Status Cache...");
-                }
-
                 this.statistics.RecordBackgroundStatusScanRun();
 
                 bool rebuildStatusCacheSucceeded = this.TryRebuildStatusCache();
 
-                this.context.Tracer.RelatedInfo("GitStatusCache.RebuildStatusCacheIfNeeded: Done generating status. Cache is now: {0}", this.cacheState);
+                TimeSpan delayedTime = startTime - this.initialDelayTime;
+                TimeSpan statusRunTime = DateTime.UtcNow - startTime;
+
+                string message = string.Format(
+                    "GitStatusCache.RebuildStatusCacheIfNeeded: Done generating status. Cache state: {0}. Status scan time: {1:0.##}s.",
+                    this.cacheState,
+                    statusRunTime.TotalSeconds);
+                if (delayedTime > this.backoffTime + this.delayThreshold)
+                {
+                    message += string.Format(" Status scan was delayed for: {0:0.##}s.", delayedTime.TotalSeconds);
+                }
+
+                this.context.Tracer.RelatedInfo(message);
 
                 this.initialDelayTime = DateTime.MinValue;
             }
