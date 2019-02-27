@@ -156,11 +156,20 @@ VirtualizationRootHandle VirtualizationRoot_FindForVnode(
     PerfSample findForVnodeSample(perfTracer, functionCounter);
     
     VirtualizationRootHandle rootHandle = RootHandle_None;
+    errno_t error = 0;
     
-    errno_t error = vnode_get(vnode);
-    if (error != 0)
+    if (vnode_isdir(vnode))
     {
-        KextLog_ErrorVnodePathAndProperties(vnode, "VirtualizationRoot_FindForVnode: vnode_get() failed (error = %d) on vnode we'd expect to be live", error);
+        error = vnode_get(vnode);
+        if (error != 0)
+        {
+            KextLog_ErrorVnodePathAndProperties(vnode, "VirtualizationRoot_FindForVnode: vnode_get() failed (error = %d) on vnode %p:%u which we'd expect to be live", error, KextLog_Unslide(vnode), vnode_vid(vnode));
+            return RootHandle_None;
+        }
+    }
+    else
+    {
+        vnode = vnode_getparent(vnode);
     }
     
     // Search up the tree until we hit a known virtualization root or THE root of the file system
