@@ -3,6 +3,7 @@ using GVFS.FunctionalTests.Tools;
 using GVFS.Tests.Should;
 using NUnit.Framework;
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Threading;
@@ -60,6 +61,58 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
         {
             this.VerifyServiceRestartStopsReminder();
             this.VerifyUpgradeVerbStopsReminder();
+        }
+
+        [TestCase]
+        public void UpgradeTimerScheduledOnServiceStart()
+        {
+            this.RestartService();
+
+            bool timerScheduled = false;
+            for (int trialCount = 0; trialCount < 15; trialCount++)
+            {
+                Thread.Sleep(TimeSpan.FromSeconds(1));
+                if (this.ServiceLogContainsUpgradeMessaging())
+                {
+                    timerScheduled = true;
+                    break;
+                }
+            }
+
+            timerScheduled.ShouldBeTrue();
+        }
+
+        private bool ServiceLogContainsUpgradeMessaging()
+        {
+            // This test checks for the upgrade timer start message in the Service log
+            // file. GVFS.Service should schedule the timer as it starts.
+            string expectedTimerMessage = "Checking for product upgrades. (Start)";
+            string serviceLogFolder = Path.Combine(
+                Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData),
+                "GVFS",
+                GVFSServiceProcess.TestServiceName,
+                "Logs");
+            DirectoryInfo logsDirectory = new DirectoryInfo(serviceLogFolder);
+            FileInfo logFile = logsDirectory.GetFiles()
+                .OrderByDescending(f => f.LastWriteTime)
+                .FirstOrDefault();
+
+            if (logFile != null)
+            {
+                using (StreamReader fileStream = new StreamReader(File.Open(logFile.FullName, FileMode.Open, FileAccess.Read, FileShare.ReadWrite)))
+                {
+                    string nextLine = null;
+                    while ((nextLine = fileStream.ReadLine()) != null)
+                    {
+                        if (nextLine.Contains(expectedTimerMessage))
+                        {
+                            return true;
+                        }
+                    }
+                }
+            }
+
+            return false;
         }
 
         private void EmptyDownloadDirectory()

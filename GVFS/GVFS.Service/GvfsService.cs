@@ -60,14 +60,14 @@ namespace GVFS.Service
                         EnableAndAttachProjFSHandler.TryEnablePrjFlt(activity, out error);
                     }
 
+                    // Start product upgrade timer only after attempting to enable prjflt.
+                    // On Windows server (where PrjFlt is not inboxed) this helps avoid
+                    // a race between TryEnablePrjFlt() and installer pre-check which is
+                    // performed by UpgradeTimer in parallel.
+                    this.productUpgradeTimer.Start();
+
                     this.serviceStopped.WaitOne();
                 }
-
-                // Start product upgrade timer only after attempting to enable prjflt.
-                // On Windows server (where PrjFlt is not inboxed) this helps avoid
-                // a race between TryEnablePrjFlt() and installer pre-check which is
-                // performed by UpgradeTimer in parallel.
-                this.productUpgradeTimer.Start();
             }
             catch (Exception e)
             {
