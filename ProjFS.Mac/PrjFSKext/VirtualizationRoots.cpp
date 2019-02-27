@@ -316,7 +316,10 @@ static VirtualizationRootHandle FindRootAtVnode_Locked(vnode_t vnode, uint32_t v
         
         if (rootEntry.rootVNode == vnode && rootEntry.rootVNodeVid == vid)
         {
-            assert(fileId.fsid.val[0] == rootEntry.rootFsid.val[0]);
+            assertf(
+                FsidsAreEqual(fileId.fsid, rootEntry.rootFsid) && fileId.inode == rootEntry.rootInode,
+                "FindRootAtVnode_Locked: matching root vnode/vid but not fsid/inode? vnode %p:%u. rootEntry fsid 0x%x:%x, inode 0x%llx, searching for fsid 0x%x:%x, inode 0x%llx",
+                KextLog_Unslide(vnode), vid, rootEntry.rootFsid.val[0], rootEntry.rootFsid.val[1], rootEntry.rootInode, fileId.fsid.val[0], fileId.fsid.val[1], fileId.inode);
             return i;
         }
         else if (rootEntry.rootVNode == vnode)
