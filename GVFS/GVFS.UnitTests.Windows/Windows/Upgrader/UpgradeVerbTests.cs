@@ -189,10 +189,11 @@ namespace GVFS.UnitTests.Windows.Upgrader
                     "The installer needs to be run from an elevated command prompt.",
                     "Run `gvfs upgrade --confirm` again from an elevated command prompt."
                 },
-                expectedErrors: new List<string>
-                {
-                    "The installer needs to be run from an elevated command prompt."
-                });
+                expectedErrors: null);
+
+            this.Tracer.RelatedWarningEvents.ShouldContain(
+                    new List<string> { "The installer needs to be run from an elevated command prompt." },
+                    (error, expectedError) => { return error.Contains(expectedError); });
         }
 
         [TestCase]
