@@ -151,7 +151,7 @@ VirtualizationRootHandle VirtualizationRoot_FindForVnode(
     PrjFSPerfCounter functionCounter,
     PrjFSPerfCounter innerLoopCounter,
     vnode_t _Nonnull vnode,
-    const FsidInode& vnodeFsidInode)
+    vfs_context_t context)
 {
     PerfSample findForVnodeSample(perfTracer, functionCounter);
     
@@ -167,6 +167,8 @@ VirtualizationRootHandle VirtualizationRoot_FindForVnode(
     while (RootHandle_None == rootHandle && NULLVP != vnode && !vnode_isvroot(vnode))
     {
         PerfSample iterationSample(perfTracer, innerLoopCounter);
+
+        FsidInode vnodeFsidInode = Vnode_GetFsidAndInode(vnode, context);
 
         rootHandle = FindOrDetectRootAtVnode(vnode, vnodeFsidInode);
         
