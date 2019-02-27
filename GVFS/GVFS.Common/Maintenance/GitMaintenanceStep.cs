@@ -22,7 +22,7 @@ namespace GVFS.Common.Maintenance
         protected virtual TimeSpan TimeBetweenRuns { get; }
         protected virtual string LastRunTimeFilePath { get; set; }
         protected GVFSContext Context { get; }
-        protected GitProcess GitProcess { get; private set; }
+        protected GitProcess MaintenanceGitProcess { get; private set; }
         protected bool Stopping { get; private set; }
         protected bool RequireObjectCacheLock { get; }
         protected GitProcessChecker GitProcessChecker { get; }
@@ -75,7 +75,7 @@ namespace GVFS.Common.Maintenance
             {
                 this.Stopping = true;
 
-                GitProcess process = this.GitProcess;
+                GitProcess process = this.MaintenanceGitProcess;
 
                 if (process != null)
                 {
@@ -114,26 +114,36 @@ namespace GVFS.Common.Maintenance
         /// </summary>
         protected abstract void PerformMaintenance();
 
-        protected GitProcess.Result RunGitCommand(Func<GitProcess, GitProcess.Result> work)
+        protected GitProcess.Result RunGitCommand(Func<GitProcess, GitProcess.Result> work, string gitCommand)
         {
-            using (ITracer activity = this.Context.Tracer.StartActivity("RunGitCommand", EventLevel.Informational, Keywords.Telemetry, metadata: this.CreateEventMetadata()))
+            EventMetadata metadata = this.CreateEventMetadata();
+            metadata.Add("gitCommand", gitCommand);
+
+            using (ITracer activity = this.Context.Tracer.StartActivity("RunGitCommand", EventLevel.Informational, Keywords.Telemetry, metadata))
             {
                 if (this.Stopping)
                 {
                     this.Context.Tracer.RelatedWarning(
                         metadata: null,
-                        message: this.Area + ": Not launching Git process because the mount is stopping",
+                        message: $"{this.Area}: Not launching Git process {gitCommand} because the mount is stopping",
                         keywords: Keywords.Telemetry);
                     return null;
                 }
 
-                GitProcess.Result result = work.Invoke(this.GitProcess);
+                GitProcess.Result result = work.Invoke(this.MaintenanceGitProcess);
 
                 if (!this.Stopping && result?.ExitCodeIsFailure == true)
                 {
+                    string errorMessage = result?.Errors == null ? string.Empty : result.Errors;
+                    if (errorMessage.Length > 1000)
+                    {
+                        // For large error messages, we show the first and last 500 chars
+                        errorMessage = $"beginning: {errorMessage.Substring(0, 500)} ending: {errorMessage.Substring(errorMessage.Length - 500)}";
+                    }
+
                     this.Context.Tracer.RelatedWarning(
                         metadata: null,
-                        message: this.Area + ": Git process failed with errors:" + result.Errors,
+                        message: $"{this.Area}: Git process {gitCommand} failed with errors: {errorMessage}",
                         keywords: Keywords.Telemetry);
                     return result;
                 }
@@ -188,29 +198,25 @@ namespace GVFS.Common.Maintenance
             }
         }
 
-        protected void LogErrorAndRewriteMultiPackIndex(ITracer activity, GitProcess.Result result)
+        protected void LogErrorAndRewriteMultiPackIndex(ITracer activity)
         {
             EventMetadata errorMetadata = this.CreateEventMetadata();
-            errorMetadata["MultiPackIndexVerifyOutput"] = result.Output;
-            errorMetadata["MultiPackIndexVerifyErrors"] = result.Errors;
             string multiPackIndexPath = Path.Combine(this.Context.Enlistment.GitPackRoot, "multi-pack-index");
             errorMetadata["TryDeleteFileResult"] = this.Context.FileSystem.TryDeleteFile(multiPackIndexPath);
 
-            GitProcess.Result rewriteResult = this.RunGitCommand((process) => process.WriteMultiPackIndex(this.Context.Enlistment.GitObjectsRoot));
+            GitProcess.Result rewriteResult = this.RunGitCommand((process) => process.WriteMultiPackIndex(this.Context.Enlistment.GitObjectsRoot), nameof(GitProcess.WriteMultiPackIndex));
             errorMetadata["RewriteResultExitCode"] = rewriteResult.ExitCode;
 
             activity.RelatedError(errorMetadata, "multi-pack-index is corrupt after write. Deleting and rewriting.");
         }
 
-        protected void LogErrorAndRewriteCommitGraph(ITracer activity, GitProcess.Result result, List<string> packs)
+        protected void LogErrorAndRewriteCommitGraph(ITracer activity, List<string> packs)
         {
             EventMetadata errorMetadata = this.CreateEventMetadata();
-            errorMetadata["CommitGraphVerifyOutput"] = result.Output;
-            errorMetadata["CommitGraphVerifyErrors"] = result.Errors;
             string commitGraphPath = Path.Combine(this.Context.Enlistment.GitObjectsRoot, "info", "commit-graph");
             errorMetadata["TryDeleteFileResult"] = this.Context.FileSystem.TryDeleteFile(commitGraphPath);
 
-            GitProcess.Result rewriteResult = this.RunGitCommand((process) => process.WriteCommitGraph(this.Context.Enlistment.GitObjectsRoot, packs));
+            GitProcess.Result rewriteResult = this.RunGitCommand((process) => process.WriteCommitGraph(this.Context.Enlistment.GitObjectsRoot, packs), nameof(GitProcess.WriteCommitGraph));
             errorMetadata["RewriteResultExitCode"] = rewriteResult.ExitCode;
 
             activity.RelatedError(errorMetadata, "commit-graph is corrupt after write. Deleting and rewriting.");
@@ -225,7 +231,7 @@ namespace GVFS.Common.Maintenance
                     return;
                 }
 
-                this.GitProcess = this.Context.Enlistment.CreateGitProcess();
+                this.MaintenanceGitProcess = this.Context.Enlistment.CreateGitProcess();
             }
 
             this.PerformMaintenance();

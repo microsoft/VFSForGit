@@ -89,11 +89,13 @@ namespace GVFS.Common.Maintenance
                 return;
             }
 
-            this.RunGitCommand(process =>
-            {
-                this.TryPrefetchCommitsAndTrees(out error, process);
-                return null;
-            });
+            this.RunGitCommand(
+                process =>
+                {
+                    this.TryPrefetchCommitsAndTrees(out error, process);
+                    return null;
+                },
+                nameof(this.TryPrefetchCommitsAndTrees));
 
             if (!string.IsNullOrEmpty(error))
             {
@@ -162,7 +164,7 @@ namespace GVFS.Common.Maintenance
                     metadata.Add("pack", packPath);
                     metadata.Add("idxPath", idxPath);
                     metadata.Add("timestamp", timestamp);
-                    GitProcess.Result indexResult = this.RunGitCommand(process => this.GitObjects.IndexPackFile(packPath, process));
+                    GitProcess.Result indexResult = this.RunGitCommand(process => this.GitObjects.IndexPackFile(packPath, process), nameof(this.GitObjects.IndexPackFile));
 
                     if (this.Stopping)
                     {
@@ -174,7 +176,6 @@ namespace GVFS.Common.Maintenance
                     {
                         firstBadPack = i;
 
-                        metadata.Add("Errors", indexResult.Errors);
                         this.Context.Tracer.RelatedWarning(metadata, $"{nameof(this.TryGetMaxGoodPrefetchTimestamp)}: Found pack file that's missing idx file, and failed to regenerate idx");
                         break;
                     }
