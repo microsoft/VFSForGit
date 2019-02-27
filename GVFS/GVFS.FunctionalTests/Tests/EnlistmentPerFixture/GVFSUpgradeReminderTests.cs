@@ -84,7 +84,9 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
 
         private bool ServiceLogContainsUpgradeMessaging()
         {
-            string upgradeTimerMessage = "Checking for product upgrades. (Start)";
+            // This test checks for the upgrade timer start message in the Service log
+            // file. GVFS.Service should schedule the timer as it starts.
+            string expectedTimerMessage = "Checking for product upgrades. (Start)";
             string serviceLogFolder = Path.Combine(
                 Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData),
                 "GVFS",
@@ -102,7 +104,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
                     string nextLine = null;
                     while ((nextLine = fileStream.ReadLine()) != null)
                     {
-                        if (nextLine.Contains(upgradeTimerMessage))
+                        if (nextLine.Contains(expectedTimerMessage))
                         {
                             return true;
                         }
