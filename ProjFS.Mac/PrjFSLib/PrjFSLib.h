@@ -58,13 +58,6 @@ typedef enum
 
 } PrjFS_NotificationType;
 
-typedef struct
-{
-    _In_    PrjFS_NotificationType                  NotificationBitMask;
-    _In_    const char*                             NotificationRelativeRoot;
-
-} PrjFS_NotificationMapping;
-
 extern "C" PrjFS_Result PrjFS_StartVirtualizationInstance(
     _In_    const char*                             virtualizationRootFullPath,
     _In_    PrjFS_Callbacks                         callbacks,
