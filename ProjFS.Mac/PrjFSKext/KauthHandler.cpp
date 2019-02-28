@@ -873,7 +873,7 @@ static bool TryGetVirtualizationRoot(
         PrjFSPerfCounter_VnodeOp_FindRoot,
         PrjFSPerfCounter_VnodeOp_FindRoot_Iteration,
         vnode,
-        *vnodeFsidInode);
+        context);
 
     if (RootHandle_ProviderTemporaryDirectory == *root)
     {
@@ -947,13 +947,12 @@ static bool ShouldHandleFileOpEvent(
     {
         PerfSample findRootSample(perfTracer, PrjFSPerfCounter_FileOp_ShouldHandle_FindVirtualizationRoot);
         
-        *vnodeFsidInode = Vnode_GetFsidAndInode(vnode, context);
         *root = VirtualizationRoot_FindForVnode(
             perfTracer,
             PrjFSPerfCounter_FileOp_FindRoot,
             PrjFSPerfCounter_FileOp_FindRoot_Iteration,
             vnode,
-            *vnodeFsidInode);
+            context);
         
         if (!VirtualizationRoot_IsValidRootHandle(*root))
         {
@@ -973,7 +972,9 @@ static bool ShouldHandleFileOpEvent(
             return false;
         }
     }
-    
+
+    *vnodeFsidInode = Vnode_GetFsidAndInode(vnode, context);
+
     return true;
 }
 

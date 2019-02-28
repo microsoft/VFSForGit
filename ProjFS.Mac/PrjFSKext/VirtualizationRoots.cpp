@@ -151,22 +151,33 @@ VirtualizationRootHandle VirtualizationRoot_FindForVnode(
     PrjFSPerfCounter functionCounter,
     PrjFSPerfCounter innerLoopCounter,
     vnode_t _Nonnull vnode,
-    const FsidInode& vnodeFsidInode)
+    vfs_context_t context)
 {
     PerfSample findForVnodeSample(perfTracer, functionCounter);
     
     VirtualizationRootHandle rootHandle = RootHandle_None;
+    errno_t error = 0;
     
-    errno_t error = vnode_get(vnode);
-    if (error != 0)
+    if (vnode_isdir(vnode))
     {
-        KextLog_ErrorVnodePathAndProperties(vnode, "VirtualizationRoot_FindForVnode: vnode_get() failed (error = %d) on vnode we'd expect to be live", error);
+        error = vnode_get(vnode);
+        if (error != 0)
+        {
+            KextLog_ErrorVnodePathAndProperties(vnode, "VirtualizationRoot_FindForVnode: vnode_get() failed (error = %d) on vnode %p:%u which we'd expect to be live", error, KextLog_Unslide(vnode), vnode_vid(vnode));
+            return RootHandle_None;
+        }
+    }
+    else
+    {
+        vnode = vnode_getparent(vnode);
     }
     
     // Search up the tree until we hit a known virtualization root or THE root of the file system
     while (RootHandle_None == rootHandle && NULLVP != vnode && !vnode_isvroot(vnode))
     {
         PerfSample iterationSample(perfTracer, innerLoopCounter);
+
+        FsidInode vnodeFsidInode = Vnode_GetFsidAndInode(vnode, context);
 
         rootHandle = FindOrDetectRootAtVnode(vnode, vnodeFsidInode);
         
@@ -314,7 +325,10 @@ static VirtualizationRootHandle FindRootAtVnode_Locked(vnode_t vnode, uint32_t v
         
         if (rootEntry.rootVNode == vnode && rootEntry.rootVNodeVid == vid)
         {
-            assert(fileId.fsid.val[0] == rootEntry.rootFsid.val[0]);
+            assertf(
+                FsidsAreEqual(fileId.fsid, rootEntry.rootFsid) && fileId.inode == rootEntry.rootInode,
+                "FindRootAtVnode_Locked: matching root vnode/vid but not fsid/inode? vnode %p:%u. rootEntry fsid 0x%x:%x, inode 0x%llx, searching for fsid 0x%x:%x, inode 0x%llx",
+                KextLog_Unslide(vnode), vid, rootEntry.rootFsid.val[0], rootEntry.rootFsid.val[1], rootEntry.rootInode, fileId.fsid.val[0], fileId.fsid.val[1], fileId.inode);
             return i;
         }
         else if (rootEntry.rootVNode == vnode)

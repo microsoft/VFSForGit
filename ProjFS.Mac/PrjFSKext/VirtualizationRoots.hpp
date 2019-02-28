@@ -28,7 +28,7 @@ VirtualizationRootHandle VirtualizationRoot_FindForVnode(
     PrjFSPerfCounter functionCounter,
     PrjFSPerfCounter innerLoopCounter,
     vnode_t _Nonnull vnode,
-    const FsidInode& vnodeFsidInode);
+    vfs_context_t _Nonnull context);
 
 struct VirtualizationRootResult
 {
