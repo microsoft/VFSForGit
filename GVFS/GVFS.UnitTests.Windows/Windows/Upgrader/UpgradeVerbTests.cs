@@ -167,7 +167,8 @@ namespace GVFS.UnitTests.Windows.Upgrader
                     "GVFS Service is not running.",
                     "Run `sc start GVFS.Service` and run `gvfs upgrade --confirm` again from an elevated command prompt."
                 },
-                expectedErrors: new List<string>
+                expectedErrors: null,
+                expectedWarnings: new List<string>
                 {
                     "GVFS Service is not running."
                 });
@@ -189,11 +190,11 @@ namespace GVFS.UnitTests.Windows.Upgrader
                     "The installer needs to be run from an elevated command prompt.",
                     "Run `gvfs upgrade --confirm` again from an elevated command prompt."
                 },
-                expectedErrors: null);
-
-            this.Tracer.RelatedWarningEvents.ShouldContain(
-                    new List<string> { "The installer needs to be run from an elevated command prompt." },
-                    (error, expectedError) => { return error.Contains(expectedError); });
+                expectedErrors: null,
+                expectedWarnings: new List<string>
+                {
+                    "The installer needs to be run from an elevated command prompt."
+                });
         }
 
         [TestCase]
@@ -210,7 +211,8 @@ namespace GVFS.UnitTests.Windows.Upgrader
                 {
                     "`gvfs upgrade` is not supported in unattended mode"
                 },
-                expectedErrors: new List<string>
+                expectedErrors: null,
+                expectedWarnings: new List<string>
                 {
                     "`gvfs upgrade` is not supported in unattended mode"
                 });

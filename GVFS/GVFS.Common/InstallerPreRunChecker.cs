@@ -31,7 +31,7 @@ namespace GVFS.Upgrader
                 if (this.IsUnattended())
                 {
                     consoleError = $"{GVFSConstants.UpgradeVerbMessages.GVFSUpgrade} is not supported in unattended mode";
-                    this.tracer.RelatedError($"{nameof(this.TryRunPreUpgradeChecks)}: {consoleError}");
+                    this.tracer.RelatedWarning($"{nameof(this.TryRunPreUpgradeChecks)}: {consoleError}");
                     return false;
                 }
 
@@ -102,7 +102,7 @@ namespace GVFS.Upgrader
                     Environment.NewLine,
                     "Blocking processes are running.",
                     $"Run {this.CommandToRerun} again after quitting these processes - " + string.Join(", ", processList.ToArray()));
-                this.tracer.RelatedError($"{nameof(this.IsInstallationBlockedByRunningProcess)}: {consoleError}");
+                this.tracer.RelatedWarning($"{nameof(this.IsInstallationBlockedByRunningProcess)}: {consoleError}");
                 return false;
             }
 
@@ -209,7 +209,7 @@ namespace GVFS.Upgrader
                     Environment.NewLine,
                     "GVFS Service is not running.",
                     adviceText);
-                this.tracer.RelatedError($"{nameof(this.IsGVFSUpgradeAllowed)}: Upgrade is not installable. {consoleError}");
+                this.tracer.RelatedWarning($"{nameof(this.IsGVFSUpgradeAllowed)}: Upgrade is not installable. {consoleError}");
                 return false;
             }
 

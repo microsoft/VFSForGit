@@ -67,7 +67,8 @@ namespace GVFS.UnitTests.Windows.Upgrader
                     "ERROR: Blocking processes are running.",
                     $"Run `gvfs upgrade --confirm` again after quitting these processes - GVFS.Mount, git"
                 },
-                expectedErrors: new List<string>
+                expectedErrors: null,
+                expectedWarnings: new List<string>
                 {
                     $"Run `gvfs upgrade --confirm` again after quitting these processes - GVFS.Mount, git"
                 });
