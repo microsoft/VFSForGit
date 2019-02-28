@@ -380,6 +380,7 @@ namespace GVFS.CommandLine
                 this.Process.StartInfo = new ProcessStartInfo(path)
                 {
                     UseShellExecute = true,
+                    WorkingDirectory = Environment.SystemDirectory,
                     WindowStyle = ProcessWindowStyle.Normal,
                     Arguments = args
                 };
