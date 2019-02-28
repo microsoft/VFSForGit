@@ -8,13 +8,15 @@ namespace GVFS.FunctionalTests.Windows.Tests
 {
     [TestFixture]
     [Category(Categories.FullSuiteOnly)]
-    [Category(Categories.WindowsOnly)]
     public class DiskLayoutVersionTests : TestsWithEnlistmentPerTestCase
     {
         private const int WindowsCurrentDiskLayoutMajorVersion = 17;
         private const int MacCurrentDiskLayoutMajorVersion = 18;
+        private const int WindowsCurrentDiskLayoutMinimumMajorVersion = 7;
+        private const int MacCurrentDiskLayoutMinimumMajorVersion = 18;
         private const int CurrentDiskLayoutMinorVersion = 0;
         private int currentDiskMajorVersion;
+        private int currentDiskMinimumMajorVersion;
 
         [SetUp]
         public override void CreateEnlistment()
@@ -24,10 +26,12 @@ namespace GVFS.FunctionalTests.Windows.Tests
             if (RuntimeInformation.IsOSPlatform(OSPlatform.OSX))
             {
                 this.currentDiskMajorVersion = MacCurrentDiskLayoutMajorVersion;
+                this.currentDiskMinimumMajorVersion = MacCurrentDiskLayoutMinimumMajorVersion;
             }
             else
             {
                 this.currentDiskMajorVersion = WindowsCurrentDiskLayoutMajorVersion;
+                this.currentDiskMinimumMajorVersion = WindowsCurrentDiskLayoutMinimumMajorVersion;
             }
         }
 
@@ -49,6 +53,26 @@ namespace GVFS.FunctionalTests.Windows.Tests
                 (this.currentDiskMajorVersion + 1).ToString(),
                 CurrentDiskLayoutMinorVersion.ToString());
             this.Enlistment.TryMountGVFS().ShouldBeFalse("Mount should fail because the major version has advanced");
+        }
+
+        [TestCase]
+        public void MountFailsIfBeforeMinimumVersion()
+        {
+            // Mount should succeed if on disk version is the minimum supported version
+            this.Enlistment.UnmountGVFS();
+            GVFSHelpers.SaveDiskLayoutVersion(
+                this.Enlistment.DotGVFSRoot,
+                this.currentDiskMinimumMajorVersion.ToString(),
+                (CurrentDiskLayoutMinorVersion).ToString());
+            this.Enlistment.TryMountGVFS().ShouldBeTrue("Mount should succeed because we are using minimum version");
+
+            // Mount should fail if on disk version is below minimum supported version
+            this.Enlistment.UnmountGVFS();
+            GVFSHelpers.SaveDiskLayoutVersion(
+                this.Enlistment.DotGVFSRoot,
+                (this.currentDiskMinimumMajorVersion - 1).ToString(),
+                CurrentDiskLayoutMinorVersion.ToString());
+            this.Enlistment.TryMountGVFS().ShouldBeFalse("Mount should fail because we are before minimum version");
         }
     }
 }
