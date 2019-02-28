@@ -119,6 +119,13 @@ namespace GVFS.Common.NuGetUpgrade
                 return false;
             }
 
+            string gitBinPath = GVFSPlatform.Instance.GitInstallation.GetInstalledGitBinPath();
+            if (string.IsNullOrEmpty(gitBinPath))
+            {
+                error = $"NuGetUpgrader: Unable to locate git installation. Ensure git is installed and try again.";
+                return false;
+            }
+
             string authUrl;
             if (!TryCreateAzDevOrgUrlFromPackageFeedUrl(upgraderConfig.FeedUrl, out authUrl, out error))
             {
@@ -126,7 +133,7 @@ namespace GVFS.Common.NuGetUpgrade
             }
 
             if (!TryGetPersonalAccessToken(
-                    GVFSPlatform.Instance.GitInstallation.GetInstalledGitBinPath(),
+                    gitBinPath,
                     authUrl,
                     tracer,
                     out string token,
