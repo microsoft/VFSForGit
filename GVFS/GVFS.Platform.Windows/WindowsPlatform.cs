@@ -79,6 +79,13 @@ namespace GVFS.Platform.Windows
         {
             string gitBinRoot = this.GitInstallation.GetInstalledGitBinPath();
 
+            // If we do not have a git binary, then we cannot check if we should set up telemetry
+            // We also cannot log this, as we are setting up tracer.
+            if (string.IsNullOrEmpty(gitBinRoot))
+            {
+                yield break;
+            }
+
             ETWTelemetryEventListener etwListener = ETWTelemetryEventListener.CreateIfEnabled(gitBinRoot, providerName, enlistmentId, mountId);
             if (etwListener != null)
             {
