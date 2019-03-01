@@ -43,6 +43,8 @@ static VirtualizationRoot* s_virtualizationRoots = nullptr;
 // Looks up the vnode/vid and fsid/inode pairs among the known roots
 static VirtualizationRootHandle FindRootAtVnode_Locked(vnode_t vnode, uint32_t vid, FsidInode fileId);
 
+static void RefreshRootVnodeIfNecessary_Locked(VirtualizationRootHandle rootHandle, vnode_t vnode, uint32_t vid, FsidInode fileId);
+
 // Looks up the vnode and fsid/inode pair among the known roots, and if not found,
 // detects if there is a hitherto-unknown root at vnode by checking attributes.
 static VirtualizationRootHandle FindOrDetectRootAtVnode(vnode_t vnode, const FsidInode& vnodeFsidInode);
@@ -210,10 +212,15 @@ static VirtualizationRootHandle FindOrDetectRootAtVnode(vnode_t _Nonnull vnode, 
     uint32_t vid = vnode_vid(vnode);
     
     VirtualizationRootHandle rootIndex;
+    bool rootVnodeStale = false;
     
     RWLock_AcquireShared(s_virtualizationRootsLock);
     {
         rootIndex = FindRootAtVnode_Locked(vnode, vid, vnodeFsidInode);
+        rootVnodeStale =
+            rootIndex >= 0
+            && (s_virtualizationRoots[rootIndex].rootVNode != vnode
+                || s_virtualizationRoots[rootIndex].rootVNodeVid != vid);
     }
     RWLock_ReleaseShared(s_virtualizationRootsLock);
     
@@ -254,6 +261,14 @@ static VirtualizationRootHandle FindOrDetectRootAtVnode(vnode_t _Nonnull vnode, 
         {
             KextLog_FileError(vnode, "FindOrDetectRootAtVnode: Vnode_ReadXattr/mac_vnop_getxattr failed with errno %d", xattrResult.error);
         }
+    }
+    else if (rootVnodeStale)
+    {
+        RWLock_AcquireExclusive(s_virtualizationRootsLock);
+        {
+            RefreshRootVnodeIfNecessary_Locked(rootIndex, vnode, vid, vnodeFsidInode);
+        }
+        RWLock_ReleaseExclusive(s_virtualizationRootsLock);
     }
     
     return rootIndex;
@@ -340,17 +355,42 @@ static VirtualizationRootHandle FindRootAtVnode_Locked(vnode_t vnode, uint32_t v
         if (FsidsAreEqual(rootEntry.rootFsid, fileId.fsid) && rootEntry.rootInode == fileId.inode)
         {
             assertf(rootEntry.providerUserClient == nullptr, "Finding root vnode based on FSID/inode equality but not vnode identity (recycled vnode) should only happen if no provider is active. Root index %d, provider PID %d, IOUC %p path '%s'",
-                i, rootEntry.providerPid, rootEntry.providerUserClient, rootEntry.path);
-            // root vnode must be stale, update it
-            KextLog_File(vnode, "FindRootAtVnode_Locked: virtualization root %d (path: \"%s\", fsid: 0x%x:%x, inode: 0x%llx) directory vnode %p:%u has gone stale, refreshing to %p:%u",
+                i, rootEntry.providerPid, KextLog_Unslide(rootEntry.providerUserClient), rootEntry.path);
+            // root vnode must be stale
+            KextLog_File(vnode, "FindRootAtVnode_Locked: virtualization root %d (path: \"%s\", fsid: 0x%x:%x, inode: 0x%llx) directory vnode %p:%u has gone stale, new vnode %p:%u",
                 i, rootEntry.path, rootEntry.rootFsid.val[0], rootEntry.rootFsid.val[1], rootEntry.rootInode, KextLog_Unslide(rootEntry.rootVNode), rootEntry.rootVNodeVid, KextLog_Unslide(vnode), vid);
-            rootEntry.rootVNode = vnode;
-            rootEntry.rootVNodeVid = vid;
             return i;
         }
     }
     
     return RootHandle_None;
+}
+
+static void RefreshRootVnodeIfNecessary_Locked(VirtualizationRootHandle rootHandle, vnode_t vnode, uint32_t vid, FsidInode fileId)
+{
+    VirtualizationRoot& rootEntry = s_virtualizationRoots[rootHandle];
+    if (rootEntry.rootVNode == vnode && rootEntry.rootVNodeVid == vid)
+    {
+        return;
+    }
+
+    assertf(
+        FsidsAreEqual(rootEntry.rootFsid, fileId.fsid) && rootEntry.rootInode == fileId.inode,
+        "RefreshRootVnodeIfNecessary_Locked: expecting matching FSID/inode for new vnode on root %d (%s). "
+        "Root's: FSID 0x%x:%x, inode 0x%llx; new vnode's FSID: 0x%x:%x, inode: 0x%llx; "
+        "old vnode %p:%u, new %p:%u",
+        rootHandle, rootEntry.path,
+        rootEntry.rootFsid.val[0], rootEntry.rootFsid.val[1], rootEntry.rootInode, fileId.fsid.val[0], fileId.fsid.val[1], fileId.inode,
+        KextLog_Unslide(rootEntry.rootVNode), rootEntry.rootVNodeVid, KextLog_Unslide(vnode), vid);
+
+    assertf(
+        rootEntry.providerUserClient == nullptr,
+        "RefreshRootVnodeIfNecessary_Locked: only root vnodes with no active provider should be recycled! Virtualization root %d (path: \"%s\", fsid: 0x%x:%x, inode: 0x%llx) directory vnode %p:%u has gone stale, refreshing with new vnode %p:%u",
+        rootHandle, rootEntry.path, rootEntry.rootFsid.val[0], rootEntry.rootFsid.val[1], rootEntry.rootInode, KextLog_Unslide(rootEntry.rootVNode), rootEntry.rootVNodeVid, KextLog_Unslide(vnode), vid);
+    KextLog_File(vnode, "RefreshRootVnodeIfNecessary_Locked: virtualization root %d (path: \"%s\", fsid: 0x%x:%x, inode: 0x%llx) directory vnode %p:%u has gone stale, refreshing with new vnode %p:%u",
+        rootHandle, rootEntry.path, rootEntry.rootFsid.val[0], rootEntry.rootFsid.val[1], rootEntry.rootInode, KextLog_Unslide(rootEntry.rootVNode), rootEntry.rootVNodeVid, KextLog_Unslide(vnode), vid);
+    rootEntry.rootVNode = vnode;
+    rootEntry.rootVNodeVid = vid;
 }
 
 // Returns negative value if it failed, or inserted index on success
@@ -429,6 +469,8 @@ VirtualizationRootResult VirtualizationRoot_RegisterProviderForPath(PrjFSProvide
                     rootIndex = FindRootAtVnode_Locked(virtualizationRootVNode, rootVid, vnodeIds);
                     if (rootIndex >= 0)
                     {
+                        RefreshRootVnodeIfNecessary_Locked(rootIndex, virtualizationRootVNode, rootVid, vnodeIds);
+                        
                         // Reattaching to existing root
                         if (nullptr != s_virtualizationRoots[rootIndex].providerUserClient)
                         {
