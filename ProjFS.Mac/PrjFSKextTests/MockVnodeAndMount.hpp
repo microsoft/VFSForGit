@@ -20,11 +20,10 @@ private:
 public:
     static std::shared_ptr<mount> Create(const char* fileSystemTypeName, fsid_t fsid, uint64_t initialInode);
     
-    inline fsid_t GetFsid() const { return this->statfs.f_fsid; }
+    fsid_t GetFsid() const { return this->statfs.f_fsid; }
     
     friend struct vnode;
     friend vfsstatfs* vfs_statfs(mount_t mountPoint);
-    friend FsidInode Vnode_GetFsidAndInode(vnode_t vnode, vfs_context_t vfsContext, bool useLinkIDForInode);
 };
 
 struct vnode
@@ -33,14 +32,12 @@ private:
     std::weak_ptr<vnode> weakSelfPointer;
     std::shared_ptr<mount> mountPoint;
     
+    bool isRecycling = false;
+    vtype type = VREG;
     uint64_t inode;
     uint32_t vid;
     int32_t ioCount = 0;
-    bool isRecycling = false;
-    
     errno_t getPathError = 0;
-    
-    vtype type = VREG;
     
     std::string path;
     const char* name;
@@ -57,21 +54,20 @@ public:
     static std::shared_ptr<vnode> Create(const std::shared_ptr<mount>& mount, const char* path, vtype vnodeType, uint64_t inode);
     ~vnode();
     
-    uint64_t GetInode() const { return this->inode; }
-    uint32_t GetVid() const { return this->vid; }
+    uint64_t GetInode() const          { return this->inode; }
+    uint32_t GetVid() const            { return this->vid; }
+    const char* GetName() const        { return this->name; }
+    mount_t GetMountPoint() const      { return this->mountPoint.get(); }
+    bool IsRecycling() const           { return this->isRecycling; }
+    vtype GetVnodeType() const         { return this->type; }
+
     void SetGetPathError(errno_t error);
     void StartRecycling();
 
-    friend int vnode_isrecycled(vnode_t vnode);
-    friend uint32_t vnode_vid(vnode_t vnode);
-    friend const char* vnode_getname(vnode_t vnode);
-    friend vtype vnode_vtype(vnode_t vnode);
-    friend mount_t vnode_mount(vnode_t vnode);
-    friend int vnode_get(vnode_t vnode);
-    friend int vnode_put(vnode_t vnode);
-    friend errno_t vnode_lookup(const char* path, int flags, vnode_t* foundVnode, vfs_context_t vfsContext);
+    errno_t RetainIOCount();
+    void ReleaseIOCount();
+
     friend int vn_getpath(vnode_t vnode, char* pathBuffer, int* pathLengthInOut);
-    friend FsidInode Vnode_GetFsidAndInode(vnode_t vnode, vfs_context_t vfsContext, bool useLinkIDForInode);
 };
 
 
