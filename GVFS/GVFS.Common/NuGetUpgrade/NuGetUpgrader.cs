@@ -120,7 +120,7 @@ namespace GVFS.Common.NuGetUpgrade
             }
 
             string gitBinPath = GVFSPlatform.Instance.GitInstallation.GetInstalledGitBinPath();
-            if (string.IsNullOrEmpty(GVFSPlatform.Instance.GitInstallation.GetInstalledGitBinPath()))
+            if (string.IsNullOrEmpty(gitBinPath))
             {
                 error = $"NuGetUpgrader: Unable to locate git installation. Ensure git is installed and try again.";
                 return false;
