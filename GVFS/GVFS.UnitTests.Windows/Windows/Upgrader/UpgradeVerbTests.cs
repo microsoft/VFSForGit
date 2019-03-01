@@ -145,7 +145,8 @@ namespace GVFS.UnitTests.Windows.Upgrader
                     "ERROR: `gvfs upgrade` is only supported after the \"Windows Projected File System\" optional feature has been enabled by a manual installation of VFS for Git, and only on versions of Windows that support this feature.",
                     "Check your team's documentation for how to upgrade."
                 },
-                expectedErrors: new List<string>
+                expectedErrors: null,
+                expectedWarnings: new List<string>
                 {
                     "`gvfs upgrade` is only supported after the \"Windows Projected File System\" optional feature has been enabled by a manual installation of VFS for Git, and only on versions of Windows that support this feature."
                 });
