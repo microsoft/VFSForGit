@@ -233,10 +233,11 @@ static VirtualizationRootHandle FindOrDetectRootAtVnode(vnode_t _Nonnull vnode, 
             // TODO: check xattr contents
             
             const char* path = nullptr;
-#if DEBUG // Offline roots shouldn't need their path filled, and vn_getpath() may fail anyway.
-            char pathBuffer[PrjFSMaxPath] = "";
-            int pathLength = sizeof(pathBuffer);
-            errno_t error = vn_getpath(vnode, pathBuffer, &pathLength);
+#if DEBUG // Offline roots shouldn't need their path filled, and vn_getpath() may fail anyway. Poison the value so any dependency will trip over it.
+            char pathBuffer[PrjFSMaxPath + 6] = "DEBUG:";
+            int pathLength = static_cast<int>(sizeof(pathBuffer) - strlen(pathBuffer));
+            assertf(pathLength >= PATH_MAX, "Poisoning the string shouldn't make the buffer too short (vn_getpath expects PATH_MAX = %u, got %u)", PATH_MAX, pathLength);
+            errno_t error = vn_getpath(vnode, pathBuffer + strlen(pathBuffer), &pathLength);
             if (error != 0)
             {
                 KextLog_ErrorVnodeProperties(vnode, "FindOrDetectRootAtVnode: vn_getpath failed (error = %d)", error);
@@ -655,6 +656,7 @@ const char* VirtualizationRoot_GetRootRelativePath(VirtualizationRootHandle root
     {
         assert(rootIndex < s_maxVirtualizationRoots);
         assert(s_virtualizationRoots[rootIndex].inUse);
+        assertf(s_virtualizationRoots[rootIndex].path[0] != '\0', "When converting an absolute path to a virtualization root-relative path, the root's path should not be empty.");
         relativePath = GetRelativePath(path, s_virtualizationRoots[rootIndex].path);
     }
     RWLock_ReleaseShared(s_virtualizationRootsLock);
