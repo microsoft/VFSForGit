@@ -4,7 +4,7 @@ using GVFS.Tests.Should;
 using NUnit.Framework;
 using System.Runtime.InteropServices;
 
-namespace GVFS.FunctionalTests.Windows.Tests
+namespace GVFS.FunctionalTests.Tests
 {
     [TestFixture]
     [Category(Categories.FullSuiteOnly)]
@@ -58,14 +58,6 @@ namespace GVFS.FunctionalTests.Windows.Tests
         [TestCase]
         public void MountFailsIfBeforeMinimumVersion()
         {
-            // Mount should succeed if on disk version is the minimum supported version
-            this.Enlistment.UnmountGVFS();
-            GVFSHelpers.SaveDiskLayoutVersion(
-                this.Enlistment.DotGVFSRoot,
-                this.currentDiskMinimumMajorVersion.ToString(),
-                (CurrentDiskLayoutMinorVersion).ToString());
-            this.Enlistment.TryMountGVFS().ShouldBeTrue("Mount should succeed because we are using minimum version");
-
             // Mount should fail if on disk version is below minimum supported version
             this.Enlistment.UnmountGVFS();
             GVFSHelpers.SaveDiskLayoutVersion(
