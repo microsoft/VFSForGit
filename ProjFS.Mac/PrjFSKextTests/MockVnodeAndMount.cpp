@@ -152,6 +152,16 @@ void vnode::StartRecycling()
     this->isRecycling = true;
 }
 
+void vnode::SetAttr(int attr)
+{
+    this->attr = attr;
+}
+
+void vnode::SetGetAttrReturnCode(int code)
+{
+    this->vnodeGetAttrReturnCode = code;
+}
+
 void vnode::SetGetPathError(errno_t error)
 {
     this->getPathError = error;
@@ -190,6 +200,12 @@ const char* vnode_getname(vnode_t vnode)
 void vnode_putname(const char* name)
 {
     // TODO: track name reference counts
+}
+
+int vnode_getattr(vnode_t vp, struct vnode_attr *vap, vfs_context_t ctx)
+{
+    vap->va_flags = vp->attr;
+    return vp->vnodeGetAttrReturnCode;
 }
 
 int vnode_isdir(vnode_t vnode)

@@ -93,6 +93,8 @@ private:
     
     std::string path;
     const char* name;
+    int attr = 0;
+    int vnodeGetAttrReturnCode = 0;
     
     void SetAndRegisterPath(const std::string& path);
 
@@ -124,11 +126,14 @@ public:
 
     void SetGetPathError(errno_t error);
     void StartRecycling();
+    void SetAttr(int attr);
+    void SetGetAttrReturnCode(int code);
 
     errno_t RetainIOCount();
     void ReleaseIOCount();
 
     friend struct mount;
+    friend int vnode_getattr(vnode_t vp, struct vnode_attr *vap, vfs_context_t ctx);
     friend int vn_getpath(vnode_t vnode, char* pathBuffer, int* pathLengthInOut);
 };
 
