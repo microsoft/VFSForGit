@@ -382,13 +382,8 @@ PrjFS_Result PrjFS_WritePlaceholderFile(
         goto CleanupAndFail;
     }
     
-    // Expand the file to the desired size
-    if (ftruncate(fileno(file), fileSize))
-    {
-        result = PrjFS_Result_EIOError;
-        goto CleanupAndFail;
-    }
-    
+    fseek(file, fileSize-1, SEEK_SET);
+    fputs("\0", file);
     fclose(file);
     file = nullptr;
     
