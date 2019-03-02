@@ -179,7 +179,7 @@ VirtualizationRootHandle VirtualizationRoot_FindForVnode(
     {
         PerfSample iterationSample(perfTracer, innerLoopCounter);
 
-        FsidInode vnodeFsidInode = Vnode_GetFsidAndInode(vnode, context);
+        FsidInode vnodeFsidInode = Vnode_GetFsidAndInode(vnode, context, false /* Here we care about identity, not path */);
 
         rootHandle = FindOrDetectRootAtVnode(vnode, vnodeFsidInode);
         
@@ -232,14 +232,22 @@ static VirtualizationRootHandle FindOrDetectRootAtVnode(vnode_t _Nonnull vnode, 
         {
             // TODO: check xattr contents
             
-            char path[PrjFSMaxPath] = "";
-            int pathLength = sizeof(path);
-            errno_t error = vn_getpath(vnode, path, &pathLength);
+            const char* path = nullptr;
+#if DEBUG // Offline roots shouldn't need their path filled, and vn_getpath() may fail anyway. Poison the value so any dependency will trip over it.
+            char pathBuffer[PrjFSMaxPath + 6] = "DEBUG:";
+            int pathLength = static_cast<int>(sizeof(pathBuffer) - strlen(pathBuffer));
+            assertf(pathLength >= PATH_MAX, "Poisoning the string shouldn't make the buffer too short (vn_getpath expects PATH_MAX = %u, got %u)", PATH_MAX, pathLength);
+            errno_t error = vn_getpath(vnode, pathBuffer + strlen(pathBuffer), &pathLength);
             if (error != 0)
             {
                 KextLog_ErrorVnodeProperties(vnode, "FindOrDetectRootAtVnode: vn_getpath failed (error = %d)", error);
             }
-            
+            else
+            {
+                path = pathBuffer;
+            }
+#endif
+ 
             RWLock_AcquireExclusive(s_virtualizationRootsLock);
             {
                 // Vnode may already have been inserted as a root in the interim
@@ -415,7 +423,11 @@ static VirtualizationRootHandle InsertVirtualizationRoot_Locked(PrjFSProviderUse
         
         root->rootFsid = persistentIds.fsid;
         root->rootInode = persistentIds.inode;
-        strlcpy(root->path, path, sizeof(root->path));
+
+        if (path != nullptr)
+        {
+            strlcpy(root->path, path, sizeof(root->path));
+        }
     }
     
     return rootIndex;
@@ -461,7 +473,7 @@ VirtualizationRootResult VirtualizationRoot_RegisterProviderForPath(PrjFSProvide
             }
             else
             {
-                FsidInode vnodeIds = Vnode_GetFsidAndInode(virtualizationRootVNode, vfsContext);
+                FsidInode vnodeIds = Vnode_GetFsidAndInode(virtualizationRootVNode, vfsContext, false /* If a root has multiple hardlinks to it, only track one instance of it. */);
                 uint32_t rootVid = vnode_vid(virtualizationRootVNode);
                 
                 RWLock_AcquireExclusive(s_virtualizationRootsLock);
@@ -484,6 +496,7 @@ VirtualizationRootResult VirtualizationRoot_RegisterProviderForPath(PrjFSProvide
                             assert(root.rootVNode == virtualizationRootVNode);
                             root.providerUserClient = userClient;
                             root.providerPid = clientPID;
+                            strlcpy(root.path, virtualizationRootCanonicalPath, sizeof(root.path));
                             KextLog_File(virtualizationRootVNode, "VirtualizationRoot_RegisterProviderForPath: registered provider (PID %d, IOUC %p) for virtualization root %d: (path: \"%s\", fsid: 0x%x:%x, inode: 0x%llx) directory vnode %p:%u.",
                                 clientPID, KextLog_Unslide(userClient), rootIndex, root.path, root.rootFsid.val[0], root.rootFsid.val[1], root.rootInode, KextLog_Unslide(virtualizationRootVNode), rootVid);
                             virtualizationRootVNode = NULLVP; // transfer ownership
@@ -609,24 +622,24 @@ bool VirtualizationRoot_VnodeIsOnAllowedFilesystem(vnode_t vnode)
         || 0 == strncmp("apfs", vfsStat->f_fstypename, sizeof(vfsStat->f_fstypename));
 }
 
-static const char* GetRelativePath(const char* path, const char* root)
+static const char* GetRelativePath(const char* fullPath, const char* root)
 {
     size_t rootLength = strlen(root);
-    size_t pathLength = strlen(path);
-    if (pathLength < rootLength || 0 != memcmp(path, root, rootLength))
+    size_t pathLength = strlen(fullPath);
+    if (pathLength < rootLength || 0 != memcmp(fullPath, root, rootLength))
     {
-        KextLog_Error("GetRelativePath: root path '%s' is not a prefix of path '%s'\n", root, path);
+        KextLog_Error("GetRelativePath: root path '%s' is not a prefix of path '%s'\n", root, fullPath);
         return nullptr;
     }
     
-    const char* relativePath = path + rootLength;
+    const char* relativePath = fullPath + rootLength;
     if (relativePath[0] == '/')
     {
         relativePath++;
     }
     else if (rootLength > 0 && root[rootLength - 1] != '/' && pathLength > rootLength)
     {
-        KextLog_Error("GetRelativePath: root path '%s' is not a parent directory of path '%s' (just a string prefix)\n", root, path);
+        KextLog_Error("GetRelativePath: root path '%s' is not a parent directory of path '%s' (just a string prefix)\n", root, fullPath);
         return nullptr;
     }
     
@@ -643,6 +656,7 @@ const char* VirtualizationRoot_GetRootRelativePath(VirtualizationRootHandle root
     {
         assert(rootIndex < s_maxVirtualizationRoots);
         assert(s_virtualizationRoots[rootIndex].inUse);
+        assertf(s_virtualizationRoots[rootIndex].path[0] != '\0', "When converting an absolute path to a virtualization root-relative path, the root's path should not be empty.");
         relativePath = GetRelativePath(path, s_virtualizationRoots[rootIndex].path);
     }
     RWLock_ReleaseShared(s_virtualizationRootsLock);

@@ -8,11 +8,7 @@
 typedef enum
 {
     MessageType_Invalid = 0,
-    
-    // Messages from user mode to kernel
-    MessageType_UtoK_StartVirtualizationInstance,
-    MessageType_UtoK_StopVirtualizationInstance,
-    
+	
     // Messages from kernel to user mode
     MessageType_KtoU_EnumerateDirectory,
     MessageType_KtoU_RecursivelyEnumerateDirectory,

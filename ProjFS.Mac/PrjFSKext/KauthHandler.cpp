@@ -245,8 +245,6 @@ void KauthHandler_HandleKernelMessageResponse(VirtualizationRootHandle providerV
         
         // The follow are not valid responses to kernel messages
         case MessageType_Invalid:
-        case MessageType_UtoK_StartVirtualizationInstance:
-        case MessageType_UtoK_StopVirtualizationInstance:
         case MessageType_KtoU_EnumerateDirectory:
         case MessageType_KtoU_RecursivelyEnumerateDirectory:
         case MessageType_KtoU_HydrateFile:
@@ -332,10 +330,6 @@ static int HandleVnodeOperation(
 
     UseMainForkIfNamedStream(currentVnode, putVnodeWhenDone);
 
-    const char* vnodePath = nullptr;
-    char vnodePathBuffer[PrjFSMaxPath];
-    int vnodePathLength = PrjFSMaxPath;
-
     VirtualizationRootHandle root = RootHandle_None;
     vtype vnodeType;
     uint32_t currentVnodeFileFlags;
@@ -344,23 +338,6 @@ static int HandleVnodeOperation(
     char procname[MAXCOMLEN + 1];
     bool isDeleteAction = false;
     bool isDirectory = false;
-    
-    {
-        // TODO(Mac): Issue #271 - Reduce reliance on vn_getpath
-        PerfSample pathSample(&perfTracer, PrjFSPerfCounter_VnodeOp_GetPath);
-        
-        // Call vn_getpath first when the cache is hottest to increase the chances
-        // of successfully getting the path
-        errno_t error = vn_getpath(currentVnode, vnodePathBuffer, &vnodePathLength);
-        if (0 == error)
-        {
-            vnodePath = vnodePathBuffer;
-        }
-        else
-        {
-            KextLog_ErrorVnodeProperties(currentVnode, "HandleVnodeOperation: vn_getpath failed, error = %d", error);
-        }
-    }
 
     if (!ShouldHandleVnodeOpEvent(
             &perfTracer,
@@ -396,7 +373,7 @@ static int HandleVnodeOperation(
                     MessageType_KtoU_NotifyFilePreDelete,
                 currentVnode,
                 vnodeFsidInode,
-                vnodePath,
+                nullptr, // path not needed, use fsid/inode
                 pid,
                 procname,
                 &kauthResult,
@@ -432,7 +409,7 @@ static int HandleVnodeOperation(
                         MessageType_KtoU_RecursivelyEnumerateDirectory,
                         currentVnode,
                         vnodeFsidInode,
-                        vnodePath,
+                        nullptr, // path not needed, use fsid/inode
                         pid,
                         procname,
                         &kauthResult,
@@ -455,7 +432,7 @@ static int HandleVnodeOperation(
                         MessageType_KtoU_EnumerateDirectory,
                         currentVnode,
                         vnodeFsidInode,
-                        vnodePath,
+                        nullptr, // path not needed, use fsid/inode
                         pid,
                         procname,
                         &kauthResult,
@@ -493,7 +470,7 @@ static int HandleVnodeOperation(
                         MessageType_KtoU_HydrateFile,
                         currentVnode,
                         vnodeFsidInode,
-                        vnodePath,
+                        nullptr, // path not needed, use fsid/inode
                         pid,
                         procname,
                         &kauthResult,
@@ -556,7 +533,7 @@ static int HandleFileOpOperation(
         putCurrentVnode = true;
         
         VirtualizationRootHandle root = RootHandle_None;
-        FsidInode vnodeFsidInode;
+        FsidInode vnodeFsidInode = {};
         int pid;
         if (!ShouldHandleFileOpEvent(
                 &perfTracer,
@@ -699,7 +676,7 @@ static int HandleFileOpOperation(
         }
             
         VirtualizationRootHandle root = RootHandle_None;
-        FsidInode vnodeFsidInode;
+        FsidInode vnodeFsidInode = {};
         int pid;
         if (!ShouldHandleFileOpEvent(
                 &perfTracer,
@@ -867,7 +844,7 @@ static bool TryGetVirtualizationRoot(
 {
     PerfSample findRootSample(perfTracer, PrjFSPerfCounter_VnodeOp_GetVirtualizationRoot);
         
-    *vnodeFsidInode = Vnode_GetFsidAndInode(vnode, context);
+    *vnodeFsidInode = Vnode_GetFsidAndInode(vnode, context, true /* the inode is used for getting the path in the provider, so use linkid */);
     *root = VirtualizationRoot_FindForVnode(
         perfTracer,
         PrjFSPerfCounter_VnodeOp_FindRoot,
@@ -973,7 +950,7 @@ static bool ShouldHandleFileOpEvent(
         }
     }
 
-    *vnodeFsidInode = Vnode_GetFsidAndInode(vnode, context);
+    *vnodeFsidInode = Vnode_GetFsidAndInode(vnode, context, true /* the inode is used for getting the path in the provider, so use linkid */);
 
     return true;
 }
@@ -989,7 +966,10 @@ static bool TrySendRequestAndWaitForResponse(
     int* kauthResult,
     int* kauthError)
 {
+    // To be useful, the message needs to either provide an FSID/inode pair or a path
+    assert(vnodePath != nullptr || (vnodeFsidInode.fsid.val[0] != 0 || vnodeFsidInode.fsid.val[1] != 0));
     bool result = false;
+    const char* relativePath = nullptr;
     
     OutstandingMessage message =
     {
@@ -997,15 +977,10 @@ static bool TrySendRequestAndWaitForResponse(
         .rootHandle = root,
     };
     
-    if (nullptr == vnodePath)
+    if (nullptr != vnodePath)
     {
-        // Default error code is EACCES. See errno.h for more codes.
-        *kauthError = EAGAIN;
-        *kauthResult = KAUTH_RESULT_DENY;
-        return false;
+        relativePath = VirtualizationRoot_GetRootRelativePath(root, vnodePath);
     }
-    
-    const char* relativePath = VirtualizationRoot_GetRootRelativePath(root, vnodePath);
     
     int nextMessageId = OSIncrementAtomic(&s_nextMessageId);
     
