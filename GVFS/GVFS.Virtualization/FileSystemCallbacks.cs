@@ -19,6 +19,8 @@ namespace GVFS.Virtualization
     public class FileSystemCallbacks : IDisposable, IHeartBeatMetadataProvider
     {
         private const string EtwArea = nameof(FileSystemCallbacks);
+        private const int NumberOfRetriesCheckingForDeleted = 10;
+        private const int MillisecondsToSleepBeforeCheckingForDeleted = 1;
 
         private static readonly GitCommandLineParser.Verbs LeavesProjectionUnchangedVerbs =
             GitCommandLineParser.Verbs.AddOrStage |
@@ -509,6 +511,19 @@ namespace GVFS.Virtualization
             return properties;
         }
 
+        private static bool CheckConditionWithRetry(Func<bool> predicate, int retries, int millisecondsToSleep)
+        {
+            bool result = predicate();
+            while (!result && retries > 0)
+            {
+                Thread.Sleep(millisecondsToSleep);
+                result = predicate();
+                --retries;
+            }
+
+            return result;
+        }
+
         private void InvalidateState(bool invalidateProjection, bool invalidateModifiedPaths)
         {
             if (invalidateProjection)
@@ -594,8 +609,12 @@ namespace GVFS.Virtualization
                     metadata.Add("virtualPath", gitUpdate.VirtualPath);
                     if (this.newlyCreatedFileAndFolderPaths.Contains(gitUpdate.VirtualPath))
                     {
-                        string fullPathToFolder = Path.Combine(this.context.Enlistment.WorkingDirectoryRoot, gitUpdate.VirtualPath);
-                        if (!this.context.FileSystem.FileExists(fullPathToFolder))
+                        string fullPathToFile = Path.Combine(this.context.Enlistment.WorkingDirectoryRoot, gitUpdate.VirtualPath);
+
+                        // Because this is a predelete message the file could still be on disk when we make this check
+                        // so we retry for a limited time before deciding the delete didn't happen
+                        bool fileDeleted = CheckConditionWithRetry(() => !this.context.FileSystem.FileExists(fullPathToFile), NumberOfRetriesCheckingForDeleted, MillisecondsToSleepBeforeCheckingForDeleted);
+                        if (fileDeleted)
                         {
                             result = this.TryRemoveModifiedPath(gitUpdate.VirtualPath, isFolder: false);
                         }
@@ -737,7 +756,11 @@ namespace GVFS.Virtualization
                     if (this.newlyCreatedFileAndFolderPaths.Contains(gitUpdate.VirtualPath))
                     {
                         string fullPathToFolder = Path.Combine(this.context.Enlistment.WorkingDirectoryRoot, gitUpdate.VirtualPath);
-                        if (!this.context.FileSystem.DirectoryExists(fullPathToFolder))
+
+                        // Because this is a predelete message the file could still be on disk when we make this check
+                        // so we retry for a limited time before deciding the delete didn't happen
+                        bool folderDeleted = CheckConditionWithRetry(() => !this.context.FileSystem.DirectoryExists(fullPathToFolder), NumberOfRetriesCheckingForDeleted, MillisecondsToSleepBeforeCheckingForDeleted);
+                        if (folderDeleted)
                         {
                             result = this.TryRemoveModifiedPath(gitUpdate.VirtualPath, isFolder: true);
                         }
