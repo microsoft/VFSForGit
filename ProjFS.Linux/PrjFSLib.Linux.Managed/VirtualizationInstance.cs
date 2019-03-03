@@ -108,7 +108,7 @@ namespace PrjFSLib.Linux
         public virtual Result WritePlaceholderDirectory(
             string relativePath)
         {
-            return this.projfs.CreateProjDir(relativePath);
+            return this.projfs.CreateProjDir(relativePath, Convert.ToUInt16("0777", 8));
         }
 
         public virtual Result WritePlaceholderFile(
