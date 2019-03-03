@@ -38,9 +38,9 @@ namespace PrjFSLib.Linux.Interop
             _Stop(this.handle);
         }
 
-        public Result CreateProjDir(string relativePath)
+        public Result CreateProjDir(string relativePath, ushort fileMode)
         {
-            return _CreateProjDir(this.handle, relativePath).ConvertErrnoToResult();
+            return _CreateProjDir(this.handle, relativePath, fileMode).ConvertErrnoToResult();
         }
 
         public Result CreateProjFile(string relativePath, ulong fileSize, ushort fileMode)
@@ -73,7 +73,7 @@ namespace PrjFSLib.Linux.Interop
         private static extern IntPtr _Stop(IntPtr fs);
 
         [DllImport(PrjFSLibPath, EntryPoint = "projfs_create_proj_dir")]
-        private static extern Errno _CreateProjDir(IntPtr fs, string relativePath);
+        private static extern Errno _CreateProjDir(IntPtr fs, string relativePath, ushort fileMode);
 
         [DllImport(PrjFSLibPath, EntryPoint = "projfs_create_proj_file")]
         private static extern Errno _CreateProjFile(IntPtr fs, string relativePath, ulong fileSize, ushort fileMode);
