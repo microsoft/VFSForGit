@@ -109,7 +109,8 @@ namespace GVFS.UnitTests.Windows.Upgrader
             Action configure,
             ReturnCode expectedReturn,
             List<string> expectedOutput,
-            List<string> expectedErrors)
+            List<string> expectedErrors,
+            List<string> expectedWarnings = null)
         {
             configure();
 
@@ -127,6 +128,13 @@ namespace GVFS.UnitTests.Windows.Upgrader
                 this.Tracer.RelatedErrorEvents.ShouldContain(
                     expectedErrors,
                     (error, expectedError) => { return error.Contains(expectedError); });
+            }
+
+            if (expectedWarnings != null)
+            {
+                this.Tracer.RelatedWarningEvents.ShouldContain(
+                    expectedWarnings,
+                    (warning, expectedWarning) => { return warning.Contains(expectedWarning); });
             }
         }
 

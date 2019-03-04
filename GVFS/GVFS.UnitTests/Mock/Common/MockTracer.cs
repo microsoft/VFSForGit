@@ -69,6 +69,10 @@ namespace GVFS.UnitTests.Mock.Common
                 metadata[TracingConstants.MessageKey.WarningMessage] = message;
                 this.RelatedWarningEvents.Add(JsonConvert.SerializeObject(metadata));
             }
+            else if (message != null)
+            {
+                this.RelatedWarning(message);
+            }
         }
 
         public void RelatedWarning(EventMetadata metadata, string message, Keywords keyword)

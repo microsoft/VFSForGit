@@ -148,7 +148,6 @@ namespace GVFS.CommandLine
             {
                 this.ReportInfoToConsole($"Cannot upgrade GVFS on this machine.");
                 this.Output.WriteLine(errorOutputFormat, cannotInstallReason);
-                this.tracer.RelatedError($"{nameof(this.TryRunProductUpgrade)}: Upgrade is not installable. {cannotInstallReason}");
                 return false;
             }
 
