@@ -114,12 +114,16 @@ IOReturn PrjFSProviderUserClient::clientClose()
 
 void PrjFSProviderUserClient::cleanupProviderRegistration()
 {
-    VirtualizationRootHandle root = this->virtualizationRootHandle;
-    this->virtualizationRootHandle = RootHandle_None;
-    if (RootHandle_None != root)
+    Mutex_Acquire(this->dataQueueWriterMutex);
     {
-        ActiveProvider_Disconnect(root);
+        VirtualizationRootHandle root = this->virtualizationRootHandle;
+        this->virtualizationRootHandle = RootHandle_None;
+        if (RootHandle_None != root)
+        {
+            ActiveProvider_Disconnect(root, this);
+        }
     }
+    Mutex_Release(this->dataQueueWriterMutex);
 }
 
 // Called when user process requests memory-mapping of kernel data

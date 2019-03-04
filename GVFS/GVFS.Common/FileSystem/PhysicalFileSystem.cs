@@ -12,7 +12,7 @@ namespace GVFS.Common.FileSystem
     {
         public const int DefaultStreamBufferSize = 8192;
 
-        public static void RecursiveDelete(string path)
+        public virtual void DeleteDirectory(string path, bool recursive = true)
         {
             if (!Directory.Exists(path))
             {
@@ -21,15 +21,18 @@ namespace GVFS.Common.FileSystem
 
             DirectoryInfo directory = new DirectoryInfo(path);
 
-            foreach (FileInfo file in directory.GetFiles())
+            if (recursive)
             {
-                file.Attributes = FileAttributes.Normal;
-                file.Delete();
-            }
+                foreach (FileInfo file in directory.GetFiles())
+                {
+                    file.Attributes = FileAttributes.Normal;
+                    file.Delete();
+                }
 
-            foreach (DirectoryInfo subDirectory in directory.GetDirectories())
-            {
-                RecursiveDelete(subDirectory.FullName);
+                foreach (DirectoryInfo subDirectory in directory.GetDirectories())
+                {
+                    this.DeleteDirectory(subDirectory.FullName);
+                }
             }
 
             directory.Delete();
@@ -58,6 +61,11 @@ namespace GVFS.Common.FileSystem
         public virtual string ReadAllText(string path)
         {
             return File.ReadAllText(path);
+        }
+
+        public virtual byte[] ReadAllBytes(string path)
+        {
+            return File.ReadAllBytes(path);
         }
 
         public virtual IEnumerable<string> ReadLines(string path)
@@ -116,9 +124,14 @@ namespace GVFS.Common.FileSystem
             Directory.CreateDirectory(path);
         }
 
-        public virtual void DeleteDirectory(string path, bool recursive = false)
+        public virtual bool TryCreateDirectoryWithAdminAndUserModifyPermissions(string directoryPath, out string error)
         {
-            RecursiveDelete(path);
+            return GVFSPlatform.Instance.FileSystem.TryCreateDirectoryWithAdminAndUserModifyPermissions(directoryPath, out error);
+        }
+
+        public virtual bool TryCreateOrUpdateDirectoryToAdminModifyPermissions(ITracer tracer, string directoryPath, out string error)
+        {
+            return GVFSPlatform.Instance.FileSystem.TryCreateOrUpdateDirectoryToAdminModifyPermissions(tracer, directoryPath, out error);
         }
 
         public virtual bool IsSymLink(string path)

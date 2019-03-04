@@ -19,6 +19,16 @@ namespace GVFS.UnitTests.Mock.FileSystem
             this.contentStream = new ReusableMemoryStream(contents);
         }
 
+        public MockFile(string fullName, byte[] contents)
+        {
+            this.FullName = fullName;
+            this.Name = Path.GetFileName(this.FullName);
+
+            this.FileProperties = FileProperties.DefaultFile;
+
+            this.contentStream = new ReusableMemoryStream(contents);
+        }
+
         public event Action Changed;
 
         public string FullName { get; set; }

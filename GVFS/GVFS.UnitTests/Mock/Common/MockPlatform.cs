@@ -58,11 +58,6 @@ namespace GVFS.UnitTests.Mock.Common
             throw new NotSupportedException();
         }
 
-        public override IEnumerable<EventListener> CreateTelemetryListeners(string providerName, string enlistmentId, string mountId)
-        {
-            yield return new MockListener(EventLevel.Verbose, Keywords.Telemetry);
-        }
-
         public override string GetCurrentUser()
         {
             throw new NotSupportedException();
@@ -121,6 +116,13 @@ namespace GVFS.UnitTests.Mock.Common
         public override FileBasedLock CreateFileBasedLock(PhysicalFileSystem fileSystem, ITracer tracer, string lockPath)
         {
             return new MockFileBasedLock(fileSystem, tracer, lockPath);
+        }
+
+        public override bool TryKillProcessTree(int processId, out int exitCode, out string error)
+        {
+            error = null;
+            exitCode = 0;
+            return true;
         }
     }
 }

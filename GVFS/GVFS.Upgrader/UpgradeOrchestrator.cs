@@ -5,6 +5,7 @@ using GVFS.Common.Git;
 using GVFS.Common.Tracing;
 using System;
 using System.IO;
+using System.Text;
 
 namespace GVFS.Upgrader
 {
@@ -13,7 +14,9 @@ namespace GVFS.Upgrader
     {
         private const EventLevel DefaultEventLevel = EventLevel.Informational;
 
-        private IProductUpgrader upgrader;
+        private ProductUpgrader upgrader;
+        private string logDirectory = ProductUpgraderInfo.GetLogDirectoryPath();
+        private string installationId;
         private ITracer tracer;
         private PhysicalFileSystem fileSystem;
         private InstallerPreRunChecker preRunChecker;
@@ -22,39 +25,37 @@ namespace GVFS.Upgrader
         private bool mount;
 
         public UpgradeOrchestrator(
-            IProductUpgrader upgrader,
+            ProductUpgrader upgrader,
             ITracer tracer,
+            PhysicalFileSystem fileSystem,
             InstallerPreRunChecker preRunChecker,
             TextReader input,
             TextWriter output)
         {
             this.upgrader = upgrader;
             this.tracer = tracer;
-            this.fileSystem = new PhysicalFileSystem();
+            this.fileSystem = fileSystem;
             this.preRunChecker = preRunChecker;
             this.output = output;
             this.input = input;
             this.mount = false;
             this.ExitCode = ReturnCode.Success;
+            this.installationId = DateTime.Now.ToString("yyyyMMdd_HHmmss");
         }
 
         public UpgradeOrchestrator()
         {
-            string logFilePath = GVFSEnlistment.GetNewGVFSLogFileName(
-                ProductUpgraderInfo.GetLogDirectoryPath(),
-                GVFSConstants.LogFileTypes.UpgradeProcess);
-            JsonTracer jsonTracer = new JsonTracer(GVFSConstants.GVFSEtwProviderName, "UpgradeProcess");
-            jsonTracer.AddLogFileEventListener(
-                logFilePath,
-                DefaultEventLevel,
-                Keywords.Any);
+            // CommandLine's Parser will create multiple instances of UpgradeOrchestrator, and we don't want
+            // multiple log files to get created.  Defer tracer (and preRunChecker) creation until Execute()
+            this.tracer = null;
+            this.preRunChecker = null;
 
-            this.tracer = jsonTracer;
-            this.preRunChecker = new InstallerPreRunChecker(this.tracer, GVFSConstants.UpgradeVerbMessages.GVFSUpgradeConfirm);
+            this.fileSystem = new PhysicalFileSystem();
             this.output = Console.Out;
             this.input = Console.In;
             this.mount = false;
             this.ExitCode = ReturnCode.Success;
+            this.installationId = DateTime.Now.ToString("yyyyMMdd_HHmmss");
         }
 
         public ReturnCode ExitCode { get; private set; }
@@ -79,42 +80,67 @@ namespace GVFS.Upgrader
             string mountError = null;
             Version newVersion = null;
 
-            if (this.TryInitialize(out error))
+            if (this.tracer == null)
             {
-                try
-                {
-                    if (!this.TryRunUpgrade(out newVersion, out error))
-                    {
-                        this.ExitCode = ReturnCode.GenericError;
-                    }
-                }
-                finally
-                {
-                    if (!this.TryMountRepositories(out mountError))
-                    {
-                        mountError = Environment.NewLine + "WARNING: " + mountError;
-                        this.output.WriteLine(mountError);
-                    }
-
-                    this.DeletedDownloadedAssets();
-                }
-            }
-            else
-            {
-                this.ExitCode = ReturnCode.GenericError;
+                this.tracer = this.CreateTracer();
             }
 
-            if (this.ExitCode == ReturnCode.GenericError)
+            if (this.preRunChecker == null)
             {
-                error = Environment.NewLine + "ERROR: " + error;
-                this.output.WriteLine(error);
+                this.preRunChecker = new InstallerPreRunChecker(this.tracer, GVFSConstants.UpgradeVerbMessages.GVFSUpgradeConfirm);
             }
-            else
+
+            try
             {
-                if (newVersion != null)
+                if (this.TryInitialize(out error))
                 {
-                    this.output.WriteLine($"{Environment.NewLine}Upgrade completed successfully{(string.IsNullOrEmpty(mountError) ? "." : ", but one or more repositories will need to be mounted manually.")}");
+                    try
+                    {
+                        if (!this.TryRunUpgrade(out newVersion, out error))
+                        {
+                            this.ExitCode = ReturnCode.GenericError;
+                        }
+                    }
+                    finally
+                    {
+                        if (!this.TryMountRepositories(out mountError))
+                        {
+                            mountError = Environment.NewLine + "WARNING: " + mountError;
+                            this.output.WriteLine(mountError);
+                        }
+
+                        this.DeletedDownloadedAssets();
+                    }
                 }
+                else
+                {
+                    this.ExitCode = ReturnCode.GenericError;
+                }
+
+                if (this.ExitCode == ReturnCode.GenericError)
+                {
+                    StringBuilder sb = new StringBuilder();
+                    sb.AppendLine();
+                    sb.Append("ERROR: " + error);
+
+                    sb.AppendLine();
+                    sb.AppendLine();
+
+                    sb.AppendLine($"Upgrade logs can be found at: {this.logDirectory} with file names that end with the installation ID: {this.installationId}.");
+
+                    this.output.WriteLine(sb.ToString());
+                }
+                else
+                {
+                    if (newVersion != null)
+                    {
+                        this.output.WriteLine($"{Environment.NewLine}Upgrade completed successfully{(string.IsNullOrEmpty(mountError) ? "." : ", but one or more repositories will need to be mounted manually.")}");
+                    }
+                }
+            }
+            finally
+            {
+                this.upgrader?.Dispose();
             }
 
             if (this.input == Console.In)
@@ -124,6 +150,22 @@ namespace GVFS.Upgrader
             }
 
             Environment.ExitCode = (int)this.ExitCode;
+        }
+
+        private JsonTracer CreateTracer()
+        {
+            string logFilePath = GVFSEnlistment.GetNewGVFSLogFileName(
+                this.logDirectory,
+                GVFSConstants.LogFileTypes.UpgradeProcess);
+
+            JsonTracer jsonTracer = new JsonTracer(GVFSConstants.GVFSEtwProviderName, "UpgradeProcess");
+
+            jsonTracer.AddLogFileEventListener(
+                logFilePath,
+                DefaultEventLevel,
+                Keywords.Any);
+
+            return jsonTracer;
         }
 
         private bool LaunchInsideSpinner(Func<bool> method, string message)
@@ -140,12 +182,15 @@ namespace GVFS.Upgrader
         {
             if (this.upgrader == null)
             {
-                IProductUpgrader upgrader;
-                if (!ProductUpgraderFactory.TryCreateUpgrader(out upgrader, this.tracer, out errorMessage, this.DryRun, this.NoVerify))
+                ProductUpgrader upgrader;
+                if (!ProductUpgrader.TryCreateUpgrader(this.tracer, this.fileSystem, this.DryRun, this.NoVerify, out upgrader, out errorMessage))
                 {
                     return false;
                 }
 
+                // Configure the upgrader to have installer logs written to the same directory
+                // as the upgrader.
+                upgrader.UpgradeInstanceId = this.installationId;
                 this.upgrader = upgrader;
             }
 
@@ -219,6 +264,23 @@ namespace GVFS.Upgrader
                     return true;
                 },
                 "Unmounting repositories"))
+            {
+                newVersion = null;
+                consoleError = error;
+                return false;
+            }
+
+            if (!this.LaunchInsideSpinner(
+                () =>
+                {
+                    if (!this.preRunChecker.IsInstallationBlockedByRunningProcess(out error))
+                    {
+                        return false;
+                    }
+
+                    return true;
+                },
+                "Checking for blocking processes."))
             {
                 newVersion = null;
                 consoleError = error;
@@ -301,7 +363,7 @@ namespace GVFS.Upgrader
                     return true;
                 }
 
-                activity.RelatedInfo("Successfully checked for new release. {0}", newestVersion);
+                activity.RelatedInfo("New release found - latest available version: {0}", newestVersion);
             }
 
             return true;

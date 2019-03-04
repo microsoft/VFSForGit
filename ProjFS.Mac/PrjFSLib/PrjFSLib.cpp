@@ -5,6 +5,7 @@
 #include <sys/stat.h>
 #include <sys/sys_domain.h>
 #include <sys/xattr.h>
+#include <sys/fsgetpath.h>
 #include <thread>
 #include <unistd.h>
 #include <dirent.h>
@@ -97,6 +98,7 @@ static inline PrjFS_NotificationType KUMessageTypeToNotificationType(MessageType
 
 static bool IsVirtualizationRoot(const char* fullPath);
 static void CombinePaths(const char* root, const char* relative, char (&combined)[PrjFSMaxPath]);
+static const char* GetRelativePath(const char* fullPath, const char* root);
 
 static errno_t SendKernelMessageResponse(uint64_t messageId, MessageType responseType);
 static errno_t RegisterVirtualizationRootPath(const char* fullPath);
@@ -621,7 +623,7 @@ static Message ParseMessageMemory(const void* messageMemory, uint32_t size)
         abort();
     }
             
-    const char* path = "";
+    const char* path = nullptr;
     if (header->pathSizeBytes > 0)
     {
         path = static_cast<const char*>(messageMemory) + sizeof(*header);
@@ -638,8 +640,42 @@ static void HandleKernelRequest(void* messageMemory, uint32_t messageSize)
     
     Message request = ParseMessageMemory(messageMemory, messageSize);
     
-    // At the moment, we expect all messages to include a path
-    assert(request.path != nullptr);
+    char pathBuffer[PrjFSMaxPath];
+    if (request.path == nullptr)
+    {
+        fsid_t fsid = request.messageHeader->fsidInode.fsid;
+        ssize_t pathSize = fsgetpath(pathBuffer, sizeof(pathBuffer), &fsid, request.messageHeader->fsidInode.inode);
+        if (pathSize < 0)
+        {
+            // TODO(Mac): Add this message to PrjFSLib logging once available (#395)
+            cout
+                << "PrjFSLib.HandleKernelRequest: fsgetpath failed for fsid 0x"
+                << hex << fsid.val[0] << ":" << hex << fsid.val[1]
+                << ", inode "
+                << dec << request.messageHeader->fsidInode.inode
+                << "; error = "
+                << errno
+                << "(" << strerror(errno) << ")"
+                << endl;
+        }
+        else
+        {
+            request.path = GetRelativePath(pathBuffer, s_virtualizationRootFullPath.c_str());
+#if DEBUG
+            cout
+                << "PrjFSLib.HandleKernelRequest: fsgetpath for fsid 0x"
+                << hex << fsid.val[0] << ":" << hex << fsid.val[1]
+                << ", inode "
+                << dec << request.messageHeader->fsidInode.inode
+                << " -> '"
+                << pathBuffer
+                << "' -> relative path '"
+                << (request.path != nullptr ? request.path : "[NULL]")
+                << "'"
+                << endl;
+#endif
+        }
+    }
     
     const MessageHeader* requestHeader = request.messageHeader;
     switch (requestHeader->messageType)
@@ -1190,8 +1226,6 @@ static inline PrjFS_NotificationType KUMessageTypeToNotificationType(MessageType
         
         // Non-notification types
         case MessageType_Invalid:
-        case MessageType_UtoK_StartVirtualizationInstance:
-        case MessageType_UtoK_StopVirtualizationInstance:
         case MessageType_KtoU_EnumerateDirectory:
         case MessageType_KtoU_RecursivelyEnumerateDirectory:
         case MessageType_KtoU_HydrateFile:
@@ -1344,4 +1378,30 @@ static void ReturnFileMutexIterator(FileMutexMap::iterator lockIterator)
     {
         s_fileLocks.erase(lockIterator);
     }
+}
+
+static const char* GetRelativePath(const char* fullPath, const char* root)
+{
+    size_t rootLength = strlen(root);
+    size_t pathLength = strlen(fullPath);
+    if (pathLength < rootLength || 0 != memcmp(fullPath, root, rootLength))
+    {
+        // TODO(Mac): Add this message to PrjFSLib logging once available (#395)
+        fprintf(stderr, "GetRelativePath: root path '%s' is not a prefix of path '%s'\n", root, fullPath);
+        return nullptr;
+    }
+    
+    const char* relativePath = fullPath + rootLength;
+    if (relativePath[0] == '/')
+    {
+        relativePath++;
+    }
+    else if (rootLength > 0 && root[rootLength - 1] != '/' && pathLength > rootLength)
+    {
+        // TODO(Mac): Add this message to PrjFSLib logging once available (#395)
+        fprintf(stderr, "GetRelativePath: root path '%s' is not a parent directory of path '%s' (just a string prefix)\n", root, fullPath);
+        return nullptr;
+    }
+    
+    return relativePath;
 }

@@ -149,11 +149,20 @@ DestDir: "{app}"; Flags: ignoreversion; Source:"{#GVFSDir}\GVFS.Common.dll"
 DestDir: "{app}"; Flags: ignoreversion; Source:"{#GVFSDir}\GVFS.GVFlt.dll"
 DestDir: "{app}"; Flags: ignoreversion; Source:"{#GVFSDir}\GVFS.Virtualization.dll"
 DestDir: "{app}"; Flags: ignoreversion; Source:"{#GVFSDir}\GVFS.Platform.Windows.dll"
-DestDir: "{app}"; Flags: ignoreversion; Source:"{#GVFSDir}\Microsoft.Diagnostics.Tracing.EventSource.dll"
 DestDir: "{app}"; Flags: ignoreversion; Source:"{#GVFSDir}\Newtonsoft.Json.dll"
 DestDir: "{app}"; Flags: ignoreversion; Source:"{#GVFSDir}\GVFS.exe.config"
 DestDir: "{app}"; Flags: ignoreversion; Source:"{#GVFSDir}\GitVirtualFileSystem.ico"  
 DestDir: "{app}"; Flags: ignoreversion; Source:"{#GVFSDir}\GVFS.exe" 
+
+; NuGet support DLLs
+DestDir: "{app}"; Flags: ignoreversion; Source:"{#GVFSDir}\NuGet.Commands.dll"
+DestDir: "{app}"; Flags: ignoreversion; Source:"{#GVFSDir}\NuGet.Common.dll"
+DestDir: "{app}"; Flags: ignoreversion; Source:"{#GVFSDir}\NuGet.Configuration.dll"
+DestDir: "{app}"; Flags: ignoreversion; Source:"{#GVFSDir}\NuGet.Frameworks.dll"
+DestDir: "{app}"; Flags: ignoreversion; Source:"{#GVFSDir}\NuGet.Packaging.Core.dll"
+DestDir: "{app}"; Flags: ignoreversion; Source:"{#GVFSDir}\NuGet.Packaging.dll"
+DestDir: "{app}"; Flags: ignoreversion; Source:"{#GVFSDir}\NuGet.Protocol.dll"
+DestDir: "{app}"; Flags: ignoreversion; Source:"{#GVFSDir}\NuGet.Versioning.dll"
 
 ; .NET Standard Files
 ; See https://github.com/dotnet/standard/issues/415 for a discussion on why this are copied
@@ -606,6 +615,89 @@ begin
   Result := True;
 end;
 
+type
+  UpgradeRing = (urUnconfigured, urNone, urFast, urSlow);
+
+function GetConfiguredUpgradeRing(): UpgradeRing;
+var
+  ResultCode: integer;
+  ResultString: ansiString;
+begin
+  Result := urUnconfigured;
+  if ExecWithResult('gvfs.exe', 'config upgrade.ring', '', SW_HIDE, ewWaitUntilTerminated, ResultCode, ResultString) then begin
+    if ResultCode = 0 then begin
+      ResultString := AnsiLowercase(Trim(ResultString));
+      Log('GetConfiguredUpgradeRing: upgrade.ring is ' + ResultString);
+      if CompareText(ResultString, 'none') = 0 then begin
+        Result := urNone;
+      end else if CompareText(ResultString, 'fast') = 0 then begin
+        Result := urFast;
+      end else if CompareText(ResultString, 'slow') = 0 then begin
+        Result := urSlow;
+      end else begin
+        Log('GetConfiguredUpgradeRing: Unknown upgrade ring: ' + ResultString);
+      end;
+    end else begin
+      Log('GetConfiguredUpgradeRing: Call to gvfs config upgrade.ring failed with ' + SysErrorMessage(ResultCode));
+    end;
+  end else begin
+    Log('GetConfiguredUpgradeRing: Call to gvfs config upgrade.ring failed with ' + SysErrorMessage(ResultCode));
+  end;
+end;
+
+function IsConfigured(ConfigKey: String): Boolean;
+var
+  ResultCode: integer;
+  ResultString: ansiString;
+begin
+  Result := False
+  if ExecWithResult('gvfs.exe', Format('config %s', [ConfigKey]), '', SW_HIDE, ewWaitUntilTerminated, ResultCode, ResultString) then begin
+    ResultString := AnsiLowercase(Trim(ResultString));
+    Log(Format('IsConfigured(%s): value is %s', [ConfigKey, ResultString]));
+    Result := Length(ResultString) > 1
+  end
+end;
+
+procedure SetIfNotConfigured(ConfigKey: String; ConfigValue: String);
+var
+  ResultCode: integer;
+  ResultString: ansiString;
+begin
+  if IsConfigured(ConfigKey) = False then begin
+    if ExecWithResult('gvfs.exe', Format('config %s %s', [ConfigKey, ConfigValue]), '', SW_HIDE, ewWaitUntilTerminated, ResultCode, ResultString) then begin
+      Log(Format('SetIfNotConfigured: Set %s to %s', [ConfigKey, ConfigValue]));
+    end else begin
+      Log(Format('SetIfNotConfigured: Failed to set %s with %s', [ConfigKey, SysErrorMessage(ResultCode)]));
+    end;
+  end else begin
+    Log(Format('SetIfNotConfigured: %s is configured, not overwriting', [ConfigKey]));
+  end;
+end;
+
+procedure SetNuGetFeedIfNecessary();
+var
+  ConfiguredRing: UpgradeRing;
+  RingName: String;
+  TargetFeed: String;
+  FeedPackageName: String;
+begin
+  ConfiguredRing := GetConfiguredUpgradeRing();
+  if ConfiguredRing = urFast then begin
+    RingName := 'Fast';
+  end else if (ConfiguredRing = urSlow) or (ConfiguredRing = urNone) then begin
+    RingName := 'Slow';
+  end else begin
+    Log('SetNuGetFeedIfNecessary: No upgrade ring configured. Not configuring NuGet feed.')
+    exit;
+  end;
+
+  TargetFeed := Format('https://pkgs.dev.azure.com/microsoft/_packaging/VFSForGit-%s/nuget/v3/index.json', [RingName]);
+  FeedPackageName := 'Microsoft.VfsForGitEnvironment';
+
+  SetIfNotConfigured('upgrade.feedurl', TargetFeed);
+  SetIfNotConfigured('upgrade.feedpackagename', FeedPackageName);
+end;
+
 // Below are EVENT FUNCTIONS -> The main entry points of InnoSetup into the code region 
 // Documentation : http://www.jrsoftware.org/ishelp/index.php?topic=scriptevents
 
@@ -663,6 +755,7 @@ function PrepareToInstall(var NeedsRestart: Boolean): String;
 begin
   NeedsRestart := False;
   Result := '';
+  SetNuGetFeedIfNecessary();
   if ConfirmUnmountAll() then
     begin
       if ExpandConstant('{param:REMOUNTREPOS|true}') = 'true' then

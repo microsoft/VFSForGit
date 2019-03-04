@@ -12,8 +12,8 @@ namespace GVFS.Service
     {
         private static readonly TimeSpan TimeInterval = TimeSpan.FromDays(1);
         private JsonTracer tracer;
-        private Timer timer;
         private PhysicalFileSystem fileSystem;
+        private Timer timer;
 
         public ProductUpgradeTimer(JsonTracer tracer)
         {
@@ -74,31 +74,50 @@ namespace GVFS.Service
             {
                 try
                 {
+                    ProductUpgraderInfo info = new ProductUpgraderInfo(
+                        this.tracer,
+                        this.fileSystem);
+
                     // The upgrade check always goes against GitHub
                     GitHubUpgrader productUpgrader = GitHubUpgrader.Create(
                         this.tracer,
+                        this.fileSystem,
                         dryRun: false,
                         noVerify: false,
                         error: out errorMessage);
 
                     if (productUpgrader == null)
                     {
-                        activity.RelatedWarning(
+                        string message = string.Format(
                             "{0}.{1}: GitHubUpgrader.Create failed to create upgrader: {2}",
                             nameof(ProductUpgradeTimer),
                             nameof(this.TimerCallback),
                             errorMessage);
+
+                        activity.RelatedWarning(
+                            metadata: new EventMetadata(),
+                            message: message,
+                            keywords: Keywords.Telemetry);
+
+                        info.RecordHighestAvailableVersion(highestAvailableVersion: null);
                         return;
                     }
 
                     InstallerPreRunChecker prerunChecker = new InstallerPreRunChecker(this.tracer, string.Empty);
                     if (!prerunChecker.TryRunPreUpgradeChecks(out errorMessage))
                     {
-                        activity.RelatedWarning(
+                        string message = string.Format(
                             "{0}.{1}: PreUpgradeChecks failed with: {2}",
                             nameof(ProductUpgradeTimer),
                             nameof(this.TimerCallback),
                             errorMessage);
+
+                        activity.RelatedWarning(
+                            metadata: new EventMetadata(),
+                            message: message,
+                            keywords: Keywords.Telemetry);
+
+                        info.RecordHighestAvailableVersion(highestAvailableVersion: null);
                         return;
                     }
 
@@ -106,7 +125,12 @@ namespace GVFS.Service
                     {
                         errorMessage = errorMessage ??
                             $"{nameof(ProductUpgradeTimer)}.{nameof(this.TimerCallback)}: Upgrade is not allowed, but no reason provided.";
-                        this.tracer.RelatedWarning(errorMessage);
+                        activity.RelatedWarning(
+                            metadata: new EventMetadata(),
+                            message: errorMessage,
+                            keywords: Keywords.Telemetry);
+
+                        info.RecordHighestAvailableVersion(highestAvailableVersion: null);
                         return;
                     }
 
@@ -116,14 +140,22 @@ namespace GVFS.Service
                             out Version newerVersion,
                             out errorMessage))
                     {
-                        this.tracer.RelatedError(errorMessage);
+                        string message = string.Format(
+                            "{0}.{1}: TryQueryForNewerVersion failed with: {2}",
+                            nameof(ProductUpgradeTimer),
+                            nameof(this.TimerCallback),
+                            errorMessage);
+
+                        activity.RelatedWarning(
+                            metadata: new EventMetadata(),
+                            message: message,
+                            keywords: Keywords.Telemetry);
+
+                        info.RecordHighestAvailableVersion(highestAvailableVersion: null);
                         return;
                     }
 
-                    ProductUpgraderInfo info = new ProductUpgraderInfo(
-                        this.tracer,
-                        this.fileSystem);
-                    info.RecordHighestAvailableVersion(newerVersion);
+                    info.RecordHighestAvailableVersion(highestAvailableVersion: newerVersion);
                 }
                 catch (Exception ex) when (
                     ex is IOException ||
@@ -147,7 +179,7 @@ namespace GVFS.Service
         private bool TryQueryForNewerVersion(ITracer tracer, GitHubUpgrader productUpgrader, out Version newVersion, out string errorMessage)
         {
             errorMessage = null;
-            tracer.RelatedInfo("Querying server for latest version...");
+            tracer.RelatedInfo($"Querying server for latest version in ring {productUpgrader.Config.UpgradeRing}...");
 
             if (!productUpgrader.TryQueryNewestVersion(out newVersion, out string detailedError))
             {

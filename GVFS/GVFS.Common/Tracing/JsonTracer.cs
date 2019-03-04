@@ -44,8 +44,20 @@ namespace GVFS.Common.Tracing
         {
             if (!disableTelemetry)
             {
-                IEnumerable<EventListener> telemetryListeners = GVFSPlatform.Instance.CreateTelemetryListeners(providerName, enlistmentId, mountId);
-                this.listeners.AddRange(telemetryListeners);
+                string gitBinRoot = GVFSPlatform.Instance.GitInstallation.GetInstalledGitBinPath();
+
+                // If we do not have a git binary, then we cannot check if we should set up telemetry
+                // We also cannot log this, as we are setting up tracer.
+                if (string.IsNullOrEmpty(gitBinRoot))
+                {
+                    return;
+                }
+
+                TelemetryDaemonEventListener daemonListener = TelemetryDaemonEventListener.CreateIfEnabled(gitBinRoot, providerName, enlistmentId, mountId);
+                if (daemonListener != null)
+                {
+                    this.listeners.Add(daemonListener);
+                }
             }
         }
 
@@ -125,8 +137,18 @@ namespace GVFS.Common.Tracing
 
         public virtual void RelatedInfo(string format, params object[] args)
         {
-            EventMetadata metadata = new EventMetadata();
-            metadata.Add(TracingConstants.MessageKey.InfoMessage, string.Format(format, args));
+            this.RelatedInfo(string.Format(format, args));
+        }
+
+        public virtual void RelatedInfo(string message)
+        {
+            this.RelatedInfo(new EventMetadata(), message);
+        }
+
+        public virtual void RelatedInfo(EventMetadata metadata, string message)
+        {
+            metadata = metadata ?? new EventMetadata();
+            metadata.Add(TracingConstants.MessageKey.InfoMessage, message);
             this.RelatedEvent(EventLevel.Informational, "Information", metadata);
         }
 

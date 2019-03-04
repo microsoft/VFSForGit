@@ -132,7 +132,7 @@ namespace GVFS.Virtualization.Projection
                     insertionIndex = this.GetSortedEntriesIndexOfName(name);
                     if (insertionIndex >= 0)
                     {
-                        throw new InvalidOperationException("All entries should be unique");
+                        throw new InvalidOperationException($"All entries should be unique, non-unique entry: {name.GetString()}");
                     }
 
                     // When the name is not found the returned value is the bitwise complement of

@@ -16,11 +16,14 @@ namespace GVFS.CommandLine
     public class DiagnoseVerb : GVFSVerb.ForExistingEnlistment
     {
         private const string DiagnoseVerbName = "diagnose";
+        private const string DeprecatedUpgradeLogsDirectory = "Logs";
 
         private TextWriter diagnosticLogFileWriter;
+        private PhysicalFileSystem fileSystem;
 
         public DiagnoseVerb() : base(false)
         {
+            this.fileSystem = new PhysicalFileSystem();
         }
 
         protected override string VerbName
@@ -133,14 +136,27 @@ namespace GVFS.CommandLine
                             this.CopyAllFiles(
                                 ProductUpgraderInfo.GetUpgradesDirectoryPath(),
                                 archiveFolderPath,
+                                DeprecatedUpgradeLogsDirectory,
+                                copySubFolders: true,
+                                targetFolderName: Path.Combine(ProductUpgraderInfo.UpgradeDirectoryName, DeprecatedUpgradeLogsDirectory));
+
+                            this.CopyAllFiles(
+                                ProductUpgraderInfo.GetUpgradesDirectoryPath(),
+                                archiveFolderPath,
                                 ProductUpgraderInfo.LogDirectory,
                                 copySubFolders: true,
-                                targetFolderName: ProductUpgraderInfo.UpgradeDirectoryName);
+                                targetFolderName: Path.Combine(ProductUpgraderInfo.UpgradeDirectoryName, ProductUpgraderInfo.LogDirectory));
+
                             this.LogDirectoryEnumeration(
                                 ProductUpgraderInfo.GetUpgradesDirectoryPath(),
                                 Path.Combine(archiveFolderPath, ProductUpgraderInfo.UpgradeDirectoryName),
                                 ProductUpgraderInfo.DownloadDirectory,
                                 "downloaded-assets.txt");
+                        }
+
+                        if (GVFSPlatform.Instance.UnderConstruction.SupportsGVFSConfig)
+                        {
+                            this.CopyFile(Paths.GetServiceDataRoot(string.Empty), archiveFolderPath, LocalGVFSConfig.FileName);
                         }
 
                         return true;
@@ -160,7 +176,7 @@ namespace GVFS.CommandLine
                 () =>
                 {
                     ZipFile.CreateFromDirectory(archiveFolderPath, zipFilePath);
-                    PhysicalFileSystem.RecursiveDelete(archiveFolderPath);
+                    this.fileSystem.DeleteDirectory(archiveFolderPath);
 
                     return true;
                 },
@@ -188,6 +204,34 @@ namespace GVFS.CommandLine
         {
             string information = GVFSPlatform.Instance.GetOSVersionInformation();
             this.diagnosticLogFileWriter.WriteLine(information);
+        }
+
+        private void CopyFile(
+            string sourceRoot,
+            string targetRoot,
+            string fileName)
+        {
+            string sourceFile = Path.Combine(sourceRoot, fileName);
+            string targetFile = Path.Combine(targetRoot, fileName);
+
+            try
+            {
+                if (!File.Exists(sourceFile))
+                {
+                    return;
+                }
+
+                File.Copy(sourceFile, targetFile);
+            }
+            catch (Exception e)
+            {
+                this.WriteMessage(
+                    string.Format(
+                        "Failed to copy file {0} in {1} with exception {2}",
+                        fileName,
+                        sourceRoot,
+                        e));
+            }
         }
 
         private void CopyAllFiles(

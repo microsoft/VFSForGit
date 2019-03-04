@@ -301,12 +301,19 @@ namespace GVFS.CommandLine
 
             string hooksPath = this.GetGVFSHooksPathAndCheckVersion(tracer: null, hooksVersion: out _);
 
-            enlistment = new GVFSEnlistment(
-                normalizedEnlistementRootPath,
-                this.RepositoryURL,
-                gitBinPath,
-                hooksPath,
-                authentication: null);
+            try
+            {
+                enlistment = new GVFSEnlistment(
+                    normalizedEnlistementRootPath,
+                    this.RepositoryURL,
+                    gitBinPath,
+                    hooksPath,
+                    authentication: null);
+            }
+            catch (InvalidRepoException e)
+            {
+                return new Result($"Error when creating a new GVFS enlistment at '{normalizedEnlistementRootPath}'. {e.Message}");
+            }
 
             return new Result(true);
         }
@@ -654,10 +661,10 @@ namespace GVFS.CommandLine
 @"
 @echo OFF
 echo .
-echo ^[105;30m                                                                                     
-echo      This repo was cloned using GVFS, and the git repo is in the 'src' directory     
-echo      Switching you to the 'src' directory and rerunning your git command             
-echo                                                                                      [0m                                                                            
+echo ^[105;30m
+echo      This repo was cloned using GVFS, and the git repo is in the 'src' directory
+echo      Switching you to the 'src' directory and rerunning your git command
+echo                                                                                      [0m
 
 @echo ON
 cd src

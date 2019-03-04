@@ -126,42 +126,133 @@ namespace GVFS.Common.Git
             return true;
         }
 
-        public bool TryKillRunningProcess()
+        /// <summary>
+        /// Tries to kill the run git process.  Make sure you only use this on git processes that can safely be killed!
+        /// </summary>
+        /// <param name="processName">Name of the running process</param>
+        /// <param name="exitCode">Exit code of the kill.  -1 means there was no running process.</param>
+        /// <param name="error">Error message of the kill</param>
+        /// <returns></returns>
+        public bool TryKillRunningProcess(out string processName, out int exitCode, out string error)
         {
             this.stopping = true;
+            processName = null;
+            exitCode = -1;
+            error = null;
 
-            try
+            lock (this.processLock)
             {
-                lock (this.processLock)
+                Process process = this.executingProcess;
+
+                if (process != null)
                 {
-                    Process process = this.executingProcess;
+                    processName = process.ProcessName;
 
-                    if (process != null)
-                    {
-                        process.Kill();
-                    }
-
-                    return true;
+                    return GVFSPlatform.Instance.TryKillProcessTree(process.Id, out exitCode, out error);
                 }
-            }
-            catch (Win32Exception)
-            {
-                // Thrown when process is already terminating
-            }
-            catch (InvalidOperationException)
-            {
-                // Process already terminated
-            }
 
-            return false;
+                return true;
+            }
         }
 
-        public virtual void RevokeCredential(string repoUrl)
+        public virtual void RejectCredentials(string repoUrl, string username = null, string password = null)
         {
+            StringBuilder sb = new StringBuilder();
+            sb.AppendFormat("url={0}\n", repoUrl);
+
+            // Passing the username and password that we want to signal rejection for is optional.
+            // Credential helpers that support it can use the provided username/password values to
+            // perform a check that they're being asked to delete the same stored credential that
+            // the caller is asking them to erase.
+            if (username != null)
+            {
+                sb.AppendFormat("username={0}\n", username);
+            }
+
+            if (password != null)
+            {
+                sb.AppendFormat("password={0}\n", password);
+            }
+
+            sb.Append("\n");
+
+            string stdinConfig = sb.ToString();
+
             this.InvokeGitOutsideEnlistment(
                 "credential reject",
-                stdin => stdin.Write("url=" + repoUrl + "\n\n"),
+                stdin => stdin.Write(stdinConfig),
                 null);
+        }
+
+        public virtual void ApproveCredentials(string repoUrl, string username, string password)
+        {
+            StringBuilder sb = new StringBuilder();
+            sb.AppendFormat("url={0}\n", repoUrl);
+            sb.AppendFormat("username={0}\n", username);
+            sb.AppendFormat("password={0}\n", password);
+            sb.Append("\n");
+
+            string stdinConfig = sb.ToString();
+
+            this.InvokeGitOutsideEnlistment(
+                "credential approve",
+                stdin => stdin.Write(stdinConfig),
+                null);
+        }
+
+        /// <summary>
+        /// Input for certificate credentials looks like
+        /// <code> protocol=cert
+        /// path=[http.sslCert value]
+        /// username =</code>
+        /// </summary>
+        public virtual bool TryGetCertificatePassword(
+            ITracer tracer,
+            string certificatePath,
+            out string password,
+            out string errorMessage)
+        {
+            password = null;
+            errorMessage = null;
+
+            using (ITracer activity = tracer.StartActivity("TryGetCertificatePassword", EventLevel.Informational))
+            {
+                Result gitCredentialOutput = this.InvokeGitAgainstDotGitFolder(
+                    "credential fill",
+                    stdin => stdin.Write("protocol=cert\npath=" + certificatePath + "\nusername=\n\n"),
+                    parseStdOutLine: null);
+
+                if (gitCredentialOutput.ExitCodeIsFailure)
+                {
+                    EventMetadata errorData = new EventMetadata();
+                    errorData.Add("CertificatePath", certificatePath);
+                    tracer.RelatedWarning(
+                        errorData,
+                        "Git could not get credentials: " + gitCredentialOutput.Errors,
+                        Keywords.Network | Keywords.Telemetry);
+                    errorMessage = gitCredentialOutput.Errors;
+
+                    return false;
+                }
+
+                password = ParseValue(gitCredentialOutput.Output, "password=");
+
+                bool success = password != null;
+
+                EventMetadata metadata = new EventMetadata
+                {
+                    { "Success", success },
+                    { "CertificatePath", certificatePath }
+                };
+
+                if (!success)
+                {
+                    metadata.Add("Output", gitCredentialOutput.Output);
+                }
+
+                activity.Stop(metadata);
+                return success;
+            }
         }
 
         public virtual bool TryGetCredentials(
@@ -178,8 +269,8 @@ namespace GVFS.Common.Git
             using (ITracer activity = tracer.StartActivity("TryGetCredentials", EventLevel.Informational))
             {
                 Result gitCredentialOutput = this.InvokeGitAgainstDotGitFolder(
-                    "-c " + GitConfigSetting.CredentialUseHttpPath + "=true credential fill",
-                    stdin => stdin.Write("url=" + repoUrl + "\n\n"),
+                    $"-c {GitConfigSetting.CredentialUseHttpPath}=true credential fill",
+                    stdin => stdin.Write($"url={repoUrl}\n\n"),
                     parseStdOutLine: null);
 
                 if (gitCredentialOutput.ExitCodeIsFailure)
@@ -257,6 +348,19 @@ namespace GVFS.Common.Git
                  replaceAll ? "--replace-all " : string.Empty,
                  settingName,
                  value));
+        }
+
+        public bool TryGetConfigUrlMatch(string section, string repositoryUrl, out Dictionary<string, GitConfigSetting> configSettings)
+        {
+            Result result = this.InvokeGitAgainstDotGitFolder($"config --get-urlmatch {section} {repositoryUrl}");
+            if (result.ExitCodeIsFailure)
+            {
+                configSettings = null;
+                return false;
+            }
+
+            configSettings = GitConfigHelper.ParseKeyValues(result.Output, ' ');
+            return true;
         }
 
         public bool TryGetAllConfig(bool localOnly, out Dictionary<string, GitConfigSetting> configSettings)

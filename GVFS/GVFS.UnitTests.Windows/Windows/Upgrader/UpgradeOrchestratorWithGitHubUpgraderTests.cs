@@ -20,6 +20,7 @@ namespace GVFS.UnitTests.Windows.Upgrader
             this.orchestrator = new UpgradeOrchestrator(
                 this.Upgrader,
                 this.Tracer,
+                this.FileSystem,
                 this.PrerunChecker,
                 input: null,
                 output: this.Output);
@@ -66,9 +67,29 @@ namespace GVFS.UnitTests.Windows.Upgrader
                     "ERROR: Blocking processes are running.",
                     $"Run `gvfs upgrade --confirm` again after quitting these processes - GVFS.Mount, git"
                 },
-                expectedErrors: new List<string>
+                expectedErrors: null,
+                expectedWarnings: new List<string>
                 {
                     $"Run `gvfs upgrade --confirm` again after quitting these processes - GVFS.Mount, git"
+                });
+        }
+
+        [TestCase]
+        public void DownloadDirectoryCreationError()
+        {
+            this.ConfigureRunAndVerify(
+                configure: () =>
+                {
+                    this.Upgrader.SetFailOnAction(MockGitHubUpgrader.ActionType.CreateDownloadDirectory);
+                },
+                expectedReturn: ReturnCode.GenericError,
+                expectedOutput: new List<string>
+                {
+                    "Error creating download directory"
+                },
+                expectedErrors: new List<string>
+                {
+                    "Error creating download directory"
                 });
         }
 

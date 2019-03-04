@@ -27,7 +27,7 @@ namespace GVFS.Service
                 string error;
                 if (!EnableAndAttachProjFSHandler.TryEnablePrjFlt(this.tracer, out error))
                 {
-                    this.tracer.RelatedError($"{nameof(this.Mount)}: Unable to start the GVFS.exe process: {error}");
+                    this.tracer.RelatedError($"{nameof(this.Mount)}: Could not enable PrjFlt: {error}");
                 }
             }
 

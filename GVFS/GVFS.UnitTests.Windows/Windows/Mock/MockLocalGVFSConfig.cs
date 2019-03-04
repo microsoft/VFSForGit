@@ -27,7 +27,8 @@ namespace GVFS.UnitTests.Windows.Mock.Upgrader
         {
             error = null;
 
-            return this.Settings.TryGetValue(name, out value);
+            this.Settings.TryGetValue(name, out value);
+            return true;
         }
 
         public override bool TrySetConfig(

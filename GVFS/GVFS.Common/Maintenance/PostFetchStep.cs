@@ -26,12 +26,12 @@ namespace GVFS.Common.Maintenance
                 string multiPackIndexLockPath = Path.Combine(this.Context.Enlistment.GitPackRoot, MultiPackIndexLock);
                 this.Context.FileSystem.TryDeleteFile(multiPackIndexLockPath);
 
-                this.RunGitCommand((process) => process.WriteMultiPackIndex(this.Context.Enlistment.GitObjectsRoot));
+                this.RunGitCommand((process) => process.WriteMultiPackIndex(this.Context.Enlistment.GitObjectsRoot), nameof(GitProcess.WriteMultiPackIndex));
 
-                GitProcess.Result verifyResult = this.RunGitCommand((process) => process.VerifyMultiPackIndex(this.Context.Enlistment.GitObjectsRoot));
+                GitProcess.Result verifyResult = this.RunGitCommand((process) => process.VerifyMultiPackIndex(this.Context.Enlistment.GitObjectsRoot), nameof(GitProcess.VerifyMultiPackIndex));
                 if (verifyResult.ExitCodeIsFailure)
                 {
-                    this.LogErrorAndRewriteMultiPackIndex(activity, verifyResult);
+                    this.LogErrorAndRewriteMultiPackIndex(activity);
                 }
             }
 
@@ -46,13 +46,13 @@ namespace GVFS.Common.Maintenance
                 string commitGraphLockPath = Path.Combine(this.Context.Enlistment.GitObjectsRoot, "info", CommitGraphLock);
                 this.Context.FileSystem.TryDeleteFile(commitGraphLockPath);
 
-                this.RunGitCommand((process) => process.WriteCommitGraph(this.Context.Enlistment.GitObjectsRoot, this.packIndexes));
+                this.RunGitCommand((process) => process.WriteCommitGraph(this.Context.Enlistment.GitObjectsRoot, this.packIndexes), nameof(GitProcess.WriteCommitGraph));
 
-                GitProcess.Result verifyResult = this.RunGitCommand((process) => process.VerifyCommitGraph(this.Context.Enlistment.GitObjectsRoot));
+                GitProcess.Result verifyResult = this.RunGitCommand((process) => process.VerifyCommitGraph(this.Context.Enlistment.GitObjectsRoot), nameof(GitProcess.VerifyCommitGraph));
 
                 if (verifyResult.ExitCodeIsFailure)
                 {
-                    this.LogErrorAndRewriteCommitGraph(activity, verifyResult, this.packIndexes);
+                    this.LogErrorAndRewriteCommitGraph(activity, this.packIndexes);
                 }
             }
         }

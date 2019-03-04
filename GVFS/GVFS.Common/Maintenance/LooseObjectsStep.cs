@@ -118,7 +118,8 @@ namespace GVFS.Common.Maintenance
                 (process) => process.PackObjects(
                     "from-loose",
                     this.Context.Enlistment.GitObjectsRoot,
-                    (StreamWriter writer) => objectsAddedToPack = this.WriteLooseObjectIds(writer)));
+                    (StreamWriter writer) => objectsAddedToPack = this.WriteLooseObjectIds(writer)),
+                nameof(GitProcess.PackObjects));
 
             return objectsAddedToPack;
         }
@@ -147,7 +148,7 @@ namespace GVFS.Common.Maintenance
                     }
 
                     int beforeLooseObjectsCount = this.CountLooseObjects();
-                    GitProcess.Result result = this.RunGitCommand((process) => process.PrunePacked(this.Context.Enlistment.GitObjectsRoot));
+                    GitProcess.Result result = this.RunGitCommand((process) => process.PrunePacked(this.Context.Enlistment.GitObjectsRoot), nameof(GitProcess.PrunePacked));
                     int afterLooseObjectsCount = this.CountLooseObjects();
 
                     int objectsAddedToPack = this.CreateLooseObjectsPackFile();

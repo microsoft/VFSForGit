@@ -34,16 +34,11 @@ namespace GVFS.Common
                 DownloadDirectory);
         }
 
-        /// <summary>
-        /// Deletes any previously downloaded installers in the Upgrader Download directory.
-        /// This can include old installers which were downloaded, but user never installed
-        /// using gvfs upgrade and GVFS is now up to date already.
-        /// </summary>
         public void DeleteAllInstallerDownloads()
         {
             try
             {
-                PhysicalFileSystem.RecursiveDelete(ProductUpgraderInfo.GetAssetDownloadsPath());
+                this.fileSystem.DeleteDirectory(GetAssetDownloadsPath());
             }
             catch (Exception ex)
             {

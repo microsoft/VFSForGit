@@ -16,6 +16,12 @@ namespace GVFS.UnitTests.Mock
             this.length = this.contents.Length;
         }
 
+        public ReusableMemoryStream(byte[] initialContents)
+        {
+            this.contents = initialContents;
+            this.length = initialContents.Length;
+        }
+
         public bool TruncateWrites { get; set; }
 
         public override bool CanRead

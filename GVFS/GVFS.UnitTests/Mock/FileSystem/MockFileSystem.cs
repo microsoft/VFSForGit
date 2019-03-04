@@ -1,5 +1,6 @@
 ﻿using GVFS.Common;
 using GVFS.Common.FileSystem;
+using GVFS.Common.Tracing;
 using GVFS.Tests.Should;
 using Microsoft.Win32.SafeHandles;
 using System;
@@ -14,11 +15,15 @@ namespace GVFS.UnitTests.Mock.FileSystem
         {
             this.RootDirectory = rootDirectory;
             this.DeleteNonExistentFileThrowsException = true;
+            this.TryCreateOrUpdateDirectoryToAdminModifyPermissionsShouldSucceed = true;
         }
 
         public MockDirectory RootDirectory { get; private set; }
 
         public bool DeleteFileThrowsException { get; set; }
+        public Exception ExceptionThrownByCreateDirectory { get; set; }
+
+        public bool TryCreateOrUpdateDirectoryToAdminModifyPermissionsShouldSucceed { get; set; }
 
         /// <summary>
         /// Allow FileMoves without checking the input arguments.
@@ -34,9 +39,24 @@ namespace GVFS.UnitTests.Mock.FileSystem
         /// </summary>
         public bool DeleteNonExistentFileThrowsException { get; set; }
 
+        public override void DeleteDirectory(string path, bool recursive = true)
+        {
+            if (!recursive)
+            {
+                throw new NotImplementedException();
+            }
+
+            this.RootDirectory.DeleteDirectory(path);
+        }
+
         public override bool FileExists(string path)
         {
             return this.RootDirectory.FindFile(path) != null;
+        }
+
+        public override bool DirectoryExists(string path)
+        {
+            return this.RootDirectory.FindDirectory(path) != null;
         }
 
         public override void CopyFile(string sourcePath, string destinationPath, bool overwrite)
@@ -135,6 +155,32 @@ namespace GVFS.UnitTests.Mock.FileSystem
             }
         }
 
+        public override byte[] ReadAllBytes(string path)
+        {
+            MockFile file = this.RootDirectory.FindFile(path);
+
+            using (Stream s = file.GetContentStream())
+            {
+                int count = (int)s.Length;
+
+                int pos = 0;
+                byte[] result = new byte[count];
+                while (count > 0)
+                {
+                    int n = s.Read(result, pos, count);
+                    if (n == 0)
+                    {
+                        throw new IOException("Unexpected end of stream");
+                    }
+
+                    pos += n;
+                    count -= n;
+                }
+
+                return result;
+            }
+        }
+
         public override IEnumerable<string> ReadLines(string path)
         {
             MockFile file = this.RootDirectory.FindFile(path);
@@ -149,15 +195,40 @@ namespace GVFS.UnitTests.Mock.FileSystem
 
         public override void CreateDirectory(string path)
         {
+            if (this.ExceptionThrownByCreateDirectory != null)
+            {
+                throw this.ExceptionThrownByCreateDirectory;
+            }
+
             this.RootDirectory.CreateDirectory(path);
         }
 
-        public override void DeleteDirectory(string path, bool recursive = false)
+        public override bool TryCreateDirectoryWithAdminAndUserModifyPermissions(string directoryPath, out string error)
         {
-            MockDirectory directory = this.RootDirectory.FindDirectory(path);
-            directory.ShouldNotBeNull();
+            throw new NotImplementedException();
+        }
 
-            this.RootDirectory.DeleteDirectory(path);
+        public override bool TryCreateOrUpdateDirectoryToAdminModifyPermissions(ITracer tracer, string directoryPath, out string error)
+        {
+            error = null;
+
+            if (this.TryCreateOrUpdateDirectoryToAdminModifyPermissionsShouldSucceed)
+            {
+                // TryCreateOrUpdateDirectoryToAdminModifyPermissions is typically called for paths in C:\ProgramData\GVFS,
+                // if it's called for one of those paths remap the paths to be inside the mock: root
+                string mockDirectoryPath = directoryPath;
+                string gvfsProgramData = @"C:\ProgramData\GVFS";
+                if (directoryPath.StartsWith(gvfsProgramData, StringComparison.OrdinalIgnoreCase))
+                {
+                    mockDirectoryPath = mockDirectoryPath.Substring(gvfsProgramData.Length);
+                    mockDirectoryPath = "mock:" + mockDirectoryPath;
+                }
+
+                this.RootDirectory.CreateDirectory(mockDirectoryPath);
+                return true;
+            }
+
+            return false;
         }
 
         public override IEnumerable<DirectoryItemInfo> ItemsInDirectory(string path)

@@ -128,6 +128,18 @@ namespace GVFS.Common.Maintenance
                         activity.RelatedWarning($"Skipping {nameof(PackfileMaintenanceStep)} due to git pids {string.Join(",", processIds)}", Keywords.Telemetry);
                         return;
                     }
+
+                    // If a LibGit2Repo is active, then it may hold handles to the .idx and .pack files we want
+                    // to delete during the 'git multi-pack-index expire' step. If one starts during the step,
+                    // then it can still block those deletions, but we will clean them up in the next run. By
+                    // checking HasActiveLibGit2Repo here, we ensure that we do not run twice with the same
+                    // LibGit2Repo active across two calls. A "new" repo should not hold handles to .idx files
+                    // that do not have corresponding .pack files, so we will clean them up in CleanStaleIdxFiles().
+                    if (this.Context.Repository.HasActiveLibGit2Repo)
+                    {
+                        activity.RelatedWarning($"Skipping {nameof(PackfileMaintenanceStep)} due to active libgit2 repo", Keywords.Telemetry);
+                        return;
+                    }
                 }
 
                 this.GetPackFilesInfo(out int beforeCount, out long beforeSize, out bool hasKeep);
@@ -138,23 +150,23 @@ namespace GVFS.Common.Maintenance
                     return;
                 }
 
-                GitProcess.Result expireResult = this.RunGitCommand((process) => process.MultiPackIndexExpire(this.Context.Enlistment.GitObjectsRoot));
+                GitProcess.Result expireResult = this.RunGitCommand((process) => process.MultiPackIndexExpire(this.Context.Enlistment.GitObjectsRoot), nameof(GitProcess.MultiPackIndexExpire));
                 List<string> staleIdxFiles = this.CleanStaleIdxFiles(out int numDeletionBlocked);
                 this.GetPackFilesInfo(out int expireCount, out long expireSize, out hasKeep);
 
-                GitProcess.Result verifyAfterExpire = this.RunGitCommand((process) => process.VerifyMultiPackIndex(this.Context.Enlistment.GitObjectsRoot));
+                GitProcess.Result verifyAfterExpire = this.RunGitCommand((process) => process.VerifyMultiPackIndex(this.Context.Enlistment.GitObjectsRoot), nameof(GitProcess.VerifyMultiPackIndex));
                 if (verifyAfterExpire.ExitCodeIsFailure)
                 {
-                    this.LogErrorAndRewriteMultiPackIndex(activity, verifyAfterExpire);
+                    this.LogErrorAndRewriteMultiPackIndex(activity);
                 }
 
-                GitProcess.Result repackResult = this.RunGitCommand((process) => process.MultiPackIndexRepack(this.Context.Enlistment.GitObjectsRoot, this.batchSize));
+                GitProcess.Result repackResult = this.RunGitCommand((process) => process.MultiPackIndexRepack(this.Context.Enlistment.GitObjectsRoot, this.batchSize), nameof(GitProcess.MultiPackIndexRepack));
                 this.GetPackFilesInfo(out int afterCount, out long afterSize, out hasKeep);
 
-                GitProcess.Result verifyAfterRepack = this.RunGitCommand((process) => process.VerifyMultiPackIndex(this.Context.Enlistment.GitObjectsRoot));
+                GitProcess.Result verifyAfterRepack = this.RunGitCommand((process) => process.VerifyMultiPackIndex(this.Context.Enlistment.GitObjectsRoot), nameof(GitProcess.VerifyMultiPackIndex));
                 if (verifyAfterRepack.ExitCodeIsFailure)
                 {
-                    this.LogErrorAndRewriteMultiPackIndex(activity, verifyAfterRepack);
+                    this.LogErrorAndRewriteMultiPackIndex(activity);
                 }
 
                 EventMetadata metadata = new EventMetadata();
@@ -166,11 +178,7 @@ namespace GVFS.Common.Maintenance
                 metadata.Add(nameof(expireSize), expireSize);
                 metadata.Add(nameof(afterCount), afterCount);
                 metadata.Add(nameof(afterSize), afterSize);
-                metadata.Add("ExpireOutput", expireResult.Output);
-                metadata.Add("ExpireErrors", expireResult.Errors);
                 metadata.Add("VerifyAfterExpireExitCode", verifyAfterExpire.ExitCode);
-                metadata.Add("RepackOutput", repackResult.Output);
-                metadata.Add("RepackErrors", repackResult.Errors);
                 metadata.Add("VerifyAfterRepackExitCode", verifyAfterRepack.ExitCode);
                 metadata.Add("NumStaleIdxFiles", staleIdxFiles.Count);
                 metadata.Add("NumIdxDeletionsBlocked", numDeletionBlocked);

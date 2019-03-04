@@ -3,6 +3,7 @@ using GVFS.FunctionalTests.Tools;
 using GVFS.Tests.Should;
 using NUnit.Framework;
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Threading;
@@ -19,13 +20,13 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
         private const string UpgradeRingKey = "upgrade.ring";
         private const string AlwaysUpToDateRing = "None";
 
-        private string upgradeDirectory;
+        private string upgradeDownloadsDirectory;
         private FileSystemRunner fileSystem;
 
         public UpgradeReminderTests()
         {
             this.fileSystem = new SystemIORunner();
-            this.upgradeDirectory = Path.Combine(
+            this.upgradeDownloadsDirectory = Path.Combine(
                 Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData, Environment.SpecialFolderOption.Create),
                 "GVFS",
                 "GVFS.Upgrade",
@@ -50,7 +51,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
         [TestCase]
         public void RemindWhenUpgradeAvailable()
         {
-            this.CreateUpgradeInstallers();
+            this.CreateUpgradeAvailableMarkerFile();
             this.ReminderMessagingEnabled().ShouldBeTrue();
             this.EmptyDownloadDirectory();
         }
@@ -62,21 +63,75 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
             this.VerifyUpgradeVerbStopsReminder();
         }
 
-        private void EmptyDownloadDirectory()
+        [TestCase]
+        public void UpgradeTimerScheduledOnServiceStart()
         {
-            if (Directory.Exists(this.upgradeDirectory))
+            this.RestartService();
+
+            bool timerScheduled = false;
+            for (int trialCount = 0; trialCount < 15; trialCount++)
             {
-                Directory.Delete(this.upgradeDirectory, recursive: true);
+                Thread.Sleep(TimeSpan.FromSeconds(1));
+                if (this.ServiceLogContainsUpgradeMessaging())
+                {
+                    timerScheduled = true;
+                    break;
+                }
             }
 
-            Directory.CreateDirectory(this.upgradeDirectory);
-            Directory.Exists(this.upgradeDirectory).ShouldBeTrue();
-            Directory.EnumerateFiles(this.upgradeDirectory).Any().ShouldBeFalse();
+            timerScheduled.ShouldBeTrue();
         }
 
-        private void CreateUpgradeInstallers()
+        private bool ServiceLogContainsUpgradeMessaging()
         {
-            string gvfsUpgradeAvailableFilePath = Path.Combine(this.upgradeDirectory, HighestAvailableVersionFileName);
+            // This test checks for the upgrade timer start message in the Service log
+            // file. GVFS.Service should schedule the timer as it starts.
+            string expectedTimerMessage = "Checking for product upgrades. (Start)";
+            string serviceLogFolder = Path.Combine(
+                Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData),
+                "GVFS",
+                GVFSServiceProcess.TestServiceName,
+                "Logs");
+            DirectoryInfo logsDirectory = new DirectoryInfo(serviceLogFolder);
+            FileInfo logFile = logsDirectory.GetFiles()
+                .OrderByDescending(f => f.LastWriteTime)
+                .FirstOrDefault();
+
+            if (logFile != null)
+            {
+                using (StreamReader fileStream = new StreamReader(File.Open(logFile.FullName, FileMode.Open, FileAccess.Read, FileShare.ReadWrite)))
+                {
+                    string nextLine = null;
+                    while ((nextLine = fileStream.ReadLine()) != null)
+                    {
+                        if (nextLine.Contains(expectedTimerMessage))
+                        {
+                            return true;
+                        }
+                    }
+                }
+            }
+
+            return false;
+        }
+
+        private void EmptyDownloadDirectory()
+        {
+            if (Directory.Exists(this.upgradeDownloadsDirectory))
+            {
+                Directory.Delete(this.upgradeDownloadsDirectory, recursive: true);
+            }
+
+            Directory.CreateDirectory(this.upgradeDownloadsDirectory);
+            Directory.Exists(this.upgradeDownloadsDirectory).ShouldBeTrue();
+            Directory.EnumerateFiles(this.upgradeDownloadsDirectory).Any().ShouldBeFalse();
+        }
+
+        private void CreateUpgradeAvailableMarkerFile()
+        {
+            string gvfsUpgradeAvailableFilePath = Path.Combine(
+                Path.GetDirectoryName(this.upgradeDownloadsDirectory),
+                HighestAvailableVersionFileName);
 
             this.EmptyDownloadDirectory();
 
@@ -130,7 +185,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
 
         private void VerifyServiceRestartStopsReminder()
         {
-            this.CreateUpgradeInstallers();
+            this.CreateUpgradeAvailableMarkerFile();
             this.ReminderMessagingEnabled().ShouldBeTrue();
             this.SetUpgradeRing(AlwaysUpToDateRing);
             this.RestartService();
@@ -150,7 +205,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
         private void VerifyUpgradeVerbStopsReminder()
         {
             this.SetUpgradeRing(AlwaysUpToDateRing);
-            this.CreateUpgradeInstallers();
+            this.CreateUpgradeAvailableMarkerFile();
             this.ReminderMessagingEnabled().ShouldBeTrue();
             this.RunUpgradeCommand();
             this.ReminderMessagingEnabled().ShouldBeFalse();

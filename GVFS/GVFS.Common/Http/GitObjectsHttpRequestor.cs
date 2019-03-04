@@ -21,7 +21,7 @@ namespace GVFS.Common.Http
         private DateTime nextCacheServerAttemptTime = DateTime.Now;
 
         public GitObjectsHttpRequestor(ITracer tracer, Enlistment enlistment, CacheServerInfo cacheServer, RetryConfig retryConfig)
-            : base(tracer, retryConfig, enlistment.Authentication)
+            : base(tracer, retryConfig, enlistment)
         {
             this.enlistment = enlistment;
             this.CacheServer = cacheServer;

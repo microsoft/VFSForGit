@@ -32,6 +32,11 @@ namespace GVFS.Platform.Windows.DiskLayoutUpgrades
             }
         }
 
+        public DiskLayoutVersion Version => new DiskLayoutVersion(
+                    currentMajorVersion: 17,
+                    currentMinorVersion: 0,
+                    minimumSupportedMajorVersion: 7);
+
         public bool TryParseLegacyDiskLayoutVersion(string dotGVFSPath, out int majorVersion)
         {
             string repoMetadataPath = Path.Combine(dotGVFSPath, EsentRepoMetadataName);

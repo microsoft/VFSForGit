@@ -75,23 +75,6 @@ namespace GVFS.Platform.Windows
             return true;
         }
 
-        public override IEnumerable<EventListener> CreateTelemetryListeners(string providerName, string enlistmentId, string mountId)
-        {
-            string gitBinRoot = this.GitInstallation.GetInstalledGitBinPath();
-
-            var etwListener = ETWTelemetryEventListener.CreateIfEnabled(gitBinRoot, providerName, enlistmentId, mountId);
-            if (etwListener != null)
-            {
-                yield return etwListener;
-            }
-
-            var daemonListener = TelemetryDaemonEventListener.CreateIfEnabled(gitBinRoot, providerName, enlistmentId, mountId, pipeName: "vfs");
-            if (daemonListener != null)
-            {
-                yield return daemonListener;
-            }
-        }
-
         public override void InitializeEnlistmentACLs(string enlistmentPath)
         {
             // The following permissions are typically present on deskop and missing on Server
@@ -330,6 +313,14 @@ namespace GVFS.Platform.Windows
         public override bool TryGetGVFSEnlistmentRoot(string directory, out string enlistmentRoot, out string errorMessage)
         {
             return WindowsPlatform.TryGetGVFSEnlistmentRootImplementation(directory, out enlistmentRoot, out errorMessage);
+        }
+
+        public override bool TryKillProcessTree(int processId, out int exitCode, out string error)
+        {
+            ProcessResult result = ProcessHelper.Run("taskkill", $"/pid {processId} /f /t");
+            error = result.Errors;
+            exitCode = result.ExitCode;
+            return result.ExitCode == 0;
         }
 
         private static object GetValueFromRegistry(RegistryHive registryHive, string key, string valueName, RegistryView view)

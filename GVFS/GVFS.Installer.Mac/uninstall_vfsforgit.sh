@@ -3,10 +3,12 @@
 KEXTFILENAME="PrjFSKext.kext"
 VFSFORDIRECTORY="/usr/local/vfsforgit"
 PRJFSKEXTDIRECTORY="/Library/Extensions"
+LAUNCHDAEMONDIRECTORY="/Library/LaunchDaemons"
+LOGDAEMONLAUNCHDFILENAME="org.vfsforgit.prjfs.PrjFSKextLogDaemon.plist"
 GVFSCOMMANDPATH="/usr/local/bin/gvfs"
 UNINSTALLERCOMMANDPATH="/usr/local/bin/uninstall_vfsforgit.sh"
 INSTALLERPACKAGEID="com.vfsforgit.pkg"
-KEXTID="io.gvfs.PrjFSKext"
+KEXTID="org.vfsforgit.PrjFSKext"
 
 function UnloadKext()
 {
@@ -28,6 +30,15 @@ function UnInstallVFSForGit()
     
     if [ -d "${PRJFSKEXTDIRECTORY}/$KEXTFILENAME" ]; then
         rmCmd="sudo /bin/rm -Rf ${PRJFSKEXTDIRECTORY}/$KEXTFILENAME"
+        echo "$rmCmd..."
+        eval $rmCmd || exit 1
+    fi
+    
+    if [ -f "${LAUNCHDAEMONDIRECTORY}/$LOGDAEMONLAUNCHDFILENAME" ]; then
+        unloadCmd="sudo launchctl unload -w ${LAUNCHDAEMONDIRECTORY}/$LOGDAEMONLAUNCHDFILENAME"
+        echo "$unloadCmd..."
+        eval $unloadCmd || exit 1
+        rmCmd="sudo /bin/rm -Rf ${LAUNCHDAEMONDIRECTORY}/$LOGDAEMONLAUNCHDFILENAME"
         echo "$rmCmd..."
         eval $rmCmd || exit 1
     fi

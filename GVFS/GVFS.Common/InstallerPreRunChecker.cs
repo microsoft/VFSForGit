@@ -31,13 +31,12 @@ namespace GVFS.Upgrader
                 if (this.IsUnattended())
                 {
                     consoleError = $"{GVFSConstants.UpgradeVerbMessages.GVFSUpgrade} is not supported in unattended mode";
-                    this.tracer.RelatedError($"{nameof(this.TryRunPreUpgradeChecks)}: {consoleError}");
+                    this.tracer.RelatedWarning($"{nameof(this.TryRunPreUpgradeChecks)}: {consoleError}");
                     return false;
                 }
 
                 if (!this.IsGVFSUpgradeAllowed(out consoleError))
                 {
-                    this.tracer.RelatedError($"{nameof(this.TryRunPreUpgradeChecks)}: {consoleError}");
                     return false;
                 }
 
@@ -58,7 +57,6 @@ namespace GVFS.Upgrader
         public virtual bool TryUnmountAllGVFSRepos(out string consoleError)
         {
             consoleError = null;
-
             this.tracer.RelatedInfo("Unmounting any mounted GVFS repositories.");
 
             using (ITracer activity = this.tracer.StartActivity(nameof(this.TryUnmountAllGVFSRepos), EventLevel.Informational))
@@ -69,36 +67,43 @@ namespace GVFS.Upgrader
                     return false;
                 }
 
-                // While checking for blocking processes like GVFS.Mount immediately after un-mounting,
-                // then sometimes GVFS.Mount shows up as running. But if the check is done after waiting
-                // for some time, then eventually GVFS.Mount goes away. The retry loop below is to help
-                // account for this delay between the time un-mount call returns and when GVFS.Mount
-                // actually quits.
-                this.tracer.RelatedInfo("Checking if GVFS or dependent processes are running.");
-                int retryCount = 10;
-                HashSet<string> processList = null;
-                while (retryCount > 0)
-                {
-                    if (!this.IsBlockingProcessRunning(out processList))
-                    {
-                        break;
-                    }
-
-                    Thread.Sleep(TimeSpan.FromMilliseconds(250));
-                    retryCount--;
-                }
-
-                if (processList.Count > 0)
-                {
-                    consoleError = string.Join(
-                        Environment.NewLine,
-                        "Blocking processes are running.",
-                        $"Run {this.CommandToRerun} again after quitting these processes - " + string.Join(", ", processList.ToArray()));
-                    this.tracer.RelatedError($"{nameof(this.TryUnmountAllGVFSRepos)}: {consoleError}");
-                    return false;
-                }
-
                 activity.RelatedInfo("Successfully unmounted repositories.");
+            }
+
+            return true;
+        }
+
+        public virtual bool IsInstallationBlockedByRunningProcess(out string consoleError)
+        {
+            consoleError = null;
+
+            // While checking for blocking processes like GVFS.Mount immediately after un-mounting,
+            // then sometimes GVFS.Mount shows up as running. But if the check is done after waiting
+            // for some time, then eventually GVFS.Mount goes away. The retry loop below is to help
+            // account for this delay between the time un-mount call returns and when GVFS.Mount
+            // actually quits.
+            this.tracer.RelatedInfo("Checking if GVFS or dependent processes are running.");
+            int retryCount = 10;
+            HashSet<string> processList = null;
+            while (retryCount > 0)
+            {
+                if (!this.IsBlockingProcessRunning(out processList))
+                {
+                    break;
+                }
+
+                Thread.Sleep(TimeSpan.FromMilliseconds(250));
+                retryCount--;
+            }
+
+            if (processList.Count > 0)
+            {
+                consoleError = string.Join(
+                    Environment.NewLine,
+                    "Blocking processes are running.",
+                    $"Run {this.CommandToRerun} again after quitting these processes - " + string.Join(", ", processList.ToArray()));
+                this.tracer.RelatedWarning($"{nameof(this.IsInstallationBlockedByRunningProcess)}: {consoleError}");
+                return false;
             }
 
             return true;
@@ -139,7 +144,7 @@ namespace GVFS.Upgrader
                     continue;
                 }
 
-                matchingNames.Add(process.ProcessName);
+                matchingNames.Add(process.ProcessName + " pid:" + process.Id);
             }
 
             processes = matchingNames;
@@ -183,6 +188,7 @@ namespace GVFS.Upgrader
                     Environment.NewLine,
                     "The installer needs to be run from an elevated command prompt.",
                     adviceText);
+                this.tracer.RelatedWarning($"{nameof(this.IsGVFSUpgradeAllowed)}: Upgrade is not installable. {consoleError}");
                 return false;
             }
 
@@ -190,8 +196,9 @@ namespace GVFS.Upgrader
             {
                 consoleError = string.Join(
                     Environment.NewLine,
-                    $"{GVFSConstants.UpgradeVerbMessages.GVFSUpgrade} is not supported because you have previously installed an out of band ProjFS driver.",
+                    $"{GVFSConstants.UpgradeVerbMessages.GVFSUpgrade} is only supported after the \"Windows Projected File System\" optional feature has been enabled by a manual installation of VFS for Git, and only on versions of Windows that support this feature.",
                     "Check your team's documentation for how to upgrade.");
+                this.tracer.RelatedWarning(metadata: null, message:$"{nameof(this.IsGVFSUpgradeAllowed)}: Upgrade is not installable. {consoleError}", keywords: Keywords.Telemetry);
                 return false;
             }
 
@@ -202,6 +209,7 @@ namespace GVFS.Upgrader
                     Environment.NewLine,
                     "GVFS Service is not running.",
                     adviceText);
+                this.tracer.RelatedWarning($"{nameof(this.IsGVFSUpgradeAllowed)}: Upgrade is not installable. {consoleError}");
                 return false;
             }
 

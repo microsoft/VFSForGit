@@ -2,14 +2,13 @@ using GVFS.Common;
 using GVFS.Common.FileSystem;
 using GVFS.Common.NamedPipes;
 using GVFS.Common.Tracing;
+using GVFS.Platform.Windows;
 using GVFS.Service.Handlers;
 using System;
 using System.IO;
 using System.Linq;
-using System.Reflection;
 using System.Runtime.Serialization;
 using System.Security.AccessControl;
-using System.Security.Principal;
 using System.ServiceProcess;
 using System.Threading;
 
@@ -40,9 +39,12 @@ namespace GVFS.Service
         {
             try
             {
+                EventMetadata metadata = new EventMetadata();
+                metadata.Add("Version", ProcessHelper.GetCurrentProcessVersion());
+                this.tracer.RelatedEvent(EventLevel.Informational, $"{nameof(GVFSService)}_{nameof(this.Run)}", metadata);
+
                 this.repoRegistry = new RepoRegistry(this.tracer, new PhysicalFileSystem(), this.serviceDataLocation);
                 this.repoRegistry.Upgrade();
-                this.productUpgradeTimer.Start();
                 string pipeName = this.serviceName + ".Pipe";
                 this.tracer.RelatedInfo("Starting pipe server with name: " + pipeName);
 
@@ -52,9 +54,17 @@ namespace GVFS.Service
 
                     using (ITracer activity = this.tracer.StartActivity("EnsurePrjFltHealthy", EventLevel.Informational))
                     {
+                        // Make a best-effort to enable PrjFlt. Continue even if it fails.
+                        // This will be tried again when user attempts to mount an enlistment.
                         string error;
                         EnableAndAttachProjFSHandler.TryEnablePrjFlt(activity, out error);
                     }
+
+                    // Start product upgrade timer only after attempting to enable prjflt.
+                    // On Windows server (where PrjFlt is not inboxed) this helps avoid
+                    // a race between TryEnablePrjFlt() and installer pre-check which is
+                    // performed by UpgradeTimer in parallel.
+                    this.productUpgradeTimer.Start();
 
                     this.serviceStopped.WaitOne();
                 }
@@ -150,17 +160,20 @@ namespace GVFS.Service
                 this.serviceName = serviceName.Substring(ServiceNameArgPrefix.Length);
             }
 
-            this.serviceDataLocation = Paths.GetServiceDataRoot(this.serviceName);
-            Directory.CreateDirectory(this.serviceDataLocation);
-            this.EnableAccessToAuthenticatedUsers(Path.GetDirectoryName(this.serviceDataLocation));
+            string serviceLogsDirectoryPath = Paths.GetServiceLogsPath(this.serviceName);
 
+            // Create the logs directory explicitly *before* creating a log file event listener to ensure that it
+            // and its ancestor directories are created with the correct ACLs.
+            this.CreateServiceLogsDirectory(serviceLogsDirectoryPath);
             this.tracer.AddLogFileEventListener(
-                GVFSEnlistment.GetNewGVFSLogFileName(Paths.GetServiceLogsPath(this.serviceName), GVFSConstants.LogFileTypes.Service),
+                GVFSEnlistment.GetNewGVFSLogFileName(serviceLogsDirectoryPath, GVFSConstants.LogFileTypes.Service),
                 EventLevel.Verbose,
                 Keywords.Any);
 
             try
             {
+                this.serviceDataLocation = Paths.GetServiceDataRoot(this.serviceName);
+                this.CreateAndConfigureProgramDataDirectories();
                 this.Start();
             }
             catch (Exception e)
@@ -348,19 +361,74 @@ namespace GVFS.Service
             Environment.Exit((int)ReturnCode.GenericError);
         }
 
-        private void EnableAccessToAuthenticatedUsers(string rootDirectory)
+        private void CreateServiceLogsDirectory(string serviceLogsDirectoryPath)
         {
-            // GVFS Config is written to a temporary file and then renamed to its final destination.
-            // For this rename operation to succeed, user needs to have delete permission on the
-            // destination file, in case it is pre-existing. If the pre-existing file was created
-            // by a different user, then the delete will fail.
-            // Reference: https://stackoverflow.com/questions/22107812/privileges-owner-issue-when-writing-in-c-programdata
-            // This work around allows safe write to succeed in C:\ProgramData directory.
+            if (!Directory.Exists(serviceLogsDirectoryPath))
+            {
+                DirectorySecurity serviceDataRootSecurity = this.GetServiceDirectorySecurity(serviceLogsDirectoryPath);
+                Directory.CreateDirectory(serviceLogsDirectoryPath);
+            }
+        }
 
-            DirectorySecurity security = Directory.GetAccessControl(Path.GetDirectoryName(this.serviceDataLocation));
-            SecurityIdentifier authenticatedUsers = new SecurityIdentifier(WellKnownSidType.AuthenticatedUserSid, null);
-            security.AddAccessRule(new FileSystemAccessRule(authenticatedUsers, FileSystemRights.FullControl, AccessControlType.Allow));
-            Directory.SetAccessControl(Path.GetDirectoryName(this.serviceDataLocation), security);
+        private void CreateAndConfigureProgramDataDirectories()
+        {
+            string serviceDataRootPath = Path.GetDirectoryName(this.serviceDataLocation);
+
+            DirectorySecurity serviceDataRootSecurity = this.GetServiceDirectorySecurity(serviceDataRootPath);
+
+            // Create GVFS.Service and GVFS.Upgrade related directories (if they don't already exist)
+            Directory.CreateDirectory(serviceDataRootPath, serviceDataRootSecurity);
+            Directory.CreateDirectory(this.serviceDataLocation, serviceDataRootSecurity);
+            Directory.CreateDirectory(ProductUpgraderInfo.GetUpgradesDirectoryPath(), serviceDataRootSecurity);
+
+            // Ensure the ACLs are set correctly on any files or directories that were already created (e.g. after upgrading VFS4G)
+            Directory.SetAccessControl(serviceDataRootPath, serviceDataRootSecurity);
+
+            // Special rules for the upgrader logs, as non-elevated users need to be be able to write
+            this.CreateAndConfigureUpgradeLogDirectory();
+        }
+
+        private void CreateAndConfigureUpgradeLogDirectory()
+        {
+            string upgradeLogsPath = ProductUpgraderInfo.GetLogDirectoryPath();
+
+            string error;
+            if (!GVFSPlatform.Instance.FileSystem.TryCreateDirectoryWithAdminAndUserModifyPermissions(upgradeLogsPath, out error))
+            {
+                EventMetadata metadata = new EventMetadata();
+                metadata.Add("Area", EtwArea);
+                metadata.Add(nameof(upgradeLogsPath), upgradeLogsPath);
+                metadata.Add(nameof(error), error);
+                this.tracer.RelatedWarning(
+                    metadata,
+                    $"{nameof(this.CreateAndConfigureUpgradeLogDirectory)}: Failed to create upgrade logs directory",
+                    Keywords.Telemetry);
+            }
+        }
+
+        private DirectorySecurity GetServiceDirectorySecurity(string serviceDataRootPath)
+        {
+            DirectorySecurity serviceDataRootSecurity;
+            if (Directory.Exists(serviceDataRootPath))
+            {
+                this.tracer.RelatedInfo($"{nameof(this.GetServiceDirectorySecurity)}: {serviceDataRootPath} exists, modifying ACLs.");
+                serviceDataRootSecurity = Directory.GetAccessControl(serviceDataRootPath);
+            }
+            else
+            {
+                this.tracer.RelatedInfo($"{nameof(this.GetServiceDirectorySecurity)}: {serviceDataRootPath} does not exist, creating new ACLs.");
+                serviceDataRootSecurity = new DirectorySecurity();
+            }
+
+            // Protect the access rules from inheritance and remove any inherited rules
+            serviceDataRootSecurity.SetAccessRuleProtection(isProtected: true, preserveInheritance: false);
+
+            // Remove any existing ACLs and add new ACLs for users and admins
+            WindowsFileSystem.RemoveAllFileSystemAccessRulesFromDirectorySecurity(serviceDataRootSecurity);
+            WindowsFileSystem.AddUsersAccessRulesToDirectorySecurity(serviceDataRootSecurity, grantUsersModifyPermissions: false);
+            WindowsFileSystem.AddAdminAccessRulesToDirectorySecurity(serviceDataRootSecurity);
+
+            return serviceDataRootSecurity;
         }
     }
 }

@@ -119,13 +119,13 @@
 		};
 		4A08256621E77B7F00E21AFD /* CopyFiles */ = {
 			isa = PBXCopyFilesBuildPhase;
-			buildActionMask = 2147483647;
-			dstPath = /Library/LaunchDaemons;
-			dstSubfolderSpec = 0;
+			buildActionMask = 12;
+			dstPath = "";
+			dstSubfolderSpec = 16;
 			files = (
 				4A08257921E77C7000E21AFD /* org.vfsforgit.prjfs.PrjFSKextLogDaemon.plist in CopyFiles */,
 			);
-			runOnlyForDeploymentPostprocessing = 1;
+			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXCopyFilesBuildPhase section */
 
@@ -174,6 +174,7 @@
 		4A08257221E77BDD00E21AFD /* Info.plist */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		4A8C13A021F23EE800002878 /* libPrjFSKextTestable.a */ = {isa = PBXFileReference; explicitFileType = archive.ar; includeInIndex = 0; path = libPrjFSKextTestable.a; sourceTree = BUILT_PRODUCTS_DIR; };
 		4A8C13AA21F268FE00002878 /* PrjFSKextTests.exp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.exports; path = PrjFSKextTests.exp; sourceTree = "<group>"; };
+		F557623E22009F0E005DE35E /* KextLogMock.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = KextLogMock.h; sourceTree = "<group>"; };
 		F5E39C7721F1118D006D65C2 /* PrjFSKextTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = PrjFSKextTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		F5E39C7921F1118D006D65C2 /* KauthHandlerTests.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = KauthHandlerTests.mm; sourceTree = "<group>"; };
 		F5E39C7B21F1118D006D65C2 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
@@ -342,6 +343,7 @@
 				F5E39C7921F1118D006D65C2 /* KauthHandlerTests.mm */,
 				F5E39C7B21F1118D006D65C2 /* Info.plist */,
 				4A8C13AA21F268FE00002878 /* PrjFSKextTests.exp */,
+				F557623E22009F0E005DE35E /* KextLogMock.h */,
 			);
 			path = PrjFSKextTests;
 			sourceTree = "<group>";
@@ -748,11 +750,11 @@
 					"MACH_ASSERT=1",
 				);
 				INFOPLIST_FILE = PrjFSKext/Info.plist;
-				MODULE_NAME = io.gvfs.PrjFSKext;
+				MODULE_NAME = org.vfsforgit.PrjFSKext;
 				MODULE_START = PrjFSKext_Start;
 				MODULE_STOP = PrjFSKext_Stop;
 				MODULE_VERSION = 1.0.0d1;
-				PRODUCT_BUNDLE_IDENTIFIER = io.gvfs.PrjFSKext;
+				PRODUCT_BUNDLE_IDENTIFIER = org.vfsforgit.PrjFSKext;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				WARNING_CFLAGS = (
 					"-Werror=missing-prototypes",
@@ -931,11 +933,11 @@
 					"MACH_ASSERT=1",
 				);
 				INFOPLIST_FILE = PrjFSKext/Info.plist;
-				MODULE_NAME = io.gvfs.PrjFSKext;
+				MODULE_NAME = org.vfsforgit.PrjFSKext;
 				MODULE_START = PrjFSKext_Start;
 				MODULE_STOP = PrjFSKext_Stop;
 				MODULE_VERSION = 1.0.0d1;
-				PRODUCT_BUNDLE_IDENTIFIER = io.gvfs.PrjFSKext;
+				PRODUCT_BUNDLE_IDENTIFIER = org.vfsforgit.PrjFSKext;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				WARNING_CFLAGS = (
 					"-Werror=missing-prototypes",
@@ -952,11 +954,11 @@
 				DEVELOPMENT_TEAM = UBF8T346G9;
 				GCC_PREPROCESSOR_DEFINITIONS = "MACH_ASSERT=1";
 				INFOPLIST_FILE = PrjFSKext/Info.plist;
-				MODULE_NAME = io.gvfs.PrjFSKext;
+				MODULE_NAME = org.vfsforgit.PrjFSKext;
 				MODULE_START = PrjFSKext_Start;
 				MODULE_STOP = PrjFSKext_Stop;
 				MODULE_VERSION = 1.0.0d1;
-				PRODUCT_BUNDLE_IDENTIFIER = io.gvfs.PrjFSKext;
+				PRODUCT_BUNDLE_IDENTIFIER = org.vfsforgit.PrjFSKext;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				WARNING_CFLAGS = (
 					"-Werror=missing-prototypes",
@@ -1131,7 +1133,7 @@
 					"@executable_path/../Frameworks",
 					"@loader_path/../Frameworks",
 				);
-				PRODUCT_BUNDLE_IDENTIFIER = io.gvfs.PrjFSKextTests;
+				PRODUCT_BUNDLE_IDENTIFIER = org.vfsforgit.PrjFSKextTests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 			};
 			name = Debug;
@@ -1151,7 +1153,7 @@
 					"@executable_path/../Frameworks",
 					"@loader_path/../Frameworks",
 				);
-				PRODUCT_BUNDLE_IDENTIFIER = io.gvfs.PrjFSKextTests;
+				PRODUCT_BUNDLE_IDENTIFIER = org.vfsforgit.PrjFSKextTests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 			};
 			name = Release;
@@ -1171,7 +1173,7 @@
 					"@executable_path/../Frameworks",
 					"@loader_path/../Frameworks",
 				);
-				PRODUCT_BUNDLE_IDENTIFIER = io.gvfs.PrjFSKextTests;
+				PRODUCT_BUNDLE_IDENTIFIER = org.vfsforgit.PrjFSKextTests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 			};
 			name = "Profiling(Release)";

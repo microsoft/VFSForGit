@@ -205,6 +205,16 @@ namespace GVFS.FunctionalTests.FileSystemRunners
             throw new System.NotSupportedException();
         }
 
+        public override void CreateFileWithoutClose(string path)
+        {
+            throw new System.NotSupportedException();
+        }
+
+        public override void OpenFileAndWriteWithoutClose(string path, string data)
+        {
+            throw new System.NotSupportedException();
+        }
+
         protected override string RunProcess(string command, string workingDirectory = "", string errorMsgDelimeter = "")
         {
             return base.RunProcess("-NoProfile " + command, workingDirectory, errorMsgDelimeter);

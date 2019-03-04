@@ -2,6 +2,7 @@
 using GVFS.Common;
 using GVFS.Tests.Should;
 using GVFS.UnitTests.Category;
+using GVFS.UnitTests.Mock.FileSystem;
 using GVFS.UnitTests.Windows.Mock.Upgrader;
 using NUnit.Framework;
 using System.Collections.Generic;
@@ -23,6 +24,7 @@ namespace GVFS.UnitTests.Windows.Upgrader
             this.upgradeVerb = new UpgradeVerb(
                 this.Upgrader,
                 this.Tracer,
+                this.FileSystem,
                 this.PrerunChecker,
                 this.processLauncher,
                 this.Output);
@@ -140,12 +142,13 @@ namespace GVFS.UnitTests.Windows.Upgrader
                 expectedReturn: ReturnCode.GenericError,
                 expectedOutput: new List<string>
                 {
-                    "ERROR: `gvfs upgrade` is not supported because you have previously installed an out of band ProjFS driver.",
+                    "ERROR: `gvfs upgrade` is only supported after the \"Windows Projected File System\" optional feature has been enabled by a manual installation of VFS for Git, and only on versions of Windows that support this feature.",
                     "Check your team's documentation for how to upgrade."
                 },
-                expectedErrors: new List<string>
+                expectedErrors: null,
+                expectedWarnings: new List<string>
                 {
-                    "`gvfs upgrade` is not supported because you have previously installed an out of band ProjFS driver."
+                    "`gvfs upgrade` is only supported after the \"Windows Projected File System\" optional feature has been enabled by a manual installation of VFS for Git, and only on versions of Windows that support this feature."
                 });
         }
 
@@ -165,7 +168,8 @@ namespace GVFS.UnitTests.Windows.Upgrader
                     "GVFS Service is not running.",
                     "Run `sc start GVFS.Service` and run `gvfs upgrade --confirm` again from an elevated command prompt."
                 },
-                expectedErrors: new List<string>
+                expectedErrors: null,
+                expectedWarnings: new List<string>
                 {
                     "GVFS Service is not running."
                 });
@@ -187,7 +191,8 @@ namespace GVFS.UnitTests.Windows.Upgrader
                     "The installer needs to be run from an elevated command prompt.",
                     "Run `gvfs upgrade --confirm` again from an elevated command prompt."
                 },
-                expectedErrors: new List<string>
+                expectedErrors: null,
+                expectedWarnings: new List<string>
                 {
                     "The installer needs to be run from an elevated command prompt."
                 });
@@ -207,7 +212,8 @@ namespace GVFS.UnitTests.Windows.Upgrader
                 {
                     "`gvfs upgrade` is not supported in unattended mode"
                 },
-                expectedErrors: new List<string>
+                expectedErrors: null,
+                expectedWarnings: new List<string>
                 {
                     "`gvfs upgrade` is not supported in unattended mode"
                 });

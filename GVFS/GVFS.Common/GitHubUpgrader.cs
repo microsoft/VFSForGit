@@ -13,11 +13,8 @@ using System.Runtime.Serialization.Json;
 
 namespace GVFS.Common
 {
-    public class GitHubUpgrader : IProductUpgrader
+    public class GitHubUpgrader : ProductUpgrader
     {
-        protected bool dryRun;
-        protected bool noVerify;
-
         private const string GitHubReleaseURL = @"https://api.github.com/repos/microsoft/vfsforgit/releases";
         private const string JSONMediaType = @"application/vnd.github.v3+json";
         private const string UserAgent = @"GVFS_Auto_Upgrader";
@@ -27,26 +24,10 @@ namespace GVFS.Common
         private const string GitAssetId = "Git";
         private const string GVFSAssetId = "GVFS";
         private const string GitInstallerFileNamePrefix = "Git-";
-        private const int RepoMountFailureExitCode = 17;
-        private const string ToolsDirectory = "Tools";
         private const string GVFSSigner = "Microsoft Corporation";
         private const string GVFSCertIssuer = "Microsoft Code Signing PCA";
         private const string GitSigner = "Johannes Schindelin";
         private const string GitCertIssuer = "COMODO RSA Code Signing CA";
-        private static readonly string UpgraderToolName = GVFSPlatform.Instance.Constants.GVFSUpgraderExecutableName;
-        private static readonly string UpgraderToolConfigFile = UpgraderToolName + ".config";
-        private static readonly string[] UpgraderToolAndLibs =
-            {
-                UpgraderToolName,
-                UpgraderToolConfigFile,
-                "CommandLine.dll",
-                "GVFS.Common.dll",
-                "GVFS.Platform.Windows.dll",
-                "Microsoft.Diagnostics.Tracing.EventSource.dll",
-                "netstandard.dll",
-                "System.Net.Http.dll",
-                "Newtonsoft.Json.dll"
-            };
 
         private static readonly HashSet<string> GVFSInstallerFileNamePrefixCandidates = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
         {
@@ -54,30 +35,19 @@ namespace GVFS.Common
             "VFSForGit"
         };
 
-        private Version installedVersion;
         private Version newestVersion;
         private Release newestRelease;
-        private PhysicalFileSystem fileSystem;
-        private ITracer tracer;
 
         public GitHubUpgrader(
             string currentVersion,
             ITracer tracer,
+            PhysicalFileSystem fileSystem,
             GitHubUpgraderConfig upgraderConfig,
             bool dryRun = false,
             bool noVerify = false)
-            : this(currentVersion, tracer)
+            : base(currentVersion, tracer, dryRun, noVerify, fileSystem)
         {
             this.Config = upgraderConfig;
-            this.dryRun = dryRun;
-            this.noVerify = noVerify;
-        }
-
-        public GitHubUpgrader(string currentVersion, ITracer tracer)
-        {
-            this.installedVersion = new Version(currentVersion);
-            this.fileSystem = new PhysicalFileSystem();
-            this.tracer = tracer;
 
             string upgradesDirectoryPath = ProductUpgraderInfo.GetUpgradesDirectoryPath();
             this.fileSystem.CreateDirectory(upgradesDirectoryPath);
@@ -85,12 +55,23 @@ namespace GVFS.Common
 
         public GitHubUpgraderConfig Config { get; private set; }
 
-        public static GitHubUpgrader Create(ITracer tracer, bool dryRun, bool noVerify, out string error)
+        public static GitHubUpgrader Create(
+            ITracer tracer,
+            PhysicalFileSystem fileSystem,
+            bool dryRun,
+            bool noVerify,
+            out string error)
         {
-            return Create(new LocalGVFSConfig(), tracer, dryRun, noVerify, out error);
+            return Create(tracer, fileSystem, dryRun, noVerify, new LocalGVFSConfig(), out error);
         }
 
-        public static GitHubUpgrader Create(LocalGVFSConfig localConfig, ITracer tracer, bool dryRun, bool noVerify, out string error)
+        public static GitHubUpgrader Create(
+            ITracer tracer,
+            PhysicalFileSystem fileSystem,
+            bool dryRun,
+            bool noVerify,
+            LocalGVFSConfig localConfig,
+            out string error)
         {
             GitHubUpgrader upgrader = null;
             GitHubUpgraderConfig gitHubUpgraderConfig = new GitHubUpgraderConfig(tracer, localConfig);
@@ -109,6 +90,7 @@ namespace GVFS.Common
             upgrader = new GitHubUpgrader(
                     ProcessHelper.GetCurrentProcessVersion(),
                     tracer,
+                    fileSystem,
                     gitHubUpgraderConfig,
                     dryRun,
                     noVerify);
@@ -116,12 +98,12 @@ namespace GVFS.Common
             return upgrader;
         }
 
-        public bool UpgradeAllowed(out string message)
+        public override bool UpgradeAllowed(out string message)
         {
             return this.Config.UpgradeAllowed(out message);
         }
 
-        public bool TryQueryNewestVersion(
+        public override bool TryQueryNewestVersion(
             out Version newVersion,
             out string message)
         {
@@ -157,10 +139,17 @@ namespace GVFS.Common
             return false;
         }
 
-        public bool TryDownloadNewestVersion(out string errorMessage)
+        public override bool TryDownloadNewestVersion(out string errorMessage)
         {
+            if (!this.TryCreateAndConfigureDownloadDirectory(this.tracer, out errorMessage))
+            {
+                this.tracer.RelatedError($"{nameof(GitHubUpgrader)}.{nameof(this.TryCreateAndConfigureDownloadDirectory)} failed. {errorMessage}");
+                return false;
+            }
+
             bool downloadedGit = false;
             bool downloadedGVFS = false;
+
             foreach (Asset asset in this.newestRelease.Assets)
             {
                 bool targetOSMatch = string.Equals(Path.GetExtension(asset.Name), GVFSPlatform.Instance.Constants.InstallerExtension, StringComparison.OrdinalIgnoreCase);
@@ -193,7 +182,7 @@ namespace GVFS.Common
             return true;
         }
 
-        public bool TryRunInstaller(InstallActionWrapper installActionWrapper, out string error)
+        public override bool TryRunInstaller(InstallActionWrapper installActionWrapper, out string error)
         {
             string localError;
 
@@ -237,58 +226,7 @@ namespace GVFS.Common
             return true;
         }
 
-        // TrySetupToolsDirectory -
-        // Copies GVFS Upgrader tool and its dependencies to a temporary location in ProgramData.
-        // Reason why this is needed - When GVFS.Upgrader.exe is run from C:\ProgramFiles\GVFS folder
-        // upgrade installer that is downloaded and run will fail. This is because it cannot overwrite
-        // C:\ProgramFiles\GVFS\GVFS.Upgrader.exe that is running. Moving GVFS.Upgrader.exe along with
-        // its dependencies to a temporary location inside ProgramData and running GVFS.Upgrader.exe
-        // from this temporary location helps avoid this problem.
-        public virtual bool TrySetupToolsDirectory(out string upgraderToolPath, out string error)
-        {
-            string rootDirectoryPath = ProductUpgraderInfo.GetUpgradesDirectoryPath();
-            string toolsDirectoryPath = Path.Combine(rootDirectoryPath, ToolsDirectory);
-            Exception exception;
-            if (this.fileSystem.TryCreateDirectory(toolsDirectoryPath, out exception))
-            {
-                string currentPath = ProcessHelper.GetCurrentProcessLocation();
-                error = null;
-                foreach (string name in UpgraderToolAndLibs)
-                {
-                    string toolPath = Path.Combine(currentPath, name);
-                    string destinationPath = Path.Combine(toolsDirectoryPath, name);
-                    try
-                    {
-                        File.Copy(toolPath, destinationPath, overwrite: true);
-                    }
-                    catch (UnauthorizedAccessException e)
-                    {
-                        error = string.Join(
-                            Environment.NewLine,
-                            "File copy error - " + e.Message,
-                            $"Make sure you have write permissions to directory {rootDirectoryPath} and run {GVFSConstants.UpgradeVerbMessages.GVFSUpgradeConfirm} again.");
-                        this.TraceException(e, nameof(this.TrySetupToolsDirectory), $"Error copying {toolPath} to {destinationPath}.");
-                        break;
-                    }
-                    catch (IOException e)
-                    {
-                        error = "File copy error - " + e.Message;
-                        this.TraceException(e, nameof(this.TrySetupToolsDirectory), $"Error copying {toolPath} to {destinationPath}.");
-                        break;
-                    }
-                }
-
-                upgraderToolPath = string.IsNullOrEmpty(error) ? Path.Combine(toolsDirectoryPath, UpgraderToolName) : null;
-                return string.IsNullOrEmpty(error);
-            }
-
-            upgraderToolPath = null;
-            error = exception.Message;
-            this.TraceException(exception, nameof(this.TrySetupToolsDirectory), $"Error creating upgrade tools directory {toolsDirectoryPath}.");
-            return false;
-        }
-
-        public bool TryCleanup(out string error)
+        public override bool TryCleanup(out string error)
         {
             error = string.Empty;
             if (this.newestRelease == null)
@@ -325,14 +263,6 @@ namespace GVFS.Common
             errorMessage = null;
 
             string downloadPath = ProductUpgraderInfo.GetAssetDownloadsPath();
-            Exception exception;
-            if (!this.fileSystem.TryCreateDirectory(downloadPath, out exception))
-            {
-                errorMessage = exception.Message;
-                this.TraceException(exception, nameof(this.TryDownloadAsset), $"Error creating download directory {downloadPath}.");
-                return false;
-            }
-
             string localPath = Path.Combine(downloadPath, asset.Name);
             WebClient webClient = new WebClient();
 
@@ -406,10 +336,7 @@ namespace GVFS.Common
                     return;
                 }
 
-                ProcessResult processResult = ProcessHelper.Run(path, args);
-
-                exitCode = processResult.ExitCode;
-                error = processResult.Errors;
+                this.RunInstaller(path, args, out exitCode, out error);
             }
         }
 
@@ -479,7 +406,7 @@ namespace GVFS.Common
             {
                 if (!this.dryRun)
                 {
-                    string logFilePath = GVFSEnlistment.GetNewLogFileName(ProductUpgraderInfo.GetLogDirectoryPath(), Path.GetFileNameWithoutExtension(path));
+                    string logFilePath = GVFSEnlistment.GetNewLogFileName(ProductUpgraderInfo.GetLogDirectoryPath(), Path.GetFileNameWithoutExtension(path), this.UpgradeInstanceId);
                     string args = installerArgs + " /Log=" + logFilePath;
                     string certCN = null;
                     string issuerCN = null;
@@ -516,14 +443,6 @@ namespace GVFS.Common
             }
 
             return installerIsRun;
-        }
-
-        private void TraceException(Exception exception, string method, string message)
-        {
-            EventMetadata metadata = new EventMetadata();
-            metadata.Add("Method", method);
-            metadata.Add("Exception", exception.ToString());
-            this.tracer.RelatedError(metadata, message, Keywords.Telemetry);
         }
 
         private bool TryGetLocalInstallerPath(string assetId, out string path, out string args)
@@ -621,29 +540,37 @@ namespace GVFS.Common
                 this.UpgradeRing = RingType.NoConfig;
 
                 string ringConfig = null;
-                if (this.LocalConfig.TryGetConfig(GVFSConstants.LocalGVFSConfig.UpgradeRing, out ringConfig, out error))
-                {
-                    RingType ringType;
-                    if (Enum.TryParse(ringConfig, ignoreCase: true, result: out ringType) &&
-                        Enum.IsDefined(typeof(RingType), ringType) &&
-                        ringType != RingType.Invalid)
-                    {
-                        this.UpgradeRing = ringType;
-                    }
-                    else
-                    {
-                        if (!string.IsNullOrEmpty(ringConfig))
-                        {
-                            this.UpgradeRing = RingType.Invalid;
-                        }
-                    }
+                string loadError = "Could not read GVFS Config." + Environment.NewLine + GVFSConstants.UpgradeVerbMessages.SetUpgradeRingCommand;
 
-                    return true;
+                if (!this.LocalConfig.TryGetConfig(GVFSConstants.LocalGVFSConfig.UpgradeRing, out ringConfig, out error))
+                {
+                    error = loadError;
+                    return false;
                 }
 
-                error = "Could not read GVFS Config." + Environment.NewLine;
-                error += GVFSConstants.UpgradeVerbMessages.SetUpgradeRingCommand;
-                return false;
+                this.ParseUpgradeRing(ringConfig);
+                return true;
+            }
+
+            public void ParseUpgradeRing(string ringConfig)
+            {
+                if (string.IsNullOrEmpty(ringConfig))
+                {
+                    this.UpgradeRing = RingType.None;
+                    return;
+                }
+
+                RingType ringType;
+                if (Enum.TryParse(ringConfig, ignoreCase: true, result: out ringType) &&
+                    Enum.IsDefined(typeof(RingType), ringType) &&
+                    ringType != RingType.Invalid)
+                {
+                    this.UpgradeRing = ringType;
+                }
+                else
+                {
+                    this.UpgradeRing = RingType.Invalid;
+                }
             }
 
             public bool ConfigError()
