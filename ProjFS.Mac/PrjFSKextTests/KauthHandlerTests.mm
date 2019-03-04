@@ -60,26 +60,26 @@ using std::shared_ptr;
 
 - (void)testFileFlaggedInRoot {
     bool fileFlaggedInRoot;
-    MountPointer testMount = mount::Create("hfs", fsid_t{}, 0);
-    VnodePointer testVnode = vnode::Create(testMount, "/foo");
+    shared_ptr<mount> testMount = mount::Create();
+    shared_ptr<vnode> testVnode = vnode::Create(testMount, "/foo");
     
-    testVnode->SetAttr(FileFlags_IsInVirtualizationRoot);
+    testVnode->values.getattr = FileFlags_IsInVirtualizationRoot;
     XCTAssertTrue(TryGetFileIsFlaggedAsInRoot(testVnode.get(), NULL, &fileFlaggedInRoot));
     XCTAssertTrue(fileFlaggedInRoot);
     
-    testVnode->SetAttr(FileFlags_IsEmpty);
+    testVnode->values.getattr = FileFlags_IsEmpty;
     XCTAssertTrue(TryGetFileIsFlaggedAsInRoot(testVnode.get(), NULL, &fileFlaggedInRoot));
     XCTAssertFalse(fileFlaggedInRoot);
     
-    testVnode->SetAttr(FileFlags_Invalid);
+    testVnode->values.getattr = FileFlags_Invalid;
     XCTAssertTrue(TryGetFileIsFlaggedAsInRoot(testVnode.get(), NULL, &fileFlaggedInRoot));
     XCTAssertFalse(fileFlaggedInRoot);
     
-    testVnode->SetAttr(100);
+    testVnode->values.getattr = 100;
     XCTAssertTrue(TryGetFileIsFlaggedAsInRoot(testVnode.get(), NULL, &fileFlaggedInRoot));
     XCTAssertFalse(fileFlaggedInRoot);
-    
-    testVnode->SetGetAttrReturnCode(-1);
+
+    testVnode->errors.getattr = EBADF;
     XCTAssertFalse(TryGetFileIsFlaggedAsInRoot(testVnode.get(), NULL, &fileFlaggedInRoot));
 }
 

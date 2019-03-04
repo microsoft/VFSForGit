@@ -122,7 +122,7 @@ static void SetRootXattrData(shared_ptr<vnode> vnode)
     const char* path = "/Users/test/code/RepoNotInNamecache";
     
     shared_ptr<vnode> vnode = vnode::Create(self->testMountPoint, path, VDIR);
-    vnode->SetGetPathError(EINVAL);
+    vnode->errors.getpath = EINVAL;
     
     VirtualizationRootResult result = VirtualizationRoot_RegisterProviderForPath(&self->dummyClient, self->dummyClientPid, path);
     XCTAssertEqual(result.error, EINVAL);

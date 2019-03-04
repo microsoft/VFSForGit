@@ -72,6 +72,17 @@ public:
 // This way, we can have a mock mount point as a test class instance variable
 // and don't have to manually clear out the rootVnode after every test.
 //
+struct VnodeMockErrors
+{
+    errno_t getpath = 0;
+    errno_t getattr = 0;
+};
+
+struct VnodeMockValues
+{
+    int getattr = 0;
+};
+
 struct vnode
 {
 private:
@@ -86,15 +97,13 @@ public:
 private:
     bool isRecycling = false;
     vtype type = VREG;
+
     uint64_t inode;
     uint32_t vid;
     int32_t ioCount = 0;
-    errno_t getPathError = 0;
     
     std::string path;
     const char* name;
-    int attr = 0;
-    int vnodeGetAttrReturnCode = 0;
     
     void SetAndRegisterPath(const std::string& path);
 
@@ -107,6 +116,9 @@ private:
 public:
     static std::shared_ptr<vnode> Create(const std::shared_ptr<mount>& mount, const char* path, vtype vnodeType = VREG);
     ~vnode();
+
+    VnodeMockErrors errors;
+    VnodeMockValues values;
     
     uint64_t GetInode() const          { return this->inode; }
     uint32_t GetVid() const            { return this->vid; }
@@ -124,10 +136,7 @@ public:
     
     BytesOrError ReadXattr(const char* xattrName);
 
-    void SetGetPathError(errno_t error);
     void StartRecycling();
-    void SetAttr(int attr);
-    void SetGetAttrReturnCode(int code);
 
     errno_t RetainIOCount();
     void ReleaseIOCount();
