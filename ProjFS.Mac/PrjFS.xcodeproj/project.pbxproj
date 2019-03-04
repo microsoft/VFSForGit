@@ -750,11 +750,11 @@
 					"MACH_ASSERT=1",
 				);
 				INFOPLIST_FILE = PrjFSKext/Info.plist;
-				MODULE_NAME = io.gvfs.PrjFSKext;
+				MODULE_NAME = org.vfsforgit.PrjFSKext;
 				MODULE_START = PrjFSKext_Start;
 				MODULE_STOP = PrjFSKext_Stop;
 				MODULE_VERSION = 1.0.0d1;
-				PRODUCT_BUNDLE_IDENTIFIER = io.gvfs.PrjFSKext;
+				PRODUCT_BUNDLE_IDENTIFIER = org.vfsforgit.PrjFSKext;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				WARNING_CFLAGS = (
 					"-Werror=missing-prototypes",
@@ -933,11 +933,11 @@
 					"MACH_ASSERT=1",
 				);
 				INFOPLIST_FILE = PrjFSKext/Info.plist;
-				MODULE_NAME = io.gvfs.PrjFSKext;
+				MODULE_NAME = org.vfsforgit.PrjFSKext;
 				MODULE_START = PrjFSKext_Start;
 				MODULE_STOP = PrjFSKext_Stop;
 				MODULE_VERSION = 1.0.0d1;
-				PRODUCT_BUNDLE_IDENTIFIER = io.gvfs.PrjFSKext;
+				PRODUCT_BUNDLE_IDENTIFIER = org.vfsforgit.PrjFSKext;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				WARNING_CFLAGS = (
 					"-Werror=missing-prototypes",
@@ -954,11 +954,11 @@
 				DEVELOPMENT_TEAM = UBF8T346G9;
 				GCC_PREPROCESSOR_DEFINITIONS = "MACH_ASSERT=1";
 				INFOPLIST_FILE = PrjFSKext/Info.plist;
-				MODULE_NAME = io.gvfs.PrjFSKext;
+				MODULE_NAME = org.vfsforgit.PrjFSKext;
 				MODULE_START = PrjFSKext_Start;
 				MODULE_STOP = PrjFSKext_Stop;
 				MODULE_VERSION = 1.0.0d1;
-				PRODUCT_BUNDLE_IDENTIFIER = io.gvfs.PrjFSKext;
+				PRODUCT_BUNDLE_IDENTIFIER = org.vfsforgit.PrjFSKext;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				WARNING_CFLAGS = (
 					"-Werror=missing-prototypes",
@@ -1133,7 +1133,7 @@
 					"@executable_path/../Frameworks",
 					"@loader_path/../Frameworks",
 				);
-				PRODUCT_BUNDLE_IDENTIFIER = io.gvfs.PrjFSKextTests;
+				PRODUCT_BUNDLE_IDENTIFIER = org.vfsforgit.PrjFSKextTests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 			};
 			name = Debug;
@@ -1153,7 +1153,7 @@
 					"@executable_path/../Frameworks",
 					"@loader_path/../Frameworks",
 				);
-				PRODUCT_BUNDLE_IDENTIFIER = io.gvfs.PrjFSKextTests;
+				PRODUCT_BUNDLE_IDENTIFIER = org.vfsforgit.PrjFSKextTests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 			};
 			name = Release;
@@ -1173,7 +1173,7 @@
 					"@executable_path/../Frameworks",
 					"@loader_path/../Frameworks",
 				);
-				PRODUCT_BUNDLE_IDENTIFIER = io.gvfs.PrjFSKextTests;
+				PRODUCT_BUNDLE_IDENTIFIER = org.vfsforgit.PrjFSKextTests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 			};
 			name = "Profiling(Release)";

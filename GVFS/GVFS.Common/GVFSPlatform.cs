@@ -128,7 +128,7 @@ namespace GVFS.Common
 
             public string GVFSUpgraderExecutableName
             {
-                get { return "GVFS.Upgrader" + this.ExecutableExtension;  }
+                get { return "GVFS.Upgrader" + this.ExecutableExtension; }
             }
         }
 

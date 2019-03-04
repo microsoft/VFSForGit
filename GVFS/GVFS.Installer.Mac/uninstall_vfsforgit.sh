@@ -8,7 +8,7 @@ LOGDAEMONLAUNCHDFILENAME="org.vfsforgit.prjfs.PrjFSKextLogDaemon.plist"
 GVFSCOMMANDPATH="/usr/local/bin/gvfs"
 UNINSTALLERCOMMANDPATH="/usr/local/bin/uninstall_vfsforgit.sh"
 INSTALLERPACKAGEID="com.vfsforgit.pkg"
-KEXTID="io.gvfs.PrjFSKext"
+KEXTID="org.vfsforgit.PrjFSKext"
 
 function UnloadKext()
 {

@@ -1082,7 +1082,7 @@ static void Sleep(int seconds, void* channel, Mutex* _Nullable mutex)
     timeout.tv_sec  = seconds;
     timeout.tv_nsec = 0;
     
-    msleep(channel, nullptr != mutex ? mutex->p : nullptr, PUSER, "io.gvfs.PrjFSKext.Sleep", &timeout);
+    msleep(channel, nullptr != mutex ? mutex->p : nullptr, PUSER, "org.vfsforgit.PrjFSKext.Sleep", &timeout);
 }
 
 static int GetPid(vfs_context_t _Nonnull context)

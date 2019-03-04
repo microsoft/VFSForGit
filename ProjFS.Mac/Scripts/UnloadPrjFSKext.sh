@@ -1,2 +1,2 @@
-sudo kextunload -b io.gvfs.PrjFSKext 
+sudo kextunload -b org.vfsforgit.PrjFSKext 
 
