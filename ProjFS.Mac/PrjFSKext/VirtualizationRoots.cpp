@@ -156,7 +156,13 @@ VirtualizationRootHandle VirtualizationRoot_FindForVnode(
     }
     else
     {
-        vnode = vnode_getparent(vnode);
+        vnode_t parent = vnode_getparent(vnode);
+        if (NULLVP == parent)
+        {
+            KextLog_FileError(vnode, "VirtualizationRoot_FindForVnode: vnode_getparent returned nullptr on vnode that is not root of a mount point");
+        }
+        
+        vnode = parent;
     }
     
     // Search up the tree until we hit a known virtualization root or THE root of the file system
