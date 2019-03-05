@@ -166,10 +166,9 @@ namespace GVFS.Common.FileBasedCollections
         {
             try
             {
-                HashSet<AddFileEntry> filePlaceholdersFromDisk = new HashSet<AddFileEntry>(Math.Max(1, this.EstimatedCount));
-                HashSet<AddFolderEntry> folderPlaceholdersFromDisk = new HashSet<AddFolderEntry>(Math.Max(1, (int)(this.EstimatedCount * .3)));
+                IDictionary<string, AddFileEntry> filePlaceholdersFromDisk = new Dictionary<string, AddFileEntry>(Math.Max(1, this.EstimatedCount));
+                IDictionary<string, AddFolderEntry> folderPlaceholdersFromDisk = new Dictionary<string, AddFolderEntry>(Math.Max(1, (int)(this.EstimatedCount * .3)));
 
-                string error;
                 if (!this.TryLoadFromDisk<string, PlaceholderEvent>(
                     this.TryParseAddLine,
                     this.TryParseRemoveLine,
@@ -178,10 +177,10 @@ namespace GVFS.Common.FileBasedCollections
                         switch (value)
                         {
                             case AddFileEntry addFileEntry:
-                                filePlaceholdersFromDisk.Add(addFileEntry);
+                                filePlaceholdersFromDisk.Add(key, addFileEntry);
                                 break;
                             case AddFolderEntry addFolderEntry:
-                                folderPlaceholdersFromDisk.Add(addFolderEntry);
+                                folderPlaceholdersFromDisk.Add(key, addFolderEntry);
                                 break;
                             default:
                                 throw new ArgumentException($"Parsed value not of a supported type");
@@ -189,12 +188,12 @@ namespace GVFS.Common.FileBasedCollections
                     },
                     (key) =>
                     {
-                        if (!filePlaceholdersFromDisk.Remove(new AddFileEntry(key, string.Empty)))
+                        if (!filePlaceholdersFromDisk.Remove(key))
                         {
-                            folderPlaceholdersFromDisk.Remove(new AddFolderEntry(key, false));
+                            folderPlaceholdersFromDisk.Remove(key);
                         }
                     },
-                    out error,
+                    out string error,
                     () =>
                     {
                         if (this.placeholderChangesWhileRebuildingList != null)
@@ -208,8 +207,8 @@ namespace GVFS.Common.FileBasedCollections
                     throw new InvalidDataException(error);
                 }
 
-                filePlaceholders = filePlaceholdersFromDisk.ToList();
-                folderPlaceholders = folderPlaceholdersFromDisk.ToList();
+                filePlaceholders = filePlaceholdersFromDisk.Values.ToList();
+                folderPlaceholders = folderPlaceholdersFromDisk.Values.ToList();
             }
             catch (Exception e)
             {
