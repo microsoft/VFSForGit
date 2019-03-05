@@ -57,6 +57,7 @@ namespace GVFS.Platform.Windows.DiskLayoutUpgrades
                         new PersistentDictionary<string, string>(esentPlaceholderFolder))
                     {
                         string error;
+#pragma warning disable 0618
                         PlaceholderListDatabase newPlaceholders;
                         if (!PlaceholderListDatabase.TryCreate(
                             tracer,
@@ -82,6 +83,7 @@ namespace GVFS.Platform.Windows.DiskLayoutUpgrades
                         }
                     }
                 }
+#pragma warning enable 0618
                 catch (IOException ex)
                 {
                     tracer.RelatedError("Could not write to new placeholder database: " + ex.Message);
