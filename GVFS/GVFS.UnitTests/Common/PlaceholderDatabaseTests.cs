@@ -163,6 +163,7 @@ namespace GVFS.UnitTests.Common
             fs.ExpectedFiles[MockEntryFileName].ReadAsString().ShouldEqual(ExpectedTwoEntries + DeleteGitAttributesEntry);
         }
 
+        [Ignore("The performance of this class is proved to be insuffiecient and the class was replaced BinaryPlaceholderDatabase")]
         [TestCase]
         public void TestPlaceholderLoadingPerformance()
         {
