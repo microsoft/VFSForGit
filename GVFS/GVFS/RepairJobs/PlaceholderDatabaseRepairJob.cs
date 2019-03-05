@@ -1,4 +1,5 @@
 ﻿using GVFS.Common;
+using GVFS.Common.FileBasedCollections;
 using GVFS.Common.FileSystem;
 using GVFS.Common.Tracing;
 using System.Collections.Generic;
@@ -24,8 +25,8 @@ namespace GVFS.RepairJobs
         public override IssueType HasIssue(List<string> messages)
         {
             string error;
-            PlaceholderListDatabase placeholders;
-            if (!PlaceholderListDatabase.TryCreate(
+            BinaryPlaceholderListDatabase placeholders;
+            if (!BinaryPlaceholderListDatabase.TryCreate(
                 this.Tracer,
                 this.databasePath,
                 new PhysicalFileSystem(),

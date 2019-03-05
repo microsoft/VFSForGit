@@ -1,4 +1,5 @@
 ﻿using GVFS.Common;
+using GVFS.Common.FileBasedCollections;
 using GVFS.Common.Tracing;
 using GVFS.Virtualization.Background;
 using System;
@@ -89,7 +90,7 @@ namespace GVFS.Virtualization.Projection
                     throw new InvalidOperationException($"{nameof(this.projection)} cannot be null when calling {nameof(this.AddMissingModifiedFilesAndRemoveThemFromPlaceholderList)}");
                 }
 
-                Dictionary<string, PlaceholderListDatabase.PlaceholderData> filePlaceholders =
+                Dictionary<string, AddFileEntry> filePlaceholders =
                     this.projection.placeholderList.GetAllFileEntries();
 
                 tracer.RelatedEvent(
@@ -165,7 +166,7 @@ namespace GVFS.Virtualization.Projection
             /// </param>
             private FileSystemTaskResult AddEntryToModifiedPathsAndRemoveFromPlaceholdersIfNeeded(
                 GitIndexEntry gitIndexEntry,
-                Dictionary<string, PlaceholderListDatabase.PlaceholderData> filePlaceholders)
+                Dictionary<string, AddFileEntry> filePlaceholders)
             {
                 gitIndexEntry.BackgroundTask_ParsePath();
                 string placeholderRelativePath = gitIndexEntry.BackgroundTask_GetPlatformRelativePath();

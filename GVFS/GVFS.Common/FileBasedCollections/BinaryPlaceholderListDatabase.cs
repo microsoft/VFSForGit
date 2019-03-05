@@ -1,19 +1,18 @@
-﻿using GVFS.Common.FileSystem;
+﻿using GVFS.Common.FileBasedCollections;
+using GVFS.Common.FileSystem;
 using GVFS.Common.Tracing;
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 
-namespace GVFS.Common
+namespace GVFS.Common.FileBasedCollections
 {
-    [Obsolete("Has been replaced by BinaryPlaceholderListDatabase for performance reasons", false)]
-    public class PlaceholderListDatabase : FileBasedCollection
+    public class BinaryPlaceholderListDatabase : BinaryFileBasedCollection<PlaceholderEvent>
     {
         // Special folder values must:
         // - Be 40 characters long
         // - Not be a valid SHA-1 value (to avoid collisions with files)
-        public const string PartialFolderValue = "                          PARTIAL FOLDER";
-        public const string ExpandedFolderValue = "                         EXPANDED FOLDER";
 
         private const char PathTerminator = '\0';
 
@@ -38,10 +37,10 @@ namespace GVFS.Common
         //
         // This list must always be accessed from inside one of FileBasedCollection's synchronizedAction callbacks because
         // there is race potential between creating the queue, adding to the queue, and writing to the data file.
-        private List<PlaceholderDataEntry> placeholderChangesWhileRebuildingList;
+        private List<Tuple<byte, PlaceholderEvent>> placeholderChangesWhileRebuildingList;
 
-        private PlaceholderListDatabase(ITracer tracer, PhysicalFileSystem fileSystem, string dataFilePath)
-            : base(tracer, fileSystem, dataFilePath, collectionAppendsDirectlyToFile: true)
+        private BinaryPlaceholderListDatabase(ITracer tracer, PhysicalFileSystem fileSystem, string dataFilePath)
+            : base(tracer, fileSystem, dataFilePath, true, BinaryPlaceholderListDatabase.SerializeEvent)
         {
         }
 
@@ -51,15 +50,16 @@ namespace GVFS.Common
         /// </summary>
         public int EstimatedCount { get; private set; }
 
-        public static bool TryCreate(ITracer tracer, string dataFilePath, PhysicalFileSystem fileSystem, out PlaceholderListDatabase output, out string error)
+        public static bool TryCreate(ITracer tracer, string dataFilePath, PhysicalFileSystem fileSystem, out BinaryPlaceholderListDatabase output, out string error)
         {
-            PlaceholderListDatabase temp = new PlaceholderListDatabase(tracer, fileSystem, dataFilePath);
+            BinaryPlaceholderListDatabase temp = new BinaryPlaceholderListDatabase(tracer, fileSystem, dataFilePath);
 
             // We don't want to cache placeholders so this just serves to validate early and populate count.
-            if (!temp.TryLoadFromDisk<string, string>(
+            if (!temp.TryLoadFromDisk<string, PlaceholderEvent>(
                 temp.TryParseAddLine,
                 temp.TryParseRemoveLine,
                 (key, value) => temp.EstimatedCount++,
+                (key) => temp.EstimatedCount--,
                 out error))
             {
                 temp = null;
@@ -74,26 +74,27 @@ namespace GVFS.Common
 
         public void AddAndFlushFile(string path, string sha)
         {
-            this.AddAndFlush(path, sha);
+            this.AddAndFlush(new AddFileEntry(path, sha));
         }
 
         public void AddAndFlushFolder(string path, bool isExpanded)
         {
-            this.AddAndFlush(path, isExpanded ? ExpandedFolderValue : PartialFolderValue);
+            this.AddAndFlush(new AddFolderEntry(path, isExpanded));
         }
 
         public void RemoveAndFlush(string path)
         {
             try
             {
+                PlaceholderEvent data = new PlaceholderRemoved(path);
                 this.WriteRemoveEntry(
-                    path,
+                    data,
                     () =>
                     {
                         this.EstimatedCount--;
                         if (this.placeholderChangesWhileRebuildingList != null)
                         {
-                            this.placeholderChangesWhileRebuildingList.Add(new PlaceholderDataEntry(path));
+                            this.placeholderChangesWhileRebuildingList.Add(Tuple.Create(RemoveEntryPrefix, data));
                         }
                     });
             }
@@ -104,7 +105,7 @@ namespace GVFS.Common
         }
 
         /// <summary>
-        /// Gets all entries and prepares the PlaceholderListDatabase for a call to WriteAllEntriesAndFlush.
+        /// Gets all entries and prepares the BinaryPlaceholderListDatabase for a call to WriteAllEntriesAndFlush.
         /// </summary>
         /// <exception cref="InvalidOperationException">
         /// GetAllEntriesAndPrepToWriteAllEntries was called (a second time) without first calling WriteAllEntriesAndFlush.
@@ -112,29 +113,30 @@ namespace GVFS.Common
         /// <remarks>
         /// Usage notes:
         ///     - All calls to GetAllEntriesAndPrepToWriteAllEntries must be paired with a subsequent call to WriteAllEntriesAndFlush
-        ///     - If WriteAllEntriesAndFlush is *not* called entries that were added to the PlaceholderListDatabase after
+        ///     - If WriteAllEntriesAndFlush is *not* called entries that were added to the BinaryPlaceholderListDatabase after
         ///       calling GetAllEntriesAndPrepToWriteAllEntries will be lost
         /// </remarks>
-        public List<PlaceholderData> GetAllEntriesAndPrepToWriteAllEntries()
+        public List<PlaceholderEvent> GetAllEntriesAndPrepToWriteAllEntries()
         {
             try
             {
-                List<PlaceholderData> placeholders = new List<PlaceholderData>(Math.Max(1, this.EstimatedCount));
+                List<PlaceholderEvent> placeholders = new List<PlaceholderEvent>(Math.Max(1, this.EstimatedCount));
 
                 string error;
-                if (!this.TryLoadFromDisk<string, string>(
+                if (!this.TryLoadFromDisk<string, PlaceholderEvent>(
                     this.TryParseAddLine,
                     this.TryParseRemoveLine,
-                    (key, value) => placeholders.Add(new PlaceholderData(path: key, fileShaOrFolderValue: value)),
+                    (key, value) => placeholders.Add(value),
+                    (key) => placeholders.RemoveAll(x => x.Path == key), // as this method is only called in testing, performance is not critical here
                     out error,
                     () =>
                     {
                         if (this.placeholderChangesWhileRebuildingList != null)
                         {
-                        throw new InvalidOperationException($"PlaceholderListDatabase should always flush queue placeholders using WriteAllEntriesAndFlush before calling {nameof(this.GetAllEntriesAndPrepToWriteAllEntries)} again.");
+                        throw new InvalidOperationException($"BinaryPlaceholderListDatabase should always flush queue placeholders using WriteAllEntriesAndFlush before calling {nameof(this.GetAllEntriesAndPrepToWriteAllEntries)} again.");
                         }
 
-                        this.placeholderChangesWhileRebuildingList = new List<PlaceholderDataEntry>();
+                        this.placeholderChangesWhileRebuildingList = new List<Tuple<byte, PlaceholderEvent>>();
                     }))
                 {
                     throw new InvalidDataException(error);
@@ -149,7 +151,7 @@ namespace GVFS.Common
         }
 
         /// <summary>
-        /// Gets all entries and prepares the PlaceholderListDatabase for a call to WriteAllEntriesAndFlush.
+        /// Gets all entries and prepares the BinaryPlaceholderListDatabase for a call to WriteAllEntriesAndFlush.
         /// </summary>
         /// <exception cref="InvalidOperationException">
         /// GetAllEntriesAndPrepToWriteAllEntries was called (a second time) without first calling WriteAllEntriesAndFlush.
@@ -157,29 +159,39 @@ namespace GVFS.Common
         /// <remarks>
         /// Usage notes:
         ///     - All calls to GetAllEntriesAndPrepToWriteAllEntries must be paired with a subsequent call to WriteAllEntriesAndFlush
-        ///     - If WriteAllEntriesAndFlush is *not* called entries that were added to the PlaceholderListDatabase after
+        ///     - If WriteAllEntriesAndFlush is *not* called entries that were added to the BinaryPlaceholderListDatabase after
         ///       calling GetAllEntriesAndPrepToWriteAllEntries will be lost
         /// </remarks>
-        public void GetAllEntriesAndPrepToWriteAllEntries(out List<PlaceholderData> filePlaceholders, out List<PlaceholderData> folderPlaceholders)
+        public void GetAllEntriesAndPrepToWriteAllEntries(out IReadOnlyList<AddFileEntry> filePlaceholders, out IReadOnlyList<AddFolderEntry> folderPlaceholders)
         {
             try
             {
-                List<PlaceholderData> filePlaceholdersFromDisk = new List<PlaceholderData>(Math.Max(1, this.EstimatedCount));
-                List<PlaceholderData> folderPlaceholdersFromDisk = new List<PlaceholderData>(Math.Max(1, (int)(this.EstimatedCount * .3)));
+                HashSet<AddFileEntry> filePlaceholdersFromDisk = new HashSet<AddFileEntry>(Math.Max(1, this.EstimatedCount));
+                HashSet<AddFolderEntry> folderPlaceholdersFromDisk = new HashSet<AddFolderEntry>(Math.Max(1, (int)(this.EstimatedCount * .3)));
 
                 string error;
-                if (!this.TryLoadFromDisk<string, string>(
+                if (!this.TryLoadFromDisk<string, PlaceholderEvent>(
                     this.TryParseAddLine,
                     this.TryParseRemoveLine,
                     (key, value) =>
                     {
-                        if (value == PartialFolderValue || value == ExpandedFolderValue)
+                        switch (value)
                         {
-                            folderPlaceholdersFromDisk.Add(new PlaceholderData(path: key, fileShaOrFolderValue: value));
+                            case AddFileEntry addFileEntry:
+                                filePlaceholdersFromDisk.Add(addFileEntry);
+                                break;
+                            case AddFolderEntry addFolderEntry:
+                                folderPlaceholdersFromDisk.Add(addFolderEntry);
+                                break;
+                            default:
+                                throw new ArgumentException($"Parsed value not of a supported type");
                         }
-                        else
+                    },
+                    (key) =>
+                    {
+                        if (!filePlaceholdersFromDisk.Remove(new AddFileEntry(key, string.Empty)))
                         {
-                            filePlaceholdersFromDisk.Add(new PlaceholderData(path: key, fileShaOrFolderValue: value));
+                            folderPlaceholdersFromDisk.Remove(new AddFolderEntry(key, false));
                         }
                     },
                     out error,
@@ -187,17 +199,17 @@ namespace GVFS.Common
                     {
                         if (this.placeholderChangesWhileRebuildingList != null)
                         {
-                            throw new InvalidOperationException($"PlaceholderListDatabase should always flush queue placeholders using WriteAllEntriesAndFlush before calling {(nameof(this.GetAllEntriesAndPrepToWriteAllEntries))} again.");
+                            throw new InvalidOperationException($"BinaryPlaceholderListDatabase should always flush queue placeholders using WriteAllEntriesAndFlush before calling {(nameof(this.GetAllEntriesAndPrepToWriteAllEntries))} again.");
                         }
 
-                        this.placeholderChangesWhileRebuildingList = new List<PlaceholderDataEntry>();
+                        this.placeholderChangesWhileRebuildingList = new List<Tuple<byte, PlaceholderEvent>>();
                     }))
                 {
                     throw new InvalidDataException(error);
                 }
 
-                filePlaceholders = filePlaceholdersFromDisk;
-                folderPlaceholders = folderPlaceholdersFromDisk;
+                filePlaceholders = filePlaceholdersFromDisk.ToList();
+                folderPlaceholders = folderPlaceholdersFromDisk.ToList();
             }
             catch (Exception e)
             {
@@ -205,24 +217,25 @@ namespace GVFS.Common
             }
         }
 
-        public Dictionary<string, PlaceholderListDatabase.PlaceholderData> GetAllFileEntries()
+        public Dictionary<string, AddFileEntry> GetAllFileEntries()
         {
             try
             {
-                Dictionary<string, PlaceholderListDatabase.PlaceholderData> filePlaceholdersFromDiskByPath =
-                    new Dictionary<string, PlaceholderListDatabase.PlaceholderData>(Math.Max(1, this.EstimatedCount), StringComparer.Ordinal);
+                Dictionary<string, AddFileEntry> filePlaceholdersFromDiskByPath =
+                    new Dictionary<string, AddFileEntry>(Math.Max(1, this.EstimatedCount), StringComparer.Ordinal);
 
                 string error;
-                if (!this.TryLoadFromDisk<string, string>(
+                if (!this.TryLoadFromDisk<string, PlaceholderEvent>(
                     this.TryParseAddLine,
                     this.TryParseRemoveLine,
                     (key, value) =>
                     {
-                        if (value != PartialFolderValue && value != ExpandedFolderValue)
+                        if (value is AddFileEntry)
                         {
-                            filePlaceholdersFromDiskByPath[key] = new PlaceholderData(path: key, fileShaOrFolderValue: value);
+                            filePlaceholdersFromDiskByPath[key] = (AddFileEntry)value;
                         }
                     },
+                    key => filePlaceholdersFromDiskByPath.Remove(key),
                     out error))
                 {
                     throw new InvalidDataException(error);
@@ -236,7 +249,7 @@ namespace GVFS.Common
             }
         }
 
-        public void WriteAllEntriesAndFlush(IEnumerable<PlaceholderData> updatedPlaceholders)
+        public void WriteAllEntriesAndFlush(IEnumerable<PlaceholderEvent> updatedPlaceholders)
         {
             try
             {
@@ -248,41 +261,46 @@ namespace GVFS.Common
             }
         }
 
-        private IEnumerable<string> GenerateDataLines(IEnumerable<PlaceholderData> updatedPlaceholders)
+        private static void SerializeEvent(BinaryWriter writer, PlaceholderEvent placeholderEvent)
+        {
+            placeholderEvent.Serialize(writer);
+        }
+
+        private IEnumerable<Tuple<byte, PlaceholderEvent>> GenerateDataLines(IEnumerable<PlaceholderEvent> updatedPlaceholders)
         {
             HashSet<string> keys = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
             this.EstimatedCount = 0;
-            foreach (PlaceholderData updated in updatedPlaceholders)
+            foreach (PlaceholderEvent updated in updatedPlaceholders)
             {
                 if (keys.Add(updated.Path))
                 {
                     this.EstimatedCount++;
                 }
 
-                yield return this.FormatAddLine(updated.Path + PathTerminator + updated.Sha);
+                yield return Tuple.Create(AddEntryPrefix, updated);
             }
 
             if (this.placeholderChangesWhileRebuildingList != null)
             {
-                foreach (PlaceholderDataEntry entry in this.placeholderChangesWhileRebuildingList)
+                foreach (Tuple<byte, PlaceholderEvent> entry in this.placeholderChangesWhileRebuildingList)
                 {
-                    if (entry.DeleteEntry)
+                    if (entry.Item1 == RemoveEntryPrefix)
                     {
-                        if (keys.Remove(entry.Path))
+                        if (keys.Remove(entry.Item2.Path))
                         {
                             this.EstimatedCount--;
-                            yield return this.FormatRemoveLine(entry.Path);
+                            yield return entry;
                         }
                     }
                     else
                     {
-                        if (keys.Add(entry.Path))
+                        if (keys.Add(entry.Item2.Path))
                         {
                             this.EstimatedCount++;
                         }
 
-                        yield return this.FormatAddLine(entry.Path + PathTerminator + entry.Sha);
+                        yield return entry;
                     }
                 }
 
@@ -290,18 +308,18 @@ namespace GVFS.Common
             }
         }
 
-        private void AddAndFlush(string path, string sha)
+        private void AddAndFlush(PlaceholderEvent entry)
         {
             try
             {
                 this.WriteAddEntry(
-                    path + PathTerminator + sha,
+                    entry,
                     () =>
                     {
                         this.EstimatedCount++;
                         if (this.placeholderChangesWhileRebuildingList != null)
                         {
-                            this.placeholderChangesWhileRebuildingList.Add(new PlaceholderDataEntry(path, sha));
+                            this.placeholderChangesWhileRebuildingList.Add(Tuple.Create(AddEntryPrefix, entry));
                         }
                     });
             }
@@ -311,88 +329,37 @@ namespace GVFS.Common
             }
         }
 
-        private bool TryParseAddLine(string line, out string key, out string value, out string error)
+        private bool TryParseAddLine(BinaryReader reader, out string key, out PlaceholderEvent value, out string error)
         {
-            // Expected: <Placeholder-Path>\0<40-Char-SHA1>
-            int idx = line.IndexOf(PathTerminator);
-            if (idx < 0)
+            // Expected: <FileOrFolderType><Path>[<sha>]
+            byte type = reader.ReadByte();
+            switch (type)
             {
-                key = null;
-                value = null;
-                error = "Add line missing path terminator: " + line;
-                return false;
+                case PlaceholderEvent.FilePrefix:
+                    value = new AddFileEntry(reader.ReadString(), new string(reader.ReadChars(40)));
+                    break;
+                case PlaceholderEvent.ExpandedFolderPrefix:
+                case PlaceholderEvent.PartialFolderPrefix:
+                    value = new AddFolderEntry(reader.ReadString(), type == PlaceholderEvent.ExpandedFolderPrefix);
+                    break;
+                default:
+                    key = null;
+                    value = null;
+                    error = $"Invalid entry type {type}";
+                    return false;
             }
 
-            if (idx + 1 + GVFSConstants.ShaStringLength != line.Length)
-            {
-                key = null;
-                value = null;
-                error = $"Invalid SHA1 length {line.Length - idx - 1}: " + line;
-                return false;
-            }
-
-            key = line.Substring(0, idx);
-            value = line.Substring(idx + 1, GVFSConstants.ShaStringLength);
-
+            key = value.Path;
             error = null;
             return true;
         }
 
-        private bool TryParseRemoveLine(string line, out string key, out string error)
+        private bool TryParseRemoveLine(BinaryReader reader, out string key, out string error)
         {
             // The key is a path taking the entire line.
-            key = line;
+            key = reader.ReadString();
             error = null;
             return true;
-        }
-
-        public class PlaceholderData
-        {
-            public PlaceholderData(string path, string fileShaOrFolderValue)
-            {
-                this.Path = path;
-                this.Sha = fileShaOrFolderValue;
-            }
-
-            public string Path { get; }
-            public string Sha { get; }
-
-            public bool IsFolder
-            {
-                get
-                {
-                    return this.Sha == PartialFolderValue || this.IsExpandedFolder;
-                }
-            }
-
-            public bool IsExpandedFolder
-            {
-                get
-                {
-                    return this.Sha == ExpandedFolderValue;
-                }
-            }
-        }
-
-        private class PlaceholderDataEntry
-        {
-            public PlaceholderDataEntry(string path, string sha)
-            {
-                this.Path = path;
-                this.Sha = sha;
-                this.DeleteEntry = false;
-            }
-
-            public PlaceholderDataEntry(string path)
-            {
-                this.Path = path;
-                this.Sha = null;
-                this.DeleteEntry = true;
-            }
-
-            public string Path { get; }
-            public string Sha { get; }
-            public bool DeleteEntry { get; }
         }
     }
 }

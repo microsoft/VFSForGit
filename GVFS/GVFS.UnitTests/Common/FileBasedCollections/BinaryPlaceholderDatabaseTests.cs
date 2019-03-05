@@ -1,15 +1,16 @@
 ﻿using GVFS.Common;
+using GVFS.Common.FileBasedCollections;
 using GVFS.Tests.Should;
 using GVFS.UnitTests.Mock;
 using GVFS.UnitTests.Mock.FileSystem;
 using NUnit.Framework;
 using System.Collections.Generic;
 
-namespace GVFS.UnitTests.Common
+// GVFS.UnitTests.Common.FileBasedCollections.BinaryPlaceholderDatabaseTests.TestPerformance
+namespace GVFS.UnitTests.Common.FileBasedCollections
 {
-#pragma warning disable 0618
     [TestFixture]
-    public class PlaceholderDatabaseTests
+    public class BinaryPlaceholderDatabaseTests
     {
         private const string MockEntryFileName = "mock:\\entries.dat";
 
@@ -32,7 +33,7 @@ namespace GVFS.UnitTests.Common
         public void ParsesExistingDataCorrectly()
         {
             ConfigurableFileSystem fs = new ConfigurableFileSystem();
-            PlaceholderListDatabase dut = CreatePlaceholderListDatabase(
+            BinaryPlaceholderListDatabase dut = CreatePlaceholderListDatabase(
                 fs,
                 "A .gitignore\0AE930E4CF715315FC90D4AEC98E16A7398F8BF64\r\n" +
                 "A Test_EPF_UpdatePlaceholderTests\\LockToPreventDelete\\test.txt\0B6948308A8633CC1ED94285A1F6BF33E35B7C321\r\n" +
@@ -51,7 +52,7 @@ namespace GVFS.UnitTests.Common
         public void WritesPlaceholderAddToFile()
         {
             ConfigurableFileSystem fs = new ConfigurableFileSystem();
-            PlaceholderListDatabase dut = CreatePlaceholderListDatabase(fs, string.Empty);
+            BinaryPlaceholderListDatabase dut = CreatePlaceholderListDatabase(fs, string.Empty);
             dut.AddAndFlushFile(InputGitIgnorePath, InputGitIgnoreSHA);
 
             fs.ExpectedFiles[MockEntryFileName].ReadAsString().ShouldEqual(ExpectedGitIgnoreEntry);
@@ -65,7 +66,7 @@ namespace GVFS.UnitTests.Common
         public void GetAllEntriesAndPrepToWriteAllEntriesReturnsCorrectEntries()
         {
             ConfigurableFileSystem fs = new ConfigurableFileSystem();
-            using (PlaceholderListDatabase dut1 = CreatePlaceholderListDatabase(fs, string.Empty))
+            using (BinaryPlaceholderListDatabase dut1 = CreatePlaceholderListDatabase(fs, string.Empty))
             {
                 dut1.AddAndFlushFile(InputGitIgnorePath, InputGitIgnoreSHA);
                 dut1.AddAndFlushFile(InputGitAttributesPath, InputGitAttributesSHA);
@@ -74,9 +75,9 @@ namespace GVFS.UnitTests.Common
             }
 
             string error;
-            PlaceholderListDatabase dut2;
-            PlaceholderListDatabase.TryCreate(null, MockEntryFileName, fs, out dut2, out error).ShouldEqual(true, error);
-            List<PlaceholderListDatabase.PlaceholderData> allData = dut2.GetAllEntriesAndPrepToWriteAllEntries();
+            BinaryPlaceholderListDatabase dut2;
+            BinaryPlaceholderListDatabase.TryCreate(null, MockEntryFileName, fs, out dut2, out error).ShouldEqual(true, error);
+            List<PlaceholderEvent> allData = dut2.GetAllEntriesAndPrepToWriteAllEntries();
             allData.Count.ShouldEqual(2);
         }
 
@@ -84,7 +85,7 @@ namespace GVFS.UnitTests.Common
         public void GetAllEntriesAndPrepToWriteAllEntriesSplitsFilesAndFoldersCorrectly()
         {
             ConfigurableFileSystem fs = new ConfigurableFileSystem();
-            using (PlaceholderListDatabase dut1 = CreatePlaceholderListDatabase(fs, string.Empty))
+            using (BinaryPlaceholderListDatabase dut1 = CreatePlaceholderListDatabase(fs, string.Empty))
             {
                 dut1.AddAndFlushFile(InputGitIgnorePath, InputGitIgnoreSHA);
                 dut1.AddAndFlushFolder("partialFolder", isExpanded: false);
@@ -95,20 +96,20 @@ namespace GVFS.UnitTests.Common
             }
 
             string error;
-            PlaceholderListDatabase dut2;
-            PlaceholderListDatabase.TryCreate(null, MockEntryFileName, fs, out dut2, out error).ShouldEqual(true, error);
-            List<PlaceholderListDatabase.PlaceholderData> fileData;
-            List<PlaceholderListDatabase.PlaceholderData> folderData;
+            BinaryPlaceholderListDatabase dut2;
+            BinaryPlaceholderListDatabase.TryCreate(null, MockEntryFileName, fs, out dut2, out error).ShouldEqual(true, error);
+            IReadOnlyList<AddFileEntry> fileData;
+            IReadOnlyList<AddFolderEntry> folderData;
             dut2.GetAllEntriesAndPrepToWriteAllEntries(out fileData, out folderData);
             fileData.Count.ShouldEqual(2);
             folderData.Count.ShouldEqual(2);
             folderData.ShouldContain(
                 new[]
                 {
-                    new PlaceholderListDatabase.PlaceholderData("partialFolder", PlaceholderListDatabase.PartialFolderValue),
-                    new PlaceholderListDatabase.PlaceholderData("expandedFolder", PlaceholderListDatabase.ExpandedFolderValue)
+                    new AddFolderEntry("partialFolder", false),
+                    new AddFolderEntry("expandedFolder", true)
                 },
-                (data1, data2) => data1.Path == data2.Path && data1.Sha == data2.Sha);
+                (data1, data2) => data1.Path == data2.Path && data1.IsExpandedFolder == data2.IsExpandedFolder);
         }
 
         [TestCase]
@@ -117,12 +118,12 @@ namespace GVFS.UnitTests.Common
             ConfigurableFileSystem fs = new ConfigurableFileSystem();
             fs.ExpectedFiles.Add(MockEntryFileName + ".tmp", new ReusableMemoryStream(string.Empty));
 
-            PlaceholderListDatabase dut = CreatePlaceholderListDatabase(fs, string.Empty);
+            BinaryPlaceholderListDatabase dut = CreatePlaceholderListDatabase(fs, string.Empty);
 
-            List<PlaceholderListDatabase.PlaceholderData> allData = new List<PlaceholderListDatabase.PlaceholderData>()
+            List<AddFileEntry> allData = new List<AddFileEntry>()
             {
-                new PlaceholderListDatabase.PlaceholderData(InputGitIgnorePath, InputGitIgnoreSHA),
-                new PlaceholderListDatabase.PlaceholderData(InputGitAttributesPath, InputGitAttributesSHA)
+                new AddFileEntry(InputGitIgnorePath, InputGitIgnoreSHA),
+                new AddFileEntry(InputGitAttributesPath, InputGitAttributesSHA)
             };
 
             dut.WriteAllEntriesAndFlush(allData);
@@ -135,9 +136,9 @@ namespace GVFS.UnitTests.Common
             ConfigurableFileSystem fs = new ConfigurableFileSystem();
             fs.ExpectedFiles.Add(MockEntryFileName + ".tmp", new ReusableMemoryStream(string.Empty));
 
-            PlaceholderListDatabase dut = CreatePlaceholderListDatabase(fs, ExpectedGitIgnoreEntry);
+            BinaryPlaceholderListDatabase dut = CreatePlaceholderListDatabase(fs, ExpectedGitIgnoreEntry);
 
-            List<PlaceholderListDatabase.PlaceholderData> existingEntries = dut.GetAllEntriesAndPrepToWriteAllEntries();
+            List<PlaceholderEvent> existingEntries = dut.GetAllEntriesAndPrepToWriteAllEntries();
 
             dut.AddAndFlushFile(InputGitAttributesPath, InputGitAttributesSHA);
 
@@ -153,9 +154,9 @@ namespace GVFS.UnitTests.Common
             ConfigurableFileSystem fs = new ConfigurableFileSystem();
             fs.ExpectedFiles.Add(MockEntryFileName + ".tmp", new ReusableMemoryStream(string.Empty));
 
-            PlaceholderListDatabase dut = CreatePlaceholderListDatabase(fs, ExpectedTwoEntries);
+            BinaryPlaceholderListDatabase dut = CreatePlaceholderListDatabase(fs, ExpectedTwoEntries);
 
-            List<PlaceholderListDatabase.PlaceholderData> existingEntries = dut.GetAllEntriesAndPrepToWriteAllEntries();
+            List<PlaceholderEvent> existingEntries = dut.GetAllEntriesAndPrepToWriteAllEntries();
 
             dut.RemoveAndFlush(InputGitAttributesPath);
 
@@ -164,13 +165,13 @@ namespace GVFS.UnitTests.Common
         }
 
         [TestCase]
-        public void TestPlaceholderLoadingPerformance()
+        public void TestPerformance()
         {
             const int numberOfPlaceholders = 100000;
             ConfigurableFileSystem fs = new ConfigurableFileSystem();
             var sw = new System.Diagnostics.Stopwatch();
 
-            using (PlaceholderListDatabase dut1 = CreatePlaceholderListDatabase(fs, string.Empty))
+            using (BinaryPlaceholderListDatabase dut1 = CreatePlaceholderListDatabase(fs, string.Empty))
             {
                 for (int i = 0; i < numberOfPlaceholders; i++)
                 {
@@ -179,23 +180,23 @@ namespace GVFS.UnitTests.Common
             }
 
             string error;
-            PlaceholderListDatabase dut2;
-            PlaceholderListDatabase.TryCreate(null, MockEntryFileName, fs, out dut2, out error).ShouldEqual(true, error);
+            BinaryPlaceholderListDatabase dut2;
+            BinaryPlaceholderListDatabase.TryCreate(null, MockEntryFileName, fs, out dut2, out error).ShouldEqual(true, error);
             sw.Restart();
-            List<PlaceholderListDatabase.PlaceholderData> allData = dut2.GetAllEntriesAndPrepToWriteAllEntries();
+            List<PlaceholderEvent> allData = dut2.GetAllEntriesAndPrepToWriteAllEntries();
             sw.Stop();
             System.Console.WriteLine($"Loading {numberOfPlaceholders} took {sw.ElapsedMilliseconds}ms");
             sw.ElapsedMilliseconds.ShouldBeAtMost(1000);
             allData.Count.ShouldEqual(numberOfPlaceholders);
         }
 
-        private static PlaceholderListDatabase CreatePlaceholderListDatabase(ConfigurableFileSystem fs, string initialContents)
+        private static BinaryPlaceholderListDatabase CreatePlaceholderListDatabase(ConfigurableFileSystem fs, string initialContents)
         {
             fs.ExpectedFiles.Add(MockEntryFileName, new ReusableMemoryStream(initialContents));
 
             string error;
-            PlaceholderListDatabase dut;
-            PlaceholderListDatabase.TryCreate(null, MockEntryFileName, fs, out dut, out error).ShouldEqual(true, error);
+            BinaryPlaceholderListDatabase dut;
+            BinaryPlaceholderListDatabase.TryCreate(null, MockEntryFileName, fs, out dut, out error).ShouldEqual(true, error);
             dut.ShouldNotBeNull();
             return dut;
         }

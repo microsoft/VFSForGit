@@ -1,4 +1,5 @@
 ﻿using GVFS.Common;
+using GVFS.Common.FileBasedCollections;
 using GVFS.Common.FileSystem;
 using GVFS.Common.Git;
 using GVFS.Common.NamedPipes;
@@ -86,8 +87,8 @@ namespace GVFS.Virtualization
             this.BlobSizes = blobSizes;
             this.BlobSizes.Initialize();
 
-            PlaceholderListDatabase placeholders;
-            if (!PlaceholderListDatabase.TryCreate(
+            BinaryPlaceholderListDatabase placeholders;
+            if (!BinaryPlaceholderListDatabase.TryCreate(
                 this.context.Tracer,
                 Path.Combine(this.context.Enlistment.DotGVFSRoot, GVFSConstants.DotGVFS.Databases.PlaceholderList),
                 this.context.FileSystem,
