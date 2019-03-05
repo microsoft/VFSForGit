@@ -108,6 +108,21 @@ namespace GVFS.FunctionalTests.Tools
             return this.CallGVFS("service " + argument, failOnError: true);
         }
 
+        public string ReadConfig(string key)
+        {
+            return this.CallGVFS($"config {key}", failOnError: true).TrimEnd('\r', '\n');
+        }
+
+        public void WriteConfig(string key, string value)
+        {
+            this.CallGVFS($"config {key} {value}", failOnError: true);
+        }
+
+        public void DeleteConfig(string key)
+        {
+            this.CallGVFS($"config --delete {key}", failOnError: true);
+        }
+
         private string CallGVFS(string args, bool failOnError = false, string trace = null, string standardInput = null, string internalParameter = null)
         {
             ProcessStartInfo processInfo = null;
