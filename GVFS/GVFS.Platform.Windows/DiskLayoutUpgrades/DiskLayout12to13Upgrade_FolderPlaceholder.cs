@@ -55,7 +55,7 @@ namespace GVFS.Platform.Windows.DiskLayoutUpgrades
                     placeholders.WriteAllEntriesAndFlush(placeholderEntries);
                 }
             }
-#pragma warning enable 0618
+#pragma warning restore 0618
             catch (IOException ex)
             {
                 tracer.RelatedError("Could not write to placeholder database: " + ex.ToString());
