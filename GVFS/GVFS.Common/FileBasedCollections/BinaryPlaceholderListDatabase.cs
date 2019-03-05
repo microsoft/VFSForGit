@@ -126,7 +126,7 @@ namespace GVFS.Common.FileBasedCollections
                 if (!this.TryLoadFromDisk<string, PlaceholderEvent>(
                     this.TryParseAddLine,
                     this.TryParseRemoveLine,
-                    (key, value) => placeholders.TryAdd(key, value),
+                    (key, value) => placeholders[key] = value,
                     (key) => placeholders.Remove(key),
                     out error,
                     () =>
@@ -177,10 +177,10 @@ namespace GVFS.Common.FileBasedCollections
                         switch (value)
                         {
                             case AddFileEntry addFileEntry:
-                                filePlaceholdersFromDisk.TryAdd(key, addFileEntry);
+                                filePlaceholdersFromDisk[key] = addFileEntry;
                                 break;
                             case AddFolderEntry addFolderEntry:
-                                folderPlaceholdersFromDisk.TryAdd(key, addFolderEntry);
+                                folderPlaceholdersFromDisk[key] = addFolderEntry;
                                 break;
                             default:
                                 throw new ArgumentException($"Parsed value not of a supported type");
