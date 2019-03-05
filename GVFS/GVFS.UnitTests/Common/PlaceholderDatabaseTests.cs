@@ -185,7 +185,7 @@ namespace GVFS.UnitTests.Common
             List<PlaceholderListDatabase.PlaceholderData> allData = dut2.GetAllEntriesAndPrepToWriteAllEntries();
             sw.Stop();
             System.Console.WriteLine($"Loading {numberOfPlaceholders} took {sw.ElapsedMilliseconds}ms");
-            sw.ElapsedMilliseconds.ShouldBeAtMost(1000);
+            sw.ElapsedMilliseconds.ShouldBeAtMost(300);
             allData.Count.ShouldEqual(numberOfPlaceholders);
         }
 

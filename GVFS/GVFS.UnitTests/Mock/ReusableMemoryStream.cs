@@ -60,6 +60,13 @@ namespace GVFS.UnitTests.Mock
             return Encoding.UTF8.GetString(this.contents, 0, (int)this.length);
         }
 
+        public byte[] ReadAllBytes()
+        {
+            byte[] result = new byte[this.length];
+            Array.Copy(this.contents, result, this.length);
+            return result;
+        }
+
         public string ReadAt(long position, long length)
         {
             long lastPosition = this.Position;

@@ -120,20 +120,20 @@ namespace GVFS.Common.FileBasedCollections
         {
             try
             {
-                List<PlaceholderEvent> placeholders = new List<PlaceholderEvent>(Math.Max(1, this.EstimatedCount));
+                Dictionary<string, PlaceholderEvent> placeholders = new Dictionary<string, PlaceholderEvent>(Math.Max(1, this.EstimatedCount));
 
                 string error;
                 if (!this.TryLoadFromDisk<string, PlaceholderEvent>(
                     this.TryParseAddLine,
                     this.TryParseRemoveLine,
-                    (key, value) => placeholders.Add(value),
-                    (key) => placeholders.RemoveAll(x => x.Path == key), // as this method is only called in testing, performance is not critical here
+                    (key, value) => placeholders.TryAdd(key, value),
+                    (key) => placeholders.Remove(key),
                     out error,
                     () =>
                     {
                         if (this.placeholderChangesWhileRebuildingList != null)
                         {
-                        throw new InvalidOperationException($"BinaryPlaceholderListDatabase should always flush queue placeholders using WriteAllEntriesAndFlush before calling {nameof(this.GetAllEntriesAndPrepToWriteAllEntries)} again.");
+                            throw new InvalidOperationException($"BinaryPlaceholderListDatabase should always flush queue placeholders using WriteAllEntriesAndFlush before calling {nameof(this.GetAllEntriesAndPrepToWriteAllEntries)} again.");
                         }
 
                         this.placeholderChangesWhileRebuildingList = new List<Tuple<byte, PlaceholderEvent>>();
@@ -142,7 +142,7 @@ namespace GVFS.Common.FileBasedCollections
                     throw new InvalidDataException(error);
                 }
 
-                return placeholders;
+                return placeholders.Values.ToList();
             }
             catch (Exception e)
             {
@@ -177,10 +177,10 @@ namespace GVFS.Common.FileBasedCollections
                         switch (value)
                         {
                             case AddFileEntry addFileEntry:
-                                filePlaceholdersFromDisk.Add(key, addFileEntry);
+                                filePlaceholdersFromDisk.TryAdd(key, addFileEntry);
                                 break;
                             case AddFolderEntry addFolderEntry:
-                                folderPlaceholdersFromDisk.Add(key, addFolderEntry);
+                                folderPlaceholdersFromDisk.TryAdd(key, addFolderEntry);
                                 break;
                             default:
                                 throw new ArgumentException($"Parsed value not of a supported type");
