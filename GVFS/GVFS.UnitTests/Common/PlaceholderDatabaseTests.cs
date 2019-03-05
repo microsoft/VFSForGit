@@ -162,6 +162,31 @@ namespace GVFS.UnitTests.Common
             fs.ExpectedFiles[MockEntryFileName].ReadAsString().ShouldEqual(ExpectedTwoEntries + DeleteGitAttributesEntry);
         }
 
+        [TestCase]
+        public void TestPlaceholderLoadingPerformance()
+        {
+            const int numberOfPlaceholders = 100000;
+            ConfigurableFileSystem fs = new ConfigurableFileSystem();
+            var sw = new System.Diagnostics.Stopwatch();
+
+            using (PlaceholderListDatabase dut1 = CreatePlaceholderListDatabase(fs, string.Empty))
+            {
+                for (int i = 0; i < numberOfPlaceholders; i++)
+                {
+                    dut1.AddAndFlushFile(System.Guid.NewGuid().ToString(), InputGitIgnoreSHA);
+                }
+            }
+
+            string error;
+            PlaceholderListDatabase dut2;
+            PlaceholderListDatabase.TryCreate(null, MockEntryFileName, fs, out dut2, out error).ShouldEqual(true, error);
+            sw.Restart();
+            List<PlaceholderListDatabase.PlaceholderData> allData = dut2.GetAllEntriesAndPrepToWriteAllEntries();
+            sw.Stop();
+            sw.ElapsedMilliseconds.ShouldBeAtMost(1000);
+            allData.Count.ShouldEqual(numberOfPlaceholders);
+        }
+
         private static PlaceholderListDatabase CreatePlaceholderListDatabase(ConfigurableFileSystem fs, string initialContents)
         {
             fs.ExpectedFiles.Add(MockEntryFileName, new ReusableMemoryStream(initialContents));
