@@ -2,7 +2,7 @@ using GVFS.Common;
 using GVFS.Common.FileSystem;
 using GVFS.Common.Tracing;
 using Microsoft.Win32;
-using ProjFS;
+using Microsoft.Windows.ProjFS;
 using System;
 using System.ComponentModel;
 using System.IO;
@@ -617,7 +617,7 @@ namespace GVFS.Platform.Windows
         {
             error = string.Empty;
             Guid virtualizationInstanceGuid = Guid.NewGuid();
-            HResult result = VirtualizationInstance.ConvertDirectoryToVirtualizationRoot(virtualizationInstanceGuid, folderPath);
+            HResult result = VirtualizationInstance.MarkDirectoryAsVirtualizationRoot(folderPath, virtualizationInstanceGuid);
             if (result != HResult.Ok)
             {
                 error = "Failed to prepare \"" + folderPath + "\" for callbacks, error: " + result.ToString("F");

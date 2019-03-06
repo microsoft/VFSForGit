@@ -1,7 +1,8 @@
 ﻿using GVFS.Common;
-using ProjFS;
+using Microsoft.Windows.ProjFS;
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Threading;
 
 namespace GVFS.UnitTests.Windows.Mock
@@ -30,13 +31,11 @@ namespace GVFS.UnitTests.Windows.Mock
         public ConcurrentHashSet<string> CreatedPlaceholders { get; private set; }
 
         public CancelCommandCallback OnCancelCommand { get; set; }
-        public EndDirectoryEnumerationCallback OnEndDirectoryEnumeration { get; set; }
-        public GetDirectoryEnumerationCallback OnGetDirectoryEnumeration { get; set; }
-        public GetFileStreamCallback OnGetFileStream { get; set; }
-        public GetPlaceholderInformationCallback OnGetPlaceholderInformation { get; set; }
+
+        public IRequiredCallbacks requiredCallbacks { get; set; }
         public NotifyFileOpenedCallback OnNotifyFileOpened { get; set; }
         public NotifyNewFileCreatedCallback OnNotifyNewFileCreated { get; set; }
-        public NotifyFileSupersededOrOverwrittenCallback OnNotifyFileSupersededOrOverwritten { get; set; }
+        public NotifyFileOverwrittenCallback OnNotifyFileOverwritten { get; set; }
         public NotifyFileHandleClosedNoModificationCallback OnNotifyFileHandleClosedNoModification { get; set; }
         public NotifyFileHandleClosedFileModifiedOrDeletedCallback OnNotifyFileHandleClosedFileModifiedOrDeleted { get; set; }
         public NotifyFilePreConvertToFullCallback OnNotifyFilePreConvertToFull { get; set; }
@@ -44,9 +43,8 @@ namespace GVFS.UnitTests.Windows.Mock
         public NotifyHardlinkCreatedCallback OnNotifyHardlinkCreated { get; set; }
         public NotifyPreDeleteCallback OnNotifyPreDelete { get; set; }
         public NotifyPreRenameCallback OnNotifyPreRename { get; set; }
-        public NotifyPreSetHardlinkCallback OnNotifyPreSetHardlink { get; set; }
+        public NotifyPreCreateHardlinkCallback OnNotifyPreCreateHardlink { get; set; }
         public QueryFileNameCallback OnQueryFileName { get; set; }
-        public StartDirectoryEnumerationCallback OnStartDirectoryEnumeration { get; set; }
 
         public HResult WriteFileReturnResult { get; set; }
 
@@ -55,22 +53,17 @@ namespace GVFS.UnitTests.Windows.Mock
         public HResult DeleteFileResult { get; set; }
         public UpdateFailureCause DeleteFileUpdateFailureCause { get; set; }
 
-        public HResult UpdatePlaceholderIfNeededResult { get; set; }
-        public UpdateFailureCause UpdatePlaceholderIfNeededFailureCause { get; set; }
+        public HResult UpdateFileIfNeededResult { get; set; }
+        public UpdateFailureCause UpdateFileIfNeededFailureCase { get; set; }
 
-        public HResult StartVirtualizationInstance(
-            string virtualizationRootPath,
-            uint poolThreadCount,
-            uint concurrentThreadCount,
-            bool enableNegativePathCache,
-            IReadOnlyCollection<NotificationMapping> notificationMappings)
+        public HResult StartVirtualizing(IRequiredCallbacks requiredCallbacks)
         {
+            this.requiredCallbacks = requiredCallbacks;
             return HResult.Ok;
         }
 
-        public HResult StopVirtualizationInstance()
+        public void StopVirtualizing()
         {
-            return HResult.Ok;
         }
 
         public HResult DetachDriver()
@@ -91,10 +84,10 @@ namespace GVFS.UnitTests.Windows.Mock
             return this.DeleteFileResult;
         }
 
-        public HResult UpdatePlaceholderIfNeeded(string relativePath, DateTime creationTime, DateTime lastAccessTime, DateTime lastWriteTime, DateTime changeTime, uint fileAttributes, long endOfFile, byte[] contentId, byte[] epochId, UpdateType updateFlags, out UpdateFailureCause failureReason)
+        public HResult UpdateFileIfNeeded(string relativePath, DateTime creationTime, DateTime lastAccessTime, DateTime lastWriteTime, DateTime changeTime, FileAttributes fileAttributes, long endOfFile, byte[] contentId, byte[] providerId, UpdateType updateFlags, out UpdateFailureCause failureReason)
         {
-            failureReason = this.UpdatePlaceholderIfNeededFailureCause;
-            return this.UpdatePlaceholderIfNeededResult;
+            failureReason = this.UpdateFileIfNeededFailureCase;
+            return this.UpdateFileIfNeededResult;
         }
 
         public HResult CreatePlaceholderAsHardlink(string destinationFileName, string hardLinkTarget)
@@ -102,7 +95,7 @@ namespace GVFS.UnitTests.Windows.Mock
             throw new NotImplementedException();
         }
 
-        public HResult ConvertDirectoryToPlaceholder(string targetDirectoryPath, byte[] contentId, byte[] providerId)
+        public HResult MarkDirectoryAsPlaceholder(string targetDirectoryPath, byte[] contentId, byte[] providerId)
         {
             throw new NotImplementedException();
         }
@@ -112,21 +105,34 @@ namespace GVFS.UnitTests.Windows.Mock
             this.waitForCreateWriteBuffer.Set();
             this.unblockCreateWriteBuffer.WaitOne();
 
-            return new WriteBuffer(desiredBufferSize, 1);
+            // TODO return new WriteBuffer(desiredBufferSize, 1);
+            return null;
         }
 
-        public HResult WriteFile(Guid streamGuid, WriteBuffer buffer, ulong byteOffset, uint length)
+        public WriteBuffer CreateWriteBuffer(ulong byteOffset, uint length, out ulong alignedByteOffset, out uint alignedLength)
+        {
+            this.waitForCreateWriteBuffer.Set();
+            this.unblockCreateWriteBuffer.WaitOne();
+
+            alignedByteOffset = 0;
+            alignedLength = 100;
+
+            // TODO return new WriteBuffer(desiredBufferSize, 1);
+            return null;
+        }
+
+        public HResult WriteFileData(Guid streamGuid, WriteBuffer buffer, ulong byteOffset, uint length)
         {
             return this.WriteFileReturnResult;
         }
 
-        public HResult WritePlaceholderInformation(
+        public HResult WritePlaceholderInfo(
             string relativePath,
             DateTime creationTime,
             DateTime lastAccessTime,
             DateTime lastWriteTime,
             DateTime changeTime,
-            uint fileAttributes,
+            FileAttributes fileAttributes,
             long endOfFile,
             bool isDirectory,
             byte[] contentId,
@@ -172,6 +178,30 @@ namespace GVFS.UnitTests.Windows.Mock
         public void WaitForCreateWriteBuffer()
         {
             this.waitForCreateWriteBuffer.WaitOne();
+        }
+
+        public HResult CompleteCommand(int commandId, NotificationType newNotificationMask)
+        {
+            this.commandCompleted.Set();
+            return HResult.Ok;
+        }
+
+        public HResult CompleteCommand(int commandId, IDirectoryEnumerationResults results)
+        {
+            this.commandCompleted.Set();
+            return HResult.Ok;
+        }
+
+        HResult IVirtualizationInstance.CompleteCommand(int commandId, HResult completionResult)
+        {
+            this.commandCompleted.Set();
+            return HResult.Ok;
+        }
+
+        public HResult CompleteCommand(int commandId)
+        {
+            this.commandCompleted.Set();
+            return HResult.Ok;
         }
 
         public void Dispose()

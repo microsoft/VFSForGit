@@ -125,7 +125,7 @@ namespace GVFS.Platform.Windows
             {
                 this.filterString = filter;
 
-                if (ProjFS.Utils.DoesNameContainWildCards(this.filterString))
+                if (Microsoft.Windows.ProjFS.Utils.DoesNameContainWildCards(this.filterString))
                 {
                     this.doesPatternMatch = doesWildcardPatternMatch;
                 }

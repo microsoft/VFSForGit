@@ -2,8 +2,8 @@
 using GVFS.Platform.Windows;
 using GVFS.Tests.Should;
 using GVFS.Virtualization.Projection;
+using Microsoft.Windows.ProjFS;
 using NUnit.Framework;
-using ProjFS;
 using System;
 using System.Collections.Generic;
 using System.Linq;

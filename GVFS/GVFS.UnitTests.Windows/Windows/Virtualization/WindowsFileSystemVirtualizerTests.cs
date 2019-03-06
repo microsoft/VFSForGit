@@ -12,8 +12,8 @@ using GVFS.UnitTests.Virtual;
 using GVFS.UnitTests.Windows.Mock;
 using GVFS.Virtualization;
 using GVFS.Virtualization.FileSystem;
+using Microsoft.Windows.ProjFS;
 using NUnit.Framework;
-using ProjFS;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -24,6 +24,9 @@ namespace GVFS.UnitTests.Windows.Virtualization
     [TestFixture]
     public class WindowsFileSystemVirtualizerTests : TestsWithCommonRepo
     {
+        private const uint TriggeringProcessId = 1;
+        private const string TriggeringProcessImageFileName = "UnitTests";
+
         private static readonly Dictionary<HResult, FSResult> MappedHResults = new Dictionary<HResult, FSResult>()
         {
             { HResult.Ok, FSResult.Ok },
@@ -106,8 +109,8 @@ namespace GVFS.UnitTests.Windows.Virtualization
             {
                 UpdateFailureReason failureReason = UpdateFailureReason.NoFailure;
 
-                mockVirtualization.UpdatePlaceholderIfNeededResult = HResult.Ok;
-                mockVirtualization.UpdatePlaceholderIfNeededFailureCause = UpdateFailureCause.NoFailure;
+                mockVirtualization.UpdateFileIfNeededResult = HResult.Ok;
+                mockVirtualization.UpdateFileIfNeededFailureCase = UpdateFailureCause.NoFailure;
                 virtualizer
                     .UpdatePlaceholderIfNeeded(
                         "test.txt",
@@ -120,11 +123,11 @@ namespace GVFS.UnitTests.Windows.Virtualization
                         string.Empty,
                         UpdatePlaceholderType.AllowReadOnly,
                         out failureReason)
-                    .ShouldEqual(new FileSystemResult(FSResult.Ok, (int)mockVirtualization.UpdatePlaceholderIfNeededResult));
-                failureReason.ShouldEqual((UpdateFailureReason)mockVirtualization.UpdatePlaceholderIfNeededFailureCause);
+                    .ShouldEqual(new FileSystemResult(FSResult.Ok, (int)mockVirtualization.UpdateFileIfNeededResult));
+                failureReason.ShouldEqual((UpdateFailureReason)mockVirtualization.UpdateFileIfNeededFailureCase);
 
-                mockVirtualization.UpdatePlaceholderIfNeededResult = HResult.FileNotFound;
-                mockVirtualization.UpdatePlaceholderIfNeededFailureCause = UpdateFailureCause.NoFailure;
+                mockVirtualization.UpdateFileIfNeededResult = HResult.FileNotFound;
+                mockVirtualization.UpdateFileIfNeededFailureCase = UpdateFailureCause.NoFailure;
                 virtualizer
                     .UpdatePlaceholderIfNeeded(
                         "test.txt",
@@ -137,11 +140,11 @@ namespace GVFS.UnitTests.Windows.Virtualization
                         string.Empty,
                         UpdatePlaceholderType.AllowReadOnly,
                         out failureReason)
-                    .ShouldEqual(new FileSystemResult(FSResult.FileOrPathNotFound, (int)mockVirtualization.UpdatePlaceholderIfNeededResult));
-                failureReason.ShouldEqual((UpdateFailureReason)mockVirtualization.UpdatePlaceholderIfNeededFailureCause);
+                    .ShouldEqual(new FileSystemResult(FSResult.FileOrPathNotFound, (int)mockVirtualization.UpdateFileIfNeededResult));
+                failureReason.ShouldEqual((UpdateFailureReason)mockVirtualization.UpdateFileIfNeededFailureCase);
 
-                mockVirtualization.UpdatePlaceholderIfNeededResult = HResult.VirtualizationInvalidOp;
-                mockVirtualization.UpdatePlaceholderIfNeededFailureCause = UpdateFailureCause.DirtyData;
+                mockVirtualization.UpdateFileIfNeededResult = HResult.VirtualizationInvalidOp;
+                mockVirtualization.UpdateFileIfNeededFailureCase = UpdateFailureCause.DirtyData;
                 virtualizer
                     .UpdatePlaceholderIfNeeded(
                         "test.txt",
@@ -154,8 +157,8 @@ namespace GVFS.UnitTests.Windows.Virtualization
                         string.Empty,
                         UpdatePlaceholderType.AllowReadOnly,
                         out failureReason)
-                    .ShouldEqual(new FileSystemResult(FSResult.VirtualizationInvalidOperation, (int)mockVirtualization.UpdatePlaceholderIfNeededResult));
-                failureReason.ShouldEqual((UpdateFailureReason)mockVirtualization.UpdatePlaceholderIfNeededFailureCause);
+                    .ShouldEqual(new FileSystemResult(FSResult.VirtualizationInvalidOperation, (int)mockVirtualization.UpdateFileIfNeededResult));
+                failureReason.ShouldEqual((UpdateFailureReason)mockVirtualization.UpdateFileIfNeededFailureCase);
             }
         }
 
@@ -182,9 +185,9 @@ namespace GVFS.UnitTests.Windows.Virtualization
 
                     Guid enumerationGuid = Guid.NewGuid();
                     gitIndexProjection.EnumerationInMemory = false;
-                    mockVirtualization.OnStartDirectoryEnumeration(1, enumerationGuid, "test").ShouldEqual(HResult.Pending);
+                    mockVirtualization.requiredCallbacks.StartDirectoryEnumerationCallback(1, enumerationGuid, "test", 1, "test").ShouldEqual(HResult.Pending);
                     mockVirtualization.WaitForCompletionStatus().ShouldEqual(HResult.Ok);
-                    mockVirtualization.OnEndDirectoryEnumeration(enumerationGuid).ShouldEqual(HResult.Ok);
+                    mockVirtualization.requiredCallbacks.EndDirectoryEnumerationCallback(enumerationGuid).ShouldEqual(HResult.Ok);
                 }
                 finally
                 {
@@ -216,8 +219,8 @@ namespace GVFS.UnitTests.Windows.Virtualization
 
                     Guid enumerationGuid = Guid.NewGuid();
                     gitIndexProjection.EnumerationInMemory = true;
-                    mockVirtualization.OnStartDirectoryEnumeration(1, enumerationGuid, "test").ShouldEqual(HResult.Ok);
-                    mockVirtualization.OnEndDirectoryEnumeration(enumerationGuid).ShouldEqual(HResult.Ok);
+                    mockVirtualization.requiredCallbacks.StartDirectoryEnumerationCallback(1, enumerationGuid, "test", TriggeringProcessId, TriggeringProcessImageFileName).ShouldEqual(HResult.Ok);
+                    mockVirtualization.requiredCallbacks.EndDirectoryEnumerationCallback(enumerationGuid).ShouldEqual(HResult.Ok);
                 }
                 finally
                 {
@@ -247,7 +250,7 @@ namespace GVFS.UnitTests.Windows.Virtualization
                     string error;
                     fileSystemCallbacks.TryStart(out error).ShouldEqual(true);
 
-                    mockVirtualization.OnGetPlaceholderInformation(1, "doesNotExist", 0, 0, 0, 0, 1, "UnitTests").ShouldEqual(HResult.FileNotFound);
+                    mockVirtualization.requiredCallbacks.GetPlaceholderInfoCallback(1, "doesNotExist", TriggeringProcessId, TriggeringProcessImageFileName).ShouldEqual(HResult.FileNotFound);
                 }
                 finally
                 {
@@ -277,7 +280,7 @@ namespace GVFS.UnitTests.Windows.Virtualization
                     string error;
                     fileSystemCallbacks.TryStart(out error).ShouldEqual(true);
 
-                    mockVirtualization.OnGetPlaceholderInformation(1, "test.txt", 0, 0, 0, 0, 1, "UnitTests").ShouldEqual(HResult.Pending);
+                    mockVirtualization.requiredCallbacks.GetPlaceholderInfoCallback(1, "test.txt", TriggeringProcessId, TriggeringProcessImageFileName).ShouldEqual(HResult.Pending);
                     mockVirtualization.WaitForCompletionStatus().ShouldEqual(HResult.Ok);
                     mockVirtualization.CreatedPlaceholders.ShouldContain(entry => entry == "test.txt");
                     gitIndexProjection.PlaceholdersCreated.ShouldContain(entry => entry == "test.txt");
@@ -321,7 +324,7 @@ namespace GVFS.UnitTests.Windows.Virtualization
                         gitIndexProjection.UnblockIsPathProjected();
                     });
 
-                    mockVirtualization.OnGetPlaceholderInformation(1, "test.txt", 0, 0, 0, 0, 1, "UnitTests").ShouldEqual(HResult.Pending);
+                    mockVirtualization.requiredCallbacks.GetPlaceholderInfoCallback(1, "test.txt", TriggeringProcessId, TriggeringProcessImageFileName).ShouldEqual(HResult.Pending);
 
                     // Cancelling before GetPlaceholderInformation has registered the command results in placeholders being created
                     mockVirtualization.WaitForPlaceholderCreate();
@@ -358,7 +361,7 @@ namespace GVFS.UnitTests.Windows.Virtualization
                     fileSystemCallbacks.TryStart(out error).ShouldEqual(true);
 
                     gitIndexProjection.BlockGetProjectedFileInfo(willWaitForRequest: true);
-                    mockVirtualization.OnGetPlaceholderInformation(1, "test.txt", 0, 0, 0, 0, 1, "UnitTests").ShouldEqual(HResult.Pending);
+                    mockVirtualization.requiredCallbacks.GetPlaceholderInfoCallback(1, "test.txt", TriggeringProcessId, TriggeringProcessImageFileName).ShouldEqual(HResult.Pending);
                     gitIndexProjection.WaitForGetProjectedFileInfo();
                     mockVirtualization.OnCancelCommand(1);
                     gitIndexProjection.UnblockGetProjectedFileInfo();
@@ -402,7 +405,7 @@ namespace GVFS.UnitTests.Windows.Virtualization
                     MockTracer mockTracker = this.Repo.Context.Tracer as MockTracer;
                     mockTracker.WaitRelatedEventName = "GetPlaceholderInformationAsyncHandler_GetProjectedFileInfo_Cancelled";
                     gitIndexProjection.ThrowOperationCanceledExceptionOnProjectionRequest = true;
-                    mockVirtualization.OnGetPlaceholderInformation(1, "test.txt", 0, 0, 0, 0, 1, "UnitTests").ShouldEqual(HResult.Pending);
+                    mockVirtualization.requiredCallbacks.GetPlaceholderInfoCallback(1, "test.txt", TriggeringProcessId, TriggeringProcessImageFileName).ShouldEqual(HResult.Pending);
 
                     // Cancelling in the middle of GetPlaceholderInformation in the middle of a network request should not result in placeholder
                     // getting created
@@ -443,12 +446,12 @@ namespace GVFS.UnitTests.Windows.Virtualization
                     byte[] contentId = FileSystemVirtualizer.ConvertShaToContentId("0123456789012345678901234567890123456789");
                     byte[] placeholderVersion = WindowsFileSystemVirtualizer.PlaceholderVersionId;
 
-                    mockVirtualization.OnGetFileStream(
+                    mockVirtualization.requiredCallbacks.GetFileDataCallback(
                         commandId: 1,
                         relativePath: "test.txt",
                         byteOffset: 10,
                         length: 100,
-                        streamGuid: Guid.NewGuid(),
+                        dataStreamId: Guid.NewGuid(),
                         contentId: contentId,
                         providerId: placeholderVersion,
                         triggeringProcessId: 2,
@@ -487,12 +490,12 @@ namespace GVFS.UnitTests.Windows.Virtualization
                     byte[] contentId = FileSystemVirtualizer.ConvertShaToContentId("0123456789012345678901234567890123456789");
                     byte[] epochId = new byte[] { FileSystemVirtualizer.PlaceholderVersion + 1 };
 
-                    mockVirtualization.OnGetFileStream(
+                    mockVirtualization.requiredCallbacks.GetFileDataCallback(
                         commandId: 1,
                         relativePath: "test.txt",
                         byteOffset: 0,
                         length: 100,
-                        streamGuid: Guid.NewGuid(),
+                        dataStreamId: Guid.NewGuid(),
                         contentId: contentId,
                         providerId: epochId,
                         triggeringProcessId: 2,
@@ -526,7 +529,13 @@ namespace GVFS.UnitTests.Windows.Virtualization
                     fileSystemCallbacks.TryStart(out string error).ShouldEqual(true);
 
                     NotificationType notificationType = NotificationType.UseExistingMask;
-                    mockVirtualization.OnNotifyFileRenamed("test.txt", Path.Combine(".git", "test.txt"), isDirectory: false, notificationMask: ref notificationType);
+                    mockVirtualization.OnNotifyFileRenamed(
+                        "test.txt",
+                        Path.Combine(".git", "test.txt"),
+                        isDirectory: false,
+                        triggeringProcessId: TriggeringProcessId,
+                        triggeringProcessImageFileName: TriggeringProcessImageFileName,
+                        notificationMask: out notificationType);
                     fileSystemCallbacks.OnIndexFileChangeCallCount.ShouldEqual(0);
                     fileSystemCallbacks.OnLogsHeadChangeCallCount.ShouldEqual(0);
                     fileSystemCallbacks.OnFileRenamedCallCount.ShouldEqual(1);
@@ -535,7 +544,13 @@ namespace GVFS.UnitTests.Windows.Virtualization
 
                     // We don't expect something to rename something from outside the .gitdir to the .git\index, but this
                     // verifies that we behave as expected in case that happens
-                    mockVirtualization.OnNotifyFileRenamed("test.txt", Path.Combine(".git", "index"), isDirectory: false, notificationMask: ref notificationType);
+                    mockVirtualization.OnNotifyFileRenamed(
+                        "test.txt",
+                        Path.Combine(".git", "index"),
+                        isDirectory: false,
+                        triggeringProcessId: TriggeringProcessId,
+                        triggeringProcessImageFileName: TriggeringProcessImageFileName,
+                        notificationMask: out notificationType);
                     fileSystemCallbacks.OnIndexFileChangeCallCount.ShouldEqual(1);
                     fileSystemCallbacks.OnLogsHeadChangeCallCount.ShouldEqual(0);
                     fileSystemCallbacks.OnFileRenamedCallCount.ShouldEqual(1);
@@ -544,7 +559,13 @@ namespace GVFS.UnitTests.Windows.Virtualization
 
                     // We don't expect something to rename something from outside the .gitdir to the .git\logs\HEAD, but this
                     // verifies that we behave as expected in case that happens
-                    mockVirtualization.OnNotifyFileRenamed("test.txt", Path.Combine(".git", "logs\\HEAD"), isDirectory: false, notificationMask: ref notificationType);
+                    mockVirtualization.OnNotifyFileRenamed(
+                        "test.txt",
+                        Path.Combine(".git", "logs\\HEAD"),
+                        isDirectory: false,
+                        triggeringProcessId: TriggeringProcessId,
+                        triggeringProcessImageFileName: TriggeringProcessImageFileName,
+                        notificationMask: out notificationType);
                     fileSystemCallbacks.OnIndexFileChangeCallCount.ShouldEqual(0);
                     fileSystemCallbacks.OnLogsHeadChangeCallCount.ShouldEqual(1);
                     fileSystemCallbacks.OnFileRenamedCallCount.ShouldEqual(1);
@@ -579,7 +600,13 @@ namespace GVFS.UnitTests.Windows.Virtualization
                     fileSystemCallbacks.TryStart(out string error).ShouldEqual(true);
 
                     NotificationType notificationType = NotificationType.UseExistingMask;
-                    mockVirtualization.OnNotifyFileRenamed(Path.Combine(".git", "test.txt"), "test2.txt", isDirectory: false, notificationMask: ref notificationType);
+                    mockVirtualization.OnNotifyFileRenamed(
+                        Path.Combine(".git", "test.txt"),
+                        "test2.txt",
+                        isDirectory: false,
+                        triggeringProcessId: TriggeringProcessId,
+                        triggeringProcessImageFileName: TriggeringProcessImageFileName,
+                        notificationMask: out notificationType);
                     fileSystemCallbacks.OnIndexFileChangeCallCount.ShouldEqual(0);
                     fileSystemCallbacks.OnLogsHeadChangeCallCount.ShouldEqual(0);
                     fileSystemCallbacks.OnFileRenamedCallCount.ShouldEqual(1);
@@ -613,14 +640,26 @@ namespace GVFS.UnitTests.Windows.Virtualization
                     fileSystemCallbacks.TryStart(out string error).ShouldEqual(true);
 
                     NotificationType notificationType = NotificationType.UseExistingMask;
-                    mockVirtualization.OnNotifyFileRenamed("test.txt", "test2.txt", isDirectory: false, notificationMask: ref notificationType);
+                    mockVirtualization.OnNotifyFileRenamed(
+                        "test.txt",
+                        "test2.txt",
+                        isDirectory: false,
+                        triggeringProcessId: TriggeringProcessId,
+                        triggeringProcessImageFileName: TriggeringProcessImageFileName,
+                        notificationMask: out notificationType);
                     fileSystemCallbacks.OnIndexFileChangeCallCount.ShouldEqual(0);
                     fileSystemCallbacks.OnLogsHeadChangeCallCount.ShouldEqual(0);
                     fileSystemCallbacks.OnFileRenamedCallCount.ShouldEqual(1);
                     fileSystemCallbacks.OnFolderRenamedCallCount.ShouldEqual(0);
                     fileSystemCallbacks.ResetCalls();
 
-                    mockVirtualization.OnNotifyFileRenamed("test_folder_src", "test_folder_dst", isDirectory: true, notificationMask: ref notificationType);
+                    mockVirtualization.OnNotifyFileRenamed(
+                        "test_folder_src",
+                        "test_folder_dst",
+                        isDirectory: true,
+                        triggeringProcessId: TriggeringProcessId,
+                        triggeringProcessImageFileName: TriggeringProcessImageFileName,
+                        notificationMask: out notificationType);
                     fileSystemCallbacks.OnIndexFileChangeCallCount.ShouldEqual(0);
                     fileSystemCallbacks.OnLogsHeadChangeCallCount.ShouldEqual(0);
                     fileSystemCallbacks.OnFileRenamedCallCount.ShouldEqual(0);
@@ -664,12 +703,12 @@ namespace GVFS.UnitTests.Windows.Virtualization
                     mockGVFSGitObjects.FileLength = fileLength;
                     mockVirtualization.WriteFileReturnResult = HResult.Ok;
 
-                    mockVirtualization.OnGetFileStream(
+                    mockVirtualization.requiredCallbacks.GetFileDataCallback(
                         commandId: 1,
                         relativePath: "test.txt",
                         byteOffset: 0,
                         length: fileLength,
-                        streamGuid: Guid.NewGuid(),
+                        dataStreamId: Guid.NewGuid(),
                         contentId: contentId,
                         providerId: placeholderVersion,
                         triggeringProcessId: 2,
@@ -717,12 +756,12 @@ namespace GVFS.UnitTests.Windows.Virtualization
                     mockTracker.WaitRelatedEventName = "GetFileStreamHandlerAsyncHandler_OperationCancelled";
                     mockGVFSGitObjects.CancelTryCopyBlobContentStream = true;
 
-                    mockVirtualization.OnGetFileStream(
+                    mockVirtualization.requiredCallbacks.GetFileDataCallback(
                         commandId: 1,
                         relativePath: "test.txt",
                         byteOffset: 0,
                         length: 100,
-                        streamGuid: Guid.NewGuid(),
+                        dataStreamId: Guid.NewGuid(),
                         contentId: contentId,
                         providerId: placeholderVersion,
                         triggeringProcessId: 2,
@@ -770,12 +809,12 @@ namespace GVFS.UnitTests.Windows.Virtualization
                 mockTracker.WaitRelatedEventName = "GetFileStreamHandlerAsyncHandler_OperationCancelled";
 
                 mockVirtualization.BlockCreateWriteBuffer(willWaitForRequest: true);
-                mockVirtualization.OnGetFileStream(
+                mockVirtualization.requiredCallbacks.GetFileDataCallback(
                     commandId: 1,
                     relativePath: "test.txt",
                     byteOffset: 0,
                     length: fileLength,
-                    streamGuid: Guid.NewGuid(),
+                    dataStreamId: Guid.NewGuid(),
                     contentId: contentId,
                     providerId: placeholderVersion,
                     triggeringProcessId: 2,
@@ -791,6 +830,7 @@ namespace GVFS.UnitTests.Windows.Virtualization
         }
 
         [TestCase]
+        [Ignore("Waiting on new ProjFS With WriteBuffer Options")]
         [Category(CategoryConstants.ExceptionExpected)]
         public void OnGetFileStreamHandlesWriteFailure()
         {
@@ -824,12 +864,12 @@ namespace GVFS.UnitTests.Windows.Virtualization
                     MockTracer mockTracker = this.Repo.Context.Tracer as MockTracer;
 
                     mockVirtualization.WriteFileReturnResult = HResult.InternalError;
-                    mockVirtualization.OnGetFileStream(
+                    mockVirtualization.requiredCallbacks.GetFileDataCallback(
                         commandId: 1,
                         relativePath: "test.txt",
                         byteOffset: 0,
                         length: fileLength,
-                        streamGuid: Guid.NewGuid(),
+                        dataStreamId: Guid.NewGuid(),
                         contentId: contentId,
                         providerId: placeholderVersion,
                         triggeringProcessId: 2,
@@ -845,8 +885,9 @@ namespace GVFS.UnitTests.Windows.Virtualization
         }
 
         [TestCase]
+        [Ignore("Waiting on new ProjFS With WriteBuffer Options")]
         [Category(CategoryConstants.ExceptionExpected)]
-        public void OnGetFileStreamHandlesFileClosed()
+        public void OnGetFileStreamHandlesNewResult()
         {
             using (MockBackgroundFileSystemTaskRunner backgroundTaskRunner = new MockBackgroundFileSystemTaskRunner())
             using (MockVirtualizationInstance mockVirtualization = new MockVirtualizationInstance())
@@ -877,19 +918,20 @@ namespace GVFS.UnitTests.Windows.Virtualization
 
                     MockTracer mockTracker = this.Repo.Context.Tracer as MockTracer;
 
-                    mockVirtualization.WriteFileReturnResult = HResult.FileClosed;
-                    mockVirtualization.OnGetFileStream(
+                    mockVirtualization.WriteFileReturnResult = HResult.Handle;
+                    mockVirtualization.requiredCallbacks.GetFileDataCallback(
                         commandId: 1,
                         relativePath: "test.txt",
                         byteOffset: 0,
                         length: fileLength,
-                        streamGuid: Guid.NewGuid(),
+                        dataStreamId: Guid.NewGuid(),
                         contentId: contentId,
                         providerId: placeholderVersion,
                         triggeringProcessId: 2,
                         triggeringProcessImageFileName: "UnitTest").ShouldEqual(HResult.Pending);
 
-                    mockVirtualization.WaitForCompletionStatus().ShouldEqual(mockVirtualization.WriteFileReturnResult);
+                    HResult result = mockVirtualization.WaitForCompletionStatus();
+                    result.ShouldEqual(mockVirtualization.WriteFileReturnResult);
                     mockTracker.RelatedErrorEvents.ShouldBeEmpty();
                 }
                 finally

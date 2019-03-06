@@ -1532,7 +1532,7 @@ namespace GVFS.Virtualization.Projection
                             lastAccessTime: now,
                             lastWriteTime: now,
                             changeTime: now,
-                            fileAttributes: (uint)NativeMethods.FileAttributes.FILE_ATTRIBUTE_ARCHIVE,
+                            fileAttributes: FileAttributes.Archive,
                             endOfFile: data.Size,
                             shaContentId: projectedSha,
                             updateFlags: FilePlaceholderUpdateFlags,

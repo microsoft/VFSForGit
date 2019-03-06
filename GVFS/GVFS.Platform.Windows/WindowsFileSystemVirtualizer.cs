@@ -6,7 +6,7 @@ using GVFS.Virtualization;
 using GVFS.Virtualization.BlobSize;
 using GVFS.Virtualization.FileSystem;
 using GVFS.Virtualization.Projection;
-using ProjFS;
+using Microsoft.Windows.ProjFS;
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
@@ -30,6 +30,7 @@ namespace GVFS.Platform.Windows
         private const int MinPrjLibThreads = 5;
 
         private IVirtualizationInstance virtualizationInstance;
+        private WindowsRequiredCallbacks requiredCallbacks;
         private ConcurrentDictionary<Guid, ActiveEnumeration> activeEnumerations;
         private ConcurrentDictionary<int, CancellationTokenSource> activeCommands;
 
@@ -49,7 +50,27 @@ namespace GVFS.Platform.Windows
             int numWorkerThreads)
             : base(context, gitObjects, numWorkerThreads)
         {
-            this.virtualizationInstance = virtualizationInstance ?? new VirtualizationInstance();
+            // We currently use twice as many threads as connections to allow for
+            // non-network operations to possibly succeed despite the connection limit
+            uint threadCount = (uint)Math.Max(MinPrjLibThreads, Environment.ProcessorCount * 2);
+
+            List<NotificationMapping> notificationMappings = new List<NotificationMapping>()
+            {
+                new NotificationMapping(Notifications.FilesInWorkingFolder | Notifications.FoldersInWorkingFolder, string.Empty),
+                new NotificationMapping(NotificationType.None, GVFSConstants.DotGit.Root),
+                new NotificationMapping(Notifications.IndexFile, GVFSConstants.DotGit.Index),
+                new NotificationMapping(Notifications.LogsHeadFile, GVFSConstants.DotGit.Logs.Head),
+                new NotificationMapping(Notifications.ExcludeAndHeadFile, GVFSConstants.DotGit.Info.ExcludePath),
+                new NotificationMapping(Notifications.ExcludeAndHeadFile, GVFSConstants.DotGit.Head),
+                new NotificationMapping(Notifications.FilesAndFoldersInRefsHeads, GVFSConstants.DotGit.Refs.Heads.Root),
+            };
+
+            this.virtualizationInstance = virtualizationInstance ?? new VirtualizationInstance(
+                context.Enlistment.WorkingDirectoryRoot,
+                poolThreadCount: threadCount,
+                concurrentThreadCount: threadCount,
+                enableNegativePathCache: true,
+                notificationMappings: notificationMappings);
 
             this.activeEnumerations = new ConcurrentDictionary<Guid, ActiveEnumeration>();
             this.activeCommands = new ConcurrentDictionary<int, CancellationTokenSource>();
@@ -92,7 +113,7 @@ namespace GVFS.Platform.Windows
 
         public override void Stop()
         {
-            this.virtualizationInstance.StopVirtualizationInstance();
+            this.virtualizationInstance.StopVirtualizing();
         }
 
         public override FileSystemResult ClearNegativePathCache(out uint totalEntryCount)
@@ -115,13 +136,13 @@ namespace GVFS.Platform.Windows
             string sha)
         {
             FileProperties properties = this.FileSystemCallbacks.GetLogsHeadFileProperties();
-            HResult result = this.virtualizationInstance.WritePlaceholderInformation(
+            HResult result = this.virtualizationInstance.WritePlaceholderInfo(
                 relativePath,
                 properties.CreationTimeUTC,
                 properties.LastAccessTimeUTC,
                 properties.LastWriteTimeUTC,
                 changeTime: properties.LastWriteTimeUTC,
-                fileAttributes: (uint)NativeMethods.FileAttributes.FILE_ATTRIBUTE_ARCHIVE,
+                fileAttributes: FileAttributes.Archive,
                 endOfFile: endOfFile,
                 isDirectory: false,
                 contentId: FileSystemVirtualizer.ConvertShaToContentId(sha),
@@ -133,13 +154,13 @@ namespace GVFS.Platform.Windows
         public override FileSystemResult WritePlaceholderDirectory(string relativePath)
         {
             FileProperties properties = this.FileSystemCallbacks.GetLogsHeadFileProperties();
-            HResult result = this.virtualizationInstance.WritePlaceholderInformation(
+            HResult result = this.virtualizationInstance.WritePlaceholderInfo(
                 relativePath,
                 properties.CreationTimeUTC,
                 properties.LastAccessTimeUTC,
                 properties.LastWriteTimeUTC,
                 changeTime: properties.LastWriteTimeUTC,
-                fileAttributes: (uint)NativeMethods.FileAttributes.FILE_ATTRIBUTE_DIRECTORY,
+                fileAttributes: FileAttributes.Directory,
                 endOfFile: 0,
                 isDirectory: true,
                 contentId: FolderContentId,
@@ -154,14 +175,14 @@ namespace GVFS.Platform.Windows
             DateTime lastAccessTime,
             DateTime lastWriteTime,
             DateTime changeTime,
-            uint fileAttributes,
+            FileAttributes fileAttributes,
             long endOfFile,
             string shaContentId,
             UpdatePlaceholderType updateFlags,
             out UpdateFailureReason failureReason)
         {
             UpdateFailureCause failureCause = UpdateFailureCause.NoFailure;
-            HResult result = this.virtualizationInstance.UpdatePlaceholderIfNeeded(
+            HResult result = this.virtualizationInstance.UpdateFileIfNeeded(
                 relativePath,
                 creationTime,
                 lastAccessTime,
@@ -184,19 +205,20 @@ namespace GVFS.Platform.Windows
             this.InitializeEnumerationPatternMatcher();
 
             // Callbacks
-            this.virtualizationInstance.OnStartDirectoryEnumeration = this.StartDirectoryEnumerationHandler;
-            this.virtualizationInstance.OnEndDirectoryEnumeration = this.EndDirectoryEnumerationHandler;
-            this.virtualizationInstance.OnGetDirectoryEnumeration = this.GetDirectoryEnumerationHandler;
-            this.virtualizationInstance.OnQueryFileName = this.QueryFileNameHandler;
-            this.virtualizationInstance.OnGetPlaceholderInformation = this.GetPlaceholderInformationHandler;
-            this.virtualizationInstance.OnGetFileStream = this.GetFileStreamHandler;
+            this.requiredCallbacks = new WindowsRequiredCallbacks();
+            this.requiredCallbacks.OnEndDirectoryEnumeration = this.EndDirectoryEnumerationHandler;
+            this.requiredCallbacks.OnStartDirectoryEnumeration = this.StartDirectoryEnumerationHandler;
+            this.requiredCallbacks.OnGetDirectoryEnumeration = this.GetDirectoryEnumerationHandler;
+            this.requiredCallbacks.OnGetPlaceholderInformation = this.GetPlaceholderInformationHandler;
+            this.requiredCallbacks.OnGetFileStream = this.GetFileStreamHandler;
 
+            this.virtualizationInstance.OnNotifyFileOverwritten = this.NotifyFileOverwrittenHandler;
+            this.virtualizationInstance.OnNotifyPreCreateHardlink = null;
+            this.virtualizationInstance.OnQueryFileName = this.QueryFileNameHandler;
             this.virtualizationInstance.OnNotifyFileOpened = null;
             this.virtualizationInstance.OnNotifyNewFileCreated = this.NotifyNewFileCreatedHandler;
-            this.virtualizationInstance.OnNotifyFileSupersededOrOverwritten = this.NotifyFileSupersededOrOverwrittenHandler;
             this.virtualizationInstance.OnNotifyPreDelete = this.NotifyPreDeleteHandler;
             this.virtualizationInstance.OnNotifyPreRename = this.NotifyPreRenameHandler;
-            this.virtualizationInstance.OnNotifyPreSetHardlink = null;
             this.virtualizationInstance.OnNotifyFileRenamed = this.NotifyFileRenamedHandler;
             this.virtualizationInstance.OnNotifyHardlinkCreated = this.NotifyHardlinkCreated;
             this.virtualizationInstance.OnNotifyFileHandleClosedNoModification = null;
@@ -205,31 +227,11 @@ namespace GVFS.Platform.Windows
 
             this.virtualizationInstance.OnCancelCommand = this.CancelCommandHandler;
 
-            uint threadCount = (uint)Math.Max(MinPrjLibThreads, Environment.ProcessorCount * 2);
-
-            List<NotificationMapping> notificationMappings = new List<NotificationMapping>()
-            {
-                new NotificationMapping(Notifications.FilesInWorkingFolder | Notifications.FoldersInWorkingFolder, string.Empty),
-                new NotificationMapping(NotificationType.None, GVFSConstants.DotGit.Root),
-                new NotificationMapping(Notifications.IndexFile, GVFSConstants.DotGit.Index),
-                new NotificationMapping(Notifications.LogsHeadFile, GVFSConstants.DotGit.Logs.Head),
-                new NotificationMapping(Notifications.ExcludeAndHeadFile, GVFSConstants.DotGit.Info.ExcludePath),
-                new NotificationMapping(Notifications.ExcludeAndHeadFile, GVFSConstants.DotGit.Head),
-                new NotificationMapping(Notifications.FilesAndFoldersInRefsHeads, GVFSConstants.DotGit.Refs.Heads.Root),
-            };
-
-            // We currently use twice as many threads as connections to allow for
-            // non-network operations to possibly succeed despite the connection limit
-            HResult result = this.virtualizationInstance.StartVirtualizationInstance(
-                this.Context.Enlistment.WorkingDirectoryRoot,
-                poolThreadCount: threadCount,
-                concurrentThreadCount: threadCount,
-                enableNegativePathCache: true,
-                notificationMappings: notificationMappings);
+            HResult result = this.virtualizationInstance.StartVirtualizing(this.requiredCallbacks);
 
             if (result != HResult.Ok)
             {
-                this.Context.Tracer.RelatedError($"{nameof(this.virtualizationInstance.StartVirtualizationInstance)} failed: " + result.ToString("X") + "(" + result.ToString("G") + ")");
+                this.Context.Tracer.RelatedError($"{nameof(this.virtualizationInstance.StartVirtualizing)} failed: " + result.ToString("X") + "(" + result.ToString("G") + ")");
                 error = "Failed to start virtualization instance (" + result.ToString() + ")";
                 return false;
             }
@@ -306,7 +308,7 @@ namespace GVFS.Platform.Windows
 
         // TODO: Need ProjFS 13150199 to be fixed so that GVFS doesn't leak memory if the enumeration cancelled.
         // Currently EndDirectoryEnumerationHandler must be called to remove the ActiveEnumeration from this.activeEnumerations
-        private HResult StartDirectoryEnumerationHandler(int commandId, Guid enumerationId, string virtualPath)
+        private HResult StartDirectoryEnumerationHandler(int commandId, Guid enumerationId, string virtualPath, uint triggeringProcessId, string triggeringProcessImageFileName)
         {
             try
             {
@@ -468,10 +470,11 @@ namespace GVFS.Platform.Windows
         }
 
         private HResult GetDirectoryEnumerationHandler(
+            int commandId,
             Guid enumerationId,
             string filterFileName,
             bool restartScan,
-            DirectoryEnumerationResults results)
+            IDirectoryEnumerationResults results)
         {
             try
             {
@@ -495,45 +498,34 @@ namespace GVFS.Platform.Windows
                     activeEnumeration.TrySaveFilterString(filterFileName);
                 }
 
-                bool entryAdded = false;
-
                 HResult result = HResult.Ok;
+                bool entryAdded = false;
                 while (activeEnumeration.IsCurrentValid)
                 {
                     ProjectedFileInfo fileInfo = activeEnumeration.Current;
                     FileProperties properties = this.FileSystemCallbacks.GetLogsHeadFileProperties();
 
-                    result = results.Add(
+                    bool addResult = results.Add(
                         fileName: fileInfo.Name,
-                        fileSize: (ulong)(fileInfo.IsFolder ? 0 : fileInfo.Size),
+                        fileSize: fileInfo.IsFolder ? 0 : fileInfo.Size,
                         isDirectory: fileInfo.IsFolder,
-                        fileAttributes: fileInfo.IsFolder ? (uint)NativeMethods.FileAttributes.FILE_ATTRIBUTE_DIRECTORY : (uint)NativeMethods.FileAttributes.FILE_ATTRIBUTE_ARCHIVE,
+                        fileAttributes: fileInfo.IsFolder ? FileAttributes.Directory : FileAttributes.Archive,
                         creationTime: properties.CreationTimeUTC,
                         lastAccessTime: properties.LastAccessTimeUTC,
                         lastWriteTime: properties.LastWriteTimeUTC,
                         changeTime: properties.LastWriteTimeUTC);
 
-                    if (result == HResult.Ok)
+                    if (addResult == true)
                     {
                         entryAdded = true;
                         activeEnumeration.MoveNext();
                     }
-                    else if (result == HResult.InsufficientBuffer)
+                    else
                     {
                         if (entryAdded)
                         {
                             result = HResult.Ok;
                         }
-
-                        break;
-                    }
-                    else
-                    {
-                        EventMetadata metadata = this.CreateEventMetadata(enumerationId);
-                        metadata.Add(nameof(result), result);
-                        this.Context.Tracer.RelatedWarning(
-                            metadata,
-                            nameof(this.GetDirectoryEnumerationHandler) + " unexpected statusCode when adding results to enumeration buffer");
 
                         break;
                     }
@@ -591,10 +583,6 @@ namespace GVFS.Platform.Windows
         private HResult GetPlaceholderInformationHandler(
             int commandId,
             string virtualPath,
-            uint desiredAccess,
-            uint shareMode,
-            uint createDisposition,
-            uint createOptions,
             uint triggeringProcessId,
             string triggeringProcessImageFileName)
         {
@@ -613,10 +601,6 @@ namespace GVFS.Platform.Windows
                 {
                     EventMetadata metadata = this.CreateEventMetadata(virtualPath);
                     metadata.Add("commandId", commandId);
-                    metadata.Add("desiredAccess", desiredAccess);
-                    metadata.Add("shareMode", shareMode);
-                    metadata.Add("createDisposition", createDisposition);
-                    metadata.Add("createOptions", createOptions);
                     metadata.Add("triggeringProcessId", triggeringProcessId);
                     metadata.Add("triggeringProcessImageFileName", triggeringProcessImageFileName);
                     metadata.Add(TracingConstants.MessageKey.VerboseMessage, $"{nameof(this.GetPlaceholderInformationHandler)}: Not allowed to create placeholder");
@@ -634,10 +618,6 @@ namespace GVFS.Platform.Windows
                 {
                     EventMetadata metadata = this.CreateEventMetadata(virtualPath);
                     metadata.Add("commandId", commandId);
-                    metadata.Add("desiredAccess", desiredAccess);
-                    metadata.Add("shareMode", shareMode);
-                    metadata.Add("createDisposition", createDisposition);
-                    metadata.Add("createOptions", createOptions);
                     metadata.Add("triggeringProcessId", triggeringProcessId);
                     metadata.Add("triggeringProcessImageFileName", triggeringProcessImageFileName);
                     this.Context.Tracer.RelatedWarning(metadata, nameof(this.GetPlaceholderInformationHandler) + ": Failed to register command");
@@ -649,10 +629,6 @@ namespace GVFS.Platform.Windows
                         blobSizesConnection,
                         commandId,
                         virtualPath,
-                        desiredAccess,
-                        shareMode,
-                        createDisposition,
-                        createOptions,
                         triggeringProcessId,
                         triggeringProcessImageFileName),
                     () => cancellationSource.Dispose());
@@ -662,10 +638,6 @@ namespace GVFS.Platform.Windows
                 {
                     EventMetadata metadata = this.CreateEventMetadata(virtualPath, e);
                     metadata.Add("commandId", commandId);
-                    metadata.Add("desiredAccess", desiredAccess);
-                    metadata.Add("shareMode", shareMode);
-                    metadata.Add("createDisposition", createDisposition);
-                    metadata.Add("createOptions", createOptions);
                     metadata.Add("triggeringProcessId", triggeringProcessId);
                     metadata.Add("triggeringProcessImageFileName", triggeringProcessImageFileName);
                     metadata.Add(TracingConstants.MessageKey.WarningMessage, nameof(this.GetPlaceholderInformationHandler) + ": Failed to schedule async handler");
@@ -680,10 +652,6 @@ namespace GVFS.Platform.Windows
             {
                 EventMetadata metadata = this.CreateEventMetadata(virtualPath, e);
                 metadata.Add("commandId", commandId);
-                metadata.Add("desiredAccess", desiredAccess);
-                metadata.Add("shareMode", shareMode);
-                metadata.Add("createDisposition", createDisposition);
-                metadata.Add("createOptions", createOptions);
                 metadata.Add("triggeringProcessId", triggeringProcessId);
                 metadata.Add("triggeringProcessImageFileName", triggeringProcessImageFileName);
                 this.LogUnhandledExceptionAndExit(nameof(this.GetPlaceholderInformationHandler), metadata);
@@ -697,10 +665,6 @@ namespace GVFS.Platform.Windows
             BlobSizes.BlobSizesConnection blobSizesConnection,
             int commandId,
             string virtualPath,
-            uint desiredAccess,
-            uint shareMode,
-            uint createDisposition,
-            uint createOptions,
             uint triggeringProcessId,
             string triggeringProcessImageFileName)
         {
@@ -758,17 +722,13 @@ namespace GVFS.Platform.Windows
                 {
                     EventMetadata metadata = this.CreateEventMetadata(virtualPath);
                     metadata.Add("gitCaseVirtualPath", gitCaseVirtualPath);
-                    metadata.Add("desiredAccess", desiredAccess);
-                    metadata.Add("shareMode", shareMode);
-                    metadata.Add("createDisposition", createDisposition);
-                    metadata.Add("createOptions", createOptions);
                     metadata.Add("triggeringProcessId", triggeringProcessId);
                     metadata.Add("triggeringProcessImageFileName", triggeringProcessImageFileName);
                     metadata.Add("FileName", fileInfo.Name);
                     metadata.Add("IsFolder", fileInfo.IsFolder);
                     metadata.Add(nameof(sha), sha);
                     metadata.Add(nameof(result), result.ToString("X") + "(" + result.ToString("G") + ")");
-                    this.Context.Tracer.RelatedError(metadata, $"{nameof(this.GetPlaceholderInformationAsyncHandler)}: {nameof(this.virtualizationInstance.WritePlaceholderInformation)} failed");
+                    this.Context.Tracer.RelatedError(metadata, $"{nameof(this.GetPlaceholderInformationAsyncHandler)}: {nameof(this.virtualizationInstance.WritePlaceholderInfo)} failed");
                 }
                 else
                 {
@@ -788,10 +748,6 @@ namespace GVFS.Platform.Windows
 
                 EventMetadata metadata = this.CreateEventMetadata(virtualPath, e);
                 metadata.Add("commandId", commandId);
-                metadata.Add("desiredAccess", desiredAccess);
-                metadata.Add("shareMode", shareMode);
-                metadata.Add("createDisposition", createDisposition);
-                metadata.Add("createOptions", createOptions);
                 metadata.Add("triggeringProcessId", triggeringProcessId);
                 metadata.Add("triggeringProcessImageFileName", triggeringProcessImageFileName);
                 metadata.Add(nameof(result), result.ToString("X") + "(" + result.ToString("G") + ")");
@@ -803,10 +759,6 @@ namespace GVFS.Platform.Windows
 
                 EventMetadata metadata = this.CreateEventMetadata(virtualPath, e);
                 metadata.Add("commandId", commandId);
-                metadata.Add("desiredAccess", desiredAccess);
-                metadata.Add("shareMode", shareMode);
-                metadata.Add("createDisposition", createDisposition);
-                metadata.Add("createOptions", createOptions);
                 metadata.Add("triggeringProcessId", triggeringProcessId);
                 metadata.Add("triggeringProcessImageFileName", triggeringProcessImageFileName);
                 metadata.Add(nameof(result), result.ToString("X") + "(" + result.ToString("G") + ")");
@@ -817,10 +769,6 @@ namespace GVFS.Platform.Windows
             {
                 EventMetadata metadata = this.CreateEventMetadata(virtualPath, e);
                 metadata.Add("commandId", commandId);
-                metadata.Add("desiredAccess", desiredAccess);
-                metadata.Add("shareMode", shareMode);
-                metadata.Add("createDisposition", createDisposition);
-                metadata.Add("createOptions", createOptions);
                 metadata.Add("triggeringProcessId", triggeringProcessId);
                 metadata.Add("triggeringProcessImageFileName", triggeringProcessImageFileName);
                 this.LogUnhandledExceptionAndExit(nameof(this.GetPlaceholderInformationAsyncHandler), metadata);
@@ -832,7 +780,7 @@ namespace GVFS.Platform.Windows
         private HResult GetFileStreamHandler(
             int commandId,
             string virtualPath,
-            long byteOffset,
+            ulong byteOffset,
             uint length,
             Guid streamGuid,
             byte[] contentId,
@@ -983,14 +931,14 @@ namespace GVFS.Platform.Windows
 
                                 long writeOffset = length - remainingData;
 
-                                HResult writeResult = this.virtualizationInstance.WriteFile(streamGuid, targetBuffer, (ulong)writeOffset, bytesToCopy);
+                                HResult writeResult = this.virtualizationInstance.WriteFileData(streamGuid, targetBuffer, (ulong)writeOffset, bytesToCopy);
                                 remainingData -= bytesToCopy;
 
                                 if (writeResult != HResult.Ok)
                                 {
                                     switch (writeResult)
                                     {
-                                        case HResult.FileClosed:
+                                        case HResult.Handle:
                                             // HResult.FileClosed is expected, and occurs when an application closes a file handle before OnGetFileStream
                                             // is complete
                                             break;
@@ -1003,7 +951,7 @@ namespace GVFS.Platform.Windows
                                             // If we hit this in GVFS, the most common explanation is that we're calling WriteFile after the ProjFS thread waiting on the respose
                                             // from GetFileStream has already timed out
                                             {
-                                                requestMetadata.Add(TracingConstants.MessageKey.InfoMessage, $"{nameof(this.virtualizationInstance.WriteFile)} returned StatusObjectNameNotFound");
+                                                requestMetadata.Add(TracingConstants.MessageKey.InfoMessage, $"{nameof(this.virtualizationInstance.WriteFileData)} returned StatusObjectNameNotFound");
                                                 this.Context.Tracer.RelatedEvent(EventLevel.Informational, "WriteFile_ObjectNameNotFound", requestMetadata);
                                             }
 
@@ -1011,7 +959,7 @@ namespace GVFS.Platform.Windows
 
                                         default:
                                             {
-                                                this.Context.Tracer.RelatedError(requestMetadata, $"{nameof(this.virtualizationInstance.WriteFile)} failed, error: " + writeResult.ToString("X") + "(" + writeResult.ToString("G") + ")");
+                                                this.Context.Tracer.RelatedError(requestMetadata, $"{nameof(this.virtualizationInstance.WriteFileData)} failed, error: " + writeResult.ToString("X") + "(" + writeResult.ToString("G") + ")");
                                             }
 
                                             break;
@@ -1059,12 +1007,11 @@ namespace GVFS.Platform.Windows
         private void NotifyNewFileCreatedHandler(
             string virtualPath,
             bool isDirectory,
-            uint desiredAccess,
-            uint shareMode,
-            uint createDisposition,
-            uint createOptions,
-            ref NotificationType notificationMask)
+            uint triggeringProcessId,
+            string triggeringProcessImageFileName,
+            out NotificationType notificationMask)
         {
+            notificationMask = NotificationType.UseExistingMask;
             try
             {
                 if (!FileSystemCallbacks.IsPathInsideDotGit(virtualPath))
@@ -1075,7 +1022,7 @@ namespace GVFS.Platform.Windows
                         if (gitCommand.IsValidGitCommand)
                         {
                             string directoryPath = Path.Combine(this.Context.Enlistment.WorkingDirectoryRoot, virtualPath);
-                            HResult hr = this.virtualizationInstance.ConvertDirectoryToPlaceholder(
+                            HResult hr = this.virtualizationInstance.MarkDirectoryAsPlaceholder(
                                 directoryPath,
                                 FolderContentId,
                                 PlaceholderVersionId);
@@ -1088,12 +1035,10 @@ namespace GVFS.Platform.Windows
                             {
                                 EventMetadata metadata = this.CreateEventMetadata(virtualPath);
                                 metadata.Add("isDirectory", isDirectory);
-                                metadata.Add("desiredAccess", desiredAccess);
-                                metadata.Add("shareMode", shareMode);
-                                metadata.Add("createDisposition", createDisposition);
-                                metadata.Add("createOptions", createOptions);
+                                metadata.Add("triggeringProcessId", triggeringProcessId);
+                                metadata.Add("triggeringProcessImageFileName", triggeringProcessImageFileName);
                                 metadata.Add("HResult", hr.ToString());
-                                this.Context.Tracer.RelatedError(metadata, nameof(this.NotifyNewFileCreatedHandler) + "_" + nameof(this.virtualizationInstance.ConvertDirectoryToPlaceholder) + " error");
+                                this.Context.Tracer.RelatedError(metadata, nameof(this.NotifyNewFileCreatedHandler) + "_" + nameof(this.virtualizationInstance.MarkDirectoryAsPlaceholder) + " error");
                             }
                         }
                         else
@@ -1111,65 +1056,39 @@ namespace GVFS.Platform.Windows
             {
                 EventMetadata metadata = this.CreateEventMetadata(virtualPath, e);
                 metadata.Add("isDirectory", isDirectory);
-                metadata.Add("desiredAccess", desiredAccess);
-                metadata.Add("shareMode", shareMode);
-                metadata.Add("createDisposition", createDisposition);
-                metadata.Add("createOptions", createOptions);
+                metadata.Add("triggeringProcessId", triggeringProcessId);
+                metadata.Add("triggeringProcessImageFileName", triggeringProcessImageFileName);
                 this.LogUnhandledExceptionAndExit(nameof(this.NotifyNewFileCreatedHandler), metadata);
             }
         }
 
-        private void NotifyFileSupersededOrOverwrittenHandler(
+        private void NotifyFileOverwrittenHandler(
             string virtualPath,
             bool isDirectory,
-            uint desiredAccess,
-            uint shareMode,
-            uint createDisposition,
-            uint createOptions,
-            IoStatusInformation iostatusBlock,
-            ref NotificationType notificationMask)
+            uint triggeringProcessId,
+            string triggeringProcessImageFileName,
+            out NotificationType notificationMask)
         {
+            notificationMask = NotificationType.UseExistingMask;
             try
             {
-                if (!FileSystemCallbacks.IsPathInsideDotGit(virtualPath))
+                if (!FileSystemCallbacks.IsPathInsideDotGit(virtualPath)
+                    && !isDirectory)
                 {
-                    switch (iostatusBlock)
-                    {
-                        case IoStatusInformation.FileOverwritten:
-                            if (!isDirectory)
-                            {
-                                this.FileSystemCallbacks.OnFileOverwritten(virtualPath);
-                            }
-
-                            break;
-
-                        case IoStatusInformation.FileSuperseded:
-                            if (!isDirectory)
-                            {
-                                this.FileSystemCallbacks.OnFileSuperseded(virtualPath);
-                            }
-
-                            break;
-
-                        default:
-                            break;
-                    }
+                    this.FileSystemCallbacks.OnFileOverwritten(virtualPath);
                 }
             }
             catch (Exception e)
             {
                 EventMetadata metadata = this.CreateEventMetadata(virtualPath, e);
                 metadata.Add("isDirectory", isDirectory);
-                metadata.Add("desiredAccess", desiredAccess);
-                metadata.Add("shareMode", shareMode);
-                metadata.Add("createDisposition", createDisposition);
-                metadata.Add("createOptions", createOptions);
-                metadata.Add("iostatusBlock", iostatusBlock);
-                this.LogUnhandledExceptionAndExit(nameof(this.NotifyFileSupersededOrOverwrittenHandler), metadata);
+                metadata.Add("triggeringProcessId", triggeringProcessId);
+                metadata.Add("triggeringProcessImageFileName", triggeringProcessImageFileName);
+                this.LogUnhandledExceptionAndExit(nameof(this.NotifyFileOverwrittenHandler), metadata);
             }
         }
 
-        private HResult NotifyPreRenameHandler(string relativePath, string destinationPath)
+        private bool NotifyPreRenameHandler(string relativePath, string destinationPath, uint triggeringProcessId, string triggeringProcessImageFileName)
         {
             try
             {
@@ -1182,7 +1101,7 @@ namespace GVFS.Platform.Windows
                         metadata.Add(TracingConstants.MessageKey.WarningMessage, "Blocked index rename outside the lock");
                         this.Context.Tracer.RelatedEvent(EventLevel.Warning, $"{nameof(this.NotifyPreRenameHandler)}_BlockedIndexRename", metadata);
 
-                        return HResult.AccessDenied;
+                        return false;
                     }
                 }
             }
@@ -1193,27 +1112,32 @@ namespace GVFS.Platform.Windows
                 this.LogUnhandledExceptionAndExit(nameof(this.NotifyPreRenameHandler), metadata);
             }
 
-            return HResult.Ok;
+            return true;
         }
 
-        private HResult NotifyPreDeleteHandler(string virtualPath, bool isDirectory)
+        private bool NotifyPreDeleteHandler(string virtualPath, bool isDirectory, uint triggeringProcessId, string triggeringProcessImageFileName)
         {
             // Only the path to the index should be registered for this handler
-            return HResult.AccessDenied;
+            return false;
         }
 
         private void NotifyFileRenamedHandler(
             string virtualPath,
             string destinationPath,
             bool isDirectory,
-            ref NotificationType notificationMask)
+            uint triggeringProcessId,
+            string triggeringProcessImageFileName,
+            out NotificationType notificationMask)
         {
+            notificationMask = NotificationType.UseExistingMask;
             this.OnFileRenamed(virtualPath, destinationPath, isDirectory);
         }
 
         private void NotifyHardlinkCreated(
             string relativeExistingFilePath,
-            string relativeNewLinkPath)
+            string relativeNewLinkPath,
+            uint triggeringProcessId,
+            string triggeringProcessImageFileName)
         {
             this.OnHardLinkCreated(relativeExistingFilePath, relativeNewLinkPath);
         }
@@ -1222,7 +1146,9 @@ namespace GVFS.Platform.Windows
             string virtualPath,
             bool isDirectory,
             bool isFileModified,
-            bool isFileDeleted)
+            bool isFileDeleted,
+            uint triggeringProcessId,
+            string triggeringProcessImageFileName)
         {
             try
             {
@@ -1262,7 +1188,7 @@ namespace GVFS.Platform.Windows
             }
         }
 
-        private HResult NotifyFilePreConvertToFullHandler(string virtualPath)
+        private bool NotifyFilePreConvertToFullHandler(string virtualPath, uint triggeringProcessId, string triggeringProcessImageFileName)
         {
             this.OnFilePreConvertToFull(virtualPath);
             return HResult.Ok;
@@ -1350,7 +1276,7 @@ namespace GVFS.Platform.Windows
 
             public const NotificationType FilesInWorkingFolder =
                 NotificationType.NewFileCreated |
-                NotificationType.FileSupersededOrOverwritten |
+                NotificationType.FileOverwritten |
                 NotificationType.FileRenamed |
                 NotificationType.HardlinkCreated |
                 NotificationType.FileHandleClosedFileDeleted |

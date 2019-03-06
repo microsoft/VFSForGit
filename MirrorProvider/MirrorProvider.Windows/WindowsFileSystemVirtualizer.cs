@@ -1,4 +1,4 @@
-﻿using ProjFS;
+﻿using Microsoft.Windows.ProjFS;
 using System;
 using System.Collections.Concurrent;
 using System.ComponentModel;
@@ -9,13 +9,14 @@ namespace MirrorProvider.Windows
 {
     public class WindowsFileSystemVirtualizer : FileSystemVirtualizer
     {
-        private VirtualizationInstance virtualizationInstance = new VirtualizationInstance();
+        private VirtualizationInstance virtualizationInstance;
+        private WindowsRequiredCallbacks requiredCallbacks;
         private ConcurrentDictionary<Guid, ActiveEnumeration> activeEnumerations = new ConcurrentDictionary<Guid, ActiveEnumeration>();
 
         public override bool TryConvertVirtualizationRoot(string directory, out string error)
         {
             error = string.Empty;
-            HResult result = VirtualizationInstance.ConvertDirectoryToVirtualizationRoot(Guid.NewGuid(), directory);
+            HResult result = VirtualizationInstance.MarkDirectoryAsVirtualizationRoot(directory, Guid.NewGuid());
             if (result != HResult.Ok)
             {
                 error = result.ToString("F");
@@ -27,13 +28,14 @@ namespace MirrorProvider.Windows
 
         public override bool TryStartVirtualizationInstance(Enlistment enlistment, out string error)
         {
-            this.virtualizationInstance.OnStartDirectoryEnumeration = this.StartDirectoryEnumeration;
-            this.virtualizationInstance.OnEndDirectoryEnumeration = this.EndDirectoryEnumeration;
-            this.virtualizationInstance.OnGetDirectoryEnumeration = this.GetDirectoryEnumeration;
-            this.virtualizationInstance.OnQueryFileName = this.QueryFileName;
+            this.requiredCallbacks = new WindowsRequiredCallbacks();
+            this.requiredCallbacks.OnEndDirectoryEnumeration = this.EndDirectoryEnumeration;
+            this.requiredCallbacks.OnStartDirectoryEnumeration = this.StartDirectoryEnumeration;
+            this.requiredCallbacks.OnGetDirectoryEnumeration = this.GetDirectoryEnumeration;
+            this.requiredCallbacks.OnGetPlaceholderInformation = this.GetPlaceholderInformation;
+            this.requiredCallbacks.OnGetFileStream = this.GetFileStream;
 
-            this.virtualizationInstance.OnGetPlaceholderInformation = this.GetPlaceholderInformation;
-            this.virtualizationInstance.OnGetFileStream = this.GetFileStream;
+            this.virtualizationInstance.OnQueryFileName = this.QueryFileName;
             this.virtualizationInstance.OnNotifyPreDelete = this.OnPreDelete;
             this.virtualizationInstance.OnNotifyNewFileCreated = this.OnNewFileCreated;
             this.virtualizationInstance.OnNotifyFileHandleClosedFileModifiedOrDeleted = this.OnFileModifiedOrDeleted;
@@ -54,12 +56,14 @@ namespace MirrorProvider.Windows
                     string.Empty),
             };
 
-            HResult result = this.virtualizationInstance.StartVirtualizationInstance(
+            this.virtualizationInstance = new VirtualizationInstance(
                 enlistment.SrcRoot,
                 poolThreadCount: threadCount,
                 concurrentThreadCount: threadCount,
                 enableNegativePathCache: false,
                 notificationMappings: notificationMappings);
+
+            HResult result = this.virtualizationInstance.StartVirtualizing(this.requiredCallbacks);
 
             if (result == HResult.Ok)
             {
@@ -70,7 +74,7 @@ namespace MirrorProvider.Windows
             return false;
         }
 
-        private HResult StartDirectoryEnumeration(int commandId, Guid enumerationId, string relativePath)
+        private HResult StartDirectoryEnumeration(int commandId, Guid enumerationId, string relativePath, uint triggeringProcessId, string triggeringProcessImageFileName)
         {
             Console.WriteLine($"StartDirectoryEnumeration: `{relativePath}`, {enumerationId}");
 
@@ -103,10 +107,11 @@ namespace MirrorProvider.Windows
         }
 
         private HResult GetDirectoryEnumeration(
+            int commandId,
             Guid enumerationId, 
             string filterFileName, 
             bool restartScan, 
-            DirectoryEnumerationResults results)
+            IDirectoryEnumerationResults results)
         {
             Console.WriteLine($"GetDiretoryEnumeration: {enumerationId}, {filterFileName}");
 
@@ -135,29 +140,26 @@ namespace MirrorProvider.Windows
                     ProjectedFileInfo fileInfo = activeEnumeration.Current;
 
                     DateTime now = DateTime.UtcNow;
-                    result = results.Add(
+                    bool addResult = results.Add(
                         fileName: fileInfo.Name,
-                        fileSize: (ulong)(fileInfo.IsDirectory ? 0 : fileInfo.Size),
+                        fileSize: fileInfo.IsDirectory ? 0 : fileInfo.Size,
                         isDirectory: fileInfo.IsDirectory,
-                        fileAttributes: fileInfo.IsDirectory ? (uint)FileAttributes.Directory : (uint)FileAttributes.Archive,
+                        fileAttributes: fileInfo.IsDirectory ? FileAttributes.Directory : FileAttributes.Archive,
                         creationTime: now,
                         lastAccessTime: now,
                         lastWriteTime: now,
                         changeTime: now);
 
-                    if (result == HResult.Ok)
+                    if (addResult == true)
                     {
                         entryAdded = true;
                         activeEnumeration.MoveNext();
                     }
                     else
                     {
-                        if (result == HResult.InsufficientBuffer)
+                        if (entryAdded)
                         {
-                            if (entryAdded)
-                            {
-                                result = HResult.Ok;
-                            }
+                            result = HResult.Ok;
                         }
 
                         break;
@@ -193,10 +195,6 @@ namespace MirrorProvider.Windows
         private HResult GetPlaceholderInformation(
             int commandId,
             string relativePath,
-            uint desiredAccess,
-            uint shareMode,
-            uint createDisposition,
-            uint createOptions,
             uint triggeringProcessId,
             string triggeringProcessImageFileName)
         {
@@ -209,13 +207,13 @@ namespace MirrorProvider.Windows
             }
 
             DateTime now = DateTime.UtcNow;
-            HResult result = this.virtualizationInstance.WritePlaceholderInformation(
+            HResult result = this.virtualizationInstance.WritePlaceholderInfo(
                 Path.Combine(Path.GetDirectoryName(relativePath), fileInfo.Name),
                 creationTime: now,
                 lastAccessTime: now,
                 lastWriteTime: now,
                 changeTime: now,
-                fileAttributes: fileInfo.IsDirectory ? (uint)FileAttributes.Directory : (uint)FileAttributes.Archive,
+                fileAttributes: fileInfo.IsDirectory ? FileAttributes.Directory : FileAttributes.Archive,
                 endOfFile: fileInfo.Size,
                 isDirectory: fileInfo.IsDirectory,
                 contentId: new byte[] { 0 },
@@ -232,7 +230,7 @@ namespace MirrorProvider.Windows
         private HResult GetFileStream(
             int commandId,
             string relativePath,
-            long byteOffset,
+            ulong byteOffset,
             uint length,
             Guid streamGuid,
             byte[] contentId,
@@ -262,7 +260,7 @@ namespace MirrorProvider.Windows
                             writeBuffer.Stream.Seek(0, SeekOrigin.Begin);
                             writeBuffer.Stream.Write(readBuffer, 0, (int)bytesToCopy);
 
-                            HResult writeResult = this.virtualizationInstance.WriteFile(streamGuid, writeBuffer, writeOffset, bytesToCopy);
+                            HResult writeResult = this.virtualizationInstance.WriteFileData(streamGuid, writeBuffer, writeOffset, bytesToCopy);
                             if (writeResult != HResult.Ok)
                             {
                                 Console.WriteLine("WriteFile faild: " + writeResult);
@@ -294,25 +292,24 @@ namespace MirrorProvider.Windows
             return HResult.Ok;
         }
 
-        private HResult OnPreDelete(string relativePath, bool isDirectory)
+        private bool OnPreDelete(string relativePath, bool isDirectory, uint triggeringProcessId, string triggeringProcessImageFileName)
         {
             Console.WriteLine($"OnPreDelete (isDirectory: {isDirectory}): {relativePath}");
-            return HResult.Ok;
+            return true;
         }
 
         private void OnNewFileCreated(
             string relativePath,
             bool isDirectory,
-            uint desiredAccess,
-            uint shareMode,
-            uint createDisposition,
-            uint createOptions,
-            ref NotificationType notificationMask)
+            uint triggeringProcessId,
+            string triggeringProcessImageFileName,
+            out NotificationType notificationMask)
         {
+            notificationMask = NotificationType.UseExistingMask;
             Console.WriteLine($"OnNewFileCreated (isDirectory: {isDirectory}): {relativePath}");
         }
 
-        private void OnFileModifiedOrDeleted(string relativePath, bool isDirectory, bool isFileModified, bool isFileDeleted)
+        private void OnFileModifiedOrDeleted(string relativePath, bool isDirectory, bool isFileModified, bool isFileDeleted, uint triggeringProcessId, string triggeringProcessImageFileName)
         {
             // To keep WindowsFileSystemVirtualizer in sync with MacFileSystemVirtualizer we're only registering for 
             // NotificationType.FileHandleClosedFileModified and so this method will only be called for modifications.  
@@ -325,14 +322,19 @@ namespace MirrorProvider.Windows
             string relativeSourcePath,
             string relativeDestinationPath,
             bool isDirectory,
-            ref NotificationType notificationMask)
+            uint triggeringProcessId,
+            string triggeringProcessImageFileName,
+            out NotificationType notificationMask)
         {
+            notificationMask = NotificationType.UseExistingMask;
             Console.WriteLine($"OnFileRenamed (isDirectory: {isDirectory}), relativeSourcePath: {relativeSourcePath}, relativeDestinationPath: {relativeDestinationPath}");
         }
 
         private void OnHardlinkCreated(
             string relativeExistingFilePath,
-            string relativeNewLinkFilePath)
+            string relativeNewLinkFilePath,
+            uint triggeringProcessId,
+            string triggeringProcessImageFileName)
         {
             Console.WriteLine($"OnHardlinkCreated, relativeExistingFilePath: {relativeExistingFilePath}, relativeNewLinkFilePath: {relativeNewLinkFilePath}");
         }

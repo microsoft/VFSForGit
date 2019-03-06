@@ -45,8 +45,8 @@
       <HintPath>..\..\..\packages\Microsoft.Database.Isam.1.9.4\lib\net40\Esent.Isam.dll</HintPath>
       <Private>True</Private>
     </Reference>
-    <Reference Include="ProjectedFSLib.Managed, Version=10.0.0.0, Culture=neutral, PublicKeyToken=31bf3856ad364e35, processorArchitecture=AMD64">
-      <HintPath>$(PackagesDir)\$(ProjFSPackage)\lib\x64\ProjectedFSLib.Managed.dll</HintPath>
+    <Reference Include="ProjectedFSLib.Managed, Version=1.0.118.0, Culture=neutral, processorArchitecture=AMD64">
+      <HintPath>..\..\..\packages\GVFS.ProjFS.2019.211.1-pr\lib\x64\ProjectedFSLib.Managed.dll</HintPath>
     </Reference>
     <Reference Include="System" />
     <Reference Include="System.Core" />
@@ -91,6 +91,7 @@
     <Compile Include="WindowsPlatform.cs" />
     <Compile Include="WindowsPlatform.Shared.cs" />
     <Compile Include="WindowsFileSystem.cs" />
+    <Compile Include="WindowsRequiredCallbacks.cs" />
   </ItemGroup>
   <ItemGroup>
     <None Include="packages.config">
