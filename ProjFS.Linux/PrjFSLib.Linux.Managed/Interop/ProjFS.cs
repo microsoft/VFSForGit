@@ -17,9 +17,17 @@ namespace PrjFSLib.Linux.Interop
 
         public delegate int EventHandler(ref Event ev);
 
-        public static ProjFS New(string lowerdir, string mountdir, Handlers handlers)
+        public static ProjFS New(
+            string lowerdir,
+            string mountdir,
+            Handlers handlers)
         {
-            IntPtr handle = _New(lowerdir, mountdir, ref handlers, (uint)Marshal.SizeOf<Handlers>(), IntPtr.Zero);
+            IntPtr handle = _New(
+                lowerdir,
+                mountdir,
+                ref handlers,
+                (uint)Marshal.SizeOf<Handlers>(),
+                IntPtr.Zero);
             if (handle == IntPtr.Zero)
             {
                 return null;
@@ -38,19 +46,36 @@ namespace PrjFSLib.Linux.Interop
             _Stop(this.handle);
         }
 
-        public Result CreateProjDir(string relativePath, ushort fileMode)
+        public Result CreateProjDir(
+            string relativePath,
+            ushort fileMode)
         {
-            return _CreateProjDir(this.handle, relativePath, fileMode).ConvertErrnoToResult();
+            return _CreateProjDir(
+                this.handle,
+                relativePath,
+                fileMode).ConvertErrnoToResult();
         }
 
-        public Result CreateProjFile(string relativePath, ulong fileSize, ushort fileMode)
+        public Result CreateProjFile(
+            string relativePath,
+            ulong fileSize,
+            ushort fileMode)
         {
-            return _CreateProjFile(this.handle, relativePath, fileSize, fileMode).ConvertErrnoToResult();
+            return _CreateProjFile(
+                this.handle,
+                relativePath,
+                fileSize,
+                fileMode).ConvertErrnoToResult();
         }
 
-        public Result CreateProjSymlink(string relativePath, string symlinkTarget)
+        public Result CreateProjSymlink(
+            string relativePath,
+            string symlinkTarget)
         {
-            return _CreateProjSymlink(this.handle, relativePath, symlinkTarget).ConvertErrnoToResult();
+            return _CreateProjSymlink(
+                this.handle,
+                relativePath,
+                symlinkTarget).ConvertErrnoToResult();
         }
 
         [DllImport(PrjFSLibPath, EntryPoint = "projfs_new")]
@@ -62,19 +87,31 @@ namespace PrjFSLib.Linux.Interop
             IntPtr user_data);
 
         [DllImport(PrjFSLibPath, EntryPoint = "projfs_start")]
-        private static extern int _Start(IntPtr fs);
+        private static extern int _Start(
+            IntPtr fs);
 
         [DllImport(PrjFSLibPath, EntryPoint = "projfs_stop")]
-        private static extern IntPtr _Stop(IntPtr fs);
+        private static extern IntPtr _Stop(
+            IntPtr fs);
 
         [DllImport(PrjFSLibPath, EntryPoint = "projfs_create_proj_dir")]
-        private static extern Errno _CreateProjDir(IntPtr fs, string relativePath, ushort fileMode);
+        private static extern Errno _CreateProjDir(
+            IntPtr fs,
+            string relativePath,
+            ushort fileMode);
 
         [DllImport(PrjFSLibPath, EntryPoint = "projfs_create_proj_file")]
-        private static extern Errno _CreateProjFile(IntPtr fs, string relativePath, ulong fileSize, ushort fileMode);
+        private static extern Errno _CreateProjFile(
+            IntPtr fs,
+            string relativePath,
+            ulong fileSize,
+            ushort fileMode);
 
         [DllImport(PrjFSLibPath, EntryPoint = "projfs_create_proj_symlink")]
-        private static extern Errno _CreateProjSymlink(IntPtr fs, string relativePath, string symlinkTarget);
+        private static extern Errno _CreateProjSymlink(
+            IntPtr fs,
+            string relativePath,
+            string symlinkTarget);
 
         [StructLayout(LayoutKind.Sequential)]
         public struct Event
