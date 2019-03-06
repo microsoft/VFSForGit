@@ -628,7 +628,7 @@ static const char* GetRelativePath(const char* fullPath, const char* root)
     size_t pathLength = strlen(fullPath);
     if (pathLength < rootLength || 0 != memcmp(fullPath, root, rootLength))
     {
-        KextLog_Error("GetRelativePath: root path '%s' is not a prefix of path '%s'\n", root, fullPath);
+        KextLog_Error("GetRelativePath: root path '%s' is not a prefix of path '%s'", root, fullPath);
         return nullptr;
     }
     
@@ -639,7 +639,7 @@ static const char* GetRelativePath(const char* fullPath, const char* root)
     }
     else if (rootLength > 0 && root[rootLength - 1] != '/' && pathLength > rootLength)
     {
-        KextLog_Error("GetRelativePath: root path '%s' is not a parent directory of path '%s' (just a string prefix)\n", root, fullPath);
+        KextLog_Error("GetRelativePath: root path '%s' is not a parent directory of path '%s' (just a string prefix)", root, fullPath);
         return nullptr;
     }
     
@@ -657,6 +657,9 @@ const char* VirtualizationRoot_GetRootRelativePath(VirtualizationRootHandle root
         assert(rootIndex < s_maxVirtualizationRoots);
         assert(s_virtualizationRoots[rootIndex].inUse);
         assertf(s_virtualizationRoots[rootIndex].path[0] != '\0', "When converting an absolute path to a virtualization root-relative path, the root's path should not be empty.");
+#ifdef DEBUG
+        assertf(!strprefix(s_virtualizationRoots[rootIndex].path, "DEBUG:"), "When converting an absolute path to a virtualization root-relative path, the root's path should not be poisoned. Poisoned path string: '%s'", s_virtualizationRoots[rootIndex].path);
+#endif
         relativePath = GetRelativePath(path, s_virtualizationRoots[rootIndex].path);
     }
     RWLock_ReleaseShared(s_virtualizationRootsLock);
