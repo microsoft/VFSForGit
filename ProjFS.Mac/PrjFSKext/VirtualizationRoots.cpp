@@ -657,6 +657,9 @@ const char* VirtualizationRoot_GetRootRelativePath(VirtualizationRootHandle root
         assert(rootIndex < s_maxVirtualizationRoots);
         assert(s_virtualizationRoots[rootIndex].inUse);
         assertf(s_virtualizationRoots[rootIndex].path[0] != '\0', "When converting an absolute path to a virtualization root-relative path, the root's path should not be empty.");
+#ifdef DEBUG
+        assertf(!strprefix(s_virtualizationRoots[rootIndex].path, "DEBUG:"), "When converting an absolute path to a virtualization root-relative path, the root's path should not be poisoned. Poisoned path string: '%s'", s_virtualizationRoots[rootIndex].path);
+#endif
         relativePath = GetRelativePath(path, s_virtualizationRoots[rootIndex].path);
     }
     RWLock_ReleaseShared(s_virtualizationRootsLock);
