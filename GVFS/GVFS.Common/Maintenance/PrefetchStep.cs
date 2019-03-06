@@ -153,7 +153,7 @@ namespace GVFS.Common.Maintenance
             maxGoodTimestamp = -1;
 
             int firstBadPack = -1;
-            for (int i = 0; !this.Stopping && i < orderedPacks.Count; ++i)
+            for (int i = 0; i < orderedPacks.Count; ++i)
             {
                 long timestamp = orderedPacks[i].Timestamp;
                 string packPath = orderedPacks[i].Path;
@@ -165,12 +165,6 @@ namespace GVFS.Common.Maintenance
                     metadata.Add("idxPath", idxPath);
                     metadata.Add("timestamp", timestamp);
                     GitProcess.Result indexResult = this.RunGitCommand(process => this.GitObjects.IndexPackFile(packPath, process), nameof(this.GitObjects.IndexPackFile));
-
-                    if (this.Stopping)
-                    {
-                        error = nameof(this.Stopping);
-                        return false;
-                    }
 
                     if (indexResult.ExitCodeIsFailure)
                     {
@@ -193,7 +187,12 @@ namespace GVFS.Common.Maintenance
                 }
             }
 
-            if (!this.Stopping && firstBadPack != -1)
+            if (this.Stopping)
+            {
+                throw new StoppingException();
+            }
+
+            if (firstBadPack != -1)
             {
                 const int MaxDeleteRetries = 200; // 200 * IoFailureRetryDelayMS (50ms) = 10 seconds
                 const int RetryLoggingThreshold = 40; // 40 * IoFailureRetryDelayMS (50ms) = 2 seconds
@@ -215,8 +214,13 @@ namespace GVFS.Common.Maintenance
 
                 // Delete packs and indexes in reverse order so that if prefetch is killed, subseqeuent prefetch commands will
                 // find the right starting spot.
-                for (int i = orderedPacks.Count - 1; !this.Stopping && i >= firstBadPack; --i)
+                for (int i = orderedPacks.Count - 1; i >= firstBadPack; --i)
                 {
+                    if (this.Stopping)
+                    {
+                        throw new StoppingException();
+                    }
+
                     string packPath = orderedPacks[i].Path;
                     string idxPath = Path.ChangeExtension(packPath, ".idx");
 
@@ -242,12 +246,6 @@ namespace GVFS.Common.Maintenance
                         return false;
                     }
                 }
-            }
-
-            if (this.Stopping)
-            {
-                error = nameof(this.Stopping);
-                return false;
             }
 
             error = null;
