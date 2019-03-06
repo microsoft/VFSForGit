@@ -59,8 +59,12 @@ namespace PrjFSLib.Linux.Interop
         public Result CreateProjFile(
             string relativePath,
             ulong fileSize,
-            uint fileMode)
+            uint fileMode,
+            byte[] providerId,
+            byte[] contentId)
         {
+            // TODO(Linux): create attr structs and pass to revised API
+
             return _CreateProjFile(
                 this.handle,
                 relativePath,
@@ -76,6 +80,15 @@ namespace PrjFSLib.Linux.Interop
                 this.handle,
                 relativePath,
                 symlinkTarget).ConvertErrnoToResult();
+        }
+
+        public Result GetProjAttrs(
+            string relativePath,
+            byte[] providerId,
+            byte[] contentId)
+        {
+            // TODO(Linux): read attr data using revised API
+            return Result.Success;
         }
 
         [DllImport(PrjFSLibPath, EntryPoint = "projfs_new")]
