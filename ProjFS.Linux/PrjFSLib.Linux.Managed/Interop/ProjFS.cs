@@ -53,11 +53,6 @@ namespace PrjFSLib.Linux.Interop
             return _CreateProjSymlink(this.handle, relativePath, symlinkTarget).ConvertErrnoToResult();
         }
 
-        public Result WriteFileContents(int fd, IntPtr bytes, ulong byteCount)
-        {
-            return _WriteFileContents(fd, bytes, byteCount).ConvertErrnoToResult();
-        }
-
         [DllImport(PrjFSLibPath, EntryPoint = "projfs_new")]
         private static extern IntPtr _New(
             string lowerdir,
@@ -80,9 +75,6 @@ namespace PrjFSLib.Linux.Interop
 
         [DllImport(PrjFSLibPath, EntryPoint = "projfs_create_proj_symlink")]
         private static extern Errno _CreateProjSymlink(IntPtr fs, string relativePath, string symlinkTarget);
-
-        [DllImport(PrjFSLibPath, EntryPoint = "projfs_write_file_contents")]
-        private static extern Errno _WriteFileContents(int fd, IntPtr bytes, ulong byteCount);
 
         [StructLayout(LayoutKind.Sequential)]
         public struct Event
