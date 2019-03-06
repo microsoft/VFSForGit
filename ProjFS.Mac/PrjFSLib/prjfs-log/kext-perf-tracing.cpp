@@ -26,7 +26,7 @@ static uint64_t nanosecondsFromAbsoluteTime(uint64_t machAbsoluteTime)
     return static_cast<__uint128_t>(machAbsoluteTime) * s_machTimebase.numer / s_machTimebase.denom;
 }
 
-static const char* const PerfCounterNames[PrjFSPerfCounter_Count] =
+static constexpr const char* const PerfCounterNames[PrjFSPerfCounter_Count] =
 {
     [PrjFSPerfCounter_VnodeOp]                                              = "HandleVnodeOperation",
     [PrjFSPerfCounter_VnodeOp_GetPath]                                      = " |--GetPath",
@@ -65,6 +65,19 @@ static const char* const PerfCounterNames[PrjFSPerfCounter_Count] =
     [PrjFSPerfCounter_FileOp_FileModified]                                  = " |--RaiseFileModifiedEvent",
     [PrjFSPerfCounter_FileOp_FileCreated]                                   = " |--RaiseFileCreatedEvent",
 };
+
+template <typename T, size_t N>
+    constexpr bool AllArrayElementsInitialized(T (&array)[N], size_t fromIndex = 0)
+{
+    return
+        fromIndex >= N
+        ? true
+        : (array[fromIndex] != T()
+           && AllArrayElementsInitialized(array, fromIndex + 1));
+}
+
+static_assert(AllArrayElementsInitialized(PerfCounterNames), "There must be an initialization of PerfCounterNames elements corresponding to each PrjFSPerfCounter enum value");
+
 
 static double FindSuitablPrefixedUnitFromNS(double nanoSeconds, const char*& outUnit)
 {
