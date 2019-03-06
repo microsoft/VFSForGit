@@ -76,14 +76,25 @@ namespace PrjFSLib.Linux
         {
             unsafe
             {
-                fixed (byte* buffer = bytes)
-                {
-                    return this.projfs.WriteFileContents(
-                        fd,
-                        (IntPtr)buffer,
-                        byteCount);
+                 fixed (byte* bytesPtr = bytes)
+                 {
+                     byte* bytesToWrite = bytesPtr;
+
+                     while (byteCount > 0)
+                     {
+                        long res = Syscall.write(fd, bytesToWrite, byteCount);
+                        if (res == -1)
+                        {
+                            return Result.EIOError;
+                        }
+
+                        bytesToWrite += res;
+                        byteCount -= (uint)res;
+                    }
                 }
             }
+
+            return Result.Success;
         }
 
         public virtual Result DeleteFile(
