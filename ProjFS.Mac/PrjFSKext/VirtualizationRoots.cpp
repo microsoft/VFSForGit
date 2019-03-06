@@ -628,7 +628,7 @@ static const char* GetRelativePath(const char* fullPath, const char* root)
     size_t pathLength = strlen(fullPath);
     if (pathLength < rootLength || 0 != memcmp(fullPath, root, rootLength))
     {
-        KextLog_Error("GetRelativePath: root path '%s' is not a prefix of path '%s'\n", root, fullPath);
+        KextLog_Error("GetRelativePath: root path '%s' is not a prefix of path '%s'", root, fullPath);
         return nullptr;
     }
     
@@ -639,7 +639,7 @@ static const char* GetRelativePath(const char* fullPath, const char* root)
     }
     else if (rootLength > 0 && root[rootLength - 1] != '/' && pathLength > rootLength)
     {
-        KextLog_Error("GetRelativePath: root path '%s' is not a parent directory of path '%s' (just a string prefix)\n", root, fullPath);
+        KextLog_Error("GetRelativePath: root path '%s' is not a parent directory of path '%s' (just a string prefix)", root, fullPath);
         return nullptr;
     }
     
