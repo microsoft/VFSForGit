@@ -3,6 +3,7 @@ using GVFS.Common.FileSystem;
 using GVFS.Common.Maintenance;
 using GVFS.Common.Tracing;
 using GVFS.Tests.Should;
+using GVFS.UnitTests.Category;
 using GVFS.UnitTests.Mock.Common;
 using GVFS.UnitTests.Mock.FileSystem;
 using NUnit.Framework;
@@ -26,6 +27,7 @@ namespace GVFS.UnitTests.Maintenance
         }
 
         [TestCase]
+        [Category(CategoryConstants.ExceptionExpected)]
         public void GitMaintenanceStepSkipsGitActionAfterStop()
         {
             this.TestSetup();
@@ -39,6 +41,7 @@ namespace GVFS.UnitTests.Maintenance
         }
 
         [TestCase]
+        [Category(CategoryConstants.ExceptionExpected)]
         public void GitMaintenanceStepSkipsRunGitCommandAfterStop()
         {
             this.TestSetup();

@@ -127,7 +127,7 @@ namespace GVFS.Common.Maintenance
                         metadata: null,
                         message: $"{this.Area}: Not launching Git process {gitCommand} because the mount is stopping",
                         keywords: Keywords.Telemetry);
-                    return null;
+                    throw new StoppingException();
                 }
 
                 GitProcess.Result result = work.Invoke(this.MaintenanceGitProcess);
@@ -234,7 +234,18 @@ namespace GVFS.Common.Maintenance
                 this.MaintenanceGitProcess = this.Context.Enlistment.CreateGitProcess();
             }
 
-            this.PerformMaintenance();
+            try
+            {
+                this.PerformMaintenance();
+            }
+            catch (StoppingException)
+            {
+                // Part of shutdown, skipped commands have already been logged
+            }
+        }
+
+        protected class StoppingException : Exception
+        {
         }
     }
 }

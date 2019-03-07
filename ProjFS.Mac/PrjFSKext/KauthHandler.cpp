@@ -939,6 +939,16 @@ static bool ShouldHandleFileOpEvent(
     }
     
     {
+        PerfSample checkRootOnlineSample(perfTracer, PrjFSPerfCounter_FileOp_ShouldHandle_CheckRootOnline);
+        
+        if (!VirtualizationRoot_IsOnline(*root))
+        {
+            perfTracer->IncrementCount(PrjFSPerfCounter_FileOp_ShouldHandle_OfflineRoot);
+            return false;
+        }
+    }
+    
+    {
         PerfSample pidSample(perfTracer, PrjFSPerfCounter_FileOp_ShouldHandle_CompareProviderPid);
     
         // If the calling process is the provider, we must exit right away to avoid deadlocks

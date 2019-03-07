@@ -60,7 +60,16 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
         public void NoReminderForLeftOverDownloads()
         {
             this.VerifyServiceRestartStopsReminder();
+
+            // This test should not use Nuget upgrader because it will usually find an upgrade
+            // to download.  The "None" ring config doesn't stop the Nuget upgrader from checking
+            // its feed for updates, and the VFS4G binaries installed during functional test
+            // runs typically have a 0.X version number (meaning there will always be a newer
+            // version of VFS4G available to download from the feed).
+            this.ReadNugetConfig(out string feedUrl, out string feedName);
+            this.DeleteNugetConfig();
             this.VerifyUpgradeVerbStopsReminder();
+            this.WriteNugetConfig(feedUrl, feedName);
         }
 
         [TestCase]
@@ -80,6 +89,27 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
             }
 
             timerScheduled.ShouldBeTrue();
+        }
+
+        private void ReadNugetConfig(out string feedUrl, out string feedName)
+        {
+            GVFSProcess gvfs = new GVFSProcess(GVFSTestConfig.PathToGVFS, enlistmentRoot: null, localCacheRoot: null);
+            feedUrl = gvfs.ReadConfig("upgrade.feedurl");
+            feedName = gvfs.ReadConfig("upgrade.feedpackagename");
+        }
+
+        private void DeleteNugetConfig()
+        {
+            GVFSProcess gvfs = new GVFSProcess(GVFSTestConfig.PathToGVFS, enlistmentRoot: null, localCacheRoot: null);
+            gvfs.DeleteConfig("upgrade.feedurl");
+            gvfs.DeleteConfig("upgrade.feedpackagename");
+        }
+
+        private void WriteNugetConfig(string feedUrl, string feedName)
+        {
+            GVFSProcess gvfs = new GVFSProcess(GVFSTestConfig.PathToGVFS, enlistmentRoot: null, localCacheRoot: null);
+            gvfs.WriteConfig("upgrade.feedurl", feedUrl);
+            gvfs.WriteConfig("upgrade.feedpackagename", feedName);
         }
 
         private bool ServiceLogContainsUpgradeMessaging()
