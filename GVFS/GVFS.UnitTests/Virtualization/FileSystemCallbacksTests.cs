@@ -159,6 +159,15 @@ namespace GVFS.UnitTests.Virtualization
                 fileSystemVirtualizer: fileSystemVirtualizer))
             {
                 string denyMessage;
+                fileSystemCallbacks.IsReadyForExternalAcquireLockRequests(
+                    new NamedPipeMessages.LockData(
+                        pid: 0,
+                        isElevated: false,
+                        checkAvailabilityOnly: false,
+                        parsedCommand: "git dummy-command"),
+                    out denyMessage).ShouldBeFalse();
+                denyMessage.ShouldEqual("Waiting for GVFS to parse index and update placeholder files");
+
                 string error;
                 fileSystemCallbacks.TryStart(out error).ShouldBeTrue();
                 gitIndexProjection.ProjectionParseComplete = false;
