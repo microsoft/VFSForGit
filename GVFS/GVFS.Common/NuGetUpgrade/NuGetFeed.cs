@@ -53,12 +53,7 @@ namespace GVFS.Common.NuGetUpgrade
             this.sourceCacheContext.NoCache = true;
 
             this.nuGetLogger = new Logger(this.tracer);
-
-            this.sourceRepository = Repository.Factory.GetCoreV3(this.feedUrl);
-            if (!string.IsNullOrEmpty(this.personalAccessToken))
-            {
-                this.sourceRepository.PackageSource.Credentials = BuildCredentialsFromPAT(this.personalAccessToken);
-            }
+            this.SetSourceRepository();
         }
 
         public void Dispose()
@@ -68,6 +63,13 @@ namespace GVFS.Common.NuGetUpgrade
             this.sourceCacheContext = null;
         }
 
+        public void SetCredentials(string credential)
+        {
+            this.personalAccessToken = credential;
+
+            this.SetSourceRepository();
+        }
+
         /// <summary>
         /// Query a NuGet feed for list of packages that match the packageId.
         /// </summary>
@@ -75,25 +77,16 @@ namespace GVFS.Common.NuGetUpgrade
         /// <returns>List of packages that match query parameters</returns>
         public virtual async Task<IList<IPackageSearchMetadata>> QueryFeedAsync(string packageId)
         {
-            try
-            {
-                PackageMetadataResource packageMetadataResource = await this.sourceRepository.GetResourceAsync<PackageMetadataResource>();
-                IEnumerable<IPackageSearchMetadata> queryResults = await packageMetadataResource.GetMetadataAsync(
-                    packageId,
-                    includePrerelease: false,
-                    includeUnlisted: false,
-                    sourceCacheContext: this.sourceCacheContext,
-                    log: this.nuGetLogger,
-                    token: CancellationToken.None);
+            PackageMetadataResource packageMetadataResource = await this.sourceRepository.GetResourceAsync<PackageMetadataResource>();
+            IEnumerable<IPackageSearchMetadata> queryResults = await packageMetadataResource.GetMetadataAsync(
+                packageId,
+                includePrerelease: false,
+                includeUnlisted: false,
+                sourceCacheContext: this.sourceCacheContext,
+                log: this.nuGetLogger,
+                token: CancellationToken.None);
 
-                return queryResults.ToList();
-            }
-            catch (Exception ex)
-            {
-                EventMetadata data = CreateEventMetadata(ex);
-                this.tracer.RelatedWarning(data, "Error encountered when querying NuGet feed");
-                throw new Exception($"Failed to query the NuGet package feed due to error: {ex.Message}", ex);
-            }
+            return queryResults.ToList();
         }
 
         /// <summary>
@@ -166,6 +159,15 @@ namespace GVFS.Common.NuGetUpgrade
                 "PersonalAccessToken",
                 personalAccessToken,
                 storePasswordInClearText: false);
+        }
+
+        private void SetSourceRepository()
+        {
+            this.sourceRepository = Repository.Factory.GetCoreV3(this.feedUrl);
+            if (!string.IsNullOrEmpty(this.personalAccessToken))
+            {
+                this.sourceRepository.PackageSource.Credentials = BuildCredentialsFromPAT(this.personalAccessToken);
+            }
         }
 
         /// <summary>
