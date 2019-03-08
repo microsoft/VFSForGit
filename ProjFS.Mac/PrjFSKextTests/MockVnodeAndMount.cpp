@@ -18,10 +18,12 @@ static WeakVnodeMap s_allVnodes;
 shared_ptr<mount> mount::Create(const char* fileSystemTypeName, fsid_t fsid, uint64_t initialInode)
 {
     shared_ptr<mount> result(new mount{});
+    result->weakSelfPointer = result;
     assert(strlen(fileSystemTypeName) + 1 < sizeof(result->statfs.f_fstypename));
     result->statfs.f_fsid = fsid;
     result->nextInode = initialInode;
     strlcpy(result->statfs.f_fstypename, fileSystemTypeName, sizeof(result->statfs.f_fstypename));
+    
     return result;
 }
 
@@ -36,6 +38,40 @@ vnode::vnode(const shared_ptr<mount>& mount) :
 vnode::~vnode()
 {
     assert(this->ioCount == 0);
+}
+
+static string ParentPathString(const string& path)
+{
+    assert(path.length() > 0);
+    size_t lastSlashPos = path.find_last_of('/');
+    if (lastSlashPos == 0)
+    {
+        return "/";
+    }
+    else if (lastSlashPos == path.length() - 1) // path ends in "/"
+    {
+        lastSlashPos = path.find_last_of('/', lastSlashPos - 1);
+    }
+    
+    return path.substr(0, lastSlashPos);
+}
+
+shared_ptr<vnode> mount::CreateVnodeTree(string path, vtype vnodeType)
+{
+    assert(path[0] == '/'); // Only absolute paths allowed
+    string parentPath = ParentPathString(path);
+    PathToVnodeMap::const_iterator found = s_vnodesByPath.find(parentPath);
+    shared_ptr<vnode> parentVnode = path == "/" ? nullptr : (found != s_vnodesByPath.end() ? found->second.lock() : nullptr) ?: this->CreateVnodeTree(parentPath, VDIR);
+    
+    shared_ptr<vnode> fileVnode = vnode::Create(this->weakSelfPointer.lock(), path.c_str(), vnodeType);
+    fileVnode->parent = parentVnode;
+    
+    if (path == "/")
+    {
+        this->rootVnode = fileVnode;
+    }
+    
+    return fileVnode;
 }
 
 shared_ptr<vnode> vnode::Create(const shared_ptr<mount>& mount, const char* path, vtype vnodeType)
@@ -61,6 +97,7 @@ void vnode::StartRecycling()
     this->path.clear();
     this->type = VBAD;
     this->vid++;
+    this->parent.reset();
     this->isRecycling = true;
 }
 
@@ -238,4 +275,27 @@ void MockVnodes_CheckAndClear()
     }
     
     s_allVnodes.clear();
+}
+
+
+SizeOrError Vnode_ReadXattr(vnode_t _Nonnull vnode, const char* _Nonnull xattrName, void* _Nullable buffer, size_t bufferSize)
+{
+    assert(false); // TODO: implement
+    return SizeOrError{};
+}
+
+vnode_t vnode_getparent(vnode_t vnode)
+{
+    shared_ptr<struct vnode> parentVnode = vnode->GetParentVnode();
+    if (parentVnode)
+    {
+        parentVnode->RetainIOCount();
+    }
+    
+    return parentVnode.get();
+}
+
+int vnode_isvroot(vnode_t vnode)
+{
+    return vnode->GetMountPoint()->GetRootVnode().get() == vnode;
 }
