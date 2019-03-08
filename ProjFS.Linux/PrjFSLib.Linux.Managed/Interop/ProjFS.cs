@@ -117,8 +117,33 @@ namespace PrjFSLib.Linux.Interop
             byte[] providerId,
             byte[] contentId)
         {
-            // TODO(Linux): read attr data using revised API
-            return Result.Success;
+            unsafe
+            {
+                fixed (byte* providerIdPtr = providerId, contentIdPtr = contentId)
+                {
+                    Attr[] attrs = new[]
+                    {
+                        new Attr
+                        {
+                            Name = this.providerIdAttrNamePtr,
+                            Value = (IntPtr)providerIdPtr,
+                            Size = providerId.Length
+                        },
+                        new Attr
+                        {
+                            Name = this.contentIdAttrNamePtr,
+                            Value = (IntPtr)contentIdPtr,
+                            Size = contentId.Length
+                        }
+                    };
+
+                    return _GetProjAttrs(
+                        this.handle,
+                        relativePath,
+                        attrs,
+                        (uint)attrs.Length).ConvertErrnoToResult();
+                }
+            }
         }
 
         [DllImport(PrjFSLibPath, EntryPoint = "projfs_new")]
@@ -159,6 +184,13 @@ namespace PrjFSLib.Linux.Interop
             IntPtr fs,
             string relativePath,
             string symlinkTarget);
+
+        [DllImport(PrjFSLibPath, EntryPoint = "projfs_get_attrs")]
+        private static extern Errno _GetProjAttrs(
+            IntPtr fs,
+            string relativePath,
+            Attr[] attrs,
+            uint nattrs);
 
         [StructLayout(LayoutKind.Sequential)]
         public struct Event
