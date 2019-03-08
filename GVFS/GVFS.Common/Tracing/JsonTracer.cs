@@ -1,5 +1,6 @@
 ﻿using Newtonsoft.Json;
 using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
@@ -11,7 +12,7 @@ namespace GVFS.Common.Tracing
         public const string NetworkErrorEventName = "NetworkError";
 
         private readonly List<EventListener> listeners;
-        private readonly Dictionary<EventListener, string> failedListeners = new Dictionary<EventListener, string>();
+        private readonly ConcurrentDictionary<EventListener, string> failedListeners = new ConcurrentDictionary<EventListener, string>();
 
         private readonly string activityName;
         private readonly Guid parentActivityId;
@@ -361,32 +362,33 @@ namespace GVFS.Common.Tracing
 
         private void MarkAndLogListenerRecovery(EventListener recoveredListener)
         {
+            // Check ContainsKey first (rather than always calling TryRemove) because ContainsKey
+            // is lock-free and recoveredListener should rarely be in failedListeners
             if (!this.failedListeners.ContainsKey(recoveredListener))
             {
-                // This listener has not failed since the last time it was called, so no need to do anything
+                // This listener has not failed since the last time it was called, so no need to log recovery
                 return;
             }
 
-            this.failedListeners.Remove(recoveredListener);
-
-            TraceEventMessage message = CreateListenerRecoveryMessage(recoveredListener);
-
-            // Only log that the listener has recovered to the other good listeners
-            foreach (EventListener listener in this.listeners.Except(this.failedListeners.Keys))
+            if (this.failedListeners.TryRemove(recoveredListener, out _))
             {
-                listener.TryRecordMessage(message, out _);
+                TraceEventMessage message = CreateListenerRecoveryMessage(recoveredListener);
+
+                // Only log that the listener has recovered to the other good listeners
+                foreach (EventListener listener in this.listeners.Except(this.failedListeners.Keys))
+                {
+                    listener.TryRecordMessage(message, out _);
+                }
             }
         }
 
         private void MarkAndLogListenerFailure(EventListener failedListener, string errorMessage)
         {
-            if (this.failedListeners.ContainsKey(failedListener))
+            if (!this.failedListeners.TryAdd(failedListener, errorMessage))
             {
                 // We've already logged that this listener has failed so there is no need to do it again
                 return;
             }
-
-            this.failedListeners.Add(failedListener, errorMessage);
 
             TraceEventMessage message = CreateListenerFailureMessage(failedListener, errorMessage);
 
