@@ -8,6 +8,12 @@ namespace PrjFSLib.Linux.Interop
     {
         private const string PrjFSLibPath = "libprojfs.so";
 
+        private const string ProviderIdAttrName = "vfsforgit.providerid";
+        private const string ContentIdAttrName = "vfsforgit.contentid";
+
+        private readonly IntPtr providerIdAttrNamePtr = Marshal.StringToHGlobalAnsi(ProviderIdAttrName);
+        private readonly IntPtr contentIdAttrNamePtr = Marshal.StringToHGlobalAnsi(ContentIdAttrName);
+
         private readonly IntPtr handle;
 
         private ProjFS(IntPtr handle)
@@ -53,7 +59,9 @@ namespace PrjFSLib.Linux.Interop
             return _CreateProjDir(
                 this.handle,
                 relativePath,
-                fileMode).ConvertErrnoToResult();
+                fileMode,
+                new Attr[0],
+                0).ConvertErrnoToResult();
         }
 
         public Result CreateProjFile(
@@ -63,13 +71,35 @@ namespace PrjFSLib.Linux.Interop
             byte[] providerId,
             byte[] contentId)
         {
-            // TODO(Linux): create attr structs and pass to revised API
+            unsafe
+            {
+                fixed (byte* providerIdPtr = providerId, contentIdPtr = contentId)
+                {
+                    Attr[] attrs = new[]
+                    {
+                        new Attr
+                        {
+                            Name = this.providerIdAttrNamePtr,
+                            Value = (IntPtr)providerIdPtr,
+                            Size = providerId.Length
+                        },
+                        new Attr
+                        {
+                            Name = this.contentIdAttrNamePtr,
+                            Value = (IntPtr)contentIdPtr,
+                            Size = contentId.Length
+                        }
+                    };
 
-            return _CreateProjFile(
-                this.handle,
-                relativePath,
-                fileSize,
-                fileMode).ConvertErrnoToResult();
+                    return _CreateProjFile(
+                        this.handle,
+                        relativePath,
+                        fileSize,
+                        fileMode,
+                        attrs,
+                        (uint)attrs.Length).ConvertErrnoToResult();
+                }
+            }
         }
 
         public Result CreateProjSymlink(
@@ -111,14 +141,18 @@ namespace PrjFSLib.Linux.Interop
         private static extern Errno _CreateProjDir(
             IntPtr fs,
             string relativePath,
-            uint fileMode);
+            uint fileMode,
+            Attr[] attrs,
+            uint nattrs);
 
         [DllImport(PrjFSLibPath, EntryPoint = "projfs_create_proj_file")]
         private static extern Errno _CreateProjFile(
             IntPtr fs,
             string relativePath,
             ulong fileSize,
-            uint fileMode);
+            uint fileMode,
+            Attr[] attrs,
+            uint nattrs);
 
         [DllImport(PrjFSLibPath, EntryPoint = "projfs_create_proj_symlink")]
         private static extern Errno _CreateProjSymlink(
@@ -143,6 +177,14 @@ namespace PrjFSLib.Linux.Interop
             public EventHandler HandleProjEvent;
             public EventHandler HandleNotifyEvent;
             public EventHandler HandlePermEvent;
+        }
+
+        [StructLayout(LayoutKind.Sequential)]
+        public struct Attr
+        {
+            public IntPtr Name;
+            public IntPtr Value;
+            public long Size;
         }
     }
 }
