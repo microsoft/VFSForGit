@@ -8,6 +8,9 @@ using std::string;
 using std::unordered_map;
 using std::shared_ptr;
 using std::weak_ptr;
+using std::pair;
+using std::vector;
+using std::min;
 
 typedef unordered_map<string, weak_ptr<vnode>> PathToVnodeMap;
 typedef unordered_map<vnode_t, weak_ptr<vnode>> WeakVnodeMap;
@@ -309,11 +312,32 @@ void MockVnodes_CheckAndClear()
     s_allVnodes.clear();
 }
 
+vnode::BytesOrError vnode::ReadXattr(const char* xattrName)
+{
+    // TODO: add support for explicit error mocking
+    XattrMap::const_iterator found = this->xattrs.find(xattrName);
+    if (found == this->xattrs.end())
+    {
+        return BytesOrError{ .error = ENOATTR };
+    }
+    else
+    {
+        return BytesOrError{ .error = 0, .bytes = found->second };
+    }
+}
 
 SizeOrError Vnode_ReadXattr(vnode_t _Nonnull vnode, const char* _Nonnull xattrName, void* _Nullable buffer, size_t bufferSize)
 {
-    assert(false); // TODO: implement
-    return SizeOrError{};
+    vnode::BytesOrError xattrResult = vnode->ReadXattr(xattrName);
+    if (xattrResult.error == 0)
+    {
+        memcpy(buffer, xattrResult.bytes.data(), min(xattrResult.bytes.size(), bufferSize));
+        return SizeOrError { xattrResult.bytes.size(), 0 };
+    }
+    else
+    {
+        return SizeOrError { 0, xattrResult.error };
+    }
 }
 
 vnode_t vnode_getparent(vnode_t vnode)
