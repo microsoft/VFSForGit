@@ -193,27 +193,37 @@ namespace GVFS.Platform.Windows
 
         public override void ConfigureVisualStudio(string gitBinPath, ITracer tracer)
         {
-            const string GitBinPathEnd = "\\cmd\\git.exe";
-            string[] gitVSRegistryKeyNames =
+            try
             {
-                "HKEY_CURRENT_USER\\Software\\Microsoft\\VSCommon\\15.0\\TeamFoundation\\GitSourceControl",
-                "HKEY_CURRENT_USER\\Software\\Microsoft\\VSCommon\\16.0\\TeamFoundation\\GitSourceControl"
-            };
-            const string GitVSRegistryValueName = "GitPath";
+                const string GitBinPathEnd = "\\cmd\\git.exe";
+                string[] gitVSRegistryKeyNames =
+                {
+                    "HKEY_CURRENT_USER\\Software\\Microsoft\\VSCommon\\15.0\\TeamFoundation\\GitSourceControl",
+                    "HKEY_CURRENT_USER\\Software\\Microsoft\\VSCommon\\16.0\\TeamFoundation\\GitSourceControl"
+                };
+                const string GitVSRegistryValueName = "GitPath";
 
-            if (!gitBinPath.EndsWith(GitBinPathEnd))
-            {
-                tracer.RelatedWarning(
-                    "Unable to configure Visual Studio’s GitSourceControl regkey because invalid git.exe path found: " + gitBinPath,
-                    Keywords.Telemetry);
+                if (!gitBinPath.EndsWith(GitBinPathEnd))
+                {
+                    tracer.RelatedWarning(
+                        "Unable to configure Visual Studio’s GitSourceControl regkey because invalid git.exe path found: " + gitBinPath,
+                        Keywords.Telemetry);
 
-                return;
+                    return;
+                }
+
+                string regKeyValue = gitBinPath.Substring(0, gitBinPath.Length - GitBinPathEnd.Length);
+                foreach (string registryKeyName in gitVSRegistryKeyNames)
+                {
+                    Registry.SetValue(registryKeyName, GitVSRegistryValueName, regKeyValue);
+                }
             }
-
-            string regKeyValue = gitBinPath.Substring(0, gitBinPath.Length - GitBinPathEnd.Length);
-            foreach (string registryKeyName in gitVSRegistryKeyNames)
+            catch (Exception ex)
             {
-                Registry.SetValue(registryKeyName, GitVSRegistryValueName, regKeyValue);
+                EventMetadata metadata = new EventMetadata();
+                metadata.Add("Operation", nameof(this.ConfigureVisualStudio));
+                metadata.Add("Exception", ex.ToString());
+                tracer.RelatedWarning(metadata, "Error while trying to set Visual Studio’s GitSourceControl regkey");
             }
         }
 
