@@ -108,9 +108,9 @@ namespace GVFS.FunctionalTests.Tools
             return this.CallGVFS("service " + argument, failOnError: true);
         }
 
-        public string ReadConfig(string key)
+        public string ReadConfig(string key, bool failOnError)
         {
-            return this.CallGVFS($"config {key}", failOnError: true).TrimEnd('\r', '\n');
+            return this.CallGVFS($"config {key}", failOnError).TrimEnd('\r', '\n');
         }
 
         public void WriteConfig(string key, string value)
