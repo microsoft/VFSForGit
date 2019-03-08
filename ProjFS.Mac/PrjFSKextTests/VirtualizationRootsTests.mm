@@ -266,7 +266,7 @@ void ProviderUserClient_UpdatePathProperty(PrjFSProviderUserClient* userClient, 
 }
 
 // Check that VirtualizationRoot_FindForVnode correctly identifies the virtualization root for files below that root.
-- (void)testFindForVnode_FileInRepo
+- (void)testFindForVnode_FileInRoot
 {
     vfs_context_t context = vfs_context_create(nullptr);
     
@@ -278,10 +278,32 @@ void ProviderUserClient_UpdatePathProperty(PrjFSProviderUserClient* userClient, 
     
     
     VirtualizationRootHandle repoRootHandle = InsertVirtualizationRoot_Locked(nullptr /* no client */, 0, repoRootVnode.get(), repoRootVnode->GetVid(), FsidInode{ repoRootVnode->GetMountPoint()->GetFsid(), repoRootVnode->GetInode() }, repoPath);
-    
+    XCTAssertTrue(VirtualizationRoot_IsValidRootHandle(repoRootHandle));
+
     VirtualizationRootHandle foundRoot = VirtualizationRoot_FindForVnode(&self->dummyTracer, PrjFSPerfCounter_VnodeOp_FindRoot, PrjFSPerfCounter_VnodeOp_FindRoot_Iteration, testFileVnode.get(), context);
     
     XCTAssertEqual(foundRoot, repoRootHandle);
+    vfs_context_rele(context);
+}
+
+// Check that files outside a root are correctly identified as such by VirtualizationRoot_FindForVnode
+- (void)testFindForVnode_FileNotInRoot
+{
+    vfs_context_t context = vfs_context_create(nullptr);
+    
+    const char* repoPath = "/Users/test/code/Repo";
+    const char* filePath = "/Users/test/code/NotVirtualizedRepo/file";
+    
+    shared_ptr<vnode> repoRootVnode = self->testMountPoint->CreateVnodeTree(repoPath, VDIR);
+    shared_ptr<vnode> testFileVnode = self->testMountPoint->CreateVnodeTree(filePath);
+    
+    
+    VirtualizationRootHandle repoRootHandle = InsertVirtualizationRoot_Locked(nullptr /* no client */, 0, repoRootVnode.get(), repoRootVnode->GetVid(), FsidInode{ repoRootVnode->GetMountPoint()->GetFsid(), repoRootVnode->GetInode() }, repoPath);
+    XCTAssertTrue(VirtualizationRoot_IsValidRootHandle(repoRootHandle));
+    
+    VirtualizationRootHandle foundRoot = VirtualizationRoot_FindForVnode(&self->dummyTracer, PrjFSPerfCounter_VnodeOp_FindRoot, PrjFSPerfCounter_VnodeOp_FindRoot_Iteration, testFileVnode.get(), context);
+    
+    XCTAssertEqual(foundRoot, RootHandle_None);
     vfs_context_rele(context);
 }
 
