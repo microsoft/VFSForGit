@@ -373,12 +373,7 @@ namespace GVFS.Common.Tracing
             if (this.failedListeners.TryRemove(recoveredListener, out _))
             {
                 TraceEventMessage message = CreateListenerRecoveryMessage(recoveredListener);
-
-                // Only log that the listener has recovered to the other good listeners
-                foreach (EventListener listener in this.listeners.Except(this.failedListeners.Keys))
-                {
-                    listener.TryRecordMessage(message, out _);
-                }
+                this.LogMessageToNonFailedListeners(message);
             }
         }
 
@@ -391,8 +386,11 @@ namespace GVFS.Common.Tracing
             }
 
             TraceEventMessage message = CreateListenerFailureMessage(failedListener, errorMessage);
+            this.LogMessageToNonFailedListeners(message);
+        }
 
-            // Only log the failure to listeners that have not failed themselves
+        private void LogMessageToNonFailedListeners(TraceEventMessage message)
+        {
             foreach (EventListener listener in this.listeners.Except(this.failedListeners.Keys))
             {
                 // To prevent infinitely recursive failures, we won't try and log that we failed to log that a listener failed :)
