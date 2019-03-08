@@ -34,6 +34,7 @@ void ProviderUserClient_UpdatePathProperty(PrjFSProviderUserClient* userClient, 
 {
     PrjFSProviderUserClient dummyClient;
     pid_t dummyClientPid;
+    PerfTracer dummyTracer;
     shared_ptr<mount> testMountPoint;
 }
 
@@ -262,6 +263,25 @@ void ProviderUserClient_UpdatePathProperty(PrjFSProviderUserClient* userClient, 
     s_virtualizationRoots[result.root].providerUserClient = nullptr;
     vnode_put(newVnode.get());
 
+}
+
+- (void)testFindForVnode_FileInRepo
+{
+    vfs_context_t context = vfs_context_create(nullptr);
+    
+    const char* repoPath = "/Users/test/code/Repo";
+    const char* filePath = "/Users/test/code/Repo/file";
+    
+    shared_ptr<vnode> repoRootVnode = self->testMountPoint->CreateVnodeTree(repoPath, VDIR);
+    shared_ptr<vnode> testFileVnode = self->testMountPoint->CreateVnodeTree(filePath);
+    
+    
+    VirtualizationRootHandle repoRootHandle = InsertVirtualizationRoot_Locked(nullptr /* no client */, 0, repoRootVnode.get(), repoRootVnode->GetVid(), FsidInode{ repoRootVnode->GetMountPoint()->GetFsid(), repoRootVnode->GetInode() }, repoPath);
+    
+    VirtualizationRootHandle foundRoot = VirtualizationRoot_FindForVnode(&self->dummyTracer, PrjFSPerfCounter_VnodeOp_FindRoot, PrjFSPerfCounter_VnodeOp_FindRoot_Iteration, testFileVnode.get(), context);
+    
+    XCTAssertEqual(foundRoot, repoRootHandle);
+    vfs_context_rele(context);
 }
 
 @end
