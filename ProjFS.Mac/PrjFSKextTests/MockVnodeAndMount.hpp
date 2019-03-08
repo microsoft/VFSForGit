@@ -16,11 +16,16 @@ struct mount
 private:
     vfsstatfs statfs;
     uint64_t nextInode;
-    
+    std::weak_ptr<mount> weakSelfPointer;
+    std::weak_ptr<vnode> rootVnode;
+
 public:
     static std::shared_ptr<mount> Create(const char* fileSystemTypeName, fsid_t fsid, uint64_t initialInode);
     
+    std::shared_ptr<vnode> CreateVnodeTree(const std::string& path, vtype vnodeType = VREG);
+    
     fsid_t GetFsid() const { return this->statfs.f_fsid; }
+    std::shared_ptr<vnode> GetRootVnode() const { return this->rootVnode.lock(); }
     
     friend struct vnode;
     friend vfsstatfs* vfs_statfs(mount_t mountPoint);
@@ -31,6 +36,7 @@ struct vnode
 private:
     std::weak_ptr<vnode> weakSelfPointer;
     std::shared_ptr<mount> mountPoint;
+    std::shared_ptr<vnode> parent;
     
     bool isRecycling = false;
     vtype type = VREG;
@@ -60,6 +66,7 @@ public:
     mount_t GetMountPoint() const      { return this->mountPoint.get(); }
     bool IsRecycling() const           { return this->isRecycling; }
     vtype GetVnodeType() const         { return this->type; }
+    std::shared_ptr<vnode> const GetParentVnode() { return this->parent; }
 
     void SetGetPathError(errno_t error);
     void StartRecycling();
@@ -67,6 +74,7 @@ public:
     errno_t RetainIOCount();
     void ReleaseIOCount();
 
+    friend struct mount;
     friend int vn_getpath(vnode_t vnode, char* pathBuffer, int* pathLengthInOut);
 };
 
