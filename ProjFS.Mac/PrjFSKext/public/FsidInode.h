@@ -2,6 +2,7 @@
 #define FsidInode_h
 
 #include <sys/_types/_fsid_t.h>
+#include <stdint.h>
 
 struct FsidInode
 {

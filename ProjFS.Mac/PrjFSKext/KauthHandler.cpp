@@ -15,11 +15,10 @@
 #include "PrjFSProviderUserClient.hpp"
 #include "PerformanceTracing.hpp"
 #include "kernel-header-wrappers/mount.h"
+#include "KextLog.hpp"
 
 #ifdef KEXT_UNIT_TESTING
 #include "KauthHandlerTestable.hpp"
-#else
-#include "KextLog.hpp"
 #endif
 
 // Function prototypes
