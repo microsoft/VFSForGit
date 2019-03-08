@@ -5,6 +5,8 @@
 #include "../PrjFSKext/public/FsidInode.h"
 #include <memory>
 #include <string>
+#include <vector>
+#include <unordered_map>
 
 // The struct names mount and vnode are dictated by mount_t and vnode_t's
 // definitions as (opaque/forward declared) pointers to those structs.
@@ -37,7 +39,12 @@ private:
     std::weak_ptr<vnode> weakSelfPointer;
     std::shared_ptr<mount> mountPoint;
     std::shared_ptr<vnode> parent;
-    
+
+public:
+    typedef std::unordered_map<std::string, std::vector<uint8_t>> XattrMap;
+    XattrMap xattrs;
+
+private:
     bool isRecycling = false;
     vtype type = VREG;
     uint64_t inode;
@@ -67,6 +74,8 @@ public:
     bool IsRecycling() const           { return this->isRecycling; }
     vtype GetVnodeType() const         { return this->type; }
     std::shared_ptr<vnode> const GetParentVnode() { return this->parent; }
+    
+    std::pair<errno_t, std::vector<uint8_t>> ReadXattr(const char* xattrName);
 
     void SetGetPathError(errno_t error);
     void StartRecycling();
