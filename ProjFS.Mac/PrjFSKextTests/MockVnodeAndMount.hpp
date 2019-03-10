@@ -5,6 +5,15 @@
 #include "../PrjFSKext/public/FsidInode.h"
 #include <memory>
 #include <string>
+#include <vector>
+#include <unordered_map>
+
+struct VnodeCreationProperties
+{
+    vtype type = VREG;
+    uint64_t inode = UINT64_MAX; // auto-generate
+    std::shared_ptr<vnode> parent;
+};
 
 // The struct names mount and vnode are dictated by mount_t and vnode_t's
 // definitions as (opaque/forward declared) pointers to those structs.
@@ -16,11 +25,17 @@ struct mount
 private:
     vfsstatfs statfs;
     uint64_t nextInode;
-    
+    std::weak_ptr<mount> weakSelfPointer;
+    std::weak_ptr<vnode> rootVnode;
+
 public:
     static std::shared_ptr<mount> Create(const char* fileSystemTypeName, fsid_t fsid, uint64_t initialInode);
     
+    std::shared_ptr<vnode> CreateVnodeTree(std::string path, vtype vnodeType = VREG);
+    std::shared_ptr<vnode> CreateVnode(std::string path, VnodeCreationProperties properties);
+    
     fsid_t GetFsid() const { return this->statfs.f_fsid; }
+    std::shared_ptr<vnode> GetRootVnode() const { return this->rootVnode.lock(); }
     
     friend struct vnode;
     friend vfsstatfs* vfs_statfs(mount_t mountPoint);
@@ -31,7 +46,13 @@ struct vnode
 private:
     std::weak_ptr<vnode> weakSelfPointer;
     std::shared_ptr<mount> mountPoint;
-    
+    std::shared_ptr<vnode> parent;
+
+public:
+    typedef std::unordered_map<std::string, std::vector<uint8_t>> XattrMap;
+    XattrMap xattrs;
+
+private:
     bool isRecycling = false;
     vtype type = VREG;
     uint64_t inode;
@@ -45,7 +66,8 @@ private:
     void SetPath(const std::string& path);
 
     explicit vnode(const std::shared_ptr<mount>& mount);
-    
+    explicit vnode(const std::shared_ptr<mount>& mount, VnodeCreationProperties properties);
+
     vnode(const vnode&) = delete;
     vnode& operator=(const vnode&) = delete;
     
@@ -60,6 +82,9 @@ public:
     mount_t GetMountPoint() const      { return this->mountPoint.get(); }
     bool IsRecycling() const           { return this->isRecycling; }
     vtype GetVnodeType() const         { return this->type; }
+    std::shared_ptr<vnode> const GetParentVnode() { return this->parent; }
+    
+    std::pair<errno_t, std::vector<uint8_t>> ReadXattr(const char* xattrName);
 
     void SetGetPathError(errno_t error);
     void StartRecycling();
@@ -67,6 +92,7 @@ public:
     errno_t RetainIOCount();
     void ReleaseIOCount();
 
+    friend struct mount;
     friend int vn_getpath(vnode_t vnode, char* pathBuffer, int* pathLengthInOut);
 };
 
