@@ -6,6 +6,7 @@
 #include "../PrjFSKext/Locks.hpp"
 #include "../PrjFSKext/VnodeUtilities.hpp"
 #include "../PrjFSKext/KextLog.hpp"
+#include "../PrjFSKext/public/PrjFSXattrs.h"
 #include "KextMockUtilities.hpp"
 #include "MockVnodeAndMount.hpp"
 
@@ -14,6 +15,7 @@
 #include <string>
 
 using std::shared_ptr;
+using std::vector;
 
 class PrjFSProviderUserClient
 {
@@ -25,6 +27,13 @@ void ProviderUserClient_UpdatePathProperty(PrjFSProviderUserClient* userClient, 
     MockCalls::RecordFunctionCall(ProviderUserClient_UpdatePathProperty, userClient, providerPath);
 }
 
+static void SetRootXattrData(shared_ptr<vnode> vnode)
+{
+    PrjFSVirtualizationRootXAttrData rootXattr = {};
+    vector<uint8_t> rootXattrData(sizeof(rootXattr), 0x00);
+    memcpy(rootXattrData.data(), &rootXattr, rootXattrData.size());
+    vnode->xattrs.insert(make_pair(PrjFSVirtualizationRootXAttrName, rootXattrData));
+}
 
 @interface VirtualizationRootsTests : XCTestCase
 
@@ -36,6 +45,7 @@ void ProviderUserClient_UpdatePathProperty(PrjFSProviderUserClient* userClient, 
     pid_t dummyClientPid;
     PerfTracer dummyTracer;
     shared_ptr<mount> testMountPoint;
+    vfs_context_t dummyVFSContext;
 }
 
 - (void)setUp
@@ -53,10 +63,13 @@ void ProviderUserClient_UpdatePathProperty(PrjFSProviderUserClient* userClient, 
     
     kern_return_t initResult = VirtualizationRoots_Init();
     XCTAssertEqual(initResult, KERN_SUCCESS);
+    
+    self->dummyVFSContext = vfs_context_create(nullptr);
 }
 
 - (void)tearDown
 {
+    vfs_context_rele(self->dummyVFSContext);
     VirtualizationRoots_Cleanup();
 
     MockVnodes_CheckAndClear();
@@ -268,8 +281,6 @@ void ProviderUserClient_UpdatePathProperty(PrjFSProviderUserClient* userClient, 
 // Check that VirtualizationRoot_FindForVnode correctly identifies the virtualization root for files below that root.
 - (void)testFindForVnode_FileInRoot
 {
-    vfs_context_t context = vfs_context_create(nullptr);
-    
     const char* repoPath = "/Users/test/code/Repo";
     const char* filePath = "/Users/test/code/Repo/file";
     
@@ -280,17 +291,14 @@ void ProviderUserClient_UpdatePathProperty(PrjFSProviderUserClient* userClient, 
     VirtualizationRootHandle repoRootHandle = InsertVirtualizationRoot_Locked(nullptr /* no client */, 0, repoRootVnode.get(), repoRootVnode->GetVid(), FsidInode{ repoRootVnode->GetMountPoint()->GetFsid(), repoRootVnode->GetInode() }, repoPath);
     XCTAssertTrue(VirtualizationRoot_IsValidRootHandle(repoRootHandle));
 
-    VirtualizationRootHandle foundRoot = VirtualizationRoot_FindForVnode(&self->dummyTracer, PrjFSPerfCounter_VnodeOp_FindRoot, PrjFSPerfCounter_VnodeOp_FindRoot_Iteration, testFileVnode.get(), context);
+    VirtualizationRootHandle foundRoot = VirtualizationRoot_FindForVnode(&self->dummyTracer, PrjFSPerfCounter_VnodeOp_FindRoot, PrjFSPerfCounter_VnodeOp_FindRoot_Iteration, testFileVnode.get(), self->dummyVFSContext);
     
     XCTAssertEqual(foundRoot, repoRootHandle);
-    vfs_context_rele(context);
 }
 
 // Check that files outside a root are correctly identified as such by VirtualizationRoot_FindForVnode
 - (void)testFindForVnode_FileNotInRoot
 {
-    vfs_context_t context = vfs_context_create(nullptr);
-    
     const char* repoPath = "/Users/test/code/Repo";
     const char* filePath = "/Users/test/code/NotVirtualizedRepo/file";
     
@@ -301,10 +309,85 @@ void ProviderUserClient_UpdatePathProperty(PrjFSProviderUserClient* userClient, 
     VirtualizationRootHandle repoRootHandle = InsertVirtualizationRoot_Locked(nullptr /* no client */, 0, repoRootVnode.get(), repoRootVnode->GetVid(), FsidInode{ repoRootVnode->GetMountPoint()->GetFsid(), repoRootVnode->GetInode() }, repoPath);
     XCTAssertTrue(VirtualizationRoot_IsValidRootHandle(repoRootHandle));
     
-    VirtualizationRootHandle foundRoot = VirtualizationRoot_FindForVnode(&self->dummyTracer, PrjFSPerfCounter_VnodeOp_FindRoot, PrjFSPerfCounter_VnodeOp_FindRoot_Iteration, testFileVnode.get(), context);
+    VirtualizationRootHandle foundRoot = VirtualizationRoot_FindForVnode(&self->dummyTracer, PrjFSPerfCounter_VnodeOp_FindRoot, PrjFSPerfCounter_VnodeOp_FindRoot_Iteration, testFileVnode.get(), self->dummyVFSContext);
     
     XCTAssertEqual(foundRoot, RootHandle_None);
-    vfs_context_rele(context);
 }
+
+// Check that VirtualizationRoot_FindForVnode can discover virtualization roots from the root directory's xattr
+- (void)testFindForVnode_FileInUndetectedRoot
+{
+    const char* repoPath = "/Users/test/code/Repo";
+    const char* filePath = "/Users/test/code/Repo/file";
+    
+    shared_ptr<vnode> repoRootVnode = self->testMountPoint->CreateVnodeTree(repoPath, VDIR);
+    shared_ptr<vnode> testFileVnode = self->testMountPoint->CreateVnodeTree(filePath);
+
+    SetRootXattrData(repoRootVnode);
+
+    VirtualizationRootHandle foundRoot = VirtualizationRoot_FindForVnode(&self->dummyTracer, PrjFSPerfCounter_VnodeOp_FindRoot, PrjFSPerfCounter_VnodeOp_FindRoot_Iteration, testFileVnode.get(), self->dummyVFSContext);
+    
+    XCTAssertTrue(VirtualizationRoot_IsValidRootHandle(foundRoot));
+}
+
+// A regression test of VirtualizationRoot_FindForVnode for bug #797.
+//  * Verify the virtualization root ends up with the inode of the root directory vnode.
+//  * Verify that the virtualization root does not change identity when the root directory vnode is recycled.
+//  * Verify that the root vnode registered in the virtualization root is refreshed to the new root vnode.
+- (void)testFindForVnode_DetectRootRecycleThenFindRootForOtherFile
+{
+    const char* repoPath = "/Users/test/code/Repo";
+    const char* filePath = "/Users/test/code/Repo/file";
+    const char* otherFilePath = "/Users/test/code/Repo/some/otherfile";
+
+    shared_ptr<vnode> repoRootVnode = self->testMountPoint->CreateVnodeTree(repoPath, VDIR);
+    shared_ptr<vnode> testFileVnode = self->testMountPoint->CreateVnodeTree(filePath);
+
+    SetRootXattrData(repoRootVnode);
+
+    VirtualizationRootHandle foundRoot = VirtualizationRoot_FindForVnode(&self->dummyTracer, PrjFSPerfCounter_VnodeOp_FindRoot, PrjFSPerfCounter_VnodeOp_FindRoot_Iteration, testFileVnode.get(), self->dummyVFSContext);
+
+    XCTAssertTrue(VirtualizationRoot_IsValidRootHandle(foundRoot));
+    
+    if (VirtualizationRoot_IsValidRootHandle(foundRoot))
+    {
+        uint64_t inode = repoRootVnode->GetInode();
+        XCTAssertEqual(s_virtualizationRoots[foundRoot].rootInode, inode);
+        
+        repoRootVnode->StartRecycling();
+        
+        shared_ptr<vnode> newRepoRootVnode = self->testMountPoint->CreateVnode(repoPath, VnodeCreationProperties { .inode = repoRootVnode->GetInode(), .type = VDIR });
+        
+        shared_ptr<vnode> otherTestFileVnode = self->testMountPoint->CreateVnodeTree(otherFilePath);
+        VirtualizationRootHandle foundRootForOther = VirtualizationRoot_FindForVnode(&self->dummyTracer, PrjFSPerfCounter_VnodeOp_FindRoot, PrjFSPerfCounter_VnodeOp_FindRoot_Iteration, otherTestFileVnode.get(), self->dummyVFSContext);
+        
+        XCTAssertEqual(foundRootForOther, foundRoot, "Despite recycling the repo root vnode, we should end up with the same handle");
+        XCTAssertEqual(s_virtualizationRoots[foundRootForOther].rootVNode, newRepoRootVnode.get(), "Vnode should be refreshed");
+        XCTAssertEqual(s_virtualizationRoots[foundRootForOther].rootVNodeVid, newRepoRootVnode->GetVid(), "Vnode VID should be refreshed");
+        XCTAssertEqual(s_virtualizationRoots[foundRoot].rootInode, inode);
+    }
+}
+
+- (void)testFindForVnode_DirectoryInUndetectedRoot
+{
+    const char* repoPath = "/Users/test/code/Repo";
+    const char* subdirPath = "/Users/test/code/Repo/some/nested/subdir";
+    
+    shared_ptr<vnode> repoRootVnode = self->testMountPoint->CreateVnodeTree(repoPath, VDIR);
+    shared_ptr<vnode> testSubdirVnode = self->testMountPoint->CreateVnodeTree(subdirPath, VDIR);
+
+    XCTAssertTrue(vnode_isdir(testSubdirVnode.get()));
+
+    SetRootXattrData(repoRootVnode);
+
+    VirtualizationRootHandle foundRoot = VirtualizationRoot_FindForVnode(&self->dummyTracer, PrjFSPerfCounter_VnodeOp_FindRoot, PrjFSPerfCounter_VnodeOp_FindRoot_Iteration, testSubdirVnode.get(), self->dummyVFSContext);
+    
+    XCTAssertTrue(VirtualizationRoot_IsValidRootHandle(foundRoot));
+    if (VirtualizationRoot_IsValidRootHandle(foundRoot))
+    {
+        XCTAssertEqual(s_virtualizationRoots[foundRoot].rootInode, repoRootVnode->GetInode());
+    }
+}
+
 
 @end
