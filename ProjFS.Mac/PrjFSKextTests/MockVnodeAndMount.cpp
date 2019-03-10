@@ -38,6 +38,15 @@ vnode::vnode(const shared_ptr<mount>& mount) :
 {
 }
 
+vnode::vnode(const std::shared_ptr<mount>& mount, VnodeCreationProperties properties) :
+    mountPoint(mount),
+    name(nullptr),
+    inode(properties.inode == UINT64_MAX ? mount->nextInode++ : properties.inode),
+    type(properties.type),
+    parent(properties.parent)
+{
+}
+
 vnode::~vnode()
 {
     assert(this->ioCount == 0);
@@ -75,6 +84,20 @@ shared_ptr<vnode> mount::CreateVnodeTree(string path, vtype vnodeType)
     }
     
     return fileVnode;
+}
+
+std::shared_ptr<vnode> mount::CreateVnode(std::string path, VnodeCreationProperties properties)
+{
+    uint64_t inode = properties.inode;
+    if (inode == UINT64_MAX)
+    {
+        inode = this->nextInode++;
+    }
+    shared_ptr<vnode> newVnode(new vnode(this->weakSelfPointer.lock(), properties));
+    s_allVnodes.insert(make_pair(newVnode.get(), weak_ptr<vnode>(newVnode)));
+    newVnode->weakSelfPointer = newVnode;
+    newVnode->SetPath(path);
+    return newVnode;
 }
 
 shared_ptr<vnode> vnode::Create(const shared_ptr<mount>& mount, const char* path, vtype vnodeType)
