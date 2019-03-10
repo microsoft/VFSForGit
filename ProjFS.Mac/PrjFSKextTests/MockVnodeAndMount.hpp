@@ -8,6 +8,13 @@
 #include <vector>
 #include <unordered_map>
 
+struct VnodeCreationProperties
+{
+    vtype type = VREG;
+    uint64_t inode = UINT64_MAX; // auto-generate
+    std::shared_ptr<vnode> parent;
+};
+
 // The struct names mount and vnode are dictated by mount_t and vnode_t's
 // definitions as (opaque/forward declared) pointers to those structs.
 // As the (testable) kext treats them as entirely opaque, we can implement
@@ -25,6 +32,7 @@ public:
     static std::shared_ptr<mount> Create(const char* fileSystemTypeName, fsid_t fsid, uint64_t initialInode);
     
     std::shared_ptr<vnode> CreateVnodeTree(const std::string& path, vtype vnodeType = VREG);
+    std::shared_ptr<vnode> CreateVnode(std::string path, VnodeCreationProperties properties);
     
     fsid_t GetFsid() const { return this->statfs.f_fsid; }
     std::shared_ptr<vnode> GetRootVnode() const { return this->rootVnode.lock(); }
@@ -58,7 +66,8 @@ private:
     void SetAndRegisterPath(const std::string& path);
 
     explicit vnode(const std::shared_ptr<mount>& mount);
-    
+    explicit vnode(const std::shared_ptr<mount>& mount, VnodeCreationProperties properties);
+
     vnode(const vnode&) = delete;
     vnode& operator=(const vnode&) = delete;
     
