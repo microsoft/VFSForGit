@@ -2,7 +2,7 @@
 #include "public/PrjFSCommon.h"
 #include "public/PrjFSProviderClientShared.h"
 #include "public/Message.h"
-#include "KauthHandler.hpp"
+#include "ProviderMessaging.hpp"
 #include "VirtualizationRoots.hpp"
 
 #include <IOKit/IOSharedDataQueue.h>
@@ -217,7 +217,7 @@ IOReturn PrjFSProviderUserClient::kernelMessageResponse(
 
 IOReturn PrjFSProviderUserClient::kernelMessageResponse(uint64_t messageId, MessageType responseType)
 {
-    KauthHandler_HandleKernelMessageResponse(this->virtualizationRootHandle, messageId, responseType);
+    ProviderMessaging_HandleKernelMessageResponse(this->virtualizationRootHandle, messageId, responseType);
     return kIOReturnSuccess;
 }
 
