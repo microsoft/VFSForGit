@@ -3,6 +3,7 @@
 #include <kern/thread.h>
 #include <kern/assert.h>
 #include <libkern/OSAtomic.h>
+#include <sys/proc.h>
 
 #include "public/PrjFSCommon.h"
 #include "Locks.hpp"
@@ -64,6 +65,15 @@ void Mutex_Acquire(Mutex mutex)
 void Mutex_Release(Mutex mutex)
 {
     lck_mtx_unlock(mutex.p);
+}
+
+void Mutex_Sleep(int seconds, void* channel, Mutex* _Nullable mutex)
+{
+    struct timespec timeout;
+    timeout.tv_sec  = seconds;
+    timeout.tv_nsec = 0;
+    
+    msleep(channel, nullptr != mutex ? mutex->p : nullptr, PUSER, "org.vfsforgit.PrjFSKext.Sleep", &timeout);
 }
 
 // RWLock implementation functions
