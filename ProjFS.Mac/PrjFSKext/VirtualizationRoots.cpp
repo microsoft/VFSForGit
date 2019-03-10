@@ -166,7 +166,7 @@ VirtualizationRootHandle VirtualizationRoot_FindForVnode(
     }
     
     // Search up the tree until we hit a known virtualization root or THE root of the file system
-    while (RootHandle_None == rootHandle && NULLVP != vnode && !vnode_isvroot(vnode))
+    while (RootHandle_None == rootHandle && NULLVP != vnode)
     {
         PerfSample iterationSample(perfTracer, innerLoopCounter);
 
@@ -181,6 +181,12 @@ VirtualizationRootHandle VirtualizationRoot_FindForVnode(
             break;
         }
         
+        if (vnode_isvroot(vnode))
+        {
+            // The root node does not have a parent, we can stop looking
+            break;
+        }
+
         vnode_t parent = Vnode_GetParentViaProvider(vnode, context, *perfTracer);
         if (NULLVP == parent)
         {
