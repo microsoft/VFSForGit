@@ -1,6 +1,5 @@
 #include <kern/debug.h>
 #include <kern/assert.h>
-#include <stdatomic.h>
 
 #include "public/PrjFSCommon.h"
 #include "public/PrjFSXattrs.h"
@@ -12,6 +11,7 @@
 #include "PrjFSProviderUserClient.hpp"
 #include "ProviderMessaging.hpp"
 #include "kernel-header-wrappers/mount.h"
+#include "kernel-header-wrappers/stdatomic.h"
 #include "VnodeUtilities.hpp"
 #include "PerformanceTracing.hpp"
 

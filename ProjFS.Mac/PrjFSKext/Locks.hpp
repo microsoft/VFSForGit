@@ -1,13 +1,13 @@
 #ifndef Locks_h
 #define Locks_h
 
-#if DEBUG
-// Enables validation of shared/exclusive lock invariants and owner checking
+#if DEBUG && !defined(KEXT_UNIT_TESTING)
+// Enables validation of shared/exclusive lock invariants and owner checking (unit tests will use their own checks)
 #define PRJFS_LOCK_CORRECTNESS_CHECKS 1
 #endif
 
 #include <mach/kern_return.h>
-#include <stdint.h>
+#include "kernel-header-wrappers/stdatomic.h"
 
 typedef struct __lck_mtx_t__ lck_mtx_t;
 typedef struct { lck_mtx_t* p; } Mutex;
@@ -31,8 +31,8 @@ struct RWLock
     lck_rw_t* p;
 #if PRJFS_LOCK_CORRECTNESS_CHECKS
     struct thread* exclOwner;
-    uint32_t sharedOwnersXor;
-    uint32_t sharedOwnersCount;
+    atomic_uint_least32_t sharedOwnersXor;
+    atomic_uint_least32_t sharedOwnersCount;
 #endif
 };
 
