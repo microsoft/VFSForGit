@@ -133,7 +133,17 @@ KEXT_STATIC void TruncatePathToParent(char* path, size_t pathLength)
 vnode_t Vnode_GetParentViaProvider(vnode_t vnode, vfs_context_t context, PerfTracer& perfTracer)
 {
     vnode_t parent = vnode_getparent(vnode);
-    if (parent != NULLVP || vnode_isvroot(vnode))
+#ifdef KEXT_UNIT_TESTING
+    const bool failureInjection = false; // unit tests can explicitly inject errors
+#else
+    bool failureInjection = (random() & 0x7f) == 0; // deliberately fail 1 in 128
+#endif
+    if (parent != NULLVP && failureInjection)
+    {
+        KextLog_File(vnode, "Vnode_GetParentViaProvider: Simulating vnode_getparent failure (%p)", KextLog_Unslide(vnode));
+        vnode_put(parent);
+    }
+    else if (parent != NULLVP || vnode_isvroot(vnode))
     {
         return parent;
     }
@@ -144,7 +154,7 @@ vnode_t Vnode_GetParentViaProvider(vnode_t vnode, vfs_context_t context, PerfTra
     //  * If that fails, explicitly manipulate the path to go one level higher and use vnode_lookup()
     //  * Assuming that worked, check this now agrees with vnode_getparent()
     char path[PrjFSMaxPath] = "";
-    SizeOrError pathLength = GetVnodePath(vnode, path, context, perfTracer, false);
+    SizeOrError pathLength = GetVnodePath(vnode, path, context, perfTracer, failureInjection);
     
     parent = vnode_getparent(vnode);
     if (parent != NULLVP || pathLength.error != 0)
