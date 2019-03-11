@@ -743,6 +743,7 @@
 		43057C5321E437F300487681 /* Profiling(Release) */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				CLANG_STATIC_ANALYZER_MODE = deep;
 				CODE_SIGN_STYLE = Automatic;
 				DEVELOPMENT_TEAM = UBF8T346G9;
 				GCC_PREPROCESSOR_DEFINITIONS = (
@@ -756,6 +757,7 @@
 				MODULE_VERSION = 1.0.0d1;
 				PRODUCT_BUNDLE_IDENTIFIER = io.gvfs.PrjFSKext;
 				PRODUCT_NAME = "$(TARGET_NAME)";
+				RUN_CLANG_STATIC_ANALYZER = YES;
 				WARNING_CFLAGS = (
 					"-Werror=missing-prototypes",
 					"-Werror=undefined-internal",
@@ -925,6 +927,7 @@
 		4391F88821E4278C0008103C /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				CLANG_STATIC_ANALYZER_MODE = deep;
 				CODE_SIGN_STYLE = Automatic;
 				DEVELOPMENT_TEAM = UBF8T346G9;
 				GCC_PREPROCESSOR_DEFINITIONS = (
@@ -939,6 +942,7 @@
 				MODULE_VERSION = 1.0.0d1;
 				PRODUCT_BUNDLE_IDENTIFIER = io.gvfs.PrjFSKext;
 				PRODUCT_NAME = "$(TARGET_NAME)";
+				RUN_CLANG_STATIC_ANALYZER = YES;
 				WARNING_CFLAGS = (
 					"-Werror=missing-prototypes",
 					"-Werror=undefined-internal",
@@ -950,6 +954,7 @@
 		4391F88921E4278C0008103C /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				CLANG_STATIC_ANALYZER_MODE = deep;
 				CODE_SIGN_STYLE = Automatic;
 				DEVELOPMENT_TEAM = UBF8T346G9;
 				GCC_PREPROCESSOR_DEFINITIONS = "MACH_ASSERT=1";
@@ -960,6 +965,7 @@
 				MODULE_VERSION = 1.0.0d1;
 				PRODUCT_BUNDLE_IDENTIFIER = io.gvfs.PrjFSKext;
 				PRODUCT_NAME = "$(TARGET_NAME)";
+				RUN_CLANG_STATIC_ANALYZER = YES;
 				WARNING_CFLAGS = (
 					"-Werror=missing-prototypes",
 					"-Werror=undefined-internal",
