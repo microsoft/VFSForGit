@@ -2,7 +2,6 @@
 #include <kern/locks.h>
 #include <kern/thread.h>
 #include <kern/assert.h>
-#include <libkern/OSAtomic.h>
 #include <sys/proc.h>
 
 #include "public/PrjFSCommon.h"
@@ -100,9 +99,9 @@ void RWLock_AcquireShared(RWLock& rwLock)
 
 #if PRJFS_LOCK_CORRECTNESS_CHECKS
     assert(rwLock.exclOwner == nullptr);
-    OSAddAtomic(1, &rwLock.sharedOwnersCount);
+    atomic_fetch_add(&rwLock.sharedOwnersCount, 1);
     uint32_t lowBits = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(current_thread()));
-    OSBitXorAtomic(lowBits, &rwLock.sharedOwnersXor);
+    atomic_fetch_xor(&rwLock.sharedOwnersXor, lowBits);
 #endif
 }
 
@@ -110,8 +109,8 @@ void RWLock_ReleaseShared(RWLock& rwLock)
 {
 #if PRJFS_LOCK_CORRECTNESS_CHECKS
     uint32_t lowBits = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(current_thread()));
-    OSBitXorAtomic(lowBits, &rwLock.sharedOwnersXor);
-    OSAddAtomic(-1, &rwLock.sharedOwnersCount);
+    atomic_fetch_xor(&rwLock.sharedOwnersXor, lowBits);
+    atomic_fetch_sub(&rwLock.sharedOwnersCount, 1);
     assert(rwLock.exclOwner == nullptr);
 #endif
 
@@ -145,8 +144,8 @@ bool RWLock_AcquireSharedToExclusive(RWLock& rwLock)
 {
 #if PRJFS_LOCK_CORRECTNESS_CHECKS
     uint32_t lowBits = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(current_thread()));
-    OSBitXorAtomic(lowBits, &rwLock.sharedOwnersXor);
-    OSAddAtomic(-1, &rwLock.sharedOwnersCount);
+    atomic_fetch_xor(&rwLock.sharedOwnersXor, lowBits);
+    atomic_fetch_sub(&rwLock.sharedOwnersCount, 1);
     assert(rwLock.exclOwner == nullptr);
 #endif
 
@@ -175,9 +174,9 @@ void RWLock_DropExclusiveToShared(RWLock& rwLock)
     lck_rw_lock_exclusive_to_shared(rwLock.p);
 #if PRJFS_LOCK_CORRECTNESS_CHECKS
     assert(rwLock.exclOwner == nullptr);
-    OSAddAtomic(1, &rwLock.sharedOwnersCount);
+    atomic_fetch_add(&rwLock.sharedOwnersCount, 1);
     uint32_t lowBits = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(current_thread()));
-    OSBitXorAtomic(lowBits, &rwLock.sharedOwnersXor);
+    atomic_fetch_xor(&rwLock.sharedOwnersXor, lowBits);
 #endif
 }
 

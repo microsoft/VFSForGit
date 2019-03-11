@@ -7,7 +7,6 @@
 #include "VirtualizationRoots.hpp"
 
 #include <IOKit/IOLib.h>
-#include <libkern/OSAtomic.h>
 #include <kern/assert.h>
 #include <sys/proc.h>
 

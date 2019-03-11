@@ -1,9 +1,7 @@
 #include <kern/debug.h>
 #include <sys/kauth.h>
 #include <sys/proc.h>
-#include <libkern/OSAtomic.h>
 #include <kern/assert.h>
-#include <stdatomic.h>
 
 #include "public/PrjFSCommon.h"
 #include "public/PrjFSPerfCounter.h"
@@ -15,6 +13,7 @@
 #include "PrjFSProviderUserClient.hpp"
 #include "PerformanceTracing.hpp"
 #include "kernel-header-wrappers/mount.h"
+#include "kernel-header-wrappers/stdatomic.h"
 #include "KextLog.hpp"
 #include "ProviderMessaging.hpp"
 
