@@ -9,6 +9,7 @@
 #include "../PrjFSKext/public/PrjFSXattrs.h"
 #include "KextMockUtilities.hpp"
 #include "MockVnodeAndMount.hpp"
+#include "MockProviderUserClient.hpp"
 
 #import <XCTest/XCTest.h>
 #include <vector>
@@ -16,17 +17,6 @@
 
 using std::shared_ptr;
 using std::vector;
-
-class PrjFSProviderUserClient
-{
-};
-
-
-void ProviderUserClient_UpdatePathProperty(PrjFSProviderUserClient* userClient, const char* providerPath)
-{
-    MockCalls::RecordFunctionCall(ProviderUserClient_UpdatePathProperty, userClient, providerPath);
-}
-
 
 @interface VirtualizationRootsTests : XCTestCase
 
