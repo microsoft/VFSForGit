@@ -33,8 +33,8 @@ private:
     std::weak_ptr<vnode> rootVnode;
 
 public:
-    static std::shared_ptr<mount> Create(const char* fileSystemTypeName, fsid_t fsid, uint64_t initialInode);
-    
+    static std::shared_ptr<mount> Create(const char* fileSystemTypeName = "hfs", fsid_t fsid = fsid_t{}, uint64_t initialInode = 0);
+
     std::shared_ptr<vnode> CreateVnodeTree(const std::string& path, vtype vnodeType = VREG);
     // By default, CreateVnode() will create a regular file with an
     // auto-assigned inode and no existing parent vnode.
@@ -78,11 +78,6 @@ struct VnodeMockErrors
     errno_t getattr = 0;
 };
 
-struct VnodeMockValues
-{
-    int getattr = 0;
-};
-
 struct vnode
 {
 private:
@@ -97,7 +92,6 @@ public:
 private:
     bool isRecycling = false;
     vtype type = VREG;
-
     uint64_t inode;
     uint32_t vid;
     int32_t ioCount = 0;
@@ -118,7 +112,7 @@ public:
     ~vnode();
 
     VnodeMockErrors errors;
-    VnodeMockValues values;
+    vnode_attr attrValues;
     
     uint64_t GetInode() const          { return this->inode; }
     uint32_t GetVid() const            { return this->vid; }
@@ -142,7 +136,7 @@ public:
     void ReleaseIOCount();
 
     friend struct mount;
-    friend int vnode_getattr(vnode_t vp, struct vnode_attr *vap, vfs_context_t ctx);
+    friend int vnode_getattr(vnode_t vp, struct vnode_attr* vap, vfs_context_t ctx);
     friend int vn_getpath(vnode_t vnode, char* pathBuffer, int* pathLengthInOut);
 };
 

@@ -187,10 +187,19 @@ void vnode_putname(const char* name)
     // TODO: track name reference counts
 }
 
-int vnode_getattr(vnode_t vp, struct vnode_attr *vap, vfs_context_t ctx)
+int vnode_getattr(vnode_t vp, struct vnode_attr* vap, vfs_context_t ctx)
 {
-    vap->va_flags = vp->values.getattr;
-    return vp->errors.getattr;
+    if (vp->errors.getattr != 0)
+    {
+       return vp->errors.getattr;
+    }
+    
+    if (VATTR_IS_ACTIVE(vap, va_flags))
+    {
+        VATTR_RETURN(vap, va_flags, vp->attrValues.va_flags);
+    }
+    
+    return 0;
 }
 
 int vnode_isdir(vnode_t vnode)

@@ -59,7 +59,7 @@ KEXT_STATIC bool IsFileSystemCrawler(const char* procname);
 static void WaitForListenerCompletion();
 KEXT_STATIC bool ShouldIgnoreVnodeType(vtype vnodeType, vnode_t vnode);
 
-static bool ShouldHandleVnodeOpEvent(
+KEXT_STATIC bool ShouldHandleVnodeOpEvent(
     // In params:
     PerfTracer* perfTracer,
     vfs_context_t _Nonnull context,
@@ -628,7 +628,7 @@ CleanupAndReturn:
     return KAUTH_RESULT_DEFER;
 }
 
-static bool ShouldHandleVnodeOpEvent(
+KEXT_STATIC bool ShouldHandleVnodeOpEvent(
     // In params:
     PerfTracer* perfTracer,
     vfs_context_t _Nonnull context,
