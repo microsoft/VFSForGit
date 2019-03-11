@@ -18,7 +18,7 @@
 - (void)testTruncatePathToParent
 {
     char path[PrjFSMaxPath] = "/foo/bar";
-    TruncatePathToParent(path);
+    TruncatePathToParent(path, strlen(path));
     XCTAssertEqual(0, strcmp(path, "/foo"));
 }
 

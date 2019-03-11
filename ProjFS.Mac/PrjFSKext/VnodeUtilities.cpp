@@ -47,7 +47,7 @@ SizeOrError Vnode_ReadXattr(vnode_t vnode, const char* xattrName, void* buffer, 
 
 #endif
 
-static bool GetVnodePath(vnode_t currentVnode, char(&vnodePathBuffer)[PrjFSMaxPath], vfs_context_t context, PerfTracer& perfTracer, bool forceUsingProviderIfPossible)
+static SizeOrError GetVnodePath(vnode_t currentVnode, char(&vnodePathBuffer)[PrjFSMaxPath], vfs_context_t context, PerfTracer& perfTracer, bool forceUsingProviderIfPossible)
 {
     int vnodePathLength = PrjFSMaxPath;
     PerfSample pathSample(&perfTracer, PrjFSPerfCounter_VnodeGetPath);
@@ -55,7 +55,7 @@ static bool GetVnodePath(vnode_t currentVnode, char(&vnodePathBuffer)[PrjFSMaxPa
     errno_t error = forceUsingProviderIfPossible ? EIO : vn_getpath(currentVnode, vnodePathBuffer, &vnodePathLength);
     if (0 == error)
     {
-        return true;
+        return SizeOrError{ .error = error };
     }
 
     if (!forceUsingProviderIfPossible)
@@ -73,7 +73,7 @@ static bool GetVnodePath(vnode_t currentVnode, char(&vnodePathBuffer)[PrjFSMaxPa
         KextLog_Error("HandleVnodeOperation: getting vnode (%p) path from user space also failed, error = %d", KextLog_Unslide(currentVnode), error);
         // Retry just in case, especially if forceUsingProviderIfPossible
         error = vn_getpath(currentVnode, vnodePathBuffer, &vnodePathLength);
-        return error == 0;
+        return SizeOrError{ .error = error, .size = (error == 0) ? vnodePathLength : 0u };
     }
     else
     {
@@ -103,22 +103,21 @@ static bool GetVnodePath(vnode_t currentVnode, char(&vnodePathBuffer)[PrjFSMaxPa
         }
     }
     
-    return true;
+    return SizeOrError { .size = static_cast<size_t>(vnodePathLength) };
 }
 
-KEXT_STATIC void TruncatePathToParent(char* path)
+KEXT_STATIC void TruncatePathToParent(char* path, size_t pathLength)
 {
-    size_t len = strlen(path); // TODO: use length from GetVnodePath
-    assertf(len > 1, "ParentPath: path should not be empty or /. Got length %lu, path '%s'", len, path);
+    assertf(pathLength > 1, "ParentPath: path should not be empty or /. Got length %lu, path '%s'", pathLength, path);
     
     // Eliminate any trailing slash
-    if (path[len - 1] == '/')
+    if (path[pathLength - 1] == '/')
     {
-        path[len - 1] = '\0';
-        --len;
+        path[pathLength - 1] = '\0';
+        --pathLength;
     }
     
-    char* lastSlash = path + len - 1;
+    char* lastSlash = path + pathLength - 1;
     while (lastSlash != path)
     {
         if (*lastSlash == '/')
@@ -145,15 +144,15 @@ vnode_t Vnode_GetParentViaProvider(vnode_t vnode, vfs_context_t context, PerfTra
     //  * If that fails, explicitly manipulate the path to go one level higher and use vnode_lookup()
     //  * Assuming that worked, check this now agrees with vnode_getparent()
     char path[PrjFSMaxPath] = "";
-    bool gotPath = GetVnodePath(vnode, path, context, perfTracer, false);
+    SizeOrError pathLength = GetVnodePath(vnode, path, context, perfTracer, false);
     
     parent = vnode_getparent(vnode);
-    if (parent != NULLVP || !gotPath)
+    if (parent != NULLVP || pathLength.error != 0)
     {
         return parent;
     }
 
-    TruncatePathToParent(path);
+    TruncatePathToParent(path, pathLength.size);
     
     vnode_t parentFromPath = NULLVP;
     errno_t error = vnode_lookup(path, 0 /* flags */, &parentFromPath, context);

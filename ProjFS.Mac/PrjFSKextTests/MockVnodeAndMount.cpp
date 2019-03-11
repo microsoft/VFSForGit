@@ -186,7 +186,8 @@ int vn_getpath(vnode_t vnode, char* pathBuffer, int* pathLengthInOut)
     }
     else
     {
-        strlcpy(pathBuffer, vnode->path.c_str(), MIN(*pathLengthInOut, MAXPATHLEN));
+        *pathLengthInOut = static_cast<int>(
+            strlcpy(pathBuffer, vnode->path.c_str(), MIN(*pathLengthInOut, MAXPATHLEN)));
         return 0;
     }
 }
