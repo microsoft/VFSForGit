@@ -326,6 +326,16 @@ void vfs_setauthcache_ttl(mount_t mountPoint, int ttl)
     MockCalls::RecordFunctionCall(vfs_setauthcache_ttl, mountPoint, ttl);
 }
 
+int vfs_authcache_ttl(mount_t mountPoint)
+{
+    return CACHED_RIGHT_INFINITE_TTL;
+}
+
+void vfs_clearauthcache_ttl(mount_t mountPoint)
+{
+    MockCalls::RecordFunctionCall(vfs_clearauthcache_ttl, mountPoint);
+}
+
 void MockVnodes_CheckAndClear()
 {
     // All of the vnodes in s_allVnodes should have been destroyed by the time MockVnodes_CheckAndClear is called

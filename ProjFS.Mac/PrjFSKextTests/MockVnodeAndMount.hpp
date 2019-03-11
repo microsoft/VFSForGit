@@ -32,6 +32,7 @@ private:
     std::weak_ptr<mount> weakSelfPointer;
     std::weak_ptr<vnode> rootVnode;
 
+    mount() = default;
 public:
     static std::shared_ptr<mount> Create(const char* fileSystemTypeName = "hfs", fsid_t fsid = fsid_t{}, uint64_t initialInode = 0);
 

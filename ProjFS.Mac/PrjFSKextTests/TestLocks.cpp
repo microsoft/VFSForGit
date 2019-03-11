@@ -1,6 +1,11 @@
 #include "../PrjFSKext/Locks.hpp"
+#include <cassert>
 
 struct __lck_rw_t__
+{
+};
+
+struct __lck_mtx_t__
 {
 };
 
@@ -38,4 +43,34 @@ void RWLock_FreeMemory(RWLock* rwLock)
 {
     delete rwLock->p;
     rwLock->p = nullptr;
+}
+
+
+Mutex Mutex_Alloc()
+{
+    return Mutex{ new __lck_mtx_t__{} };
+}
+
+void Mutex_FreeMemory(Mutex* mutex)
+{
+    delete mutex->p;
+    mutex->p = nullptr;
+}
+
+bool Mutex_IsValid(Mutex mutex)
+{
+    return mutex.p != nullptr;
+}
+
+void Mutex_Acquire(Mutex mutex)
+{
+}
+
+void Mutex_Release(Mutex mutex)
+{
+}
+
+void Mutex_Sleep(int seconds, void* channel, Mutex* mutex)
+{
+    assert(false);
 }
