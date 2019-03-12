@@ -276,10 +276,10 @@ static VirtualizationRootHandle FindUnusedIndexOrGrow_Locked()
     if (RootHandle_None == rootIndex)
     {
         // No space, resize array
-        uint16_t newLength = MIN(s_maxVirtualizationRoots * 2u, INT16_MAX + 1u);
-        if (newLength <= s_maxVirtualizationRoots)
+        uint16_t newLength;
+        if (__builtin_mul_overflow(s_maxVirtualizationRoots, 2, &newLength))
         {
-            assert(newLength > 0);
+            // Overflow occurred.
             return RootHandle_None;
         }
         

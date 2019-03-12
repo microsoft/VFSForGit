@@ -81,7 +81,9 @@ void KextLog_Printf(KextLog_Level loglevel, const char* fmt, ...)
     va_start(args, fmt);
     int messageLength = vsnprintf(message.logString, sizeof(message.logString), fmt, args);
     va_end (args);
-    int messageSize = sizeof(KextLog_MessageHeader) + messageLength + 1 /* null terminator */;
+    int messageSize;
+    if (__builtin_add_overflow(sizeof(KextLog_MessageHeader), messageLength, &messageSize)) return;
+    if (__builtin_add_overflow(messageSize, 1, &messageSize)) return;
 
     uint32_t messageFlags = 0;
     bool messageAllocated = false;
