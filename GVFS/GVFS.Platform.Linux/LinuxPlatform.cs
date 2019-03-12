@@ -22,7 +22,7 @@ namespace GVFS.Platform.Linux
         {
         }
 
-        public override IKernelDriver KernelDriver { get; } = null;
+        public override IKernelDriver KernelDriver { get; } = new ProjFSLib();
         public override IGitInstallation GitInstallation { get; } = new LinuxGitInstallation();
         public override IDiskLayoutUpgradeData DiskLayoutUpgrade { get; } = new LinuxDiskLayoutUpgradeData();
         public override IPlatformFileSystem FileSystem { get; } = new LinuxFileSystem();
