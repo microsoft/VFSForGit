@@ -276,13 +276,14 @@ static VirtualizationRootHandle FindUnusedIndexOrGrow_Locked()
     if (RootHandle_None == rootIndex)
     {
         // No space, resize array
-        uint16_t newLength;
-        if (__builtin_mul_overflow(s_maxVirtualizationRoots, 2, &newLength))
+        uint16_t newLength = MIN(s_maxVirtualizationRoots * 2u, INT16_MAX + 1u);
+        if (newLength <= s_maxVirtualizationRoots)
         {
-            // Overflow occurred.
+            assertf(newLength > 0, "s_maxVirtualizationRoot was likely not initialized");
+            // Already at max size, nothing to do.
             return RootHandle_None;
         }
-        
+
         VirtualizationRoot* grownArray = Memory_AllocArray<VirtualizationRoot>(newLength);
         if (nullptr == grownArray)
         {

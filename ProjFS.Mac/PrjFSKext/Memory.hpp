@@ -34,9 +34,13 @@ void Memory_FreeArray(T* array, uint32_t arrayLength)
     uint32_t arrayBytes;
     if (__builtin_umul_overflow(arrayLength, sizeof(T), &arrayBytes))
     {
-        assert(!"Overflow detected");
+        // This should never occur, since Memory_AllocArray should not allow the initial computation to overflow.
+        assert(!"Overflow detected: was this array allocated through Memory_AllocArray?");
     }
-    Memory_Free(array, arrayBytes);
+    else
+    {
+        Memory_Free(array, arrayBytes);
+    }
 }
 
 #endif /* Memory_h */
