@@ -1,11 +1,15 @@
 ﻿<?xml version="1.0" encoding="utf-8"?>
 <Project xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
     <ItemGroup>
-        <None Condition="Exists('..\..\..\packages\libgit2sharp.nativebinaries\1.0.165\runtimes\win7-x64\native\git2-1196807.dll')" Include="..\..\..\packages\libgit2sharp.nativebinaries\1.0.165\runtimes\win7-x64\native\git2-1196807.dll">
+        <None Condition="Exists('..\..\..\packages\libgit2sharp.nativebinaries\2.0.267\runtimes\win-x64\native\git2-572e4d8.dll')" Include="..\..\..\packages\libgit2sharp.nativebinaries\2.0.267\runtimes\win-x64\native\git2-572e4d8.dll">
             <Link>git2.dll</Link>
             <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
         </None>
-        <None Condition="Exists('..\..\..\packages\libgit2sharp.nativebinaries\1.0.165\runtimes\osx\native\libgit2-1196807.dylib')" Include="..\..\..\packages\libgit2sharp.nativebinaries\1.0.165\runtimes\osx\native\libgit2-1196807.dylib">
+        <None Condition="Exists('..\..\..\packages\libgit2sharp.nativebinaries\2.0.267\runtimes\linux-x64\native\libgit2-572e4d8.so')" Include="..\..\..\packages\libgit2sharp.nativebinaries\2.0.267\runtimes\linux-x64\native\libgit2-572e4d8.so">
+            <Link>git2.so</Link>
+            <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+        </None>
+        <None Condition="Exists('..\..\..\packages\libgit2sharp.nativebinaries\2.0.267\runtimes\osx\native\libgit2-572e4d8.dylib')" Include="..\..\..\packages\libgit2sharp.nativebinaries\2.0.267\runtimes\osx\native\libgit2-572e4d8.dylib">
             <Link>git2.dylib</Link>
             <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
         </None>
