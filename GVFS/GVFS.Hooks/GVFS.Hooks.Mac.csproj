@@ -20,6 +20,7 @@
     <Version>$(GVFSVersion)</Version>
   </PropertyGroup>
   <ItemGroup>
+    <Compile Remove="HooksPlatform\GVFSHooksPlatform.Linux.cs" />
     <Compile Remove="HooksPlatform\GVFSHooksPlatform.Windows.cs" />
   </ItemGroup>
   
