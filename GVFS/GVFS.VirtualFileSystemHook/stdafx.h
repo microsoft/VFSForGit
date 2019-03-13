@@ -11,6 +11,7 @@
 #endif
 
 #include <string>
+#include <string.h>
 #include <stdarg.h>
 
 
