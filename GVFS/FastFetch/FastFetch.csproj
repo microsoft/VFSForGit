@@ -52,7 +52,7 @@
 
   <ItemGroup>
     <PackageReference Include="CommandLineParser" Version="2.1.1-beta" />
-    <PackageReference Include="LibGit2Sharp.NativeBinaries" Version="1.0.165" />
+    <PackageReference Include="LibGit2Sharp.NativeBinaries" Version="2.0.267" />
     <PackageReference Include="StyleCop.Analyzers" Version="1.0.2">
       <PrivateAssets>all</PrivateAssets>
     </PackageReference>
