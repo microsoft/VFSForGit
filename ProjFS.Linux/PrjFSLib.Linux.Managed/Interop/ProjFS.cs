@@ -79,14 +79,14 @@ namespace PrjFSLib.Linux.Interop
                     {
                         new Attr
                         {
-                            Name = this.providerIdAttrNamePtr,
-                            Value = (IntPtr)providerIdPtr,
+                            Name = (byte*)this.providerIdAttrNamePtr,
+                            Value = providerIdPtr,
                             Size = providerId.Length
                         },
                         new Attr
                         {
-                            Name = this.contentIdAttrNamePtr,
-                            Value = (IntPtr)contentIdPtr,
+                            Name = (byte*)this.contentIdAttrNamePtr,
+                            Value = contentIdPtr,
                             Size = contentId.Length
                         }
                     };
@@ -125,14 +125,14 @@ namespace PrjFSLib.Linux.Interop
                     {
                         new Attr
                         {
-                            Name = this.providerIdAttrNamePtr,
-                            Value = (IntPtr)providerIdPtr,
+                            Name = (byte*)this.providerIdAttrNamePtr,
+                            Value = providerIdPtr,
                             Size = providerId.Length
                         },
                         new Attr
                         {
-                            Name = this.contentIdAttrNamePtr,
-                            Value = (IntPtr)contentIdPtr,
+                            Name = (byte*)this.contentIdAttrNamePtr,
+                            Value = contentIdPtr,
                             Size = contentId.Length
                         }
                     };
@@ -193,13 +193,13 @@ namespace PrjFSLib.Linux.Interop
             uint nattrs);
 
         [StructLayout(LayoutKind.Sequential)]
-        public struct Event
+        public unsafe struct Event
         {
             public IntPtr Fs;
             public ulong Mask;
             public int Pid;
-            public IntPtr Path;
-            public IntPtr TargetPath;
+            public byte* Path;
+            public byte* TargetPath;
             public int Fd;
         }
 
@@ -212,10 +212,10 @@ namespace PrjFSLib.Linux.Interop
         }
 
         [StructLayout(LayoutKind.Sequential)]
-        public struct Attr
+        public unsafe struct Attr
         {
-            public IntPtr Name;
-            public IntPtr Value;
+            public byte* Name;
+            public byte* Value;
             public long Size;
         }
     }
