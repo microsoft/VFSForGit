@@ -16,6 +16,7 @@
 #include "PerformanceTracing.hpp"
 #include "kernel-header-wrappers/mount.h"
 #include "KextLog.hpp"
+#include "ProviderMessaging.hpp"
 
 #ifdef KEXT_UNIT_TESTING
 #include "KauthHandlerTestable.hpp"
@@ -49,18 +50,7 @@ KEXT_STATIC_INLINE bool ActionBitIsSet(kauth_action_t action, kauth_action_t mas
 
 KEXT_STATIC bool IsFileSystemCrawler(const char* procname);
 
-static void Sleep(int seconds, void* channel, Mutex* _Nullable mutex);
-static bool TrySendRequestAndWaitForResponse(
-    VirtualizationRootHandle root,
-    MessageType messageType,
-    const vnode_t vnode,
-    const FsidInode& vnodeFsidInode,
-    const char* vnodePath,
-    int pid,
-    const char* procname,
-    int* kauthResult,
-    int* kauthError);
-static void AbortAllOutstandingEvents();
+static void WaitForListenerCompletion();
 KEXT_STATIC bool ShouldIgnoreVnodeType(vtype vnodeType, vnode_t vnode);
 
 static bool ShouldHandleVnodeOpEvent(
@@ -103,28 +93,11 @@ static bool ShouldHandleFileOpEvent(
     FsidInode* vnodeFsidInode,
     int* pid);
 
-// Structs
-struct OutstandingMessage
-{
-    MessageHeader                  request;
-    MessageType                    result;
-    bool                           receivedResult;
-    VirtualizationRootHandle       rootHandle;
-    
-    LIST_ENTRY(OutstandingMessage) _list_privates;
-    
-};
-
 // State
 static kauth_listener_t s_vnodeListener = nullptr;
 static kauth_listener_t s_fileopListener = nullptr;
 
-static LIST_HEAD(OutstandingMessage_Head, OutstandingMessage) s_outstandingMessages = LIST_HEAD_INITIALIZER(OutstandingMessage_Head);
-static Mutex s_outstandingMessagesMutex = {};
-static volatile int s_nextMessageId;
-
 static atomic_int s_numActiveKauthEvents;
-static volatile bool s_isShuttingDown;
 
 // Public functions
 kern_return_t KauthHandler_Init()
@@ -134,13 +107,7 @@ kern_return_t KauthHandler_Init()
         goto CleanupAndFail;
     }
     
-    LIST_INIT(&s_outstandingMessages);
-    s_nextMessageId = 1;
-    
-    s_isShuttingDown = false;
-    
-    s_outstandingMessagesMutex = Mutex_Alloc();
-    if (!Mutex_IsValid(s_outstandingMessagesMutex))
+    if (!ProviderMessaging_Init())
     {
         goto CleanupAndFail;
     }
@@ -194,92 +161,18 @@ kern_return_t KauthHandler_Cleanup()
         result = KERN_FAILURE;
     }
 
-    // Then, ensure there are no more callbacks in flight.
-    AbortAllOutstandingEvents();
+    ProviderMessaging_AbortAllOutstandingEvents();
+    
+    WaitForListenerCompletion();
 
     if (VirtualizationRoots_Cleanup())
     {
         result = KERN_FAILURE;
     }
-        
-    if (Mutex_IsValid(s_outstandingMessagesMutex))
-    {
-        Mutex_FreeMemory(&s_outstandingMessagesMutex);
-    }
-    else
-    {
-        result = KERN_FAILURE;
-    }
+    
+    ProviderMessaging_Cleanup();
     
     return result;
-}
-
-void KauthHandler_HandleKernelMessageResponse(VirtualizationRootHandle providerVirtualizationRootHandle, uint64_t messageId, MessageType responseType)
-{
-    switch (responseType)
-    {
-        case MessageType_Response_Success:
-        case MessageType_Response_Fail:
-        {
-            Mutex_Acquire(s_outstandingMessagesMutex);
-            {
-                OutstandingMessage* outstandingMessage;
-                LIST_FOREACH(outstandingMessage, &s_outstandingMessages, _list_privates)
-                {
-                    if (outstandingMessage->request.messageId == messageId && outstandingMessage->rootHandle == providerVirtualizationRootHandle)
-                    {
-                        // Save the response for the blocked thread.
-                        outstandingMessage->result = responseType;
-                        outstandingMessage->receivedResult = true;
-                        
-                        wakeup(outstandingMessage);
-                        
-                        break;
-                    }
-                }
-            }
-            Mutex_Release(s_outstandingMessagesMutex);
-            break;
-        }
-        
-        // The follow are not valid responses to kernel messages
-        case MessageType_Invalid:
-        case MessageType_KtoU_EnumerateDirectory:
-        case MessageType_KtoU_RecursivelyEnumerateDirectory:
-        case MessageType_KtoU_HydrateFile:
-        case MessageType_KtoU_NotifyFileModified:
-        case MessageType_KtoU_NotifyFilePreDelete:
-        case MessageType_KtoU_NotifyDirectoryPreDelete:
-        case MessageType_KtoU_NotifyFileCreated:
-        case MessageType_KtoU_NotifyFileRenamed:
-        case MessageType_KtoU_NotifyDirectoryRenamed:
-        case MessageType_KtoU_NotifyFileHardLinkCreated:
-        case MessageType_Result_Aborted:
-        default:
-            KextLog_Error("KauthHandler_HandleKernelMessageResponse: Unexpected responseType: %d", responseType);
-            break;
-    }
-    
-    return;
-}
-
-void KauthHandler_AbortOutstandingEventsForProvider(VirtualizationRootHandle providerVirtualizationRootHandle)
-{
-    // Mark all outstanding messages for this root as aborted and wake up the waiting threads
-    Mutex_Acquire(s_outstandingMessagesMutex);
-    {
-        OutstandingMessage* outstandingMessage;
-        LIST_FOREACH(outstandingMessage, &s_outstandingMessages, _list_privates)
-        {
-            if (outstandingMessage->rootHandle == providerVirtualizationRootHandle)
-            {
-                outstandingMessage->receivedResult = true;
-                outstandingMessage->result = MessageType_Result_Aborted;
-                wakeup(outstandingMessage);
-            }
-        }
-    }
-    Mutex_Release(s_outstandingMessagesMutex);
 }
 
 static void UseMainForkIfNamedStream(
@@ -365,7 +258,7 @@ static int HandleVnodeOperation(
         
         PerfSample preDeleteSample(&perfTracer, PrjFSPerfCounter_VnodeOp_PreDelete);
         
-        if (!TrySendRequestAndWaitForResponse(
+        if (!ProviderMessaging_TrySendRequestAndWaitForResponse(
                 root,
                 isDirectory ?
                     MessageType_KtoU_NotifyDirectoryPreDelete :
@@ -403,7 +296,7 @@ static int HandleVnodeOperation(
 
                 PerfSample recursivelyEnumerateSample(&perfTracer, PrjFSPerfCounter_VnodeOp_RecursivelyEnumerateDirectory);
         
-                if (!TrySendRequestAndWaitForResponse(
+                if (!ProviderMessaging_TrySendRequestAndWaitForResponse(
                         root,
                         MessageType_KtoU_RecursivelyEnumerateDirectory,
                         currentVnode,
@@ -426,7 +319,7 @@ static int HandleVnodeOperation(
 
                 PerfSample enumerateDirectorySample(&perfTracer, PrjFSPerfCounter_VnodeOp_EnumerateDirectory);
         
-                if (!TrySendRequestAndWaitForResponse(
+                if (!ProviderMessaging_TrySendRequestAndWaitForResponse(
                         root,
                         MessageType_KtoU_EnumerateDirectory,
                         currentVnode,
@@ -464,7 +357,7 @@ static int HandleVnodeOperation(
 
                 PerfSample enumerateDirectorySample(&perfTracer, PrjFSPerfCounter_VnodeOp_HydrateFile);
 
-                if (!TrySendRequestAndWaitForResponse(
+                if (!ProviderMessaging_TrySendRequestAndWaitForResponse(
                         root,
                         MessageType_KtoU_HydrateFile,
                         currentVnode,
@@ -560,7 +453,7 @@ static int HandleFileOpOperation(
 
             int kauthResult;
             int kauthError;
-            if (!TrySendRequestAndWaitForResponse(
+            if (!ProviderMessaging_TrySendRequestAndWaitForResponse(
                     root,
                     messageType,
                     currentVnode,
@@ -580,7 +473,7 @@ static int HandleFileOpOperation(
         
             int kauthResult;
             int kauthError;
-            if (!TrySendRequestAndWaitForResponse(
+            if (!ProviderMessaging_TrySendRequestAndWaitForResponse(
                     root,
                     MessageType_KtoU_NotifyFileHardLinkCreated,
                     currentVnode,
@@ -641,7 +534,7 @@ static int HandleFileOpOperation(
         PerfSample fileCreatedSample(&perfTracer, PrjFSPerfCounter_FileOp_FileCreated);
         int kauthResult;
         int kauthError;
-        if (!TrySendRequestAndWaitForResponse(
+        if (!ProviderMessaging_TrySendRequestAndWaitForResponse(
                                               root,
                                               MessageType_KtoU_NotifyFileCreated,
                                               currentVnode,
@@ -694,7 +587,7 @@ static int HandleFileOpOperation(
         PerfSample fileModifiedSample(&perfTracer, PrjFSPerfCounter_FileOp_FileModified);
         int kauthResult;
         int kauthError;
-        if (!TrySendRequestAndWaitForResponse(
+        if (!ProviderMessaging_TrySendRequestAndWaitForResponse(
                 root,
                 MessageType_KtoU_NotifyFileModified,
                 currentVnode,
@@ -964,114 +857,9 @@ static bool ShouldHandleFileOpEvent(
     return true;
 }
 
-static bool TrySendRequestAndWaitForResponse(
-    VirtualizationRootHandle root,
-    MessageType messageType,
-    const vnode_t vnode,
-    const FsidInode& vnodeFsidInode,
-    const char* vnodePath,
-    int pid,
-    const char* procname,
-    int* kauthResult,
-    int* kauthError)
+static void WaitForListenerCompletion()
 {
-    // To be useful, the message needs to either provide an FSID/inode pair or a path
-    assert(vnodePath != nullptr || (vnodeFsidInode.fsid.val[0] != 0 || vnodeFsidInode.fsid.val[1] != 0));
-    bool result = false;
-    const char* relativePath = nullptr;
-    
-    OutstandingMessage message =
-    {
-        .receivedResult = false,
-        .rootHandle = root,
-    };
-    
-    if (nullptr != vnodePath)
-    {
-        relativePath = VirtualizationRoot_GetRootRelativePath(root, vnodePath);
-    }
-    
-    int nextMessageId = OSIncrementAtomic(&s_nextMessageId);
-    
-    Message messageSpec = {};
-    Message_Init(
-        &messageSpec,
-        &(message.request),
-        nextMessageId,
-        messageType,
-        vnodeFsidInode,
-        pid,
-        procname,
-        relativePath);
-
-    if (s_isShuttingDown)
-    {
-        return false;
-    }
-    
-    Mutex_Acquire(s_outstandingMessagesMutex);
-    {
-        LIST_INSERT_HEAD(&s_outstandingMessages, &message, _list_privates);
-    }
-    Mutex_Release(s_outstandingMessagesMutex);
-    
-    errno_t sendError = ActiveProvider_SendMessage(root, messageSpec);
-   
-    Mutex_Acquire(s_outstandingMessagesMutex);
-    {
-        if (0 != sendError)
-        {
-            // TODO: appropriately handle unresponsive providers
-            *kauthResult = KAUTH_RESULT_DEFER;
-        }
-        else
-        {
-            while (!message.receivedResult &&
-                   !s_isShuttingDown)
-            {
-                Sleep(5, &message, &s_outstandingMessagesMutex);
-            }
-        
-            if (s_isShuttingDown)
-            {
-                *kauthResult = KAUTH_RESULT_DENY;
-            }
-            else if (MessageType_Response_Success == message.result)
-            {
-                *kauthResult = KAUTH_RESULT_DEFER;
-                result = true;
-            }
-            else
-            {
-                // Default error code is EACCES. See errno.h for more codes.
-                *kauthError = EAGAIN;
-                *kauthResult = KAUTH_RESULT_DENY;
-            }
-        }
-        
-        LIST_REMOVE(&message, _list_privates);
-    }
-    Mutex_Release(s_outstandingMessagesMutex);
-    
-    return result;
-}
-
-static void AbortAllOutstandingEvents()
-{
-    // Wake up all sleeping threads so they can see that that we're shutting down and return an error
-    Mutex_Acquire(s_outstandingMessagesMutex);
-    {
-        s_isShuttingDown = true;
-        
-        OutstandingMessage* outstandingMessage;
-        LIST_FOREACH(outstandingMessage, &s_outstandingMessages, _list_privates)
-        {
-            wakeup(outstandingMessage);
-        }
-    }
-    Mutex_Release(s_outstandingMessagesMutex);
-    
-    // ... and wait until all kauth events have noticed and returned.
+    // Wait until all kauth events have noticed and returned.
     // Always sleeping at least once reduces the likelihood of a race condition
     // between kauth_unlisten_scope and the s_numActiveKauthEvents increment at
     // the start of the callback.
@@ -1081,17 +869,8 @@ static void AbortAllOutstandingEvents()
     // https://developer.apple.com/library/archive/samplecode/KauthORama/Listings/KauthORama_c.html#//apple_ref/doc/uid/DTS10003633-KauthORama_c-DontLinkElementID_3
     do
     {
-        Sleep(1, nullptr, nullptr);
+        Mutex_Sleep(1, nullptr, nullptr);
     } while (atomic_load(&s_numActiveKauthEvents) > 0);
-}
-
-static void Sleep(int seconds, void* channel, Mutex* _Nullable mutex)
-{
-    struct timespec timeout;
-    timeout.tv_sec  = seconds;
-    timeout.tv_nsec = 0;
-    
-    msleep(channel, nullptr != mutex ? mutex->p : nullptr, PUSER, "org.vfsforgit.PrjFSKext.Sleep", &timeout);
 }
 
 static int GetPid(vfs_context_t _Nonnull context)
