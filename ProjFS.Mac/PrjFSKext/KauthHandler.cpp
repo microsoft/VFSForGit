@@ -22,6 +22,12 @@
 #include "KauthHandlerTestable.hpp"
 #endif
 
+enum ProviderCallbackPolicy
+{
+    CallbackPolicy_AllowAny,
+    CallbackPolicy_UserInitiatedOnly,
+};
+
 // Function prototypes
 static int HandleVnodeOperation(
     kauth_cred_t    credential,
@@ -47,7 +53,7 @@ static bool TryReadVNodeFileFlags(vnode_t vn, vfs_context_t _Nonnull context, ui
 KEXT_STATIC_INLINE bool FileFlagsBitIsSet(uint32_t fileFlags, uint32_t bit);
 static inline bool TryGetFileIsFlaggedAsInRoot(vnode_t vnode, vfs_context_t _Nonnull context, bool* flaggedInRoot);
 KEXT_STATIC_INLINE bool ActionBitIsSet(kauth_action_t action, kauth_action_t mask);
-
+static bool CurrentProcessWasSpawnedByRegularUser();
 KEXT_STATIC bool IsFileSystemCrawler(const char* procname);
 
 static void WaitForListenerCompletion();
@@ -73,7 +79,8 @@ static bool TryGetVirtualizationRoot(
     PerfTracer* perfTracer,
     vfs_context_t _Nonnull context,
     const vnode_t vnode,
-    int pid,
+    pid_t pidMakingRequest,
+    ProviderCallbackPolicy callbackPolicy,
     
     // Out params:
     VirtualizationRootHandle* root,
@@ -251,7 +258,9 @@ static int HandleVnodeOperation(
     
     if (isDeleteAction)
     {
-        if (!TryGetVirtualizationRoot(&perfTracer, context, currentVnode, pid, &root, &vnodeFsidInode, &kauthResult, kauthError))
+        // Allow any user to delete individual files, as this generally doesn't cause nested kauth callbacks.
+        ProviderCallbackPolicy callbackPolicy = isDirectory ? CallbackPolicy_UserInitiatedOnly : CallbackPolicy_AllowAny;
+        if (!TryGetVirtualizationRoot(&perfTracer, context, currentVnode, pid, callbackPolicy, &root, &vnodeFsidInode, &kauthResult, kauthError))
         {
             goto CleanupAndReturn;
         }
@@ -289,7 +298,8 @@ static int HandleVnodeOperation(
             // Recursively expand directory on delete to ensure child placeholders are created before rename operations
             if (isDeleteAction)
             {
-                if (!TryGetVirtualizationRoot(&perfTracer, context, currentVnode, pid, &root, &vnodeFsidInode, &kauthResult, kauthError))
+                // Prevent system services from expanding directories as part of enumeration as this tends to cause deadlocks with the kauth listeners for Antivirus software
+                if (!TryGetVirtualizationRoot(&perfTracer, context, currentVnode, pid, CallbackPolicy_UserInitiatedOnly, &root, &vnodeFsidInode, &kauthResult, kauthError))
                 {
                     goto CleanupAndReturn;
                 }
@@ -312,7 +322,8 @@ static int HandleVnodeOperation(
             }
             else if (FileFlagsBitIsSet(currentVnodeFileFlags, FileFlags_IsEmpty))
             {
-                if (!TryGetVirtualizationRoot(&perfTracer, context, currentVnode, pid, &root, &vnodeFsidInode, &kauthResult, kauthError))
+                // Prevent system services from expanding directories as part of enumeration as this tends to cause deadlocks with the kauth listeners for Antivirus software
+                if (!TryGetVirtualizationRoot(&perfTracer, context, currentVnode, pid, CallbackPolicy_UserInitiatedOnly, &root, &vnodeFsidInode, &kauthResult, kauthError))
                 {
                     goto CleanupAndReturn;
                 }
@@ -350,7 +361,8 @@ static int HandleVnodeOperation(
         {
             if (FileFlagsBitIsSet(currentVnodeFileFlags, FileFlags_IsEmpty))
             {
-                if (!TryGetVirtualizationRoot(&perfTracer, context, currentVnode, pid, &root, &vnodeFsidInode, &kauthResult, kauthError))
+                // Prevent system services from hydrating files as this tends to cause deadlocks with the kauth listeners for Antivirus software
+                if (!TryGetVirtualizationRoot(&perfTracer, context, currentVnode, pid, CallbackPolicy_UserInitiatedOnly, &root, &vnodeFsidInode, &kauthResult, kauthError))
                 {
                     goto CleanupAndReturn;
                 }
@@ -726,8 +738,9 @@ static bool TryGetVirtualizationRoot(
     PerfTracer* perfTracer,
     vfs_context_t _Nonnull context,
     const vnode_t vnode,
-    int pid,
-    
+    pid_t pidMakingRequest,
+    ProviderCallbackPolicy callbackPolicy,
+
     // Out params:
     VirtualizationRootHandle* root,
     FsidInode* vnodeFsidInode,
@@ -759,7 +772,9 @@ static bool TryGetVirtualizationRoot(
         *kauthResult = KAUTH_RESULT_DEFER;
         return false;
     }
-    else if (!VirtualizationRoot_IsOnline(*root))
+    
+    ActiveProviderProperties provider = VirtualizationRoot_GetActiveProvider(*root);
+    if (!provider.isOnline)
     {
         // TODO(Mac): Protect files in the worktree from modification (and prevent
         // the creation of new files) when the provider is offline
@@ -770,21 +785,72 @@ static bool TryGetVirtualizationRoot(
         return false;
     }
     
+    if (provider.pid == pidMakingRequest)
     {
-        PerfSample pidSample(perfTracer, PrjFSPerfCounter_VnodeOp_GetVirtualizationRoot_CompareProviderPid);
-    
         // If the calling process is the provider, we must exit right away to avoid deadlocks
-        if (VirtualizationRoot_PIDMatchesProvider(*root, pid))
-        {
-            perfTracer->IncrementCount(PrjFSPerfCounter_VnodeOp_GetVirtualizationRoot_OriginatedByProvider);
-            
-            *kauthResult = KAUTH_RESULT_DEFER;
-            return false;
-        }
+        perfTracer->IncrementCount(PrjFSPerfCounter_VnodeOp_GetVirtualizationRoot_OriginatedByProvider);
+        
+        *kauthResult = KAUTH_RESULT_DEFER;
+        return false;
+    }
+    
+    if (callbackPolicy == CallbackPolicy_UserInitiatedOnly && !CurrentProcessWasSpawnedByRegularUser())
+    {
+        // Prevent hydration etc. by system services
+        KextLog_Info("TryGetVirtualizationRoot: process %d restricted due to owner UID.", pidMakingRequest);
+        perfTracer->IncrementCount(PrjFSPerfCounter_VnodeOp_GetVirtualizationRoot_UserRestriction);
+        
+        *kauthResult = KAUTH_RESULT_DENY;
+        return false;
     }
     
     return true;
 }
+
+
+static bool CurrentProcessWasSpawnedByRegularUser()
+{
+    bool nonServiceUser = false;
+    
+    proc_t process = proc_self();
+    
+    while (true)
+    {
+        kauth_cred_t credential = kauth_cred_proc_ref(process);
+        uid_t processUID = kauth_cred_getuid(credential);
+        kauth_cred_unref(&credential);
+        
+        if (processUID >= 500)
+        {
+            nonServiceUser = true;
+            break;
+        }
+        
+        pid_t parentPID = proc_ppid(process);
+        if (parentPID <= 1)
+        {
+            break;
+        }
+        
+        proc_t parentProcess = proc_find(parentPID);
+        proc_rele(process);
+        process = parentProcess;
+        if (parentProcess == nullptr)
+        {
+            KextLog_Error("CurrentProcessIsOwnedOrWasSpawnedByRegularUser: Failed to locate ancestor process %d for current process %d\n", parentPID, proc_selfpid());
+            break;
+        }
+    }
+    
+    
+    if (process != nullptr)
+    {
+        proc_rele(process);
+    }
+    
+    return nonServiceUser;
+}
+    
 
 static bool ShouldHandleFileOpEvent(
     // In params:
@@ -831,21 +897,19 @@ static bool ShouldHandleFileOpEvent(
     }
     
     {
-        PerfSample checkRootOnlineSample(perfTracer, PrjFSPerfCounter_FileOp_ShouldHandle_CheckRootOnline);
+        PerfSample checkRootOnlineSample(perfTracer, PrjFSPerfCounter_FileOp_ShouldHandle_CheckProvider);
         
-        if (!VirtualizationRoot_IsOnline(*root))
+        ActiveProviderProperties provider = VirtualizationRoot_GetActiveProvider(*root);
+        
+        if (!provider.isOnline)
         {
             perfTracer->IncrementCount(PrjFSPerfCounter_FileOp_ShouldHandle_OfflineRoot);
             return false;
         }
-    }
-    
-    {
-        PerfSample pidSample(perfTracer, PrjFSPerfCounter_FileOp_ShouldHandle_CompareProviderPid);
     
         // If the calling process is the provider, we must exit right away to avoid deadlocks
         *pid = GetPid(context);
-        if (VirtualizationRoot_PIDMatchesProvider(*root, *pid))
+        if (*pid == provider.pid)
         {
             perfTracer->IncrementCount(PrjFSPerfCounter_FileOp_ShouldHandle_OriginatedByProvider);
             return false;

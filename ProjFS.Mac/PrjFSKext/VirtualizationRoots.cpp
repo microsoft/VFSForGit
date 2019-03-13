@@ -37,37 +37,25 @@ static VirtualizationRootHandle FindOrDetectRootAtVnode(vnode_t vnode, const Fsi
 static VirtualizationRootHandle FindUnusedIndex_Locked();
 static VirtualizationRootHandle InsertVirtualizationRoot_Locked(PrjFSProviderUserClient* userClient, pid_t clientPID, vnode_t vnode, uint32_t vid, FsidInode persistentIds, const char* path);
 
-bool VirtualizationRoot_IsOnline(VirtualizationRootHandle rootHandle)
+ActiveProviderProperties VirtualizationRoot_GetActiveProvider(VirtualizationRootHandle rootHandle)
 {
+    ActiveProviderProperties result = { false, 0 };
     if (rootHandle < 0)
     {
-        return false;
+        return result;
     }
     
-    bool result;
     RWLock_AcquireShared(s_virtualizationRootsLock);
     {
-        result =
+        result.isOnline =
             rootHandle < s_maxVirtualizationRoots
             && s_virtualizationRoots[rootHandle].inUse
             && nullptr != s_virtualizationRoots[rootHandle].providerUserClient;
-    }
-    RWLock_ReleaseShared(s_virtualizationRootsLock);
-    
-    return result;
-}
-
-bool VirtualizationRoot_PIDMatchesProvider(VirtualizationRootHandle rootHandle, pid_t pid)
-{
-    bool result;
-    RWLock_AcquireShared(s_virtualizationRootsLock);
-    {
-        result =
-            rootHandle >= 0
-            && rootHandle < s_maxVirtualizationRoots
-            && s_virtualizationRoots[rootHandle].inUse
-            && nullptr != s_virtualizationRoots[rootHandle].providerUserClient
-            && pid == s_virtualizationRoots[rootHandle].providerPid;
+        
+        if (result.isOnline)
+        {
+            result.pid = s_virtualizationRoots[rootHandle].providerPid;
+        }
     }
     RWLock_ReleaseShared(s_virtualizationRootsLock);
     

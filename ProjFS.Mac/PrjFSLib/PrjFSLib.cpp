@@ -926,12 +926,15 @@ static PrjFS_Result HandleHydrateFileRequest(const MessageHeader* request, const
         
         // TODO(Mac): once we support async callbacks, we'll need to save off the fileHandle if the result is Pending
         
-        if (fclose(fileHandle.file))
-        {
-            // TODO(Mac): under what conditions can fclose fail? How do we recover?
-            result = PrjFS_Result_EIOError;
-            goto CleanupAndReturn;
-        }
+        fflush(fileHandle.file);
+        
+        // Don't block on closing the file to avoid deadlock with some Antivirus software
+        dispatch_async(s_kernelRequestHandlingConcurrentQueue, ^{
+            if (fclose(fileHandle.file))
+            {
+                // TODO(Mac): under what conditions can fclose fail? How do we recover?
+            }
+        });
         
         if (PrjFS_Result_Success == result)
         {
