@@ -505,7 +505,7 @@ namespace GVFS.Platform.Windows
                     ProjectedFileInfo fileInfo = activeEnumeration.Current;
                     FileProperties properties = this.FileSystemCallbacks.GetLogsHeadFileProperties();
 
-                    bool addResult = results.Add(
+                    if (results.Add(
                         fileName: fileInfo.Name,
                         fileSize: fileInfo.IsFolder ? 0 : fileInfo.Size,
                         isDirectory: fileInfo.IsFolder,
@@ -513,20 +513,14 @@ namespace GVFS.Platform.Windows
                         creationTime: properties.CreationTimeUTC,
                         lastAccessTime: properties.LastAccessTimeUTC,
                         lastWriteTime: properties.LastWriteTimeUTC,
-                        changeTime: properties.LastWriteTimeUTC);
-
-                    if (addResult == true)
+                        changeTime: properties.LastWriteTimeUTC))
                     {
                         entryAdded = true;
                         activeEnumeration.MoveNext();
                     }
                     else
                     {
-                        if (entryAdded)
-                        {
-                            result = HResult.Ok;
-                        }
-
+                        result = entryAdded ? HResult.Ok : HResult.InsufficientBuffer;
                         break;
                     }
                 }

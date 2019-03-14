@@ -140,7 +140,7 @@ namespace MirrorProvider.Windows
                     ProjectedFileInfo fileInfo = activeEnumeration.Current;
 
                     DateTime now = DateTime.UtcNow;
-                    bool addResult = results.Add(
+                    if (results.Add(
                         fileName: fileInfo.Name,
                         fileSize: fileInfo.IsDirectory ? 0 : fileInfo.Size,
                         isDirectory: fileInfo.IsDirectory,
@@ -148,20 +148,14 @@ namespace MirrorProvider.Windows
                         creationTime: now,
                         lastAccessTime: now,
                         lastWriteTime: now,
-                        changeTime: now);
-
-                    if (addResult == true)
+                        changeTime: now))
                     {
                         entryAdded = true;
                         activeEnumeration.MoveNext();
                     }
                     else
                     {
-                        if (entryAdded)
-                        {
-                            result = HResult.Ok;
-                        }
-
+                        result = entryAdded ? HResult.Ok : HResult.InsufficientBuffer;
                         break;
                     }
                 }
