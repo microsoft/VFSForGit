@@ -1,9 +1,9 @@
 ﻿using GVFS.Common;
 using GVFS.DiskLayoutUpgrades;
 
-namespace GVFS.Platform.Mac
+namespace GVFS.Platform.POSIX
 {
-    public class MacDiskLayoutUpgradeData : IDiskLayoutUpgradeData
+    public class POSIXDiskLayoutUpgradeData : IDiskLayoutUpgradeData
     {
         public DiskLayoutUpgrade[] Upgrades
         {
@@ -14,9 +14,9 @@ namespace GVFS.Platform.Mac
         }
 
         public DiskLayoutVersion Version => new DiskLayoutVersion(
-                    currentMajorVersion: 18,
-                    currentMinorVersion: 0,
-                    minimumSupportedMajorVersion: 18);
+            currentMajorVersion: 18,
+            currentMinorVersion: 0,
+            minimumSupportedMajorVersion: 18);
 
         public bool TryParseLegacyDiskLayoutVersion(string dotGVFSPath, out int majorVersion)
         {

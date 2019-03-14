@@ -1,7 +1,7 @@
 ﻿using CommandLine;
 using GVFS.Common;
 using GVFS.Common.NamedPipes;
-using GVFS.Platform.Mac;
+using GVFS.Platform.POSIX;
 using GVFS.Platform.Windows;
 using System;
 using System.Diagnostics;
@@ -45,7 +45,7 @@ namespace GVFS.FunctionalTests.LockHolder
         {
             if (RuntimeInformation.IsOSPlatform(OSPlatform.OSX))
             {
-                return MacPlatform.TryGetGVFSEnlistmentRootImplementation(directory, out enlistmentRoot, out errorMessage);
+                return POSIXPlatform.TryGetGVFSEnlistmentRootImplementation(directory, out enlistmentRoot, out errorMessage);
             }
 
             // Not able to use WindowsPlatform here - because of its dependency on WindowsIdentity (and also kernel32.dll).
@@ -71,7 +71,7 @@ namespace GVFS.FunctionalTests.LockHolder
         {
             if (RuntimeInformation.IsOSPlatform(OSPlatform.OSX))
             {
-                return MacPlatform.GetNamedPipeNameImplementation(enlistmentRoot);
+                return POSIXPlatform.GetNamedPipeNameImplementation(enlistmentRoot);
             }
 
             // Not able to use WindowsPlatform here - because of its dependency on WindowsIdentity (and also kernel32.dll).

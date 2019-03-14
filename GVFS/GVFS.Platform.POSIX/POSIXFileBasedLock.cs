@@ -5,13 +5,13 @@ using System;
 using System.IO;
 using System.Runtime.InteropServices;
 
-namespace GVFS.Platform.Mac
+namespace GVFS.Platform.POSIX
 {
-    public class MacFileBasedLock : FileBasedLock
+    public class POSIXFileBasedLock : FileBasedLock
     {
         private int lockFileDescriptor;
 
-        public MacFileBasedLock(
+        public POSIXFileBasedLock(
             PhysicalFileSystem fileSystem,
             ITracer tracer,
             string lockPath)
@@ -37,7 +37,7 @@ namespace GVFS.Platform.Mac
                     EventMetadata metadata = this.CreateEventMetadata(errno);
                     this.Tracer.RelatedWarning(
                         metadata,
-                        $"{nameof(MacFileBasedLock)}.{nameof(this.TryAcquireLock)}: Failed to open lock file");
+                        $"{nameof(POSIXFileBasedLock)}.{nameof(this.TryAcquireLock)}: Failed to open lock file");
 
                     return false;
                 }
@@ -51,7 +51,7 @@ namespace GVFS.Platform.Mac
                     EventMetadata metadata = this.CreateEventMetadata(errno);
                     this.Tracer.RelatedWarning(
                         metadata,
-                        $"{nameof(MacFileBasedLock)}.{nameof(this.TryAcquireLock)}: Unexpected error when locking file");
+                        $"{nameof(POSIXFileBasedLock)}.{nameof(this.TryAcquireLock)}: Unexpected error when locking file");
                 }
 
                 return false;
@@ -76,7 +76,7 @@ namespace GVFS.Platform.Mac
                     EventMetadata metadata = this.CreateEventMetadata(errno);
                     this.Tracer.RelatedWarning(
                         metadata,
-                        $"{nameof(MacFileBasedLock)}.{nameof(this.Dispose)}: Error when closing lock fd");
+                        $"{nameof(POSIXFileBasedLock)}.{nameof(this.Dispose)}: Error when closing lock fd");
                 }
 
                 this.lockFileDescriptor = NativeMethods.InvalidFileDescriptor;
@@ -86,7 +86,7 @@ namespace GVFS.Platform.Mac
         private EventMetadata CreateEventMetadata(int errno = 0)
         {
             EventMetadata metadata = new EventMetadata();
-            metadata.Add("Area", "MacFileBasedLock");
+            metadata.Add("Area", nameof(POSIXFileBasedLock));
             metadata.Add(nameof(this.LockPath), this.LockPath);
             if (errno != 0)
             {

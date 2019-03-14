@@ -3,15 +3,13 @@ using System;
 using System.Diagnostics;
 using System.IO;
 
-namespace GVFS.Platform.Mac
+namespace GVFS.Platform.POSIX
 {
-    public partial class MacPlatform
+    public abstract partial class POSIXPlatform
     {
-        public const string InstallerExtension = "dmg";
-
         public static bool IsElevatedImplementation()
         {
-            // TODO(Mac): Implement proper check
+            // TODO(POSIX): Implement proper check
             return false;
         }
 
@@ -31,24 +29,24 @@ namespace GVFS.Platform.Mac
 
         public static string GetNamedPipeNameImplementation(string enlistmentRoot)
         {
-            // Pipes are stored as files on OSX, use a rooted pipe name to keep full control of the location of the file
+            // Pipes are stored as files on POSIX, use a rooted pipe name to keep full control of the location of the file
             return Path.Combine(enlistmentRoot, GVFSConstants.DotGVFS.Root, "GVFS_NetCorePipe");
         }
 
         public static bool IsConsoleOutputRedirectedToFileImplementation()
         {
-            // TODO(Mac): Implement proper check
+            // TODO(POSIX): Implement proper check
             return false;
         }
 
         public static bool TryGetGVFSEnlistmentRootImplementation(string directory, out string enlistmentRoot, out string errorMessage)
         {
-            // TODO(Mac): Merge this code with the implementation in WindowsPlatform
+            // TODO(POSIX): Merge this code with the implementation in WindowsPlatform
 
             enlistmentRoot = null;
 
             string finalDirectory;
-            if (!MacFileSystem.TryGetNormalizedPathImplementation(directory, out finalDirectory, out errorMessage))
+            if (!POSIXFileSystem.TryGetNormalizedPathImplementation(directory, out finalDirectory, out errorMessage))
             {
                 return false;
             }

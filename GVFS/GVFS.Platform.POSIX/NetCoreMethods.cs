@@ -6,7 +6,7 @@ using System.Diagnostics;
 using System.Runtime.InteropServices;
 using System.Text;
 
-namespace GVFS.Platform.Mac
+namespace GVFS.Platform.POSIX
 {
     /// <summary>
     /// Helper methods from .NET Core
