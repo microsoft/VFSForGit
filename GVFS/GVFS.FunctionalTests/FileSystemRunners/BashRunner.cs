@@ -258,7 +258,8 @@ namespace GVFS.FunctionalTests.FileSystemRunners
 
         public override void DeleteFile_AccessShouldBeDenied(string path)
         {
-            this.DeleteFile(path).ShouldContain(this.GetPermissionDeniedError());
+            // bash does not report any error messages when access is denied, so just confirm the file still exists
+            this.DeleteFile(path);
             this.FileExists(path).ShouldBeTrue($"{path} does not exist when it should");
         }
 
