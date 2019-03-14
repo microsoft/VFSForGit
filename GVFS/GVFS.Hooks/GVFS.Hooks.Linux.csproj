@@ -78,7 +78,7 @@
     <Compile Include="..\GVFS.Common\ProcessResult.cs">
       <Link>Common\ProcessResult.cs</Link>
     </Compile>
-    <Compile Include="..\GVFS.Common\ProductUpgraderInfo.cs" Link="Common\ProductUpgraderInfo.cs" />
+    <Compile Include="..\GVFS.Common\ProductUpgraderInfo.Shared.cs" Link="Common\ProductUpgraderInfo.Shared.cs" />
     <Compile Include="..\GVFS.Common\Tracing\EventLevel.cs">
       <Link>Common\Tracing\EventLevel.cs</Link>
     </Compile>
@@ -94,7 +94,7 @@
     <Compile Include="..\GVFS.Common\Tracing\Keywords.cs">
       <Link>Common\Tracing\Keywords.cs</Link>
     </Compile>
-    <Compile Include="..\GVFS.Platform.Posix\PosixFileSystem.Shared.cs">
+    <Compile Include="..\GVFS.Platform.Linux\LinuxFileSystem.Shared.cs">
       <Link>Linux\LinuxFileSystem.Shared.cs</Link>
     </Compile>
     <Compile Include="..\GVFS.Platform.Linux\LinuxPlatform.Shared.cs">
