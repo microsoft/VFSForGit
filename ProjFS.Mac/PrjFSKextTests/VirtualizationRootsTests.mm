@@ -283,16 +283,19 @@ static void SetRootXattrData(shared_ptr<vnode> vnode)
 {
     const char* repoPath = "/Users/test/code/Repo";
     const char* filePath = "/Users/test/code/Repo/file";
-    
+    const char* deeplyNestedPath = "/Users/test/code/Repo/deeply/nested/sub/directories/with/a/file";
+
     shared_ptr<vnode> repoRootVnode = self->testMountPoint->CreateVnodeTree(repoPath, VDIR);
     shared_ptr<vnode> testFileVnode = self->testMountPoint->CreateVnodeTree(filePath);
-    
+    shared_ptr<vnode> deepFileVnode = self->testMountPoint->CreateVnodeTree(deeplyNestedPath);
     
     VirtualizationRootHandle repoRootHandle = InsertVirtualizationRoot_Locked(nullptr /* no client */, 0, repoRootVnode.get(), repoRootVnode->GetVid(), FsidInode{ repoRootVnode->GetMountPoint()->GetFsid(), repoRootVnode->GetInode() }, repoPath);
     XCTAssertTrue(VirtualizationRoot_IsValidRootHandle(repoRootHandle));
 
     VirtualizationRootHandle foundRoot = VirtualizationRoot_FindForVnode(&self->dummyTracer, PrjFSPerfCounter_VnodeOp_FindRoot, PrjFSPerfCounter_VnodeOp_FindRoot_Iteration, testFileVnode.get(), self->dummyVFSContext);
+    XCTAssertEqual(foundRoot, repoRootHandle);
     
+    foundRoot = VirtualizationRoot_FindForVnode(&self->dummyTracer, PrjFSPerfCounter_VnodeOp_FindRoot, PrjFSPerfCounter_VnodeOp_FindRoot_Iteration, deepFileVnode.get(), self->dummyVFSContext);
     XCTAssertEqual(foundRoot, repoRootHandle);
 }
 
@@ -368,6 +371,8 @@ static void SetRootXattrData(shared_ptr<vnode> vnode)
     }
 }
 
+// A variation on the above 2 tests but starting with a directory vnode, taking
+// the 'if (vnode_isdir(vnode))' branch in VirtualizationRoot_FindForVnode.
 - (void)testFindForVnode_DirectoryInUndetectedRoot
 {
     const char* repoPath = "/Users/test/code/Repo";
