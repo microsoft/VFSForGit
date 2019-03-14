@@ -125,14 +125,15 @@ VirtualizationRootHandle VirtualizationRoot_FindForVnode(
     PerfTracer* _Nonnull perfTracer,
     PrjFSPerfCounter functionCounter,
     PrjFSPerfCounter innerLoopCounter,
-    vnode_t _Nonnull vnode,
+    vnode_t _Nonnull initialVnode,
     vfs_context_t context)
 {
     PerfSample findForVnodeSample(perfTracer, functionCounter);
     
     VirtualizationRootHandle rootHandle = RootHandle_None;
     errno_t error = 0;
-    
+    vnode_t vnode = initialVnode;
+
     if (vnode_isdir(vnode))
     {
         error = vnode_get(vnode);
