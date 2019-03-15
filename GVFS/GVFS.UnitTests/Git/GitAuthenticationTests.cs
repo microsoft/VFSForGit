@@ -262,11 +262,11 @@ namespace GVFS.UnitTests.Git
             int approvals = 0;
             int rejections = 0;
             gitProcess.SetExpectedCommandResult(
-                "-c credential.useHttpPath=true credential fill",
+                "-c credential.\"https://dev.azure.com\".useHttpPath=true credential fill",
                 () => new GitProcess.Result("username=username\r\npassword=password" + rejections + "\r\n", string.Empty, GitProcess.Result.SuccessCode));
 
             gitProcess.SetExpectedCommandResult(
-                "credential approve",
+                "-c credential.\"https://dev.azure.com\".useHttpPath=true credential approve",
                 () =>
                 {
                     approvals++;
@@ -274,7 +274,7 @@ namespace GVFS.UnitTests.Git
                 });
 
             gitProcess.SetExpectedCommandResult(
-                "credential reject",
+                "-c credential.\"https://dev.azure.com\".useHttpPath=true credential reject",
                 () =>
                 {
                     rejections++;
