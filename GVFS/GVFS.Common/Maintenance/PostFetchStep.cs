@@ -48,12 +48,15 @@ namespace GVFS.Common.Maintenance
 
                 this.RunGitCommand((process) => process.WriteCommitGraph(this.Context.Enlistment.GitObjectsRoot, this.packIndexes), nameof(GitProcess.WriteCommitGraph));
 
+                // Turning off Verify for commit graph due to performance issues.
+                /*
                 GitProcess.Result verifyResult = this.RunGitCommand((process) => process.VerifyCommitGraph(this.Context.Enlistment.GitObjectsRoot), nameof(GitProcess.VerifyCommitGraph));
 
                 if (verifyResult.ExitCodeIsFailure)
                 {
                     this.LogErrorAndRewriteCommitGraph(activity, this.packIndexes);
                 }
+                */
             }
         }
     }

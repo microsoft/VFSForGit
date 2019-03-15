@@ -74,11 +74,14 @@ namespace GVFS.UnitTests.Maintenance
             this.tracer.RelatedInfoEvents.Count.ShouldEqual(0);
 
             List<string> commands = this.gitProcess.CommandsRun;
-            commands.Count.ShouldEqual(4);
+
+            // Turning off Commit Graph Verify while we address performance issues
+            // commands.Count.ShouldEqual(4);
+            commands.Count.ShouldEqual(3);
             commands[0].ShouldEqual(this.MultiPackIndexWriteCommand);
             commands[1].ShouldEqual(this.MultiPackIndexVerifyCommand);
             commands[2].ShouldEqual(this.CommitGraphWriteCommand);
-            commands[3].ShouldEqual(this.CommitGraphVerifyCommand);
+            //// commands[3].ShouldEqual(this.CommitGraphVerifyCommand);
         }
 
         [TestCase]
@@ -106,15 +109,19 @@ namespace GVFS.UnitTests.Maintenance
             this.tracer.StartActivityTracer.RelatedWarningEvents.Count.ShouldEqual(0);
 
             List<string> commands = this.gitProcess.CommandsRun;
-            commands.Count.ShouldEqual(5);
+
+            // Turning off Commit Graph Verify, while we address performance issues
+            // commands.Count.ShouldEqual(5);
+            commands.Count.ShouldEqual(4);
             commands[0].ShouldEqual(this.MultiPackIndexWriteCommand);
             commands[1].ShouldEqual(this.MultiPackIndexVerifyCommand);
             commands[2].ShouldEqual(this.MultiPackIndexWriteCommand);
             commands[3].ShouldEqual(this.CommitGraphWriteCommand);
-            commands[4].ShouldEqual(this.CommitGraphVerifyCommand);
+            //// commands[4].ShouldEqual(this.CommitGraphVerifyCommand);
         }
 
         [TestCase]
+        [Ignore("Turn off Commit Graph Verify, while we address performance issues")]
         public void RewriteCommitGraphOnBadVerify()
         {
             this.TestSetup();
