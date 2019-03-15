@@ -164,15 +164,10 @@ namespace GVFS.Common.Git
             // Credential helpers that support it can use the provided username/password values to
             // perform a check that they're being asked to delete the same stored credential that
             // the caller is asking them to erase.
-            if (username != null)
-            {
-                sb.AppendFormat("username={0}\n", username);
-            }
-
-            if (password != null)
-            {
-                sb.AppendFormat("password={0}\n", password);
-            }
+            // Ideally, we would provide these values if available, however it does not work as expected
+            // with our main credential helper - Windows GCM. With GCM for Windows, the credential acquired
+            // with credential fill for dev.azure.com URLs are not erased when the user name / password are passed in.
+            // Until the default credential helper works with this pattern, reject credential with just the URL.
 
             sb.Append("\n");
 
