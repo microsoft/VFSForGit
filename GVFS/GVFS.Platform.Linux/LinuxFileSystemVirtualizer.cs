@@ -334,7 +334,7 @@ namespace GVFS.Platform.Linux
             byte[] contentId,
             int triggeringProcessId,
             string triggeringProcessName,
-            IntPtr fileHandle)
+            int fd)
         {
             try
             {
@@ -402,7 +402,7 @@ namespace GVFS.Platform.Linux
                                 }
 
                                 Result result = this.virtualizationInstance.WriteFileContents(
-                                    fileHandle,
+                                    fd,
                                     buffer,
                                     bufferIndex);
                                 if (result != Result.Success)
