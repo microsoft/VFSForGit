@@ -4,14 +4,15 @@ using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
+using System.Threading;
 
 namespace GVFS.Common.Tracing
 {
-    public class JsonTracer : ITracer
+    public class JsonTracer : ITracer, IEventListenerEventSink
     {
         public const string NetworkErrorEventName = "NetworkError";
 
-        private readonly List<EventListener> listeners;
+        private readonly ConcurrentBag<EventListener> listeners;
         private readonly ConcurrentDictionary<EventListener, string> failedListeners = new ConcurrentDictionary<EventListener, string>();
 
         private readonly string activityName;
@@ -22,8 +23,8 @@ namespace GVFS.Common.Tracing
         private readonly EventLevel startStopLevel;
         private readonly Keywords startStopKeywords;
 
+        private bool isDisposed = false;
         private bool stopped = false;
-        private bool disposed;
 
         public JsonTracer(string providerName, string activityName, bool disableTelemetry = false)
             : this(providerName, Guid.Empty, activityName, enlistmentId: null, mountId: null, disableTelemetry: disableTelemetry)
@@ -54,7 +55,7 @@ namespace GVFS.Common.Tracing
                     return;
                 }
 
-                TelemetryDaemonEventListener daemonListener = TelemetryDaemonEventListener.CreateIfEnabled(gitBinRoot, providerName, enlistmentId, mountId);
+                TelemetryDaemonEventListener daemonListener = TelemetryDaemonEventListener.CreateIfEnabled(gitBinRoot, providerName, enlistmentId, mountId, this);
                 if (daemonListener != null)
                 {
                     this.listeners.Add(daemonListener);
@@ -62,9 +63,9 @@ namespace GVFS.Common.Tracing
             }
         }
 
-        private JsonTracer(List<EventListener> listeners, Guid parentActivityId, string activityName, EventLevel startStopLevel, Keywords startStopKeywords)
+        private JsonTracer(ConcurrentBag<EventListener> listeners, Guid parentActivityId, string activityName, EventLevel startStopLevel, Keywords startStopKeywords)
         {
-            this.listeners = listeners ?? new List<EventListener>();
+            this.listeners = listeners ?? new ConcurrentBag<EventListener>();
             this.parentActivityId = parentActivityId;
             this.activityName = activityName;
             this.startStopLevel = startStopLevel;
@@ -92,47 +93,58 @@ namespace GVFS.Common.Tracing
 
         public void AddEventListener(EventListener listener)
         {
+            if (this.isDisposed)
+            {
+                throw new ObjectDisposedException(nameof(JsonTracer));
+            }
+
             this.listeners.Add(listener);
 
             // Tell the new listener about others who have previously failed
             foreach (KeyValuePair<EventListener, string> kvp in this.failedListeners)
             {
                 TraceEventMessage failureMessage = CreateListenerFailureMessage(kvp.Key, kvp.Value);
-                listener.TryRecordMessage(failureMessage, out _);
+                listener.RecordMessage(failureMessage);
             }
         }
 
         public void AddDiagnosticConsoleEventListener(EventLevel maxVerbosity, Keywords keywordFilter)
         {
-            this.AddEventListener(new DiagnosticConsoleEventListener(maxVerbosity, keywordFilter));
+            this.AddEventListener(new DiagnosticConsoleEventListener(maxVerbosity, keywordFilter, this));
         }
 
         public void AddPrettyConsoleEventListener(EventLevel maxVerbosity, Keywords keywordFilter)
         {
-            this.AddEventListener(new PrettyConsoleEventListener(maxVerbosity, keywordFilter));
+            this.AddEventListener(new PrettyConsoleEventListener(maxVerbosity, keywordFilter, this));
         }
 
         public void AddLogFileEventListener(string logFilePath, EventLevel maxVerbosity, Keywords keywordFilter)
         {
-            this.AddEventListener(new LogFileEventListener(logFilePath, maxVerbosity, keywordFilter));
+            this.AddEventListener(new LogFileEventListener(logFilePath, maxVerbosity, keywordFilter, this));
         }
 
         public void Dispose()
         {
+            if (this.isDisposed)
+            {
+                // This instance has already been disposed
+                return;
+            }
+
             this.Stop(null);
 
             // If we have no parent, then we are the root tracer and should dispose our eventsource.
             if (this.parentActivityId == Guid.Empty)
             {
-                foreach (EventListener listener in this.listeners)
+                // Empty the listener bag and dispose of the instances as we remove them.
+                EventListener listener;
+                while (this.listeners.TryTake(out listener))
                 {
                     listener.Dispose();
                 }
-
-                this.listeners.Clear();
             }
 
-            this.disposed = true;
+            this.isDisposed = true;
         }
 
         public virtual void RelatedEvent(EventLevel level, string eventName, EventMetadata metadata)
@@ -288,6 +300,35 @@ namespace GVFS.Common.Tracing
             this.WriteEvent(this.activityName, this.startStopLevel, keywords, metadata, EventOpcode.Start);
         }
 
+        void IEventListenerEventSink.OnListenerRecovery(EventListener listener)
+        {
+            // Check ContainsKey first (rather than always calling TryRemove) because ContainsKey
+            // is lock-free and recoveredListener should rarely be in failedListeners
+            if (!this.failedListeners.ContainsKey(listener))
+            {
+                // This listener has not failed since the last time it was called, so no need to log recovery
+                return;
+            }
+
+            if (this.failedListeners.TryRemove(listener, out _))
+            {
+                TraceEventMessage message = CreateListenerRecoveryMessage(listener);
+                this.LogMessageToNonFailedListeners(message);
+            }
+        }
+
+        void IEventListenerEventSink.OnListenerFailure(EventListener listener, string errorMessage)
+        {
+            if (!this.failedListeners.TryAdd(listener, errorMessage))
+            {
+                // We've already logged that this listener has failed so there is no need to do it again
+                return;
+            }
+
+            TraceEventMessage message = CreateListenerFailureMessage(listener, errorMessage);
+            this.LogMessageToNonFailedListeners(message);
+        }
+
         private static string GetCategorizedErrorEventName(Keywords keywords)
         {
             switch (keywords)
@@ -332,11 +373,8 @@ namespace GVFS.Common.Tracing
         {
             string jsonPayload = metadata != null ? JsonConvert.SerializeObject(metadata) : null;
 
-            if (this.disposed)
+            if (this.isDisposed)
             {
-                Console.WriteLine("Writing to disposed tracer");
-                Console.WriteLine(jsonPayload);
-
                 throw new ObjectDisposedException(nameof(JsonTracer));
             }
 
@@ -351,53 +389,12 @@ namespace GVFS.Common.Tracing
                 Payload = jsonPayload
             };
 
+            // Iterating over the bag is thread-safe as the enumerator returned here
+            // is of a snapshot of the bag.
             foreach (EventListener listener in this.listeners)
             {
-                string errorMessage;
-                bool? success = listener.TryRecordMessage(message, out errorMessage);
-
-                // Try to mark success or failure for this listener only if it was enabled for this message type
-                if (success.HasValue)
-                {
-                    if (success == true)
-                    {
-                        this.MarkAndLogListenerRecovery(listener);
-                    }
-                    else
-                    {
-                        this.MarkAndLogListenerFailure(listener, errorMessage);
-                    }
-                }
+                listener.RecordMessage(message);
             }
-        }
-
-        private void MarkAndLogListenerRecovery(EventListener recoveredListener)
-        {
-            // Check ContainsKey first (rather than always calling TryRemove) because ContainsKey
-            // is lock-free and recoveredListener should rarely be in failedListeners
-            if (!this.failedListeners.ContainsKey(recoveredListener))
-            {
-                // This listener has not failed since the last time it was called, so no need to log recovery
-                return;
-            }
-
-            if (this.failedListeners.TryRemove(recoveredListener, out _))
-            {
-                TraceEventMessage message = CreateListenerRecoveryMessage(recoveredListener);
-                this.LogMessageToNonFailedListeners(message);
-            }
-        }
-
-        private void MarkAndLogListenerFailure(EventListener failedListener, string errorMessage)
-        {
-            if (!this.failedListeners.TryAdd(failedListener, errorMessage))
-            {
-                // We've already logged that this listener has failed so there is no need to do it again
-                return;
-            }
-
-            TraceEventMessage message = CreateListenerFailureMessage(failedListener, errorMessage);
-            this.LogMessageToNonFailedListeners(message);
         }
 
         private void LogMessageToNonFailedListeners(TraceEventMessage message)
@@ -405,7 +402,7 @@ namespace GVFS.Common.Tracing
             foreach (EventListener listener in this.listeners.Except(this.failedListeners.Keys))
             {
                 // To prevent infinitely recursive failures, we won't try and log that we failed to log that a listener failed :)
-                listener.TryRecordMessage(message, out _);
+                listener.RecordMessage(message);
             }
         }
     }

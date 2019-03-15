@@ -1,5 +1,6 @@
 ﻿using System;
 using GVFS.Common.Tracing;
+using Moq;
 using NUnit.Framework;
 
 namespace GVFS.UnitTests.Tracing
@@ -8,53 +9,29 @@ namespace GVFS.UnitTests.Tracing
     public class EventListenerTests
     {
         [TestCase]
-        public void EventListener_TryRecordMessage_ExceptionThrownInternally_ReturnsFalseAndErrorMessage()
+        public void EventListener_RecordMessage_ExceptionThrownInternally_RaisesFailureEventWithErrorMessage()
         {
-            string expectedErrorMessage = "test error message";
+            string expectedErrorMessage = $"test error message unique={Guid.NewGuid():N}";
+
+            Mock<IEventListenerEventSink> eventSink = new Mock<IEventListenerEventSink>();
 
             TraceEventMessage message = new TraceEventMessage { Level = EventLevel.Error, Keywords = Keywords.None };
-            TestEventListener listener = new TestEventListener(EventLevel.Informational, Keywords.Any)
+            TestEventListener listener = new TestEventListener(EventLevel.Informational, Keywords.Any, eventSink.Object)
             {
                 RecordMessageInternalCallback = _ => throw new Exception(expectedErrorMessage)
             };
 
-            string actualErrorMessage;
-            bool? actualResult = listener.TryRecordMessage(message, out actualErrorMessage);
+            listener.RecordMessage(message);
 
-            Assert.IsFalse(actualResult);
-            Assert.IsTrue(actualErrorMessage.Contains(expectedErrorMessage));
-        }
-
-        [TestCase]
-        public void EventListener_TryRecordMessage_ListenerNotEnabledForMessage_ReturnsNull()
-        {
-            TraceEventMessage message = new TraceEventMessage { Level = EventLevel.Informational, Keywords = Keywords.None };
-            TestEventListener listener = new TestEventListener(EventLevel.Critical, Keywords.Telemetry);
-
-            string actualErrorMessage;
-            bool? actualResult = listener.TryRecordMessage(message, out actualErrorMessage);
-
-            Assert.IsNull(actualResult);
-            Assert.IsNull(actualErrorMessage);
-        }
-
-        [TestCase]
-        public void EventListener_TryRecordMessage_MessageSentSuccessfully_ReturnsTrue()
-        {
-            TraceEventMessage message = new TraceEventMessage { Level = EventLevel.Error, Keywords = Keywords.None };
-            TestEventListener listener = new TestEventListener(EventLevel.Informational, Keywords.Any);
-
-            string actualErrorMessage;
-            bool? actualResult = listener.TryRecordMessage(message, out actualErrorMessage);
-
-            Assert.IsTrue(actualResult);
-            Assert.IsNull(actualErrorMessage);
+            eventSink.Verify(
+                x => x.OnListenerFailure(listener, It.Is<string>(msg => msg.Contains(expectedErrorMessage))),
+                times: Times.Once);
         }
 
         private class TestEventListener : EventListener
         {
-            public TestEventListener(EventLevel maxVerbosity, Keywords keywordFilter)
-                : base(maxVerbosity, keywordFilter)
+            public TestEventListener(EventLevel maxVerbosity, Keywords keywordFilter, IEventListenerEventSink eventSink)
+                : base(maxVerbosity, keywordFilter, eventSink)
             {
             }
 
