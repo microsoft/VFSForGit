@@ -101,15 +101,15 @@ namespace GVFS.Platform.Linux
             // #define O_WRONLY    0x0001      /* open for writing only */
             public const int OpenWriteOnly = 0x0001;
 
-            // #define O_CREAT     0x0200      /* create if nonexistant */
-            public const int OpenCreate = 0x0200;
+            // #define O_CREAT     0x0040      /* create if nonexistant */
+            public const int OpenCreate = 0x0040;
 
             // #define EINTR       4       /* Interrupted system call */
             public const int EIntr = 4;
 
-            // #define EAGAIN      35      /* Resource temporarily unavailable */
+            // #define EAGAIN      11      /* Resource temporarily unavailable */
             // #define EWOULDBLOCK EAGAIN  /* Operation would block */
-            public const int EWouldBlock = 35;
+            public const int EWouldBlock = 11;
 
             public const int LockSh = 1; // #define LOCK_SH   1    /* shared lock */
             public const int LockEx = 2; // #define LOCK_EX   2    /* exclusive lock */
@@ -118,10 +118,10 @@ namespace GVFS.Platform.Linux
 
             public const int InvalidFileDescriptor = -1;
 
-            public static readonly ushort FileMode644 = Convert.ToUInt16("644", 8);
+            public static readonly uint FileMode644 = Convert.ToUInt32("644", 8);
 
             [DllImport("libc", EntryPoint = "open", SetLastError = true)]
-            public static extern int Open(string pathname, int flags, ushort mode);
+            public static extern int Open(string pathname, int flags, uint mode);
 
             [DllImport("libc", EntryPoint = "close", SetLastError = true)]
             public static extern int Close(int fd);
