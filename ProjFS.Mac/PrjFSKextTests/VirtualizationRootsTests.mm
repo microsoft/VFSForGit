@@ -91,7 +91,7 @@ static void SetRootXattrData(shared_ptr<vnode> vnode)
 {
     const char* path = "/Users/test/code/NotADirectory.cpp";
     
-    shared_ptr<vnode> vnode = vnode::Create(self->testMountPoint, path);
+    shared_ptr<vnode> vnode = self->testMountPoint->CreateVnode(path);
     
     VirtualizationRootResult result = VirtualizationRoot_RegisterProviderForPath(&self->dummyClient, self->dummyClientPid, path);
     XCTAssertEqual(result.error, ENOTDIR);
@@ -261,7 +261,7 @@ static void SetRootXattrData(shared_ptr<vnode> vnode)
     
     oldVnode->StartRecycling();
     
-    shared_ptr<vnode> newVnode = vnode::Create(self->testMountPoint, path, VDIR, oldVnode->GetInode());
+    shared_ptr<vnode> newVnode = self->testMountPoint->CreateVnode(path, VnodeCreationProperties{ VDIR, oldVnode->GetInode() });
     
     VirtualizationRootResult result = VirtualizationRoot_RegisterProviderForPath(&self->dummyClient, self->dummyClientPid, path);
     XCTAssertEqual(result.error, 0);

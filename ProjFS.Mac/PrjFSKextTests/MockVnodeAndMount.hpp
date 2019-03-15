@@ -8,10 +8,14 @@
 #include <vector>
 #include <unordered_map>
 
+// An aggregate for setting properties of newly created mock vnodes with sensible defaults.
 struct VnodeCreationProperties
 {
     vtype type = VREG;
-    uint64_t inode = UINT64_MAX; // auto-generate
+    // UINT64_MAX is a special value that causes the associated mount point to
+    // automatically assign an inode. Set this field to something else to
+    // explicitly choose an inode number.
+    uint64_t inode = UINT64_MAX;
     std::shared_ptr<vnode> parent;
 };
 
@@ -32,7 +36,10 @@ public:
     static std::shared_ptr<mount> Create(const char* fileSystemTypeName, fsid_t fsid, uint64_t initialInode);
     
     std::shared_ptr<vnode> CreateVnodeTree(const std::string& path, vtype vnodeType = VREG);
-    std::shared_ptr<vnode> CreateVnode(std::string path, VnodeCreationProperties properties);
+    // By default, CreateVnode() will create a regular file with an
+    // auto-assigned inode and no existing parent vnode.
+    // See struct VnodeCreationProperties for changing this.
+    std::shared_ptr<vnode> CreateVnode(std::string path, VnodeCreationProperties properties = VnodeCreationProperties{});
     
     fsid_t GetFsid() const { return this->statfs.f_fsid; }
     std::shared_ptr<vnode> GetRootVnode() const { return this->rootVnode.lock(); }
@@ -41,6 +48,30 @@ public:
     friend vfsstatfs* vfs_statfs(mount_t mountPoint);
 };
 
+// On the subject of mock vnode lifetimes and memory management:
+//
+// To create a standalone mock vnode, use mount::CreateVnode(), if you need a
+// full directory hierarchy, use mount::CreateVnodeTree().
+// Currently, vnode::Create() also exists and works, but it will soon be
+// replaced by an equivalent mount::CreateVnode() overload.
+// Don't attempt to create vnodes directly via operator new/constructors.
+//
+// Tests are expected to manage the lifetimes of mock vnodes they create by
+// maintaining shared_ptr<vnode> references. When all of these references go
+// out of scope at the end of the test, this should cause all mock vnodes to
+// be destroyed, so an extra sign of successful test execution is that there are
+// no live vnodes left after the test. (Call MockVnodes_CheckAndClear() in
+// tearDown)
+//
+// This is possible because vnodes will internally retain strong references to
+// their registered parent vnode, but not the other way around, so there are no
+// circular references. Similarly, and for the same reason, mock mount points do
+// not hold strong references to mock vnodes, not even their root vnode, but
+// vnodes hold strong references to their mount point.
+//
+// This way, we can have a mock mount point as a test class instance variable
+// and don't have to manually clear out the rootVnode after every test.
+//
 struct vnode
 {
 private:
@@ -73,7 +104,6 @@ private:
     
 public:
     static std::shared_ptr<vnode> Create(const std::shared_ptr<mount>& mount, const char* path, vtype vnodeType = VREG);
-    static std::shared_ptr<vnode> Create(const std::shared_ptr<mount>& mount, const char* path, vtype vnodeType, uint64_t inode);
     ~vnode();
     
     uint64_t GetInode() const          { return this->inode; }

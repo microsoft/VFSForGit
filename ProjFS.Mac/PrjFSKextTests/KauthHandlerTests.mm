@@ -43,7 +43,7 @@ using std::shared_ptr;
 
 - (void)testShouldIgnoreVnodeType {
     shared_ptr<mount> testMount = mount::Create("hfs", fsid_t{}, 0);
-    shared_ptr<vnode> testVnode = vnode::Create(testMount, "/foo");
+    shared_ptr<vnode> testVnode = testMount->CreateVnode("/foo");
     XCTAssertTrue(ShouldIgnoreVnodeType(VNON, testVnode.get()));
     XCTAssertTrue(ShouldIgnoreVnodeType(VBLK, testVnode.get()));
     XCTAssertTrue(ShouldIgnoreVnodeType(VCHR, testVnode.get()));

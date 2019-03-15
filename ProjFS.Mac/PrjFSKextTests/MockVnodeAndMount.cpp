@@ -142,13 +142,6 @@ shared_ptr<vnode> vnode::Create(const shared_ptr<mount>& mount, const char* path
     return result;
 }
 
-shared_ptr<vnode> vnode::Create(const shared_ptr<mount>& mount, const char* path, vtype vnodeType, uint64_t inode)
-{
-    shared_ptr<vnode> result = Create(mount, path, vnodeType);
-    result->inode = inode;
-    return result;
-}
-
 void vnode::StartRecycling()
 {
     s_vnodesByPath.erase(this->path);
