@@ -119,7 +119,7 @@ namespace PrjFSLib.Linux
         public virtual Result WritePlaceholderDirectory(
             string relativePath)
         {
-            return this.projfs.CreateProjDir(relativePath, Convert.ToUInt16("0777", 8));
+            return this.projfs.CreateProjDir(relativePath, Convert.ToUInt32("777", 8));
         }
 
         public virtual Result WritePlaceholderFile(
@@ -127,7 +127,7 @@ namespace PrjFSLib.Linux
             byte[] providerId,
             byte[] contentId,
             ulong fileSize,
-            ushort fileMode)
+            uint fileMode)
         {
             if (providerId.Length != PlaceholderIdLength ||
                 contentId.Length != PlaceholderIdLength)
@@ -155,7 +155,7 @@ namespace PrjFSLib.Linux
             byte[] providerId,
             byte[] contentId,
             ulong fileSize,
-            ushort fileMode,
+            uint fileMode,
             UpdateType updateFlags,
             out UpdateFailureCause failureCause)
         {
