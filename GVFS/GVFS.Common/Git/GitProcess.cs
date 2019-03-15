@@ -179,7 +179,7 @@ namespace GVFS.Common.Git
             string stdinConfig = sb.ToString();
 
             this.InvokeGitOutsideEnlistment(
-                "credential reject",
+                GenerateCredentialVerbCommand("reject"),
                 stdin => stdin.Write(stdinConfig),
                 null);
         }
@@ -195,7 +195,7 @@ namespace GVFS.Common.Git
             string stdinConfig = sb.ToString();
 
             this.InvokeGitOutsideEnlistment(
-                "credential approve",
+                GenerateCredentialVerbCommand("approve"),
                 stdin => stdin.Write(stdinConfig),
                 null);
         }
@@ -269,7 +269,7 @@ namespace GVFS.Common.Git
             using (ITracer activity = tracer.StartActivity("TryGetCredentials", EventLevel.Informational))
             {
                 Result gitCredentialOutput = this.InvokeGitAgainstDotGitFolder(
-                    $"-c {GitConfigSetting.CredentialUseHttpPath}=true credential fill",
+                    GenerateCredentialVerbCommand("fill"),
                     stdin => stdin.Write($"url={repoUrl}\n\n"),
                     parseStdOutLine: null);
 
@@ -758,6 +758,11 @@ namespace GVFS.Common.Git
             {
                 this.executingProcess = null;
             }
+        }
+
+        private static string GenerateCredentialVerbCommand(string verb)
+        {
+            return $"-c {GitConfigSetting.CredentialUseHttpPath}=true credential {verb}";
         }
 
         private static string ParseValue(string contents, string prefix)
