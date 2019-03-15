@@ -111,7 +111,7 @@ shared_ptr<vnode> vnode::Create(const shared_ptr<mount>& mount, const char* path
     shared_ptr<vnode> result(new vnode(mount));
     s_allVnodes.insert(make_pair(result.get(), weak_ptr<vnode>(result)));
     result->weakSelfPointer = result;
-    result->SetPath(path);
+    result->SetAndRegisterPath(path);
     result->type = vnodeType;
     return result;
 }
@@ -138,7 +138,7 @@ void vnode::SetGetPathError(errno_t error)
     this->getPathError = error;
 }
 
-void vnode::SetPath(const string& path)
+void vnode::SetAndRegisterPath(const string& path)
 {
     s_vnodesByPath.erase(this->path);
 

@@ -48,7 +48,7 @@ private:
     std::string path;
     const char* name;
     
-    void SetPath(const std::string& path);
+    void SetAndRegisterPath(const std::string& path);
 
     explicit vnode(const std::shared_ptr<mount>& mount);
     
