@@ -138,7 +138,9 @@ namespace PrjFSLib.Linux
             return this.projfs.CreateProjFile(
                 relativePath,
                 fileSize,
-                fileMode);
+                fileMode,
+                providerId,
+                contentId);
         }
 
         public virtual Result WriteSymLink(
@@ -226,18 +228,15 @@ namespace PrjFSLib.Linux
             }
         }
 
-        private static string PtrToStringUTF8(IntPtr ptr)
+        private static unsafe string PtrToStringUTF8(byte* ptr)
         {
-            if (ptr == IntPtr.Zero)
+            if (ptr == (byte*)IntPtr.Zero)
             {
                 return null;
             }
 
-            int length = (int)Stdlib.strlen(ptr);
-            unsafe
-            {
-                return Encoding.UTF8.GetString((byte*)ptr, length);
-            }
+            int length = (int)Stdlib.strlen((IntPtr)ptr);
+            return Encoding.UTF8.GetString(ptr, length);
         }
 
         private int HandleProjEvent(ref Interop.ProjFS.Event ev)
@@ -245,24 +244,40 @@ namespace PrjFSLib.Linux
             string triggeringProcessName = GetProcCmdline(ev.Pid);
             Result result;
 
-            if ((ev.Mask & Interop.ProjFS.Constants.PROJFS_ONDIR) != 0)
+            unsafe
             {
-                result = this.OnEnumerateDirectory(
-                    commandId: 0,
-                    relativePath: PtrToStringUTF8(ev.Path),
-                    triggeringProcessId: ev.Pid,
-                    triggeringProcessName: triggeringProcessName);
-            }
-            else
-            {
-                result = this.OnGetFileStream(
-                    commandId: 0,
-                    relativePath: PtrToStringUTF8(ev.Path),
-                    providerId: new byte[PlaceholderIdLength],
-                    contentId: new byte[PlaceholderIdLength],
-                    triggeringProcessId: ev.Pid,
-                    triggeringProcessName: triggeringProcessName,
-                    fd: ev.Fd);
+                string relativePath = PtrToStringUTF8(ev.Path);
+
+                if ((ev.Mask & Interop.ProjFS.Constants.PROJFS_ONDIR) != 0)
+                {
+                    result = this.OnEnumerateDirectory(
+                        commandId: 0,
+                        relativePath: relativePath,
+                        triggeringProcessId: ev.Pid,
+                        triggeringProcessName: triggeringProcessName);
+                }
+                else
+                {
+                    byte[] providerId = new byte[PlaceholderIdLength];
+                    byte[] contentId = new byte[PlaceholderIdLength];
+
+                    result = this.projfs.GetProjAttrs(
+                        relativePath,
+                        providerId,
+                        contentId);
+
+                    if (result == Result.Success)
+                    {
+                        result = this.OnGetFileStream(
+                            commandId: 0,
+                            relativePath: relativePath,
+                            providerId: providerId,
+                            contentId: contentId,
+                            triggeringProcessId: ev.Pid,
+                            triggeringProcessName: triggeringProcessName,
+                            fd: ev.Fd);
+                    }
+                }
             }
 
             return result.ConvertResultToErrno();
@@ -289,17 +304,37 @@ namespace PrjFSLib.Linux
                 return 0;
             }
 
+            bool isDirectory = (ev.Mask & Interop.ProjFS.Constants.PROJFS_ONDIR) != 0;
             string triggeringProcessName = GetProcCmdline(ev.Pid);
+            byte[] providerId = new byte[PlaceholderIdLength];
+            byte[] contentId = new byte[PlaceholderIdLength];
+            Result result = Result.Success;
 
-            Result result = this.OnNotifyOperation(
-                commandId: 0,
-                relativePath: PtrToStringUTF8(ev.Path),
-                providerId: new byte[PlaceholderIdLength],
-                contentId: new byte[PlaceholderIdLength],
-                triggeringProcessId: ev.Pid,
-                triggeringProcessName: triggeringProcessName,
-                isDirectory: (ev.Mask & Interop.ProjFS.Constants.PROJFS_ONDIR) != 0,
-                notificationType: nt);
+            unsafe
+            {
+                string relativePath = PtrToStringUTF8(ev.Path);
+
+                if (!isDirectory)
+                {
+                    result = this.projfs.GetProjAttrs(
+                        relativePath,
+                        providerId,
+                        contentId);
+                }
+
+                if (result == Result.Success)
+                {
+                    result = this.OnNotifyOperation(
+                        commandId: 0,
+                        relativePath: relativePath,
+                        providerId: providerId,
+                        contentId: contentId,
+                        triggeringProcessId: ev.Pid,
+                        triggeringProcessName: triggeringProcessName,
+                        isDirectory: isDirectory,
+                        notificationType: nt);
+                }
+            }
 
             int ret = result.ConvertResultToErrno();
 
