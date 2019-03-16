@@ -233,8 +233,8 @@ static int HandleVnodeOperation(
     vtype vnodeType;
     uint32_t currentVnodeFileFlags;
     FsidInode vnodeFsidInode;
-    int pid;
-    char procname[MAXCOMLEN + 1];
+    int pid = 0;
+    char procname[MAXCOMLEN + 1] = "";
     bool isDeleteAction = false;
     bool isDirectory = false;
 
