@@ -17,6 +17,10 @@ void RWLock_ReleaseExclusive(RWLock& lock)
 {
 }
 
+void RWLock_AcquireShared(RWLock& lock)
+{
+}
+
 void RWLock_DropExclusiveToShared(RWLock& lock)
 {
 }

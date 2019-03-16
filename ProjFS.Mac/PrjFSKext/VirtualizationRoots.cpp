@@ -35,7 +35,7 @@ static void RefreshRootVnodeIfNecessary_Locked(VirtualizationRootHandle rootHand
 static VirtualizationRootHandle FindOrDetectRootAtVnode(vnode_t vnode, const FsidInode& vnodeFsidInode);
 
 static VirtualizationRootHandle FindUnusedIndex_Locked();
-static VirtualizationRootHandle InsertVirtualizationRoot_Locked(PrjFSProviderUserClient* userClient, pid_t clientPID, vnode_t vnode, uint32_t vid, FsidInode persistentIds, const char* path);
+KEXT_STATIC VirtualizationRootHandle InsertVirtualizationRoot_Locked(PrjFSProviderUserClient* userClient, pid_t clientPID, vnode_t vnode, uint32_t vid, FsidInode persistentIds, const char* path);
 
 ActiveProviderProperties VirtualizationRoot_GetActiveProvider(VirtualizationRootHandle rootHandle)
 {
@@ -377,7 +377,7 @@ static void RefreshRootVnodeIfNecessary_Locked(VirtualizationRootHandle rootHand
 }
 
 // Returns negative value if it failed, or inserted index on success
-static VirtualizationRootHandle InsertVirtualizationRoot_Locked(PrjFSProviderUserClient* userClient, pid_t clientPID, vnode_t vnode, uint32_t vid, FsidInode persistentIds, const char* path)
+KEXT_STATIC VirtualizationRootHandle InsertVirtualizationRoot_Locked(PrjFSProviderUserClient* userClient, pid_t clientPID, vnode_t vnode, uint32_t vid, FsidInode persistentIds, const char* path)
 {
     VirtualizationRootHandle rootIndex = FindUnusedIndexOrGrow_Locked();
     

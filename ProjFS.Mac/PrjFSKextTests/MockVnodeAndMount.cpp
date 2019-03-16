@@ -8,6 +8,9 @@ using std::string;
 using std::unordered_map;
 using std::shared_ptr;
 using std::weak_ptr;
+using std::pair;
+using std::vector;
+using std::min;
 
 typedef unordered_map<string, weak_ptr<vnode>> PathToVnodeMap;
 typedef unordered_map<vnode_t, weak_ptr<vnode>> WeakVnodeMap;
@@ -18,10 +21,12 @@ static WeakVnodeMap s_allVnodes;
 shared_ptr<mount> mount::Create(const char* fileSystemTypeName, fsid_t fsid, uint64_t initialInode)
 {
     shared_ptr<mount> result(new mount{});
+    result->weakSelfPointer = result;
     assert(strlen(fileSystemTypeName) + 1 < sizeof(result->statfs.f_fstypename));
     result->statfs.f_fsid = fsid;
     result->nextInode = initialInode;
     strlcpy(result->statfs.f_fstypename, fileSystemTypeName, sizeof(result->statfs.f_fstypename));
+    
     return result;
 }
 
@@ -33,9 +38,98 @@ vnode::vnode(const shared_ptr<mount>& mount) :
 {
 }
 
+vnode::vnode(const std::shared_ptr<mount>& mount, VnodeCreationProperties properties) :
+    mountPoint(mount),
+    name(nullptr),
+    inode(properties.inode == UINT64_MAX ? mount->nextInode++ : properties.inode),
+    type(properties.type),
+    parent(properties.parent)
+{
+}
+
 vnode::~vnode()
 {
     assert(this->ioCount == 0);
+}
+
+static string ParentPathString(const string& path)
+{
+    assert(path.length() > 0);
+    size_t lastSlashPos = path.find_last_of('/');
+    assert(lastSlashPos != string::npos);
+    if (lastSlashPos == 0)
+    {
+        return "/";
+    }
+    else if (lastSlashPos == path.length() - 1) // path ends in "/"
+    {
+        lastSlashPos = path.find_last_of('/', lastSlashPos - 1);
+    }
+    
+    return path.substr(0, lastSlashPos);
+}
+
+// This creates a vnode at the given path below the mount point, and ensures
+// that a hierarchy of directory vnodes exists all the way to the root.
+//
+// For example:
+// mount->CreateVnodeTree("/path/to/file", VREG) will produce:
+// vnode VREG "/path/to/file"
+// vnode VDIR "/path/to"
+// vnode VDIR "/path"
+// vnode VDIR "/"
+// While walking up the path, we stop creating vnodes if one already exists for
+// a particular directory. For example, if the example above is followed by:
+// mount->CreateVnodeTree("/path/for/other/file", VREG) will only generate:
+// vnode VREG "/path/for/other/file"
+// vnode VDIR "/path/for/other"
+// vnode VDIR "/path/for"
+// Because the vnode generated for "/path" in the previous example will be
+// re-used as the parent for the "/path/for" vnode.
+shared_ptr<vnode> mount::CreateVnodeTree(const string& path, vtype vnodeType)
+{
+    assert(path[0] == '/'); // Only absolute paths allowed
+    shared_ptr<vnode> parentVnode;
+    
+    if (path != "/")
+    {
+        string parentPath = ParentPathString(path);
+        PathToVnodeMap::const_iterator found = s_vnodesByPath.find(parentPath);
+    
+        if (found != s_vnodesByPath.end())
+        {
+            parentVnode = found->second.lock();
+        }
+        
+        if (!parentVnode)
+        {
+            parentVnode = this->CreateVnodeTree(parentPath, VDIR);
+        }
+    }
+    
+    shared_ptr<vnode> fileVnode = vnode::Create(this->weakSelfPointer.lock(), path.c_str(), vnodeType);
+    fileVnode->parent = parentVnode;
+    
+    if (path == "/")
+    {
+        this->rootVnode = fileVnode;
+    }
+    
+    return fileVnode;
+}
+
+std::shared_ptr<vnode> mount::CreateVnode(std::string path, VnodeCreationProperties properties)
+{
+    uint64_t inode = properties.inode;
+    if (inode == UINT64_MAX)
+    {
+        inode = this->nextInode++;
+    }
+    shared_ptr<vnode> newVnode(new vnode(this->weakSelfPointer.lock(), properties));
+    s_allVnodes.insert(make_pair(newVnode.get(), weak_ptr<vnode>(newVnode)));
+    newVnode->weakSelfPointer = newVnode;
+    newVnode->SetAndRegisterPath(path);
+    return newVnode;
 }
 
 shared_ptr<vnode> vnode::Create(const shared_ptr<mount>& mount, const char* path, vtype vnodeType)
@@ -43,15 +137,8 @@ shared_ptr<vnode> vnode::Create(const shared_ptr<mount>& mount, const char* path
     shared_ptr<vnode> result(new vnode(mount));
     s_allVnodes.insert(make_pair(result.get(), weak_ptr<vnode>(result)));
     result->weakSelfPointer = result;
-    result->SetPath(path);
+    result->SetAndRegisterPath(path);
     result->type = vnodeType;
-    return result;
-}
-
-shared_ptr<vnode> vnode::Create(const shared_ptr<mount>& mount, const char* path, vtype vnodeType, uint64_t inode)
-{
-    shared_ptr<vnode> result = Create(mount, path, vnodeType);
-    result->inode = inode;
     return result;
 }
 
@@ -61,6 +148,7 @@ void vnode::StartRecycling()
     this->path.clear();
     this->type = VBAD;
     this->vid++;
+    this->parent.reset();
     this->isRecycling = true;
 }
 
@@ -69,7 +157,7 @@ void vnode::SetGetPathError(errno_t error)
     this->getPathError = error;
 }
 
-void vnode::SetPath(const string& path)
+void vnode::SetAndRegisterPath(const string& path)
 {
     s_vnodesByPath.erase(this->path);
 
@@ -238,4 +326,48 @@ void MockVnodes_CheckAndClear()
     }
     
     s_allVnodes.clear();
+}
+
+vnode::BytesOrError vnode::ReadXattr(const char* xattrName)
+{
+    // TODO: add support for explicit error mocking
+    XattrMap::const_iterator found = this->xattrs.find(xattrName);
+    if (found == this->xattrs.end())
+    {
+        return BytesOrError{ .error = ENOATTR };
+    }
+    else
+    {
+        return BytesOrError{ .error = 0, .bytes = found->second };
+    }
+}
+
+SizeOrError Vnode_ReadXattr(vnode_t _Nonnull vnode, const char* _Nonnull xattrName, void* _Nullable buffer, size_t bufferSize)
+{
+    vnode::BytesOrError xattrResult = vnode->ReadXattr(xattrName);
+    if (xattrResult.error == 0)
+    {
+        memcpy(buffer, xattrResult.bytes.data(), min(xattrResult.bytes.size(), bufferSize));
+        return SizeOrError { xattrResult.bytes.size(), 0 };
+    }
+    else
+    {
+        return SizeOrError { 0, xattrResult.error };
+    }
+}
+
+vnode_t vnode_getparent(vnode_t vnode)
+{
+    shared_ptr<struct vnode> parentVnode = vnode->GetParentVnode();
+    if (parentVnode)
+    {
+        parentVnode->RetainIOCount();
+    }
+    
+    return parentVnode.get();
+}
+
+int vnode_isvroot(vnode_t vnode)
+{
+    return vnode->GetMountPoint()->GetRootVnode().get() == vnode;
 }
