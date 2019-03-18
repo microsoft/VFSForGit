@@ -651,6 +651,7 @@ namespace GVFS.CommandLine
             return new Result(true);
         }
 
+        // TODO(Linux), TODO(Mac): either adjust to "git" or remove entirely
         private void CreateGitScript(GVFSEnlistment enlistment)
         {
             FileInfo gitCmd = new FileInfo(Path.Combine(enlistment.EnlistmentRoot, "git.cmd"));
