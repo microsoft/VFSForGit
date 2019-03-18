@@ -455,6 +455,11 @@ namespace GVFS.CommandLine
             {
                 this.ReportErrorAndExit("Error: You can't clone inside an existing GVFS repo ({0})", existingEnlistmentRoot);
             }
+
+            if (this.IsExistingPipeListening(normalizedEnlistmentRootPath))
+            {
+                this.ReportErrorAndExit($"Error: There is currently a GVFS.Mount process running for '{normalizedEnlistmentRootPath}'. This process must be stopped before cloning.");
+            }
         }
 
         private bool TryDetermineLocalCacheAndInitializePaths(

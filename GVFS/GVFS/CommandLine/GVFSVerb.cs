@@ -353,6 +353,19 @@ namespace GVFS.CommandLine
             return serverGVFSConfig;
         }
 
+        protected bool IsExistingPipeListening(string enlistmentRoot)
+        {
+            using (NamedPipeClient pipeClient = new NamedPipeClient(GVFSPlatform.Instance.GetNamedPipeName(enlistmentRoot)))
+            {
+                if (pipeClient.Connect(500))
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
         protected void ValidateClientVersions(ITracer tracer, GVFSEnlistment enlistment, ServerGVFSConfig gvfsConfig, bool showWarnings)
         {
             this.CheckGitVersion(tracer, enlistment, out string gitVersion);
