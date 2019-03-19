@@ -104,13 +104,13 @@ namespace GVFS.Common
                 string enlistmentRoot;
                 if (!GVFSPlatform.Instance.TryGetGVFSEnlistmentRoot(directory, out enlistmentRoot, out errorMessage))
                 {
-                    return null;
+                    throw new InvalidRepoException($"Could not get enlistment root. Error: {errorMessage}");
                 }
 
                 return new GVFSEnlistment(enlistmentRoot, gitBinRoot, gvfsHooksRoot, authentication);
             }
 
-            return null;
+            throw new InvalidRepoException($"Directory '{directory}' does not exist");
         }
 
         public static string GetNewGVFSLogFileName(string logsRoot, string logFileType)

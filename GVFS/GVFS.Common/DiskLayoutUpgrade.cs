@@ -168,15 +168,27 @@ namespace GVFS.DiskLayoutUpgrades
             return true;
         }
 
-        protected bool TrySetGitConfig(ITracer tracer, string enlistmentRoot, Dictionary<string, string> configSettings, out string errorMessage)
+        protected bool TrySetGitConfig(ITracer tracer, string enlistmentRoot, Dictionary<string, string> configSettings)
         {
-            errorMessage = null;
+            GVFSEnlistment enlistment;
 
-            GVFSEnlistment enlistment = GVFSEnlistment.CreateFromDirectory(
-                enlistmentRoot,
-                GVFSPlatform.Instance.GitInstallation.GetInstalledGitBinPath(),
-                ProcessHelper.GetCurrentProcessLocation(),
-                authentication: null);
+            try
+            {
+                enlistment = GVFSEnlistment.CreateFromDirectory(
+                    enlistmentRoot,
+                    GVFSPlatform.Instance.GitInstallation.GetInstalledGitBinPath(),
+                    ProcessHelper.GetCurrentProcessLocation(),
+                    authentication: null);
+            }
+            catch (InvalidRepoException e)
+            {
+                EventMetadata metadata = new EventMetadata();
+                metadata.Add("Exception", e.ToString());
+                metadata.Add(nameof(enlistmentRoot), enlistmentRoot);
+                tracer.RelatedError(metadata, $"{nameof(this.TrySetGitConfig)}: Failed to create GVFSEnlistment from directory");
+                return false;
+            }
+
             GitProcess git = enlistment.CreateGitProcess();
 
             foreach (string key in configSettings.Keys)

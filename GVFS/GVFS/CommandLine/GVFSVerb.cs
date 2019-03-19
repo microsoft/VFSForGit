@@ -1128,13 +1128,6 @@ You can specify a URL, a name of a configured cache server, or the special names
                     {
                         enlistment = GVFSEnlistment.CreateWithoutRepoUrlFromDirectory(enlistmentRootPath, gitBinPath, hooksPath, authentication);
                     }
-
-                    if (enlistment == null)
-                    {
-                        this.ReportErrorAndExit(
-                            "Error: '{0}' is not a valid GVFS enlistment",
-                            enlistmentRootPath);
-                    }
                 }
                 catch (InvalidRepoException e)
                 {
