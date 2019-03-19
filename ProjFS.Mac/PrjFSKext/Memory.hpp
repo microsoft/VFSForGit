@@ -18,21 +18,29 @@ void Memory_Free(void* buffer, uint32_t size);
 template <typename T>
 T* Memory_AllocArray(uint32_t arrayLength)
 {
-    size_t allocBytes = arrayLength * sizeof(T);
-    if (allocBytes > UINT32_MAX)
+    uint32_t allocBytes;
+    if (__builtin_umul_overflow(arrayLength, sizeof(T), &allocBytes))
     {
+        // Overflow occurred.
         return nullptr;
     }
-    
-    return static_cast<T*>(Memory_Alloc(static_cast<uint32_t>(allocBytes)));
+
+    return static_cast<T*>(Memory_Alloc(allocBytes));
 }
 
 template <typename T>
 void Memory_FreeArray(T* array, uint32_t arrayLength)
 {
-    size_t arrayBytes = arrayLength * sizeof(T);
-    assert(arrayBytes <= UINT32_MAX);
-    Memory_Free(array, static_cast<uint32_t>(arrayBytes));
+    uint32_t arrayBytes;
+    if (__builtin_umul_overflow(arrayLength, sizeof(T), &arrayBytes))
+    {
+        // This should never occur, since Memory_AllocArray should not allow the initial computation to overflow.
+        assert(!"Overflow detected: was this array allocated through Memory_AllocArray?");
+    }
+    else
+    {
+        Memory_Free(array, arrayBytes);
+    }
 }
 
 #endif /* Memory_h */

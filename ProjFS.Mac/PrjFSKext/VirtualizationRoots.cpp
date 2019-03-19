@@ -279,10 +279,11 @@ static VirtualizationRootHandle FindUnusedIndexOrGrow_Locked()
         uint16_t newLength = MIN(s_maxVirtualizationRoots * 2u, INT16_MAX + 1u);
         if (newLength <= s_maxVirtualizationRoots)
         {
-            assert(newLength > 0);
+            assertf(newLength > 0, "s_maxVirtualizationRoot was likely not initialized");
+            // Already at max size, nothing to do.
             return RootHandle_None;
         }
-        
+
         VirtualizationRoot* grownArray = Memory_AllocArray<VirtualizationRoot>(newLength);
         if (nullptr == grownArray)
         {

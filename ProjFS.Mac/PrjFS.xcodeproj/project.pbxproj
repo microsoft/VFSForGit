@@ -76,6 +76,7 @@
 		4A781DB422233A4500DB7733 /* TestMemory.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 4A781DB322233A4500DB7733 /* TestMemory.cpp */; };
 		4A8C13A521F23F0200002878 /* KauthHandler.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 4391F89321E42AC40008103C /* KauthHandler.cpp */; };
 		4A8C13A621F2418400002878 /* libPrjFSKextTestable.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 4A8C13A021F23EE800002878 /* libPrjFSKextTestable.a */; };
+		D9C087F222384670009C1110 /* MemoryTests.mm in Sources */ = {isa = PBXBuildFile; fileRef = D9C087F122384670009C1110 /* MemoryTests.mm */; };
 		F5E39C7A21F1118D006D65C2 /* KauthHandlerTests.mm in Sources */ = {isa = PBXBuildFile; fileRef = F5E39C7921F1118D006D65C2 /* KauthHandlerTests.mm */; };
 		F5E39C8321F11556006D65C2 /* KauthHandlerTestable.hpp in Headers */ = {isa = PBXBuildFile; fileRef = F5E39C8121F11556006D65C2 /* KauthHandlerTestable.hpp */; };
 /* End PBXBuildFile section */
@@ -198,6 +199,7 @@
 		4A781DB722299C5300DB7733 /* VirtualizationRootsTestable.hpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.h; path = VirtualizationRootsTestable.hpp; sourceTree = "<group>"; };
 		4A8C13A021F23EE800002878 /* libPrjFSKextTestable.a */ = {isa = PBXFileReference; explicitFileType = archive.ar; includeInIndex = 0; path = libPrjFSKextTestable.a; sourceTree = BUILT_PRODUCTS_DIR; };
 		4A8C13AA21F268FE00002878 /* PrjFSKextTests.exp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.exports; path = PrjFSKextTests.exp; sourceTree = "<group>"; };
+		D9C087F122384670009C1110 /* MemoryTests.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = MemoryTests.mm; sourceTree = "<group>"; };
 		F557623E22009F0E005DE35E /* KextLogMock.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = KextLogMock.h; sourceTree = "<group>"; };
 		F5E39C7721F1118D006D65C2 /* PrjFSKextTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = PrjFSKextTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		F5E39C7921F1118D006D65C2 /* KauthHandlerTests.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = KauthHandlerTests.mm; sourceTree = "<group>"; };
@@ -369,18 +371,19 @@
 		F5E39C7821F1118D006D65C2 /* PrjFSKextTests */ = {
 			isa = PBXGroup;
 			children = (
-				4A781DA92223305C00DB7733 /* KextMockUtilities.hpp */,
+				F5E39C7B21F1118D006D65C2 /* Info.plist */,
+				F5E39C7921F1118D006D65C2 /* KauthHandlerTests.mm */,
+				4A781DAF2223391A00DB7733 /* KextLogMock.cpp */,
+				F557623E22009F0E005DE35E /* KextLogMock.h */,
 				4A781DAA222330F700DB7733 /* KextMockUtilities.cpp */,
-				4A781DAD2223374200DB7733 /* MockVnodeAndMount.hpp */,
+				4A781DA92223305C00DB7733 /* KextMockUtilities.hpp */,
+				D9C087F122384670009C1110 /* MemoryTests.mm */,
 				4A781DAC2223374200DB7733 /* MockVnodeAndMount.cpp */,
+				4A781DAD2223374200DB7733 /* MockVnodeAndMount.hpp */,
+				4A8C13AA21F268FE00002878 /* PrjFSKextTests.exp */,
 				4A781DB122233A1E00DB7733 /* TestLocks.cpp */,
 				4A781DB322233A4500DB7733 /* TestMemory.cpp */,
-				F5E39C7921F1118D006D65C2 /* KauthHandlerTests.mm */,
 				4A781DA42220946000DB7733 /* VirtualizationRootsTests.mm */,
-				F5E39C7B21F1118D006D65C2 /* Info.plist */,
-				4A8C13AA21F268FE00002878 /* PrjFSKextTests.exp */,
-				F557623E22009F0E005DE35E /* KextLogMock.h */,
-				4A781DAF2223391A00DB7733 /* KextLogMock.cpp */,
 			);
 			path = PrjFSKextTests;
 			sourceTree = "<group>";
@@ -690,6 +693,7 @@
 				4A781DA52220946000DB7733 /* VirtualizationRootsTests.mm in Sources */,
 				4A781DAE2223374200DB7733 /* MockVnodeAndMount.cpp in Sources */,
 				4A781DB422233A4500DB7733 /* TestMemory.cpp in Sources */,
+				D9C087F222384670009C1110 /* MemoryTests.mm in Sources */,
 				F5E39C7A21F1118D006D65C2 /* KauthHandlerTests.mm in Sources */,
 				4A781DB222233A1E00DB7733 /* TestLocks.cpp in Sources */,
 				4A781DB02223391A00DB7733 /* KextLogMock.cpp in Sources */,
@@ -1187,8 +1191,8 @@
 		F5E39C7C21F1118D006D65C2 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
-				CODE_SIGN_STYLE = Automatic;
 				CLANG_ENABLE_CODE_COVERAGE = YES;
+				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
 				DEAD_CODE_STRIPPING = YES;
 				DEVELOPMENT_TEAM = UBF8T346G9;
@@ -1211,8 +1215,8 @@
 		F5E39C7D21F1118D006D65C2 /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
-				CODE_SIGN_STYLE = Automatic;
 				CLANG_ENABLE_CODE_COVERAGE = YES;
+				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
 				DEAD_CODE_STRIPPING = YES;
 				DEVELOPMENT_TEAM = UBF8T346G9;
@@ -1232,8 +1236,8 @@
 		F5E39C7E21F1118D006D65C2 /* Profiling(Release) */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
-				CODE_SIGN_STYLE = Automatic;
 				CLANG_ENABLE_CODE_COVERAGE = YES;
+				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
 				DEAD_CODE_STRIPPING = YES;
 				DEVELOPMENT_TEAM = UBF8T346G9;
