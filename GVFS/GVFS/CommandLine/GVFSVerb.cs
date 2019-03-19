@@ -1120,14 +1120,12 @@ You can specify a URL, a name of a configured cache server, or the special names
                 GVFSEnlistment enlistment = null;
                 try
                 {
-                    if (this.validateOriginURL)
-                    {
-                        enlistment = GVFSEnlistment.CreateFromDirectory(enlistmentRootPath, gitBinPath, hooksPath, authentication);
-                    }
-                    else
-                    {
-                        enlistment = GVFSEnlistment.CreateWithoutRepoUrlFromDirectory(enlistmentRootPath, gitBinPath, hooksPath, authentication);
-                    }
+                    enlistment = GVFSEnlistment.CreateFromDirectory(
+                        enlistmentRootPath,
+                        gitBinPath,
+                        hooksPath,
+                        authentication,
+                        createWithoutRepoURL: !this.validateOriginURL);
                 }
                 catch (InvalidRepoException e)
                 {

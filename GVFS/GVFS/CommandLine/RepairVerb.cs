@@ -5,6 +5,7 @@ using GVFS.Common.Tracing;
 using GVFS.DiskLayoutUpgrades;
 using GVFS.RepairJobs;
 using System.Collections.Generic;
+using System.IO;
 
 namespace GVFS.CommandLine
 {
@@ -39,15 +40,32 @@ namespace GVFS.CommandLine
 
             string hooksPath = this.GetGVFSHooksPathAndCheckVersion(tracer: null, hooksVersion: out _);
 
-            GVFSEnlistment enlistment = GVFSEnlistment.CreateWithoutRepoUrlFromDirectory(
-                this.EnlistmentRootPathParameter,
-                GVFSPlatform.Instance.GitInstallation.GetInstalledGitBinPath(),
-                hooksPath,
-                authentication: null);
+            if (!Directory.Exists(this.EnlistmentRootPathParameter))
+            {
+                this.ReportErrorAndExit($"Path '{this.EnlistmentRootPathParameter}' does not exist");
+            }
 
-            if (enlistment == null)
+            string errorMessage;
+            string enlistmentRoot;
+            if (!GVFSPlatform.Instance.TryGetGVFSEnlistmentRoot(this.EnlistmentRootPathParameter, out enlistmentRoot, out errorMessage))
             {
                 this.ReportErrorAndExit("'gvfs repair' must be run within a GVFS enlistment");
+            }
+
+            GVFSEnlistment enlistment = null;
+
+            try
+            {
+                enlistment = GVFSEnlistment.CreateFromDirectory(
+                    this.EnlistmentRootPathParameter,
+                    GVFSPlatform.Instance.GitInstallation.GetInstalledGitBinPath(),
+                    hooksPath,
+                    authentication: null,
+                    createWithoutRepoURL: true);
+            }
+            catch (InvalidRepoException e)
+            {
+                this.ReportErrorAndExit($"Failed to initialize enlistment, error: {e.Message}");
             }
 
             if (!this.Confirmed)
