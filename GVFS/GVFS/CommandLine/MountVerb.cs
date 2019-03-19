@@ -61,12 +61,9 @@ namespace GVFS.CommandLine
 
             if (!this.SkipMountedCheck)
             {
-                using (NamedPipeClient pipeClient = new NamedPipeClient(GVFSPlatform.Instance.GetNamedPipeName(enlistmentRoot)))
+                if (this.IsExistingPipeListening(enlistmentRoot))
                 {
-                    if (pipeClient.Connect(500))
-                    {
-                        this.ReportErrorAndExit(tracer: null, exitCode: ReturnCode.Success, error: "This repo is already mounted.");
-                    }
+                    this.ReportErrorAndExit(tracer: null, exitCode: ReturnCode.Success, error: $"The repo at '{enlistmentRoot}' is already mounted.");
                 }
             }
 
