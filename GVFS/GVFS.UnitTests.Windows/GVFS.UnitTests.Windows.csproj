@@ -136,6 +136,10 @@
     </None>
   </ItemGroup>
   <ItemGroup>
+    <ProjectReference Include="..\..\ProjFS.Linux\PrjFSLib.Linux.Managed\PrjFSLib.Linux.Managed.csproj">
+      <Project>{63e57526-9825-44c8-9acb-dc3296adee97}</Project>
+      <Name>PrjFSLib.Linux.Managed</Name>
+    </ProjectReference>
     <ProjectReference Include="..\..\ProjFS.Mac\PrjFSLib.Mac.Managed\PrjFSLib.Mac.Managed.csproj">
       <Project>{fac6efc5-a890-4cb2-8c80-6358e358c637}</Project>
       <Name>PrjFSLib.Mac.Managed</Name>
@@ -147,6 +151,10 @@
     <ProjectReference Include="..\GVFS.GVFlt\GVFS.GVFlt.csproj">
       <Project>{1118b427-7063-422f-83b9-5023c8ec5a7a}</Project>
       <Name>GVFS.GVFlt</Name>
+    </ProjectReference>
+    <ProjectReference Include="..\GVFS.Platform.Linux\GVFS.Platform.Linux.csproj">
+      <Project>{b4593252-9fb4-431d-a4e1-634d09de09de}</Project>
+      <Name>GVFS.Platform.Linux</Name>
     </ProjectReference>
     <ProjectReference Include="..\GVFS.Platform.Mac\GVFS.Platform.Mac.csproj">
       <Project>{1dac3da6-3d21-4917-b9a8-d60c8712252a}</Project>
