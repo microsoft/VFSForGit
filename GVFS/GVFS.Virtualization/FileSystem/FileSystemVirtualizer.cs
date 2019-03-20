@@ -277,6 +277,24 @@ namespace GVFS.Virtualization.FileSystem
             }
         }
 
+        protected void OnFilePreConvertToFull(string relativePath)
+        {
+            try
+            {
+                bool isFolder;
+                string fileName;
+                bool isPathProjected = this.FileSystemCallbacks.GitIndexProjection.IsPathProjected(relativePath, out fileName, out isFolder);
+                if (isPathProjected)
+                {
+                    this.FileSystemCallbacks.OnFileConvertedToFull(relativePath);
+                }
+            }
+            catch (Exception e)
+            {
+                this.LogUnhandledExceptionAndExit(nameof(this.OnFilePreConvertToFull), this.CreateEventMetadata(relativePath, e));
+            }
+        }
+
         protected EventMetadata CreateEventMetadata(
             Guid enumerationId,
             string relativePath = null,

@@ -52,6 +52,7 @@ static constexpr const char* const PerfCounterNames[PrjFSPerfCounter_Count] =
     [PrjFSPerfCounter_VnodeOp_EnumerateDirectory]                           = " |--RaiseEnumerateDirectoryEvent",
     [PrjFSPerfCounter_VnodeOp_RecursivelyEnumerateDirectory]                = " |--RaiseRecursivelyEnumerateEvent",
     [PrjFSPerfCounter_VnodeOp_HydrateFile]                                  = " |--RaiseHydrateFileEvent",
+    [PrjFSPerfCounter_VnodeOp_PreConvertToFull]                             = " |--RaisePreConvertToFull",
     [PrjFSPerfCounter_FileOp]                                               = "HandleFileOpOperation",
     [PrjFSPerfCounter_FileOp_ShouldHandle]                                  = " |--ShouldHandleFileOpEvent",
     [PrjFSPerfCounter_FileOp_ShouldHandle_FindVirtualizationRoot]           = " |  |--FindVirtualizationRoot",

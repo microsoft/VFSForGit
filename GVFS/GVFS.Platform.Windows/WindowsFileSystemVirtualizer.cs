@@ -1264,21 +1264,7 @@ namespace GVFS.Platform.Windows
 
         private HResult NotifyFilePreConvertToFullHandler(string virtualPath)
         {
-            try
-            {
-                bool isFolder;
-                string fileName;
-                bool isPathProjected = this.FileSystemCallbacks.GitIndexProjection.IsPathProjected(virtualPath, out fileName, out isFolder);
-                if (isPathProjected)
-                {
-                    this.FileSystemCallbacks.OnFileConvertedToFull(virtualPath);
-                }
-            }
-            catch (Exception e)
-            {
-                this.LogUnhandledExceptionAndExit(nameof(this.NotifyFilePreConvertToFullHandler), this.CreateEventMetadata(virtualPath, e));
-            }
-
+            this.OnFilePreConvertToFull(virtualPath);
             return HResult.Ok;
         }
 

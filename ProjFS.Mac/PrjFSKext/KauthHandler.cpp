@@ -17,6 +17,7 @@
 #include "kernel-header-wrappers/mount.h"
 #include "KextLog.hpp"
 #include "ProviderMessaging.hpp"
+#include "public/PrjFSXattrs.h"
 
 #ifdef KEXT_UNIT_TESTING
 #include "KauthHandlerTestable.hpp"
@@ -383,6 +384,38 @@ static int HandleVnodeOperation(
                     goto CleanupAndReturn;
                 }
             }
+            
+            if (ActionBitIsSet(action, KAUTH_VNODE_WRITE_DATA))
+            {
+                if (!TryGetVirtualizationRoot(&perfTracer, context, currentVnode, pid, CallbackPolicy_UserInitiatedOnly, &root, &vnodeFsidInode, &kauthResult, kauthError))
+                {
+                    goto CleanupAndReturn;
+                }
+                
+                PrjFSFileXAttrData rootXattr = {};
+                SizeOrError xattrResult = Vnode_ReadXattr(currentVnode, PrjFSFileXAttrName, &rootXattr, sizeof(rootXattr));
+                if (xattrResult.error == ENOATTR)
+                {
+                    // Only notify if the file is still a placeholder
+                    goto CleanupAndReturn;
+                }
+                
+                PerfSample preConvertToFullSample(&perfTracer, PrjFSPerfCounter_VnodeOp_PreConvertToFull);
+                
+                if (!ProviderMessaging_TrySendRequestAndWaitForResponse(
+                                                      root,
+                                                      MessageType_KtoU_NotifyFilePreConvertToFull,
+                                                      currentVnode,
+                                                      vnodeFsidInode,
+                                                      nullptr, // path not needed, use fsid/inode,
+                                                      pid,
+                                                      procname,
+                                                      &kauthResult,
+                                                      kauthError))
+                {
+                    goto CleanupAndReturn;
+                }
+            }
         }
     }
     
@@ -593,7 +626,7 @@ static int HandleFileOpOperation(
         {
             goto CleanupAndReturn;
         }
-        
+
         char procname[MAXCOMLEN + 1];
         proc_name(pid, procname, MAXCOMLEN + 1);
         PerfSample fileModifiedSample(&perfTracer, PrjFSPerfCounter_FileOp_FileModified);
