@@ -179,7 +179,7 @@ namespace GVFS.Common.Git
             string stdinConfig = sb.ToString();
 
             this.InvokeGitOutsideEnlistment(
-                "credential reject",
+                $"-c {GitConfigSetting.CredentialUseHttpPath}=true credential reject",
                 stdin => stdin.Write(stdinConfig),
                 null);
         }
@@ -195,7 +195,7 @@ namespace GVFS.Common.Git
             string stdinConfig = sb.ToString();
 
             this.InvokeGitOutsideEnlistment(
-                "credential approve",
+                $"-c {GitConfigSetting.CredentialUseHttpPath}=true credential approve",
                 stdin => stdin.Write(stdinConfig),
                 null);
         }
