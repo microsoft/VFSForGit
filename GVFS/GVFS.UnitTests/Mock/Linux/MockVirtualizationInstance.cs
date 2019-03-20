@@ -14,8 +14,8 @@ namespace GVFS.UnitTests.Mock.Linux
         public MockVirtualizationInstance()
         {
             this.commandCompleted = new AutoResetEvent(false);
-            this.CreatedPlaceholders = new ConcurrentDictionary<string, ushort>();
-            this.UpdatedPlaceholders = new ConcurrentDictionary<string, ushort>();
+            this.CreatedPlaceholders = new ConcurrentDictionary<string, uint>();
+            this.UpdatedPlaceholders = new ConcurrentDictionary<string, uint>();
             this.CreatedSymLinks = new ConcurrentHashSet<string>();
             this.WriteFileReturnResult = Result.Success;
         }
@@ -28,8 +28,8 @@ namespace GVFS.UnitTests.Mock.Linux
         public Result DeleteFileResult { get; set; }
         public UpdateFailureCause DeleteFileUpdateFailureCause { get; set; }
 
-        public ConcurrentDictionary<string, ushort> CreatedPlaceholders { get; private set; }
-        public ConcurrentDictionary<string, ushort> UpdatedPlaceholders { get; private set; }
+        public ConcurrentDictionary<string, uint> CreatedPlaceholders { get; private set; }
+        public ConcurrentDictionary<string, uint> UpdatedPlaceholders { get; private set; }
 
         public ConcurrentHashSet<string> CreatedSymLinks { get; }
 
@@ -50,7 +50,7 @@ namespace GVFS.UnitTests.Mock.Linux
         }
 
         public override Result WriteFileContents(
-            IntPtr fileHandle,
+            int fd,
             byte[] bytes,
             uint byteCount)
         {
@@ -78,7 +78,7 @@ namespace GVFS.UnitTests.Mock.Linux
             byte[] providerId,
             byte[] contentId,
             ulong fileSize,
-            ushort fileMode)
+            uint fileMode)
         {
             this.CreatedPlaceholders.TryAdd(relativePath, fileMode);
             return Result.Success;
@@ -97,7 +97,7 @@ namespace GVFS.UnitTests.Mock.Linux
             byte[] providerId,
             byte[] contentId,
             ulong fileSize,
-            ushort fileMode,
+            uint fileMode,
             UpdateType updateFlags,
             out UpdateFailureCause failureCause)
         {

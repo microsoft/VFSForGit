@@ -440,7 +440,7 @@ namespace GVFS.UnitTests.Platform.Linux
                     contentId: contentId,
                     triggeringProcessId: 2,
                     triggeringProcessName: "UnitTest",
-                    fileHandle: IntPtr.Zero).ShouldEqual(Result.Success);
+                    fd: 0).ShouldEqual(Result.Success);
 
                 mockVirtualization.BytesWritten.ShouldEqual(fileLength);
 
@@ -484,7 +484,7 @@ namespace GVFS.UnitTests.Platform.Linux
                     contentId: contentId,
                     triggeringProcessId: 2,
                     triggeringProcessName: "UnitTest",
-                    fileHandle: IntPtr.Zero).ShouldEqual(Result.EIOError);
+                    fd: 0).ShouldEqual(Result.EIOError);
 
                 fileSystemCallbacks.Stop();
             }
