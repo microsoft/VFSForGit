@@ -152,11 +152,6 @@ void vnode::StartRecycling()
     this->isRecycling = true;
 }
 
-void vnode::SetGetPathError(errno_t error)
-{
-    this->getPathError = error;
-}
-
 void vnode::SetAndRegisterPath(const string& path)
 {
     s_vnodesByPath.erase(this->path);
@@ -192,6 +187,21 @@ void vnode_putname(const char* name)
     // TODO: track name reference counts
 }
 
+int vnode_getattr(vnode_t vp, struct vnode_attr* vap, vfs_context_t ctx)
+{
+    if (vp->errors.getattr != 0)
+    {
+       return vp->errors.getattr;
+    }
+    
+    if (VATTR_IS_ACTIVE(vap, va_flags))
+    {
+        VATTR_RETURN(vap, va_flags, vp->attrValues.va_flags);
+    }
+    
+    return 0;
+}
+
 int vnode_isdir(vnode_t vnode)
 {
     return vnode_vtype(vnode) == VDIR;
@@ -200,9 +210,9 @@ int vnode_isdir(vnode_t vnode)
 int vn_getpath(vnode_t vnode, char* pathBuffer, int* pathLengthInOut)
 {
     assert(*pathLengthInOut >= MAXPATHLEN);
-    if (vnode->getPathError != 0)
+    if (vnode->errors.getpath != 0)
     {
-        return vnode->getPathError;
+        return vnode->errors.getpath;
     }
     else if (vnode->path.empty() || vnode->isRecycling)
     {

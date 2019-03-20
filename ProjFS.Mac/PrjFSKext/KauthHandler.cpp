@@ -52,7 +52,7 @@ static int GetPid(vfs_context_t _Nonnull context);
 
 static bool TryReadVNodeFileFlags(vnode_t vn, vfs_context_t _Nonnull context, uint32_t* flags);
 KEXT_STATIC_INLINE bool FileFlagsBitIsSet(uint32_t fileFlags, uint32_t bit);
-static inline bool TryGetFileIsFlaggedAsInRoot(vnode_t vnode, vfs_context_t _Nonnull context, bool* flaggedInRoot);
+KEXT_STATIC_INLINE bool TryGetFileIsFlaggedAsInRoot(vnode_t vnode, vfs_context_t _Nonnull context, bool* flaggedInRoot);
 KEXT_STATIC_INLINE bool ActionBitIsSet(kauth_action_t action, kauth_action_t mask);
 static bool CurrentProcessWasSpawnedByRegularUser();
 KEXT_STATIC bool IsFileSystemCrawler(const char* procname);
@@ -60,7 +60,7 @@ KEXT_STATIC bool IsFileSystemCrawler(const char* procname);
 static void WaitForListenerCompletion();
 KEXT_STATIC bool ShouldIgnoreVnodeType(vtype vnodeType, vnode_t vnode);
 
-static bool ShouldHandleVnodeOpEvent(
+KEXT_STATIC bool ShouldHandleVnodeOpEvent(
     // In params:
     PerfTracer* perfTracer,
     vfs_context_t _Nonnull context,
@@ -661,7 +661,7 @@ CleanupAndReturn:
     return KAUTH_RESULT_DEFER;
 }
 
-static bool ShouldHandleVnodeOpEvent(
+KEXT_STATIC bool ShouldHandleVnodeOpEvent(
     // In params:
     PerfTracer* perfTracer,
     vfs_context_t _Nonnull context,
@@ -1011,7 +1011,7 @@ KEXT_STATIC_INLINE bool FileFlagsBitIsSet(uint32_t fileFlags, uint32_t bit)
     return 0 != (fileFlags & bit);
 }
 
-static inline bool TryGetFileIsFlaggedAsInRoot(vnode_t vnode, vfs_context_t _Nonnull context, bool* flaggedInRoot)
+KEXT_STATIC_INLINE bool TryGetFileIsFlaggedAsInRoot(vnode_t vnode, vfs_context_t _Nonnull context, bool* flaggedInRoot)
 {
     uint32_t vnodeFileFlags;
     *flaggedInRoot = false;

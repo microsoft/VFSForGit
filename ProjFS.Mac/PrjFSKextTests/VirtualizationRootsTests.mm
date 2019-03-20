@@ -122,7 +122,7 @@ static void SetRootXattrData(shared_ptr<vnode> vnode)
     const char* path = "/Users/test/code/RepoNotInNamecache";
     
     shared_ptr<vnode> vnode = vnode::Create(self->testMountPoint, path, VDIR);
-    vnode->SetGetPathError(EINVAL);
+    vnode->errors.getpath = EINVAL;
     
     VirtualizationRootResult result = VirtualizationRoot_RegisterProviderForPath(&self->dummyClient, self->dummyClientPid, path);
     XCTAssertEqual(result.error, EINVAL);
@@ -275,7 +275,32 @@ static void SetRootXattrData(shared_ptr<vnode> vnode)
     
     s_virtualizationRoots[result.root].providerUserClient = nullptr;
     vnode_put(newVnode.get());
+}
 
+- (void)testVnodeIsOnAllowedFilesystem
+{
+    shared_ptr<mount>  testMountHfs = mount::Create("hfs", fsid_t{}, 0);
+    shared_ptr<vnode> testVnodeHfs = vnode::Create(testMountHfs, "/hfs");
+    XCTAssertTrue(VirtualizationRoot_VnodeIsOnAllowedFilesystem(testVnodeHfs.get()));
+
+    shared_ptr<mount>  testMountApfs = mount::Create("apfs", fsid_t{}, 0);
+    shared_ptr<vnode> testVnodeApfs = vnode::Create(testMountApfs, "/apfs");
+    XCTAssertTrue(VirtualizationRoot_VnodeIsOnAllowedFilesystem(testVnodeApfs.get()));
+
+    shared_ptr<mount>  testMountFoo = mount::Create("foo", fsid_t{}, 0);
+    shared_ptr<vnode> testVnodeFoo = vnode::Create(testMountFoo, "/foo");
+    XCTAssertFalse(VirtualizationRoot_VnodeIsOnAllowedFilesystem(testVnodeFoo.get()));
+}
+
+- (void)testIsValidRootHandle
+{
+    XCTAssertTrue(VirtualizationRoot_IsValidRootHandle(0));
+    XCTAssertTrue(VirtualizationRoot_IsValidRootHandle(1));
+    XCTAssertTrue(VirtualizationRoot_IsValidRootHandle(2));
+    XCTAssertFalse(VirtualizationRoot_IsValidRootHandle(RootHandle_None));
+    XCTAssertFalse(VirtualizationRoot_IsValidRootHandle(RootHandle_Indeterminate));
+    XCTAssertFalse(VirtualizationRoot_IsValidRootHandle(RootHandle_ProviderTemporaryDirectory));
+    XCTAssertFalse(VirtualizationRoot_IsValidRootHandle(-100));
 }
 
 // Check that VirtualizationRoot_FindForVnode correctly identifies the virtualization root for files below that root.
