@@ -266,7 +266,7 @@ namespace GVFS.UnitTests.Git
                 () => new GitProcess.Result("username=username\r\npassword=password" + rejections + "\r\n", string.Empty, GitProcess.Result.SuccessCode));
 
             gitProcess.SetExpectedCommandResult(
-                "credential approve",
+                "-c credential.useHttpPath=true credential approve",
                 () =>
                 {
                     approvals++;
@@ -274,7 +274,7 @@ namespace GVFS.UnitTests.Git
                 });
 
             gitProcess.SetExpectedCommandResult(
-                "credential reject",
+                "-c credential.useHttpPath=true credential reject",
                 () =>
                 {
                     rejections++;
