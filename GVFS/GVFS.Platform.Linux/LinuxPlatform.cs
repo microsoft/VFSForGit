@@ -45,7 +45,7 @@ namespace GVFS.Platform.Linux
 
         public override string GetOSVersionInformation()
         {
-            ProcessResult result = ProcessHelper.Run("sw_vers", args: string.Empty, redirectOutput: true);
+            ProcessResult result = ProcessHelper.Run("uname", args: "-srv", redirectOutput: true);
             return string.IsNullOrWhiteSpace(result.Output) ? result.Errors : result.Output;
         }
 
