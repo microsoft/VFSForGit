@@ -85,6 +85,7 @@ public:
         SpecificFunctionCallRecorder<R, ARGS...>::functionTypeRegister.RecordFunctionCall(fn, singleton.nextCallSequenceNumber++, std::move(argumentValues));
     }
     
+
     static void Clear();
     
     template <typename R, typename... ARGS>

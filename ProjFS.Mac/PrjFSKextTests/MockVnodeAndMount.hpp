@@ -138,6 +138,7 @@ public:
     friend struct mount;
     friend int vnode_getattr(vnode_t vp, struct vnode_attr* vap, vfs_context_t ctx);
     friend int vn_getpath(vnode_t vnode, char* pathBuffer, int* pathLengthInOut);
+    friend int vnode_isnamedstream(vnode_t vp);
 };
 
 

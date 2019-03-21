@@ -81,6 +81,7 @@
 		F5554F422239883B00B31D19 /* MockProc.cpp in Sources */ = {isa = PBXBuildFile; fileRef = F5554F412239883B00B31D19 /* MockProc.cpp */; };
 		F5E39C7A21F1118D006D65C2 /* KauthHandlerTests.mm in Sources */ = {isa = PBXBuildFile; fileRef = F5E39C7921F1118D006D65C2 /* KauthHandlerTests.mm */; };
 		F5E39C8321F11556006D65C2 /* KauthHandlerTestable.hpp in Headers */ = {isa = PBXBuildFile; fileRef = F5E39C8121F11556006D65C2 /* KauthHandlerTestable.hpp */; };
+		F5EACDC22242AB2D00EEA70E /* HandleVnodeOperationTests.mm in Sources */ = {isa = PBXBuildFile; fileRef = F5EACDC12242AB2D00EEA70E /* HandleVnodeOperationTests.mm */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -211,6 +212,7 @@
 		F5E39C7921F1118D006D65C2 /* KauthHandlerTests.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = KauthHandlerTests.mm; sourceTree = "<group>"; };
 		F5E39C7B21F1118D006D65C2 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		F5E39C8121F11556006D65C2 /* KauthHandlerTestable.hpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.h; path = KauthHandlerTestable.hpp; sourceTree = "<group>"; };
+		F5EACDC12242AB2D00EEA70E /* HandleVnodeOperationTests.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = HandleVnodeOperationTests.mm; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -377,6 +379,7 @@
 		F5E39C7821F1118D006D65C2 /* PrjFSKextTests */ = {
 			isa = PBXGroup;
 			children = (
+				F5EACDC12242AB2D00EEA70E /* HandleVnodeOperationTests.mm */,
 				F5E39C7B21F1118D006D65C2 /* Info.plist */,
 				F5E39C7921F1118D006D65C2 /* KauthHandlerTests.mm */,
 				4A781DAF2223391A00DB7733 /* KextLogMock.cpp */,
@@ -393,8 +396,6 @@
 				4A781DB322233A4500DB7733 /* TestMemory.cpp */,
 				4A781DA42220946000DB7733 /* VirtualizationRootsTests.mm */,
 				4A8C13AA21F268FE00002878 /* PrjFSKextTests.exp */,
-				F557623E22009F0E005DE35E /* KextLogMock.h */,
-				4A781DAF2223391A00DB7733 /* KextLogMock.cpp */,
 				F5554F402239881800B31D19 /* MockProc.hpp */,
 				F5554F412239883B00B31D19 /* MockProc.cpp */,
 			);
@@ -709,6 +710,7 @@
 				F5554F422239883B00B31D19 /* MockProc.cpp in Sources */,
 				4A781DB422233A4500DB7733 /* TestMemory.cpp in Sources */,
 				D9C087F222384670009C1110 /* MemoryTests.mm in Sources */,
+				F5EACDC22242AB2D00EEA70E /* HandleVnodeOperationTests.mm in Sources */,
 				F5E39C7A21F1118D006D65C2 /* KauthHandlerTests.mm in Sources */,
 				4A781DB222233A1E00DB7733 /* TestLocks.cpp in Sources */,
 				4A781DB02223391A00DB7733 /* KextLogMock.cpp in Sources */,

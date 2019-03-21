@@ -124,6 +124,7 @@ void ProviderMessaging_AbortOutstandingEventsForProvider(VirtualizationRootHandl
     Mutex_Release(s_outstandingMessagesMutex);
 }
 
+#ifndef KEXT_UNIT_TESTING
 bool ProviderMessaging_TrySendRequestAndWaitForResponse(
     VirtualizationRootHandle root,
     MessageType messageType,
@@ -215,6 +216,7 @@ bool ProviderMessaging_TrySendRequestAndWaitForResponse(
     
     return result;
 }
+#endif
 
 void ProviderMessaging_AbortAllOutstandingEvents()
 {
