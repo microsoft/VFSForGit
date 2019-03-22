@@ -3,16 +3,22 @@
 #include <cstring>
 #include <string>
 
-#ifdef __APPLE__
+#if defined(__APPLE__) || defined(__gnu_linux__)
 typedef std::string PATH_STRING;
 typedef int PIPE_HANDLE;
 #define PRINTF_FMT(X, Y) __attribute__((__format__ (printf, X, Y)))
-#elif _WIN32
+#elif defined(_WIN32)
 typedef std::wstring PATH_STRING;
 typedef HANDLE PIPE_HANDLE;
 #define PRINTF_FMT(X, Y)
 #else
 #error Unsupported platform
+#endif
+
+#ifdef __gnu_linux__
+#define DOT_GVFS_ROOT ".vfsforgit"
+#else
+#define DOT_GVFS_ROOT ".gvfs"
 #endif
 
 #if __cplusplus <  201103L
