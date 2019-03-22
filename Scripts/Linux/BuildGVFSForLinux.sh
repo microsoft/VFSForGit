@@ -62,19 +62,24 @@ echo 'Restoring packages...'
 dotnet restore $VFS_SRCDIR/GVFS.sln /p:Configuration=$CONFIGURATION.Linux --packages $VFS_PACKAGESDIR /warnasmessage:MSB4011 || exit 1
 dotnet build $VFS_SRCDIR/GVFS.sln --runtime linux-x64 --framework netcoreapp2.1 --configuration $CONFIGURATION.Linux -p:CopyPrjFS=true /maxcpucount:1 /warnasmessage:MSB4011 || exit 1
 
-# TODO(Linux): build native hook programs
-NATIVEDIR=$VFS_SRCDIR/GVFS/GVFS.Native.Linux
-#xcodebuild -configuration $CONFIGURATION -workspace $NATIVEDIR/GVFS.Native.Linux.xcworkspace build -scheme GVFS.Native.Linux -derivedDataPath $VFS_OUTPUTDIR/GVFS.Native.Linux || exit 1
-
-if [ ! -d $VFS_PUBLISHDIR ]; then
-  mkdir $VFS_PUBLISHDIR || exit 1
+# build and copy native hook programs
+if [ ! -d "$VFS_PUBLISHDIR" ]; then
+  mkdir -p "$VFS_PUBLISHDIR" || exit 1
 fi
 
-# TODO(Linux): copy native hook programs
-#echo 'Copying native binaries to Publish directory...'
-#cp $VFS_OUTPUTDIR/GVFS.Native.Linux/Build/Products/$CONFIGURATION/GVFS.ReadObjectHook $VFS_PUBLISHDIR || exit 1
-#cp $VFS_OUTPUTDIR/GVFS.Native.Linux/Build/Products/$CONFIGURATION/GVFS.VirtualFileSystemHook $VFS_PUBLISHDIR || exit 1
-#cp $VFS_OUTPUTDIR/GVFS.Native.Linux/Build/Products/$CONFIGURATION/GVFS.PostIndexChangedHook $VFS_PUBLISHDIR || exit 1
+HOOK_BUILDDIR="$VFS_OUTPUTDIR/GVFS.Native.Linux/Build/Products/$CONFIGURATION"
+if [ ! -d "$HOOK_BUILDDIR" ]; then
+  mkdir -p "$HOOK_BUILDDIR" || exit 1
+fi
+
+echo 'Building and copying native binaries to Publish directory...'
+for hook in PostIndexChanged ReadObject VirtualFileSystem; do
+  hook="GVFS.${hook}Hook"
+  rm -rf "$HOOK_BUILDDIR/$hook"
+  meson "$HOOK_BUILDDIR/$hook" "$VFS_SRCDIR/GVFS/$hook" || exit 1
+  ninja -C "$HOOK_BUILDDIR/$hook" || exit 1
+  cp "$HOOK_BUILDDIR/$hook/$hook" "$VFS_PUBLISHDIR" || exit 1
+done
 
 # Publish after native build, so installer package can include the native binaries.
 dotnet publish $VFS_SRCDIR/GVFS.sln /p:Configuration=$CONFIGURATION.Linux /p:Platform=x64 -p:CopyPrjFS=true --runtime linux-x64 --framework netcoreapp2.1 --self-contained --output $VFS_PUBLISHDIR /maxcpucount:1 /warnasmessage:MSB4011 || exit 1

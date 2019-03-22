@@ -2,11 +2,11 @@
 
 #include <cstring>
 
-#ifdef __APPLE__
+#if defined(__APPLE__) || defined(__gnu_linux__)
 typedef std::string PATH_STRING;
 typedef int PIPE_HANDLE;
 #define PRINTF_FMT(X, Y) __attribute__((__format__ (printf, X, Y)))
-#elif _WIN32
+#elif defined(_WIN32)
 typedef std::wstring PATH_STRING;
 typedef HANDLE PIPE_HANDLE;
 #define PRINTF_FMT(X, Y)
