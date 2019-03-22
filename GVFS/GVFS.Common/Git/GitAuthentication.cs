@@ -66,7 +66,7 @@ namespace GVFS.Common.Git
                         string password;
                         if (TryParseCredentialString(this.cachedCredentialString, out username, out password))
                         {
-                            this.git.ApproveCredentials(this.repoUrl, username, password);
+                            this.git.TryStoreCredential(tracer, this.repoUrl, username, password, out string error);
                             this.isCachedCredentialStringApproved = true;
                         }
                         else
@@ -97,7 +97,7 @@ namespace GVFS.Common.Git
                     string password;
                     if (TryParseCredentialString(this.cachedCredentialString, out username, out password))
                     {
-                        this.git.RejectCredentials(this.repoUrl, username, password);
+                        this.git.TryDeleteCredential(tracer, this.repoUrl, username, password, out string error);
                     }
                     else
                     {
@@ -109,7 +109,7 @@ namespace GVFS.Common.Git
                             ["CredentialString"] = this.cachedCredentialString
                         });
                         tracer.RelatedWarning(metadata, "Failed to parse credential string for rejection. Rejecting any credential for this repo URL.");
-                        this.git.RejectCredentials(this.repoUrl);
+                        this.git.TryDeleteCredential(tracer, this.repoUrl, null, null, out string error);
                     }
 
                     this.cachedCredentialString = null;
@@ -297,7 +297,7 @@ namespace GVFS.Common.Git
         {
             string gitUsername;
             string gitPassword;
-            if (!this.git.TryGetCredentials(tracer, this.repoUrl, out gitUsername, out gitPassword, out errorMessage))
+            if (!this.git.TryGetCredential(tracer, this.repoUrl, out gitUsername, out gitPassword, out errorMessage))
             {
                 this.UpdateBackoff();
                 return false;

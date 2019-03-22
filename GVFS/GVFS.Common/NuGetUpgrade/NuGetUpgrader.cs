@@ -470,13 +470,13 @@ namespace GVFS.Common.NuGetUpgrade
         private static bool TryGetPersonalAccessToken(string gitBinaryPath, string credentialUrl, ITracer tracer, out string token, out string error)
         {
             GitProcess gitProcess = new GitProcess(gitBinaryPath, null, null);
-            return gitProcess.TryGetCredentials(tracer, credentialUrl, out string username, out token, out error);
+            return gitProcess.TryGetCredential(tracer, credentialUrl, out string username, out token, out error);
         }
 
         private static void ErasePersonalAccessToken(string gitBinaryPath, string credentialUrl, ITracer tracer)
         {
             GitProcess gitProcess = new GitProcess(gitBinaryPath, null, null);
-            gitProcess.RejectCredentials(credentialUrl);
+            gitProcess.TryDeleteCredential(tracer, credentialUrl, null, null, out string error);
         }
 
         private static bool TryReacquirePersonalAccessToken(string gitBinaryPath, string credentialUrl, ITracer tracer, out string token, out string error)
