@@ -1,5 +1,7 @@
 using GVFS.Common;
+using GVFS.Common.Git;
 using GVFS.Common.NuGetUpgrade;
+using GVFS.Common.Tracing;
 using GVFS.Tests.Should;
 using GVFS.UnitTests.Category;
 using GVFS.UnitTests.Mock.Common;
@@ -23,7 +25,7 @@ namespace GVFS.UnitTests.Common.NuGetUpgrade
         private const string NewerVersion = "1.6.1185.0";
         private const string NewerVersion2 = "1.7.1185.0";
 
-        private const string NuGetFeedUrl = "feedUrlValue";
+        private const string NuGetFeedUrl = "https://pkgs.dev.azure.com/contoso/packages";
         private const string NuGetFeedName = "feedNameValue";
 
         private NuGetUpgrader upgrader;
@@ -33,6 +35,7 @@ namespace GVFS.UnitTests.Common.NuGetUpgrade
 
         private Mock<NuGetFeed> mockNuGetFeed;
         private MockFileSystem mockFileSystem;
+        private Mock<ICredentialStore> mockCredentialManager;
 
         private string downloadDirectoryPath = Path.Combine(
             $"mock:{Path.DirectorySeparatorChar}",
@@ -54,11 +57,17 @@ namespace GVFS.UnitTests.Common.NuGetUpgrade
                 this.downloadDirectoryPath,
                 null,
                 this.tracer);
+
             this.mockFileSystem = new MockFileSystem(
                 new MockDirectory(
                     Path.GetDirectoryName(this.downloadDirectoryPath),
                     new[] { new MockDirectory(this.downloadDirectoryPath, null, null) },
                     null));
+
+            this.mockCredentialManager = new Mock<ICredentialStore>();
+            string credentialManagerString = "value";
+            string emptyString = string.Empty;
+            this.mockCredentialManager.Setup(foo => foo.TryGetCredential(It.IsAny<ITracer>(), It.IsAny<string>(), out credentialManagerString, out credentialManagerString, out credentialManagerString)).Returns(true);
 
             this.upgrader = new NuGetUpgrader(
                 CurrentVersion,
@@ -67,7 +76,8 @@ namespace GVFS.UnitTests.Common.NuGetUpgrade
                 false,
                 this.mockFileSystem,
                 this.upgraderConfig,
-                this.mockNuGetFeed.Object);
+                this.mockNuGetFeed.Object,
+                this.mockCredentialManager.Object);
         }
 
         [TearDown]
@@ -281,7 +291,8 @@ namespace GVFS.UnitTests.Common.NuGetUpgrade
                 false,
                 this.mockFileSystem,
                 nuGetUpgraderConfig,
-                this.mockNuGetFeed.Object);
+                this.mockNuGetFeed.Object,
+                this.mockCredentialManager.Object);
 
             nuGetUpgrader.UpgradeAllowed(out _).ShouldBeTrue("NuGetUpgrader config is complete: upgrade should be allowed.");
 
@@ -296,7 +307,8 @@ namespace GVFS.UnitTests.Common.NuGetUpgrade
                 false,
                 this.mockFileSystem,
                 nuGetUpgraderConfig,
-                this.mockNuGetFeed.Object);
+                this.mockNuGetFeed.Object,
+                this.mockCredentialManager.Object);
 
             nuGetUpgrader.UpgradeAllowed(out string _).ShouldBeFalse("Upgrade without FeedURL configured should not be allowed.");
 
@@ -312,7 +324,8 @@ namespace GVFS.UnitTests.Common.NuGetUpgrade
                 false,
                 this.mockFileSystem,
                 nuGetUpgraderConfig,
-                this.mockNuGetFeed.Object);
+                this.mockNuGetFeed.Object,
+                this.mockCredentialManager.Object);
 
             nuGetUpgrader.UpgradeAllowed(out string _).ShouldBeFalse("Upgrade without FeedName configured should not be allowed.");
         }
@@ -406,7 +419,8 @@ namespace GVFS.UnitTests.Common.NuGetUpgrade
                 true,
                 this.mockFileSystem,
                 nuGetUpgraderConfig,
-                this.mockNuGetFeed.Object);
+                this.mockNuGetFeed.Object,
+                this.mockCredentialManager.Object);
 
             Version actualNewestVersion;
             string message;

@@ -21,6 +21,8 @@ namespace GVFS.Common.NuGetUpgrade
         private InstallManifest installManifest;
         private IPackageSearchMetadata highestVersionAvailable;
         private NuGetFeed nuGetFeed;
+        private ICredentialStore credentialStore;
+        private bool isNuGetFeedInitialized;
 
         public NuGetUpgrader(
             string currentVersion,
@@ -30,7 +32,7 @@ namespace GVFS.Common.NuGetUpgrade
             bool noVerify,
             NuGetUpgraderConfig config,
             string downloadFolder,
-            string personalAccessToken)
+            ICredentialStore credentialStore)
             : this(
                 currentVersion,
                 tracer,
@@ -42,8 +44,9 @@ namespace GVFS.Common.NuGetUpgrade
                     config.FeedUrl,
                     config.PackageFeedName,
                     downloadFolder,
-                    personalAccessToken,
-                    tracer))
+                    null,
+                    tracer),
+                credentialStore)
         {
         }
 
@@ -54,7 +57,8 @@ namespace GVFS.Common.NuGetUpgrade
             bool noVerify,
             PhysicalFileSystem fileSystem,
             NuGetUpgraderConfig config,
-            NuGetFeed nuGetFeed)
+            NuGetFeed nuGetFeed,
+            ICredentialStore credentialStore)
             : base(
                 currentVersion,
                 tracer,
@@ -65,6 +69,7 @@ namespace GVFS.Common.NuGetUpgrade
             this.nuGetUpgraderConfig = config;
 
             this.nuGetFeed = nuGetFeed;
+            this.credentialStore = credentialStore;
 
             // Extract the folder inside ProductUpgraderInfo.GetAssetDownloadsPath to ensure the
             // correct ACLs are in place
@@ -126,23 +131,7 @@ namespace GVFS.Common.NuGetUpgrade
                 return false;
             }
 
-            string authUrl;
-            if (!TryCreateAzDevOrgUrlFromPackageFeedUrl(upgraderConfig.FeedUrl, out authUrl, out error))
-            {
-                return false;
-            }
-
-            if (!TryGetPersonalAccessToken(
-                    gitBinPath,
-                    authUrl,
-                    tracer,
-                    out string token,
-                    out string getPatError))
-            {
-                error = $"NuGetUpgrader was not able to acquire Personal Access Token to access NuGet feed. Error: {getPatError}";
-                tracer.RelatedError(error);
-                return false;
-            }
+            ICredentialStore credentialStore = new GitProcess(gitBinPath, workingDirectoryRoot: null, gvfsHooksRoot: null);
 
             nuGetUpgrader = new NuGetUpgrader(
                 ProcessHelper.GetCurrentProcessVersion(),
@@ -152,7 +141,7 @@ namespace GVFS.Common.NuGetUpgrade
                 noVerify,
                 upgraderConfig,
                 ProductUpgraderInfo.GetAssetDownloadsPath(),
-                token);
+                credentialStore);
 
             return true;
         }
@@ -222,6 +211,12 @@ namespace GVFS.Common.NuGetUpgrade
         {
             try
             {
+                if (!this.EnsureNuGetFeedInitialized(out message))
+                {
+                    newVersion = null;
+                    return false;
+                }
+
                 IList<IPackageSearchMetadata> queryResults = this.QueryFeed(firstAttempt: true);
 
                 // Find the package with the highest version
@@ -467,33 +462,26 @@ namespace GVFS.Common.NuGetUpgrade
             return metadata;
         }
 
-        private static bool TryGetPersonalAccessToken(string gitBinaryPath, string credentialUrl, ITracer tracer, out string token, out string error)
-        {
-            GitProcess gitProcess = new GitProcess(gitBinaryPath, null, null);
-            return gitProcess.TryGetCredential(tracer, credentialUrl, out string username, out token, out error);
-        }
-
-        private static void ErasePersonalAccessToken(string gitBinaryPath, string credentialUrl, ITracer tracer)
-        {
-            GitProcess gitProcess = new GitProcess(gitBinaryPath, null, null);
-            gitProcess.TryDeleteCredential(tracer, credentialUrl, null, null, out string error);
-        }
-
-        private static bool TryReacquirePersonalAccessToken(string gitBinaryPath, string credentialUrl, ITracer tracer, out string token, out string error)
-        {
-            ErasePersonalAccessToken(gitBinaryPath, credentialUrl, tracer);
-
-            if (!TryGetPersonalAccessToken(gitBinaryPath, credentialUrl, tracer, out token, out error))
-            {
-                return false;
-            }
-
-            return true;
-        }
-
         private static string replacementToken(string tokenString)
         {
             return "{" + tokenString + "}";
+        }
+
+        private bool TryGetPersonalAccessToken(string credentialUrl, ITracer tracer, out string token, out string error)
+        {
+            error = null;
+            return this.credentialStore.TryGetCredential(this.tracer, credentialUrl, out string username, out token, out error);
+        }
+
+        private bool TryReacquirePersonalAccessToken(string credentialUrl, ITracer tracer, out string token, out string error)
+        {
+            if (!this.credentialStore.TryDeleteCredential(this.tracer, credentialUrl, username: null, password: null, error: out error))
+            {
+                token = null;
+                return false;
+            }
+
+            return this.TryGetPersonalAccessToken(credentialUrl, tracer, out token, out error);
         }
 
         private void UnzipPackage()
@@ -583,15 +571,13 @@ namespace GVFS.Common.NuGetUpgrade
         {
             try
             {
-                string gitBinPath = GVFSPlatform.Instance.GitInstallation.GetInstalledGitBinPath();
-
                 string authUrl;
                 if (!TryCreateAzDevOrgUrlFromPackageFeedUrl(this.nuGetUpgraderConfig.FeedUrl, out authUrl, out error))
                 {
                     return false;
                 }
 
-                if (!NuGetUpgrader.TryReacquirePersonalAccessToken(gitBinPath, authUrl, this.tracer, out string token, out error))
+                if (!this.TryReacquirePersonalAccessToken(authUrl, this.tracer, out string token, out error))
                 {
                     return false;
                 }
@@ -605,6 +591,29 @@ namespace GVFS.Common.NuGetUpgrade
                 this.TraceException(ex, nameof(this.TryRefreshCredentials), "Failed to refresh credentials.");
                 return false;
             }
+        }
+
+        private bool EnsureNuGetFeedInitialized(out string error)
+        {
+            if (!this.isNuGetFeedInitialized)
+            {
+                string authUrl;
+                if (!TryCreateAzDevOrgUrlFromPackageFeedUrl(this.nuGetUpgraderConfig.FeedUrl, out authUrl, out error))
+                {
+                    return false;
+                }
+
+                if (!this.TryGetPersonalAccessToken(authUrl, this.tracer, out string token, out error))
+                {
+                    return false;
+                }
+
+                this.nuGetFeed.SetCredentials(token);
+                this.isNuGetFeedInitialized = true;
+            }
+
+            error = null;
+            return true;
         }
 
         public class NuGetUpgraderConfig

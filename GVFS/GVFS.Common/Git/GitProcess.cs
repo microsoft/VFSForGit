@@ -10,7 +10,7 @@ using System.Text;
 
 namespace GVFS.Common.Git
 {
-    public class GitProcess
+    public class GitProcess : ICredentialStore
     {
         private const int HResultEHANDLE = -2147024890; // 0x80070006 E_HANDLE
 
