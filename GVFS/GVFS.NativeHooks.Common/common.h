@@ -3,6 +3,9 @@
 #ifdef __APPLE__
 typedef std::string PATH_STRING;
 typedef int PIPE_HANDLE;
+#elif __gnu_linux__
+typedef std::string PATH_STRING;
+typedef int PIPE_HANDLE;
 #elif _WIN32
 typedef std::wstring PATH_STRING;
 typedef HANDLE PIPE_HANDLE;
