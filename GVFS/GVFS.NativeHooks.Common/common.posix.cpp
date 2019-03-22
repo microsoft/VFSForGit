@@ -31,21 +31,23 @@ PATH_STRING GetGVFSPipeName(const char *appName)
     }
     
     PATH_STRING finalRootPath(GetFinalPathName(enlistmentRoot));
-    size_t resultLength = strlcpy(enlistmentRoot, finalRootPath.c_str(), sizeof(enlistmentRoot));
-    if (resultLength >= sizeof(enlistmentRoot))
+    size_t enlistmentRootLength = strlen(finalRootPath.c_str());
+    if (enlistmentRootLength >= sizeof(enlistmentRoot) - 2)
     {
         die(ReturnCode::PipeConnectError,
-            "Could not copy finalRootPath: %ls, insufficient buffer. resultLength: %d, sizeof(enlistmentRoot): %d\n",
+            "Could not copy finalRootPath: %ls, insufficient buffer. enlistmentRootLength: %d, sizeof(enlistmentRoot): %d\n",
             finalRootPath.c_str(),
-            resultLength,
+            enlistmentRootLength,
             sizeof(enlistmentRoot));
     }
     
-    size_t enlistmentRootLength = strlen(enlistmentRoot);
+    strncpy(enlistmentRoot, finalRootPath.c_str(), enlistmentRootLength);
+    enlistmentRoot[enlistmentRootLength] = '\0';
+
     if ('/' != enlistmentRoot[enlistmentRootLength - 1])
     {
-        strlcat(enlistmentRoot, "/", sizeof(enlistmentRoot));
-        enlistmentRootLength++;
+        enlistmentRoot[enlistmentRootLength++] = '/';
+        enlistmentRoot[enlistmentRootLength] = '\0';
     }
     
     // Walk up enlistmentRoot looking for a folder named .gvfs
@@ -116,17 +118,19 @@ PIPE_HANDLE CreatePipeToGVFS(const PATH_STRING& pipeName)
     memset(&socket_address, 0, sizeof(struct sockaddr_un));
     
     socket_address.sun_family = AF_UNIX;
-    size_t resultLength = strlcpy(socket_address.sun_path, pipeName.c_str(), sizeof(socket_address.sun_path));
-    
-    if (resultLength >= sizeof(socket_address.sun_path))
+    size_t pathLength = strlen(pipeName.c_str());
+    if (pathLength >= sizeof(socket_address.sun_path) - 1)
     {
         die(ReturnCode::PipeConnectError,
-            "Could not copy pipeName: %ls, insufficient buffer. resultLength: %d, sizeof(socket_address.sun_path): %d\n",
+            "Could not copy pipeName: %ls, insufficient buffer. pathLength: %d, sizeof(socket_address.sun_path): %d\n",
             pipeName.c_str(),
-            resultLength,
+            pathLength,
             sizeof(socket_address.sun_path));
     }
     
+    strncpy(socket_address.sun_path, pipeName.c_str(), pathLength);
+    socket_address.sun_path[pathLength] = '\0';
+
     if(connect(socket_fd, (struct sockaddr *) &socket_address, sizeof(struct sockaddr_un)) != 0)
     {
         die(ReturnCode::PipeConnectError, "Failed to connect socket, pipeName: %s, error: %d\n", pipeName.c_str(), errno);

@@ -9,7 +9,7 @@
 /* Begin PBXBuildFile section */
 		2673FD9620EBDAA900B64B7F /* main.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 2673FD9520EBDAA900B64B7F /* main.cpp */; };
 		2673FD9C20EBDEA500B64B7F /* packet.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 2673FD9B20EBDEA500B64B7F /* packet.cpp */; };
-		26E839D820FD387D004E53CE /* common.mac.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 26E839D720FD29EC004E53CE /* common.mac.cpp */; };
+		26E839D820FD387D004E53CE /* common.posix.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 26E839D720FD29EC004E53CE /* common.posix.cpp */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXCopyFilesBuildPhase section */
@@ -30,7 +30,7 @@
 		2673FD9A20EBDEA500B64B7F /* packet.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = packet.h; sourceTree = SOURCE_ROOT; };
 		2673FD9B20EBDEA500B64B7F /* packet.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = packet.cpp; sourceTree = SOURCE_ROOT; };
 		2673FD9D20EBDEAA00B64B7F /* common.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = common.h; path = ../GVFS.NativeHooks.Common/common.h; sourceTree = SOURCE_ROOT; };
-		26E839D720FD29EC004E53CE /* common.mac.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = common.mac.cpp; path = ../GVFS.NativeHooks.Common/common.mac.cpp; sourceTree = SOURCE_ROOT; };
+		26E839D720FD29EC004E53CE /* common.posix.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = common.posix.cpp; path = ../GVFS.NativeHooks.Common/common.posix.cpp; sourceTree = SOURCE_ROOT; };
 		26E839DA20FD58B8004E53CE /* stdafx.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = stdafx.h; sourceTree = SOURCE_ROOT; };
 /* End PBXFileReference section */
 
@@ -49,7 +49,7 @@
 			isa = PBXGroup;
 			children = (
 				26E839DA20FD58B8004E53CE /* stdafx.h */,
-				26E839D720FD29EC004E53CE /* common.mac.cpp */,
+				26E839D720FD29EC004E53CE /* common.posix.cpp */,
 				2673FD9D20EBDEAA00B64B7F /* common.h */,
 				2673FD9B20EBDEA500B64B7F /* packet.cpp */,
 				2673FD9A20EBDEA500B64B7F /* packet.h */,
@@ -121,7 +121,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				26E839D820FD387D004E53CE /* common.mac.cpp in Sources */,
+				26E839D820FD387D004E53CE /* common.posix.cpp in Sources */,
 				2673FD9620EBDAA900B64B7F /* main.cpp in Sources */,
 				2673FD9C20EBDEA500B64B7F /* packet.cpp in Sources */,
 			);
