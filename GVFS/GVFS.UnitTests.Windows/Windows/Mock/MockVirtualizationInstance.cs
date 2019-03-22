@@ -1,4 +1,5 @@
 ﻿using GVFS.Common;
+using GVFS.UnitTests.Windows.Windows.Mock;
 using Microsoft.Windows.ProjFS;
 using System;
 using System.Collections.Generic;
@@ -100,32 +101,6 @@ namespace GVFS.UnitTests.Windows.Mock
             throw new NotImplementedException();
         }
 
-        public WriteBuffer CreateWriteBuffer(uint desiredBufferSize)
-        {
-            this.waitForCreateWriteBuffer.Set();
-            this.unblockCreateWriteBuffer.WaitOne();
-
-            // TODO return new WriteBuffer(desiredBufferSize, 1);
-            return null;
-        }
-
-        public WriteBuffer CreateWriteBuffer(ulong byteOffset, uint length, out ulong alignedByteOffset, out uint alignedLength)
-        {
-            this.waitForCreateWriteBuffer.Set();
-            this.unblockCreateWriteBuffer.WaitOne();
-
-            alignedByteOffset = 0;
-            alignedLength = 100;
-
-            // TODO return new WriteBuffer(desiredBufferSize, 1);
-            return null;
-        }
-
-        public HResult WriteFileData(Guid streamGuid, WriteBuffer buffer, ulong byteOffset, uint length)
-        {
-            return this.WriteFileReturnResult;
-        }
-
         public HResult WritePlaceholderInfo(
             string relativePath,
             DateTime creationTime,
@@ -141,12 +116,6 @@ namespace GVFS.UnitTests.Windows.Mock
             this.CreatedPlaceholders.Add(relativePath);
             this.placeholderCreated.Set();
             return HResult.Ok;
-        }
-
-        public void CompleteCommand(int commandId, HResult completionResult)
-        {
-            this.CompletionResult = completionResult;
-            this.commandCompleted.Set();
         }
 
         public HResult WaitForCompletionStatus()
@@ -195,6 +164,7 @@ namespace GVFS.UnitTests.Windows.Mock
         HResult IVirtualizationInstance.CompleteCommand(int commandId, HResult completionResult)
         {
             this.commandCompleted.Set();
+            this.CompletionResult = completionResult;
             return HResult.Ok;
         }
 
@@ -208,6 +178,30 @@ namespace GVFS.UnitTests.Windows.Mock
         {
             this.Dispose(true);
             GC.SuppressFinalize(this);
+        }
+
+        public HResult WriteFileData(Guid dataStreamId, IWriteBuffer buffer, ulong byteOffset, uint length)
+        {
+            return this.WriteFileReturnResult;
+        }
+
+        IWriteBuffer IVirtualizationInstance.CreateWriteBuffer(ulong byteOffset, uint length, out ulong alignedByteOffset, out uint alignedLength)
+        {
+            this.waitForCreateWriteBuffer.Set();
+            this.unblockCreateWriteBuffer.WaitOne();
+
+            alignedByteOffset = 0;
+            alignedLength = 100;
+
+            return new MockWriteBuffer(length, 1);
+        }
+
+        IWriteBuffer IVirtualizationInstance.CreateWriteBuffer(uint desiredBufferSize)
+        {
+            this.waitForCreateWriteBuffer.Set();
+            this.unblockCreateWriteBuffer.WaitOne();
+
+            return new MockWriteBuffer(desiredBufferSize, 1);
         }
 
         protected void Dispose(bool disposing)

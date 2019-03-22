@@ -902,7 +902,7 @@ namespace GVFS.Platform.Windows
                         byte[] buffer = new byte[Math.Min(MaxBlobStreamBufferSize, blobLength)];
                         long remainingData = blobLength;
 
-                        using (WriteBuffer targetBuffer = this.virtualizationInstance.CreateWriteBuffer((uint)buffer.Length))
+                        using (IWriteBuffer targetBuffer = this.virtualizationInstance.CreateWriteBuffer((uint)buffer.Length))
                         {
                             while (remainingData > 0)
                             {

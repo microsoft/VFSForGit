@@ -1,10 +1,10 @@
 ﻿<?xml version="1.0" encoding="utf-8"?>
 <Project xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
     <ItemGroup>
-        <None Condition="Exists('$(PackagesDir)\$(ProjFSPackage)\lib\x64\ProjectedFSLib.dll')" Include="$(PackagesDir)\$(ProjFSPackage)\lib\x64\ProjectedFSLib.dll">
+        <None Condition="Exists('$(PackagesDir)\$(ProjFSNativePackage)\lib\x64\ProjectedFSLib.dll')" Include="$(PackagesDir)\$(ProjFSNativePackage)\lib\x64\ProjectedFSLib.dll">
             <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
         </None>
-        <None Condition="Exists('$(PackagesDir)\$(ProjFSPackage)\lib\x64\ProjectedFSLib.pdb')" Include="$(PackagesDir)\$(ProjFSPackage)\lib\x64\ProjectedFSLib.pdb">
+        <None Condition="Exists('C:\Users\username\gvfs3\packages\GVFS.ProjFS.2018.823.2\lib\x64\ProjectedFSLib.dll')" Include="C:\Users\username\gvfs3\packages\GVFS.ProjFS.2018.823.2\lib\x64\ProjectedFSLib.dll">
             <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
         </None>
     </ItemGroup>

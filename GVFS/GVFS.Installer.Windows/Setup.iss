@@ -3,7 +3,7 @@
 
 ; General documentation on how to use InnoSetup scripts: http://www.jrsoftware.org/ishelp/index.php
 
-#define PrjFltDir PackagesDir + "\" + ProjFSPackage + "\filter" 
+#define PrjFltDir PackagesDir + "\" + ProjFSNativePackage + "\filter" 
 #define VCRuntimeDir PackagesDir + "\GVFS.VCRuntime.0.2.0-build\lib\x64"
 #define GVFSDir BuildOutputDir + "\GVFS.Windows\bin\" + PlatformAndConfiguration
 #define GVFSCommonDir BuildOutputDir + "\GVFS.Common\bin\" + PlatformAndConfiguration + "\netstandard2.0"

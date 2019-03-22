@@ -830,7 +830,6 @@ namespace GVFS.UnitTests.Windows.Virtualization
         }
 
         [TestCase]
-        [Ignore("Waiting on new ProjFS With WriteBuffer Options")]
         [Category(CategoryConstants.ExceptionExpected)]
         public void OnGetFileStreamHandlesWriteFailure()
         {
@@ -885,7 +884,6 @@ namespace GVFS.UnitTests.Windows.Virtualization
         }
 
         [TestCase]
-        [Ignore("Waiting on new ProjFS With WriteBuffer Options")]
         [Category(CategoryConstants.ExceptionExpected)]
         public void OnGetFileStreamHandlesNewResult()
         {
