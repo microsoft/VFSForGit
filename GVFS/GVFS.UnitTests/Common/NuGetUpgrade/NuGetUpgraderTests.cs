@@ -66,6 +66,7 @@ namespace GVFS.UnitTests.Common.NuGetUpgrade
                 this.downloadDirectoryPath,
                 null,
                 this.tracer);
+            this.mockNuGetFeed.Setup(feed => feed.SetCredentials(It.IsAny<string>()));
 
             this.mockFileSystem = new MockFileSystem(
                 new MockDirectory(
