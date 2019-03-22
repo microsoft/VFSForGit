@@ -1,4 +1,6 @@
 ﻿using GVFS.Common;
+using System;
+using System.Diagnostics;
 using System.IO;
 
 namespace GVFS.Platform.Mac
@@ -15,7 +17,15 @@ namespace GVFS.Platform.Mac
 
         public static bool IsProcessActiveImplementation(int processId)
         {
-            // TODO(Mac): Implement proper check
+            try
+            {
+                Process process = Process.GetProcessById(processId);
+            }
+            catch (ArgumentException)
+            {
+                return false;
+            }
+
             return true;
         }
 

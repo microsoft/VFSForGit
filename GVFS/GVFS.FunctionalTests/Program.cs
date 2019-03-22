@@ -73,7 +73,6 @@ namespace GVFS.FunctionalTests
 
             if (RuntimeInformation.IsOSPlatform(OSPlatform.OSX))
             {
-                excludeCategories.Add(Categories.MacTODO.NeedsLockHolder);
                 excludeCategories.Add(Categories.MacTODO.FailsOnBuildAgent);
                 excludeCategories.Add(Categories.MacTODO.NeedsRenameOldPath);
                 excludeCategories.Add(Categories.MacTODO.M3);

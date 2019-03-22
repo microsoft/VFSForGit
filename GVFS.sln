@@ -389,9 +389,11 @@ Global
 		{BD7C5776-82F2-40C6-AF01-B3CC1E2D83AF}.Release.Windows|x64.ActiveCfg = Release|x64
 		{BD7C5776-82F2-40C6-AF01-B3CC1E2D83AF}.Release.Windows|x64.Build.0 = Release|x64
 		{FA273F69-5762-43D8-AEA1-B4F08090D624}.Debug.Mac|x64.ActiveCfg = Debug|x64
+		{FA273F69-5762-43D8-AEA1-B4F08090D624}.Debug.Mac|x64.Build.0 = Debug|x64
 		{FA273F69-5762-43D8-AEA1-B4F08090D624}.Debug.Windows|x64.ActiveCfg = Debug|x64
 		{FA273F69-5762-43D8-AEA1-B4F08090D624}.Debug.Windows|x64.Build.0 = Debug|x64
 		{FA273F69-5762-43D8-AEA1-B4F08090D624}.Release.Mac|x64.ActiveCfg = Release|x64
+		{FA273F69-5762-43D8-AEA1-B4F08090D624}.Release.Mac|x64.Build.0 = Debug|x64
 		{FA273F69-5762-43D8-AEA1-B4F08090D624}.Release.Windows|x64.ActiveCfg = Release|x64
 		{FA273F69-5762-43D8-AEA1-B4F08090D624}.Release.Windows|x64.Build.0 = Release|x64
 		{4CC2A90D-D240-4382-B4BF-5E175515E492}.Debug.Mac|x64.ActiveCfg = Debug|x64
