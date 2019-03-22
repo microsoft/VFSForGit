@@ -505,7 +505,7 @@ namespace GVFS.Platform.Windows
                     ProjectedFileInfo fileInfo = activeEnumeration.Current;
                     FileProperties properties = this.FileSystemCallbacks.GetLogsHeadFileProperties();
 
-                    if (results.Add(
+                    bool addResult = results.Add(
                         fileName: fileInfo.Name,
                         fileSize: fileInfo.IsFolder ? 0 : fileInfo.Size,
                         isDirectory: fileInfo.IsFolder,
@@ -513,14 +513,20 @@ namespace GVFS.Platform.Windows
                         creationTime: properties.CreationTimeUTC,
                         lastAccessTime: properties.LastAccessTimeUTC,
                         lastWriteTime: properties.LastWriteTimeUTC,
-                        changeTime: properties.LastWriteTimeUTC))
+                        changeTime: properties.LastWriteTimeUTC);
+
+                    if (addResult == true)
                     {
                         entryAdded = true;
                         activeEnumeration.MoveNext();
                     }
                     else
                     {
-                        result = entryAdded ? HResult.Ok : HResult.InsufficientBuffer;
+                        if (entryAdded)
+                        {
+                            result = HResult.Ok;
+                        }
+
                         break;
                     }
                 }
@@ -1185,7 +1191,7 @@ namespace GVFS.Platform.Windows
         private bool NotifyFilePreConvertToFullHandler(string virtualPath, uint triggeringProcessId, string triggeringProcessImageFileName)
         {
             this.OnFilePreConvertToFull(virtualPath);
-            return HResult.Ok;
+            return true;
         }
 
         private void CancelCommandHandler(int commandId)
