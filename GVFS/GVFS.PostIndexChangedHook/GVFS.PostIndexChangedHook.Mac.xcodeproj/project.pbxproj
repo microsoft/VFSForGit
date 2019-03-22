@@ -8,7 +8,7 @@
 
 /* Begin PBXBuildFile section */
 		267A836C20EE9F27005E6B60 /* main.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 267A836B20EE9F27005E6B60 /* main.cpp */; };
-		26E839D920FD4026004E53CE /* common.mac.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 26E839D620FD29D6004E53CE /* common.mac.cpp */; };
+		26E839D920FD4026004E53CE /* common.posix.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 26E839D620FD29D6004E53CE /* common.posix.cpp */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXCopyFilesBuildPhase section */
@@ -27,7 +27,7 @@
 		267A836820EE9F27005E6B60 /* GVFS.PostIndexChangedHook */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.executable"; includeInIndex = 0; path = GVFS.PostIndexChangedHook; sourceTree = BUILT_PRODUCTS_DIR; };
 		267A836B20EE9F27005E6B60 /* main.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = main.cpp; sourceTree = SOURCE_ROOT; };
 		2686926B20EFF2610080F95D /* common.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = common.h; path = ../GVFS.NativeHooks.Common/common.h; sourceTree = SOURCE_ROOT; };
-		26E839D620FD29D6004E53CE /* common.mac.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = common.mac.cpp; path = ../GVFS.NativeHooks.Common/common.mac.cpp; sourceTree = SOURCE_ROOT; };
+		26E839D620FD29D6004E53CE /* common.posix.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = common.posix.cpp; path = ../GVFS.NativeHooks.Common/common.posix.cpp; sourceTree = SOURCE_ROOT; };
 		26E839DB20FD5918004E53CE /* stdafx.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = stdafx.h; sourceTree = SOURCE_ROOT; };
 /* End PBXFileReference section */
 
@@ -46,7 +46,7 @@
 			isa = PBXGroup;
 			children = (
 				26E839DB20FD5918004E53CE /* stdafx.h */,
-				26E839D620FD29D6004E53CE /* common.mac.cpp */,
+				26E839D620FD29D6004E53CE /* common.posix.cpp */,
 				2686926B20EFF2610080F95D /* common.h */,
 				267A836B20EE9F27005E6B60 /* main.cpp */,
 				267A836920EE9F27005E6B60 /* Products */,
@@ -117,7 +117,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				267A836C20EE9F27005E6B60 /* main.cpp in Sources */,
-				26E839D920FD4026004E53CE /* common.mac.cpp in Sources */,
+				26E839D920FD4026004E53CE /* common.posix.cpp in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

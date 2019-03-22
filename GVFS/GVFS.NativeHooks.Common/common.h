@@ -1,5 +1,7 @@
 #pragma once
 
+#include <cstring>
+
 #ifdef __APPLE__
 typedef std::string PATH_STRING;
 typedef int PIPE_HANDLE;
