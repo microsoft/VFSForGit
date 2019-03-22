@@ -28,6 +28,15 @@ namespace GVFS.UnitTests.Common.NuGetUpgrade
         private const string NuGetFeedUrl = "https://pkgs.dev.azure.com/contoso/packages";
         private const string NuGetFeedName = "feedNameValue";
 
+        private static Exception httpRequestAuthException = new System.Net.Http.HttpRequestException("Response status code does not indicate success: 401 (Unauthorized).");
+        private static Exception fatalProtocolAuthException = new FatalProtocolException("Unable to load the service index for source.", httpRequestAuthException);
+
+        private static Exception[] networkAuthFailures =
+        {
+            httpRequestAuthException,
+            fatalProtocolAuthException
+        };
+
         private NuGetUpgrader upgrader;
         private MockTracer tracer;
 
@@ -328,6 +337,40 @@ namespace GVFS.UnitTests.Common.NuGetUpgrade
                 this.mockCredentialManager.Object);
 
             nuGetUpgrader.UpgradeAllowed(out string _).ShouldBeFalse("Upgrade without FeedName configured should not be allowed.");
+        }
+
+        [TestCaseSource("networkAuthFailures")]
+        public void QueryNewestVersionReacquiresCredentialsOnAuthFailure(Exception exception)
+        {
+            Version actualNewestVersion;
+            string message;
+            List<IPackageSearchMetadata> availablePackages = new List<IPackageSearchMetadata>()
+            {
+                this.GeneratePackageSeachMetadata(new Version(CurrentVersion)),
+                this.GeneratePackageSeachMetadata(new Version(NewerVersion)),
+            };
+
+            string testDownloadPath = Path.Combine(this.downloadDirectoryPath, "testNuget.zip");
+            IPackageSearchMetadata newestAvailableVersion = availablePackages.Last();
+            this.mockNuGetFeed.SetupSequence(foo => foo.QueryFeedAsync(It.IsAny<string>()))
+                .Throws(exception)
+                .ReturnsAsync(availablePackages);
+
+            // Setup the credential manager
+            string emptyString = string.Empty;
+            this.mockCredentialManager.Setup(foo => foo.TryDeleteCredential(It.IsAny<ITracer>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>(), out emptyString)).Returns(true);
+
+            bool success = this.upgrader.TryQueryNewestVersion(out actualNewestVersion, out message);
+
+            // Verify expectations
+            success.ShouldBeTrue($"Expecting TryQueryNewestVersion to have completed sucessfully. Error: {message}");
+            actualNewestVersion.ShouldEqual(newestAvailableVersion.Identity.Version.Version, "Actual new version does not match expected new version.");
+
+            this.mockNuGetFeed.Verify(nuGetFeed => nuGetFeed.QueryFeedAsync(It.IsAny<string>()), Times.Exactly(2));
+
+            string outString = string.Empty;
+            this.mockCredentialManager.Verify(credentialManager => credentialManager.TryGetCredential(It.IsAny<ITracer>(), It.IsAny<string>(), out outString, out outString, out outString), Times.Exactly(2));
+            this.mockCredentialManager.Verify(credentialManager => credentialManager.TryDeleteCredential(It.IsAny<ITracer>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>(), out outString), Times.Exactly(1));
         }
 
         [TestCase]
