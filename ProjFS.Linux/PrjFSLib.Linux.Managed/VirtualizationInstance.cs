@@ -1,7 +1,6 @@
 using System;
 using System.Runtime.InteropServices;
 using System.Text;
-using Mono.Unix.Native;
 
 namespace PrjFSLib.Linux
 {
@@ -82,7 +81,7 @@ namespace PrjFSLib.Linux
 
                      while (byteCount > 0)
                      {
-                        long res = Syscall.write(fd, bytesToWrite, byteCount);
+                        long res = NativeMethods.Write(fd, bytesToWrite, byteCount);
                         if (res == -1)
                         {
                             return Result.EIOError;
@@ -228,6 +227,7 @@ namespace PrjFSLib.Linux
             }
         }
 
+        // TODO(Linux): replace with netstandard2.1 Marshal.PtrToStringUTF8()
         private static unsafe string PtrToStringUTF8(byte* ptr)
         {
             if (ptr == (byte*)IntPtr.Zero)
@@ -235,8 +235,8 @@ namespace PrjFSLib.Linux
                 return null;
             }
 
-            int length = (int)Stdlib.strlen((IntPtr)ptr);
-            return Encoding.UTF8.GetString(ptr, length);
+            ulong length = NativeMethods.Strlen(ptr);
+            return Encoding.UTF8.GetString(ptr, (int)length);
         }
 
         private int HandleProjEvent(ref Interop.ProjFS.Event ev)
@@ -344,7 +344,7 @@ namespace PrjFSLib.Linux
                 {
                     ret = (int)Interop.ProjFS.Constants.PROJFS_ALLOW;
                 }
-                else if (ret == -(int)Errno.EPERM)
+                else if (ret == -Interop.Errno.Constants.EPERM)
                 {
                     ret = (int)Interop.ProjFS.Constants.PROJFS_DENY;
                 }
@@ -396,6 +396,15 @@ namespace PrjFSLib.Linux
             }
 
             return Result.ENotYetImplemented;
+        }
+
+        private static unsafe class NativeMethods
+        {
+            [DllImport("libc", EntryPoint = "strlen")]
+            public static extern ulong Strlen(byte* s);
+
+            [DllImport("libc", EntryPoint = "write", SetLastError = true)]
+            public static extern long Write(int fd, byte* buf, ulong count);
         }
     }
 }
