@@ -72,9 +72,9 @@ namespace PrjFSLib.Linux
             }
         }
 
-        internal static Result ConvertErrnoToResult(this Errno errno)
+        internal static Result ConvertErrnoToResult(this int errno)
         {
-            switch (errno)
+            switch ((Errno)errno)
             {
                 case 0:
                     return Result.Success;
