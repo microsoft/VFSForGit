@@ -1,6 +1,5 @@
 using System;
 using System.Runtime.InteropServices;
-using Mono.Unix.Native;
 
 namespace PrjFSLib.Linux.Interop
 {
@@ -163,7 +162,7 @@ namespace PrjFSLib.Linux.Interop
             IntPtr fs);
 
         [DllImport(PrjFSLibPath, EntryPoint = "projfs_create_proj_dir")]
-        private static extern Errno _CreateProjDir(
+        private static extern int _CreateProjDir(
             IntPtr fs,
             string relativePath,
             uint fileMode,
@@ -171,7 +170,7 @@ namespace PrjFSLib.Linux.Interop
             uint nattrs);
 
         [DllImport(PrjFSLibPath, EntryPoint = "projfs_create_proj_file")]
-        private static extern Errno _CreateProjFile(
+        private static extern int _CreateProjFile(
             IntPtr fs,
             string relativePath,
             ulong fileSize,
@@ -180,13 +179,13 @@ namespace PrjFSLib.Linux.Interop
             uint nattrs);
 
         [DllImport(PrjFSLibPath, EntryPoint = "projfs_create_proj_symlink")]
-        private static extern Errno _CreateProjSymlink(
+        private static extern int _CreateProjSymlink(
             IntPtr fs,
             string relativePath,
             string symlinkTarget);
 
         [DllImport(PrjFSLibPath, EntryPoint = "projfs_get_attrs")]
-        private static extern Errno _GetProjAttrs(
+        private static extern int _GetProjAttrs(
             IntPtr fs,
             string relativePath,
             Attr[] attrs,
