@@ -12,10 +12,9 @@ PACKAGES=$ROOTDIR/packages
 
 PROJFS=$SRCDIR/ProjFS.Linux
 
-# TODO(Linux): use pkg-config to look for installed libprojfs;
-#              if not found, retrieve latest stable from repo, build
-#              into $ROOTDIR/BuildOutput/ProjFS.Linux/Native with
-#              given $CONFIGURATION
+echo "Generating ProjFS.Linux constants..."
+"$SCRIPTDIR"/GenerateConstants.sh || exit 1
 
+echo "Restoring and building ProjFS.Linux packages..."
 dotnet restore $PROJFS/PrjFSLib.Linux.Managed/PrjFSLib.Linux.Managed.csproj /p:Configuration=$CONFIGURATION /p:Platform=x64 --packages $PACKAGES || exit 1
 dotnet build $PROJFS/PrjFSLib.Linux.Managed/PrjFSLib.Linux.Managed.csproj /p:Configuration=$CONFIGURATION /p:Platform=x64 || exit 1
