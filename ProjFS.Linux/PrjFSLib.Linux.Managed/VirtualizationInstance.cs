@@ -1,6 +1,7 @@
 using System;
 using System.Runtime.InteropServices;
 using System.Text;
+using static PrjFSLib.Linux.Interop.Errno;
 
 namespace PrjFSLib.Linux
 {
@@ -280,7 +281,7 @@ namespace PrjFSLib.Linux
                 }
             }
 
-            return result.ConvertResultToErrno();
+            return -result.ToErrno();
         }
 
         private int HandleNonProjEvent(ref Interop.ProjFS.Event ev, bool perm)
@@ -336,7 +337,7 @@ namespace PrjFSLib.Linux
                 }
             }
 
-            int ret = result.ConvertResultToErrno();
+            int ret = -result.ToErrno();
 
             if (perm)
             {

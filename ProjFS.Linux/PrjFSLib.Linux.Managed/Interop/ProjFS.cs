@@ -60,7 +60,7 @@ namespace PrjFSLib.Linux.Interop
                 relativePath,
                 fileMode,
                 new Attr[0],
-                0).ConvertErrnoToResult();
+                0).ToResult();
         }
 
         public Result CreateProjFile(
@@ -96,7 +96,7 @@ namespace PrjFSLib.Linux.Interop
                         fileSize,
                         fileMode,
                         attrs,
-                        (uint)attrs.Length).ConvertErrnoToResult();
+                        (uint)attrs.Length).ToResult();
                 }
             }
         }
@@ -108,7 +108,7 @@ namespace PrjFSLib.Linux.Interop
             return _CreateProjSymlink(
                 this.handle,
                 relativePath,
-                symlinkTarget).ConvertErrnoToResult();
+                symlinkTarget).ToResult();
         }
 
         public Result GetProjAttrs(
@@ -140,7 +140,7 @@ namespace PrjFSLib.Linux.Interop
                         this.handle,
                         relativePath,
                         attrs,
-                        (uint)attrs.Length).ConvertErrnoToResult();
+                        (uint)attrs.Length).ToResult();
                 }
             }
         }
