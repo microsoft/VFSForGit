@@ -242,7 +242,7 @@ namespace MirrorProvider.Windows
             try
             {
                 const int bufferSize = 64 * 1024;
-                using (WriteBuffer writeBuffer = this.virtualizationInstance.CreateWriteBuffer(bufferSize))
+                using (IWriteBuffer writeBuffer = this.virtualizationInstance.CreateWriteBuffer(bufferSize))
                 {
                     ulong writeOffset = 0;
 
@@ -333,10 +333,10 @@ namespace MirrorProvider.Windows
             Console.WriteLine($"OnHardlinkCreated, relativeExistingFilePath: {relativeExistingFilePath}, relativeNewLinkFilePath: {relativeNewLinkFilePath}");
         }
 
-        private HResult OnFilePreConvertToFull(string relativePath)
+        private bool OnFilePreConvertToFull(string virtualPath, uint triggeringProcessId, string triggeringProcessImageFileName)
         {
-            Console.WriteLine($"OnFilePreConvertToFullHandler: {relativePath}");
-            return HResult.Ok;
+            Console.WriteLine($"OnPreConvertToFull (virtualPath: {virtualPath}), triggeringProcessId: {triggeringProcessId}, triggeringProcessImageFileName: {triggeringProcessImageFileName}");
+            return true;
         }
 
         // TODO: Add this to the ProjFS API
