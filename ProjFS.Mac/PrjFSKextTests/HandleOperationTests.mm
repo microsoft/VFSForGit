@@ -20,6 +20,17 @@ class PrjFSProviderUserClient
 {
 };
 
+// Temperary until we find the best place to import from
+#define KAUTH_FILEOP_OPEN            1
+#define KAUTH_FILEOP_CLOSE           2
+#define KAUTH_FILEOP_RENAME          3
+#define KAUTH_FILEOP_EXCHANGE        4
+#define KAUTH_FILEOP_LINK            5
+#define KAUTH_FILEOP_EXEC            6
+#define KAUTH_FILEOP_DELETE          7
+#define KAUTH_FILEOP_WILL_RENAME     8
+#define KAUTH_FILEOP_CLOSE_MODIFIED  (1<<1)
+
 bool ProviderMessaging_TrySendRequestAndWaitForResponse(
     VirtualizationRootHandle root,
     MessageType messageType,
@@ -178,13 +189,13 @@ static void SetFileXattrData(shared_ptr<vnode> vnode)
                 ProviderMessaging_TrySendRequestAndWaitForResponse,
                 _,
                 MessageType_KtoU_HydrateFile,
+                testFileVnode.get(),
                 _,
                 _,
                 _,
                 _,
                 _,
-                _,
-                _));
+                nullptr));
         MockCalls::Clear();
     }
 }
@@ -321,19 +332,7 @@ static void SetFileXattrData(shared_ptr<vnode> vnode)
             reinterpret_cast<uintptr_t>(testDirVnode.get()),
             0,
             0);
-        XCTAssertFalse(
-            MockCalls::DidCallFunction(
-                ProviderMessaging_TrySendRequestAndWaitForResponse,
-                _,
-                MessageType_KtoU_EnumerateDirectory,
-                testDirVnode.get(),
-                _,
-                _,
-                _,
-                _,
-                _,
-                nullptr));
-        MockCalls::Clear();
+        XCTAssertFalse(MockCalls::DidCallFunction(ProviderMessaging_TrySendRequestAndWaitForResponse));
     }
 }
     
@@ -423,30 +422,7 @@ static void SetFileXattrData(shared_ptr<vnode> vnode)
         reinterpret_cast<uintptr_t>(testFileVnode.get()),
         0,
         0);
-    XCTAssertFalse(
-       MockCalls::DidCallFunction(
-            ProviderMessaging_TrySendRequestAndWaitForResponse,
-            _,
-            MessageType_KtoU_HydrateFile,
-            testFileVnode.get(),
-            _,
-            _,
-            _,
-            _,
-            _,
-            nullptr));
-    XCTAssertFalse(
-       MockCalls::DidCallFunction(
-            ProviderMessaging_TrySendRequestAndWaitForResponse,
-            _,
-            MessageType_KtoU_NotifyFilePreConvertToFull,
-            testFileVnode.get(),
-            _,
-            _,
-            _,
-            _,
-            _,
-            nullptr));
+    XCTAssertFalse(MockCalls::DidCallFunction(ProviderMessaging_TrySendRequestAndWaitForResponse));
 }
 
 - (void) testEventsAreIgnored {
@@ -492,16 +468,13 @@ static void SetFileXattrData(shared_ptr<vnode> vnode)
 
 - (void) testOpen {
     // A file that is not yet in the virtual root, should recieve a creation request
-    char pathBuffer[PrjFSMaxPath] = "";
-    int pathLength = sizeof(pathBuffer);
-    vn_getpath(testFileVnode.get(), pathBuffer, &pathLength);
-
+    testFileVnode->attrValues.va_flags = 0;
     HandleFileOpOperation(
         nullptr,
         nullptr,
-        1,
+        KAUTH_FILEOP_OPEN,
         reinterpret_cast<uintptr_t>(testFileVnode.get()),
-        reinterpret_cast<uintptr_t>(pathBuffer),
+        reinterpret_cast<uintptr_t>(filePath),
         0,
         0);
     
@@ -522,31 +495,74 @@ static void SetFileXattrData(shared_ptr<vnode> vnode)
 - (void) testOpenInVirtualizationRoot {
     // A file that is already in the virtual root, should not recieve a creation request
     testFileVnode->attrValues.va_flags = FileFlags_IsInVirtualizationRoot;
-    char pathBuffer[PrjFSMaxPath] = "";
-    int pathLength = sizeof(pathBuffer);
-    vn_getpath(testFileVnode.get(), pathBuffer, &pathLength);
 
     HandleFileOpOperation(
         nullptr,
         nullptr,
-        1,
+        KAUTH_FILEOP_OPEN,
         reinterpret_cast<uintptr_t>(testFileVnode.get()),
-        reinterpret_cast<uintptr_t>(pathBuffer),
+        reinterpret_cast<uintptr_t>(filePath),
         0,
         0);
     
-    XCTAssertFalse(
+    XCTAssertFalse(MockCalls::DidCallFunction(ProviderMessaging_TrySendRequestAndWaitForResponse));
+}
+
+- (void) testCloseWithModifed {
+    testFileVnode->attrValues.va_flags = FileFlags_IsInVirtualizationRoot;
+
+    HandleFileOpOperation(
+        nullptr,
+        nullptr,
+        KAUTH_FILEOP_CLOSE,
+        reinterpret_cast<uintptr_t>(testFileVnode.get()),
+        reinterpret_cast<uintptr_t>(filePath),
+        KAUTH_FILEOP_CLOSE_MODIFIED,
+        0);
+    
+    XCTAssertTrue(
        MockCalls::DidCallFunction(
             ProviderMessaging_TrySendRequestAndWaitForResponse,
             _,
-            MessageType_KtoU_NotifyFileCreated,
+            MessageType_KtoU_NotifyFileModified,
             testFileVnode.get(),
             _,
-            _,
+            filePath,
             _,
             _,
             _,
             _));
+}
+
+- (void) testCloseWithModifedOnDirectory {
+    testFileVnode->attrValues.va_flags = FileFlags_IsInVirtualizationRoot;
+
+    HandleFileOpOperation(
+        nullptr,
+        nullptr,
+        KAUTH_FILEOP_CLOSE,
+        reinterpret_cast<uintptr_t>(testDirVnode.get()),
+        reinterpret_cast<uintptr_t>(dirPath),
+        KAUTH_FILEOP_CLOSE_MODIFIED,
+        0);
+    
+    XCTAssertFalse(MockCalls::DidCallFunction(ProviderMessaging_TrySendRequestAndWaitForResponse));
+}
+
+
+- (void) testCloseWithoutModifed {
+    testFileVnode->attrValues.va_flags = FileFlags_IsInVirtualizationRoot;
+
+    HandleFileOpOperation(
+        nullptr,
+        nullptr,
+        KAUTH_FILEOP_CLOSE,
+        reinterpret_cast<uintptr_t>(testFileVnode.get()),
+        reinterpret_cast<uintptr_t>(filePath),
+        0,
+        0);
+    
+    XCTAssertFalse(MockCalls::DidCallFunction(ProviderMessaging_TrySendRequestAndWaitForResponse));
 }
 
 
