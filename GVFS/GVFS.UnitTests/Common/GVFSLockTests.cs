@@ -16,7 +16,8 @@ namespace GVFS.UnitTests.Common
             pid: 1234,
             isElevated: false,
             checkAvailabilityOnly: false,
-            parsedCommand: "git command");
+            parsedCommand: "git command",
+            gitCommandSessionId: "123");
 
         [TestCase]
         public void TryAcquireAndReleaseLockForExternalRequestor()
@@ -115,7 +116,7 @@ namespace GVFS.UnitTests.Common
             MockPlatform mockPlatform = (MockPlatform)GVFSPlatform.Instance;
             GVFSLock gvfsLock = this.AcquireDefaultLock(mockPlatform);
 
-            NamedPipeMessages.LockData newLockData = new NamedPipeMessages.LockData(4321, false, false, "git new");
+            NamedPipeMessages.LockData newLockData = new NamedPipeMessages.LockData(4321, false, false, "git new", "123");
             NamedPipeMessages.LockData existingExternalHolder;
             gvfsLock.TryAcquireLockForExternalRequestor(newLockData, out existingExternalHolder).ShouldBeFalse();
             this.ValidateLockHeld(gvfsLock, DefaultLockData);
@@ -130,7 +131,7 @@ namespace GVFS.UnitTests.Common
             GVFSLock gvfsLock = this.AcquireDefaultLock(mockPlatform);
             mockPlatform.ActiveProcesses.Remove(DefaultLockData.PID);
 
-            NamedPipeMessages.LockData newLockData = new NamedPipeMessages.LockData(4321, false, false, "git new");
+            NamedPipeMessages.LockData newLockData = new NamedPipeMessages.LockData(4321, false, false, "git new", "123");
             mockPlatform.ActiveProcesses.Add(newLockData.PID);
             NamedPipeMessages.LockData existingExternalHolder;
             gvfsLock.TryAcquireLockForExternalRequestor(newLockData, out existingExternalHolder).ShouldBeTrue();
@@ -200,6 +201,7 @@ namespace GVFS.UnitTests.Common
                 actual.IsElevated.ShouldEqual(expected.IsElevated);
                 actual.CheckAvailabilityOnly.ShouldEqual(expected.CheckAvailabilityOnly);
                 actual.ParsedCommand.ShouldEqual(expected.ParsedCommand);
+                actual.GitCommandSessionId.ShouldEqual(expected.GitCommandSessionId);
             }
             else
             {

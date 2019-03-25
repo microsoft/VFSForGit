@@ -14,20 +14,22 @@ namespace GVFS.UnitTests.Common
         public void LockData_FromBody_Parsing()
         {
             // Verify simple vanilla parsing
-            LockData lockDataBefore = new LockData(1, true, true, "git status --serialize=D:\\Sources\\tqoscy2l.ud0_status.tmp --ignored=matching --untracked-files=complete");
+            LockData lockDataBefore = new LockData(1, true, true, "git status --serialize=D:\\Sources\\tqoscy2l.ud0_status.tmp --ignored=matching --untracked-files=complete", "123");
             LockData lockDataAfter = LockData.FromBody(lockDataBefore.ToMessage());
             lockDataAfter.PID.ShouldEqual(1);
             lockDataAfter.IsElevated.ShouldEqual(true);
             lockDataAfter.CheckAvailabilityOnly.ShouldEqual(true);
             lockDataAfter.ParsedCommand.ShouldEqual("git status --serialize=D:\\Sources\\tqoscy2l.ud0_status.tmp --ignored=matching --untracked-files=complete");
+            lockDataAfter.GitCommandSessionId.ShouldEqual("123");
 
             // Verify strings with "|" will work
-            LockData lockDataWithPipeBefore = new LockData(1, true, true, "git commit -m 'message with a | and another |'");
+            LockData lockDataWithPipeBefore = new LockData(1, true, true, "git commit -m 'message with a | and another |'", "123|321");
             LockData lockDataWithPipeAfter = LockData.FromBody(lockDataWithPipeBefore.ToMessage());
             lockDataWithPipeAfter.PID.ShouldEqual(1);
             lockDataWithPipeAfter.IsElevated.ShouldEqual(true);
             lockDataWithPipeAfter.CheckAvailabilityOnly.ShouldEqual(true);
             lockDataWithPipeAfter.ParsedCommand.ShouldEqual("git commit -m 'message with a | and another |'");
+            lockDataWithPipeAfter.GitCommandSessionId.ShouldEqual("123|321");
 
             // Verify exception cases and messages
             this.ValidateError("1|true|true", "Invalid lock message. Expected at least 5 parts, got: 3 from message: '1|true|true'");

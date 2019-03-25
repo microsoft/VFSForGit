@@ -196,6 +196,7 @@ namespace GVFS.Common
                 if (externalHolderTerminatedWithoutReleasingLock)
                 {
                     this.ReleaseLockForTerminatedProcess(existingExternalHolder.PID);
+                    this.tracer.SetGitCommandSessionId(string.Empty);
                     existingExternalHolder = null;
                 }
 

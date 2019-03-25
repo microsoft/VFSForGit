@@ -16,7 +16,7 @@ namespace GVFS.UnitTests.Common
     [TestFixture]
     public class GitStatusCacheTests
     {
-        private static NamedPipeMessages.LockData statusCommandLockData = new NamedPipeMessages.LockData(123, false, false, "git status");
+        private static NamedPipeMessages.LockData statusCommandLockData = new NamedPipeMessages.LockData(123, false, false, "git status", "123");
 
         private MockFileSystem fileSystem;
         private MockGitProcess gitProcess;

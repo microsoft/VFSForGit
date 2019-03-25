@@ -132,6 +132,10 @@ namespace GVFS.UnitTests.Mock.Common
             return TimeSpan.Zero;
         }
 
+        public void SetGitCommandSessionId(string sessionId)
+        {
+        }
+
         public void Dispose()
         {
             this.Dispose(true);

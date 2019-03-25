@@ -223,6 +223,7 @@ namespace GVFS.CommandLine
                             isConsoleOutputRedirectedToFile: GVFSPlatform.Instance.IsConsoleOutputRedirectedToFile(),
                             checkAvailabilityOnly: false,
                             gvfsEnlistmentRoot: enlistmentRoot,
+                            gitCommandSessionId: string.Empty,
                             result: out result))
                     {
                         this.ReportErrorAndExit("Unable to acquire the lock prior to unmount. " + result);

@@ -99,6 +99,7 @@ namespace GVFS.FunctionalTests.LockHolder
                     isConsoleOutputRedirectedToFile: false,
                     checkAvailabilityOnly: false,
                     gvfsEnlistmentRoot: null,
+                    gitCommandSessionId: string.Empty,
                     result: out result))
                 {
                     throw new Exception(result);
@@ -117,7 +118,7 @@ namespace GVFS.FunctionalTests.LockHolder
 
                 int pid = Process.GetCurrentProcess().Id;
 
-                NamedPipeMessages.LockRequest request = new NamedPipeMessages.LockRequest(pid: pid, isElevated: false, checkAvailabilityOnly: false, parsedCommand: AcquireGVFSLockVerb.fullCommand);
+                NamedPipeMessages.LockRequest request = new NamedPipeMessages.LockRequest(pid: pid, isElevated: false, checkAvailabilityOnly: false, parsedCommand: AcquireGVFSLockVerb.fullCommand, gitCommandSessionId: string.Empty);
                 NamedPipeMessages.Message requestMessage = request.CreateMessage(NamedPipeMessages.ReleaseLock.Request);
 
                 pipeClient.SendRequest(requestMessage);

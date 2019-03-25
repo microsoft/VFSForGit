@@ -18,6 +18,7 @@ namespace GVFS.UnitTests.Tracing
             const EventOpcode opcode = EventOpcode.Start;
             const string enlistmentId = "test-enlistmentId";
             const string mountId = "test-mountId";
+            const string gitCommandSessionId = "test_sessionId";
             const string payload = "test-payload";
 
             Dictionary<string, object> expectedDict = new Dictionary<string, object>
@@ -31,6 +32,7 @@ namespace GVFS.UnitTests.Tracing
                 {
                     ["enlistmentId"] = enlistmentId,
                     ["mountId"] = mountId,
+                    ["gitCommandSessionId"] = gitCommandSessionId,
                     ["json"] = payload,
                 },
             };
@@ -46,6 +48,7 @@ namespace GVFS.UnitTests.Tracing
                 {
                     EnlistmentId = enlistmentId,
                     MountId = mountId,
+                    GitCommandSessionId = gitCommandSessionId,
                     Json = payload
                 },
             };
@@ -66,6 +69,7 @@ namespace GVFS.UnitTests.Tracing
             Assert.AreEqual(expectedPayloadDict.Count, actualPayloadDict.Count);
             Assert.AreEqual(expectedPayloadDict["enlistmentId"], actualPayloadDict["enlistmentId"]);
             Assert.AreEqual(expectedPayloadDict["mountId"], actualPayloadDict["mountId"]);
+            Assert.AreEqual(expectedPayloadDict["gitCommandSessionId"], actualPayloadDict["gitCommandSessionId"]);
             Assert.AreEqual(expectedPayloadDict["json"], actualPayloadDict["json"]);
         }
     }
