@@ -490,4 +490,64 @@ static void SetFileXattrData(shared_ptr<vnode> vnode)
     }
 }
 
+- (void) testOpen {
+    // A file that is not yet in the virtual root, should recieve a creation request
+    char pathBuffer[PrjFSMaxPath] = "";
+    int pathLength = sizeof(pathBuffer);
+    vn_getpath(testFileVnode.get(), pathBuffer, &pathLength);
+
+    HandleFileOpOperation(
+        nullptr,
+        nullptr,
+        1,
+        reinterpret_cast<uintptr_t>(testFileVnode.get()),
+        reinterpret_cast<uintptr_t>(pathBuffer),
+        0,
+        0);
+    
+    XCTAssertTrue(
+       MockCalls::DidCallFunction(
+            ProviderMessaging_TrySendRequestAndWaitForResponse,
+            _,
+            MessageType_KtoU_NotifyFileCreated,
+            testFileVnode.get(),
+            _,
+            _,
+            _,
+            _,
+            _,
+            _));
+}
+
+- (void) testOpenInVirtualizationRoot {
+    // A file that is already in the virtual root, should not recieve a creation request
+    testFileVnode->attrValues.va_flags = FileFlags_IsInVirtualizationRoot;
+    char pathBuffer[PrjFSMaxPath] = "";
+    int pathLength = sizeof(pathBuffer);
+    vn_getpath(testFileVnode.get(), pathBuffer, &pathLength);
+
+    HandleFileOpOperation(
+        nullptr,
+        nullptr,
+        1,
+        reinterpret_cast<uintptr_t>(testFileVnode.get()),
+        reinterpret_cast<uintptr_t>(pathBuffer),
+        0,
+        0);
+    
+    XCTAssertFalse(
+       MockCalls::DidCallFunction(
+            ProviderMessaging_TrySendRequestAndWaitForResponse,
+            _,
+            MessageType_KtoU_NotifyFileCreated,
+            testFileVnode.get(),
+            _,
+            _,
+            _,
+            _,
+            _,
+            _));
+}
+
+
 @end

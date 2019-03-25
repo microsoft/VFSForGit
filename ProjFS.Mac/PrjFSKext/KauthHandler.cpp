@@ -39,7 +39,7 @@ KEXT_STATIC int HandleVnodeOperation(
     uintptr_t       arg2,
     uintptr_t       arg3);
 
-static int HandleFileOpOperation(
+KEXT_STATIC int HandleFileOpOperation(
     kauth_cred_t    credential,
     void*           idata,
     kauth_action_t  action,
@@ -431,7 +431,7 @@ CleanupAndReturn:
 
 // Note: a fileop listener MUST NOT return an error, or it will result in a kernel panic.
 // Fileop events are informational only.
-static int HandleFileOpOperation(
+KEXT_STATIC int HandleFileOpOperation(
     kauth_cred_t    credential,
     void*           idata,
     kauth_action_t  action,
