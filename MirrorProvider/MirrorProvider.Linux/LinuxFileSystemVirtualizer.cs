@@ -111,18 +111,21 @@ namespace MirrorProvider.Linux
                     else
                     {
                         string childRelativePath = Path.Combine(relativePath, child.Name);
+                        string childFullPathInMirror = this.GetFullPathInMirror(childRelativePath);
                         NativeMethods.StatBuffer statBuffer = new NativeMethods.StatBuffer();
+                        byte[] childFullPathInMirrorBuf = GetBytesUTF8(childFullPathInMirror);
+                        int statResult;
                         unsafe
                         {
-                            //// TODO(Linux): need to marshal from UTF8
-                            IntPtr childFullPathInMirror = Marshal.StringToHGlobalAnsi(this.GetFullPathInMirror(childRelativePath));
-                            int statResult = NativeMethods.LStat((byte*)childFullPathInMirror, out statBuffer);
-                            Marshal.FreeHGlobal(childFullPathInMirror);
-                            if (statResult == -1)
+                            fixed (byte* childFullPathInMirrorPtr = childFullPathInMirrorBuf)
                             {
-                                Console.WriteLine($"NativeMethods.LStat failed: {Marshal.GetLastWin32Error()}");
-                                return Result.EIOError;
+                                statResult = NativeMethods.LStat(childFullPathInMirrorPtr, out statBuffer);
                             }
+                        }
+                        if (statResult == -1)
+                        {
+                            Console.WriteLine($"NativeMethods.LStat failed: {Marshal.GetLastWin32Error()}");
+                            return Result.EIOError;
                         }
                         uint fileMode = statBuffer.Mode & 0xFFF;  // 07777 = ALLPERMS
 
@@ -250,24 +253,24 @@ namespace MirrorProvider.Linux
         private bool TryGetSymLinkTarget(string relativePath, out string symLinkTarget)
         {
             symLinkTarget = null;
+            string fullPathInMirror = this.GetFullPathInMirror(relativePath);
+            byte[] fullPathInMirrorBuf = GetBytesUTF8(fullPathInMirror);
             const ulong BufSize = 4096;
             byte[] targetBuffer = new byte[BufSize];
+            long bytesRead;
             unsafe
             {
-                fixed (byte* bufPtr = targetBuffer)
+                fixed (byte* fullPathInMirrorPtr = fullPathInMirrorBuf, bufPtr = targetBuffer)
                 {
-                    //// TODO(Linux): need to marshal from UTF8
-                    IntPtr fullPathInMirror = Marshal.StringToHGlobalAnsi(this.GetFullPathInMirror(relativePath));
-                    long bytesRead = NativeMethods.Readlink((byte*)fullPathInMirror, bufPtr, BufSize);
-                    Marshal.FreeHGlobal(fullPathInMirror);
-                    if (bytesRead < 0)
-                    {
-                        Console.WriteLine($"GetSymLinkTarget failed: {Marshal.GetLastWin32Error()}");
-                        return false;
-                    }
-                    targetBuffer[bytesRead] = 0;
+                    bytesRead = NativeMethods.Readlink(fullPathInMirrorPtr, bufPtr, BufSize);
                 }
             }
+            if (bytesRead < 0)
+            {
+                Console.WriteLine($"GetSymLinkTarget failed: {Marshal.GetLastWin32Error()}");
+                return false;
+            }
+            targetBuffer[bytesRead] = 0;
             symLinkTarget = Encoding.UTF8.GetString(targetBuffer);
 
             if (symLinkTarget.StartsWith(this.Enlistment.MirrorRoot, PathComparison))
@@ -288,6 +291,14 @@ namespace MirrorProvider.Linux
             bytes[0] = version;
 
             return bytes;
+        }
+
+        private static byte[] GetBytesUTF8(string str)
+        {
+            int bufLen = Encoding.UTF8.GetByteCount(str);
+            byte[] buf = new byte[bufLen + 1];
+            Encoding.UTF8.GetBytes(str, 0, str.Length, buf, 0);
+            return buf;
         }
 
         private static unsafe class NativeMethods
