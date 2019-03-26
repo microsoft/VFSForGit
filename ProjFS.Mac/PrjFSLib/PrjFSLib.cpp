@@ -669,7 +669,7 @@ static void HandleKernelRequest(void* messageMemory, uint32_t messageSize)
             string errorMessage = ss.str();
 
             s_callbacks.LogError(errorMessage.c_str());
-            result = PrjFS_Result_EPathNotFound;
+            result = PrjFS_Result_Success;
             goto CleanupAndReturn;
         }
         else
