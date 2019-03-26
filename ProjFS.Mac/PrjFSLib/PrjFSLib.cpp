@@ -18,6 +18,8 @@
 #include <IOKit/IODataQueueClient.h>
 #include <mach/mach_port.h>
 #include <CoreFoundation/CFNumber.h>
+#include <string>
+#include <sstream>
 
 #include "stdlib.h"
 
@@ -43,6 +45,7 @@ using std::map;
 using std::move;
 using std::mutex;
 using std::oct;
+using std::ostringstream;
 using std::pair;
 using std::queue;
 using std::set;
@@ -163,13 +166,15 @@ PrjFS_Result PrjFS_StartVirtualizationInstance(
         << callbacks.EnumerateDirectory << ", "
         << callbacks.GetFileStream << ", "
         << callbacks.NotifyOperation << ", "
+        << callbacks.LogError << ","
         << poolThreadCount << ")" << endl;
 #endif
     
     if (nullptr == virtualizationRootFullPath ||
         nullptr == callbacks.EnumerateDirectory ||
         nullptr == callbacks.GetFileStream ||
-        nullptr == callbacks.NotifyOperation)
+        nullptr == callbacks.NotifyOperation ||
+        nullptr == callbacks.LogError)
     {
         return PrjFS_Result_EInvalidArgs;
     }
@@ -639,16 +644,20 @@ static void HandleKernelRequest(void* messageMemory, uint32_t messageSize)
     PrjFS_Result result = PrjFS_Result_EIOError;
     
     Message request = ParseMessageMemory(messageMemory, messageSize);
+    const MessageHeader* requestHeader = request.messageHeader;
     
     char pathBuffer[PrjFSMaxPath];
     if (request.path == nullptr)
     {
         fsid_t fsid = request.messageHeader->fsidInode.fsid;
         ssize_t pathSize = fsgetpath(pathBuffer, sizeof(pathBuffer), &fsid, request.messageHeader->fsidInode.inode);
+
         if (pathSize < 0)
         {
             // TODO(Mac): Add this message to PrjFSLib logging once available (#395)
-            cout
+            ostringstream ss;
+            ss
+                << "MessageType: " << requestHeader->messageType << " "
                 << "PrjFSLib.HandleKernelRequest: fsgetpath failed for fsid 0x"
                 << hex << fsid.val[0] << ":" << hex << fsid.val[1]
                 << ", inode "
@@ -657,6 +666,11 @@ static void HandleKernelRequest(void* messageMemory, uint32_t messageSize)
                 << errno
                 << "(" << strerror(errno) << ")"
                 << endl;
+            string errorMessage = ss.str();
+
+            s_callbacks.LogError(errorMessage.c_str());
+            result = PrjFS_Result_Success;
+            goto CleanupAndReturn;
         }
         else
         {
@@ -677,7 +691,6 @@ static void HandleKernelRequest(void* messageMemory, uint32_t messageSize)
         }
     }
     
-    const MessageHeader* requestHeader = request.messageHeader;
     switch (requestHeader->messageType)
     {
         case MessageType_KtoU_EnumerateDirectory:
@@ -735,6 +748,7 @@ static void HandleKernelRequest(void* messageMemory, uint32_t messageSize)
     // async callbacks are not yet implemented
     assert(PrjFS_Result_Pending != result);
     
+CleanupAndReturn:
     if (PrjFS_Result_Pending != result)
     {
         MessageType responseType =

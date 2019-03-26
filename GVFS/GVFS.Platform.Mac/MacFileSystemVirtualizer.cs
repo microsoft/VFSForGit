@@ -213,6 +213,7 @@ namespace GVFS.Platform.Mac
             // Callbacks
             this.virtualizationInstance.OnEnumerateDirectory = this.OnEnumerateDirectory;
             this.virtualizationInstance.OnGetFileStream = this.OnGetFileStream;
+            this.virtualizationInstance.OnLogError = this.OnLogError;
             this.virtualizationInstance.OnFileModified = this.OnFileModified;
             this.virtualizationInstance.OnPreDelete = this.OnPreDelete;
             this.virtualizationInstance.OnNewFileCreated = this.OnNewFileCreated;
@@ -428,6 +429,11 @@ namespace GVFS.Platform.Mac
             }
 
             return Result.EIOError;
+        }
+
+        private void OnLogError(string errorMessage)
+        {
+            this.Context.Tracer.RelatedError($"{nameof(MacFileSystemVirtualizer)}::{nameof(this.OnLogError)}: {errorMessage}");
         }
 
         private void OnFileModified(string relativePath)
