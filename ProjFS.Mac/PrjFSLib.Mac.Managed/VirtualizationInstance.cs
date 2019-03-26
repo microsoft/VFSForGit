@@ -13,6 +13,7 @@ namespace PrjFSLib.Mac
         // References held to these delegates via class properties
         public virtual EnumerateDirectoryCallback OnEnumerateDirectory { get; set; }
         public virtual GetFileStreamCallback OnGetFileStream { get; set; }
+        public virtual LogErrorCallback OnLogError { get; set; }
 
         public virtual NotifyFileModified OnFileModified { get; set; }
         public virtual NotifyFilePreConvertToFullEvent OnFilePreConvertToFull { get; set; }
@@ -35,6 +36,7 @@ namespace PrjFSLib.Mac
                 OnEnumerateDirectory = this.OnEnumerateDirectory,
                 OnGetFileStream = this.OnGetFileStream,
                 OnNotifyOperation = this.preventGCOnNotifyOperationDelegate = new NotifyOperationCallback(this.OnNotifyOperation),
+                OnLogError = this.OnLogError,
             };
 
             return Interop.PrjFSLib.StartVirtualizationInstance(

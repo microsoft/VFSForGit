@@ -33,6 +33,9 @@ namespace PrjFSLib.Mac
         bool isDirectory,
         NotificationType notificationType);
 
+    public delegate Result LogErrorCallback(
+        string errorMessage);
+
     // Pre-event notifications
     public delegate Result NotifyPreDeleteEvent(
         string relativePath,
