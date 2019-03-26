@@ -1,13 +1,6 @@
 #include "../PrjFSKext/kernel-header-wrappers/vnode.h"
 #include <string>
 
-enum
-{
-    KAUTH_RESULT_ALLOW = 1,
-    KAUTH_RESULT_DENY,
-    KAUTH_RESULT_DEFER
-};
-
 // Kernel proc functions that are being mocked
 extern "C"
 {

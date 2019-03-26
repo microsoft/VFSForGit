@@ -6,6 +6,7 @@
 #include "../PrjFSKext/public/Message.h"
 #include "../PrjFSKext/ProviderMessaging.hpp"
 #include "../PrjFSKext/public/PrjFSXattrs.h"
+#include "../PrjFSKext/kernel-header-wrappers/kauth.h"
 #import <XCTest/XCTest.h>
 #import <sys/stat.h>
 #include "KextMockUtilities.hpp"
@@ -19,17 +20,6 @@ using KextMock::_;
 class PrjFSProviderUserClient
 {
 };
-
-// Temperary until we find the best place to import from
-#define KAUTH_FILEOP_OPEN            1
-#define KAUTH_FILEOP_CLOSE           2
-#define KAUTH_FILEOP_RENAME          3
-#define KAUTH_FILEOP_EXCHANGE        4
-#define KAUTH_FILEOP_LINK            5
-#define KAUTH_FILEOP_EXEC            6
-#define KAUTH_FILEOP_DELETE          7
-#define KAUTH_FILEOP_WILL_RENAME     8
-#define KAUTH_FILEOP_CLOSE_MODIFIED  (1<<1)
 
 bool ProviderMessaging_TrySendRequestAndWaitForResponse(
     VirtualizationRootHandle root,
