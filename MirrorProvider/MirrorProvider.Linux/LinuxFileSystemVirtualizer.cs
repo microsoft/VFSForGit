@@ -3,7 +3,6 @@ using System;
 using System.IO;
 using System.Runtime.InteropServices;
 using System.Text;
-using Mono.Unix.Native;
 
 namespace MirrorProvider.Linux
 {
@@ -112,12 +111,20 @@ namespace MirrorProvider.Linux
                     else
                     {
                         string childRelativePath = Path.Combine(relativePath, child.Name);
-                        int statResult = Syscall.lstat(this.GetFullPathInMirror(childRelativePath), out Stat stat);
-                        if (statResult == -1)
+                        NativeMethods.StatBuffer statBuffer = new NativeMethods.StatBuffer();
+                        unsafe
                         {
-                            return Result.EIOError;
+                            //// TODO(Linux): need to marshal from UTF8
+                            IntPtr childFullPathInMirror = Marshal.StringToHGlobalAnsi(this.GetFullPathInMirror(childRelativePath));
+                            int statResult = NativeMethods.LStat((byte*)childFullPathInMirror, out statBuffer);
+                            Marshal.FreeHGlobal(childFullPathInMirror);
+                            if (statResult == -1)
+                            {
+                                Console.WriteLine($"NativeMethods.LStat failed: {Marshal.GetLastWin32Error()}");
+                                return Result.EIOError;
+                            }
                         }
-                        uint fileMode = (uint)(stat.st_mode & FilePermissions.ALLPERMS);
+                        uint fileMode = statBuffer.Mode & 0xFFF;  // 07777 = ALLPERMS
 
                         Result result = this.virtualizationInstance.WritePlaceholderFile(
                             childRelativePath,
@@ -243,18 +250,24 @@ namespace MirrorProvider.Linux
         private bool TryGetSymLinkTarget(string relativePath, out string symLinkTarget)
         {
             symLinkTarget = null;
-            string fullPathInMirror = this.GetFullPathInMirror(relativePath);
-
             const ulong BufSize = 4096;
             byte[] targetBuffer = new byte[BufSize];
-            long bytesRead = Syscall.readlink(fullPathInMirror, targetBuffer);
-            if (bytesRead < 0)
+            unsafe
             {
-                Console.WriteLine($"GetSymLinkTarget failed: {Marshal.GetLastWin32Error()}");
-                return false;
+                fixed (byte* bufPtr = targetBuffer)
+                {
+                    //// TODO(Linux): need to marshal from UTF8
+                    IntPtr fullPathInMirror = Marshal.StringToHGlobalAnsi(this.GetFullPathInMirror(relativePath));
+                    long bytesRead = NativeMethods.Readlink((byte*)fullPathInMirror, bufPtr, BufSize);
+                    Marshal.FreeHGlobal(fullPathInMirror);
+                    if (bytesRead < 0)
+                    {
+                        Console.WriteLine($"GetSymLinkTarget failed: {Marshal.GetLastWin32Error()}");
+                        return false;
+                    }
+                    targetBuffer[bytesRead] = 0;
+                }
             }
-
-            targetBuffer[bytesRead] = 0;
             symLinkTarget = Encoding.UTF8.GetString(targetBuffer);
 
             if (symLinkTarget.StartsWith(this.Enlistment.MirrorRoot, PathComparison))
@@ -275,6 +288,54 @@ namespace MirrorProvider.Linux
             bytes[0] = version;
 
             return bytes;
+        }
+
+        private static unsafe class NativeMethods
+        {
+            // #define _STAT_VER   1
+            private static readonly int STAT_VER = 1;
+
+            [StructLayout(LayoutKind.Sequential)]
+            public struct TimeSpec
+            {
+                public long Sec;
+                public long Nsec;
+            }
+
+            // TODO(Linux): assumes stat64 field layout of x86-64 architecture
+            [StructLayout(LayoutKind.Sequential)]
+            public struct StatBuffer
+            {
+                public ulong Dev;           /* ID of device containing file */
+                public ulong Ino;           /* File serial number */
+                public ulong NLink;         /* Number of hard links */
+                public uint Mode;           /* Mode of file (see below) */
+                public uint UID;            /* User ID of the file */
+                public uint GID;            /* Group ID of the file */
+                public uint Padding;        /* RESERVED: DO NOT USE! */
+                public ulong RDev;          /* Device ID if special file */
+                public long Size;           /* file size, in bytes */
+                public long BlkSize;        /* optimal blocksize for I/O */
+                public long Blocks;         /* blocks allocated for file */
+                public TimeSpec ATimespec;  /* time of last access */
+                public TimeSpec MTimespec;  /* time of last data modification */
+                public TimeSpec CTimespec;  /* time of last status change */
+
+                [MarshalAs(UnmanagedType.ByValArray, SizeConst = 3)]
+                public long[] Reserved;     /* RESERVED: DO NOT USE! */
+            }
+
+            public static int LStat(byte *name, [Out] out StatBuffer buf)
+            {
+                return __LXStat64(STAT_VER, name, out buf);
+            }
+
+            // TODO(Linux): assumes recent GNU libc or ABI-compatible libc
+            [DllImport("libc", EntryPoint = "__lxstat64", SetLastError = true)]
+            public static extern int __LXStat64(int vers, byte* name, [Out] out StatBuffer buf);
+
+            [DllImport("libc", EntryPoint = "readlink", SetLastError = true)]
+            public static extern long Readlink(byte* name, byte* buf, ulong bufsiz);
         }
     }
 }
