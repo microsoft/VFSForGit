@@ -113,7 +113,7 @@ namespace MirrorProvider.Linux
                         {
                             return Result.EIOError;
                         }
-                        ushort fileMode = (ushort)(stat.st_mode & FilePermissions.ALLPERMS);
+                        uint fileMode = (uint)(stat.st_mode & FilePermissions.ALLPERMS);
 
                         Result result = this.virtualizationInstance.WritePlaceholderFile(
                             childRelativePath,
