@@ -431,10 +431,9 @@ namespace GVFS.Platform.Mac
             return Result.EIOError;
         }
 
-        private Result OnLogError(string errorMessage)
+        private void OnLogError(string errorMessage)
         {
             this.Context.Tracer.RelatedError($"{nameof(MacFileSystemVirtualizer)}::{nameof(this.OnLogError)}: {errorMessage}");
-            return Result.Success;
         }
 
         private void OnFileModified(string relativePath)

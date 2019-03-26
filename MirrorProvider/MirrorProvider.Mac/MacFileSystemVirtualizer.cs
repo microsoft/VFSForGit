@@ -22,6 +22,7 @@ namespace MirrorProvider.Mac
         {
             this.virtualizationInstance.OnEnumerateDirectory = this.OnEnumerateDirectory;
             this.virtualizationInstance.OnGetFileStream = this.OnGetFileStream;
+            this.virtualizationInstance.OnLogError = this.OnLogError;
             this.virtualizationInstance.OnFileModified = this.OnFileModified;
             this.virtualizationInstance.OnPreDelete = this.OnPreDelete;
             this.virtualizationInstance.OnNewFileCreated = this.OnNewFileCreated;
@@ -174,6 +175,11 @@ namespace MirrorProvider.Mac
             }
 
             return Result.Success;
+        }
+
+        private void OnLogError(string errorMessage)
+        {
+            Console.WriteLine($"OnLogError: {errorMessage}");
         }
 
         private void OnFileModified(string relativePath)

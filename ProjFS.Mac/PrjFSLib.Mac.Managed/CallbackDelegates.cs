@@ -33,7 +33,7 @@ namespace PrjFSLib.Mac
         bool isDirectory,
         NotificationType notificationType);
 
-    public delegate Result LogErrorCallback(
+    public delegate void LogErrorCallback(
         string errorMessage);
 
     // Pre-event notifications

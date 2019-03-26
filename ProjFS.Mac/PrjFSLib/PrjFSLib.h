@@ -175,7 +175,7 @@ typedef PrjFS_Result (PrjFS_NotifyOperationCallback)(
     _In_    PrjFS_NotificationType                  notificationType,
     _In_    const char*                             destinationRelativePath);
 
-typedef PrjFS_Result (PrjFS_LogErrorCallback)(
+typedef void (PrjFS_LogErrorCallback)(
     _In_    const char*                             errorMessage);
 
 typedef struct _PrjFS_Callbacks

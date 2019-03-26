@@ -45,11 +45,11 @@ using std::map;
 using std::move;
 using std::mutex;
 using std::oct;
+using std::ostringstream;
 using std::pair;
 using std::queue;
 using std::set;
 using std::shared_ptr;
-using std::stringstream;
 using std::stack;
 using std::string;
 
@@ -655,7 +655,7 @@ static void HandleKernelRequest(void* messageMemory, uint32_t messageSize)
         if (pathSize < 0)
         {
             // TODO(Mac): Add this message to PrjFSLib logging once available (#395)
-            stringstream ss;
+            ostringstream ss;
             ss
                 << "MessageType: " << requestHeader->messageType << " "
                 << "PrjFSLib.HandleKernelRequest: fsgetpath failed for fsid 0x"
@@ -669,11 +669,8 @@ static void HandleKernelRequest(void* messageMemory, uint32_t messageSize)
             string errorMessage = ss.str();
 
             s_callbacks.LogError(errorMessage.c_str());
-            cout << errorMessage << endl;
-
-            free(messageMemory);
             result = PrjFS_Result_EPathNotFound;
-            return;
+            goto CleanupAndReturn;
         }
         else
         {
@@ -751,6 +748,7 @@ static void HandleKernelRequest(void* messageMemory, uint32_t messageSize)
     // async callbacks are not yet implemented
     assert(PrjFS_Result_Pending != result);
     
+CleanupAndReturn:
     if (PrjFS_Result_Pending != result)
     {
         MessageType responseType =
