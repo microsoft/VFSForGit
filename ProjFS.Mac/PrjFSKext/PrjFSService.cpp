@@ -1,7 +1,7 @@
 #include "public/PrjFSCommon.h"
 #include "public/PrjFSProviderClientShared.h"
 #include "PrjFSService.hpp"
-#include "PrjFSProviderUserClient.hpp"
+#include "PrjFSProviderUserClientPrivate.hpp"
 #include "PrjFSLogUserClient.hpp"
 #include "KextLog.hpp"
 #include "VirtualizationRoots.hpp"

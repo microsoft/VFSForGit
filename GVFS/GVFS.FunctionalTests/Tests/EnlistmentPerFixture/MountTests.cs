@@ -19,12 +19,25 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
         private const int GVFSGenericError = 3;
         private const uint GenericRead = 2147483648;
         private const uint FileFlagBackupSemantics = 3355443;
+        private readonly int fileDeletedBackgroundOperationCode;
+        private readonly int directoryDeletedBackgroundOperationCode;
 
         private FileSystemRunner fileSystem;
 
         public MountTests()
         {
             this.fileSystem = new SystemIORunner();
+
+            if (RuntimeInformation.IsOSPlatform(OSPlatform.OSX))
+            {
+                this.fileDeletedBackgroundOperationCode = 16;
+                this.directoryDeletedBackgroundOperationCode = 17;
+            }
+            else
+            {
+                this.fileDeletedBackgroundOperationCode = 3;
+                this.directoryDeletedBackgroundOperationCode = 11;
+            }
         }
 
         [TestCaseSource(typeof(MountSubfolders), MountSubfolders.MountFolders)]
@@ -208,6 +221,31 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
             this.Enlistment.MountGVFS();
 
             alternatesFilePath.ShouldBeAFile(this.fileSystem).WithContents(objectsRoot);
+        }
+
+        [TestCase]
+        public void MountCanProcessSavedBackgroundQueueTasks()
+        {
+            string deletedFileEntry = "Test_EPF_WorkingDirectoryTests/1/2/3/4/ReadDeepProjectedFile.cpp";
+            string deletedDirEntry = "Test_EPF_WorkingDirectoryTests/1/2/3/4/";
+            GVFSHelpers.ModifiedPathsShouldNotContain(this.Enlistment, this.fileSystem, deletedFileEntry);
+            GVFSHelpers.ModifiedPathsShouldNotContain(this.Enlistment, this.fileSystem, deletedDirEntry);
+            this.Enlistment.UnmountGVFS();
+
+            // Prime the background queue with delete messages
+            string deleteFilePath = Path.Combine("Test_EPF_WorkingDirectoryTests", "1", "2", "3", "4", "ReadDeepProjectedFile.cpp");
+            string deleteDirPath = Path.Combine("Test_EPF_WorkingDirectoryTests", "1", "2", "3", "4");
+            string persistedDeleteFileTask = $"A 1\0{this.fileDeletedBackgroundOperationCode}\0{deleteFilePath}\0";
+            string persistedDeleteDirectoryTask = $"A 2\0{this.directoryDeletedBackgroundOperationCode}\0{deleteDirPath}\0";
+            this.fileSystem.WriteAllText(
+                Path.Combine(this.Enlistment.EnlistmentRoot, ".gvfs", "databases", "BackgroundGitOperations.dat"),
+                $"{persistedDeleteFileTask}\r\n{persistedDeleteDirectoryTask}\r\n");
+
+            // Background queue should process the delete messages and modifiedPaths should show the change
+            this.Enlistment.MountGVFS();
+            this.Enlistment.WaitForBackgroundOperations();
+            GVFSHelpers.ModifiedPathsShouldContain(this.Enlistment, this.fileSystem, deletedFileEntry);
+            GVFSHelpers.ModifiedPathsShouldContain(this.Enlistment, this.fileSystem, deletedDirEntry);
         }
 
         [TestCaseSource(typeof(MountSubfolders), MountSubfolders.MountFolders)]

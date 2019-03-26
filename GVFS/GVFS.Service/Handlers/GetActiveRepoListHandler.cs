@@ -78,13 +78,15 @@ namespace GVFS.Service.Handlers
             {
                 enlistment = GVFSEnlistment.CreateFromDirectory(repoRoot, gitBinPath, hooksPath, authentication: null);
             }
-            catch (InvalidRepoException)
+            catch (InvalidRepoException e)
             {
-                return false;
-            }
+                EventMetadata metadata = new EventMetadata();
+                metadata.Add(nameof(repoRoot), repoRoot);
+                metadata.Add(nameof(gitBinPath), gitBinPath);
+                metadata.Add(nameof(hooksPath), hooksPath);
+                metadata.Add("Exception", e.ToString());
+                this.tracer.RelatedInfo(metadata, $"{nameof(this.IsValidRepo)}: Found invalid repo");
 
-            if (enlistment == null)
-            {
                 return false;
             }
 

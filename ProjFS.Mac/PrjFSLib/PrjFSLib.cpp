@@ -18,6 +18,8 @@
 #include <IOKit/IODataQueueClient.h>
 #include <mach/mach_port.h>
 #include <CoreFoundation/CFNumber.h>
+#include <string>
+#include <sstream>
 
 #include "stdlib.h"
 
@@ -43,6 +45,7 @@ using std::map;
 using std::move;
 using std::mutex;
 using std::oct;
+using std::ostringstream;
 using std::pair;
 using std::queue;
 using std::set;
@@ -163,13 +166,15 @@ PrjFS_Result PrjFS_StartVirtualizationInstance(
         << callbacks.EnumerateDirectory << ", "
         << callbacks.GetFileStream << ", "
         << callbacks.NotifyOperation << ", "
+        << callbacks.LogError << ","
         << poolThreadCount << ")" << endl;
 #endif
     
     if (nullptr == virtualizationRootFullPath ||
         nullptr == callbacks.EnumerateDirectory ||
         nullptr == callbacks.GetFileStream ||
-        nullptr == callbacks.NotifyOperation)
+        nullptr == callbacks.NotifyOperation ||
+        nullptr == callbacks.LogError)
     {
         return PrjFS_Result_EInvalidArgs;
     }
@@ -639,16 +644,20 @@ static void HandleKernelRequest(void* messageMemory, uint32_t messageSize)
     PrjFS_Result result = PrjFS_Result_EIOError;
     
     Message request = ParseMessageMemory(messageMemory, messageSize);
+    const MessageHeader* requestHeader = request.messageHeader;
     
     char pathBuffer[PrjFSMaxPath];
     if (request.path == nullptr)
     {
         fsid_t fsid = request.messageHeader->fsidInode.fsid;
         ssize_t pathSize = fsgetpath(pathBuffer, sizeof(pathBuffer), &fsid, request.messageHeader->fsidInode.inode);
+
         if (pathSize < 0)
         {
             // TODO(Mac): Add this message to PrjFSLib logging once available (#395)
-            cout
+            ostringstream ss;
+            ss
+                << "MessageType: " << requestHeader->messageType << " "
                 << "PrjFSLib.HandleKernelRequest: fsgetpath failed for fsid 0x"
                 << hex << fsid.val[0] << ":" << hex << fsid.val[1]
                 << ", inode "
@@ -657,6 +666,11 @@ static void HandleKernelRequest(void* messageMemory, uint32_t messageSize)
                 << errno
                 << "(" << strerror(errno) << ")"
                 << endl;
+            string errorMessage = ss.str();
+
+            s_callbacks.LogError(errorMessage.c_str());
+            result = PrjFS_Result_Success;
+            goto CleanupAndReturn;
         }
         else
         {
@@ -677,7 +691,6 @@ static void HandleKernelRequest(void* messageMemory, uint32_t messageSize)
         }
     }
     
-    const MessageHeader* requestHeader = request.messageHeader;
     switch (requestHeader->messageType)
     {
         case MessageType_KtoU_EnumerateDirectory:
@@ -701,6 +714,7 @@ static void HandleKernelRequest(void* messageMemory, uint32_t messageSize)
         case MessageType_KtoU_NotifyFileModified:
         case MessageType_KtoU_NotifyFilePreDelete:
         case MessageType_KtoU_NotifyDirectoryPreDelete:
+        case MessageType_KtoU_NotifyFilePreConvertToFull:
         {
             char fullPath[PrjFSMaxPath];
             CombinePaths(s_virtualizationRootFullPath.c_str(), request.path, fullPath);
@@ -734,6 +748,7 @@ static void HandleKernelRequest(void* messageMemory, uint32_t messageSize)
     // async callbacks are not yet implemented
     assert(PrjFS_Result_Pending != result);
     
+CleanupAndReturn:
     if (PrjFS_Result_Pending != result)
     {
         MessageType responseType =
@@ -926,12 +941,15 @@ static PrjFS_Result HandleHydrateFileRequest(const MessageHeader* request, const
         
         // TODO(Mac): once we support async callbacks, we'll need to save off the fileHandle if the result is Pending
         
-        if (fclose(fileHandle.file))
-        {
-            // TODO(Mac): under what conditions can fclose fail? How do we recover?
-            result = PrjFS_Result_EIOError;
-            goto CleanupAndReturn;
-        }
+        fflush(fileHandle.file);
+        
+        // Don't block on closing the file to avoid deadlock with some Antivirus software
+        dispatch_async(s_kernelRequestHandlingConcurrentQueue, ^{
+            if (fclose(fileHandle.file))
+            {
+                // TODO(Mac): under what conditions can fclose fail? How do we recover?
+            }
+        });
         
         if (PrjFS_Result_Success == result)
         {
@@ -1008,7 +1026,7 @@ static PrjFS_Result HandleFileNotification(
 #endif
     
     PrjFSFileXAttrData xattrData = {};
-    bool partialFile = TryGetXAttr(fullPath, PrjFSFileXAttrName, sizeof(PrjFSFileXAttrData), &xattrData);
+    bool placeholderFile = TryGetXAttr(fullPath, PrjFSFileXAttrName, sizeof(PrjFSFileXAttrData), &xattrData);
 
     PrjFS_Result result = s_callbacks.NotifyOperation(
         0 /* commandId */,
@@ -1021,10 +1039,8 @@ static PrjFS_Result HandleFileNotification(
         notificationType,
         nullptr /* destinationRelativePath */);
     
-    if (partialFile && PrjFS_NotificationType_FileModified == notificationType)
+    if (result == 0 && placeholderFile && PrjFS_NotificationType_PreConvertToFull == notificationType)
     {
-        // PrjFS_NotificationType_FileModified is a post-modified FileOp event (that cannot be stopped
-        // by the provider) and so there's no need to check the result of the call to NotifyOperation
         errno_t result = RemoveXAttrWithoutFollowingLinks(fullPath, PrjFSFileXAttrName);
         if (0 != result)
         {
@@ -1213,6 +1229,9 @@ static inline PrjFS_NotificationType KUMessageTypeToNotificationType(MessageType
         case MessageType_KtoU_NotifyFilePreDelete:
         case MessageType_KtoU_NotifyDirectoryPreDelete:
             return PrjFS_NotificationType_PreDelete;
+
+        case MessageType_KtoU_NotifyFilePreConvertToFull:
+            return PrjFS_NotificationType_PreConvertToFull;
             
         case MessageType_KtoU_NotifyFileCreated:
             return PrjFS_NotificationType_NewFileCreated;

@@ -191,7 +191,6 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
         }
 
         [TestCase, Order(8)]
-        [Category(Categories.MacTODO.NeedsLockHolder)]
         public void ModifiedFileWillGetAddedToModifiedPathsFile()
         {
             string gitFileToTest = "GVFS/GVFS.Common/RetryWrapper.cs";

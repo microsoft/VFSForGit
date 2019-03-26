@@ -18,6 +18,8 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
     {
         private const string HighestAvailableVersionFileName = "HighestAvailableVersion";
         private const string UpgradeRingKey = "upgrade.ring";
+        private const string NugetFeedURLKey = "upgrade.feedurl";
+        private const string NugetFeedPackageNameKey = "upgrade.feedpackagename";
         private const string AlwaysUpToDateRing = "None";
 
         private string upgradeDownloadsDirectory;
@@ -94,22 +96,33 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
         private void ReadNugetConfig(out string feedUrl, out string feedName)
         {
             GVFSProcess gvfs = new GVFSProcess(GVFSTestConfig.PathToGVFS, enlistmentRoot: null, localCacheRoot: null);
-            feedUrl = gvfs.ReadConfig("upgrade.feedurl");
-            feedName = gvfs.ReadConfig("upgrade.feedpackagename");
+
+            // failOnError is set to false because gvfs config read can exit with
+            // GenericError when the key-value is not available in config file. That
+            // is normal.
+            feedUrl = gvfs.ReadConfig(NugetFeedURLKey, failOnError: false);
+            feedName = gvfs.ReadConfig(NugetFeedPackageNameKey, failOnError: false);
         }
 
         private void DeleteNugetConfig()
         {
             GVFSProcess gvfs = new GVFSProcess(GVFSTestConfig.PathToGVFS, enlistmentRoot: null, localCacheRoot: null);
-            gvfs.DeleteConfig("upgrade.feedurl");
-            gvfs.DeleteConfig("upgrade.feedpackagename");
+            gvfs.DeleteConfig(NugetFeedURLKey);
+            gvfs.DeleteConfig(NugetFeedPackageNameKey);
         }
 
         private void WriteNugetConfig(string feedUrl, string feedName)
         {
             GVFSProcess gvfs = new GVFSProcess(GVFSTestConfig.PathToGVFS, enlistmentRoot: null, localCacheRoot: null);
-            gvfs.WriteConfig("upgrade.feedurl", feedUrl);
-            gvfs.WriteConfig("upgrade.feedpackagename", feedName);
+            if (!string.IsNullOrEmpty(feedUrl))
+            {
+                gvfs.WriteConfig(NugetFeedURLKey, feedUrl);
+            }
+
+            if (!string.IsNullOrEmpty(feedName))
+            {
+                gvfs.WriteConfig(NugetFeedPackageNameKey, feedName);
+            }
         }
 
         private bool ServiceLogContainsUpgradeMessaging()

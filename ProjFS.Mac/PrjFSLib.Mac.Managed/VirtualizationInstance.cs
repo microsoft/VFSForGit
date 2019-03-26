@@ -13,8 +13,10 @@ namespace PrjFSLib.Mac
         // References held to these delegates via class properties
         public virtual EnumerateDirectoryCallback OnEnumerateDirectory { get; set; }
         public virtual GetFileStreamCallback OnGetFileStream { get; set; }
+        public virtual LogErrorCallback OnLogError { get; set; }
 
         public virtual NotifyFileModified OnFileModified { get; set; }
+        public virtual NotifyFilePreConvertToFullEvent OnFilePreConvertToFull { get; set; }
         public virtual NotifyPreDeleteEvent OnPreDelete { get; set; }
         public virtual NotifyNewFileCreatedEvent OnNewFileCreated { get; set; }
         public virtual NotifyFileRenamedEvent OnFileRenamed { get; set; }
@@ -34,6 +36,7 @@ namespace PrjFSLib.Mac
                 OnEnumerateDirectory = this.OnEnumerateDirectory,
                 OnGetFileStream = this.OnGetFileStream,
                 OnNotifyOperation = this.preventGCOnNotifyOperationDelegate = new NotifyOperationCallback(this.OnNotifyOperation),
+                OnLogError = this.OnLogError,
             };
 
             return Interop.PrjFSLib.StartVirtualizationInstance(
@@ -204,6 +207,9 @@ namespace PrjFSLib.Mac
                 case NotificationType.HardLinkCreated:
                     this.OnHardLinkCreated(relativePath);
                     return Result.Success;
+
+                case NotificationType.PreConvertToFull:
+                    return this.OnFilePreConvertToFull(relativePath);
             }
 
             return Result.ENotYetImplemented;

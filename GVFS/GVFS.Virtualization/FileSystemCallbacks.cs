@@ -153,8 +153,6 @@ namespace GVFS.Virtualization
 
         public GitIndexProjection GitIndexProjection { get; private set; }
 
-        public bool IsMounted { get; private set; }
-
         /// <summary>
         /// Returns true for paths that begin with ".git\" (regardless of case)
         /// </summary>
@@ -168,11 +166,6 @@ namespace GVFS.Virtualization
             this.modifiedPaths.RemoveEntriesWithParentFolderEntry(this.context.Tracer);
             this.modifiedPaths.WriteAllEntriesAndFlush();
 
-            if (!this.fileSystemVirtualizer.TryStart(this, out error))
-            {
-                return false;
-            }
-
             this.GitIndexProjection.Initialize(this.backgroundFileSystemTaskRunner);
 
             if (this.enableGitStatusCache)
@@ -182,7 +175,11 @@ namespace GVFS.Virtualization
 
             this.backgroundFileSystemTaskRunner.Start();
 
-            this.IsMounted = true;
+            if (!this.fileSystemVirtualizer.TryStart(this, out error))
+            {
+                return false;
+            }
+
             return true;
         }
 
@@ -197,7 +194,6 @@ namespace GVFS.Virtualization
             this.GitIndexProjection.Shutdown();
             this.BlobSizes.Shutdown();
             this.fileSystemVirtualizer.Stop();
-            this.IsMounted = false;
         }
 
         public void Dispose()
@@ -247,12 +243,6 @@ namespace GVFS.Virtualization
 
         public bool IsReadyForExternalAcquireLockRequests(NamedPipeMessages.LockData requester, out string denyMessage)
         {
-            if (!this.IsMounted)
-            {
-                denyMessage = "Waiting for mount to complete";
-                return false;
-            }
-
             if (this.BackgroundOperationCount != 0)
             {
                 denyMessage = "Waiting for GVFS to release the lock";

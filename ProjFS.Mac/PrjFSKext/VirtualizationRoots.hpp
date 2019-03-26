@@ -30,6 +30,12 @@ VirtualizationRootHandle VirtualizationRoot_FindForVnode(
     vnode_t _Nonnull vnode,
     vfs_context_t _Nonnull context);
 
+struct ActiveProviderProperties
+{
+    bool isOnline;
+    pid_t pid;
+};
+
 struct VirtualizationRootResult
 {
     errno_t error;
@@ -41,7 +47,6 @@ void ActiveProvider_Disconnect(VirtualizationRootHandle rootHandle, PrjFSProvide
 struct Message;
 errno_t ActiveProvider_SendMessage(VirtualizationRootHandle rootHandle, const Message message);
 bool VirtualizationRoot_VnodeIsOnAllowedFilesystem(vnode_t _Nonnull vnode);
-bool VirtualizationRoot_IsOnline(VirtualizationRootHandle rootHandle);
-bool VirtualizationRoot_PIDMatchesProvider(VirtualizationRootHandle rootHandle, pid_t pid);
 bool VirtualizationRoot_IsValidRootHandle(VirtualizationRootHandle rootHandle);
 const char* _Nonnull VirtualizationRoot_GetRootRelativePath(VirtualizationRootHandle rootHandle, const char* _Nonnull path);
+ActiveProviderProperties VirtualizationRoot_GetActiveProvider(VirtualizationRootHandle rootHandle);

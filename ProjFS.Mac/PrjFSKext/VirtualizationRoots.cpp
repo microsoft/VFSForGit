@@ -5,40 +5,25 @@
 #include "public/PrjFSCommon.h"
 #include "public/PrjFSXattrs.h"
 #include "VirtualizationRoots.hpp"
+#include "VirtualizationRootsPrivate.hpp"
 #include "Memory.hpp"
 #include "Locks.hpp"
 #include "KextLog.hpp"
 #include "PrjFSProviderUserClient.hpp"
-#include "KauthHandler.hpp"
+#include "ProviderMessaging.hpp"
 #include "kernel-header-wrappers/mount.h"
 #include "VnodeUtilities.hpp"
 #include "PerformanceTracing.hpp"
 
-
-struct VirtualizationRoot
-{
-    bool                        inUse;
-    // If this is a nullptr, there is no active provider for this virtualization root (offline root)
-    PrjFSProviderUserClient*    providerUserClient;
-    int                         providerPid;
-    // For an active root, this is retained (vnode_get), for an offline one, it is not, so it may be stale (check the vid)
-    vnode_t                     rootVNode;
-    uint32_t                    rootVNodeVid;
-    
-    // Mount point ID + persistent, on-disk ID for the root directory, so we can
-    // identify it if the vnode of an offline root gets recycled.
-    fsid_t                      rootFsid;
-    uint64_t                    rootInode;
-    
-    // TODO(Mac): this should eventually be entirely diagnostic and not used for decisions
-    char                        path[PrjFSMaxPath];
-};
+#ifdef KEXT_UNIT_TESTING
+#include "VirtualizationRootsTestable.hpp"
+#endif
 
 static RWLock s_virtualizationRootsLock = {};
 
 // Current length of the s_virtualizationRoots array
-static uint16_t s_maxVirtualizationRoots = 0;
-static VirtualizationRoot* s_virtualizationRoots = nullptr;
+KEXT_STATIC uint16_t s_maxVirtualizationRoots = 0;
+KEXT_STATIC VirtualizationRoot* s_virtualizationRoots = nullptr;
 
 // Looks up the vnode/vid and fsid/inode pairs among the known roots
 static VirtualizationRootHandle FindRootAtVnode_Locked(vnode_t vnode, uint32_t vid, FsidInode fileId);
@@ -50,39 +35,27 @@ static void RefreshRootVnodeIfNecessary_Locked(VirtualizationRootHandle rootHand
 static VirtualizationRootHandle FindOrDetectRootAtVnode(vnode_t vnode, const FsidInode& vnodeFsidInode);
 
 static VirtualizationRootHandle FindUnusedIndex_Locked();
-static VirtualizationRootHandle InsertVirtualizationRoot_Locked(PrjFSProviderUserClient* userClient, pid_t clientPID, vnode_t vnode, uint32_t vid, FsidInode persistentIds, const char* path);
+KEXT_STATIC VirtualizationRootHandle InsertVirtualizationRoot_Locked(PrjFSProviderUserClient* userClient, pid_t clientPID, vnode_t vnode, uint32_t vid, FsidInode persistentIds, const char* path);
 
-bool VirtualizationRoot_IsOnline(VirtualizationRootHandle rootHandle)
+ActiveProviderProperties VirtualizationRoot_GetActiveProvider(VirtualizationRootHandle rootHandle)
 {
+    ActiveProviderProperties result = { false, 0 };
     if (rootHandle < 0)
     {
-        return false;
+        return result;
     }
     
-    bool result;
     RWLock_AcquireShared(s_virtualizationRootsLock);
     {
-        result =
+        result.isOnline =
             rootHandle < s_maxVirtualizationRoots
             && s_virtualizationRoots[rootHandle].inUse
             && nullptr != s_virtualizationRoots[rootHandle].providerUserClient;
-    }
-    RWLock_ReleaseShared(s_virtualizationRootsLock);
-    
-    return result;
-}
-
-bool VirtualizationRoot_PIDMatchesProvider(VirtualizationRootHandle rootHandle, pid_t pid)
-{
-    bool result;
-    RWLock_AcquireShared(s_virtualizationRootsLock);
-    {
-        result =
-            rootHandle >= 0
-            && rootHandle < s_maxVirtualizationRoots
-            && s_virtualizationRoots[rootHandle].inUse
-            && nullptr != s_virtualizationRoots[rootHandle].providerUserClient
-            && pid == s_virtualizationRoots[rootHandle].providerPid;
+        
+        if (result.isOnline)
+        {
+            result.pid = s_virtualizationRoots[rootHandle].providerPid;
+        }
     }
     RWLock_ReleaseShared(s_virtualizationRootsLock);
     
@@ -152,14 +125,15 @@ VirtualizationRootHandle VirtualizationRoot_FindForVnode(
     PerfTracer* _Nonnull perfTracer,
     PrjFSPerfCounter functionCounter,
     PrjFSPerfCounter innerLoopCounter,
-    vnode_t _Nonnull vnode,
+    vnode_t _Nonnull initialVnode,
     vfs_context_t context)
 {
     PerfSample findForVnodeSample(perfTracer, functionCounter);
     
     VirtualizationRootHandle rootHandle = RootHandle_None;
     errno_t error = 0;
-    
+    vnode_t vnode = initialVnode;
+
     if (vnode_isdir(vnode))
     {
         error = vnode_get(vnode);
@@ -284,7 +258,7 @@ static VirtualizationRootHandle FindOrDetectRootAtVnode(vnode_t _Nonnull vnode, 
 
 static VirtualizationRootHandle FindUnusedIndex_Locked()
 {
-    for (VirtualizationRootHandle i = 0; i < s_maxVirtualizationRoots; ++i)
+    for (uint32_t i = 0; i < s_maxVirtualizationRoots; ++i)
     {
         if (!s_virtualizationRoots[i].inUse)
         {
@@ -305,9 +279,11 @@ static VirtualizationRootHandle FindUnusedIndexOrGrow_Locked()
         uint16_t newLength = MIN(s_maxVirtualizationRoots * 2u, INT16_MAX + 1u);
         if (newLength <= s_maxVirtualizationRoots)
         {
+            assertf(newLength > 0, "s_maxVirtualizationRoot was likely not initialized");
+            // Already at max size, nothing to do.
             return RootHandle_None;
         }
-        
+
         VirtualizationRoot* grownArray = Memory_AllocArray<VirtualizationRoot>(newLength);
         if (nullptr == grownArray)
         {
@@ -338,7 +314,7 @@ static bool FsidsAreEqual(fsid_t a, fsid_t b)
 
 static VirtualizationRootHandle FindRootAtVnode_Locked(vnode_t vnode, uint32_t vid, FsidInode fileId)
 {
-    for (VirtualizationRootHandle i = 0; i < s_maxVirtualizationRoots; ++i)
+    for (uint32_t i = 0; i < s_maxVirtualizationRoots; ++i)
     {
         VirtualizationRoot& rootEntry = s_virtualizationRoots[i];
         if (!rootEntry.inUse)
@@ -402,7 +378,7 @@ static void RefreshRootVnodeIfNecessary_Locked(VirtualizationRootHandle rootHand
 }
 
 // Returns negative value if it failed, or inserted index on success
-static VirtualizationRootHandle InsertVirtualizationRoot_Locked(PrjFSProviderUserClient* userClient, pid_t clientPID, vnode_t vnode, uint32_t vid, FsidInode persistentIds, const char* path)
+KEXT_STATIC VirtualizationRootHandle InsertVirtualizationRoot_Locked(PrjFSProviderUserClient* userClient, pid_t clientPID, vnode_t vnode, uint32_t vid, FsidInode persistentIds, const char* path)
 {
     VirtualizationRootHandle rootIndex = FindUnusedIndexOrGrow_Locked();
     
@@ -517,6 +493,7 @@ VirtualizationRootResult VirtualizationRoot_RegisterProviderForPath(PrjFSProvide
                         {
                             // TODO: scan the array for roots on mounts which have disappeared, or grow the array
                             KextLog_Error("VirtualizationRoot_RegisterProviderForPath: failed to insert new root");
+                            err = ENOMEM;
                         }
                     }
                 }
@@ -524,7 +501,7 @@ VirtualizationRootResult VirtualizationRoot_RegisterProviderForPath(PrjFSProvide
                 
                 if (0 == err)
                 {
-                    userClient->setProperty(PrjFSProviderPathKey, virtualizationRootCanonicalPath);
+                    ProviderUserClient_UpdatePathProperty(userClient, virtualizationRootCanonicalPath);
                 }
             }
         }
@@ -571,7 +548,7 @@ void ActiveProvider_Disconnect(VirtualizationRootHandle rootIndex, PrjFSProvider
 
         RWLock_DropExclusiveToShared(s_virtualizationRootsLock);
 
-        KauthHandler_AbortOutstandingEventsForProvider(rootIndex);
+        ProviderMessaging_AbortOutstandingEventsForProvider(rootIndex);
     }
     RWLock_ReleaseShared(s_virtualizationRootsLock);
 }
@@ -589,7 +566,7 @@ errno_t ActiveProvider_SendMessage(VirtualizationRootHandle rootIndex, const Mes
         userClient = s_virtualizationRoots[rootIndex].providerUserClient;
         if (nullptr != userClient)
         {
-            userClient->retain();
+            ProviderUserClient_Retain(userClient);
         }
     }
     RWLock_ReleaseShared(s_virtualizationRootsLock);
@@ -604,8 +581,8 @@ errno_t ActiveProvider_SendMessage(VirtualizationRootHandle rootIndex, const Mes
             memcpy(messageMemory + sizeof(*message.messageHeader), message.path, message.messageHeader->pathSizeBytes);
         }
         
-        userClient->sendMessage(messageMemory, messageSize);
-        userClient->release();
+        ProviderUserClient_SendMessage(userClient, messageMemory, messageSize);
+        ProviderUserClient_Release(userClient);
         return 0;
     }
     else

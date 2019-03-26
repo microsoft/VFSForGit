@@ -172,12 +172,6 @@ namespace GVFS.Mount
             try
             {
                 enlistment = GVFSEnlistment.CreateFromDirectory(enlistmentRootPath, gitBinPath, ProcessHelper.GetCurrentProcessLocation(), authentication: null);
-                if (enlistment == null)
-                {
-                    this.ReportErrorAndExit(
-                        "Error: '{0}' is not a valid GVFS enlistment",
-                        enlistmentRootPath);
-                }
             }
             catch (InvalidRepoException e)
             {

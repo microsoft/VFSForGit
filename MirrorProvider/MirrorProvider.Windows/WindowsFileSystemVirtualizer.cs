@@ -39,6 +39,7 @@ namespace MirrorProvider.Windows
             this.virtualizationInstance.OnNotifyFileHandleClosedFileModifiedOrDeleted = this.OnFileModifiedOrDeleted;
             this.virtualizationInstance.OnNotifyFileRenamed = this.OnFileRenamed;
             this.virtualizationInstance.OnNotifyHardlinkCreated = this.OnHardlinkCreated;
+            this.virtualizationInstance.OnNotifyFilePreConvertToFull = this.OnFilePreConvertToFull;
 
             uint threadCount = (uint)Environment.ProcessorCount * 2;
 
@@ -334,6 +335,12 @@ namespace MirrorProvider.Windows
             string relativeNewLinkFilePath)
         {
             Console.WriteLine($"OnHardlinkCreated, relativeExistingFilePath: {relativeExistingFilePath}, relativeNewLinkFilePath: {relativeNewLinkFilePath}");
+        }
+
+        private HResult OnFilePreConvertToFull(string relativePath)
+        {
+            Console.WriteLine($"OnFilePreConvertToFullHandler: {relativePath}");
+            return HResult.Ok;
         }
 
         // TODO: Add this to the ProjFS API

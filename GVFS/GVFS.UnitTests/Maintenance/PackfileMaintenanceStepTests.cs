@@ -126,8 +126,8 @@ namespace GVFS.UnitTests.Maintenance
             PackfileMaintenanceStep step = new PackfileMaintenanceStep(this.context, requireObjectCacheLock: false, forceRun: true);
             step.Execute();
 
-            this.tracer.StartActivityTracer.RelatedErrorEvents.Count.ShouldEqual(2);
-            this.tracer.StartActivityTracer.RelatedWarningEvents.Count.ShouldEqual(0);
+            this.tracer.StartActivityTracer.RelatedErrorEvents.Count.ShouldEqual(0);
+            this.tracer.StartActivityTracer.RelatedWarningEvents.Count.ShouldEqual(2);
 
             List<string> commands = this.gitProcess.CommandsRun;
             commands.Count.ShouldEqual(6);

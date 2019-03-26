@@ -79,7 +79,12 @@ namespace GVFS.Common
             get { return this.gvfsHooksVersion; }
         }
 
-        public static GVFSEnlistment CreateWithoutRepoUrlFromDirectory(string directory, string gitBinRoot, string gvfsHooksRoot, GitAuthentication authentication)
+        public static GVFSEnlistment CreateFromDirectory(
+            string directory,
+            string gitBinRoot,
+            string gvfsHooksRoot,
+            GitAuthentication authentication,
+            bool createWithoutRepoURL = false)
         {
             if (Directory.Exists(directory))
             {
@@ -87,30 +92,18 @@ namespace GVFS.Common
                 string enlistmentRoot;
                 if (!GVFSPlatform.Instance.TryGetGVFSEnlistmentRoot(directory, out enlistmentRoot, out errorMessage))
                 {
-                    return null;
+                    throw new InvalidRepoException($"Could not get enlistment root. Error: {errorMessage}");
                 }
 
-                return new GVFSEnlistment(enlistmentRoot, string.Empty, gitBinRoot, gvfsHooksRoot, authentication);
-            }
-
-            return null;
-        }
-
-        public static GVFSEnlistment CreateFromDirectory(string directory, string gitBinRoot, string gvfsHooksRoot, GitAuthentication authentication)
-        {
-            if (Directory.Exists(directory))
-            {
-                string errorMessage;
-                string enlistmentRoot;
-                if (!GVFSPlatform.Instance.TryGetGVFSEnlistmentRoot(directory, out enlistmentRoot, out errorMessage))
+                if (createWithoutRepoURL)
                 {
-                    return null;
+                    return new GVFSEnlistment(enlistmentRoot, string.Empty, gitBinRoot, gvfsHooksRoot, authentication);
                 }
 
                 return new GVFSEnlistment(enlistmentRoot, gitBinRoot, gvfsHooksRoot, authentication);
             }
 
-            return null;
+            throw new InvalidRepoException($"Directory '{directory}' does not exist");
         }
 
         public static string GetNewGVFSLogFileName(string logsRoot, string logFileType)

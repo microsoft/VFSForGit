@@ -15,12 +15,19 @@
 #include "PrjFSProviderUserClient.hpp"
 #include "PerformanceTracing.hpp"
 #include "kernel-header-wrappers/mount.h"
+#include "KextLog.hpp"
+#include "ProviderMessaging.hpp"
+#include "public/PrjFSXattrs.h"
 
 #ifdef KEXT_UNIT_TESTING
 #include "KauthHandlerTestable.hpp"
-#else
-#include "KextLog.hpp"
 #endif
+
+enum ProviderCallbackPolicy
+{
+    CallbackPolicy_AllowAny,
+    CallbackPolicy_UserInitiatedOnly,
+};
 
 // Function prototypes
 static int HandleVnodeOperation(
@@ -45,26 +52,15 @@ static int GetPid(vfs_context_t _Nonnull context);
 
 static bool TryReadVNodeFileFlags(vnode_t vn, vfs_context_t _Nonnull context, uint32_t* flags);
 KEXT_STATIC_INLINE bool FileFlagsBitIsSet(uint32_t fileFlags, uint32_t bit);
-static inline bool TryGetFileIsFlaggedAsInRoot(vnode_t vnode, vfs_context_t _Nonnull context, bool* flaggedInRoot);
+KEXT_STATIC_INLINE bool TryGetFileIsFlaggedAsInRoot(vnode_t vnode, vfs_context_t _Nonnull context, bool* flaggedInRoot);
 KEXT_STATIC_INLINE bool ActionBitIsSet(kauth_action_t action, kauth_action_t mask);
-
+static bool CurrentProcessWasSpawnedByRegularUser();
 KEXT_STATIC bool IsFileSystemCrawler(const char* procname);
 
-static void Sleep(int seconds, void* channel, Mutex* _Nullable mutex);
-static bool TrySendRequestAndWaitForResponse(
-    VirtualizationRootHandle root,
-    MessageType messageType,
-    const vnode_t vnode,
-    const FsidInode& vnodeFsidInode,
-    const char* vnodePath,
-    int pid,
-    const char* procname,
-    int* kauthResult,
-    int* kauthError);
-static void AbortAllOutstandingEvents();
+static void WaitForListenerCompletion();
 KEXT_STATIC bool ShouldIgnoreVnodeType(vtype vnodeType, vnode_t vnode);
 
-static bool ShouldHandleVnodeOpEvent(
+KEXT_STATIC bool ShouldHandleVnodeOpEvent(
     // In params:
     PerfTracer* perfTracer,
     vfs_context_t _Nonnull context,
@@ -84,7 +80,8 @@ static bool TryGetVirtualizationRoot(
     PerfTracer* perfTracer,
     vfs_context_t _Nonnull context,
     const vnode_t vnode,
-    int pid,
+    pid_t pidMakingRequest,
+    ProviderCallbackPolicy callbackPolicy,
     
     // Out params:
     VirtualizationRootHandle* root,
@@ -104,28 +101,11 @@ static bool ShouldHandleFileOpEvent(
     FsidInode* vnodeFsidInode,
     int* pid);
 
-// Structs
-struct OutstandingMessage
-{
-    MessageHeader                  request;
-    MessageType                    result;
-    bool                           receivedResult;
-    VirtualizationRootHandle       rootHandle;
-    
-    LIST_ENTRY(OutstandingMessage) _list_privates;
-    
-};
-
 // State
 static kauth_listener_t s_vnodeListener = nullptr;
 static kauth_listener_t s_fileopListener = nullptr;
 
-static LIST_HEAD(OutstandingMessage_Head, OutstandingMessage) s_outstandingMessages = LIST_HEAD_INITIALIZER(OutstandingMessage_Head);
-static Mutex s_outstandingMessagesMutex = {};
-static volatile int s_nextMessageId;
-
 static atomic_int s_numActiveKauthEvents;
-static volatile bool s_isShuttingDown;
 
 // Public functions
 kern_return_t KauthHandler_Init()
@@ -135,13 +115,7 @@ kern_return_t KauthHandler_Init()
         goto CleanupAndFail;
     }
     
-    LIST_INIT(&s_outstandingMessages);
-    s_nextMessageId = 1;
-    
-    s_isShuttingDown = false;
-    
-    s_outstandingMessagesMutex = Mutex_Alloc();
-    if (!Mutex_IsValid(s_outstandingMessagesMutex))
+    if (!ProviderMessaging_Init())
     {
         goto CleanupAndFail;
     }
@@ -195,92 +169,18 @@ kern_return_t KauthHandler_Cleanup()
         result = KERN_FAILURE;
     }
 
-    // Then, ensure there are no more callbacks in flight.
-    AbortAllOutstandingEvents();
+    ProviderMessaging_AbortAllOutstandingEvents();
+    
+    WaitForListenerCompletion();
 
     if (VirtualizationRoots_Cleanup())
     {
         result = KERN_FAILURE;
     }
-        
-    if (Mutex_IsValid(s_outstandingMessagesMutex))
-    {
-        Mutex_FreeMemory(&s_outstandingMessagesMutex);
-    }
-    else
-    {
-        result = KERN_FAILURE;
-    }
+    
+    ProviderMessaging_Cleanup();
     
     return result;
-}
-
-void KauthHandler_HandleKernelMessageResponse(VirtualizationRootHandle providerVirtualizationRootHandle, uint64_t messageId, MessageType responseType)
-{
-    switch (responseType)
-    {
-        case MessageType_Response_Success:
-        case MessageType_Response_Fail:
-        {
-            Mutex_Acquire(s_outstandingMessagesMutex);
-            {
-                OutstandingMessage* outstandingMessage;
-                LIST_FOREACH(outstandingMessage, &s_outstandingMessages, _list_privates)
-                {
-                    if (outstandingMessage->request.messageId == messageId && outstandingMessage->rootHandle == providerVirtualizationRootHandle)
-                    {
-                        // Save the response for the blocked thread.
-                        outstandingMessage->result = responseType;
-                        outstandingMessage->receivedResult = true;
-                        
-                        wakeup(outstandingMessage);
-                        
-                        break;
-                    }
-                }
-            }
-            Mutex_Release(s_outstandingMessagesMutex);
-            break;
-        }
-        
-        // The follow are not valid responses to kernel messages
-        case MessageType_Invalid:
-        case MessageType_KtoU_EnumerateDirectory:
-        case MessageType_KtoU_RecursivelyEnumerateDirectory:
-        case MessageType_KtoU_HydrateFile:
-        case MessageType_KtoU_NotifyFileModified:
-        case MessageType_KtoU_NotifyFilePreDelete:
-        case MessageType_KtoU_NotifyDirectoryPreDelete:
-        case MessageType_KtoU_NotifyFileCreated:
-        case MessageType_KtoU_NotifyFileRenamed:
-        case MessageType_KtoU_NotifyDirectoryRenamed:
-        case MessageType_KtoU_NotifyFileHardLinkCreated:
-        case MessageType_Result_Aborted:
-        default:
-            KextLog_Error("KauthHandler_HandleKernelMessageResponse: Unexpected responseType: %d", responseType);
-            break;
-    }
-    
-    return;
-}
-
-void KauthHandler_AbortOutstandingEventsForProvider(VirtualizationRootHandle providerVirtualizationRootHandle)
-{
-    // Mark all outstanding messages for this root as aborted and wake up the waiting threads
-    Mutex_Acquire(s_outstandingMessagesMutex);
-    {
-        OutstandingMessage* outstandingMessage;
-        LIST_FOREACH(outstandingMessage, &s_outstandingMessages, _list_privates)
-        {
-            if (outstandingMessage->rootHandle == providerVirtualizationRootHandle)
-            {
-                outstandingMessage->receivedResult = true;
-                outstandingMessage->result = MessageType_Result_Aborted;
-                wakeup(outstandingMessage);
-            }
-        }
-    }
-    Mutex_Release(s_outstandingMessagesMutex);
 }
 
 static void UseMainForkIfNamedStream(
@@ -334,8 +234,8 @@ static int HandleVnodeOperation(
     vtype vnodeType;
     uint32_t currentVnodeFileFlags;
     FsidInode vnodeFsidInode;
-    int pid;
-    char procname[MAXCOMLEN + 1];
+    int pid = 0;
+    char procname[MAXCOMLEN + 1] = "";
     bool isDeleteAction = false;
     bool isDirectory = false;
 
@@ -359,14 +259,16 @@ static int HandleVnodeOperation(
     
     if (isDeleteAction)
     {
-        if (!TryGetVirtualizationRoot(&perfTracer, context, currentVnode, pid, &root, &vnodeFsidInode, &kauthResult, kauthError))
+        // Allow any user to delete individual files, as this generally doesn't cause nested kauth callbacks.
+        ProviderCallbackPolicy callbackPolicy = isDirectory ? CallbackPolicy_UserInitiatedOnly : CallbackPolicy_AllowAny;
+        if (!TryGetVirtualizationRoot(&perfTracer, context, currentVnode, pid, callbackPolicy, &root, &vnodeFsidInode, &kauthResult, kauthError))
         {
             goto CleanupAndReturn;
         }
         
         PerfSample preDeleteSample(&perfTracer, PrjFSPerfCounter_VnodeOp_PreDelete);
         
-        if (!TrySendRequestAndWaitForResponse(
+        if (!ProviderMessaging_TrySendRequestAndWaitForResponse(
                 root,
                 isDirectory ?
                     MessageType_KtoU_NotifyDirectoryPreDelete :
@@ -397,14 +299,15 @@ static int HandleVnodeOperation(
             // Recursively expand directory on delete to ensure child placeholders are created before rename operations
             if (isDeleteAction)
             {
-                if (!TryGetVirtualizationRoot(&perfTracer, context, currentVnode, pid, &root, &vnodeFsidInode, &kauthResult, kauthError))
+                // Prevent system services from expanding directories as part of enumeration as this tends to cause deadlocks with the kauth listeners for Antivirus software
+                if (!TryGetVirtualizationRoot(&perfTracer, context, currentVnode, pid, CallbackPolicy_UserInitiatedOnly, &root, &vnodeFsidInode, &kauthResult, kauthError))
                 {
                     goto CleanupAndReturn;
                 }
 
                 PerfSample recursivelyEnumerateSample(&perfTracer, PrjFSPerfCounter_VnodeOp_RecursivelyEnumerateDirectory);
         
-                if (!TrySendRequestAndWaitForResponse(
+                if (!ProviderMessaging_TrySendRequestAndWaitForResponse(
                         root,
                         MessageType_KtoU_RecursivelyEnumerateDirectory,
                         currentVnode,
@@ -420,14 +323,15 @@ static int HandleVnodeOperation(
             }
             else if (FileFlagsBitIsSet(currentVnodeFileFlags, FileFlags_IsEmpty))
             {
-                if (!TryGetVirtualizationRoot(&perfTracer, context, currentVnode, pid, &root, &vnodeFsidInode, &kauthResult, kauthError))
+                // Prevent system services from expanding directories as part of enumeration as this tends to cause deadlocks with the kauth listeners for Antivirus software
+                if (!TryGetVirtualizationRoot(&perfTracer, context, currentVnode, pid, CallbackPolicy_UserInitiatedOnly, &root, &vnodeFsidInode, &kauthResult, kauthError))
                 {
                     goto CleanupAndReturn;
                 }
 
                 PerfSample enumerateDirectorySample(&perfTracer, PrjFSPerfCounter_VnodeOp_EnumerateDirectory);
         
-                if (!TrySendRequestAndWaitForResponse(
+                if (!ProviderMessaging_TrySendRequestAndWaitForResponse(
                         root,
                         MessageType_KtoU_EnumerateDirectory,
                         currentVnode,
@@ -458,14 +362,15 @@ static int HandleVnodeOperation(
         {
             if (FileFlagsBitIsSet(currentVnodeFileFlags, FileFlags_IsEmpty))
             {
-                if (!TryGetVirtualizationRoot(&perfTracer, context, currentVnode, pid, &root, &vnodeFsidInode, &kauthResult, kauthError))
+                // Prevent system services from hydrating files as this tends to cause deadlocks with the kauth listeners for Antivirus software
+                if (!TryGetVirtualizationRoot(&perfTracer, context, currentVnode, pid, CallbackPolicy_UserInitiatedOnly, &root, &vnodeFsidInode, &kauthResult, kauthError))
                 {
                     goto CleanupAndReturn;
                 }
 
                 PerfSample enumerateDirectorySample(&perfTracer, PrjFSPerfCounter_VnodeOp_HydrateFile);
 
-                if (!TrySendRequestAndWaitForResponse(
+                if (!ProviderMessaging_TrySendRequestAndWaitForResponse(
                         root,
                         MessageType_KtoU_HydrateFile,
                         currentVnode,
@@ -475,6 +380,38 @@ static int HandleVnodeOperation(
                         procname,
                         &kauthResult,
                         kauthError))
+                {
+                    goto CleanupAndReturn;
+                }
+            }
+            
+            if (ActionBitIsSet(action, KAUTH_VNODE_WRITE_DATA))
+            {
+                if (!TryGetVirtualizationRoot(&perfTracer, context, currentVnode, pid, CallbackPolicy_UserInitiatedOnly, &root, &vnodeFsidInode, &kauthResult, kauthError))
+                {
+                    goto CleanupAndReturn;
+                }
+                
+                PrjFSFileXAttrData rootXattr = {};
+                SizeOrError xattrResult = Vnode_ReadXattr(currentVnode, PrjFSFileXAttrName, &rootXattr, sizeof(rootXattr));
+                if (xattrResult.error == ENOATTR)
+                {
+                    // Only notify if the file is still a placeholder
+                    goto CleanupAndReturn;
+                }
+                
+                PerfSample preConvertToFullSample(&perfTracer, PrjFSPerfCounter_VnodeOp_PreConvertToFull);
+                
+                if (!ProviderMessaging_TrySendRequestAndWaitForResponse(
+                                                      root,
+                                                      MessageType_KtoU_NotifyFilePreConvertToFull,
+                                                      currentVnode,
+                                                      vnodeFsidInode,
+                                                      nullptr, // path not needed, use fsid/inode,
+                                                      pid,
+                                                      procname,
+                                                      &kauthResult,
+                                                      kauthError))
                 {
                     goto CleanupAndReturn;
                 }
@@ -561,7 +498,7 @@ static int HandleFileOpOperation(
 
             int kauthResult;
             int kauthError;
-            if (!TrySendRequestAndWaitForResponse(
+            if (!ProviderMessaging_TrySendRequestAndWaitForResponse(
                     root,
                     messageType,
                     currentVnode,
@@ -581,7 +518,7 @@ static int HandleFileOpOperation(
         
             int kauthResult;
             int kauthError;
-            if (!TrySendRequestAndWaitForResponse(
+            if (!ProviderMessaging_TrySendRequestAndWaitForResponse(
                     root,
                     MessageType_KtoU_NotifyFileHardLinkCreated,
                     currentVnode,
@@ -642,7 +579,7 @@ static int HandleFileOpOperation(
         PerfSample fileCreatedSample(&perfTracer, PrjFSPerfCounter_FileOp_FileCreated);
         int kauthResult;
         int kauthError;
-        if (!TrySendRequestAndWaitForResponse(
+        if (!ProviderMessaging_TrySendRequestAndWaitForResponse(
                                               root,
                                               MessageType_KtoU_NotifyFileCreated,
                                               currentVnode,
@@ -689,13 +626,13 @@ static int HandleFileOpOperation(
         {
             goto CleanupAndReturn;
         }
-        
+
         char procname[MAXCOMLEN + 1];
         proc_name(pid, procname, MAXCOMLEN + 1);
         PerfSample fileModifiedSample(&perfTracer, PrjFSPerfCounter_FileOp_FileModified);
         int kauthResult;
         int kauthError;
-        if (!TrySendRequestAndWaitForResponse(
+        if (!ProviderMessaging_TrySendRequestAndWaitForResponse(
                 root,
                 MessageType_KtoU_NotifyFileModified,
                 currentVnode,
@@ -724,7 +661,7 @@ CleanupAndReturn:
     return KAUTH_RESULT_DEFER;
 }
 
-static bool ShouldHandleVnodeOpEvent(
+KEXT_STATIC bool ShouldHandleVnodeOpEvent(
     // In params:
     PerfTracer* perfTracer,
     vfs_context_t _Nonnull context,
@@ -834,8 +771,9 @@ static bool TryGetVirtualizationRoot(
     PerfTracer* perfTracer,
     vfs_context_t _Nonnull context,
     const vnode_t vnode,
-    int pid,
-    
+    pid_t pidMakingRequest,
+    ProviderCallbackPolicy callbackPolicy,
+
     // Out params:
     VirtualizationRootHandle* root,
     FsidInode* vnodeFsidInode,
@@ -867,7 +805,9 @@ static bool TryGetVirtualizationRoot(
         *kauthResult = KAUTH_RESULT_DEFER;
         return false;
     }
-    else if (!VirtualizationRoot_IsOnline(*root))
+    
+    ActiveProviderProperties provider = VirtualizationRoot_GetActiveProvider(*root);
+    if (!provider.isOnline)
     {
         // TODO(Mac): Protect files in the worktree from modification (and prevent
         // the creation of new files) when the provider is offline
@@ -878,21 +818,72 @@ static bool TryGetVirtualizationRoot(
         return false;
     }
     
+    if (provider.pid == pidMakingRequest)
     {
-        PerfSample pidSample(perfTracer, PrjFSPerfCounter_VnodeOp_GetVirtualizationRoot_CompareProviderPid);
-    
         // If the calling process is the provider, we must exit right away to avoid deadlocks
-        if (VirtualizationRoot_PIDMatchesProvider(*root, pid))
-        {
-            perfTracer->IncrementCount(PrjFSPerfCounter_VnodeOp_GetVirtualizationRoot_OriginatedByProvider);
-            
-            *kauthResult = KAUTH_RESULT_DEFER;
-            return false;
-        }
+        perfTracer->IncrementCount(PrjFSPerfCounter_VnodeOp_GetVirtualizationRoot_OriginatedByProvider);
+        
+        *kauthResult = KAUTH_RESULT_DEFER;
+        return false;
+    }
+    
+    if (callbackPolicy == CallbackPolicy_UserInitiatedOnly && !CurrentProcessWasSpawnedByRegularUser())
+    {
+        // Prevent hydration etc. by system services
+        KextLog_Info("TryGetVirtualizationRoot: process %d restricted due to owner UID.", pidMakingRequest);
+        perfTracer->IncrementCount(PrjFSPerfCounter_VnodeOp_GetVirtualizationRoot_UserRestriction);
+        
+        *kauthResult = KAUTH_RESULT_DENY;
+        return false;
     }
     
     return true;
 }
+
+
+static bool CurrentProcessWasSpawnedByRegularUser()
+{
+    bool nonServiceUser = false;
+    
+    proc_t process = proc_self();
+    
+    while (true)
+    {
+        kauth_cred_t credential = kauth_cred_proc_ref(process);
+        uid_t processUID = kauth_cred_getuid(credential);
+        kauth_cred_unref(&credential);
+        
+        if (processUID >= 500)
+        {
+            nonServiceUser = true;
+            break;
+        }
+        
+        pid_t parentPID = proc_ppid(process);
+        if (parentPID <= 1)
+        {
+            break;
+        }
+        
+        proc_t parentProcess = proc_find(parentPID);
+        proc_rele(process);
+        process = parentProcess;
+        if (parentProcess == nullptr)
+        {
+            KextLog_Error("CurrentProcessIsOwnedOrWasSpawnedByRegularUser: Failed to locate ancestor process %d for current process %d\n", parentPID, proc_selfpid());
+            break;
+        }
+    }
+    
+    
+    if (process != nullptr)
+    {
+        proc_rele(process);
+    }
+    
+    return nonServiceUser;
+}
+    
 
 static bool ShouldHandleFileOpEvent(
     // In params:
@@ -939,21 +930,19 @@ static bool ShouldHandleFileOpEvent(
     }
     
     {
-        PerfSample checkRootOnlineSample(perfTracer, PrjFSPerfCounter_FileOp_ShouldHandle_CheckRootOnline);
+        PerfSample checkRootOnlineSample(perfTracer, PrjFSPerfCounter_FileOp_ShouldHandle_CheckProvider);
         
-        if (!VirtualizationRoot_IsOnline(*root))
+        ActiveProviderProperties provider = VirtualizationRoot_GetActiveProvider(*root);
+        
+        if (!provider.isOnline)
         {
             perfTracer->IncrementCount(PrjFSPerfCounter_FileOp_ShouldHandle_OfflineRoot);
             return false;
         }
-    }
-    
-    {
-        PerfSample pidSample(perfTracer, PrjFSPerfCounter_FileOp_ShouldHandle_CompareProviderPid);
     
         // If the calling process is the provider, we must exit right away to avoid deadlocks
         *pid = GetPid(context);
-        if (VirtualizationRoot_PIDMatchesProvider(*root, *pid))
+        if (*pid == provider.pid)
         {
             perfTracer->IncrementCount(PrjFSPerfCounter_FileOp_ShouldHandle_OriginatedByProvider);
             return false;
@@ -965,114 +954,9 @@ static bool ShouldHandleFileOpEvent(
     return true;
 }
 
-static bool TrySendRequestAndWaitForResponse(
-    VirtualizationRootHandle root,
-    MessageType messageType,
-    const vnode_t vnode,
-    const FsidInode& vnodeFsidInode,
-    const char* vnodePath,
-    int pid,
-    const char* procname,
-    int* kauthResult,
-    int* kauthError)
+static void WaitForListenerCompletion()
 {
-    // To be useful, the message needs to either provide an FSID/inode pair or a path
-    assert(vnodePath != nullptr || (vnodeFsidInode.fsid.val[0] != 0 || vnodeFsidInode.fsid.val[1] != 0));
-    bool result = false;
-    const char* relativePath = nullptr;
-    
-    OutstandingMessage message =
-    {
-        .receivedResult = false,
-        .rootHandle = root,
-    };
-    
-    if (nullptr != vnodePath)
-    {
-        relativePath = VirtualizationRoot_GetRootRelativePath(root, vnodePath);
-    }
-    
-    int nextMessageId = OSIncrementAtomic(&s_nextMessageId);
-    
-    Message messageSpec = {};
-    Message_Init(
-        &messageSpec,
-        &(message.request),
-        nextMessageId,
-        messageType,
-        vnodeFsidInode,
-        pid,
-        procname,
-        relativePath);
-
-    if (s_isShuttingDown)
-    {
-        return false;
-    }
-    
-    Mutex_Acquire(s_outstandingMessagesMutex);
-    {
-        LIST_INSERT_HEAD(&s_outstandingMessages, &message, _list_privates);
-    }
-    Mutex_Release(s_outstandingMessagesMutex);
-    
-    errno_t sendError = ActiveProvider_SendMessage(root, messageSpec);
-   
-    Mutex_Acquire(s_outstandingMessagesMutex);
-    {
-        if (0 != sendError)
-        {
-            // TODO: appropriately handle unresponsive providers
-            *kauthResult = KAUTH_RESULT_DEFER;
-        }
-        else
-        {
-            while (!message.receivedResult &&
-                   !s_isShuttingDown)
-            {
-                Sleep(5, &message, &s_outstandingMessagesMutex);
-            }
-        
-            if (s_isShuttingDown)
-            {
-                *kauthResult = KAUTH_RESULT_DENY;
-            }
-            else if (MessageType_Response_Success == message.result)
-            {
-                *kauthResult = KAUTH_RESULT_DEFER;
-                result = true;
-            }
-            else
-            {
-                // Default error code is EACCES. See errno.h for more codes.
-                *kauthError = EAGAIN;
-                *kauthResult = KAUTH_RESULT_DENY;
-            }
-        }
-        
-        LIST_REMOVE(&message, _list_privates);
-    }
-    Mutex_Release(s_outstandingMessagesMutex);
-    
-    return result;
-}
-
-static void AbortAllOutstandingEvents()
-{
-    // Wake up all sleeping threads so they can see that that we're shutting down and return an error
-    Mutex_Acquire(s_outstandingMessagesMutex);
-    {
-        s_isShuttingDown = true;
-        
-        OutstandingMessage* outstandingMessage;
-        LIST_FOREACH(outstandingMessage, &s_outstandingMessages, _list_privates)
-        {
-            wakeup(outstandingMessage);
-        }
-    }
-    Mutex_Release(s_outstandingMessagesMutex);
-    
-    // ... and wait until all kauth events have noticed and returned.
+    // Wait until all kauth events have noticed and returned.
     // Always sleeping at least once reduces the likelihood of a race condition
     // between kauth_unlisten_scope and the s_numActiveKauthEvents increment at
     // the start of the callback.
@@ -1082,17 +966,8 @@ static void AbortAllOutstandingEvents()
     // https://developer.apple.com/library/archive/samplecode/KauthORama/Listings/KauthORama_c.html#//apple_ref/doc/uid/DTS10003633-KauthORama_c-DontLinkElementID_3
     do
     {
-        Sleep(1, nullptr, nullptr);
+        Mutex_Sleep(1, nullptr, nullptr);
     } while (atomic_load(&s_numActiveKauthEvents) > 0);
-}
-
-static void Sleep(int seconds, void* channel, Mutex* _Nullable mutex)
-{
-    struct timespec timeout;
-    timeout.tv_sec  = seconds;
-    timeout.tv_nsec = 0;
-    
-    msleep(channel, nullptr != mutex ? mutex->p : nullptr, PUSER, "org.vfsforgit.PrjFSKext.Sleep", &timeout);
 }
 
 static int GetPid(vfs_context_t _Nonnull context)
@@ -1136,7 +1011,7 @@ KEXT_STATIC_INLINE bool FileFlagsBitIsSet(uint32_t fileFlags, uint32_t bit)
     return 0 != (fileFlags & bit);
 }
 
-static inline bool TryGetFileIsFlaggedAsInRoot(vnode_t vnode, vfs_context_t _Nonnull context, bool* flaggedInRoot)
+KEXT_STATIC_INLINE bool TryGetFileIsFlaggedAsInRoot(vnode_t vnode, vfs_context_t _Nonnull context, bool* flaggedInRoot)
 {
     uint32_t vnodeFileFlags;
     *flaggedInRoot = false;

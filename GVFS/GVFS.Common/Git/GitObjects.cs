@@ -151,9 +151,8 @@ namespace GVFS.Common.Git
                     }
                     else
                     {
-                        EventMetadata error = CreateEventMetadata();
+                        EventMetadata error = CreateEventMetadata(result.Error);
                         error.Add("latestTimestamp", latestTimestamp);
-                        error.Add("Exception", result.Error);
                         error.Add(nameof(this.GitObjectRequestor.CacheServer.PrefetchEndpointUrl), this.GitObjectRequestor.CacheServer.PrefetchEndpointUrl);
                         activity.RelatedWarning(error, "DownloadPrefetchPacks failed.", Keywords.Telemetry);
                     }
