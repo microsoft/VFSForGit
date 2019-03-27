@@ -24,6 +24,7 @@
 /* End PBXAggregateTarget section */
 
 /* Begin PBXBuildFile section */
+		265504D0224ADE11005FAD74 /* MockPerfTracing.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 265504CE224ADE11005FAD74 /* MockPerfTracing.cpp */; };
 		43057C5E21E439C700487681 /* prjfs-log.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 43057C5B21E439C700487681 /* prjfs-log.cpp */; };
 		43057C5F21E439C700487681 /* kext-perf-tracing.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 43057C5C21E439C700487681 /* kext-perf-tracing.cpp */; };
 		4391F8A821E42AC50008103C /* Locks.hpp in Headers */ = {isa = PBXBuildFile; fileRef = 4391F88E21E42AC40008103C /* Locks.hpp */; };
@@ -143,6 +144,8 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
+		265504CE224ADE11005FAD74 /* MockPerfTracing.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = MockPerfTracing.cpp; sourceTree = "<group>"; };
+		265504CF224ADE11005FAD74 /* MockPerfTracing.hpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.h; path = MockPerfTracing.hpp; sourceTree = "<group>"; };
 		43057C5B21E439C700487681 /* prjfs-log.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = "prjfs-log.cpp"; sourceTree = "<group>"; };
 		43057C5C21E439C700487681 /* kext-perf-tracing.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = "kext-perf-tracing.cpp"; sourceTree = "<group>"; };
 		43057C5D21E439C700487681 /* kext-perf-tracing.hpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.h; path = "kext-perf-tracing.hpp"; sourceTree = "<group>"; };
@@ -381,6 +384,8 @@
 				4A781DAA222330F700DB7733 /* KextMockUtilities.cpp */,
 				4A781DA92223305C00DB7733 /* KextMockUtilities.hpp */,
 				D9C087F122384670009C1110 /* MemoryTests.mm */,
+				265504CE224ADE11005FAD74 /* MockPerfTracing.cpp */,
+				265504CF224ADE11005FAD74 /* MockPerfTracing.hpp */,
 				4A781DAC2223374200DB7733 /* MockVnodeAndMount.cpp */,
 				4A781DAD2223374200DB7733 /* MockVnodeAndMount.hpp */,
 				4A8C13AA21F268FE00002878 /* PrjFSKextTests.exp */,
@@ -698,6 +703,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				4A781DAB222330F700DB7733 /* KextMockUtilities.cpp in Sources */,
+				265504D0224ADE11005FAD74 /* MockPerfTracing.cpp in Sources */,
 				4A781DA52220946000DB7733 /* VirtualizationRootsTests.mm in Sources */,
 				4A781DAE2223374200DB7733 /* MockVnodeAndMount.cpp in Sources */,
 				F5554F422239883B00B31D19 /* MockProc.cpp in Sources */,
