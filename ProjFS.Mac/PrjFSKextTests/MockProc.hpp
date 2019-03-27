@@ -1,7 +1,7 @@
 #include "../PrjFSKext/kernel-header-wrappers/vnode.h"
 #include <string>
 
-// Kernel proc functions that are being mocked
+// Kernel functions that are being mocked
 extern "C"
 {
     int proc_pid(proc_t);

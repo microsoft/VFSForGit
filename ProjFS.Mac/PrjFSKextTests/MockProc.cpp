@@ -20,17 +20,17 @@ void SetProcName(const std::string& procName)
 
 proc_t vfs_context_proc(vfs_context_t ctx)
 {
-    return NULL;
+    return nullptr;
 }
 
 proc_t proc_self(void)
 {
-    return NULL;
+    return nullptr;
 }
 
 kauth_cred_t kauth_cred_proc_ref(proc_t procp)
 {
-    return NULL;
+    return nullptr;
 }
 
 uid_t kauth_cred_getuid(kauth_cred_t _cred)
@@ -50,7 +50,7 @@ int proc_ppid(proc_t)
 
 proc_t proc_find(int pid)
 {
-    return NULL;
+    return nullptr;
 }
 
 int proc_rele(proc_t p)

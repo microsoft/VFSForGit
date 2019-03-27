@@ -8,6 +8,7 @@ namespace KextMock
     struct PlaceholderValue
     {};
     
+    // Allow any value to match
     extern PlaceholderValue _;
 };
 
@@ -73,8 +74,8 @@ class MockCalls
     static MockCalls singleton;
     
 public:
-    template <typename R, typename... ARGS, typename... ACTUALARGS>
-        static void RecordFunctionCall(R (*fn)(ARGS...), ACTUALARGS... args)
+    template <typename R, typename... ARGS, typename... ACTUAL_ARGS>
+        static void RecordFunctionCall(R (*fn)(ARGS...), ACTUAL_ARGS... args)
     {
         singleton.functionTypeCallRecorders.insert(&SpecificFunctionCallRecorder<R, ARGS...>::functionTypeRegister);
         
@@ -102,21 +103,21 @@ public:
 };
 
 template <typename ARG_T, typename CHECK_T>
-bool CheckArgument(ARG_T& argument, CHECK_T check)
+bool ArgumentIsEqual(ARG_T& argument, CHECK_T check)
 {
     return argument == check;
 }
 
 template <typename ARG_T>
-bool CheckArgument(ARG_T& argument, KextMock::PlaceholderValue)
+bool ArgumentIsEqual(ARG_T& argument, KextMock::PlaceholderValue)
 {
     return true;
 }
 
 template <typename TUPLE_T, typename CHECK_TUPLE_T, size_t... INDICES>
-bool CheckArguments(TUPLE_T& arguments, CHECK_TUPLE_T check, std::index_sequence<INDICES...>)
+bool ArgumentsAreEqual(TUPLE_T& arguments, CHECK_TUPLE_T check, std::index_sequence<INDICES...>)
 {
-    return (CheckArgument(std::get<INDICES>(arguments), std::get<INDICES>(check)) && ...);
+    return (ArgumentIsEqual(std::get<INDICES>(arguments), std::get<INDICES>(check)) && ...);
 }
 
 
@@ -129,7 +130,7 @@ template <typename... CHECK_ARGS>
     {
         if (foundCall->second.argumentValues)
         {
-            if (CheckArguments(*foundCall->second.argumentValues, std::forward_as_tuple(checkArgs...), std::index_sequence_for<CHECK_ARGS...>{}))
+            if (ArgumentsAreEqual(*foundCall->second.argumentValues, std::forward_as_tuple(checkArgs...), std::index_sequence_for<CHECK_ARGS...>{}))
             {
                 return true;
             }
