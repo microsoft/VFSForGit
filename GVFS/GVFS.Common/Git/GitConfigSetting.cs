@@ -6,7 +6,7 @@ namespace GVFS.Common.Git
     {
         public const string CoreVirtualizeObjectsName = "core.virtualizeobjects";
         public const string CoreVirtualFileSystemName = "core.virtualfilesystem";
-        public const string CredentialUseHttpPath = "credential.useHttpPath";
+        public const string CredentialUseHttpPath = "credential.\"https://dev.azure.com\".useHttpPath";
 
         public const string HttpSslCert = "http.sslcert";
         public const string HttpSslVerify = "http.sslverify";

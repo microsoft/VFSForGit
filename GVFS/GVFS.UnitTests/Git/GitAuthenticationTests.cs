@@ -12,6 +12,7 @@ namespace GVFS.UnitTests.Git
     public class GitAuthenticationTests
     {
         private const string CertificatePath = "certificatePath";
+        private const string AzureDevOpsUseHttpPathString = "-c credential.\"https://dev.azure.com\".useHttpPath=true";
 
         private readonly bool sslSettingsPresent;
 
@@ -262,11 +263,11 @@ namespace GVFS.UnitTests.Git
             int approvals = 0;
             int rejections = 0;
             gitProcess.SetExpectedCommandResult(
-                "-c credential.useHttpPath=true credential fill",
+                $"{AzureDevOpsUseHttpPathString} credential fill",
                 () => new GitProcess.Result("username=username\r\npassword=password" + rejections + "\r\n", string.Empty, GitProcess.Result.SuccessCode));
 
             gitProcess.SetExpectedCommandResult(
-                "credential approve",
+                $"{AzureDevOpsUseHttpPathString} credential approve",
                 () =>
                 {
                     approvals++;
@@ -274,7 +275,7 @@ namespace GVFS.UnitTests.Git
                 });
 
             gitProcess.SetExpectedCommandResult(
-                "credential reject",
+                $"{AzureDevOpsUseHttpPathString} credential reject",
                 () =>
                 {
                     rejections++;

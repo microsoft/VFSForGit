@@ -164,22 +164,17 @@ namespace GVFS.Common.Git
             // Credential helpers that support it can use the provided username/password values to
             // perform a check that they're being asked to delete the same stored credential that
             // the caller is asking them to erase.
-            if (username != null)
-            {
-                sb.AppendFormat("username={0}\n", username);
-            }
-
-            if (password != null)
-            {
-                sb.AppendFormat("password={0}\n", password);
-            }
+            // Ideally, we would provide these values if available, however it does not work as expected
+            // with our main credential helper - Windows GCM. With GCM for Windows, the credential acquired
+            // with credential fill for dev.azure.com URLs are not erased when the user name / password are passed in.
+            // Until the default credential helper works with this pattern, reject credential with just the URL.
 
             sb.Append("\n");
 
             string stdinConfig = sb.ToString();
 
             this.InvokeGitOutsideEnlistment(
-                "credential reject",
+                GenerateCredentialVerbCommand("reject"),
                 stdin => stdin.Write(stdinConfig),
                 null);
         }
@@ -195,7 +190,7 @@ namespace GVFS.Common.Git
             string stdinConfig = sb.ToString();
 
             this.InvokeGitOutsideEnlistment(
-                "credential approve",
+                GenerateCredentialVerbCommand("approve"),
                 stdin => stdin.Write(stdinConfig),
                 null);
         }
@@ -269,7 +264,7 @@ namespace GVFS.Common.Git
             using (ITracer activity = tracer.StartActivity("TryGetCredentials", EventLevel.Informational))
             {
                 Result gitCredentialOutput = this.InvokeGitAgainstDotGitFolder(
-                    $"-c {GitConfigSetting.CredentialUseHttpPath}=true credential fill",
+                    GenerateCredentialVerbCommand("fill"),
                     stdin => stdin.Write($"url={repoUrl}\n\n"),
                     parseStdOutLine: null);
 
@@ -758,6 +753,11 @@ namespace GVFS.Common.Git
             {
                 this.executingProcess = null;
             }
+        }
+
+        private static string GenerateCredentialVerbCommand(string verb)
+        {
+            return $"-c {GitConfigSetting.CredentialUseHttpPath}=true credential {verb}";
         }
 
         private static string ParseValue(string contents, string prefix)
