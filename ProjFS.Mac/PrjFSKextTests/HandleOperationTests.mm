@@ -293,6 +293,7 @@ static void SetPrjFSFileXattrData(const shared_ptr<vnode>& vnode)
     XCTAssertTrue(
        MockCalls::DidCallFunction(
             ProviderMessaging_TrySendRequestAndWaitForResponse,
+            2,
             _,
             MessageType_KtoU_NotifyFilePreDelete,
             testFileVnode.get(),
@@ -305,6 +306,7 @@ static void SetPrjFSFileXattrData(const shared_ptr<vnode>& vnode)
     XCTAssertTrue(
        MockCalls::DidCallFunction(
             ProviderMessaging_TrySendRequestAndWaitForResponse,
+            3,
             _,
             MessageType_KtoU_HydrateFile,
             testFileVnode.get(),
@@ -314,6 +316,7 @@ static void SetPrjFSFileXattrData(const shared_ptr<vnode>& vnode)
             _,
             _,
             nullptr));
+    XCTAssertTrue(MockCalls::CallCount(ProviderMessaging_TrySendRequestAndWaitForResponse) == 2);
 }
 
 - (void) testDeleteDir {
@@ -329,6 +332,7 @@ static void SetPrjFSFileXattrData(const shared_ptr<vnode>& vnode)
     XCTAssertTrue(
        MockCalls::DidCallFunction(
             ProviderMessaging_TrySendRequestAndWaitForResponse,
+            2,
             _,
             MessageType_KtoU_NotifyDirectoryPreDelete,
             testDirVnode.get(),
@@ -341,6 +345,7 @@ static void SetPrjFSFileXattrData(const shared_ptr<vnode>& vnode)
     XCTAssertTrue(
        MockCalls::DidCallFunction(
             ProviderMessaging_TrySendRequestAndWaitForResponse,
+            3,
             _,
             MessageType_KtoU_RecursivelyEnumerateDirectory,
             testDirVnode.get(),
@@ -350,6 +355,7 @@ static void SetPrjFSFileXattrData(const shared_ptr<vnode>& vnode)
             _,
             _,
             nullptr));
+     XCTAssertTrue(MockCalls::CallCount(ProviderMessaging_TrySendRequestAndWaitForResponse) == 2);
 }
 
 - (void) testEmptyDirectoryEnumerates {
@@ -473,6 +479,7 @@ static void SetPrjFSFileXattrData(const shared_ptr<vnode>& vnode)
     XCTAssertTrue(
        MockCalls::DidCallFunction(
             ProviderMessaging_TrySendRequestAndWaitForResponse,
+            2,
             _,
             MessageType_KtoU_HydrateFile,
             testFileVnode.get(),
@@ -485,6 +492,7 @@ static void SetPrjFSFileXattrData(const shared_ptr<vnode>& vnode)
     XCTAssertTrue(
        MockCalls::DidCallFunction(
             ProviderMessaging_TrySendRequestAndWaitForResponse,
+            3,
             _,
             MessageType_KtoU_NotifyFilePreConvertToFull,
             testFileVnode.get(),
@@ -494,6 +502,7 @@ static void SetPrjFSFileXattrData(const shared_ptr<vnode>& vnode)
             _,
             _,
             nullptr));
+    XCTAssertTrue(MockCalls::CallCount(ProviderMessaging_TrySendRequestAndWaitForResponse) == 2);
 }
 
 -(void) testWriteFileHydrated {
@@ -532,6 +541,7 @@ static void SetPrjFSFileXattrData(const shared_ptr<vnode>& vnode)
             _,
             _,
             nullptr));
+    XCTAssertTrue(MockCalls::CallCount(ProviderMessaging_TrySendRequestAndWaitForResponse) == 1);
 }
 
 -(void) testWriteFileFull {
@@ -589,7 +599,7 @@ static void SetPrjFSFileXattrData(const shared_ptr<vnode>& vnode)
 }
 
 - (void) testOpen {
-    // KAUTH_FILEOP_OPEN should not trigger any callbacks for files that already flagged as in the virtualization root.
+    // KAUTH_FILEOP_OPEN should trigger callbacks for files not flagged as in the virtualization root.
     testFileVnode->attrValues.va_flags = 0;
     HandleFileOpOperation(
         nullptr,
@@ -615,7 +625,7 @@ static void SetPrjFSFileXattrData(const shared_ptr<vnode>& vnode)
 }
 
 - (void) testOpenInVirtualizationRoot {
-    // A file that is already in the virtual root, should not recieve a creation request
+    // KAUTH_FILEOP_OPEN should not trigger any callbacks for files that already flagged as in the virtualization root.
     testFileVnode->attrValues.va_flags = FileFlags_IsInVirtualizationRoot;
 
     HandleFileOpOperation(

@@ -1,5 +1,6 @@
 #include "public/PrjFSCommon.h"
 #include <sys/kernel_types.h>
+#include "../PrjFSKext/kernel-header-wrappers/kauth.h"
 #include "../PrjFSKext/kernel-header-wrappers/vnode.h"
 #include "../PrjFSKext/PerformanceTracing.hpp"
 

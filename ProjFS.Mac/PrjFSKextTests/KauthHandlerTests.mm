@@ -1,4 +1,3 @@
-#include "../PrjFSKext/kernel-header-wrappers/kauth.h"
 #include "../PrjFSKext/kernel-header-wrappers/vnode.h"
 #include "../PrjFSKext/KauthHandlerTestable.hpp"
 #include "../PrjFSKext/PerformanceTracing.hpp"
@@ -8,7 +7,6 @@
 #include "MockProc.hpp"
 
 using std::shared_ptr;
-
 
 @interface KauthHandlerTests : XCTestCase
 @end

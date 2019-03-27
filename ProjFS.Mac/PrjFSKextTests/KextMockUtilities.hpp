@@ -8,7 +8,11 @@ namespace KextMock
     struct PlaceholderValue
     {};
     
-    // Allow any value to match
+    // Matches with any parameter value
+    // ParameterPlaceholderValue can be used:
+    //   - When calling kext functions for parameter values that do not matter to the test
+    //   - When checking if a function was called (i.e. DidCallFunction).  ParameterPlaceholderValue
+    //     is a match for all parameter values.
     extern PlaceholderValue _;
 };
 
@@ -40,6 +44,9 @@ template <typename R, typename... ARGS>
     bool DidCallFunction(FunctionPointerType function);
     template <typename... CHECK_ARGS>
         bool DidCallFunction(FunctionPointerType function, CHECK_ARGS... checkArgs);
+    template <typename... CHECK_ARGS>
+        bool DidCallFunction(FunctionPointerType function, int sequenceNumber, CHECK_ARGS... checkArgs);
+    int CallCount(FunctionPointerType function);
 
     virtual void Clear() override
     {
@@ -90,6 +97,12 @@ public:
     static void Clear();
     
     template <typename R, typename... ARGS>
+        static int CallCount(R (*fn)(ARGS...))
+    {
+        return SpecificFunctionCallRecorder<R, ARGS...>::functionTypeRegister.CallCount(fn);
+    }
+    
+    template <typename R, typename... ARGS>
         static bool DidCallFunction(R (*fn)(ARGS...))
     {
         return SpecificFunctionCallRecorder<R, ARGS...>::functionTypeRegister.DidCallFunction(fn);
@@ -99,6 +112,12 @@ public:
         static bool DidCallFunction(R (*fn)(ARGS...), CHECK_ARGS... checkArgs)
     {
         return SpecificFunctionCallRecorder<R, ARGS...>::functionTypeRegister.DidCallFunction(fn, checkArgs...);
+    }
+
+    template <typename R, typename... ARGS, typename... CHECK_ARGS>
+        static bool DidCallFunction(R (*fn)(ARGS...), int sequenceNumber, CHECK_ARGS... checkArgs)
+    {
+        return SpecificFunctionCallRecorder<R, ARGS...>::functionTypeRegister.DidCallFunction(fn, sequenceNumber, checkArgs...);
     }
 };
 
@@ -120,21 +139,40 @@ bool ArgumentsAreEqual(TUPLE_T& arguments, CHECK_TUPLE_T check, std::index_seque
     return (ArgumentIsEqual(std::get<INDICES>(arguments), std::get<INDICES>(check)) && ...);
 }
 
-
 template <typename R, typename... ARGS>
 template <typename... CHECK_ARGS>
-    bool SpecificFunctionCallRecorder<R, ARGS...>::DidCallFunction(FunctionPointerType function, CHECK_ARGS... checkArgs)
+    bool SpecificFunctionCallRecorder<R, ARGS...>::DidCallFunction(FunctionPointerType function, int sequenceNumber, CHECK_ARGS... checkArgs)
 {
     std::pair<typename RecordedCallMap::const_iterator, typename RecordedCallMap::const_iterator> foundCalls = this->recordedCalls.equal_range(function);
     for (typename RecordedCallMap::const_iterator foundCall = foundCalls.first; foundCall != foundCalls.second; ++foundCall)
     {
         if (foundCall->second.argumentValues)
         {
-            if (ArgumentsAreEqual(*foundCall->second.argumentValues, std::forward_as_tuple(checkArgs...), std::index_sequence_for<CHECK_ARGS...>{}))
+            if (ArgumentsAreEqual(*foundCall->second.argumentValues, std::forward_as_tuple(checkArgs...), std::index_sequence_for<CHECK_ARGS...>{}) &&
+                (sequenceNumber == -1 || foundCall->second.callSequenceNumber == sequenceNumber))
             {
                 return true;
             }
         }
     }
     return false;
+}
+
+template <typename R, typename... ARGS>
+template <typename... CHECK_ARGS>
+    bool SpecificFunctionCallRecorder<R, ARGS...>::DidCallFunction(FunctionPointerType function, CHECK_ARGS... checkArgs)
+{
+    return DidCallFunction(function, -1, checkArgs...);
+}
+
+template <typename R, typename... ARGS>
+int SpecificFunctionCallRecorder<R, ARGS...>::CallCount(FunctionPointerType function)
+{
+    int callCount = 0;
+    std::pair<typename RecordedCallMap::const_iterator, typename RecordedCallMap::const_iterator> foundCalls = this->recordedCalls.equal_range(function);
+    for (typename RecordedCallMap::const_iterator foundCall = foundCalls.first; foundCall != foundCalls.second; ++foundCall)
+    {
+        callCount++;
+    }
+    return callCount;
 }
