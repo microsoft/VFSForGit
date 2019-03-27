@@ -83,6 +83,11 @@ namespace GVFS.UnitTests.Mock.Common
             throw new NotSupportedException();
         }
 
+        public override void InitializeStorageMapping(string dotGVFSRoot, string workingDirectoryRoot)
+        {
+            throw new NotSupportedException();
+        }
+
         public override bool IsConsoleOutputRedirectedToFile()
         {
             throw new NotSupportedException();

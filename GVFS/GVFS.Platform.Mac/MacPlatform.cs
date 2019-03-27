@@ -126,6 +126,10 @@ namespace GVFS.Platform.Mac
         {
         }
 
+        public override void InitializeStorageMapping(string dotGVFSRoot, string workingDirectoryRoot)
+        {
+        }
+
         public override string GetNamedPipeName(string enlistmentRoot)
         {
             return MacPlatform.GetNamedPipeNameImplementation(enlistmentRoot);

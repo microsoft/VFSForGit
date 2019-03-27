@@ -44,6 +44,7 @@ namespace GVFS.Common
 
         public abstract string GetOSVersionInformation();
         public abstract void InitializeEnlistmentACLs(string enlistmentPath);
+        public abstract void InitializeStorageMapping(string dotGVFSRoot, string workingDirectoryRoot);
         public abstract bool IsElevated();
         public abstract string GetCurrentUser();
         public abstract void ConfigureVisualStudio(string gitBinPath, ITracer tracer);

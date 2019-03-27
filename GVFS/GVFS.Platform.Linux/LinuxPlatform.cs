@@ -11,6 +11,10 @@ namespace GVFS.Platform.Linux
 {
     public partial class LinuxPlatform : GVFSPlatform
     {
+        public const string StorageConfigName = "vfsforgit.conf";
+
+        private string storageConfigPath;
+
         public LinuxPlatform()
             : base(
                 executableExtension: string.Empty,
@@ -124,6 +128,31 @@ namespace GVFS.Platform.Linux
 
         public override void InitializeEnlistmentACLs(string enlistmentPath)
         {
+        }
+
+        public override void InitializeStorageMapping(string dotGVFSRoot, string workingDirectoryRoot)
+        {
+            this.storageConfigPath = Path.Combine(workingDirectoryRoot, StorageConfigName);
+
+            FileInfo storageConfig = new FileInfo(this.storageConfigPath);
+            using (FileStream fs = storageConfig.Create())
+            using (StreamWriter writer = new StreamWriter(fs))
+            {
+                writer.Write(
+$@"# This source directory was created by the VFSForGit 'clone' command,
+# and its contents will be projected (virtualized) by running the
+# VFSForGit 'mount' command.
+#
+# Do not be alarmed if the directory appears empty except for this file!
+# Running the VFSForGit 'mount' command in the parent directory will
+# cause this directory to be mounted and the contents projected into place.
+
+# Lower storage directory; used by projfs when virtualizing.
+lowerdir={dotGVFSRoot}
+# Initial mount flag; will be set to 'false' after first mount.
+initial=true
+");
+            }
         }
 
         public override string GetNamedPipeName(string enlistmentRoot)

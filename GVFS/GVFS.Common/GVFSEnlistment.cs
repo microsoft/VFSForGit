@@ -209,6 +209,7 @@ namespace GVFS.Common
                 GVFSPlatform.Instance.InitializeEnlistmentACLs(this.EnlistmentRoot);
                 Directory.CreateDirectory(this.WorkingDirectoryRoot);
                 this.CreateHiddenDirectory(this.DotGVFSRoot);
+                GVFSPlatform.Instance.InitializeStorageMapping(this.DotGVFSRoot, this.WorkingDirectoryRoot);
             }
             catch (IOException)
             {
