@@ -102,6 +102,10 @@ namespace GVFS.Platform.Windows
             Directory.SetAccessControl(enlistmentPath, rootSecurity);
         }
 
+        public override void InitializeStorageMapping(string dotGVFSRoot, string workingDirectoryRoot)
+        {
+        }
+
         public override string GetOSVersionInformation()
         {
             StringBuilder sb = new StringBuilder();
