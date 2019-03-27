@@ -854,22 +854,22 @@ static bool TryGetVirtualizationRoot(
 {
     PerfSample findRootSample(perfTracer, PrjFSPerfCounter_VnodeOp_GetVirtualizationRoot);
     
-    if (isDelete)
-    {
-        // TODO(Mac): Once #337 is fixed, remove the code that invalidates the cache entry for delete actions.
-        // Currently delete actions invalidate the cache entry to handle the hardlink+delete rename scenario.  If we do not invalidate
-        // the entry we'll find the root for the newly created hardlink and we need to find the root of the path of the file being deleted.
-        // Testing has shown that looking up the root again has consistently yielded the root of the file being deleted.
-        *root = VnodeCache_RefreshRootForVnode(
-                perfTracer,
-                PrjFSPerfCounter_VnodeOp_Vnode_Cache_Hit,
-                PrjFSPerfCounter_VnodeOp_Vnode_Cache_Miss,
-                PrjFSPerfCounter_VnodeOp_FindRoot,
-                PrjFSPerfCounter_VnodeOp_FindRoot_Iteration,
-                vnode,
-                context);
-    }
-    else
+//    if (isDelete)
+//    {
+//        // TODO(Mac): Once #337 is fixed, remove the code that invalidates the cache entry for delete actions.
+//        // Currently delete actions invalidate the cache entry to handle the hardlink+delete rename scenario.  If we do not invalidate
+//        // the entry we'll find the root for the newly created hardlink and we need to find the root of the path of the file being deleted.
+//        // Testing has shown that looking up the root again has consistently yielded the root of the file being deleted.
+//        *root = VnodeCache_RefreshRootForVnode(
+//                perfTracer,
+//                PrjFSPerfCounter_VnodeOp_Vnode_Cache_Hit,
+//                PrjFSPerfCounter_VnodeOp_Vnode_Cache_Miss,
+//                PrjFSPerfCounter_VnodeOp_FindRoot,
+//                PrjFSPerfCounter_VnodeOp_FindRoot_Iteration,
+//                vnode,
+//                context);
+//    }
+//    else
     {
         *root = VnodeCache_FindRootForVnode(
             perfTracer,
@@ -1035,11 +1035,13 @@ static bool ShouldHandleFileOpEvent(
         else
         {
             // TODO(Mac): Once all hardlink paths are delivered to the appropriate root(s)
-            // check if `KAUTH_FILEOP_LINK == action` can be removed.  For now the check is required to make
-            // sure we're looking up the most up-to-date parent information for the vnode
-            if (KAUTH_FILEOP_LINK == action || KAUTH_FILEOP_RENAME == action)
+            // check if the KAUTH_FILEOP_LINK case can be removed.  For now the check is required to make
+            // sure we're looking up the most up-to-date parent information for the vnode on the nexe
+            // access to the vnode cache
+            switch(action)
             {
-                *root = VnodeCache_RefreshRootForVnode(
+                case KAUTH_FILEOP_LINK:
+                    *root = VnodeCache_InvalidateVnodeAndGetLatestRoot(
                         perfTracer,
                         PrjFSPerfCounter_FileOp_Vnode_Cache_Hit,
                         PrjFSPerfCounter_FileOp_Vnode_Cache_Miss,
@@ -1047,17 +1049,29 @@ static bool ShouldHandleFileOpEvent(
                         PrjFSPerfCounter_FileOp_FindRoot_Iteration,
                         vnode,
                         context);
-            }
-            else
-            {
-                *root = VnodeCache_FindRootForVnode(
-                    perfTracer,
-                    PrjFSPerfCounter_FileOp_Vnode_Cache_Hit,
-                    PrjFSPerfCounter_FileOp_Vnode_Cache_Miss,
-                    PrjFSPerfCounter_FileOp_FindRoot,
-                    PrjFSPerfCounter_FileOp_FindRoot_Iteration,
-                    vnode,
-                    context);
+                    break;
+
+                case KAUTH_FILEOP_RENAME:
+                    *root = VnodeCache_RefreshRootForVnode(
+                        perfTracer,
+                        PrjFSPerfCounter_FileOp_Vnode_Cache_Hit,
+                        PrjFSPerfCounter_FileOp_Vnode_Cache_Miss,
+                        PrjFSPerfCounter_FileOp_FindRoot,
+                        PrjFSPerfCounter_FileOp_FindRoot_Iteration,
+                        vnode,
+                        context);
+                    break;
+
+                default:
+                    *root = VnodeCache_FindRootForVnode(
+                        perfTracer,
+                        PrjFSPerfCounter_FileOp_Vnode_Cache_Hit,
+                        PrjFSPerfCounter_FileOp_Vnode_Cache_Miss,
+                        PrjFSPerfCounter_FileOp_FindRoot,
+                        PrjFSPerfCounter_FileOp_FindRoot_Iteration,
+                        vnode,
+                        context);
+                    break;
             }
         }
         

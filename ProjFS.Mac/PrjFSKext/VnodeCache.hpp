@@ -25,4 +25,13 @@ VirtualizationRootHandle VnodeCache_RefreshRootForVnode(
         vnode_t _Nonnull vnode,
         vfs_context_t _Nonnull context);
 
+VirtualizationRootHandle VnodeCache_InvalidateVnodeAndGetLatestRoot(
+        PerfTracer* _Nonnull perfTracer,
+        PrjFSPerfCounter cacheHitCounter,
+        PrjFSPerfCounter cacheMissCounter,
+        PrjFSPerfCounter cacheMissFallbackFunctionCounter,
+        PrjFSPerfCounter cacheMissFallbackFunctionInnerLoopCounter,
+        vnode_t _Nonnull vnode,
+        vfs_context_t _Nonnull context);
+
 void VnodeCache_InvalidateCache(PerfTracer* _Nonnull perfTracer);
