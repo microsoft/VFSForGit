@@ -38,7 +38,7 @@
   <ItemGroup>
     <WindowsBuildOutputs Include="$(BuildOutputDir)\GVFS.Windows\bin\$(Platform)\$(Configuration)\**\*.*" />
     <WindowsBuildOutputs Include="$(BuildOutputDir)\GVFS.Windows\bin\$(Platform)\$(Configuration)\$(Platform)\**\*.*" />
-    <WindowsBuildOutputs Include="$(BuildOutputDir)\GVFS.Service\bin\$(Platform)\$(Configuration)\**\*.*" />
+    <WindowsBuildOutputs Include="$(BuildOutputDir)\GVFS.Service.Windows\bin\$(Platform)\$(Configuration)\**\*.*" />
     <WindowsBuildOutputs Include="$(BuildOutputDir)\GVFS.Mount.Windows\bin\$(Platform)\$(Configuration)\**\*.*" />
     <WindowsBuildOutputs Include="$(BuildOutputDir)\FastFetch\bin\$(Platform)\$(Configuration)\**\*.*" />
     <WindowsBuildOutputs Include="$(BuildOutputDir)\GVFS.NativeTests\bin\$(Platform)\$(Configuration)\**\*.*" />
