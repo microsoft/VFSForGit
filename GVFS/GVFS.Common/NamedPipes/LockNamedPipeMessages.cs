@@ -286,7 +286,11 @@ namespace GVFS.Common.NamedPipes
             {
                 if (!string.IsNullOrEmpty(body))
                 {
-                    // This mesage is stored using the MessageSeperator delimitor for performance reasons
+                    // This mesage is stored using the MessageSeperator delimiter for performance reasons
+                    // Format of the body uses length prefixed string so that the strings can have the delimiter in them
+                    // Examples:
+                    // "123|true|false|13|parsedCommand|9|sessionId"
+                    // "321|false|true|30|parsedCommand with | delimiter|26|sessionId with | delimiter"
                     string[] dataParts = body.Split(MessageSeparator);
                     int pid;
                     bool isElevated = false;
@@ -328,6 +332,8 @@ namespace GVFS.Common.NamedPipes
 
                     parsedCommand = body.Substring(commandStartingSpot, parsedCommandLength);
 
+                    // The session Id is after the parsed command with the length of the session Id string coming first
+                    // Use the string after the parsed command string to get the session Id data
                     string sessionIdSubString = body.Substring(commandStartingSpot + parsedCommandLength + 1);
                     string[] sessionIdParts = sessionIdSubString.Split(MessageSeparator);
                     if (!int.TryParse(sessionIdParts[0], out int sessionIdLength))
@@ -335,6 +341,8 @@ namespace GVFS.Common.NamedPipes
                         throw new InvalidOperationException(string.Format("Invalid lock message. Expected session id length, got: {0} from message: '{1}'", sessionIdParts[0], body));
                     }
 
+                    // Validate the session Id data does not exceed the body of the message by using the previous
+                    // command starting position and length and adding length of the part for the size of the session id plus the 2 delimiters
                     int sessionIdStartingSpot = commandStartingSpot + parsedCommandLength + sessionIdParts[0].Length + 2;
                     if ((sessionIdStartingSpot + sessionIdLength) != body.Length)
                     {
