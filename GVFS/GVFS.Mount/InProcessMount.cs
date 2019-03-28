@@ -314,6 +314,7 @@ namespace GVFS.Mount
                 else if (lockAcquired)
                 {
                     response = new NamedPipeMessages.AcquireLock.Response(NamedPipeMessages.AcquireLock.AcceptResult);
+                    this.tracer.SetGitCommandSessionId(requester.GitCommandSessionId);
                 }
                 else if (existingExternalHolder == null)
                 {
@@ -340,6 +341,11 @@ namespace GVFS.Mount
             }
 
             NamedPipeMessages.ReleaseLock.Response response = this.fileSystemCallbacks.TryReleaseExternalLock(request.RequestData.PID);
+            if (response.Result == NamedPipeMessages.ReleaseLock.SuccessResult)
+            {
+                this.tracer.SetGitCommandSessionId(string.Empty);
+            }
+
             connection.TrySendResponse(response.CreateMessage());
         }
 

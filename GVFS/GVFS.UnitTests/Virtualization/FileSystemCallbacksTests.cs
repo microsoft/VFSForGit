@@ -164,7 +164,8 @@ namespace GVFS.UnitTests.Virtualization
                         pid: 0,
                         isElevated: false,
                         checkAvailabilityOnly: false,
-                        parsedCommand: "git dummy-command"),
+                        parsedCommand: "git dummy-command",
+                        gitCommandSessionId: "123"),
                     out denyMessage).ShouldBeFalse();
                 denyMessage.ShouldEqual("Waiting for GVFS to parse index and update placeholder files");
 
@@ -176,7 +177,8 @@ namespace GVFS.UnitTests.Virtualization
                         pid: 0,
                         isElevated: false,
                         checkAvailabilityOnly: false,
-                        parsedCommand: "git dummy-command"),
+                        parsedCommand: "git dummy-command",
+                        gitCommandSessionId: "123"),
                     out denyMessage).ShouldBeFalse();
                 denyMessage.ShouldEqual("Waiting for GVFS to parse index and update placeholder files");
 
@@ -188,7 +190,8 @@ namespace GVFS.UnitTests.Virtualization
                         pid: 0,
                         isElevated: false,
                         checkAvailabilityOnly: false,
-                        parsedCommand: "git dummy-command"),
+                        parsedCommand: "git dummy-command",
+                        gitCommandSessionId: "123"),
                     out denyMessage).ShouldBeFalse();
                 denyMessage.ShouldEqual("Waiting for GVFS to release the lock");
 
@@ -199,7 +202,8 @@ namespace GVFS.UnitTests.Virtualization
                         pid: 0,
                         isElevated: false,
                         checkAvailabilityOnly: false,
-                        parsedCommand: "git dummy-command"),
+                        parsedCommand: "git dummy-command",
+                        gitCommandSessionId: "123"),
                     out denyMessage).ShouldBeTrue();
                 denyMessage.ShouldEqual("Waiting for GVFS to release the lock");
 

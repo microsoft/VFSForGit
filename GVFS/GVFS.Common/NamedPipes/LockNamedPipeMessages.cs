@@ -235,9 +235,9 @@ namespace GVFS.Common.NamedPipes
                 this.RequestData = LockData.FromBody(messageBody);
             }
 
-            public LockRequest(int pid, bool isElevated, bool checkAvailabilityOnly, string parsedCommand)
+            public LockRequest(int pid, bool isElevated, bool checkAvailabilityOnly, string parsedCommand, string gitCommandSessionId)
             {
-                this.RequestData = new LockData(pid, isElevated, checkAvailabilityOnly, parsedCommand);
+                this.RequestData = new LockData(pid, isElevated, checkAvailabilityOnly, parsedCommand, gitCommandSessionId);
             }
 
             public LockData RequestData { get; }
@@ -250,15 +250,18 @@ namespace GVFS.Common.NamedPipes
 
         public class LockData
         {
-            public LockData(int pid, bool isElevated, bool checkAvailabilityOnly, string parsedCommand)
+            public LockData(int pid, bool isElevated, bool checkAvailabilityOnly, string parsedCommand, string gitCommandSessionId)
             {
                 this.PID = pid;
+                this.GitCommandSessionId = gitCommandSessionId;
                 this.IsElevated = isElevated;
                 this.CheckAvailabilityOnly = checkAvailabilityOnly;
                 this.ParsedCommand = parsedCommand;
             }
 
             public int PID { get; set; }
+
+            public string GitCommandSessionId { get; set; }
 
             public bool IsElevated { get; set; }
 
@@ -283,16 +286,20 @@ namespace GVFS.Common.NamedPipes
             {
                 if (!string.IsNullOrEmpty(body))
                 {
-                    // This mesage is stored using the MessageSeperator delimitor for performance reasons
+                    // This mesage is stored using the MessageSeperator delimiter for performance reasons
+                    // Format of the body uses length prefixed string so that the strings can have the delimiter in them
+                    // Examples:
+                    // "123|true|false|13|parsedCommand|9|sessionId"
+                    // "321|false|true|30|parsedCommand with | delimiter|26|sessionId with | delimiter"
                     string[] dataParts = body.Split(MessageSeparator);
                     int pid;
                     bool isElevated = false;
                     bool checkAvailabilityOnly = false;
                     string parsedCommand = null;
 
-                    if (dataParts.Length < 5)
+                    if (dataParts.Length < 7)
                     {
-                        throw new InvalidOperationException(string.Format("Invalid lock message. Expected at least 5 parts, got: {0} from message: '{1}'", dataParts.Length, body));
+                        throw new InvalidOperationException(string.Format("Invalid lock message. Expected at least 7 parts, got: {0} from message: '{1}'", dataParts.Length, body));
                     }
 
                     if (!int.TryParse(dataParts[0], out pid))
@@ -317,15 +324,34 @@ namespace GVFS.Common.NamedPipes
 
                     // ParsedCommandLength should be the length of the string at the end of the message
                     // Add the length of the previous parts, plus delimiters
-                    int startingSpot = dataParts[0].Length + dataParts[1].Length + dataParts[2].Length + dataParts[3].Length + 4;
-                    if ((startingSpot + parsedCommandLength) != body.Length)
+                    int commandStartingSpot = dataParts[0].Length + dataParts[1].Length + dataParts[2].Length + dataParts[3].Length + 4;
+                    if ((commandStartingSpot + parsedCommandLength) >= body.Length)
                     {
                         throw new InvalidOperationException(string.Format("Invalid lock message. The parsedCommand is an unexpected length, got: {0} from message: '{1}'", parsedCommandLength, body));
                     }
 
-                    parsedCommand = body.Substring(startingSpot, parsedCommandLength);
+                    parsedCommand = body.Substring(commandStartingSpot, parsedCommandLength);
 
-                    return new LockData(pid, isElevated, checkAvailabilityOnly, parsedCommand);
+                    // The session Id is after the parsed command with the length of the session Id string coming first
+                    // Use the string after the parsed command string to get the session Id data
+                    string sessionIdSubString = body.Substring(commandStartingSpot + parsedCommandLength + 1);
+                    string[] sessionIdParts = sessionIdSubString.Split(MessageSeparator);
+                    if (!int.TryParse(sessionIdParts[0], out int sessionIdLength))
+                    {
+                        throw new InvalidOperationException(string.Format("Invalid lock message. Expected session id length, got: {0} from message: '{1}'", sessionIdParts[0], body));
+                    }
+
+                    // Validate the session Id data does not exceed the body of the message by using the previous
+                    // command starting position and length and adding length of the part for the size of the session id plus the 2 delimiters
+                    int sessionIdStartingSpot = commandStartingSpot + parsedCommandLength + sessionIdParts[0].Length + 2;
+                    if ((sessionIdStartingSpot + sessionIdLength) != body.Length)
+                    {
+                        throw new InvalidOperationException(string.Format("Invalid lock message. The sessionId is an unexpected length, got: {0} from message: '{1}'", sessionIdLength, body));
+                    }
+
+                    string sessionId = body.Substring(sessionIdStartingSpot, sessionIdLength);
+
+                    return new LockData(pid, isElevated, checkAvailabilityOnly, parsedCommand, sessionId);
                 }
 
                 return null;
@@ -333,7 +359,15 @@ namespace GVFS.Common.NamedPipes
 
             internal string ToMessage()
             {
-                return string.Join(MessageSeparator.ToString(), this.PID, this.IsElevated, this.CheckAvailabilityOnly, this.ParsedCommand.Length, this.ParsedCommand);
+                return string.Join(
+                    MessageSeparator.ToString(),
+                    this.PID,
+                    this.IsElevated,
+                    this.CheckAvailabilityOnly,
+                    this.ParsedCommand.Length,
+                    this.ParsedCommand,
+                    this.GitCommandSessionId.Length,
+                    this.GitCommandSessionId);
             }
         }
 

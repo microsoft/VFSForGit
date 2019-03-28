@@ -30,6 +30,8 @@ namespace GVFS.Common.Tracing
             this.vfsVersion = ProcessHelper.GetCurrentProcessVersion();
         }
 
+        public string GitCommandSessionId { get; set; }
+
         public static TelemetryDaemonEventListener CreateIfEnabled(string gitBinRoot, string providerName, string enlistmentId, string mountId)
         {
             // This listener is disabled unless the user specifies the proper git config setting.
@@ -85,6 +87,7 @@ namespace GVFS.Common.Tracing
                 {
                     EnlistmentId = this.enlistmentId,
                     MountId = this.mountId,
+                    GitCommandSessionId = this.GitCommandSessionId,
                     Json = message.Payload
                 },
 
@@ -163,6 +166,8 @@ namespace GVFS.Common.Tracing
                 public string EnlistmentId { get; set; }
                 [JsonProperty("mountId")]
                 public string MountId { get; set; }
+                [JsonProperty("gitCommandSessionId")]
+                public string GitCommandSessionId { get; set; }
                 [JsonProperty("json")]
                 public string Json { get; set; }
             }
