@@ -297,9 +297,9 @@ namespace GVFS.Common.NamedPipes
                     bool checkAvailabilityOnly = false;
                     string parsedCommand = null;
 
-                    if (dataParts.Length < 5)
+                    if (dataParts.Length < 7)
                     {
-                        throw new InvalidOperationException(string.Format("Invalid lock message. Expected at least 5 parts, got: {0} from message: '{1}'", dataParts.Length, body));
+                        throw new InvalidOperationException(string.Format("Invalid lock message. Expected at least 7 parts, got: {0} from message: '{1}'", dataParts.Length, body));
                     }
 
                     if (!int.TryParse(dataParts[0], out pid))
