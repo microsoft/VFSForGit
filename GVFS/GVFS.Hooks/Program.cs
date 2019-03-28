@@ -464,13 +464,7 @@ namespace GVFS.Hooks
         {
             try
             {
-                string parent_sid = Environment.GetEnvironmentVariable("GIT_TR2_PARENT_SID", EnvironmentVariableTarget.Process);
-                if (parent_sid == null)
-                {
-                    parent_sid = string.Empty;
-                }
-
-                return parent_sid;
+                return Environment.GetEnvironmentVariable("GIT_TR2_PARENT_SID", EnvironmentVariableTarget.Process) ?? string.Empty;
             }
             catch (Exception)
             {
