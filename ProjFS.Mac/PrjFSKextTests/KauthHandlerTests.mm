@@ -367,13 +367,14 @@ class org_vfsforgit_PrjFSProviderUserClient
     shared_ptr<mount> testMountNone = mount::Create("none", fsid_t{}, 0);
     shared_ptr<vnode> testVnodeNone = vnode::Create(testMountNone, "/none");
     shared_ptr<vnode> testVnodeUnsupportedType = vnode::Create(testMount, "/foo", VNON);
+    std::string fromFilePath = repoPath + "/fromFile.txt";
+    std::string fromDirectoryPath = repoPath + "/fromDirectory";
 
     org_vfsforgit_PrjFSProviderUserClient userClient;
 
-    VirtualizationRootHandle rootHandle;
+    VirtualizationRootHandle rootHandle, testRootHandle, fromProviderHandle;
     FsidInode vnodeFsidInode;
     int pid;
-    VirtualizationRootHandle testRootHandle;
 
     // Invalid Root Handle Test
     XCTAssertFalse(
@@ -383,7 +384,9 @@ class org_vfsforgit_PrjFSProviderUserClient
             repoRootVnode.get(),
             KAUTH_FILEOP_RENAME,
             true, // isDirectory,
+            fromDirectoryPath.c_str(),
             &testRootHandle,
+            &fromProviderHandle,
             &vnodeFsidInode,
             &pid));
 
@@ -396,6 +399,7 @@ class org_vfsforgit_PrjFSProviderUserClient
         repoPath.c_str());
     XCTAssertTrue(VirtualizationRoot_IsValidRootHandle(testRootHandle));
 
+
     // With Valid Root Handle we should pass
     XCTAssertTrue(
         ShouldHandleFileOpEvent(
@@ -404,7 +408,9 @@ class org_vfsforgit_PrjFSProviderUserClient
             repoRootVnode.get(),
             KAUTH_FILEOP_RENAME,
             true, // isDirectory,
+            fromDirectoryPath.c_str(),
             &testRootHandle,
+            &fromProviderHandle,
             &vnodeFsidInode,
             &pid));
 
@@ -416,7 +422,9 @@ class org_vfsforgit_PrjFSProviderUserClient
             testVnodeNone.get(),
             KAUTH_FILEOP_RENAME,
             true, // isDirectory,
+            fromDirectoryPath.c_str(),
             &testRootHandle,
+            &fromProviderHandle,
             &vnodeFsidInode,
             &pid));
     
@@ -428,7 +436,9 @@ class org_vfsforgit_PrjFSProviderUserClient
             testVnodeUnsupportedType.get(),
             KAUTH_FILEOP_RENAME,
             true, // isDirectory,
+            fromDirectoryPath.c_str(),
             &testRootHandle,
+            &fromProviderHandle,
             &vnodeFsidInode,
             &pid));
 
@@ -441,7 +451,9 @@ class org_vfsforgit_PrjFSProviderUserClient
             repoRootVnode.get(),
             KAUTH_FILEOP_RENAME,
             true, // isDirectory,
+            fromDirectoryPath.c_str(),
             &testRootHandle,
+            &fromProviderHandle,
             &vnodeFsidInode,
             &pid));
     s_virtualizationRoots[0].providerUserClient = &userClient;
@@ -458,7 +470,9 @@ class org_vfsforgit_PrjFSProviderUserClient
             repoRootVnode.get(),
             KAUTH_FILEOP_RENAME,
             true, // isDirectory,
+            fromDirectoryPath.c_str(),
             &testRootHandle,
+            &fromProviderHandle,
             &vnodeFsidInode,
             &pid));
     MockProcess_Reset();
@@ -474,7 +488,9 @@ class org_vfsforgit_PrjFSProviderUserClient
             testVnodeFile.get(),
             KAUTH_FILEOP_OPEN,
             false, // isDirectory,
+            nullptr, // fromPath not needed for OPEN
             &rootHandle,
+            nullptr, // fromProvider not needed for OPEN
             &vnodeFsidInode,
             &pid));
     XCTAssertTrue(rootHandle == testRootHandle);
@@ -490,7 +506,9 @@ class org_vfsforgit_PrjFSProviderUserClient
             testVnodeFile.get(),
             KAUTH_FILEOP_LINK,
             false, // isDirectory,
+            fromFilePath.c_str(),
             &rootHandle,
+            &fromProviderHandle,
             &vnodeFsidInode,
             &pid));
     XCTAssertTrue(rootHandle == testRootHandle);
@@ -508,7 +526,9 @@ class org_vfsforgit_PrjFSProviderUserClient
             testVnodeFile.get(),
             KAUTH_FILEOP_RENAME,
             false, // isDirectory,
+            fromFilePath.c_str(),
             &rootHandle,
+            &fromProviderHandle,
             &vnodeFsidInode,
             &pid));
     XCTAssertTrue(rootHandle == testRootHandle);
@@ -527,7 +547,9 @@ class org_vfsforgit_PrjFSProviderUserClient
             testVnodeDirectory.get(),
             KAUTH_FILEOP_RENAME,
             true, // isDirectory,
+            fromDirectoryPath.c_str(),
             &rootHandle,
+            &fromProviderHandle,
             &vnodeFsidInode,
             &pid));
     XCTAssertTrue(rootHandle == testRootHandle);

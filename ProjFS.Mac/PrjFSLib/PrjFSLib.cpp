@@ -760,17 +760,44 @@ static void HandleKernelRequest(void* messageMemory, uint32_t messageSize)
             break;
         }
         
-        case MessageType_KtoU_NotifyFileCreated:
         case MessageType_KtoU_NotifyFileRenamed:
         case MessageType_KtoU_NotifyDirectoryRenamed:
         case MessageType_KtoU_NotifyFileHardLinkCreated:
         {
+            const char* relativeFromPath = GetRelativePath(request.sourcePath, s_virtualizationRootFullPath.c_str());
+            cout << "PrjFSLib.HandleKernelRequest: " << (requestHeader->messageType == MessageType_KtoU_NotifyFileHardLinkCreated ? "hard-linked " : "renamed ") << request.sourcePath << " -> " << absolutePath << " (absolute), ";
+            if (relativeFromPath != nullptr)
+            {
+                cout << "from this root (relative path " << relativeFromPath << ") ";
+            }
+            if (relativePath != nullptr)
+            {
+                cout << "into this root (relative path " << relativePath << ")";
+            }
+            cout << endl;
+            
             bool isDirectory = requestHeader->messageType == MessageType_KtoU_NotifyDirectoryRenamed;
+            
+            if (relativePath != nullptr)
+            {
+                result = HandleNewFileInRootNotification(
+                    requestHeader,
+                    relativePath,
+                    absolutePath,
+                    isDirectory,
+                    KUMessageTypeToNotificationType(static_cast<MessageType>(requestHeader->messageType)));
+            }
+            
+            break;
+        }
+
+        case MessageType_KtoU_NotifyFileCreated:
+        {
             result = HandleNewFileInRootNotification(
                 requestHeader,
                 relativePath,
                 absolutePath,
-                isDirectory,
+                false, // not a directory
                 KUMessageTypeToNotificationType(static_cast<MessageType>(requestHeader->messageType)));
             break;
         }
