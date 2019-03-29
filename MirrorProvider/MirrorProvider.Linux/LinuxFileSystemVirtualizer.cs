@@ -1,4 +1,4 @@
-﻿using PrjFSLib.Linux;
+using PrjFSLib.Linux;
 using System;
 using System.IO;
 using System.Runtime.InteropServices;
@@ -25,11 +25,13 @@ namespace MirrorProvider.Linux
 
             this.virtualizationInstance.OnEnumerateDirectory = this.OnEnumerateDirectory;
             this.virtualizationInstance.OnGetFileStream = this.OnGetFileStream;
+            this.virtualizationInstance.OnLogError = this.OnLogError;
             this.virtualizationInstance.OnFileModified = this.OnFileModified;
             this.virtualizationInstance.OnPreDelete = this.OnPreDelete;
             this.virtualizationInstance.OnNewFileCreated = this.OnNewFileCreated;
             this.virtualizationInstance.OnFileRenamed = this.OnFileRenamed;
             this.virtualizationInstance.OnHardLinkCreated = this.OnHardLinkCreated;
+            this.virtualizationInstance.OnFilePreConvertToFull = this.OnFilePreConvertToFull;
 
             Result result = this.virtualizationInstance.StartVirtualizationInstance(
                 storageRoot,
@@ -186,6 +188,11 @@ namespace MirrorProvider.Linux
             return Result.Success;
         }
 
+        private void OnLogError(string errorMessage)
+        {
+            Console.WriteLine($"OnLogError: {errorMessage}");
+        }
+
         private void OnFileModified(string relativePath)
         {
             Console.WriteLine($"OnFileModified: {relativePath}");
@@ -210,6 +217,12 @@ namespace MirrorProvider.Linux
         private void OnHardLinkCreated(string relativeNewLinkPath)
         {
             Console.WriteLine($"OnHardLinkCreated: {relativeNewLinkPath}");
+        }
+
+        private Result OnFilePreConvertToFull(string relativePath)
+        {
+            Console.WriteLine($"OnFilePreConvertToFull: {relativePath}");
+            return Result.Success;
         }
 
         private bool TryGetSymLinkTarget(string relativePath, out string symLinkTarget)
