@@ -134,10 +134,7 @@ static void SetPrjFSFileXattrData(const shared_ptr<vnode>& vnode)
                 _,
                 _,
                 _,
-                nullptr,
-                _,
-                _,
-                _));
+                nullptr));
         MockCalls::Clear();
     }
 }
@@ -321,10 +318,7 @@ static void SetPrjFSFileXattrData(const shared_ptr<vnode>& vnode)
             _,
             _,
             _,
-            nullptr,
-            _,
-            _,
-            _),
+            nullptr),
         ProviderMessaging_TrySendRequestAndWaitForResponse,
         make_tuple(
            _,
@@ -336,10 +330,7 @@ static void SetPrjFSFileXattrData(const shared_ptr<vnode>& vnode)
             _,
             _,
             _,
-            nullptr,
-            _,
-            _,
-            _))
+            nullptr))
     );
     XCTAssertTrue(MockCalls::CallCount(ProviderMessaging_TrySendRequestAndWaitForResponse) == 2);
 }
@@ -366,10 +357,7 @@ static void SetPrjFSFileXattrData(const shared_ptr<vnode>& vnode)
             _,
             _,
             _,
-            nullptr,
-            _,
-            _,
-            _),
+            nullptr),
         ProviderMessaging_TrySendRequestAndWaitForResponse,
         make_tuple(
            _,
@@ -381,10 +369,7 @@ static void SetPrjFSFileXattrData(const shared_ptr<vnode>& vnode)
             _,
             _,
             _,
-            nullptr,
-            _,
-            _,
-            _))
+            nullptr))
     );
     XCTAssertTrue(MockCalls::CallCount(ProviderMessaging_TrySendRequestAndWaitForResponse) == 2);
 }
@@ -423,10 +408,7 @@ static void SetPrjFSFileXattrData(const shared_ptr<vnode>& vnode)
                 _,
                 _,
                 _,
-                nullptr,
-                _,
-                _,
-                _));
+                nullptr));
         MockCalls::Clear();
     }
 }
@@ -523,10 +505,7 @@ static void SetPrjFSFileXattrData(const shared_ptr<vnode>& vnode)
             _,
             _,
             _,
-            nullptr,
-            _,
-            _,
-            _),
+            nullptr),
         ProviderMessaging_TrySendRequestAndWaitForResponse,
         make_tuple(
            _,
@@ -538,10 +517,7 @@ static void SetPrjFSFileXattrData(const shared_ptr<vnode>& vnode)
             _,
             _,
             _,
-            nullptr,
-            _,
-            _,
-            _))
+            nullptr))
     );
     XCTAssertTrue(MockCalls::CallCount(ProviderMessaging_TrySendRequestAndWaitForResponse) == 2);
 }
@@ -570,10 +546,7 @@ static void SetPrjFSFileXattrData(const shared_ptr<vnode>& vnode)
             _,
             _,
             _,
-            nullptr,
-            _,
-            _,
-            _));
+            nullptr));
     XCTAssertTrue(
        MockCalls::DidCallFunction(
             ProviderMessaging_TrySendRequestAndWaitForResponse,
@@ -586,10 +559,7 @@ static void SetPrjFSFileXattrData(const shared_ptr<vnode>& vnode)
             _,
             _,
             _,
-            nullptr,
-            _,
-            _,
-            _));
+            nullptr));
     XCTAssertTrue(MockCalls::CallCount(ProviderMessaging_TrySendRequestAndWaitForResponse) == 1);
 }
 
