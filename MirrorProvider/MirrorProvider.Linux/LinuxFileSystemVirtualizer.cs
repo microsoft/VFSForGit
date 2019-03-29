@@ -113,14 +113,10 @@ namespace MirrorProvider.Linux
                         string childRelativePath = Path.Combine(relativePath, child.Name);
                         string childFullPathInMirror = this.GetFullPathInMirror(childRelativePath);
                         NativeMethods.StatBuffer statBuffer = new NativeMethods.StatBuffer();
-                        byte[] childFullPathInMirrorBuf = GetBytesUTF8(childFullPathInMirror);
                         int statResult;
                         unsafe
                         {
-                            fixed (byte* childFullPathInMirrorPtr = childFullPathInMirrorBuf)
-                            {
-                                statResult = NativeMethods.LStat(childFullPathInMirrorPtr, out statBuffer);
-                            }
+                            statResult = NativeMethods.LStat(childFullPathInMirror, out statBuffer);
                         }
                         if (statResult == -1)
                         {
@@ -254,22 +250,16 @@ namespace MirrorProvider.Linux
         {
             symLinkTarget = null;
             string fullPathInMirror = this.GetFullPathInMirror(relativePath);
-            byte[] fullPathInMirrorBuf = GetBytesUTF8(fullPathInMirror);
+
             const ulong BufSize = 4096;
             byte[] targetBuffer = new byte[BufSize];
-            long bytesRead;
-            unsafe
-            {
-                fixed (byte* fullPathInMirrorPtr = fullPathInMirrorBuf, bufPtr = targetBuffer)
-                {
-                    bytesRead = NativeMethods.Readlink(fullPathInMirrorPtr, bufPtr, BufSize);
-                }
-            }
+            long bytesRead = ReadLink(fullPathInMirror, targetBuffer, BufSize);
             if (bytesRead < 0)
             {
                 Console.WriteLine($"GetSymLinkTarget failed: {Marshal.GetLastWin32Error()}");
                 return false;
             }
+
             targetBuffer[bytesRead] = 0;
             symLinkTarget = Encoding.UTF8.GetString(targetBuffer);
 
@@ -291,14 +281,6 @@ namespace MirrorProvider.Linux
             bytes[0] = version;
 
             return bytes;
-        }
-
-        private static byte[] GetBytesUTF8(string str)
-        {
-            int bufLen = Encoding.UTF8.GetByteCount(str);
-            byte[] buf = new byte[bufLen + 1];
-            Encoding.UTF8.GetBytes(str, 0, str.Length, buf, 0);
-            return buf;
         }
 
         private static unsafe class NativeMethods
@@ -336,17 +318,20 @@ namespace MirrorProvider.Linux
                 public long[] Reserved;     /* RESERVED: DO NOT USE! */
             }
 
-            public static int LStat(byte *name, [Out] out StatBuffer buf)
+            public static int LStat(string pathname, [Out] out StatBuffer buf)
             {
-                return __LXStat64(STAT_VER, name, out buf);
+                return __LXStat64(STAT_VER, pathname, out buf);
             }
 
             // TODO(Linux): assumes recent GNU libc or ABI-compatible libc
             [DllImport("libc", EntryPoint = "__lxstat64", SetLastError = true)]
-            public static extern int __LXStat64(int vers, byte* name, [Out] out StatBuffer buf);
-
-            [DllImport("libc", EntryPoint = "readlink", SetLastError = true)]
-            public static extern long Readlink(byte* name, byte* buf, ulong bufsiz);
+            private static extern int __LXStat64(int vers, string pathname, [Out] out StatBuffer buf);
         }
+
+        [DllImport("libc", EntryPoint = "readlink", SetLastError = true)]
+        private static extern long ReadLink(
+            string path,
+            byte[] buf,
+            ulong bufsize);
     }
 }
