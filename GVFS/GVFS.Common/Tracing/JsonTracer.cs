@@ -239,7 +239,9 @@ namespace GVFS.Common.Tracing
         public ITracer StartActivity(string childActivityName, EventLevel startStopLevel, Keywords startStopKeywords, EventMetadata startMetadata)
         {
             JsonTracer subTracer = new JsonTracer(this.listeners, this.activityId, childActivityName, startStopLevel, startStopKeywords);
-            subTracer.WriteStartEvent(startMetadata, startStopKeywords);
+
+            // Write the start event, disabling the Telemetry keyword so we will only dispatch telemetry at the end event.
+            subTracer.WriteStartEvent(startMetadata, startStopKeywords & ~Keywords.Telemetry);
 
             return subTracer;
         }
