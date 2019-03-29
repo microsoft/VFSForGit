@@ -14,8 +14,12 @@ namespace PrjFSLib.Linux
         // References held to these delegates via class properties
         public virtual EnumerateDirectoryCallback OnEnumerateDirectory { get; set; }
         public virtual GetFileStreamCallback OnGetFileStream { get; set; }
+        public virtual LogErrorCallback OnLogError { get; set; }
+        public virtual LogWarningCallback OnLogWarning { get; set; }
+        public virtual LogInfoCallback OnLogInfo { get; set; }
 
         public virtual NotifyFileModified OnFileModified { get; set; }
+        public virtual NotifyFilePreConvertToFullEvent OnFilePreConvertToFull { get; set; }
         public virtual NotifyPreDeleteEvent OnPreDelete { get; set; }
         public virtual NotifyNewFileCreatedEvent OnNewFileCreated { get; set; }
         public virtual NotifyFileRenamedEvent OnFileRenamed { get; set; }
@@ -394,6 +398,9 @@ namespace PrjFSLib.Linux
                 case NotificationType.HardLinkCreated:
                     this.OnHardLinkCreated(relativePath);
                     return Result.Success;
+
+                case NotificationType.PreConvertToFull:
+                    return this.OnFilePreConvertToFull(relativePath);
             }
 
             return Result.ENotYetImplemented;
