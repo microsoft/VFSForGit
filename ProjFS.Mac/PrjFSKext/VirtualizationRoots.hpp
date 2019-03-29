@@ -30,6 +30,9 @@ VirtualizationRootHandle VirtualizationRoot_FindForVnode(
     vnode_t _Nonnull vnode,
     vfs_context_t _Nonnull context);
 
+VirtualizationRootHandle ActiveProvider_FindForPath(
+    const char* _Nonnull path);
+
 struct ActiveProviderProperties
 {
     bool isOnline;
