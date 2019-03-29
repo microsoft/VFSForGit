@@ -763,10 +763,41 @@ static void HandleKernelRequest(void* messageMemory, uint32_t messageSize)
             break;
         }
         
+        case MessageType_KtoU_NotifyFileHardLinkCreated:
+        {
+#if DEBUG
+            // TODO(Mac): Move the following line out of the DEBUG block once we actually need the information. Currently just causes warning-as-error in release build.
+            const char* fromPath = request.paths[MessagePath_From];
+            const char* relativeFromPath = fromPath != nullptr ? GetRelativePath(fromPath, s_virtualizationRootFullPath.c_str()) : nullptr;
+
+            cout << "PrjFSLib.HandleKernelRequest: hard-linked " << (fromPath ?: "[out-of-root path]") << " -> " << (absolutePath ?: "[out-of-root path]") << " (absolute), ";
+            if (relativeFromPath != nullptr)
+            {
+                cout << "from this root (relative path " << relativeFromPath << ") ";
+            }
+            if (relativePath != nullptr)
+            {
+                cout << "into this root (relative path " << relativePath << ")";
+            }
+            cout << endl;
+#endif
+            
+            if (relativePath != nullptr)
+            {
+                result = HandleNewFileInRootNotification(
+                    requestHeader,
+                    relativePath,
+                    absolutePath,
+                    false, // isDirectory; TODO: may yet be a directory
+                    KUMessageTypeToNotificationType(static_cast<MessageType>(requestHeader->messageType)));
+            }
+            
+            break;
+        }
+
         case MessageType_KtoU_NotifyFileCreated:
         case MessageType_KtoU_NotifyFileRenamed:
         case MessageType_KtoU_NotifyDirectoryRenamed:
-        case MessageType_KtoU_NotifyFileHardLinkCreated:
         {
             bool isDirectory = requestHeader->messageType == MessageType_KtoU_NotifyDirectoryRenamed;
             result = HandleNewFileInRootNotification(

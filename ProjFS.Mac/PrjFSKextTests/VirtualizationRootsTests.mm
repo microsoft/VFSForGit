@@ -20,6 +20,8 @@ using std::vector;
 using std::make_tuple;
 using KextMock::_;
 
+extern "C" int strprefix(const char* string1, const char* string2);
+
 class PrjFSProviderUserClient
 {
 };
@@ -469,6 +471,38 @@ static void SetRootXattrData(shared_ptr<vnode> vnode)
     {
         XCTAssertEqual(s_virtualizationRoots[foundRoot].rootInode, repoRootVnode->GetInode());
     }
+}
+
+// This helper function is defined in the kernel, not in stdlib. Returns 1 if s2 is a prefix of s1
+int strprefix(const char* string1, const char* string2)
+{
+    while (true)
+    {
+        char c = *string2;
+        if (c == '\0')
+        {
+            return 1;
+        }
+        else if (c != *string1)
+        {
+            return 0;
+        }
+        
+        ++string1;
+        ++string2;
+    }
+}
+
+- (void) testPathInsideDirectory
+{
+    XCTAssertTrue(PathInsideDirectory("/some/directory", "/some/directory/containing/file"));
+    XCTAssertTrue(PathInsideDirectory("/directory/with/slash/", "/directory/with/slash/containing/file"));
+    XCTAssertTrue(PathInsideDirectory("/", "/below/root/directory"));
+    XCTAssertTrue(PathInsideDirectory("/a/directory/itself", "/a/directory/itself"));
+
+    XCTAssertFalse(PathInsideDirectory("/some/dir", "/some/directory/containing/file"));
+    XCTAssertFalse(PathInsideDirectory("/a/directory", "/a/dir"));
+    XCTAssertFalse(PathInsideDirectory("/some/directory/with/sub/directories", "/some/directory"));
 }
 
 

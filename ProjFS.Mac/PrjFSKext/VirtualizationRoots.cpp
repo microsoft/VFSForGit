@@ -30,6 +30,8 @@ KEXT_STATIC VirtualizationRoot* s_virtualizationRoots = nullptr;
 static VirtualizationRootHandle FindRootAtVnode_Locked(vnode_t vnode, uint32_t vid, FsidInode fileId);
 
 static void RefreshRootVnodeIfNecessary_Locked(VirtualizationRootHandle rootHandle, vnode_t vnode, uint32_t vid, FsidInode fileId);
+static bool FsidsAreEqual(fsid_t a, fsid_t b);
+KEXT_STATIC bool PathInsideDirectory(const char* directoryPath, const char* path);
 
 // Looks up the vnode and fsid/inode pair among the known roots, and if not found,
 // detects if there is a hitherto-unknown root at vnode by checking attributes.
@@ -595,4 +597,52 @@ bool VirtualizationRoot_VnodeIsOnAllowedFilesystem(vnode_t vnode)
     return
         0 == strncmp("hfs", vfsStat->f_fstypename, sizeof(vfsStat->f_fstypename))
         || 0 == strncmp("apfs", vfsStat->f_fstypename, sizeof(vfsStat->f_fstypename));
+}
+
+KEXT_STATIC bool PathInsideDirectory(const char* directoryPath, const char* path)
+{
+    if (!strprefix(path, directoryPath))
+    {
+        return false;
+    }
+    
+    // string prefix alone is not sufficient, must not return true for the following:
+    //   /path/to/some/dir
+    //   /path/to/some/directory/containing/file
+    // so check for the '/' positioning:
+    
+    size_t directoryPathLength = strlen(directoryPath);
+    if (directoryPathLength >= 1 && directoryPath[directoryPathLength - 1] == '/')
+    {
+        // directoryPath ends with a "/", so no ambiguity
+        return true;
+    }
+    else if (path[directoryPathLength] == '\0' // path is identical to directoryPath
+             || path[directoryPathLength] == '/') // path really is strictly below directoryPath
+    {
+        return true;
+    }
+
+    return false;
+}
+
+VirtualizationRootHandle ActiveProvider_FindForPath(const char* _Nonnull path)
+{
+    VirtualizationRootHandle matchingHandle = RootHandle_None;
+    
+    RWLock_AcquireShared(s_virtualizationRootsLock);
+    {
+        for (uint32_t i = 0; i < s_maxVirtualizationRoots; ++i)
+        {
+            VirtualizationRoot& root = s_virtualizationRoots[i];
+            if (root.inUse && root.providerUserClient != nullptr && PathInsideDirectory(root.path, path))
+            {
+                matchingHandle = i;
+                break;
+            }
+        }
+    }
+    RWLock_ReleaseShared(s_virtualizationRootsLock);
+    
+    return matchingHandle;
 }

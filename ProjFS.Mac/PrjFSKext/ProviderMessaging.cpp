@@ -138,7 +138,7 @@ bool ProviderMessaging_TrySendRequestAndWaitForResponse(
     int* kauthError)
 {
     // To be useful, the message needs to either provide an FSID/inode pair or a path
-    assert(vnodePath != nullptr || (vnodeFsidInode.fsid.val[0] != 0 || vnodeFsidInode.fsid.val[1] != 0));
+    assert(vnodePath != nullptr || (vnodeFsidInode.fsid.val[0] != 0 || vnodeFsidInode.fsid.val[1] != 0) || fromPath != nullptr);
     bool result = false;
     
     OutstandingMessage message =
