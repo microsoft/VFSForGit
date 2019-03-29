@@ -106,13 +106,7 @@ namespace MirrorProvider.Linux
                     else
                     {
                         string childRelativePath = Path.Combine(relativePath, child.Name);
-                        string childFullPathInMirror = this.GetFullPathInMirror(childRelativePath);
-                        NativeMethods.StatBuffer statBuffer = new NativeMethods.StatBuffer();
-                        int statResult;
-                        unsafe
-                        {
-                            statResult = NativeMethods.LStat(childFullPathInMirror, out statBuffer);
-                        }
+                        int statResult = NativeMethods.LStat(this.GetFullPathInMirror(childRelativePath), out NativeMethods.StatBuffer statBuffer);
                         if (statResult == -1)
                         {
                             Console.WriteLine($"NativeMethods.LStat failed: {Marshal.GetLastWin32Error()}");
@@ -268,7 +262,7 @@ namespace MirrorProvider.Linux
             return bytes;
         }
 
-        private static unsafe class NativeMethods
+        private static class NativeMethods
         {
             // #define _STAT_VER   1
             private static readonly int STAT_VER = 1;
