@@ -48,5 +48,4 @@ struct Message;
 errno_t ActiveProvider_SendMessage(VirtualizationRootHandle rootHandle, const Message message);
 bool VirtualizationRoot_VnodeIsOnAllowedFilesystem(vnode_t _Nonnull vnode);
 bool VirtualizationRoot_IsValidRootHandle(VirtualizationRootHandle rootHandle);
-const char* _Nonnull VirtualizationRoot_GetRootRelativePath(VirtualizationRootHandle rootHandle, const char* _Nonnull path);
 ActiveProviderProperties VirtualizationRoot_GetActiveProvider(VirtualizationRootHandle rootHandle);

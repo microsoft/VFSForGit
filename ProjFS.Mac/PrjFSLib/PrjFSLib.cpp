@@ -109,9 +109,9 @@ static errno_t RegisterVirtualizationRootPath(const char* fullPath);
 static PrjFS_Result RecursivelyMarkAllChildrenAsInRoot(const char* fullDirectoryPath);
 
 static void HandleKernelRequest(void* messageMemory, uint32_t messageSize);
-static PrjFS_Result HandleEnumerateDirectoryRequest(const MessageHeader* request, const char* relativePath);
-static PrjFS_Result HandleRecursivelyEnumerateDirectoryRequest(const MessageHeader* request, const char* relativePath);
-static PrjFS_Result HandleHydrateFileRequest(const MessageHeader* request, const char* relativePath);
+static PrjFS_Result HandleEnumerateDirectoryRequest(const MessageHeader* request, const char* absolutePath, const char* relativePath);
+static PrjFS_Result HandleRecursivelyEnumerateDirectoryRequest(const MessageHeader* request, const char* absolutePath, const char* relativePath);
+static PrjFS_Result HandleHydrateFileRequest(const MessageHeader* request, const char* absolutePath, const char* relativePath);
 static PrjFS_Result HandleNewFileInRootNotification(
     const MessageHeader* request,
     const char* relativePath,
@@ -646,6 +646,12 @@ static void HandleKernelRequest(void* messageMemory, uint32_t messageSize)
     Message request = ParseMessageMemory(messageMemory, messageSize);
     const MessageHeader* requestHeader = request.messageHeader;
     
+    const char* absolutePath = nullptr;
+    const char* relativePath = nullptr;
+    
+    // We expect a non-null request.path for messages sent from the FILEOP handler,
+    // whereas messages originating in the kext's vnode handler will only fill
+    // the fsid/inode, so we need to look up the path below.
     char pathBuffer[PrjFSMaxPath];
     if (request.path == nullptr)
     {
@@ -674,7 +680,8 @@ static void HandleKernelRequest(void* messageMemory, uint32_t messageSize)
         }
         else
         {
-            request.path = GetRelativePath(pathBuffer, s_virtualizationRootFullPath.c_str());
+            absolutePath = pathBuffer;
+            relativePath = GetRelativePath(pathBuffer, s_virtualizationRootFullPath.c_str());
 #if DEBUG
             cout
                 << "PrjFSLib.HandleKernelRequest: fsgetpath for fsid 0x"
@@ -690,24 +697,29 @@ static void HandleKernelRequest(void* messageMemory, uint32_t messageSize)
 #endif
         }
     }
+    else
+    {
+        absolutePath = request.path;
+        relativePath = GetRelativePath(absolutePath, s_virtualizationRootFullPath.c_str());
+    }
     
     switch (requestHeader->messageType)
     {
         case MessageType_KtoU_EnumerateDirectory:
         {
-            result = HandleEnumerateDirectoryRequest(requestHeader, request.path);
+            result = HandleEnumerateDirectoryRequest(requestHeader, absolutePath, relativePath);
             break;
         }
         
         case MessageType_KtoU_RecursivelyEnumerateDirectory:
         {
-            result = HandleRecursivelyEnumerateDirectoryRequest(requestHeader, request.path);
+            result = HandleRecursivelyEnumerateDirectoryRequest(requestHeader, absolutePath, relativePath);
             break;
         }
             
         case MessageType_KtoU_HydrateFile:
         {
-            result = HandleHydrateFileRequest(requestHeader, request.path);
+            result = HandleHydrateFileRequest(requestHeader, absolutePath, relativePath);
             break;
         }
             
@@ -716,12 +728,10 @@ static void HandleKernelRequest(void* messageMemory, uint32_t messageSize)
         case MessageType_KtoU_NotifyDirectoryPreDelete:
         case MessageType_KtoU_NotifyFilePreConvertToFull:
         {
-            char fullPath[PrjFSMaxPath];
-            CombinePaths(s_virtualizationRootFullPath.c_str(), request.path, fullPath);
             result = HandleFileNotification(
                 requestHeader,
-                request.path,
-                fullPath,
+                relativePath,
+                absolutePath,
                 requestHeader->messageType == MessageType_KtoU_NotifyDirectoryPreDelete,  // isDirectory
                 KUMessageTypeToNotificationType(static_cast<MessageType>(requestHeader->messageType)));
             break;
@@ -732,13 +742,11 @@ static void HandleKernelRequest(void* messageMemory, uint32_t messageSize)
         case MessageType_KtoU_NotifyDirectoryRenamed:
         case MessageType_KtoU_NotifyFileHardLinkCreated:
         {
-            char fullPath[PrjFSMaxPath];
-            CombinePaths(s_virtualizationRootFullPath.c_str(), request.path, fullPath);
             bool isDirectory = requestHeader->messageType == MessageType_KtoU_NotifyDirectoryRenamed;
             result = HandleNewFileInRootNotification(
                 requestHeader,
-                request.path,
-                fullPath,
+                relativePath,
+                absolutePath,
                 isDirectory,
                 KUMessageTypeToNotificationType(static_cast<MessageType>(requestHeader->messageType)));
             break;
@@ -762,19 +770,18 @@ CleanupAndReturn:
     free(messageMemory);
 }
 
-static PrjFS_Result HandleEnumerateDirectoryRequest(const MessageHeader* request, const char* relativePath)
+static PrjFS_Result HandleEnumerateDirectoryRequest(const MessageHeader* request, const char* fullPath, const char* relativePath)
 {
 #ifdef DEBUG
     cout
         << "PrjFSLib.HandleEnumerateDirectoryRequest: "
-        << relativePath
+        << fullPath
+        << " (root-relative: " << relativePath << ")"
         << " Process name: " << request->procname
         << " Pid: " << request->pid
         << endl;
 #endif
     
-    char fullPath[PrjFSMaxPath];
-    CombinePaths(s_virtualizationRootFullPath.c_str(), relativePath, fullPath);
     if (!IsBitSetInFileFlags(fullPath, FileFlags_IsEmpty))
     {
         return PrjFS_Result_Success;
@@ -813,12 +820,13 @@ CleanupAndReturn:
     return result;
 }
 
-static PrjFS_Result HandleRecursivelyEnumerateDirectoryRequest(const MessageHeader* request, const char* relativePath)
+static PrjFS_Result HandleRecursivelyEnumerateDirectoryRequest(const MessageHeader* request, const char* absolutePath, const char* relativePath)
 {
 #ifdef DEBUG
     cout
         << "PrjFSLib.HandleRecursivelyEnumerateDirectoryRequest: "
-        << relativePath
+        << absolutePath
+        << " (root-relative: " << relativePath << ")"
         << " Process name: " << request->procname
         << " Pid: " << request->pid
         << endl;
@@ -838,7 +846,7 @@ static PrjFS_Result HandleRecursivelyEnumerateDirectoryRequest(const MessageHead
         
         CombinePaths(s_virtualizationRootFullPath.c_str(), directoryRelativePath.c_str(), path);
     
-        PrjFS_Result result = HandleEnumerateDirectoryRequest(request, directoryRelativePath.c_str());
+        PrjFS_Result result = HandleEnumerateDirectoryRequest(request, path, directoryRelativePath.c_str());
         if (result != PrjFS_Result_Success)
         {
             goto CleanupAndReturn;
@@ -873,20 +881,18 @@ CleanupAndReturn:
     return result;
 }
 
-static PrjFS_Result HandleHydrateFileRequest(const MessageHeader* request, const char* relativePath)
+static PrjFS_Result HandleHydrateFileRequest(const MessageHeader* request, const char* fullPath, const char* relativePath)
 {
 #ifdef DEBUG
     cout
         << "PrjFSLib.HandleHydrateFileRequest: "
-        << relativePath
+        << fullPath
+        << " (root-relative: " << relativePath << ")"
         << " Process name: " << request->procname
         << " Pid: " << request->pid
         << endl;
 #endif
-    
-    char fullPath[PrjFSMaxPath];
-    CombinePaths(s_virtualizationRootFullPath.c_str(), relativePath, fullPath);
-    
+        
     PrjFSFileXAttrData xattrData = {};
     if (!TryGetXAttr(fullPath, PrjFSFileXAttrName, sizeof(PrjFSFileXAttrData), &xattrData))
     {
@@ -983,7 +989,8 @@ static PrjFS_Result HandleNewFileInRootNotification(
 #ifdef DEBUG
     cout
         << "HandleNewFileInRootNotification: "
-        << relativePath
+        << fullPath
+        << " (root-relative: " << relativePath << ")"
         << " Process name: " << request->procname
         << " Pid: " << request->pid
         << " notificationType: " << NotificationTypeToString(notificationType)
@@ -1018,7 +1025,8 @@ static PrjFS_Result HandleFileNotification(
 #ifdef DEBUG
     cout
         << "PrjFSLib.HandleFileNotification: "
-        << relativePath
+        << fullPath
+        << " (root-relative: " << relativePath << ")"
         << " Process name: " << request->procname
         << " Pid: " << request->pid
         << " notificationType: " << NotificationTypeToString(notificationType)

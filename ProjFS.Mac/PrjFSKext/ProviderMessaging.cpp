@@ -138,18 +138,12 @@ bool ProviderMessaging_TrySendRequestAndWaitForResponse(
     // To be useful, the message needs to either provide an FSID/inode pair or a path
     assert(vnodePath != nullptr || (vnodeFsidInode.fsid.val[0] != 0 || vnodeFsidInode.fsid.val[1] != 0));
     bool result = false;
-    const char* relativePath = nullptr;
     
     OutstandingMessage message =
     {
         .receivedResult = false,
         .rootHandle = root,
     };
-    
-    if (nullptr != vnodePath)
-    {
-        relativePath = VirtualizationRoot_GetRootRelativePath(root, vnodePath);
-    }
     
     uint64_t nextMessageId = atomic_fetch_add(&s_nextMessageId, UINT64_C(1));
     
@@ -162,7 +156,7 @@ bool ProviderMessaging_TrySendRequestAndWaitForResponse(
         vnodeFsidInode,
         pid,
         procname,
-        relativePath);
+        vnodePath);
 
     if (s_isShuttingDown)
     {
