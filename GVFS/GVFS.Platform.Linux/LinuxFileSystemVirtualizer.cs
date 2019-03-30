@@ -211,7 +211,8 @@ namespace GVFS.Platform.Linux
         {
             error = string.Empty;
 
-            string storageRoot = Path.Combine(this.Context.Enlistment.WorkingDirectoryRoot, "lower");
+            // TODO(Linux): set this path in common class
+            string storageRoot = Path.Combine(this.Context.Enlistment.DotGVFSRoot, "lower");
 
             // Callbacks
             this.virtualizationInstance.OnEnumerateDirectory = this.OnEnumerateDirectory;
@@ -229,12 +230,16 @@ namespace GVFS.Platform.Linux
                 this.Context.Enlistment.WorkingDirectoryRoot,
                 threadCount);
 
+            // TODO(Linux): note that most start errors are not reported
+            // because they can only be retrieved from projfs_stop() at present
             if (result != Result.Success)
             {
                 this.Context.Tracer.RelatedError($"{nameof(this.virtualizationInstance.StartVirtualizationInstance)} failed: " + result.ToString("X") + "(" + result.ToString("G") + ")");
                 error = "Failed to start virtualization instance (" + result.ToString() + ")";
                 return false;
             }
+
+            // TODO(Linux): wait for device ID from stat() to change
 
             this.Context.Tracer.RelatedEvent(EventLevel.Informational, $"{nameof(this.TryStart)}_StartedVirtualization", metadata: null);
             return true;
