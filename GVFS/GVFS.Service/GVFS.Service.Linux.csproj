@@ -1,0 +1,51 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <Import Project="..\GVFS.Build\GVFS.cs.props" />
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <RootNamespace>GVFS.Service</RootNamespace>
+    <AssemblyName>GVFS.Service</AssemblyName>
+    <!-- Target netstandard2.0 as well so that .NET Framework unit tests can consume this assembly -->
+    <TargetFrameworks>netcoreapp2.1; netstandard2.0</TargetFrameworks>
+    <Platforms>x64</Platforms>
+    <RunTimeIdentifiers>linux-x64</RunTimeIdentifiers>
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+    <TargetLatestRuntimePatch>true</TargetLatestRuntimePatch>
+  </PropertyGroup>
+  
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
+    <Version>$(GVFSVersion)</Version>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
+    <Version>$(GVFSVersion)</Version>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="..\GVFS.PlatformLoader\PlatformLoader.Linux.cs" Link="Linux\PlatformLoader.Linux.cs" />
+    <Compile Include="Configuration.cs" />
+    <Compile Include="GVFSMountProcess.Linux.cs" />
+    <Compile Include="GVFSService.Linux.cs" />
+    <Compile Include="Handlers\INotificationHandler.cs" />
+    <Compile Include="Handlers\NotificationHandler.Linux.cs" />
+    <Compile Include="Handlers\RequestHandler.cs" />
+    <Compile Include="Handlers\GetActiveRepoListHandler.cs" />
+    <Compile Include="Handlers\MessageHandler.cs" />
+    <Compile Include="Handlers\RegisterRepoHandler.cs" />
+    <Compile Include="Handlers\UnregisterRepoHandler.cs" />
+    <Compile Include="IRepoMounter.cs" />
+    <Compile Include="IRepoRegistry.cs" />
+    <Compile Include="Program.Linux.cs" />
+    <Compile Include="RepoRegistration.cs" />
+    <Compile Include="RepoRegistry.cs" />
+  </ItemGroup>
+  
+  <ItemGroup>
+    <ProjectReference Include="..\GVFS.Platform.Linux\GVFS.Platform.Linux.csproj" />
+    <ProjectReference Include="..\GVFS.Common\GVFS.Common.csproj" />
+  </ItemGroup>
+  
+  <ItemGroup>
+    <PackageReference Include="CommandLineParser" Version="2.1.1-beta" />
+    <PackageReference Include="StyleCop.Analyzers" Version="1.0.2">
+      <PrivateAssets>all</PrivateAssets>
+    </PackageReference>
+  </ItemGroup>
+</Project>
