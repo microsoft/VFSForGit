@@ -13,6 +13,11 @@ namespace GVFS.Platform.Linux
             }
         }
 
+        public DiskLayoutVersion Version => new DiskLayoutVersion(
+                    currentMajorVersion: 18,
+                    currentMinorVersion: 0,
+                    minimumSupportedMajorVersion: 18);
+
         public bool TryParseLegacyDiskLayoutVersion(string dotGVFSPath, out int majorVersion)
         {
             majorVersion = 0;

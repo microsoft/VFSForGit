@@ -6,6 +6,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.IO.Pipes;
+using System.Security;
 
 namespace GVFS.Platform.Linux
 {
@@ -93,20 +94,6 @@ namespace GVFS.Platform.Linux
             return pipe;
         }
 
-        public override IEnumerable<EventListener> CreateTelemetryListeners(string providerName, string enlistmentId, string mountId)
-        {
-            // TODO: return TelemetryDaemonEventListener when the telemetry daemon has been implemented for Linux
-
-            // string gitBinRoot = this.GitInstallation.GetInstalledGitBinPath();
-            // var daemonListener = TelemetryDaemonEventListener.CreateIfEnabled(gitBinRoot, providerName, enlistmentId, mountId, pipeName: "vfs");
-            // if (daemonListener != null)
-            // {
-            //     yield return daemonListener;
-            // }
-
-            yield break;
-        }
-
         public override string GetCurrentUser()
         {
             throw new NotImplementedException();
@@ -174,6 +161,42 @@ lowerdir={storageRoot}
         public override bool TryGetGVFSEnlistmentRoot(string directory, out string enlistmentRoot, out string errorMessage)
         {
             return LinuxPlatform.TryGetGVFSEnlistmentRootImplementation(directory, out enlistmentRoot, out errorMessage);
+        }
+
+        public override bool TryGetDefaultLocalCacheRoot(string enlistmentRoot, out string localCacheRoot, out string localCacheRootError)
+        {
+            string homeDirectory;
+
+            try
+            {
+                homeDirectory = Environment.GetEnvironmentVariable("HOME");
+            }
+            catch (SecurityException e)
+            {
+                localCacheRoot = null;
+                localCacheRootError = $"Failed to read $HOME, insufficient permission: {e.Message}";
+                return false;
+            }
+
+            if (string.IsNullOrEmpty(homeDirectory))
+            {
+                localCacheRoot = null;
+                localCacheRootError = "$HOME empty or not found";
+                return false;
+            }
+
+            try
+            {
+                localCacheRoot = Path.Combine(homeDirectory, GVFSConstants.DefaultGVFSCacheFolderName);
+                localCacheRootError = null;
+                return true;
+            }
+            catch (ArgumentException e)
+            {
+                localCacheRoot = null;
+                localCacheRootError = $"Failed to build local cache path using $HOME('{homeDirectory}'): {e.Message}";
+                return false;
+            }
         }
 
         public override bool IsGitStatusCacheSupported()
