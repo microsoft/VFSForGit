@@ -26,6 +26,7 @@ namespace GVFS.Service
         private string serviceDataLocation;
         private RepoRegistry repoRegistry;
         private ProductUpgradeTimer productUpgradeTimer;
+        private WindowsRequestHandler requestHandler;
 
         public GVFSService(JsonTracer tracer)
         {
@@ -45,10 +46,15 @@ namespace GVFS.Service
 
                 this.repoRegistry = new RepoRegistry(this.tracer, new PhysicalFileSystem(), this.serviceDataLocation);
                 this.repoRegistry.Upgrade();
+                this.requestHandler = new WindowsRequestHandler(this.tracer, EtwArea, this.repoRegistry);
+
                 string pipeName = this.serviceName + ".Pipe";
                 this.tracer.RelatedInfo("Starting pipe server with name: " + pipeName);
 
-                using (NamedPipeServer pipeServer = NamedPipeServer.StartNewServer(pipeName, this.tracer, this.HandleRequest))
+                using (NamedPipeServer pipeServer = NamedPipeServer.StartNewServer(
+                    pipeName,
+                    this.tracer,
+                    this.requestHandler.HandleRequest))
                 {
                     this.CheckEnableGitStatusCacheTokenFile();
 
@@ -160,7 +166,9 @@ namespace GVFS.Service
                 this.serviceName = serviceName.Substring(ServiceNameArgPrefix.Length);
             }
 
-            string serviceLogsDirectoryPath = Paths.GetServiceLogsPath(this.serviceName);
+            string serviceLogsDirectoryPath = Path.Combine(
+                    GVFSPlatform.Instance.GetDataRootForGVFSComponent(GVFSConstants.Service.ServiceName),
+                    GVFSConstants.Service.LogDirectory);
 
             // Create the logs directory explicitly *before* creating a log file event listener to ensure that it
             // and its ancestor directories are created with the correct ACLs.
@@ -172,7 +180,7 @@ namespace GVFS.Service
 
             try
             {
-                this.serviceDataLocation = Paths.GetServiceDataRoot(this.serviceName);
+                this.serviceDataLocation = GVFSPlatform.Instance.GetDataRootForGVFSComponent(this.serviceName);
                 this.CreateAndConfigureProgramDataDirectories();
                 this.Start();
             }
@@ -220,86 +228,6 @@ namespace GVFS.Service
             this.serviceThread.Start();
         }
 
-        private void HandleRequest(ITracer tracer, string request, NamedPipeServer.Connection connection)
-        {
-            NamedPipeMessages.Message message = NamedPipeMessages.Message.FromString(request);
-            if (string.IsNullOrWhiteSpace(message.Header))
-            {
-                return;
-            }
-
-            using (ITracer activity = this.tracer.StartActivity(message.Header, EventLevel.Informational, new EventMetadata { { "request", request } }))
-            {
-                switch (message.Header)
-                {
-                    case NamedPipeMessages.RegisterRepoRequest.Header:
-                        try
-                        {
-                            NamedPipeMessages.RegisterRepoRequest mountRequest = NamedPipeMessages.RegisterRepoRequest.FromMessage(message);
-                            RegisterRepoHandler mountHandler = new RegisterRepoHandler(activity, this.repoRegistry, connection, mountRequest);
-                            mountHandler.Run();
-                        }
-                        catch (SerializationException ex)
-                        {
-                            activity.RelatedError("Could not deserialize mount request: {0}", ex.Message);
-                        }
-
-                        break;
-
-                    case NamedPipeMessages.UnregisterRepoRequest.Header:
-                        try
-                        {
-                            NamedPipeMessages.UnregisterRepoRequest unmountRequest = NamedPipeMessages.UnregisterRepoRequest.FromMessage(message);
-                            UnregisterRepoHandler unmountHandler = new UnregisterRepoHandler(activity, this.repoRegistry, connection, unmountRequest);
-                            unmountHandler.Run();
-                        }
-                        catch (SerializationException ex)
-                        {
-                            activity.RelatedError("Could not deserialize unmount request: {0}", ex.Message);
-                        }
-
-                        break;
-
-                    case NamedPipeMessages.EnableAndAttachProjFSRequest.Header:
-                        try
-                        {
-                            NamedPipeMessages.EnableAndAttachProjFSRequest attachRequest = NamedPipeMessages.EnableAndAttachProjFSRequest.FromMessage(message);
-                            EnableAndAttachProjFSHandler attachHandler = new EnableAndAttachProjFSHandler(activity, connection, attachRequest);
-                            attachHandler.Run();
-                        }
-                        catch (SerializationException ex)
-                        {
-                            activity.RelatedError("Could not deserialize attach volume request: {0}", ex.Message);
-                        }
-
-                        break;
-
-                    case NamedPipeMessages.GetActiveRepoListRequest.Header:
-                        try
-                        {
-                            NamedPipeMessages.GetActiveRepoListRequest repoListRequest = NamedPipeMessages.GetActiveRepoListRequest.FromMessage(message);
-                            GetActiveRepoListHandler excludeHandler = new GetActiveRepoListHandler(activity, this.repoRegistry, connection, repoListRequest);
-                            excludeHandler.Run();
-                        }
-                        catch (SerializationException ex)
-                        {
-                            activity.RelatedError("Could not deserialize repo list request: {0}", ex.Message);
-                        }
-
-                        break;
-
-                    default:
-                        EventMetadata metadata = new EventMetadata();
-                        metadata.Add("Area", EtwArea);
-                        metadata.Add("Header", message.Header);
-                        this.tracer.RelatedWarning(metadata, "HandleNewConnection: Unknown request", Keywords.Telemetry);
-
-                        connection.TrySendResponse(NamedPipeMessages.UnknownRequest);
-                        break;
-                }
-            }
-        }
-
         /// <summary>
         /// To work around a behavior in ProjFS where notification masks on files that have been opened in virtualization instance are not invalidated
         /// when the virtualization instance is restarted, GVFS waits until after there has been a reboot before enabling the GitStatusCache.
@@ -311,7 +239,7 @@ namespace GVFS.Service
         {
             try
             {
-                string statusCacheVersionTokenPath = Path.Combine(Paths.GetServiceDataRoot(GVFSConstants.Service.ServiceName), GVFSConstants.GitStatusCache.EnableGitStatusCacheTokenFile);
+                string statusCacheVersionTokenPath = Path.Combine(GVFSPlatform.Instance.GetDataRootForGVFSComponent(GVFSConstants.Service.ServiceName), GVFSConstants.GitStatusCache.EnableGitStatusCacheTokenFile);
                 if (File.Exists(statusCacheVersionTokenPath))
                 {
                     this.tracer.RelatedInfo($"CheckEnableGitStatusCache: EnableGitStatusCacheToken file already exists at {statusCacheVersionTokenPath}.");

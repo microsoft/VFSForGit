@@ -2,6 +2,7 @@
 using Microsoft.Win32.SafeHandles;
 using System;
 using System.Diagnostics;
+using System.IO;
 using System.Runtime.InteropServices;
 using System.Security.Principal;
 
@@ -69,6 +70,18 @@ namespace GVFS.Platform.Windows
         public static string GetNamedPipeNameImplementation(string enlistmentRoot)
         {
             return "GVFS_" + enlistmentRoot.ToUpper().Replace(':', '_');
+        }
+
+        public static string GetDataRootForGVFSImplementation()
+        {
+            return Path.Combine(
+                Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData, Environment.SpecialFolderOption.Create),
+                "GVFS");
+        }
+
+        public static string GetDataRootForGVFSComponentImplementation(string componentName)
+        {
+            return Path.Combine(GetDataRootForGVFSImplementation(), componentName);
         }
 
         public static bool IsConsoleOutputRedirectedToFileImplementation()

@@ -47,6 +47,11 @@ namespace GVFS.Service
             return true;
         }
 
+        public string GetUserId()
+        {
+            return this.CurrentUser.Identity.User.Value;
+        }
+
         public void Dispose()
         {
             if (this.CurrentUser != null)

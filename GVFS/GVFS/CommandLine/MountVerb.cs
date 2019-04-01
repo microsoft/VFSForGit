@@ -114,34 +114,19 @@ namespace GVFS.CommandLine
 
                 if (!GVFSPlatform.Instance.KernelDriver.IsReady(tracer, enlistment.EnlistmentRoot, this.Output, out errorMessage))
                 {
-                    if (GVFSPlatform.Instance.UnderConstruction.SupportsGVFSService)
-                    {
-                        tracer.RelatedEvent(
-                            EventLevel.Informational,
-                            $"{nameof(MountVerb)}_{nameof(this.Execute)}_EnablingKernelDriverViaService",
-                            new EventMetadata
-                            {
-                                { "KernelDriver.IsReady_Error", errorMessage },
-                                { TracingConstants.MessageKey.InfoMessage, "Service will retry" }
-                            });
-
-                        if (!this.ShowStatusWhileRunning(
-                            () => { return this.TryEnableAndAttachPrjFltThroughService(enlistment.EnlistmentRoot, out errorMessage); },
-                            $"Attaching ProjFS to volume"))
+                    tracer.RelatedEvent(
+                        EventLevel.Informational,
+                        $"{nameof(MountVerb)}_{nameof(this.Execute)}_EnablingKernelDriverViaService",
+                        new EventMetadata
                         {
-                            this.ReportErrorAndExit(tracer, ReturnCode.FilterError, errorMessage);
-                        }
-                    }
-                    else
-                    {
-                        tracer.RelatedEvent(
-                            EventLevel.Informational,
-                            $"{nameof(MountVerb)}_{nameof(this.Execute)}",
-                            new EventMetadata
-                            {
-                                { "KernelDriver.IsReady_Error", errorMessage },
-                            });
+                            { "KernelDriver.IsReady_Error", errorMessage },
+                            { TracingConstants.MessageKey.InfoMessage, "Service will retry" }
+                        });
 
+                    if (!this.ShowStatusWhileRunning(
+                        () => { return this.TryEnableAndAttachPrjFltThroughService(enlistment.EnlistmentRoot, out errorMessage); },
+                        $"Attaching ProjFS to volume"))
+                    {
                         this.ReportErrorAndExit(tracer, ReturnCode.FilterError, errorMessage);
                     }
                 }
@@ -210,8 +195,7 @@ namespace GVFS.CommandLine
                 }
             }
 
-            if (!this.Unattended &&
-                GVFSPlatform.Instance.UnderConstruction.SupportsGVFSService)
+            if (!this.Unattended)
             {
                 if (!this.ShowStatusWhileRunning(
                     () => { return this.RegisterMount(enlistment, out errorMessage); },

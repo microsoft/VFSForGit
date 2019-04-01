@@ -123,6 +123,16 @@ namespace GVFS.Platform.Windows
             return sb.ToString();
         }
 
+        public override string GetDataRootForGVFS()
+        {
+            return WindowsPlatform.GetDataRootForGVFSImplementation();
+        }
+
+        public override string GetDataRootForGVFSComponent(string componentName)
+        {
+            return WindowsPlatform.GetDataRootForGVFSComponentImplementation(componentName);
+        }
+
         public override void StartBackgroundProcess(ITracer tracer, string programName, string[] args)
         {
             string programArguments = string.Empty;
@@ -309,7 +319,7 @@ namespace GVFS.Platform.Windows
 
         public override bool IsGitStatusCacheSupported()
         {
-            return File.Exists(Path.Combine(Paths.GetServiceDataRoot(GVFSConstants.Service.ServiceName), GVFSConstants.GitStatusCache.EnableGitStatusCacheTokenFile));
+            return File.Exists(Path.Combine(GVFSPlatform.Instance.GetDataRootForGVFSComponent(GVFSConstants.Service.ServiceName), GVFSConstants.GitStatusCache.EnableGitStatusCacheTokenFile));
         }
 
         public override FileBasedLock CreateFileBasedLock(

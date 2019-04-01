@@ -26,7 +26,7 @@ namespace GVFS.UnitTests.Common
         [SetUp]
         public void SetUp()
         {
-            this.upgradeDirectory = Paths.GetServiceDataRoot(ProductUpgraderInfo.UpgradeDirectoryName);
+            this.upgradeDirectory = GVFSPlatform.Instance.GetDataRootForGVFSComponent(ProductUpgraderInfo.UpgradeDirectoryName);
             this.expectedNewVersionExistsFilePath = Path.Combine(this.upgradeDirectory, this.expectedNewVersionExistsFileName);
             this.mockFileSystem = new Mock<PhysicalFileSystem>();
 

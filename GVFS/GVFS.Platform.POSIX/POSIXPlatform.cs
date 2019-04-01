@@ -1,4 +1,4 @@
-﻿using GVFS.Common;
+using GVFS.Common;
 using GVFS.Common.FileSystem;
 using GVFS.Common.Git;
 using GVFS.Common.Tracing;
@@ -6,20 +6,21 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.IO.Pipes;
+using System.Runtime.InteropServices;
 using System.Security;
 
 namespace GVFS.Platform.POSIX
 {
     public abstract partial class POSIXPlatform : GVFSPlatform
     {
-        public POSIXPlatform(string installerExtension)
-            : base(
-                executableExtension: string.Empty,
-                installerExtension: installerExtension,
-                underConstruction: new UnderConstructionFlags(
-                    supportsGVFSService: false,
-                    supportsGVFSUpgrade: false,
-                    supportsGVFSConfig: false))
+        private const string GVFSBinPath = "/usr/local/vfsforgit";
+
+        public POSIXPlatform(string installerExtension) : base(
+            executableExtension: string.Empty,
+            installerExtension: installerExtension,
+            underConstruction: new UnderConstructionFlags(
+                supportsGVFSUpgrade: false,
+                supportsGVFSConfig: false))
         {
         }
 
@@ -33,6 +34,11 @@ namespace GVFS.Platform.POSIX
         public override bool TryGetGVFSHooksPathAndVersion(out string hooksPaths, out string hooksVersion, out string error)
         {
             hooksPaths = string.Empty;
+            string binPath = Path.Combine(GVFSBinPath, GVFSPlatform.Instance.Constants.GVFSHooksExecutableName);
+            if (File.Exists(binPath))
+            {
+                hooksPaths = binPath;
+            }
 
             // TODO(POSIX): Get the hooks version rather than the GVFS version (and share that code with the Windows platform)
             hooksVersion = ProcessHelper.GetCurrentProcessVersion();
@@ -90,7 +96,7 @@ namespace GVFS.Platform.POSIX
 
         public override string GetCurrentUser()
         {
-            throw new NotImplementedException();
+            return Getuid().ToString();
         }
 
         public override Dictionary<string, string> GetPhysicalDiskInfo(string path, bool sizeStatsOnly)
@@ -174,5 +180,8 @@ namespace GVFS.Platform.POSIX
             exitCode = result.ExitCode;
             return result.ExitCode == 0;
         }
+
+        [DllImport("libc", EntryPoint = "getuid", SetLastError = true)]
+        private static extern int Getuid();
     }
 }

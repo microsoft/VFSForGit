@@ -2,7 +2,7 @@ using GVFS.Platform.POSIX;
 
 namespace GVFS.Hooks.HooksPlatform
 {
-    public static class GVFSHooksPlatform
+    public static partial class GVFSHooksPlatform
     {
         public static bool IsElevated()
         {

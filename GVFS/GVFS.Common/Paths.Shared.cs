@@ -11,19 +11,6 @@ namespace GVFS.Common
             return GetRoot(directory, GVFSConstants.DotGit.Root);
         }
 
-        public static string GetServiceDataRoot(string serviceName)
-        {
-            return Path.Combine(
-                Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData, Environment.SpecialFolderOption.Create),
-                "GVFS",
-                serviceName);
-        }
-
-        public static string GetServiceLogsPath(string serviceName)
-        {
-            return Path.Combine(GetServiceDataRoot(serviceName), "Logs");
-        }
-
         public static string GetRoot(string startingDirectory, string rootName)
         {
             startingDirectory = startingDirectory.TrimEnd(Path.DirectorySeparatorChar);

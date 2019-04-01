@@ -7,9 +7,7 @@ namespace GVFS.Platform.Mac
 {
     public partial class MacPlatform : POSIXPlatform
     {
-        public MacPlatform()
-            : base(
-                installerExtension: ".dmg")
+        public MacPlatform() : base(installerExtension: ".dmg")
         {
         }
 
@@ -20,6 +18,16 @@ namespace GVFS.Platform.Mac
         {
             ProcessResult result = ProcessHelper.Run("sw_vers", args: string.Empty, redirectOutput: true);
             return string.IsNullOrWhiteSpace(result.Output) ? result.Errors : result.Output;
+        }
+
+        public override string GetDataRootForGVFS()
+        {
+            return MacPlatform.GetDataRootForGVFSImplementation();
+        }
+
+        public override string GetDataRootForGVFSComponent(string componentName)
+        {
+            return MacPlatform.GetDataRootForGVFSComponentImplementation(componentName);
         }
 
         public override FileBasedLock CreateFileBasedLock(

@@ -1,7 +1,6 @@
 using GVFS.Common.FileSystem;
 using GVFS.Common.Tracing;
 using System;
-using System.Collections.Generic;
 using System.IO;
 
 namespace GVFS.Common
@@ -22,16 +21,19 @@ namespace GVFS.Common
             return ProcessHelper.GetCurrentProcessVersion();
         }
 
+        public static string GetUpgradesDirectoryPath()
+        {
+            return GVFSPlatform.Instance.GetDataRootForGVFSComponent(UpgradeDirectoryName);
+        }
+
         public static string GetLogDirectoryPath()
         {
-            return Path.Combine(Paths.GetServiceDataRoot(RootDirectory), LogDirectory);
+            return Path.Combine(GetUpgradesDirectoryPath(), LogDirectory);
         }
 
         public static string GetAssetDownloadsPath()
         {
-            return Path.Combine(
-                Paths.GetServiceDataRoot(RootDirectory),
-                DownloadDirectory);
+            return Path.Combine(GetUpgradesDirectoryPath(), DownloadDirectory);
         }
 
         public void DeleteAllInstallerDownloads()
@@ -51,7 +53,7 @@ namespace GVFS.Common
 
         public void RecordHighestAvailableVersion(Version highestAvailableVersion)
         {
-            string highestAvailableVersionFile = GetHighestAvailableVersionFilePath();
+            string highestAvailableVersionFile = GetHighestAvailableVersionFilePath(GetUpgradesDirectoryPath());
 
             if (highestAvailableVersion == null)
             {
