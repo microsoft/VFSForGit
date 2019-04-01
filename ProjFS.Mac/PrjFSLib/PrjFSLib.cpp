@@ -770,19 +770,19 @@ CleanupAndReturn:
     free(messageMemory);
 }
 
-static PrjFS_Result HandleEnumerateDirectoryRequest(const MessageHeader* request, const char* fullPath, const char* relativePath)
+static PrjFS_Result HandleEnumerateDirectoryRequest(const MessageHeader* request, const char* absolutePath, const char* relativePath)
 {
 #ifdef DEBUG
     cout
         << "PrjFSLib.HandleEnumerateDirectoryRequest: "
-        << fullPath
+        << absolutePath
         << " (root-relative: " << relativePath << ")"
         << " Process name: " << request->procname
         << " Pid: " << request->pid
         << endl;
 #endif
     
-    if (!IsBitSetInFileFlags(fullPath, FileFlags_IsEmpty))
+    if (!IsBitSetInFileFlags(absolutePath, FileFlags_IsEmpty))
     {
         return PrjFS_Result_Success;
     }
@@ -791,7 +791,7 @@ static PrjFS_Result HandleEnumerateDirectoryRequest(const MessageHeader* request
     FileMutexMap::iterator mutexIterator = CheckoutFileMutexIterator(request->fsidInode);
     {
         mutex_lock lock(*(mutexIterator->second.mutex));
-        if (!IsBitSetInFileFlags(fullPath, FileFlags_IsEmpty))
+        if (!IsBitSetInFileFlags(absolutePath, FileFlags_IsEmpty))
         {
             result = PrjFS_Result_Success;
             goto CleanupAndReturn;
@@ -805,7 +805,7 @@ static PrjFS_Result HandleEnumerateDirectoryRequest(const MessageHeader* request
         
         if (PrjFS_Result_Success == result)
         {
-            if (!SetBitInFileFlags(fullPath, FileFlags_IsEmpty, false))
+            if (!SetBitInFileFlags(absolutePath, FileFlags_IsEmpty, false))
             {
                 // TODO(Mac): how should we handle this scenario where the provider thinks it succeeded, but we were unable to
                 // update placeholder metadata?
@@ -881,12 +881,12 @@ CleanupAndReturn:
     return result;
 }
 
-static PrjFS_Result HandleHydrateFileRequest(const MessageHeader* request, const char* fullPath, const char* relativePath)
+static PrjFS_Result HandleHydrateFileRequest(const MessageHeader* request, const char* absolutePath, const char* relativePath)
 {
 #ifdef DEBUG
     cout
         << "PrjFSLib.HandleHydrateFileRequest: "
-        << fullPath
+        << absolutePath
         << " (root-relative: " << relativePath << ")"
         << " Process name: " << request->procname
         << " Pid: " << request->pid
@@ -894,12 +894,12 @@ static PrjFS_Result HandleHydrateFileRequest(const MessageHeader* request, const
 #endif
         
     PrjFSFileXAttrData xattrData = {};
-    if (!TryGetXAttr(fullPath, PrjFSFileXAttrName, sizeof(PrjFSFileXAttrData), &xattrData))
+    if (!TryGetXAttr(absolutePath, PrjFSFileXAttrName, sizeof(PrjFSFileXAttrData), &xattrData))
     {
         return PrjFS_Result_EIOError;
     }
     
-    if (!IsBitSetInFileFlags(fullPath, FileFlags_IsEmpty))
+    if (!IsBitSetInFileFlags(absolutePath, FileFlags_IsEmpty))
     {
         return PrjFS_Result_Success;
     }
@@ -911,7 +911,7 @@ static PrjFS_Result HandleHydrateFileRequest(const MessageHeader* request, const
     
     {
         mutex_lock lock(*(mutexIterator->second.mutex));
-        if (!IsBitSetInFileFlags(fullPath, FileFlags_IsEmpty))
+        if (!IsBitSetInFileFlags(absolutePath, FileFlags_IsEmpty))
         {
             result = PrjFS_Result_Success;
             goto CleanupAndReturn;
@@ -921,7 +921,7 @@ static PrjFS_Result HandleHydrateFileRequest(const MessageHeader* request, const
         //  - The file must already exist
         //  - The handle is opened for reading and writing
         //  - We are allowed to seek to somewhere other than end of stream for writing
-        fileHandle.file = fopen(fullPath, "rb+");
+        fileHandle.file = fopen(absolutePath, "rb+");
         if (nullptr == fileHandle.file)
         {
             result = PrjFS_Result_EIOError;
@@ -965,7 +965,7 @@ static PrjFS_Result HandleHydrateFileRequest(const MessageHeader* request, const
             //  * The provider writes more bytes than expected. The write succeeds, but whatever tool originally opened the file may have already
             //    allocated the originally reported size, and now the contents appear truncated.
             
-            if (!SetBitInFileFlags(fullPath, FileFlags_IsEmpty, false))
+            if (!SetBitInFileFlags(absolutePath, FileFlags_IsEmpty, false))
             {
                 // TODO(Mac): how should we handle this scenario where the provider thinks it succeeded, but we were unable to
                 // update placeholder metadata?
@@ -982,14 +982,14 @@ CleanupAndReturn:
 static PrjFS_Result HandleNewFileInRootNotification(
     const MessageHeader* request,
     const char* relativePath,
-    const char* fullPath,
+    const char* absolutePath,
     bool isDirectory,
     PrjFS_NotificationType notificationType)
 {
 #ifdef DEBUG
     cout
         << "HandleNewFileInRootNotification: "
-        << fullPath
+        << absolutePath
         << " (root-relative: " << relativePath << ")"
         << " Process name: " << request->procname
         << " Pid: " << request->pid
@@ -1005,12 +1005,12 @@ static PrjFS_Result HandleNewFileInRootNotification(
     PrjFS_Result result = HandleFileNotification(
         request,
         relativePath,
-        fullPath,
+        absolutePath,
         isDirectory,
         notificationType);
     
     // TODO(Mac) #391: Handle SetBitInFileFlags failures
-    SetBitInFileFlags(fullPath, FileFlags_IsInVirtualizationRoot, true);
+    SetBitInFileFlags(absolutePath, FileFlags_IsInVirtualizationRoot, true);
     
     return result;
 }
@@ -1018,14 +1018,14 @@ static PrjFS_Result HandleNewFileInRootNotification(
 static PrjFS_Result HandleFileNotification(
     const MessageHeader* request,
     const char* relativePath,
-    const char* fullPath,
+    const char* absolutePath,
     bool isDirectory,
     PrjFS_NotificationType notificationType)
 {
 #ifdef DEBUG
     cout
         << "PrjFSLib.HandleFileNotification: "
-        << fullPath
+        << absolutePath
         << " (root-relative: " << relativePath << ")"
         << " Process name: " << request->procname
         << " Pid: " << request->pid
@@ -1034,7 +1034,7 @@ static PrjFS_Result HandleFileNotification(
 #endif
     
     PrjFSFileXAttrData xattrData = {};
-    bool placeholderFile = TryGetXAttr(fullPath, PrjFSFileXAttrName, sizeof(PrjFSFileXAttrData), &xattrData);
+    bool placeholderFile = TryGetXAttr(absolutePath, PrjFSFileXAttrName, sizeof(PrjFSFileXAttrData), &xattrData);
 
     PrjFS_Result result = s_callbacks.NotifyOperation(
         0 /* commandId */,
@@ -1049,7 +1049,7 @@ static PrjFS_Result HandleFileNotification(
     
     if (result == 0 && placeholderFile && PrjFS_NotificationType_PreConvertToFull == notificationType)
     {
-        errno_t result = RemoveXAttrWithoutFollowingLinks(fullPath, PrjFSFileXAttrName);
+        errno_t result = RemoveXAttrWithoutFollowingLinks(absolutePath, PrjFSFileXAttrName);
         if (0 != result)
         {
             // TODO(Mac) #395: Log error
