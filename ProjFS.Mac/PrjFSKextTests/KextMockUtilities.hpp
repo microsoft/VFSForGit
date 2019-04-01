@@ -242,13 +242,8 @@ template <typename... CHECK_ARGS>
 template <typename R, typename... ARGS>
 int SpecificFunctionCallRecorder<R, ARGS...>::CallCount(FunctionPointerType function)
 {
-    int callCount = 0;
     std::pair<typename RecordedCallMap::const_iterator, typename RecordedCallMap::const_iterator> foundCalls = this->recordedCalls.equal_range(function);
-    for (typename RecordedCallMap::const_iterator foundCall = foundCalls.first; foundCall != foundCalls.second; ++foundCall)
-    {
-        callCount++;
-    }
-    return callCount;
+    return static_cast<int>(std::distance(foundCalls.first, foundCalls.second));
 }
 
 template <typename R, typename... ARGS>
