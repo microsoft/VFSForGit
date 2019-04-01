@@ -296,14 +296,21 @@ KEXT_STATIC void LookupVnodeRootAndUpdateCache(
         context);
 
     bool forceRefreshEntry;
+    VirtualizationRootHandle rootToInsert;
     switch (updateEntryBehavior)
     {
       case UpdateCacheBehavior_ForceRefresh:
+        rootToInsert = rootHandle;
+        forceRefreshEntry = true;
+        break;
+        
       case UpdateCacheBehavior_InvalidateEntry:
+        rootToInsert = RootHandle_Indeterminate;
         forceRefreshEntry = true;
         break;
 
       default:
+        rootToInsert = rootHandle;
         forceRefreshEntry = false;
         break;
     }
@@ -315,7 +322,7 @@ KEXT_STATIC void LookupVnodeRootAndUpdateCache(
                 vnodeHashIndex,
                 vnodeVid,
                 forceRefreshEntry,
-                (UpdateCacheBehavior_InvalidateEntry == updateEntryBehavior) ? RootHandle_Indeterminate : rootHandle))
+                rootToInsert))
         {
             // TryInsertOrUpdateEntry_ExclusiveLocked can only fail if the cache is full
             
@@ -326,13 +333,14 @@ KEXT_STATIC void LookupVnodeRootAndUpdateCache(
                         vnode,
                         vnodeHashIndex,
                         vnodeVid,
-                        true, // invalidateEntry
-                        rootHandle))
+                        true, // forceRefreshEntry
+                        rootToInsert))
             {
                 KextLog_FileError(
                     vnode,
                     "LookupVnodeRootAndUpdateCache: failed to insert vnode (%p:%u) after emptying cache",
-                    KextLog_Unslide(vnode), vnodeVid);
+                    KextLog_Unslide(vnode),
+                    vnodeVid);
             }
         }
     }
@@ -378,7 +386,10 @@ KEXT_STATIC bool TryInsertOrUpdateEntry_ExclusiveLocked(
     uintptr_t vnodeIndex;
     if (TryFindVnodeIndex_Locked(vnode, vnodeHashIndex, /*out*/ vnodeIndex))
     {
-        if (forceRefreshEntry || NULLVP == s_entries[vnodeIndex].vnode || vnodeVid != s_entries[vnodeIndex].vid)
+        if (forceRefreshEntry ||
+            NULLVP == s_entries[vnodeIndex].vnode ||
+            vnodeVid != s_entries[vnodeIndex].vid ||
+            RootHandle_Indeterminate == s_entries[vnodeIndex].virtualizationRoot)
         {
             s_entries[vnodeIndex].vnode = vnode;
             s_entries[vnodeIndex].vid = vnodeVid;
@@ -390,7 +401,7 @@ KEXT_STATIC bool TryInsertOrUpdateEntry_ExclusiveLocked(
             {
                 KextLog_FileError(
                     vnode,
-                    "TryInsertOrUpdateEntry_ExclusiveLocked: vnode (%p:%u) has different root in cache:%hu than was found walking tree: %hu",
+                    "TryInsertOrUpdateEntry_ExclusiveLocked: vnode (%p:%u) has different root in cache(%hd) than was found walking tree(%hd)",
                     KextLog_Unslide(vnode),
                     vnodeVid,
                     s_entries[vnodeIndex].virtualizationRoot,

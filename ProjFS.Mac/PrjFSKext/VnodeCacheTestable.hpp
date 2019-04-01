@@ -29,7 +29,7 @@ KEXT_STATIC bool TryInsertOrUpdateEntry_ExclusiveLocked(
     vnode_t _Nonnull vnode,
     uintptr_t vnodeHash,
     uint32_t vnodeVid,
-    bool invalidateEntry,
+    bool forceRefreshEntry,
     VirtualizationRootHandle rootHandle);
 
 // Static variables used for maintaining Vnode cache state
