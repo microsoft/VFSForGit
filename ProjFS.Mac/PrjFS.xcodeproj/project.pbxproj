@@ -65,7 +65,6 @@
 		4A08257821E77C5400E21AFD /* PrjFSUser.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 4391F8E421E435230008103C /* PrjFSUser.cpp */; };
 		4A08257921E77C7000E21AFD /* org.vfsforgit.prjfs.PrjFSKextLogDaemon.plist in CopyFiles */ = {isa = PBXBuildFile; fileRef = 4A08257021E77BDD00E21AFD /* org.vfsforgit.prjfs.PrjFSKextLogDaemon.plist */; };
 		4A558DBA22357AB000AFDE07 /* ProviderMessaging.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 4A558DB822357AB000AFDE07 /* ProviderMessaging.cpp */; };
-		4A558DBB22357AB000AFDE07 /* ProviderMessaging.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 4A558DB822357AB000AFDE07 /* ProviderMessaging.cpp */; };
 		4A558DBC22357AB000AFDE07 /* ProviderMessaging.hpp in Headers */ = {isa = PBXBuildFile; fileRef = 4A558DB922357AB000AFDE07 /* ProviderMessaging.hpp */; };
 		4A558DBD22357AB000AFDE07 /* ProviderMessaging.hpp in Headers */ = {isa = PBXBuildFile; fileRef = 4A558DB922357AB000AFDE07 /* ProviderMessaging.hpp */; };
 		4A781DA52220946000DB7733 /* VirtualizationRootsTests.mm in Sources */ = {isa = PBXBuildFile; fileRef = 4A781DA42220946000DB7733 /* VirtualizationRootsTests.mm */; };
@@ -78,9 +77,11 @@
 		4A8C13A521F23F0200002878 /* KauthHandler.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 4391F89321E42AC40008103C /* KauthHandler.cpp */; };
 		4A8C13A621F2418400002878 /* libPrjFSKextTestable.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 4A8C13A021F23EE800002878 /* libPrjFSKextTestable.a */; };
 		D9C087F222384670009C1110 /* MemoryTests.mm in Sources */ = {isa = PBXBuildFile; fileRef = D9C087F122384670009C1110 /* MemoryTests.mm */; };
+		F554202D224BB6E5008BAE95 /* ProviderMessagingMock.cpp in Sources */ = {isa = PBXBuildFile; fileRef = F554202C224BB6E5008BAE95 /* ProviderMessagingMock.cpp */; };
 		F5554F422239883B00B31D19 /* MockProc.cpp in Sources */ = {isa = PBXBuildFile; fileRef = F5554F412239883B00B31D19 /* MockProc.cpp */; };
 		F5E39C7A21F1118D006D65C2 /* KauthHandlerTests.mm in Sources */ = {isa = PBXBuildFile; fileRef = F5E39C7921F1118D006D65C2 /* KauthHandlerTests.mm */; };
 		F5E39C8321F11556006D65C2 /* KauthHandlerTestable.hpp in Headers */ = {isa = PBXBuildFile; fileRef = F5E39C8121F11556006D65C2 /* KauthHandlerTestable.hpp */; };
+		F5EACDC22242AB2D00EEA70E /* HandleOperationTests.mm in Sources */ = {isa = PBXBuildFile; fileRef = F5EACDC12242AB2D00EEA70E /* HandleOperationTests.mm */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -145,7 +146,6 @@
 
 /* Begin PBXFileReference section */
 		265504CE224ADE11005FAD74 /* MockPerfTracing.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = MockPerfTracing.cpp; sourceTree = "<group>"; };
-		265504CF224ADE11005FAD74 /* MockPerfTracing.hpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.h; path = MockPerfTracing.hpp; sourceTree = "<group>"; };
 		43057C5B21E439C700487681 /* prjfs-log.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = "prjfs-log.cpp"; sourceTree = "<group>"; };
 		43057C5C21E439C700487681 /* kext-perf-tracing.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = "kext-perf-tracing.cpp"; sourceTree = "<group>"; };
 		43057C5D21E439C700487681 /* kext-perf-tracing.hpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.h; path = "kext-perf-tracing.hpp"; sourceTree = "<group>"; };
@@ -204,6 +204,7 @@
 		4A8C13A021F23EE800002878 /* libPrjFSKextTestable.a */ = {isa = PBXFileReference; explicitFileType = archive.ar; includeInIndex = 0; path = libPrjFSKextTestable.a; sourceTree = BUILT_PRODUCTS_DIR; };
 		4A8C13AA21F268FE00002878 /* PrjFSKextTests.exp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.exports; path = PrjFSKextTests.exp; sourceTree = "<group>"; };
 		D9C087F122384670009C1110 /* MemoryTests.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = MemoryTests.mm; sourceTree = "<group>"; };
+		F554202C224BB6E5008BAE95 /* ProviderMessagingMock.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = ProviderMessagingMock.cpp; sourceTree = "<group>"; };
 		F5554F402239881800B31D19 /* MockProc.hpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.h; path = MockProc.hpp; sourceTree = "<group>"; };
 		F5554F412239883B00B31D19 /* MockProc.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = MockProc.cpp; sourceTree = "<group>"; };
 		F557623E22009F0E005DE35E /* KextLogMock.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = KextLogMock.h; sourceTree = "<group>"; };
@@ -211,6 +212,7 @@
 		F5E39C7921F1118D006D65C2 /* KauthHandlerTests.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = KauthHandlerTests.mm; sourceTree = "<group>"; };
 		F5E39C7B21F1118D006D65C2 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		F5E39C8121F11556006D65C2 /* KauthHandlerTestable.hpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.h; path = KauthHandlerTestable.hpp; sourceTree = "<group>"; };
+		F5EACDC12242AB2D00EEA70E /* HandleOperationTests.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = HandleOperationTests.mm; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -377,6 +379,7 @@
 		F5E39C7821F1118D006D65C2 /* PrjFSKextTests */ = {
 			isa = PBXGroup;
 			children = (
+				F5EACDC12242AB2D00EEA70E /* HandleOperationTests.mm */,
 				F5E39C7B21F1118D006D65C2 /* Info.plist */,
 				F5E39C7921F1118D006D65C2 /* KauthHandlerTests.mm */,
 				4A781DAF2223391A00DB7733 /* KextLogMock.cpp */,
@@ -385,18 +388,15 @@
 				4A781DA92223305C00DB7733 /* KextMockUtilities.hpp */,
 				D9C087F122384670009C1110 /* MemoryTests.mm */,
 				265504CE224ADE11005FAD74 /* MockPerfTracing.cpp */,
-				265504CF224ADE11005FAD74 /* MockPerfTracing.hpp */,
 				4A781DAC2223374200DB7733 /* MockVnodeAndMount.cpp */,
 				4A781DAD2223374200DB7733 /* MockVnodeAndMount.hpp */,
-				4A8C13AA21F268FE00002878 /* PrjFSKextTests.exp */,
 				4A781DB122233A1E00DB7733 /* TestLocks.cpp */,
 				4A781DB322233A4500DB7733 /* TestMemory.cpp */,
 				4A781DA42220946000DB7733 /* VirtualizationRootsTests.mm */,
 				4A8C13AA21F268FE00002878 /* PrjFSKextTests.exp */,
-				F557623E22009F0E005DE35E /* KextLogMock.h */,
-				4A781DAF2223391A00DB7733 /* KextLogMock.cpp */,
 				F5554F402239881800B31D19 /* MockProc.hpp */,
 				F5554F412239883B00B31D19 /* MockProc.cpp */,
+				F554202C224BB6E5008BAE95 /* ProviderMessagingMock.cpp */,
 			);
 			path = PrjFSKextTests;
 			sourceTree = "<group>";
@@ -692,7 +692,6 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				4A558DBB22357AB000AFDE07 /* ProviderMessaging.cpp in Sources */,
 				4A781DA72220971E00DB7733 /* VirtualizationRoots.cpp in Sources */,
 				4A8C13A521F23F0200002878 /* KauthHandler.cpp in Sources */,
 			);
@@ -709,9 +708,11 @@
 				F5554F422239883B00B31D19 /* MockProc.cpp in Sources */,
 				4A781DB422233A4500DB7733 /* TestMemory.cpp in Sources */,
 				D9C087F222384670009C1110 /* MemoryTests.mm in Sources */,
+				F5EACDC22242AB2D00EEA70E /* HandleOperationTests.mm in Sources */,
 				F5E39C7A21F1118D006D65C2 /* KauthHandlerTests.mm in Sources */,
 				4A781DB222233A1E00DB7733 /* TestLocks.cpp in Sources */,
 				4A781DB02223391A00DB7733 /* KextLogMock.cpp in Sources */,
+				F554202D224BB6E5008BAE95 /* ProviderMessagingMock.cpp in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -1206,6 +1207,7 @@
 		F5E39C7C21F1118D006D65C2 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++17";
 				CLANG_ENABLE_CODE_COVERAGE = YES;
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
@@ -1230,6 +1232,7 @@
 		F5E39C7D21F1118D006D65C2 /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++17";
 				CLANG_ENABLE_CODE_COVERAGE = YES;
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
@@ -1251,13 +1254,17 @@
 		F5E39C7E21F1118D006D65C2 /* Profiling(Release) */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++17";
 				CLANG_ENABLE_CODE_COVERAGE = YES;
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
 				DEAD_CODE_STRIPPING = YES;
 				DEVELOPMENT_TEAM = UBF8T346G9;
 				EXPORTED_SYMBOLS_FILE = PrjFSKextTests/PrjFSKextTests.exp;
-				GCC_PREPROCESSOR_DEFINITIONS = KEXT_UNIT_TESTING;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					KEXT_UNIT_TESTING,
+					"PRJFS_PERFORMANCE_TRACING_ENABLE=1",
+				);
 				INFOPLIST_FILE = PrjFSKextTests/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",

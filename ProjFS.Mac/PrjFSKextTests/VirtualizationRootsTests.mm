@@ -13,9 +13,12 @@
 #import <XCTest/XCTest.h>
 #include <vector>
 #include <string>
+#include <tuple>
 
 using std::shared_ptr;
 using std::vector;
+using std::make_tuple;
+using KextMock::_;
 
 class PrjFSProviderUserClient
 {
@@ -152,8 +155,8 @@ static void SetRootXattrData(shared_ptr<vnode> vnode)
     XCTAssertEqual(result.root, rootIndex);
     XCTAssertEqual(s_virtualizationRoots[result.root].providerUserClient, &self->dummyClient);
 
-    XCTAssertTrue(MockCalls::DidCallFunction(vfs_setauthcache_ttl));
-    XCTAssertTrue(MockCalls::DidCallFunction(ProviderUserClient_UpdatePathProperty));
+    XCTAssertTrue(MockCalls::DidCallFunction(vfs_setauthcache_ttl, _, 0));
+    XCTAssertTrue(MockCalls::DidCallFunction(ProviderUserClient_UpdatePathProperty, &self->dummyClient, _));
     
     s_virtualizationRoots[result.root].providerUserClient = nullptr;
     vnode_put(s_virtualizationRoots[result.root].rootVNode);
@@ -218,6 +221,55 @@ static void SetRootXattrData(shared_ptr<vnode> vnode)
     }
 }
 
+- (void)testRegisterProviderForPath_TwoMountPointsInsertionSucceeded
+{
+    const char* path1 = "/Users/test/code/Repo";
+    shared_ptr<vnode> vnode1 = vnode::Create(self->testMountPoint, path1, VDIR);
+    
+    const char* path2 = "/Volumes/Code/Repo";
+    shared_ptr<mount> secondMountPoint = mount::Create();
+    shared_ptr<vnode> vnode2 = vnode::Create(secondMountPoint, path2, VDIR);
+
+    VirtualizationRootResult result = VirtualizationRoot_RegisterProviderForPath(&self->dummyClient, self->dummyClientPid, path1);
+    XCTAssertEqual(result.error, 0);
+    XCTAssertTrue(VirtualizationRoot_IsValidRootHandle(result.root));
+
+    PrjFSProviderUserClient dummyClient2;
+    VirtualizationRootResult result2 = VirtualizationRoot_RegisterProviderForPath(&dummyClient2, 1000, path2);
+    XCTAssertEqual(result2.error, 0);
+    XCTAssertTrue(VirtualizationRoot_IsValidRootHandle(result2.root));
+
+    XCTAssertNotEqual(result.root, result2.root);
+
+    if (VirtualizationRoot_IsValidRootHandle(result.root))
+    {
+        XCTAssertEqual(s_virtualizationRoots[result.root].providerUserClient, &self->dummyClient);
+
+        XCTAssertTrue(MockCalls::DidCallFunction(vfs_setauthcache_ttl, self->testMountPoint.get(), _));
+        XCTAssertTrue(MockCalls::DidCallFunction(ProviderUserClient_UpdatePathProperty, &self->dummyClient, _));
+    
+        s_virtualizationRoots[result.root].providerUserClient = nullptr;
+        vnode_put(s_virtualizationRoots[result.root].rootVNode);
+    }
+
+    if (VirtualizationRoot_IsValidRootHandle(result2.root))
+    {
+        XCTAssertEqual(s_virtualizationRoots[result2.root].providerUserClient, &dummyClient2);
+
+        XCTAssertTrue(MockCalls::DidCallFunction(vfs_setauthcache_ttl, secondMountPoint.get(), 0));
+        XCTAssertTrue(MockCalls::DidCallFunction(ProviderUserClient_UpdatePathProperty, &dummyClient2, _));
+    
+        s_virtualizationRoots[result2.root].providerUserClient = nullptr;
+        vnode_put(s_virtualizationRoots[result2.root].rootVNode);
+    }
+    
+    XCTAssertTrue(MockCalls::DidCallFunctionsInOrder(
+        ProviderUserClient_UpdatePathProperty, make_tuple(&self->dummyClient, _),
+        vfs_setauthcache_ttl,                  make_tuple(self->testMountPoint.get(), _),
+        ProviderUserClient_UpdatePathProperty, _,
+        vfs_setauthcache_ttl));
+}
+
 - (void)testRegisterProviderForPath_ArrayFull
 {
     const char* path = "/Users/test/code/Repo";
@@ -270,7 +322,7 @@ static void SetRootXattrData(shared_ptr<vnode> vnode)
     XCTAssertEqual(s_virtualizationRoots[result.root].rootVNode, newVnode.get());
     XCTAssertEqual(s_virtualizationRoots[result.root].rootVNodeVid, newVnode->GetVid());
 
-    XCTAssertTrue(MockCalls::DidCallFunction(vfs_setauthcache_ttl));
+    XCTAssertTrue(MockCalls::DidCallFunction(vfs_setauthcache_ttl, self->testMountPoint.get(), 0));
     XCTAssertTrue(MockCalls::DidCallFunction(ProviderUserClient_UpdatePathProperty));
     
     s_virtualizationRoots[result.root].providerUserClient = nullptr;

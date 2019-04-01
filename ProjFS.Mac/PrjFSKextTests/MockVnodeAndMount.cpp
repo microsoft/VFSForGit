@@ -381,3 +381,8 @@ int vnode_isvroot(vnode_t vnode)
 {
     return vnode->GetMountPoint()->GetRootVnode().get() == vnode;
 }
+
+int vnode_isnamedstream(vnode_t vp)
+{
+    return 0;
+}
