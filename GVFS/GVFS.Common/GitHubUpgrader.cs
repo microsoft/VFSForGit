@@ -10,6 +10,7 @@ using System.Net.Http;
 using System.Net.Http.Headers;
 using System.Runtime.Serialization;
 using System.Runtime.Serialization.Json;
+using System.Threading.Tasks;
 
 namespace GVFS.Common
 {
@@ -302,6 +303,13 @@ namespace GVFS.Common
             }
             catch (HttpRequestException exception)
             {
+                errorMessage = string.Format("Network error: could not connect to GitHub({0}). {1}", GitHubReleaseURL, exception.Message);
+                this.TraceException(exception, nameof(this.TryFetchReleases), $"Error fetching release info.");
+            }
+            catch (TaskCanceledException exception)
+            {
+                // GetStreamAsync can also throw a TaskCanceledException to indicate a timeout
+                // https://github.com/dotnet/corefx/issues/20296
                 errorMessage = string.Format("Network error: could not connect to GitHub({0}). {1}", GitHubReleaseURL, exception.Message);
                 this.TraceException(exception, nameof(this.TryFetchReleases), $"Error fetching release info.");
             }
