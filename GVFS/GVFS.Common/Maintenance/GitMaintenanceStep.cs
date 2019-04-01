@@ -119,7 +119,7 @@ namespace GVFS.Common.Maintenance
             EventMetadata metadata = this.CreateEventMetadata();
             metadata.Add("gitCommand", gitCommand);
 
-            using (ITracer activity = this.Context.Tracer.StartActivity("RunGitCommand", EventLevel.Informational, Keywords.Telemetry, metadata))
+            using (ITracer activity = this.Context.Tracer.StartActivity("RunGitCommand", EventLevel.Informational, metadata))
             {
                 if (this.Stopping)
                 {

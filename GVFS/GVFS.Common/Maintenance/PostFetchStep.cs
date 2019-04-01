@@ -21,7 +21,7 @@ namespace GVFS.Common.Maintenance
 
         protected override void PerformMaintenance()
         {
-            using (ITracer activity = this.Context.Tracer.StartActivity("TryWriteMultiPackIndex", EventLevel.Informational, Keywords.Telemetry, metadata: null))
+            using (ITracer activity = this.Context.Tracer.StartActivity("TryWriteMultiPackIndex", EventLevel.Informational))
             {
                 string multiPackIndexLockPath = Path.Combine(this.Context.Enlistment.GitPackRoot, MultiPackIndexLock);
                 this.Context.FileSystem.TryDeleteFile(multiPackIndexLockPath);
@@ -41,7 +41,7 @@ namespace GVFS.Common.Maintenance
                 return;
             }
 
-            using (ITracer activity = this.Context.Tracer.StartActivity("TryWriteGitCommitGraph", EventLevel.Informational, Keywords.Telemetry, metadata: null))
+            using (ITracer activity = this.Context.Tracer.StartActivity("TryWriteGitCommitGraph", EventLevel.Informational))
             {
                 string commitGraphLockPath = Path.Combine(this.Context.Enlistment.GitObjectsRoot, "info", CommitGraphLock);
                 this.Context.FileSystem.TryDeleteFile(commitGraphLockPath);
