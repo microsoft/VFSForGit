@@ -12,7 +12,9 @@
 #include "KextMockUtilities.hpp"
 #include "MockVnodeAndMount.hpp"
 #include "MockProc.hpp"
+#include <tuple>
 
+using std::make_tuple;
 using std::shared_ptr;
 using std::vector;
 using KextMock::_;
@@ -290,10 +292,9 @@ static void SetPrjFSFileXattrData(const shared_ptr<vnode>& vnode)
         reinterpret_cast<uintptr_t>(testFileVnode.get()),
         0,
         0);
-    XCTAssertTrue(
-       MockCalls::DidCallFunction(
-            ProviderMessaging_TrySendRequestAndWaitForResponse,
-            2,
+    XCTAssertTrue(MockCalls::DidCallFunctionsInOrder(
+        ProviderMessaging_TrySendRequestAndWaitForResponse,
+        make_tuple(
             _,
             MessageType_KtoU_NotifyFilePreDelete,
             testFileVnode.get(),
@@ -302,12 +303,10 @@ static void SetPrjFSFileXattrData(const shared_ptr<vnode>& vnode)
             _,
             _,
             _,
-            nullptr));
-    XCTAssertTrue(
-       MockCalls::DidCallFunction(
-            ProviderMessaging_TrySendRequestAndWaitForResponse,
-            3,
-            _,
+            nullptr),
+        ProviderMessaging_TrySendRequestAndWaitForResponse,
+        make_tuple(
+           _,
             MessageType_KtoU_HydrateFile,
             testFileVnode.get(),
             _,
@@ -315,7 +314,8 @@ static void SetPrjFSFileXattrData(const shared_ptr<vnode>& vnode)
             _,
             _,
             _,
-            nullptr));
+            nullptr))
+    );
     XCTAssertTrue(MockCalls::CallCount(ProviderMessaging_TrySendRequestAndWaitForResponse) == 2);
 }
 
@@ -329,10 +329,9 @@ static void SetPrjFSFileXattrData(const shared_ptr<vnode>& vnode)
         reinterpret_cast<uintptr_t>(testDirVnode.get()),
         0,
         0);
-    XCTAssertTrue(
-       MockCalls::DidCallFunction(
-            ProviderMessaging_TrySendRequestAndWaitForResponse,
-            2,
+    XCTAssertTrue(MockCalls::DidCallFunctionsInOrder(
+        ProviderMessaging_TrySendRequestAndWaitForResponse,
+        make_tuple(
             _,
             MessageType_KtoU_NotifyDirectoryPreDelete,
             testDirVnode.get(),
@@ -341,12 +340,10 @@ static void SetPrjFSFileXattrData(const shared_ptr<vnode>& vnode)
             _,
             _,
             _,
-            nullptr));
-    XCTAssertTrue(
-       MockCalls::DidCallFunction(
-            ProviderMessaging_TrySendRequestAndWaitForResponse,
-            3,
-            _,
+            nullptr),
+        ProviderMessaging_TrySendRequestAndWaitForResponse,
+        make_tuple(
+           _,
             MessageType_KtoU_RecursivelyEnumerateDirectory,
             testDirVnode.get(),
             _,
@@ -354,8 +351,9 @@ static void SetPrjFSFileXattrData(const shared_ptr<vnode>& vnode)
             _,
             _,
             _,
-            nullptr));
-     XCTAssertTrue(MockCalls::CallCount(ProviderMessaging_TrySendRequestAndWaitForResponse) == 2);
+            nullptr))
+    );
+    XCTAssertTrue(MockCalls::CallCount(ProviderMessaging_TrySendRequestAndWaitForResponse) == 2);
 }
 
 - (void) testEmptyDirectoryEnumerates {
@@ -476,10 +474,9 @@ static void SetPrjFSFileXattrData(const shared_ptr<vnode>& vnode)
         reinterpret_cast<uintptr_t>(testFileVnode.get()),
         0,
         0);
-    XCTAssertTrue(
-       MockCalls::DidCallFunction(
-            ProviderMessaging_TrySendRequestAndWaitForResponse,
-            2,
+        XCTAssertTrue(MockCalls::DidCallFunctionsInOrder(
+        ProviderMessaging_TrySendRequestAndWaitForResponse,
+        make_tuple(
             _,
             MessageType_KtoU_HydrateFile,
             testFileVnode.get(),
@@ -488,12 +485,10 @@ static void SetPrjFSFileXattrData(const shared_ptr<vnode>& vnode)
             _,
             _,
             _,
-            nullptr));
-    XCTAssertTrue(
-       MockCalls::DidCallFunction(
-            ProviderMessaging_TrySendRequestAndWaitForResponse,
-            3,
-            _,
+            nullptr),
+        ProviderMessaging_TrySendRequestAndWaitForResponse,
+        make_tuple(
+           _,
             MessageType_KtoU_NotifyFilePreConvertToFull,
             testFileVnode.get(),
             _,
@@ -501,7 +496,8 @@ static void SetPrjFSFileXattrData(const shared_ptr<vnode>& vnode)
             _,
             _,
             _,
-            nullptr));
+            nullptr))
+    );
     XCTAssertTrue(MockCalls::CallCount(ProviderMessaging_TrySendRequestAndWaitForResponse) == 2);
 }
 

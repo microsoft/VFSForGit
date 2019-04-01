@@ -31,7 +31,7 @@ template <typename R, typename... ARGS>
     
     struct FunctionCall
     {
-        uint64_t callSequenceNumber;
+        int64_t callSequenceNumber;
         std::unique_ptr<ArgumentValueTuple> argumentValues;
     };
     
@@ -40,13 +40,14 @@ template <typename R, typename... ARGS>
     RecordedCallMap recordedCalls;
     static SpecificFunctionCallRecorder functionTypeRegister;
 
-    void RecordFunctionCall(FunctionPointerType function, uint64_t sequenceNumber, std::unique_ptr<ArgumentValueTuple>&& argumentValues);
+    void RecordFunctionCall(FunctionPointerType function, int64_t sequenceNumber, std::unique_ptr<ArgumentValueTuple>&& argumentValues);
     bool DidCallFunction(FunctionPointerType function);
     template <typename... CHECK_ARGS>
         bool DidCallFunction(FunctionPointerType function, CHECK_ARGS... checkArgs);
-    template <typename... CHECK_ARGS>
-        bool DidCallFunction(FunctionPointerType function, int sequenceNumber, CHECK_ARGS... checkArgs);
     int CallCount(FunctionPointerType function);
+    int64_t EarliestSequenceNumberForCallMatching(FunctionPointerType function, int64_t sequenceNumberGreaterThan);
+    template <typename... CHECK_ARGS>
+        int64_t EarliestSequenceNumberForCallMatching(FunctionPointerType function, int64_t sequenceNumberGreaterThan, const std::tuple<CHECK_ARGS...>& checkArgTuple);
 
     virtual void Clear() override
     {
@@ -60,7 +61,7 @@ template <typename R, typename... ARGS>
     SpecificFunctionCallRecorder<R, ARGS...> SpecificFunctionCallRecorder<R, ARGS...>::functionTypeRegister;
 
 template <typename R, typename... ARGS>
-    void SpecificFunctionCallRecorder<R, ARGS...>::RecordFunctionCall(FunctionPointerType function, uint64_t sequenceNumber, std::unique_ptr<ArgumentValueTuple>&& argumentValues)
+    void SpecificFunctionCallRecorder<R, ARGS...>::RecordFunctionCall(FunctionPointerType function, int64_t sequenceNumber, std::unique_ptr<ArgumentValueTuple>&& argumentValues)
 {
     this->recordedCalls.insert(std::make_pair(function, FunctionCall { sequenceNumber, std::move(argumentValues) }));
 }
@@ -68,15 +69,29 @@ template <typename R, typename... ARGS>
 template <typename R, typename... ARGS>
     bool SpecificFunctionCallRecorder<R, ARGS...>::DidCallFunction(FunctionPointerType function)
 {
-    typename RecordedCallMap::const_iterator foundCall = this->recordedCalls.find(function);
-    return foundCall != this->recordedCalls.end();
+    return this->EarliestSequenceNumberForCallMatching(function, -1) > -1;
+}
+
+template <typename R, typename... ARGS>
+    int64_t SpecificFunctionCallRecorder<R, ARGS...>::EarliestSequenceNumberForCallMatching(FunctionPointerType function, int64_t sequenceNumberGreaterThan)
+{
+    std::pair foundCalls = this->recordedCalls.equal_range(function);
+    for (typename RecordedCallMap::const_iterator foundCall = foundCalls.first; foundCall != foundCalls.second; ++foundCall)
+    {
+        if (foundCall->second.callSequenceNumber > sequenceNumberGreaterThan)
+        {
+            return foundCall->second.callSequenceNumber;
+        }
+    }
+    
+    return sequenceNumberGreaterThan;
 }
 
 
 class MockCalls
 {
     std::unordered_set<FunctionCallRecorder*> functionTypeCallRecorders;
-    uint64_t nextCallSequenceNumber = 0;
+    int64_t nextCallSequenceNumber = 0;
     
     static MockCalls singleton;
     
@@ -113,11 +128,78 @@ public:
     {
         return SpecificFunctionCallRecorder<R, ARGS...>::functionTypeRegister.DidCallFunction(fn, checkArgs...);
     }
-
-    template <typename R, typename... ARGS, typename... CHECK_ARGS>
-        static bool DidCallFunction(R (*fn)(ARGS...), int sequenceNumber, CHECK_ARGS... checkArgs)
+    
+    static bool FunctionCallOrderCheck(int64_t sequenceNumberGreaterThan)
     {
-        return SpecificFunctionCallRecorder<R, ARGS...>::functionTypeRegister.DidCallFunction(fn, sequenceNumber, checkArgs...);
+        return true;
+    }
+    
+    template <typename R, typename... ARGS>
+        static int64_t EarliestSequenceNumberForCallMatching(int64_t sequenceNumberGreaterThan, R (*fn)(ARGS...))
+    {
+        return SpecificFunctionCallRecorder<R, ARGS...>::functionTypeRegister.EarliestSequenceNumberForCallMatching(fn, sequenceNumberGreaterThan);
+    }
+    
+    template <typename R, typename... ARGS, typename... CHECK_ARGS>
+        static int64_t EarliestSequenceNumberForCallMatching(int64_t sequenceNumberGreaterThan, R (*fn)(ARGS...), const std::tuple<CHECK_ARGS...>& checkArgTuple)
+    {
+        return SpecificFunctionCallRecorder<R, ARGS...>::functionTypeRegister.EarliestSequenceNumberForCallMatching(fn, sequenceNumberGreaterThan, checkArgTuple);
+    }
+    
+    template <typename FN_T, typename... FN_TYPES>
+        static bool FunctionCallOrderCheck(int64_t sequenceNumberGreaterThan, FN_T* function1, FN_TYPES... functions)
+    {
+        int64_t callSequenceNumber = MockCalls::EarliestSequenceNumberForCallMatching(sequenceNumberGreaterThan, function1);
+        if (callSequenceNumber > sequenceNumberGreaterThan)
+        {
+            return FunctionCallOrderCheck(callSequenceNumber, functions...);
+        }
+        else
+        {
+            return false;
+        }
+    }
+    
+    template <typename FN_T, typename... CHECK_ARGS, typename... FN_TYPES>
+        static bool FunctionCallOrderCheck(
+            int64_t sequenceNumberGreaterThan,
+            FN_T* function1,
+            const std::tuple<CHECK_ARGS...>& function1ArgumentTuple,
+            FN_TYPES... functions)
+    {
+        int64_t callSequenceNumber = MockCalls::EarliestSequenceNumberForCallMatching(sequenceNumberGreaterThan, function1, function1ArgumentTuple);
+        if (callSequenceNumber > sequenceNumberGreaterThan)
+        {
+            return FunctionCallOrderCheck(callSequenceNumber, functions...);
+        }
+        else
+        {
+            return false;
+        }
+    }
+
+    template <typename FN_T, typename... CHECK_ARGS, typename... FN_TYPES>
+        static bool FunctionCallOrderCheck(
+            int64_t sequenceNumberGreaterThan,
+            FN_T* function1,
+            KextMock::PlaceholderValue,
+            FN_TYPES... functions)
+    {
+        int64_t callSequenceNumber = MockCalls::EarliestSequenceNumberForCallMatching(sequenceNumberGreaterThan, function1);
+        if (callSequenceNumber > sequenceNumberGreaterThan)
+        {
+            return FunctionCallOrderCheck(callSequenceNumber, functions...);
+        }
+        else
+        {
+            return false;
+        }
+    }
+
+    template <typename... FN_TYPES>
+        static bool DidCallFunctionsInOrder(FN_TYPES... functions)
+    {
+        return MockCalls::FunctionCallOrderCheck(-1, functions...);
     }
 };
 
@@ -141,28 +223,20 @@ bool ArgumentsAreEqual(TUPLE_T& arguments, CHECK_TUPLE_T check, std::index_seque
 
 template <typename R, typename... ARGS>
 template <typename... CHECK_ARGS>
-    bool SpecificFunctionCallRecorder<R, ARGS...>::DidCallFunction(FunctionPointerType function, int sequenceNumber, CHECK_ARGS... checkArgs)
+    bool SpecificFunctionCallRecorder<R, ARGS...>::DidCallFunction(FunctionPointerType function, CHECK_ARGS... checkArgs)
 {
     std::pair<typename RecordedCallMap::const_iterator, typename RecordedCallMap::const_iterator> foundCalls = this->recordedCalls.equal_range(function);
     for (typename RecordedCallMap::const_iterator foundCall = foundCalls.first; foundCall != foundCalls.second; ++foundCall)
     {
         if (foundCall->second.argumentValues)
         {
-            if (ArgumentsAreEqual(*foundCall->second.argumentValues, std::forward_as_tuple(checkArgs...), std::index_sequence_for<CHECK_ARGS...>{}) &&
-                (sequenceNumber == -1 || foundCall->second.callSequenceNumber == sequenceNumber))
+            if (ArgumentsAreEqual(*foundCall->second.argumentValues, std::forward_as_tuple(checkArgs...), std::index_sequence_for<CHECK_ARGS...>{}))
             {
                 return true;
             }
         }
     }
     return false;
-}
-
-template <typename R, typename... ARGS>
-template <typename... CHECK_ARGS>
-    bool SpecificFunctionCallRecorder<R, ARGS...>::DidCallFunction(FunctionPointerType function, CHECK_ARGS... checkArgs)
-{
-    return DidCallFunction(function, -1, checkArgs...);
 }
 
 template <typename R, typename... ARGS>
@@ -175,4 +249,23 @@ int SpecificFunctionCallRecorder<R, ARGS...>::CallCount(FunctionPointerType func
         callCount++;
     }
     return callCount;
+}
+
+template <typename R, typename... ARGS>
+template <typename... CHECK_ARGS>
+int64_t SpecificFunctionCallRecorder<R, ARGS...>::EarliestSequenceNumberForCallMatching(FunctionPointerType function, int64_t sequenceNumberGreaterThan, const std::tuple<CHECK_ARGS...>& checkArgTuple)
+{
+    std::pair<typename RecordedCallMap::const_iterator, typename RecordedCallMap::const_iterator> foundCalls = this->recordedCalls.equal_range(function);
+    for (typename RecordedCallMap::const_iterator foundCall = foundCalls.first; foundCall != foundCalls.second; ++foundCall)
+    {
+        if (foundCall->second.argumentValues && foundCall->second.callSequenceNumber > sequenceNumberGreaterThan)
+        {
+            if (ArgumentsAreEqual(*foundCall->second.argumentValues, checkArgTuple, std::index_sequence_for<CHECK_ARGS...>{}))
+            {
+                return foundCall->second.callSequenceNumber;
+            }
+        }
+    }
+    
+    return sequenceNumberGreaterThan;
 }

@@ -13,9 +13,11 @@
 #import <XCTest/XCTest.h>
 #include <vector>
 #include <string>
+#include <tuple>
 
 using std::shared_ptr;
 using std::vector;
+using std::make_tuple;
 using KextMock::_;
 
 class PrjFSProviderUserClient
@@ -260,6 +262,12 @@ static void SetRootXattrData(shared_ptr<vnode> vnode)
         s_virtualizationRoots[result2.root].providerUserClient = nullptr;
         vnode_put(s_virtualizationRoots[result2.root].rootVNode);
     }
+    
+    XCTAssertTrue(MockCalls::DidCallFunctionsInOrder(
+        ProviderUserClient_UpdatePathProperty, make_tuple(&self->dummyClient, _),
+        vfs_setauthcache_ttl,                  make_tuple(self->testMountPoint.get(), _),
+        ProviderUserClient_UpdatePathProperty, _,
+        vfs_setauthcache_ttl));
 }
 
 - (void)testRegisterProviderForPath_ArrayFull
