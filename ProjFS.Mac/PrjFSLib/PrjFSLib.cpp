@@ -137,6 +137,8 @@ static const char* NotificationTypeToString(PrjFS_NotificationType notificationT
 static FileMutexMap::iterator CheckoutFileMutexIterator(const FsidInode& fsidInode);
 static void ReturnFileMutexIterator(FileMutexMap::iterator lockIterator);
 
+static void LogError(const char* formatString, ...) __attribute__((__format__ (printf, 1, 2)));
+
 // State
 static io_connect_t s_kernelServiceConnection = IO_OBJECT_NULL;
 static string s_virtualizationRootFullPath;
@@ -632,22 +634,35 @@ PrjFS_Result PrjFS_WriteFileContents(
 static Message ParseMessageMemory(const void* messageMemory, uint32_t size)
 {
     const MessageHeader* header = static_cast<const MessageHeader*>(messageMemory);
-    if (header->pathSizeBytes + sizeof(*header) != size)
+    if (size != Message_EncodedSize(header))
     {
-        fprintf(stderr, "ParseMessageMemory: invariant failed, bad message? PathSizeBytes = %u, message size = %u, expecting %zu\n",
-            header->pathSizeBytes, size, header->pathSizeBytes + sizeof(*header));
+        LogError("ParseMessageMemory: invariant failed, bad message? message size = %u, expecting minimum of %zu\n", size, sizeof(*header));
         abort();
     }
-            
-    const char* path = nullptr;
-    if (header->pathSizeBytes > 0)
+    
+    Message parsedMessage = { header };
+    
+    const char* messagePosition = static_cast<const char*>(messageMemory) + sizeof(*header);
+    uint32_t messageBytesRemain = size - sizeof(*header);
+    for (unsigned i = 0; i < extent<decltype(parsedMessage.paths)>::value; ++i)
     {
-        path = static_cast<const char*>(messageMemory) + sizeof(*header);
-        
-        // Path string should fit exactly in reserved memory, with nul terminator in end position
-        assert(strnlen(path, header->pathSizeBytes) == header->pathSizeBytes - 1);
+        if (header->pathSizesBytes[i] > 0)
+        {
+            uint16_t stringSize = header->pathSizesBytes[i];
+            assert(messageBytesRemain >= stringSize);
+            const char* string = messagePosition;
+            // Path string should fit exactly in reserved memory, with nul terminator in end position
+            assert(strnlen(string, stringSize) == stringSize - 1);
+            messagePosition += stringSize;
+            messageBytesRemain -= stringSize;
+            
+            parsedMessage.paths[i] = string;
+        }
     }
-    return Message { header, path };
+    
+    assert(messageBytesRemain == 0);
+
+    return parsedMessage;
 }
 
 static void HandleKernelRequest(void* messageMemory, uint32_t messageSize)
@@ -664,7 +679,7 @@ static void HandleKernelRequest(void* messageMemory, uint32_t messageSize)
     // whereas messages originating in the kext's vnode handler will only fill
     // the fsid/inode, so we need to look up the path below.
     char pathBuffer[PrjFSMaxPath];
-    if (request.path == nullptr)
+    if (request.paths[MessagePath_Target] == nullptr)
     {
         fsid_t fsid = request.messageHeader->fsidInode.fsid;
         ssize_t pathSize = fsgetpath(pathBuffer, sizeof(pathBuffer), &fsid, request.messageHeader->fsidInode.inode);
@@ -702,7 +717,7 @@ static void HandleKernelRequest(void* messageMemory, uint32_t messageSize)
                 << " -> '"
                 << pathBuffer
                 << "' -> relative path '"
-                << (request.path != nullptr ? request.path : "[NULL]")
+                << (relativePath != nullptr ? relativePath : "[NULL]")
                 << "'"
                 << endl;
 #endif
@@ -710,7 +725,7 @@ static void HandleKernelRequest(void* messageMemory, uint32_t messageSize)
     }
     else
     {
-        absolutePath = request.path;
+        absolutePath = request.paths[MessagePath_Target];
         relativePath = GetRelativePath(absolutePath, s_virtualizationRootFullPath.c_str());
     }
     
@@ -1446,4 +1461,17 @@ static const char* GetRelativePath(const char* fullPath, const char* root)
     }
     
     return relativePath;
+}
+
+static void LogError(const char* formatString, ...)
+{
+    va_list dataArgs;
+    char* logString = nullptr;
+
+    va_start(dataArgs, formatString);
+    vasprintf(&logString, formatString, dataArgs);
+    va_end(dataArgs);
+    
+    s_callbacks.LogError(logString);
+    free(logString);
 }

@@ -32,6 +32,14 @@ typedef enum
     
 } MessageType;
 
+enum MessagePathField
+{
+    MessagePath_Target = 0,
+    MessagePath_From,
+    
+    MessagePath_Count,
+};
+
 struct MessageHeader
 {
     // The message id is used to correlate a response to its request
@@ -47,25 +55,19 @@ struct MessageHeader
     int32_t             pid;
     char                procname[MAXCOMLEN + 1];
 
-    // Size of the flexible-length, nul-terminated path following the message body, including the nul character.
-    uint16_t            pathSizeBytes;
+    // Sizes of the flexible-length, nul-terminated paths following the message body.
+    // Sizes include the nul characters but can be 0 to indicate total absence.
+    uint16_t            pathSizesBytes[MessagePath_Count];
 };
 
 // Description of a decomposed, in-memory message header plus variable length string field
 struct Message
 {
     const MessageHeader* messageHeader;
-    const char*    path;
+    const char* paths[MessagePath_Count];
 };
 
-void Message_Init(
-    Message* spec,
-    MessageHeader* header,
-    uint64_t messageId,
-    MessageType messageType,
-    const FsidInode& fsidInode,
-    int32_t pid,
-    const char* procname,
-    const char* path);
+
+uint32_t Message_EncodedSize(const MessageHeader* messageHeader);
 
 #endif /* Message_h */

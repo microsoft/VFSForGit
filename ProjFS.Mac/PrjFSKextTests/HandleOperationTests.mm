@@ -140,6 +140,7 @@ static void SetPrjFSFileXattrData(const shared_ptr<vnode>& vnode)
                 _,
                 _,
                 _,
+                _,
                 nullptr));
         MockCalls::Clear();
     }
@@ -325,12 +326,14 @@ static void SetPrjFSFileXattrData(const shared_ptr<vnode>& vnode)
             _,
             _,
             _,
+            _,
             nullptr),
         ProviderMessaging_TrySendRequestAndWaitForResponse,
         make_tuple(
            _,
             MessageType_KtoU_HydrateFile,
             testFileVnode.get(),
+            _,
             _,
             _,
             _,
@@ -362,12 +365,14 @@ static void SetPrjFSFileXattrData(const shared_ptr<vnode>& vnode)
             _,
             _,
             _,
+            _,
             nullptr),
         ProviderMessaging_TrySendRequestAndWaitForResponse,
         make_tuple(
            _,
             MessageType_KtoU_RecursivelyEnumerateDirectory,
             testDirVnode.get(),
+            _,
             _,
             _,
             _,
@@ -406,6 +411,7 @@ static void SetPrjFSFileXattrData(const shared_ptr<vnode>& vnode)
                 _,
                 MessageType_KtoU_EnumerateDirectory,
                 testDirVnode.get(),
+                _,
                 _,
                 _,
                 _,
@@ -507,12 +513,14 @@ static void SetPrjFSFileXattrData(const shared_ptr<vnode>& vnode)
             _,
             _,
             _,
+            _,
             nullptr),
         ProviderMessaging_TrySendRequestAndWaitForResponse,
         make_tuple(
            _,
             MessageType_KtoU_NotifyFilePreConvertToFull,
             testFileVnode.get(),
+            _,
             _,
             _,
             _,
@@ -546,6 +554,7 @@ static void SetPrjFSFileXattrData(const shared_ptr<vnode>& vnode)
             _,
             _,
             _,
+            _,
             nullptr));
     XCTAssertTrue(
        MockCalls::DidCallFunction(
@@ -553,6 +562,7 @@ static void SetPrjFSFileXattrData(const shared_ptr<vnode>& vnode)
             _,
             MessageType_KtoU_NotifyFilePreConvertToFull,
             testFileVnode.get(),
+            _,
             _,
             _,
             _,

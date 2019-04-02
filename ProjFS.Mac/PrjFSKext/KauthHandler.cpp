@@ -284,6 +284,7 @@ KEXT_STATIC int HandleVnodeOperation(
                 currentVnode,
                 vnodeFsidInode,
                 nullptr, // path not needed, use fsid/inode
+                nullptr, // source path N/A
                 pid,
                 procname,
                 &kauthResult,
@@ -321,6 +322,7 @@ KEXT_STATIC int HandleVnodeOperation(
                         currentVnode,
                         vnodeFsidInode,
                         nullptr, // path not needed, use fsid/inode
+                        nullptr, // source path N/A
                         pid,
                         procname,
                         &kauthResult,
@@ -345,6 +347,7 @@ KEXT_STATIC int HandleVnodeOperation(
                         currentVnode,
                         vnodeFsidInode,
                         nullptr, // path not needed, use fsid/inode
+                        nullptr, // source path N/A
                         pid,
                         procname,
                         &kauthResult,
@@ -385,6 +388,7 @@ KEXT_STATIC int HandleVnodeOperation(
                         currentVnode,
                         vnodeFsidInode,
                         nullptr, // path not needed, use fsid/inode
+                        nullptr, // source path N/A
                         pid,
                         procname,
                         &kauthResult,
@@ -412,15 +416,16 @@ KEXT_STATIC int HandleVnodeOperation(
                 PerfSample preConvertToFullSample(&perfTracer, PrjFSPerfCounter_VnodeOp_PreConvertToFull);
                 
                 if (!ProviderMessaging_TrySendRequestAndWaitForResponse(
-                                                      root,
-                                                      MessageType_KtoU_NotifyFilePreConvertToFull,
-                                                      currentVnode,
-                                                      vnodeFsidInode,
-                                                      nullptr, // path not needed, use fsid/inode,
-                                                      pid,
-                                                      procname,
-                                                      &kauthResult,
-                                                      kauthError))
+                        root,
+                        MessageType_KtoU_NotifyFilePreConvertToFull,
+                        currentVnode,
+                        vnodeFsidInode,
+                        nullptr, // path not needed, use fsid/inode,
+                        nullptr, // source path N/A
+                        pid,
+                        procname,
+                        &kauthResult,
+                        kauthError))
                 {
                     goto CleanupAndReturn;
                 }
@@ -516,6 +521,7 @@ KEXT_STATIC int HandleFileOpOperation(
                     currentVnode,
                     vnodeFsidInode,
                     newPath,
+                    nullptr, // fromPath
                     pid,
                     procname,
                     &kauthResult,
@@ -536,6 +542,7 @@ KEXT_STATIC int HandleFileOpOperation(
                     currentVnode,
                     vnodeFsidInode,
                     newPath,
+                    nullptr, // TODO
                     pid,
                     procname,
                     &kauthResult,
@@ -593,15 +600,16 @@ KEXT_STATIC int HandleFileOpOperation(
         int kauthResult;
         int kauthError;
         if (!ProviderMessaging_TrySendRequestAndWaitForResponse(
-                                              root,
-                                              MessageType_KtoU_NotifyFileCreated,
-                                              currentVnode,
-                                              vnodeFsidInode,
-                                              path,
-                                              pid,
-                                              procname,
-                                              &kauthResult,
-                                              &kauthError))
+                root,
+                MessageType_KtoU_NotifyFileCreated,
+                currentVnode,
+                vnodeFsidInode,
+                path,
+                nullptr, // fromPath
+                pid,
+                procname,
+                &kauthResult,
+                &kauthError))
         {
             goto CleanupAndReturn;
         }
@@ -652,6 +660,7 @@ KEXT_STATIC int HandleFileOpOperation(
                 currentVnode,
                 vnodeFsidInode,
                 path,
+                nullptr, // fromPath
                 pid,
                 procname,
                 &kauthResult,
