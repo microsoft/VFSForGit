@@ -23,7 +23,6 @@ namespace GVFS.Platform.POSIX
         }
 
         public override IGitInstallation GitInstallation { get; } = new POSIXGitInstallation();
-        public override IDiskLayoutUpgradeData DiskLayoutUpgrade { get; } = new POSIXDiskLayoutUpgradeData();
         public override IPlatformFileSystem FileSystem { get; } = new POSIXFileSystem();
 
         public override void ConfigureVisualStudio(string gitBinPath, ITracer tracer)

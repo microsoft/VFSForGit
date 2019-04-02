@@ -1,9 +1,9 @@
 ﻿using GVFS.Common;
 using GVFS.DiskLayoutUpgrades;
 
-namespace GVFS.Platform.POSIX
+namespace GVFS.Platform.Mac
 {
-    public class POSIXDiskLayoutUpgradeData : IDiskLayoutUpgradeData
+    public class MacDiskLayoutUpgradeData : IDiskLayoutUpgradeData
     {
         public DiskLayoutUpgrade[] Upgrades
         {
