@@ -1,9 +1,10 @@
 ﻿using GVFS.Common;
 using GVFS.Common.FileSystem;
+using GVFS.Platform.POSIX;
 
 namespace GVFS.Platform.Mac
 {
-    public partial class MacPlatform : POSIX.POSIXPlatform
+    public partial class MacPlatform : POSIXPlatform
     {
         public MacPlatform()
             : base(
