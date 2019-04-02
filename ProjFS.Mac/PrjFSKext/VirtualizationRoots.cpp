@@ -553,7 +553,7 @@ void ActiveProvider_Disconnect(VirtualizationRootHandle rootIndex, PrjFSProvider
     RWLock_ReleaseShared(s_virtualizationRootsLock);
 }
 
-errno_t ActiveProvider_SendMessage(VirtualizationRootHandle rootIndex, const Message message)
+errno_t ActiveProvider_SendMessage(VirtualizationRootHandle rootIndex, const Message& message)
 {
     assert(rootIndex >= 0);
 
@@ -573,13 +573,10 @@ errno_t ActiveProvider_SendMessage(VirtualizationRootHandle rootIndex, const Mes
     
     if (nullptr != userClient)
     {
-        uint32_t messageSize = sizeof(*message.messageHeader) + message.messageHeader->pathSizeBytes;
+        uint32_t messageSize = Message_EncodedSize(message);
         uint8_t messageMemory[messageSize];
-        memcpy(messageMemory, message.messageHeader, sizeof(*message.messageHeader));
-        if (message.messageHeader->pathSizeBytes > 0)
-        {
-            memcpy(messageMemory + sizeof(*message.messageHeader), message.path, message.messageHeader->pathSizeBytes);
-        }
+        uint32_t bytesUsed OS_UNUSED = Message_Encode(messageMemory, messageSize, message);
+        assertf(bytesUsed == messageSize, "bytes used by Message_Encode (%u) should match Message_EncodedSize's prediction (%u)", bytesUsed, messageSize);
         
         ProviderUserClient_SendMessage(userClient, messageMemory, messageSize);
         ProviderUserClient_Release(userClient);

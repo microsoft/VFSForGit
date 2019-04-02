@@ -47,16 +47,37 @@ struct MessageHeader
     int32_t             pid;
     char                procname[MAXCOMLEN + 1];
 
-    // Size of the flexible-length, nul-terminated path following the message body, including the nul character.
-    uint16_t            pathSizeBytes;
+    // Sizes of the flexible-length, nul-terminated paths following the message body.
+    // Sizes include the nul characters but can be 0 to indicate total absence.
+    union
+    {
+        struct
+        {
+            // Current/destination path
+            uint16_t pathSizeBytes;
+            // Original location (rename, hard link)
+            uint16_t sourcePathSizeBytes;
+        };
+        uint16_t     stringSizesBytes[2];
+    };
 };
 
 // Description of a decomposed, in-memory message header plus variable length string field
 struct Message
 {
     const MessageHeader* messageHeader;
-    const char*    path;
+    union
+    {
+        struct
+        {
+            const char* path;
+            const char* sourcePath;
+        };
+        const char*     strings[2];
+    };
 };
+
+#if defined(KERNEL) || defined(KEXT_UNIT_TESTING)
 
 void Message_Init(
     Message* spec,
@@ -66,6 +87,12 @@ void Message_Init(
     const FsidInode& fsidInode,
     int32_t pid,
     const char* procname,
-    const char* path);
+    const char* path,
+    const char* sourcePath);
+
+uint32_t Message_EncodedSize(const Message& message);
+uint32_t Message_Encode(void* buffer, uint32_t bufferSize, const Message& message);
+
+#endif
 
 #endif /* Message_h */

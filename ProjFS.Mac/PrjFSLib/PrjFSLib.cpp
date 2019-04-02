@@ -632,22 +632,34 @@ PrjFS_Result PrjFS_WriteFileContents(
 static Message ParseMessageMemory(const void* messageMemory, uint32_t size)
 {
     const MessageHeader* header = static_cast<const MessageHeader*>(messageMemory);
-    if (header->pathSizeBytes + sizeof(*header) != size)
+    if (size < sizeof(*header))
     {
-        fprintf(stderr, "ParseMessageMemory: invariant failed, bad message? PathSizeBytes = %u, message size = %u, expecting %zu\n",
-            header->pathSizeBytes, size, header->pathSizeBytes + sizeof(*header));
+        fprintf(stderr, "ParseMessageMemory: invariant failed, bad message? message size = %u, expecting minimum of %zu\n",
+            size, sizeof(*header));
         abort();
     }
-            
-    const char* path = nullptr;
-    if (header->pathSizeBytes > 0)
+    
+    Message parsedMessage = { header };
+    
+    const char* messagePosition = static_cast<const char*>(messageMemory) + sizeof(*header);
+    uint32_t messageBytesRemain = size - sizeof(*header);
+    for (unsigned i = 0; i < extent<decltype(parsedMessage.strings)>::value; ++i)
     {
-        path = static_cast<const char*>(messageMemory) + sizeof(*header);
-        
-        // Path string should fit exactly in reserved memory, with nul terminator in end position
-        assert(strnlen(path, header->pathSizeBytes) == header->pathSizeBytes - 1);
+        if (header->stringSizesBytes[i] > 0)
+        {
+            uint16_t stringSize = header->stringSizesBytes[i];
+            assert(messageBytesRemain >= stringSize);
+            const char* string = messagePosition;
+            // Path string should fit exactly in reserved memory, with nul terminator in end position
+            assert(strnlen(string, stringSize) == stringSize - 1);
+            messagePosition += stringSize;
+            messageBytesRemain -= stringSize;
+            
+            parsedMessage.strings[i] = string;
+        }
     }
-    return Message { header, path };
+    
+    return parsedMessage;
 }
 
 static void HandleKernelRequest(void* messageMemory, uint32_t messageSize)
