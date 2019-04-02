@@ -99,6 +99,9 @@
     <Compile Include="..\GVFS.Platform.POSIX\POSIXPlatform.Shared.cs">
       <Link>POSIX\POSIXPlatform.Shared.cs</Link>
     </Compile>
+    <Compile Include="..\GVFS.Platform.Mac\MacPlatform.Shared.cs">
+      <Link>Mac\MacPlatform.Shared.cs</Link>
+    </Compile>
   </ItemGroup>
   
   <ItemGroup>

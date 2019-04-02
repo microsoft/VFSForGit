@@ -3,11 +3,11 @@ using GVFS.Common.FileSystem;
 
 namespace GVFS.Platform.Mac
 {
-    public class MacPlatform : POSIX.POSIXPlatform
+    public partial class MacPlatform : POSIX.POSIXPlatform
     {
         public MacPlatform()
             : base(
-                installerExtension: ".dmg")
+                installerExtension: "." + InstallerExtension)
         {
         }
 

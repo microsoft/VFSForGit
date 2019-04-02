@@ -1,3 +1,4 @@
+using GVFS.Platform.Mac;
 using GVFS.Platform.POSIX;
 
 namespace GVFS.Hooks.HooksPlatform
@@ -6,7 +7,7 @@ namespace GVFS.Hooks.HooksPlatform
     {
         public static string GetInstallerExtension()
         {
-            return "dmg";
+            return MacPlatform.InstallerExtension;
         }
 
         public static bool IsElevated()
