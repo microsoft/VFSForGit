@@ -314,6 +314,14 @@ KEXT_STATIC void LookupVnodeRootAndUpdateCache(
         forceRefreshEntry = false;
         break;
     }
+    
+    KextLog_FileError(
+        vnode,
+        "Kernel panic test: vnode (%p:%u) has different root in cache(%hu) than was found walking tree(%hu)",
+        KextLog_Unslide(vnode),
+        vnodeVid,
+        RootHandle_Indeterminate,
+        rootHandle);
 
     RWLock_AcquireExclusive(s_entriesLock);
     {
