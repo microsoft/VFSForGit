@@ -7,7 +7,7 @@ using System.Runtime.InteropServices;
 
 namespace GVFS.Platform.POSIX
 {
-    public class POSIXFileBasedLock : FileBasedLock
+    public abstract class POSIXFileBasedLock : FileBasedLock
     {
         private int lockFileDescriptor;
 

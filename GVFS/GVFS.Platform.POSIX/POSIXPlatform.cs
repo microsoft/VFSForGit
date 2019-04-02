@@ -130,14 +130,6 @@ namespace GVFS.Platform.POSIX
             return false;
         }
 
-        public override FileBasedLock CreateFileBasedLock(
-            PhysicalFileSystem fileSystem,
-            ITracer tracer,
-            string lockPath)
-        {
-            return new POSIXFileBasedLock(fileSystem, tracer, lockPath);
-        }
-
         public override bool TryKillProcessTree(int processId, out int exitCode, out string error)
         {
             ProcessResult result = ProcessHelper.Run("pkill", $"-P {processId}");

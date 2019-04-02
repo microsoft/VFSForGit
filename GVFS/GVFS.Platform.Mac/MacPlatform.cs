@@ -1,5 +1,6 @@
 ﻿using GVFS.Common;
 using GVFS.Common.FileSystem;
+using GVFS.Common.Tracing;
 using GVFS.Platform.POSIX;
 
 namespace GVFS.Platform.Mac
@@ -19,6 +20,14 @@ namespace GVFS.Platform.Mac
         {
             ProcessResult result = ProcessHelper.Run("sw_vers", args: string.Empty, redirectOutput: true);
             return string.IsNullOrWhiteSpace(result.Output) ? result.Errors : result.Output;
+        }
+
+        public override FileBasedLock CreateFileBasedLock(
+            PhysicalFileSystem fileSystem,
+            ITracer tracer,
+            string lockPath)
+        {
+            return new MacFileBasedLock(fileSystem, tracer, lockPath);
         }
     }
 }
