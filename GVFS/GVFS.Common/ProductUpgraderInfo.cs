@@ -58,11 +58,21 @@ namespace GVFS.Common
                 if (this.fileSystem.FileExists(highestAvailableVersionFile))
                 {
                     this.fileSystem.DeleteFile(highestAvailableVersionFile);
+
+                    if (this.tracer != null)
+                    {
+                        this.tracer.RelatedInfo($"{nameof(this.RecordHighestAvailableVersion)}: Deleted upgrade reminder marker file");
+                    }
                 }
             }
             else
             {
                 this.fileSystem.WriteAllText(highestAvailableVersionFile, highestAvailableVersion.ToString());
+
+                if (this.tracer != null)
+                {
+                    this.tracer.RelatedInfo($"{nameof(this.RecordHighestAvailableVersion)}: Created upgrade reminder marker file");
+                }
             }
         }
     }

@@ -229,7 +229,7 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
         private void VerifyServiceRestartStopsReminder()
         {
             this.CreateUpgradeAvailableMarkerFile();
-            this.ReminderMessagingEnabled().ShouldBeTrue();
+            this.ReminderMessagingEnabled().ShouldBeTrue("Upgrade marker file did not trigger reminder messaging");
             this.SetUpgradeRing(AlwaysUpToDateRing);
             this.RestartService();
 
@@ -242,16 +242,16 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
                 timeToWait = timeToWait.Subtract(TimeSpan.FromSeconds(5));
             }
 
-            reminderMessagingEnabled.ShouldBeFalse();
+            reminderMessagingEnabled.ShouldBeFalse("Service restart did not stop Upgrade reminder messaging");
         }
 
         private void VerifyUpgradeVerbStopsReminder()
         {
             this.SetUpgradeRing(AlwaysUpToDateRing);
             this.CreateUpgradeAvailableMarkerFile();
-            this.ReminderMessagingEnabled().ShouldBeTrue();
+            this.ReminderMessagingEnabled().ShouldBeTrue("Marker file did not trigger Upgrade reminder messaging");
             this.RunUpgradeCommand();
-            this.ReminderMessagingEnabled().ShouldBeFalse();
+            this.ReminderMessagingEnabled().ShouldBeFalse("Upgrade verb did not stop Upgrade reminder messaging");
         }
     }
 }
