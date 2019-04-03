@@ -321,8 +321,16 @@ namespace PrjFSLib.Linux
 
                 if (!isDirectory)
                 {
+                    string currentRelativePath = relativePath;
+
+                    // TODO(Linux): can other intermediate file ops race us here?
+                    if (nt == NotificationType.FileRenamed)
+                    {
+                        currentRelativePath = PtrToStringUTF8(ev.TargetPath);
+                    }
+
                     result = this.projfs.GetProjAttrs(
-                        relativePath,
+                        currentRelativePath,
                         providerId,
                         contentId);
                 }
