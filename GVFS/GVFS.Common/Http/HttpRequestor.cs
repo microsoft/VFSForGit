@@ -99,7 +99,7 @@ namespace GVFS.Common.Http
 
             request.Headers.UserAgent.Add(this.userAgentHeader);
 
-            if (!string.IsNullOrEmpty(authString))
+            if (!this.authentication.IsAnonymous)
             {
                 request.Headers.Authorization = new AuthenticationHeaderValue("Basic", authString);
             }
@@ -147,7 +147,11 @@ namespace GVFS.Common.Http
                     string contentType = GetSingleHeaderOrEmpty(response.Content.Headers, "Content-Type");
                     responseMetadata.Add("ContentType", contentType);
 
-                    this.authentication.ApproveCredentials(this.Tracer, authString);
+                    if (!this.authentication.IsAnonymous)
+                    {
+                        this.authentication.ApproveCredentials(this.Tracer, authString);
+                    }
+
                     Stream responseStream = response.Content.ReadAsStreamAsync().GetAwaiter().GetResult();
 
                     gitEndPointResponseData = new GitEndPointResponseData(
