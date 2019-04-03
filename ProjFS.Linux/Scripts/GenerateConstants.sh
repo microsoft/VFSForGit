@@ -14,7 +14,7 @@ echo | >"$TMPFILE" \
   $CC -E -xc-header -dM $CFLAGS $CPPFLAGS -include projfs_notify.h -
 
 PROJFS_CONSTS=$(cat "$TMPFILE" |
-  awk '/^#define PROJFS_\S+ \S+$/ { print length($3) " " $0 }' |
+  awk '/^#define PROJFS_[^ ]+ [^ ]+$/ { print length($3) " " $0 }' |
   sort -k 1,1n -k4,4 | sed 's/.*PROJFS/PROJFS/' |
   sed 's/himask(0x\([0-9]\{4\}\))/0x\100000000/')
 
