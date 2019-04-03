@@ -292,6 +292,7 @@ namespace GVFS.Virtualization.BlobSize
             // the prepared SQLite statement can be reused
             private SqliteConnection connection;
             private SqliteCommand querySizeCommand;
+            private SqliteCommand getAllDataCommand;
             private SqliteParameter shaParam;
 
             private byte[] shaBuffer;
@@ -333,6 +334,11 @@ namespace GVFS.Virtualization.BlobSize
                     this.querySizeCommand.CommandText = "SELECT size FROM BlobSizes WHERE sha = (@sha);";
                     this.querySizeCommand.Parameters.Add(this.shaParam);
                     this.querySizeCommand.Prepare();
+
+                    this.getAllDataCommand = this.connection.CreateCommand();
+
+                    this.getAllDataCommand.CommandText = "SELECT sha, size FROM BlobSizes;";
+                    this.getAllDataCommand.Prepare();
                 }
                 catch (Exception e)
                 {
@@ -340,6 +346,12 @@ namespace GVFS.Virtualization.BlobSize
                     {
                         this.querySizeCommand.Dispose();
                         this.querySizeCommand = null;
+                    }
+
+                    if (this.getAllDataCommand != null)
+                    {
+                        this.getAllDataCommand.Dispose();
+                        this.getAllDataCommand = null;
                     }
 
                     if (this.connection != null)
@@ -380,12 +392,34 @@ namespace GVFS.Virtualization.BlobSize
                 return false;
             }
 
+            public virtual Dictionary<string, long> GetAllSizes()
+            {
+                Dictionary<string, long> result = new Dictionary<string, long>();
+                using (SqliteDataReader reader = this.getAllDataCommand.ExecuteReader())
+                {
+                    while (reader.Read())
+                    {
+                        var blob = (byte[])reader.GetValue(0);
+                        long length = reader.GetInt64(1);
+                        result.Add(Sha1Id.ShaStringFromBuffer(blob), length);
+                    }
+                }
+
+                return result;
+            }
+
             public void Dispose()
             {
                 if (this.querySizeCommand != null)
                 {
                     this.querySizeCommand.Dispose();
                     this.querySizeCommand = null;
+                }
+
+                if (this.getAllDataCommand != null)
+                {
+                    this.getAllDataCommand.Dispose();
+                    this.getAllDataCommand = null;
                 }
 
                 if (this.connection != null)

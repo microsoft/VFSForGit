@@ -1161,6 +1161,8 @@ namespace GVFS.Virtualization.Projection
                         new HashSet<string>(placeholderFoldersListCopy.Select(x => x.Path), StringComparer.OrdinalIgnoreCase) :
                         null;
 
+                    var sizes = blobSizesConnection.GetAllSizes();
+
                     // Order the folders in decscending order so that we walk the tree from bottom up.
                     // Traversing the folders in this order:
                     //  1. Ensures child folders are deleted before their parents
@@ -1206,7 +1208,7 @@ namespace GVFS.Virtualization.Projection
                                         $"{nameof(updatedPlaceholderDictionary)} must be used when enumeration expands directories");
                                 }
 
-                                this.ReExpandFolder(blobSizesConnection, folderPlaceholder.Path, updatedPlaceholderDictionary, folderPlaceholders);
+                                this.ReExpandFolder(blobSizesConnection, folderPlaceholder.Path, updatedPlaceholderDictionary, folderPlaceholders, sizes);
                             }
                         }
                     }
@@ -1402,7 +1404,8 @@ namespace GVFS.Virtualization.Projection
             BlobSizes.BlobSizesConnection blobSizesConnection,
             string relativeFolderPath,
             ConcurrentDictionary<string, IPlaceholderData> updatedPlaceholderList,
-            HashSet<string> existingFolderPlaceholders)
+            HashSet<string> existingFolderPlaceholders,
+            Dictionary<string, long> availableSizes)
         {
             FolderData folderData;
             if (!this.TryGetOrAddFolderDataFromCache(relativeFolderPath, out folderData))
@@ -1416,7 +1419,7 @@ namespace GVFS.Virtualization.Projection
                 this.context.Tracer,
                 this.gitObjects,
                 blobSizesConnection,
-                availableSizes: null,
+                availableSizes,
                 cancellationToken: CancellationToken.None);
 
             for (int i = 0; i < folderData.ChildEntries.Count; i++)

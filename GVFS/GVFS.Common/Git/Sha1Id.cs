@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Linq;
 using System.Runtime.InteropServices;
 
 namespace GVFS.Common.Git
@@ -87,6 +88,11 @@ namespace GVFS.Common.Git
                     shaBytes17Through20 = *(uint*)thirdChunk;
                 }
             }
+        }
+
+        public static string ShaStringFromBuffer(byte[] shaBuffer)
+        {
+            return new string(shaBuffer.SelectMany(b => new[] { GetHexValue(b / 16),  GetHexValue(b % 16) }).ToArray());
         }
 
         public void ToBuffer(byte[] shaBuffer)
