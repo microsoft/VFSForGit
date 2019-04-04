@@ -82,7 +82,7 @@ while read line; do
 	 [[ $line != *".xctest"* ]] && 
 	 [[ $line != *".cpp"* ]] && 
 	 [[ $line != *".hpp"* ]]; then
-       printf "\nError: Not at 100% Code Coverage: $line"
+       echo "Error: not at 100% Code Coverage $line"
        exit 1
   fi
 done < $PROJFS/CoverageResult.txt 
