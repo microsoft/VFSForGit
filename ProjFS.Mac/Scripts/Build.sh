@@ -56,7 +56,6 @@ while read line; do
 	 [[ $line != *"TryGetVirtualizationRoot"* ]] &&                  #SHOULD ADD COVERAGE
 	 [[ $line != *"CurrentProcessWasSpawnedByRegularUser"* ]] &&     #SHOULD ADD COVERAGE
 	 [[ $line != *"ShouldHandleFileOpEvent"* ]] &&                   #SHOULD ADD COVERAGE
-	 [[ $line != *"ShouldIgnoreVnodeType"* ]] &&                     #SHOULD ADD COVERAGE
 	 [[ $line != *"WaitForListenerCompletion"* ]] && 
 	 [[ $line != *"KextLog_"* ]] && 
 	 [[ $line != *"Definition"* ]] && 
