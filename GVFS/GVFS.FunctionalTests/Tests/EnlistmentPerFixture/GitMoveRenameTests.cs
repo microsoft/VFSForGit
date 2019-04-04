@@ -191,8 +191,10 @@ namespace GVFS.FunctionalTests.Tests.EnlistmentPerFixture
             filePath.ShouldBeAFile(this.fileSystem).WithContents(this.testFileContents);
 
             string renamedFileName = Path.Combine("GVFlt_MoveFileTest", "GitStatusAfterRenameFileIntoRepo.cs");
-            this.fileSystem.MoveFile(filePath, this.Enlistment.GetVirtualPathTo(renamedFileName));
-            this.Enlistment.GetVirtualPathTo(filePath).ShouldNotExistOnDisk(this.fileSystem);
+            string renamedFilePath = this.Enlistment.GetVirtualPathTo(renamedFileName);
+            this.fileSystem.MoveFile(filePath, renamedFilePath);
+            filePath.ShouldNotExistOnDisk(this.fileSystem);
+            renamedFilePath.ShouldBeAFile(this.fileSystem);
 
             GitHelpers.CheckGitCommandAgainstGVFSRepo(
                 this.Enlistment.RepoRoot,
