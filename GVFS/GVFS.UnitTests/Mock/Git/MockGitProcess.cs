@@ -1,4 +1,5 @@
 ﻿using GVFS.Common.Git;
+using GVFS.Common.Tracing;
 using GVFS.Tests.Should;
 using GVFS.UnitTests.Mock.Common;
 using System;
@@ -33,7 +34,7 @@ namespace GVFS.UnitTests.Mock.Git
             this.expectedCommandInfos.Add(commandInfo);
         }
 
-        public override void ApproveCredentials(string repoUrl, string username, string password)
+        public override bool TryStoreCredential(ITracer tracer, string repoUrl, string username, string password, out string error)
         {
             Credential credential = new Credential(username, password);
 
@@ -50,10 +51,10 @@ namespace GVFS.UnitTests.Mock.Git
             // Store the credential
             this.StoredCredentials[repoUrl] = credential;
 
-            base.ApproveCredentials(repoUrl, username, password);
+            return base.TryStoreCredential(tracer, repoUrl, username, password, out error);
         }
 
-        public override void RejectCredentials(string repoUrl, string username, string password)
+        public override bool TryDeleteCredential(ITracer tracer, string repoUrl, string username, string password, out string error)
         {
             Credential credential = new Credential(username, password);
 
@@ -70,7 +71,7 @@ namespace GVFS.UnitTests.Mock.Git
             // Erase the credential
             this.StoredCredentials.Remove(repoUrl);
 
-            base.RejectCredentials(repoUrl, username, password);
+            return base.TryDeleteCredential(tracer, repoUrl, username, password, out error);
         }
 
         protected override Result InvokeGitImpl(
