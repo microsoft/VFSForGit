@@ -18,16 +18,6 @@ namespace PrjFSLib.Linux
         string triggeringProcessName,
         int fd);
 
-    public delegate Result NotifyOperationCallback(
-        ulong commandId,
-        string relativePath,
-        byte[] providerId,
-        byte[] contentId,
-        int triggeringProcessId,
-        string triggeringProcessName,
-        bool isDirectory,
-        NotificationType notificationType);
-
     public delegate void LogErrorCallback(
         string errorMessage);
 
