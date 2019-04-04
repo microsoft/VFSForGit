@@ -11,6 +11,11 @@ namespace PrjFSLib.Linux
 
         private Interop.ProjFS projfs;
 
+        // We must hold a reference to the delegates to prevent garbage collection
+        private Interop.ProjFS.EventHandler preventGCOnProjEventDelegate;
+        private Interop.ProjFS.EventHandler preventGCOnNotifyEventDelegate;
+        private Interop.ProjFS.EventHandler preventGCOnPermEventDelegate;
+
         // References held to these delegates via class properties
         public virtual EnumerateDirectoryCallback OnEnumerateDirectory { get; set; }
         public virtual GetFileStreamCallback OnGetFileStream { get; set; }
@@ -37,9 +42,9 @@ namespace PrjFSLib.Linux
 
             Interop.ProjFS.Handlers handlers = new Interop.ProjFS.Handlers
             {
-                HandleProjEvent = this.HandleProjEvent,
-                HandleNotifyEvent = this.HandleNotifyEvent,
-                HandlePermEvent = this.HandlePermEvent,
+                HandleProjEvent = this.preventGCOnProjEventDelegate = new Interop.ProjFS.EventHandler(this.HandleProjEvent),
+                HandleNotifyEvent = this.preventGCOnNotifyEventDelegate = new Interop.ProjFS.EventHandler(this.HandleNotifyEvent),
+                HandlePermEvent = this.preventGCOnPermEventDelegate = new Interop.ProjFS.EventHandler(this.HandlePermEvent)
             };
 
             Interop.ProjFS fs = Interop.ProjFS.New(
