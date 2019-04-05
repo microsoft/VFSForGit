@@ -82,6 +82,7 @@ namespace GVFS.Service
                     GitHubUpgrader productUpgrader = GitHubUpgrader.Create(
                         this.tracer,
                         this.fileSystem,
+                        new LocalGVFSConfig(),
                         dryRun: false,
                         noVerify: false,
                         error: out errorMessage);
