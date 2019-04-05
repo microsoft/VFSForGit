@@ -82,7 +82,7 @@ namespace GVFS.Common
         {
             // Prefer to use the NuGet upgrader if it is configured. If the NuGet upgrader is not configured,
             // then try to use the GitHubUpgrader.
-            if (NuGetUpgrader.TryCreate(tracer, fileSystem, dryRun, noVerify, out NuGetUpgrader nuGetUpgrader, out bool isConfigured, out error))
+            if (NuGetUpgrader.TryCreate(tracer, fileSystem, new LocalGVFSConfig(), dryRun, noVerify, out NuGetUpgrader nuGetUpgrader, out bool isConfigured, out error))
             {
                 // We were successfully able to load a NuGetUpgrader - use that.
                 newUpgrader = nuGetUpgrader;
