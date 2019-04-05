@@ -47,3 +47,4 @@ KEXT_STATIC bool ShouldHandleVnodeOpEvent(
     char procname[MAXCOMLEN + 1],
     int* kauthResult,
     int* kauthError);
+KEXT_STATIC void UseMainForkIfNamedStream(vnode_t& vnode, bool& putVnodeWhenDone);

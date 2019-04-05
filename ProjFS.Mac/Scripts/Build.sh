@@ -50,7 +50,6 @@ while read line; do
      [[ $line == *"%"* ]] && 
 	 [[ $line != *"KauthHandler_Init"* ]] && 
 	 [[ $line != *"KauthHandler_Cleanup"* ]] && 
-	 [[ $line != *"UseMainForkIfNamedStream"* ]] &&                  #SHOULD ADD COVERAGE
 	 [[ $line != *"HandleVnodeOperation"* ]] &&                      #SHOULD ADD COVERAGE
 	 [[ $line != *"HandleFileOpOperation"* ]] &&                     #SHOULD ADD COVERAGE
 	 [[ $line != *"TryGetVirtualizationRoot"* ]] &&                  #SHOULD ADD COVERAGE

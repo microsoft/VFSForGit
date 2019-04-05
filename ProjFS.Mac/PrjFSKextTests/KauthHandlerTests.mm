@@ -263,4 +263,25 @@ using std::shared_ptr;
     XCTAssertEqual(kauthResult, KAUTH_RESULT_DEFER);
 }
 
+- (void)testUseMainForkIfNamedStream {
+    shared_ptr<mount> testMount = mount::Create();
+    const char* filePath = "/Users/test/code/Repo/file";
+    shared_ptr<vnode> testFileVnode = testMount->CreateVnodeTree(filePath);
+
+    // Out Parameters to test
+    bool putVnodeWhenDone;
+    vnode_t testVnode = testFileVnode.get();
+
+    testVnode->namedStream = false;
+    UseMainForkIfNamedStream(testVnode, putVnodeWhenDone);
+    XCTAssertFalse(putVnodeWhenDone);
+    XCTAssertTrue(testVnode == testFileVnode.get());
+
+    testVnode->namedStream = true;
+    UseMainForkIfNamedStream(testVnode, putVnodeWhenDone);
+    XCTAssertTrue(putVnodeWhenDone);
+    XCTAssertTrue(testVnode == testFileVnode->GetParentVnode().get());
+    vnode_put(testVnode);
+}
+
 @end

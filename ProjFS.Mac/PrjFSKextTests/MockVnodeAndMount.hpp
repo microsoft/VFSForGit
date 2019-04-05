@@ -111,8 +111,9 @@ public:
     static std::shared_ptr<vnode> Create(const std::shared_ptr<mount>& mount, const char* path, vtype vnodeType = VREG);
     ~vnode();
 
-    VnodeMockErrors errors;
-    vnode_attr attrValues;
+    VnodeMockErrors errors = {};
+    vnode_attr attrValues = {};
+    bool namedStream = false;
     
     uint64_t GetInode() const          { return this->inode; }
     uint32_t GetVid() const            { return this->vid; }
