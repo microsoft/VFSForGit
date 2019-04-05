@@ -11,11 +11,11 @@ namespace GVFS.Service
     public class ProductUpgradeTimer : IDisposable
     {
         private static readonly TimeSpan TimeInterval = TimeSpan.FromDays(1);
-        private JsonTracer tracer;
+        private ITracer tracer;
         private PhysicalFileSystem fileSystem;
         private Timer timer;
 
-        public ProductUpgradeTimer(JsonTracer tracer)
+        public ProductUpgradeTimer(ITracer tracer)
         {
             this.tracer = tracer;
             this.fileSystem = new PhysicalFileSystem();
