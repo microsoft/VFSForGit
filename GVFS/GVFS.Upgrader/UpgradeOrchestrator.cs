@@ -183,7 +183,7 @@ namespace GVFS.Upgrader
             if (this.upgrader == null)
             {
                 ProductUpgrader upgrader;
-                if (!ProductUpgrader.TryCreateUpgrader(this.tracer, this.fileSystem, this.DryRun, this.NoVerify, out upgrader, out errorMessage))
+                if (!ProductUpgrader.TryCreateUpgrader(this.tracer, this.fileSystem, new LocalGVFSConfig(), this.DryRun, this.NoVerify, out upgrader, out errorMessage))
                 {
                     return false;
                 }
