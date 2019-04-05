@@ -261,36 +261,36 @@ namespace PrjFSLib.Linux
                 relativePath = PtrToStringUTF8(ev.Path);
             }
 
-                if ((ev.Mask & ProjFS.Constants.PROJFS_ONDIR) != 0)
+            if ((ev.Mask & ProjFS.Constants.PROJFS_ONDIR) != 0)
+            {
+                result = this.OnEnumerateDirectory(
+                    commandId: 0,
+                    relativePath: relativePath,
+                    triggeringProcessId: ev.Pid,
+                    triggeringProcessName: triggeringProcessName);
+            }
+            else
+            {
+                byte[] providerId = new byte[PlaceholderIdLength];
+                byte[] contentId = new byte[PlaceholderIdLength];
+
+                result = this.projfs.GetProjAttrs(
+                    relativePath,
+                    providerId,
+                    contentId);
+
+                if (result == Result.Success)
                 {
-                    result = this.OnEnumerateDirectory(
+                    result = this.OnGetFileStream(
                         commandId: 0,
                         relativePath: relativePath,
+                        providerId: providerId,
+                        contentId: contentId,
                         triggeringProcessId: ev.Pid,
-                        triggeringProcessName: triggeringProcessName);
+                        triggeringProcessName: triggeringProcessName,
+                        fd: ev.Fd);
                 }
-                else
-                {
-                    byte[] providerId = new byte[PlaceholderIdLength];
-                    byte[] contentId = new byte[PlaceholderIdLength];
-
-                    result = this.projfs.GetProjAttrs(
-                        relativePath,
-                        providerId,
-                        contentId);
-
-                    if (result == Result.Success)
-                    {
-                        result = this.OnGetFileStream(
-                            commandId: 0,
-                            relativePath: relativePath,
-                            providerId: providerId,
-                            contentId: contentId,
-                            triggeringProcessId: ev.Pid,
-                            triggeringProcessName: triggeringProcessName,
-                            fd: ev.Fd);
-                    }
-                }
+            }
 
             return -result.ToErrno();
         }
@@ -328,37 +328,37 @@ namespace PrjFSLib.Linux
                 relativePath = PtrToStringUTF8(ev.Path);
             }
 
-                if (!isDirectory)
-                {
-                    string currentRelativePath = relativePath;
+            if (!isDirectory)
+            {
+                string currentRelativePath = relativePath;
 
-                    // TODO(Linux): can other intermediate file ops race us here?
-                    if (nt == NotificationType.FileRenamed)
+                // TODO(Linux): can other intermediate file ops race us here?
+                if (nt == NotificationType.FileRenamed)
+                {
+                    unsafe
                     {
-                        unsafe
-                        {
                         currentRelativePath = PtrToStringUTF8(ev.TargetPath);
-                        }
                     }
-
-                    result = this.projfs.GetProjAttrs(
-                        currentRelativePath,
-                        providerId,
-                        contentId);
                 }
 
-                if (result == Result.Success)
-                {
-                    result = this.OnNotifyOperation(
-                        commandId: 0,
-                        relativePath: relativePath,
-                        providerId: providerId,
-                        contentId: contentId,
-                        triggeringProcessId: ev.Pid,
-                        triggeringProcessName: triggeringProcessName,
-                        isDirectory: isDirectory,
-                        notificationType: nt);
-                }
+                result = this.projfs.GetProjAttrs(
+                    currentRelativePath,
+                    providerId,
+                    contentId);
+            }
+
+            if (result == Result.Success)
+            {
+                result = this.OnNotifyOperation(
+                    commandId: 0,
+                    relativePath: relativePath,
+                    providerId: providerId,
+                    contentId: contentId,
+                    triggeringProcessId: ev.Pid,
+                    triggeringProcessName: triggeringProcessName,
+                    isDirectory: isDirectory,
+                    notificationType: nt);
+            }
 
             int ret = -result.ToErrno();
 
