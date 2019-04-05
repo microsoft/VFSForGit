@@ -83,24 +83,9 @@ namespace PrjFSLib.Linux
             byte[] bytes,
             uint byteCount)
         {
-            unsafe
+            if (!NativeFileWriter.TryWrite(fd, bytes, byteCount))
             {
-                 fixed (byte* bytesPtr = bytes)
-                 {
-                     byte* bytesToWrite = bytesPtr;
-
-                     while (byteCount > 0)
-                     {
-                        long res = NativeMethods.Write(fd, bytesToWrite, byteCount);
-                        if (res == -1)
-                        {
-                            return Result.EIOError;
-                        }
-
-                        bytesToWrite += res;
-                        byteCount -= (uint)res;
-                    }
-                }
+                return Result.EIOError;
             }
 
             return Result.Success;
@@ -411,10 +396,32 @@ namespace PrjFSLib.Linux
             return Result.ENotYetImplemented;
         }
 
-        private static unsafe class NativeMethods
+        private static unsafe class NativeFileWriter
         {
+            public static bool TryWrite(int fd, byte[] bytes, uint byteCount)
+            {
+                 fixed (byte* bytesPtr = bytes)
+                 {
+                     byte* bytesIndexPtr = bytesPtr;
+
+                     while (byteCount > 0)
+                     {
+                        long res = Write(fd, bytesIndexPtr, byteCount);
+                        if (res == -1)
+                        {
+                            return false;
+                        }
+
+                        bytesIndexPtr += res;
+                        byteCount -= (uint)res;
+                    }
+                }
+
+                return true;
+            }
+
             [DllImport("libc", EntryPoint = "write", SetLastError = true)]
-            public static extern long Write(int fd, byte* buf, ulong count);
+            private static extern long Write(int fd, byte* buf, ulong count);
         }
     }
 }
