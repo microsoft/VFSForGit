@@ -15,10 +15,15 @@ namespace GVFS.Service
         private PhysicalFileSystem fileSystem;
         private Timer timer;
 
-        public ProductUpgradeTimer(ITracer tracer)
+        public ProductUpgradeTimer(ITracer tracer, PhysicalFileSystem fileSystem)
         {
             this.tracer = tracer;
-            this.fileSystem = new PhysicalFileSystem();
+            this.fileSystem = fileSystem;
+        }
+
+        public ProductUpgradeTimer(ITracer tracer)
+            : this(tracer, new PhysicalFileSystem())
+        {
         }
 
         public void Start()
