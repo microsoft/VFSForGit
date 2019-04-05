@@ -1,6 +1,5 @@
 using System;
 using System.Runtime.InteropServices;
-using System.Text;
 using PrjFSLib.Linux.Interop;
 using static PrjFSLib.Linux.Interop.Errno;
 
@@ -239,27 +238,22 @@ namespace PrjFSLib.Linux
         }
 
         // TODO(Linux): replace with netstandard2.1 Marshal.PtrToStringUTF8()
-        private static unsafe string PtrToStringUTF8(byte* ptr)
+        private static string PtrToStringUTF8(IntPtr ptr)
         {
-            if (ptr == (byte*)IntPtr.Zero)
+            if (ptr == IntPtr.Zero)
             {
                 return null;
             }
 
-            ulong length = NativeMethods.Strlen(ptr);
-            return Encoding.UTF8.GetString(ptr, (int)length);
+            return Marshal.PtrToStringAnsi(ptr);
         }
 
         private int HandleProjEvent(ref ProjFS.Event ev)
         {
             string triggeringProcessName = GetProcCmdline(ev.Pid);
-            string relativePath;
-            Result result;
+            string relativePath = PtrToStringUTF8(ev.Path);
 
-            unsafe
-            {
-                relativePath = PtrToStringUTF8(ev.Path);
-            }
+            Result result;
 
             if ((ev.Mask & ProjFS.Constants.PROJFS_ONDIR) != 0)
             {
@@ -320,13 +314,8 @@ namespace PrjFSLib.Linux
             string triggeringProcessName = GetProcCmdline(ev.Pid);
             byte[] providerId = new byte[PlaceholderIdLength];
             byte[] contentId = new byte[PlaceholderIdLength];
-            string relativePath;
+            string relativePath = PtrToStringUTF8(ev.Path);
             Result result = Result.Success;
-
-            unsafe
-            {
-                relativePath = PtrToStringUTF8(ev.Path);
-            }
 
             if (!isDirectory)
             {
@@ -335,10 +324,7 @@ namespace PrjFSLib.Linux
                 // TODO(Linux): can other intermediate file ops race us here?
                 if (nt == NotificationType.FileRenamed)
                 {
-                    unsafe
-                    {
-                        currentRelativePath = PtrToStringUTF8(ev.TargetPath);
-                    }
+                    currentRelativePath = PtrToStringUTF8(ev.TargetPath);
                 }
 
                 result = this.projfs.GetProjAttrs(
@@ -427,9 +413,6 @@ namespace PrjFSLib.Linux
 
         private static unsafe class NativeMethods
         {
-            [DllImport("libc", EntryPoint = "strlen")]
-            public static extern ulong Strlen(byte* s);
-
             [DllImport("libc", EntryPoint = "write", SetLastError = true)]
             public static extern long Write(int fd, byte* buf, ulong count);
         }
