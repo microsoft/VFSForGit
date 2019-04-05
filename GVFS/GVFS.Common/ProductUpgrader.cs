@@ -75,6 +75,7 @@ namespace GVFS.Common
         public static bool TryCreateUpgrader(
             ITracer tracer,
             PhysicalFileSystem fileSystem,
+            LocalGVFSConfig gvfsConfig,
             bool dryRun,
             bool noVerify,
             out ProductUpgrader newUpgrader,
@@ -82,7 +83,7 @@ namespace GVFS.Common
         {
             // Prefer to use the NuGet upgrader if it is configured. If the NuGet upgrader is not configured,
             // then try to use the GitHubUpgrader.
-            if (NuGetUpgrader.TryCreate(tracer, fileSystem, new LocalGVFSConfig(), dryRun, noVerify, out NuGetUpgrader nuGetUpgrader, out bool isConfigured, out error))
+            if (NuGetUpgrader.TryCreate(tracer, fileSystem, gvfsConfig, dryRun, noVerify, out NuGetUpgrader nuGetUpgrader, out bool isConfigured, out error))
             {
                 // We were successfully able to load a NuGetUpgrader - use that.
                 newUpgrader = nuGetUpgrader;
@@ -103,7 +104,7 @@ namespace GVFS.Common
                 // Try to load other upgraders as appropriate.
             }
 
-            newUpgrader = GitHubUpgrader.Create(tracer, fileSystem, new LocalGVFSConfig(), dryRun, noVerify, out error);
+            newUpgrader = GitHubUpgrader.Create(tracer, fileSystem, gvfsConfig, dryRun, noVerify, out error);
             if (newUpgrader == null)
             {
                 tracer.RelatedError($"{nameof(TryCreateUpgrader)}: Could not create upgrader. {error}");
